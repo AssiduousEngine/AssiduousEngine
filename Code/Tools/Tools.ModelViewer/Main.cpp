@@ -2339,7 +2339,7 @@ namespace
                                                       self->Run(u8"entry.remove", Arg(u8"id", Text(Format(u8"{}", e->id).AsView())));
                                           });
             }
-            m_gridMenu->Open(list, at);
+            m_gridMenu->Open(list, list.GetRootNode()->ConvertToNodeSpace(at));
         }
 
         void TakeOut(const Guid& collection, Span<const String> paths)
@@ -2765,7 +2765,7 @@ namespace
             }
             else
                 (void)m_libraryMenu->AddItem(u8"New collection", [self]() { self->NewCollection({}); });
-            m_libraryMenu->Open(tree, at);
+            m_libraryMenu->Open(tree, tree.GetRootNode()->ConvertToNodeSpace(at));
         }
 
         // Creates a collection named "New collection" (inside `parent`, a collection id, when given)

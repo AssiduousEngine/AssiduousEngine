@@ -392,7 +392,7 @@ export namespace editor::app
             (void)m_menu->AddItem(u8"Select All", [self]() { self->m_list->SelectAll(); });
             m_menu->AddSeparator();
             (void)m_menu->AddItem(u8"Clear", [self]() { self->Clear(); });
-            m_menu->Open(*m_list, at);
+            m_menu->Open(*m_list, m_list->GetRootNode()->ConvertToNodeSpace(at));
         }
 
         static constexpr f32 kFollowSlack = 4.0f; // this close to the bottom counts as at it

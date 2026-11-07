@@ -262,7 +262,7 @@ export namespace editor::app
                                       else
                                           self->m_model.Changed(); // redraw its star
                                   });
-            m_menu->Open(*m_list, at);
+            m_menu->Open(*m_list, m_list->GetRootNode()->ConvertToNodeSpace(at));
         }
         /// The row menu, while it is open.
         [[nodiscard]] gui::Menu* RowMenu() const noexcept { return m_menu && m_menu->IsOpen() ? m_menu.Get() : nullptr; }

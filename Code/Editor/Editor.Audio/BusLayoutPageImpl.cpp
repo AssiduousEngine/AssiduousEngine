@@ -365,7 +365,7 @@ namespace editor
         (void)m_menu->AddItem(u8"Add Bus", [self]() { (void)self->AddBus(); });
         if (!m_selected.IsFixed())
             (void)m_menu->AddItem(u8"Remove Bus", [self]() { (void)self->RemoveSelected(); });
-        m_menu->Open(*m_tree, at);
+        m_menu->Open(*m_tree, m_tree->GetRootNode()->ConvertToNodeSpace(at));
     }
 
     const TypeInfo* AudioBusLayoutPageFactory::PrimaryType() const

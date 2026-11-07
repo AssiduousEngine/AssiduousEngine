@@ -1313,6 +1313,6 @@ namespace editor
                                                     });
         const pipeline::AnimationGraphAsset* graph = Graph();
         remove->SetEnabled(!layers || (graph != nullptr && graph->source.layers.Size() > 1)); // a graph keeps at least one layer
-        m_listMenu->Open(owner, at);
+        m_listMenu->Open(owner, owner.GetRootNode()->ConvertToNodeSpace(at));
     }
 }

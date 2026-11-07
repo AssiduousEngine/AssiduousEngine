@@ -640,7 +640,7 @@ namespace editor
         case ParticleRowKind::SubEmitters:
             return; // the emitter is not removable; links are added in the grid
         }
-        m_rowMenu->Open(owner, at);
+        m_rowMenu->Open(owner, owner.GetRootNode()->ConvertToNodeSpace(at));
     }
 
     // === The preview ===

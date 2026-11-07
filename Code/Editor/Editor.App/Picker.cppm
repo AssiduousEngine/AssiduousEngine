@@ -179,7 +179,7 @@ export namespace editor::app
                                                    self->m_menu = MakeRef<gui::Menu>(self->m_allocator);
                                                    self->m_request.OnContextMenu(*self->m_menu, key.AsView());
                                                    if (self->m_menu->ItemCount() > 0)
-                                                       self->m_menu->Open(*self->m_list, at);
+                                                       self->m_menu->Open(*self->m_list, self->m_list->GetRootNode()->ConvertToNodeSpace(at));
                                                    e.Handled = true;
                                                });
             }

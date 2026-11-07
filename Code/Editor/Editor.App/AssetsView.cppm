@@ -1155,7 +1155,7 @@ export namespace editor::app
             gui::MenuItem* remove = m_menu->AddItem(targets.Size() == 1 ? String(u8"Delete...").AsView() : Format(u8"Delete {} Assets...", targets.Size()).AsView(),
                                                     [self, targets]() { self->ConfirmDelete(targets); });
             remove->SetShortcut(u8"Del");
-            m_menu->Open(owner, at);
+            m_menu->Open(owner, owner.GetRootNode()->ConvertToNodeSpace(at));
         }
         // A group's menu, for a group's row or the group shown; for the group shown it also offers
         // what makes new things in it.
@@ -1212,7 +1212,7 @@ export namespace editor::app
                 m_menu->AddSeparator();
                 (void)m_menu->AddItem(u8"Delete Group...", [self, target]() { self->ConfirmDeleteGroup(*target); });
             }
-            m_menu->Open(owner, at);
+            m_menu->Open(owner, owner.GetRootNode()->ConvertToNodeSpace(at));
         }
         // A new group in `parent`, its name asked first (the name prompt) when there is one to ask
         // with; then shown.

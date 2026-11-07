@@ -284,7 +284,7 @@ namespace editor
             const StringView tail[] = {SceneActionIds::kEntityDelete};
             (void)AppendActionItems(*m_menu, actions, page, Span<const StringView>(tail, 1));
         }
-        m_menu->Open(*m_tree, at);
+        m_menu->Open(*m_tree, m_tree->GetRootNode()->ConvertToNodeSpace(at));
     }
 
     void SceneHierarchyView::RunAction(StringView id)

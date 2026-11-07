@@ -450,6 +450,22 @@ namespace
     }
 }
 
+TEST_CASE("assets: at a UI scale, a row's menu opens at the point asked, not at that point scaled again")
+{
+    Bed bed;
+    bed.root->SetDisplayScale(1.25f); // world space (a pointer's) is device pixels, the root's units times 1.25
+    (void)bed.root->UpdateLayout();
+    gui::ListView& list = *bed.view->List();
+    const Float2 at = list.ConvertToWorldSpace(Float2{4.0f, 4.0f}); // where ShowMenuFor opens it
+    bed.view->ShowMenuFor(bed.RowOf(u8"Crate"));
+    gui::Menu* menu = bed.view->OpenMenu();
+    REQUIRE(menu != nullptr);
+    (void)bed.root->UpdateLayout();
+    const gui::Rect bounds = menu->GetScreenBounds();
+    CHECK(bounds.x == doctest::Approx(at.x).epsilon(0.01));
+    CHECK(bounds.y == doctest::Approx(at.y).epsilon(0.01));
+}
+
 TEST_CASE("assets: an asset's menu, a group's, and the shown group's with New; Delete asks naming what goes, then deletes")
 {
     Bed bed;
