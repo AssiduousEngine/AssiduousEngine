@@ -8,6 +8,11 @@
 
 ## Editor
 
+- **The UI scale's percentage does not follow the slider while it is dragged** (user 2026-11-07):
+  `gui::Slider` sends `input` during a drag and `change` on release, and PreferencesDialog listens
+  to `Changed` only, so `pref-scale-value` updates on release and the user sets the scale blind.
+  Update the label on `input`; keep applying the scale on release (rescaling mid-drag would move
+  the slider under the pointer).
 - **Context menus open away from the pointer under UI scaling** (reported 2026-11-07 on Windows
   at 125%; reproduced on Linux with the editor's UI scale at 125%): the menu lands at the pointer's
   position times the scale, so the gap grows toward the right and bottom (the assets browser shows
