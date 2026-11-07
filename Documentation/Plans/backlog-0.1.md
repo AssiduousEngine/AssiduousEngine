@@ -8,6 +8,11 @@
 
 ## Editor
 
+- **Add Component stays enabled while the scene simulates** (user 2026-11-07): the inspector turns
+  read-only during Simulate (`SceneInspectorView::Refresh`, `m_readOnly`), and Paste hides, but the
+  Add Component button (`inspector-add`) still opens the picker; the pick is then refused without a
+  word (`AddComponent` returns false when read-only). Disable the button while read-only, as the
+  rest of the inspector is (`Code/Editor/Editor.Scene/InspectorViewImpl.cpp`).
 - **The waveform shows a limited master as a solid block** (user 2026-11-05, from the website's
   screenshots): `BuildWaveformPeaks` keeps each of the clip page's 256 buckets' largest absolute
   sample, and mastered music peaks at full scale in every one (PaperKid's `MusicBlockB.ogg`: every
