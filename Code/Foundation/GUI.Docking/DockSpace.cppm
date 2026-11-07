@@ -538,7 +538,7 @@ export namespace foundation::gui
             if (node == nullptr || node->Panels.IsEmpty() || tab == nullptr)
                 return nullptr;
             const String panel = node->Panels[Min(static_cast<usize>(node->Active), node->Panels.Size() - 1)];
-            return OpenMoveTo(panel.AsView(), *tab, tab->ConvertToWorldSpace(core::Float2{0.0f, tab->GetSize().y}));
+            return OpenMoveTo(panel.AsView(), *tab, tab->ConvertToRootSpace(core::Float2{0.0f, tab->GetSize().y}));
         }
         /// Returns the menu opened last, whether it is still open or not, or null before any has
         /// opened.
@@ -1370,7 +1370,7 @@ export namespace foundation::gui
                 if (panel != nullptr)
                 {
                     const String moving = *panel;
-                    event.Handled = m_space->OpenMoveTo(moving.AsView(), *tab, event.Position) != nullptr;
+                    event.Handled = m_space->OpenMoveTo(moving.AsView(), *tab, tab->GetRootNode()->ConvertToNodeSpace(event.Position)) != nullptr;
                 }
                 return;
             }

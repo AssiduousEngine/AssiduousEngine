@@ -262,6 +262,24 @@ TEST_CASE("dock area: a tab dragged with Shift held floats at the pointer: the d
     CHECK_FALSE(bed.area->GetFloatPreview(preview));
 }
 
+TEST_CASE("dock area: at a display scale, Move to opens below its tab, not at that point scaled again")
+{
+    Bed bed;
+    bed.root->SetDisplayScale(1.25f); // world space is device pixels, the root's units times 1.25
+    REQUIRE(bed.controller.Edit([](DockLayout& l) { return l.InsertBeside(SV(u8"profiler"), l.CentralStack(), DockSide::End, 0.4f); }).Ok());
+    bed.Lay();
+    Tab* tab = bed.TabOf(u8"profiler");
+    REQUIRE(tab != nullptr);
+    tab->RequestFocus();
+    Menu* menu = bed.area->GetMainSpace()->OpenMoveToFocused();
+    REQUIRE(menu != nullptr);
+    bed.Lay();
+    const core::Float2 below = tab->ConvertToWorldSpace(core::Float2{0.0f, tab->GetSize().y});
+    const Rect bounds = menu->GetScreenBounds();
+    CHECK(bounds.x == doctest::Approx(below.x).epsilon(0.01));
+    CHECK(bounds.y == doctest::Approx(below.y).epsilon(0.01));
+}
+
 TEST_CASE("dock area: Move to's Float and dock.float float a panel over its stack")
 {
     Bed bed;
