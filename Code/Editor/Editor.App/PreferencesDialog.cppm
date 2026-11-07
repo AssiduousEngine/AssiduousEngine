@@ -205,6 +205,11 @@ export namespace editor::app
                          const auto* scale = self->Find<gui::Slider>(u8"pref-scale");
                          self->Change([scale](EditorLook& look) { look.uiScale = static_cast<f32>(scale->GetValue()); });
                      });
+            // The percentage follows a drag as it goes; the scale itself applies on release, since
+            // rescaling the editor mid-drag would move the slider from under the pointer.
+            if (auto* scale = Find<gui::Slider>(u8"pref-scale"))
+                (void)scale->AddEventListener(gui::EventType::Input, [self, scale](const gui::Event&)
+                                              { self->ShowScaleValue(static_cast<f32>(scale->GetValue())); });
             if (auto* add = Find<gui::Button>(u8"pref-preview-add"))
                 add->SetOnClick([self]() { self->AddPreview(u8"Custom", 1920, 1080); });
             AddContributions();
@@ -462,9 +467,13 @@ export namespace editor::app
                 motion->SetChecked(m_look.reduceMotion);
             if (auto* scale = Find<gui::Slider>(u8"pref-scale"))
                 scale->SetValue(m_look.uiScale);
-            if (auto* value = Find<gui::Label>(u8"pref-scale-value"))
-                value->SetText(Format(u8"{}%", static_cast<i32>(m_look.uiScale * 100.0f + 0.5f)).AsView());
+            ShowScaleValue(m_look.uiScale);
             m_showing = false;
+        }
+        void ShowScaleValue(f32 scale)
+        {
+            if (auto* value = Find<gui::Label>(u8"pref-scale-value"))
+                value->SetText(Format(u8"{}%", static_cast<i32>(scale * 100.0f + 0.5f)).AsView());
         }
 
         IAllocator& m_allocator;

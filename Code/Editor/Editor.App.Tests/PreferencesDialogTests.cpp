@@ -157,6 +157,30 @@ TEST_CASE("preferences: its controls as the store has the look; a change shown a
     CHECK_FALSE(bed.shown.Back().dark); // saved: nothing is put back
 }
 
+TEST_CASE("preferences: the UI scale's percentage follows a drag; the scale applies on release")
+{
+    Bed bed;
+    REQUIRE(bed.dialog->Open(*bed.root));
+    gui::Window& window = bed.Window();
+    auto* scale = FindId<gui::Slider>(window, u8"pref-scale");
+    auto* value = FindId<gui::Label>(window, u8"pref-scale-value");
+    REQUIRE(scale != nullptr);
+    REQUIRE(value != nullptr);
+    CHECK(value->GetText() == StringView(u8"100%"));
+
+    // Mid-drag the slider sends `input`: the label shows where it is, the editor is not rescaled.
+    scale->SetValue(1.25);
+    scale->SendEvent(gui::Event(gui::EventType::Input, scale));
+    CHECK(value->GetText() == StringView(u8"125%"));
+    CHECK(bed.shown.IsEmpty());
+
+    // The release sends `change`, which applies it.
+    scale->SendEvent(gui::Event(gui::EventType::Changed, scale));
+    REQUIRE(bed.shown.Size() == 1u);
+    CHECK(bed.shown.Back().uiScale == doctest::Approx(1.25f));
+    CHECK(value->GetText() == StringView(u8"125%"));
+}
+
 TEST_CASE("preferences: Cancel, or closing the window, puts the look back as it was; the store unchanged")
 {
     Bed bed;
