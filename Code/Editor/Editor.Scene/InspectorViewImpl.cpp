@@ -314,6 +314,8 @@ namespace editor
             m_sections.SetReadOnly(readOnly);
             if (auto* note = Find<gui::Node>(u8"inspector-note"))
                 note->SetDisplayed(readOnly);
+            if (auto* add = Find<gui::Button>(u8"inspector-add"))
+                add->SetEnabled(!readOnly); // refused visibly: a component cannot be added while it simulates
         }
         const u64 signature = Signature();
         if (signature != m_signature)
@@ -863,7 +865,7 @@ namespace editor
 
     void SceneInspectorView::OpenAddComponent()
     {
-        if (!m_services.pick || m_entities.IsEmpty())
+        if (!m_services.pick || m_entities.IsEmpty() || m_readOnly)
             return;
         app::PickerRequest request;
         request.Placeholder = String(u8"Search components");

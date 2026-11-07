@@ -884,6 +884,9 @@ TEST_CASE("inspector: several entities edited at once; a component's header has 
     page->OnUpdate(bed.host, 1.0f / 60.0f);
     CHECK(inspector->Sections().IsReadOnly());
     CHECK(FindId<gui::Node>(*page->Content(), u8"inspector-note")->IsDisplayed());
+    auto* addComponent = FindId<gui::Button>(*page->Content(), u8"inspector-add");
+    REQUIRE(addComponent != nullptr);
+    CHECK_FALSE(addComponent->IsEnabled()); // Add Component is off too, not refused without a word
     write.Value = gui::Variant(5.0);
     inspector->Sections().BeginEdit(intensity.AsView());
     inspector->Sections().CommitEdit(intensity.AsView(), write);
@@ -891,6 +894,7 @@ TEST_CASE("inspector: several entities edited at once; a component's header has 
     page->StopSimulation();
     page->OnUpdate(bed.host, 1.0f / 60.0f);
     CHECK_FALSE(inspector->Sections().IsReadOnly());
+    CHECK(addComponent->IsEnabled());
     page->OnClose();
 }
 
