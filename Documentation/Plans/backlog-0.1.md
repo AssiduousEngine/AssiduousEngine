@@ -8,6 +8,14 @@
 
 ## Editor
 
+- **Context menus open away from the pointer under UI scaling** (reported 2026-11-07 on Windows
+  at 125%; reproduced on Linux with the editor's UI scale at 125%): the menu lands at the pointer's
+  position times the scale, so the gap grows toward the right and bottom (the assets browser shows
+  it most; the hierarchy, near the window's left edge, barely). `gui::Menu::Open(owner, position)`
+  takes a point in the root's space, but its callers pass `MouseEvent::Position`, which is world
+  space (device pixels: the root's transform is the display scale). About 30 call sites. Fix in
+  `Menu::Open` (take the world point and convert it with the root's `ConvertToNodeSpace`), with a
+  GUI test of a menu opened at a scaled root.
 - **Add Component stays enabled while the scene simulates** (user 2026-11-07): the inspector turns
   read-only during Simulate (`SceneInspectorView::Refresh`, `m_readOnly`), and Paste hides, but the
   Add Component button (`inspector-add`) still opens the picker; the pick is then refused without a
