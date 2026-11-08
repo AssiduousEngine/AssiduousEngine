@@ -21,6 +21,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- Samples: Lamplight's, Snowline's and Sky Hopper's hints and controls lists name the control on
+  the device in hand (and follow a rebinding) instead of an action's name or a fixed key and pad
+  button.
 - Editor: each scene page's Simulate runs its scripts apart from other pages', with their own
   script context and clock.
 - Editor: a Simulate's sound is heard while its page has the focus, as a Game tab's is: starting

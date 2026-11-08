@@ -67,7 +67,9 @@ class Lamp
             {
                 return; // the HUD is not up
             }
-            Label::of(gui::root().find("hud-prompt")).text = lit ? "Interact: put out the lamp" : "Interact: light the lamp";
+            // The control Interact takes on the device in hand ("F", "Pad South"), not the action's name.
+            const string use = Input::describe("Interact");
+            Label::of(gui::root().find("hud-prompt")).text = use + (lit ? ": put out the lamp" : ": light the lamp");
             panel.visible = true;
             gui::root().find("hud-pick").visible = false; // the pick bar belongs to doors
             m_prompting = true;
