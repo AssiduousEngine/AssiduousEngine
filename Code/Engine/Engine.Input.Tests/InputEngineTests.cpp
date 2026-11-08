@@ -397,3 +397,63 @@ TEST_CASE("input: a fitted source turned with the present reads the game's frame
     CHECK(mouse->X() == doctest::Approx(150.0f)); // the window's centre is the game's
     CHECK(mouse->Y() == doctest::Approx(90.0f));
 }
+
+#ifdef OPTION_HAS_ANGELSCRIPT
+TEST_CASE("input: Input::describe names the control for the device in hand, as a prompt shows it")
+{
+    RefPtr<foundation::script::IScriptManager> manager =
+        foundation::script::angelscript::CreateScriptManager(DefaultAllocator());
+    engine::input::RegisterInputScriptFacade();
+    foundation::script::RegisterReflectedTypes(*manager);
+
+    ActionRuntime runtime;
+    runtime.SetMap(MakeGameplayMap()); // Jump: Space, then the pad's south button
+    runtime.DisableSet(u8"Menu");
+    InputKindTracker kinds;
+    RefPtr<foundation::script::IScriptContext> ctx = manager->CreateContext();
+    RefPtr<foundation::script::IScriptContext> ctxNone = manager->CreateContext();
+    foundation::script::ScriptServices services;
+    services.Add(runtime);
+    services.Add(kinds);
+    ctx->SetServiceResolver(services.Resolver());
+    const StringView read = u8"string Shown; string InMenu; string Unbound;\n"
+                            u8"void main() {\n"
+                            u8"  Shown = Input::describe(\"Jump\");\n"
+                            u8"  InMenu = Input::describe(\"Confirm\", \"Menu\");\n"
+                            u8"  Unbound = Input::describe(\"Fly\");\n"
+                            u8"}\n";
+
+    REQUIRE(ctx->Load(read, u8"main").IsOk());
+    CHECK(ctx->GetGlobal(u8"Shown").Get<String>() == StringView(u8"Space")); // the pointer: the keyboard's
+    CHECK(ctx->GetGlobal(u8"InMenu").Get<String>() == StringView(u8"Space")); // a named set, enabled or not
+    CHECK(ctx->GetGlobal(u8"Unbound").Get<String>().IsEmpty());
+
+    // A pad picked up: the pad's button.
+    FakeGamepad pad;
+    FakeDevices devices;
+    devices.pads.PushBack(&pad);
+    pad.buttonsPressed[static_cast<u32>(shell::GamepadButton::South)] = true;
+    kinds.Update(devices);
+    REQUIRE(kinds.Kind() == InputKind::Pad);
+    REQUIRE(ctx->Load(read, u8"main").IsOk());
+    CHECK(ctx->GetGlobal(u8"Shown").Get<String>() == StringView(u8"Pad South"));
+
+    // No input service: nothing to name, never a fault.
+    REQUIRE(ctxNone->Load(read, u8"main").IsOk());
+    CHECK(ctxNone->GetGlobal(u8"Shown").Get<String>().IsEmpty());
+}
+
+TEST_CASE("input.subsystem: the subsystem tracks the input kind from its active source")
+{
+    FakeGamepad pad;
+    FakeDevices devices;
+    devices.pads.PushBack(&pad);
+    InputSubsystem input(nullptr);
+    input.SetSourceProvider(&devices);
+    input.Update(1.0f / 60.0f);
+    CHECK(input.InputKinds().Kind() == InputKind::Pointer); // nothing deliberate yet
+    pad.buttonsPressed[static_cast<u32>(shell::GamepadButton::South)] = true;
+    input.Update(1.0f / 60.0f);
+    CHECK(input.InputKinds().Kind() == InputKind::Pad);
+}
+#endif // OPTION_HAS_ANGELSCRIPT

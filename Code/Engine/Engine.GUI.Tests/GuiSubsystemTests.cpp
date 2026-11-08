@@ -1449,6 +1449,43 @@ TEST_CASE("engine.gui: a prompt names the game's binding with no host wiring, an
     engine.Frame();
 }
 
+TEST_CASE("engine.gui: a prompt follows the input subsystem's kind of input, the one a script's Input.describe reads")
+{
+    Engine engine;
+    foundation::input::InputMap map;
+    foundation::input::ActionSet set;
+    set.name = String(u8"Gameplay");
+    foundation::input::Action deliver;
+    deliver.name = String(u8"Deliver");
+    foundation::input::Binding key;
+    key.source = foundation::input::BindingSource::Key;
+    key.code = static_cast<u32>(foundation::shell::KeyCode::E);
+    deliver.bindings.PushBack(key);
+    foundation::input::Binding pad;
+    pad.source = foundation::input::BindingSource::GamepadButton;
+    pad.code = static_cast<u32>(foundation::shell::GamepadButton::South);
+    deliver.bindings.PushBack(pad);
+    set.actions.PushBack(deliver);
+    map.sets.PushBack(set);
+    engine.input->SetMap(map);
+    RefPtr<Prompt> prompt = MakeRef<Prompt>(DefaultAllocator());
+    prompt->SetAction(String(u8"Deliver"));
+    engine.gui->ScreenRoot()->AddChild(prompt.Get());
+    engine.Frame();
+    (void)engine.gui->ScreenRoot()->UpdateLayout();
+    CHECK(prompt->GetText() == StringView(u8"E")); // the pointer: the keyboard's control
+
+    // A pad picked up, as the input subsystem tracks it (the GUI keeps no tracker of its own).
+    engine.input->InputKinds().SetKind(foundation::input::InputKind::Pad);
+    engine.Frame();
+    (void)engine.gui->ScreenRoot()->UpdateLayout();
+    CHECK(prompt->GetText() == StringView(u8"Pad South"));
+    engine.input->InputKinds().SetKind(foundation::input::InputKind::Keyboard);
+    engine.Frame();
+    (void)engine.gui->ScreenRoot()->UpdateLayout();
+    CHECK(prompt->GetText() == StringView(u8"E"));
+}
+
 TEST_CASE("engine.gui: the default loading screen is the logo over a bar and \"Loading\", on the overlay layer, its bar the player's to drive")
 {
     constexpr StringView kSvg = u8R"(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 931 200"><rect width="931" height="200"/></svg>)";

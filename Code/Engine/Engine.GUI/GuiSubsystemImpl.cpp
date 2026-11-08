@@ -910,6 +910,7 @@ namespace engine::gui
         if (context == nullptr)
             return;
         m_input = context->GetSubsystem<engine::input::InputSubsystem>();
+        PointBridgesAtInputKinds(); // the shared tier's was made at init, before the input was found
         // Follows the runs' lifecycle, so a run's tier goes away with its session.
         if ((m_runManager = context->RunManager()) != nullptr)
             m_runManager->Subscribe(*this);
@@ -952,6 +953,7 @@ namespace engine::gui
         m_prompts.SetRuntime(nullptr);
         m_promptsRead = nullptr;
         m_input = nullptr;
+        PointBridgesAtInputKinds(); // none: the tracker went with the input subsystem
         m_sceneTiers.Clear();
         m_textureRoots.Clear();
         for (const UniquePtr<ScreenTier>& tier : m_runTiers)
@@ -1386,10 +1388,31 @@ namespace engine::gui
         return !tier.Canvases.IsEmpty() || (tier.Billboards && tier.Billboards->ChildCount() > 0);
     }
 
+    const foundation::input::InputKindTracker* GuiSubsystem::InputKinds() const noexcept
+    {
+        return m_input != nullptr ? &m_input->InputKinds() : nullptr;
+    }
+
+    void GuiSubsystem::PointBridgesAtInputKinds()
+    {
+        const foundation::input::InputKindTracker* kinds = InputKinds();
+        if (m_screen.Bridge)
+            m_screen.Bridge->SetInputKindTracker(kinds);
+        for (const UniquePtr<ScreenTier>& tier : m_runTiers)
+            if (tier->Bridge)
+                tier->Bridge->SetInputKindTracker(kinds);
+        for (SceneTier& tier : m_sceneTiers)
+            if (tier.Bridge)
+                tier.Bridge->SetInputKindTracker(kinds);
+        for (const UniquePtr<TextureRoot>& root : m_textureRoots)
+            if (root->Bridge)
+                root->Bridge->SetInputKindTracker(kinds);
+    }
+
     UniquePtr<GuiInputBridge> GuiSubsystem::MakeBridge(SceneRoot& root)
     {
         UniquePtr<GuiInputBridge> bridge = MakeUnique<GuiInputBridge>(m_allocator, root.GetEventDispatcher());
-        bridge->SetInputKindTracker(&m_inputKind); // the pointer, the keys or a pad
+        bridge->SetInputKindTracker(InputKinds()); // the pointer, the keys or a pad
         bridge->SetTextInputTarget(m_textInputTarget);
         return bridge;
     }
@@ -1507,7 +1530,6 @@ namespace engine::gui
         if (m_input == nullptr || !m_screen.Root)
             return;
         foundation::input::IInputSourceProvider& devices = m_input->ActiveSource();
-        m_inputKind.Update(devices);
         foundation::shell::IMouse* mouse = devices.Mouse();
         foundation::shell::ITouch* touch = devices.Touch();
         const bool fingers = touch != nullptr && touch->TouchCount() > 0;

@@ -49,6 +49,9 @@ export namespace engine::input
         explicit InputSubsystem(foundation::shell::IInputManager* input) : m_shellSource(input) {}
 
         [[nodiscard]] ActionRuntime& Runtime() noexcept { return m_runtime; }
+        /// The kind of input in use (the pointer, the keyboard or a pad), from the active source's
+        /// devices each frame: the one the GUI's prompts and a script's `Input.describe` follow.
+        [[nodiscard]] InputKindTracker& InputKinds() noexcept { return m_inputKinds; }
 
         /// This subsystem's runtime, then each run's (the player's, the editor's Game tabs': the
         /// ActionRuntime a run holds as a service): the UI marks what it takes on every one, so a
@@ -86,12 +89,14 @@ export namespace engine::input
         {
             Subsystem::OnRegister(manager);
             manager->RegisterService(m_runtime);
+            manager->RegisterService(m_inputKinds);
         }
         void OnUnregister() override
         {
             if (foundation::runtime::SubsystemManager* manager = Manager())
             {
                 manager->UnregisterService<ActionRuntime>();
+                manager->UnregisterService<InputKindTracker>();
             }
             Subsystem::OnUnregister();
         }
@@ -160,6 +165,7 @@ export namespace engine::input
             IInputSourceProvider& devices = (m_override != nullptr)
                                                 ? *m_override
                                                 : static_cast<IInputSourceProvider&>(m_shellSource);
+            m_inputKinds.Update(devices);
             m_runtime.Update(devices, deltaTime);
         }
 
@@ -169,6 +175,7 @@ export namespace engine::input
         const void* m_boundSceneKey = nullptr; // the override's scene binding (comparison only)
         UnboundInputScenePolicy m_unboundScenePolicy = UnboundInputScenePolicy::AllScenes;
         ActionRuntime m_runtime;
+        InputKindTracker m_inputKinds;
     };
 
     // The scripting facade: a foreign class named `Input` whose static methods resolve the calling
@@ -256,6 +263,24 @@ export namespace engine::input
             {
                 rt->EnableSet(name.AsView(), enabled);
             }
+        }
+        /// What the player presses for `action` on the device in hand ("Space", "Pad South"): the
+        /// control a GUI prompt for it shows, for a sentence that names it. Read from the
+        /// highest-priority enabled set with the action, after the player's rebinding; "" when it
+        /// has no binding (or there is no runtime).
+        [[nodiscard]] static String describe(String action) { return describe(static_cast<String&&>(action), String{}); }
+        /// The same, for the action in `set`.
+        [[nodiscard]] static String describe(String action, String set)
+        {
+            ActionRuntime* rt = Resolve();
+            if (rt == nullptr)
+            {
+                return String{};
+            }
+            const InputKindTracker* kinds = foundation::script::CurrentService<InputKindTracker>();
+            const InputKind kind = kinds != nullptr ? kinds->Kind() : InputKind::Pointer;
+            const Optional<Binding> binding = ShownBinding::For(*rt, action.AsView(), set.AsView(), kind);
+            return binding.HasValue() ? DescribeBinding(binding.Value()) : String{};
         }
     };
 

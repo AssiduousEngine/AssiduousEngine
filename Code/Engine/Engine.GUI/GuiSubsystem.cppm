@@ -590,8 +590,6 @@ export namespace engine::gui
         [[nodiscard]] SceneRoot* ActiveInputRoot() const noexcept { return m_activeRoot; }
         /// Whether the GUI took the pointer this frame (what the action layer was told).
         [[nodiscard]] bool PointerOverGui() const noexcept { return m_pointerTaken; }
-        /// Tracks the input kind (the pointer, the keys, a pad) from the active source each frame.
-        [[nodiscard]] foundation::input::InputKindTracker& GetInputKindTracker() noexcept { return m_inputKind; }
 
         // ---- the scene tier ----
         void OnSystemsReady(scene::Scene& scene) override;
@@ -717,6 +715,11 @@ export namespace engine::gui
         [[nodiscard]] bool InputReaches(const SceneTier& tier) const noexcept;
         [[nodiscard]] GuiInputBridge* BridgeOf(const SceneRoot* root) noexcept;
         [[nodiscard]] UniquePtr<GuiInputBridge> MakeBridge(SceneRoot& root);
+        // The kind of input in use, as the input subsystem tracks it (null: none yet, or none at all).
+        [[nodiscard]] const foundation::input::InputKindTracker* InputKinds() const noexcept;
+        // Points every bridge at InputKinds(): the bridges made before the input subsystem was found
+        // (the shared tier's, at init), and none once it is gone.
+        void PointBridgesAtInputKinds();
         void StyleAndLayOut(SceneRoot& root, Float2 size);
         [[nodiscard]] bool ReadDataFile(StringView path, Array<u8>& out) const;
 
@@ -761,7 +764,6 @@ export namespace engine::gui
         const foundation::input::ActionRuntime* m_promptsRead = nullptr;
         u64 m_promptsVersion = 0;
         void SyncPrompts();
-        foundation::input::InputKindTracker m_inputKind;
         foundation::shell::IWindow* m_textInputTarget = nullptr;
         SceneRoot* m_activeRoot = nullptr; // the root input went to last
         SceneRoot* m_pressRoot = nullptr;  // the root a held press began in

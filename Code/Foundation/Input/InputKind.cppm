@@ -7,6 +7,9 @@
 // cursor on a pad and the focus ring under a mouse; none of that needs a GUI (a prompt in the 3D
 // world), so the tracker lives here, beside the actions, and a GUI's host passes its kind on.
 //
+// What to show for an action on that kind (ShownBinding) lives here too: a GUI's prompt and a
+// script's sentence (`Input.describe`) name the same control.
+//
 // It follows deliberate input only, so a resting stick or a nudged desk does not flip it: a key
 // pressed, a mouse button pressed, the mouse moved past a few pixels or its wheel turned, a finger
 // put down, a pad button pressed, a stick or trigger pushed past the press point from inside it
@@ -23,6 +26,7 @@ export module foundation.input:input_kind;
 import foundation.core;
 import foundation.shell;
 import :action_runtime; // IInputSourceProvider, ActionRuntime::kPressPoint
+import :input_map;      // Binding, Action, ActionSet (ShownBinding)
 
 using namespace foundation::core;
 namespace core = foundation::core;
@@ -47,6 +51,62 @@ export namespace foundation::input
         }
         return core::StringView(u8"pointer");
     }
+
+    /// The binding to show for an action: what the player presses for it on the device in hand.
+    /// One answer for the GUI's prompts and a script's `Input.describe`, so a sentence names the
+    /// control a prompt beside it shows. Static members, not free inline functions: GCC cannot read
+    /// back a partition whose namespace-scope inline function instantiates a template.
+    struct ShownBinding
+    {
+        /// The kind of input a binding is for: a pad's sources are for the pad, touch is for the
+        /// pointer, and the rest (keys, the mouse) are for the keyboard and the pointer alike.
+        [[nodiscard]] static InputKind KindOf(const Binding& binding) noexcept
+        {
+            switch (binding.source)
+            {
+            case BindingSource::GamepadButton:
+            case BindingSource::GamepadAxis:
+            case BindingSource::GamepadStick: return InputKind::Pad;
+            case BindingSource::TouchButton:
+            case BindingSource::TouchStick: return InputKind::Pointer;
+            default: return InputKind::Keyboard;
+            }
+        }
+
+        /// The binding to show for `action` in `set` (empty: the highest-priority enabled set that
+        /// has the action), for input of `kind`: the action's first binding of that kind (the
+        /// keyboard's for the pointer, which has no keys of its own), else its first binding, else
+        /// none.
+        [[nodiscard]] static Optional<Binding> For(const ActionRuntime& runtime, core::StringView action,
+                                                   core::StringView set, InputKind kind)
+        {
+            if (action.IsEmpty())
+                return {};
+            const Action* found = nullptr;
+            i32 priority = 0;
+            for (const ActionSet& candidate : runtime.Map().sets)
+            {
+                if (set.Size() != 0 ? candidate.name.AsView() != set : !runtime.IsSetEnabled(candidate.name.AsView()))
+                    continue;
+                if (found != nullptr && candidate.priority <= priority)
+                    continue;
+                for (const Action& a : candidate.actions)
+                    if (a.name.AsView() == action)
+                    {
+                        found = &a;
+                        priority = candidate.priority;
+                        break;
+                    }
+            }
+            if (found == nullptr || found->bindings.IsEmpty())
+                return {};
+            const InputKind wanted = kind == InputKind::Pad ? InputKind::Pad : InputKind::Keyboard;
+            for (const Binding& binding : found->bindings)
+                if (KindOf(binding) == wanted)
+                    return binding;
+            return found->bindings[0];
+        }
+    };
 
     class InputKindTracker
     {

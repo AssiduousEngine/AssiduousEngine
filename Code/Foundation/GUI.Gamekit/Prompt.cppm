@@ -36,20 +36,6 @@ export namespace foundation::gui
     /// The key a GUI's InputPrompts is found under (GUIContext::GetService).
     inline constexpr core::StringView kInputPromptsService = u8"gamekit.input-prompts";
 
-    /// Returns the kind of input a binding is for: a pad's sources are for the pad, touch is for the
-    /// pointer, and the rest (keys, the mouse) are for the keyboard and the pointer alike.
-    [[nodiscard]] inline InputKind BindingInputKind(const input::Binding& binding) noexcept
-    {
-        switch (binding.source)
-        {
-        case input::BindingSource::GamepadButton:
-        case input::BindingSource::GamepadAxis:
-        case input::BindingSource::GamepadStick: return InputKind::Pad;
-        case input::BindingSource::TouchButton:
-        case input::BindingSource::TouchStick: return InputKind::Pointer;
-        default: return InputKind::Keyboard;
-        }
-    }
     /// Returns a binding as a sheet names it: its label's words, lower case, joined by dashes
     /// ("Pad South" becomes `pad-south`).
     [[nodiscard]] inline core::String BindingToken(const input::Binding& binding)
@@ -83,38 +69,28 @@ export namespace foundation::gui
         void Install(GUIContext& gui) { gui.SetService(kInputPromptsService, this); }
         static void Uninstall(GUIContext& gui) { gui.SetService(kInputPromptsService, nullptr); }
 
-        /// Returns the binding to show for `action` in `set` (empty: the highest-priority enabled set
-        /// that has the action), for input of `kind`: the action's first binding of that kind, else
-        /// its first binding, else none. The read is tracked, so a reactive binding that calls this
-        /// updates when the result changes.
+        /// Returns the binding to show for `action` in `set`, for input of `kind`
+        /// (input::ShownBinding::For: the one a script's `Input.describe` names too). The read is
+        /// tracked, so a reactive binding that calls this updates when the result changes.
         [[nodiscard]] Optional<input::Binding> Find(core::StringView action, core::StringView set, InputKind kind) const
         {
             m_changed.Track();
-            if (m_runtime == nullptr || action.IsEmpty())
+            if (m_runtime == nullptr)
                 return {};
-            const input::Action* found = nullptr;
-            i32 priority = 0;
-            for (const input::ActionSet& candidate : m_runtime->Map().sets)
+            return input::ShownBinding::For(*m_runtime, action, set, ToInputKind(kind));
+        }
+
+        /// The GUI's input kind as foundation.input names it (the reverse of GUI.Shell's bridge,
+        /// which passes the tracker's kind to the GUI).
+        [[nodiscard]] static input::InputKind ToInputKind(InputKind kind) noexcept
+        {
+            switch (kind)
             {
-                if (set.Size() != 0 ? candidate.name.AsView() != set : !m_runtime->IsSetEnabled(candidate.name.AsView()))
-                    continue;
-                if (found != nullptr && candidate.priority <= priority)
-                    continue;
-                for (const input::Action& a : candidate.actions)
-                    if (a.name.AsView() == action)
-                    {
-                        found = &a;
-                        priority = candidate.priority;
-                        break;
-                    }
+            case InputKind::Keyboard: return input::InputKind::Keyboard;
+            case InputKind::Pad: return input::InputKind::Pad;
+            case InputKind::Pointer: break;
             }
-            if (found == nullptr || found->bindings.IsEmpty())
-                return {};
-            const InputKind wanted = kind == InputKind::Pad ? InputKind::Pad : InputKind::Keyboard;
-            for (const input::Binding& binding : found->bindings)
-                if (BindingInputKind(binding) == wanted)
-                    return binding;
-            return found->bindings[0];
+            return input::InputKind::Pointer;
         }
 
     private:
@@ -167,7 +143,7 @@ export namespace foundation::gui
             Untracked([&]
                       {
                           const core::String token = binding.HasValue() ? BindingToken(binding.Value()) : core::String{};
-                          const core::String kind = binding.HasValue() ? core::String(InputKindName(BindingInputKind(binding.Value())))
+                          const core::String kind = binding.HasValue() ? core::String(InputKindName(input::ShownBinding::KindOf(binding.Value())))
                                                                        : core::String{};
                           SetText(binding.HasValue() ? input::DescribeBinding(binding.Value()).AsView() : core::StringView{});
                           if (token.AsView() != m_binding.AsView() || kind.AsView() != m_kind.AsView())

@@ -170,3 +170,44 @@ TEST_CASE("input kind: a disconnected pad counts for nothing")
     bed.PressPad(shell::GamepadButton::South);
     CHECK(bed.Frame() == InputKind::Pointer);
 }
+
+TEST_CASE("shown binding: an action shows its binding for the device in hand, else its first")
+{
+    ActionRuntime runtime;
+    runtime.SetMap(MakeGameplayMap()); // Jump: Space, then the pad's south button
+    runtime.DisableSet(u8"Menu");
+
+    const Optional<Binding> keys = ShownBinding::For(runtime, u8"Jump", u8"", InputKind::Keyboard);
+    REQUIRE(keys.HasValue());
+    CHECK(DescribeBinding(keys.Value()) == StringView(u8"Space"));
+    const Optional<Binding> pad = ShownBinding::For(runtime, u8"Jump", u8"", InputKind::Pad);
+    REQUIRE(pad.HasValue());
+    CHECK(DescribeBinding(pad.Value()) == StringView(u8"Pad South"));
+    // The pointer has no keys of its own: it shows the keyboard's.
+    const Optional<Binding> pointer = ShownBinding::For(runtime, u8"Jump", u8"", InputKind::Pointer);
+    REQUIRE(pointer.HasValue());
+    CHECK(DescribeBinding(pointer.Value()) == StringView(u8"Space"));
+
+    // An action with no binding of the kind in hand shows its first; an unknown one shows none.
+    runtime.EnableSet(u8"Menu");
+    const Optional<Binding> confirm = ShownBinding::For(runtime, u8"Confirm", u8"", InputKind::Pad);
+    REQUIRE(confirm.HasValue());
+    CHECK(DescribeBinding(confirm.Value()) == StringView(u8"Space"));
+    CHECK_FALSE(ShownBinding::For(runtime, u8"Fly", u8"", InputKind::Keyboard).HasValue());
+    CHECK_FALSE(ShownBinding::For(runtime, u8"", u8"", InputKind::Keyboard).HasValue());
+
+    // Named, a set is read whether enabled or not; unnamed, only an enabled set is.
+    runtime.DisableSet(u8"Menu");
+    CHECK_FALSE(ShownBinding::For(runtime, u8"Confirm", u8"", InputKind::Keyboard).HasValue());
+    CHECK(ShownBinding::For(runtime, u8"Confirm", u8"Menu", InputKind::Keyboard).HasValue());
+
+    Binding stick;
+    stick.source = BindingSource::GamepadStick;
+    CHECK(ShownBinding::KindOf(stick) == InputKind::Pad);
+    Binding touch;
+    touch.source = BindingSource::TouchButton;
+    CHECK(ShownBinding::KindOf(touch) == InputKind::Pointer);
+    Binding mouse;
+    mouse.source = BindingSource::MouseButton;
+    CHECK(ShownBinding::KindOf(mouse) == InputKind::Keyboard);
+}

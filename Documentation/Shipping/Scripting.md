@@ -62,6 +62,18 @@ Every component a script reaches has three static methods on its type (AngelScri
 A prefab is still the way to make something with many parts at once (`ScenePrefabs::of(scene)
 .spawn`); `addTo` is for one component on an entity that is already there.
 
+## Naming a control
+
+Text that tells the player what to press names the control, never the action: an action's name
+("Interact") is the game's word, the control ("F", or "Pad South" once a pad is picked up) is the
+player's, and it changes with their rebinding. On a screen, put a `Prompt` beside the words
+(`<Prompt action="Interact"/><Label text="open the door"/>`): it follows the device in hand by
+itself, and a sheet can draw it as a glyph (`prompt[binding="pad-south"]`). In a sentence a script
+builds, `Input.describe(action)` (or `Input.describe(action, set)`) gives the same control's
+name for the device in hand, "" when the action has no binding: `"Hold " + Input.describe("Interact")
++ ": pick the lock"`. Build such a sentence when it is shown, not once, so it follows a pad
+picked up.
+
 ## Editor properties
 
 - **Luau**: every field the constructor sets to a number, boolean, string or Float3 becomes a

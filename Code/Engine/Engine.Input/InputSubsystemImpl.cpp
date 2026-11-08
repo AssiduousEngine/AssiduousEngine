@@ -41,6 +41,9 @@ namespace engine::input
         builder.Method<static_cast<void (*)(i32, f32, f32, f32)>(&Input::rumble)>(
             "rumble", {"gamepad", "low", "high", "seconds"});
         builder.Method<&Input::stopRumble>("stopRumble");
+        // The control an action takes on the device in hand, by arity: the action, or it in a set.
+        builder.Method<static_cast<String (*)(String)>(&Input::describe)>("describe", {"action"});
+        builder.Method<static_cast<String (*)(String, String)>(&Input::describe)>("describe", {"action", "set"});
         // Some backends only materialize constructible types as foreign classes.
         builder.Constructor();
     }
