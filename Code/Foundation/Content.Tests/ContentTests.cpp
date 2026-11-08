@@ -49,6 +49,23 @@ namespace
         }
     };
 
+    // Made from a file, as an asset is, and counting its payload's reads.
+    class SourcedRecord final : public ISerializable
+    {
+        RTTI_OBJECT(SourcedRecord, ISerializable)
+    public:
+        static inline i32 reads = 0;
+        String file;
+        void Serialize(ISerializer& ar) override
+        {
+            if (ar.Mode() == SerializeMode::Read)
+            {
+                ++reads;
+            }
+            foundation::core::Serialize(ar, "file", file);
+        }
+        [[nodiscard]] StringView SourceName() const override { return file.AsView(); }
+    };
     // A mount that passes everything to another and counts the reads reaching its files.
     class CountingMount final : public IFileSystem
     {
@@ -208,6 +225,7 @@ namespace
 RTTI_DEFINE_OBJECT(MaterialResource, "rtti::content::test")
 RTTI_DEFINE_OBJECT(CountedRecord, "rtti::content::test")
 RTTI_DEFINE_OBJECT(WordsRecord, "rtti::content::test")
+RTTI_DEFINE_OBJECT(SourcedRecord, "rtti::content::test")
 
 TEST_CASE("content: binary round-trip")
 {
@@ -991,4 +1009,89 @@ TEST_CASE("content: MoveInstance moves the envelope and its sidecars to another 
     CHECK(db.MoveInstance(other->Id(), *metals).Code() == ErrorCode::AlreadyExists);
     CHECK(&other->OwningGroup() == materials);
     (void)RemoveDirectoryRecursive(dir);
+}
+
+// A record knows the file its object was made from: a self-describing envelope's header carries it,
+// so the scan learns it with the type and asking reads no payload; an envelope written before the
+// header carried it is read once on asking; a binary envelope keeps its layout and reads on asking.
+TEST_CASE("content: a record's source file comes from its envelope header, without reading the payload")
+{
+    GlobalTypeRegistry().Register(SourcedRecord::StaticType());
+    RegisterSerializable<SourcedRecord>();
+    const auto clean = [](StringView dir, StringView ext)
+    {
+        FileDelete(JoinPath(JoinPath(dir, u8"records").AsView(), Format(u8"art{}", ext).AsView()));
+        RemoveDirectory(JoinPath(dir, u8"records"));
+        RemoveDirectory(dir);
+    };
+    SourcedRecord record;
+    record.file = String(u8"Art/stone.png");
+
+    // XML: written, then a fresh database's scan.
+    {
+        const StringView dir = u8"scratch_content_source_xml";
+        clean(dir, u8".xasset");
+        NativeFileSystem mount(dir, DefaultAllocator());
+        {
+            ContentDatabase db(DefaultAllocator(), mount, MakeXmlFactory(), u8".xasset");
+            Group* records = db.RootGroup()->CreateGroup(u8"records");
+            foundation::content::Instance* art = records->CreateInstance(u8"art", SourcedRecord::StaticType());
+            REQUIRE(art != nullptr);
+            REQUIRE(art->WriteObject(record).IsOk());
+            CHECK(art->SourceName() == StringView(u8"Art/stone.png")); // the write keeps it
+        }
+        const String path = JoinPath(JoinPath(dir, u8"records").AsView(), u8"art.xasset");
+        Result<Array<byte>> text = ReadFile(path.AsView());
+        REQUIRE(text.HasValue());
+        const StringView xml(reinterpret_cast<const utf8char*>(text.Value().Data()), text.Value().Size());
+        CHECK(xml.Contains(u8"name=\"source\">Art/stone.png<"));
+        {
+            SourcedRecord::reads = 0;
+            ContentDatabase db(DefaultAllocator(), mount, MakeXmlFactory(), u8".xasset");
+            foundation::content::Instance* art = db.RootGroup()->GetGroup(u8"records")->GetInstance(u8"art");
+            REQUIRE(art != nullptr);
+            CHECK(art->SourceName() == StringView(u8"Art/stone.png"));
+            CHECK(SourcedRecord::reads == 0); // the scan knew it
+            REQUIRE(art->ReadObject().Get() != nullptr); // the header's field does not upset the payload
+            CHECK(SourcedRecord::reads == 1);
+        }
+        // An envelope from before the header named its source: read once on asking, then kept.
+        const String old = ReplaceAll(xml, u8"<string name=\"source\">Art/stone.png</string>", u8"");
+        REQUIRE(old.AsView() != xml);
+        REQUIRE(WriteFile(path.AsView(), Span<const byte>(reinterpret_cast<const byte*>(old.Data()), old.Size())).IsOk());
+        {
+            SourcedRecord::reads = 0;
+            ContentDatabase db(DefaultAllocator(), mount, MakeXmlFactory(), u8".xasset");
+            foundation::content::Instance* art = db.RootGroup()->GetGroup(u8"records")->GetInstance(u8"art");
+            REQUIRE(art != nullptr);
+            CHECK(art->SourceName() == StringView(u8"Art/stone.png"));
+            CHECK(SourcedRecord::reads == 1);
+            CHECK(art->SourceName() == StringView(u8"Art/stone.png"));
+            CHECK(SourcedRecord::reads == 1); // kept
+        }
+        clean(dir, u8".xasset");
+    }
+
+    // Binary: no header field (its layout is positional); asking reads the payload once.
+    {
+        const StringView dir = u8"scratch_content_source_bin";
+        clean(dir, u8".rasset");
+        NativeFileSystem mount(dir, DefaultAllocator());
+        {
+            ContentDatabase db(DefaultAllocator(), mount, MakeBinaryFactory(), u8".rasset");
+            Group* records = db.RootGroup()->CreateGroup(u8"records");
+            foundation::content::Instance* art = records->CreateInstance(u8"art", SourcedRecord::StaticType());
+            REQUIRE(art != nullptr);
+            REQUIRE(art->WriteObject(record).IsOk());
+        }
+        {
+            SourcedRecord::reads = 0;
+            ContentDatabase db(DefaultAllocator(), mount, MakeBinaryFactory(), u8".rasset");
+            foundation::content::Instance* art = db.RootGroup()->GetGroup(u8"records")->GetInstance(u8"art");
+            REQUIRE(art != nullptr);
+            CHECK(art->SourceName() == StringView(u8"Art/stone.png"));
+            CHECK(SourcedRecord::reads == 1);
+        }
+        clean(dir, u8".rasset");
+    }
 }

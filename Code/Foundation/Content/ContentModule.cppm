@@ -64,6 +64,19 @@ export namespace foundation::content
         [[nodiscard]] StringView TypeName() const noexcept { return m_typeName.AsView(); }
         [[nodiscard]] Group& OwningGroup() const noexcept { return *m_group; }
 
+        /// The file this instance's object was made from, when it names one
+        /// (ISerializable::SourceName: an asset's copy under the sources), so finding the assets
+        /// made from a file reads no payload. A self-describing envelope carries it in its header
+        /// from the write that put it there, and the scan reads it with the type; for an envelope
+        /// written before that, the object is read once, here, and the name kept until it changes.
+        [[nodiscard]] StringView SourceName() const;
+        /// What the scan or a write knows it to be.
+        void SetSourceName(StringView name)
+        {
+            m_source = String(name);
+            m_sourceKnown = true;
+        }
+
         // "group/path/name" (mount-relative, no extension).
         [[nodiscard]] String Path() const;
 
@@ -110,6 +123,8 @@ export namespace foundation::content
         String m_name;
         String m_typeNamespace;
         String m_typeName;
+        mutable String m_source;           // SourceName, once known
+        mutable bool m_sourceKnown = false; // from the header or a write; else read once on asking
     };
 
     // =======================================================================
@@ -433,8 +448,21 @@ export namespace foundation::content
             {
                 return;
             }
+            // The source file, which a self-describing header carries (Instance::SourceName); one
+            // written before it does not, and its record learns it on first asking.
+            String source;
+            const bool named = ar.IsSelfDescribing() && ar.HasKey("source");
+            if (named)
+            {
+                ar.Key("source");
+                ar.Text(source);
+            }
 
-            (void)group.AddInstance(id, instanceName, typeNs.AsView(), typeName.AsView());
+            Instance* instance = group.AddInstance(id, instanceName, typeNs.AsView(), typeName.AsView());
+            if (instance != nullptr && named && ar.IsOk())
+            {
+                instance->SetSourceName(source.AsView());
+            }
         }
 
         IAllocator* m_allocator;

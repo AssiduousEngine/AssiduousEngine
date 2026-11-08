@@ -33,6 +33,11 @@ export namespace foundation::core
         // Describe this object's data once; runs in whichever direction `ar`
         // is configured for (read or write).
         virtual void Serialize(ISerializer& ar) = 0;
+
+        // The file this object was made from, when it names one (an asset's copy under the
+        // project's sources): a content database keeps it on the object's record, so finding what
+        // was made from a file reads no payload. Empty for everything else.
+        [[nodiscard]] virtual StringView SourceName() const { return StringView{}; }
     };
 
     RTTI_DEFINE_OBJECT(ISerializable, "rtti::core")

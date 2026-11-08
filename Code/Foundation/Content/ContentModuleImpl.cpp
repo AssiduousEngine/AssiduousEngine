@@ -285,7 +285,26 @@ namespace foundation::content
         // field is a system call (a cooked script's were thousands, dearer still on Windows).
         BufferedStream buffered(*stream, 64 * 1024);
         Result<RefPtr<ISerializable>, String> object = ReadEnvelope(buffered, false);
-        return object.HasValue() ? Move(object.Value()) : RefPtr<ISerializable>{};
+        if (!object.HasValue())
+        {
+            return RefPtr<ISerializable>{};
+        }
+        // The object names its source as it stands on disk: keep it, whatever the header said.
+        m_source = String(object.Value()->SourceName());
+        m_sourceKnown = true;
+        return Move(object.Value());
+    }
+
+    StringView Instance::SourceName() const
+    {
+        if (!m_sourceKnown)
+        {
+            // An envelope written before its header named the source: read once, then kept
+            // (ReadObject records it, or an unreadable one names none).
+            (void)ReadObject();
+            m_sourceKnown = true;
+        }
+        return m_source.AsView();
     }
 
     Result<RefPtr<ISerializable>, String> Instance::ReadObjectFrom(IStream& stream) const
@@ -330,6 +349,14 @@ namespace foundation::content
         {
             return Err(Format(u8"the envelope's type '{}.{}' is not this asset's ('{}.{}')",
                               ns.AsView(), name.AsView(), TypeNamespace(), TypeName()));
+        }
+        // The header's source file (a self-describing envelope written since it carried one): the
+        // object names it again once read, so it is passed over here.
+        if (ar.IsSelfDescribing() && ar.HasKey("source"))
+        {
+            String source;
+            ar.Key("source");
+            ar.Text(source);
         }
 
         // Resolve the type and construct the object.
@@ -411,6 +438,14 @@ namespace foundation::content
         ar.Text(ns);
         ar.Key("typeName");
         ar.Text(nm);
+        // The source file the object names, in a self-describing header only (a positional one
+        // keeps its layout; cooked data names no sources): the scan reads it with the type.
+        String source(object.SourceName());
+        if (ar.IsSelfDescribing())
+        {
+            ar.Key("source");
+            ar.Text(source);
+        }
         BeginVersionedPayload(ar, *object.GetType());
         ar.Key("payload");
         ar.BeginObject();
@@ -421,7 +456,12 @@ namespace foundation::content
         // Let the context flush (e.g., XML writes its text output here).
         ctx->Flush(buffer);
 
-        return writable->Save(EnvelopePath().AsView(), buffer.Bytes());
+        const Status saved = writable->Save(EnvelopePath().AsView(), buffer.Bytes());
+        if (saved.IsOk())
+        {
+            SetSourceName(source.AsView());
+        }
+        return saved;
     }
 
     Status Instance::WriteData(StringView streamName, Span<const byte> data,

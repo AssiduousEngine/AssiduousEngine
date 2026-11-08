@@ -59,6 +59,10 @@ export namespace pipeline
         {
             foundation::core::Serialize(ar, "fileName", fileName);
         }
+
+        // Its source file, which the source database keeps on the asset's record (an import asks
+        // which assets share a copy without reading them).
+        [[nodiscard]] StringView SourceName() const override { return fileName.View(); }
     };
 
     // The export target a cook is producing for. `id` names the target: it is both the

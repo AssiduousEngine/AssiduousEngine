@@ -1018,9 +1018,8 @@ export namespace pipeline
                 {
                     continue;
                 }
-                RefPtr<ISerializable> object = instance->ReadObject();
-                const auto* asset = Cast<Asset>(object.Get());
-                if (asset != nullptr && asset->fileName.View() == sourcesName)
+                // The record's source name (Asset::fileName), kept by the database: no envelope read.
+                if (instance->SourceName() == sourcesName)
                 {
                     return true;
                 }
