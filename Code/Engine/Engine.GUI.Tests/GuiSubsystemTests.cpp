@@ -1248,7 +1248,7 @@ TEST_CASE("engine.gui: at a render resolution the screen tier lays out at it, dr
     CHECK(root->GetDisplayScale() == doctest::Approx(1.0f));
 }
 
-TEST_CASE("engine.gui: with run screens on each run has its own screen tier, drawn for its tab and gone with its run; a script with no run gets one no tab draws")
+TEST_CASE("engine.gui: with run screens on each run has its own screen tier, drawn for its tab and gone with its run")
 {
     rhi::null::NullDevice device{DefaultAllocator()}; // outlives the GUI that draws on it
     Engine engine;
@@ -1267,14 +1267,7 @@ TEST_CASE("engine.gui: with run screens on each run has its own screen tier, dra
     CHECK(a != b);
     CHECK(a != engine.gui->Screens());
     CHECK(engine.gui->ScreensFor(&runA) == a); // made once
-    // A script with no run (a scene page's Simulate) gets a tier of its own, not the shared tier,
-    // which every tab draws above its run's screens: what it pushes never shows over a Game tab.
-    ScreenStack* unbound = engine.gui->ScreensFor(nullptr);
-    REQUIRE(unbound != nullptr);
-    CHECK(unbound != engine.gui->Screens());
-    CHECK(unbound != a);
-    CHECK(engine.gui->ScreensFor(nullptr) == unbound); // made once
-    CHECK(unbound->GetId() == StringView(u8"screens"));
+    CHECK(engine.gui->ScreensFor(nullptr) == engine.gui->Screens());
     CHECK(engine.gui->RunScreenCount() == 2u);
     CHECK(a->GetId() == StringView(u8"screens")); // what its scripts find under their root
 
@@ -1295,23 +1288,8 @@ TEST_CASE("engine.gui: with run screens on each run has its own screen tier, dra
     rhi::RenderPassEncoder* pass = encoder.BeginRenderPass(rhi::RenderPassDesc{});
     const u64 draws = encoder.counters->Snapshot().draws;
     engine.gui->Render(*pass, view);
-    const u64 drawn = encoder.counters->Snapshot().draws - draws;
-    CHECK(drawn > 0u);
+    CHECK(encoder.counters->Snapshot().draws > draws);
     pass->End();
-
-    // A screen on the unbound tier draws in no tab: A's frame draws as much as before.
-    RefPtr<UIWidget> simulated = MakeRef<UIWidget>(DefaultAllocator());
-    simulated->AddChild(MakeButton(u8"talk", Float2{40.0f, 40.0f}).Get());
-    REQUIRE(unbound->Push(*simulated) != nullptr);
-    engine.gui->PrepareOverlay(encoder, view);
-    pass = encoder.BeginRenderPass(rhi::RenderPassDesc{});
-    const u64 before = encoder.counters->Snapshot().draws;
-    engine.gui->Render(*pass, view);
-    CHECK(encoder.counters->Snapshot().draws - before == drawn);
-    pass->End();
-    // Its host's stop takes it down.
-    engine.gui->EndUnboundScreens();
-    CHECK(unbound->Count() == 0u);
     engine.gui->SetRenderRun(nullptr);
 
     // When the run's session ends (the tab's Stop), its tier goes without any call to the GUI. A

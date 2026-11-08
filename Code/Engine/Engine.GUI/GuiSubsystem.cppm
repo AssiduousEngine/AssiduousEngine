@@ -54,9 +54,9 @@
 // in render space and is mapped into the tier's pixels. With run screens on (the editor), each
 // run (the game in one Game tab) has a screen tier of its own. That tier is drawn for its tab
 // (SetRenderRun), is fed the input of the scene the run is bound to, and is the `gui` root of the
-// run's scripts. The overlay layer stays on the shared tier, above every run's tier. A script with
-// no run (a Simulate's, on a scene page) gets a tier of its own that no tab draws, so its screens
-// never show over a Game tab; its host clears them when it stops (EndUnboundScreens).
+// run's scripts. The overlay layer stays on the shared tier, above every run's tier. A script
+// with no run (a headless tool's, a test's) uses the shared tier, as every script does in the
+// player; in the editor every scene that runs scripts has a run (a Game tab's, a scene page's).
 //
 // The renderer, the shaders and the textures live in GuiSubsystemImpl.cpp, so that GCC's module
 // reader can read this interface back.
@@ -536,9 +536,6 @@ export namespace engine::gui
         /// overlays (null for none). A host sets it around its overlays for that run's view.
         void SetRenderRun(foundation::run::IRun* run) noexcept { m_renderRun = run != nullptr ? run->Id() : 0; }
         [[nodiscard]] usize RunScreenCount() const noexcept { return m_runTiers.Size(); }
-        /// With run screens on, takes down what scripts with no run pushed on their tier (a scene
-        /// page's Simulate, when it stops). That tier is never drawn, so this is cleanup only.
-        void EndUnboundScreens();
         [[nodiscard]] Node* OverlayLayer() noexcept { return m_overlay.Get(); }
         /// Returns whether the GUI that input reaches is editing text (a field has the focus), as of
         /// the last input pump. A host that owns the window's text input (the editor's Game tab)
@@ -686,7 +683,7 @@ export namespace engine::gui
         // layer above it), its input, and the game's screen it lays out for.
         struct ScreenTier
         {
-            foundation::run::RunId Run = 0; ///< 0: the shared tier, or the unbound one
+            foundation::run::RunId Run = 0; ///< 0: the shared tier
             RefPtr<SceneRoot> Root;
             RefPtr<ScreenStack> Screens;
             UniquePtr<GuiInputBridge> Bridge;
@@ -740,7 +737,6 @@ export namespace engine::gui
         u64 m_sheetGeneration = 0;
         ScreenTier m_screen;                     // the shared tier
         Array<UniquePtr<ScreenTier>> m_runTiers; // a tier per run, with run screens on
-        UniquePtr<ScreenTier> m_unbound;         // with run screens on, scripts with no run (a Simulate's): never drawn
         bool m_runScreens = false;
         foundation::run::RunId m_renderRun = 0;
         foundation::run::IRunManager* m_runManager = nullptr; // subscribed to (OnReady .. OnShutdown)
