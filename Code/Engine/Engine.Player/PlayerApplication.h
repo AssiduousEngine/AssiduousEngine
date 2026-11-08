@@ -310,6 +310,13 @@ namespace engine::player
             // needs a scene waits `while (!Game.sceneReady())`.
             // The player's one run plays one session, from here to OnExit.
             Instance().Start();
+            // The game's save lives beside the user's settings, read before anything launches: for
+            // every game, not only one with a game script (scene and entity scripts save through the
+            // same facade).
+            Instance().SetSaveFile(
+                PathJoin(foundation::core::GetUserDataDirectory().AsView(),
+                         project::SaveFileName(m_settings.name.AsView(), AppRoot()).AsView(), AppRoot())
+                    .AsView());
             LoadAndStartGameScript();
 
             // Then, if a startup scene resolved, load it asynchronously behind a boot splash: push
@@ -471,11 +478,6 @@ namespace engine::player
                 LOG_ERROR(u8"Player", u8"startup script asset not found");
                 return;
             }
-            // The game's save lives beside the user's settings, read before the game launches.
-            Instance().SetSaveFile(
-                PathJoin(foundation::core::GetUserDataDirectory().AsView(),
-                         project::SaveFileName(m_settings.name.AsView(), AppRoot()).AsView(), AppRoot())
-                    .AsView());
             (void)StartGameScript(*proxy); // with its handlers: the game's on<Event> inbox
         }
 

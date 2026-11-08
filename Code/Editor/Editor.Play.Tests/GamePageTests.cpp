@@ -4,7 +4,8 @@
 // The Game tab from its markup (Data/Editor/Game.xml) on a headless host with no game running: the
 // kit's transport (Play while stopped; Pause and Stop while it runs or waits; the state named; a
 // Play waiting for the cook shown as waiting and cancelled by Stop), the resolutions in the
-// dropdown, the phone preview kept with the project, and the debugger opened by its toggle.
+// dropdown, the phone preview kept with the project, and the debugger opened by its toggle; and a
+// run's save, written for a game with no game script.
 
 #include <doctest/doctest.h>
 #include "Core/Prelude.h"
@@ -18,6 +19,8 @@ import foundation.settings;
 import foundation.gui;
 import foundation.gui.toolkit;
 import foundation.gui.viewport; // the game's view
+import engine.scene;        // a run needs the scenes
+import engine.gameinstance; // the run the tab plays
 import editor.core;
 import editor.play;
 
@@ -39,6 +42,36 @@ namespace
         foundation::core::TaskPool& Tasks() noexcept override
         {
             static foundation::core::TaskPool tasks(foundation::core::DefaultAllocator(), 0u); // runs what it is given when pumped
+            return tasks;
+        }
+        foundation::graphics::RenderWindow* MainRenderWindow() noexcept override { return nullptr; }
+        foundation::graphics::RenderWindow* OpenWindow(const foundation::shell::WindowSettings&, const foundation::graphics::RenderWindowDesc&) override
+        {
+            return nullptr;
+        }
+        void CloseWindow(foundation::graphics::RenderWindow*) override {}
+        void RequestExit(int) override {}
+
+    private:
+        runtime::SubsystemManager m_context{DefaultAllocator()};
+    };
+
+    // A host whose context has the scenes a run starts in, and nothing else.
+    class SceneHost final : public runtime::IApplicationHost
+    {
+    public:
+        SceneHost()
+        {
+            (void)m_context.AddSubsystem<engine::scene::SceneSubsystem>();
+            m_context.Startup();
+        }
+        ~SceneHost() override { m_context.Shutdown(); }
+        runtime::SubsystemManager& Subsystems() noexcept override { return m_context; }
+        foundation::shell::IShell* Shell() noexcept override { return nullptr; }
+        foundation::graphics::GraphicsDevice* Graphics() noexcept override { return nullptr; }
+        foundation::core::TaskPool& Tasks() noexcept override
+        {
+            static foundation::core::TaskPool tasks(foundation::core::DefaultAllocator(), 0u);
             return tasks;
         }
         foundation::graphics::RenderWindow* MainRenderWindow() noexcept override { return nullptr; }
@@ -220,4 +253,49 @@ TEST_CASE("game tab: Shift+F1 gives the keyboard back: the game view lets the fo
     bed.page->OnUpdate(bed.host, 1.0f / 60.0f);
     CHECK_FALSE(view->GetCapturesAllKeys());
     root->RemoveChild(bed.page->Content().Get());
+}
+
+TEST_CASE("game tab: a run with no game script still keeps its save, written to the project's Editor/ folder when it stops")
+{
+    // A game whose scripts are all on its scenes and entities saves through the same Save facade
+    // as a game script; its save was only named for a run with a startup script, so it lasted that
+    // run alone.
+    const String dir(u8"scratch_game_page_save");
+    (void)RemoveDirectoryRecursive(dir.AsView());
+    REQUIRE(EditorProject::Create(DefaultAllocator(), dir.AsView(), u8"P").IsOk());
+    UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir.AsView());
+    REQUIRE(static_cast<bool>(project));
+    REQUIRE(project->Settings().startupScriptId.IsNil());
+    foundation::settings::Settings store{DefaultAllocator()};
+    EditorContext context{DefaultAllocator()};
+    context.SetProject(project.Get());
+    context.SetProjectEditorSettings(&store);
+    SceneHost host;
+    engine::runtime::GameInstance instance;
+    {
+        GameEditorPage::Services services;
+        services.loadMarkup = [](StringView path) { return LoadMarkup(path); };
+        GameEditorPage page(context, host, Move(services), nullptr, &instance, u8"game-page");
+        page.Play();
+        page.OnUpdate(host, 1.0f / 60.0f);
+        REQUIRE(page.IsRunning());
+        REQUIRE(instance.Saves().IsOpen());
+        instance.Saves().Values().SetInt(u8"best.level", 7);
+        instance.Saves().MarkChanged();
+        page.Stop();
+        page.OnUpdate(host, 1.0f / 60.0f);
+        page.OnClose();
+    }
+    const String path = PathJoin(project->EditorStateRoot().AsView(), u8"P.save.xml");
+    CHECK(FileExists(path.AsView()));
+
+    // The next run reads it back.
+    engine::runtime::RunSave again(DefaultAllocator());
+    again.Open(path.AsView());
+    CHECK(again.Values().GetInt(u8"best.level", 0) == 7);
+
+    context.SetProjectEditorSettings(nullptr);
+    context.SetProject(nullptr);
+    project.Reset();
+    (void)RemoveDirectoryRecursive(dir.AsView());
 }

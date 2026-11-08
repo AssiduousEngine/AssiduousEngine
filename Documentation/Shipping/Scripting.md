@@ -70,7 +70,8 @@ Save.setFloat("time.level2", 41.5)              -- Luau
 - The run writes what changed when it ends. Call `Save::flush()` at the moment that matters (a
   level clear, leaving a settings screen) so a crash or a forced quit loses nothing.
 - The player keeps the file in the user's data directory; play in editor keeps its own in the
-  project's ignored `Editor/` folder, so testing never touches a player's save.
+  project's ignored `Editor/` folder, so testing never touches a player's save. Every game has one,
+  whether its scripts are a game script or only its scenes' and entities' scripts.
 - The audio bus volumes a settings screen sets are saved by the player on its own; a game
   does not need to save them.
 

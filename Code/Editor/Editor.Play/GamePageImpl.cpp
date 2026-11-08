@@ -439,6 +439,14 @@ namespace editor
         if (m_gameInstance != nullptr)
         {
             m_gameInstance->ResetRunClock(); // run time counts from this start
+            // The run's save, for every run and not only a game script's: a game whose scripts are
+            // all on its scenes and entities saves through the same facade. Play in editor keeps its
+            // own in the project's ignored Editor/ folder, so testing never touches a player's save.
+            m_gameInstance->SetSaveFile(
+                PathJoin(project.EditorStateRoot().AsView(),
+                         engine::project::SaveFileName(project.Settings().name.AsView(), Allocator()).AsView(),
+                         Allocator())
+                    .AsView());
             m_scriptErrors.context = m_context;
             m_gameInstance->SetScriptErrorHandler(&m_scriptErrors);
             EnableDebugging();
@@ -1122,18 +1130,6 @@ namespace editor
         {
             m_context->Notify(NoticeKind::Warning, u8"Game: startup script asset not found.");
             return;
-        }
-        if (m_gameInstance != nullptr)
-        {
-            // Play in editor keeps its own save in the project's ignored Editor/ folder, so testing
-            // never touches a player's save.
-            const editor::EditorProject& project = *m_context->Project();
-            m_gameInstance->SetSaveFile(
-                PathJoin(project.EditorStateRoot().AsView(),
-                         engine::project::SaveFileName(project.Settings().name.AsView(), Allocator())
-                             .AsView(),
-                         Allocator())
-                    .AsView());
         }
         if (m_gameInstance == nullptr ||
             !m_gameInstance->StartScript(*proxy))
