@@ -552,10 +552,6 @@ export namespace engine::runtime
         /// the app.
         void TickScript(f32 hostDeltaTime, f32 contextTimeScale);
 
-        /// Drive this instance's run host each frame: advance the script binding clock
-        /// (Time.now/delta) and step its GC. The subsystem drives its own (editor) host; each
-        /// instance drives its own.
-        void DriveRunHost(f32 deltaTime);
 
     private:
         // A fault in `handler`: the script stops, and the reason is kept (ScriptFault).

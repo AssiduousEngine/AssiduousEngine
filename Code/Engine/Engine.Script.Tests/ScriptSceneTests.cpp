@@ -1112,6 +1112,35 @@ TEST_CASE("script.scene: run-host teardown after stop releases the context; a la
     CHECK_FALSE(host.EnsureClassLoaded(*alien));
 }
 
+TEST_CASE("script.scene: a run host's Advance counts its scripts' clock, with a context or none")
+{
+    // No context (a run whose game has no scripts): the clock counts and there is nothing to collect.
+    ScriptRunHost bare(DefaultAllocator());
+    bare.Advance(0.25f);
+    bare.Advance(0.5f);
+    CHECK(bare.Binding().timeSeconds == doctest::Approx(0.75));
+    CHECK(bare.Binding().deltaSeconds == doctest::Approx(0.5f));
+    CHECK_FALSE(bare.IsActive());
+
+    // With a context, the same clock and a collector step.
+    ScriptedScene bed;
+    RefPtr<ScriptClass> noop = MakeClass(u8"Noop",
+                                         u8"class Noop {\n"
+                                         u8"    private Entity@ self;\n"
+                                         u8"    Noop(Entity@ entity) { @self = entity; }\n"
+                                         u8"    void onUpdate(double dt) {}\n"
+                                         u8"}\n",
+                                         {u8"onUpdate"});
+    (void)bed.AddScripted(noop, u8"n");
+    bed.Start();
+    bed.Frame();
+    REQUIRE(bed.host.IsActive());
+    const f64 before = bed.host.Binding().timeSeconds;
+    bed.host.Advance(0.125f);
+    CHECK(bed.host.Binding().timeSeconds == doctest::Approx(before + 0.125));
+    CHECK(bed.host.Binding().deltaSeconds == doctest::Approx(0.125f));
+}
+
 TEST_CASE("script.scene: entity.send invokes on<Message>(arg) on every declaring "
           "behavior of the target (P2 messaging)")
 {

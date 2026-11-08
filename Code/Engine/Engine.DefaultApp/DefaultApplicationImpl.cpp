@@ -114,7 +114,7 @@ namespace engine::runtime
             {
                 gi.PumpScriptLoads(); // activate any script-initiated load that finished (after Pump)
                 gi.DriveInput(deltaTime, contextScale);
-                gi.DriveRunHost(deltaTime);
+                gi.RunHost().Advance(deltaTime); // its scripts' clock
                 gi.TickScript(deltaTime, contextScale);
                 gi.DrainRunEvents(); // deliver this frame's run-bus events (after the game script ticked)
             });

@@ -404,7 +404,7 @@ TEST_CASE("game-instance: fallback path starts, ticks, and stops a Game script")
     CHECK(gi.ScriptContext() != nullptr);
     CHECK(gi.RunHost().IsActive()); // the game script runs on the instance's own run host
 
-    gi.DriveRunHost(0.016f);     // advance the run host clock/GC (must not fault)
+    gi.RunHost().Advance(0.016f); // advance the run host clock/GC (must not fault)
     gi.TickScript(0.016f, 1.0f); // must not fault
     CHECK(gi.ScriptRunning());
 
@@ -430,7 +430,7 @@ TEST_CASE("game-instance: starts, ticks, and stops a LUAU Game orchestrator (the
     CHECK(gi.ScriptContext() != nullptr);
     CHECK(gi.RunHost().IsActive());
 
-    gi.DriveRunHost(0.016f);     // advance the run host clock/GC (must not fault)
+    gi.RunHost().Advance(0.016f); // advance the run host clock/GC (must not fault)
     gi.TickScript(0.016f, 1.0f); // update() (must not fault)
     CHECK(gi.ScriptRunning());
 
@@ -518,7 +518,7 @@ TEST_CASE("game-instance: Scene/run facades are null-scene-safe from a pre-scene
         u8"game.as");
     REQUIRE(ok); // compiled (no Game-name clash) and launch() ran the pre-scene facade calls, no fault
     CHECK(gi.ScriptRunning());
-    gi.DriveRunHost(0.016f);
+    gi.RunHost().Advance(0.016f);
     gi.TickScript(0.016f, 1.0f); // update() calls them again; still no fault
     CHECK(gi.ScriptRunning());
     gi.StopScript();
@@ -553,7 +553,7 @@ TEST_CASE("game-instance: Scene/run facades are null-scene-safe from a pre-scene
         u8"game.as");
     REQUIRE(ok);
     CHECK(gi.ScriptRunning());
-    gi.DriveRunHost(0.016f);
+    gi.RunHost().Advance(0.016f);
     gi.TickScript(0.016f, 1.0f);
     CHECK(gi.ScriptRunning());
     gi.StopScript();

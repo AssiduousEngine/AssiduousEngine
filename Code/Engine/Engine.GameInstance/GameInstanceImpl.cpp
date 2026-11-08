@@ -421,17 +421,6 @@ namespace engine::runtime
         return false;
     }
 
-    void GameInstance::DriveRunHost(f32 deltaTime)
-    {
-        auto& binding = m_runHost.Binding();
-        binding.timeSeconds += static_cast<core::f64>(deltaTime);
-        binding.deltaSeconds = deltaTime;
-        if (m_runHost.Manager() != nullptr)
-        {
-            m_runHost.Manager()->CollectGarbage();
-        }
-    }
-
     void GameInstance::TickScript(f32 hostDeltaTime, f32 contextTimeScale)
     {
         // Debug-paused: the debugger holds a suspended update mid-call. Starting a new update each

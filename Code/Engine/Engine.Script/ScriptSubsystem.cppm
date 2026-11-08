@@ -329,6 +329,20 @@ export namespace engine::script
         [[nodiscard]] StringView Language() const noexcept { return m_language.AsView(); }
         [[nodiscard]] ScriptRuntimeBinding& Binding() noexcept { return m_binding; }
 
+        /// One frame of this host's clock (what `Time` reads: the seconds since it was made and
+        /// the frame's delta) and a frame-budgeted step of its collector, once a context exists.
+        /// Whoever owns the host calls it once a frame: a game's run, an editor page's run, the
+        /// subsystem for its default host. Only scripts read this clock.
+        void Advance(f32 deltaSeconds)
+        {
+            m_binding.timeSeconds += static_cast<f64>(deltaSeconds);
+            m_binding.deltaSeconds = deltaSeconds;
+            if (m_manager.Get() != nullptr)
+            {
+                m_manager->CollectGarbage();
+            }
+        }
+
         /// The run context for `languageId`, created through the backend registry on
         /// first use. A second language during the same run is refused (one gameplay
         /// context per run) and logged once.
@@ -1856,16 +1870,8 @@ export namespace engine::script
             }
         }
 
-        // Drives the default run host (editor scenes). A GameInstance drives its own host.
-        void Update(f32 deltaTime) override
-        {
-            ScriptRuntimeBinding& binding = m_ownedRunHost.Binding();
-            binding.timeSeconds += static_cast<f64>(deltaTime);
-            binding.deltaSeconds = deltaTime;
-            if (m_ownedRunHost.Manager() != nullptr)
-            {
-                m_ownedRunHost.Manager()->CollectGarbage(); // frame-budgeted GC stepping
-            }
+        // Drives the default run host. A run drives its own host.
+        void Update(f32 deltaTime) override { m_ownedRunHost.Advance(deltaTime); }
         }
 
     protected:
