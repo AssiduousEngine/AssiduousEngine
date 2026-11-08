@@ -148,10 +148,11 @@ TEST_CASE("game-instance: an instance is its scenes' and scripts' run")
     CHECK(adopted->Run() == nullptr);
     b.SetScene(adopted);
     CHECK(adopted->Run() == &b);
+    CHECK(adopted->Events() == &b.Events()); // and its bus with it
     b.SetScene(nullptr);
 }
 
-// The run as a type: a GameInstance is its IRun, its scenes borrow the run's own bus, and what it
+// The run as a type: a GameInstance is its IRun, its scenes use the run's own bus, and what it
 // owns is reached through the run.
 TEST_CASE("game-instance: the instance is an IRun, its scenes on the run's bus, its services through the run")
 {
@@ -1468,16 +1469,16 @@ TEST_CASE("game-instance: LoadScene / LoadSceneAsync own the scene load orchestr
 
 TEST_CASE("game-instance: created scenes share the run bus - cross-scene delivery, single drain (no relay)")
 {
-    // Every scene the instance creates borrows the run bus, so scene.events and the run bus are one
-    // object. A subscriber in scene A hears an emit from scene B (and the Game tier would too) with
-    // no relay, delivered exactly once by the instance's drain; the borrowing scenes never drain
-    // it.
+    // Every scene the instance creates is in its run and so uses the run bus: scene.events and the
+    // run bus are one object. A subscriber in scene A hears an emit from scene B (and the Game tier
+    // would too) with no relay, delivered exactly once by the instance's drain; the scenes never
+    // drain it.
     engine::runtime::GameInstance gi;
     scene::Scene* a = gi.CreateScene(u8"A");
     scene::Scene* b = gi.CreateScene(u8"B");
     REQUIRE(a != nullptr);
     REQUIRE(b != nullptr);
-    CHECK(a->Events() == &gi.Events()); // both borrow the one run bus
+    CHECK(a->Events() == &gi.Events()); // both use the one run bus
     CHECK(b->Events() == &gi.Events());
 
     int hits = 0;

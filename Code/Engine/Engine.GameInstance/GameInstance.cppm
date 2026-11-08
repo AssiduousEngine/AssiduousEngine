@@ -315,11 +315,9 @@ export namespace engine::runtime
     public:
         GameInstance() : RunBase(DefaultAllocator(), u8"Game")
         {
-            // Every scene this run creates borrows the run's bus: set it on the group so
-            // CreateScene injects it before the script systems bind (OnSceneCreate), not after.
-            m_sceneManager.SetSceneEventBus(&Events());
-            // This instance is the run: its scenes and its scripts carry it, so run-scoped systems
-            // (audio) group them by it.
+            // This instance is the run: its scenes and its scripts carry it, so their bus is the
+            // run's and run-scoped systems (audio) group them by it. Set on the group so each scene
+            // has it before the script systems bind (OnSceneCreate).
             m_sceneManager.SetSceneRun(this);
             // Every context of this run finds this run's services through the run (run.*, its input,
             // its save, its HTTP, its networking), a behavior context as much as a game script's: a
@@ -358,8 +356,7 @@ export namespace engine::runtime
             m_network.SetReplicatedScene(scene); // keep replication on the current scene across loads
             if (scene != nullptr)
             {
-                scene->SetEventBus(&Events()); // the adopt path shares this run's bus
-                scene->SetRun(this);
+                scene->SetRun(this); // and so its bus is this run's
             }
         }
         [[nodiscard]] scene::Scene* GetScene() const noexcept { return m_scene; }
@@ -599,12 +596,11 @@ export namespace engine::runtime
         /// (from the SceneSubsystem) before creating scenes in it.
         [[nodiscard]] scene::SceneManager& Scenes() noexcept { return m_sceneManager; }
 
-        /// This run's one event bus: app-owned, injected into every scene this instance creates or
-        /// adopts (Scene::SetEventBus), so `scene.events` and the run bus are the same object. The
-        /// Game tier's on<Event> inbox subscribes here, and a behavior in any of the run's scenes
-        /// emits straight onto it with no relay in between (a Level may still re-emit an event to
-        /// translate it). The instance drains it once per frame (DrainRunEvents); the borrowing
-        /// scenes do not. The run's bus is IRun::Events().
+        /// This run's one event bus, IRun::Events(): every scene of the run uses it (Scene::Events()
+        /// is its run's), so `scene.events` and the run bus are the same object. The Game tier's
+        /// on<Event> inbox subscribes here, and a behavior in any of the run's scenes emits straight
+        /// onto it with no relay in between (a Level may still re-emit an event to translate it).
+        /// The instance drains it once per frame (DrainRunEvents); its scenes do not.
 
         /// Deliver this frame's queued run-bus events. Called on the instance tick after TickScript
         /// (no VM call active), so a subscriber may dispatch script handlers directly.

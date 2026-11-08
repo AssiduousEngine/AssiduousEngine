@@ -172,10 +172,9 @@ namespace
 
     struct ScriptedScene
     {
-        // The test fixture is the run scope (scenes hold only a borrowed bus): it owns the bus,
-        // injects it before systems bind, and drains it at frame top as GameInstance and the
-        // editor page do.
-        foundation::messaging::EventBus bus;
+        // The test fixture owns the scene's run (whose bus is the scene's), sets it before systems
+        // bind, and drains its bus at frame top as GameInstance and the editor page do.
+        foundation::run::RunBase run{DefaultAllocator(), u8"script-test"};
         scene::Scene scene{DefaultAllocator(), u8"script-test"};
         ScriptRunHost host{DefaultAllocator()};
         ScriptComponentManager* components = nullptr;
@@ -196,7 +195,7 @@ namespace
             RegisterCoreTypes();
             RegisterScriptComponentReflection();
             RegisterScriptFacadeReflection();
-            scene.SetEventBus(&bus); // before AddSystem: the bridge binds at OnSceneCreate
+            scene.SetRun(&run); // before AddSystem: the bridge binds to its bus at OnSceneCreate
             components = scene.AddSystem<ScriptComponentManager>();
             scripts = scene.AddSystem<ScriptSceneSystem>();
             components->SetScriptSystem(scripts);
@@ -231,7 +230,7 @@ namespace
         {
             host.Binding().timeSeconds += static_cast<f64>(deltaTime);
             host.Binding().deltaSeconds = deltaTime;
-            bus.Drain(); // the scope drains at frame top (events emitted last frame arrive now)
+            run.Events().Drain(); // the run drains at frame top (events emitted last frame arrive now)
             scene.Update(deltaTime);
         }
     };
@@ -1419,7 +1418,7 @@ TEST_CASE("script.scene: bus token teardown - a destroyed subscriber is never to
     bed.Start();
     bed.Frame(); // instantiate both
 
-    bed.bus.Publish(StringHash(u8"Ping"), Variant{});
+    bed.run.Events().Publish(StringHash(u8"Ping"), Variant{});
     bed.scene.DestroyEntity(doomed); // dies between emit and the next frame's drain
     bed.Frame();                     // drain: dispatch resolves live components only
 

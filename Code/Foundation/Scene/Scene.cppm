@@ -458,23 +458,18 @@ export namespace foundation::scene
         [[nodiscard]] Variant MakeComponentRef(EntityHandle entity, const TypeInfo& componentType);
 
         // ---- events ----
-        /// This scene's event bus: the borrowed bus a run scope injected (a GameInstance's run bus,
-        /// or an editor page's), so `scene.events.emit` and the run bus are the same object in an
-        /// instance. C++ systems Publish/Subscribe directly; script reaches it through a bridge.
-        /// There is no owned fallback: the scope injects before assembly, so systems binding at
-        /// OnSceneCreate see the bus their emits land on. Null on scenes with no scope (headless
-        /// scratch: transcode, validate), which never emit; script handles no-op safely on null,
-        /// native emitters treat null as a contract violation.
-        [[nodiscard]] messaging::EventBus* Events() noexcept { return m_eventBus; }
+        /// This scene's event bus: its run's (IRun::Events()), so `scene.events.emit` and the run
+        /// bus are one object. A scene has no bus of its own and never drains it; its run does.
+        /// C++ systems Publish/Subscribe directly; script reaches it through a bridge. The run is
+        /// set before assembly, so systems binding at OnSceneCreate see the bus their emits land
+        /// on. Null on a scene outside every run (headless scratch: transcode, validate), which
+        /// never emits; script handles no-op safely on null, native emitters treat null as a
+        /// contract violation.
+        [[nodiscard]] messaging::EventBus* Events() noexcept { return m_run != nullptr ? &m_run->Events() : nullptr; }
 
-        /// Borrow a scope's bus: the owning scope (GameInstance, editor page) injects the bus for
-        /// its run and drains it itself; the scene never drains it (see Scene::Update).
-        /// Null clears the borrowed bus; the scene has no bus of its own. Set before the scene ticks.
-        void SetEventBus(messaging::EventBus* bus) noexcept { m_eventBus = bus; }
-
-        // The run that owns this scene: run-scoped systems group the scene by it (its audio
-        // nests under the run's), so the run's stop, pause and
-        // mute reach it. Null = outside every run (an editor page's scene, a test's).
+        // The run that owns this scene: its bus is the scene's, and run-scoped systems group the
+        // scene by it (its audio nests under the run's), so the run's stop, pause and mute reach
+        // it. Null = outside every run (a tool's scratch scene, a test's).
         [[nodiscard]] foundation::run::IRun* Run() const noexcept { return m_run; }
         void SetRun(foundation::run::IRun* run) noexcept { m_run = run; }
 
@@ -612,7 +607,6 @@ export namespace foundation::scene
         u64 m_revision = 0;
 
         // per-scene systems
-        messaging::EventBus* m_eventBus = nullptr; // borrowed scope bus (injected by the run scope); null = none
         foundation::run::IRun* m_run = nullptr;     // the owning run (SetRun); null = none
         Array<UniquePtr<SceneSystem>> m_systems;                // ownership
         HashMap<TypeId, SceneSystem*> m_systemsByType; // lookup by type (id: DLL-safe)

@@ -9,6 +9,7 @@
 
 import foundation.core;
 import foundation.scene;
+import foundation.run; // RunBase: a scene's run, whose bus is the scene's
 
 using namespace foundation::core;
 using namespace foundation::scene;
@@ -191,29 +192,26 @@ TEST_CASE("systems run within a phase in UpdateOrder")
     CHECK(order[1] == 10);
 }
 
-TEST_CASE("scene: Events() is the BORROWED scope bus - null unwired, never drained by the scene")
+TEST_CASE("scene: Events() is its run's bus - null outside every run, never drained by the scene")
 {
-    // No owned fallback: a scene holds only the scope's borrowed bus; unwired scenes have a
-    // null Events() and never emit; the scene never drains (only the owning scope does).
-    // Fixtures inject a bus, as the runtime does.
-    namespace messaging = foundation::messaging;
-
+    // A scene has no bus of its own: its run's is its bus. A scene outside every run has none and
+    // never emits; the scene never drains (only its run does).
     Scene scene{DefaultAllocator()};
-    CHECK(scene.Events() == nullptr); // unwired: no bus, nothing to emit into
+    CHECK(scene.Events() == nullptr); // outside every run: no bus, nothing to emit into
 
-    messaging::EventBus scope;
-    scene.SetEventBus(&scope);
-    REQUIRE(scene.Events() == &scope);
+    foundation::run::RunBase run(DefaultAllocator(), u8"run");
+    scene.SetRun(&run);
+    REQUIRE(scene.Events() == &run.Events());
     int fired = 0;
-    (void)scope.Subscribe(StringHash(u8"Ping"), [&](const Variant&) { ++fired; });
+    (void)run.Events().Subscribe(StringHash(u8"Ping"), [&](const Variant&) { ++fired; });
     scene.Events()->Publish(StringHash(u8"Ping"), Variant{});
     scene.Update(0.016f);
-    CHECK(fired == 0);                 // the scene did not drain; scopes drain
-    CHECK(scope.PendingCount() == 1u); // still queued for the owning scope
-    scope.Drain();
+    CHECK(fired == 0);                        // the scene did not drain; its run does
+    CHECK(run.Events().PendingCount() == 1u); // still queued for the run
+    run.Events().Drain();
     CHECK(fired == 1);
 
-    scene.SetEventBus(nullptr); // scope teardown detaches cleanly
+    scene.SetRun(nullptr); // leaving the run leaves its bus
     CHECK(scene.Events() == nullptr);
 }
 

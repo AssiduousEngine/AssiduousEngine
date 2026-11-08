@@ -96,11 +96,10 @@ namespace editor
         if (m_scenes != nullptr)
         {
             m_scenes->RegisterManager(&m_sceneManager);
-            // The run and its bus are set before the scene is made, so systems binding as it is
-            // assembled see them (its behaviours bind to the run's script host); OnUpdate drains
-            // the bus once a frame.
+            // The run is set before the scene is made, so systems binding as it is assembled see
+            // it and its bus (its behaviours bind to the run's script host); OnUpdate drains the
+            // run's bus once a frame.
             m_sceneManager.SetSceneRun(&run);
-            m_sceneManager.SetSceneEventBus(&run.Events());
             m_scene = m_sceneManager.CreateScene(instance.Name());
             m_scene->SetSimulationEnabled(false); // edit mode is frozen; Simulate unfreezes it
             SceneLoadTimes times;
