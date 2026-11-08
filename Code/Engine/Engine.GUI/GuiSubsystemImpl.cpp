@@ -791,6 +791,8 @@ namespace engine::gui
             m_screen.Root->RequestLayoutTree();
         for (const UniquePtr<ScreenTier>& tier : m_runTiers)
             tier->Root->RequestLayoutTree();
+        if (m_unbound)
+            m_unbound->Root->RequestLayoutTree();
         for (const SceneTier& tier : m_sceneTiers)
             tier.Root->RequestLayoutTree();
         for (const UniquePtr<TextureRoot>& root : m_textureRoots)
@@ -957,6 +959,9 @@ namespace engine::gui
         for (const UniquePtr<ScreenTier>& tier : m_runTiers)
             tier->Screens->Clear();
         m_runTiers.Clear();
+        if (m_unbound)
+            m_unbound->Screens->Clear();
+        m_unbound.Reset();
         if (m_screen.Screens)
             m_screen.Screens->Clear();
         m_overlay = nullptr;
@@ -985,6 +990,8 @@ namespace engine::gui
                 m_screen.Root->RequestLayoutTree();
             for (const UniquePtr<ScreenTier>& tier : m_runTiers)
                 tier->Root->RequestLayoutTree();
+            if (m_unbound)
+                m_unbound->Root->RequestLayoutTree();
             for (const SceneTier& tier : m_sceneTiers)
                 tier.Root->RequestLayoutTree();
             for (const UniquePtr<TextureRoot>& root : m_textureRoots)
@@ -1017,6 +1024,8 @@ namespace engine::gui
             StyleAndLayOut(*m_screen.Root, m_screen.Root->GetViewportSize());
         for (const UniquePtr<ScreenTier>& tier : m_runTiers)
             StyleAndLayOut(*tier->Root, tier->Root->GetViewportSize());
+        if (m_unbound)
+            StyleAndLayOut(*m_unbound->Root, m_unbound->Root->GetViewportSize());
     }
 
     void GuiSubsystem::SetResourceManager(resource::ResourceManager* resources)
@@ -1401,6 +1410,8 @@ namespace engine::gui
             m_screen.Bridge->SetTextInputTarget(window);
         for (const UniquePtr<ScreenTier>& tier : m_runTiers)
             tier->Bridge->SetTextInputTarget(window);
+        if (m_unbound)
+            m_unbound->Bridge->SetTextInputTarget(window);
         for (const SceneTier& tier : m_sceneTiers)
             tier.Bridge->SetTextInputTarget(window);
     }
@@ -1845,7 +1856,21 @@ namespace engine::gui
         for (const UniquePtr<ScreenTier>& tier : m_runTiers)
             if (tier->Root.Get() == root)
                 return tier.Get();
+        if (m_unbound && m_unbound->Root.Get() == root)
+            return m_unbound.Get();
         return nullptr;
+    }
+
+    void GuiSubsystem::EndUnboundScreens()
+    {
+        if (!m_unbound)
+            return;
+        SceneRoot* root = m_unbound->Root.Get();
+        if (m_activeRoot == root)
+            m_activeRoot = nullptr;
+        if (m_pressRoot == root)
+            m_pressRoot = nullptr;
+        m_unbound->Screens->Clear();
     }
 
     ScreenStack* GuiSubsystem::ScreensFor(foundation::run::IRun* run)
@@ -1857,8 +1882,19 @@ namespace engine::gui
 
     SceneRoot* GuiSubsystem::ScreenRootFor(foundation::run::IRun* run)
     {
-        if (!m_runScreens || run == nullptr || !m_screen.Root)
+        if (!m_runScreens || !m_screen.Root)
             return m_screen.Root.Get();
+        if (run == nullptr)
+        {
+            // A script with no run (a scene page's Simulate): a tier of its own that no tab draws,
+            // not the shared tier, which every Game tab draws above its run's screens.
+            if (!m_unbound)
+            {
+                m_unbound = MakeUnique<ScreenTier>(m_allocator);
+                MakeScreenTier(*m_unbound);
+            }
+            return m_unbound->Root.Get();
+        }
         if (ScreenTier* found = FindRunTier(run))
             return found->Root.Get();
         UniquePtr<ScreenTier> tier = MakeUnique<ScreenTier>(m_allocator);
