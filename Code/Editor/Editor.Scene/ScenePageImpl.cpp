@@ -514,6 +514,10 @@ namespace editor
         // tick emitted last frame arrive now).
         m_simulation.Run().Scripts().Advance(dt);
         m_simulation.Run().Events().Drain();
+        // Clicking into a simulating viewport makes its run the one heard, as with a Game tab.
+        if (m_simulation.IsRunning() && m_services.runs != nullptr && m_viewport->IsFocused() &&
+            m_services.runs->Focused() != &m_simulation.Run())
+            m_services.runs->SetFocused(&m_simulation.Run());
 
         // The overlays into this viewport's own debug list (the lists clear each frame, so they are
         // drawn again every frame); none on the frame a project picture is captured.
@@ -753,6 +757,9 @@ namespace editor
             m_animation->StopPreview();
         if (m_scene == nullptr || !m_simulation.Start(*m_scene, Commands()))
             return;
+        // The page Simulate was pressed in is the run heard, as the tab Play was pressed in is.
+        if (m_services.runs != nullptr)
+            m_services.runs->SetFocused(&m_simulation.Run());
         // Modal edit tools (terrain sculpt) share runtime state with the simulation (the collider):
         // back to the default select tool for the run.
         m_viewportTools.ActivateDefault();

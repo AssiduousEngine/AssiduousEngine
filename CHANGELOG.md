@@ -11,6 +11,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 - Editor: each scene page's Simulate runs its scripts apart from other pages', with their own
   script context and clock.
+- Editor: a Simulate's sound is heard while its page has the focus, as a Game tab's is: starting
+  it, or clicking into its viewport, gives it the focus.
 
 ### Fixed
 

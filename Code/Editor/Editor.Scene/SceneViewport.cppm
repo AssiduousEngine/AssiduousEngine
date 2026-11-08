@@ -104,6 +104,8 @@ export namespace editor
             return m_view->IsHovered() || m_view->IsFocused() || (surface != nullptr && surface->Captured());
         }
         [[nodiscard]] bool IsHovered() const { return m_scripted ? ScriptedPointerInside() : m_view->IsHovered(); }
+        /// Whether its content has the keyboard focus (a click into it gives it).
+        [[nodiscard]] bool IsFocused() const { return m_view->IsFocused(); }
         /// The mouse, in the targets' pixels.
         [[nodiscard]] foundation::shell::IMouse* Mouse() const { return m_scripted ? m_scripted->Mouse() : m_view->Mouse(); }
         /// The keyboard while it has the focus or holds a press; null otherwise.

@@ -425,6 +425,24 @@ TEST_CASE("scene page: the page is a run; its scene carries it and its script ho
     runs.Unsubscribe(heard);
 }
 
+TEST_CASE("scene page: Simulate makes the page's run the focused one, the one heard, as Play does for its tab")
+{
+    Bed bed;
+    foundation::run::RunRegistry runs(DefaultAllocator());
+    foundation::run::RunBase game(DefaultAllocator(), u8"Game 1"); // a Game tab's run, focused by its Play
+    runs.Add(game);
+    runs.SetFocused(&game);
+    UniquePtr<SceneEditorPage> page = bed.Open(*bed.level, &runs);
+    CHECK(runs.Focused() == &game); // opening a page takes nothing
+    page->StartSimulation();
+    CHECK(runs.Focused() == page->ScenePtr()->Run());
+    page->StopSimulation();
+    CHECK(runs.Focused() == page->ScenePtr()->Run()); // kept, as a stopped Game tab keeps it
+    page->OnClose();
+    page.Reset();
+    CHECK(runs.Focused() == nullptr); // its run gone, nothing is focused
+}
+
 TEST_CASE("scene page: where the scene was left (the camera, the selection, the panes, the overlays) comes back when it opens again")
 {
     Bed bed;
