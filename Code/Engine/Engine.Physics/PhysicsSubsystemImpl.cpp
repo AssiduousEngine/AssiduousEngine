@@ -524,7 +524,7 @@ namespace engine::physics
         builder.Property<&RigidBodyComponent::collisionShape>("collisionShape");
         builder.Property<&RigidBodyComponent::material>("material");
         // RigidBodyComponent.of(entity) -> a re-resolving handle.
-        builder.Method<&foundation::script::ComponentOf<RigidBodyComponent>, RigidBodyComponent>("of");
+        builder.Apply(&foundation::script::ComponentMethods<RigidBodyComponent>);
     }
 
     REFLECT_VALUE(ColliderComponent, "rtti::engine::physics")
@@ -566,7 +566,7 @@ namespace engine::physics
         builder.Property<&CharacterComponent::stepUp>("stepUp");
         builder.Property<&CharacterComponent::stepDown>("stepDown");
         // CharacterComponent.of(entity) -> a re-resolving handle.
-        builder.Method<&foundation::script::ComponentOf<CharacterComponent>, CharacterComponent>("of");
+        builder.Apply(&foundation::script::ComponentMethods<CharacterComponent>);
         // Per-entity character control through component-data operations:
         // Character.of(entity).move(x, z) / .jump(speed) / .grounded() / .positionY().
         builder.Method<&CharacterComponent::move>("move", {"velocityX", "velocityZ"});

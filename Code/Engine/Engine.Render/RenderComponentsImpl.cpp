@@ -21,7 +21,7 @@ import foundation.materials;
 import foundation.rhi;
 import foundation.render;          // debug::DebugDraw (the DebugDraw facade wraps DebugScene's accumulator)
 import foundation.script;          // IScriptContext::GetService, CurrentScriptContext (the render service)
-import foundation.script.facades; // ComponentOf<T>, RegisterExtra* (the script `.of` surface)
+import foundation.script.facades; // ComponentMethods<T> (of, addTo, removeFrom), RegisterExtra*
 import :subsystem;                 // RenderSubsystem, RenderScriptBinding (the DebugDraw facade target)
 
 using namespace foundation::core;
@@ -73,7 +73,7 @@ namespace engine::render
             // Script: MeshComponent.of(entity) returns a re-resolving handle; `color` and `visible`
             // set live from a behavior. `mesh` and `materials` are resource refs, swapped through
             // SceneRender.setMesh and setMaterial, not this raw property.
-            .Method<&foundation::script::ComponentOf<MeshComponent>, MeshComponent>("of")
+            .Apply(&foundation::script::ComponentMethods<MeshComponent>)
             .Property<&MeshComponent::mesh>("mesh")
             .Property<&MeshComponent::color>("color")
             .Property<&MeshComponent::visible>("visible")
@@ -115,8 +115,7 @@ namespace engine::render
             .Attribute("description",
                        String(u8"Draws one mesh and material at many instance transforms in a "
                               u8"single draw, for scatter and crowds."))
-            .Method<&foundation::script::ComponentOf<InstancedMeshComponent>, InstancedMeshComponent>(
-                "of")
+            .Apply(&foundation::script::ComponentMethods<InstancedMeshComponent>)
             .Property<&InstancedMeshComponent::mesh>("mesh")
             .Property<&InstancedMeshComponent::materials>("materials")
             .Property<&InstancedMeshComponent::color>("color")
@@ -135,7 +134,7 @@ namespace engine::render
             .Attribute("description",
                        String(u8"Draws this entity as one instance of another entity's instanced mesh, "
                               u8"wherever it moves, on one of that mesh's animation clips."))
-            .Method<&foundation::script::ComponentOf<InstanceMemberComponent>, InstanceMemberComponent>("of")
+            .Apply(&foundation::script::ComponentMethods<InstanceMemberComponent>)
             .Property<&InstanceMemberComponent::instancedMesh>("instancedMesh")
             .PropAttribute("description", String(u8"The entity whose instanced mesh draws this one"))
             .Property<&InstanceMemberComponent::clip>("clip")
@@ -155,7 +154,7 @@ namespace engine::render
                        String(u8"Views the scene from the entity, in perspective or "
                               u8"orthographic, onto the screen or a render texture."))
             .DataVersion(2) // v1: projection and orthoHeight; v2: target and targetInterval
-            .Method<&foundation::script::ComponentOf<CameraComponent>, CameraComponent>("of")
+            .Apply(&foundation::script::ComponentMethods<CameraComponent>)
             // The mode first: the inspector shows only the fields of the chosen projection.
             .Property<&CameraComponent::projection>("projection")
             .Property<&CameraComponent::fovYRadians>("fovYRadians")
@@ -189,7 +188,7 @@ namespace engine::render
                        String(u8"Lights the scene from the entity: directional, point or spot, "
                               u8"optionally casting shadows."))
             // Script: LightComponent.of(entity) gives live color, intensity, range, enabled and the rest.
-            .Method<&foundation::script::ComponentOf<LightComponent>, LightComponent>("of")
+            .Apply(&foundation::script::ComponentMethods<LightComponent>)
             .DataVersion(1) // v1: shadowDepthBiasScale, shadowNormalBias, shadowStrength
             .Property<&LightComponent::type>("type")
             .Property<&LightComponent::color>("color")
@@ -444,7 +443,7 @@ namespace engine::render
             .Attribute("description",
                        String(u8"Draws a textured billboard at the entity, facing the camera or "
                               u8"fixed in the world."))
-            .Method<&foundation::script::ComponentOf<SpriteComponent>, SpriteComponent>("of")
+            .Apply(&foundation::script::ComponentMethods<SpriteComponent>)
             .Property<&SpriteComponent::textureAsset>("texture")
             .Property<&SpriteComponent::size>("size")
             .Property<&SpriteComponent::uvRect>("uvRect")
@@ -461,7 +460,7 @@ namespace engine::render
             .Attribute("description",
                        String(u8"Projects a texture onto the surfaces inside the entity's box, "
                               u8"along its local Z axis."))
-            .Method<&foundation::script::ComponentOf<DecalComponent>, DecalComponent>("of")
+            .Apply(&foundation::script::ComponentMethods<DecalComponent>)
             .Property<&DecalComponent::textureAsset>("texture")
             .Property<&DecalComponent::size>("size")
             .Property<&DecalComponent::color>("color")
@@ -587,8 +586,7 @@ namespace engine::render
                               u8"reflections to surfaces in its box."))
             .DataVersion(1)          // v1: no resolution (every probe captures at the system's size)
             .ReadsDataVersionsFrom(0) // a v0 probe's resolution is read and dropped
-            .Method<&foundation::script::ComponentOf<ReflectionProbeComponent>, ReflectionProbeComponent>(
-                "of")
+            .Apply(&foundation::script::ComponentMethods<ReflectionProbeComponent>)
             .Method<&ReflectionProbeComponent::capture>("capture")
             .Property<&ReflectionProbeComponent::halfExtents>("halfExtents")
             .Property<&ReflectionProbeComponent::blendDistance>("blendDistance")

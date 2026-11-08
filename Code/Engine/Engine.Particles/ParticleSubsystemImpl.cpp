@@ -16,7 +16,7 @@ import engine.domain;
 import foundation.particles.resource;
 
 import foundation.core;
-import foundation.script.facades; // ComponentOf<T>, RegisterExtra* (the script `.of` surface)
+import foundation.script.facades; // ComponentMethods<T> (of, addTo, removeFrom), RegisterExtra*
 
 using namespace foundation::core;
 namespace core = foundation::core;
@@ -33,8 +33,7 @@ namespace engine::particles
             // Script: ParticleEffectComponent.of(entity) reaches the live visible/meshScale/light*
             // data. play/stop/setEffect are instance operations, on SceneParticles.of(scene) (keyed
             // by entity).
-            .Method<&foundation::script::ComponentOf<ParticleEffectComponent>, ParticleEffectComponent>(
-                "of")
+            .Apply(&foundation::script::ComponentMethods<ParticleEffectComponent>)
             .Property<&ParticleEffectComponent::effectAsset>("effect")
             .Property<&ParticleEffectComponent::mesh>("mesh")
             .Property<&ParticleEffectComponent::material>("material")

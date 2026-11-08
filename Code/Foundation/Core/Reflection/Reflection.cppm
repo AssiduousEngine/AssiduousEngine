@@ -1817,6 +1817,14 @@ export namespace foundation::core
             return *this;
         }
 
+        /// Runs `part` on this builder: a piece of reflection many types share, kept in one place
+        /// (a component's script methods: foundation::script::ComponentMethods<T>).
+        TypeBuilder& Apply(void (*part)(TypeBuilder&))
+        {
+            part(*this);
+            return *this;
+        }
+
         /// Keep a legacy reader: a payload stored under any version from `oldest` up to the
         /// current one is accepted, and the Serialize body branches on ar.Version() for the old
         /// layouts.

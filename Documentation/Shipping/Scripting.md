@@ -43,6 +43,25 @@ Handlers dispatch **by presence** - implement only what you need:
   owning side drives, the rest interpolate. It reads; replication owns the identity, so
   nothing on it is assignable from a script.
 
+## Components
+
+Every component a script reaches has three static methods on its type (AngelScript
+`RigidBodyComponent::of(e)`, Luau `RigidBodyComponent.of(e)`):
+
+- `of(entity)` - the entity's component, a handle that finds it again on each use; null (nil)
+  when the entity has none, so `if (c !is null)` / `if c then` is the test where it may not.
+- `addTo(entity)` - gives the entity the component, default-made, when it has none, and returns
+  it either way, ready to set up: `RigidBodyComponent@ b = RigidBodyComponent::addTo(self);
+  b.shape = ShapeKind::Capsule;`. Its systems take it up as they take up one placed in the editor
+  (it initializes at the next frame's start; physics builds its body, audio plays it if it
+  autoplays).
+- `removeFrom(entity)` - takes it off and says whether there was one. What it held goes with it:
+  a body leaves the physics world, a voice stops. A handle kept to it reads as gone, which is a
+  script error where it is used.
+
+A prefab is still the way to make something with many parts at once (`ScenePrefabs::of(scene)
+.spawn`); `addTo` is for one component on an entity that is already there.
+
 ## Editor properties
 
 - **Luau**: every field the constructor sets to a number, boolean, string or Float3 becomes a

@@ -80,8 +80,8 @@ namespace
 REFLECT_VALUE(Gadget, "rtti::engine::script::test")
 {
     builder.Property<&Gadget::power>("power");
-    // The generic factory: Gadget.of(entity) returns a resolving handle of type Gadget.
-    builder.Method<&foundation::script::ComponentOf<Gadget>, Gadget>("of");
+    // A component's script methods: Gadget.of(entity), Gadget.addTo(entity), Gadget.removeFrom(entity).
+    builder.Apply(&foundation::script::ComponentMethods<Gadget>);
 }
 namespace
 {
@@ -2625,6 +2625,57 @@ TEST_CASE("script.scene: a physics collision dispatches onContactBegin(other, po
     CHECK(world.scene->GetEntityName(box) == StringView(u8"hit:floor"));
 }
 
+// A rigid body added from script becomes a body in the physics world (taken up as one added in
+// C++ is), and taken off, its body leaves the world.
+TEST_CASE("script.scene: RigidBodyComponent::addTo builds a body; removeFrom takes it out of the world")
+{
+    engine::physics::RegisterPhysicsScriptFacade(); // RigidBodyComponent and its enums to script
+
+    ContactWorld world;
+    (void)world.AddBody(u8"floor", Float3{0, -0.5f, 0}, physics::MotionKind::Static, Float3{50, 0.5f, 50});
+    const scene::EntityHandle post = world.scene->CreateEntity(u8"post");
+    world.scene->SetLocalPosition(post, Float3{3.0f, 1.0f, 0.0f});
+    RefPtr<ScriptClass> builder = MakeClass(
+        u8"Builder",
+        u8"class Builder {\n"
+        u8"    private Entity@ self;\n"
+        u8"    private int frame = 0;\n"
+        u8"    Builder(Entity@ entity) { @self = entity; }\n"
+        u8"    void onUpdate(double dt) {\n"
+        u8"        frame++;\n"
+        u8"        if (frame == 1) {\n"
+        u8"            RigidBodyComponent@ b = RigidBodyComponent::addTo(self);\n"
+        u8"            b.motion = MotionKind::Kinematic;\n"
+        u8"            b.layer = PhysicsLayer::Kinematic;\n"
+        u8"            b.shape = ShapeKind::Capsule;\n"
+        u8"            b.radius = 0.4f;\n"
+        u8"            b.halfHeight = 0.5f;\n"
+        u8"        } else if (frame == 30) {\n"
+        u8"            RigidBodyComponent::removeFrom(self);\n"
+        u8"        }\n"
+        u8"    }\n"
+        u8"}\n",
+        {u8"onUpdate"});
+    world.Attach(post, builder);
+    auto* physicsScene = world.scene->GetSystem<engine::physics::PhysicsSceneSystem>();
+
+    world.Play(10);
+    REQUIRE(physicsScene->World() != nullptr);
+    CHECK(physicsScene->World()->BodyCount() == 2u); // the floor and the post's capsule
+    auto* bodies = world.scene->GetSystem<engine::physics::RigidBodyComponentManager>();
+    REQUIRE(bodies->Get(post) != nullptr);
+    CHECK(bodies->Get(post)->shape == physics::ShapeKind::Capsule);
+    CHECK(bodies->Get(post)->body.IsValid());
+
+    for (int i = 0; i < 30; ++i)
+    {
+        world.ctx.BeginFrame(1.0f / 60.0f);
+        world.ctx.Update(1.0f / 60.0f);
+    }
+    CHECK(bodies->Get(post) == nullptr);
+    CHECK(physicsScene->World()->BodyCount() == 1u); // the floor only
+}
+
 TEST_CASE("script.scene: a physics trigger dispatches onTriggerEnter(other) to a behavior")
 {
     ContactWorld world;
@@ -3268,6 +3319,79 @@ TEST_CASE("script.scene: OPTION 1 - Component::of(entity).field mutates the live
     bed.Frame();
     REQUIRE(gadgets->Get(e) != nullptr);
     CHECK(gadgets->Get(e)->power == doctest::Approx(5.0f)); // the live component was mutated
+}
+
+// Component.addTo(entity) gives the entity the component when it has none and hands it back either
+// way; Component.removeFrom(entity) takes it off and says whether there was one. Both languages.
+TEST_CASE("script.scene: Component::addTo adds and hands back, removeFrom takes off (AngelScript)")
+{
+    foundation::script::angelscript::RegisterAngelScriptBackend();
+    EnsureGadgetRegistered();
+    ScriptedScene bed;
+    GadgetManager* gadgets = bed.scene.AddSystem<GadgetManager>();
+    RefPtr<ScriptClass> maker =
+        MakeClassLang(u8"angelscript", u8"Maker",
+                      u8"class Maker {\n"
+                      u8"    private Entity@ self;\n"
+                      u8"    private int frame = 0;\n"
+                      u8"    Maker(Entity@ entity) { @self = entity; }\n"
+                      u8"    void onUpdate(double dt) {\n"
+                      u8"        frame++;\n"
+                      u8"        if (frame == 1) {\n"
+                      u8"            if (Gadget::of(self) !is null) self.setName(\"early\");\n"
+                      u8"            Gadget::addTo(self).power = 7.0f;\n"
+                      u8"            Gadget::addTo(self).power += 1.0f;\n" // the one it has: 8
+                      u8"        } else if (frame == 2) {\n"
+                      u8"            bool had = Gadget::removeFrom(self);\n"
+                      u8"            bool again = Gadget::removeFrom(self);\n"
+                      u8"            if (had && !again && Gadget::of(self) is null) self.setName(\"removed\");\n"
+                      u8"        }\n"
+                      u8"    }\n"
+                      u8"}\n",
+                      {u8"onUpdate"});
+    const scene::EntityHandle e = bed.AddScripted(maker, u8"e");
+    bed.Start();
+    bed.Frame();
+    REQUIRE(gadgets->Get(e) != nullptr);
+    CHECK(gadgets->Get(e)->power == doctest::Approx(8.0f));
+    bed.Frame();
+    CHECK(gadgets->Get(e) == nullptr);
+    CHECK(bed.scene.GetEntityName(e) == StringView(u8"removed"));
+    CHECK_FALSE(bed.components->Get(e)->behaviors[0].faulted);
+}
+
+TEST_CASE("script.scene: LUAU Component.addTo adds and hands back, removeFrom takes off")
+{
+    EnsureGadgetRegistered();
+    ScriptedScene bed;
+    GadgetManager* gadgets = bed.scene.AddSystem<GadgetManager>();
+    RefPtr<ScriptClass> maker = MakeClassLang(
+        u8"luau", u8"Maker",
+        u8"Maker = {}\n"
+        u8"Maker.__index = Maker\n"
+        u8"function Maker.new(entity) return setmetatable({ entity = entity, frame = 0 }, Maker) end\n"
+        u8"function Maker:onUpdate(dt)\n"
+        u8"    self.frame = self.frame + 1\n"
+        u8"    if self.frame == 1 then\n"
+        u8"        Gadget.addTo(self.entity).power = 7\n"
+        u8"        local g = Gadget.addTo(self.entity)\n"
+        u8"        g.power = g.power + 1\n"
+        u8"    elseif self.frame == 2 then\n"
+        u8"        local had = Gadget.removeFrom(self.entity)\n"
+        u8"        local again = Gadget.removeFrom(self.entity)\n"
+        u8"        if had and not again and Gadget.of(self.entity) == nil then self.entity:setName(\"removed\") end\n"
+        u8"    end\n"
+        u8"end\n",
+        {u8"onUpdate"});
+    const scene::EntityHandle e = bed.AddScripted(maker, u8"e");
+    bed.Start();
+    bed.Frame();
+    REQUIRE(gadgets->Get(e) != nullptr);
+    CHECK(gadgets->Get(e)->power == doctest::Approx(8.0f));
+    bed.Frame();
+    CHECK(gadgets->Get(e) == nullptr);
+    CHECK(bed.scene.GetEntityName(e) == StringView(u8"removed"));
+    CHECK_FALSE(bed.components->Get(e)->behaviors[0].faulted);
 }
 
 // Component.of(entity) is null for an entity without the component, so the `!is null` test scripts

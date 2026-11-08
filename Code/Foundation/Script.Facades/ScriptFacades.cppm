@@ -630,9 +630,9 @@ export namespace foundation::script
     }
 
     /// The `Component.of(entity)` factory body: a re-resolving handle of component type T for
-    /// `entity`, as a resolve-mode Variant. Reflect it on T with the ReturnType override so the
-    /// declared script return is T:
-    ///     builder.Method<&foundation::script::ComponentOf<T>, T>("of");
+    /// `entity`, as a resolve-mode Variant. A component reflects it, with addTo and removeFrom,
+    /// through ComponentMethods:
+    ///     builder.Apply(&foundation::script::ComponentMethods<T>);
     /// Every component-owning module reuses this one body. It is empty (null in script) when the
     /// entity has no T (or its scene no manager for T), so `if (c !is null)` or `if c then` is the
     /// test. The type must also be registered (GlobalTypeRegistry), seeded as an emission root
@@ -646,6 +646,56 @@ export namespace foundation::script
         }
         Variant component = entity.scene->MakeComponentRef(entity.Handle(), TypeOf<T>());
         return ToInstance(component).Pointer() != nullptr ? component : Variant{};
+    }
+
+    /// `Component.addTo(entity)`: gives `entity` a T, default-made, when it has none, and returns
+    /// its handle either way (as `of` does), so a script sets it up at once:
+    /// `RigidBodyComponent::addTo(e).radius = 0.4f;`. The component's systems take it up as they
+    /// take up one added in C++ (initialized at the next frame's start, a body built by physics'
+    /// next reconcile). Null when the entity is gone or its scene has no manager for T.
+    template <typename T>
+    [[nodiscard]] Variant ComponentAddTo(Entity entity)
+    {
+        if (entity.scene == nullptr || !entity.scene->IsValid(entity.Handle()))
+        {
+            return Variant{};
+        }
+        if (scene::ComponentManagerBase* manager = entity.scene->FindManagerByComponentType(TypeOf<T>()))
+        {
+            (void)manager->AddDefaultComponent(entity.Handle());
+        }
+        return ComponentOf<T>(entity);
+    }
+
+    /// `Component.removeFrom(entity)`: takes the entity's T off; whether it had one. What the
+    /// component held goes with it (a body, a voice); a handle kept to it reads as gone.
+    template <typename T>
+    bool ComponentRemoveFrom(Entity entity)
+    {
+        if (entity.scene == nullptr || !entity.scene->IsValid(entity.Handle()))
+        {
+            return false;
+        }
+        scene::ComponentManagerBase* manager = entity.scene->FindManagerByComponentType(TypeOf<T>());
+        if (manager == nullptr || !manager->HasComponent(entity.Handle()))
+        {
+            return false;
+        }
+        manager->RemoveComponent(entity.Handle());
+        return true;
+    }
+
+    /// A component's script methods, registered together: `of`, `addTo` and `removeFrom`, static
+    /// on the component's type. Every component a script reaches applies it in its reflection:
+    ///     builder.Apply(&foundation::script::ComponentMethods<T>);
+    /// The type must also be registered (GlobalTypeRegistry), seeded as an emission root and given
+    /// an extra facade name, as `of` always needed.
+    template <typename T>
+    void ComponentMethods(TypeBuilder<T>& builder)
+    {
+        builder.template Method<&ComponentOf<T>, T>("of");
+        builder.template Method<&ComponentAddTo<T>, T>("addTo");
+        builder.template Method<&ComponentRemoveFrom<T>>("removeFrom");
     }
 
     /// The current run's resource manager (via the run binding's resolveResources getter), or null

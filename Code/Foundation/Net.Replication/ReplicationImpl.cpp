@@ -15,7 +15,7 @@ module foundation.net.replication;
 import foundation.core;
 import foundation.net;
 import foundation.scene;
-import foundation.script.facades; // ComponentOf<T>, RegisterExtra* (the script `.of` surface)
+import foundation.script.facades; // ComponentMethods<T> (of, addTo, removeFrom), RegisterExtra*
 
 using namespace foundation::core;
 namespace scene = foundation::scene;
@@ -430,7 +430,7 @@ namespace foundation::net
         // replication owns them, and none of them is itself replicated, so a script assigning
         // `authority` would silently desynchronise the two sides. `prefab` is replication's
         // bookkeeping and is not exposed.
-        builder.Method<&foundation::script::ComponentOf<NetworkComponent>, NetworkComponent>("of");
+        builder.Apply(&foundation::script::ComponentMethods<NetworkComponent>);
         builder.Property<&NetworkComponent::id>("id", PropertyFlags::ReadOnly);
         builder.Property<&NetworkComponent::authority>("authority", PropertyFlags::ReadOnly);
         builder.Property<&NetworkComponent::owner>("owner", PropertyFlags::ReadOnly); // whose: 0 = the host

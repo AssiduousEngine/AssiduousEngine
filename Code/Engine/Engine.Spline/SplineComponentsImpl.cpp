@@ -128,7 +128,7 @@ namespace engine::spline
             .Property<&PathFollowComponent::loop>("loop")
             .Property<&PathFollowComponent::alignToTangent>("alignToTangent");
         // PathFollowComponent.of(entity): a script drives its follower (a pace, a restart).
-        builder.Method<&foundation::script::ComponentOf<PathFollowComponent>, PathFollowComponent>("of");
+        builder.Apply(&foundation::script::ComponentMethods<PathFollowComponent>);
     }
 
     void AddSplineSceneManagers(foundation::scene::Scene& scene)

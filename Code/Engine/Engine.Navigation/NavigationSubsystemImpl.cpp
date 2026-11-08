@@ -221,7 +221,7 @@ namespace engine::navigation
                                   u8"and shoulders past anyone in its way (a player's character)"))
             .Property<&NavAgentComponent::moveEntity>("moveEntity")
             // Runtime API: NavAgent.of(entity) -> a re-resolving handle.
-            .Method<&foundation::script::ComponentOf<NavAgentComponent>, NavAgentComponent>("of")
+            .Apply(&foundation::script::ComponentMethods<NavAgentComponent>)
             .Method<&NavAgentComponent::navigate>("navigate", {"x", "y", "z"})
             .Method<&NavAgentComponent::navigateAt>("navigateAt",
                                                     {"x", "y", "z", "speed", "stopDistance"})

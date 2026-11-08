@@ -40,7 +40,7 @@ import engine.input;
 import foundation.gui;
 import foundation.gui.gamekit;
 import foundation.gui.shell;
-import foundation.script;          // ComponentOf: a component's `.of(entity)`
+import foundation.script;          // ComponentMethods: a component's of, addTo and removeFrom
 import foundation.script.facades;  // the behaviour prelude's names
 import foundation.gui.resources; // GuiDocument, GuiStyleSheet, kGuiResourceModule
 import foundation.gui.hosting;   // GuiPassRenderer, VgShaderLibrary
@@ -375,7 +375,7 @@ namespace engine::gui
             .Attribute("category", String(u8"GUI"))
             .Attribute("description", String(u8"Shows a GUI document in its scene, as a menu or a HUD, or draws it into a texture."))
             .DataVersion(1);
-        builder.Method<&foundation::script::ComponentOf<GuiCanvasComponent>, GuiCanvasComponent>("of");
+        builder.Apply(&foundation::script::ComponentMethods<GuiCanvasComponent>);
         builder.Method<&GuiCanvasComponent::rootNode, Node>("root"); // typed as Node: AngelScript binds a Variant return only typed
         builder.Property<&GuiCanvasComponent::document>("document");
         builder.Property<&GuiCanvasComponent::sheet>("sheet");
@@ -407,7 +407,7 @@ namespace engine::gui
             .Attribute("category", String(u8"GUI"))
             .Attribute("description", String(u8"Shows a GUI document over the entity, such as a nameplate or a health bar."))
             .DataVersion(1);
-        builder.Method<&foundation::script::ComponentOf<GuiBillboardComponent>, GuiBillboardComponent>("of");
+        builder.Apply(&foundation::script::ComponentMethods<GuiBillboardComponent>);
         builder.Method<&GuiBillboardComponent::rootNode, Node>("root"); // typed as Node: AngelScript binds a Variant return only typed
         builder.Property<&GuiBillboardComponent::document>("document");
         builder.Property<&GuiBillboardComponent::sheet>("sheet");
@@ -458,7 +458,7 @@ namespace engine::gui
             .Attribute("category", String(u8"GUI"))
             .Attribute("description", String(u8"Shows a GUI document on a panel in the world, in the entity's plane, optionally taking the pointer."))
             .DataVersion(1);
-        builder.Method<&foundation::script::ComponentOf<GuiWorldPanelComponent>, GuiWorldPanelComponent>("of");
+        builder.Apply(&foundation::script::ComponentMethods<GuiWorldPanelComponent>);
         builder.Method<&GuiWorldPanelComponent::rootNode, Node>("root"); // typed as Node: AngelScript binds a Variant return only typed
         builder.Property<&GuiWorldPanelComponent::document>("document");
         builder.Property<&GuiWorldPanelComponent::sheet>("sheet");

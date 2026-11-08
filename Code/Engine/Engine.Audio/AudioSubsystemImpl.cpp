@@ -174,8 +174,7 @@ namespace engine::audio
             .DataVersion(4);
         // Scripts: AudioSourceComponent.of(entity) gives live volume/pitch/loop/spatial/etc.
         // play/stop/pause and clip swap are engine ops on SceneAudio.of(scene) (world ops keyed by entity).
-        builder.Method<&foundation::script::ComponentOf<AudioSourceComponent>, AudioSourceComponent>(
-            "of");
+        builder.Apply(&foundation::script::ComponentMethods<AudioSourceComponent>);
         // Source: pick Clip or Cue; only the chosen Ref shows (visibleWhen keys on sourceType).
         builder.Property<&AudioSourceComponent::sourceType>("sourceType");
         builder.Property<&AudioSourceComponent::clip>("clip").PropAttribute(

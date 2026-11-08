@@ -18,7 +18,7 @@ import foundation.propertyanimation.resource;
 
 import foundation.core;
 import foundation.script;
-import foundation.script.facades; // ComponentOf<T> and RegisterExtra* (the script `.of` surface)
+import foundation.script.facades; // ComponentMethods<T> (of, addTo, removeFrom), RegisterExtra*
 import foundation.runtime;
 import engine.render; // RenderSubsystem::DebugScene (the IK components' debugDraw)
 import foundation.render; // render::debug::DebugDraw (what DebugScene returns)
@@ -41,8 +41,7 @@ namespace engine::animation
             .ReadsDataVersionsFrom(1) // a v1 record reads with root motion off
             // Scripts: SkeletalAnimationComponent.of(entity) gives live speed/startTime/autoPlay.
             // play/stop/setClip are player ops on SceneAnimation.of(scene) (world ops keyed by entity).
-            .Method<&foundation::script::ComponentOf<SkeletalAnimationComponent>,
-                    SkeletalAnimationComponent>("of")
+            .Apply(&foundation::script::ComponentMethods<SkeletalAnimationComponent>)
             .Property<&SkeletalAnimationComponent::skeleton>("skeleton")
             .Property<&SkeletalAnimationComponent::clip>("clip")
             .Property<&SkeletalAnimationComponent::meshEntities>("meshEntities")
@@ -71,8 +70,7 @@ namespace engine::animation
             .ReadsDataVersionsFrom(1) // a v1 record reads with root motion off
             // Scripts: AnimationGraphComponent.of(entity) gives live `active`; graph params
             // (setFloat/setInt/setBool/setTrigger) are player ops on SceneAnimation.of(scene).
-            .Method<&foundation::script::ComponentOf<AnimationGraphComponent>, AnimationGraphComponent>(
-                "of")
+            .Apply(&foundation::script::ComponentMethods<AnimationGraphComponent>)
             .Property<&AnimationGraphComponent::skeleton>("skeleton")
             .Property<&AnimationGraphComponent::graph>("graph")
             .Property<&AnimationGraphComponent::meshEntities>("meshEntities")
@@ -124,7 +122,7 @@ namespace engine::animation
             .Attribute("description",
                        String(u8"Bends a two-bone chain so its end reaches a target, such as a "
                               u8"foot on a step or a hand on a handle."))
-            .Method<&foundation::script::ComponentOf<TwoBoneIkComponent>, TwoBoneIkComponent>("of")
+            .Apply(&foundation::script::ComponentMethods<TwoBoneIkComponent>)
             .Property<&TwoBoneIkComponent::startBone>("startBone")
             .PropAttribute("boneName", true)
             .PropAttribute("description", String(u8"The chain's first bone (a thigh, an upper arm)."))
@@ -164,7 +162,7 @@ namespace engine::animation
             .Attribute("description",
                        String(u8"Follows one bone of the animator above it while the scene runs, such as a "
                               u8"weapon in a hand or a hat on a head; its children ride along."))
-            .Method<&foundation::script::ComponentOf<BoneAttachmentComponent>, BoneAttachmentComponent>("of")
+            .Apply(&foundation::script::ComponentMethods<BoneAttachmentComponent>)
             .Property<&BoneAttachmentComponent::bone>("bone")
             .PropAttribute("boneName", true)
             .PropAttribute("description", String(u8"The bone this entity follows."));
@@ -188,7 +186,7 @@ namespace engine::animation
                               u8"such as a head that follows."))
             .DataVersion(1) // v1: maxTurn, maxTilt and beyondLimits for v0's one maxAngle
             .ReadsDataVersionsFrom(0) // a v0 record's maxAngle becomes both limits, held
-            .Method<&foundation::script::ComponentOf<AimIkComponent>, AimIkComponent>("of")
+            .Apply(&foundation::script::ComponentMethods<AimIkComponent>)
             .Property<&AimIkComponent::bones>("bones")
             .PropAttribute("description", String(u8"Root first; the last bone aims (a spine: 0.3, 0.5, 1)."))
             .Property<&AimIkComponent::target>("target")
@@ -242,7 +240,7 @@ namespace engine::animation
             .Attribute("description",
                        String(u8"Plants the character's feet on the ground under them, angled "
                               u8"to its slope, and lowers the pelvis so they reach."))
-            .Method<&foundation::script::ComponentOf<FootIkComponent>, FootIkComponent>("of")
+            .Apply(&foundation::script::ComponentMethods<FootIkComponent>)
             .Property<&FootIkComponent::legs>("legs")
             .PropAttribute("description", String(u8"Up to four legs, each thigh, shin, foot."))
             .Property<&FootIkComponent::pelvisBone>("pelvisBone")
@@ -284,8 +282,7 @@ namespace engine::animation
             .Attribute("description",
                        String(u8"Animates an instanced mesh crowd from a small shared pool of poses, "
                               u8"each instance on one of its clips."))
-            .Method<&foundation::script::ComponentOf<InstancedSkinningComponent>,
-                    InstancedSkinningComponent>("of")
+            .Apply(&foundation::script::ComponentMethods<InstancedSkinningComponent>)
             .Property<&InstancedSkinningComponent::skeleton>("skeleton")
             .Property<&InstancedSkinningComponent::clips>("clips")
             .PropAttribute("description",
@@ -328,8 +325,7 @@ namespace engine::animation
             .Attribute("description",
                        String(u8"Plays a property animation clip on the entity, animating its "
                               u8"transform and component values."))
-            .Method<&foundation::script::ComponentOf<PropertyAnimatorComponent>,
-                    PropertyAnimatorComponent>("of")
+            .Apply(&foundation::script::ComponentMethods<PropertyAnimatorComponent>)
             // Playback ops for scripts: animator.of(entity).play()/stop()/pause()/... (no facade library).
             .Method<&PropertyAnimatorComponent::play>("play")
             .Method<&PropertyAnimatorComponent::stop>("stop")
