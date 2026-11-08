@@ -616,7 +616,8 @@ namespace editor
 
     void SceneEditorPage::OnAfterSceneRender(runtime::IApplicationHost& host, foundation::graphics::FrameContext& frame)
     {
-        m_viewport->AfterRender(host, frame);
+        // A Simulate's screens over its view, as a Game tab shows its run's.
+        m_viewport->AfterRender(host, frame, m_simulation.IsRunning() ? &m_simulation.Run() : nullptr);
     }
 
     bool SceneEditorPage::PickEntity(EntityPickRequest request)

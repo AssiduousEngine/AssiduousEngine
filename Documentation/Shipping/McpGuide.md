@@ -88,7 +88,8 @@ name or slash path; each answers the entity as `entity_inspect` shows it, a Scri
 (action_execute) keeps it. XML suits a whole level written at once, these tools an edit.
 
 Play in editor (PIE) is the editor's too, and it is how gameplay is tested: `simulate_start`
-previews ONE scene in its page, while PIE runs the project as the player does (the default
+previews ONE scene in its page (its scripts as the page's own run: their screens over the page's
+viewport, their sound heard while it has the focus), while PIE runs the project as the player does (the default
 scene, the startup script, the input map). PIE is not one game: every Game tab runs its own
 instance, addressed by its `pie` id (`game-page`, the primary; `game-page-1`, ... for each new
 instance), default the primary. `pie_start` cooks, opens and runs the primary (or with

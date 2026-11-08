@@ -104,6 +104,10 @@ Http.post("https://example.com/scores", "application/json", '{"score":9}',      
 - `script_api` - the live bound API for a chosen backend. Read it before writing code.
 - Scripts are project assets: import/list/cook them like any asset (see Assets.md).
 - Coroutines are available in every backend for multi-frame sequences.
+- A scene page's Simulate (`simulate_start`) runs that scene's behaviors and Level script as a
+  run of its own, one per page: their own context, clock and `gui` root. What they push on screen
+  draws over the page's viewport (and so in `viewport_screenshot`), and goes when the Simulate
+  stops. It has no Game script, input map or save; test those with play in editor.
 
 ## Gotchas
 

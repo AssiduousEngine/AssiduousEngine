@@ -27,7 +27,8 @@ import foundation.runtime.client;
 import foundation.scene;
 import foundation.render;
 import engine.render;
-import engine.gui; // GuiSubsystem, for the engine GUI's textures
+import engine.gui; // GuiSubsystem: the engine GUI's textures, and a Simulate's screens
+import foundation.run; // IRun: whose screens a simulating view draws
 import foundation.gui;
 import foundation.gui.hosting;
 import foundation.gui.viewport;
@@ -280,12 +281,16 @@ export namespace editor
             m_captureHeight = h;
         }
 
-        /// Records a requested capture once the renderer has composed the frame (RenderScene only
-        /// adds the view; EndRendering, before this, writes the image).
-        void AfterRender(foundation::runtime::IApplicationHost& host, foundation::graphics::FrameContext& frame)
+        /// Once the renderer has composed the frame (RenderScene only adds the view; EndRendering,
+        /// before this, writes the image): draws the screens of `screensOf` over it (a simulating
+        /// page's run, as a Game tab draws its run's; null: none), then records a requested capture.
+        void AfterRender(foundation::runtime::IApplicationHost& host, foundation::graphics::FrameContext& frame,
+                         foundation::run::IRun* screensOf = nullptr)
         {
             const bool rendered = m_renderedThisFrame;
             m_renderedThisFrame = false;
+            if (rendered && screensOf != nullptr)
+                DrawScreens(frame, *screensOf);
             if (!rendered || !m_capture.Armed() || host.Graphics() == nullptr)
                 return;
             m_capture.Record(host.Graphics()->Raw(), frame.encoder, m_view->ColorTexture(), m_view->ColorFormat(), m_captureWidth, m_captureHeight,
@@ -369,6 +374,25 @@ export namespace editor
         }
 
     private:
+        // The run's screen tier over the composed view, laid out at the view's own pixels; the
+        // shared tier's overlays draw above it, as in a Game tab. Through the renderer's overlay
+        // registry, which the GUI is one source of.
+        void DrawScreens(foundation::graphics::FrameContext& frame, foundation::run::IRun& run)
+        {
+            engine::render::RenderSubsystem* render = m_services.render;
+            engine::gui::GuiSubsystem* gui = m_services.gameGui;
+            if (render == nullptr || gui == nullptr || !render->IsReady() || m_captureWidth == 0 || m_captureHeight == 0)
+                return;
+            frame.encoder->TransitionTexture(m_view->ColorTexture(), foundation::rhi::ResourceState::ShaderRead,
+                                             foundation::rhi::ResourceState::RenderTarget);
+            gui->SetRenderRun(&run);
+            render->RenderOverlays(*frame.encoder, m_view->ColorView(), m_view->ColorFormat(), m_captureWidth, m_captureHeight,
+                                   frame.frameIndex, m_view->ColorAlternateView()); // the screen UI blends encoded values
+            gui->SetRenderRun(nullptr);
+            frame.encoder->TransitionTexture(m_view->ColorTexture(), foundation::rhi::ResourceState::RenderTarget,
+                                             foundation::rhi::ResourceState::ShaderRead);
+        }
+
         // A playtest's pointer is over the view while it is inside its targets.
         [[nodiscard]] bool ScriptedPointerInside() const
         {

@@ -7,6 +7,11 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ## Unreleased
 
+### Added
+
+- Editor: a scene page's Simulate shows what its scripts put on screen over the page's viewport,
+  as a Game tab shows its game's.
+
 ### Changed
 
 - Editor: each scene page's Simulate runs its scripts apart from other pages', with their own
