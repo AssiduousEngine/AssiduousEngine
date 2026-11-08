@@ -368,6 +368,10 @@ export namespace foundation::physics
         /// Velocity-motor control on hinge and slider joints (no-op on other kinds). The
         /// target is rad/s (hinge) or m/s (slider); `enabled` false turns the motor off.
         void SetJointMotor(JointId id, bool enabled, f32 targetVelocity);
+        /// Whether joint `id` holds `body`, as either of its two (a joint to the world holds only
+        /// its own). False for an id with no joint. A caller about to destroy a body asks it of the
+        /// joints that may hold one it did not name (a joint bound to whatever body is above it).
+        [[nodiscard]] bool JointHolds(JointId id, BodyId body) const;
 
         // ---- character controllers ----
         [[nodiscard]] CharacterId CreateCharacter(const CharacterDesc& desc);

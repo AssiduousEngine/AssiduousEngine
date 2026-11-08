@@ -109,9 +109,14 @@ export namespace engine::physics
         virtual void OnContact(const EntityContact& contact) = 0;
     };
 
-    class PhysicsSceneSystem final : public scene::SceneSystem, public scene::ISceneRayQuery
+    class PhysicsSceneSystem final : public scene::SceneSystem, public scene::ISceneRayQuery, public IPhysicsReleaser
     {
     public:
+        // IPhysicsReleaser: what a removed component held, dropped at the next reconcile.
+        void ReleaseBody(BodyId body) override { m_releasedBodies.PushBack(body); }
+        void ReleaseCharacter(CharacterId character) override { m_releasedCharacters.PushBack(character); }
+        void ReleaseJoint(JointId joint) override { m_releasedJoints.PushBack(joint); }
+
         [[nodiscard]] bool IsSimulationOnly() const noexcept override { return true; }
 
         // Rays against the world's solid bodies for systems that do not depend on physics (foot IK
@@ -175,6 +180,7 @@ export namespace engine::physics
                 settings.groupCollides[i] = m_settings.groupCollides[i];
             }
             m_world = MakeUnique<PhysicsWorld>(DefaultAllocator(), DefaultAllocator(), settings);
+            SetReleasers(this); // a component removed while the world runs gives its body back
             BuildBodies();
             BuildStaticCapsules();
             BuildJoints();
@@ -183,6 +189,10 @@ export namespace engine::physics
 
         void OnSceneStopped() override
         {
+            SetReleasers(nullptr); // what the world held goes with it
+            m_releasedBodies.Clear();
+            m_releasedCharacters.Clear();
+            m_releasedJoints.Clear();
             auto* bodies = m_scene->GetSystem<RigidBodyComponentManager>();
             if (bodies != nullptr)
             {
@@ -588,6 +598,56 @@ export namespace engine::physics
             }
         }
 
+        // The joint's own body is there and live (its rigid body may have been taken off).
+        [[nodiscard]] bool JointBodyReady(scene::EntityHandle e)
+        {
+            auto* bodies = m_scene->GetSystem<RigidBodyComponentManager>();
+            RigidBodyComponent* own = (bodies != nullptr) ? bodies->Get(e) : nullptr;
+            return own != nullptr && own->body.IsValid();
+        }
+
+        // A joint holding a body released this reconcile lets go now, before that body is destroyed:
+        // one with no named target is bound to the nearest body above it, which JointTargetReady
+        // does not see leave (its rigid body taken off). It is rebuilt at the next reconcile, on the
+        // next body above it or the world.
+        [[nodiscard]] bool HoldsReleasedBody(JointId joint) const
+        {
+            if (!joint.IsValid())
+            {
+                return false;
+            }
+            for (BodyId body : m_releasedBodies)
+            {
+                if (m_world->JointHolds(joint, body))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        // The managers hand back what removed components held to `releaser` (this while the world
+        // runs; null when there is none).
+        void SetReleasers(IPhysicsReleaser* releaser)
+        {
+            if (m_scene == nullptr)
+            {
+                return;
+            }
+            if (auto* bodies = m_scene->GetSystem<RigidBodyComponentManager>())
+            {
+                bodies->SetReleaser(releaser);
+            }
+            if (auto* characters = m_scene->GetSystem<CharacterComponentManager>())
+            {
+                characters->SetReleaser(releaser);
+            }
+            if (auto* joints = m_scene->GetSystem<JointComponentManager>())
+            {
+                joints->SetReleaser(releaser);
+            }
+        }
+
         // Explicit-target readiness: a nil target (world or ancestor attachment) is always ready;
         // otherwise the target entity must resolve, be effectively active, and have a live body.
         // The effective-active term matters because joints reconcile before bodies: on the tick a
@@ -619,6 +679,14 @@ export namespace engine::physics
         void ReconcileActiveState()
         {
             scene::Scene& scene = *m_scene;
+            // What removed components held (their entities destroyed, or the components taken
+            // off): the joints now, the bodies and characters after the joint pass below has let go
+            // of any joint still holding one (HoldsReleasedBody).
+            for (JointId joint : m_releasedJoints)
+            {
+                m_world->DestroyJoint(joint);
+            }
+            m_releasedJoints.Clear();
             // Joints first (teardown in dependency order, the reverse of scene start's
             // bodies-then-joints build): a joint referencing an entity whose body dies in this
             // reconcile must be destroyed while both bodies are still alive, so the surviving side
@@ -634,7 +702,8 @@ export namespace engine::physics
                     {
                         const bool eff = scene.IsEffectivelyActive(e);
                         c.simActive = eff;
-                        const bool want = eff && JointTargetReady(c);
+                        const bool want = eff && JointBodyReady(e) && JointTargetReady(c) &&
+                                          !HoldsReleasedBody(c.joint);
                         const bool have = c.joint.IsValid();
                         if (want == have)
                         {
@@ -651,6 +720,16 @@ export namespace engine::physics
                         }
                     });
             }
+            for (BodyId body : m_releasedBodies)
+            {
+                m_world->DestroyBody(body);
+            }
+            m_releasedBodies.Clear();
+            for (CharacterId character : m_releasedCharacters)
+            {
+                m_world->DestroyCharacter(character);
+            }
+            m_releasedCharacters.Clear();
             if (auto* bodies = scene.GetSystem<RigidBodyComponentManager>())
             {
                 bodies->ForEach(
@@ -959,6 +1038,9 @@ export namespace engine::physics
         PhysicsSceneSettings m_settings;
         UniquePtr<PhysicsWorld> m_world;
         Array<ContactEvent> m_events;
+        Array<BodyId> m_releasedBodies;           // removed components' bodies, dropped at the next reconcile
+        Array<CharacterId> m_releasedCharacters;
+        Array<JointId> m_releasedJoints;
         Array<scene::IStaticColliderSource*> m_pendingCapsuleSources; // not ready at the last ask
         f32 m_capsuleWait = 0.0f;   // how long they have been waited for (s)
         bool m_warnedCapsules = false;

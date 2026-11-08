@@ -153,6 +153,19 @@ export namespace engine::physics
         c.heightfield.Bind(manager);
     }
 
+    // Where a physics component's runtime handle goes when the component does (removed, or its
+    // entity destroyed): the scene's physics system, which drops it at its next reconcile in
+    // dependency order (joints before the bodies they hold). The system sets itself on the managers
+    // while its world runs; with none set there is no world, and nothing to drop.
+    class IPhysicsReleaser
+    {
+    public:
+        virtual ~IPhysicsReleaser() = default;
+        virtual void ReleaseBody(BodyId body) = 0;
+        virtual void ReleaseCharacter(CharacterId character) = 0;
+        virtual void ReleaseJoint(JointId joint) = 0;
+    };
+
     // The rigid bodies, and the static level geometry they make: the static, non-trigger bodies'
     // collision shapes, which the navigation bake reads. It measures its entities for the scene
     // too (ISceneEntityBounds): a body's own shape, as authored, through the entity's world matrix.
@@ -167,6 +180,8 @@ export namespace engine::physics
         {
         }
 
+        void SetReleaser(IPhysicsReleaser* releaser) noexcept { m_releaser = releaser; }
+
         [[nodiscard]] foundation::scene::IStaticGeometrySource* AsStaticGeometrySource() noexcept override
         {
             return this;
@@ -177,6 +192,20 @@ export namespace engine::physics
         [[nodiscard]] foundation::scene::ISceneEntityBounds* AsEntityBounds() noexcept override { return this; }
         [[nodiscard]] bool EntityBounds(foundation::scene::Scene& scene, foundation::scene::EntityHandle entity,
                                         AABB& out) override;
+
+    protected:
+        // A removed component's body leaves the world with it.
+        void OnComponentDestroyed(RigidBodyComponent& c, foundation::scene::EntityHandle) override
+        {
+            if (m_releaser != nullptr && c.body.IsValid())
+            {
+                m_releaser->ReleaseBody(c.body);
+            }
+            c.body = BodyId{};
+        }
+
+    private:
+        IPhysicsReleaser* m_releaser = nullptr;
     };
 
     // An extra shape a body folds in; it measures its entities as the body manager does.
@@ -300,6 +329,8 @@ export namespace engine::physics
         {
         }
 
+        void SetReleaser(IPhysicsReleaser* releaser) noexcept { m_releaser = releaser; }
+
         // An animator walks its character by root motion through this (no physics dependency):
         // move, which keeps gravity, jumps and collisions the controller's.
         [[nodiscard]] foundation::scene::ISceneCharacterMotion* AsCharacterMotion() noexcept override
@@ -317,6 +348,20 @@ export namespace engine::physics
                 c->move(velocity.x, velocity.z);
             }
         }
+
+    protected:
+        // A removed component's character leaves the world with it.
+        void OnComponentDestroyed(CharacterComponent& c, foundation::scene::EntityHandle) override
+        {
+            if (m_releaser != nullptr && c.character.IsValid())
+            {
+                m_releaser->ReleaseCharacter(c.character);
+            }
+            c.character = CharacterId{};
+        }
+
+    private:
+        IPhysicsReleaser* m_releaser = nullptr;
     };
 
     // A joint on this entity's rigid body. Target resolution: an explicit entity guid; nil means
@@ -367,6 +412,22 @@ export namespace engine::physics
     {
     public:
         JointComponentManager() : SerializableComponentManager<JointComponent>(u8"physics.Joint") {}
+
+        void SetReleaser(IPhysicsReleaser* releaser) noexcept { m_releaser = releaser; }
+
+    protected:
+        // A removed component's joint leaves the world with it.
+        void OnComponentDestroyed(JointComponent& c, foundation::scene::EntityHandle) override
+        {
+            if (m_releaser != nullptr && c.joint.IsValid())
+            {
+                m_releaser->ReleaseJoint(c.joint);
+            }
+            c.joint = JointId{};
+        }
+
+    private:
+        IPhysicsReleaser* m_releaser = nullptr;
     };
 
     // Scene-level physics settings (the editor's scene inspector edits the reflected type;

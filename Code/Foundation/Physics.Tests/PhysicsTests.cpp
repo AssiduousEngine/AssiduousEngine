@@ -694,6 +694,36 @@ TEST_CASE("physics: a fixed joint to the world holds a body against gravity")
     CHECK(position.y < 2.0f);
 }
 
+TEST_CASE("physics: JointHolds names the bodies a joint holds, and none once it is gone")
+{
+    PhysicsWorld world(DefaultAllocator());
+    const BodyId a = world.CreateBody(BoxAt(3.0f));
+    const BodyId b = world.CreateBody(BoxAt(5.0f));
+    const BodyId other = world.CreateBody(BoxAt(7.0f));
+    JointDesc pair;
+    pair.kind = JointKind::Fixed;
+    pair.bodyA = a;
+    pair.bodyB = b;
+    const JointId both = world.CreateJoint(pair);
+    JointDesc anchored;
+    anchored.kind = JointKind::Fixed;
+    anchored.bodyA = other;
+    const JointId toWorld = world.CreateJoint(anchored);
+    REQUIRE(both.IsValid());
+    REQUIRE(toWorld.IsValid());
+
+    CHECK(world.JointHolds(both, a));
+    CHECK(world.JointHolds(both, b));
+    CHECK_FALSE(world.JointHolds(both, other));
+    CHECK(world.JointHolds(toWorld, other));
+    CHECK_FALSE(world.JointHolds(toWorld, a));
+    CHECK_FALSE(world.JointHolds(both, BodyId{}));
+
+    world.DestroyJoint(both);
+    CHECK_FALSE(world.JointHolds(both, a));
+    CHECK_FALSE(world.JointHolds(JointId{}, a));
+}
+
 TEST_CASE("physics: a motorized hinge spins its body at the target velocity")
 {
     PhysicsWorld world(DefaultAllocator());

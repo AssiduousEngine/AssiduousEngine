@@ -1308,6 +1308,104 @@ TEST_CASE("physics.active: an entity saved/started INACTIVE never gets a body; a
     CHECK(play.scene.GetWorldPosition(box).y == doctest::Approx(0.5f).epsilon(0.05));
 }
 
+TEST_CASE("physics.lifetime: a destroyed entity's body and a removed component's body leave the world")
+{
+    PlayScene play;
+    (void)play.AddFloor();
+    const scene::EntityHandle doomed = play.AddBox(5.0f);
+    const scene::EntityHandle stripped = play.AddBox(8.0f);
+    play.Start();
+    play.Step(2);
+    REQUIRE(play.physics->World() != nullptr);
+    CHECK(play.physics->World()->BodyCount() == 3u);
+
+    play.scene.DestroyEntity(doomed);
+    play.Step(2);
+    CHECK(play.physics->World()->BodyCount() == 2u);
+
+    play.scene.GetSystem<RigidBodyComponentManager>()->RemoveComponent(stripped);
+    play.Step(2);
+    CHECK(play.physics->World()->BodyCount() == 1u); // the floor only
+}
+
+TEST_CASE("physics.lifetime: a joint lets go before the bodies it holds leave; a destroyed character leaves")
+{
+    PlayScene play;
+    play.scene.AddSystem<JointComponentManager>();
+    play.scene.AddSystem<CharacterComponentManager>();
+    play.AddFloor();
+    // A welded pair: right holds left. Then a third pair whose joint's own body is taken off.
+    scene::EntityHandle left = play.AddBox(0.5f);
+    scene::EntityHandle right = play.AddBox(0.5f);
+    play.scene.SetLocalPosition(left, Float3{4.0f, 0.5f, 0.0f});
+    play.scene.SetLocalPosition(right, Float3{5.2f, 0.5f, 0.0f});
+    {
+        JointComponent& joint = play.scene.GetSystem<JointComponentManager>()->Add(right);
+        joint.kind = JointKind::Fixed;
+        joint.targetEntity = play.scene.GetEntityId(left);
+    }
+    scene::EntityHandle hero = play.scene.CreateEntity(u8"hero");
+    play.scene.SetLocalPosition(hero, Float3{-3.0f, 0.9f, 0.0f});
+    (void)play.scene.GetSystem<CharacterComponentManager>()->Add(hero);
+    play.Start();
+    play.Step(10);
+    CHECK(play.physics->World()->BodyCount() == 3u);
+    REQUIRE(play.scene.GetSystem<JointComponentManager>()->Get(right)->joint.IsValid());
+
+    // The joint's target goes: the joint drops in the same reconcile, before the target's body.
+    play.scene.DestroyEntity(left);
+    play.Step(10);
+    CHECK(play.physics->World()->BodyCount() == 2u);
+    CHECK_FALSE(play.scene.GetSystem<JointComponentManager>()->Get(right)->joint.IsValid());
+
+    // A joint whose own entity's body is taken off has nothing to hold by: no joint.
+    play.scene.GetSystem<RigidBodyComponentManager>()->RemoveComponent(right);
+    play.Step(10);
+    CHECK(play.physics->World()->BodyCount() == 1u);
+    CHECK_FALSE(play.scene.GetSystem<JointComponentManager>()->Get(right)->joint.IsValid());
+
+    // A character goes with its entity; the world steps on.
+    play.scene.DestroyEntity(hero);
+    play.Step(10);
+    CHECK(play.physics->World()->BodyCount() == 1u);
+}
+
+TEST_CASE("physics.lifetime: a joint bound to the body above it lets go when that body's component goes")
+{
+    PlayScene play;
+    play.scene.AddSystem<JointComponentManager>();
+    play.AddFloor();
+    // A box held by a joint with no named target: it binds to its parent's body.
+    scene::EntityHandle post = play.AddBox(0.5f);
+    scene::EntityHandle sign = play.AddBox(0.5f);
+    play.scene.SetLocalPosition(post, Float3{4.0f, 0.5f, 0.0f});
+    play.scene.SetParent(sign, post);
+    play.scene.SetLocalPosition(sign, Float3{0.0f, 1.2f, 0.0f});
+    {
+        JointComponent& joint = play.scene.GetSystem<JointComponentManager>()->Add(sign);
+        joint.kind = JointKind::Fixed;
+    }
+    play.Start();
+    play.Step(10);
+    auto* joints = play.scene.GetSystem<JointComponentManager>();
+    auto* bodies = play.scene.GetSystem<RigidBodyComponentManager>();
+    REQUIRE(joints->Get(sign)->joint.IsValid());
+    const BodyId postBody = bodies->Get(post)->body;
+    CHECK(play.physics->World()->JointHolds(joints->Get(sign)->joint, postBody));
+
+    // The parent's rigid body is taken off: the joint lets go before that body is destroyed (it
+    // held it until then), and comes back bound to the world, nothing above holding a body.
+    bodies->RemoveComponent(post);
+    play.Step(1);
+    CHECK(play.physics->World()->BodyCount() == 2u); // the floor and the sign
+    play.Step(1);
+    REQUIRE(joints->Get(sign)->joint.IsValid());
+    CHECK_FALSE(play.physics->World()->JointHolds(joints->Get(sign)->joint, postBody));
+    CHECK(play.physics->World()->JointHolds(joints->Get(sign)->joint, bodies->Get(sign)->body));
+    play.Step(30); // the world steps on with the rebuilt joint
+    CHECK(play.physics->World()->BodyCount() == 2u);
+}
+
 TEST_CASE("physics.active: runtime toggle - deactivate freezes + leaves the world, reactivate resumes")
 {
     PlayScene play;

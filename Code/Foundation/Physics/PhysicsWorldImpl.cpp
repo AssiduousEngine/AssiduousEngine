@@ -1399,6 +1399,18 @@ namespace foundation::physics
         slot = Impl::JointSlot{};
     }
 
+    bool PhysicsWorld::JointHolds(JointId id, BodyId body) const
+    {
+        if (!id.IsValid() || !body.IsValid() || id.value >= m_impl->joints.Size() ||
+            m_impl->joints[id.value].joint == nullptr)
+        {
+            return false;
+        }
+        const Impl::JointSlot& slot = m_impl->joints[id.value];
+        const JPH::BodyID held(body.value);
+        return slot.bodyA == held || slot.bodyB == held;
+    }
+
     void PhysicsWorld::SetJointMotor(JointId id, bool enabled, f32 targetVelocity)
     {
         if (!id.IsValid() || id.value >= m_impl->joints.Size())
