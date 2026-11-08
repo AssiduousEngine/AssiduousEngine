@@ -225,6 +225,59 @@
 
 ## Engine
 
+- **The sky light re-bakes for its first 20 frames, on every platform** (user 2026-11-08, from the
+  flagship's slow first seconds of play): `IBLSystem`'s `m_bakeWarmup = 20`
+  (`Foundation/Render/IBLSystem.cppm`) re-runs the whole bake (the env cube, its mips, the
+  prefilter: 30 passes of 1024 samples a texel, and the SH) for each context's first 20 frames, so
+  a dropped web start-up submit cannot lose the one-shot bake. Every platform pays it: a profile of
+  the flagship's first 4 seconds of play (Debug, Vulkan) had frames of 360 to 430 ms, nearly all
+  of it the CPU waiting at the frame fence on `ibl.prefilter` (about 386 ms of GPU a frame), so
+  about 8 seconds at 2 to 3 fps on every play start, and on every scene page's view. The reflection
+  probes copy it (`ReflectionProbeSystem`'s `m_captureWarmup = 20`). Fix: the backends say whether
+  a start-up submit can be dropped (a flag in `rhi::AdapterInfo::Features`, true on WebGPU only),
+  and the IBL and the probes warm up only where it is set, the rest baking once; on WebGPU, space
+  the repeats (a few bakes over the first frames, not one a frame). A test that a context bakes
+  once where the flag is off.
+- **A sequencer for cutscenes** (user 2026-11-08, from the flagship's act 1): timelines that drive
+  several entities at once (transforms and any reflected property, skeletal clips, camera cuts,
+  sounds, events, fades, nested sequences), authored on a timeline page and played from script. The
+  flagship's cutscenes run as script for now (its dialogue runner's steps: camera, fades, shakes,
+  walks, clips); what those need is the sequencer's requirements list. Camera shake stays out of the
+  engine (games shake differently; a script does it on the camera it already moves). A draft from a
+  survey of the reference engines (2026-11-08; none of ezEngine, Lumix or Zero has one; Traktor's
+  Theater, Flax's Scene Animations, Godot's AnimationPlayer, LunarSong's timeline and doriax's
+  action timeline do):
+  - **The layers**, as property animation is split (`Foundation/PropertyAnimation`,
+    `.Resource`, `Pipeline/PropertyAnimation.Pipeline`, `PropertyAnimatorComponent` in
+    Engine.Animation): `Foundation/Sequence` (the model and its evaluation: acts of tracks of keys,
+    a time to the values and the events in `(previous, now]`; Core only, headless tests),
+    `Foundation/Sequence.Resource` (the cooked sequence and its factory: Resource, Content),
+    `Pipeline/Sequence.Pipeline` (the authored asset cooked, editor-only data stripped, as Traktor's
+    pipeline does), `Engine.Sequence` (the player component and its scene system, the bindings,
+    the script facade), `Editor.Sequence` (the timeline page on GUI.Toolkit's `TimelineSource` and
+    `Dopesheet`).
+  - **Domains contribute their track kinds**, so the sequencer depends on none of them: the track
+    interface lives in `Foundation/Sequence`, a domain's module lists the kinds it adds (animation:
+    a clip track handed to the animation component, blending with what it plays; audio: a sound
+    track kept in time with the timeline, as Flax corrects drift; render: camera cuts, by making a
+    camera primary, never a global camera, and fades), and a plugin or a game adds its own (the
+    flagship's dialogue line as a track). Property tracks are reflection-driven, as property
+    animation's are; no type list anywhere (LunarSong's hard-coded property paths are the warning).
+  - **Dependencies**: `Engine.Sequence` on Scene, Engine.Scene, Resource, PropertyAnimation (its
+    property binding and curves, reused, not copied), Script.Facades and Domain; never Render,
+    Audio, Animation or Physics. The editor page on Editor.Scene and GUI.Toolkit.
+  - **Bindings**: by entity id, remappable per player (Flax's `MapObject`), and by named slot filled
+    at play from script ("Speaker", "Spark": what a game spawns at runtime), relative to the
+    player for a sequence inside a prefab (ezEngine's and Traktor's owner-relative form).
+  - **The player**: play, stop, seek, speed, loop, an update mode the editor drives by hand (Flax's
+    Manual), events on the scene's bus, a finished event that hands control back, and restoring
+    what it moved on stop when asked (Flax's `RestoreStateOnStop`, Godot's RESET). Preview on a
+    scene page runs it in the page's simulation with events held back (Traktor's `preview`).
+  - **Open**: whether a sequence can blend into gameplay animation (Godot's one mixer does; the
+    others hard-cut), and whether skeletal clips and property tracks share one clip format (Zero
+    does). Spec it (`Specs/sequencer.md`) once the flagship's script cutscenes have run long
+    enough to say what the tracks must be.
+
 - **A model's clips from other files** (user 2026-11-05): a model import takes the skeleton and
   clips of its own file only (`FileImport.cppm`: a skeleton from the file's first skin, a clip per
   animation in it), so a character whose clips each come in a file of their own imports as one
