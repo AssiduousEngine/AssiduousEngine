@@ -1285,7 +1285,9 @@ namespace foundation::script::angelscript
                 {
                     box = static_cast<const BoxedVariant*>(gen->GetArgObject(index));
                 }
-                return (box != nullptr) ? box->value : core::Variant{};
+                // A handle over a member (a light's colour) crosses as the value it holds, as a
+                // by-value parameter reads it.
+                return (box != nullptr) ? core::DetachedValue(box->value) : core::Variant{};
             }
             // A funcdef handle (a delegate parameter): wrap the function into a script delegate.
             // A generic IScriptDelegate param is spelled `?&in` (by reference). AngelScript does
@@ -2825,14 +2827,31 @@ namespace foundation::script::angelscript
 
     // Value assignment (T& opAssign(const T&in other)): every reflected type is an asOBJ_REF box, so
     // without this AngelScript rejects `Float3 p = expr;` with "no opAssign for value assignment".
-    // Copies the source box's Variant into this one and returns *this (a reference).
+    // When either side is a handle over a member (a property's value struct, a nested member), the
+    // value is copied (core::AssignValue): `light.color = c` writes the light's colour, and `saved =
+    // light.color` keeps a copy, not a view of the light. Otherwise the box takes the other's
+    // Variant (a value's copy, an object's or a component's handle). Returns *this (a reference).
     void AssignDispatch(asIScriptGeneric* gen)
     {
         BoxedVariant* self = static_cast<BoxedVariant*>(gen->GetObject());
         const BoxedVariant* other = static_cast<const BoxedVariant*>(gen->GetArgObject(0));
         if (self != nullptr && other != nullptr)
         {
-            self->value = other->value;
+            if (self->value.IsMember() || other->value.IsMember())
+            {
+                core::Variant source = other->value;
+                if (!core::AssignValue(self->value, source))
+                {
+                    if (asIScriptContext* active = asGetActiveContext())
+                    {
+                        active->SetException(foundation::script::kObjectGoneMessage);
+                    }
+                }
+            }
+            else
+            {
+                self->value = other->value;
+            }
         }
         gen->SetReturnAddress(self);
     }
@@ -2880,7 +2899,9 @@ namespace foundation::script::angelscript
         {
             return;
         }
-        binding->manager->SetGenericReturn(gen, core::GetProperty(*binding->property, instance));
+        // A value struct (a Color) comes back as a handle over the member, so `light.color = c` and
+        // `light.color.r = 0.5` write the light rather than a copy (core::PropertyHandle).
+        binding->manager->SetGenericReturn(gen, core::PropertyHandle(*binding->property, self->value));
     }
 
     void PropertySetDispatch(asIScriptGeneric* gen)

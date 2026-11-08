@@ -509,6 +509,43 @@ export namespace foundation::core
         return Instance(value.ValuePointer(), value.Type());
     }
 
+    // Whether `type` is a reflected value struct (a Color, a Float3): fields of its own, and not an
+    // object, a container, an enum or a reference. A script reaches a property of such a type as a
+    // handle over the member (PropertyHandle), so writing it, or a field of it, lands in the owner.
+    [[nodiscard]] inline bool IsValueStruct(const TypeInfo& type) noexcept
+    {
+        return type.propertyCount > 0 && type.container == nullptr && type.enumeratorCount == 0 &&
+               !IsReferenceType(type) && !IsDerivedFrom(&type, &Object::StaticType());
+    }
+
+    // What a script reads for `property` of `owner` (an object, a borrow, or a re-resolving handle
+    // such as a component's): for a value struct or a nested member, a handle over the member,
+    // edited in place and, through a re-resolving owner, found again on every access; else the
+    // property's value. A read-only property gives its value (a handle would write past the flag),
+    // and so does a value-mode owner, which has nothing to borrow from. Empty when the owner is gone.
+    [[nodiscard]] inline Variant PropertyHandle(const PropertyInfo& property, Variant& owner)
+    {
+        Instance instance = ToInstance(owner);
+        if (instance.Pointer() == nullptr)
+        {
+            return Variant{};
+        }
+        const bool readOnly = (static_cast<u32>(property.flags) & static_cast<u32>(PropertyFlags::ReadOnly)) != 0;
+        if (!readOnly && property.type != nullptr && property.address != nullptr && property.type->container == nullptr &&
+            (IsNested(property) || IsValueStruct(*property.type)))
+        {
+            if (void* address = property.address(instance))
+            {
+                Variant member = Variant::Borrow(address, property.type, owner);
+                if (!member.IsEmpty())
+                {
+                    return member;
+                }
+            }
+        }
+        return GetProperty(property, instance);
+    }
+
     // Constructs an instance by picking the constructor whose arity matches and
     // whose argument types accept `args`. Returns InvalidArgument if none match.
     [[nodiscard]] inline Result<Variant> Construct(const TypeInfo& type, Span<Variant> args)
@@ -527,6 +564,60 @@ export namespace foundation::core
             }
         }
         return Err(ErrorCode::InvalidArgument);
+    }
+
+    // A value assignment: `target`'s value (owned, a borrowed member, or one found through a
+    // re-resolving handle) becomes a copy of `source`'s, so a write through a handle lands in the
+    // member and a copy out of one is detached. The copy is made by whichever side owns its value,
+    // else by a default-made one of the type. Both must be of one type; false otherwise, or when
+    // either is gone, and nothing changes then.
+    [[nodiscard]] inline bool AssignValue(Variant& target, Variant& source)
+    {
+        const TypeInfo* type = target.Type();
+        if (type == nullptr || source.Type() == nullptr || source.Type()->id != type->id)
+        {
+            return false;
+        }
+        const Instance to = ToInstance(target);
+        const Instance from = ToInstance(source);
+        if (to.Pointer() == nullptr || from.Pointer() == nullptr)
+        {
+            return false;
+        }
+        if (target.IsOwnedValue())
+        {
+            return target.CopyValueFrom(from.Pointer());
+        }
+        if (source.IsOwnedValue())
+        {
+            return source.CopyValueTo(to.Pointer());
+        }
+        // Two members (one light's colour to another's): through a value of the type made here.
+        Result<Variant> made = Construct(*type, Span<Variant>{});
+        return made.HasValue() && made.Value().CopyValueFrom(from.Pointer()) && made.Value().CopyValueTo(to.Pointer());
+    }
+
+    // A member handle's value as a value of its own (a copy, apart from the member), as a native
+    // call taking the value by value reads it; anything else as it is. Empty when the member's
+    // owner is gone. A type with no default constructor stays the handle.
+    [[nodiscard]] inline Variant DetachedValue(const Variant& value)
+    {
+        if (!value.IsMember() || value.Type() == nullptr)
+        {
+            return value;
+        }
+        Variant member = value;
+        const Instance at = ToInstance(member);
+        if (at.Pointer() == nullptr)
+        {
+            return Variant{};
+        }
+        Result<Variant> made = Construct(*value.Type(), Span<Variant>{});
+        if (made.HasValue() && made.Value().CopyValueFrom(at.Pointer()))
+        {
+            return Move(made.Value());
+        }
+        return value;
     }
 
     [[nodiscard]] inline const MethodInfo* FindMethod(const TypeInfo& type,

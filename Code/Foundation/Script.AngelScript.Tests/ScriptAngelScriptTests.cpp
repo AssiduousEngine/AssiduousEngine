@@ -307,6 +307,7 @@ namespace
         RTTI_OBJECT(House, Object)
     public:
         Room room;
+        Room spare; // a plain (not nested) value property, as a component's Color is
     };
     class Shelf : public Object
     {
@@ -318,10 +319,12 @@ namespace
 REFLECT_VALUE(Room, "rtti::script::test")
 {
     builder.Property<&Room::size>("size");
+    builder.Constructor();
 }
 REFLECT_MEMBERS(House, "rtti::script::test")
 {
     builder.Nested<&House::room>("room");
+    builder.Property<&House::spare>("spare");
     builder.Constructor();
 }
 REFLECT_MEMBERS(Shelf, "rtti::script::test")
@@ -506,6 +509,41 @@ TEST_CASE("angelscript: a nested-value member is a borrow handle edited in place
                                     u8"main");
     REQUIRE(status.IsOk());
     CHECK(scriptContext->GetGlobal(u8"S").Get<f64>() == 7.0);
+}
+
+TEST_CASE("angelscript: a value property is written whole or field by field; a copy out of it stays apart")
+{
+    RefPtr<IScriptManager> manager = angelscript::CreateScriptManager(foundation::core::DefaultAllocator());
+    RegisterHouse(*manager);
+    RefPtr<IScriptContext> scriptContext = manager->CreateContext();
+    const Status status = scriptContext->Load(u8"double A; double B; double C; double D; double E; double F;\n"
+                                    u8"void main() {\n"
+                                    u8"  House h;\n"
+                                    u8"  Room fresh; fresh.size = 4;\n"
+                                    u8"  h.spare = fresh;\n"        // a plain value property, whole
+                                    u8"  A = h.spare.size;\n"
+                                    u8"  h.spare.size = 9;\n"       // a field of it
+                                    u8"  B = h.spare.size;\n"
+                                    u8"  Room saved = h.spare;\n"   // a copy, not a view
+                                    u8"  h.spare.size = 1;\n"
+                                    u8"  C = saved.size;\n"
+                                    u8"  h.room = fresh;\n"         // a nested member, whole
+                                    u8"  D = h.room.size;\n"
+                                    u8"  House g;\n"
+                                    u8"  g.spare.size = 6;\n"
+                                    u8"  h.spare = g.spare;\n"      // one member from another
+                                    u8"  E = h.spare.size;\n"
+                                    u8"  g.spare.size = 2;\n"
+                                    u8"  F = h.spare.size;\n"       // still its own
+                                    u8"}\n",
+                                    u8"main");
+    REQUIRE(status.IsOk());
+    CHECK(scriptContext->GetGlobal(u8"A").Get<f64>() == 4.0);
+    CHECK(scriptContext->GetGlobal(u8"B").Get<f64>() == 9.0);
+    CHECK(scriptContext->GetGlobal(u8"C").Get<f64>() == 9.0);
+    CHECK(scriptContext->GetGlobal(u8"D").Get<f64>() == 4.0);
+    CHECK(scriptContext->GetGlobal(u8"E").Get<f64>() == 6.0);
+    CHECK(scriptContext->GetGlobal(u8"F").Get<f64>() == 6.0);
 }
 
 TEST_CASE("angelscript: a UniquePtr (non-Object) container element is a borrow handle (unit 2b)")

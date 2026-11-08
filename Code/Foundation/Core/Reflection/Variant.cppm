@@ -153,6 +153,14 @@ export namespace foundation::core
             {
                 return Variant{};
             }
+            if (parent.IsResolving())
+            {
+                // A re-resolving owner (a component handle) pins nothing and its storage may move:
+                // the member is found again through the owner on every access (ResolvingMember).
+                void* base = parent.Resolve();
+                return base != nullptr ? ResolvingMember(parent, type, static_cast<usize>(static_cast<u8*>(addr) - static_cast<u8*>(base)))
+                                       : Variant{};
+            }
             Variant v;
             if (parent.IsBorrow())
             {
@@ -169,6 +177,23 @@ export namespace foundation::core
             v.m_borrowAddr = addr;
             v.m_dynamicType = type; // Type() reports the borrowed member's type
             v.m_borrowGeneration = GlobalReflectionMutationGeneration();
+            return v;
+        }
+
+        // A member of what a re-resolving handle points at: `type` at `offset` bytes into it,
+        // found again through the owner's resolver on every access, so it is valid exactly while
+        // the owner is (a component's colour, through its component handle). Empty unless `owner`
+        // re-resolves.
+        [[nodiscard]] static Variant ResolvingMember(const Variant& owner, const TypeInfo* type, usize offset)
+        {
+            if (owner.m_resolver == nullptr || type == nullptr)
+            {
+                return Variant{};
+            }
+            Variant v = owner; // the resolver, its context and anchor
+            v.m_dynamicType = type;
+            v.m_memberOffset = owner.m_memberOffset + offset;
+            v.m_isMember = true;
             return v;
         }
 
@@ -225,13 +250,55 @@ export namespace foundation::core
         // The value's current address, or null (dead). Valid in resolve mode; null otherwise.
         [[nodiscard]] void* Resolve() const
         {
-            return m_resolver != nullptr ? m_resolver(*this) : nullptr;
+            void* base = m_resolver != nullptr ? m_resolver(*this) : nullptr;
+            return base != nullptr ? static_cast<u8*>(base) + m_memberOffset : nullptr;
+        }
+
+        // True if this is a handle over a member of something else, edited in place: a borrow, or
+        // a member found through a re-resolving owner. Assigning to one writes the member.
+        [[nodiscard]] bool IsMember() const noexcept { return m_borrowAddr != nullptr || m_isMember; }
+
+        // True if this holds a plain value it owns (not an object, a borrow or a re-resolving
+        // handle): what can copy a value of its type into or out of another address.
+        [[nodiscard]] bool IsOwnedValue() const noexcept
+        {
+            return m_vtable != nullptr && m_dynamicType == nullptr && m_resolver == nullptr;
+        }
+        // An owned value copied over the value of its type at `dst` (assignment: the old one is
+        // destroyed, this one copied in). False when this owns no value.
+        bool CopyValueTo(void* dst) const
+        {
+            if (!IsOwnedValue() || dst == nullptr)
+            {
+                return false;
+            }
+            if (dst != Data())
+            {
+                m_vtable->destroy(dst);
+                m_vtable->copy(dst, Data());
+            }
+            return true;
+        }
+        // The value of this one's type at `src` copied over this owned value. False when this owns
+        // no value.
+        bool CopyValueFrom(const void* src)
+        {
+            if (!IsOwnedValue() || src == nullptr)
+            {
+                return false;
+            }
+            if (src != Data())
+            {
+                m_vtable->destroy(Data());
+                m_vtable->copy(Data(), src);
+            }
+            return true;
         }
 
         Variant(const Variant& other)
             : m_dynamicType(other.m_dynamicType), m_vtable(other.m_vtable),
               m_borrowAddr(other.m_borrowAddr), m_borrowGeneration(other.m_borrowGeneration),
-              m_resolver(other.m_resolver)
+              m_resolver(other.m_resolver), m_memberOffset(other.m_memberOffset), m_isMember(other.m_isMember)
         {
             if (m_vtable != nullptr)
             {
@@ -248,7 +315,7 @@ export namespace foundation::core
         Variant(Variant&& other) noexcept
             : m_dynamicType(other.m_dynamicType), m_vtable(other.m_vtable),
               m_borrowAddr(other.m_borrowAddr), m_borrowGeneration(other.m_borrowGeneration),
-              m_resolver(other.m_resolver)
+              m_resolver(other.m_resolver), m_memberOffset(other.m_memberOffset), m_isMember(other.m_isMember)
         {
             if (m_vtable != nullptr)
             {
@@ -276,6 +343,8 @@ export namespace foundation::core
             other.m_borrowAddr = nullptr;
             other.m_borrowGeneration = 0;
             other.m_resolver = nullptr;
+            other.m_memberOffset = 0;
+            other.m_isMember = false;
         }
 
         Variant& operator=(const Variant& other)
@@ -288,6 +357,8 @@ export namespace foundation::core
                 m_borrowAddr = other.m_borrowAddr;
                 m_borrowGeneration = other.m_borrowGeneration;
                 m_resolver = other.m_resolver;
+                m_memberOffset = other.m_memberOffset;
+                m_isMember = other.m_isMember;
                 if (m_vtable != nullptr)
                 {
                     void* dst = AllocateStorage(m_vtable->size, m_vtable->align);
@@ -312,6 +383,8 @@ export namespace foundation::core
                 m_borrowAddr = other.m_borrowAddr;
                 m_borrowGeneration = other.m_borrowGeneration;
                 m_resolver = other.m_resolver;
+                m_memberOffset = other.m_memberOffset;
+                m_isMember = other.m_isMember;
                 if (m_vtable != nullptr)
                 {
                     if (other.m_isHeap)
@@ -338,6 +411,8 @@ export namespace foundation::core
                 other.m_borrowAddr = nullptr;
                 other.m_borrowGeneration = 0;
                 other.m_resolver = nullptr;
+                other.m_memberOffset = 0;
+                other.m_isMember = false;
             }
             return *this;
         }
@@ -360,6 +435,8 @@ export namespace foundation::core
             m_borrowAddr = nullptr;
             m_borrowGeneration = 0;
             m_resolver = nullptr; // resolve mode owns no heap/value; drop the handle and its anchor
+            m_memberOffset = 0;
+            m_isMember = false;
             if (m_anchor != nullptr)
             {
                 const RefCounted* anchor = m_anchor;
@@ -557,6 +634,10 @@ export namespace foundation::core
         // value (m_vtable == nullptr), no heap, weak toward the value (m_anchor may retain what the
         // context points into). See Resolving() / ToInstance.
         void* (*m_resolver)(const Variant&) = nullptr;
+        // Resolve mode only: where the value lies in what the resolver finds (ResolvingMember; 0 is
+        // the resolved value itself).
+        usize m_memberOffset = 0;
+        bool m_isMember = false; // ResolvingMember: a member of what the resolver finds (IsMember)
         // Resolve mode only: the object the context points into, retained (Resolving's anchored
         // overload); null for a plain weak handle.
         const RefCounted* m_anchor = nullptr;

@@ -119,3 +119,8 @@ Http.post("https://example.com/scores", "application/json", '{"score":9}',      
   one): every backend reads them, none assigns. AngelScript refuses the assignment at
   compile time, and Luau raises at the assignment. (The Luau declaration emitter marks them
   `read`, but nothing writes a `.d.luau` for a project yet: luau-analyze support is deferred.)
+- A struct-valued property (a light's `color`, a `Float3`) reads as a handle over the value where
+  it lives: `light.color = c` and `light.color.r = 0.5` both write the light, in both languages.
+  To keep a copy in AngelScript, declare a value (`Color saved = light.color;`); a handle
+  (`Color@ c = light.color;`) follows the light. In Luau every such read is a handle, so copy the
+  fields (`Color.new(c.r, c.g, c.b, c.a)`) to keep a value apart from its owner.

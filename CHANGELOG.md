@@ -23,6 +23,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 - Editor: importing an asset no longer freezes the editor for seconds in a large project: each
   import read every asset in the project to check one file name.
+- Scripts: assigning a struct-valued property, such as a light's colour, or a field of one
+  (`light.color.r = 0.5`) now writes it. AngelScript lost both, Luau the field write.
 - Editor: what a Simulate's scripts put on screen goes when it stops, and no longer shows over a
   later Play.
 - Editor: context menus open at the pointer under a UI scale other than 100% (the asset browser,

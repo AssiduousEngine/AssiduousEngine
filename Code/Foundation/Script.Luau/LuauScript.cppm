@@ -1238,7 +1238,9 @@ namespace foundation::script
             }
             // f64 (or an unrecognised numeric) falls through to the ordinary conversion.
         }
-        return ToVariant(state, index);
+        // A handle over a member (a light's colour) crosses as the value it holds, as a by-value
+        // parameter reads it.
+        return DetachedValue(ToVariant(state, index));
     }
 
     // =====================================================================
@@ -1763,7 +1765,9 @@ namespace foundation::script
                     lua_pushstring(state, kObjectGoneMessage); // a gone handle's read is an error, as in AngelScript
                     lua_error(state);
                 }
-                context->PushVariant(state, GetProperty(*property, instance));
+                // A value struct (a Color) comes back as a handle over the member, so
+                // `light.color.r = 0.5` writes the light rather than a copy (PropertyHandle).
+                context->PushVariant(state, PropertyHandle(*property, *boxed));
                 return 1;
             }
             lua_pushnil(state);
@@ -1795,7 +1799,18 @@ namespace foundation::script
             }
             // Honour the property type (an enum is a number carried as i64).
             Variant value = context->ToVariantForParam(state, 3, property->type);
-            if (!SetProperty(*property, instance, value).IsOk())
+            Status set = SetProperty(*property, instance, value);
+            if (!set.IsOk() && set.Code() != ErrorCode::NotSupported)
+            {
+                // A value struct from another member (one light's colour to another's): copied into
+                // this one's member in place.
+                Variant member = PropertyHandle(*property, *boxed);
+                if (member.IsMember() && AssignValue(member, value))
+                {
+                    set = Status{};
+                }
+            }
+            if (!set.IsOk())
             {
                 // A read-only property refuses in Core; a script learns it the same
                 // way it learns a misspelled one: at the assignment, not silently.

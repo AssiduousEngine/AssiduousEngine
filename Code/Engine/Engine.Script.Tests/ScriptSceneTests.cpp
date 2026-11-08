@@ -4172,6 +4172,81 @@ TEST_CASE("script.scene: MeshComponent::of / LightComponent::of set live render 
     CHECK(lights->Get(e)->range == doctest::Approx(25.0f));
 }
 
+// A struct-valued property through a component's re-resolving handle (a light's colour): a whole
+// value assigned, a field of it written, a copy taken out (which stays apart from the light), and one
+// member assigned from another all reach the component, in each language.
+TEST_CASE("script.scene: a light's colour is written whole, field by field and from another light's (AngelScript)")
+{
+    foundation::script::angelscript::RegisterAngelScriptBackend();
+    engine::render::RegisterRenderScriptFacade();
+    ScriptedScene bed;
+    auto* lights = bed.scene.AddSystem<engine::render::LightComponentManager>();
+    RefPtr<ScriptClass> painter = MakeClassLang(
+        u8"angelscript", u8"Painter",
+        u8"class Painter {\n"
+        u8"    private Entity@ self;\n"
+        u8"    Painter(Entity@ entity) { @self = entity; }\n"
+        u8"    void onStart() {\n"
+        u8"        LightComponent@ l = LightComponent::of(self);\n"
+        u8"        Color saved = l.color;\n"            // a copy of the authored colour
+        u8"        l.color = Color(0.25f, 0.5f, 0.75f, 1.0f);\n"
+        u8"        l.color.r = 0.9f;\n"
+        u8"        if (saved.r != 1.0f) self.setName(\"aliased\");\n"
+        u8"        LightComponent@ other = LightComponent::of(self.scene.find(\"other\"));\n"
+        u8"        other.color = l.color;\n"           // one member from another
+        u8"    }\n"
+        u8"}\n",
+        {u8"onStart"});
+    const scene::EntityHandle e = bed.AddScripted(painter, u8"e");
+    const scene::EntityHandle other = bed.scene.CreateEntity(u8"other");
+    lights->Add(e).color = Color{1.0f, 1.0f, 1.0f, 1.0f};
+    lights->Add(other).color = Color{0.0f, 0.0f, 0.0f, 1.0f};
+    bed.Start();
+    bed.Frame();
+    REQUIRE(lights->Get(e) != nullptr);
+    CHECK(lights->Get(e)->color.r == doctest::Approx(0.9f));
+    CHECK(lights->Get(e)->color.g == doctest::Approx(0.5f));
+    CHECK(lights->Get(e)->color.b == doctest::Approx(0.75f));
+    CHECK(bed.scene.GetEntityName(e) == StringView(u8"e")); // the copy kept the old colour
+    REQUIRE(lights->Get(other) != nullptr);
+    CHECK(lights->Get(other)->color.r == doctest::Approx(0.9f));
+    CHECK(lights->Get(other)->color.b == doctest::Approx(0.75f));
+    CHECK_FALSE(bed.components->Get(e)->behaviors[0].faulted);
+}
+
+TEST_CASE("script.scene: LUAU a light's colour is written whole, field by field and from another light's")
+{
+    engine::render::RegisterRenderScriptFacade();
+    ScriptedScene bed;
+    auto* lights = bed.scene.AddSystem<engine::render::LightComponentManager>();
+    RefPtr<ScriptClass> painter = MakeClassLang(
+        u8"luau", u8"Painter",
+        u8"Painter = {}\n"
+        u8"Painter.__index = Painter\n"
+        u8"function Painter.new(entity) return setmetatable({ entity = entity }, Painter) end\n"
+        u8"function Painter:onStart()\n"
+        u8"    local l = LightComponent.of(self.entity)\n"
+        u8"    l.color = Color.new(0.25, 0.5, 0.75, 1.0)\n"
+        u8"    l.color.r = 0.9\n"
+        u8"    local other = LightComponent.of(self.entity.scene:find(\"other\"))\n"
+        u8"    other.color = l.color\n"
+        u8"end\n",
+        {u8"onStart"});
+    const scene::EntityHandle e = bed.AddScripted(painter, u8"e");
+    const scene::EntityHandle other = bed.scene.CreateEntity(u8"other");
+    lights->Add(e).color = Color{1.0f, 1.0f, 1.0f, 1.0f};
+    lights->Add(other).color = Color{0.0f, 0.0f, 0.0f, 1.0f};
+    bed.Start();
+    bed.Frame();
+    CHECK_FALSE(bed.components->Get(e)->behaviors[0].faulted);
+    REQUIRE(lights->Get(e) != nullptr);
+    CHECK(lights->Get(e)->color.r == doctest::Approx(0.9f));
+    CHECK(lights->Get(e)->color.g == doctest::Approx(0.5f));
+    REQUIRE(lights->Get(other) != nullptr);
+    CHECK(lights->Get(other)->color.r == doctest::Approx(0.9f));
+    CHECK(lights->Get(other)->color.b == doctest::Approx(0.75f));
+}
+
 // ---- The resource-swap primitive: SceneRender.of(scene).setMesh(entity, id) /
 //      setMaterial(entity, id). A world op keyed by entity (it needs the run's resource manager,
 //      which the component data cannot reach), so it lives on the scene handle like ScenePhysics.
