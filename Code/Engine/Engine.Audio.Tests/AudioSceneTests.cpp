@@ -137,6 +137,32 @@ TEST_CASE("audio.scene: autoplay sources start voices at scene start, positioned
     CHECK(play.audio->SceneGroup() == 0u);
 }
 
+// A source that goes while the scene plays (its entity destroyed, or the component taken off, as
+// a script's removeFrom does) stops its voice then, not at the scene's end.
+TEST_CASE("audio.scene: a destroyed entity's or a removed component's voice stops at once")
+{
+    PlayScene play;
+    RefPtr<AudioClip> clip = MakeToneClip(1.0f);
+    const scene::EntityHandle doomed = play.AddSource(clip, Float3{1.0f, 0.0f, 0.0f});
+    const scene::EntityHandle stripped = play.AddSource(clip, Float3{-1.0f, 0.0f, 0.0f});
+    play.Start();
+    play.Frame();
+    auto* sources = play.scene.GetSystem<AudioSourceComponentManager>();
+    const VoiceHandle a = sources->Get(doomed)->voice;
+    const VoiceHandle b = sources->Get(stripped)->voice;
+    REQUIRE(play.engine.IsValidHandle(a));
+    REQUIRE(play.engine.IsValidHandle(b));
+
+    play.scene.DestroyEntity(doomed);
+    play.Frame();
+    CHECK_FALSE(play.engine.IsPlaying(a));
+
+    sources->RemoveComponent(stripped);
+    play.Frame();
+    CHECK_FALSE(play.engine.IsPlaying(b));
+    CHECK(play.engine.ActiveVoiceCount() == 0u);
+}
+
 TEST_CASE("audio.scene: per-frame sync pushes position AND velocity (the doppler feed) "
           "from transform deltas")
 {

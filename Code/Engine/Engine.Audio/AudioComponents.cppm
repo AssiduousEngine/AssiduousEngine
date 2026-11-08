@@ -116,6 +116,15 @@ export namespace engine::audio
         c.cue.Bind(manager);
     }
 
+    // Where a removed audio source's voice goes (its entity destroyed, or the component taken off):
+    // the scene's audio system, which stops it. Set while the scene plays; unset, nothing plays.
+    class IAudioReleaser
+    {
+    public:
+        virtual ~IAudioReleaser() = default;
+        virtual void ReleaseVoice(foundation::audio::VoiceHandle voice) = 0;
+    };
+
     class AudioSourceComponentManager final
         : public foundation::scene::SerializableComponentManager<AudioSourceComponent>
     {
@@ -124,6 +133,22 @@ export namespace engine::audio
             : SerializableComponentManager<AudioSourceComponent>(u8"audio.Source")
         {
         }
+
+        void SetReleaser(IAudioReleaser* releaser) noexcept { m_releaser = releaser; }
+
+    protected:
+        // A removed source's voice stops with it.
+        void OnComponentDestroyed(AudioSourceComponent& c, foundation::scene::EntityHandle) override
+        {
+            if (m_releaser != nullptr && c.voice.IsValid())
+            {
+                m_releaser->ReleaseVoice(c.voice);
+            }
+            c.voice = foundation::audio::VoiceHandle{};
+        }
+
+    private:
+        IAudioReleaser* m_releaser = nullptr;
     };
 
     // The first active listener wins; entities beyond the first are ignored that frame.

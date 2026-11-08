@@ -116,10 +116,19 @@ export namespace engine::audio
         RegisterSerializable<AudioUserSettings>();
     }
 
-    class AudioSceneSystem final : public scene::SceneSystem
+    class AudioSceneSystem final : public scene::SceneSystem, public IAudioReleaser
     {
     public:
         void OnSceneCreate(scene::Scene& scene) override { m_scene = &scene; }
+
+        // IAudioReleaser: a removed source's voice stops now.
+        void ReleaseVoice(VoiceHandle voice) override
+        {
+            if (m_engine != nullptr && m_engine->IsValidHandle(voice))
+            {
+                m_engine->Stop(voice);
+            }
+        }
 
         /// The subsystem wires its engine in right after AddSystem (tests may inject a
         /// headless engine directly).
@@ -137,6 +146,10 @@ export namespace engine::audio
         void OnSceneStarted() override
         {
             m_started = true;
+            if (auto* sources = m_scene->GetSystem<AudioSourceComponentManager>())
+            {
+                sources->SetReleaser(this); // a source removed while the scene plays stops its voice
+            }
             m_wasSimulating = true;
             if (m_engine == nullptr)
             {
@@ -173,6 +186,10 @@ export namespace engine::audio
         void OnSceneStopped() override
         {
             m_started = false;
+            if (auto* sources = m_scene->GetSystem<AudioSourceComponentManager>())
+            {
+                sources->SetReleaser(nullptr); // the scene group's voices stop with it below
+            }
             if (auto* sources = m_scene->GetSystem<AudioSourceComponentManager>())
             {
                 sources->ForEach(
