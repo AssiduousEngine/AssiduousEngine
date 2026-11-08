@@ -9,7 +9,9 @@
 // the simulation holds. Stopped, the scene stops and the snapshot is restored into the same scene,
 // so borrowed scene pointers stay valid and the guid-keyed selection resolves again (what the run
 // spawned drops out). The game's UI stays non-interactive meanwhile: Simulate's pointer serves
-// selection and the camera, and the Game tab is the interactive run.
+// selection and the camera, and the Game tab is the interactive run. A simulated scene has no run,
+// so the screens its scripts push go on the GUI's unbound tier, which no tab draws; the page takes
+// them down when the last simulation stops (RunningCount).
 
 module;
 #include "Core/Prelude.h"
@@ -31,6 +33,8 @@ export namespace editor
     {
     public:
         [[nodiscard]] bool IsRunning() const noexcept { return m_running; }
+        /// How many simulations run across every page: the GUI's unbound tier is theirs together.
+        [[nodiscard]] static usize RunningCount() noexcept { return s_running; }
         [[nodiscard]] bool IsPaused() const noexcept { return m_paused; }
 
         /// Snapshot `scene` and run it with `commands` locked; false when it is already running or
@@ -50,6 +54,7 @@ export namespace editor
             commands.SetLocked(true);
             m_running = true;
             m_paused = false;
+            ++s_running;
             return true;
         }
         /// Holds or resumes a running simulation (the per-frame freeze, not the start and stop
@@ -78,11 +83,23 @@ export namespace editor
             commands.SetLocked(false);
             m_running = false;
             m_paused = false;
+            --s_running;
+        }
+        /// A page closing with its scene running: no restore (the scene is going), only the count.
+        void Abandon() noexcept
+        {
+            if (!m_running)
+                return;
+            m_snapshot = nullptr;
+            m_running = false;
+            m_paused = false;
+            --s_running;
         }
 
     private:
         UniquePtr<foundation::scene::SceneSnapshot> m_snapshot;
         bool m_running = false;
         bool m_paused = false;
+        static inline usize s_running = 0;
     };
 }

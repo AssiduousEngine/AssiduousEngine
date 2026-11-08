@@ -181,6 +181,8 @@ export namespace editor
         // and no keyboard while the camera has the mouse, and edits are locked during Simulate.
         void UpdateTools(bool viewportActive, f32 deltaSeconds);
         void SaveViewState();
+        /// Takes the simulations' screens off the GUI's unbound tier once none runs (SceneSimulation).
+        void EndSimulationScreens();
         void RestoreViewState();
         [[nodiscard]] bool IsProjectDefaultScene() const;
         void Confirm(StringView title, StringView text, StringView verb, Function<void()> yes);

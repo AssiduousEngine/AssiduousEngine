@@ -640,6 +640,11 @@ namespace editor
             SaveViewState();
         if (m_services.host != nullptr)
             m_viewport->Close(*m_services.host);
+        if (m_simulation.IsRunning())
+        {
+            m_simulation.Abandon(); // the scene goes with the page; its screens with the last run
+            EndSimulationScreens();
+        }
         if (m_scene != nullptr)
         {
             m_sceneManager.DestroyScene(m_scene); // aware subsystems are told OnSceneDestroyed
@@ -747,6 +752,17 @@ namespace editor
     {
         if (m_scene != nullptr)
             m_simulation.Stop(*m_scene, Commands(), m_context->Resources());
+        EndSimulationScreens();
+    }
+
+    void SceneEditorPage::EndSimulationScreens()
+    {
+        // What a simulation's scripts pushed is on the GUI's unbound tier, shared by every page's
+        // simulation, so it goes when the last of them stops.
+        if (SceneSimulation::RunningCount() != 0 || m_services.host == nullptr)
+            return;
+        if (auto* gui = m_services.host->Subsystems().GetSubsystem<engine::gui::GuiSubsystem>())
+            gui->EndUnboundScreens();
     }
 
     void SceneEditorPage::SetMarkersShown(bool shown)

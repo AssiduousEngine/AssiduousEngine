@@ -882,6 +882,7 @@ TEST_CASE("inspector: several entities edited at once; a component's header has 
     // While simulating, the inspector is read-only and shows a note saying so.
     page->StartSimulation();
     page->OnUpdate(bed.host, 1.0f / 60.0f);
+    CHECK(SceneSimulation::RunningCount() == 1u); // the GUI's unbound tier is the simulations' together
     CHECK(inspector->Sections().IsReadOnly());
     CHECK(FindId<gui::Node>(*page->Content(), u8"inspector-note")->IsDisplayed());
     auto* addComponent = FindId<gui::Button>(*page->Content(), u8"inspector-add");
@@ -893,9 +894,14 @@ TEST_CASE("inspector: several entities edited at once; a component's header has 
     CHECK(static_cast<engine::render::LightComponent*>(manager->GetComponentInstance(scene.FindEntity(lamp)).Pointer())->intensity == doctest::Approx(3.0f));
     page->StopSimulation();
     page->OnUpdate(bed.host, 1.0f / 60.0f);
+    CHECK(SceneSimulation::RunningCount() == 0u);
     CHECK_FALSE(inspector->Sections().IsReadOnly());
     CHECK(addComponent->IsEnabled());
+    // A page closed while it simulates leaves no simulation counted (its screens go with the last).
+    page->StartSimulation();
+    CHECK(SceneSimulation::RunningCount() == 1u);
     page->OnClose();
+    CHECK(SceneSimulation::RunningCount() == 0u);
 }
 
 TEST_CASE("inspector: an entity reference is a slot over the scene's entities: its name, a pick from the entity picker (the hierarchy's tree), a dragged entity, one undo each")
