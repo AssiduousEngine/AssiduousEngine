@@ -7,8 +7,15 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ## Unreleased
 
+### Changed
+
+- Editor: each scene page's Simulate runs its scripts apart from other pages', with their own
+  script context and clock.
+
 ### Fixed
 
+- Editor: what a Simulate's scripts put on screen goes when it stops, and no longer shows over a
+  later Play.
 - Editor: context menus open at the pointer under a UI scale other than 100% (the asset browser,
   the hierarchy, the log, the pickers, the bus layout, the particle, animation graph and model
   viewer pages), and a tab's Move to opens below its tab.

@@ -30,7 +30,7 @@ import foundation.scene.resource;
 import foundation.render;
 import engine.render;
 import engine.gui;
-import foundation.messaging;
+import foundation.run; // RunRegistry: the runs the page's run joins
 import foundation.gui;
 import foundation.gui.hosting;
 import foundation.gui.viewport;
@@ -79,6 +79,9 @@ export namespace editor
             EditorIcons* icons = nullptr;
             /// Opens the picker for a request (the inspector's Add Component).
             Function<void(app::PickerRequest request)> pick;
+            /// The live runs, which the page's run joins so the subsystems keeping per-run state
+            /// (the GUI's screens, audio) hear it (null: none, a test).
+            foundation::run::RunRegistry* runs = nullptr;
             /// Opens Create Asset (with a title, a suggested name, and a group to start in, null
             /// for the top) and reports the group and the name chosen (the animation panel's New
             /// Clip). Null: none.
@@ -181,8 +184,6 @@ export namespace editor
         // and no keyboard while the camera has the mouse, and edits are locked during Simulate.
         void UpdateTools(bool viewportActive, f32 deltaSeconds);
         void SaveViewState();
-        /// Takes the simulations' screens off the GUI's unbound tier once none runs (SceneSimulation).
-        void EndSimulationScreens();
         void RestoreViewState();
         [[nodiscard]] bool IsProjectDefaultScene() const;
         void Confirm(StringView title, StringView text, StringView verb, Function<void()> yes);
@@ -200,8 +201,10 @@ export namespace editor
         EditorContext* m_context;
         Services m_services;
         engine::scene::SceneSubsystem* m_scenes = nullptr; // the context's (registry and tick)
-        foundation::scene::SceneManager m_sceneManager{Allocator()}; // this page's own scene group
-        foundation::messaging::EventBus m_pageEvents; // the page's run scope (edit-mode Simulate)
+        // Before the scene group: it outlives the scenes, whose destruction may tear its script
+        // host down.
+        SceneSimulation m_simulation{Allocator(), u8"Scene"};
+        foundation::scene::SceneManager m_sceneManager{Allocator()}; // this page's own scene group, in its run
         String m_title;
         foundation::scene::Scene* m_scene = nullptr; // owned by the scene manager
         bool m_loadFailed = false;
@@ -209,7 +212,6 @@ export namespace editor
         UniquePtr<SceneEditContext> m_editContext; // every edit goes through it as this page's commands
         UniquePtr<SceneViewport> m_viewport;
         SceneOverlays m_overlays;
-        SceneSimulation m_simulation;
         UniquePtr<PrefabFlows> m_prefabs;
         UniquePtr<SceneHierarchyView> m_hierarchy;
         UniquePtr<SceneInspectorView> m_inspector;

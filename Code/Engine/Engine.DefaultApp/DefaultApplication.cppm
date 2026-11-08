@@ -99,8 +99,9 @@ export namespace engine::runtime
         /// The app's primary running game. The launch flow creates the game scene in its
         /// Scenes() manager so it groups, ticks and renders as this run's scenes.
         [[nodiscard]] GameInstance& Instance() noexcept { return m_instance; }
-        /// The live runs (null before Configure); also on the subsystem manager, for subsystems.
-        [[nodiscard]] foundation::run::IRunManager* Runs() noexcept { return m_runs.Get(); }
+        /// The live runs (null before Configure); also on the subsystem manager, for subsystems. A
+        /// run the app does not make (an editor scene page's) joins them here.
+        [[nodiscard]] foundation::run::RunRegistry* Runs() noexcept { return m_runs.Get(); }
 
         /// The primary instance's scene group: a scene created here renders (the app renders
         /// instance scenes; there is no default manager). Returns SceneManager& directly so callers

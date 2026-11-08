@@ -34,6 +34,7 @@ import engine.animation;
 import foundation.animation; // Skeleton (a bone name's choices)
 import foundation.physics;
 import engine.script;
+import foundation.run; // the page's run and the registry it joins
 import foundation.script.resource;
 import foundation.scene.resource;
 import foundation.gui;
@@ -54,7 +55,8 @@ namespace gui = foundation::gui;
 
 namespace
 {
-    // A host whose context has a scene subsystem and nothing else: no renderer, no window.
+    // A host whose context has the scene and script subsystems and nothing else: no renderer, no
+    // window.
     class SceneHost final : public runtime::IApplicationHost
     {
     public:
@@ -63,6 +65,7 @@ namespace
             // The engine's full composition, so a scene's entities can take its components.
             engine::RegisterAllSceneComponentReflection(); // every component named, as in the editor
             m_context.AddSubsystem<engine::scene::SceneSubsystem>()->SetComposition(engine::FullSceneComposition());
+            m_context.AddSubsystem<engine::script::ScriptSubsystem>(); // binds a scene's behaviours to its run's host
             m_context.Startup();
         }
         ~SceneHost() override { m_context.Shutdown(); }
@@ -164,10 +167,11 @@ namespace
             (void)RemoveDirectoryRecursive(dir.AsView());
         }
         app::PickerRequest picked; // the last request the page sent to its picker
-        UniquePtr<SceneEditorPage> Open(foundation::content::Instance& instance)
+        UniquePtr<SceneEditorPage> Open(foundation::content::Instance& instance, foundation::run::RunRegistry* runs = nullptr)
         {
             SceneEditorPage::Services services;
             services.host = &host;
+            services.runs = runs;
             services.loadMarkup = [](StringView path) { return LoadMarkup(path); };
             services.pick = [this](app::PickerRequest request) { picked = Move(request); };
             return MakeUnique<SceneEditorPage>(DefaultAllocator(), context, Move(services), instance);
@@ -353,6 +357,72 @@ TEST_CASE("scene page: Simulate locks the edits and gives the scene back as it w
     CHECK(page->ScenePtr()->FindEntity(bed.crate).IsAssigned());
     CHECK_FALSE(page->EditContext().CreateEntity(u8"Allowed").IsNil());
     page->OnClose();
+}
+
+namespace
+{
+    // What the runs announce, counted.
+    struct RunsHeard final : foundation::run::IRunListener
+    {
+        int started = 0;
+        int paused = 0;
+        int stopping = 0;
+        int destroyed = 0;
+        void OnRunStarted(foundation::run::IRun&) override { ++started; }
+        void OnRunPaused(foundation::run::IRun&, bool) override { ++paused; }
+        void OnRunStopping(foundation::run::IRun&) override { ++stopping; }
+        void OnRunDestroyed(foundation::run::IRun&) override { ++destroyed; }
+    };
+}
+
+TEST_CASE("scene page: the page is a run; its scene carries it and its script host, and each Simulate is one session")
+{
+    Bed bed;
+    RunsHeard heard;
+    foundation::run::RunRegistry runs(DefaultAllocator());
+    runs.Subscribe(heard);
+    UniquePtr<SceneEditorPage> page = bed.Open(*bed.level, &runs);
+    foundation::run::IRun* run = page->ScenePtr()->Run();
+    REQUIRE(run != nullptr);
+    CHECK(runs.Count() == 1u);
+    CHECK(runs.Find(run->Id()) == run);
+    CHECK(run->Name() == StringView(u8"Level"));
+    CHECK(run->State() == foundation::run::RunState::Idle); // editing is between sessions
+    auto* host = run->Get<engine::script::ScriptRunHost>();
+    REQUIRE(host != nullptr);
+    CHECK(host->Binding().run == run);
+    CHECK(page->ScenePtr()->GetSystem<engine::script::ScriptSceneSystem>()->Host() == host);
+    CHECK(page->ScenePtr()->GetSystem<engine::script::SceneScriptSystem>()->Host() == host);
+
+    page->StartSimulation();
+    CHECK(run->State() == foundation::run::RunState::Running);
+    page->PauseSimulation(true);
+    CHECK(run->State() == foundation::run::RunState::Paused);
+    page->PauseSimulation(false);
+    page->StopSimulation();
+    CHECK(run->State() == foundation::run::RunState::Idle);
+    CHECK(heard.started == 1);
+    CHECK(heard.paused == 2);
+    CHECK(heard.stopping == 1);
+
+    // Another page is another run, with a host of its own.
+    UniquePtr<SceneEditorPage> other = bed.Open(*bed.barrel, &runs);
+    REQUIRE(other->ScenePtr()->Run() != nullptr);
+    CHECK(other->ScenePtr()->Run() != run);
+    CHECK(other->ScenePtr()->Run()->Get<engine::script::ScriptRunHost>() != host);
+    CHECK(runs.Count() == 2u);
+
+    // Closed mid-Simulate, the session ends with the close; the run leaves with the page.
+    page->StartSimulation();
+    page->OnClose();
+    CHECK(heard.stopping == 2);
+    page.Reset();
+    CHECK(heard.destroyed == 1);
+    CHECK(runs.Count() == 1u);
+    other->OnClose();
+    other.Reset();
+    CHECK(runs.Count() == 0u);
+    runs.Unsubscribe(heard);
 }
 
 TEST_CASE("scene page: where the scene was left (the camera, the selection, the panes, the overlays) comes back when it opens again")
@@ -882,7 +952,6 @@ TEST_CASE("inspector: several entities edited at once; a component's header has 
     // While simulating, the inspector is read-only and shows a note saying so.
     page->StartSimulation();
     page->OnUpdate(bed.host, 1.0f / 60.0f);
-    CHECK(SceneSimulation::RunningCount() == 1u); // the GUI's unbound tier is the simulations' together
     CHECK(inspector->Sections().IsReadOnly());
     CHECK(FindId<gui::Node>(*page->Content(), u8"inspector-note")->IsDisplayed());
     auto* addComponent = FindId<gui::Button>(*page->Content(), u8"inspector-add");
@@ -894,14 +963,9 @@ TEST_CASE("inspector: several entities edited at once; a component's header has 
     CHECK(static_cast<engine::render::LightComponent*>(manager->GetComponentInstance(scene.FindEntity(lamp)).Pointer())->intensity == doctest::Approx(3.0f));
     page->StopSimulation();
     page->OnUpdate(bed.host, 1.0f / 60.0f);
-    CHECK(SceneSimulation::RunningCount() == 0u);
     CHECK_FALSE(inspector->Sections().IsReadOnly());
     CHECK(addComponent->IsEnabled());
-    // A page closed while it simulates leaves no simulation counted (its screens go with the last).
-    page->StartSimulation();
-    CHECK(SceneSimulation::RunningCount() == 1u);
     page->OnClose();
-    CHECK(SceneSimulation::RunningCount() == 0u);
 }
 
 TEST_CASE("inspector: an entity reference is a slot over the scene's entities: its name, a pick from the entity picker (the hierarchy's tree), a dragged entity, one undo each")

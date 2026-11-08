@@ -21,6 +21,8 @@ import foundation.scene.resource;
 import foundation.render;
 import engine.render;
 import engine.gui;
+import engine.script; // ScriptSubsystem: the page run's host is configured by it
+import foundation.run;
 import foundation.gui;
 import foundation.gui.hosting;
 import foundation.gui.viewport;
@@ -80,13 +82,25 @@ namespace editor
         }
         m_viewport = MakeUnique<SceneViewport>(Allocator(), Allocator(), view);
 
+        // The page's run: its scenes belong to it, and the runs it joins tell the subsystems that
+        // keep per-run state (the GUI's screens, audio) when a Simulate starts and stops.
+        SimulationRun& run = m_simulation.Run();
+        run.SetName(m_title.AsView());
+        if (m_services.runs != nullptr)
+            m_services.runs->Add(run); // it leaves the registry as it is destroyed, with the page
+        if (host != nullptr)
+            if (auto* scripts = host->Subsystems().GetSubsystem<engine::script::ScriptSubsystem>())
+                scripts->ConfigureRunHost(run.Scripts()); // the facades and routing, before its first context
+
         // Its own live scene in its own scene manager, registered with the subsystem so it ticks.
         if (m_scenes != nullptr)
         {
             m_scenes->RegisterManager(&m_sceneManager);
-            // The page is edit-mode Simulate's run scope: its bus is set before the scene is made,
-            // so systems binding as it is assembled see it; OnUpdate drains it once a frame.
-            m_sceneManager.SetSceneEventBus(&m_pageEvents);
+            // The run and its bus are set before the scene is made, so systems binding as it is
+            // assembled see them (its behaviours bind to the run's script host); OnUpdate drains
+            // the bus once a frame.
+            m_sceneManager.SetSceneRun(&run);
+            m_sceneManager.SetSceneEventBus(&run.Events());
             m_scene = m_sceneManager.CreateScene(instance.Name());
             m_scene->SetSimulationEnabled(false); // edit mode is frozen; Simulate unfreezes it
             SceneLoadTimes times;
@@ -496,9 +510,10 @@ namespace editor
             m_hud->Zoomed();
         if (m_editContext)
             UpdateTools(active, dt);
-        // The page is this scene's run scope: its bus drains once a frame (events a Simulate tick
-        // emitted last frame arrive now).
-        m_pageEvents.Drain();
+        // The page's run: its scripts' clock, and its bus drained once a frame (events a Simulate
+        // tick emitted last frame arrive now).
+        m_simulation.Run().Scripts().Advance(dt);
+        m_simulation.Run().Events().Drain();
 
         // The overlays into this viewport's own debug list (the lists clear each frame, so they are
         // drawn again every frame); none on the frame a project picture is captured.
@@ -640,13 +655,11 @@ namespace editor
             SaveViewState();
         if (m_services.host != nullptr)
             m_viewport->Close(*m_services.host);
-        if (m_simulation.IsRunning())
-        {
-            m_simulation.Abandon(); // the scene goes with the page; its screens with the last run
-            EndSimulationScreens();
-        }
         if (m_scene != nullptr)
         {
+            // A Simulate under way ends here: the scene stops and the run's session with it, so
+            // what its scripts showed and played goes now, not when the page is destroyed.
+            m_simulation.Abandon(*m_scene);
             m_sceneManager.DestroyScene(m_scene); // aware subsystems are told OnSceneDestroyed
             m_scene = nullptr;
         }
@@ -704,6 +717,7 @@ namespace editor
         // SavePrefab stamps the document's name from the scene, so the fork gets its own.
         if (m_scene != nullptr)
             m_scene->SetName(instance.Name());
+        m_simulation.Run().SetName(instance.Name());
     }
 
     void SceneEditorPage::OnAssetExternallyModified()
@@ -752,17 +766,6 @@ namespace editor
     {
         if (m_scene != nullptr)
             m_simulation.Stop(*m_scene, Commands(), m_context->Resources());
-        EndSimulationScreens();
-    }
-
-    void SceneEditorPage::EndSimulationScreens()
-    {
-        // What a simulation's scripts pushed is on the GUI's unbound tier, shared by every page's
-        // simulation, so it goes when the last of them stops.
-        if (SceneSimulation::RunningCount() != 0 || m_services.host == nullptr)
-            return;
-        if (auto* gui = m_services.host->Subsystems().GetSubsystem<engine::gui::GuiSubsystem>())
-            gui->EndUnboundScreens();
     }
 
     void SceneEditorPage::SetMarkersShown(bool shown)

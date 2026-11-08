@@ -23,6 +23,7 @@ import foundation.scene;
 import foundation.mcp;
 import editor.core;
 import editor.app;
+import engine.defaultapp; // the embedded game app, whose runs a page's run joins
 import :page;
 import :services;
 import :asset_thumbnails;
@@ -70,6 +71,8 @@ export namespace editor
             pageServices.refs = &editor->RefServices();
             pageServices.icons = &editor->TypeIcons();
             pageServices.pick = [editor](app::PickerRequest request) { editor->ShowPicker(Move(request)); };
+            if (engine::runtime::DefaultApplication* game = editor->EmbeddedApplication())
+                pageServices.runs = game->Runs(); // the page's run joins the game's runs
             pageServices.createAsset = [editor](StringView title, StringView suggested, foundation::content::Group* group,
                                                 Function<void(foundation::content::Group&, StringView)> create)
             { editor->ShowCreateAsset(title, suggested, group, Move(create)); };
