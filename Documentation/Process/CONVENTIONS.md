@@ -163,3 +163,19 @@ violating them fails review even if the feature works.
   (e.g. `VG: ...`, `Editor: ...`), body explains the why.
 - Do not commit or push without the phase being green on both compilers and its
   tests passing.
+
+## Releases
+
+- **The changelog:** `CHANGELOG.md` at the root. A change someone using the engine, the editor
+  or a game would notice adds its line under `## Unreleased` (Added, Changed, Fixed, Removed) in
+  the same commit. Internal work (a refactor, a test, a plan) adds none. Lines say what changed for
+  that person, in public terms: no internal names, no other engines.
+- **The version:** `project(VERSION)` and `ENGINE_VERSION_LABEL` in the root CMakeLists. On master
+  between releases the label is `dev` and the version is the one being worked toward (0.1.0-dev
+  after 0.1.0-beta; 0.2.0-dev after 0.1.0).
+- **Cutting a release:** on master, one commit `Release: <version>`: the label set to the
+  release's (`beta` for a pre-release, empty for a final), and `## Unreleased` renamed to
+  `## <version> - <date>`. Fast-forward `release` to it and tag it `v<version>` there (the release
+  workflow refuses a tag off `release` or not matching the CMakeLists version).
+- **After a release:** the next commit on master puts the label back to `dev`, bumps
+  `project(VERSION)` when the release was final, and opens a new `## Unreleased`.

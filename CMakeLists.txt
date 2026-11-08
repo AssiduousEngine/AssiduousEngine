@@ -17,11 +17,13 @@ project(GameEngine
 set(ENGINE_PRODUCT_NAME "AssiduousEngine")
 set(ENGINE_ID "assiduousengine")
 
-# The release's pre-release label ("beta"; empty for a final release). The version a person reads
-# (the About box, the startup log, the release tag and its archives) is project(VERSION) with it,
-# 0.1.0-beta; every compatibility check (plugins, export templates, project files) compares
-# project(VERSION) alone, so a beta's plugins and projects work with the final release.
-set(ENGINE_VERSION_LABEL "beta")
+# The version's label: "dev" on master between releases (0.1.0-dev, the version being worked
+# toward); a release commit sets the release's ("beta" for a pre-release, empty for a final
+# release) and master goes back to "dev" after it (Documentation/Process/CONVENTIONS.md, Releases).
+# The version a person reads (the About box, the startup log, the release tag and its archives) is
+# project(VERSION) with it; every compatibility check (plugins, export templates, project files)
+# compares project(VERSION) alone, so a beta's plugins and projects work with the final release.
+set(ENGINE_VERSION_LABEL "dev")
 if(ENGINE_VERSION_LABEL STREQUAL "")
     set(ENGINE_VERSION_DISPLAY "${PROJECT_VERSION}")
 else()

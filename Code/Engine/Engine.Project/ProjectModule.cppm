@@ -40,9 +40,9 @@ export namespace engine::project
     inline constexpr u32 kEngineVersionMinor = ENGINE_VERSION_MINOR;
     inline constexpr u32 kEngineVersionPatch = ENGINE_VERSION_PATCH;
     inline constexpr StringView kEngineVersionString = ENGINE_VERSION_STRING;
-    // The release's pre-release label ("beta"; empty for a final release), and the version a person
-    // reads: kEngineVersionString with the label (0.1.0-beta). Compatibility checks compare
-    // kEngineVersionString alone.
+    // The version's label ("dev" on master between releases, "beta" for a pre-release, empty for a
+    // final release), and the version a person reads: kEngineVersionString with the label
+    // (0.1.0-dev, 0.1.0-beta). Compatibility checks compare kEngineVersionString alone.
     inline constexpr StringView kEngineVersionLabel = ENGINE_VERSION_LABEL;
     // The engine's name as a person reads it (ENGINE_PRODUCT_NAME in the root CMakeLists).
     inline constexpr StringView kEngineProductName = ENGINE_PRODUCT_NAME;
@@ -68,7 +68,8 @@ export namespace engine::project
 
     /// Where `file` attached to this engine's own release is downloaded from: release
     /// v<version> of the release repository, the version with its label (the release's tag,
-    /// v0.1.0-beta). A build between releases names a release that may not exist yet.
+    /// v0.1.0-beta). A build between releases (0.1.0-dev) names a release that does not exist, and
+    /// what asks says so (the Samples tab: not published).
     [[nodiscard]] inline String EngineReleaseDownloadUrl(StringView file)
     {
         return Format(u8"https://github.com/{}/releases/download/v{}/{}", kEngineReleaseRepository, kEngineVersionDisplay, file);

@@ -49,7 +49,10 @@ cmake --build build/clang -j4                          # everything
   instead of hard-coding a list of type names.
 - **Keep the documents honest in the same commit.** A change to the MCP tools updates
   `Documentation/Shipping/McpGuide.md`; the engine tool count (`kEngineToolCount`) is a
-  tripwire, bumped by hand when a tool is added.
+  tripwire, bumped by hand when a tool is added. A change a user would notice adds its line to
+  `CHANGELOG.md` under Unreleased.
+- **Versions:** master is labelled `dev` between releases; cutting a release and the bump after
+  it are in CONVENTIONS.md, under Releases.
 - **Commits**: one per piece of work (a layer with its tests), the subject `Area: what it
   does` with a body saying why, and no `Co-Authored-By` or session trailer lines. Stage
   explicit paths. Push only when asked.
