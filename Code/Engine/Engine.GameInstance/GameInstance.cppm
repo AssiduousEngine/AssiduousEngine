@@ -414,10 +414,9 @@ export namespace engine::runtime
         /// drives that).
         void StopScript();
 
-        /// Create a scene in this instance's group and bind its behaviors to this instance's run
-        /// host. Use this instead of Scenes().CreateScene so the re-bind happens. `activate`
-        /// (default true) makes it active at once; false creates it inactive for an async load (see
-        /// LoadSceneAsync).
+        /// Create a scene in this instance's group: it belongs to this run, so its behaviors run on
+        /// this run's host. `activate` (default true) makes it active at once; false creates it
+        /// inactive for an async load (see LoadSceneAsync).
         scene::Scene* CreateScene(core::StringView name, bool activate = true);
         /// Destroy a scene in this instance's group. Drops any tracked async load whose pending
         /// target is this scene before freeing it, since the handle holds a raw Scene* and
@@ -551,7 +550,6 @@ export namespace engine::runtime
         /// sceneScale. A faulting update disables this instance's script (drops the `Game`), not
         /// the app.
         void TickScript(f32 hostDeltaTime, f32 contextTimeScale);
-
 
     private:
         // A fault in `handler`: the script stops, and the reason is kept (ScriptFault).

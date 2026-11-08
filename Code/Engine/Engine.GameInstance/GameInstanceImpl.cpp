@@ -244,24 +244,10 @@ namespace engine::runtime
 
     scene::Scene* GameInstance::CreateScene(core::StringView name, bool activate)
     {
-        scene::Scene* scene = m_sceneManager.CreateScene(name, activate);
-        if (scene != nullptr)
-        {
-            // OnSceneCreated (the ScriptSubsystem) added the behavior and level script systems
-            // bound to the default host; re-bind both to this instance's host so they share the
-            // game's context.
-            if (auto* system = scene->GetSystem<engine::script::ScriptSceneSystem>())
-            {
-                system->SetRunHost(&m_runHost);
-            }
-            if (auto* level = scene->GetSystem<engine::script::SceneScriptSystem>())
-            {
-                level->SetRunHost(&m_runHost);
-            }
-            // The run bus is already injected by m_sceneManager before assembly, so scene.events
-            // and the run bus are one object and the script systems are bound to the right bus.
-        }
-        return scene;
+        // The group gives the scene this run and its bus before it assembles, so the
+        // ScriptSubsystem binds its behaviours to this run's host (the one registered on it) and
+        // scene.events and the run bus are one object.
+        return m_sceneManager.CreateScene(name, activate);
     }
 
     scene::Scene* GameInstance::LoadScene(

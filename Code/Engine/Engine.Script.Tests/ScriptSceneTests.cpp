@@ -19,6 +19,7 @@
 import foundation.core;
 import foundation.vfs; // the data mount the subsystem reads engine data through
 import foundation.runtime;
+import foundation.run; // RunBase: a run holding a script host
 import foundation.scene;
 import foundation.scene.resource;
 import foundation.content; // ContentDatabase: a prefab for scene.spawn to reach
@@ -2727,6 +2728,87 @@ TEST_CASE("script.scene: behaviors tick without error when no physics subsystem 
     ctx.Update(1.0f / 60.0f);
     CHECK(Near(scene->GetLocalTransform(e).position.x, 1.0f));
 
+    ctx.Shutdown();
+}
+
+namespace
+{
+    // A run that holds a script host, as a game's run and an editor page's run do.
+    struct HostRun final : foundation::run::RunBase
+    {
+        ScriptRunHost host{DefaultAllocator()};
+        HostRun() : RunBase(DefaultAllocator(), u8"Host run")
+        {
+            Register<ScriptRunHost>(host);
+            host.Binding().run = this;
+        }
+        ~HostRun() override { Dispose(); }
+    };
+}
+
+TEST_CASE("script.scene: a scene's behaviours run on its run's script host; a scene with no run "
+          "on the default host")
+{
+    namespace runtime = foundation::runtime;
+    HostRun run; // outlives the scenes: destroying one may tear its host down
+    runtime::SubsystemManager ctx(foundation::core::DefaultAllocator());
+    auto* scenes = ctx.AddSubsystem<engine::scene::SceneSubsystem>();
+    scene::SceneManager inRun{DefaultAllocator()};
+    scene::SceneManager loose{DefaultAllocator()};
+    inRun.SetSceneRun(&run);
+    scenes->RegisterManager(&inRun);
+    scenes->RegisterManager(&loose);
+    {
+        const scene::SceneModule scriptModule{u8"script", &engine::script::AddScriptSceneManagers,
+                                              nullptr};
+        const scene::SceneModule* modules[] = {&scriptModule};
+        scenes->SetComposition(scene::SceneComposition::Build(modules));
+    }
+    ScriptSubsystem* scripts = ctx.AddSubsystem<ScriptSubsystem>();
+    foundation::script::angelscript::RegisterAngelScriptBackend();
+    RegisterCoreTypes();
+    RegisterScriptComponentReflection();
+    RegisterScriptFacadeReflection();
+    ctx.Startup();
+    scripts->ConfigureRunHost(run.host);
+
+    scene::Scene* owned = inRun.CreateScene(u8"in-run");
+    scene::Scene* outside = loose.CreateScene(u8"loose");
+    CHECK(owned->GetSystem<ScriptSceneSystem>()->Host() == &run.host);
+    CHECK(owned->GetSystem<SceneScriptSystem>()->Host() == &run.host);
+    CHECK(outside->GetSystem<ScriptSceneSystem>()->Host() == &scripts->RunHost());
+    CHECK(outside->GetSystem<SceneScriptSystem>()->Host() == &scripts->RunHost());
+
+    // A behaviour in the run's scene makes the run's context, not the default host's.
+    RefPtr<ScriptClass> mover = MakeClass(u8"Mover",
+                                          u8"class Mover {\n"
+                                          u8"    private Entity@ self;\n"
+                                          u8"    Mover(Entity@ entity) { @self = entity; }\n"
+                                          u8"    void onUpdate(double dt) {\n"
+                                          u8"        Float3 p = self.position();\n"
+                                          u8"        self.setPosition(p.x + 1.0f, p.y, p.z);\n"
+                                          u8"    }\n"
+                                          u8"}\n",
+                                          {u8"onUpdate"});
+    scene::EntityHandle e = owned->CreateEntity(u8"m");
+    {
+        auto& component = owned->GetSystem<ScriptComponentManager>()->Add(e);
+        ScriptBehavior behavior;
+        behavior.script = mover;
+        component.behaviors.PushBack(Move(behavior));
+    }
+    owned->Start();
+    owned->SetSimulationEnabled(true);
+    ctx.BeginFrame(1.0f / 60.0f);
+    ctx.Update(1.0f / 60.0f);
+    CHECK(Near(owned->GetLocalTransform(e).position.x, 1.0f));
+    CHECK(run.host.IsActive());
+    CHECK_FALSE(scripts->RunHost().IsActive());
+
+    owned->Stop();
+    inRun.DestroyScene(owned);
+    loose.DestroyScene(outside);
+    CHECK_FALSE(run.host.IsActive()); // nothing pins it once its scene is gone
     ctx.Shutdown();
 }
 

@@ -34,7 +34,7 @@ export import foundation.script.facades; // Entity, Log, Time, Random and the ru
 import foundation.core;
 import engine.domain;
 import foundation.runtime;
-import foundation.runtime;
+import foundation.run; // IRun: a scene's run, whose script host its behaviours use
 import foundation.scene;
 import engine.scene;
 import foundation.resource;
@@ -1709,6 +1709,20 @@ export namespace engine::script
         /// that. Editing-scene Simulate runs its behaviors on this host.
         [[nodiscard]] ScriptRunHost& RunHost() noexcept { return m_ownedRunHost; }
 
+        /// The host `scene`'s scripts run on: the one its run holds (a run registers its
+        /// ScriptRunHost as a service), else the default host.
+        [[nodiscard]] ScriptRunHost* RunHostFor(const scene::Scene& scene) noexcept
+        {
+            if (foundation::run::IRun* run = scene.Run())
+            {
+                if (ScriptRunHost* host = run->Get<ScriptRunHost>())
+                {
+                    return host;
+                }
+            }
+            return &m_ownedRunHost;
+        }
+
         /// Wire a run host (this default or a GameInstance's) with the app services and routing so
         /// its context, once created, has the facades, the Scene.spawn spawner, and entity.send
         /// routing. The wrappers read the subsystem manager, spawner and m_systems live, so one
@@ -1832,9 +1846,12 @@ export namespace engine::script
         void OnSystemsReady(scene::Scene& scene) override
         {
             ScriptSceneSystem* system = scene.GetSystem<ScriptSceneSystem>();
-            // Bind to the default run host; a GameInstance re-binds its scenes to its own host on adopt.
-            // The teardown observer checks the system's current host.
-            system->SetRunHost(&m_ownedRunHost);
+            // The scene's run's host, so its behaviours share that run's context (a game's, an
+            // editor page's Simulate); a scene outside every run uses the default host. A scene's
+            // run is set before its systems assemble. The teardown observer checks the system's
+            // current host.
+            ScriptRunHost* host = RunHostFor(scene);
+            system->SetRunHost(host);
             ScriptSubsystem* self = this;
             system->SetRunObserver(Function<void()>{[self, system]()
                                                     {
@@ -1846,8 +1863,8 @@ export namespace engine::script
                                                     }});
             m_systems.PushBack(SceneEntry{&scene, system});
 
-            // Scene-root script (the Level tier) shares the same run host and re-bind path.
-            scene.GetSystem<SceneScriptSystem>()->SetRunHost(&m_ownedRunHost);
+            // The scene-root script (the Level tier) shares the same run host.
+            scene.GetSystem<SceneScriptSystem>()->SetRunHost(host);
         }
         void OnDestroying(scene::Scene& scene) override
         {
@@ -1872,7 +1889,6 @@ export namespace engine::script
 
         // Drives the default run host. A run drives its own host.
         void Update(f32 deltaTime) override { m_ownedRunHost.Advance(deltaTime); }
-        }
 
     protected:
         void OnInit() override

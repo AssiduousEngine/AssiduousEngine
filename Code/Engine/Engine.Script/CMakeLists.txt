@@ -4,7 +4,7 @@
 # register concrete backends.
 util_add_engine_library(Engine.Script ALIAS Engine::Script)
 target_link_libraries(Engine.Script
-    PUBLIC Foundation::Core Foundation::Runtime Foundation::Scene Engine::Scene
+    PUBLIC Foundation::Core Foundation::Runtime Foundation::Run Foundation::Scene Engine::Scene
            Foundation::Script Foundation::Script.Resource Foundation::Script.Facades
            Foundation::Resource Foundation::Content
            Foundation::Profiler Engine::Domain Foundation::Policy)
