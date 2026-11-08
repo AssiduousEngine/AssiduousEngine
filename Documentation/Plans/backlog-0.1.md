@@ -8,6 +8,14 @@
 
 ## Editor
 
+- **Two main-thread stalls in the editor** (measured 2026-11-08 on the flagship's 2000-asset
+  project, while finding the import hang; the user put them here): `script_validate` compiles on
+  the main thread, about 1.9 s for a level script with its includes; and at startup each texture's
+  finalize takes about 385 ms on the main thread ("finalize of Texture ... took 385 ms on the main
+  thread" in the log), nineteen in a row, over 7 s. Neither alone passed the desktop's
+  not-responding threshold, but together with other work they can. Move the compile to a worker,
+  and find what in a texture's finalize costs that much (a Debug build; measure in reldbg too).
+
 - **The waveform shows a limited master as a solid block** (user 2026-11-05, from the website's
   screenshots): `BuildWaveformPeaks` keeps each of the clip page's 256 buckets' largest absolute
   sample, and mastered music peaks at full scale in every one (PaperKid's `MusicBlockB.ogg`: every
