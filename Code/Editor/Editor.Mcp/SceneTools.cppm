@@ -361,7 +361,7 @@ export namespace editor::mcp
                          false)
                     .Build(),
                     foundation::mcp::ToolAnnotations::Overwrites(),
-                [s, wantedType = String(wantedType), sibling = String(sibling),
+                [s, wantedType = String(wantedType), sibling = String(sibling), kind = String(kind),
                  singleRoot](const JsonValue& args) -> ToolResult
                 {
                     if (s->project == nullptr)
@@ -421,6 +421,26 @@ export namespace editor::mcp
                         content::Group* group = detail::ResolveGroupPath(
                             s->project->SourceDb().RootGroup(),
                             args.Get(u8"group").AsString().AsView());
+                        // `name` makes a new asset. A name already taken in the group is refused
+                        // before anything is made: CreateInstance hands back what holds it, and
+                        // writing into that would overwrite another asset (a GUI document's record
+                        // once became a prefab's this way).
+                        if (content::Instance* taken = group->GetInstance(name.AsView()))
+                        {
+                            utf8char takenId[37];
+                            taken->Id().ToChars(takenId);
+                            const StringView takenGuid(takenId, 36);
+                            if (taken->TypeName() == wantedType.AsView())
+                            {
+                                return Err(Format(u8"refused - '{}' is already a {} in that group ({}): "
+                                                  u8"pass `guid` to overwrite it, or another `name`. "
+                                                  u8"Nothing was written.",
+                                                  name.AsView(), kind.AsView(), takenGuid));
+                            }
+                            return Err(Format(u8"refused - '{}' is taken in that group by a {} ({}); "
+                                              u8"pass another `name`. Nothing was written.",
+                                              name.AsView(), taken->TypeName(), takenGuid));
+                        }
                         const TypeInfo* docType =
                             wantedType.AsView() == StringView(u8"SceneDocument")
                                 ? &scene::SceneDocument::StaticType()

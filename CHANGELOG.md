@@ -31,6 +31,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- MCP: `scene_write` and `prefab_write` given a `name` already taken in its group refuse instead of
+  writing over the asset that holds it (a GUI document's record once became a prefab's this way).
 - Physics: a destroyed entity, or a removed rigid body, character or joint, no longer leaves its
   body in the physics world (an invisible collider) until the scene ends.
 - Audio: a destroyed entity's sound, or a removed audio source's, stops at once instead of playing

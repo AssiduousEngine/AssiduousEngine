@@ -223,6 +223,21 @@ TEST_CASE("integration.mcp: scene tools - author, validate, read back, and real 
         With(With(Obj(), u8"xml", seedXml.AsView()), u8"name", u8"goodprefab"));
     CHECK(okPrefab.Get(u8"written").AsBool() == true);
     CHECK(announced.Size() == 3u); // the prefab write announced too
+    // (d) `name` makes a new asset: a name already taken in the group is refused, and what holds
+    // it is left as it was. Another type's name (the scene "authored" in Levels) is refused naming
+    // the type; the tool's own type's name points at `guid` to overwrite it.
+    {
+        const String otherType = CallErr(
+            server, u8"prefab_write",
+            With(With(With(Obj(), u8"xml", seedXml.AsView()), u8"name", u8"authored"), u8"group", u8"Levels"));
+        CHECK(otherType.AsView().Find(u8"SceneDocument") != StringView::kNotFound);
+        JsonValue untouched = CallOk(server, u8"scene_read", With(Obj(), u8"guid", newGuid.AsView()));
+        CHECK(untouched.Get(u8"xml").AsString() == seedXml.AsView());
+        const String sameType = CallErr(
+            server, u8"prefab_write", With(With(Obj(), u8"xml", seedXml.AsView()), u8"name", u8"goodprefab"));
+        CHECK(sameType.AsView().Find(u8"guid") != StringView::kNotFound);
+        CHECK(announced.Size() == 3u); // neither wrote, neither announced
+    }
     // One with several roots is refused, citing the single-root rule.
     {
         scene::Scene twoRoots(DefaultAllocator(), u8"pair");

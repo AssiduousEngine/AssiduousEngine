@@ -172,7 +172,10 @@ entity outside a run, each running behaviour's properties under `live` beside wh
   full report; a refusal is the tool working, never something to bypass. What they store is the scene
   exactly as the editor saves it (its layout and number formatting), however the XML was
   passed, so a generated file reads like a saved one and a later save in the editor changes only
-  what changed.
+  what changed. `name` (with `group`) makes a NEW asset: a name already taken in that group is
+  refused and nothing is written, naming what holds it (another type's asset: pick another name;
+  one of the tool's own type: pass its `guid` to overwrite it). A generator that runs again looks
+  its asset up by name first and passes the guid it finds.
 - **Arguments are checked against the tool's schema.** One the schema does not declare is
   refused (`pie_run: no argument 'timeline' (it takes: pie, duration, input, ...)`), as are a
   missing required one and one of the wrong type, before the tool runs: a misspelt name never
