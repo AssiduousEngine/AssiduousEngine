@@ -143,7 +143,7 @@ TEST_CASE("allocators: DefaultAllocator() stays confined to the pinned allowlist
         {
             FAIL_CHECK("NEW ambient-allocator reference (thread an owner's allocator, or "
                        "consciously add to allocator-allowlist.txt): "
-                       << reinterpret_cast<const char*>(file.CStr()));
+                       << doctest::String(reinterpret_cast<const char*>(file.CStr()))); // the name, not the pointer
         }
     }
     // Stale entries: keep the list accurate as files get cleaned.
@@ -153,7 +153,7 @@ TEST_CASE("allocators: DefaultAllocator() stays confined to the pinned allowlist
         {
             FAIL_CHECK("STALE allowlist entry (file no longer references "
                        "DefaultAllocator() - remove it from allocator-allowlist.txt): "
-                       << reinterpret_cast<const char*>(file.CStr()));
+                       << doctest::String(reinterpret_cast<const char*>(file.CStr()))); // the name, not the pointer
         }
     }
 }

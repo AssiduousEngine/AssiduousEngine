@@ -153,7 +153,7 @@ TEST_CASE("shared-libs: module interfaces hold no duplicating process-wide state
             FAIL_CHECK("NEW process-wide state in a module interface (move the definition "
                        "to the library's impl unit - shared-libraries.md - or consciously "
                        "add to sharedlib-allowlist.txt): "
-                       << reinterpret_cast<const char*>(file.CStr()));
+                       << doctest::String(reinterpret_cast<const char*>(file.CStr()))); // the name, not the pointer
         }
     }
     for (const String& file : allowed)
@@ -162,7 +162,7 @@ TEST_CASE("shared-libs: module interfaces hold no duplicating process-wide state
         {
             FAIL_CHECK("STALE allowlist entry (hazard gone - remove from "
                        "sharedlib-allowlist.txt): "
-                       << reinterpret_cast<const char*>(file.CStr()));
+                       << doctest::String(reinterpret_cast<const char*>(file.CStr()))); // the name, not the pointer
         }
     }
 }
