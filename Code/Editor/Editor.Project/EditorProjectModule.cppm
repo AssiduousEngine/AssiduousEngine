@@ -11,6 +11,7 @@ export import :allocator;
 export import :project;
 export import :project_registry;
 export import :project_manager;
+export import :content_watcher;
 export import :cook_service;
 export import :log_buffer;
 export import :export_preset;

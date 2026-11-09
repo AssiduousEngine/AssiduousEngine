@@ -186,6 +186,49 @@ TEST_CASE("vfs: NativeFileSystem stat reports size + modified time")
     REQUIRE(w->Delete(u8"vfs_stat_test.bin").IsOk());
 }
 
+// Each write through the mount names the path it touched, after the fact: what lets a watcher of
+// the folder tell its own process's writes from someone else's.
+TEST_CASE("vfs: NativeFileSystem names every path a write touched")
+{
+    const StringView scratch = u8"vfs_written_scratch";
+    RemoveDirectoryRecursive(scratch);
+    CreateDirectories(scratch);
+    {
+        NativeFileSystem fs(scratch, DefaultAllocator());
+        Array<String> heard;
+        i64 sizeWhenHeard = -1;
+        fs.OnWritten = [&](StringView path)
+        {
+            heard.PushBack(String(path));
+            // Told once the file is as it stays: a stat then sees the whole of it.
+            FileStatInfo info;
+            if (path == StringView(u8"a/one.txt") && fs.Stat(path, info))
+            {
+                sizeWhenHeard = static_cast<i64>(info.size);
+            }
+        };
+
+        const byte payload[3] = {byte{1}, byte{2}, byte{3}};
+        REQUIRE(fs.Save(u8"a/one.txt", Span<const byte>(payload, 3)).IsOk());
+        CHECK(sizeWhenHeard == 3);
+        REQUIRE(fs.Move(u8"a/one.txt", u8"b/two.txt").IsOk());
+        REQUIRE(fs.Delete(u8"b/two.txt").IsOk());
+        REQUIRE(fs.CreateDirectory(u8"c").IsOk());
+        REQUIRE(fs.DeleteDirectory(u8"c").IsOk());
+        const StringView expected[] = {u8"a/one.txt", u8"a/one.txt", u8"b/two.txt", u8"b/two.txt", u8"c", u8"c"};
+        REQUIRE(heard.Size() == 6);
+        for (usize i = 0; i < 6; ++i)
+        {
+            CHECK(heard[i].AsView() == expected[i]);
+        }
+
+        // A delete of nothing touches nothing, and says nothing.
+        CHECK_FALSE(fs.Delete(u8"nope.txt").IsOk());
+        CHECK(heard.Size() == 6);
+    }
+    RemoveDirectoryRecursive(scratch);
+}
+
 TEST_CASE("vfs: NativeFileSystem change source detects adds, edits, and removals")
 {
     const StringView dir = u8"scratch_vfs_watch_dir";

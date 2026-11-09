@@ -30,6 +30,7 @@ target_sources(Editor.Project
     PRIVATE
         AllocatorImpl.cpp
         CookServiceImpl.cpp
+        ContentWatcherImpl.cpp
         ProjectScaffoldImpl.cpp
         ProjectSeedImpl.cpp
         ExportTemplateImpl.cpp
@@ -47,6 +48,7 @@ target_sources(Editor.Project
             TemplateIcons.cppm
             ExportTemplate.cppm
             ExportController.cppm
+            ContentWatcher.cppm
             CookService.cppm
             ToolPlugins.cppm
             ExportHooks.cppm

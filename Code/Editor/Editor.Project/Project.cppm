@@ -157,6 +157,31 @@ export namespace editor
         {
             return *m_sourceDb;
         }
+        /// The Content/ mount the source database reads and writes through: what the Content/
+        /// watcher sweeps.
+        [[nodiscard]] vfs::NativeFileSystem& ContentMount() noexcept { return *m_contentMount; }
+
+        /// Starts or stops keeping the paths written through the Content/ mount, for the watcher
+        /// that must not take the editor's own writes for outside changes. Stopping drops what was
+        /// kept; starting begins empty. Any thread.
+        void RecordContentWrites(bool record)
+        {
+            ScopedLock lock(m_contentWritesMutex);
+            m_recordContentWrites = record;
+            m_contentWrites.Clear();
+        }
+
+        /// Moves the paths written since the last take into `out`. Any thread.
+        void TakeContentWrites(Array<String>& out)
+        {
+            ScopedLock lock(m_contentWritesMutex);
+            for (String& path : m_contentWrites)
+            {
+                out.PushBack(Move(path));
+            }
+            m_contentWrites.Clear();
+        }
+
         /// The cooked output database (binary envelopes), which the runtime loads.
         [[nodiscard]] foundation::content::ContentDatabase& CookedDb() noexcept
         {
@@ -234,9 +259,26 @@ export namespace editor
                 vfs::NativeFileSystem root(directory, (*m_allocator));
                 (void)LoadExportRoots(root, m_exportRoots);
             }
+
+            // Every write into Content/ goes through this mount (the source database's records,
+            // data streams, renames, moves and deletes, a group's folder); it names each path, and
+            // the project keeps them while a watcher listens. The project holds the list, not the
+            // watcher: a write on a worker can land while the watcher goes, and the mount must
+            // never reach a freed listener.
+            EditorProject* self = this;
+            m_contentMount->OnWritten = [self](StringView path) { self->NoteContentWrite(path); };
         }
 
     private:
+        void NoteContentWrite(StringView path)
+        {
+            ScopedLock lock(m_contentWritesMutex);
+            if (m_recordContentWrites)
+            {
+                m_contentWrites.PushBack(String(path));
+            }
+        }
+
         [[nodiscard]] static Status WriteManifest(vfs::NativeFileSystem& root,
                                                   ProjectSettings& settings)
         {
@@ -258,6 +300,11 @@ export namespace editor
         UniquePtr<vfs::NativeFileSystem> m_cookedMount;
         UniquePtr<foundation::content::ContentDatabase> m_sourceDb;
         UniquePtr<foundation::content::ContentDatabase> m_cookedDb;
+        // The paths written through the Content/ mount while a watcher listens
+        // (RecordContentWrites), from whichever thread wrote, until it takes them.
+        Mutex m_contentWritesMutex;
+        Array<String> m_contentWrites;
+        bool m_recordContentWrites = false;
     };
 
     // --- Native-code scaffolding --------------------------------

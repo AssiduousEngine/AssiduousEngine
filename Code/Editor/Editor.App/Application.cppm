@@ -259,6 +259,7 @@ export namespace editor::app
         editor::EditorContext m_context{m_editorAllocator};
         pipeline::BuilderRegistry m_builders{m_editorAllocator}; // filled by the executable (registerEditors)
         editor::EditorCookService m_cookService;
+        u32 m_focusListener = 0; // the window's focus listener's token (0: none): Content/ looked at on a return
         editor::ThumbnailService m_thumbnailService;               // per-project state
         foundation::settings::Settings m_editorSettings{editor::EditorRootAllocator()}; // per-user (<userdata>/editor.settings.xml)
         editor::ProjectManagerController m_projectManager{m_editorSettings}; // the registry of projects

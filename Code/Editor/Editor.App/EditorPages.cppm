@@ -195,7 +195,7 @@ export namespace editor::app
         {
             foundation::content::ContentDatabase* sources = Sources();
             editor::EditorContext& context = *m_services.context;
-            if (page.Save().IsOk())
+            if (context.SavePage(page).IsOk()) // a page whose file went on disk writes it back
                 context.Notify(editor::NoticeKind::Success, Format(u8"Saved '{}'.", page.Title()).AsView());
             else
                 context.Notify(editor::NoticeKind::Error, u8"Save FAILED (see Console).");
@@ -259,7 +259,7 @@ export namespace editor::app
             bool all = true;
             for (const OpenPage& open : m_open)
             {
-                if (open.page->IsDirty() && !open.page->Save().IsOk())
+                if (open.page->IsDirty() && !m_services.context->SavePage(*open.page).IsOk())
                     all = false;
                 if (open.page->HasUnsavedWork() && !open.page->SaveBesides().IsOk())
                     all = false; // a clip its panel edits
@@ -515,7 +515,7 @@ export namespace editor::app
                 return; // closed meanwhile
             if (answer == StringView(u8"save"))
             {
-                if ((page->IsDirty() && !page->Save().IsOk()) || !page->SaveBesides().IsOk())
+                if ((page->IsDirty() && !m_services.context->SavePage(*page).IsOk()) || !page->SaveBesides().IsOk())
                 {
                     m_services.context->Notify(editor::NoticeKind::Error, u8"Save FAILED (see Console) - the page stays open.");
                     return;

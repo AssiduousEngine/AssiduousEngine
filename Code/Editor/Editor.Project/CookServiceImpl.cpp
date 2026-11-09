@@ -34,6 +34,7 @@ import foundation.vfs;
 import pipeline.core;
 import pipeline.cook;
 import :project;
+import :content_watcher;
 
 using namespace foundation::core;
 using namespace pipeline;
@@ -65,6 +66,12 @@ namespace editor
             }
         }
         m_lastWatchPoll = TicksToSeconds(GetTicks());
+
+        // Content/ watched for outside edits: a stat sweep, throttled from Update, the editor's own
+        // writes taken in silently.
+        m_contentWatcher = MakeUnique<ContentWatcher>(editor::EditorRootAllocator(), project);
+        m_lastContentPoll = m_lastWatchPoll;
+        m_contentPollSoon = false;
     }
 
     void EditorCookService::Shutdown()
@@ -82,6 +89,8 @@ namespace editor
         m_pendingRootsForce = false;
         m_idleQueue.Clear();
         m_watcher = nullptr; // owned by the sources mount
+        m_contentWatcher.Reset(); // before the project goes: it stops the project keeping writes
+        m_contentPollSoon = false;
         m_driver.Reset();
         m_jobs.Reset();
         m_cache.Reset();
@@ -324,6 +333,68 @@ namespace editor
                 }
             }
         }
+
+        // Content/, about once a second and at once when the window comes back (a pull is made
+        // with the editor behind another window); never while a background reader has the
+        // databases, since taking a change in changes the source database's index.
+        if (m_contentWatcher && !MutationLocked())
+        {
+            const f64 now = TicksToSeconds(GetTicks());
+            if (m_contentPollSoon || now - m_lastContentPoll >= kContentPollSeconds)
+            {
+                (void)PollContent();
+            }
+        }
+    }
+
+    bool EditorCookService::PollContent()
+    {
+        if (!m_contentWatcher || MutationLocked())
+        {
+            return false;
+        }
+        m_contentPollSoon = false;
+        m_lastContentPoll = TicksToSeconds(GetTicks());
+        if (!m_contentWatcher->Poll(m_contentChanges))
+        {
+            return false;
+        }
+        LOG_INFO(u8"Content", u8"{} added, {} changed, {} removed outside the editor", m_contentChanges.added.Size(),
+                 m_contentChanges.changed.Size(), m_contentChanges.removed.Size());
+        if (OnContentChanged)
+        {
+            OnContentChanged(m_contentChanges, m_contentWatcher->RemovedRecords());
+        }
+
+        // A scene or a prefab has no builder: it stages at export and loads from its source. A
+        // removed record's product is swept as an orphan by the whole plan.
+        const auto cooks = [this](StringView typeName)
+        { return m_builders != nullptr && m_builders->FindByTypeName(typeName) != nullptr; };
+        bool cook = false;
+        foundation::content::ContentDatabase& db = m_project->SourceDb();
+        for (const Guid& id : m_contentChanges.added)
+        {
+            if (const foundation::content::Instance* instance = db.GetInstance(id))
+            {
+                cook = cook || cooks(instance->TypeName());
+            }
+        }
+        for (const Guid& id : m_contentChanges.changed)
+        {
+            if (const foundation::content::Instance* instance = db.GetInstance(id))
+            {
+                cook = cook || cooks(instance->TypeName());
+            }
+        }
+        for (const ContentWatcher::RemovedRecord& removed : m_contentWatcher->RemovedRecords())
+        {
+            cook = cook || cooks(removed.typeName.AsView());
+        }
+        if (cook)
+        {
+            RequestCook(false);
+        }
+        return true;
     }
 
     void EditorCookService::RunWhenIdle(Function<void()> action)

@@ -16,6 +16,9 @@
 
 import foundation.core;
 import foundation.content;
+import foundation.vfs;               // an outside writer's mount
+import foundation.xml.serialization; // and its database
+import engine.project;              // the project's Content/ folder
 import foundation.resource;
 import foundation.geometry;
 import foundation.runtime;
@@ -2081,4 +2084,145 @@ TEST_CASE("scene viewport: Shift is read with the pointer, so a brush's Shift + 
     device.held = foundation::shell::KeyCode::RightShift;
     CHECK(editor::ShiftHeldOver(nullptr, &device, true));
     CHECK_FALSE(editor::ShiftHeldOver(nullptr, nullptr, true));
+}
+
+// Its scene's file changed outside the editor (a pull, another tool) reloads a clean page and warns
+// a dirty one; deleted, the page stays and its save writes the file back; its own save is never
+// taken for an outside change.
+namespace
+{
+    // A writer outside the editor over the bed's Content/: a database on a mount of its own, whose
+    // writes the project never hears of.
+    struct OutsideWriter
+    {
+        UniquePtr<foundation::vfs::NativeFileSystem> mount;
+        UniquePtr<foundation::content::ContentDatabase> database;
+        explicit OutsideWriter(Bed& bed)
+        {
+            mount = MakeUnique<foundation::vfs::NativeFileSystem>(
+                DefaultAllocator(), PathJoin(bed.dir.AsView(), engine::project::kProjectContentDir).AsView(), DefaultAllocator());
+            database = MakeUnique<foundation::content::ContentDatabase>(DefaultAllocator(), DefaultAllocator(), *mount,
+                                                                         foundation::xml::XmlSerializerFactory(),
+                                                                         engine::project::kSourceAssetExtension);
+        }
+    };
+
+    // The watcher looks twice (seen, then settled), the database takes the change in, and the
+    // context tells the pages, as the editor's cook service and session do.
+    void TakeInOutsideChange(Bed& bed, ContentWatcher& watcher, foundation::content::ContentChanges& changes)
+    {
+        CHECK_FALSE(watcher.Poll(changes)); // seen once: it may still be being written
+        CHECK(watcher.Poll(changes));       // settled
+        bed.context.ApplyContentChanges(changes, watcher.RemovedRecords());
+    }
+
+    // The page, the context's now, as an opened page is.
+    SceneEditorPage* OpenInContext(Bed& bed)
+    {
+        return static_cast<SceneEditorPage*>(
+            bed.context.AdoptPage(UniquePtr<EditorPage>(bed.Open(*bed.level).Release(), DefaultAllocator())));
+    }
+}
+
+TEST_CASE("scene page: its scene's file replaced outside reloads a clean page, and a dirty one warns keeping its edits")
+{
+    Bed bed;
+    SceneEditorPage* page = OpenInContext(bed);
+    const Guid levelId = bed.level->Id();
+    OutsideWriter outside(bed);
+    ContentWatcher watcher(*bed.project);
+    foundation::content::ContentChanges changes;
+    String said;
+    bed.context.OnNotice = [&said](NoticeKind, StringView message) { said = String(message); };
+
+    // Clean: what came from outside is read in, the history before it gone.
+    {
+        scene::Scene pulled(DefaultAllocator(), u8"pulled");
+        (void)pulled.CreateEntity(u8"Lamp");
+        REQUIRE(scene::SaveScene(pulled, *outside.database->GetInstance(levelId)).IsOk());
+    }
+    TakeInOutsideChange(bed, watcher, changes);
+    CHECK(page->ScenePtr()->FindEntityByName(u8"Lamp").IsAssigned()); // reloaded
+    CHECK_FALSE(page->ScenePtr()->FindEntityByName(u8"Crate").IsAssigned()); // the old content gone
+    CHECK_FALSE(page->IsDirty());
+
+    // Dirty: its edits kept, the user warned.
+    (void)page->EditContext().CreateEntity(u8"Mine");
+    REQUIRE(page->IsDirty());
+    {
+        scene::Scene again(DefaultAllocator(), u8"pulled again");
+        (void)again.CreateEntity(u8"Lamp");
+        (void)again.CreateEntity(u8"Post");
+        REQUIRE(scene::SaveScene(again, *outside.database->GetInstance(levelId)).IsOk());
+    }
+    TakeInOutsideChange(bed, watcher, changes);
+    CHECK(page->ScenePtr()->FindEntityByName(u8"Mine").IsAssigned()); // its edits kept
+    CHECK(page->IsDirty());
+    CHECK(said.AsView().Contains(u8"unsaved edits"));
+    page->OnClose();
+    bed.context.ClosePage(page);
+}
+
+TEST_CASE("scene page: its scene's file deleted outside leaves the page open and told, and its save writes it back")
+{
+    Bed bed;
+    SceneEditorPage* page = OpenInContext(bed);
+    const Guid levelId = bed.level->Id();
+    OutsideWriter outside(bed);
+    ContentWatcher watcher(*bed.project);
+    foundation::content::ContentChanges changes;
+    String said;
+    bed.context.OnNotice = [&said](NoticeKind, StringView message) { said = String(message); };
+
+    // Its envelope and its scene stream go; the bed's Level record goes with them.
+    REQUIRE(outside.database->DeleteInstance(levelId).IsOk());
+    bed.level = nullptr; // freed with the record
+    TakeInOutsideChange(bed, watcher, changes);
+    CHECK(bed.project->SourceDb().GetInstance(levelId) == nullptr);
+    CHECK(bed.context.OpenPages().Size() == 1u); // never closed under the user
+    CHECK(page->IsAssetDeleted());
+    CHECK(page->IsDirty());
+    CHECK(page->ScenePtr()->FindEntity(bed.crate).IsAssigned()); // what it shows is kept
+    CHECK(said.AsView().Contains(u8"deleted on disk"));
+
+    // Saved: the record back at its place with its identity, the scene written whole.
+    REQUIRE(bed.context.SavePage(*page).IsOk());
+    CHECK_FALSE(page->IsAssetDeleted());
+    CHECK_FALSE(page->IsDirty());
+    foundation::content::Instance* back = bed.project->SourceDb().GetInstance(levelId);
+    REQUIRE(back != nullptr);
+    CHECK(back->Name() == StringView(u8"Level"));
+    {
+        scene::Scene stored(DefaultAllocator(), u8"stored");
+        REQUIRE(scene::LoadScene(*back, stored).IsOk());
+        CHECK(stored.FindEntity(bed.crate).IsAssigned());
+    }
+    CHECK_FALSE(watcher.Poll(changes));
+    CHECK_FALSE(watcher.Poll(changes));
+    CHECK(changes.IsEmpty()); // the save is the editor's own write
+    page->OnClose();
+    bed.context.ClosePage(page);
+}
+
+TEST_CASE("scene page: its own save is not taken for an outside change, so its history stays")
+{
+    Bed bed;
+    SceneEditorPage* page = OpenInContext(bed);
+    ContentWatcher watcher(*bed.project);
+    foundation::content::ContentChanges changes;
+
+    (void)page->EditContext().CreateEntity(u8"Barrel");
+    REQUIRE(bed.context.SavePage(*page).IsOk());
+    CHECK_FALSE(page->IsDirty());
+    CHECK(page->Commands().CanUndo());
+    for (i32 i = 0; i < 3; ++i)
+    {
+        CHECK_FALSE(watcher.Poll(changes));
+        CHECK(changes.IsEmpty());
+        bed.context.ApplyContentChanges(changes, watcher.RemovedRecords());
+    }
+    CHECK(watcher.PendingCount() == 0u);
+    CHECK(page->Commands().CanUndo()); // not reloaded: its history stays
+    page->OnClose();
+    bed.context.ClosePage(page);
 }

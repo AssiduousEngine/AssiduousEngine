@@ -305,6 +305,127 @@ namespace editor
         return told;
     }
 
+    usize EditorContext::NotifyAssetDeleted(const Guid& assetId, StringView recordPath, StringView typeNamespace,
+                                            StringView typeName, const foundation::content::Instance* former)
+    {
+        if (m_thumbnails != nullptr)
+        {
+            m_thumbnails->Invalidate(assetId);
+        }
+        if (former != nullptr)
+        {
+            m_assetSelection.Remove(former);
+        }
+        usize told = 0;
+        for (const UniquePtr<EditorPage>& page : m_pages)
+        {
+            if (page->InstanceId() != assetId)
+            {
+                continue;
+            }
+            page->NoteAssetDeleted(recordPath, typeNamespace, typeName);
+            page->MarkDirty();
+            page->OnAssetDeleted();
+            Notify(NoticeKind::Warning,
+                   Format(u8"'{}' was deleted on disk. It stays open; saving it writes it back.", page->Title()).AsView());
+            ++told;
+        }
+        return told;
+    }
+
+    void EditorContext::ApplyContentChanges(const foundation::content::ContentChanges& changes,
+                                            Span<const ContentWatcher::RemovedRecord> removed)
+    {
+        const auto listed = [](const Array<Guid>& list, const Guid& id)
+        {
+            for (const Guid& listedId : list)
+            {
+                if (listedId == id)
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+        for (const Guid& id : changes.changed)
+        {
+            if (listed(changes.removed, id) || listed(changes.added, id))
+            {
+                continue;
+            }
+            if (m_thumbnails != nullptr)
+            {
+                m_thumbnails->Invalidate(id);
+            }
+            (void)NotifyAssetExternallyModified(id);
+        }
+        for (const Guid& id : changes.added)
+        {
+            if (m_thumbnails != nullptr)
+            {
+                m_thumbnails->Invalidate(id);
+            }
+            (void)NotifyAssetExternallyModified(id);
+        }
+        for (const ContentWatcher::RemovedRecord& record : removed)
+        {
+            (void)NotifyAssetDeleted(record.id, record.path.AsView(), record.typeNamespace.AsView(),
+                                     record.typeName.AsView(), record.former);
+        }
+    }
+
+    Status EditorContext::SavePage(EditorPage& page)
+    {
+        if (!page.IsAssetDeleted() || m_project == nullptr)
+        {
+            return page.Save();
+        }
+        foundation::content::ContentDatabase& db = m_project->SourceDb();
+        if (db.GetInstance(page.InstanceId()) != nullptr)
+        {
+            page.ForgetAssetDeleted(); // back on disk already
+            return page.Save();
+        }
+        const StringView path = page.DeletedRecordPath();
+        foundation::content::Group* group = db.RootGroup();
+        StringView name = path;
+        const usize slash = path.FindLast(utf8char('/'));
+        if (slash != StringView::kNotFound)
+        {
+            usize start = 0;
+            for (usize i = 0; i <= slash; ++i)
+            {
+                if (i == slash || path[i] == utf8char('/'))
+                {
+                    const StringView part = path.SubStr(start, i - start);
+                    if (!part.IsEmpty())
+                    {
+                        group = group->CreateGroup(part);
+                    }
+                    start = i + 1;
+                }
+            }
+            name = path.SubStr(slash + 1, path.Size() - slash - 1);
+        }
+        if (group->GetInstance(name) != nullptr)
+        {
+            Notify(NoticeKind::Warning,
+                   Format(u8"'{}' was deleted on disk and another asset is at '{}' now: Save As keeps it.", page.Title(), path)
+                       .AsView());
+            return Status{ErrorCode::AlreadyExists};
+        }
+        foundation::content::Instance* restored =
+            group->AddInstance(page.InstanceId(), name, page.DeletedTypeNamespace(), page.DeletedTypeName());
+        const Status saved = page.Save();
+        if (!saved.IsOk())
+        {
+            (void)db.DeleteInstance(restored->Id());
+            return saved;
+        }
+        page.ForgetAssetDeleted();
+        return saved;
+    }
+
     void EditorContext::SetActivePage(EditorPage* page)
     {
         if (m_activePage == page)

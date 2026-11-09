@@ -16,8 +16,11 @@
 // The service also watches the project's Sources/ tree (the native mount's stat-sweep
 // IChangeSource, polled every couple of seconds from Update): an external edit of a source file
 // queues an automatic incremental cook, and the driver's plan recomputes exactly what the change
-// dirtied. After every cook, LastCookedProducts() lists the rebuilt product guids so the
-// application can hot-reload them through the ResourceManager (a proxy swap in live scenes).
+// dirtied. And Content/, through a ContentWatcher polled about once a second and when the window
+// regains focus: a record changed, added or deleted outside the editor is taken into the source
+// database and reported (OnContentChanged), an asset that cooks cooked again. After every cook,
+// LastCookedProducts() lists the rebuilt product guids so the application can hot-reload them
+// through the ResourceManager (a proxy swap in live scenes).
 //
 // Known hazard: editing source assets while a cook runs races the driver's source reads. The UI
 // disables cook triggers during a cook but does not lock edits.
@@ -34,6 +37,7 @@ import foundation.vfs;
 import pipeline.core;
 import pipeline.cook;
 import :project;
+import :content_watcher;
 
 using namespace foundation::core;
 using namespace pipeline;
@@ -66,6 +70,23 @@ export namespace editor
     public:
         /// Fired on the main thread (from Update) when a cook finishes.
         Function<void()> OnCookFinished;
+
+        /// Records changed, added or removed under Content/ by something other than the editor,
+        /// the source database brought in line already: fired on the main thread from Update (or
+        /// PollContent), once a batch. `removed` says where each removed record lived. Both are
+        /// valid for the call.
+        Function<void(const foundation::content::ContentChanges&, Span<const ContentWatcher::RemovedRecord>)> OnContentChanged;
+
+        /// The editor's window regained focus: Content/ is looked at on the next Update, since
+        /// what changed on disk changed while the user was elsewhere.
+        void PollContentSoon() noexcept { m_contentPollSoon = true; }
+
+        /// One look at Content/ now (Update calls it on its clock; a test drives it): what has
+        /// settled since is taken into the source database and goes to OnContentChanged, and an
+        /// asset that cooks, changed, added or removed, has a cook asked for, as a Sources/ change
+        /// does. False, with nothing looked at, while a background reader has the databases; else
+        /// whether any record changed.
+        bool PollContent();
 
         ~EditorCookService() { Shutdown(); }
 
@@ -152,6 +173,8 @@ export namespace editor
         [[nodiscard]] static String FormatPlanned(usize dirty, usize orphans);
 
         static constexpr f64 kWatchPollSeconds = 2.0;
+        // Content/ is looked at more often than Sources/: what changes there is what open pages show.
+        static constexpr f64 kContentPollSeconds = 1.0;
 
         EditorProject* m_project = nullptr;    // borrowed
         BuilderRegistry* m_builders = nullptr; // borrowed (assembled by the executable)
@@ -181,5 +204,9 @@ export namespace editor
         foundation::vfs::IChangeSource* m_watcher = nullptr; // borrowed (sources mount owns it)
         Array<String> m_watchChanged;
         f64 m_lastWatchPoll = 0.0;
+        UniquePtr<ContentWatcher> m_contentWatcher;
+        foundation::content::ContentChanges m_contentChanges;
+        f64 m_lastContentPoll = 0.0;
+        bool m_contentPollSoon = false; // the window came back: look at Content/ on the next Update
     };
 }

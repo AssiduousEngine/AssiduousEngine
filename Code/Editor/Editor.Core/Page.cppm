@@ -141,12 +141,27 @@ export namespace editor
         /// The default does nothing; pages that cache loaded content override it to refresh.
         virtual void OnAssetExternallyModified() {}
 
+        /// Its asset's file went OUTSIDE the editor (a pull, another tool) and the source database
+        /// let its record go (EditorContext::NotifyAssetDeleted): the page stays open with what it
+        /// shows, marked unsaved, and saving it (EditorContext::SavePage) writes the file back. A
+        /// page with more to say of it overrides.
+        virtual void OnAssetDeleted() {}
+
+        /// Its asset's file went outside the editor and has not been written back.
+        [[nodiscard]] bool IsAssetDeleted() const noexcept { return m_assetDeleted; }
+        /// Where its asset's record lived ("group/name") while IsAssetDeleted; empty otherwise.
+        [[nodiscard]] StringView DeletedRecordPath() const noexcept { return m_deletedPath.AsView(); }
+        /// Its asset's stored type while IsAssetDeleted; empty otherwise.
+        [[nodiscard]] StringView DeletedTypeNamespace() const noexcept { return m_deletedTypeNamespace.AsView(); }
+        [[nodiscard]] StringView DeletedTypeName() const noexcept { return m_deletedTypeName.AsView(); }
+
         /// Rebind this page to a different source instance (Save As): the caller created
         /// `instance` and calls Save() next, so the page's current content lands there. Pages
         /// that cache the asset's name override this (calling the base) to refresh it.
         virtual void OnSavedAs(foundation::content::Instance& instance)
         {
             m_instanceId = instance.Id();
+            ForgetAssetDeleted(); // it edits an asset that is there now
         }
 
         /// The source database instance this page edits (a zero Guid for pages with no instance).
@@ -181,7 +196,29 @@ export namespace editor
         bool m_dirty = false;
 
     private:
+        friend class EditorContext; // tells it its asset went, and that it came back
+        void NoteAssetDeleted(StringView recordPath, StringView typeNamespace, StringView typeName)
+        {
+            m_assetDeleted = true;
+            m_deletedPath = String(recordPath);
+            m_deletedTypeNamespace = String(typeNamespace);
+            m_deletedTypeName = String(typeName);
+        }
+        // The asset is back (written again, or returned on disk).
+        void ForgetAssetDeleted()
+        {
+            m_assetDeleted = false;
+            m_deletedPath.Clear();
+            m_deletedTypeNamespace.Clear();
+            m_deletedTypeName.Clear();
+        }
+
         HashMap<TypeId, IPageService*> m_services; // keyed like the SubsystemManager's subsystems
+        // Where its asset's record lived when its file went outside the editor, and its stored type.
+        bool m_assetDeleted = false;
+        String m_deletedPath;
+        String m_deletedTypeNamespace;
+        String m_deletedTypeName;
     };
 
     // Creates pages for one primary-object type (and, through nearest-type dispatch, its

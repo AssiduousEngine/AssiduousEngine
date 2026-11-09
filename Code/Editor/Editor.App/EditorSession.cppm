@@ -330,6 +330,7 @@ export namespace editor::app
             context.Tasks().CancelAll();
             context.Tasks().Finish();
             m_services.cook->Shutdown(); // joins a cook in flight before the databases go
+            m_services.cook->OnContentChanged = {};
             m_thumbnailStage.Reset(); // unstages and drops its GPU objects while the renderer lives
             m_services.thumbnails->Reset();
             context.OnCookRequested = {};
@@ -500,6 +501,12 @@ export namespace editor::app
             cook->ExternalMutationLock = [lanes]() { return lanes->Tasks().IsLaneBusy(lanes->BuildLane()); };
             EditorSession* self = this;
             cook->OnCookFinished = [self]() { self->CookFinished(); };
+            // What changed under Content/ outside the editor reaches the open pages, the thumbnails
+            // and the asset selection; the assets view follows the database's revision.
+            editor::EditorContext* told = &context;
+            cook->OnContentChanged = [told](const foundation::content::ContentChanges& changes,
+                                            Span<const editor::ContentWatcher::RemovedRecord> removed)
+            { told->ApplyContentChanges(changes, removed); };
         }
 
         // Rebuilt products swap in behind their handles (live scenes see them without reopening),

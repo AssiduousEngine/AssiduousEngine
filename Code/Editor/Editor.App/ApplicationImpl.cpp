@@ -239,6 +239,15 @@ namespace editor::app
         if (m_window.Open(host, m_config.dataRoot.AsView(), look,
                           PathJoin(GetUserDataDirectory().AsView(), StringView(EditorWindow::kThemeFolder)).AsView()))
             OpenDock();
+        // Back from another window (where a pull or another tool changed the project's files):
+        // Content/ is looked at now, not at the next tick of its clock.
+        if (m_window.Host() != nullptr)
+            m_focusListener = m_window.Host()->AddWindowEventListener(
+                [self](gui::SceneRoot&, const foundation::shell::WindowEvent& event)
+                {
+                    if (event.type == foundation::shell::WindowEventType::FocusGained)
+                        self->m_cookService.PollContentSoon();
+                });
         // The window's close button asks about unsaved pages first, as File > Exit does.
         if (host.Shell() != nullptr)
             host.Shell()->OnMainWindowCloseRequested = [self]() { return self->ConfirmExit(); };
@@ -1511,6 +1520,9 @@ namespace editor::app
             m_windowCapture.Release(*gfx->Raw()); // the readback buffers, while the device lives
         if (host.Shell() != nullptr)
             host.Shell()->OnMainWindowCloseRequested = {};
+        if (m_focusListener != 0 && m_window.Host() != nullptr)
+            m_window.Host()->RemoveWindowEventListener(m_focusListener);
+        m_focusListener = 0;
         m_session.Close(); // the MCP host, the cook, the native module and the resources, in order
         m_mcp.Reset();
         m_cookService.Shutdown(); // joins a cook in flight

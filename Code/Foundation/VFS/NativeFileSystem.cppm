@@ -236,22 +236,24 @@ export namespace foundation::vfs
             const String full = PathJoin(m_root.AsView(), path, *m_allocator);
             EnsureParentDirectories(full.AsView());
 
-            FileStream stream(full.AsView(), FileMode::Write);
-            if (!stream.IsValid())
+            bool written = false;
             {
-                return Status{ErrorCode::Internal};
+                FileStream stream(full.AsView(), FileMode::Write);
+                written = stream.IsValid() && (data.IsEmpty() || stream.Write(data.Data(), data.Size()) == data.Size());
             }
-            if (!data.IsEmpty() && stream.Write(data.Data(), data.Size()) != data.Size())
-            {
-                return Status{ErrorCode::Internal};
-            }
-            return Status{};
+            Wrote(path); // the stream closed: the file is as it will stay
+            return written ? Status{} : Status{ErrorCode::Internal};
         }
 
         [[nodiscard]] Status Delete(StringView path) override
         {
             const String full = PathJoin(m_root.AsView(), path, *m_allocator);
-            return FileDelete(full.AsView()) ? Status{} : Status{ErrorCode::NotFound};
+            const bool deleted = FileDelete(full.AsView());
+            if (deleted)
+            {
+                Wrote(path);
+            }
+            return deleted ? Status{} : Status{ErrorCode::NotFound};
         }
 
         [[nodiscard]] Status Move(StringView from, StringView to) override
@@ -259,14 +261,24 @@ export namespace foundation::vfs
             const String fullFrom = PathJoin(m_root.AsView(), from, *m_allocator);
             const String fullTo = PathJoin(m_root.AsView(), to, *m_allocator);
             EnsureParentDirectories(fullTo.AsView());
-            return FileMove(fullFrom.AsView(), fullTo.AsView()) ? Status{}
-                                                                : Status{ErrorCode::NotFound};
+            const bool moved = FileMove(fullFrom.AsView(), fullTo.AsView());
+            if (moved)
+            {
+                Wrote(from);
+                Wrote(to);
+            }
+            return moved ? Status{} : Status{ErrorCode::NotFound};
         }
 
         [[nodiscard]] Status DeleteDirectory(StringView path) override
         {
             const String full = PathJoin(m_root.AsView(), path, *m_allocator);
-            return RemoveDirectory(full.AsView()) ? Status{} : Status{ErrorCode::NotFound};
+            const bool removed = RemoveDirectory(full.AsView());
+            if (removed)
+            {
+                Wrote(path);
+            }
+            return removed ? Status{} : Status{ErrorCode::NotFound};
         }
 
         [[nodiscard]] Status CreateDirectory(StringView path) override
@@ -274,11 +286,33 @@ export namespace foundation::vfs
             const String full = PathJoin(m_root.AsView(), path, *m_allocator);
             EnsureParentDirectories(full.AsView()); // the ancestors
             // ...then the leaf itself (qualified: the member CreateDirectory shadows it here).
-            return foundation::core::CreateDirectory(full.AsView()) ? Status{}
-                                                                    : Status{ErrorCode::Unknown};
+            const bool made = foundation::core::CreateDirectory(full.AsView());
+            if (made)
+            {
+                Wrote(path);
+            }
+            return made ? Status{} : Status{ErrorCode::Unknown};
         }
 
+        /// The mount's folder on disk, as it was given.
+        [[nodiscard]] StringView Root() const noexcept { return m_root.AsView(); }
+
+        /// Told, after the fact, of each path a write through this mount touched: a file saved or
+        /// deleted, a directory made or removed, both ends of a move (a call that touched nothing
+        /// says nothing). Whoever watches the
+        /// folder for changes made elsewhere hears its own process's writes here, so they never
+        /// come back to it as outside changes. Called on the thread that wrote.
+        Function<void(StringView)> OnWritten;
+
     private:
+        void Wrote(StringView path)
+        {
+            if (OnWritten)
+            {
+                OnWritten(path);
+            }
+        }
+
         // Creates every ancestor directory of `full` (idempotent). The final
         // component is the file itself and is left to the caller.
         static void EnsureParentDirectories(StringView full)

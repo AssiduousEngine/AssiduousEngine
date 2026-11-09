@@ -429,6 +429,31 @@ export namespace editor
         /// pages were told.
         usize NotifyAssetExternallyModified(const Guid& assetId);
 
+        /// The source asset's file went OUTSIDE the editor (a pull, another tool) and the source
+        /// database let its record go: every open page editing it is told
+        /// (EditorPage::OnAssetDeleted) and stays open, marked unsaved, so its content can be
+        /// saved again, which writes the file back where it was (SavePage); the asset's thumbnail
+        /// goes, and the asset selection lets the record go. `recordPath` ("group/name") and the
+        /// type are where it lived and what it was; `former` is the record the database dropped,
+        /// FREED, compared and never read (null: none held). Returns how many pages were told.
+        usize NotifyAssetDeleted(const Guid& assetId, StringView recordPath, StringView typeNamespace, StringView typeName,
+                                 const foundation::content::Instance* former = nullptr);
+
+        /// What the Content/ watcher found changed outside the editor, the source database brought
+        /// in line already (EditorCookService::OnContentChanged): each record changed or added has
+        /// its thumbnail dropped and its open pages told (NotifyAssetExternallyModified: they
+        /// reload, or warn with unsaved edits); each removed one goes through NotifyAssetDeleted. A
+        /// record is told once.
+        void ApplyContentChanges(const foundation::content::ContentChanges& changes,
+                                 Span<const ContentWatcher::RemovedRecord> removed);
+
+        /// Saves `page` (EditorPage::Save), first putting back the record of an asset whose file
+        /// went outside the editor (EditorPage::IsAssetDeleted): at its old place, with its
+        /// identity and type, so what referred to it does again; the save writes its file. A save
+        /// that fails takes the record out again. Refused, said, when another asset has taken the
+        /// place: Save As keeps the content.
+        [[nodiscard]] Status SavePage(EditorPage& page);
+
         [[nodiscard]] EditorPage* ActivePage() const noexcept { return m_activePage; }
         void SetActivePage(EditorPage* page);
         /// Makes `page` the active page and brings its panel to the front (OnRevealPage, which the

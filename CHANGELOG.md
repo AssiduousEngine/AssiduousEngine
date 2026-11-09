@@ -9,6 +9,11 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Added
 
+- Editor: a scene, prefab or asset changed, added or deleted in the project's `Content/` outside
+  the editor (a git pull, a text editor, another tool) is picked up: an open page reloads, or warns
+  when it has unsaved edits, and a page whose file was deleted stays open and writes it back when
+  saved; before, the editor kept the old copy and a later save overwrote the change.
+
 - Scripts: `SceneAnimation.playOneShot` plays a clip once over whatever an entity is animating
   (its clip or its graph), blending in and out, after which it carries on with its own animation;
   `stopOneShot` and `isPlayingOneShot`, and `onAnimationFinished(clip)` on the entity's behaviours
