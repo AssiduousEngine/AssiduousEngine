@@ -1229,6 +1229,100 @@ TEST_CASE("game-instance: a missing Game class fails to start cleanly")
     CHECK_FALSE(gi.ScriptRunning());
 }
 
+namespace
+{
+    // A crate prefab (the crate and its lid) and a level placing it three times, as stored.
+    content::Instance* AuthorPlacements(content::ContentDatabase& db, Guid& prefabId)
+    {
+        scene::Scene author(DefaultAllocator(), u8"crate");
+        const scene::EntityHandle crate = author.CreateEntity(u8"Crate");
+        author.SetParent(author.CreateEntity(u8"Lid"), crate);
+        content::Instance* prefab = db.RootGroup()->CreateInstance(u8"crate", scene::PrefabDocument::StaticType());
+        REQUIRE(prefab != nullptr);
+        REQUIRE(scene::SavePrefab(author, *prefab).IsOk());
+        prefabId = prefab->Id();
+        scene::Scene authored(DefaultAllocator(), u8"level");
+        for (i32 i = 0; i < 3; ++i)
+        {
+            UniquePtr<IStream> payload = prefab->ReadData(u8"scene");
+            REQUIRE(payload);
+            REQUIRE(scene::SpawnPrefab(authored, *payload, prefabId).IsAssigned());
+        }
+        content::Instance* level = db.RootGroup()->CreateInstance(u8"level", scene::SceneDocument::StaticType());
+        REQUIRE(level != nullptr);
+        REQUIRE(scene::SaveScene(authored, *level).IsOk());
+        return level;
+    }
+
+    // The crate made a single entity on disk, as an edit the game has not reloaded.
+    void FlattenPrefab(content::ContentDatabase& db, const Guid& prefabId)
+    {
+        scene::Scene author(DefaultAllocator(), u8"crate");
+        (void)author.CreateEntity(u8"Flat");
+        REQUIRE(scene::SavePrefab(author, *db.GetInstance(prefabId)).IsOk());
+    }
+}
+
+TEST_CASE("game-instance: a load places its prefabs from the prefab the resources loaded")
+{
+    scene::RegisterSceneResourceTypes();
+    (void)RemoveDirectoryRecursive(u8"scratch_gi_load_prefabs");
+    (void)CreateDirectories(u8"scratch_gi_load_prefabs");
+    {
+        NativeFileSystem mount(u8"scratch_gi_load_prefabs", DefaultAllocator());
+        content::ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
+        Guid prefabId;
+        content::Instance* level = AuthorPlacements(db, prefabId);
+        resource::ResourceManager resources(DefaultAllocator(), db);
+        scene::PrefabFactory prefabs(DefaultAllocator());
+        resources.AddFactory(&prefabs);
+        engine::runtime::GameInstance gi;
+
+        // Never bound before: the load binds it for its three placements.
+        scene::Scene* first = gi.LoadScene(*level, resources);
+        REQUIRE(first != nullptr);
+        CHECK(first->EntityCount() == 6u); // three crates, each with its lid
+        CHECK(resources.HasHandle(prefabId)); // loaded by the manager
+
+        // Changed on disk, not reloaded: both loads place the prefab the game has.
+        FlattenPrefab(db, prefabId);
+        scene::Scene* second = gi.LoadScene(*level, resources);
+        REQUIRE(second != nullptr);
+        CHECK(second->EntityCount() == 6u); // the loaded crate, not the file
+        engine::runtime::SceneLoadHandle handle = gi.LoadSceneAsync(*level, resources);
+        REQUIRE_FALSE(handle.Failed());
+        resources.WaitAll();
+        REQUIRE(handle.Scene() != nullptr);
+        CHECK(handle.Scene()->EntityCount() == 6u); // the streaming load places it too
+
+        // Reloaded, the next load places it as it now is.
+        REQUIRE(resources.Reload(prefabId));
+        scene::Scene* third = gi.LoadScene(*level, resources);
+        REQUIRE(third != nullptr);
+        CHECK(third->EntityCount() == 3u); // three flat crates
+    }
+    (void)RemoveDirectoryRecursive(u8"scratch_gi_load_prefabs");
+}
+
+TEST_CASE("game-instance: a load without the prefab factory places nothing of it")
+{
+    scene::RegisterSceneResourceTypes();
+    (void)RemoveDirectoryRecursive(u8"scratch_gi_load_no_prefabs");
+    (void)CreateDirectories(u8"scratch_gi_load_no_prefabs");
+    {
+        NativeFileSystem mount(u8"scratch_gi_load_no_prefabs", DefaultAllocator());
+        content::ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
+        Guid prefabId;
+        content::Instance* level = AuthorPlacements(db, prefabId);
+        resource::ResourceManager resources(DefaultAllocator(), db);
+        engine::runtime::GameInstance gi;
+        scene::Scene* loaded = gi.LoadScene(*level, resources);
+        REQUIRE(loaded != nullptr); // the rest of the level loads
+        CHECK(loaded->EntityCount() == 0u);
+    }
+    (void)RemoveDirectoryRecursive(u8"scratch_gi_load_no_prefabs");
+}
+
 TEST_CASE("game-instance: LoadScene / LoadSceneAsync own the scene load orchestration (task #123)")
 {
     GlobalTypeRegistry().Register(scene::SceneDocument::StaticType());
@@ -1262,7 +1356,7 @@ TEST_CASE("game-instance: LoadScene / LoadSceneAsync own the scene load orchestr
     {
         engine::runtime::GameInstance gi;
         scene::Scene* s =
-            gi.LoadScene(*sceneInst, resources, Function<UniquePtr<IStream>(const Guid&)>{});
+            gi.LoadScene(*sceneInst, resources);
         REQUIRE(s != nullptr);
         CHECK(s->EntityCount() == 2u);
         CHECK(gi.Scenes().IsActive(s)); // the sync path activates immediately
@@ -1272,7 +1366,7 @@ TEST_CASE("game-instance: LoadScene / LoadSceneAsync own the scene load orchestr
     {
         engine::runtime::GameInstance gi;
         engine::runtime::SceneLoadHandle handle =
-            gi.LoadSceneAsync(*sceneInst, resources, Function<UniquePtr<IStream>(const Guid&)>{});
+            gi.LoadSceneAsync(*sceneInst, resources);
         REQUIRE(handle.Scene() != nullptr);
         CHECK_FALSE(handle.Failed());
         CHECK_FALSE(gi.Scenes().IsActive(handle.Scene())); // inactive while "loading"
@@ -1291,11 +1385,11 @@ TEST_CASE("game-instance: LoadScene / LoadSceneAsync own the scene load orchestr
             db.RootGroup()->CreateInstance(u8"empty", scene::SceneDocument::StaticType());
         engine::runtime::GameInstance gi;
         engine::runtime::SceneLoadHandle handle =
-            gi.LoadSceneAsync(*empty, resources, Function<UniquePtr<IStream>(const Guid&)>{});
+            gi.LoadSceneAsync(*empty, resources);
         CHECK(handle.Failed());
         CHECK(handle.IsComplete());
         CHECK(handle.Scene() == nullptr);
-        CHECK(gi.LoadScene(*empty, resources, Function<UniquePtr<IStream>(const Guid&)>{}) ==
+        CHECK(gi.LoadScene(*empty, resources) ==
               nullptr);
     }
 
@@ -1305,7 +1399,7 @@ TEST_CASE("game-instance: LoadScene / LoadSceneAsync own the scene load orchestr
         gi.SetSceneActivationPolicy(Function<void(scene::Scene*)>{[](scene::Scene*) {}});
 
         engine::runtime::SceneLoadHandle first =
-            gi.LoadSceneAsync(*sceneInst, resources, Function<UniquePtr<IStream>(const Guid&)>{});
+            gi.LoadSceneAsync(*sceneInst, resources);
         (void)gi.TrackScriptLoad(first);
         gi.PumpScriptLoads();
         scene::Scene* level1 = gi.GetScene();
@@ -1315,7 +1409,7 @@ TEST_CASE("game-instance: LoadScene / LoadSceneAsync own the scene load orchestr
         // The same level again, as a restart loads it: both exist while the new one loads, then
         // the new copy is the run's scene and the manager's current, and the old one is gone.
         engine::runtime::SceneLoadHandle second =
-            gi.LoadSceneAsync(*sceneInst, resources, Function<UniquePtr<IStream>(const Guid&)>{});
+            gi.LoadSceneAsync(*sceneInst, resources);
         scene::Scene* level2 = second.Scene();
         (void)gi.TrackScriptLoad(second);
         CHECK(gi.Scenes().SceneCount() == 2u);
@@ -1327,7 +1421,7 @@ TEST_CASE("game-instance: LoadScene / LoadSceneAsync own the scene load orchestr
 
         // The synchronous path (run.loadScene) adopts the same way.
         scene::Scene* level3 =
-            gi.LoadScene(*sceneInst, resources, Function<UniquePtr<IStream>(const Guid&)>{});
+            gi.LoadScene(*sceneInst, resources);
         REQUIRE(level3 != nullptr);
         gi.AdoptLoadedScene(level3);
         CHECK(gi.GetScene() == level3);
@@ -1346,7 +1440,7 @@ TEST_CASE("game-instance: LoadScene / LoadSceneAsync own the scene load orchestr
 
         // The Game facade hands the in-flight handle to the instance and gets a ticket back.
         engine::runtime::SceneLoadHandle handle =
-            gi.LoadSceneAsync(*sceneInst, resources, Function<UniquePtr<IStream>(const Guid&)>{});
+            gi.LoadSceneAsync(*sceneInst, resources);
         REQUIRE(handle.Scene() != nullptr);
         scene::Scene* pending = handle.Scene();
         const i32 ticket = gi.TrackScriptLoad(handle);
@@ -1383,7 +1477,7 @@ TEST_CASE("game-instance: LoadScene / LoadSceneAsync own the scene load orchestr
             db.RootGroup()->CreateInstance(u8"empty2", scene::SceneDocument::StaticType());
         engine::runtime::GameInstance gi;
         const i32 ticket = gi.TrackScriptLoad(
-            gi.LoadSceneAsync(*empty, resources, Function<UniquePtr<IStream>(const Guid&)>{}));
+            gi.LoadSceneAsync(*empty, resources));
         CHECK(ticket == 1);
         gi.PumpScriptLoads(); // a failed handle is skipped (never activated), stays terminal
         CHECK(gi.ScriptLoadComplete(ticket)); // terminal (failed counts as complete)
@@ -1397,7 +1491,7 @@ TEST_CASE("game-instance: LoadScene / LoadSceneAsync own the scene load orchestr
         // must drop the tracked load, or PumpScriptLoads would later activate freed memory.
         engine::runtime::GameInstance gi;
         engine::runtime::SceneLoadHandle handle =
-            gi.LoadSceneAsync(*sceneInst, resources, Function<UniquePtr<IStream>(const Guid&)>{});
+            gi.LoadSceneAsync(*sceneInst, resources);
         REQUIRE(handle.Scene() != nullptr);
         scene::Scene* pending = handle.Scene();
         const i32 ticket = gi.TrackScriptLoad(handle);
@@ -1418,14 +1512,14 @@ TEST_CASE("game-instance: LoadScene / LoadSceneAsync own the scene load orchestr
         // PumpScriptLoads (still driven every frame) would activate and Start() freed memory.
         engine::runtime::GameInstance gi;
         scene::Scene* live =
-            gi.LoadScene(*sceneInst, resources, Function<UniquePtr<IStream>(const Guid&)>{});
+            gi.LoadScene(*sceneInst, resources);
         REQUIRE(live != nullptr);
         gi.SetScene(live);
         REQUIRE(gi.SceneReady());
 
         // A second load left in flight (inactive, tracked): the scene that would dangle.
         const i32 ticket = gi.TrackScriptLoad(
-            gi.LoadSceneAsync(*sceneInst, resources, Function<UniquePtr<IStream>(const Guid&)>{}));
+            gi.LoadSceneAsync(*sceneInst, resources));
         CHECK_FALSE(gi.ScriptLoadComplete(ticket)); // in flight
         CHECK(gi.Scenes().SceneCount() == 2u);      // the live scene and the pending inactive one
 
@@ -1451,7 +1545,7 @@ TEST_CASE("game-instance: LoadScene / LoadSceneAsync own the scene load orchestr
         // terminal-safe.
         engine::runtime::GameInstance gi;
         const i32 ticket = gi.TrackScriptLoad(
-            gi.LoadSceneAsync(*sceneInst, resources, Function<UniquePtr<IStream>(const Guid&)>{}));
+            gi.LoadSceneAsync(*sceneInst, resources));
         gi.PumpScriptLoads(); // activates and retires the entry
         REQUIRE(gi.SceneReady());
         scene::Scene* live = gi.GetScene();

@@ -463,19 +463,16 @@ export namespace engine::runtime
         /// Load a cooked scene instance into this group and resolve its resources synchronously.
         /// Returns the loaded, active, fully resolved scene, not yet started: the caller runs its
         /// policy (EnsureCamera, Start, SetSimulationEnabled, SetScene). Null on a LoadScene
-        /// failure. `prefabProvider` reads a nested-prefab payload by guid (an empty function means
-        /// no prefabs).
-        scene::Scene*
-        LoadScene(content::Instance& sceneInstance, resource::ResourceManager& resources,
-                  core::Function<core::UniquePtr<core::IStream>(const core::Guid&)> prefabProvider);
+        /// failure. The prefabs it places come from `resources`, each read once however many times
+        /// it is placed.
+        scene::Scene* LoadScene(content::Instance& sceneInstance, resource::ResourceManager& resources);
 
         /// Async load: creates the scene inactive, deserializes it, and starts its resource binds
         /// on workers (BindAsync). Returns a SceneLoadHandle: poll IsComplete()/Progress() for a
         /// loading screen, then call ActivateLoadedScene(). The scene never ticks or renders while
-        /// loading.
-        [[nodiscard]] SceneLoadHandle LoadSceneAsync(
-            content::Instance& sceneInstance, resource::ResourceManager& resources,
-            core::Function<core::UniquePtr<core::IStream>(const core::Guid&)> prefabProvider);
+        /// loading. The prefabs it places bind at once, as a spawn's do, since placing one needs its
+        /// payload then.
+        [[nodiscard]] SceneLoadHandle LoadSceneAsync(content::Instance& sceneInstance, resource::ResourceManager& resources);
 
         /// Activate a completed async-loaded scene (add it to the active and render set and make it
         /// current). Returns the now-active scene, or null if the handle failed or is not yet

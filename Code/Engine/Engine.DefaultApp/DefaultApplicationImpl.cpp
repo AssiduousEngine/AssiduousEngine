@@ -453,8 +453,8 @@ namespace engine::runtime
 
         // run.loadSceneAsync(id): resolve the scene instance in the database scenes load from, kick
         // an async load into this instance, and register it under a ticket. 0 means it could not
-        // start (bad id, no DB). The prefab provider reads a nested-prefab payload by guid, the same
-        // source the sync path uses.
+        // start (bad id, no DB). The prefabs it places come from the app's resources, as a spawn's
+        // do, so a level and a spawn of one prefab agree.
         gi.RunBinding().loadSceneAsync =
             core::Function<core::i32(const core::Guid&)>{[self, instance](const core::Guid& sceneId) -> core::i32
             {
@@ -467,16 +467,7 @@ namespace engine::runtime
                 {
                     return 0;
                 }
-                foundation::content::IContentDatabase* db = self->SceneDatabase();
-                engine::runtime::SceneLoadHandle handle = instance->LoadSceneAsync(
-                    *sceneInst, *self->Resources(),
-                    core::Function<core::UniquePtr<core::IStream>(const core::Guid&)>{
-                        [db](const core::Guid& prefabId) -> core::UniquePtr<core::IStream>
-                        {
-                            foundation::content::Instance* prefab = db->GetInstance(prefabId);
-                            return (prefab != nullptr) ? prefab->ReadData(u8"scene")
-                                                       : core::UniquePtr<core::IStream>{};
-                        }});
+                engine::runtime::SceneLoadHandle handle = instance->LoadSceneAsync(*sceneInst, *self->Resources());
                 return instance->TrackScriptLoad(core::Move(handle));
             }};
 
@@ -502,16 +493,7 @@ namespace engine::runtime
                 {
                     return false;
                 }
-                foundation::content::IContentDatabase* db = self->SceneDatabase();
-                foundation::scene::Scene* scene = instance->LoadScene(
-                    *sceneInst, *self->Resources(),
-                    core::Function<core::UniquePtr<core::IStream>(const core::Guid&)>{
-                        [db](const core::Guid& prefabId) -> core::UniquePtr<core::IStream>
-                        {
-                            foundation::content::Instance* prefab = db->GetInstance(prefabId);
-                            return (prefab != nullptr) ? prefab->ReadData(u8"scene")
-                                                       : core::UniquePtr<core::IStream>{};
-                        }});
+                foundation::scene::Scene* scene = instance->LoadScene(*sceneInst, *self->Resources());
                 if (scene == nullptr)
                 {
                     return false;

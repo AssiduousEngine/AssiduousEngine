@@ -477,31 +477,15 @@ namespace editor
                 }
                 return;
             }
-            // Products bind from the cooked DB (the editor's shared manager); prefab payloads
-            // come from the source DB, the same split Engine.Player uses in project mode.
+            // Products bind through the editor's shared manager, and the prefabs the scene places come
+            // from it too (its prefabs from the sources beneath the cooked products), as a level the
+            // game loads later does, so the run places a prefab as it spawns one.
             if (m_context->Resources() != nullptr)
             {
                 scene::ResolveSceneResources(*startScene, *m_context->Resources());
-            }
-            if (startScene->PendingPrefabInstanceCount() > 0)
-            {
-                EditorContext* context = m_context;
-                scene::ResolveScenePrefabs(
-                    *startScene,
-                    Function<UniquePtr<IStream>(const Guid&)>{
-                        [context](const Guid& prefabId) -> UniquePtr<IStream>
-                        {
-                            if (context->Project() == nullptr)
-                            {
-                                return UniquePtr<IStream>{};
-                            }
-                            foundation::content::Instance* prefab =
-                                context->Project()->SourceDb().GetInstance(prefabId);
-                            return (prefab != nullptr) ? prefab->ReadData(u8"scene")
-                                                       : UniquePtr<IStream>{};
-                        }});
-                if (m_context->Resources() != nullptr)
+                if (startScene->PendingPrefabInstanceCount() > 0)
                 {
+                    scene::ResolveScenePrefabs(*startScene, *m_context->Resources());
                     scene::ResolveSceneResources(*startScene, *m_context->Resources());
                 }
             }

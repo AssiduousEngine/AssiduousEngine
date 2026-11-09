@@ -337,17 +337,7 @@ namespace engine::player
             {
                 m_bootScenePath = String(instance->Path());
                 PushSplash();
-                foundation::content::ContentDatabase* sceneDb = m_sceneDb;
-                m_bootLoad = Instance().LoadSceneAsync(
-                    *instance, *Resources(),
-                    Function<UniquePtr<IStream>(const Guid&)>{
-                        [sceneDb](const Guid& prefabId) -> UniquePtr<IStream>
-                        {
-                            foundation::content::Instance* prefab =
-                                (sceneDb != nullptr) ? sceneDb->GetInstance(prefabId) : nullptr;
-                            return (prefab != nullptr) ? prefab->ReadData(u8"scene")
-                                                       : UniquePtr<IStream>{};
-                        }});
+                m_bootLoad = Instance().LoadSceneAsync(*instance, *Resources()); // its prefabs through the resources
                 if (m_bootLoad.Failed())
                 {
                     PopSplash();

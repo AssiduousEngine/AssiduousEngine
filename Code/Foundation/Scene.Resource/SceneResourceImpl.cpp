@@ -1672,6 +1672,12 @@ namespace foundation::scene
         return true;
     }
 
+    void ResolveScenePrefabs(Scene& scene, foundation::resource::ResourceManager& resources)
+    {
+        PrefabPayloads payloads(&resources);
+        ResolveScenePrefabs(scene, payloads.Resolver());
+    }
+
     void ResolveScenePrefabs(Scene& scene, const PrefabPayloadResolver& resolver)
     {
         Array<UniquePtr<Scene::PendingPrefabInstance>> pendings =

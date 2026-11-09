@@ -1354,6 +1354,11 @@ export namespace foundation::scene
     /// member guids, re-applies the root placement and the deltas. Unresolvable prefabs are
     /// skipped with a warning (their entities are simply absent).
     void ResolveScenePrefabs(Scene& scene, const PrefabPayloadResolver& resolver);
+    /// The same, from the prefabs `resources` has loaded, binding each the first time it is
+    /// placed: a level placing one prefab fifty times reads it once, and a prefab edited and
+    /// reloaded places as it now is. What a running game's scene loads use; the editor's
+    /// authoring reads its sources instead.
+    void ResolveScenePrefabs(Scene& scene, foundation::resource::ResourceManager& resources);
 
     /// The template changed (its asset was saved or its product reloaded): rebuild every affected
     /// top-level instance in `scene` from its template, preserving the user's deltas. An instance

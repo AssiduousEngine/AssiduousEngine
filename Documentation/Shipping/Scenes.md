@@ -6,6 +6,13 @@ is a reusable single-rooted entity subtree; scenes (and prefabs) instantiate pre
 guid, and the instance re-expands from the prefab source when it loads - edit the prefab,
 every instance follows.
 
+A running game reads the LOADED prefab, not its file: the prefab is read once, the first time it
+is spawned, a reference to it binds or a level placing it loads, and the prefabs it nests are each
+loaded the same way. A level the game loads (its first, a script's `run.loadScene`) places its
+prefabs from the loaded ones too, so one placed fifty times is read once. The editor reloads a
+loaded prefab when it is saved or changed on disk and evicts it when it is deleted. The editor's
+scene pages read the files, since what they show is what you are editing.
+
 ## Sources are text
 
 Scene and prefab sources are XML documents stored in the project. That makes them

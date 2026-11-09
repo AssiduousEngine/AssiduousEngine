@@ -250,9 +250,7 @@ namespace engine::runtime
         return m_sceneManager.CreateScene(name, activate);
     }
 
-    scene::Scene* GameInstance::LoadScene(
-        content::Instance& sceneInstance, resource::ResourceManager& resources,
-        Function<UniquePtr<IStream>(const Guid&)> prefabProvider)
+    scene::Scene* GameInstance::LoadScene(content::Instance& sceneInstance, resource::ResourceManager& resources)
     {
         scene::Scene* scene = CreateScene(sceneInstance.Name()); // active (the sync path)
         if (scene == nullptr || !scene::LoadScene(sceneInstance, *scene).IsOk())
@@ -266,15 +264,13 @@ namespace engine::runtime
         scene::ResolveSceneResources(*scene, resources);
         if (scene->PendingPrefabInstanceCount() > 0)
         {
-            scene::ResolveScenePrefabs(*scene, prefabProvider);
+            scene::ResolveScenePrefabs(*scene, resources);
             scene::ResolveSceneResources(*scene, resources); // bind the spawned prefabs' refs
         }
         return scene;
     }
 
-    SceneLoadHandle GameInstance::LoadSceneAsync(
-        content::Instance& sceneInstance, resource::ResourceManager& resources,
-        Function<UniquePtr<IStream>(const Guid&)> prefabProvider)
+    SceneLoadHandle GameInstance::LoadSceneAsync(content::Instance& sceneInstance, resource::ResourceManager& resources)
     {
         SceneLoadHandle handle;
         handle.m_resources = &resources;
@@ -297,8 +293,9 @@ namespace engine::runtime
         }
         if (scene->PendingPrefabInstanceCount() > 0)
         {
-            // Prefab spawn (no resource binds itself), then bind the spawned refs async.
-            scene::ResolveScenePrefabs(*scene, prefabProvider);
+            // The placed prefabs bind at once, as a spawn's do, since placing one needs its payload
+            // now; then the spawned refs bind async.
+            scene::ResolveScenePrefabs(*scene, resources);
             resource::AsyncBindScope scope(resources);
             scene::ResolveSceneResources(*scene, resources);
         }
