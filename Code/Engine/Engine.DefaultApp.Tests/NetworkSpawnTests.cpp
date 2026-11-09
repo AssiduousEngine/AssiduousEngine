@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// The replicated-spawn resolver's body: a prefab id becomes a live prefab spawned from the content
-// database. GameInstanceTests pins the wiring (the controller applies the resolver to every
+// The replicated-spawn resolver's body: a prefab id becomes a live prefab, loaded through the
+// app's resource manager. GameInstanceTests pins the wiring (the controller applies the resolver to every
 // endpoint) and ReplicationTests the handler contract with a stand-in; neither reaches the body.
 #include <doctest/doctest.h>
 #include "Core/Prelude.h"
 import foundation.core;
 import foundation.vfs;
 import foundation.content;
+import foundation.resource;
 import foundation.scene;
 import foundation.scene.resource;
 import engine.defaultapp;
@@ -24,6 +25,9 @@ namespace
         StringView dir = u8"scratch_defaultapp_netspawn";
         UniquePtr<foundation::vfs::NativeFileSystem> mount;
         UniquePtr<content::ContentDatabase> db;
+        // The resolver loads prefabs through a manager, as the app's does.
+        UniquePtr<foundation::resource::ResourceManager> resources;
+        UniquePtr<scene::PrefabFactory> factory;
         Guid turret;   // a two-entity prefab: Turret, with Barrel under it
         Guid emptyDoc; // an instance with no scene stream
 
@@ -51,9 +55,13 @@ namespace
                 db->RootGroup()->CreateInstance(u8"Bare", scene::PrefabDocument::StaticType());
             REQUIRE(bare != nullptr);
             emptyDoc = bare->Id();
+            resources = MakeUnique<foundation::resource::ResourceManager>(DefaultAllocator(), DefaultAllocator(), *db);
+            factory = MakeUnique<scene::PrefabFactory>(DefaultAllocator(), DefaultAllocator());
+            resources->AddFactory(factory.Get());
         }
         ~PrefabFixture()
         {
+            resources.Reset();
             db.Reset();
             mount.Reset();
             RemoveDirectoryRecursive(dir);
@@ -66,7 +74,7 @@ TEST_CASE("defaultapp: the net spawn resolver spawns the whole prefab subtree")
     PrefabFixture f;
     scene::Scene target(DefaultAllocator(), u8"level");
     const scene::EntityHandle root = engine::runtime::DefaultApplication::ResolveNetworkPrefab(
-        f.db.Get(), nullptr, target, f.turret);
+        f.resources.Get(), target, f.turret);
     REQUIRE(root.IsAssigned());
     // The child came too: a resolver that spawns the root and drops the subtree passes a bare
     // IsAssigned check and is still wrong on screen.
@@ -79,9 +87,9 @@ TEST_CASE("defaultapp: two resolves are two distinct entities, not one aliased t
     PrefabFixture f;
     scene::Scene target(DefaultAllocator(), u8"level");
     const scene::EntityHandle a = engine::runtime::DefaultApplication::ResolveNetworkPrefab(
-        f.db.Get(), nullptr, target, f.turret);
+        f.resources.Get(), target, f.turret);
     const scene::EntityHandle b = engine::runtime::DefaultApplication::ResolveNetworkPrefab(
-        f.db.Get(), nullptr, target, f.turret);
+        f.resources.Get(), target, f.turret);
     REQUIRE(a.IsAssigned());
     REQUIRE(b.IsAssigned());
     CHECK(a != b);
@@ -92,19 +100,16 @@ TEST_CASE("defaultapp: the net spawn resolver answers Invalid on every failure p
 {
     PrefabFixture f;
     scene::Scene target(DefaultAllocator(), u8"level");
-    // No database (the app's content DB is handed over after construction).
-    CHECK_FALSE(engine::runtime::DefaultApplication::ResolveNetworkPrefab(nullptr, nullptr, target,
-                                                                          f.turret)
+    // No manager (the app's is made or handed over after construction).
+    CHECK_FALSE(engine::runtime::DefaultApplication::ResolveNetworkPrefab(nullptr, target, f.turret)
                     .IsAssigned());
     // An unknown id (version skew between peers).
     Guid unknown;
     REQUIRE(Guid::TryParse(u8"0f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f", unknown));
-    CHECK_FALSE(engine::runtime::DefaultApplication::ResolveNetworkPrefab(f.db.Get(), nullptr,
-                                                                          target, unknown)
+    CHECK_FALSE(engine::runtime::DefaultApplication::ResolveNetworkPrefab(f.resources.Get(), target, unknown)
                     .IsAssigned());
     // An instance that exists but carries no scene stream: past the lookup, refused later.
-    CHECK_FALSE(engine::runtime::DefaultApplication::ResolveNetworkPrefab(f.db.Get(), nullptr,
-                                                                          target, f.emptyDoc)
+    CHECK_FALSE(engine::runtime::DefaultApplication::ResolveNetworkPrefab(f.resources.Get(), target, f.emptyDoc)
                     .IsAssigned());
     CHECK(target.EntityCount() == 0u); // never a partial spawn
 }

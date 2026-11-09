@@ -42,6 +42,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Prefabs: spawning a prefab no longer reads it from disk each time, and a prefab saved in the
+  editor reaches the next spawn of a running game.
 - Export: a pruned export (a preset's `pruneToReachable`) keeps the assets a script property names:
   a behaviour's or a Level's asset value (a prefab it spawns, a clip it plays). Before, an asset
   named only there was left out and the exported game could not find it. The same for an asset

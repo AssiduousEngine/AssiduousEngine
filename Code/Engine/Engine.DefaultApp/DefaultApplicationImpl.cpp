@@ -590,7 +590,6 @@ namespace engine::runtime
     {
         m_contentDatabase = database;
         m_layeredContent = nullptr;
-        PointSpawnersAtScenes();
     }
 
     void DefaultApplication::SetContentDatabase(foundation::content::LayeredContentDatabase& view) noexcept
@@ -603,7 +602,6 @@ namespace engine::runtime
     DefaultApplication::SetSceneDatabase(foundation::content::IContentDatabase* database) noexcept
     {
         m_sceneDatabase = database;
-        PointSpawnersAtScenes();
     }
 
     foundation::content::IContentDatabase* DefaultApplication::SceneDatabase() const noexcept
@@ -611,12 +609,12 @@ namespace engine::runtime
         return m_sceneDatabase != nullptr ? m_sceneDatabase : m_contentDatabase;
     }
 
-    // Every composed scene's spawn system reads its prefabs from the database scenes load from.
+    // Every composed scene's spawn system loads its prefabs through the app's resources.
     void DefaultApplication::OnSystemsReady(foundation::scene::Scene& scene)
     {
         if (auto* spawner = scene.GetSystem<foundation::scene::PrefabSpawnSystem>())
         {
-            spawner->SetSource(SceneDatabase(), Resources());
+            spawner->SetSource(Resources());
         }
     }
 
@@ -703,6 +701,7 @@ namespace engine::runtime
         {
             RegisterStandardFactories(*borrowed, host);
         }
+        PointSpawnersAtScenes(); // a scene left pointing at a closed project's manager would spawn from freed memory
     }
 
     foundation::runtime::PluginHost* DefaultApplication::CreatePluginHost(foundation::runtime::HostRole role)
@@ -933,22 +932,21 @@ namespace engine::runtime
     }
 
     foundation::scene::EntityHandle DefaultApplication::ResolveNetworkPrefab(
-        foundation::content::IContentDatabase* database, foundation::resource::ResourceManager* resources,
-        foundation::scene::Scene& scene, const core::Guid& prefabId)
+        foundation::resource::ResourceManager* resources, foundation::scene::Scene& scene, const core::Guid& prefabId)
     {
-        return foundation::scene::PrefabSpawnSystem::SpawnInto(scene, database, resources, prefabId);
+        return foundation::scene::PrefabSpawnSystem::SpawnInto(scene, resources, prefabId);
     }
 
     net::StateReplication::SpawnHandler DefaultApplication::MakeSpawnResolver()
     {
         DefaultApplication* self = this;
-        // The resolver (the scenes' database to a live prefab); the NetworkController applies it to
-        // each endpoint. The database and resources are read when invoked, not when wired, since
-        // the entry point hands the databases over after construction.
+        // The resolver (a prefab id to a live prefab, loaded through the app's resources); the
+        // NetworkController applies it to each endpoint. The manager is read when invoked, not when
+        // wired, since it is made or handed over after construction.
         return net::StateReplication::SpawnHandler{
             [self](foundation::scene::Scene& scene, const core::Guid& prefabId,
                    net::NetworkId) -> foundation::scene::EntityHandle
-            { return ResolveNetworkPrefab(self->SceneDatabase(), self->Resources(), scene, prefabId); }};
+            { return ResolveNetworkPrefab(self->Resources(), scene, prefabId); }};
     }
 
     void DefaultApplication::ApplyNetworkStartup(GameInstance& instance)

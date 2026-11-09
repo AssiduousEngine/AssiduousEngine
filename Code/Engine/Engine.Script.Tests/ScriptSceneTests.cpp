@@ -237,14 +237,17 @@ namespace
 
     bool Near(f32 a, f32 b) { return Abs(a - b) < 1e-4f; }
 
-    // What scene.spawn reaches: the scene's PrefabSpawnSystem pointed at a content database holding
-    // one prefab, Turret with a Barrel child. The scene's scripts spawn it by id; the assertions read
+    // What scene.spawn reaches: the scene's PrefabSpawnSystem pointed at a manager over a content
+    // database holding one prefab, Turret with a Barrel child. The scene's scripts spawn it by id; the assertions read
     // the scene (whether a Turret root exists, where, and with its child) rather than a callback.
     struct PrefabSource
     {
         StringView dir = u8"scratch_script_prefabs";
         UniquePtr<foundation::vfs::NativeFileSystem> mount;
         UniquePtr<foundation::content::ContentDatabase> db;
+        // Spawns load the prefab through a manager, as a game's do.
+        UniquePtr<foundation::resource::ResourceManager> resources;
+        UniquePtr<scene::PrefabFactory> factory;
         Guid turret;
 
         explicit PrefabSource(ScriptedScene& bed)
@@ -265,10 +268,14 @@ namespace
             REQUIRE(prefab != nullptr);
             REQUIRE(prefab->WriteData(u8"scene", payload.Bytes()).IsOk());
             turret = prefab->Id();
-            bed.scene.AddSystem<scene::PrefabSpawnSystem>()->SetSource(db.Get(), nullptr);
+            resources = MakeUnique<foundation::resource::ResourceManager>(DefaultAllocator(), DefaultAllocator(), *db);
+            factory = MakeUnique<scene::PrefabFactory>(DefaultAllocator(), DefaultAllocator());
+            resources->AddFactory(factory.Get());
+            bed.scene.AddSystem<scene::PrefabSpawnSystem>()->SetSource(resources.Get());
         }
         ~PrefabSource()
         {
+            resources.Reset();
             db.Reset();
             mount.Reset();
             RemoveDirectoryRecursive(dir);

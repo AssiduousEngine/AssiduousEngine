@@ -202,10 +202,10 @@ export namespace engine::runtime
         /// from beneath, and takes it back before it goes.
         void SetContentDatabase(foundation::content::LayeredContentDatabase& view) noexcept;
         /// The database scenes load from: a script's loadScene and loadSceneAsync resolve their
-        /// ids in it, and a spawn (a script's, a replicated one) reads its prefab there. A game run
-        /// from its project folder names its sources here, as its content database is the cooked
-        /// one, which holds no scene or prefab. Unnamed, it is the content database (the editor,
-        /// an exported game: one database holds them all).
+        /// ids in it. A game run from its project folder names its sources here, as its content
+        /// database is its cooked one over them, which lets no scene through. Unnamed, it is the
+        /// content database (the editor, an exported game: one database holds them all). Spawns
+        /// load their prefabs through the resources instead.
         void SetSceneDatabase(foundation::content::IContentDatabase* database) noexcept;
         [[nodiscard]] foundation::content::IContentDatabase* SceneDatabase() const noexcept;
         [[nodiscard]] foundation::resource::ResourceManager* Resources() const noexcept;
@@ -246,8 +246,9 @@ export namespace engine::runtime
         void FinishFrame(IApplicationHost& host, FrameContext& frame);
 
     public:
-        /// ISceneObserver: every composed scene's PrefabSpawnSystem gets the app's content
-        /// database and resource manager; the scene knows nothing of content, the app owns it.
+        /// ISceneObserver: every composed scene's PrefabSpawnSystem gets the app's resource
+        /// manager, which its prefabs load through; the scene knows nothing of content, the app
+        /// owns it.
         void OnSystemsReady(foundation::scene::Scene& scene) override;
 
         // ---- the game script (a `Game` class: construct new(), launch(), update(dt),
@@ -369,14 +370,14 @@ export namespace engine::runtime
         // it; the app hands it over once at wiring, since it needs the content DB.
         [[nodiscard]] net::StateReplication::SpawnHandler MakeSpawnResolver();
         /// The resolver's body: the one runtime spawn recipe (PrefabSpawnSystem::SpawnInto) with
-        /// the app's database and manager supplied; a script's scene.spawn runs the same one
-        /// through the scene's own system. Invalid (never a partial spawn) when there is no
-        /// database, no such instance, or an instance with no scene stream.
+        /// the app's manager supplied; a script's scene.spawn runs the same one through the scene's
+        /// own system. A prefab not loaded yet is loaded at once, so the entity exists in the frame
+        /// the message arrives. Invalid (never a partial spawn) when there is no manager, or the
+        /// prefab does not load.
     public:
         [[nodiscard]] static foundation::scene::EntityHandle
-        ResolveNetworkPrefab(foundation::content::IContentDatabase* database,
-                             foundation::resource::ResourceManager* resources,
-                             foundation::scene::Scene& scene, const core::Guid& prefabId);
+        ResolveNetworkPrefab(foundation::resource::ResourceManager* resources, foundation::scene::Scene& scene,
+                             const core::Guid& prefabId);
 
     private:
 
@@ -385,9 +386,9 @@ export namespace engine::runtime
         // dedicated launch (scripts go online via the Net facade instead).
         void ApplyNetworkStartup(GameInstance& instance);
 
-        /// Re-points every live scene's spawn system at the database scenes load from (where the
-        /// prefabs are) and the resource manager: the databases and the manager's creation can
-        /// all land after scenes exist.
+        /// Re-points every live scene's spawn system at the resource manager its prefabs load
+        /// through: the manager's creation or attachment can land after scenes exist, and one left
+        /// pointing at a closed project's manager would spawn from freed memory.
         void PointSpawnersAtScenes();
 
         foundation::rhi::ScreenshotCapture m_screenshot;

@@ -18,6 +18,7 @@ import foundation.net.replication;
 import foundation.scene;
 import foundation.scene.resource;
 import foundation.content;
+import foundation.resource;
 import foundation.vfs;
 import foundation.script;
 import foundation.script.facades;
@@ -128,6 +129,9 @@ namespace
         StringView dir = u8"scratch_net_spawn";
         UniquePtr<foundation::vfs::NativeFileSystem> mount;
         UniquePtr<foundation::content::ContentDatabase> db;
+        // Spawns load the prefab through a manager, as a game's do.
+        UniquePtr<foundation::resource::ResourceManager> resources;
+        UniquePtr<foundation::scene::PrefabFactory> factory;
         Guid guest;
         utf8char text[37] = {};
 
@@ -151,9 +155,13 @@ namespace
             REQUIRE(prefab->WriteData(u8"scene", payload.Bytes()).IsOk());
             guest = prefab->Id();
             guest.ToChars(text);
+            resources = MakeUnique<foundation::resource::ResourceManager>(DefaultAllocator(), DefaultAllocator(), *db);
+            factory = MakeUnique<foundation::scene::PrefabFactory>(DefaultAllocator(), DefaultAllocator());
+            resources->AddFactory(factory.Get());
         }
         ~GuestPrefab()
         {
+            resources.Reset();
             db.Reset();
             mount.Reset();
             RemoveDirectoryRecursive(dir);
@@ -170,15 +178,15 @@ namespace
         HostAndClient fx;
         foundation::scene::Scene hostScene(DefaultAllocator(), u8"host");
         net::AddNetworkSceneManagers(hostScene);
-        hostScene.AddSystem<foundation::scene::PrefabSpawnSystem>()->SetSource(prefab.db.Get(), nullptr);
+        hostScene.AddSystem<foundation::scene::PrefabSpawnSystem>()->SetSource(prefab.resources.Get());
         foundation::scene::Scene clientScene(DefaultAllocator(), u8"client");
         net::AddNetworkSceneManagers(clientScene);
         fx.host.SetReplicatedScene(&hostScene);
         fx.client.SetReplicatedScene(&clientScene);
-        foundation::content::ContentDatabase* db = prefab.db.Get();
+        foundation::resource::ResourceManager* resources = prefab.resources.Get();
         fx.client.Replication().SetSpawnHandler(
-            [db](foundation::scene::Scene& s, const Guid& p, net::NetworkId) -> foundation::scene::EntityHandle
-            { return foundation::scene::PrefabSpawnSystem::SpawnInto(s, db, nullptr, p); });
+            [resources](foundation::scene::Scene& s, const Guid& p, net::NetworkId) -> foundation::scene::EntityHandle
+            { return foundation::scene::PrefabSpawnSystem::SpawnInto(s, resources, p); });
         fx.Open();
 
         RefPtr<IScriptContext> hostCtx = manager->CreateContext();
@@ -224,16 +232,16 @@ namespace
         explicit Players(IScriptManager& manager)
         {
             net::AddNetworkSceneManagers(hostScene);
-            hostScene.AddSystem<foundation::scene::PrefabSpawnSystem>()->SetSource(prefab.db.Get(), nullptr);
+            hostScene.AddSystem<foundation::scene::PrefabSpawnSystem>()->SetSource(prefab.resources.Get());
             host.SetReplicatedScene(&hostScene);
-            foundation::content::ContentDatabase* db = prefab.db.Get();
+            foundation::resource::ResourceManager* resources = prefab.resources.Get();
             for (auto [endpoint, scene] : {std::pair{&a, &aScene}, std::pair{&b, &bScene}})
             {
                 net::AddNetworkSceneManagers(*scene);
                 endpoint->SetReplicatedScene(scene);
                 endpoint->Replication().SetSpawnHandler(
-                    [db](foundation::scene::Scene& s, const Guid& p, net::NetworkId)
-                    { return foundation::scene::PrefabSpawnSystem::SpawnInto(s, db, nullptr, p); });
+                    [resources](foundation::scene::Scene& s, const Guid& p, net::NetworkId)
+                    { return foundation::scene::PrefabSpawnSystem::SpawnInto(s, resources, p); });
             }
             hostCtx = manager.CreateContext();
             aCtx = manager.CreateContext();

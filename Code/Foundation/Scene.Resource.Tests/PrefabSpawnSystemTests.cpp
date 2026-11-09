@@ -50,6 +50,9 @@ namespace
         StringView dir = u8"scratch_scene_prefabspawn";
         UniquePtr<foundation::vfs::NativeFileSystem> mount;
         UniquePtr<content::ContentDatabase> db;
+        // Spawns load their prefabs through a manager, as a game's do.
+        UniquePtr<foundation::resource::ResourceManager> resources;
+        UniquePtr<PrefabFactory> factory;
         Guid turret;
         Guid nest;
         Guid bare;
@@ -68,9 +71,13 @@ namespace
                 db->RootGroup()->CreateInstance(u8"Bare", PrefabDocument::StaticType());
             REQUIRE(empty != nullptr);
             bare = empty->Id();
+            resources = MakeUnique<foundation::resource::ResourceManager>(DefaultAllocator(), DefaultAllocator(), *db);
+            factory = MakeUnique<PrefabFactory>(DefaultAllocator(), DefaultAllocator());
+            resources->AddFactory(factory.Get());
         }
         ~PrefabDatabase()
         {
+            resources.Reset();
             db.Reset();
             mount.Reset();
             (void)RemoveDirectoryRecursive(dir);
@@ -131,7 +138,7 @@ TEST_CASE("prefab-spawn: a spawn lands where it was asked, with its children, un
 {
     PrefabDatabase db;
     SpawnScene s;
-    s.spawner->SetSource(db.db.Get(), nullptr);
+    s.spawner->SetSource(db.resources.Get());
     CHECK(s.spawner->HasSource());
 
     const EntityHandle anchor = s.scene.CreateEntity(u8"anchor");
@@ -163,8 +170,8 @@ TEST_CASE("prefab-spawn: a spawn binds its own subtree and nothing else")
 {
     PrefabDatabase db;
     SpawnScene s;
-    foundation::resource::ResourceManager resources(DefaultAllocator(), *db.db);
-    s.spawner->SetSource(db.db.Get(), &resources);
+    foundation::resource::ResourceManager& resources = *db.resources;
+    s.spawner->SetSource(&resources);
 
     // A component that was already in the scene, bound or not, is not touched by a spawn.
     const EntityHandle older = s.scene.CreateEntity(u8"older");
@@ -177,19 +184,13 @@ TEST_CASE("prefab-spawn: a spawn binds its own subtree and nothing else")
     CHECK(s.ammo->Get(root)->binds == 1); // the spawned component was bound...
     CHECK(s.ammo->Get(root)->boundThrough == &resources);
     CHECK(s.ammo->Get(older)->binds == 0); // ...the one already there was not re-walked
-
-    // No manager: the subtree arrives unbound (a later resolve pass binds it).
-    s.spawner->SetSource(db.db.Get(), nullptr);
-    const EntityHandle unbound = s.spawner->Spawn(db.turret, Float3{0.0f, 0.0f, 0.0f});
-    REQUIRE(unbound.IsAssigned());
-    CHECK(s.ammo->Get(unbound)->binds == 0);
 }
 
 TEST_CASE("prefab-spawn: a runtime spawn resolves the prefabs its template nests")
 {
     PrefabDatabase db;
     SpawnScene s;
-    s.spawner->SetSource(db.db.Get(), nullptr);
+    s.spawner->SetSource(db.resources.Get());
 
     // Nest > Turret > Barrel: three entities, the inner two from a nested record the
     // database resolves. Without a resolver the spawn would produce only one.
@@ -212,7 +213,7 @@ TEST_CASE("prefab-spawn: every failure is an invalid handle and nothing half spa
     CHECK_FALSE(s.spawner->HasSource());
     CHECK_FALSE(s.spawner->Spawn(db.turret, Float3{0.0f, 0.0f, 0.0f}).IsAssigned());
 
-    s.spawner->SetSource(db.db.Get(), nullptr);
+    s.spawner->SetSource(db.resources.Get());
     CHECK_FALSE(s.spawner->Spawn(Guid{}, Float3{0.0f, 0.0f, 0.0f}).IsAssigned()); // the nil id
     Guid unknown;
     REQUIRE(Guid::TryParse(u8"0f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f", unknown));
@@ -220,6 +221,60 @@ TEST_CASE("prefab-spawn: every failure is an invalid handle and nothing half spa
     CHECK_FALSE(s.spawner->Spawn(db.bare, Float3{0.0f, 0.0f, 0.0f}).IsAssigned()); // no stream
     CHECK(s.scene.EntityCount() == 0u);
 
-    // The static recipe answers the same way with no database.
-    CHECK_FALSE(PrefabSpawnSystem::SpawnInto(s.scene, nullptr, nullptr, db.turret).IsAssigned());
+    // The static recipe answers the same way with no manager.
+    CHECK_FALSE(PrefabSpawnSystem::SpawnInto(s.scene, nullptr, db.turret).IsAssigned());
+}
+
+TEST_CASE("prefab-spawn: a spawn by reference spawns the prefab it is bound to, or binds it at once")
+{
+    PrefabDatabase db;
+    SpawnScene s;
+    s.spawner->SetSource(db.resources.Get());
+    foundation::resource::Ref<PrefabResource> unbound;
+    unbound.SetId(db.turret);
+    const EntityHandle first = s.spawner->Spawn(unbound, Float3{0.0f, 0.0f, 0.0f});
+    REQUIRE(first.IsAssigned()); // not bound yet: bound at once
+    CHECK(s.ammo->Get(first)->rounds == 30);
+    foundation::resource::Ref<PrefabResource> bound;
+    bound.SetId(db.turret);
+    bound.Bind(*db.resources);
+    REQUIRE(bound);
+    const EntityHandle second = s.spawner->Spawn(bound, Float3{1.0f, 0.0f, 0.0f});
+    REQUIRE(second.IsAssigned());
+    CHECK(s.scene.GetChildCount(second) == 1u);
+}
+
+TEST_CASE("prefab-spawn: a spawn reads the loaded prefab: a rewrite reaches it only through a reload, and an evicted one is refused")
+{
+    PrefabDatabase db;
+    SpawnScene s;
+    s.spawner->SetSource(db.resources.Get());
+    const EntityHandle before = s.spawner->Spawn(db.turret, Float3{0.0f, 0.0f, 0.0f});
+    REQUIRE(before.IsAssigned());
+    CHECK(s.ammo->Get(before)->rounds == 30);
+
+    // Rewritten on disk: spawns keep the loaded prefab until it reloads.
+    {
+        Scene author(DefaultAllocator(), u8"author");
+        auto* ammo = author.AddSystem<AmmoManager>();
+        const EntityHandle root = author.CreateEntity(u8"Turret");
+        ammo->Add(root).rounds = 45;
+        MemoryStream payload;
+        REQUIRE(CapturePrefab(author, root, payload).IsOk());
+        REQUIRE(db.db->GetInstance(db.turret)->WriteData(u8"scene", payload.Bytes()).IsOk());
+    }
+    const EntityHandle stale = s.spawner->Spawn(db.turret, Float3{0.0f, 0.0f, 0.0f});
+    REQUIRE(stale.IsAssigned());
+    CHECK(s.ammo->Get(stale)->rounds == 30);
+    REQUIRE(db.resources->Reload(db.turret));
+    const EntityHandle fresh = s.spawner->Spawn(db.turret, Float3{0.0f, 0.0f, 0.0f});
+    REQUIRE(fresh.IsAssigned());
+    CHECK(s.ammo->Get(fresh)->rounds == 45);
+
+    // Deleted and evicted: refused, not served from memory.
+    REQUIRE(db.db->DeleteInstance(db.turret).IsOk());
+    db.resources->Evict(db.turret);
+    const usize count = s.scene.EntityCount();
+    CHECK_FALSE(s.spawner->Spawn(db.turret, Float3{0.0f, 0.0f, 0.0f}).IsAssigned());
+    CHECK(s.scene.EntityCount() == count); // nothing half spawned
 }

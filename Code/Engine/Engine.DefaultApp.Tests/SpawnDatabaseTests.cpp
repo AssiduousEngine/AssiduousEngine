@@ -16,6 +16,11 @@ import foundation.vfs;
 import foundation.content;
 import foundation.scene;
 import foundation.scene.resource;
+import foundation.resource;
+import foundation.runtime;
+import foundation.runtime.client;
+import foundation.shell;
+import foundation.graphics;
 import engine.defaultapp;
 
 using namespace foundation::core;
@@ -24,6 +29,31 @@ namespace content = foundation::content;
 
 namespace
 {
+    // Headless host stub: no shell, no graphics, no windows.
+    class StubHost final : public foundation::runtime::IApplicationHost
+    {
+    public:
+        foundation::runtime::SubsystemManager& Subsystems() noexcept override { return m_context; }
+        foundation::shell::IShell* Shell() noexcept override { return nullptr; }
+        foundation::graphics::GraphicsDevice* Graphics() noexcept override { return nullptr; }
+        TaskPool& Tasks() noexcept override
+        {
+            static TaskPool tasks(DefaultAllocator(), 0u);
+            return tasks;
+        }
+        foundation::graphics::RenderWindow* MainRenderWindow() noexcept override { return nullptr; }
+        foundation::graphics::RenderWindow* OpenWindow(const foundation::shell::WindowSettings&,
+                                                       const foundation::graphics::RenderWindowDesc&) override
+        {
+            return nullptr;
+        }
+        void CloseWindow(foundation::graphics::RenderWindow*) override {}
+        void RequestExit(int) override {}
+
+    private:
+        foundation::runtime::SubsystemManager m_context{DefaultAllocator()};
+    };
+
     // A database of its own under the build tree.
     struct Database
     {
@@ -64,16 +94,22 @@ namespace
     };
 }
 
-TEST_CASE("defaultapp: a scene spawns from the database scenes load from, not the cooked one")
+TEST_CASE("defaultapp: a scene spawns through the app's resources: a project folder's prefab from its sources beneath the cooked")
 {
     Database cooked(u8"scratch_defaultapp_spawn_cooked");
     Database sources(u8"scratch_defaultapp_spawn_sources");
     const Guid crate = sources.StoreCrate();
 
+    // A game run from its project folder: its resources read the cooked products over the
+    // sources, and its scenes load from the sources.
+    foundation::content::LayeredContentDatabase view(*cooked.db, sources.db.Get());
+    foundation::resource::ResourceManager resources(DefaultAllocator(), view);
+    view.SetFallthrough([&resources](StringView ns, StringView name) { return resources.ReadsAuthoredRecord(ns, name); });
+    StubHost host;
     engine::runtime::DefaultApplication app;
-    app.SetContentDatabase(cooked.db.Get());
     app.SetSceneDatabase(sources.db.Get());
-    CHECK(app.SceneDatabase() == sources.db.Get()); // where a script's loadScene resolves too
+    app.AttachResourceManager(&resources, host); // the standard factories, the prefabs' among them
+    CHECK(app.SceneDatabase() == sources.db.Get()); // where a script's loadScene resolves
 
     scene::Scene level(DefaultAllocator(), u8"level");
     scene::PrefabSpawnSystem& spawner = *level.AddSystem<scene::PrefabSpawnSystem>();
@@ -84,21 +120,28 @@ TEST_CASE("defaultapp: a scene spawns from the database scenes load from, not th
     CHECK(level.GetLocalTransform(root).position.y == doctest::Approx(2.0f));
 
     // A replicated spawn resolves there as well.
-    CHECK(engine::runtime::DefaultApplication::ResolveNetworkPrefab(app.SceneDatabase(), nullptr, level, crate).IsAssigned());
+    CHECK(engine::runtime::DefaultApplication::ResolveNetworkPrefab(app.Resources(), level, crate).IsAssigned());
+
+    app.AttachResourceManager(nullptr, host);
+    view.SetFallthrough({});
 }
 
 TEST_CASE("defaultapp: with one database a scene spawns from it")
 {
     // The editor and an exported game name one database, the content one, which holds the
-    // prefabs: the scene database falls back to it.
+    // prefabs: the scene database falls back to it, and the resources read it.
     Database content(u8"scratch_defaultapp_spawn_one");
     const Guid crate = content.StoreCrate();
+    foundation::resource::ResourceManager resources(DefaultAllocator(), *content.db);
+    StubHost host;
     engine::runtime::DefaultApplication app;
     app.SetContentDatabase(content.db.Get());
+    app.AttachResourceManager(&resources, host);
     CHECK(app.SceneDatabase() == content.db.Get());
 
     scene::Scene level(DefaultAllocator(), u8"level");
     scene::PrefabSpawnSystem& spawner = *level.AddSystem<scene::PrefabSpawnSystem>();
     app.OnSystemsReady(level);
     CHECK(spawner.Spawn(crate, Float3{0.0f, 0.0f, 0.0f}).IsAssigned());
+    app.AttachResourceManager(nullptr, host);
 }

@@ -873,49 +873,71 @@ export namespace foundation::scene
     void ResolveEntityResources(Scene& scene, EntityHandle root,
                                 foundation::resource::ResourceManager& resources);
 
-    /// Spawns prefabs into its scene at runtime, by id: what a script's `scene.spawn` and the
-    /// replicated-spawn resolver reach. The scene knows nothing of content, so this is where
-    /// the content database and the resource manager meet it: the host that owns them points a
-    /// scene's system at them once the scene is composed (DefaultApplication does it at
+    class PrefabResource;
+    class PrefabPayloads;
+
+    /// Spawns prefabs into its scene at runtime, by id or by reference: what a script's
+    /// `scene.spawn` and the replicated-spawn resolver reach. The scene knows nothing of content,
+    /// so this is where the resource manager meets it: the host that owns the manager points a
+    /// scene's system at it once the scene is composed (DefaultApplication does it at
     /// SystemsReady); a scene with no source spawns nothing and says so with an invalid handle.
     ///
-    /// One recipe for every runtime spawn: read the payload, spawn it with the database
-    /// resolving what it nests, place the root, bind the spawned subtree (only it). The instance
-    /// is recorded on the scene like any other, so a saved scene restores it.
+    /// A prefab spawns from its loaded form (PrefabResource), bound through the manager: the file
+    /// is read once, when the prefab first loads, and a change to it reaches a spawn only through
+    /// a reload of that prefab (the editor reloads it when it is saved or changed on disk, and
+    /// evicts it when it is deleted). Two spawns of one prefab may therefore differ across a
+    /// reload.
+    ///
+    /// One recipe for every runtime spawn, the network's included: open the loaded prefab's
+    /// payload, spawn it with the prefabs it nests resolved through the manager, place the root,
+    /// bind the spawned subtree (only it). The instance is recorded on the scene like any other,
+    /// so a saved scene restores it.
     class PrefabSpawnSystem final : public SceneSystem
     {
     public:
         void OnSceneCreate(Scene& scene) override { m_scene = &scene; }
 
-        /// The database the prefabs come from and the manager their resources bind through.
-        /// Both borrowed; either may be null: no database spawns nothing, no manager leaves the
-        /// subtree unbound until a later resolve pass.
-        void SetSource(foundation::content::IContentDatabase* database,
-                       foundation::resource::ResourceManager* resources) noexcept
-        {
-            m_database = database;
-            m_resources = resources;
-        }
-        [[nodiscard]] bool HasSource() const noexcept { return m_database != nullptr; }
+        /// The manager the prefabs load through and their subtrees' resources bind through
+        /// (borrowed); null spawns nothing. It needs the prefab factory (PrefabFactory) and a
+        /// database holding the prefabs.
+        void SetSource(foundation::resource::ResourceManager* resources) noexcept { m_resources = resources; }
+        [[nodiscard]] bool HasSource() const noexcept { return m_resources != nullptr; }
 
         /// Spawns the prefab under `parent` (invalid = a scene root), its root placed at
-        /// `position` / `rotation` in the parent's space. Invalid when the prefab is unknown,
-        /// the payload is unreadable, or there is no source; never a partial spawn.
+        /// `position` / `rotation` in the parent's space. A prefab not loaded yet is loaded now,
+        /// synchronously, so the spawn is never a frame late. Invalid when the prefab is unknown,
+        /// deleted, its payload unreadable, or there is no source; never a partial spawn.
         [[nodiscard]] EntityHandle Spawn(const Guid& prefab, const Float3& position,
                                          const Quaternion& rotation = Quaternion::Identity,
                                          EntityHandle parent = EntityHandle::Invalid());
 
-        /// The recipe as a function of what it needs, so a host without a scene system in hand
-        /// (the replicated-spawn resolver) runs the same one.
-        [[nodiscard]] static EntityHandle SpawnInto(Scene& scene,
-                                                    foundation::content::IContentDatabase* database,
-                                                    foundation::resource::ResourceManager* resources,
-                                                    const Guid& prefab,
+        /// Spawns the prefab a reference names, as Spawn by id does: from the prefab it is bound
+        /// to, or, when it is not bound yet (or its load is still in flight), bound through the
+        /// manager at once.
+        [[nodiscard]] EntityHandle Spawn(const foundation::resource::Ref<PrefabResource>& prefab, const Float3& position,
+                                         const Quaternion& rotation = Quaternion::Identity,
+                                         EntityHandle parent = EntityHandle::Invalid());
+
+        /// The recipe by id, as a function of what it needs, so a host without a scene system in
+        /// hand (the replicated-spawn resolver) runs the same one. The prefab is bound through the
+        /// manager when it is not yet, synchronously: a replicated spawn must produce its entity in
+        /// the frame its message arrives. A prefab that does not load (unknown, deleted, evicted)
+        /// is refused with the manager's warning.
+        [[nodiscard]] static EntityHandle SpawnInto(Scene& scene, foundation::resource::ResourceManager* resources,
+                                                    const Guid& prefab, EntityHandle parent = EntityHandle::Invalid());
+
+        /// The recipe: `prefab`'s payload spawned under `parent`, the prefabs it nests resolved
+        /// through `payloads` (scoped to this spawn, so one nesting itself is refused), then the
+        /// subtree's resources bound. Invalid when `prefab` is null or its payload unreadable.
+        [[nodiscard]] static EntityHandle SpawnInto(Scene& scene, foundation::resource::ResourceManager& resources,
+                                                    PrefabPayloads& payloads, PrefabResource* prefab,
                                                     EntityHandle parent = EntityHandle::Invalid());
 
     private:
-        Scene* m_scene = nullptr;                                   // borrowed: the scene outlives its systems
-        foundation::content::IContentDatabase* m_database = nullptr; // borrowed from the host
+        // The spawned root at its place; invalid stays invalid.
+        [[nodiscard]] EntityHandle Place(EntityHandle root, const Float3& position, const Quaternion& rotation);
+
+        Scene* m_scene = nullptr;                                     // borrowed: the scene outlives its systems
         foundation::resource::ResourceManager* m_resources = nullptr; // borrowed from the host
     };
 
@@ -1664,9 +1686,15 @@ export namespace foundation::scene
         /// prefab does not load, is open already (it nests itself), or the open chain is kMaxDepth
         /// deep.
         [[nodiscard]] UniquePtr<IStream> Open(const Guid& prefabId);
+        /// The payload of a prefab already loaded (a bound reference's), opened as Open does, so
+        /// what it nests resolves through Resolver with it counted open. Null as Open's is.
+        [[nodiscard]] UniquePtr<IStream> Open(PrefabResource* prefab);
 
     private:
         friend class PrefabPayloadStream;
+        // False, with a warning, when the prefab is open already or the open chain is full.
+        [[nodiscard]] bool MayOpen(const Guid& prefabId) const;
+        [[nodiscard]] UniquePtr<IStream> OpenLoaded(PrefabResource& prefab);
         // A stream Open handed out was destroyed: its spawn is done with the prefab.
         void Closed(const Guid& prefabId);
 

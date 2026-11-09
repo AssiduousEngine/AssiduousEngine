@@ -740,7 +740,27 @@ namespace foundation::scene
         {
             return EntityHandle::Invalid();
         }
-        const EntityHandle root = SpawnInto(*m_scene, m_database, m_resources, prefab, parent);
+        return Place(SpawnInto(*m_scene, m_resources, prefab, parent), position, rotation);
+    }
+
+    EntityHandle PrefabSpawnSystem::Spawn(const foundation::resource::Ref<PrefabResource>& prefab, const Float3& position,
+                                          const Quaternion& rotation, EntityHandle parent)
+    {
+        if (m_scene == nullptr || m_resources == nullptr)
+        {
+            return EntityHandle::Invalid();
+        }
+        PrefabPayloads payloads(m_resources);
+        PrefabResource* loaded = prefab.Get();
+        if (loaded == nullptr)
+        {
+            loaded = payloads.Load(prefab.id);
+        }
+        return Place(SpawnInto(*m_scene, *m_resources, payloads, loaded, parent), position, rotation);
+    }
+
+    EntityHandle PrefabSpawnSystem::Place(EntityHandle root, const Float3& position, const Quaternion& rotation)
+    {
         if (!root.IsAssigned())
         {
             return EntityHandle::Invalid();
@@ -752,39 +772,36 @@ namespace foundation::scene
         return root;
     }
 
-    EntityHandle PrefabSpawnSystem::SpawnInto(Scene& scene,
-                                              foundation::content::IContentDatabase* database,
-                                              foundation::resource::ResourceManager* resources,
+    EntityHandle PrefabSpawnSystem::SpawnInto(Scene& scene, foundation::resource::ResourceManager* resources,
                                               const Guid& prefab, EntityHandle parent)
     {
-        if (database == nullptr || prefab.IsNil())
+        if (resources == nullptr || prefab.IsNil())
         {
             return EntityHandle::Invalid();
         }
-        foundation::content::Instance* instance = database->GetInstance(prefab);
-        if (instance == nullptr)
+        PrefabPayloads payloads(resources);
+        return SpawnInto(scene, *resources, payloads, payloads.Load(prefab), parent);
+    }
+
+    EntityHandle PrefabSpawnSystem::SpawnInto(Scene& scene, foundation::resource::ResourceManager& resources,
+                                              PrefabPayloads& payloads, PrefabResource* prefab, EntityHandle parent)
+    {
+        if (prefab == nullptr)
         {
             return EntityHandle::Invalid();
         }
-        UniquePtr<IStream> payload = instance->ReadData(u8"scene");
+        // It stays open, for the nesting check, while it spawns.
+        UniquePtr<IStream> payload = payloads.Open(prefab);
         if (!payload)
         {
             return EntityHandle::Invalid();
         }
-        // The prefabs this one nests come from the same database; without a resolver their
-        // records would be skipped and the instance would arrive missing its children.
-        const PrefabPayloadResolver resolver{[database](const Guid& id) -> UniquePtr<IStream>
-                                             {
-                                                 foundation::content::Instance* nested =
-                                                     database->GetInstance(id);
-                                                 return nested != nullptr ? nested->ReadData(u8"scene")
-                                                                          : UniquePtr<IStream>{};
-                                             }};
-        const EntityHandle root = SpawnPrefab(scene, *payload, prefab, parent, nullptr, &resolver);
+        const EntityHandle root = SpawnPrefab(scene, *payload, prefab->Id(), parent, nullptr, &payloads.Resolver());
+        payload.Reset();
         // The subtree names its resources by id and nothing has bound them yet.
-        if (root.IsAssigned() && resources != nullptr)
+        if (root.IsAssigned())
         {
-            foundation::scene::ResolveEntityResources(scene, root, *resources);
+            foundation::scene::ResolveEntityResources(scene, root, resources);
         }
         return root;
     }
@@ -2174,17 +2191,8 @@ namespace foundation::scene
 
     UniquePtr<IStream> PrefabPayloads::Open(const Guid& prefabId)
     {
-        for (const Guid& open : m_open)
+        if (!MayOpen(prefabId))
         {
-            if (open == prefabId)
-            {
-                LOG_WARNING(u8"Scene", u8"PrefabPayloads: a prefab nests itself; its nested instance was refused");
-                return UniquePtr<IStream>{};
-            }
-        }
-        if (m_open.Size() >= kMaxDepth)
-        {
-            LOG_WARNING(u8"Scene", u8"PrefabPayloads: a prefab is nested deeper than {}; refused", kMaxDepth);
             return UniquePtr<IStream>{};
         }
         PrefabResource* prefab = Load(prefabId);
@@ -2192,11 +2200,43 @@ namespace foundation::scene
         {
             return UniquePtr<IStream>{};
         }
-        UniquePtr<IStream> stream = prefab->OpenPayload();
+        return OpenLoaded(*prefab);
+    }
+
+    UniquePtr<IStream> PrefabPayloads::Open(PrefabResource* prefab)
+    {
+        if (prefab == nullptr || !MayOpen(prefab->Id()))
+        {
+            return UniquePtr<IStream>{};
+        }
+        return OpenLoaded(*prefab);
+    }
+
+    bool PrefabPayloads::MayOpen(const Guid& prefabId) const
+    {
+        for (const Guid& open : m_open)
+        {
+            if (open == prefabId)
+            {
+                LOG_WARNING(u8"Scene", u8"PrefabPayloads: a prefab nests itself; its nested instance was refused");
+                return false;
+            }
+        }
+        if (m_open.Size() >= kMaxDepth)
+        {
+            LOG_WARNING(u8"Scene", u8"PrefabPayloads: a prefab is nested deeper than {}; refused", kMaxDepth);
+            return false;
+        }
+        return true;
+    }
+
+    UniquePtr<IStream> PrefabPayloads::OpenLoaded(PrefabResource& prefab)
+    {
+        UniquePtr<IStream> stream = prefab.OpenPayload();
         PrefabPayloadStream* payload = static_cast<PrefabPayloadStream*>(stream.Get());
         payload->m_openIn = this;
-        payload->m_prefabId = prefabId;
-        m_open.PushBack(prefabId);
+        payload->m_prefabId = prefab.Id();
+        m_open.PushBack(prefab.Id());
         return stream;
     }
 
