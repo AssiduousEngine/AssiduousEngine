@@ -8,8 +8,7 @@
 
 module;
 #include "Core/Prelude.h"
-#include <chrono>
-#include <random>
+#include <initializer_list>
 
 module foundation.content;
 
@@ -47,13 +46,7 @@ namespace foundation::content
           m_serializables(&serializables), m_types(&types), m_allGroups(allocator),
           m_allInstances(allocator)
     {
-        std::random_device entropy;
-        const u64 seed =
-            (static_cast<u64>(entropy()) << 32) ^ static_cast<u64>(entropy()) ^
-            static_cast<u64>(std::chrono::steady_clock::now().time_since_epoch().count());
-        const u64 sequence = (static_cast<u64>(entropy()) << 32) ^ static_cast<u64>(entropy()) ^
-                             reinterpret_cast<u64>(this);
-        m_rng = Random(seed, sequence);
+        m_rng = Random::FromSystemEntropy(); // asset ids made in two places never meet
         m_root = NewGroup(nullptr, u8"");
         Scan(*m_root, u8"");
     }

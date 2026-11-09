@@ -998,9 +998,16 @@ TEST_CASE("prefab: apply-as-template keeps the template root transform, not the 
 namespace
 {
     // Author the inner template: root "Wheel" (health 10) and child "Hub" (health 5).
+    // A prefab edited keeps its entities' ids (its page loads and saves the same entities). These
+    // tests author a template again from scratch to stand for an edit, so its scenes mint the same
+    // sequence: seeded alike (a fresh scene's ids are otherwise its own).
+    constexpr u64 kInnerAuthoring = 0x1a2b3c4d;
+    constexpr u64 kOuterAuthoring = 0x5e6f7081;
+
     Array<byte> AuthorInnerTemplate()
     {
         Scene author(DefaultAllocator(), u8"author");
+        author.SeedIds(kInnerAuthoring);
         HealthManager* health = author.AddSystem<HealthManager>();
         EntityHandle wheel = author.CreateEntity(u8"Wheel");
         EntityHandle hub = author.CreateEntity(u8"Hub");
@@ -1208,6 +1215,7 @@ TEST_CASE("prefab: inner-template edits propagate THROUGH the outer instance")
     Array<byte> innerV2;
     {
         Scene author(DefaultAllocator(), u8"author");
+        author.SeedIds(kInnerAuthoring); // the same prefab edited: its entities keep their ids
         HealthManager* health = author.AddSystem<HealthManager>();
         EntityHandle wheel = author.CreateEntity(u8"Wheel");
         EntityHandle hub = author.CreateEntity(u8"Hub");
@@ -1498,6 +1506,7 @@ TEST_CASE("prefab: un-overridden nested placement follows the outer template")
     auto authorOuter = [&](const Transform& wheelPlacement)
     {
         Scene edit(DefaultAllocator(), u8"Outer");
+        edit.SeedIds(kOuterAuthoring); // each version the same prefab, its entities keeping their ids
         edit.AddSystem<HealthManager>();
         EntityHandle body = edit.CreateEntity(u8"Body");
         MemoryStream innerStream;

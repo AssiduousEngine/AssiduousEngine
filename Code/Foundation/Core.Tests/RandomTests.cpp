@@ -49,3 +49,12 @@ TEST_CASE("random: ranges are respected")
         CHECK(n <= 20);
     }
 }
+
+TEST_CASE("random: FromSystemEntropy gives each generator its own sequence")
+{
+    Random a = Random::FromSystemEntropy();
+    Random b = Random::FromSystemEntropy();
+    // Two 64-bit draws from two generators meeting would be a 1 in 2^64 chance each.
+    CHECK(a.NextU64() != b.NextU64());
+    CHECK(a.NextU64() != b.NextU64());
+}

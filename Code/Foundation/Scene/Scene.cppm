@@ -55,6 +55,11 @@ export namespace foundation::scene
         [[nodiscard]] StringView Name() const noexcept { return m_name.AsView(); }
         void SetName(StringView name) { m_name = String(name); }
 
+        // The ids CreateEntity mints come from a generator seeded from the OS's entropy, so they
+        // differ from scene to scene and run to run. This makes them the same sequence every time
+        // for `seed`: a test pinning ids, a replay, a level generated from a seed.
+        void SeedIds(u64 seed) noexcept { m_rng = Random(seed); }
+
         // This scene instance, unique for the process (never reused, unlike its address): what
         // tells the renderer a view now shows another scene, so a pass that eases from last
         // frame (auto exposure) starts over instead of carrying the old scene's state in.
@@ -600,7 +605,10 @@ export namespace foundation::scene
         Array<u32> m_transformsUpdatedThisFrame;
         EntityHandle m_firstRoot = EntityHandle::Invalid();
         EntityHandle m_lastRoot = EntityHandle::Invalid();
-        Random m_rng;
+        // Mints entity ids. Seeded from the OS's entropy, so two edits of one scene (two branches,
+        // two people) never mint the same id for entities they each add, and a merge never puts
+        // one id on two entities; SeedIds pins the sequence where it must repeat.
+        Random m_rng = Random::FromSystemEntropy();
         Array<UniquePtr<PrefabInstanceState>> m_prefabInstances;
         Array<UniquePtr<PendingPrefabInstance>> m_pendingPrefabs;
         u32 m_aliveCount = 0;

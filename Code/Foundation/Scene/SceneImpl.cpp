@@ -22,9 +22,9 @@ namespace foundation::scene
 {
     EntityHandle Scene::CreateEntity(StringView name)
     {
-        // The RNG is deterministic and loading a scene does not advance it past the loaded
-        // entities, so a fresh id can reproduce a loaded one: re-roll until free (the content
-        // DB re-rolls the same collision; entities sharing a guid corrupt saves).
+        // An id already in the scene is rolled again: the generator is not advanced past the
+        // entities a load brings in, and a scene seeded with SeedIds repeats its sequence
+        // (entities sharing a guid corrupt saves).
         Guid id = Guid::Generate(m_rng);
         while (FindEntity(id).IsAssigned())
         {

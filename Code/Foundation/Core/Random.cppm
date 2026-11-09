@@ -4,6 +4,7 @@
 module;
 #include "Core/Prelude.h"
 #include "Core/Debug/Assert.h"
+#include "Core/System/SystemBackend.h" // sys::FillEntropy, sys::GetTicks (FromSystemEntropy)
 
 export module foundation.core:random;
 
@@ -17,6 +18,24 @@ export namespace foundation::core
     class Random
     {
     public:
+        /// A generator no other process or run shares: seeded from the OS's entropy, so two
+        /// that mint ids (two branches adding to one scene, two editors making assets) do not
+        /// mint the same ones. Construct with a seed instead where a sequence must repeat (a
+        /// test pinning ids, a replay). Should the OS refuse entropy, the clock and a
+        /// process-wide count seed it, which still differ from run to run and generator to
+        /// generator.
+        [[nodiscard]] static Random FromSystemEntropy() noexcept
+        {
+            u64 words[2];
+            if (!sys::FillEntropy(words, sizeof(words)))
+            {
+                static u64 s_fallbacks = 0;
+                words[0] = sys::GetTicks() ^ 0x9e3779b97f4a7c15ull;
+                words[1] = static_cast<u64>(sys::GetUnixTime()) + (++s_fallbacks) * 0xbf58476d1ce4e5b9ull;
+            }
+            return Random(words[0], words[1]);
+        }
+
         explicit Random(u64 seed = 0x853c49e6748fea9bull,
                         u64 sequence = 0xda3e39cb94b95bdbull) noexcept
         {

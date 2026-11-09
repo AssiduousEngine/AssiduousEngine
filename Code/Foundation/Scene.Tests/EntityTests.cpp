@@ -388,3 +388,24 @@ TEST_CASE("entity ref: reflected by its id, so tooling finds what it names by pr
     const void* at = id->address(foundation::core::Instance(&ref, &type));
     CHECK(*static_cast<const foundation::core::Guid*>(at) == ref.id);
 }
+
+TEST_CASE("Scene: two scenes mint different entity ids, unless seeded alike")
+{
+    // Two edits of one scene (two branches) each adding an entity: their ids must not meet, or a
+    // merge puts one id on two entities.
+    Scene first(DefaultAllocator(), u8"first");
+    Scene second(DefaultAllocator(), u8"second");
+    const EntityHandle a = first.CreateEntity(u8"a");
+    const EntityHandle b = second.CreateEntity(u8"b");
+    CHECK(first.GetEntityId(a) != second.GetEntityId(b));
+
+    // Seeded alike, they mint the same sequence: a test pinning ids, a replay.
+    Scene seededOne(DefaultAllocator(), u8"one");
+    Scene seededTwo(DefaultAllocator(), u8"two");
+    seededOne.SeedIds(42);
+    seededTwo.SeedIds(42);
+    const EntityHandle x = seededOne.CreateEntity(u8"x");
+    const EntityHandle y = seededTwo.CreateEntity(u8"y");
+    CHECK(seededOne.GetEntityId(x) == seededTwo.GetEntityId(y));
+    CHECK(seededOne.GetEntityId(seededOne.CreateEntity(u8"x2")) == seededTwo.GetEntityId(seededTwo.CreateEntity(u8"y2")));
+}

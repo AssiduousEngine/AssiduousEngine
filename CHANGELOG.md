@@ -31,6 +31,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Scenes: entities added to one scene in two places (two branches, two people) no longer get the
+  same id, which a merge would have put on two entities in one file: each scene's ids now come from
+  a generator seeded from the system's entropy, as assets' already did.
 - MCP: `scene_write` and `prefab_write` given a `name` already taken in its group refuse instead of
   writing over the asset that holds it (a GUI document's record once became a prefab's this way).
 - Physics: a destroyed entity, or a removed rigid body, character or joint, no longer leaves its
