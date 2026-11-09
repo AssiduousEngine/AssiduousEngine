@@ -64,7 +64,10 @@ namespace
     // var() declaration (borders, colours, spacing) would be dropped.
     struct EditorSheet
     {
-        editor::EditorResources resources{DefaultAllocator(), PathJoin(StringView(reinterpret_cast<const char8_t*>(RAPTOR_SOURCE_DIR)), u8"Data").AsView()};
+        // Watching Editor/ alone, as the editor does: watching all of Data/ would snapshot every
+        // file under it (the sample projects' build output included) for each test.
+        editor::EditorResources resources{DefaultAllocator(), PathJoin(StringView(reinterpret_cast<const char8_t*>(RAPTOR_SOURCE_DIR)), u8"Data").AsView(),
+                                          u8"Editor"};
         gui::StyleManager styles;
         EditorSheet()
         {
