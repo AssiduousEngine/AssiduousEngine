@@ -182,6 +182,13 @@ export namespace editor
             m_contentWrites.Clear();
         }
 
+        /// What the editor's resources read: the cooked products first, and beneath them the
+        /// sources, for the authored records the cook never builds (a prefab). It lives with the
+        /// two databases it borrows. Nothing falls through until a resource manager gives it its
+        /// predicate (LayeredContentDatabase::SetFallthrough), and whoever gives it clears it
+        /// before that manager goes.
+        [[nodiscard]] foundation::content::LayeredContentDatabase& ResourceDb() noexcept { return *m_resourceDb; }
+
         /// The cooked output database (binary envelopes), which the runtime loads.
         [[nodiscard]] foundation::content::ContentDatabase& CookedDb() noexcept
         {
@@ -244,7 +251,8 @@ export namespace editor
                   foundation::xml::XmlSerializerFactory(), kSourceAssetExtension)),
               m_cookedDb(MakeUnique<foundation::content::ContentDatabase>(
                   (*m_allocator), (*m_allocator), *m_cookedMount,
-                  BinarySerializerFactory(), kCookedAssetExtension))
+                  BinarySerializerFactory(), kCookedAssetExtension)),
+              m_resourceDb(MakeUnique<foundation::content::LayeredContentDatabase>((*m_allocator), *m_cookedDb, m_sourceDb.Get()))
         {
             // The manifest's one copy (ISerializable deletes copy and move) goes through its
             // Serialize body, so no field can be left behind.
@@ -300,6 +308,7 @@ export namespace editor
         UniquePtr<vfs::NativeFileSystem> m_cookedMount;
         UniquePtr<foundation::content::ContentDatabase> m_sourceDb;
         UniquePtr<foundation::content::ContentDatabase> m_cookedDb;
+        UniquePtr<foundation::content::LayeredContentDatabase> m_resourceDb; // the cooked over the sources (ResourceDb)
         // The paths written through the Content/ mount while a watcher listens
         // (RecordContentWrites), from whichever thread wrote, until it takes them.
         Mutex m_contentWritesMutex;

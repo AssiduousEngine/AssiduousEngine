@@ -429,6 +429,13 @@ export namespace editor
         /// pages were told.
         usize NotifyAssetExternallyModified(const Guid& assetId);
 
+        /// The loaded resource of an authored record (a prefab) reads its record again, after a
+        /// write to it: a page's own save, or a change from outside. Its handle is rebuilt in
+        /// place, so what holds it sees the new content, and one that was evicted comes back. Only
+        /// an authored record's: a cooked product is reloaded when its cook finishes, and until
+        /// then it has not changed. Nothing without a resource manager or a loaded handle.
+        void ReloadAuthoredResource(const Guid& assetId);
+
         /// The source asset's file went OUTSIDE the editor (a pull, another tool) and the source
         /// database let its record go: every open page editing it is told
         /// (EditorPage::OnAssetDeleted) and stays open, marked unsaved, so its content can be

@@ -404,6 +404,9 @@ export namespace foundation::resource
         }
 
         [[nodiscard]] usize FactoryCount() const noexcept { return m_factories.Size(); }
+
+        /// Whether `id` has been bound (a handle exists, loaded or not).
+        [[nodiscard]] bool HasHandle(const Guid& id) const noexcept { return m_handles.Find(id) != nullptr; }
         /// Every registered factory, in no particular order (a tripwire, a schema join).
         template <typename Fn>
         void ForEachFactory(Fn&& fn) const

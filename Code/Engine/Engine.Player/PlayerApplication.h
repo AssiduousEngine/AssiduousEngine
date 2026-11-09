@@ -104,6 +104,10 @@ namespace engine::player
                 m_contentDb = MakeUnique<foundation::content::ContentDatabase>(
                     AppRoot(), AppRoot(), *m_cookedMount,
                     BinarySerializerFactory(), project::kCookedAssetExtension);
+                // What the resources read: the products over the sources, so the authored records a
+                // factory reads (a prefab, never cooked) come from the sources. Scenes are read from
+                // the sources directly, a scene never being loaded through a reference.
+                m_resourceDb = MakeUnique<foundation::content::LayeredContentDatabase>(AppRoot(), *m_contentDb, m_sourceDb.Get());
                 m_sceneDb = m_sourceDb.Get(); // authored scenes; products from the cooked DB
             }
             else
@@ -118,7 +122,10 @@ namespace engine::player
 
             // The app builds the resource manager and standard factories over this DB
             // (product types are registered there too: the infra preset).
-            SetContentDatabase(m_contentDb.Get());
+            if (m_resourceDb)
+                SetContentDatabase(*m_resourceDb);
+            else
+                SetContentDatabase(m_contentDb.Get());
             // Scenes and prefabs: a script's scene loads and spawns read them where the boot load
             // does (a project's sources; a dist's pak, the content database itself).
             SetSceneDatabase(m_sceneDb);
@@ -583,6 +590,9 @@ namespace engine::player
         UniquePtr<foundation::vfs::NativeFileSystem> m_cookedMount;
         UniquePtr<foundation::content::ContentDatabase> m_sourceDb;  // project mode: authored scenes
         UniquePtr<foundation::content::ContentDatabase> m_contentDb; // products (and dist scenes)
+        // Project mode: the products over the sources, what the resources read; a dist's pak holds
+        // everything, so it has none.
+        UniquePtr<foundation::content::LayeredContentDatabase> m_resourceDb;
         foundation::content::ContentDatabase* m_sceneDb = nullptr;   // where scenes come from
         scene::Scene* m_scene = nullptr;                           // owned by the SceneSubsystem
 

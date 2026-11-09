@@ -1,5 +1,5 @@
 add_executable(Engine.DefaultApp.Tests TestsMain.cpp StandardFactoriesTests.cpp FacadeSurfaceTests.cpp NetworkSpawnTests.cpp
-    ProfilerOverlayHostTests.cpp SpawnDatabaseTests.cpp)
+    ProfilerOverlayHostTests.cpp SpawnDatabaseTests.cpp ProjectFolderResourcesTests.cpp)
 target_link_libraries(Engine.DefaultApp.Tests PRIVATE Engine::DefaultApp Engine::Composition
     Foundation::Script.Facades
     Foundation::Fonts.Resource Foundation::Texture.Resource Foundation::Content

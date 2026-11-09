@@ -196,6 +196,11 @@ export namespace engine::runtime
                                    IApplicationHost& host);
         /// The cooked-content database the app should build its own manager over (player).
         void SetContentDatabase(foundation::content::IContentDatabase* database) noexcept;
+        /// The same, over a layered view (a game run from its project folder: its cooked products
+        /// over its sources): the manager this application makes over it gives the view its
+        /// predicate while it lives, so the authored records its factories read (a prefab) come
+        /// from beneath, and takes it back before it goes.
+        void SetContentDatabase(foundation::content::LayeredContentDatabase& view) noexcept;
         /// The database scenes load from: a script's loadScene and loadSceneAsync resolve their
         /// ids in it, and a spawn (a script's, a replicated one) reads its prefab there. A game run
         /// from its project folder names its sources here, as its content database is the cooked
@@ -310,6 +315,7 @@ export namespace engine::runtime
         foundation::resource::ResourceManager* m_borrowedResources = nullptr;
         foundation::content::IContentDatabase* m_contentDatabase = nullptr;
         foundation::content::IContentDatabase* m_sceneDatabase = nullptr; // null: the content database
+        foundation::content::LayeredContentDatabase* m_layeredContent = nullptr; // the content database, when it is a view
         core::UniquePtr<foundation::resource::ResourceManager> m_ownedResources;
         engine::input::InputSubsystem* m_input = nullptr;
         engine::gui::GuiSubsystem* m_gui = nullptr;

@@ -343,6 +343,8 @@ export namespace editor::app
                 m_services.embeddedApp->SetContentDatabase(nullptr); // the sources go with the project
             }
             context.SetResources(nullptr);
+            if (m_project)
+                m_project->ResourceDb().SetFallthrough({}); // the view's predicate asks the manager, which goes next
             m_resources.Reset();
             // The project's plugins after what may hold their types (the resources), before the project.
             context.SetPlugins(nullptr);
@@ -473,12 +475,18 @@ export namespace editor::app
             };
         }
 
-        // Attaches the project's resources over its cooked database to the embedded runtime (which
-        // registers the engine's factories into it), decoding on the editor's task pool.
+        // Attaches the project's resources to the embedded runtime (which registers the engine's
+        // factories into it), decoding on the editor's task pool. They read the project's cooked
+        // products and, beneath them, the authored records a factory here declares (a prefab), which
+        // only the sources hold: the manager answers which, from its factories at each lookup, and
+        // Close takes that answer back before the manager goes.
         void AttachResources()
         {
-            m_resources = MakeUnique<foundation::resource::ResourceManager>(m_allocator, m_allocator, m_project->CookedDb(),
+            foundation::content::LayeredContentDatabase& view = m_project->ResourceDb();
+            m_resources = MakeUnique<foundation::resource::ResourceManager>(m_allocator, m_allocator, view,
                                                                              &m_services.context->Tasks());
+            foundation::resource::ResourceManager* resources = m_resources.Get();
+            view.SetFallthrough([resources](StringView ns, StringView name) { return resources->ReadsAuthoredRecord(ns, name); });
             m_services.context->SetResources(m_resources.Get());
             if (m_services.embeddedApp != nullptr)
                 m_services.embeddedApp->AttachResourceManager(m_resources.Get(), *m_services.embeddedHost);

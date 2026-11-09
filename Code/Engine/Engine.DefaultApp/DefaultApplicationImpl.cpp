@@ -589,7 +589,14 @@ namespace engine::runtime
     DefaultApplication::SetContentDatabase(foundation::content::IContentDatabase* database) noexcept
     {
         m_contentDatabase = database;
+        m_layeredContent = nullptr;
         PointSpawnersAtScenes();
+    }
+
+    void DefaultApplication::SetContentDatabase(foundation::content::LayeredContentDatabase& view) noexcept
+    {
+        SetContentDatabase(static_cast<foundation::content::IContentDatabase*>(&view));
+        m_layeredContent = &view;
     }
 
     void
@@ -640,6 +647,12 @@ namespace engine::runtime
             // thread without holding the frame's workers.
             m_ownedResources = core::MakeUnique<foundation::resource::ResourceManager>(
                 core::DefaultAllocator(), core::DefaultAllocator(), *m_contentDatabase, &host.Tasks());
+            if (m_layeredContent != nullptr)
+            {
+                foundation::resource::ResourceManager* resources = m_ownedResources.Get();
+                m_layeredContent->SetFallthrough([resources](core::StringView ns, core::StringView name)
+                                                 { return resources->ReadsAuthoredRecord(ns, name); });
+            }
         }
         foundation::resource::ResourceManager* resources = Resources();
         PointSpawnersAtScenes(); // the manager exists now; scenes composed earlier learn of it
@@ -751,6 +764,10 @@ namespace engine::runtime
         if (auto* gfx = host.Graphics(); gfx != nullptr && gfx->Raw() != nullptr)
         {
             m_screenshot.Release(*gfx->Raw());
+        }
+        if (m_ownedResources && m_layeredContent != nullptr)
+        {
+            m_layeredContent->SetFallthrough({}); // the view's predicate asks the manager, which goes next
         }
         m_ownedResources = nullptr; // release products while the device is alive
         m_factories.Clear();        // and the factories (the texture factory holds the device)

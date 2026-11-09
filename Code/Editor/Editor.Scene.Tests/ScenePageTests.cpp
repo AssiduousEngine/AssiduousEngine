@@ -2226,3 +2226,36 @@ TEST_CASE("scene page: its own save is not taken for an outside change, so its h
     page->OnClose();
     bed.context.ClosePage(page);
 }
+
+// A prefab page's own save is not an outside change (the watcher skips it), so the page reloads the
+// loaded prefab itself: the next spawn of a running game is the saved one.
+TEST_CASE("scene page: a prefab page's save reloads its loaded prefab")
+{
+    Bed bed;
+    scene::RegisterSceneResourceTypes();
+    foundation::content::LayeredContentDatabase& view = bed.project->ResourceDb();
+    foundation::resource::ResourceManager resources(DefaultAllocator(), view);
+    scene::PrefabFactory factory(DefaultAllocator());
+    resources.AddFactory(&factory);
+    view.SetFallthrough([&resources](StringView ns, StringView name) { return resources.ReadsAuthoredRecord(ns, name); });
+    bed.context.SetResources(&resources);
+
+    UniquePtr<SceneEditorPage> page = bed.Open(*bed.barrel);
+    (void)page->EditContext().CreateEntity(u8"Hoop");
+    REQUIRE(page->Save().IsOk());
+    foundation::resource::Proxy<scene::PrefabResource> loaded = resources.Bind<scene::PrefabResource>(bed.barrel->Id());
+    REQUIRE(loaded);
+    const usize before = loaded->PayloadSize();
+
+    const scene::EntityHandle root = page->ScenePtr()->GetFirstRoot();
+    const scene::EntityHandle lid = page->ScenePtr()->FindEntity(page->EditContext().CreateEntity(u8"Lid with a long name"));
+    page->ScenePtr()->SetParent(lid, root);
+    page->MarkDirty();
+    REQUIRE(page->Save().IsOk());
+    REQUIRE(loaded);
+    CHECK(loaded->PayloadSize() != before); // read again: the saved prefab
+
+    page->OnClose();
+    bed.context.SetResources(nullptr);
+    view.SetFallthrough({});
+}

@@ -293,6 +293,7 @@ namespace editor
 
     usize EditorContext::NotifyAssetExternallyModified(const Guid& assetId)
     {
+        ReloadAuthoredResource(assetId); // a loaded prefab reads it again
         usize told = 0;
         for (const UniquePtr<EditorPage>& page : m_pages)
         {
@@ -315,6 +316,13 @@ namespace editor
         if (former != nullptr)
         {
             m_assetSelection.Remove(former);
+        }
+        // The loaded resource of an authored record (a prefab) is evicted, so a spawn of it is
+        // refused rather than served from memory, and a held reference reads unbound until the
+        // record comes back.
+        if (m_resources != nullptr && m_resources->ReadsAuthoredRecord(typeNamespace, typeName))
+        {
+            m_resources->Evict(assetId);
         }
         usize told = 0;
         for (const UniquePtr<EditorPage>& page : m_pages)
@@ -371,6 +379,19 @@ namespace editor
         {
             (void)NotifyAssetDeleted(record.id, record.path.AsView(), record.typeNamespace.AsView(),
                                      record.typeName.AsView(), record.former);
+        }
+    }
+
+    void EditorContext::ReloadAuthoredResource(const Guid& assetId)
+    {
+        if (m_resources == nullptr || !m_resources->HasHandle(assetId))
+        {
+            return;
+        }
+        const foundation::content::Instance* record = m_resources->Database().GetInstance(assetId);
+        if (record != nullptr && m_resources->ReadsAuthoredRecord(record->TypeNamespace(), record->TypeName()))
+        {
+            (void)m_resources->Reload(assetId);
         }
     }
 

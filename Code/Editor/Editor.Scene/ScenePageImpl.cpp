@@ -711,6 +711,11 @@ namespace editor
         // kept.
         if (isPrefab && m_prefabs)
             m_prefabs->RebuildOtherInstances(*instance);
+        // And the loaded prefab reads it again, so the next spawn of a running game is the saved
+        // one. A page's own save is not an outside change (the watcher skips it), so nothing else
+        // would tell it.
+        if (isPrefab)
+            m_context->ReloadAuthoredResource(InstanceId());
         return saved;
     }
 
