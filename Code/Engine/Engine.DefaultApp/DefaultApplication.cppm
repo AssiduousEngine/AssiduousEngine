@@ -196,6 +196,13 @@ export namespace engine::runtime
                                    IApplicationHost& host);
         /// The cooked-content database the app should build its own manager over (player).
         void SetContentDatabase(foundation::content::IContentDatabase* database) noexcept;
+        /// The database scenes load from: a script's loadScene and loadSceneAsync resolve their
+        /// ids in it, and a spawn (a script's, a replicated one) reads its prefab there. A game run
+        /// from its project folder names its sources here, as its content database is the cooked
+        /// one, which holds no scene or prefab. Unnamed, it is the content database (the editor,
+        /// an exported game: one database holds them all).
+        void SetSceneDatabase(foundation::content::IContentDatabase* database) noexcept;
+        [[nodiscard]] foundation::content::IContentDatabase* SceneDatabase() const noexcept;
         [[nodiscard]] foundation::resource::ResourceManager* Resources() const noexcept;
 
         // Registers the runtime product types and the standard resource factories into the
@@ -302,6 +309,7 @@ export namespace engine::runtime
         foundation::audio::AudioEngineSettings m_audioEngineSettings;
         foundation::resource::ResourceManager* m_borrowedResources = nullptr;
         foundation::content::IContentDatabase* m_contentDatabase = nullptr;
+        foundation::content::IContentDatabase* m_sceneDatabase = nullptr; // null: the content database
         core::UniquePtr<foundation::resource::ResourceManager> m_ownedResources;
         engine::input::InputSubsystem* m_input = nullptr;
         engine::gui::GuiSubsystem* m_gui = nullptr;
@@ -371,9 +379,10 @@ export namespace engine::runtime
         // dedicated launch (scripts go online via the Net facade instead).
         void ApplyNetworkStartup(GameInstance& instance);
 
-        /// Re-points every live scene's spawn system at the current content database and resource
-        /// manager: SetContentDatabase and the manager's creation can both land after scenes exist.
-        void PointSpawnersAtContent();
+        /// Re-points every live scene's spawn system at the database scenes load from (where the
+        /// prefabs are) and the resource manager: the databases and the manager's creation can
+        /// all land after scenes exist.
+        void PointSpawnersAtScenes();
 
         foundation::rhi::ScreenshotCapture m_screenshot;
         foundation::rhi::ScreenshotOptions m_screenshotOptions;

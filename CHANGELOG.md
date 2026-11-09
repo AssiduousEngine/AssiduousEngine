@@ -37,6 +37,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Player: a game run from its project folder spawns prefabs (a script's spawn, a replicated
+  spawn) and loads scenes from a script (`run.loadScene`, `run.loadSceneAsync`); both read the
+  cooked database, which holds no scene or prefab there, and found nothing.
 - GUI: a tween of a property code set on a node (a script's `node.opacity = 0`, then
   `node.tween("opacity", "1", ...)`) moves it; it did nothing before, as the property was code's
   and the style the tween went through left it alone. A game's fade of a panel it made did not show.

@@ -451,22 +451,23 @@ namespace engine::runtime
         gi.SetSceneActivationPolicy(core::Function<void(foundation::scene::Scene*)>{
             [self](foundation::scene::Scene* scene) { self->ApplyLoadedSceneActivation(scene); }});
 
-        // run.loadSceneAsync(id): resolve the cooked scene instance, kick an async load into this
-        // instance, and register it under a ticket. 0 means it could not start (bad id, no DB). The
-        // prefab provider reads a nested-prefab payload by guid, the same source the sync path uses.
+        // run.loadSceneAsync(id): resolve the scene instance in the database scenes load from, kick
+        // an async load into this instance, and register it under a ticket. 0 means it could not
+        // start (bad id, no DB). The prefab provider reads a nested-prefab payload by guid, the same
+        // source the sync path uses.
         gi.RunBinding().loadSceneAsync =
             core::Function<core::i32(const core::Guid&)>{[self, instance](const core::Guid& sceneId) -> core::i32
             {
-                if (self->m_contentDatabase == nullptr || self->Resources() == nullptr)
+                if (self->SceneDatabase() == nullptr || self->Resources() == nullptr)
                 {
                     return 0;
                 }
-                foundation::content::Instance* sceneInst = self->m_contentDatabase->GetInstance(sceneId);
+                foundation::content::Instance* sceneInst = self->SceneDatabase()->GetInstance(sceneId);
                 if (sceneInst == nullptr)
                 {
                     return 0;
                 }
-                foundation::content::IContentDatabase* db = self->m_contentDatabase;
+                foundation::content::IContentDatabase* db = self->SceneDatabase();
                 engine::runtime::SceneLoadHandle handle = instance->LoadSceneAsync(
                     *sceneInst, *self->Resources(),
                     core::Function<core::UniquePtr<core::IStream>(const core::Guid&)>{
@@ -492,16 +493,16 @@ namespace engine::runtime
         gi.RunBinding().loadScene =
             core::Function<bool(const core::Guid&)>{[self, instance](const core::Guid& sceneId) -> bool
             {
-                if (self->m_contentDatabase == nullptr || self->Resources() == nullptr)
+                if (self->SceneDatabase() == nullptr || self->Resources() == nullptr)
                 {
                     return false;
                 }
-                foundation::content::Instance* sceneInst = self->m_contentDatabase->GetInstance(sceneId);
+                foundation::content::Instance* sceneInst = self->SceneDatabase()->GetInstance(sceneId);
                 if (sceneInst == nullptr)
                 {
                     return false;
                 }
-                foundation::content::IContentDatabase* db = self->m_contentDatabase;
+                foundation::content::IContentDatabase* db = self->SceneDatabase();
                 foundation::scene::Scene* scene = instance->LoadScene(
                     *sceneInst, *self->Resources(),
                     core::Function<core::UniquePtr<core::IStream>(const core::Guid&)>{
@@ -588,18 +589,31 @@ namespace engine::runtime
     DefaultApplication::SetContentDatabase(foundation::content::IContentDatabase* database) noexcept
     {
         m_contentDatabase = database;
-        PointSpawnersAtContent();
+        PointSpawnersAtScenes();
     }
 
+    void
+    DefaultApplication::SetSceneDatabase(foundation::content::IContentDatabase* database) noexcept
+    {
+        m_sceneDatabase = database;
+        PointSpawnersAtScenes();
+    }
+
+    foundation::content::IContentDatabase* DefaultApplication::SceneDatabase() const noexcept
+    {
+        return m_sceneDatabase != nullptr ? m_sceneDatabase : m_contentDatabase;
+    }
+
+    // Every composed scene's spawn system reads its prefabs from the database scenes load from.
     void DefaultApplication::OnSystemsReady(foundation::scene::Scene& scene)
     {
         if (auto* spawner = scene.GetSystem<foundation::scene::PrefabSpawnSystem>())
         {
-            spawner->SetSource(m_contentDatabase, Resources());
+            spawner->SetSource(SceneDatabase(), Resources());
         }
     }
 
-    void DefaultApplication::PointSpawnersAtContent()
+    void DefaultApplication::PointSpawnersAtScenes()
     {
         ForEachInstance([this](GameInstance& gi)
                         { gi.Scenes().ForEachScene([this](foundation::scene::Scene& scene) { OnSystemsReady(scene); }); });
@@ -628,7 +642,7 @@ namespace engine::runtime
                 core::DefaultAllocator(), core::DefaultAllocator(), *m_contentDatabase, &host.Tasks());
         }
         foundation::resource::ResourceManager* resources = Resources();
-        PointSpawnersAtContent(); // the manager exists now; scenes composed earlier learn of it
+        PointSpawnersAtScenes(); // the manager exists now; scenes composed earlier learn of it
         if (m_gui != nullptr && m_profilerOverlayAtStart)
         {
             ProfilerOverlay().Show(*m_gui);
@@ -911,13 +925,13 @@ namespace engine::runtime
     net::StateReplication::SpawnHandler DefaultApplication::MakeSpawnResolver()
     {
         DefaultApplication* self = this;
-        // The resolver (content DB to a live prefab); the NetworkController applies it to each
-        // endpoint. The database and resources are read when invoked, not when wired, since the
-        // entry point hands the content database over after construction.
+        // The resolver (the scenes' database to a live prefab); the NetworkController applies it to
+        // each endpoint. The database and resources are read when invoked, not when wired, since
+        // the entry point hands the databases over after construction.
         return net::StateReplication::SpawnHandler{
             [self](foundation::scene::Scene& scene, const core::Guid& prefabId,
                    net::NetworkId) -> foundation::scene::EntityHandle
-            { return ResolveNetworkPrefab(self->m_contentDatabase, self->Resources(), scene, prefabId); }};
+            { return ResolveNetworkPrefab(self->SceneDatabase(), self->Resources(), scene, prefabId); }};
     }
 
     void DefaultApplication::ApplyNetworkStartup(GameInstance& instance)

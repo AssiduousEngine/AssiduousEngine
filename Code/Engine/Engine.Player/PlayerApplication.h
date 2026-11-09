@@ -119,6 +119,9 @@ namespace engine::player
             // The app builds the resource manager and standard factories over this DB
             // (product types are registered there too: the infra preset).
             SetContentDatabase(m_contentDb.Get());
+            // Scenes and prefabs: a script's scene loads and spawns read them where the boot load
+            // does (a project's sources; a dist's pak, the content database itself).
+            SetSceneDatabase(m_sceneDb);
             engine::runtime::DefaultApplication::OnStartup(host);
 
             // The game GUI's IME lifecycle: the player owns its window, so the GUI drives
