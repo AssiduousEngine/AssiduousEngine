@@ -126,3 +126,80 @@ TEST_CASE("engine.composition: the scan reaches the assets a script's properties
 }
 
 
+// A placed prefab instance's own override is the scene's reference: the scan spawns the instances
+// with their overrides before it collects, so an asset one placement names (a script property set
+// on it alone) is reached, the placed prefab's id is still reported, and its own content comes too.
+TEST_CASE("engine.composition: the scan reaches the assets a placed prefab's overrides name")
+{
+    engine::RegisterAllSceneComponentReflection();
+    engine::RegisterAllResourceTypes();
+    RemoveTree();
+    foundation::vfs::NativeFileSystem mount(kRoot, DefaultAllocator());
+    content::ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
+    const Guid dropper(StringView(u8"8b1c0de4-2f3a-4c6e-9d10-7a8b9c0d1e01"));
+    const Guid inPrefab(StringView(u8"8b1c0de4-2f3a-4c6e-9d10-7a8b9c0d1e02"));
+    const Guid onPlacement(StringView(u8"8b1c0de4-2f3a-4c6e-9d10-7a8b9c0d1e03"));
+    const u64 drop = foundation::script::ScriptPropertyNameHash(u8"drop");
+    const auto asset = [](const Guid& id)
+    {
+        foundation::script::ScriptPropertyValue v;
+        v.kind = foundation::script::ScriptPropertyType::Asset;
+        v.guid = id;
+        return v;
+    };
+
+    // The prefab: a body whose behaviour's own override names one asset.
+    content::Instance* crate = db.RootGroup()->CreateInstance(u8"crate", scene::PrefabDocument::StaticType());
+    REQUIRE(crate != nullptr);
+    {
+        scene::Scene author(DefaultAllocator(), u8"crate");
+        engine::AddAllSceneManagers(author);
+        const scene::EntityHandle body = author.CreateEntity(u8"Body");
+        engine::script::ScriptBehavior behavior;
+        behavior.script.SetId(dropper);
+        behavior.SetOverride(drop, asset(inPrefab));
+        author.GetSystem<engine::script::ScriptComponentManager>()->Add(body).behaviors.PushBack(Move(behavior));
+        MemoryStream payload;
+        REQUIRE(scene::CapturePrefab(author, body, payload).IsOk());
+        REQUIRE(crate->WriteData(u8"scene", payload.Bytes()).IsOk());
+    }
+    // The scene: one placement of it, its override naming another asset.
+    content::Instance* level = db.RootGroup()->CreateInstance(u8"level", scene::SceneDocument::StaticType());
+    REQUIRE(level != nullptr);
+    {
+        scene::Scene authored(DefaultAllocator(), u8"level");
+        engine::AddAllSceneManagers(authored);
+        UniquePtr<IStream> payload = crate->ReadData(u8"scene");
+        REQUIRE(payload);
+        const scene::EntityHandle placed = scene::SpawnPrefab(authored, *payload, crate->Id());
+        REQUIRE(placed.IsAssigned());
+        REQUIRE(authored.PrefabInstanceCount() == 1u);
+        engine::script::ScriptBehavior& behavior =
+            authored.GetSystem<engine::script::ScriptComponentManager>()->Get(placed)->behaviors[0];
+        const engine::script::ScriptPropertyOverride* inherited = behavior.FindOverride(drop);
+        REQUIRE(inherited != nullptr);
+        CHECK(inherited->value.guid == inPrefab); // the placement starts as the prefab
+        behavior.SetOverride(drop, asset(onPlacement));
+        REQUIRE(scene::SaveScene(authored, *level).IsOk());
+    }
+
+    Array<Guid> resources;
+    Array<Guid> prefabs;
+    REQUIRE(engine::ScanSceneReferences(DefaultAllocator(), *level, db, resources, prefabs));
+    REQUIRE(prefabs.Size() == 1u);
+    CHECK(prefabs[0] == crate->Id()); // the placed prefab's id, as before
+    const auto has = [&resources](const Guid& id)
+    {
+        for (const Guid& r : resources)
+        {
+            if (r == id)
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+    CHECK(has(onPlacement)); // the asset the placement's override names
+    CHECK(has(dropper));     // the script the placement binds
+    RemoveTree();
+}

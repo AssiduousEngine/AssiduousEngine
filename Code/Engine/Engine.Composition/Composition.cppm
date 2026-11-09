@@ -77,6 +77,12 @@ export namespace engine
     /// without binding (a script property's asset: SceneSystem::CollectUnboundReferences), into
     /// `outResources`; the parked prefab instance ids into `outPrefabs`. False when the stored
     /// stream does not load.
+    ///
+    /// The placed prefab instances are spawned from `db` before the scan, with the scene's
+    /// overrides applied, so what an instance's override names (a mesh swapped, a script property
+    /// set on one placement) is a reference of the scene's. What the prefab itself names comes
+    /// along too, which its own scan also finds. A prefab missing from `db` is skipped with the
+    /// warning a scene load gives.
     bool ScanSceneReferences(IAllocator& allocator, foundation::content::Instance& instance,
                              foundation::content::IContentDatabase& db, Array<Guid>& outResources,
                              Array<Guid>& outPrefabs);

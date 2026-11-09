@@ -68,6 +68,21 @@ namespace engine
         {
             return false;
         }
+        // The placed ids first: the spawn below takes the parked records.
+        scratch.ForEachPendingPrefabInstance([&outPrefabs](scene::Scene::PendingPrefabInstance& pending)
+                                             { outPrefabs.PushBack(pending.prefabId); });
+        if (scratch.PendingPrefabInstanceCount() > 0)
+        {
+            // Spawned as a load spawns them, with the scene's overrides, so what one placement's
+            // override names (a mesh swapped, a script property set) is bound and reported below.
+            // A nested prefab resolves through the same reader, one level at a time.
+            const scene::PrefabPayloadResolver resolver = [&db](const Guid& prefabId) -> UniquePtr<IStream>
+            {
+                content::Instance* prefab = db.GetInstance(prefabId);
+                return prefab != nullptr ? prefab->ReadData(kSceneStream) : UniquePtr<IStream>{};
+            };
+            scene::ResolveScenePrefabs(scratch, resolver);
+        }
         foundation::resource::ResourceManager collector(allocator, db);
         // Unresolved is the answer here: each bind would otherwise log a missing factory.
         collector.SetReportsMissingFactories(false);
@@ -88,8 +103,6 @@ namespace engine
                 outResources.PushBack(id);
             }
         }
-        scratch.ForEachPendingPrefabInstance([&outPrefabs](scene::Scene::PendingPrefabInstance& pending)
-                                             { outPrefabs.PushBack(pending.prefabId); });
         return true;
     }
 }

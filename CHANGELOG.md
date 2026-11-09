@@ -44,7 +44,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 - Export: a pruned export (a preset's `pruneToReachable`) keeps the assets a script property names:
   a behaviour's or a Level's asset value (a prefab it spawns, a clip it plays). Before, an asset
-  named only there was left out and the exported game could not find it.
+  named only there was left out and the exported game could not find it. The same for an asset
+  named only by one placed prefab's override (a mesh swapped, a script property set on that
+  placement).
 - Player: a game run from its project folder spawns prefabs (a script's spawn, a replicated
   spawn) and loads scenes from a script (`run.loadScene`, `run.loadSceneAsync`); both read the
   cooked database, which holds no scene or prefab there, and found nothing.
