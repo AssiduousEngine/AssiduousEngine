@@ -1350,6 +1350,10 @@ export namespace foundation::resource
         /// last (a render texture's record beside a texture's): each is another asset type the
         /// product is made from. Null when there are none.
         const TypeInfo* (*alsoCooked)(usize index) = nullptr;
+        /// Whether `cooked` is an authored record nothing cooks (a prefab's document), the factory
+        /// reading it as stored (IResourceFactory::ReadsAuthoredRecord): its records are the assets
+        /// a reference to the product names, where a cooked form's are the assets that build it.
+        bool authoredRecord = false;
 
         /// `cooked`, then every `alsoCooked` form.
         template <typename Visit>

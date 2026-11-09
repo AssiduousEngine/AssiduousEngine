@@ -947,6 +947,7 @@ namespace editor::mcp
                                                const TypeInfo& product)
     {
         Array<const TypeInfo*> cookedForms;
+        bool authored = false;
         engine::FullComposition().ForEachFactoryDescription(
             [&](const foundation::resource::ResourceModule&,
                 const foundation::resource::ResourceFactoryDesc& desc)
@@ -955,6 +956,7 @@ namespace editor::mcp
                 if (cookedForms.IsEmpty() && made != nullptr && made->id == product.id)
                 {
                     desc.ForEachCooked([&](const TypeInfo* cooked) { cookedForms.PushBack(cooked); });
+                    authored = desc.authoredRecord;
                 }
             });
         Array<const TypeInfo*> assets;
@@ -989,6 +991,10 @@ namespace editor::mcp
             if (asset != nullptr)
             {
                 assets.PushBack(asset);
+            }
+            else if (authored && cooked != nullptr)
+            {
+                assets.PushBack(cooked); // an authored record nothing cooks is itself the asset type
             }
         }
         return assets;

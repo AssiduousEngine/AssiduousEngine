@@ -1750,7 +1750,13 @@ export namespace foundation::scene
     }
 
     inline constexpr foundation::resource::ResourceFactoryDesc kSceneResourceFactories[] = {
-        foundation::resource::FactoryWithOptionalService<PrefabResource, PrefabDocument, PrefabFactory, SceneComposer>(),
+        []() constexpr
+        {
+            foundation::resource::ResourceFactoryDesc desc =
+                foundation::resource::FactoryWithOptionalService<PrefabResource, PrefabDocument, PrefabFactory, SceneComposer>();
+            desc.authoredRecord = true; // a prefab reference names prefab documents
+            return desc;
+        }(),
     };
     /// The scene resource module: the document types, and the prefab factory (a prefab binds; a
     /// scene is loaded, not bound). The prefabs domain brings it.

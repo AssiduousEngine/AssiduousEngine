@@ -388,6 +388,11 @@ TEST_CASE("integration.mcp: a reference's product joins to the source asset type
     const Array<String> meshes = names(foundation::geometry::StaticMeshSource::StaticType());
     REQUIRE(meshes.Size() == 2u);
     CHECK(((meshes[0] == u8"StaticMeshAsset" && meshes[1] == u8"SkinnedMeshAsset") || (meshes[0] == u8"SkinnedMeshAsset" && meshes[1] == u8"StaticMeshAsset")));
+    // A product read from an authored record nothing cooks takes that record's assets: a prefab
+    // reference picks prefab documents.
+    const Array<String> prefabs = names(foundation::scene::PrefabResource::StaticType());
+    REQUIRE(prefabs.Size() == 1u);
+    CHECK(prefabs[0] == u8"PrefabDocument");
     // Something nothing makes has none.
     CHECK(names(TypeOf<f32>()).IsEmpty());
 }

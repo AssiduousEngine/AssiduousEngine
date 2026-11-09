@@ -51,8 +51,10 @@ export namespace editor::mcp
     /// description in the engine composition gives its cooked forms, and the builder producing
     /// each gives its asset type (a texture's and a render texture's for a Texture). A cooked form
     /// itself (what nothing makes at run time) takes every asset whose product is one or derives
-    /// from one (a StaticMeshSource: the static and the skinned mesh). Declarations only, nothing
-    /// constructed. Empty when nothing in this composition makes the product.
+    /// from one (a StaticMeshSource: the static and the skinned mesh). An authored record nothing
+    /// cooks (a prefab's document) is itself the asset type, its records what a reference to the
+    /// product names. Declarations only, nothing constructed. Empty when nothing in this
+    /// composition makes the product.
     [[nodiscard]] Array<const TypeInfo*> SourceAssetTypesFor(const pipeline::BuilderRegistry& builders,
                                                              const TypeInfo& product);
 
