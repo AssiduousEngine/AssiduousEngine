@@ -9,6 +9,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Added
 
+- Scenes: a native component field naming a scene (a level's exit) is a `SceneRef`: the inspector
+  picks a scene for it, an agent sets it by guid, and a pruned export keeps the scene it names.
+  Naming a scene never loads it.
+
 - Editor: a scene, prefab or asset changed, added or deleted in the project's `Content/` outside
   the editor (a git pull, a text editor, another tool) is picked up: an open page reloads, or warns
   when it has unsaved edits, and a page whose file was deleted stays open and writes it back when

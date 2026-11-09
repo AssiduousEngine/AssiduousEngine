@@ -175,7 +175,7 @@ namespace
             JsonValue out = JsonValue::MakeObject();
             out.Set(u8"resource", JsonValue::MakeString(String(Utf8(target->name))));
             const Array<const TypeInfo*> assets =
-                builders != nullptr ? editor::mcp::SourceAssetTypesFor(*builders, *target) : Array<const TypeInfo*>{};
+                builders != nullptr ? editor::mcp::AssetTypesForReference(*builders, type) : Array<const TypeInfo*>{};
             if (assets.IsEmpty())
             {
                 resolved = false;
@@ -998,6 +998,23 @@ namespace editor::mcp
             }
         }
         return assets;
+    }
+
+    Array<const TypeInfo*> AssetTypesForReference(const pipeline::BuilderRegistry& builders, const TypeInfo& referenceType)
+    {
+        Array<const TypeInfo*> assets;
+        const TypeInfo* target =
+            referenceType.reference != nullptr && referenceType.reference->Target != nullptr ? referenceType.reference->Target() : nullptr;
+        if (target == nullptr)
+        {
+            return assets;
+        }
+        if (referenceType.reference->idOnly)
+        {
+            assets.PushBack(target); // the asset type it names, which nothing loads or builds
+            return assets;
+        }
+        return SourceAssetTypesFor(builders, *target);
     }
 
     SceneReference GenerateSceneReference(IAllocator& allocator,

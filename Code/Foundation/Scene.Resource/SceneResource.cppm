@@ -46,6 +46,20 @@ export namespace foundation::scene
         void Serialize(ISerializer& ar) override { foundation::core::Serialize(ar, "name", name); }
     };
 
+    /// A field naming a scene (a level's exit, the next course): its id, which a level load takes.
+    ///
+    /// Not a Ref<T>: a scene is read once per load, whole, so nothing binds or caches it, and a
+    /// reference to one never loads it. It is an id reference (ReferenceOps::idOnly), so the
+    /// inspector offers scenes for it, an agent sets it by guid, and a pruned export keeps the scene
+    /// it names (from a reflected component). Stored as its guid alone.
+    struct SceneRef
+    {
+        Guid id; // the scene's; nil names none
+        [[nodiscard]] bool IsSet() const noexcept { return !id.IsNil(); }
+        [[nodiscard]] bool operator==(const SceneRef&) const noexcept = default;
+    };
+    inline void Serialize(ISerializer& ar, SceneRef& scene) { foundation::core::Serialize(ar, "id", scene.id); }
+
     namespace detail
     {
         // Scene-stream header: a magic sentinel, then the format version. One format is
@@ -1555,6 +1569,27 @@ export namespace foundation::scene
     };
 
 } // namespace foundation::scene
+
+export namespace foundation::core
+{
+    // SceneRef is an id reference: tooling reads and sets its guid as it does a Ref<T>'s, and it
+    // binds nothing.
+    template <>
+    struct ReferenceTraits<foundation::scene::SceneRef>
+    {
+        static constexpr bool isReference = true;
+        [[nodiscard]] static const ReferenceOps& Ops() noexcept
+        {
+            static constexpr ReferenceOps ops{
+                [](const void* value) -> const Guid* { return &static_cast<const foundation::scene::SceneRef*>(value)->id; },
+                [](void* value, const Guid& id) { static_cast<foundation::scene::SceneRef*>(value)->id = id; },
+                [](void*) {}, // nothing binds it
+                []() -> const TypeInfo* { return &foundation::scene::SceneDocument::StaticType(); },
+                true};
+            return ops;
+        }
+    };
+}
 
 export namespace foundation::scene
 {

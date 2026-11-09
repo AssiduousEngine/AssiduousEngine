@@ -13,6 +13,15 @@ prefabs from the loaded ones too, so one placed fifty times is read once. The ed
 loaded prefab when it is saved or changed on disk and evicts it when it is deleted. The editor's
 scene pages read the files, since what they show is what you are editing.
 
+## A field naming a scene
+
+A native component field that names a scene (a level's exit, the next course) is a `SceneRef`: the
+scene's id. It is not a `Ref<T>`: a scene is read whole when a level loads, so nothing binds or
+caches it, and naming one never loads it. The inspector offers scenes for it and `component_set`
+sets it by guid, as for any reference; a pruned export keeps the scene a reflected component's
+`SceneRef` names, and the scene's own references after it. Scripts name a scene by its guid and
+load it with `run.loadScene`; a pruned export follows a script's asset property values too.
+
 ## Sources are text
 
 Scene and prefab sources are XML documents stored in the project. That makes them

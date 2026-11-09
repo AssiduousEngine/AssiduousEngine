@@ -12,6 +12,7 @@ import foundation.content;
 import foundation.vfs;
 import foundation.scene;
 import foundation.scene.resource;
+import foundation.resource; // Ref<T>, a reference field's type
 import foundation.script.resource;
 import foundation.mcp;
 import pipeline.core;
@@ -395,6 +396,17 @@ TEST_CASE("integration.mcp: a reference's product joins to the source asset type
     CHECK(prefabs[0] == u8"PrefabDocument");
     // Something nothing makes has none.
     CHECK(names(TypeOf<f32>()).IsEmpty());
+
+    // A reference field's asset types: a Ref<T>'s are T's, an id reference's its target itself (a
+    // scene reference's scene documents, which nothing builds).
+    const Array<const TypeInfo*> scenes = editor::mcp::AssetTypesForReference(f.builders, TypeOf<foundation::scene::SceneRef>());
+    REQUIRE(scenes.Size() == 1u);
+    CHECK(scenes[0] == &foundation::scene::SceneDocument::StaticType());
+    const Array<const TypeInfo*> prefabRefs =
+        editor::mcp::AssetTypesForReference(f.builders, TypeOf<foundation::resource::Ref<foundation::scene::PrefabResource>>());
+    REQUIRE(prefabRefs.Size() == 1u);
+    CHECK(prefabRefs[0] == &foundation::scene::PrefabDocument::StaticType());
+    CHECK(editor::mcp::AssetTypesForReference(f.builders, TypeOf<f32>()).IsEmpty());
 }
 
 TEST_CASE("integration.mcp: scene reference - two generations are byte identical")

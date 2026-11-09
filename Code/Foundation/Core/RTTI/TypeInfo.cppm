@@ -49,6 +49,12 @@ export namespace foundation::core
         /// schema or a picker needs to say what kind of thing the guid names, without naming
         /// the reference template. Filled in at registration.
         const TypeInfo* (*Target)();
+        /// An id reference: a guid naming an asset that nothing binds or loads through a resource
+        /// manager (a scene, which a level loads whole). Tooling reads and sets it as it does any
+        /// reference (a picker, an agent's component_set), a binder that binds each Ref<T> passes
+        /// it by, and a pruned export follows it from a reflected component. A picker offers the
+        /// target type itself.
+        bool idOnly = false;
     };
 
     struct TypeInfo

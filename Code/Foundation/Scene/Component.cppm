@@ -279,6 +279,41 @@ export namespace foundation::scene
         // ADL hook like Serialize: components with resource::Ref fields define
         // `ResolveResources(ResourceManager&, T&)` in their namespace; others resolve to
         // the no-op fallback below.
+        /// The ids its components name by an id reference (a field naming a scene, SceneRef): nothing
+        /// binds them, so a pruned export learns of them here and keeps what they name. A
+        /// component's own reflected properties; one nested in a struct or a list is not looked into.
+        void CollectUnboundReferences(Array<Guid>& outIds) override
+        {
+            const TypeInfo& type = TypeOf<T>();
+            for (usize p = 0; p < PropertyCount(type); ++p)
+            {
+                const PropertyInfo& property = PropertyAt(type, p);
+                if (property.type == nullptr || property.type->reference == nullptr || !property.type->reference->idOnly ||
+                    property.address == nullptr)
+                {
+                    continue;
+                }
+                this->ForEach(
+                    [&](T& component, EntityHandle)
+                    {
+                        const void* at = property.address(Instance(&component, &type));
+                        const Guid* id = at != nullptr ? property.type->reference->Id(at) : nullptr;
+                        if (id == nullptr || id->IsNil())
+                        {
+                            return;
+                        }
+                        for (const Guid& listed : outIds)
+                        {
+                            if (listed == *id)
+                            {
+                                return;
+                            }
+                        }
+                        outIds.PushBack(*id);
+                    });
+            }
+        }
+
         void ResolveResources(foundation::resource::ResourceManager& manager) override
         {
             this->ForEach([&](T& c, EntityHandle) { ResolveOne(manager, c); });

@@ -58,6 +58,13 @@ export namespace editor::mcp
     [[nodiscard]] Array<const TypeInfo*> SourceAssetTypesFor(const pipeline::BuilderRegistry& builders,
                                                              const TypeInfo& product);
 
+    /// The asset types a reference field of `referenceType` takes: a Ref<T>'s are T's
+    /// (SourceAssetTypesFor), an id reference's its declared target itself, the asset type it
+    /// names (a scene reference's scene documents), which nothing loads or builds. Empty for a type
+    /// that is no reference.
+    [[nodiscard]] Array<const TypeInfo*> AssetTypesForReference(const pipeline::BuilderRegistry& builders,
+                                                                const TypeInfo& referenceType);
+
     /// The schema entry for `name`: a component by wire name (a record's `type`) or reflected type
     /// name, or a settings block by system id or type name; ASCII case folded. Null when none.
     [[nodiscard]] foundation::json::JsonValue
