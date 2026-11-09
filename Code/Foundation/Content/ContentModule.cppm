@@ -116,6 +116,13 @@ export namespace foundation::content
         [[nodiscard]] String EnvelopePath() const; // "<path>.<ext>"
         // "<path>.<stream>.bin" (Binary) / "<path>.<stream>.data" (Text).
         [[nodiscard]] String DataPath(StringView streamName, StreamEncoding encoding) const;
+        // The header no longer names a source (a refresh read it again): the name is read from
+        // the object on next asking.
+        void ForgetSourceName()
+        {
+            m_source.Clear();
+            m_sourceKnown = false;
+        }
 
         ContentDatabase* m_db;
         Group* m_group;
@@ -209,6 +216,30 @@ export namespace foundation::content
     };
 
     // =======================================================================
+    // ContentChanges: what ContentDatabase::Refresh found, the records added, changed and
+    // removed by id, and the envelopes it could not read yet, by path.
+    // =======================================================================
+    struct ContentChanges
+    {
+        Array<Guid> added;        // an envelope appeared: its record is in the index now
+        Array<Guid> changed;      // an envelope or one of its data streams changed: still indexed
+        Array<Guid> removed;      // an envelope went: out of the index now
+        Array<String> unreadable; // present but unreadable (being written, or broken): kept as it was
+
+        [[nodiscard]] bool IsEmpty() const noexcept
+        {
+            return added.IsEmpty() && changed.IsEmpty() && removed.IsEmpty() && unreadable.IsEmpty();
+        }
+        void Clear()
+        {
+            added.Clear();
+            changed.Clear();
+            removed.Clear();
+            unreadable.Clear();
+        }
+    };
+
+    // =======================================================================
     // ContentDatabase: VFS-backed. Scans the mount on construction; reads and
     // writes through the mount's enumerable/writable capabilities. The
     // serialization format is determined by the SerializerFactory provided by
@@ -288,6 +319,21 @@ export namespace foundation::content
         // Rename a group (directory move; child paths derive dynamically, so descendants
         // need no fixup). NotSupported for the root or read-only mounts.
         Status RenameGroup(Group& group, StringView newName);
+
+        // Brings the index in line with files that changed on disk after the scan, as a watcher
+        // reports them: mount-relative paths of envelopes and of their data streams. Nothing on
+        // disk is touched.
+        //  - An envelope that appeared is registered, the groups of its folder made as needed.
+        //  - One that changed is read again. The same identity and type keep their record, its
+        //    source name refreshed, so code holding the record keeps a live one; another identity
+        //    or type replaces it.
+        //  - One that went is dropped from the index and freed; whoever was told of it by id finds
+        //    nothing.
+        //  - A data stream that changed reports its record changed; the index holds nothing of it.
+        //  - An envelope present but unreadable (still being written, or broken) keeps its old
+        //    record and is reported, for a later refresh of the path to try again. Waiting for a
+        //    file to settle is the watcher's: a half-written envelope can read its header.
+        void Refresh(Span<const String> paths, ContentChanges& out);
 
         // Delete a group and everything under it: every instance (envelope and sidecars, via
         // DeleteInstance) and every child group, bottom-up, then the now-empty directories, so
@@ -386,6 +432,24 @@ export namespace foundation::content
         }
 
     private:
+        // An envelope's header: its identity, its type, and the source file a self-describing
+        // header names (`named` false when it names none). False when it cannot be read.
+        struct Header
+        {
+            Guid id;
+            String typeNamespace;
+            String typeName;
+            String source;
+            bool named = false;
+        };
+        [[nodiscard]] bool ReadHeader(IStream& stream, Header& out) const;
+
+        void RefreshEnvelope(StringView path, StringView recordPath, ContentChanges& out);
+        void RefreshDataStream(StringView path, ContentChanges& out);
+        // Drops a record from the index and frees it, without touching its files. Another record
+        // claiming the same identity (two envelopes with one guid) takes the index over.
+        void ForgetInstance(Instance* instance);
+
         // Recursively scans `folder` (mount-relative) into `group`.
         void Scan(Group& group, StringView folder)
         {
@@ -428,40 +492,16 @@ export namespace foundation::content
             const i64 streamSize = stream->Size();
             m_scanStats.bytesOpened += streamSize > 0 ? static_cast<u64>(streamSize) : 0;
 
-            UniquePtr<SerializerContext> ctx = m_factory(*stream, SerializeMode::Read);
-            if (!ctx || ctx->serializer == nullptr)
+            Header header;
+            if (!ReadHeader(*stream, header))
             {
                 return;
             }
-            Serializer& ar = *ctx->serializer;
-
-            Guid id;
-            String typeNs;
-            String typeName;
-            ar.Key("guid");
-            ar.GuidValue(id);
-            ar.Key("typeNamespace");
-            ar.Text(typeNs);
-            ar.Key("typeName");
-            ar.Text(typeName);
-            if (!ar.IsOk())
+            Instance* instance = group.AddInstance(header.id, instanceName, header.typeNamespace.AsView(),
+                                                   header.typeName.AsView());
+            if (instance != nullptr && header.named)
             {
-                return;
-            }
-            // The source file, which a self-describing header carries (Instance::SourceName); one
-            // written before it does not, and its record learns it on first asking.
-            String source;
-            const bool named = ar.IsSelfDescribing() && ar.HasKey("source");
-            if (named)
-            {
-                ar.Key("source");
-                ar.Text(source);
-            }
-
-            Instance* instance = group.AddInstance(id, instanceName, typeNs.AsView(), typeName.AsView());
-            if (instance != nullptr && named && ar.IsOk())
-            {
-                instance->SetSourceName(source.AsView());
+                instance->SetSourceName(header.source.AsView());
             }
         }
 

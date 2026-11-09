@@ -6,6 +6,8 @@
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
 
+#include <initializer_list> // a test lists the paths a watcher reports
+
 import foundation.core;
 import foundation.vfs;
 import foundation.content;
@@ -1094,4 +1096,136 @@ TEST_CASE("content: a record's source file comes from its envelope header, witho
         }
         clean(dir, u8".rasset");
     }
+}
+
+// A database brings its index in line with files changed on disk after its scan, as a watcher
+// reports them. A second database over the same folder stands for the outside writer (a git pull,
+// another tool).
+TEST_CASE("content: a refresh takes in what changed on disk")
+{
+    GlobalTypeRegistry().Register(SourcedRecord::StaticType());
+    RegisterSerializable<SourcedRecord>();
+    const StringView dir = u8"scratch_content_refresh";
+    RemoveDirectoryRecursive(dir);
+    CreateDirectories(dir);
+    {
+        NativeFileSystem mount(dir, DefaultAllocator());
+        SourcedRecord record;
+        record.file = String(u8"Art/stone.png");
+
+        ContentDatabase outside(DefaultAllocator(), mount, MakeXmlFactory(), u8".xasset");
+        foundation::content::Instance* first = outside.RootGroup()->CreateGroup(u8"records")->CreateInstance(u8"art", SourcedRecord::StaticType());
+        REQUIRE(first != nullptr);
+        REQUIRE(first->WriteObject(record).IsOk());
+        const Guid artId = first->Id();
+
+        ContentDatabase editor(DefaultAllocator(), mount, MakeXmlFactory(), u8".xasset");
+        foundation::content::Instance* art = editor.GetInstance(artId);
+        REQUIRE(art != nullptr); // the scan found it
+        ContentChanges changes;
+        const auto refresh = [&](std::initializer_list<StringView> paths)
+        {
+            Array<String> list;
+            for (StringView p : paths)
+            {
+                list.PushBack(String(p));
+            }
+            editor.Refresh(list.AsSpan(), changes);
+        };
+
+        // Added, under folders the index has never seen.
+        foundation::content::Instance* added =
+            outside.RootGroup()->CreateGroup(u8"more")->CreateGroup(u8"deep")->CreateInstance(u8"rock", SourcedRecord::StaticType());
+        REQUIRE(added->WriteObject(record).IsOk());
+        const Guid rockId = added->Id();
+        CHECK(editor.GetInstance(rockId) == nullptr); // not seen before a refresh
+        const u64 before = editor.Revision();
+        refresh({u8"more/deep/rock.xasset"});
+        REQUIRE(changes.added.Size() == 1);
+        CHECK(changes.added[0] == rockId);
+        CHECK(editor.Revision() != before); // a view of the tree builds again
+        foundation::content::Instance* rock = editor.GetInstance(StringView(u8"more/deep/rock"));
+        REQUIRE(rock != nullptr);
+        CHECK(rock->Id() == rockId);
+        CHECK(rock->TypeName() == art->TypeName());
+        CHECK(rock->SourceName() == StringView(u8"Art/stone.png")); // its header's
+
+        // Changed: the same record, kept, its source refreshed.
+        changes.Clear();
+        record.file = String(u8"Art/marble.png");
+        REQUIRE(first->WriteObject(record).IsOk());
+        refresh({u8"records/art.xasset"});
+        REQUIRE(changes.changed.Size() == 1);
+        CHECK(changes.changed[0] == artId);
+        CHECK(changes.added.IsEmpty());
+        CHECK(editor.GetInstance(artId) == art); // the record held stays the live one
+        CHECK(art->SourceName() == StringView(u8"Art/marble.png"));
+
+        // A data stream changed: its record reported, the index unchanged.
+        changes.Clear();
+        const StringView words = u8"hello";
+        REQUIRE(first->WriteData(u8"scene", Span<const byte>(reinterpret_cast<const byte*>(words.Data()), words.Size()),
+                                 StreamEncoding::Text)
+                    .IsOk());
+        refresh({u8"records/art.scene.data"});
+        REQUIRE(changes.changed.Size() == 1);
+        CHECK(changes.changed[0] == artId);
+
+        // Cut off inside its header (being written, or broken): unreadable, the old record kept,
+        // the path reported for a later try. (One cut after the header reads as changed: the index
+        // reads headers alone, and a payload still being written is the watcher's to wait out.)
+        changes.Clear();
+        const String path = JoinPath(dir, u8"records/art.xasset");
+        Result<Array<byte>> whole = ReadFile(path.AsView());
+        REQUIRE(whole.HasValue());
+        const StringView text(reinterpret_cast<const utf8char*>(whole.Value().Data()), whole.Value().Size());
+        const usize typeAt = text.Find(u8"typeName");
+        REQUIRE(typeAt != StringView::kNotFound);
+        REQUIRE(WriteFile(path.AsView(), Span<const byte>(whole.Value().Data(), typeAt)).IsOk());
+        refresh({u8"records/art.xasset"});
+        REQUIRE(changes.unreadable.Size() == 1);
+        CHECK(changes.unreadable[0].AsView() == StringView(u8"records/art.xasset"));
+        CHECK(changes.changed.IsEmpty());
+        CHECK(changes.removed.IsEmpty());
+        CHECK(editor.GetInstance(artId) == art); // kept as it was
+        CHECK(art->SourceName() == StringView(u8"Art/marble.png")); // and live: ASan sees a freed one
+        // Written whole again: read.
+        changes.Clear();
+        REQUIRE(WriteFile(path.AsView(), whole.Value().AsSpan()).IsOk());
+        refresh({u8"records/art.xasset"});
+        CHECK(changes.unreadable.IsEmpty());
+        CHECK(changes.changed.Size() == 1);
+
+        // Another identity under the same path: the old record goes, a new one comes.
+        changes.Clear();
+        REQUIRE(outside.DeleteInstance(artId).IsOk());
+        foundation::content::Instance* again = outside.RootGroup()->GetGroup(u8"records")->CreateInstance(u8"art", SourcedRecord::StaticType());
+        REQUIRE(again != nullptr);
+        REQUIRE(again->WriteObject(record).IsOk());
+        const Guid otherId = again->Id();
+        REQUIRE(otherId != artId);
+        refresh({u8"records/art.xasset"});
+        REQUIRE(changes.removed.Size() == 1);
+        CHECK(changes.removed[0] == artId);
+        REQUIRE(changes.added.Size() == 1);
+        CHECK(changes.added[0] == otherId);
+        CHECK(editor.GetInstance(artId) == nullptr);
+        REQUIRE(editor.GetInstance(StringView(u8"records/art")) != nullptr);
+        CHECK(editor.GetInstance(StringView(u8"records/art"))->Id() == otherId);
+
+        // Removed: out of the index, nothing else touched.
+        changes.Clear();
+        REQUIRE(outside.DeleteInstance(rockId).IsOk());
+        refresh({u8"more/deep/rock.xasset"});
+        REQUIRE(changes.removed.Size() == 1);
+        CHECK(changes.removed[0] == rockId);
+        CHECK(editor.GetInstance(rockId) == nullptr);
+        CHECK(editor.GetInstance(StringView(u8"more/deep/rock")) == nullptr);
+
+        // A path naming nothing it knows changes nothing.
+        changes.Clear();
+        refresh({u8"nowhere/ghost.xasset", u8"nowhere/ghost.scene.data", u8"notes.txt"});
+        CHECK(changes.IsEmpty());
+    }
+    RemoveDirectoryRecursive(dir);
 }

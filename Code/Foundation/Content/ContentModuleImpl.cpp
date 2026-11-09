@@ -911,6 +911,199 @@ namespace foundation::content
         return Status{};
     }
 
+    bool ContentDatabase::ReadHeader(IStream& stream, Header& out) const
+    {
+        UniquePtr<SerializerContext> ctx = m_factory(stream, SerializeMode::Read);
+        if (!ctx || ctx->serializer == nullptr)
+        {
+            return false;
+        }
+        Serializer& ar = *ctx->serializer;
+        ar.Key("guid");
+        ar.GuidValue(out.id);
+        ar.Key("typeNamespace");
+        ar.Text(out.typeNamespace);
+        ar.Key("typeName");
+        ar.Text(out.typeName);
+        if (!ar.IsOk())
+        {
+            return false;
+        }
+        // The source file, which a self-describing header carries (Instance::SourceName); one
+        // written before it does not, and its record learns it on first asking.
+        out.named = ar.IsSelfDescribing() && ar.HasKey("source");
+        if (out.named)
+        {
+            ar.Key("source");
+            ar.Text(out.source);
+            out.named = ar.IsOk();
+        }
+        return true;
+    }
+
+    namespace
+    {
+        void Note(Array<Guid>& list, const Guid& id)
+        {
+            for (const Guid& listed : list)
+            {
+                if (listed == id)
+                {
+                    return;
+                }
+            }
+            list.PushBack(id);
+        }
+    }
+
+    void ContentDatabase::Refresh(Span<const String> paths, ContentChanges& out)
+    {
+        for (const String& path : paths)
+        {
+            const StringView view = path.AsView();
+            if (EndsWith(view, m_extension.AsView()))
+            {
+                RefreshEnvelope(view, view.SubStr(0, view.Size() - m_extension.Size()), out);
+            }
+            else
+            {
+                RefreshDataStream(view, out);
+            }
+        }
+    }
+
+    void ContentDatabase::RefreshEnvelope(StringView path, StringView recordPath, ContentChanges& out)
+    {
+        Instance* existing = GetInstance(recordPath);
+        UniquePtr<IStream> stream = m_mount->Open(path, FileMode::Read);
+        if (!stream)
+        {
+            if (existing != nullptr)
+            {
+                const Guid gone = existing->Id();
+                ForgetInstance(existing);
+                Note(out.removed, gone);
+            }
+            return;
+        }
+        Header header;
+        if (!ReadHeader(*stream, header) || header.id.IsNil())
+        {
+            out.unreadable.PushBack(String(path));
+            return;
+        }
+
+        if (existing != nullptr && existing->Id() == header.id && existing->TypeNamespace() == header.typeNamespace.AsView() &&
+            existing->TypeName() == header.typeName.AsView())
+        {
+            if (header.named)
+            {
+                existing->SetSourceName(header.source.AsView());
+            }
+            else
+            {
+                existing->ForgetSourceName();
+            }
+            Touch();
+            Note(out.changed, header.id);
+            return;
+        }
+
+        // A new record, or one whose identity or type changed under the same path.
+        bool sameId = false;
+        if (existing != nullptr)
+        {
+            const Guid previous = existing->Id();
+            sameId = previous == header.id;
+            ForgetInstance(existing);
+            if (!sameId)
+            {
+                Note(out.removed, previous);
+            }
+        }
+        Group* group = m_root;
+        StringView name = recordPath;
+        const usize slash = recordPath.FindLast(utf8char('/'));
+        if (slash != StringView::kNotFound)
+        {
+            usize start = 0;
+            for (usize i = 0; i <= slash; ++i)
+            {
+                if (i == slash || recordPath[i] == utf8char('/'))
+                {
+                    const StringView part = recordPath.SubStr(start, i - start);
+                    if (!part.IsEmpty())
+                    {
+                        group = group->CreateGroup(part);
+                    }
+                    start = i + 1;
+                }
+            }
+            name = recordPath.SubStr(slash + 1, recordPath.Size() - slash - 1);
+        }
+        Instance* instance = group->AddInstance(header.id, name, header.typeNamespace.AsView(), header.typeName.AsView());
+        if (instance != nullptr && header.named)
+        {
+            instance->SetSourceName(header.source.AsView());
+        }
+        Note(sameId ? out.changed : out.added, header.id);
+    }
+
+    // A data stream's sidecar is "<record path>.<stream>.data" (text) or ".bin" (binary).
+    void ContentDatabase::RefreshDataStream(StringView path, ContentChanges& out)
+    {
+        const usize suffix = SidecarSuffixSize(path);
+        if (suffix == 0)
+        {
+            return;
+        }
+        const StringView rest = path.SubStr(0, path.Size() - suffix);
+        const usize dot = rest.FindLast(utf8char('.'));
+        if (dot == StringView::kNotFound || dot == 0)
+        {
+            return;
+        }
+        if (Instance* instance = GetInstance(rest.SubStr(0, dot)))
+        {
+            for (const Guid& added : out.added)
+            {
+                if (added == instance->Id())
+                {
+                    return; // new this refresh: added says it all
+                }
+            }
+            Note(out.changed, instance->Id());
+        }
+    }
+
+    void ContentDatabase::ForgetInstance(Instance* instance)
+    {
+        const Guid id = instance->Id();
+        instance->OwningGroup().RemoveInstance(instance);
+        for (usize i = 0; i < m_allInstances.Size(); ++i)
+        {
+            if (m_allInstances[i] == instance)
+            {
+                m_allInstances.RemoveAtSwap(i);
+                break;
+            }
+        }
+        Instance* const* indexed = m_byGuid.Find(id);
+        if (indexed != nullptr && *indexed == instance)
+        {
+            m_byGuid.Remove(id);
+            for (Instance* other : m_allInstances)
+            {
+                if (other->Id() == id)
+                {
+                    m_byGuid.InsertOrAssign(id, other);
+                    break;
+                }
+            }
+        }
+        m_allocator->Delete(instance);
+    }
+
     Status ContentDatabase::DeleteGroup(Group& group)
     {
         if (group.Parent() == nullptr)
