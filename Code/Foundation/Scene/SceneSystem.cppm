@@ -241,6 +241,12 @@ export namespace foundation::scene
         // manager: the post-load resolve pass. ComponentManagerBase overrides it for component
         // pools; plain systems with resource-bearing settings override it too. Default: nothing.
         virtual void ResolveResources(foundation::resource::ResourceManager& /*manager*/) {}
+        // The asset ids this system's data names WITHOUT binding them, appended to `outIds`: a
+        // script property holding an asset, which the script binds only if and when it uses it.
+        // Binding those in ResolveResources would load every one with the scene, so they are
+        // reported here instead, for what follows references without loading them (a pruned
+        // export's reach). A system that names nothing it does not bind adds nothing.
+        virtual void CollectUnboundReferences(Array<Guid>& /*outIds*/) {}
         // Bind the resource::Refs one entity's data in this system holds, for a subtree that
         // arrived after the scene was resolved (a runtime prefab spawn), so the spawn binds what
         // it added rather than re-walking the scene. A system with no per-entity data does

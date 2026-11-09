@@ -459,7 +459,11 @@ the player. The export is refused, with the reason, when an entry is enabled on 
 does not support or names a plugin no package holds, and when a script uses a plugin the project
 does not enable on the preset's platform: a plugin this host loaded but the platform lacks takes its
 script types with it, and the refusal names the script, the plugin and the line. Check first with
-`script_validate`'s `platform`.
+`script_validate`'s `platform`. A preset with `pruneToReachable` ships only what its entry points
+reach (the project's default scene, startup script and manifest assets, and what is flagged Always
+Export), following each scene and prefab to what its components and settings name, the prefabs it
+places and the assets its scripts' properties hold, and each asset to what it needs (a material's
+textures); the response's `pruning` counts what was kept and dropped.
 
 ## Per-tool gotchas
 

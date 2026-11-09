@@ -73,8 +73,10 @@ export namespace engine
                              HashMap<Guid, Array<byte>>& outStreams);
 
     /// A scene's or prefab's direct references: the component resource Refs, through a
-    /// factory-less ResourceManager whose every bind lands unresolved, plus the parked prefab
-    /// instance ids. False when the stored stream does not load.
+    /// factory-less ResourceManager whose every bind lands unresolved, and the ids its systems name
+    /// without binding (a script property's asset: SceneSystem::CollectUnboundReferences), into
+    /// `outResources`; the parked prefab instance ids into `outPrefabs`. False when the stored
+    /// stream does not load.
     bool ScanSceneReferences(IAllocator& allocator, foundation::content::Instance& instance,
                              foundation::content::IContentDatabase& db, Array<Guid>& outResources,
                              Array<Guid>& outPrefabs);

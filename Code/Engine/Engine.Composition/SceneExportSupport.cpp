@@ -73,6 +73,21 @@ namespace engine
         collector.SetReportsMissingFactories(false);
         scene::ResolveSceneResources(scratch, collector);
         collector.CollectUnresolved(outResources);
+        // And what its systems name without binding (a script property's asset).
+        Array<Guid> unbound;
+        scratch.ForEachSystem([&unbound](scene::SceneSystem& system) { system.CollectUnboundReferences(unbound); });
+        for (const Guid& id : unbound)
+        {
+            bool listed = false;
+            for (const Guid& known : outResources)
+            {
+                listed = listed || known == id;
+            }
+            if (!listed)
+            {
+                outResources.PushBack(id);
+            }
+        }
         scratch.ForEachPendingPrefabInstance([&outPrefabs](scene::Scene::PendingPrefabInstance& pending)
                                              { outPrefabs.PushBack(pending.prefabId); });
         return true;

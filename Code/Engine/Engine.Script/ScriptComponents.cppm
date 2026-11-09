@@ -38,6 +38,29 @@ export namespace engine::script
         foundation::core::Serialize(ar, "value", o.value);
     }
 
+    /// The assets `overrides` name, appended to `outIds` once each: a nil one names nothing, and
+    /// an entity reference is a guid of the scene's, not an asset. (A script class's asset
+    /// property has no default naming an asset: only an override names one.)
+    inline void CollectOverrideAssetIds(Span<const ScriptPropertyOverride> overrides, Array<Guid>& outIds)
+    {
+        for (const ScriptPropertyOverride& entry : overrides)
+        {
+            if (entry.value.kind != ScriptPropertyType::Asset || entry.value.guid.IsNil())
+            {
+                continue;
+            }
+            bool listed = false;
+            for (const Guid& id : outIds)
+            {
+                listed = listed || id == entry.value.guid;
+            }
+            if (!listed)
+            {
+                outIds.PushBack(entry.value.guid);
+            }
+        }
+    }
+
     struct ScriptBehavior
     {
         // Authored:
@@ -136,6 +159,19 @@ export namespace engine::script
         [[nodiscard]] foundation::scene::IReplicatedStateSource* AsReplicatedStateSource() noexcept override
         {
             return this;
+        }
+
+        /// Every behaviour's asset-valued overrides: a script property holds an id the script
+        /// binds itself, so the post-load pass leaves it unbound.
+        void CollectUnboundReferences(Array<Guid>& outIds) override
+        {
+            ForEach([&outIds](ScriptComponent& component, foundation::scene::EntityHandle)
+                    {
+                        for (const ScriptBehavior& behavior : component.behaviors)
+                        {
+                            CollectOverrideAssetIds(behavior.overrides.AsSpan(), outIds);
+                        }
+                    });
         }
         [[nodiscard]] bool WriteReplicatedState(foundation::scene::EntityHandle entity, Array<byte>& out) override;
         void ReadReplicatedState(foundation::scene::EntityHandle entity, Span<const byte> state) override;

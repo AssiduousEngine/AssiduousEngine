@@ -1519,6 +1519,12 @@ export namespace engine::script
             SerializeSceneScriptSettings(ar, m_settings);
         }
 
+        /// The Level's asset-valued overrides, which the script binds itself.
+        void CollectUnboundReferences(Array<Guid>& outIds) override
+        {
+            CollectOverrideAssetIds(m_settings.overrides.AsSpan(), outIds);
+        }
+
         void ResolveResources(resource::ResourceManager& manager) override
         {
             m_settings.script.Bind(manager);
