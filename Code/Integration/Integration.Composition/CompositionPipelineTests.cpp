@@ -30,6 +30,8 @@ TEST_CASE("integration.composition: every factory the composition describes read
     REQUIRE(builders.Count() == pipeline::kBuilderCount);
 
     usize checked = 0;
+    usize authored = 0;
+    foundation::resource::NoResourceServices none;
     engine::FullComposition().ForEachFactoryDescription(
         [&](const foundation::resource::ResourceModule& module,
             const foundation::resource::ResourceFactoryDesc& desc)
@@ -41,6 +43,17 @@ TEST_CASE("integration.composition: every factory the composition describes read
                                              static_cast<unsigned>(module.id.Size())));
             INFO("factory for: ", doctest::String(product->name != nullptr ? product->name : "<unnamed>"));
             REQUIRE(cooked != nullptr);
+            // An AUTHORED record (a prefab document) is read as it was written, so no builder makes
+            // it. A factory needing a service (the device's, the shader system's) is not made here;
+            // those read cooked forms.
+            bool readsAuthored = false;
+            if (desc.service == nullptr)
+            {
+                UniquePtr<foundation::resource::IResourceFactory> made = desc.create(DefaultAllocator(), none);
+                REQUIRE(made);
+                readsAuthored = made->ReadsAuthoredRecord();
+            }
+            authored += readsAuthored ? 1u : 0u;
             // Every cooked form the factory reads, including the extra ones (a render texture
             // reads its own record as well as a texture record), must be registered, and some
             // builder must produce exactly that form. That links the runtime type to the asset.
@@ -50,6 +63,10 @@ TEST_CASE("integration.composition: every factory the composition describes read
                     REQUIRE(form != nullptr);
                     INFO("cooked form: ", doctest::String(form->name != nullptr ? form->name : "<unnamed>"));
                     CHECK(GlobalSerializableRegistry().Contains(form->id));
+                    if (readsAuthored)
+                    {
+                        return;
+                    }
                     bool produced = false;
                     builders.ForEach([&](const pipeline::IAssetBuilder& builder)
                                      { produced = produced || builder.ProductType() == form; });
@@ -58,4 +75,5 @@ TEST_CASE("integration.composition: every factory the composition describes read
             ++checked;
         });
     CHECK(checked == engine::FullComposition().FactoryDescriptionCount());
+    CHECK(authored == 1u); // the prefab factory alone reads an authored record
 }

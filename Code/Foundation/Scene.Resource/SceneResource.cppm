@@ -1531,18 +1531,167 @@ export namespace foundation::scene
 
 export namespace foundation::scene
 {
-    /// Registers the scene and prefab document types (content-DB construction by type name).
-    /// Idempotent.
+    class PrefabPayloads;
+
+    /// A prefab loaded for spawning: what a reference to a prefab binds to, built by PrefabFactory
+    /// from the PrefabDocument record and its scene stream.
+    ///
+    /// A runtime type of its own: the editor's document stays the authoring record, and nothing at
+    /// run time holds one. It keeps the payload's bytes (the stream as stored, text or binary), so
+    /// a spawn reads no disk and parses no envelope; a spawn still assigns fresh ids and records
+    /// its baseline, so the bytes are what it reads. They are reached only through OpenPayload, so
+    /// a parsed form can replace them later without changing a caller.
+    class PrefabResource final : public Object
+    {
+        RTTI_OBJECT(PrefabResource, Object)
+    public:
+        /// `allocator` backs the streams OpenPayload hands out.
+        PrefabResource(IAllocator& allocator, const Guid& id, StringView name, Array<byte> payload);
+
+        /// The prefab's content identity.
+        [[nodiscard]] const Guid& Id() const noexcept { return m_id; }
+        /// Its record's name.
+        [[nodiscard]] StringView Name() const noexcept { return m_name.AsView(); }
+        /// Whether the payload is the binary wire or the text a source holds.
+        [[nodiscard]] detail::SceneStreamEncoding Encoding() const noexcept { return m_encoding; }
+        /// The payload's size in bytes: what this prefab holds in memory.
+        [[nodiscard]] usize PayloadSize() const noexcept { return m_payload.Size(); }
+        /// A read-only stream over the payload, from its start. It borrows the bytes, so it is
+        /// spent before this resource goes (PrefabPayloadStream).
+        [[nodiscard]] UniquePtr<IStream> OpenPayload() const;
+
+    private:
+        IAllocator* m_allocator;
+        Guid m_id;
+        String m_name;
+        Array<byte> m_payload;
+        detail::SceneStreamEncoding m_encoding = detail::SceneStreamEncoding::Binary;
+    };
+
+    /// A read-only stream over a loaded prefab's payload, which it BORROWS: what
+    /// PrefabResource::OpenPayload hands out, so a spawn reads the prefab with no copy and no disk.
+    /// The bytes belong to the resource; a reload or an eviction parks the replaced resource for
+    /// the frames still in flight, so a stream opened and spent within a frame outlives nothing it
+    /// reads.
+    class PrefabPayloadStream final : public IStream
+    {
+    public:
+        explicit PrefabPayloadStream(Span<const byte> bytes) noexcept : m_bytes(bytes) {}
+        ~PrefabPayloadStream() override;
+
+        [[nodiscard]] bool IsValid() const override { return true; }
+        [[nodiscard]] u64 Read(void* destination, u64 bytes) override;
+        /// Read-only: nothing is written.
+        [[nodiscard]] u64 Write(const void*, u64) override { return 0; }
+        [[nodiscard]] i64 Seek(i64 offset, SeekOrigin origin) override;
+        [[nodiscard]] i64 Tell() const override { return m_position; }
+        [[nodiscard]] i64 Size() const override { return static_cast<i64>(m_bytes.Size()); }
+
+    private:
+        friend class PrefabPayloads;
+        Span<const byte> m_bytes;
+        i64 m_position = 0;
+        // Set when PrefabPayloads opened this for a spawn: told when the stream goes, which is when
+        // that spawn has finished with the prefab.
+        PrefabPayloads* m_openIn = nullptr;
+        Guid m_prefabId;
+    };
+
+    /// Loads a prefab: the PrefabDocument record's scene stream, read into a PrefabResource.
+    ///
+    /// The record is AUTHORED, never cooked, so it declares it (ReadsAuthoredRecord): a host
+    /// layering its cooked database over its sources lets the sources answer for prefabs. A record
+    /// of any other type (a scene's) is refused, so a scene is never loaded through a reference.
+    /// The load is all reading, which touches nothing shared, so it runs on a worker whole.
+    class PrefabFactory final : public foundation::resource::IResourceFactory
+    {
+    public:
+        explicit PrefabFactory(IAllocator& allocator) noexcept : m_allocator(&allocator) {}
+
+        [[nodiscard]] const TypeInfo* ProductType() const override { return &PrefabResource::StaticType(); }
+        [[nodiscard]] const TypeInfo* CookedType() const override { return &PrefabDocument::StaticType(); }
+        [[nodiscard]] bool ReadsAuthoredRecord() const override { return true; }
+        [[nodiscard]] bool SupportsAsync() const override { return true; }
+        [[nodiscard]] RefPtr<Object> Create(foundation::resource::ResourceManager&,
+                                            foundation::content::Instance& instance) override
+        {
+            return Load(instance);
+        }
+        [[nodiscard]] RefPtr<Object> DecodeStage(foundation::content::Instance& instance) override { return Load(instance); }
+        [[nodiscard]] RefPtr<Object> FinalizeStage(foundation::resource::ResourceManager&, RefPtr<Object> decoded) override
+        {
+            return decoded;
+        }
+
+    private:
+        // Null when the record is not a prefab document or has no readable scene stream.
+        [[nodiscard]] RefPtr<Object> Load(foundation::content::Instance& instance) const;
+        IAllocator* m_allocator;
+    };
+
+    /// Prefab payloads from the loaded prefabs of a resource manager: what a runtime spawn and a
+    /// scene load read, in place of the content database, with Resolver() for the prefabs a
+    /// payload nests.
+    ///
+    /// Each prefab is its own cached handle, bound when first asked for (synchronously, so a spawn
+    /// never waits a frame for it), so an edit of an inner prefab reaches every placement of it with
+    /// no dependency link between the two.
+    ///
+    /// A payload opened here stays OPEN until its stream is destroyed, which is when the spawn
+    /// reading it has finished. A prefab asked for while it is already open is nesting itself (a bad
+    /// edit, or two prefabs naming each other), and is refused rather than spawned again; so is a
+    /// chain of open prefabs kMaxDepth deep. Scope one of these around a spawn or a load: the
+    /// manager is BORROWED, and every stream opened here must be destroyed before this goes.
+    class PrefabPayloads
+    {
+    public:
+        /// Deeper than any honest nesting; a chain this deep is a cycle the id check did not see.
+        static constexpr usize kMaxDepth = 16;
+
+        explicit PrefabPayloads(foundation::resource::ResourceManager* resources);
+        PrefabPayloads(const PrefabPayloads&) = delete;
+        PrefabPayloads& operator=(const PrefabPayloads&) = delete;
+
+        /// Hands back Open's payloads, for SpawnPrefab and ResolveScenePrefabs.
+        [[nodiscard]] const PrefabPayloadResolver& Resolver() const noexcept { return m_resolver; }
+        /// How many payloads are open now.
+        [[nodiscard]] usize Depth() const noexcept { return m_open.Size(); }
+
+        /// The prefab, bound through the manager when it is not yet; null when it does not load (an
+        /// unknown id, a record that is not a prefab, one evicted).
+        [[nodiscard]] PrefabResource* Load(const Guid& prefabId);
+        /// The prefab's payload, open until the stream is destroyed. Null, with a warning, when the
+        /// prefab does not load, is open already (it nests itself), or the open chain is kMaxDepth
+        /// deep.
+        [[nodiscard]] UniquePtr<IStream> Open(const Guid& prefabId);
+
+    private:
+        friend class PrefabPayloadStream;
+        // A stream Open handed out was destroyed: its spawn is done with the prefab.
+        void Closed(const Guid& prefabId);
+
+        foundation::resource::ResourceManager* m_resources; // borrowed
+        Array<Guid> m_open;                                 // the prefabs whose payloads are open, outermost first
+        PrefabPayloadResolver m_resolver;
+    };
+
+    /// Registers the scene and prefab document types (content-DB construction by type name), and
+    /// the loaded prefab. Idempotent.
     inline void RegisterSceneResourceTypes()
     {
         GlobalTypeRegistry().Register(SceneDocument::StaticType());
         RegisterSerializable<SceneDocument>();
         GlobalTypeRegistry().Register(PrefabDocument::StaticType());
         RegisterSerializable<PrefabDocument>();
+        GlobalTypeRegistry().Register(PrefabResource::StaticType());
     }
 
-    /// The scene resource module: the document types, no factories
-    /// (a scene is loaded, not bound). The prefabs domain brings it.
+    inline constexpr foundation::resource::ResourceFactoryDesc kSceneResourceFactories[] = {
+        foundation::resource::FactoryWithAllocator<PrefabResource, PrefabDocument, PrefabFactory>(),
+    };
+    /// The scene resource module: the document types, and the prefab factory (a prefab binds; a
+    /// scene is loaded, not bound). The prefabs domain brings it.
     inline constexpr foundation::resource::ResourceModule kSceneResourceModule{
-        u8"scene", &RegisterSceneResourceTypes, nullptr, 0};
+        u8"scene", &RegisterSceneResourceTypes, kSceneResourceFactories,
+        sizeof(kSceneResourceFactories) / sizeof(kSceneResourceFactories[0])};
 }

@@ -103,10 +103,10 @@ TEST_CASE("engine.composition: the resource facet - every domain's resource modu
         }
         CHECK(same == 1u);
     }
-    // 28 = the standard headless set (22), the texture factory, the image and shader factories,
-    // the two render profiles and the vector image, plus the GUI's documents and sheets when the
-    // GUI is built.
-    CHECK(composition.FactoryDescriptionCount() == 28u + kGuiFactories);
+    // 29 = the standard headless set (22), the texture factory, the image and shader factories,
+    // the two render profiles, the vector image and the scene's prefabs, plus the GUI's documents
+    // and sheets when the GUI is built.
+    CHECK(composition.FactoryDescriptionCount() == 29u + kGuiFactories);
 
     engine::RegisterAllResourceTypes();
     usize described = 0;
@@ -132,7 +132,7 @@ TEST_CASE("engine.composition: a headless host creates every factory but the two
     resource::ResourceFactorySet set;
     resource::NoResourceServices none;
     composition.CreateFactories(set, DefaultAllocator(), none);
-    CHECK(set.Count() == 26u + kGuiFactories);
+    CHECK(set.Count() == 27u + kGuiFactories);
     REQUIRE(set.Skipped().Size() == 2u);
     bool wantsDevice = false;
     bool wantsShaders = false;
@@ -162,7 +162,7 @@ TEST_CASE("engine.composition: a headless host creates every factory but the two
         });
     // Idempotent: a second headless pass adds nothing.
     composition.CreateFactories(set, DefaultAllocator(), none);
-    CHECK(set.Count() == 26u + kGuiFactories);
+    CHECK(set.Count() == 27u + kGuiFactories);
 }
 
 TEST_CASE("engine.composition: RegisterAllScriptFacades installs exactly the domain facades, "

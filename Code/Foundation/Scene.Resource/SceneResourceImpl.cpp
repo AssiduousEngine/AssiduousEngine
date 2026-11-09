@@ -2069,6 +2069,149 @@ namespace foundation::scene
         builder.Attribute("displayName", String(u8"Prefab"));
     }
 
+    RTTI_DEFINE_OBJECT(PrefabResource, "rtti::scene")
+
+    // ---- prefabs as resources ----
+
+    PrefabResource::PrefabResource(IAllocator& allocator, const Guid& id, StringView name, Array<byte> payload)
+        : m_allocator(&allocator), m_id(id), m_name(name), m_payload(Move(payload))
+    {
+        PrefabPayloadStream probe(Span<const byte>(m_payload.Data(), m_payload.Size()));
+        m_encoding = detail::DetectSceneStreamEncoding(probe);
+    }
+
+    UniquePtr<IStream> PrefabResource::OpenPayload() const
+    {
+        return UniquePtr<IStream>(m_allocator->New<PrefabPayloadStream>(Span<const byte>(m_payload.Data(), m_payload.Size())),
+                                  *m_allocator);
+    }
+
+    PrefabPayloadStream::~PrefabPayloadStream()
+    {
+        if (m_openIn != nullptr)
+        {
+            m_openIn->Closed(m_prefabId);
+        }
+    }
+
+    u64 PrefabPayloadStream::Read(void* destination, u64 bytes)
+    {
+        const u64 available = static_cast<u64>(m_bytes.Size()) - static_cast<u64>(m_position);
+        const u64 count = Min(bytes, available);
+        if (count > 0)
+        {
+            MemCopy(destination, m_bytes.Data() + m_position, static_cast<usize>(count));
+            m_position += static_cast<i64>(count);
+        }
+        return count;
+    }
+
+    i64 PrefabPayloadStream::Seek(i64 offset, SeekOrigin origin)
+    {
+        i64 start = 0;
+        switch (origin)
+        {
+        case SeekOrigin::Begin:
+            start = 0;
+            break;
+        case SeekOrigin::Current:
+            start = m_position;
+            break;
+        case SeekOrigin::End:
+            start = static_cast<i64>(m_bytes.Size());
+            break;
+        }
+        const i64 target = start + offset;
+        if (target < 0 || target > static_cast<i64>(m_bytes.Size()))
+        {
+            return -1;
+        }
+        m_position = target;
+        return target;
+    }
+
+    RefPtr<Object> PrefabFactory::Load(foundation::content::Instance& instance) const
+    {
+        if (instance.TypeName() != StringView(reinterpret_cast<const utf8char*>(PrefabDocument::StaticType().name)) ||
+            instance.TypeNamespace() != StringView(reinterpret_cast<const utf8char*>(PrefabDocument::StaticType().namespaceName)))
+        {
+            return RefPtr<Object>{};
+        }
+        UniquePtr<IStream> stream = instance.ReadData(u8"scene");
+        if (!stream)
+        {
+            return RefPtr<Object>{};
+        }
+        const i64 size = stream->Size();
+        if (size <= 0)
+        {
+            return RefPtr<Object>{};
+        }
+        Array<byte> bytes(*m_allocator);
+        bytes.Resize(static_cast<usize>(size));
+        if (stream->Read(bytes.Data(), static_cast<u64>(size)) != static_cast<u64>(size))
+        {
+            return RefPtr<Object>{};
+        }
+        return MakeRef<PrefabResource>(*m_allocator, *m_allocator, instance.Id(), instance.Name(), Move(bytes));
+    }
+
+    PrefabPayloads::PrefabPayloads(foundation::resource::ResourceManager* resources)
+        : m_resources(resources)
+    {
+        PrefabPayloads* self = this;
+        m_resolver = [self](const Guid& id) { return self->Open(id); };
+    }
+
+    PrefabResource* PrefabPayloads::Load(const Guid& prefabId)
+    {
+        if (m_resources == nullptr || prefabId.IsNil())
+        {
+            return nullptr;
+        }
+        return m_resources->Bind<PrefabResource>(prefabId).Get();
+    }
+
+    UniquePtr<IStream> PrefabPayloads::Open(const Guid& prefabId)
+    {
+        for (const Guid& open : m_open)
+        {
+            if (open == prefabId)
+            {
+                LOG_WARNING(u8"Scene", u8"PrefabPayloads: a prefab nests itself; its nested instance was refused");
+                return UniquePtr<IStream>{};
+            }
+        }
+        if (m_open.Size() >= kMaxDepth)
+        {
+            LOG_WARNING(u8"Scene", u8"PrefabPayloads: a prefab is nested deeper than {}; refused", kMaxDepth);
+            return UniquePtr<IStream>{};
+        }
+        PrefabResource* prefab = Load(prefabId);
+        if (prefab == nullptr)
+        {
+            return UniquePtr<IStream>{};
+        }
+        UniquePtr<IStream> stream = prefab->OpenPayload();
+        PrefabPayloadStream* payload = static_cast<PrefabPayloadStream*>(stream.Get());
+        payload->m_openIn = this;
+        payload->m_prefabId = prefabId;
+        m_open.PushBack(prefabId);
+        return stream;
+    }
+
+    void PrefabPayloads::Closed(const Guid& prefabId)
+    {
+        for (usize i = m_open.Size(); i-- > 0;)
+        {
+            if (m_open[i] == prefabId)
+            {
+                m_open.RemoveAt(i);
+                return;
+            }
+        }
+    }
+
     void ResolveUnresolvedComponents(Scene& scene, ComponentManagerBase& manager)
     {
         Array<Scene::UnresolvedComponent> pending;

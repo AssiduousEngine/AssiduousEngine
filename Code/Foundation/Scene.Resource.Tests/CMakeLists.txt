@@ -4,6 +4,7 @@ add_executable(Scene.Resource.Tests
     TestsMain.cpp
     SceneSerializeTests.cpp
     SceneSaveLoadTests.cpp
+    PrefabResourceTests.cpp
     PrefabSpawnSystemTests.cpp)
 
 target_link_libraries(Scene.Resource.Tests PRIVATE
