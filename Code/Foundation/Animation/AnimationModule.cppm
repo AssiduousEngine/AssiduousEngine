@@ -18,5 +18,6 @@ export import :sampler;
 export import :rootmotion;
 export import :modifier;
 export import :ik;
+export import :overlay;
 export import :player;
 export import :graph;

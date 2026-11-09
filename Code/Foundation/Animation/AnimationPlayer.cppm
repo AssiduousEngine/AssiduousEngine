@@ -5,7 +5,8 @@
 ///
 /// AnimationPlayer: single-clip playback for one skeleton instance. It advances time, loops or
 /// clamps, fires events, and evaluates into skinning matrices (keeping the previous frame's for
-/// motion vectors). The skeleton and clip are borrowed, not owned.
+/// motion vectors). Its PoseOverlay lays one-shots and crossfades over the clip's pose, before the
+/// pose modifiers. The skeleton and clip are borrowed, not owned.
 
 module;
 #include "Core/Prelude.h"
@@ -19,6 +20,7 @@ import :sampler;
 import :pose;
 import :modifier;
 import :rootmotion;
+import :overlay;
 
 using namespace foundation::core;
 
@@ -80,6 +82,28 @@ export namespace foundation::animation
             m_matricesDirty = true;
         }
 
+        /// Plays `clip` (borrowed), easing from the pose shown now into it over `seconds` instead of
+        /// snapping (0: Play).
+        void CrossFadeTo(AnimationClip* clip, f32 seconds)
+        {
+            if (seconds > 0.0f && m_currentClip != nullptr)
+            {
+                m_overlay.FadeFrom(GetFinalPoses(), seconds);
+            }
+            Play(clip);
+        }
+
+        /// What plays over the clip: one-shots and crossfades.
+        [[nodiscard]] PoseOverlay& Overlay() noexcept { return m_overlay; }
+
+        /// Whether a one-shot ended since the last call. Reading it resets it.
+        [[nodiscard]] bool ConsumeOneShotEnded() noexcept
+        {
+            const bool ended = m_oneShotEnded;
+            m_oneShotEnded = false;
+            return ended;
+        }
+
         void Stop()
         {
             m_state = PlaybackState::Stopped;
@@ -126,7 +150,9 @@ export namespace foundation::animation
         // Advances playback by deltaTime: fires crossed events, then loops/clamps.
         void Update(f32 deltaTime)
         {
-            if (m_state != PlaybackState::Playing || m_currentClip == nullptr)
+            const bool playing = m_state == PlaybackState::Playing && m_currentClip != nullptr;
+            const bool overlaid = m_overlay.Active();
+            if (!playing && !overlaid)
             {
                 return;
             }
@@ -136,6 +162,15 @@ export namespace foundation::animation
             for (usize i = 0; i < n; ++i)
             {
                 m_prevSkinningMatrices[i] = m_skinningMatrices[i];
+            }
+            if (overlaid)
+            {
+                m_oneShotEnded = m_overlay.Update(deltaTime) || m_oneShotEnded;
+                m_matricesDirty = true;
+            }
+            if (!playing)
+            {
+                return;
             }
 
             const f32 prevTime = m_prevTime;
@@ -191,7 +226,8 @@ export namespace foundation::animation
         void Evaluate()
         {
             const bool modifying = !m_modifiers.IsEmpty();
-            if (!m_matricesDirty && !modifying)
+            const bool overlaid = m_overlay.Active();
+            if (!m_matricesDirty && !modifying && !overlaid)
             {
                 return;
             }
@@ -201,13 +237,16 @@ export namespace foundation::animation
                            Span<BoneTransform>{m_localPoses.Data(), m_localPoses.Size()});
             }
             Span<const BoneTransform> palettePose{m_localPoses.Data(), m_localPoses.Size()};
-            if (modifying)
+            m_usingFinal = modifying || overlaid;
+            if (m_usingFinal)
             {
                 for (usize i = 0; i < m_localPoses.Size(); ++i)
                 {
                     m_finalPoses[i] = m_localPoses[i];
                 }
-                m_modifiers.Apply(*m_skeleton, Span<BoneTransform>{m_finalPoses.Data(), m_finalPoses.Size()});
+                const Span<BoneTransform> final{m_finalPoses.Data(), m_finalPoses.Size()};
+                m_overlay.Apply(*m_skeleton, final); // one-shots and crossfades, before the modifiers
+                m_modifiers.Apply(*m_skeleton, final);
                 palettePose = Span<const BoneTransform>{m_finalPoses.Data(), m_finalPoses.Size()};
             }
             m_skeleton->ComputeSkinningMatrices(
@@ -227,12 +266,12 @@ export namespace foundation::animation
             return delta;
         }
 
-        /// The pose the palette was last built from: the sampled pose changed by the modifiers (the
-        /// sampled pose itself when there are none).
+        /// The pose the palette was last built from: the sampled pose with the overlay laid over it
+        /// and changed by the modifiers (the sampled pose itself when there are neither).
         [[nodiscard]] Span<const BoneTransform> GetFinalPoses() const noexcept
         {
-            return m_modifiers.IsEmpty() ? Span<const BoneTransform>{m_localPoses.Data(), m_localPoses.Size()}
-                                         : Span<const BoneTransform>{m_finalPoses.Data(), m_finalPoses.Size()};
+            return !m_usingFinal ? Span<const BoneTransform>{m_localPoses.Data(), m_localPoses.Size()}
+                                 : Span<const BoneTransform>{m_finalPoses.Data(), m_finalPoses.Size()};
         }
 
         // Current skinning matrices for GPU upload (evaluates if needed).
@@ -308,6 +347,9 @@ export namespace foundation::animation
         Array<BoneTransform> m_localPoses;
         Array<BoneTransform> m_finalPoses; // the sampled pose after the modifiers
         PoseModifierStack m_modifiers;
+        PoseOverlay m_overlay;        // one-shots and crossfades over the clip
+        bool m_usingFinal = false;    // the palette came from m_finalPoses (an overlay or modifiers)
+        bool m_oneShotEnded = false;  // since the last ConsumeOneShotEnded
         RootMotionDelta m_rootMotion; // since the last ConsumeRootMotion
         Array<Float4x4> m_skinningMatrices;
         Array<Float4x4> m_prevSkinningMatrices;

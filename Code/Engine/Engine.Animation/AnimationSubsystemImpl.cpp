@@ -99,7 +99,22 @@ namespace engine::animation
         builder.Method<&SceneAnimation::isPlaying>("isPlaying", {"entity"});
         builder.Method<&SceneAnimation::time>("time", {"entity"});
         builder.Method<&SceneAnimation::setTime>("setTime", {"entity", "seconds"});
-        builder.Method<&SceneAnimation::setClip>("setClip", {"entity", "resourceId"});
+        // setClip by arity: at once, or easing from the pose shown now over blendSeconds.
+        builder.Method<static_cast<void (SceneAnimation::*)(foundation::script::Entity, Guid) const>(&SceneAnimation::setClip)>(
+            "setClip", {"entity", "resourceId"});
+        builder.Method<static_cast<void (SceneAnimation::*)(foundation::script::Entity, Guid, f32) const>(&SceneAnimation::setClip)>(
+            "setClip", {"entity", "resourceId", "blendSeconds"});
+        // One-shots: a clip once over whatever the entity animates, ending in onAnimationFinished.
+        builder.Method<&SceneAnimation::clipLength>("clipLength", {"clip"});
+        builder.Method<static_cast<void (SceneAnimation::*)(foundation::script::Entity, Guid) const>(&SceneAnimation::playOneShot)>(
+            "playOneShot", {"entity", "clip"});
+        builder.Method<static_cast<void (SceneAnimation::*)(foundation::script::Entity, Guid, f32, f32, f32, i32) const>(
+            &SceneAnimation::playOneShot)>("playOneShot", {"entity", "clip", "speed", "blendIn", "blendOut", "loops"});
+        builder.Method<static_cast<void (SceneAnimation::*)(foundation::script::Entity) const>(&SceneAnimation::stopOneShot)>(
+            "stopOneShot", {"entity"});
+        builder.Method<static_cast<void (SceneAnimation::*)(foundation::script::Entity, f32) const>(&SceneAnimation::stopOneShot)>(
+            "stopOneShot", {"entity", "blendOut"});
+        builder.Method<&SceneAnimation::isPlayingOneShot>("isPlayingOneShot", {"entity"});
         builder.Method<&SceneAnimation::setFloat>("setFloat", {"entity", "name", "value"});
         builder.Method<&SceneAnimation::setInt>("setInt", {"entity", "name", "value"});
         builder.Method<&SceneAnimation::setBool>("setBool", {"entity", "name", "value"});
@@ -479,8 +494,62 @@ namespace engine::animation
         return worst;
     }
 
+    void AnimationSubsystem::RegisterListener(IAnimationListener* listener)
+    {
+        if (listener == nullptr)
+        {
+            return;
+        }
+        for (IAnimationListener* existing : m_listeners)
+        {
+            if (existing == listener)
+            {
+                return;
+            }
+        }
+        m_listeners.PushBack(listener);
+    }
+
+    void AnimationSubsystem::UnregisterListener(IAnimationListener* listener)
+    {
+        for (usize i = 0; i < m_listeners.Size(); ++i)
+        {
+            if (m_listeners[i] == listener)
+            {
+                m_listeners.RemoveAt(i);
+                return;
+            }
+        }
+    }
+
+    void AnimationSubsystem::TellOneShotsEnded()
+    {
+        for (foundation::scene::Scene* scene : m_scenes)
+        {
+            m_ended.Clear();
+            if (auto* graphs = scene->GetSystem<AnimationGraphComponentManager>())
+            {
+                graphs->DrainEnded(m_ended);
+            }
+            if (auto* clips = scene->GetSystem<SkeletalAnimationComponentManager>())
+            {
+                clips->DrainEnded(m_ended);
+            }
+            for (const OneShotEnded& e : m_ended)
+            {
+                const AnimationOneShotEnded ended{scene, e.entity, e.clip};
+                for (IAnimationListener* listener : m_listeners)
+                {
+                    listener->OnOneShotEnded(ended);
+                }
+            }
+        }
+        m_ended.Clear();
+    }
+
     void AnimationSubsystem::Update(f32)
     {
+        TellOneShotsEnded(); // headless too: before the debug drawing, which needs a renderer
         foundation::runtime::SubsystemManager* context = Manager();
         auto* render = context != nullptr ? context->GetSubsystem<engine::render::RenderSubsystem>() : nullptr;
         if (render == nullptr)

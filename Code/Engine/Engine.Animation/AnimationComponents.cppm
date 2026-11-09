@@ -191,6 +191,60 @@ export namespace engine::animation
     // tick. `meshEntities` are the entities whose MeshComponent receives the matrices (a character's
     // skinned mesh nodes); empty feeds the component's own entity. All borrowed resources must
     // outlive the component (the resource manager or model keeps the skeleton and clip alive).
+    // A one-shot a script asked for (SceneAnimation.playOneShot), on either kind of animated
+    // entity: the manager starts it over the entity's pose once its clip has loaded, and reports
+    // its end. Runtime only.
+    struct OneShotRuntime
+    {
+        foundation::resource::Ref<animation::AnimationClip> clip; // asked for, then playing (kept alive)
+        animation::OneShotSettings settings;
+        bool pending = false; // asked for, its clip not yet started
+        bool playing = false; // started over the pose, not yet reported ended
+        Guid playingId;       // its clip's id (nil for a clip made in memory)
+    };
+
+    // A one-shot that ended: its entity and its clip, for the animation subsystem's listeners.
+    struct OneShotEnded
+    {
+        scene::EntityHandle entity;
+        Guid clip;
+    };
+
+    // What the two managers do with a one-shot each tick. Static members rather than free inline
+    // functions: GCC cannot read back a partition whose namespace-scope inline function
+    // instantiates a template.
+    struct OneShots
+    {
+        // Starts a requested one-shot over `overlay` once its clip has loaded.
+        static void Start(OneShotRuntime& o, animation::PoseOverlay& overlay)
+        {
+            if (!o.pending)
+            {
+                return;
+            }
+            const animation::AnimationClip* clip = o.clip.Get();
+            if (clip == nullptr)
+            {
+                return; // still loading
+            }
+            overlay.PlayOneShot(*clip, o.settings);
+            o.playing = true;
+            o.playingId = o.clip.id;
+            o.pending = false;
+        }
+        // After the player's tick: a one-shot that ended joins `ended` (a new one asked for since
+        // has not started yet, so the end is the old one's).
+        static void Ended(OneShotRuntime& o, bool endedNow, scene::EntityHandle owner, Array<OneShotEnded>& ended)
+        {
+            if (!endedNow || !o.playing)
+            {
+                return;
+            }
+            ended.PushBack(OneShotEnded{owner, o.playingId});
+            o.playing = false;
+        }
+    };
+
     struct SkeletalAnimationComponent
     {
         // Resource refs: serialized by Guid and resolved through the proxy (editor pickers, scene
@@ -210,6 +264,8 @@ export namespace engine::animation
         RootMotionMode rootMotion = RootMotionMode::Ignore; // v2
         scene::EntityRef rootMotionTarget; // v2: what Entity mode moves (empty: this entity)
         RootMotionRuntime rootMotionState; // runtime
+        OneShotRuntime oneShot;            // runtime: a one-shot over the clip
+        f32 clipFade = 0.0f;               // runtime: the next clip change eases over this (s)
     };
 
     // Persist the refs and tunables; the player and per-frame feed state are runtime-only.
@@ -321,17 +377,22 @@ export namespace engine::animation
                         a.playerClip = clip;
                         if (a.autoPlay && clip != nullptr)
                         {
-                            a.player->Play(clip);
-                            if (a.startTime != 0.0f)
+                            // A clip changed mid-play eases in when asked (SceneAnimation.setClip's
+                            // blend); the first clip, and the start time, start at once.
+                            a.player->CrossFadeTo(clip, a.clipFade);
+                            if (a.startTime != 0.0f && a.clipFade <= 0.0f)
                             {
                                 a.player->SetCurrentTime(a.startTime);
                             }
                         }
+                        a.clipFade = 0.0f;
                     }
                     a.player->speed = a.speed;
                     if (m_scene->SimulationEnabled())
                     {
+                        OneShots::Start(a.oneShot, a.player->Overlay());
                         a.player->Update(deltaTime);
+                        OneShots::Ended(a.oneShot, a.player->ConsumeOneShotEnded(), owner, m_ended);
                         root_motion_apply::Apply(
                             *m_scene, owner, Span<const scene::EntityRef>{a.meshEntities.Data(), a.meshEntities.Size()},
                             a.rootMotionTarget, a.rootMotion, a.rootMotionState, a.player->ConsumeRootMotion(), deltaTime);
@@ -361,8 +422,19 @@ export namespace engine::animation
                 });
         }
 
+        // The one-shots that ended since the last call (the animation subsystem tells its listeners).
+        void DrainEnded(Array<OneShotEnded>& out)
+        {
+            for (const OneShotEnded& e : m_ended)
+            {
+                out.PushBack(e);
+            }
+            m_ended.Clear();
+        }
+
     private:
         scene::Scene* m_scene = nullptr;
+        Array<OneShotEnded> m_ended;
     };
 
     // State-machine-driven skeletal animation: a graph player over a borrowed, shared skeleton and
@@ -383,6 +455,7 @@ export namespace engine::animation
         RootMotionMode rootMotion = RootMotionMode::Ignore; // v2
         scene::EntityRef rootMotionTarget; // v2: what Entity mode moves (empty: this entity)
         RootMotionRuntime rootMotionState; // runtime
+        OneShotRuntime oneShot;            // runtime: a one-shot over the graph's pose
     };
 
     inline void Serialize(ISerializer& ar, AnimationGraphComponent& c)
@@ -479,7 +552,9 @@ export namespace engine::animation
                     }
                     if (m_scene->SimulationEnabled())
                     {
+                        OneShots::Start(a.oneShot, a.player->Overlay());
                         a.player->Update(deltaTime);
+                        OneShots::Ended(a.oneShot, a.player->ConsumeOneShotEnded(), owner, m_ended);
                         root_motion_apply::Apply(
                             *m_scene, owner, Span<const scene::EntityRef>{a.meshEntities.Data(), a.meshEntities.Size()},
                             a.rootMotionTarget, a.rootMotion, a.rootMotionState, a.player->ConsumeRootMotion(), deltaTime);
@@ -513,8 +588,19 @@ export namespace engine::animation
                 });
         }
 
+        // The one-shots that ended since the last call (the animation subsystem tells its listeners).
+        void DrainEnded(Array<OneShotEnded>& out)
+        {
+            for (const OneShotEnded& e : m_ended)
+            {
+                out.PushBack(e);
+            }
+            m_ended.Clear();
+        }
+
     private:
         scene::Scene* m_scene = nullptr;
+        Array<OneShotEnded> m_ended;
     };
 
     // Instanced skinning for crowds: the companion to an engine::render::InstancedMeshComponent that
@@ -761,6 +847,81 @@ export namespace engine::animation
                 p->SetCurrentTime(seconds);
             }
         }
+        // Swap the entity's clip as setClip does, easing from the pose shown now into the new clip
+        // over `blendSeconds` instead of snapping.
+        void setClip(foundation::script::Entity entity, Guid id, f32 blendSeconds) const
+        {
+            if (SkeletalAnimationComponent* c = Skeletal(entity))
+            {
+                c->clipFade = Max(0.0f, blendSeconds);
+            }
+            setClip(entity, id);
+        }
+
+        // --- one-shots: a clip played once over whatever the entity is animating (its clip or its
+        // graph), blended in and out, after which it carries on with its own animation; its end
+        // reaches the entity's behaviours as onAnimationFinished(clip) ---
+        // A clip's length in seconds (0 when it is not a clip, or cannot load).
+        [[nodiscard]] f32 clipLength(Guid clip) const
+        {
+            foundation::resource::ResourceManager* resources = foundation::script::CurrentRunResources();
+            if (resources == nullptr || clip.IsNil())
+            {
+                return 0.0f;
+            }
+            foundation::resource::Ref<animation::AnimationClip> ref;
+            ref.SetId(clip);
+            ref.Bind(*resources);
+            return ref.Get() != nullptr ? ref.Get()->duration : 0.0f;
+        }
+        // Plays `clip` once over the entity's animation, blending in and out over 0.2 s.
+        void playOneShot(foundation::script::Entity entity, Guid clip) const
+        {
+            playOneShot(entity, clip, 1.0f, 0.2f, 0.2f, 0);
+        }
+        // The same at `speed`, blending in over `blendIn` and out over `blendOut` seconds, playing
+        // `loops` more times after the first (-1: until stopped). One already playing gives way.
+        void playOneShot(foundation::script::Entity entity, Guid clip, f32 speed, f32 blendIn, f32 blendOut,
+                         i32 loops) const
+        {
+            OneShotRuntime* o = OneShotOf(entity);
+            foundation::resource::ResourceManager* resources = foundation::script::CurrentRunResources();
+            if (o == nullptr || clip.IsNil() || resources == nullptr)
+            {
+                return;
+            }
+            o->clip.SetId(clip);
+            o->clip.Bind(*resources);
+            o->settings = animation::OneShotSettings{speed, Max(0.0f, blendIn), Max(0.0f, blendOut), loops};
+            o->pending = true;
+        }
+        // Blends the entity's one-shot out over 0.2 s (it then reports its end).
+        void stopOneShot(foundation::script::Entity entity) const { stopOneShot(entity, 0.2f); }
+        void stopOneShot(foundation::script::Entity entity, f32 blendOut) const
+        {
+            OneShotRuntime* o = OneShotOf(entity);
+            if (o == nullptr)
+            {
+                return;
+            }
+            o->pending = false;
+            if (animation::PoseOverlay* overlay = OverlayOf(entity))
+            {
+                overlay->StopOneShot(Max(0.0f, blendOut));
+            }
+        }
+        // From the call until the one-shot has blended out.
+        [[nodiscard]] bool isPlayingOneShot(foundation::script::Entity entity) const
+        {
+            const OneShotRuntime* o = OneShotOf(entity);
+            if (o == nullptr)
+            {
+                return false;
+            }
+            const animation::PoseOverlay* overlay = OverlayOf(entity);
+            return o->pending || (overlay != nullptr && overlay->IsPlayingOneShot());
+        }
+
         // Swap the entity's animation clip to resource `id`, binding it through the run's resource
         // manager; the manager picks up the change next tick (autoPlay replays it).
         void setClip(foundation::script::Entity entity, Guid id) const
@@ -864,6 +1025,31 @@ export namespace engine::animation
         {
             SkeletalAnimationComponent* c = Skeletal(e);
             return (c != nullptr) ? c->player.Get() : nullptr;
+        }
+        [[nodiscard]] OneShotRuntime* OneShotOf(foundation::script::Entity entity) const
+        {
+            if (scene == nullptr)
+            {
+                return nullptr;
+            }
+            if (auto* graphs = scene->GetSystem<AnimationGraphComponentManager>())
+            {
+                if (AnimationGraphComponent* g = graphs->Get(entity.Handle()))
+                {
+                    return &g->oneShot;
+                }
+            }
+            SkeletalAnimationComponent* c = Skeletal(entity);
+            return c != nullptr ? &c->oneShot : nullptr;
+        }
+        [[nodiscard]] animation::PoseOverlay* OverlayOf(foundation::script::Entity entity) const
+        {
+            if (animation::AnimationGraphPlayer* g = GraphPlayer(entity))
+            {
+                return &g->Overlay();
+            }
+            animation::AnimationPlayer* p = SkeletalPlayer(entity);
+            return p != nullptr ? &p->Overlay() : nullptr;
         }
         [[nodiscard]] animation::AnimationGraphPlayer* GraphPlayer(foundation::script::Entity e) const
         {

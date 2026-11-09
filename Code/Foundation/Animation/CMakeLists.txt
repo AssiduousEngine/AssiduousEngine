@@ -16,6 +16,7 @@ target_sources(Animation
             RootMotion.cppm
             PoseModifier.cppm
             InverseKinematics.cppm
+            PoseOverlay.cppm
             AnimationPlayer.cppm
             AnimationGraph.cppm
             AnimationModule.cppm)

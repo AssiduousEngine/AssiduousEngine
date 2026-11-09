@@ -42,12 +42,36 @@ export namespace engine::animation
         scene.AddSystem<BoneAttachmentComponentManager>(); // entities that follow a bone
     }
 
-    // Registers the reflection, and draws the IK components that ask for it (debugDraw) into each
-    // running scene's debug list, as navigation and physics do.
+    // A one-shot that ended on an entity (SceneAnimation.playOneShot): the scene, the entity and the
+    // clip.
+    struct AnimationOneShotEnded
+    {
+        foundation::scene::Scene* scene = nullptr;
+        foundation::scene::EntityHandle entity;
+        Guid clip;
+    };
+
+    // A consumer of the animation's events: the host bridges them to scripts (Engine.Integration's
+    // ScriptAnimationBridge), so the animation stays script-agnostic, as physics contacts do.
+    class IAnimationListener
+    {
+    public:
+        virtual ~IAnimationListener() = default;
+        virtual void OnOneShotEnded(const AnimationOneShotEnded& ended) = 0;
+    };
+
+    // Registers the reflection, tells its listeners of the one-shots that ended in each running
+    // scene, and draws the IK components that ask for it (debugDraw) into each running scene's
+    // debug list, as navigation and physics do.
     class AnimationSubsystem final : public foundation::runtime::Subsystem,
                                      public foundation::scene::ISceneObserver
     {
     public:
+        // Listeners are borrowed and must unregister before they go; registering twice is once.
+        // Defined in the implementation unit.
+        void RegisterListener(IAnimationListener* listener);
+        void UnregisterListener(IAnimationListener* listener);
+
         void OnSystemsReady(foundation::scene::Scene& scene) override { m_scenes.PushBack(&scene); }
         void OnDestroying(foundation::scene::Scene& scene) override
         {
@@ -91,7 +115,11 @@ export namespace engine::animation
         }
 
     private:
+        void TellOneShotsEnded();
+
         Array<foundation::scene::Scene*> m_scenes;
+        Array<IAnimationListener*> m_listeners;
+        Array<OneShotEnded> m_ended; // scratch: one scene's, drained from its managers
     };
 
 } // namespace engine::animation

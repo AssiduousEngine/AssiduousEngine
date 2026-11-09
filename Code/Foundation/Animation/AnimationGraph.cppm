@@ -19,6 +19,7 @@ import foundation.core;
 import :skeleton; // Skeleton, Bone, BoneTransform
 import :clip;     // AnimationClip, AnimationEventHandler
 import :sampler;  // SampleClip, BlendPoses
+import :overlay;  // PoseOverlay
 import :rootmotion;
 import :modifier; // PoseModifierStack (the stage after the layers combine)
 
@@ -1068,9 +1069,27 @@ export namespace foundation::animation
                 p.ConsumeTrigger();
             }
             CombineLayers();
-            // The pose modifiers (inverse kinematics) over the combined pose, before the palette.
-            m_modifiers.Apply(*m_skeleton, Span<BoneTransform>{m_finalPoses.Data(), m_finalPoses.Size()});
+            // One-shots and crossfades over the combined pose, then the pose modifiers (inverse
+            // kinematics), before the palette.
+            const Span<BoneTransform> final{m_finalPoses.Data(), m_finalPoses.Size()};
+            if (m_overlay.Active())
+            {
+                m_oneShotEnded = m_overlay.Update(deltaTime) || m_oneShotEnded;
+                m_overlay.Apply(*m_skeleton, final);
+            }
+            m_modifiers.Apply(*m_skeleton, final);
             m_matricesDirty = true;
+        }
+
+        /// What plays over the graph's pose: one-shots (a wave over whatever state it is in).
+        [[nodiscard]] PoseOverlay& Overlay() noexcept { return m_overlay; }
+
+        /// Whether a one-shot ended since the last call. Reading it resets it.
+        [[nodiscard]] bool ConsumeOneShotEnded() noexcept
+        {
+            const bool ended = m_oneShotEnded;
+            m_oneShotEnded = false;
+            return ended;
         }
 
         /// The pose modifiers run after the layers combine and before the palette, borrowed.
@@ -1362,6 +1381,7 @@ export namespace foundation::animation
         {
             if (m_layerRuntimes.IsEmpty())
             {
+                ResetToBind(); // no layers: the bind pose, each update (an overlay lays over it)
                 return;
             }
             // Base layer writes directly.
@@ -1441,6 +1461,8 @@ export namespace foundation::animation
         Array<AnimationGraphParameter> m_parameters; // runtime copy
         Array<BoneTransform> m_finalPoses;
         PoseModifierStack m_modifiers;
+        PoseOverlay m_overlay;        // one-shots over the combined pose
+        bool m_oneShotEnded = false;  // since the last ConsumeOneShotEnded
         RootMotionDelta m_rootMotion; // the base layer's, since the last ConsumeRootMotion
         Array<Float4x4> m_skinningMatrices;
         Array<Float4x4> m_prevSkinningMatrices;

@@ -7,6 +7,7 @@ add_executable(Engine.Animation.Tests
     InstancedSkinningTests.cpp
     PropertyAnimatorTests.cpp
     GraphParameterTests.cpp
+    OneShotTests.cpp
     RestPoseTests.cpp
     BoneAttachmentTests.cpp
     TestsMain.cpp)

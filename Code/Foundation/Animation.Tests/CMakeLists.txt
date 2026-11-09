@@ -8,6 +8,7 @@ add_executable(Animation.Tests
     ClipTests.cpp
     SamplerTests.cpp
     PlayerTests.cpp
+    OverlayTests.cpp
     GraphTests.cpp
     ModifierTests.cpp
     IkTests.cpp
