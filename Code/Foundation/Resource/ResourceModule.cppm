@@ -738,6 +738,40 @@ export namespace foundation::resource
             dropped.Clear();
         }
 
+        /// Takes a resource out of service because what it was built from is gone (its record
+        /// deleted): the handle is marked Failed and KEPT registered, so a held proxy reads null
+        /// rather than dangling, and the product is parked for the frames in flight as a reload's
+        /// replaced product is. A record that comes back under the same identity revives this same
+        /// handle through Reload, and what was built from it keeps its edge, so it rebuilds with
+        /// that reload. An identity with no handle is left alone. (Flush, by contrast, leaves the
+        /// handle Unloaded, so the next bind quietly rebuilds it.)
+        void Evict(const Guid& id)
+        {
+            RefPtr<ResourceHandle>* found = m_handles.Find(id);
+            if (found == nullptr)
+            {
+                return;
+            }
+            RefPtr<ResourceHandle> handle = *found;
+            // A load in flight would land its product after this and undo it, so it is finished
+            // first, as a synchronous bind of it would be.
+            if (handle->State() == ResourceState::Pending)
+            {
+                CompletePending(id);
+            }
+            ClearForwardDeps(id);
+            if (Object* old = handle->Get())
+            {
+                m_graveyard.PushBack(Grave{RefPtr<Object>(old), kGraveFrames});
+            }
+            handle->Replace(nullptr);
+            handle->SetState(ResourceState::Failed);
+        }
+
+        /// Products parked for the frames in flight (a reload's or an eviction's), until
+        /// CollectGarbage releases them.
+        [[nodiscard]] usize GraveyardCount() const noexcept { return m_graveyard.Size(); }
+
         // Drops the product from a handle without unbinding it; a later Bind/
         // Reload rebuilds it. False if unbound.
         bool Flush(const Guid& id)
@@ -1050,9 +1084,12 @@ export namespace foundation::resource
             }
             visited.PushBack(id);
 
-            if (RefPtr<ResourceHandle>* handle = m_handles.Find(id))
+            if (RefPtr<ResourceHandle>* slot = m_handles.Find(id))
             {
-                BuildInto(**handle, (*handle)->ProductTypeId(), id);
+                // Held, not the slot: the rebuild's child binds may rehash the map.
+                RefPtr<ResourceHandle> handle = *slot;
+                BuildInto(*handle, handle->ProductTypeId(), id);
+                SettleSyncState(*handle); // an evicted handle revives Ready; a failed rebuild reads Failed
             }
 
             Array<Guid> dependents;
