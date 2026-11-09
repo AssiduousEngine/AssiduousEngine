@@ -506,11 +506,13 @@ namespace editor
         foundation::content::Group* group = self != nullptr ? &self->OwningGroup() : Context().Project()->SourceDb().RootGroup();
         if (group == nullptr)
             return false;
-        const String name = Format(u8"{}_splat", Title());
+        // A free name: CreateInstance hands back whatever holds a taken one, and the starter written
+        // below would overwrite it (weights left by an undo, or another asset of that name).
+        const String name = group->UniqueInstanceName(Format(u8"{}_splat", Title()).AsView());
         foundation::content::Instance* made = group->CreateInstance(name.AsView(), pipeline::SplatmapAsset::StaticType());
         if (made == nullptr)
         {
-            Context().Notify(NoticeKind::Error, Format(u8"No splat weights made: '{}' is taken.", name).AsView());
+            Context().Notify(NoticeKind::Error, Format(u8"No splat weights made: '{}' could not be created.", name).AsView());
             return false;
         }
         pipeline::SplatmapAsset splat;

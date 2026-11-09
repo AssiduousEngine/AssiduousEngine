@@ -248,4 +248,39 @@ TEST_CASE("terrain page: New Splat Weights makes them beside the terrain and giv
     page->Commands().Undo(); // the terrain drops them, but the created asset remains
     CHECK(asset->weightsId.IsNil());
     CHECK(page->SplatButton()->IsEnabled());
+
+    // Made again, they take a free name: the weights the undo left are not written over.
+    const Guid first = made->Id();
+    REQUIRE(page->CreateSplatWeights(256));
+    REQUIRE_FALSE(asset->weightsId.IsNil());
+    CHECK(asset->weightsId != first);
+    foundation::content::Instance* again = bed.project->SourceDb().GetInstance(asset->weightsId);
+    REQUIRE(again != nullptr);
+    CHECK(again->Name() == StringView(u8"Hills_splat.2"));
+    RefPtr<ISerializable> kept = bed.project->SourceDb().GetInstance(first)->ReadObject();
+    REQUIRE(Cast<pipeline::SplatmapAsset>(kept.Get()) != nullptr);
+    CHECK(Cast<pipeline::SplatmapAsset>(kept.Get())->width == 512);
+}
+
+TEST_CASE("terrain page: New Splat Weights never writes over another asset holding their name")
+{
+    Bed bed;
+    // A terrain named like the splat weights would be: the weights must not land in it.
+    foundation::content::Instance* holder =
+        bed.hills->OwningGroup().CreateInstance(u8"Bare_splat", pipeline::TerrainAsset::StaticType());
+    REQUIRE(holder != nullptr);
+    pipeline::TerrainAsset holderAsset;
+    holderAsset.heightfieldId = bed.heights;
+    REQUIRE(holder->WriteObject(holderAsset).IsOk());
+
+    UniquePtr<TerrainEditorPage> page = bed.Open(*bed.bare);
+    REQUIRE(page->CreateSplatWeights(128));
+    foundation::content::Instance* made = bed.project->SourceDb().GetInstance(page->Asset()->weightsId);
+    REQUIRE(made != nullptr);
+    CHECK(made != holder);
+    CHECK(made->Name() == StringView(u8"Bare_splat.2"));
+    RefPtr<ISerializable> object = holder->ReadObject();
+    const auto* still = Cast<pipeline::TerrainAsset>(object.Get());
+    REQUIRE(still != nullptr); // still a terrain, its heightfield kept
+    CHECK(still->heightfieldId == bed.heights);
 }

@@ -603,6 +603,13 @@ export namespace editor::app
             foundation::content::Instance* original = sources != nullptr ? sources->GetInstance(pageId) : nullptr;
             if (target == nullptr || original == nullptr)
                 return; // closed meanwhile
+            // The name must be free: CreateInstance hands back whatever holds a taken one, and the
+            // save would write over it. The dialog checks first; this holds for any caller.
+            if (const String refused = AssetNames::Refusal(group, newName); !refused.IsEmpty())
+            {
+                context.Notify(editor::NoticeKind::Error, Format(u8"Not saved: {}", refused).AsView());
+                return;
+            }
             const TypeInfo* type = GlobalTypeRegistry().FindByName(reinterpret_cast<const char*>(String(original->TypeNamespace()).CStr()),
                                                                    reinterpret_cast<const char*>(String(original->TypeName()).CStr()));
             foundation::content::Instance* fresh = type != nullptr ? group.CreateInstance(newName, *type) : nullptr;
