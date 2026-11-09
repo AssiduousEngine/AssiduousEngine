@@ -79,10 +79,21 @@ namespace editor
 
     const TypeInfo* ScriptPropertyRows::AssetType(StringView typeName)
     {
-        // By its own name: a tag names the type, not its namespace (rtti::materials, rtti::scene).
+        // By its own name (`PrefabResource`) or its full one (`rtti::scene::PrefabResource`): a
+        // script author writes the short name, and the full one tells apart two that share it.
+        static constexpr StringView kSeparator = u8"::";
         for (const TypeInfo* type : GlobalTypeRegistry().All())
         {
-            if (type != nullptr && type->name != nullptr && StringView(reinterpret_cast<const utf8char*>(type->name)) == typeName)
+            if (type == nullptr || type->name == nullptr)
+                continue;
+            const StringView name(reinterpret_cast<const utf8char*>(type->name));
+            if (typeName == name)
+                return type;
+            if (type->namespaceName == nullptr)
+                continue;
+            const StringView space(reinterpret_cast<const utf8char*>(type->namespaceName));
+            if (typeName.Size() == space.Size() + kSeparator.Size() + name.Size() && typeName.StartsWith(space)
+                && typeName.SubStr(space.Size(), kSeparator.Size()) == kSeparator && typeName.EndsWith(name))
             {
                 return type;
             }

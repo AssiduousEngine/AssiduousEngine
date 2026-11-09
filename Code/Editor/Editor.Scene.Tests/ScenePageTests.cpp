@@ -2268,6 +2268,13 @@ TEST_CASE("script behaviours: an asset property's tag names the type the asset l
     engine::RegisterAllResourceTypes();
     CHECK(ScriptPropertyRows::AssetType(u8"PrefabResource") == &scene::PrefabResource::StaticType());
     CHECK(ScriptPropertyRows::AssetType(u8"ScriptClass") == &foundation::script::ScriptClass::StaticType());
+    // Or by its full name: its namespace, `::`, its own name.
+    const TypeInfo& prefab = scene::PrefabResource::StaticType();
+    String full(reinterpret_cast<const utf8char*>(prefab.namespaceName));
+    full.Append(u8"::");
+    full.Append(reinterpret_cast<const utf8char*>(prefab.name));
+    CHECK(ScriptPropertyRows::AssetType(full.AsView()) == &prefab);
+    CHECK(ScriptPropertyRows::AssetType(u8"rtti::nowhere::PrefabResource") == nullptr);
     CHECK(ScriptPropertyRows::AssetType(u8"Prefab") == nullptr); // PrefabDocument's display name only
     CHECK(ScriptPropertyRows::AssetType(u8"NothingIsCalledThis") == nullptr);
 }
