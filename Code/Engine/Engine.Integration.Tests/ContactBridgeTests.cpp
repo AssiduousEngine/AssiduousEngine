@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// engine.integration tests: the physics-contact-to-script bridge in isolation. The kind mapping is
+// engine.integration tests: the bridges to scripts in isolation (physics contacts, animation events). The kind mapping is
 // pure (no subsystems needed); the full contact-to-behavior delivery through this same bridge is
 // covered end to end by the ContactWorld tests in the script scene tests.
 
@@ -13,6 +13,7 @@ import foundation.core;
 import foundation.physics;         // ContactKind
 import engine.script;   // ScriptContactKind
 import engine.integration;
+import engine.animation; // AnimationSubsystem (the animation bridge)
 
 using namespace foundation::core;
 using engine::integration::ScriptPhysicsContactBridge;
@@ -36,4 +37,20 @@ TEST_CASE("integration: a fresh bridge is not installed and Uninstall is a safe 
     CHECK_FALSE(bridge.Installed());
     // Destroying an uninstalled bridge must not touch a (null) physics subsystem; it goes out of
     // scope here without a crash.
+}
+
+TEST_CASE("integration: the animation bridge installs on the animation subsystem and lets go")
+{
+    engine::integration::ScriptAnimationBridge bridge;
+    CHECK_FALSE(bridge.Installed());
+    bridge.Uninstall(); // idempotent when never installed
+    engine::animation::AnimationSubsystem animation;
+    engine::script::ScriptSubsystem scripts;
+    bridge.Install(animation, scripts);
+    CHECK(bridge.Installed());
+    bridge.Install(animation, scripts); // re-points cleanly
+    CHECK(bridge.Installed());
+    bridge.Uninstall();
+    CHECK_FALSE(bridge.Installed());
+    // Delivery to behaviours through it is the script scene tests' (AnimationWorld).
 }

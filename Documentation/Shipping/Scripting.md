@@ -62,6 +62,26 @@ Every component a script reaches has three static methods on its type (AngelScri
 A prefab is still the way to make something with many parts at once (`ScenePrefabs::of(scene)
 .spawn`); `addTo` is for one component on an entity that is already there.
 
+## Animation: one-shots, lengths and crossfades
+
+`SceneAnimation.of(scene)` drives what an entity's animator plays, whether a single clip
+(`SkeletalAnimationComponent`) or a state-machine graph (`AnimationGraphComponent`):
+
+- `playOneShot(entity, clip)` plays `clip` once over whatever the entity is animating, blending in
+  and out over 0.2 s, whatever the clip's own looping; the entity then carries on with its own
+  animation, by then wherever it has got to (its idle, its graph's state), so there is no clip to
+  return to. `playOneShot(entity, clip, speed, blendIn, blendOut, loops)` sets the speed, the
+  blend times and how many more times it plays (`-1`: until stopped). One already playing gives way
+  to a new one without a snap. A one-shot drives the whole body and moves no root: a look laid over
+  the character, not its locomotion; inverse kinematics still applies after it.
+- `stopOneShot(entity)` (or with a blend-out time) blends it out; `isPlayingOneShot(entity)` is
+  true from the call until it has blended out.
+- When a one-shot ends (played out or stopped), the entity's behaviours get
+  `onAnimationFinished(Guid clip)` at the next scene tick, as physics contacts arrive.
+- `clipLength(clip)` is a clip's length in seconds (0 for no clip).
+- `setClip(entity, clip, blendSeconds)` swaps an animator's clip easing from the pose shown now into
+  the new clip, instead of the snap of `setClip(entity, clip)`.
+
 ## Naming a control
 
 Text that tells the player what to press names the control, never the action: an action's name

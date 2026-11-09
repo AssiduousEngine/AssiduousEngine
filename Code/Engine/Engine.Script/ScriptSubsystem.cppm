@@ -847,12 +847,13 @@ export namespace engine::script
             m_messages.PushBack(Move(pending));
         }
 
-        /// Physics contacts: queue a contact handler call (the handler name is already the
-        /// final `on<Event>`, e.g. "onContactBegin", not a message to convert) with
-        /// pre-marshalled args. Reuses the same deferred queue as entity.send so it drains
-        /// at the tick's top level: the physics tick pushes contacts (never nested in a script
-        /// call), and delivery is gated by HasHandler in InvokeHandler exactly like messages.
-        void EnqueueContact(scene::EntityHandle target, StringView handler, Array<Variant> args)
+        /// An engine event's handler call (physics contacts, an animation's one-shot ending): the
+        /// handler name is already the final `on<Event>`, e.g. "onContactBegin", not a message to
+        /// convert, with pre-marshalled args. Reuses the same deferred queue as entity.send so it
+        /// drains at the tick's top level: the subsystems push their events from their own ticks
+        /// (never nested in a script call), and delivery is gated by HasHandler in InvokeHandler
+        /// exactly like messages.
+        void EnqueueHandler(scene::EntityHandle target, StringView handler, Array<Variant> args)
         {
             if (handler.IsEmpty())
             {
@@ -1828,6 +1829,21 @@ export namespace engine::script
             DeliverContactSide(*system, scene, b, a, handler, point, normal, speed, trigger);
         }
 
+        /// An engine event for an entity's behaviours: `handler` (the final `on<Event>` name, such as
+        /// "onAnimationFinished") called with `args` on each of the entity's behaviours that has it.
+        /// As DeliverContact, it only enqueues onto the scene's deferred queue, drained at the scene
+        /// tick's top level; a host bridges a subsystem's events to it (the subsystem stays
+        /// script-agnostic).
+        void DeliverEvent(scene::Scene* scene, scene::EntityHandle target, StringView handler, Array<Variant> args)
+        {
+            ScriptSceneSystem* system = SystemForScene(scene);
+            if (system == nullptr || !target.IsAssigned())
+            {
+                return;
+            }
+            system->EnqueueHandler(target, handler, Move(args));
+        }
+
         /// Host-app wiring: a getter for the run's resource manager, behind the resource-swap
         /// operations (SceneRender.setMesh, ...). A getter, not a pointer, because the app's manager
         /// is created after Configure runs: resolveResources reads it per call, so it sees the
@@ -1971,7 +1987,7 @@ export namespace engine::script
                 args.PushBack(Variant::From<Float3>(normal));
                 args.PushBack(Variant::From<f64>(static_cast<f64>(speed)));
             }
-            system.EnqueueContact(self, handler, Move(args));
+            system.EnqueueHandler(self, handler, Move(args));
         }
 
         ScriptRunHost m_ownedRunHost{

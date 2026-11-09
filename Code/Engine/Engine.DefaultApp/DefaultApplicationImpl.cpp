@@ -219,7 +219,7 @@ namespace engine::runtime
                 host.Subsystems().Allocator(), *gfx->Raw(), gfx->FramesInFlight(), *m_dataFileSystem);
             // Drives skeletal animation from the scene tick (injects the animation managers,
             // ticks players, feeds bone matrices to mesh components). Needs the render managers.
-            host.Subsystems().AddSubsystem<engine::animation::AnimationSubsystem>();
+            m_animation = host.Subsystems().AddSubsystem<engine::animation::AnimationSubsystem>();
             host.Subsystems().AddSubsystem<engine::particles::ParticleSubsystem>();
             // The chunked geo-mipmap terrain renderer: registers itself on Opaque and wires the
             // TerrainComponentManager (already injected by scene composition) as the render provider.
@@ -298,6 +298,11 @@ namespace engine::runtime
         if (m_physics != nullptr && m_scripts != nullptr)
         {
             m_contactBridge.Install(*m_physics, *m_scripts);
+        }
+        // The same for the animation's events (a one-shot ended: onAnimationFinished).
+        if (m_animation != nullptr && m_scripts != nullptr)
+        {
+            m_animationBridge.Install(*m_animation, *m_scripts);
         }
     }
 
@@ -728,6 +733,7 @@ namespace engine::runtime
                 gi.RunHost().Teardown();
             });
         m_contactBridge.Uninstall();
+        m_animationBridge.Uninstall();
         if (auto* gfx = host.Graphics(); gfx != nullptr && gfx->Raw() != nullptr)
         {
             m_screenshot.Release(*gfx->Raw());

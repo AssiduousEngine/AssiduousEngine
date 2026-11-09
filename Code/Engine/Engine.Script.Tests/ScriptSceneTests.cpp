@@ -5952,3 +5952,98 @@ TEST_CASE("script.scene: a Luau behaviour's replicated property reaches the clie
                                       u8"function Other.new(owner) local s = setmetatable({}, Other); s.activity = 0; return s end\n"
                                       u8"function Other:onUpdate(dt) end\n");
 }
+
+// An animation's events reach behaviours through the composition root's ScriptAnimationBridge, as
+// physics contacts do through theirs: a one-shot that ends on an entity calls its behaviours'
+// onAnimationFinished(clip) at the next scene tick.
+namespace
+{
+    struct AnimationWorld
+    {
+        foundation::runtime::SubsystemManager ctx{DefaultAllocator()};
+        engine::scene::SceneSubsystem* scenes = nullptr;
+        engine::animation::AnimationSubsystem* animations = nullptr;
+        ScriptSubsystem* scripts = nullptr;
+        scene::Scene* scene = nullptr;
+        UniquePtr<scene::SceneManager> sm;
+        engine::integration::ScriptAnimationBridge bridge;
+
+        AnimationWorld()
+        {
+            foundation::script::angelscript::RegisterAngelScriptBackend();
+            RegisterCoreTypes();
+            RegisterScriptComponentReflection();
+            RegisterScriptFacadeReflection();
+            scenes = ctx.AddSubsystem<engine::scene::SceneSubsystem>();
+            animations = ctx.AddSubsystem<engine::animation::AnimationSubsystem>();
+            scripts = ctx.AddSubsystem<ScriptSubsystem>();
+            {
+                const scene::SceneModule scriptModule{u8"script", &engine::script::AddScriptSceneManagers, nullptr};
+                const scene::SceneModule animationModule{u8"animation", &engine::animation::AddAnimationSceneManagers, nullptr};
+                const scene::SceneModule* modules[] = {&scriptModule, &animationModule};
+                scenes->SetComposition(scene::SceneComposition::Build(modules));
+            }
+            ctx.Startup();
+            bridge.Install(*animations, *scripts);
+            sm = MakeUnique<scene::SceneManager>(DefaultAllocator(), DefaultAllocator());
+            scenes->RegisterManager(sm.Get());
+            scene = sm->CreateScene(u8"level");
+            scene->AddSystem<engine::render::MeshComponentManager>(); // the animators feed meshes
+        }
+        ~AnimationWorld()
+        {
+            bridge.Uninstall();
+            ctx.Shutdown();
+        }
+        void Play(int frames)
+        {
+            scene->Start();
+            scene->SetSimulationEnabled(true);
+            for (int i = 0; i < frames; ++i)
+            {
+                ctx.BeginFrame(1.0f / 60.0f);
+                ctx.Update(1.0f / 60.0f);
+            }
+        }
+    };
+}
+
+TEST_CASE("script.scene: a one-shot that ends calls the entity's behaviours' onAnimationFinished(clip)")
+{
+    AnimationWorld world;
+    RefPtr<foundation::animation::Skeleton> skeleton = MakeRef<foundation::animation::Skeleton>(DefaultAllocator(), 1);
+    skeleton->Bones()[0].index = 0;
+    skeleton->Bones()[0].parentIndex = -1;
+    skeleton->FindRootBones();
+    skeleton->BuildChildIndices();
+    RefPtr<foundation::animation::AnimationClip> stand = MakeRef<foundation::animation::AnimationClip>(DefaultAllocator(), u8"Stand", 1.0f, true);
+    RefPtr<foundation::animation::AnimationClip> hop = MakeRef<foundation::animation::AnimationClip>(DefaultAllocator(), u8"Hop", 0.25f, true);
+
+    const scene::EntityHandle pet = world.scene->CreateEntity(u8"pet");
+    auto& animator = world.scene->GetSystem<engine::animation::SkeletalAnimationComponentManager>()->Add(pet);
+    animator.skeleton.SetDirect(skeleton);
+    animator.clip.SetDirect(stand);
+    RefPtr<ScriptClass> watcher = MakeClass(u8"Watcher",
+                                            u8"class Watcher {\n"
+                                            u8"    private Entity@ self;\n"
+                                            u8"    Watcher(Entity@ entity) { @self = entity; }\n"
+                                            u8"    void onAnimationFinished(Guid@ clip) {\n"
+                                            u8"        self.setName(clip.IsNil() ? \"finished:nil\" : \"finished\");\n"
+                                            u8"    }\n"
+                                            u8"}\n",
+                                            {u8"onAnimationFinished"});
+    auto& component = world.scene->GetSystem<ScriptComponentManager>()->Add(pet);
+    ScriptBehavior behavior;
+    behavior.script = watcher;
+    component.behaviors.PushBack(Move(behavior));
+
+    world.Play(3); // the animator's player is built
+    animator.oneShot.clip.SetDirect(hop);
+    animator.oneShot.clip.SetId(Guid{0x51, 0x8});
+    animator.oneShot.settings = foundation::animation::OneShotSettings{1.0f, 0.0f, 0.0f, 0};
+    animator.oneShot.pending = true; // what SceneAnimation.playOneShot asks for
+    world.Play(5);
+    CHECK(world.scene->GetEntityName(pet) == StringView(u8"pet")); // still playing
+    world.Play(20); // a quarter second has passed: it ended, and the next tick delivered it
+    CHECK(world.scene->GetEntityName(pet) == StringView(u8"finished"));
+}

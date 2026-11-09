@@ -292,6 +292,7 @@ export namespace engine::runtime
         // physics and script meet for contacts; the adapter itself lives out-of-tree in
         // engine.integration so the two subsystems stay mutually independent.
         engine::integration::ScriptPhysicsContactBridge m_contactBridge;
+        engine::integration::ScriptAnimationBridge m_animationBridge; // one-shots ended, to behaviours
 
         // The standard factory set, composed from the engine composition's resource modules:
         // every domain the runtime links brings its factories, and the set owns them. Device- and
@@ -325,6 +326,7 @@ export namespace engine::runtime
         core::UniquePtr<engine::EnginePluginServices> m_enginePluginServices;
         core::UniquePtr<foundation::runtime::PluginHost> m_plugins;
         engine::physics::PhysicsSubsystem* m_physics = nullptr;
+        engine::animation::AnimationSubsystem* m_animation = nullptr; // none without graphics
         engine::audio::AudioSubsystem* m_audio = nullptr;
         engine::render::RenderSubsystem* m_render = nullptr; // for the `DebugDraw.of(scene)` service
 

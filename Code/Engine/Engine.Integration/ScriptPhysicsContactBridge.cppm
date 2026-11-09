@@ -11,12 +11,14 @@
 // DeliverContact entry point. Physics exposes IContactListener and knows nothing about scripts; the
 // script subsystem exposes DeliverContact in its own vocabulary and knows nothing about physics.
 // This bridge is the one place that names both and translates between them, so engine.physics and
-// engine.script stay independent of each other.
+// engine.script stay independent of each other. ScriptAnimationBridge (:animation) does the same
+// for the animation's events.
 
 module;
 #include "Core/Prelude.h"
 
 export module engine.integration;
+export import :animation; // ScriptAnimationBridge
 
 import foundation.core;
 import foundation.physics;        // ContactKind (the foundation contact enum)
