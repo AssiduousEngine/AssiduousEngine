@@ -1229,3 +1229,131 @@ TEST_CASE("content: a refresh takes in what changed on disk")
     }
     RemoveDirectoryRecursive(dir);
 }
+
+// A primary database over a fallback: the primary answers first, and the fallback only for the
+// stored types its predicate lets through.
+namespace
+{
+    // A database of its own under a fresh folder, removed after.
+    struct Layer
+    {
+        String dir;
+        UniquePtr<NativeFileSystem> mount;
+        UniquePtr<ContentDatabase> db;
+        explicit Layer(StringView name)
+            : dir(name)
+        {
+            RemoveDirectoryRecursive(dir.AsView());
+            CreateDirectories(dir.AsView());
+            mount = MakeUnique<NativeFileSystem>(DefaultAllocator(), dir.AsView(), DefaultAllocator());
+            db = MakeUnique<ContentDatabase>(DefaultAllocator(), DefaultAllocator(), *mount, MakeBinaryFactory(), u8".rasset");
+        }
+        ~Layer()
+        {
+            db.Reset();
+            mount.Reset();
+            RemoveDirectoryRecursive(dir.AsView());
+        }
+    };
+
+    foundation::content::Instance* StoreMaterial(Group& group, const Guid& id, StringView name, i32 shininess)
+    {
+        foundation::content::Instance* instance = group.CreateInstanceWithId(id, name, MaterialResource::StaticType());
+        REQUIRE(instance != nullptr);
+        MaterialResource material;
+        material.shininess = shininess;
+        REQUIRE(instance->WriteObject(material).IsOk());
+        const byte payload[1] = {static_cast<byte>(shininess)};
+        REQUIRE(instance->WriteData(u8"s", Span<const byte>(payload, 1)).IsOk());
+        return instance;
+    }
+
+    i32 ShininessOf(const RefPtr<ISerializable>& object)
+    {
+        REQUIRE(object.Get() != nullptr);
+        const MaterialResource* material = Cast<MaterialResource>(object.Get());
+        REQUIRE(material != nullptr);
+        return material->shininess;
+    }
+
+    byte StreamByte(foundation::content::Instance& instance)
+    {
+        UniquePtr<IStream> stream = instance.ReadData(u8"s");
+        REQUIRE(stream);
+        byte read[1] = {};
+        REQUIRE(stream->Read(read, 1) == 1);
+        return read[0];
+    }
+
+    bool IsMaterial(StringView, StringView typeName)
+    {
+        return typeName == StringView(reinterpret_cast<const utf8char*>(MaterialResource::StaticType().name));
+    }
+}
+
+TEST_CASE("content: a layered database's primary wins, by id and by path")
+{
+    GlobalTypeRegistry().Register(MaterialResource::StaticType());
+    RegisterSerializable<MaterialResource>();
+    Layer primary(u8"scratch_layered_wins_primary");
+    Layer fallback(u8"scratch_layered_wins_fallback");
+    Random rng(11);
+    const Guid id = Guid::Generate(rng);
+    foundation::content::Instance* mine = StoreMaterial(*primary.db->RootGroup(), id, u8"crate", 1);
+    (void)StoreMaterial(*fallback.db->RootGroup(), id, u8"crate", 2);
+
+    LayeredContentDatabase view(*primary.db, fallback.db.Get());
+    view.SetFallthrough(&IsMaterial);
+    CHECK(view.GetInstance(id) == mine); // the primary's record, though the fallback's type falls through
+    CHECK(view.GetInstance(StringView(u8"crate")) == mine);
+    CHECK(ShininessOf(view.ReadObject(id)) == 1);
+    CHECK(StreamByte(*view.GetInstance(id)) == byte{1}); // and its data streams are the primary's
+    CHECK(view.RootGroup() == primary.db->RootGroup());
+}
+
+TEST_CASE("content: a layered database's declared type falls through, by id and by path")
+{
+    GlobalTypeRegistry().Register(MaterialResource::StaticType());
+    RegisterSerializable<MaterialResource>();
+    Layer primary(u8"scratch_layered_falls_primary");
+    Layer fallback(u8"scratch_layered_falls_fallback");
+    Random rng(12);
+    const Guid id = Guid::Generate(rng);
+    foundation::content::Instance* below = StoreMaterial(*fallback.db->RootGroup()->CreateGroup(u8"props"), id, u8"barrel", 7);
+
+    LayeredContentDatabase view(*primary.db, fallback.db.Get());
+    CHECK(view.GetInstance(id) == nullptr); // no predicate: nothing falls through
+
+    view.SetFallthrough(&IsMaterial);
+    CHECK(view.GetInstance(id) == below);
+    CHECK(view.GetInstance(StringView(u8"props/barrel")) == below);
+    CHECK(ShininessOf(view.ReadObject(id)) == 7); // ReadObject reads the fallback's record
+    CHECK(StreamByte(*view.GetInstance(id)) == byte{7}); // and ReadData its stream
+
+    CHECK(view.GetInstance(Guid::Generate(rng)) == nullptr); // an id neither holds
+    CHECK(view.GetInstance(StringView(u8"props/missing")) == nullptr);
+    CHECK(view.ReadObject(Guid::Generate(rng)).Get() == nullptr);
+}
+
+TEST_CASE("content: a layered database's undeclared type does not fall through")
+{
+    GlobalTypeRegistry().Register(WordsRecord::StaticType());
+    RegisterSerializable<WordsRecord>();
+    Layer primary(u8"scratch_layered_held_primary");
+    Layer fallback(u8"scratch_layered_held_fallback");
+    WordsRecord words;
+    words.words.PushBack(String(u8"kept below"));
+    foundation::content::Instance* below = fallback.db->RootGroup()->CreateInstance(u8"notes", WordsRecord::StaticType());
+    REQUIRE(below->WriteObject(words).IsOk());
+    // The primary's own records of that type still answer: only the fallback is filtered.
+    foundation::content::Instance* above = primary.db->RootGroup()->CreateInstance(u8"list", WordsRecord::StaticType());
+    REQUIRE(above->WriteObject(words).IsOk());
+
+    LayeredContentDatabase view(*primary.db, fallback.db.Get());
+    view.SetFallthrough(&IsMaterial);
+    CHECK(view.GetInstance(below->Id()) == nullptr);
+    CHECK(view.GetInstance(StringView(u8"notes")) == nullptr);
+    CHECK(view.ReadObject(below->Id()).Get() == nullptr); // ReadObject finds nothing to read
+    CHECK(view.GetInstance(above->Id()) == above);
+    CHECK(view.GetInstance(StringView(u8"list")) == above);
+}

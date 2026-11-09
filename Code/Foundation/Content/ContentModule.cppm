@@ -520,6 +520,83 @@ export namespace foundation::content
         u64 m_revision = 0; // Revision()
     };
 
+    // =======================================================================
+    // LayeredContentDatabase: two databases seen as one, a PRIMARY that answers first and a
+    // FALLBACK consulted only for a record whose stored type the fall-through predicate accepts.
+    //
+    // What an editor reads resources through: its cooked products first, and beneath them its
+    // sources, for the authored records the cook never builds (a prefab document) and so only the
+    // sources hold. Which stored types fall through is not decided here: the view names no type,
+    // and the predicate comes from whoever reads through it (a resource manager answers from its
+    // registered factories, ResourceManager::ReadsAuthoredRecord). Without a predicate nothing
+    // falls through, so a source record (a texture's envelope) never reaches a reader that expects
+    // the cooked form of it.
+    //
+    // Records are answered from whichever database holds them, so an instance's object and data
+    // streams read from that database's files. The tree (RootGroup) is the primary's. Both
+    // databases are BORROWED and must outlive the view.
+    // =======================================================================
+    class LayeredContentDatabase final : public IContentDatabase
+    {
+    public:
+        /// Which stored types (namespace, name) the fallback may answer for.
+        using Fallthrough = Function<bool(StringView typeNamespace, StringView typeName)>;
+
+        LayeredContentDatabase(IContentDatabase& primary, IContentDatabase* fallback)
+            : m_primary(&primary), m_fallback(fallback)
+        {
+        }
+
+        [[nodiscard]] IContentDatabase& Primary() const noexcept { return *m_primary; }
+        [[nodiscard]] IContentDatabase* Fallback() const noexcept { return m_fallback; }
+
+        /// Which stored types fall through; empty lets nothing through. A predicate that asks
+        /// something else (a resource manager) must be cleared, or the view destroyed, before that
+        /// goes.
+        void SetFallthrough(Fallthrough fallsThrough) { m_fallsThrough = Move(fallsThrough); }
+
+        [[nodiscard]] Group* RootGroup() override { return m_primary->RootGroup(); }
+
+        [[nodiscard]] Instance* GetInstance(const Guid& id) override
+        {
+            if (Instance* found = m_primary->GetInstance(id))
+            {
+                return found;
+            }
+            return Fallen(m_fallback != nullptr ? m_fallback->GetInstance(id) : nullptr);
+        }
+
+        [[nodiscard]] Instance* GetInstance(StringView path) override
+        {
+            if (Instance* found = m_primary->GetInstance(path))
+            {
+                return found;
+            }
+            return Fallen(m_fallback != nullptr ? m_fallback->GetInstance(path) : nullptr);
+        }
+
+        [[nodiscard]] RefPtr<ISerializable> ReadObject(const Guid& id) override
+        {
+            Instance* instance = GetInstance(id);
+            return instance != nullptr ? instance->ReadObject() : RefPtr<ISerializable>{};
+        }
+
+    private:
+        // The fallback's record when its stored type falls through, else null.
+        [[nodiscard]] Instance* Fallen(Instance* instance) const
+        {
+            if (instance == nullptr || !m_fallsThrough)
+            {
+                return nullptr;
+            }
+            return m_fallsThrough(instance->TypeNamespace(), instance->TypeName()) ? instance : nullptr;
+        }
+
+        IContentDatabase* m_primary;
+        IContentDatabase* m_fallback;
+        Fallthrough m_fallsThrough;
+    };
+
     // -----------------------------------------------------------------------
     // Path helpers (mount-relative, forward-slash).
     // -----------------------------------------------------------------------

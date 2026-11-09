@@ -251,6 +251,11 @@ export namespace foundation::resource
         /// scene format reference joins to the builder's product to name the asset type. A
         /// factory that reads the product type itself returns that.
         [[nodiscard]] virtual const TypeInfo* CookedType() const = 0;
+        /// Whether CookedType is an AUTHORED record the cook never builds (a prefab document): the
+        /// record is read as it was written, so a host layering its cooked database over its
+        /// sources lets the sources answer for it (LayeredContentDatabase). Default false: a
+        /// factory reading a cooked product must never be handed the source envelope beneath it.
+        [[nodiscard]] virtual bool ReadsAuthoredRecord() const { return false; }
         // Build the runtime product. `manager` lets a composite resource resolve its
         // child resources via manager.Bind<…>(childId), and doing so records a dependency
         // edge automatically, so reloading a child reloads this resource too.
@@ -508,15 +513,34 @@ export namespace foundation::resource
             {
                 return nullptr;
             }
+            const IResourceFactory* factory = FactoryReading(instance->TypeNamespace(), instance->TypeName());
+            return factory != nullptr ? factory->ProductType() : nullptr;
+        }
+
+        /// Whether the factory registered to read records stored as (`typeNamespace`, `typeName`)
+        /// declares them authored (IResourceFactory::ReadsAuthoredRecord); false when no factory
+        /// reads them. What a LayeredContentDatabase this manager reads through asks before letting
+        /// its fallback answer: asked at each lookup, so a factory added or removed later changes
+        /// the answer.
+        [[nodiscard]] bool ReadsAuthoredRecord(StringView typeNamespace, StringView typeName) const
+        {
+            const IResourceFactory* factory = FactoryReading(typeNamespace, typeName);
+            return factory != nullptr && factory->ReadsAuthoredRecord();
+        }
+
+        /// The registered factory whose cooked form is stored as (`typeNamespace`, `typeName`), or
+        /// null.
+        [[nodiscard]] const IResourceFactory* FactoryReading(StringView typeNamespace, StringView typeName) const
+        {
             for (const auto& [productId, factory] : m_factories)
             {
                 (void)productId;
                 const TypeInfo* cooked = factory->CookedType();
                 if (cooked != nullptr && cooked->name != nullptr && cooked->namespaceName != nullptr &&
-                    instance->TypeName() == StringView(reinterpret_cast<const utf8char*>(cooked->name)) &&
-                    instance->TypeNamespace() == StringView(reinterpret_cast<const utf8char*>(cooked->namespaceName)))
+                    typeName == StringView(reinterpret_cast<const utf8char*>(cooked->name)) &&
+                    typeNamespace == StringView(reinterpret_cast<const utf8char*>(cooked->namespaceName)))
                 {
-                    return factory->ProductType();
+                    return factory;
                 }
             }
             return nullptr;

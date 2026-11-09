@@ -1,6 +1,7 @@
 # Foundation::Resource unit tests (doctest).
 
-add_executable(Resource.Tests TestsMain.cpp ResourceTests.cpp AsyncResourceTests.cpp ResourceCompositionTests.cpp)
+add_executable(Resource.Tests TestsMain.cpp ResourceTests.cpp AsyncResourceTests.cpp ResourceCompositionTests.cpp
+    LayeredResourceTests.cpp)
 target_link_libraries(Resource.Tests PRIVATE Foundation::Resource Foundation::Content Foundation::VFS doctest::doctest)
 target_compile_definitions(Resource.Tests PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)
 target_compile_options(Resource.Tests PRIVATE
