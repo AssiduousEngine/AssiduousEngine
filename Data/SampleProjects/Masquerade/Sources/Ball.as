@@ -62,7 +62,7 @@ class Ball
     [45.0, "Longest wait before a bot guesses (s)"] float guessMax;
     [15.0, "A bot gives up walking up to someone after this (s)"] float approachGiveUp;
     [null, "Where players' hunters go (guests make way for its children)"] Entity@ players;
-    ["asset:Prefab", "The hunter the host spawns for a joining player"] Guid@ hunterPrefab;
+    ["asset:PrefabResource", "The hunter the host spawns for a joining player"] Guid@ hunterPrefab;
 
     [0.0, "Seconds left in the round", replicated] float timeLeft;
     [false, "The round is over", replicated] bool over;

@@ -288,7 +288,7 @@ namespace
             prefabProp.name = String(u8"prefab");
             prefabProp.hash = ScriptPropertyNameHash(u8"prefab");
             prefabProp.type = ScriptPropertyType::Asset;
-            prefabProp.assetType = String(u8"Prefab");
+            prefabProp.assetType = String(u8"PrefabResource");
             prefabProp.defaultValue.kind = ScriptPropertyType::Asset;
             prefabProp.defaultValue.guid = turret;
             return prefabProp;

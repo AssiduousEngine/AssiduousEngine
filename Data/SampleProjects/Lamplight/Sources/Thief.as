@@ -16,7 +16,7 @@ class Thief
     [1.6, "Walking speed (m/s)"] float walkSpeed;
     [4.5, "Running speed (m/s): loud"] float runSpeed;
     [10.0, "How fast the body turns toward where it goes"] float turnRate;
-    ["asset:Prefab", "The pebble thrown (Prefabs/Pebble)"] Guid@ pebble;
+    ["asset:PrefabResource", "The pebble thrown (Prefabs/Pebble)"] Guid@ pebble;
     [7.0, "How fast a pebble leaves the hand (m/s)"] float throwSpeed;
     [0.8, "Seconds between throws"] float throwEvery;
 

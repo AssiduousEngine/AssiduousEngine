@@ -69,12 +69,25 @@ namespace editor
                 break;
             case script::ScriptPropertyType::Asset:
                 info.Kind = gui::PropertyKind::Reference;
-                info.ReferenceType = GlobalTypeRegistry().FindByName(nullptr, reinterpret_cast<const char*>(property.assetType.CStr()));
+                info.ReferenceType = AssetType(property.assetType.AsView());
                 break;
             default: continue;
             }
             out.PushBack(Move(info));
         }
+    }
+
+    const TypeInfo* ScriptPropertyRows::AssetType(StringView typeName)
+    {
+        // By its own name: a tag names the type, not its namespace (rtti::materials, rtti::scene).
+        for (const TypeInfo* type : GlobalTypeRegistry().All())
+        {
+            if (type != nullptr && type->name != nullptr && StringView(reinterpret_cast<const utf8char*>(type->name)) == typeName)
+            {
+                return type;
+            }
+        }
+        return nullptr;
     }
 
     void ScriptPropertyRows::Parts(const script::ScriptPropertyDesc& property, Array<gui::PropertyInfo>& out)

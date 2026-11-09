@@ -70,7 +70,7 @@ class Board
     [2, "The physics collision group of the trees and rocks"] int treesGroup;
     [2.2, "How close a trunk passes for a near miss (m, from the rider's centre to its axis)"] float nearMissReach;
     [9.0, "Slowest speed a near miss counts at (m/s)"] float nearMissSpeed;
-    ["asset:Prefab", "The board's mark in the snow (Prefabs/TrackMark)"] Guid@ trackMark;
+    ["asset:PrefabResource", "The board's mark in the snow (Prefabs/TrackMark)"] Guid@ trackMark;
     [1.5, "Distance between the track's marks (m)"] float trackSpacing;
     [2.0, "Slowest speed that leaves a track (m/s)"] float trackSpeed;
     [0.45, "Carve (share of a full one) above which the board throws spray"] float sprayCarve;

@@ -40,6 +40,10 @@ export namespace editor
     {
         /// The rows of `type`'s properties.
         static void Describe(const foundation::script::ScriptClass& type, Array<foundation::gui::PropertyInfo>& out);
+        /// The type an asset property's tag names (`asset:<Type>`, the type the asset loads as:
+        /// `PrefabResource`, `Material`), found among the registered types by its own name, whatever
+        /// its namespace; null when no registered type has that name.
+        [[nodiscard]] static const TypeInfo* AssetType(StringView typeName);
         /// A vector property's parts (`x`, `y`, `z`), under its row; none for any other.
         static void Parts(const foundation::script::ScriptPropertyDesc& property, Array<foundation::gui::PropertyInfo>& out);
         /// The property a row names (`p<hash>`); null when none.

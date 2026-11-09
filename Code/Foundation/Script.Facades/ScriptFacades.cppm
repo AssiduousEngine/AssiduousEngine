@@ -405,7 +405,7 @@ export namespace foundation::script
         /// Instantiate a prefab into this scene at a position (the root's local position under
         /// the scene root); invalid Entity if the scene is null, has no PrefabSpawnSystem or the
         /// system has no content source (a bare cook VM), or the prefab id is nil or unknown. The
-        /// id comes from an `asset:Prefab` behavior property (marshalled as a Guid). Reaches the
+        /// id comes from an `asset:PrefabResource` behavior property (marshalled as a Guid). Reaches the
         /// scene's own spawn system, with no ambient current-scene state and no host callback.
         [[nodiscard]] Entity spawn(Guid prefab, f32 x, f32 y, f32 z) const;
         /// First entity in this scene with this name (invalid if none).

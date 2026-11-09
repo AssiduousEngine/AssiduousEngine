@@ -2259,3 +2259,15 @@ TEST_CASE("scene page: a prefab page's save reloads its loaded prefab")
     bed.context.SetResources(nullptr);
     view.SetFallthrough({});
 }
+
+// A script's asset property is tagged with the type the asset loads as (`asset:PrefabResource`,
+// `asset:Material`); the behaviours panel finds it among the registered types by its own name,
+// whatever its namespace, so the row's picker knows what to offer. A display name names no type.
+TEST_CASE("script behaviours: an asset property's tag names the type the asset loads as, whatever its namespace")
+{
+    engine::RegisterAllResourceTypes();
+    CHECK(ScriptPropertyRows::AssetType(u8"PrefabResource") == &scene::PrefabResource::StaticType());
+    CHECK(ScriptPropertyRows::AssetType(u8"ScriptClass") == &foundation::script::ScriptClass::StaticType());
+    CHECK(ScriptPropertyRows::AssetType(u8"Prefab") == nullptr); // PrefabDocument's display name only
+    CHECK(ScriptPropertyRows::AssetType(u8"NothingIsCalledThis") == nullptr);
+}

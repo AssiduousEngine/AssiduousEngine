@@ -101,8 +101,10 @@ picked up.
   constructor to plain field initialization.
 - **AngelScript**: only member fields with `[default, "description"]` metadata are properties,
   e.g. `[3.0, "Spin rate"] float spinSpeed;`. Types: float, double, the int types, bool,
-  string, `Color@`, `Float3@`, `Entity@`, and `Guid@` tagged `"asset:<Type>"`
-  (`["asset:Prefab", "What to spawn"] Guid@ prefab;`). Fields without metadata are not.
+  string, `Color@`, `Float3@`, `Entity@`, and `Guid@` tagged `"asset:<Type>"`, the type the
+  asset loads as (`["asset:PrefabResource", "What to spawn"] Guid@ prefab;`,
+  `"asset:AnimationClip"`, `"asset:Material"`): the inspector picks the assets that make it.
+  Fields without metadata are not.
 
 ## Saving
 
