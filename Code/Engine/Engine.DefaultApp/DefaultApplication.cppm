@@ -307,6 +307,10 @@ export namespace engine::runtime
         engine::integration::ScriptPhysicsContactBridge m_contactBridge;
         engine::integration::ScriptAnimationBridge m_animationBridge; // one-shots ended, to behaviours
 
+        // Every scene manager of the composition, plugins' included, for a factory that reads scene
+        // data it does not own: the prefab factory turns a text prefab into the binary wire with
+        // it. The factories borrow it, so it is declared BEFORE them and goes after them.
+        foundation::scene::SceneComposer m_sceneComposer{[](foundation::scene::Scene& scene) { engine::AddAllSceneManagers(scene); }};
         // The standard factory set, composed from the engine composition's resource modules:
         // every domain the runtime links brings its factories, and the set owns them. Device- and
         // shader-gated factories are created when the host offers the service (the runtime's

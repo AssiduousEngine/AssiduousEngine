@@ -88,7 +88,8 @@ namespace
         }
         CHECK(scene.GetEntityName(root) == StringView(u8"Turret"));
         CHECK(scene.GetFirstChild(root).IsAssigned()); // the child came with it
-        return rounds->Get(root)->rounds;
+        const Rounds* held = rounds->Get(root);
+        return held != nullptr ? held->rounds : -2;
     }
 }
 
@@ -233,4 +234,99 @@ TEST_CASE("prefab resource: distinct prefabs open together past the depth limit,
     open.PopBack();
     UniquePtr<IStream> inside = payloads.Open(beyond);
     CHECK(static_cast<bool>(inside)); // within the limit once one closed
+}
+
+namespace
+{
+    // A composer that gives a scratch scene the turret's manager, as the application's gives every
+    // manager it has.
+    SceneComposer RoundsComposer()
+    {
+        return SceneComposer([](Scene& scene) { scene.AddSystem<RoundsManager>(); });
+    }
+
+    foundation::scene::detail::SceneStreamEncoding StoredEncoding(content::ContentDatabase& db, const Guid& id)
+    {
+        UniquePtr<IStream> stored = db.GetInstance(id)->ReadData(u8"scene");
+        REQUIRE(stored);
+        return foundation::scene::detail::DetectSceneStreamEncoding(*stored);
+    }
+}
+
+TEST_CASE("prefab resource: a text prefab loads in the binary format given a composer, its record untouched")
+{
+    PrefabDatabase fixture(u8"scratch_prefab_resource_transcode");
+    const Guid turret = fixture.StoreTurret(u8"turret", 30);
+    SceneComposer composer = RoundsComposer();
+    resource::ResourceManager manager(DefaultAllocator(), *fixture.db);
+    PrefabFactory factory(DefaultAllocator(), &composer);
+    manager.AddFactory(&factory);
+    resource::Proxy<PrefabResource> loaded = manager.Bind<PrefabResource>(turret);
+    REQUIRE(loaded);
+    CHECK(loaded->Encoding() == foundation::scene::detail::SceneStreamEncoding::Binary); // transcoded as it loaded
+    CHECK(loaded->Name() == StringView(u8"turret"));
+    CHECK(SpawnedRounds(*loaded) == 30); // nothing lost on the way
+    CHECK(StoredEncoding(*fixture.db, turret) == foundation::scene::detail::SceneStreamEncoding::Text); // the source stays text
+}
+
+TEST_CASE("prefab resource: an async load transcodes in its main-thread stage")
+{
+    PrefabDatabase fixture(u8"scratch_prefab_resource_transcode_async");
+    const Guid turret = fixture.StoreTurret(u8"turret", 7);
+    SceneComposer composer = RoundsComposer();
+    TaskPool tasks(DefaultAllocator(), TaskPool::DefaultWorkerCount());
+    resource::ResourceManager manager(DefaultAllocator(), *fixture.db, &tasks);
+    PrefabFactory factory(DefaultAllocator(), &composer);
+    manager.AddFactory(&factory);
+    resource::Proxy<PrefabResource> proxy = manager.BindAsync<PrefabResource>(turret);
+    manager.WaitAll();
+    REQUIRE(proxy);
+    CHECK(proxy->Encoding() == foundation::scene::detail::SceneStreamEncoding::Binary);
+    CHECK(SpawnedRounds(*proxy) == 7);
+}
+
+TEST_CASE("prefab resource: a prefab with a component no manager reads stays text")
+{
+    // The composer knows no rounds: the binary would be written without them, so the text is kept,
+    // and a scene that has the manager spawns the prefab whole.
+    PrefabDatabase fixture(u8"scratch_prefab_resource_transcode_absent");
+    const Guid turret = fixture.StoreTurret(u8"turret", 30);
+    SceneComposer composer([](Scene&) {});
+    resource::ResourceManager manager(DefaultAllocator(), *fixture.db);
+    PrefabFactory factory(DefaultAllocator(), &composer);
+    manager.AddFactory(&factory);
+    resource::Proxy<PrefabResource> loaded = manager.Bind<PrefabResource>(turret);
+    REQUIRE(loaded);
+    CHECK(loaded->Encoding() == foundation::scene::detail::SceneStreamEncoding::Text); // kept as stored
+    CHECK(SpawnedRounds(*loaded) == 30); // its rounds kept
+}
+
+TEST_CASE("prefab resource: the scene module's factory takes the host's composer, and works without one")
+{
+    PrefabDatabase fixture(u8"scratch_prefab_resource_transcode_module");
+    const Guid turret = fixture.StoreTurret(u8"turret", 4);
+    SceneComposer composer = RoundsComposer();
+    const resource::ResourceModule* modules[] = {&kSceneResourceModule};
+
+    resource::ResourceServiceTable services;
+    services.Add<SceneComposer>(&composer);
+    resource::ResourceFactorySet factories;
+    factories.Create(Span<const resource::ResourceModule* const>(modules, 1), DefaultAllocator(), services);
+    CHECK(factories.Count() == 1u);
+    resource::ResourceManager manager(DefaultAllocator(), *fixture.db);
+    factories.Register(manager);
+    resource::Proxy<PrefabResource> composed = manager.Bind<PrefabResource>(turret);
+    REQUIRE(composed);
+    CHECK(composed->Encoding() == foundation::scene::detail::SceneStreamEncoding::Binary);
+
+    // A host offering none still loads prefabs, as stored.
+    resource::NoResourceServices none;
+    resource::ResourceFactorySet headless;
+    headless.Create(Span<const resource::ResourceModule* const>(modules, 1), DefaultAllocator(), none);
+    CHECK(headless.Count() == 1u);
+    resource::ResourceManager plain(DefaultAllocator(), *fixture.db);
+    headless.Register(plain);
+    resource::Proxy<PrefabResource> stored = plain.Bind<PrefabResource>(turret);
+    REQUIRE(stored);
+    CHECK(stored->Encoding() == foundation::scene::detail::SceneStreamEncoding::Text);
 }

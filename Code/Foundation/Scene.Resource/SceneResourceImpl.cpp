@@ -2179,6 +2179,31 @@ namespace foundation::scene
         return MakeRef<PrefabResource>(*m_allocator, *m_allocator, instance.Id(), instance.Name(), Move(bytes));
     }
 
+    RefPtr<Object> PrefabFactory::ToBinary(RefPtr<Object> loaded) const
+    {
+        PrefabResource* prefab = Cast<PrefabResource>(loaded.Get());
+        if (prefab == nullptr || m_composer == nullptr || prefab->Encoding() == detail::SceneStreamEncoding::Binary)
+        {
+            return loaded;
+        }
+        Scene scratch(*m_allocator, u8"__prefab_transcode");
+        m_composer->Install(scratch);
+        UniquePtr<IStream> payload = prefab->OpenPayload();
+        Result<Array<byte>> bytes = TranscodeSceneStreamToBinary(*payload, scratch, /*includeSettings=*/false);
+        payload.Reset();
+        if (!bytes.HasValue())
+        {
+            return loaded;
+        }
+        if (!scratch.UnresolvedComponents().IsEmpty())
+        {
+            LOG_INFO(u8"Scene", u8"PrefabFactory: a prefab kept as text, {} of its components have no manager here",
+                     scratch.UnresolvedComponents().Size());
+            return loaded;
+        }
+        return MakeRef<PrefabResource>(*m_allocator, *m_allocator, prefab->Id(), prefab->Name(), Move(bytes.Value()));
+    }
+
     PrefabPayloads::PrefabPayloads(foundation::resource::ResourceManager* resources)
         : m_resources(resources)
     {

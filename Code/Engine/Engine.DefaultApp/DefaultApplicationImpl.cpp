@@ -667,6 +667,7 @@ namespace engine::runtime
         {
             services.Add<foundation::shaders::ShaderSystem>(m_render->Shaders());
         }
+        services.Add<foundation::scene::SceneComposer>(&m_sceneComposer); // a text prefab loads as binary
         engine::FullComposition().CreateFactories(m_factories, host.Subsystems().Allocator(), services);
         m_factories.Register(resources);
     }

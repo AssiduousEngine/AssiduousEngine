@@ -1624,16 +1624,42 @@ export namespace foundation::scene
         Guid m_prefabId;
     };
 
+    /// Gives a scene every manager the application knows, for a scratch scene that has to read an
+    /// arbitrary stream: what a resource factory asks its host for (IResourceServices) when it
+    /// reads scene data it does not own. The application composes it from its whole composition,
+    /// plugins included; a host without one (a headless tool) offers none.
+    class SceneComposer
+    {
+    public:
+        explicit SceneComposer(Function<void(Scene&)> install) : m_install(Move(install)) {}
+        /// Adds every manager to `scene`, which should be empty.
+        void Install(Scene& scene) const { m_install(scene); }
+
+    private:
+        Function<void(Scene&)> m_install;
+    };
+
     /// Loads a prefab: the PrefabDocument record's scene stream, read into a PrefabResource.
     ///
     /// The record is AUTHORED, never cooked, so it declares it (ReadsAuthoredRecord): a host
     /// layering its cooked database over its sources lets the sources answer for prefabs. A record
     /// of any other type (a scene's) is refused, so a scene is never loaded through a reference.
-    /// The load is all reading, which touches nothing shared, so it runs on a worker whole.
+    ///
+    /// A source prefab is text, which every spawn would parse again; given the host's
+    /// SceneComposer the factory turns it into the binary wire once, as it loads. Reading the
+    /// stream runs on a worker; the transcode, which builds a scene and its managers, on the main
+    /// thread. A prefab holding a component no installed manager reads (a plugin not loaded) stays
+    /// text: binary is written from what was understood, so the transcode would drop that
+    /// component, where the text keeps it for a scene that has the manager. The stored record is
+    /// not touched.
     class PrefabFactory final : public foundation::resource::IResourceFactory
     {
     public:
-        explicit PrefabFactory(IAllocator& allocator) noexcept : m_allocator(&allocator) {}
+        /// `composer` is BORROWED, from the host's services; null keeps every prefab as stored.
+        explicit PrefabFactory(IAllocator& allocator, SceneComposer* composer = nullptr) noexcept
+            : m_allocator(&allocator), m_composer(composer)
+        {
+        }
 
         [[nodiscard]] const TypeInfo* ProductType() const override { return &PrefabResource::StaticType(); }
         [[nodiscard]] const TypeInfo* CookedType() const override { return &PrefabDocument::StaticType(); }
@@ -1642,18 +1668,22 @@ export namespace foundation::scene
         [[nodiscard]] RefPtr<Object> Create(foundation::resource::ResourceManager&,
                                             foundation::content::Instance& instance) override
         {
-            return Load(instance);
+            return ToBinary(Load(instance));
         }
         [[nodiscard]] RefPtr<Object> DecodeStage(foundation::content::Instance& instance) override { return Load(instance); }
         [[nodiscard]] RefPtr<Object> FinalizeStage(foundation::resource::ResourceManager&, RefPtr<Object> decoded) override
         {
-            return decoded;
+            return ToBinary(Move(decoded));
         }
 
     private:
         // Null when the record is not a prefab document or has no readable scene stream.
         [[nodiscard]] RefPtr<Object> Load(foundation::content::Instance& instance) const;
+        // `loaded` in the binary wire, or as it is: already binary, no composer, a stream that does
+        // not read, or a component no manager understood.
+        [[nodiscard]] RefPtr<Object> ToBinary(RefPtr<Object> loaded) const;
         IAllocator* m_allocator;
+        SceneComposer* m_composer;
     };
 
     /// Prefab payloads from the loaded prefabs of a resource manager: what a runtime spawn and a
@@ -1720,7 +1750,7 @@ export namespace foundation::scene
     }
 
     inline constexpr foundation::resource::ResourceFactoryDesc kSceneResourceFactories[] = {
-        foundation::resource::FactoryWithAllocator<PrefabResource, PrefabDocument, PrefabFactory>(),
+        foundation::resource::FactoryWithOptionalService<PrefabResource, PrefabDocument, PrefabFactory, SceneComposer>(),
     };
     /// The scene resource module: the document types, and the prefab factory (a prefab binds; a
     /// scene is loaded, not bound). The prefabs domain brings it.
