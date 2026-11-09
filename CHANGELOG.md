@@ -37,6 +37,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- GUI: a tween of a property code set on a node (a script's `node.opacity = 0`, then
+  `node.tween("opacity", "1", ...)`) moves it; it did nothing before, as the property was code's
+  and the style the tween went through left it alone. A game's fade of a panel it made did not show.
 - Scenes: entities added to one scene in two places (two branches, two people) no longer get the
   same id, which a merge would have put on two entities in one file: each scene's ids now come from
   a generator seeded from the system's entropy, as assets' already did.

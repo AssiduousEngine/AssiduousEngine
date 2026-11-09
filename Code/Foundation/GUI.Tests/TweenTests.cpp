@@ -6,8 +6,8 @@
 // length, a colour, box shadows, a transform). It holds its end until stopped, and a later change
 // in the sheet leaves it alone. A tween of the same property replaces the running one from where
 // it shows. Also covered: delays, repeats, ping-pong and the callback at the end; reflected
-// properties moving through their accessors; a paused GUI's tweens standing still; and a
-// destroyed node taking its tweens with it.
+// properties moving through their accessors, and a property code set moving as code's; a paused
+// GUI's tweens standing still; and a destroyed node taking its tweens with it.
 #include <doctest/doctest.h>
 #include "Core/Prelude.h"
 import foundation.core;
@@ -184,6 +184,41 @@ TEST_CASE("tween: a reflected property moves through its accessors, as code's")
     core::RefPtr<Tween> nothing = label->Animate(SV(u8"no-such-thing"), SV(u8"1"), 1.0f);
     bed.Frame(0.1);
     CHECK(nothing->IsDone());
+}
+
+TEST_CASE("tween: a property code set moves from code's value, as code's, and code can set it again after")
+{
+    // Code's opacity is the node's own (pinned, as an inline style): the sheet's opacity under it
+    // does not show, and a tween of it moves code's value, not the cascade's.
+    Bed bed(u8"box { opacity: 1; }");
+    bed.widget->SetAlpha(0.0f);
+    bed.Frame(0.0);
+    REQUIRE(bed.widget->GetAlpha() == doctest::Approx(0.0f));
+    core::RefPtr<Tween> up = bed.widget->Animate(SV(u8"opacity"), SV(u8"1"), 1.0f, SV(u8"linear"));
+    bed.Frame(0.5);
+    CHECK_FALSE(up->MovesStyle());
+    CHECK(bed.widget->GetAlpha() == doctest::Approx(0.5f));
+    bed.Frame(0.5);
+    CHECK(bed.widget->GetAlpha() == doctest::Approx(1.0f));
+    CHECK(up->IsDone());
+
+    // Down again from code's value, and code sets it after with nothing in the way.
+    bed.widget->SetAlpha(0.8f);
+    core::RefPtr<Tween> down = bed.widget->Animate(SV(u8"opacity"), SV(u8"0"), 1.0f, SV(u8"linear"));
+    bed.Frame(0.5);
+    CHECK(bed.widget->GetAlpha() == doctest::Approx(0.4f));
+    bed.Frame(0.5);
+    CHECK(bed.widget->GetAlpha() == doctest::Approx(0.0f));
+    bed.widget->SetAlpha(0.25f);
+    bed.Frame(0.1);
+    CHECK(bed.widget->GetAlpha() == doctest::Approx(0.25f));
+
+    // A node code never set still moves over the cascade.
+    Bed sheet(u8"box { opacity: 1; }");
+    core::RefPtr<Tween> styled = sheet.widget->Animate(SV(u8"opacity"), SV(u8"0"), 1.0f, SV(u8"linear"));
+    sheet.Frame(0.5);
+    CHECK(styled->MovesStyle());
+    CHECK(sheet.widget->GetAlpha() == doctest::Approx(0.5f));
 }
 
 TEST_CASE("tween: a paused GUI's tweens stand still; a destroyed node takes its tweens with it")

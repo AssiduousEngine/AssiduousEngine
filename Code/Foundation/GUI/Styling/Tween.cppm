@@ -32,6 +32,7 @@ import :style_properties;
 import :style_sheet;   // ResolvedStyle::ParseLonghand
 import :style_applier; // looks up and parses reflected properties as a sheet does
 import :style_interpolation;
+import :layout_style; // StyleSlotProperty: the property code pinned on a node
 import :easing;
 import :data_model; // tweens of data values
 
@@ -369,12 +370,25 @@ export namespace foundation::gui
             return nullptr;
         }
 
+        // Whether code set `name` on the node (its slot is pinned, as an inline style): the sheet
+        // leaves it alone then, and so would the style's motion layer.
+        [[nodiscard]] static bool PinnedByCode(const Node& node, core::StringView name)
+        {
+            for (u32 slot = 0; slot < SlotCount; ++slot)
+                if (core::StringView(StyleSlotProperty(static_cast<StyleSlot>(slot))) == name)
+                    return node.IsStylePinned(static_cast<StyleSlot>(slot));
+            return false;
+        }
+
         // On the first frame, decides how the tween writes its property and parses its values.
         bool Bind(Node& target)
         {
             // On a node that sheets style, a property a sheet names goes through the style. On any
-            // other node the tween writes the reflected property (a plain node's opacity, x, y).
-            if (UINode* node = core::Cast<UINode>(&target); node != nullptr && FindStyleProperty(m_property.AsView()) != nullptr)
+            // other node the tween writes the reflected property (a plain node's opacity, x, y), and
+            // so it does where code set the property itself: code's value is the node's own, which
+            // the style pass leaves alone, so the tween moves it as code would, from where it is.
+            if (UINode* node = core::Cast<UINode>(&target);
+                node != nullptr && FindStyleProperty(m_property.AsView()) != nullptr && !PinnedByCode(*node, m_property.AsView()))
             {
                 MotionValue motion;
                 motion.Property = m_property;
