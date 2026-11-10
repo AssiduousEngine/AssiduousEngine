@@ -164,9 +164,9 @@ export namespace engine::project
         Guid defaultBusLayoutId; // the audio mixer layout applied at startup (nil: built-in)
         Guid defaultUiFontId; // the cooked FontResource the game UI defaults to (nil: the dev
                               // TTF fallback path)
-        u32 renderMsaaSamples = 1; // scene-pass MSAA sample count (1 is off, 2, 4); the player and
+        u32 renderMsaaSamples = 4; // scene-pass MSAA sample count (1 is off, 2, 4); the player and
                                    // play-in-editor apply it, clamped to the device at runtime.
-                                   // The default of 1 leaves existing projects byte-identical.
+                                   // A new project starts at 4 (every manifest writes its own).
         Array<Guid> uiFontIds; // cooked fonts the game UI loads beside the default one, each its
                                // own family a label picks by font-family (a title face beside
                                // the body text). Appended: a manifest saved before it reads none.

@@ -73,6 +73,7 @@ TEST_CASE("editor-project: create scaffolds the layout and open round-trips the 
     CHECK(project->Name() == u8"Test Project");
     // (The manifest's data version is in the versioned-payload envelope, not a field.)
     CHECK(project->Settings().defaultScene.IsEmpty());
+    CHECK(project->Settings().renderMsaaSamples == 4u); // a new project starts with 4x MSAA
     CHECK(project->SourceDb().RootGroup() != nullptr);
     CHECK(project->CookedDb().RootGroup() != nullptr);
     CHECK(project->SourcesRoot() == PathJoin(dir, u8"Sources"));

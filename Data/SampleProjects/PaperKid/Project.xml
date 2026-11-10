@@ -12,7 +12,7 @@
 	<string name="defaultBusLayoutId">00000000-0000-0000-0000-000000000000</string>
 	<string name="startupScriptId">f6302f5a-d4e6-4fde-9008-465a0e8d2fa4</string>
 	<string name="defaultUiFontId">6784980b-7ff3-41a2-9cbf-d6fe216e04f0</string>
-	<u32 name="renderMsaaSamples">1</u32>
+	<u32 name="renderMsaaSamples">4</u32>
 	<array name="uiFontIds" count="3">
 		<string>e632a35e-2b25-4a50-b3e4-05f8df9317cd</string>
 		<string>444d1c87-b50a-4e78-b80d-8202b93c9234</string>
