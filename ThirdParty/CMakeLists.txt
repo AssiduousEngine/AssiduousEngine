@@ -74,7 +74,7 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/DXC/include/dxc/dxcapi.h)
                 "DXC runtime library to stage beside shipping apps")
             message(STATUS "DXC runtime: ${_dxc_lib_dir}")
         endif()
-    elseif(UNIX AND NOT APPLE)
+    elseif(UNIX AND NOT APPLE AND NOT ANDROID) # Android loads no DXC: its shaders come cooked
         set(_dxc_lib_dir "${CMAKE_CURRENT_SOURCE_DIR}/DXC/lib/linux-x86_64")
         if(EXISTS "${_dxc_lib_dir}/libdxcompiler.so")
             target_compile_definitions(dxc_headers
@@ -111,7 +111,7 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/WgpuNative/include/webgpu/webgpu.h)
                 "wgpu-native runtime library to stage beside shipping apps")
             message(STATUS "wgpu-native runtime: ${_wgpu_lib_dir}")
         endif()
-    elseif(UNIX AND NOT APPLE AND NOT EMSCRIPTEN)
+    elseif(UNIX AND NOT APPLE AND NOT EMSCRIPTEN AND NOT ANDROID)
         set(_wgpu_lib_dir "${CMAKE_CURRENT_SOURCE_DIR}/WgpuNative/lib/linux-x86_64")
         if(EXISTS "${_wgpu_lib_dir}/libwgpu_native.so")
             target_compile_definitions(wgpu_headers
@@ -371,6 +371,12 @@ if(WIN32 AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_SIZEOF_VOID_P EQUA
 elseif(MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 8)
     list(APPEND util_angelscript_sources
         ${CMAKE_CURRENT_SOURCE_DIR}/angelscript/source/as_callfunc_x64_msvc_asm.asm)
+elseif(NOT MSVC AND CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$")
+    # arm64 (Android, and Linux on arm64): as_config.h picks native calls (AS_ARM64), whose
+    # trampoline is this GNU-syntax assembly.
+    enable_language(ASM)
+    list(APPEND util_angelscript_sources
+        ${CMAKE_CURRENT_SOURCE_DIR}/angelscript/source/as_callfunc_arm64_gcc.S)
 endif()
 # TWO engine libraries embed this archive (Foundation/Script.AngelScript and
 # Pipeline/Script.AngelScript.Pipeline - an asIScriptEngine* crosses between

@@ -116,10 +116,13 @@ target_sources(Core
 # Per-platform backends (classic TUs). Emscripten is POSIX-shaped, so it reuses the Linux
 # backend (the pthread API is present). The web build is single-threaded: spawning threads
 # needs the wasm-pthreads opt-in, and the JobSystem's calling thread runs the jobs itself.
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR EMSCRIPTEN)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR EMSCRIPTEN OR ANDROID)
     target_sources(Core PRIVATE
         System/Linux/LinuxSystem.cpp
         Threading/Linux/LinuxThread.cpp)
+    if(ANDROID)
+        target_link_libraries(Core PUBLIC log) # the console's logcat half (__android_log_write)
+    endif()
 elseif(WIN32)
     target_sources(Core PRIVATE
         System/Win32/Win32System.cpp

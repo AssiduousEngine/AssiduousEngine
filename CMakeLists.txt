@@ -110,6 +110,8 @@ if(WIN32)
     set(_dr_plat "Win64")
 elseif(APPLE)
     set(_dr_plat "Mac64")
+elseif(ANDROID)
+    set(_dr_plat "Android64")   # arm64-v8a only
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(_dr_plat "Linux64")
 else()
@@ -185,6 +187,11 @@ option(OPTION_WARNINGS_AS_ERRORS "Treat warnings as errors" ON)
 # A web (Emscripten) build ships a game, not the authoring toolchain: force the tooling group off
 # up front, before the policy defines below capture it. The GUI (foundation.gui) stays, since a web
 # game has the engine's GUI (Engine.GUI) as a desktop one does.
+if(ANDROID)
+    # An Android build ships a game as the web's does: no authoring tools (they run on the desktop,
+    # which also cooks the shaders and content an Android app carries).
+    set(OPTION_BUILD_TOOLS OFF)
+endif()
 if(EMSCRIPTEN)
     set(OPTION_BUILD_TOOLS OFF)
     # OPTION_PLUGIN_IMGUI stays available on web: Dear ImGui and imgui.engine compile for
@@ -250,6 +257,14 @@ add_library(policy INTERFACE)
 add_library(Foundation::Policy ALIAS policy)
 
 target_compile_features(policy INTERFACE cxx_std_23)
+
+# The NDK's Threads target carries -pthread as a compile option, and Clang records it in every
+# module it builds: a target that imports Core's modules without it (the player's stub, a generated
+# plugin registry) fails the module's configuration check. Every target takes it through the policy.
+if(ANDROID)
+    find_package(Threads REQUIRED)
+    target_link_libraries(policy INTERFACE Threads::Threads)
+endif()
 
 # Shipping flavor (Core/Prelude.h requires exactly one of DEBUG, RELEASE and SHIPPING): an
 # optimized build with asserts compiled out and stripped binaries, the config for dists and size
@@ -429,7 +444,8 @@ endif()
 if(WIN32)
     add_subdirectory(Code/Foundation/RHI.DX12)
 endif()
-if(EMSCRIPTEN OR TARGET ThirdParty::WgpuHeaders)
+# Android renders through Vulkan only: wgpu-native ships no Android build here.
+if(EMSCRIPTEN OR (TARGET ThirdParty::WgpuHeaders AND NOT ANDROID))
     add_subdirectory(Code/Foundation/RHI.WebGPU)
 else()
     message(STATUS "Skipping Foundation::RHI.WebGPU (no wgpu headers)")

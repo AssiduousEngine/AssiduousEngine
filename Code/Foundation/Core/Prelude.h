@@ -61,6 +61,8 @@
 #define PLATFORM_WEB 1
 #elif defined(_WIN32)
 #define PLATFORM_WINDOWS 1
+#elif defined(__ANDROID__) // before __linux__, which the NDK defines too
+#define PLATFORM_ANDROID 1
 #elif defined(__linux__)
 #define PLATFORM_LINUX 1
 #else
@@ -75,6 +77,9 @@
 #endif
 #if !defined(PLATFORM_WEB)
 #define PLATFORM_WEB 0
+#endif
+#if !defined(PLATFORM_ANDROID)
+#define PLATFORM_ANDROID 0
 #endif
 
 // ---------------------------------------------------------------------------
