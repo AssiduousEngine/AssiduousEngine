@@ -98,7 +98,7 @@ jobs:
           sudo mkswap /mnt/swapfile && sudo swapon /mnt/swapfile
       # The AUTHORING TOOL (editor) - one downloadable package.
       - name: Build editor distribution
-        run: CXX_COMPILER=clang++-21 C_COMPILER=clang-21 OUT=dist/Editor-Linux64 scripts/build-editor-dist.sh
+        run: CXX_COMPILER=clang++-21 C_COMPILER=clang-21 OUT=dist/Assiduous-Editor-Linux64 scripts/build-editor-dist.sh
       # The DEPLOYMENT TEMPLATE (game runtime: Engine.Player + sidecars + template.xml) - a SEPARATE
       # downloadable package a developer exports their game against. Its own static tree
       # (build/clang-reldbg: a player links its plugins statically), beside the editor's shared one.
@@ -116,12 +116,12 @@ jobs:
         with:
           prerelease: ${{ contains(github.ref_name, '-') }} # a labelled version (v0.1.0-beta) is a pre-release
           # Version-stamped names from build-editor-dist.sh + the template step (e.g.
-          # Editor-0.1.0-Linux64.tar.gz); glob so the workflow tracks the version automatically.
+          # Assiduous-Editor-0.1.0-Linux64.tar.gz); glob so the workflow tracks the version automatically.
           # The -symbols archives are the split debug info of the two downloads: a crash report
           # from either resolves against them.
           files: |
-            dist/Editor-*-Linux64.tar.gz
-            dist/Editor-*-Linux64-symbols.tar.gz
+            dist/Assiduous-Editor-*-Linux64.tar.gz
+            dist/Assiduous-Editor-*-Linux64-symbols.tar.gz
             dist/DeploymentTemplate-*-Linux64.tar.gz
             dist/DeploymentTemplate-*-Linux64-symbols.tar.gz
           fail_on_unmatched_files: true
@@ -167,7 +167,7 @@ jobs:
           Write-Host "VULKAN_SDK=$sdk"
       # The AUTHORING TOOL (editor) - one downloadable package.
       - name: Build editor distribution
-        run: pwsh scripts/build-editor-dist.ps1 -Out dist/Editor-Win64
+        run: pwsh scripts/build-editor-dist.ps1 -Out dist/Assiduous-Editor-Win64
       # Fail LOUDLY if the Vulkan backend did not make it into the artifact. find_package(Vulkan)
       # failing is only a STATUS message, so a missing SDK silently produces an editor with no
       # Vulkan backend - and since Vulkan is the default backend, that artifact cannot start on a
@@ -202,8 +202,8 @@ jobs:
         with:
           prerelease: ${{ contains(github.ref_name, '-') }} # a labelled version (v0.1.0-beta) is a pre-release
           files: |
-            dist/Editor-*-Win64.zip
-            dist/Editor-*-Win64-symbols.zip
+            dist/Assiduous-Editor-*-Win64.zip
+            dist/Assiduous-Editor-*-Win64-symbols.zip
             dist/DeploymentTemplate-*-Win64.zip
             dist/DeploymentTemplate-*-Win64-symbols.zip
           fail_on_unmatched_files: true

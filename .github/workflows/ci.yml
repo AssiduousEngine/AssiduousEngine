@@ -509,7 +509,7 @@ jobs:
         run: |
           CXX_COMPILER=clang++-21 \
           C_COMPILER=clang-21 \
-          OUT=dist/Editor-Linux64 \
+          OUT=dist/Assiduous-Editor-Linux64 \
           scripts/build-editor-dist.sh
 
       - name: Build deployment template
@@ -538,8 +538,8 @@ jobs:
         with:
           name: linux-release
           path: |
-            dist/Editor-*-Linux64.tar.gz
-            dist/Editor-*-Linux64-symbols.tar.gz
+            dist/Assiduous-Editor-*-Linux64.tar.gz
+            dist/Assiduous-Editor-*-Linux64-symbols.tar.gz
             dist/DeploymentTemplate-*-Linux64.tar.gz
             dist/DeploymentTemplate-*-Linux64-symbols.tar.gz
           if-no-files-found: error
@@ -583,7 +583,7 @@ jobs:
           Write-Host "VULKAN_SDK=$sdk"
 
       - name: Build editor distribution
-        run: pwsh scripts/build-editor-dist.ps1 -Out dist/Editor-Win64
+        run: pwsh scripts/build-editor-dist.ps1 -Out dist/Assiduous-Editor-Win64
       # Fail LOUDLY if the Vulkan backend did not make it into the artifact. find_package(Vulkan)
       # failing is only a STATUS message, so a missing SDK silently produces an editor with no
       # Vulkan backend - and since Vulkan is the default backend, that artifact cannot start on a
@@ -627,8 +627,8 @@ jobs:
         with:
           name: windows-release
           path: |
-            dist/Editor-*-Win64.zip
-            dist/Editor-*-Win64-symbols.zip
+            dist/Assiduous-Editor-*-Win64.zip
+            dist/Assiduous-Editor-*-Win64-symbols.zip
             dist/DeploymentTemplate-*-Win64.zip
             dist/DeploymentTemplate-*-Win64-symbols.zip
           if-no-files-found: error

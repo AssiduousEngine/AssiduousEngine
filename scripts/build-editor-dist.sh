@@ -29,7 +29,7 @@
 #
 #   Usage:  scripts/build-editor-dist.sh
 #   Env:    JOBS=N     build parallelism (default 4; higher OOMs the modules build)
-#           OUT=<dir>  the dist folder (default: dist/Editor-Linux64)
+#           OUT=<dir>  the dist folder (default: dist/Assiduous-Editor-Linux64)
 #           FORMATS=".." shader-pack formats (default: spirv, the Linux/Vulkan backend)
 #
 set -euo pipefail
@@ -46,16 +46,16 @@ TOOLS=(Tools.Editor Tools.Cook Tools.Export Tools.Mcp) # what the dist runs
 
 # Version stamp: the one source of truth is project(VERSION) in the root CMakeLists (the same
 # value the binary reports with --version). It is folded into the dist folder and archive names so
-# a download identifies itself (Editor-0.1.0-Linux64). Callers pass OUT as the label
-# (Editor-Linux64); the version is inserted before the platform suffix.
+# a download identifies itself (Assiduous-Editor-0.1.0-Linux64). Callers pass OUT as the label
+# (Assiduous-Editor-Linux64); the version is inserted before the platform suffix.
 VERSION="$(grep -oP '^\s*VERSION\s+\K[0-9]+\.[0-9]+\.[0-9]+' CMakeLists.txt | head -1)"
 VERSION="${VERSION:-0.0.0}"
 LABEL="$(sed -n 's/^set(ENGINE_VERSION_LABEL[[:space:]]*"\([^"]*\)").*/\1/p' CMakeLists.txt | head -1)"
 VERSION="${VERSION}${LABEL:+-$LABEL}" # the version with its label (ENGINE_VERSION_LABEL): 0.1.0-beta
-RAW="${OUT:-dist/Editor-Linux64}"
+RAW="${OUT:-dist/Assiduous-Editor-Linux64}"
 RAW_DIR="$(dirname "$RAW")"
-RAW_NAME="$(basename "$RAW")"                # e.g. Editor-Linux64
-DIST="$RAW_DIR/${RAW_NAME%-*}-${VERSION}-${RAW_NAME##*-}"  # e.g. dist/Editor-0.1.0-Linux64
+RAW_NAME="$(basename "$RAW")"                # e.g. Assiduous-Editor-Linux64
+DIST="$RAW_DIR/${RAW_NAME%-*}-${VERSION}-${RAW_NAME##*-}"  # e.g. dist/Assiduous-Editor-0.1.0-Linux64
 
 log() { printf '\n== %s ==\n' "$*"; }
 

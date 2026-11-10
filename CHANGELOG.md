@@ -10,6 +10,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 ### Changed
 
 - Projects: a new project starts with 4x MSAA (it was off), and the sample games have it on.
+- Downloads: the editor's archive is named `Assiduous-Editor-<version>-<platform>` (it was
+  `Editor-...`), so a download says what it is.
 - Animation: the root motion mode that moves nothing and holds the travel for the game to apply
   is called `Manual` (it was `Script`), since game code reads it as well as a script; a script
   names it `RootMotionMode::Manual`. Saved scenes read unchanged.

@@ -30,7 +30,7 @@
   ninja must be on PATH.
 
 .PARAMETER Out
-  The dist folder label (default: dist\Editor-Win64; the version goes before the platform).
+  The dist folder label (default: dist\Assiduous-Editor-Win64; the version goes before the platform).
 .PARAMETER Jobs
   Build parallelism (default 4; higher can OOM the modules build).
 .PARAMETER Compiler
@@ -40,7 +40,7 @@
   Shader-pack formats (default "dxil spirv": the editor on Windows runs DX12 or Vulkan).
 #>
 param(
-    [string]$Out = "dist\Editor-Win64",
+    [string]$Out = "dist\Assiduous-Editor-Win64",
     [int]$Jobs = 4,
     [ValidateSet("MSVC", "Clang")]
     [string]$Compiler = "MSVC",
@@ -52,15 +52,15 @@ Set-Location $Root
 
 # Version stamp: the SINGLE source of truth is project(VERSION) in the root CMakeLists (the same
 # value the binary reports via --version). Folded into the dist folder + zip name so a download
-# self-identifies (Editor-0.1.0-Win64). $Out is the LABEL; the version goes before the platform.
+# self-identifies (Assiduous-Editor-0.1.0-Win64). $Out is the LABEL; the version goes before the platform.
 $cmake = Get-Content "CMakeLists.txt" -Raw
 $Version = if ($cmake -match 'project\(\s*GameEngine\s+VERSION\s+([0-9]+\.[0-9]+\.[0-9]+)') { $Matches[1] } else { "0.0.0" }
 if ($cmake -match 'set\(ENGINE_VERSION_LABEL\s+"([^"]+)"\)') { $Version = "$Version-$($Matches[1])" } # the version with its label: 0.1.0-beta
 $rawDir  = Split-Path -Parent $Out
-$rawName = Split-Path -Leaf   $Out           # e.g. Editor-Win64
+$rawName = Split-Path -Leaf   $Out           # e.g. Assiduous-Editor-Win64
 $prefix  = $rawName.Substring(0, $rawName.LastIndexOf('-'))
 $suffix  = $rawName.Substring($rawName.LastIndexOf('-') + 1)
-$Out     = Join-Path $rawDir "$prefix-$Version-$suffix"   # e.g. dist\Editor-0.1.0-Win64
+$Out     = Join-Path $rawDir "$prefix-$Version-$suffix"   # e.g. dist\Assiduous-Editor-0.1.0-Win64
 
 # One choice names the preset, its build tree and the Bin folder it writes (CMakeLists.txt:
 # Bin/<Config>/<Platform>-<CMAKE_CXX_COMPILER_ID>).

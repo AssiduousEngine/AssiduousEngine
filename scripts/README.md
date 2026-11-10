@@ -77,15 +77,16 @@ Not bundled: the Vulkan/GPU system runtime (the target machine's drivers + loade
 ```sh
 scripts/build-editor-dist.sh
 #   JOBS=N       build parallelism (default 4; higher OOMs the modules build)
-#   OUT=<dir>    the dist folder (default: dist/Editor-Linux64)
+#   OUT=<dir>    the dist folder (default: dist/Assiduous-Editor-Linux64)
 #   FORMATS=".." shader-pack formats (default: spirv)
 #   CXX_COMPILER / C_COMPILER   a versioned clang for the preset (clang++-21)
 ```
 
 `OUT` is the LABEL; the version from `project(VERSION)` in the root CMakeLists is inserted before
-the platform suffix, so the default produces `dist/Editor-<version>-Linux64/` and its `.tar.gz`
-(e.g. `Editor-0.1.0-Linux64.tar.gz`) - the same version the binary reports via `--version`. Smoke
-test on the build machine: `( cd dist/Editor-<version>-Linux64 && ./Tools.Editor --exit-after 3 )`.
+the platform suffix, so the default produces `dist/Assiduous-Editor-<version>-Linux64/` and its
+`.tar.gz` (e.g. `Assiduous-Editor-0.1.0-Linux64.tar.gz`) - the same version the binary reports via
+`--version`. Smoke test on the build machine:
+`( cd dist/Assiduous-Editor-<version>-Linux64 && ./Tools.Editor --exit-after 3 )`.
 The conclusive check is to unzip on a machine with **no source tree and no dev toolchain** and
 confirm it launches.
 
