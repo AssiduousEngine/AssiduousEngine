@@ -242,6 +242,11 @@ TEST_CASE("material source: a stored Float4 colour reads as the template's colou
 TEST_CASE("material source: sampler address modes round-trip")
 {
     using namespace foundation::materials;
+    // The database reads the source back by its registered type: registered here, since a case
+    // must not lean on one that happened to run first (run alone, or in another order on Android,
+    // it read nothing).
+    GlobalTypeRegistry().Register(MaterialSource::StaticType());
+    RegisterSerializable<MaterialSource>();
     NativeFileSystem mount(u8"scratch_mat_sampler_db", DefaultAllocator());
 
     Guid id;
