@@ -266,6 +266,9 @@ export namespace samples::framework
         case shell::WindowSystem::Cocoa:
             plat = rhi::SurfacePlatform::Cocoa;
             break;
+        case shell::WindowSystem::Android:
+            plat = rhi::SurfacePlatform::Android;
+            break;
         default:
             break;
         }

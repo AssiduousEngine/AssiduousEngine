@@ -262,6 +262,12 @@ namespace foundation::shell
         native.system = WindowSystem::Cocoa;
         native.window =
             SDL_GetPointerProperty(props, SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr);
+#elif defined(__ANDROID__)
+        // The activity's surface. It goes away when the app goes to the background and a new one
+        // comes back with it (the render window makes its surface again then).
+        native.system = WindowSystem::Android;
+        native.window =
+            SDL_GetPointerProperty(props, SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, nullptr);
 #else
         const char* driver = SDL_GetCurrentVideoDriver();
         if (driver != nullptr && SDL_strcmp(driver, "wayland") == 0)

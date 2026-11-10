@@ -427,6 +427,9 @@ export namespace foundation::graphics
             case WindowSystem::Cocoa:
                 plat = rhi::SurfacePlatform::Cocoa;
                 break;
+            case WindowSystem::Android:
+                plat = rhi::SurfacePlatform::Android;
+                break;
             default:
                 break;
             }

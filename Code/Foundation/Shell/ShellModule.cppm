@@ -39,6 +39,7 @@ export namespace foundation::shell
         Wayland,
         Cocoa,
         Web,
+        Android,
     };
 
     // The native handles RHI needs to create a surface and swapchain itself (RHI does
@@ -49,6 +50,7 @@ export namespace foundation::shell
     //   Wayland - display = wl_display*,  window = wl_surface*
     //   Cocoa   - display = nullptr,      window = NSWindow*
     //   Web     - display = nullptr,      window = const char* (HTML canvas CSS selector)
+    //   Android - display = nullptr,      window = ANativeWindow* (the activity's surface)
     struct NativeWindow
     {
         WindowSystem system = WindowSystem::Unknown;

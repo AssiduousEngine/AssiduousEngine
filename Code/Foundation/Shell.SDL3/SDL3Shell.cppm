@@ -48,6 +48,8 @@ export namespace foundation::shell
             return u8"Wayland";
         case WindowSystem::Cocoa:
             return u8"Cocoa";
+        case WindowSystem::Android:
+            return u8"Android";
         default:
             return u8"Unknown";
         }

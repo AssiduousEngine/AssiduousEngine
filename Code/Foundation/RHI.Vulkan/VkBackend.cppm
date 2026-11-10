@@ -221,6 +221,19 @@ export namespace foundation::rhi::vk
                 LogErrorf("VkBackend: surface creation failed (%d)", static_cast<int>(vr));
                 return ErrorCode::Unknown;
             }
+#elif PLATFORM_ANDROID
+            // The activity's ANativeWindow (the shell's Android window). It is not the app's to keep:
+            // it goes when the app goes to the background, and the surface over it with it.
+            VkAndroidSurfaceCreateInfoKHR ci{};
+            ci.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
+            ci.window = reinterpret_cast<ANativeWindow*>(windowHandle);
+            LogInfof("[RHI] Vulkan surface WSI: Android");
+            const VkResult vr = vkCreateAndroidSurfaceKHR(m_instance, &ci, nullptr, &vkSurface);
+            if (vr != VK_SUCCESS)
+            {
+                LogErrorf("VkBackend: vkCreateAndroidSurfaceKHR failed (%d)", static_cast<int>(vr));
+                return ErrorCode::Unknown;
+            }
 #else
             LogError("VkBackend: surface creation not supported on this platform");
             return ErrorCode::NotSupported;
@@ -330,6 +343,8 @@ export namespace foundation::rhi::vk
                     return ErrorCode::Unknown;
                 }
             }
+#elif PLATFORM_ANDROID
+            extensions.PushBack(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME); // every Android Vulkan has it
 #endif
 
             // Debug utils whenever the loader has it, not only with validation: frame captures read
