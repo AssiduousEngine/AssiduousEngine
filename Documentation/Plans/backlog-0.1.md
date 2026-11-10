@@ -414,12 +414,6 @@
   dropped (user, 2026-10-27: no importer case for one asset's convention); Bistro's materials are
   fixed by a script outside the engine (rebuilt as PBR with the packed maps wired as such) so it
   imports normally. Test data: Bistro v5.2 (FBX only) at `~/Downloads/Bistro_v5_2`.
-- **A slot's own depth and shadow program.** The forward pass draws each submesh with its slot's
-  material (2026-10-15), but the depth prepass, shadows and picking still draw a mesh (and an
-  instanced set) whole with its first material (`MeshRenderer::DepthLikeFor` over `md.material`):
-  a custom shader that moves its vertices or cuts out, on any slot but the first, casts and
-  occludes as if it did neither. Wanted: per-submesh depth draws where a slot's material has its
-  own depth program, wind, or a cutout.
 - **The player opens on a black window** (user 2026-10-29, running the exported Linux players): the
   window stays black through startup (the graphics device, the shader and content packs, the GUI's
   fonts and sheets, the game script), then the title appears. The player's only drawn screen is the

@@ -43,6 +43,13 @@ Handlers dispatch **by presence** - implement only what you need:
   owning side drives, the rest interpolate. It reads; replication owns the identity, so
   nothing on it is assignable from a script.
 
+## Entities
+
+Two entity handles name the same entity when `a == b` (the same scene, slot and generation). Ask
+that, not `a is b`: `is` asks whether they are the same handle object, and `scene.find`, `parent()`
+and the rest hand out a new one each call, so a found entity is never `is` one kept from before.
+The same holds for a `Guid`: compare with `==`.
+
 ## Components
 
 Every component a script reaches has three static methods on its type (AngelScript
