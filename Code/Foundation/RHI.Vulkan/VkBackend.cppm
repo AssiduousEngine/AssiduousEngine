@@ -250,6 +250,24 @@ export namespace foundation::rhi::vk
 
         Status init(bool enableValidation)
         {
+            // Validation asked for where its layer is not installed (a phone, a machine without the
+            // SDK): run without it rather than fail to make an instance at all.
+            if (enableValidation)
+            {
+                u32 layerCount = 0;
+                vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+                Array<VkLayerProperties> available(layerCount);
+                vkEnumerateInstanceLayerProperties(&layerCount, available.Data());
+                bool installed = false;
+                for (const VkLayerProperties& layer : available)
+                    installed = installed || std::strcmp(layer.layerName, "VK_LAYER_KHRONOS_validation") == 0;
+                if (!installed)
+                {
+                    LogWarning("[Vulkan] validation was asked for, but VK_LAYER_KHRONOS_validation is not "
+                               "installed: running without it");
+                    enableValidation = false;
+                }
+            }
             m_validationEnabled = enableValidation;
             // Announce validation state so a perf run can confirm the layers are off: the layer
             // validates every command, so a profile taken with it on measures the layer.
