@@ -1,4 +1,4 @@
-add_executable(Sample022_StencilOutline Main.cpp)
+util_add_sample_app(Sample022_StencilOutline Main.cpp)
 target_link_libraries(Sample022_StencilOutline PRIVATE Samples::Framework Foundation::Core Foundation::Policy)
 target_compile_options(Sample022_StencilOutline PRIVATE
     "$<$<CXX_COMPILER_ID:Clang,GNU>:-Wno-error=unused-parameter;-Wno-error=unused-variable;-Wno-error=missing-field-initializers;-Wno-error=misleading-indentation>")

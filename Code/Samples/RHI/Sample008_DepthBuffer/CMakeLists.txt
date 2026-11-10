@@ -1,4 +1,4 @@
-add_executable(Sample008_DepthBuffer Main.cpp)
+util_add_sample_app(Sample008_DepthBuffer Main.cpp)
 target_link_libraries(Sample008_DepthBuffer PRIVATE Samples::Framework Foundation::Core Foundation::Policy)
 target_compile_options(Sample008_DepthBuffer PRIVATE
     "$<$<CXX_COMPILER_ID:Clang,GNU>:-Wno-error=unused-parameter;-Wno-error=unused-variable;-Wno-error=missing-field-initializers;-Wno-error=misleading-indentation>")

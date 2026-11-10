@@ -1,0 +1,47 @@
+plugins {
+    id 'com.android.application'
+}
+
+def engineRoot = file("${rootDir}/../../../..")
+def staged = file(providers.gradleProperty('engineStaged').getOrElse("${engineRoot}/build/android-app/default"))
+
+android {
+    namespace 'com.assiduousengine.player'
+    compileSdk 36
+    buildToolsVersion '37.0.0'
+
+    defaultConfig {
+        applicationId providers.gradleProperty('engineApplicationId').getOrElse('com.assiduousengine.player')
+        minSdk 33 // Android 13: its libvulkan exports the Vulkan 1.3 calls the RHI makes
+        targetSdk 36
+        versionCode 1
+        versionName '0.1'
+        ndk {
+            abiFilters 'arm64-v8a' // arm64 only
+        }
+    }
+
+    sourceSets {
+        main {
+            // SDL's Java glue (SDLActivity and what it uses), vendored with SDL.
+            java.srcDirs += ["${engineRoot}/ThirdParty/SDL3/android-project/app/src/main/java"]
+            // The engine (libmain.so, SDL linked in) and the data it reads, staged per build.
+            jniLibs.srcDirs = ["${staged}/jniLibs"]
+            assets.srcDirs = ["${staged}/assets"]
+        }
+    }
+
+    androidResources {
+        // Packs are read whole and often, so they are stored rather than compressed.
+        noCompress += ['pak', 'dpak']
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+    }
+}

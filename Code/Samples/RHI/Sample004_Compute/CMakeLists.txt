@@ -1,4 +1,4 @@
-add_executable(Sample004_Compute Main.cpp)
+util_add_sample_app(Sample004_Compute Main.cpp)
 target_link_libraries(Sample004_Compute PRIVATE Samples::Framework Foundation::Core Foundation::Policy)
 target_compile_options(Sample004_Compute PRIVATE
     "$<$<CXX_COMPILER_ID:Clang,GNU>:-Wno-error=unused-parameter;-Wno-error=unused-variable;-Wno-error=missing-field-initializers;-Wno-error=misleading-indentation>")

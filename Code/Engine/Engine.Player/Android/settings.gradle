@@ -1,0 +1,18 @@
+// The engine's Android app: an activity over SDL's Java glue that runs the engine from libmain.so.
+// scripts/android-app.sh stages what it carries (the native library, the data) and builds it.
+pluginManagement {
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+rootProject.name = 'AssiduousPlayer'
+include ':app'

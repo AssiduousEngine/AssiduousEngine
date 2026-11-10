@@ -132,3 +132,17 @@ libraries the suites load and the `Data/` folders they read (`Engine`, `Tests`, 
 phone when several are attached, `ARGS` passes doctest's options to each suite, `DATA=0` skips the
 data push. A suite that reads this checkout's `Code/` or this build tree's own files skips those
 cases on Android; the desktop lanes run them.
+
+## android-app.sh - an Android app around one of the engine's programs
+
+```sh
+scripts/android-app.sh Sample001_Triangle --install --run
+```
+
+Builds `<Target>` in the Android tree (`build/android-arm64`), stages it as `libmain.so` with the
+data it reads under `build/android-app/<Target>/` (for the RHI samples, their shaders cooked on the
+host by `Tools.ShaderPack --entries`), and builds the APK from `Code/Engine/Engine.Player/Android`
+with its Gradle wrapper. `--install` puts it on the attached phone, `--run` also starts it and
+follows its log. Needs `ANDROID_HOME`, `ANDROID_NDK_HOME`, a JDK 17 and, the first time, the
+network (the wrapper fetches Gradle, and Gradle the Android plugin). `NO_BUILD=1` packages what is
+already built.

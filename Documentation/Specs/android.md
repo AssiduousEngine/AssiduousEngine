@@ -1,7 +1,7 @@
 # Android: a native player and its export
 
 > STATUS: PROPOSED 2026-11-10, on branch `android`. Sized L, phases A0 to A5, green after each.
-> A0 built 2026-11-10 (see the week-2026-10-24 entry).
+> A0 and A1 built 2026-11-10 (see the week-2026-10-24 entries).
 > Origin: the 0.2 backlog's "Android: a native player and its export" (user 2026-10-11), started
 > by the user 2026-11-10. The test device is the user's Google Pixel 6 (Tensor G1, Arm Mali-G78,
 > Vulkan 1.3). Read CONVENTIONS.md first.
@@ -121,7 +121,11 @@ Not goals: the editor, on-device MCP or play-in-editor on Android; 32-bit or x86
   floats a panel into a window of its own. Two findings of A0's run of the RHI suites on the Mali
   GPU come here: an RGBA16F target reads back as zeros (`screenshot: a cleared RGBA8 and BGRA8
   target ...`, its `vulkan-rgba16f` case), and the timestamp calibration's GPU and CPU clocks
-  disagreed once (`vk.queries: a calibration ...`; it passed on the next run).
+  disagreed once (`vk.queries: a calibration ...`; it passed on the next run). Both settled: the
+  readback was intermittent (a readback's mapped memory, cached and maybe not coherent, never
+  invalidated: 3e5d7020d), and the calibration test's 30 ms was inside Mali's calibration
+  deviation (d731de059, 200 ms). Until A2 reads the packs in place, the app's activity copies its
+  data out of the APK on the first run of each version.
   Accept: the triangle draws, in both orientations, on the Pixel 6.
 - **A2 - the player and a sample game on the phone.** The player builds as `libmain.so`;
   Decision 2's packs (a pak over a file region; the data root over a pak); the `android` cook
@@ -135,7 +139,8 @@ Not goals: the editor, on-device MCP or play-in-editor on Android; 32-bit or x86
   resumes (`ma_engine_stop/start`); user data is persisted on going to the background (Android may
   end the process unasked). The back button reaches the game as a key it can bind (a new
   `KeyCode` for it, what a menu's Escape does by default); unhandled, the app goes to the
-  background. Accept: home, switching apps, locking the phone and rotating it, each and back,
+  background. The game fills the screen: the status and navigation bars hidden (immersive, the
+  user swiping them back for a moment), seen on the Pixel 6 in A1 where they stay (user, 2026-11-10). Accept: home, switching apps, locking the phone and rotating it, each and back,
   on the Pixel 6, with the game where it was and its sound back.
 - **A4 - the export.** The Android template (`scripts/build-export-templates.sh android`, the
   template's `Android64` platform; `Android64` among the platforms a plugin package names, in the

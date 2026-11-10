@@ -1,4 +1,4 @@
-add_executable(Sample017_MultiQueue Main.cpp)
+util_add_sample_app(Sample017_MultiQueue Main.cpp)
 target_link_libraries(Sample017_MultiQueue PRIVATE Samples::Framework Foundation::Core Foundation::Policy)
 target_compile_options(Sample017_MultiQueue PRIVATE
     "$<$<CXX_COMPILER_ID:Clang,GNU>:-Wno-error=unused-parameter;-Wno-error=unused-variable;-Wno-error=missing-field-initializers;-Wno-error=misleading-indentation>")

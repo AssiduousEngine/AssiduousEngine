@@ -1,4 +1,4 @@
-add_executable(Sample005_BindGroups Main.cpp)
+util_add_sample_app(Sample005_BindGroups Main.cpp)
 target_link_libraries(Sample005_BindGroups PRIVATE Samples::Framework Foundation::Core Foundation::Policy)
 target_compile_options(Sample005_BindGroups PRIVATE
     "$<$<CXX_COMPILER_ID:Clang,GNU>:-Wno-error=unused-parameter;-Wno-error=unused-variable;-Wno-error=missing-field-initializers;-Wno-error=misleading-indentation>")

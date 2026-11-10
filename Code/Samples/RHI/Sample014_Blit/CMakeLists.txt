@@ -1,4 +1,4 @@
-add_executable(Sample014_Blit Main.cpp)
+util_add_sample_app(Sample014_Blit Main.cpp)
 target_link_libraries(Sample014_Blit PRIVATE Samples::Framework Foundation::Core Foundation::Policy)
 target_compile_options(Sample014_Blit PRIVATE
     "$<$<CXX_COMPILER_ID:Clang,GNU>:-Wno-error=unused-parameter;-Wno-error=unused-variable;-Wno-error=missing-field-initializers;-Wno-error=misleading-indentation>")
