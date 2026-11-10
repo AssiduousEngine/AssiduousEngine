@@ -176,6 +176,20 @@ namespace foundation::zip
         return total;
     }
 
+    bool ZipArchive::DataOffset(const ZipEntry& entry, u64& offset, String& error)
+    {
+        // The data follows the local header, whose name and extras may differ from the directory's.
+        Array<byte> header;
+        if (m_stream == nullptr || !ReadAt(*m_stream, entry.localHeader, kLocalHeaderSize, header) ||
+            U32(header.Data()) != kLocalHeader)
+        {
+            error = Format(u8"{}: its local header is missing or damaged", entry.name);
+            return false;
+        }
+        offset = entry.localHeader + kLocalHeaderSize + U16(header.Data() + 26) + U16(header.Data() + 28);
+        return true;
+    }
+
     bool ZipArchive::Read(const ZipEntry& entry, Array<byte>& out, String& error)
     {
         out.Clear();
@@ -189,14 +203,11 @@ namespace foundation::zip
             error = Format(u8"{} is compressed by method {}, which is not read (only stored and deflate)", entry.name, entry.method);
             return false;
         }
-        // The data follows the local header, whose name and extras may differ from the directory's.
-        Array<byte> header;
-        if (!ReadAt(*m_stream, entry.localHeader, kLocalHeaderSize, header) || U32(header.Data()) != kLocalHeader)
+        u64 dataAt = 0;
+        if (!DataOffset(entry, dataAt, error))
         {
-            error = Format(u8"{}: its local header is missing or damaged", entry.name);
             return false;
         }
-        const u64 dataAt = entry.localHeader + kLocalHeaderSize + U16(header.Data() + 26) + U16(header.Data() + 28);
         Array<byte> packed;
         if (!ReadAt(*m_stream, dataAt, static_cast<usize>(entry.compressedSize), packed))
         {

@@ -525,6 +525,7 @@ add_subdirectory(Code/Foundation/Net.Tls)           # TLS interfaces: a session 
 add_subdirectory(Code/Foundation/Net.Tls.MbedTLS)   # the Mbed TLS backend (the only module linking ThirdParty::MbedTLS)
 add_subdirectory(Code/Foundation/Http.Client)       # the HTTP client interface and the native HTTP/1.1 client over plain and TLS streams
 add_subdirectory(Code/Foundation/Zip)               # reading and extracting zip archives (stored and deflate through zlib), for the sample downloads
+add_subdirectory(Code/Foundation/VFS.Zip)           # a read-only VFS backend over a zip (an Android APK's assets, read in place)
 add_subdirectory(Code/Foundation/Net.Manager)       # per-instance networked endpoint (NetworkManager) and the Net script facade (over Net and Script)
 add_subdirectory(Code/Foundation/Http.Script)       # the Http script facade over a run's HTTP client
 add_subdirectory(Code/Engine/Engine.Net)     # once-per-context NetworkSubsystem (injects NetworkComponentManager into scenes)
@@ -870,6 +871,7 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Foundation/Fonts.Resource.Tests            Foundation::Fonts.Resource)
     util_test_suite(Code/Foundation/Texture.Tests                   Foundation::Texture)
     util_test_suite(Code/Foundation/VFS.Pak.Tests                   Foundation::VFS.Pak)
+    util_test_suite(Code/Foundation/VFS.Zip.Tests                   Foundation::VFS.Zip)
     util_test_suite(Code/Foundation/VFS.Tests                       Foundation::VFS)
     util_test_suite(Code/Foundation/VG.Renderer.Tests               Foundation::VG.Renderer)
     util_test_suite(Code/Foundation/VG.SVG.Tests                    Foundation::VG.SVG)

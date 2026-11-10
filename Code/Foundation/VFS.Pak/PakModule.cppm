@@ -46,6 +46,17 @@ export namespace foundation::vfs
         explicit PakFileSystem(StringView pakPath, IAllocator& allocator = DefaultAllocator())
             : m_path(pakPath, allocator), m_allocator(&allocator)
         {
+            const FileStream file(m_path.AsView(), FileMode::Read);
+            const i64 size = file.IsValid() ? file.Size() : 0;
+            m_length = size > 0 ? static_cast<u64>(size) : 0u;
+            Load();
+        }
+
+        // A pak inside another file: `length` bytes from `offset` of the file at `path` (a pak
+        // stored in an Android APK, read in place). Its offsets are the pak's own, from its start.
+        PakFileSystem(StringView path, u64 offset, u64 length, IAllocator& allocator)
+            : m_path(path, allocator), m_allocator(&allocator), m_base(offset), m_length(length)
+        {
             Load();
         }
 
@@ -68,7 +79,7 @@ export namespace foundation::vfs
             }
 
             // Reopen the archive per Open: a fresh handle, no shared seek lock.
-            FileStream file(m_path.AsView(), FileMode::Read);
+            FileRegionStream file(m_path.AsView(), m_base, m_length);
             if (!file.IsValid())
             {
                 return UniquePtr<IStream>{};
@@ -157,7 +168,7 @@ export namespace foundation::vfs
 
         void Load()
         {
-            FileStream file(m_path.AsView(), FileMode::Read);
+            FileRegionStream file(m_path.AsView(), m_base, m_length);
             if (!file.IsValid())
             {
                 return;
@@ -282,6 +293,8 @@ export namespace foundation::vfs
 
         String m_path;
         IAllocator* m_allocator;
+        u64 m_base = 0;   // where the pak starts in its file (0: the file is the pak)
+        u64 m_length = 0; // its bytes
         Array<Entry> m_entries;
         bool m_valid = false;
     };

@@ -54,6 +54,11 @@ export namespace foundation::zip
         /// cannot be read, do not inflate, or do not match.
         bool Read(const ZipEntry& entry, Array<byte>& out, String& error);
 
+        /// Where an entry's data starts in the archive (past its local header, whose name and
+        /// extras may differ from the directory's): a stored entry is its bytes there, to read in
+        /// place. False with `error` when the local header is missing or damaged.
+        bool DataOffset(const ZipEntry& entry, u64& offset, String& error);
+
         /// Writes every entry under `directory` (made as needed), telling `progress` the bytes
         /// written of the total after each file. Every name is checked first: one that would land
         /// outside `directory` refuses the archive, and nothing is written. False with `error` at

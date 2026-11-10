@@ -102,6 +102,91 @@ export namespace foundation::core
     };
 
     // =======================================================================
+    // FileRegionStream - a read-only IStream over part of a file: `size` bytes from `offset`.
+    // Position 0 is the region's first byte, and reads stop at its end. A file inside another
+    // (a pak stored in an Android APK, an entry stored in a zip) is read in place this way.
+    // =======================================================================
+    class FileRegionStream final : public IStream
+    {
+    public:
+        FileRegionStream(StringView path, u64 offset, u64 size) noexcept
+            : m_file(FileOpen(path, FileMode::Read)), m_offset(offset), m_size(size)
+        {
+            if (FileIsValid(m_file) &&
+                (FileSize(m_file) < static_cast<i64>(offset + size) ||
+                 FileSeek(m_file, static_cast<i64>(offset), SeekOrigin::Begin) != static_cast<i64>(offset)))
+            {
+                FileClose(m_file); // the region lies past the file's end
+                m_file = kInvalidFile;
+            }
+        }
+
+        ~FileRegionStream() override
+        {
+            if (FileIsValid(m_file))
+            {
+                FileClose(m_file);
+            }
+        }
+
+        FileRegionStream(const FileRegionStream&) = delete;
+        FileRegionStream& operator=(const FileRegionStream&) = delete;
+
+        [[nodiscard]] bool IsValid() const override { return FileIsValid(m_file); }
+
+        [[nodiscard]] u64 Read(void* destination, u64 bytes) override
+        {
+            const u64 left = m_size - m_position;
+            const u64 wanted = bytes < left ? bytes : left;
+            if (wanted == 0 || !IsValid())
+            {
+                return 0;
+            }
+            const i64 n = FileRead(m_file, destination, wanted);
+            if (n <= 0)
+            {
+                return 0;
+            }
+            m_position += static_cast<u64>(n);
+            return static_cast<u64>(n);
+        }
+
+        [[nodiscard]] u64 Write(const void*, u64) override { return 0; } // read-only
+
+        [[nodiscard]] i64 Seek(i64 offset, SeekOrigin origin) override
+        {
+            i64 target = offset;
+            if (origin == SeekOrigin::Current)
+            {
+                target += static_cast<i64>(m_position);
+            }
+            else if (origin == SeekOrigin::End)
+            {
+                target += static_cast<i64>(m_size);
+            }
+            if (target < 0 || target > static_cast<i64>(m_size) || !IsValid())
+            {
+                return -1;
+            }
+            if (FileSeek(m_file, static_cast<i64>(m_offset) + target, SeekOrigin::Begin) < 0)
+            {
+                return -1;
+            }
+            m_position = static_cast<u64>(target);
+            return target;
+        }
+
+        [[nodiscard]] i64 Tell() const override { return static_cast<i64>(m_position); }
+        [[nodiscard]] i64 Size() const override { return static_cast<i64>(m_size); }
+
+    private:
+        FileHandle m_file = kInvalidFile;
+        u64 m_offset = 0;
+        u64 m_size = 0;
+        u64 m_position = 0;
+    };
+
+    // =======================================================================
     // MemoryStream - IStream over a growable in-memory byte buffer.
     // =======================================================================
     class MemoryStream final : public IStream
