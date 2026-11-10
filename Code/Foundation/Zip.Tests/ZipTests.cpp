@@ -18,7 +18,7 @@ namespace
 {
     String Fixture(StringView name)
     {
-        return PathJoin(PathJoin(StringView(reinterpret_cast<const char8_t*>(RAPTOR_SOURCE_DIR)), u8"Data/Tests/Zip").AsView(), name);
+        return PathJoin(PathJoin(StringView(reinterpret_cast<const char8_t*>(TEST_SOURCE_DIR)), u8"Data/Tests/Zip").AsView(), name);
     }
     StringView Text(const Array<byte>& bytes) { return StringView(reinterpret_cast<const utf8char*>(bytes.Data()), bytes.Size()); }
     const ZipEntry* Named(const ZipArchive& zip, StringView name)

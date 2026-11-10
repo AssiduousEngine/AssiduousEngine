@@ -16,7 +16,7 @@ namespace
 {
     String ReadSource(StringView relative)
     {
-        const String path = PathJoin(StringView(reinterpret_cast<const char8_t*>(RAPTOR_SOURCE_DIR)), relative);
+        const String path = PathJoin(StringView(reinterpret_cast<const char8_t*>(TEST_SOURCE_DIR)), relative);
         Result<Array<byte>> bytes = ReadFile(path.AsView());
         REQUIRE(bytes.HasValue());
         return String(StringView(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size()));

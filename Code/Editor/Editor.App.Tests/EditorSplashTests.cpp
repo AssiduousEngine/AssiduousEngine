@@ -19,7 +19,7 @@ namespace
 {
     [[nodiscard]] String DataRoot()
     {
-        return PathJoin(StringView(reinterpret_cast<const char8_t*>(RAPTOR_SOURCE_DIR)), u8"Data");
+        return PathJoin(StringView(reinterpret_cast<const char8_t*>(TEST_SOURCE_DIR)), u8"Data");
     }
 
     [[nodiscard]] Array<u8> RobotoBytes()

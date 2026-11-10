@@ -181,7 +181,7 @@ TEST_CASE("particles.pipeline: a version 0 asset's effect links are read onto it
     // Shells and Sparks, and the effect's one link, into Sparks. Read through its envelope as an
     // editor reads it, the link is the shells' own; the sparks have none.
     RegisterParticleEffectAsset();
-    const String fixture = PathJoin(StringView(reinterpret_cast<const char8_t*>(RAPTOR_SOURCE_DIR)), u8"Code/Pipeline/Particles.Pipeline.Tests/FireworksV0.xasset");
+    const String fixture = PathJoin(StringView(reinterpret_cast<const char8_t*>(TEST_SOURCE_DIR)), u8"Code/Pipeline/Particles.Pipeline.Tests/FireworksV0.xasset");
     Result<Array<byte>> bytes = ReadFile(fixture.AsView());
     REQUIRE(bytes.HasValue());
     String text(StringView(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size()));

@@ -16,8 +16,8 @@ import foundation.core;
 
 using namespace foundation::core;
 
-#ifndef RAPTOR_SOURCE_DIR
-#error "Core.Tests must define RAPTOR_SOURCE_DIR (see Core.Tests/CMakeLists.txt)"
+#ifndef TEST_SOURCE_DIR
+#error "Core.Tests must define TEST_SOURCE_DIR (see Core.Tests/CMakeLists.txt)"
 #endif
 
 namespace
@@ -108,11 +108,11 @@ namespace
 
 TEST_CASE("allocators: DefaultAllocator() stays confined to the pinned allowlist")
 {
-    const StringView root(reinterpret_cast<const utf8char*>(RAPTOR_SOURCE_DIR));
+    const StringView root(reinterpret_cast<const utf8char*>(TEST_SOURCE_DIR));
     const String codeDir = PathJoin(root, u8"Code");
     const String allowlistPath = PathJoin(root, u8"Code/Foundation/Core.Tests/allocator-allowlist.txt");
 
-    REQUIRE_MESSAGE(DirectoryExists(codeDir.AsView()), "Code/ not found under RAPTOR_SOURCE_DIR");
+    REQUIRE_MESSAGE(DirectoryExists(codeDir.AsView()), "Code/ not found under TEST_SOURCE_DIR");
 
     // Load the pinned list (repo-relative paths, one per line).
     HashSet<String> allowed;
@@ -134,7 +134,7 @@ TEST_CASE("allocators: DefaultAllocator() stays confined to the pinned allowlist
         }
     }
     REQUIRE_MESSAGE(!current.IsEmpty(),
-                    "scan found nothing at all - RAPTOR_SOURCE_DIR is likely wrong");
+                    "scan found nothing at all - TEST_SOURCE_DIR is likely wrong");
 
     // New offenders: a file outside the allowlist references DefaultAllocator().
     for (const String& file : current)

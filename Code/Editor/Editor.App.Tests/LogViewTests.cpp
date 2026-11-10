@@ -22,7 +22,7 @@ namespace
 {
     RefPtr<gui::Node> LoadConsole()
     {
-        const String path = PathJoin(PathJoin(StringView(reinterpret_cast<const char8_t*>(RAPTOR_SOURCE_DIR)), u8"Data").AsView(), StringView(kLogViewPath));
+        const String path = PathJoin(PathJoin(StringView(reinterpret_cast<const char8_t*>(TEST_SOURCE_DIR)), u8"Data").AsView(), StringView(kLogViewPath));
         Result<Array<byte>> bytes = ReadFile(path.AsView());
         REQUIRE(bytes.HasValue());
         gui::RegisterGuiElements();
@@ -172,7 +172,7 @@ TEST_CASE("console: under the editor's sheet every line is one fixed height, so 
     String sheet;
     for (const char8_t* file : {u8"Editor/editor.css", u8"Editor/density-default.css"})
     {
-        Result<Array<byte>> bytes = ReadFile(PathJoin(PathJoin(StringView(reinterpret_cast<const char8_t*>(RAPTOR_SOURCE_DIR)), u8"Data").AsView(), StringView(file)).AsView());
+        Result<Array<byte>> bytes = ReadFile(PathJoin(PathJoin(StringView(reinterpret_cast<const char8_t*>(TEST_SOURCE_DIR)), u8"Data").AsView(), StringView(file)).AsView());
         REQUIRE(bytes.HasValue());
         sheet += StringView(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size());
         sheet += u8"\n";
@@ -197,7 +197,7 @@ TEST_CASE("console: under the editor's sheet it keeps its panel's height and the
     String sheet;
     for (const char8_t* file : {u8"Editor/editor.css", u8"Editor/density-default.css"})
     {
-        Result<Array<byte>> bytes = ReadFile(PathJoin(PathJoin(StringView(reinterpret_cast<const char8_t*>(RAPTOR_SOURCE_DIR)), u8"Data").AsView(), StringView(file)).AsView());
+        Result<Array<byte>> bytes = ReadFile(PathJoin(PathJoin(StringView(reinterpret_cast<const char8_t*>(TEST_SOURCE_DIR)), u8"Data").AsView(), StringView(file)).AsView());
         REQUIRE(bytes.HasValue());
         sheet += StringView(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size());
         sheet += u8"\n";

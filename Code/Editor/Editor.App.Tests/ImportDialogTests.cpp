@@ -227,7 +227,7 @@ namespace
 
     RefPtr<gui::Node> LoadImport()
     {
-        const String path = PathJoin(PathJoin(StringView(reinterpret_cast<const char8_t*>(RAPTOR_SOURCE_DIR)), u8"Data").AsView(), StringView(editor::app::kImportWindowPath));
+        const String path = PathJoin(PathJoin(StringView(reinterpret_cast<const char8_t*>(TEST_SOURCE_DIR)), u8"Data").AsView(), StringView(editor::app::kImportWindowPath));
         Result<Array<byte>> bytes = ReadFile(path.AsView());
         REQUIRE(bytes.HasValue());
         gui::RegisterGuiElements();

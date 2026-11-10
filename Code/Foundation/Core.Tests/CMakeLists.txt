@@ -41,7 +41,7 @@ add_executable(Core.Tests
 target_link_libraries(Core.Tests PRIVATE Foundation::Core doctest::doctest)
 # The allocator tripwire scans the source tree at test time.
 target_compile_definitions(Core.Tests
-                           PRIVATE RAPTOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
+                           PRIVATE TEST_SOURCE_DIR="${CMAKE_SOURCE_DIR}")
 
 # A real shared library for the DynamicLibrary tests to load at runtime.
 add_library(TestPlugin MODULE TestPlugin.cpp)

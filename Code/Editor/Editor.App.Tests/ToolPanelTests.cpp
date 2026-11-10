@@ -236,7 +236,7 @@ TEST_CASE("tool-panel body: under the editor's sheet a row of pictures is as tal
     const char8_t* const files[] = {u8"Editor/tokens.css", u8"Editor/editor.css", u8"Editor/density-default.css"}; // the tokens first
     for (const char8_t* file : files)
     {
-        Result<Array<byte>> bytes = ReadFile(PathJoin(PathJoin(StringView(reinterpret_cast<const char8_t*>(RAPTOR_SOURCE_DIR)), u8"Data").AsView(), StringView(file)).AsView());
+        Result<Array<byte>> bytes = ReadFile(PathJoin(PathJoin(StringView(reinterpret_cast<const char8_t*>(TEST_SOURCE_DIR)), u8"Data").AsView(), StringView(file)).AsView());
         REQUIRE(bytes.HasValue());
         sheet += StringView(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size());
         sheet += u8"\n";

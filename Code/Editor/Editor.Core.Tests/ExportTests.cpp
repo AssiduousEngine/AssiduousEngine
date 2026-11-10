@@ -2503,7 +2503,7 @@ TEST_CASE("export: the NativeSample fixture pins the game-package conventions")
     // to the package pipeline: its manifest enables its own package, whose Plugin.xml reads, names
     // the same id and lists every part kind, each with its folder.
     const String root = Format(u8"{}/Data/SampleProjects/NativeSample",
-                               StringView(reinterpret_cast<const char8_t*>(RAPTOR_SOURCE_DIR)));
+                               StringView(reinterpret_cast<const char8_t*>(TEST_SOURCE_DIR)));
     foundation::vfs::NativeFileSystem fs(root.AsView(), foundation::core::DefaultAllocator());
     engine::project::ProjectSettings settings;
     REQUIRE(engine::project::LoadProjectSettings(fs, settings).IsOk());

@@ -5,7 +5,7 @@ target_link_libraries(Editor.Shaders.Tests PRIVATE
     Foundation::RHI.Null Foundation::Content Foundation::VFS Foundation::GUI Foundation::GUI.Toolkit Foundation::GUI.Code
     Pipeline::Shaders doctest::doctest)
 target_compile_definitions(Editor.Shaders.Tests PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
-    RAPTOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}") # the page's markup, the languages and the engine's shaders
+    TEST_SOURCE_DIR="${CMAKE_SOURCE_DIR}") # the page's markup, the languages and the engine's shaders
 target_compile_options(Editor.Shaders.Tests PRIVATE
     "$<$<CXX_COMPILER_ID:Clang>:-Wno-error=#warnings;-Wno-error=c2y-extensions>"
     "$<$<CXX_COMPILER_ID:GNU>:-Wno-error=cpp>")

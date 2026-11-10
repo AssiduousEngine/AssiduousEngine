@@ -24,8 +24,8 @@ import foundation.core;
 
 using namespace foundation::core;
 
-#ifndef RAPTOR_SOURCE_DIR
-#error "Core.Tests must define RAPTOR_SOURCE_DIR (see Core.Tests/CMakeLists.txt)"
+#ifndef TEST_SOURCE_DIR
+#error "Core.Tests must define TEST_SOURCE_DIR (see Core.Tests/CMakeLists.txt)"
 #endif
 
 namespace
@@ -120,11 +120,11 @@ namespace
 
 TEST_CASE("shared-libs: module interfaces hold no duplicating process-wide state")
 {
-    const StringView root(reinterpret_cast<const utf8char*>(RAPTOR_SOURCE_DIR));
+    const StringView root(reinterpret_cast<const utf8char*>(TEST_SOURCE_DIR));
     const String codeDir = PathJoin(root, u8"Code");
     const String allowlistPath = PathJoin(root, u8"Code/Foundation/Core.Tests/sharedlib-allowlist.txt");
 
-    REQUIRE_MESSAGE(DirectoryExists(codeDir.AsView()), "Code/ not found under RAPTOR_SOURCE_DIR");
+    REQUIRE_MESSAGE(DirectoryExists(codeDir.AsView()), "Code/ not found under TEST_SOURCE_DIR");
 
     HashSet<String> allowed;
     REQUIRE_MESSAGE(ReadAllowlist(allowlistPath.AsView(), allowed), "sharedlib-allowlist.txt missing");
@@ -144,7 +144,7 @@ TEST_CASE("shared-libs: module interfaces hold no duplicating process-wide state
         }
     }
     REQUIRE_MESSAGE(!current.IsEmpty(),
-                    "scan found nothing at all - RAPTOR_SOURCE_DIR is likely wrong");
+                    "scan found nothing at all - TEST_SOURCE_DIR is likely wrong");
 
     for (const String& file : current)
     {

@@ -30,7 +30,7 @@ namespace
 {
     RefPtr<gui::Node> LoadMarkup(StringView path)
     {
-        const String full = PathJoin(PathJoin(StringView(reinterpret_cast<const char8_t*>(RAPTOR_SOURCE_DIR)), u8"Data").AsView(), path);
+        const String full = PathJoin(PathJoin(StringView(reinterpret_cast<const char8_t*>(TEST_SOURCE_DIR)), u8"Data").AsView(), path);
         Result<Array<byte>> bytes = ReadFile(full.AsView());
         if (!bytes.HasValue())
             return {};
@@ -66,7 +66,7 @@ namespace
     {
         // Watching Editor/ alone, as the editor does: watching all of Data/ would snapshot every
         // file under it (the sample projects' build output included) for each test.
-        editor::EditorResources resources{DefaultAllocator(), PathJoin(StringView(reinterpret_cast<const char8_t*>(RAPTOR_SOURCE_DIR)), u8"Data").AsView(),
+        editor::EditorResources resources{DefaultAllocator(), PathJoin(StringView(reinterpret_cast<const char8_t*>(TEST_SOURCE_DIR)), u8"Data").AsView(),
                                           u8"Editor"};
         gui::StyleManager styles;
         EditorSheet()
@@ -572,7 +572,7 @@ TEST_CASE("launcher: the Samples tab lists the release's samples, and one downlo
                    services.releaseFile = [&server](StringView file) { return server.Url(Format(u8"/{}", file).AsView()); };
                });
     // The release: its samples.json, one sample's zip (a project's manifest at its root) and picture.
-    Result<Array<byte>> zip = ReadFile(PathJoin(StringView(reinterpret_cast<const char8_t*>(RAPTOR_SOURCE_DIR)), u8"Data/Tests/Zip/sample.zip").AsView());
+    Result<Array<byte>> zip = ReadFile(PathJoin(StringView(reinterpret_cast<const char8_t*>(TEST_SOURCE_DIR)), u8"Data/Tests/Zip/sample.zip").AsView());
     REQUIRE(zip.HasValue());
     Result<Array<byte>> picture = ReadFile(l.WritePicture(u8"picture.png").AsView());
     REQUIRE(picture.HasValue());

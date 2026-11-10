@@ -33,7 +33,7 @@ namespace
         {
             (void)RemoveDirectoryRecursive(root.AsView());
             REQUIRE(CreateDirectories(root.AsView()));
-            Result<Array<byte>> bytes = ReadFile(PathJoin(StringView(reinterpret_cast<const char8_t*>(RAPTOR_SOURCE_DIR)), u8"Data/Tests/Zip/project.zip").AsView());
+            Result<Array<byte>> bytes = ReadFile(PathJoin(StringView(reinterpret_cast<const char8_t*>(TEST_SOURCE_DIR)), u8"Data/Tests/Zip/project.zip").AsView());
             REQUIRE(bytes.HasValue());
             zip = Move(bytes.Value());
             sample.folder = String(u8"Game");

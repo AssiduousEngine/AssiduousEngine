@@ -8,7 +8,7 @@ target_link_libraries(Editor.Script.Tests PRIVATE
     Pipeline::Script Foundation::Content Foundation::VFS Foundation::GUI Foundation::GUI.Toolkit Foundation::GUI.Code Foundation::Core
     doctest::doctest)
 target_compile_definitions(Editor.Script.Tests PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
-    RAPTOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}") # the page's markup and the languages the tests load
+    TEST_SOURCE_DIR="${CMAKE_SOURCE_DIR}") # the page's markup and the languages the tests load
 target_compile_options(Editor.Script.Tests PRIVATE
     "$<$<CXX_COMPILER_ID:Clang>:-Wno-error=#warnings;-Wno-error=c2y-extensions>"
     "$<$<CXX_COMPILER_ID:GNU>:-Wno-error=cpp>")

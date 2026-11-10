@@ -46,7 +46,7 @@ namespace
 
     RefPtr<gui::Node> LoadTemplates()
     {
-        const String path = PathJoin(PathJoin(StringView(reinterpret_cast<const char8_t*>(RAPTOR_SOURCE_DIR)), u8"Data").AsView(), StringView(app::kTemplatesDialogPath));
+        const String path = PathJoin(PathJoin(StringView(reinterpret_cast<const char8_t*>(TEST_SOURCE_DIR)), u8"Data").AsView(), StringView(app::kTemplatesDialogPath));
         Result<Array<byte>> bytes = ReadFile(path.AsView());
         REQUIRE(bytes.HasValue());
         gui::RegisterGuiElements();
@@ -187,7 +187,7 @@ TEST_CASE("templates dialog: a long folder wraps inside the details, never past 
     const char8_t* const files[] = {u8"Editor/editor.css", u8"Editor/density-default.css"};
     for (const char8_t* file : files)
     {
-        Result<Array<byte>> bytes = ReadFile(PathJoin(PathJoin(StringView(reinterpret_cast<const char8_t*>(RAPTOR_SOURCE_DIR)), u8"Data").AsView(), StringView(file)).AsView());
+        Result<Array<byte>> bytes = ReadFile(PathJoin(PathJoin(StringView(reinterpret_cast<const char8_t*>(TEST_SOURCE_DIR)), u8"Data").AsView(), StringView(file)).AsView());
         REQUIRE(bytes.HasValue());
         sheet += StringView(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size());
         sheet += u8"\n";

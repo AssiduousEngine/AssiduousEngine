@@ -20,7 +20,7 @@ namespace
         return [&reads](StringView path, String& out)
         {
             ++reads;
-            const String full = PathJoin(PathJoin(StringView(reinterpret_cast<const char8_t*>(RAPTOR_SOURCE_DIR)), u8"Data").AsView(), path);
+            const String full = PathJoin(PathJoin(StringView(reinterpret_cast<const char8_t*>(TEST_SOURCE_DIR)), u8"Data").AsView(), path);
             Result<Array<byte>> bytes = ReadFile(full.AsView());
             if (!bytes.HasValue())
                 return false;
