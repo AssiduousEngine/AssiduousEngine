@@ -246,10 +246,14 @@ if(OPTION_BUILD_TESTS)
     enable_testing()
 endif()
 
-# The checkout as the test suites see it (TEST_SOURCE_DIR): where they read Data/ fixtures from. A
-# suite built for a device runs from where its data is pushed there, so this is the one place that
-# says so.
-set(BUILDSYSTEM_TEST_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
+# The checkout as the test suites see it (TEST_SOURCE_DIR): where they read Data/ fixtures from.
+# An Android suite runs on the phone (scripts/android-tests.sh), which pushes the Data/ folders the
+# suites read to the folder it runs them from; a suite reading Code/ (the tripwires) skips there.
+if(ANDROID)
+    set(BUILDSYSTEM_TEST_SOURCE_DIR "/data/local/tmp/engine-tests")
+else()
+    set(BUILDSYSTEM_TEST_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
+endif()
 
 # --- Engine-wide compile policy ----------------------------------------------
 # Exceptions and C++ RTTI are disabled engine-wide.
@@ -914,7 +918,11 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Foundation/Shaders.Resource.Tests          Foundation::Shaders.Resource)
     util_test_suite(Code/Foundation/Shaders.System.Tests            Foundation::Shaders.System)
     util_test_suite(Code/Foundation/Shaders.Tests                   Foundation::Shaders)
-    util_test_suite(Code/Foundation/Shell.SDL3.Tests                Foundation::Shell.SDL3)
+    # The SDL shell opens a real window, which on Android only an app's activity can give it; a
+    # suite run from adb's shell has none (the Android shell is checked in an app instead).
+    if(NOT ANDROID)
+        util_test_suite(Code/Foundation/Shell.SDL3.Tests            Foundation::Shell.SDL3)
+    endif()
     util_test_suite(Code/Foundation/Shell.Null.Tests                Foundation::Shell.Null)
     util_test_suite(Code/Foundation/Texture.Resource.Tests          Foundation::Texture.Resource)
     util_test_suite(Code/Foundation/Fonts.Resource.Tests            Foundation::Fonts.Resource)

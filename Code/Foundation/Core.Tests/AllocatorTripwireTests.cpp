@@ -106,7 +106,10 @@ namespace
     }
 }
 
-TEST_CASE("allocators: DefaultAllocator() stays confined to the pinned allowlist")
+// It reads this checkout's source, which a phone running the suite does not have; every desktop lane
+// runs it.
+TEST_CASE("allocators: DefaultAllocator() stays confined to the pinned allowlist" *
+          doctest::skip(PLATFORM_ANDROID != 0))
 {
     const StringView root(reinterpret_cast<const utf8char*>(TEST_SOURCE_DIR));
     const String codeDir = PathJoin(root, u8"Code");

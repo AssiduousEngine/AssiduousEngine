@@ -117,3 +117,18 @@ size. `release.yml`'s `samples` job runs it on a tag and attaches the files; the
 version reads `samples.json` from its release. Run it from the repository root in a checkout: only
 tracked files go in. A sample joins the tab by an entry in `Samples.json` (its folder, its name,
 one line on what it is, its picture from `Documentation/Images`).
+
+## android-tests.sh - the test suites on an Android phone
+
+```sh
+cmake --preset android-arm64 && cmake --build build/android-arm64 -j4
+scripts/android-tests.sh [Suite ...]
+```
+
+Runs the Android build's test suites on a phone attached over USB (with USB debugging on): each
+suite is pushed to `/data/local/tmp/engine-tests` and run there over `adb shell`, beside the
+libraries the suites load and the `Data/` folders they read (`Engine`, `Tests`, `Samples`,
+`Editor`). With no names it runs every `*.Tests` in `Bin/Debug/Android64-Clang`. `SERIAL` picks a
+phone when several are attached, `ARGS` passes doctest's options to each suite, `DATA=0` skips the
+data push. A suite that reads this checkout's `Code/` or this build tree's own files skips those
+cases on Android; the desktop lanes run them.

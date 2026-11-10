@@ -176,7 +176,10 @@ TEST_CASE("plugin manifest: written and read back, every field survives")
     CHECK(read.FindPlatform(u8"Win64") == nullptr); // not listed: unsupported
 }
 
-TEST_CASE("plugin manifest: the writer's output is the fixture the build reads, byte for byte")
+// It reads this checkout's fixtures or this build tree's own records, which a phone running the
+// suite does not have; every desktop lane runs it.
+TEST_CASE("plugin manifest: the writer's output is the fixture the build reads, byte for byte" *
+          doctest::skip(PLATFORM_ANDROID != 0))
 {
     // The CMake reader takes only the writer's shape (one element per line). The fixture is what
     // the configure read (the pin below); this proves it is also what the writer writes, so a
@@ -195,7 +198,10 @@ TEST_CASE("plugin manifest: the writer's output is the fixture the build reads, 
     CHECK(TrimEnd(written) == TrimEnd(fixtureText.AsView()));
 }
 
-TEST_CASE("plugin manifest: a package's Plugin.xml is loaded from its folder, NotFound without one")
+// It reads this checkout's fixtures or this build tree's own records, which a phone running the
+// suite does not have; every desktop lane runs it.
+TEST_CASE("plugin manifest: a package's Plugin.xml is loaded from its folder, NotFound without one" *
+          doctest::skip(PLATFORM_ANDROID != 0))
 {
     PluginManifest manifest;
     REQUIRE(LoadPluginManifest(FixturePath(u8"Everything").AsView(), manifest, DefaultAllocator()).IsOk());
@@ -322,7 +328,10 @@ TEST_CASE("plugin manifest: a valid manifest passes, and each broken field is re
     }
 }
 
-TEST_CASE("plugin manifest: the build read every manifest the way the C++ reader does")
+// It reads this checkout's fixtures or this build tree's own records, which a phone running the
+// suite does not have; every desktop lane runs it.
+TEST_CASE("plugin manifest: the build read every manifest the way the C++ reader does" *
+          doctest::skip(PLATFORM_ANDROID != 0))
 {
     const Array<ReadByCMake> lines = ManifestsReadByCMake();
     bool sawFixture = false;
