@@ -664,21 +664,46 @@ namespace foundation::core::sys
 #if defined(__ANDROID__)
     namespace
     {
-        // An app's stdout and stderr go nowhere on Android: logcat is where its log is read. A
-        // line goes there whole (logcat takes one entry per call), the trailing newline dropped.
+        // An app's stdout and stderr go nowhere on Android: logcat is where its log is read, one
+        // entry per call. A line often arrives in pieces (a prefix, then the message), so the
+        // pieces gather per thread and go out whole at its newline (or when the line fills).
+        struct LogcatLine
+        {
+            char text[1024];
+            std::size_t size = 0;
+        };
+
+        void FlushLogcat(int priority, LogcatLine& line) noexcept
+        {
+            while (line.size > 0 && line.text[line.size - 1] == '\r')
+            {
+                --line.size;
+            }
+            line.text[line.size] = '\0';
+            if (line.size > 0)
+            {
+                __android_log_write(priority, "Engine", line.text);
+            }
+            line.size = 0;
+        }
+
         void WriteLogcat(int priority, const char* text, std::uint64_t length) noexcept
         {
-            char line[1024];
-            std::size_t n = length < sizeof(line) - 1 ? static_cast<std::size_t>(length) : sizeof(line) - 1;
-            std::memcpy(line, text, n);
-            while (n > 0 && (line[n - 1] == '\n' || line[n - 1] == '\r'))
+            thread_local LogcatLine info;
+            thread_local LogcatLine error;
+            LogcatLine& line = priority == ANDROID_LOG_ERROR ? error : info;
+            for (std::uint64_t i = 0; i < length; ++i)
             {
-                --n;
-            }
-            line[n] = '\0';
-            if (n > 0)
-            {
-                __android_log_write(priority, "Engine", line);
+                if (text[i] == '\n')
+                {
+                    FlushLogcat(priority, line);
+                    continue;
+                }
+                if (line.size == sizeof(line.text) - 1)
+                {
+                    FlushLogcat(priority, line);
+                }
+                line.text[line.size++] = text[i];
             }
         }
     }
