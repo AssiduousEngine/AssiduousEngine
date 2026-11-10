@@ -1,6 +1,7 @@
 # Android: a native player and its export
 
 > STATUS: PROPOSED 2026-11-10, on branch `android`. Sized L, phases A0 to A5, green after each.
+> A0 built 2026-11-10 (see the week-2026-10-24 entry).
 > Origin: the 0.2 backlog's "Android: a native player and its export" (user 2026-10-11), started
 > by the user 2026-11-10. The test device is the user's Google Pixel 6 (Tensor G1, Arm Mali-G78,
 > Vulkan 1.3). Read CONVENTIONS.md first.
@@ -87,8 +88,11 @@ Not goals: the editor, on-device MCP or play-in-editor on Android; 32-bit or x86
 4. **Where the Android pieces live.** The player's Gradle project and its activity under
    `Code/Engine/Engine.Player/Android/`; SDL's Java glue re-vendored into
    `ThirdParty/SDL3/android-project/` (the prune rule in `README.vendored.md` changes to keep it).
-5. **Which Androids.** arm64-v8a only. `minSdkVersion` 29 (Android 10); a device without
-   Vulkan 1.3 and the features above gets a clear message and exits, as a desktop GPU does.
+5. **Which Androids.** arm64-v8a only. `minSdkVersion` 33 (Android 13; user ruling 2026-11-10,
+   in place of the 29 first planned): Android's `libvulkan` exports the Vulkan 1.3 calls the RHI
+   makes directly (`vkCmdBeginRendering`, `vkCmdPipelineBarrier2`, ...) only from API 33, and
+   Vulkan 1.3 drivers are an Android 13 matter in practice. A device without Vulkan 1.3 and the
+   features above gets a clear message and exits, as a desktop GPU does.
 6. **Textures cook to ASTC.** A cook target `android` (ASTC on, BC off, as `web-astc`), one
    `Content.pak`.
 
@@ -106,8 +110,18 @@ Not goals: the editor, on-device MCP or play-in-editor on Android; 32-bit or x86
 - **A1 - a window and a triangle on the phone.** `WindowSystem::Android` and
   `SurfacePlatform::Android` (the `ANativeWindow` from SDL's window properties);
   `VK_KHR_android_surface`; SDL's Java glue re-vendored; the minimal Gradle project; the RHI
-  triangle sample as `libmain.so` with `SDL_main`. Out-of-date and suboptimal acquire and present
+  triangle sample as `libmain.so` with `SDL_main`. The RHI samples compile their HLSL with DXC as
+  they run, which Android has not: their shaders move out of each sample's C++ into `.hlsl` files
+  beside it (user ruling 2026-11-10: one source, as the engine's shaders are), the desktop
+  compiling them as now, and `Tools.ShaderPack` cooking them on the host at build time into a
+  SPIR-V pack the sample framework reads on Android (as the web samples' packs are cooked). Every
+  RHI sample comes with it, not the triangle alone. Out-of-date and suboptimal acquire and present
   recreate the swapchain; `preTransform` is identity for now (the compositor turns the picture).
+  The SDL shell reports one window and no placing on Android (`WindowCapabilities`), so nothing
+  floats a panel into a window of its own. Two findings of A0's run of the RHI suites on the Mali
+  GPU come here: an RGBA16F target reads back as zeros (`screenshot: a cleared RGBA8 and BGRA8
+  target ...`, its `vulkan-rgba16f` case), and the timestamp calibration's GPU and CPU clocks
+  disagreed once (`vk.queries: a calibration ...`; it passed on the next run).
   Accept: the triangle draws, in both orientations, on the Pixel 6.
 - **A2 - the player and a sample game on the phone.** The player builds as `libmain.so`;
   Decision 2's packs (a pak over a file region; the data root over a pak); the `android` cook
@@ -124,7 +138,8 @@ Not goals: the editor, on-device MCP or play-in-editor on Android; 32-bit or x86
   background. Accept: home, switching apps, locking the phone and rotating it, each and back,
   on the Pixel 6, with the game where it was and its sound back.
 - **A4 - the export.** The Android template (`scripts/build-export-templates.sh android`, the
-  template's `Android64` platform); the preset's Android fields (application id, version name and
+  template's `Android64` platform; `Android64` among the platforms a plugin package names, in the
+  scaffold, the MCP plugin tools and their checks); the preset's Android fields (application id, version name and
   code, label, icon, orientation into the manifest, the signing choice); the exporter builds the
   APK and the AAB through Gradle and signs; the editor's export dialog and the MCP export tools
   show them; `KnownIssues.md` and the docs repo's export page. Accept: Sky Hopper exported from
