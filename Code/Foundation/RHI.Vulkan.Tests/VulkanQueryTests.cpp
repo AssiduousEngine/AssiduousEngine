@@ -84,14 +84,17 @@ TEST_CASE("vk.queries: a calibration reads the GPU's timestamp beside core::GetT
     CHECK(cpu0 >= before);
     CHECK(cpu0 <= after);
 
-    // Over a while, the GPU's ticks times its period track the CPU's time.
-    Wait(30);
+    // Over a while, the GPU's ticks times its period track the CPU's time. Each calibration reads
+    // the two clocks within the driver's deviation, a few tenths of a millisecond on a phone's
+    // Mali (where 30 ms between them missed by 1.2%), so the while is long enough for that to
+    // stay well inside the 1%.
+    Wait(200);
     u64 gpu1 = 0, cpu1 = 0;
     REQUIRE(queue->CalibrateTimestamps(gpu1, cpu1));
     const f64 cpuMs = TicksToMilliseconds(cpu1 - cpu0);
     const f64 gpuMs = static_cast<f64>(gpu1 - gpu0) * queue->TimestampPeriod() / 1.0e6;
     MESSAGE("calibration: CPU ", cpuMs, " ms, GPU ", gpuMs, " ms");
-    CHECK(cpuMs >= 29.0);
+    CHECK(cpuMs >= 199.0);
     CHECK(gpuMs == doctest::Approx(cpuMs).epsilon(0.01));
     device->Destroy();
 }
