@@ -28,29 +28,12 @@ protected:
     void OnShutdown() override;
 
 private:
-    static constexpr const char8_t kShaderSource[] = u8R"(
-        Texture2D gTexture : register(t0, space0);
-        SamplerState gSampler : register(s0, space0);
-        struct VSInput { float3 Position : TEXCOORD0; float2 TexCoord : TEXCOORD1; };
-        struct PSInput { float4 Position : SV_POSITION; float2 TexCoord : TEXCOORD0; };
-        PSInput VSMain(VSInput input) {
-            PSInput output;
-            output.Position = float4(input.Position, 1.0);
-            output.TexCoord = input.TexCoord;
-            return output;
-        }
-        float4 PSMain(PSInput input) : SV_TARGET {
-            return gTexture.Sample(gSampler, input.TexCoord);
-        }
-    )";
-
     static constexpr float kVertexData[] = {
         -0.5f, 0.5f,  0.0f, 0.0f, 0.0f, 0.5f,  0.5f,  0.0f, 1.0f, 0.0f,
         0.5f,  -0.5f, 0.0f, 1.0f, 1.0f, -0.5f, -0.5f, 0.0f, 0.0f, 1.0f,
     };
     static constexpr foundation::core::u16 kIndexData[] = {0, 1, 2, 0, 2, 3};
 
-    shaders::Compiler* m_compiler = nullptr;
     rhi::Buffer* m_vb = nullptr;
     rhi::Buffer* m_ib = nullptr;
     rhi::ShaderModule* m_vs = nullptr;
@@ -71,16 +54,11 @@ foundation::core::Status TextureSample::OnInit()
 {
     using foundation::core::Status, foundation::core::Span, foundation::core::u8, foundation::core::u32;
 
-    if (shaders::createCompiler(shaders::CompilerDesc{}, m_compiler) !=
-        foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample002_Textures/Shader.hlsl", shaders::ShaderStage::Vertex, u8"VSMain",
+                   u8"QuadVS", m_vs) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShaderSource,
-                                            shaders::ShaderStage::Vertex, u8"VSMain", u8"QuadVS",
-                                            m_vs) != foundation::core::ErrorCode::Ok)
-        return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShaderSource,
-                                            shaders::ShaderStage::Fragment, u8"PSMain", u8"QuadPS",
-                                            m_ps) != foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample002_Textures/Shader.hlsl", shaders::ShaderStage::Fragment, u8"PSMain",
+                   u8"QuadPS", m_ps) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
 
     // Vertex and index buffers.
@@ -277,10 +255,6 @@ void TextureSample::OnShutdown()
         m_device->DestroyBuffer(m_ib);
     if (m_vb)
         m_device->DestroyBuffer(m_vb);
-    if (m_compiler)
-    {
-        m_compiler->Destroy();
-    }
 }
 
 int main(int argc, char** argv)

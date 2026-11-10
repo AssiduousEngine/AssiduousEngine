@@ -31,12 +31,15 @@ import foundation.shell.desktop;
 import foundation.vfs; // ResolveDataRoot and the NativeFileSystem mounted over the data root
 import foundation.rhi.capture; // ScreenshotCapture and the --screenshot flags
 import foundation.image;       // Image (the written screenshot)
+import foundation.shaders;     // ShaderStage (LoadShader)
+import :shader_helpers;        // SampleShaders
 
 using namespace foundation::core;
 using namespace foundation;
 namespace rhi = foundation::rhi;
 namespace shell = foundation::shell;
 namespace vfs = foundation::vfs;
+namespace shaders = foundation::shaders;
 
 export namespace samples::framework
 {
@@ -82,6 +85,21 @@ export namespace samples::framework
         [[nodiscard]] String DataPath(StringView relative) const
         {
             return vfs::DataPath(m_dataRoot.AsView(), relative);
+        }
+
+        /// One entry point of the sample's shader file (relative to Data/Samples/RHI, as
+        /// "Sample001_Triangle/Triangle.hlsl"), compiled as the sample starts or, where there is no
+        /// shader compiler (Android), read from the pack cooked from the same files.
+        Status LoadShader(StringView file, shaders::ShaderStage stage, StringView entryPoint, StringView label,
+                          StringView shaderModel, rhi::ShaderModule*& out)
+        {
+            return m_shaders.Load(m_device, file, stage, entryPoint, label, shaderModel, out);
+        }
+        /// The same at shader model 6.0.
+        Status LoadShader(StringView file, shaders::ShaderStage stage, StringView entryPoint, StringView label,
+                          rhi::ShaderModule*& out)
+        {
+            return m_shaders.Load(m_device, file, stage, entryPoint, label, u8"6_0", out);
         }
 
         virtual StringView Title() const { return u8"RHI Sample"; }
@@ -144,6 +162,7 @@ export namespace samples::framework
         UniquePtr<shell::IShell> m_shellOwner;
         String m_dataRoot;
         UniquePtr<vfs::NativeFileSystem> m_dataFileSystem;
+        SampleShaders m_shaders; // the RHI samples' shaders (Data/Samples/RHI)
 
         rhi::ScreenshotCapture m_screenshot;
         rhi::ScreenshotOptions m_screenshotOptions;
@@ -196,6 +215,7 @@ export namespace samples::framework
         m_dataFileSystem = MakeUnique<vfs::NativeFileSystem>(foundation::core::DefaultAllocator(),
                                                              m_dataRoot.AsView(),
                                                              foundation::core::DefaultAllocator());
+        m_shaders.Open(foundation::core::DefaultAllocator(), DataPath(u8"Samples/RHI").AsView());
 
         if (!Init().IsOk())
         {
@@ -476,6 +496,7 @@ export namespace samples::framework
         if (m_device)
             m_device->WaitIdle();
         OnShutdown();
+        m_shaders.Close();
         if (m_device)
             m_screenshot.Release(*m_device);
         if (m_swapChain)

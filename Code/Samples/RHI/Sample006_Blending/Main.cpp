@@ -27,12 +27,6 @@ protected:
     void OnShutdown() override;
 
 private:
-    static constexpr const char8_t kShader[] = u8R"(
-        struct VSInput { float3 Position : TEXCOORD0; float4 Color : TEXCOORD1; };
-        struct PSInput { float4 Position : SV_POSITION; float4 Color : COLOR0; };
-        PSInput VSMain(VSInput i) { PSInput o; o.Position = float4(i.Position, 1.0); o.Color = i.Color; return o; }
-        float4 PSMain(PSInput i) : SV_TARGET { return i.Color; }
-    )";
     // 4 quads: an opaque background and 3 overlapping translucent quads.
     static constexpr float kVerts[] = {
         -.9f, -.9f, .5f,  .15f, .15f, .2f,  1,   .9f, -.9f, .5f,  .15f, .15f, .2f,  1,    .9f, .9f,
@@ -46,7 +40,6 @@ private:
     static constexpr foundation::core::u16 kIdx[] = {0, 1, 2,  0, 2,  3,  4,  5,  6,  4,  6,  7,
                                                    8, 9, 10, 8, 10, 11, 12, 13, 14, 12, 14, 15};
 
-    shaders::Compiler* m_compiler = nullptr;
     rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
     rhi::Buffer *m_vb = nullptr, *m_ib = nullptr;
     rhi::PipelineLayout* m_pl = nullptr;
@@ -59,16 +52,11 @@ private:
 foundation::core::Status BlendingSample::OnInit()
 {
     using foundation::core::Status, foundation::core::Span, foundation::core::u8;
-    if (shaders::createCompiler(shaders::CompilerDesc{}, m_compiler) !=
-        foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample006_Blending/Shader.hlsl", shaders::ShaderStage::Vertex, u8"VSMain",
+                   u8"VS", m_vs) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShader,
-                                            shaders::ShaderStage::Vertex, u8"VSMain", u8"VS",
-                                            m_vs) != foundation::core::ErrorCode::Ok)
-        return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShader,
-                                            shaders::ShaderStage::Fragment, u8"PSMain", u8"PS",
-                                            m_ps) != foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample006_Blending/Shader.hlsl", shaders::ShaderStage::Fragment, u8"PSMain",
+                   u8"PS", m_ps) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
 
     rhi::BufferDesc vbd{};
@@ -195,10 +183,6 @@ void BlendingSample::OnShutdown()
         m_device->DestroyShaderModule(m_ps);
     if (m_vs)
         m_device->DestroyShaderModule(m_vs);
-    if (m_compiler)
-    {
-        m_compiler->Destroy();
-    }
 }
 
 int main(int argc, char** argv)

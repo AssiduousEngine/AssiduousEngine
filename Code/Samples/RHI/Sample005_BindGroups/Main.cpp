@@ -37,26 +37,6 @@ protected:
     void OnShutdown() override;
 
 private:
-    static constexpr const char8_t kShader[] = u8R"(
-        cbuffer GlobalUBO : register(b0, space0) { row_major float4x4 VP; };
-        cbuffer ObjectUBO : register(b0, space1) { row_major float4x4 Model; float4 ObjColor; };
-        struct VSInput { float3 Position : TEXCOORD0; float3 Normal : TEXCOORD1; };
-        struct PSInput { float4 Position : SV_POSITION; float3 Normal : NORMAL; float4 Color : COLOR; };
-        PSInput VSMain(VSInput i) {
-            PSInput o;
-            float4 wp = mul(float4(i.Position, 1.0), Model);
-            o.Position = mul(wp, VP);
-            o.Normal = mul(i.Normal, (float3x3)Model);
-            o.Color = ObjColor;
-            return o;
-        }
-        float4 PSMain(PSInput i) : SV_TARGET {
-            float3 ld = normalize(float3(0.5, 1.0, -0.7));
-            float ndotl = max(dot(normalize(i.Normal), ld), 0.0);
-            return float4(i.Color.rgb * (0.2 + 0.8 * ndotl), 1.0);
-        }
-    )";
-
     static constexpr int kGrid = 4, kObjCount = kGrid * kGrid;
     static constexpr foundation::core::u32 kObjStride = 256; // DX12 CBV alignment
 
@@ -79,7 +59,6 @@ private:
         0,  1,  2,  0,  2,  3,  4,  5,  6,  4,  6,  7,  8,  9,  10, 8,  10, 11,
         12, 13, 14, 12, 14, 15, 16, 17, 18, 16, 18, 19, 20, 21, 22, 20, 22, 23};
 
-    shaders::Compiler* m_compiler = nullptr;
     rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
     rhi::Buffer *m_vb = nullptr, *m_ib = nullptr, *m_globalUbo = nullptr, *m_objUbo = nullptr;
     void *m_globalMapped = nullptr, *m_objMapped = nullptr;
@@ -96,16 +75,11 @@ private:
 foundation::core::Status BindGroupSample::OnInit()
 {
     using foundation::core::Status, foundation::core::Span, foundation::core::u8, foundation::core::u32;
-    if (shaders::createCompiler(shaders::CompilerDesc{}, m_compiler) !=
-        foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample005_BindGroups/Shader.hlsl", shaders::ShaderStage::Vertex, u8"VSMain",
+                   u8"VS", m_vs) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShader,
-                                            shaders::ShaderStage::Vertex, u8"VSMain", u8"VS",
-                                            m_vs) != foundation::core::ErrorCode::Ok)
-        return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShader,
-                                            shaders::ShaderStage::Fragment, u8"PSMain", u8"PS",
-                                            m_ps) != foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample005_BindGroups/Shader.hlsl", shaders::ShaderStage::Fragment, u8"PSMain",
+                   u8"PS", m_ps) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
 
     // Buffers.
@@ -330,10 +304,6 @@ void BindGroupSample::OnShutdown()
         m_device->DestroyShaderModule(m_ps);
     if (m_vs)
         m_device->DestroyShaderModule(m_vs);
-    if (m_compiler)
-    {
-        m_compiler->Destroy();
-    }
 }
 
 int main(int argc, char** argv)

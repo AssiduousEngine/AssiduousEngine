@@ -38,53 +38,8 @@ protected:
 private:
     foundation::core::Status doBatchUpload();
 
-    static constexpr const char8_t kShader[] = u8R"(
-        Texture2D gTexture : register(t0, space0);
-        SamplerState gSampler : register(s0, space0);
-
-        struct VSInput
-        {
-            float3 Position : TEXCOORD0;
-            float2 TexCoord : TEXCOORD1;
-        };
-
-        struct PSInput
-        {
-            float4 Position : SV_POSITION;
-            float2 TexCoord : TEXCOORD0;
-        };
-
-        cbuffer Transform : register(b0, space0)
-        {
-            float Time;
-            float Pad0;
-            float Pad1;
-            float Pad2;
-        };
-
-        PSInput VSMain(VSInput input)
-        {
-            PSInput output;
-            // Gentle rotation
-            float c = cos(Time * 0.5);
-            float s = sin(Time * 0.5);
-            float3 p = input.Position;
-            float x = p.x * c - p.y * s;
-            float y = p.x * s + p.y * c;
-            output.Position = float4(x, y, p.z, 1.0);
-            output.TexCoord = input.TexCoord;
-            return output;
-        }
-
-        float4 PSMain(PSInput input) : SV_TARGET
-        {
-            return gTexture.Sample(gSampler, input.TexCoord);
-        }
-    )";
-
     static constexpr foundation::core::u32 kTexSize = 128;
 
-    shaders::Compiler* m_compiler = nullptr;
     rhi::ShaderModule* m_vs = nullptr;
     rhi::ShaderModule* m_ps = nullptr;
 
@@ -116,16 +71,11 @@ foundation::core::Status BatchUploadSample::OnInit()
 {
     using foundation::core::Status, foundation::core::Span, foundation::core::u8, foundation::core::u32;
 
-    if (shaders::createCompiler(shaders::CompilerDesc{}, m_compiler) !=
-        foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample019_BatchUpload/Shader.hlsl", shaders::ShaderStage::Vertex, u8"VSMain",
+                   u8"BatchVS", m_vs) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShader,
-                                            shaders::ShaderStage::Vertex, u8"VSMain", u8"BatchVS",
-                                            m_vs) != foundation::core::ErrorCode::Ok)
-        return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShader,
-                                            shaders::ShaderStage::Fragment, u8"PSMain", u8"BatchPS",
-                                            m_ps) != foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample019_BatchUpload/Shader.hlsl", shaders::ShaderStage::Fragment,
+                   u8"PSMain", u8"BatchPS", m_ps) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
 
     // Vertex buffer: 4 vertices x (pos3 + uv2) x 4 = 80 bytes
@@ -435,10 +385,6 @@ void BatchUploadSample::OnShutdown()
         m_device->DestroyShaderModule(m_ps);
     if (m_vs)
         m_device->DestroyShaderModule(m_vs);
-    if (m_compiler)
-    {
-        m_compiler->Destroy();
-    }
 }
 
 int main(int argc, char** argv)

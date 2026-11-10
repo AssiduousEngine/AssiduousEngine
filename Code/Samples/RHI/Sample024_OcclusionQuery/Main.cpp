@@ -34,33 +34,6 @@ protected:
     void OnShutdown() override;
 
 private:
-    static constexpr const char8_t kShader[] = u8R"(
-        struct VSInput
-        {
-            float3 Position : TEXCOORD0;
-            float4 Color    : TEXCOORD1;
-        };
-
-        struct PSInput
-        {
-            float4 Position : SV_POSITION;
-            float4 Color    : COLOR0;
-        };
-
-        PSInput VSMain(VSInput input)
-        {
-            PSInput output;
-            output.Position = float4(input.Position, 1.0);
-            output.Color = input.Color;
-            return output;
-        }
-
-        float4 PSMain(PSInput input) : SV_TARGET
-        {
-            return input.Color;
-        }
-    )";
-
     // Geometry: 3 quads
     // Reverse-Z (rhi::depth): nearer means larger depth, and the clear is the far plane (0).
     // Quad 0: Occluder (opaque gray, z=0.7 = nearest, center)
@@ -163,7 +136,6 @@ private:
 
     void recreateDepth(foundation::core::u32 w, foundation::core::u32 h);
 
-    shaders::Compiler* m_compiler = nullptr;
     rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
     rhi::Buffer *m_vb = nullptr, *m_ib = nullptr;
     rhi::PipelineLayout* m_pl = nullptr;
@@ -213,16 +185,11 @@ foundation::core::Status OcclusionQuerySample::OnInit()
     }
 
     using foundation::core::Status, foundation::core::Span, foundation::core::u8;
-    if (shaders::createCompiler(shaders::CompilerDesc{}, m_compiler) !=
-        foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample024_OcclusionQuery/Shader.hlsl", shaders::ShaderStage::Vertex,
+                   u8"VSMain", u8"OccVS", m_vs) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShader,
-                                            shaders::ShaderStage::Vertex, u8"VSMain", u8"OccVS",
-                                            m_vs) != foundation::core::ErrorCode::Ok)
-        return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShader,
-                                            shaders::ShaderStage::Fragment, u8"PSMain", u8"OccPS",
-                                            m_ps) != foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample024_OcclusionQuery/Shader.hlsl", shaders::ShaderStage::Fragment,
+                   u8"PSMain", u8"OccPS", m_ps) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
 
     rhi::BufferDesc vbd{};
@@ -432,10 +399,6 @@ void OcclusionQuerySample::OnShutdown()
         m_device->DestroyShaderModule(m_ps);
     if (m_vs)
         m_device->DestroyShaderModule(m_vs);
-    if (m_compiler)
-    {
-        m_compiler->Destroy();
-    }
 }
 
 int main(int argc, char** argv)

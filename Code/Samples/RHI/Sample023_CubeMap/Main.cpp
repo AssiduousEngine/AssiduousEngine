@@ -40,98 +40,8 @@ private:
     foundation::core::Status createDepthTexture();
 
     // Skybox shader: a fullscreen quad whose UV gives a ray direction for the cube map lookup
-    static constexpr const char8_t kSkyboxShader[] = u8R"(
-        TextureCube<float4> gCubeMap : register(t0, space0);
-        SamplerState gSampler : register(s0, space0);
-
-        struct PushConstants
-        {
-            float Time;
-            float AspectRatio;
-            float2 _pad;
-        };
-
-        [[vk::push_constant]] ConstantBuffer<PushConstants> pc : register(b0, space1);
-
-        struct PSInput
-        {
-            float4 Position : SV_POSITION;
-            float2 UV       : TEXCOORD0;
-        };
-
-        PSInput VSMain(uint vertexID : SV_VertexID)
-        {
-            PSInput output;
-            // Fullscreen triangle
-            float2 uv = float2((vertexID << 1) & 2, vertexID & 2);
-            output.Position = float4(uv * 2.0 - 1.0, 0.5, 1.0);
-            output.UV = uv;
-            return output;
-        }
-
-        float4 PSMain(PSInput input) : SV_TARGET
-        {
-            // Convert UV to ray direction
-            float2 ndc = input.UV * 2.0 - 1.0;
-            ndc.x *= pc.AspectRatio;
-            ndc.y = -ndc.y;
-
-            // Simple rotation around Y
-            float c = cos(pc.Time * 0.3);
-            float s = sin(pc.Time * 0.3);
-
-            float3 dir = normalize(float3(ndc.x, ndc.y, 1.0));
-            float3 rotDir = float3(dir.x * c + dir.z * s, dir.y, -dir.x * s + dir.z * c);
-
-            return gCubeMap.Sample(gSampler, rotDir);
-        }
-    )";
 
     // Shadow test shader: renders a quad, samples a depth texture with comparison sampler
-    static constexpr const char8_t kShadowShader[] = u8R"(
-        Texture2D<float> gShadowMap : register(t0, space0);
-        SamplerComparisonState gShadowSampler : register(s0, space0);
-
-        struct PushConstants
-        {
-            float Time;
-            float AspectRatio;
-            float2 _pad;
-        };
-
-        [[vk::push_constant]] ConstantBuffer<PushConstants> pc : register(b0, space1);
-
-        struct VSInput
-        {
-            float3 Position : TEXCOORD0;
-            float2 TexCoord : TEXCOORD1;
-        };
-
-        struct PSInput
-        {
-            float4 Position : SV_POSITION;
-            float2 TexCoord : TEXCOORD0;
-        };
-
-        PSInput VSMain(VSInput input)
-        {
-            PSInput output;
-            output.Position = float4(input.Position, 1.0);
-            output.TexCoord = input.TexCoord;
-            return output;
-        }
-
-        float4 PSMain(PSInput input) : SV_TARGET
-        {
-            // Compare at varying depth based on time for animated shadow boundary
-            float compareValue = 0.5 + 0.4 * sin(pc.Time);
-            float shadow = gShadowMap.SampleCmpLevelZero(gShadowSampler, input.TexCoord, compareValue);
-            float3 litColor = float3(0.9, 0.85, 0.7);
-            float3 shadowColor = float3(0.1, 0.1, 0.2);
-            float3 color = lerp(shadowColor, litColor, shadow);
-            return float4(color, 1.0);
-        }
-    )";
 
     struct PushData
     {
@@ -140,8 +50,6 @@ private:
         float _pad0;
         float _pad1;
     };
-
-    shaders::Compiler* m_compiler = nullptr;
 
     // Skybox resources
     rhi::ShaderModule* m_skyboxVs = nullptr;
@@ -175,28 +83,20 @@ foundation::core::Status CubeMapSample::OnInit()
 {
     using foundation::core::Status, foundation::core::Span, foundation::core::u8, foundation::core::u32;
 
-    if (shaders::createCompiler(shaders::CompilerDesc{}, m_compiler) !=
-        foundation::core::ErrorCode::Ok)
-        return foundation::core::ErrorCode::Unknown;
-
     // Compile skybox shaders
-    if (samples::framework::CompileToModule(m_compiler, m_device, kSkyboxShader,
-                                            shaders::ShaderStage::Vertex, u8"VSMain", u8"SkyboxVS",
-                                            m_skyboxVs) != foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample023_CubeMap/SkyboxShader.hlsl", shaders::ShaderStage::Vertex,
+                   u8"VSMain", u8"SkyboxVS", m_skyboxVs) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(
-            m_compiler, m_device, kSkyboxShader, shaders::ShaderStage::Fragment, u8"PSMain",
-            u8"SkyboxPS", m_skyboxPs) != foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample023_CubeMap/SkyboxShader.hlsl", shaders::ShaderStage::Fragment,
+                   u8"PSMain", u8"SkyboxPS", m_skyboxPs) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
 
     // Compile shadow shaders
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShadowShader,
-                                            shaders::ShaderStage::Vertex, u8"VSMain", u8"ShadowVS",
-                                            m_shadowVs) != foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample023_CubeMap/ShadowShader.hlsl", shaders::ShaderStage::Vertex,
+                   u8"VSMain", u8"ShadowVS", m_shadowVs) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(
-            m_compiler, m_device, kShadowShader, shaders::ShaderStage::Fragment, u8"PSMain",
-            u8"ShadowPS", m_shadowPs) != foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample023_CubeMap/ShadowShader.hlsl", shaders::ShaderStage::Fragment,
+                   u8"PSMain", u8"ShadowPS", m_shadowPs) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
 
     // Create procedural cube map (6 faces, 64x64, each a solid color)
@@ -627,10 +527,6 @@ void CubeMapSample::OnShutdown()
         m_device->DestroyShaderModule(m_skyboxPs);
     if (m_skyboxVs)
         m_device->DestroyShaderModule(m_skyboxVs);
-    if (m_compiler)
-    {
-        m_compiler->Destroy();
-    }
 }
 
 int main(int argc, char** argv)

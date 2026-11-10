@@ -47,38 +47,10 @@ protected:
     void OnShutdown() override;
 
 private:
-    static constexpr const char8_t kShader[] = u8R"(
-        struct VSInput
-        {
-            float3 Position : TEXCOORD0;
-            float4 Color    : TEXCOORD1;
-        };
-
-        struct PSInput
-        {
-            float4 Position : SV_POSITION;
-            float4 Color    : COLOR0;
-        };
-
-        PSInput VSMain(VSInput input)
-        {
-            PSInput output;
-            output.Position = float4(input.Position, 1.0);
-            output.Color = input.Color;
-            return output;
-        }
-
-        float4 PSMain(PSInput input) : SV_TARGET
-        {
-            return input.Color;
-        }
-    )";
-
     foundation::core::Status createGeometry();
     foundation::core::Status createIndirectBuffer();
     foundation::core::Status createLineGeometry();
 
-    shaders::Compiler* m_compiler = nullptr;
     rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
     rhi::Buffer *m_vb = nullptr, *m_ib = nullptr, *m_indirectBuf = nullptr, *m_lineVb = nullptr;
     rhi::PipelineLayout* m_pl = nullptr;
@@ -91,16 +63,11 @@ private:
 foundation::core::Status MultiDrawIndirectSample::OnInit()
 {
     using foundation::core::Status, foundation::core::Span, foundation::core::u8;
-    if (shaders::createCompiler(shaders::CompilerDesc{}, m_compiler) !=
-        foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample025_MultiDrawIndirect/Shader.hlsl", shaders::ShaderStage::Vertex,
+                   u8"VSMain", u8"VS", m_vs) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShader,
-                                            shaders::ShaderStage::Vertex, u8"VSMain", u8"VS",
-                                            m_vs) != foundation::core::ErrorCode::Ok)
-        return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShader,
-                                            shaders::ShaderStage::Fragment, u8"PSMain", u8"PS",
-                                            m_ps) != foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample025_MultiDrawIndirect/Shader.hlsl", shaders::ShaderStage::Fragment,
+                   u8"PSMain", u8"PS", m_ps) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
 
     if (createGeometry() != foundation::core::ErrorCode::Ok)
@@ -680,10 +647,6 @@ void MultiDrawIndirectSample::OnShutdown()
         m_device->DestroyBuffer(m_ib);
     if (m_vb)
         m_device->DestroyBuffer(m_vb);
-    if (m_compiler)
-    {
-        m_compiler->Destroy();
-    }
 }
 
 int main(int argc, char** argv)

@@ -36,37 +36,6 @@ protected:
 private:
     void updateUBO();
 
-    static constexpr const char8_t kShader[] = u8R"(
-        cbuffer ObjectData : register(b0, space0)
-        {
-            float4 TintColor;
-            float4 OffsetScale; // xy=offset, zw=scale
-        };
-
-        struct VSInput
-        {
-            float3 Position : TEXCOORD0;
-        };
-
-        struct PSInput
-        {
-            float4 Position : SV_POSITION;
-        };
-
-        PSInput VSMain(VSInput input)
-        {
-            PSInput output;
-            float2 pos = input.Position.xy * OffsetScale.zw + OffsetScale.xy;
-            output.Position = float4(pos, input.Position.z, 1.0);
-            return output;
-        }
-
-        float4 PSMain(PSInput input) : SV_TARGET
-        {
-            return TintColor;
-        }
-    )";
-
     struct ObjectData
     {
         float tintColor[4];
@@ -75,7 +44,6 @@ private:
         float _pad[56];
     };
 
-    shaders::Compiler* m_compiler = nullptr;
     rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
     rhi::Buffer *m_vb = nullptr, *m_ib = nullptr, *m_ub = nullptr;
     rhi::BindGroupLayout* m_bgl = nullptr;
@@ -90,16 +58,11 @@ private:
 foundation::core::Status DynamicOffsetSample::OnInit()
 {
     using foundation::core::Status, foundation::core::Span, foundation::core::u8, foundation::core::u32;
-    if (shaders::createCompiler(shaders::CompilerDesc{}, m_compiler) !=
-        foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample026_DynamicOffsets/Shader.hlsl", shaders::ShaderStage::Vertex,
+                   u8"VSMain", u8"DynVS", m_vs) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShader,
-                                            shaders::ShaderStage::Vertex, u8"VSMain", u8"DynVS",
-                                            m_vs) != foundation::core::ErrorCode::Ok)
-        return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShader,
-                                            shaders::ShaderStage::Fragment, u8"PSMain", u8"DynPS",
-                                            m_ps) != foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample026_DynamicOffsets/Shader.hlsl", shaders::ShaderStage::Fragment,
+                   u8"PSMain", u8"DynPS", m_ps) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
 
     // Unit quad vertices (will be transformed by UBO data).
@@ -325,10 +288,6 @@ void DynamicOffsetSample::OnShutdown()
         m_device->DestroyShaderModule(m_ps);
     if (m_vs)
         m_device->DestroyShaderModule(m_vs);
-    if (m_compiler)
-    {
-        m_compiler->Destroy();
-    }
 }
 
 int main(int argc, char** argv)

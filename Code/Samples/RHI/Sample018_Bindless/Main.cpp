@@ -41,59 +41,9 @@ private:
     void generatePixel(foundation::core::u32 texIndex, foundation::core::u32 x, foundation::core::u32 y,
                        foundation::core::u8* rgba);
 
-    static constexpr const char8_t kShader[] = u8R"(
-        Texture2D gTextures[] : register(t0, space0);
-        SamplerState gSampler : register(s0, space1);
-
-        struct PushData
-        {
-            uint TextureIndex;
-            float OffsetX;
-            float OffsetY;
-            float Padding;
-        };
-
-        [[vk::push_constant]] ConstantBuffer<PushData> gPush : register(b0, space2);
-
-        struct PSInput
-        {
-            float4 Position : SV_POSITION;
-            float2 TexCoord : TEXCOORD0;
-        };
-
-        PSInput VSMain(uint vertexID : SV_VertexID)
-        {
-            // Fullscreen-quad-style: 4 vertices for a unit quad
-            float2 positions[4] = {
-                float2(-0.4, 0.4),
-                float2( 0.4, 0.4),
-                float2(-0.4,-0.4),
-                float2( 0.4,-0.4)
-            };
-            float2 uvs[4] = {
-                float2(0, 0), float2(1, 0),
-                float2(0, 1), float2(1, 1)
-            };
-
-            PSInput output;
-            float2 pos = positions[vertexID];
-            pos.x += gPush.OffsetX;
-            pos.y += gPush.OffsetY;
-            output.Position = float4(pos, 0.0, 1.0);
-            output.TexCoord = uvs[vertexID];
-            return output;
-        }
-
-        float4 PSMain(PSInput input) : SV_TARGET
-        {
-            return gTextures[gPush.TextureIndex].Sample(gSampler, input.TexCoord);
-        }
-    )";
-
     static constexpr foundation::core::u32 kTexSize = 64;
     static constexpr foundation::core::u32 kNumTextures = 4;
 
-    shaders::Compiler* m_compiler = nullptr;
     rhi::ShaderModule* m_vs = nullptr;
     rhi::ShaderModule* m_ps = nullptr;
 
@@ -127,16 +77,11 @@ foundation::core::Status BindlessSample::OnInit()
 
     using foundation::core::Status, foundation::core::Span, foundation::core::u8, foundation::core::u32;
 
-    if (shaders::createCompiler(shaders::CompilerDesc{}, m_compiler) !=
-        foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample018_Bindless/Shader.hlsl", shaders::ShaderStage::Vertex, u8"VSMain",
+                   u8"BindlessVS", m_vs) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShader,
-                                            shaders::ShaderStage::Vertex, u8"VSMain",
-                                            u8"BindlessVS", m_vs) != foundation::core::ErrorCode::Ok)
-        return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShader,
-                                            shaders::ShaderStage::Fragment, u8"PSMain",
-                                            u8"BindlessPS", m_ps) != foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample018_Bindless/Shader.hlsl", shaders::ShaderStage::Fragment, u8"PSMain",
+                   u8"BindlessPS", m_ps) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
 
     // Create 4 procedural textures with different patterns
@@ -434,10 +379,6 @@ void BindlessSample::OnShutdown()
         m_device->DestroyShaderModule(m_ps);
     if (m_vs)
         m_device->DestroyShaderModule(m_vs);
-    if (m_compiler)
-    {
-        m_compiler->Destroy();
-    }
 }
 
 int main(int argc, char** argv)

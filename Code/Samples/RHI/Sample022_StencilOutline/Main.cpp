@@ -33,49 +33,6 @@ protected:
     void OnShutdown() override;
 
 private:
-    static constexpr const char8_t kShader[] = u8R"(
-        struct PushConstants
-        {
-            float Scale;
-            float AspectRatio;
-            float Time;
-            float _pad;
-        };
-
-        [[vk::push_constant]] ConstantBuffer<PushConstants> pc : register(b0, space0);
-
-        struct VSInput
-        {
-            float3 Position : TEXCOORD0;
-            float4 Color    : TEXCOORD1;
-        };
-
-        struct PSInput
-        {
-            float4 Position : SV_POSITION;
-            float4 Color    : COLOR0;
-        };
-
-        PSInput VSMain(VSInput input)
-        {
-            PSInput output;
-            float2 pos = input.Position.xy * pc.Scale;
-            pos.x /= pc.AspectRatio;
-            // Gentle rotation
-            float c = cos(pc.Time * 0.5);
-            float s = sin(pc.Time * 0.5);
-            float2 rotated = float2(pos.x * c - pos.y * s, pos.x * s + pos.y * c);
-            output.Position = float4(rotated, input.Position.z, 1.0);
-            output.Color = input.Color;
-            return output;
-        }
-
-        float4 PSMain(PSInput input) : SV_TARGET
-        {
-            return input.Color;
-        }
-    )";
-
     struct PushData
     {
         float scale;
@@ -145,7 +102,6 @@ private:
 
     void recreateDepthStencil(foundation::core::u32 w, foundation::core::u32 h);
 
-    shaders::Compiler* m_compiler = nullptr;
     rhi::Buffer *m_vb = nullptr, *m_ib = nullptr;
     rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
     rhi::PipelineLayout* m_pl = nullptr;
@@ -186,16 +142,11 @@ foundation::core::Status StencilOutlineSample::OnInit()
 {
     using foundation::core::Status, foundation::core::Span, foundation::core::u8;
 
-    if (shaders::createCompiler(shaders::CompilerDesc{}, m_compiler) !=
-        foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample022_StencilOutline/Shader.hlsl", shaders::ShaderStage::Vertex,
+                   u8"VSMain", u8"StencilVS", m_vs) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShader,
-                                            shaders::ShaderStage::Vertex, u8"VSMain", u8"StencilVS",
-                                            m_vs) != foundation::core::ErrorCode::Ok)
-        return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShader,
-                                            shaders::ShaderStage::Fragment, u8"PSMain",
-                                            u8"StencilPS", m_ps) != foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample022_StencilOutline/Shader.hlsl", shaders::ShaderStage::Fragment,
+                   u8"PSMain", u8"StencilPS", m_ps) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
 
     // Vertex & index buffers.
@@ -395,10 +346,6 @@ void StencilOutlineSample::OnShutdown()
         m_device->DestroyBuffer(m_ib);
     if (m_vb)
         m_device->DestroyBuffer(m_vb);
-    if (m_compiler)
-    {
-        m_compiler->Destroy();
-    }
 }
 
 int main(int argc, char** argv)

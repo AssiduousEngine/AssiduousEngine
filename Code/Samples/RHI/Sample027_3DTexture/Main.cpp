@@ -38,47 +38,6 @@ private:
     foundation::core::Status createVolumeTexture();
     foundation::core::Status createLUTTexture();
 
-    static constexpr const char8_t kShader[] = u8R"(
-        Texture3D<float4> gVolume : register(t0, space0);
-        Texture1D<float4> gLUT    : register(t1, space0);
-        SamplerState gSampler     : register(s0, space0);
-
-        struct PushConstants
-        {
-            float SliceZ;
-            float Time;
-            float2 _pad;
-        };
-
-        [[vk::push_constant]] ConstantBuffer<PushConstants> pc : register(b0, space1);
-
-        struct PSInput
-        {
-            float4 Position : SV_POSITION;
-            float2 UV       : TEXCOORD0;
-        };
-
-        PSInput VSMain(uint vertexID : SV_VertexID)
-        {
-            PSInput output;
-            float2 uv = float2((vertexID << 1) & 2, vertexID & 2);
-            output.Position = float4(uv * 2.0 - 1.0, 0.5, 1.0);
-            output.UV = uv;
-            return output;
-        }
-
-        float4 PSMain(PSInput input) : SV_TARGET
-        {
-            // Sample 3D volume at current slice
-            float3 uvw = float3(input.UV, pc.SliceZ);
-            float density = gVolume.Sample(gSampler, uvw).r;
-
-            // Map density through 1D LUT
-            float4 color = gLUT.Sample(gSampler, density);
-            return color;
-        }
-    )";
-
     struct PushData
     {
         float sliceZ;
@@ -90,7 +49,6 @@ private:
     static constexpr foundation::core::u32 kVolumeSize = 32;
     static constexpr foundation::core::u32 kLUTSize = 64;
 
-    shaders::Compiler* m_compiler = nullptr;
     rhi::ShaderModule* m_vs = nullptr;
     rhi::ShaderModule* m_ps = nullptr;
 
@@ -117,16 +75,11 @@ foundation::core::Status Texture3DSample::OnInit()
 {
     using foundation::core::Status, foundation::core::Span, foundation::core::u8, foundation::core::u32;
 
-    if (shaders::createCompiler(shaders::CompilerDesc{}, m_compiler) !=
-        foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample027_3DTexture/Shader.hlsl", shaders::ShaderStage::Vertex, u8"VSMain",
+                   u8"Vol3DVS", m_vs) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShader,
-                                            shaders::ShaderStage::Vertex, u8"VSMain", u8"Vol3DVS",
-                                            m_vs) != foundation::core::ErrorCode::Ok)
-        return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShader,
-                                            shaders::ShaderStage::Fragment, u8"PSMain", u8"Vol3DPS",
-                                            m_ps) != foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample027_3DTexture/Shader.hlsl", shaders::ShaderStage::Fragment, u8"PSMain",
+                   u8"Vol3DPS", m_ps) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
 
     if (createVolumeTexture() != foundation::core::ErrorCode::Ok)
@@ -446,10 +399,6 @@ void Texture3DSample::OnShutdown()
         m_device->DestroyShaderModule(m_ps);
     if (m_vs)
         m_device->DestroyShaderModule(m_vs);
-    if (m_compiler)
-    {
-        m_compiler->Destroy();
-    }
 }
 
 int main(int argc, char** argv)

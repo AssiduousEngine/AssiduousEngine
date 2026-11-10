@@ -36,18 +36,6 @@ protected:
     void OnShutdown() override;
 
 private:
-    static constexpr const char8_t kShaderSource[] = u8R"(
-        cbuffer UBO : register(b0, space0) { row_major float4x4 MVP; };
-        struct PushData { float4 Tint; };
-        [[vk::push_constant]] ConstantBuffer<PushData> gPush : register(b0, space1);
-        struct VSInput { float3 Position : TEXCOORD0; float3 Color : TEXCOORD1; };
-        struct PSInput { float4 Position : SV_POSITION; float3 Color : COLOR0; };
-        PSInput VSMain(VSInput input) {
-            PSInput o; o.Position = mul(float4(input.Position, 1.0), MVP); o.Color = input.Color; return o;
-        }
-        float4 PSMain(PSInput input) : SV_TARGET { return float4(input.Color * gPush.Tint.rgb, 1.0); }
-    )";
-
     static constexpr float kCubeVerts[] = {
         -0.5f, -0.5f, -0.5f, 1, 0, 0, 0.5f,  -0.5f, -0.5f, 0,   1,   0,
         0.5f,  0.5f,  -0.5f, 0, 0, 1, -0.5f, 0.5f,  -0.5f, 1,   1,   0,
@@ -59,7 +47,6 @@ private:
         1, 2, 6, 1, 6, 5, 3, 7, 6, 3, 6, 2, 4, 0, 1, 4, 1, 5,
     };
 
-    shaders::Compiler* m_compiler = nullptr;
     rhi::Buffer *m_vb = nullptr, *m_ib = nullptr, *m_ub = nullptr;
     rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
     rhi::BindGroupLayout* m_bgl = nullptr;
@@ -77,16 +64,11 @@ foundation::core::Status UniformBufferSample::OnInit()
 {
     using foundation::core::Status, foundation::core::Span, foundation::core::u8;
 
-    if (shaders::createCompiler(shaders::CompilerDesc{}, m_compiler) !=
-        foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample003_UniformBuffers/Shader.hlsl", shaders::ShaderStage::Vertex,
+                   u8"VSMain", u8"CubeVS", m_vs) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShaderSource,
-                                            shaders::ShaderStage::Vertex, u8"VSMain", u8"CubeVS",
-                                            m_vs) != foundation::core::ErrorCode::Ok)
-        return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShaderSource,
-                                            shaders::ShaderStage::Fragment, u8"PSMain", u8"CubePS",
-                                            m_ps) != foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample003_UniformBuffers/Shader.hlsl", shaders::ShaderStage::Fragment,
+                   u8"PSMain", u8"CubePS", m_ps) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
 
     // Buffers.
@@ -273,10 +255,6 @@ void UniformBufferSample::OnShutdown()
         m_device->DestroyShaderModule(m_ps);
     if (m_vs)
         m_device->DestroyShaderModule(m_vs);
-    if (m_compiler)
-    {
-        m_compiler->Destroy();
-    }
 }
 
 int main(int argc, char** argv)

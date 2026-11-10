@@ -1371,3 +1371,35 @@ TEST_CASE("entry shaders: the // entry: and // model: lines name what is cooked"
 
     CHECK(EntryShaderName(u8"Sample001_Triangle/Shader.hlsl", u8"VSMain") == u8"Sample001_Triangle/Shader.hlsl:VSMain");
 }
+
+// Every RHI sample's shader cooks, so the pack an Android build carries (Tools.ShaderPack --entries
+// over Data/Samples/RHI) has each entry its sample loads.
+TEST_CASE("entry shaders: every RHI sample's shader cooks to SPIR-V under its file and entry")
+{
+    Compiler* compiler = MakeCompiler();
+    if (compiler == nullptr)
+    {
+        MESSAGE("DXC runtime unavailable; skipping cook test");
+        return;
+    }
+    const String dataRoot = foundation::vfs::FindDataRoot();
+    REQUIRE_FALSE(dataRoot.IsEmpty());
+    const String folder = foundation::vfs::DataPath(dataRoot.AsView(), u8"Samples/RHI");
+    const CookedShaderFormat formats[] = {CookedShaderFormat::SpirV};
+    ShaderEntryCookOptions options;
+    options.shaderDir = folder.AsView();
+    options.formats = Span<const CookedShaderFormat>(formats, 1);
+    CookedShaderPack pack;
+    const ShaderCookReport report = CookEntryShaders(*compiler, options, pack);
+    for (const String& e : report.errors)
+    {
+        MESSAGE(reinterpret_cast<const char*>(e.CStr()));
+    }
+    CHECK(report.success);
+    CHECK(report.filesCooked >= 30u);
+    CHECK(report.variantsCooked == pack.Count());
+    CHECK(pack.Find(u8"Sample001_Triangle/Shader.hlsl:VSMain", ShaderStage::Vertex, ShaderFlags::None, CookedShaderFormat::SpirV) != nullptr);
+    CHECK(pack.Find(u8"Sample001_Triangle/Shader.hlsl:PSMain", ShaderStage::Fragment, ShaderFlags::None, CookedShaderFormat::SpirV) != nullptr);
+    CHECK(pack.Find(u8"Sample004_Compute/Compute.hlsl:CSMain", ShaderStage::Compute, ShaderFlags::None, CookedShaderFormat::SpirV) != nullptr);
+    compiler->Destroy();
+}

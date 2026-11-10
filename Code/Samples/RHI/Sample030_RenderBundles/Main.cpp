@@ -30,24 +30,11 @@ protected:
     void OnShutdown() override;
 
 private:
-    static constexpr const char8_t kShaderSource[] = u8R"(
-        struct VSInput { float3 Position : TEXCOORD0; float3 Color : TEXCOORD1; };
-        struct PSInput { float4 Position : SV_POSITION; float3 Color : TEXCOORD0; };
-        PSInput VSMain(VSInput input) {
-            PSInput output;
-            output.Position = float4(input.Position, 1.0);
-            output.Color = input.Color;
-            return output;
-        }
-        float4 PSMain(PSInput input) : SV_TARGET { return float4(input.Color, 1.0); }
-    )";
-
     static constexpr float kVertexData[] = {
         0.0f, 0.5f, 0.0f, 1.0f,  0.0f,  0.0f, 0.5f, -0.5f, 0.0f,
         0.0f, 1.0f, 0.0f, -0.5f, -0.5f, 0.0f, 0.0f, 0.0f,  1.0f,
     };
 
-    shaders::Compiler* m_compiler = nullptr;
     rhi::Buffer* m_vertexBuf = nullptr;
     rhi::ShaderModule* m_vs = nullptr;
     rhi::ShaderModule* m_ps = nullptr;
@@ -61,16 +48,11 @@ private:
 
 foundation::core::Status RenderBundlesSample::OnInit()
 {
-    if (shaders::createCompiler(shaders::CompilerDesc{}, m_compiler) !=
-        foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample030_RenderBundles/Shader.hlsl", shaders::ShaderStage::Vertex,
+                   u8"VSMain", u8"BundleVS", m_vs) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShaderSource,
-                                            shaders::ShaderStage::Vertex, u8"VSMain", u8"BundleVS",
-                                            m_vs) != foundation::core::ErrorCode::Ok)
-        return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kShaderSource,
-                                            shaders::ShaderStage::Fragment, u8"PSMain",
-                                            u8"BundlePS", m_ps) != foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample030_RenderBundles/Shader.hlsl", shaders::ShaderStage::Fragment,
+                   u8"PSMain", u8"BundlePS", m_ps) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
 
     rhi::BufferDesc bd{};
@@ -216,10 +198,6 @@ void RenderBundlesSample::OnShutdown()
         m_device->DestroyShaderModule(m_vs);
     if (m_vertexBuf)
         m_device->DestroyBuffer(m_vertexBuf);
-    if (m_compiler)
-    {
-        m_compiler->Destroy();
-    }
 }
 
 int main(int argc, char** argv)

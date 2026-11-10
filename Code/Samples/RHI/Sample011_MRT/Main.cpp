@@ -32,28 +32,6 @@ protected:
     void OnShutdown() override;
 
 private:
-    static constexpr const char8_t kGBufShader[] = u8R"(
-        struct VSInput { float3 Position : TEXCOORD0; float4 Color : TEXCOORD1; };
-        struct PSInput { float4 Position : SV_POSITION; float4 Color : COLOR0; };
-        struct PSOutput { float4 Color : SV_TARGET0; float4 Brightness : SV_TARGET1; };
-        PSInput VSMain(VSInput i) { PSInput o; o.Position = float4(i.Position,1); o.Color = i.Color; return o; }
-        PSOutput PSMain(PSInput i) { PSOutput o; o.Color = i.Color;
-            float lum = dot(i.Color.rgb, float3(0.299,0.587,0.114));
-            o.Brightness = float4(lum,lum,lum,1); return o; }
-    )";
-    static constexpr const char8_t kCompShader[] = u8R"(
-        Texture2D gColorTex : register(t0, space0);
-        Texture2D gBrightTex : register(t1, space0);
-        SamplerState gSampler : register(s0, space0);
-        struct PSInput { float4 Position : SV_POSITION; float2 TexCoord : TEXCOORD0; };
-        PSInput VSMain(uint vid : SV_VertexID) { PSInput o;
-            float2 uv = float2((vid << 1) & 2, vid & 2);
-            o.Position = float4(uv * 2.0 - 1.0, 0, 1); o.TexCoord = float2(uv.x, 1.0 - uv.y); return o; }
-        float4 PSMain(PSInput i) : SV_TARGET {
-            float2 uv = i.TexCoord;
-            if (uv.x < 0.5) return gColorTex.Sample(gSampler, float2(uv.x*2, uv.y));
-            else return gBrightTex.Sample(gSampler, float2((uv.x-0.5)*2, uv.y)); }
-    )";
     static constexpr float kVerts[] = {
         -.5f, -.5f, 0, 1,   .2f, .2f, 1, .5f,  -.5f, 0, 1,   .2f, .2f, 1,
         0,    .6f,  0, 1,   .8f, .2f, 1, -.3f, -.3f, 0, .2f, .3f, 1,   1,
@@ -63,7 +41,6 @@ private:
 
     void createRenderTargets();
 
-    shaders::Compiler* m_compiler = nullptr;
     rhi::ShaderModule *m_gbVs = nullptr, *m_gbPs = nullptr, *m_compVs = nullptr,
                       *m_compPs = nullptr;
     rhi::Buffer *m_vb = nullptr, *m_ib = nullptr;
@@ -133,24 +110,17 @@ void MRTSample::createRenderTargets()
 foundation::core::Status MRTSample::OnInit()
 {
     using foundation::core::Status, foundation::core::Span, foundation::core::u8;
-    if (shaders::createCompiler(shaders::CompilerDesc{}, m_compiler) !=
-        foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample011_MRT/GBufShader.hlsl", shaders::ShaderStage::Vertex, u8"VSMain",
+                   u8"GBufVS", m_gbVs) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kGBufShader,
-                                            shaders::ShaderStage::Vertex, u8"VSMain", u8"GBufVS",
-                                            m_gbVs) != foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample011_MRT/GBufShader.hlsl", shaders::ShaderStage::Fragment, u8"PSMain",
+                   u8"GBufPS", m_gbPs) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kGBufShader,
-                                            shaders::ShaderStage::Fragment, u8"PSMain", u8"GBufPS",
-                                            m_gbPs) != foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample011_MRT/CompShader.hlsl", shaders::ShaderStage::Vertex, u8"VSMain",
+                   u8"CompVS", m_compVs) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kCompShader,
-                                            shaders::ShaderStage::Vertex, u8"VSMain", u8"CompVS",
-                                            m_compVs) != foundation::core::ErrorCode::Ok)
-        return foundation::core::ErrorCode::Unknown;
-    if (samples::framework::CompileToModule(m_compiler, m_device, kCompShader,
-                                            shaders::ShaderStage::Fragment, u8"PSMain", u8"CompPS",
-                                            m_compPs) != foundation::core::ErrorCode::Ok)
+    if (LoadShader(u8"Sample011_MRT/CompShader.hlsl", shaders::ShaderStage::Fragment, u8"PSMain",
+                   u8"CompPS", m_compPs) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
 
     rhi::BufferDesc vbd{};
@@ -351,10 +321,6 @@ void MRTSample::OnShutdown()
         m_device->DestroyShaderModule(m_gbPs);
     if (m_gbVs)
         m_device->DestroyShaderModule(m_gbVs);
-    if (m_compiler)
-    {
-        m_compiler->Destroy();
-    }
 }
 
 int main(int argc, char** argv)
