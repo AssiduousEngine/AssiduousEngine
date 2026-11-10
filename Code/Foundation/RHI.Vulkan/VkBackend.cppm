@@ -34,7 +34,7 @@ using namespace foundation::core;
 
 // Linux surface types, forward-declared to avoid header pollution. They sit in the module purview
 // (not the GMF) because GCC requires the GMF to contain only #includes.
-#if defined(__linux__)
+#if PLATFORM_LINUX
 extern "C"
 {
     typedef struct _XDisplay Display;
@@ -76,7 +76,7 @@ using PFN_vkCreateWaylandSurfaceKHR = VkResult(VKAPI_PTR*)(VkInstance,
                                                            const VkWaylandSurfaceCreateInfoKHR*,
                                                            const VkAllocationCallbacks*,
                                                            VkSurfaceKHR*);
-#endif // __linux__
+#endif // PLATFORM_LINUX
 
 namespace foundation::rhi::vk
 {
@@ -151,7 +151,7 @@ export namespace foundation::rhi::vk
                 LogErrorf("VkBackend: vkCreateWin32SurfaceKHR failed (%d)", static_cast<int>(vr));
                 return ErrorCode::Unknown;
             }
-#elif defined(__linux__)
+#elif PLATFORM_LINUX
             // Create the surface type the shell used. `platform` is authoritative (it comes from
             // the SDL video driver that created the window); feeding handles to the wrong WSI, such
             // as an X11 Display* to vkCreateWaylandSurfaceKHR, dereferences a non-Wayland pointer
@@ -222,7 +222,6 @@ export namespace foundation::rhi::vk
                 return ErrorCode::Unknown;
             }
 #else
-            (void)displayHandle;
             LogError("VkBackend: surface creation not supported on this platform");
             return ErrorCode::NotSupported;
 #endif
@@ -299,7 +298,7 @@ export namespace foundation::rhi::vk
 
 #ifdef _WIN32
             extensions.PushBack(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
-#elif defined(__linux__)
+#elif PLATFORM_LINUX
             {
                 u32 availCount = 0;
                 vkEnumerateInstanceExtensionProperties(nullptr, &availCount, nullptr);
@@ -473,7 +472,7 @@ export namespace foundation::rhi::vk
         Array<VkAdapterImpl*> m_adapters;
         Array<Adapter*> m_adapterPtrs;
 
-#if defined(__linux__)
+#if PLATFORM_LINUX
         bool m_hasXlib = false;
         bool m_hasWayland = false;
 #endif
