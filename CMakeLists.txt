@@ -23,7 +23,7 @@ set(ENGINE_ID "assiduousengine")
 # The version a person reads (the About box, the startup log, the release tag and its archives) is
 # project(VERSION) with it; every compatibility check (plugins, export templates, project files)
 # compares project(VERSION) alone, so a beta's plugins and projects work with the final release.
-set(ENGINE_VERSION_LABEL "dev")
+set(ENGINE_VERSION_LABEL "beta.2")
 if(ENGINE_VERSION_LABEL STREQUAL "")
     set(ENGINE_VERSION_DISPLAY "${PROJECT_VERSION}")
 else()
