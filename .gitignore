@@ -40,3 +40,6 @@ Documentation/Parity/
 
 # The cooked engine shader pack in the data root (Tools.ShaderPack output; a build product).
 /Data/Engine/Shaders/shaders.dpak
+
+# Gradle's per-project state (the Android app's Gradle project); its build goes under /build/.
+.gradle/
