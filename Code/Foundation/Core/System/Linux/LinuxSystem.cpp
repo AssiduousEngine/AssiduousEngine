@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Core - System backend, Linux implementation.
+// Core - System backend, Linux implementation. The web (Emscripten) and Android build it too,
+// each with a few blocks of its own (__EMSCRIPTEN__, __ANDROID__).
 
 #include "Core/System/SystemBackend.h"
 
@@ -25,6 +26,9 @@
 #include <cstdio>  // std::rename
 #include <cstdlib> // std::getenv, setenv
 #include <cstring> // std::strlen, std::memcpy
+#if defined(__ANDROID__)
+#include <android/log.h> // the console's logcat half
+#endif
 
 namespace foundation::core::sys
 {
@@ -106,8 +110,15 @@ namespace foundation::core::sys
 
     std::size_t GetTempDirectory(char* out, std::size_t outSize) noexcept
     {
+        // Android has no /tmp: an app's host sets TMPDIR to its cache folder, and adb's shell sets
+        // it to /data/local/tmp (where a test pushed over adb runs).
+#if defined(__ANDROID__)
+        constexpr const char* fallback = "/data/local/tmp";
+#else
+        constexpr const char* fallback = "/tmp";
+#endif
         const char* tmp = std::getenv("TMPDIR");
-        const int n = std::snprintf(out, outSize, "%s", tmp != nullptr && tmp[0] != '\0' ? tmp : "/tmp");
+        const int n = std::snprintf(out, outSize, "%s", tmp != nullptr && tmp[0] != '\0' ? tmp : fallback);
         return (n > 0) ? static_cast<std::size_t>(n) : 0;
     }
 
@@ -120,18 +131,26 @@ namespace foundation::core::sys
             const int n = std::snprintf(out, outSize, "%s", xdg);
             return (n > 0) ? static_cast<std::size_t>(n) : 0;
         }
+#if defined(__ANDROID__)
+        // Android: an app's host sets XDG_DATA_HOME to its internal storage before anything asks.
+        // Without it (a test run from adb's shell, whose HOME is not writable), the temp folder.
+        return GetTempDirectory(out, outSize);
+#else
         if (const char* home = std::getenv("HOME"); home != nullptr && home[0] != '\0')
         {
             const int n = std::snprintf(out, outSize, "%s/.local/share", home);
             return (n > 0) ? static_cast<std::size_t>(n) : 0;
         }
         return 0;
+#endif
     }
 
     // Emscripten builds this backend too; there the platform is the web, the tag export,
     // templates and plugin manifests name it by.
 #if defined(__EMSCRIPTEN__)
     const char* GetHostPlatformName() noexcept { return "Web"; }
+#elif defined(__ANDROID__)
+    const char* GetHostPlatformName() noexcept { return "Android64"; } // arm64 only
 #else
     const char* GetHostPlatformName() noexcept { return "Linux64"; }
 #endif
@@ -642,16 +661,45 @@ namespace foundation::core::sys
         return true;
     }
 
+#if defined(__ANDROID__)
+    namespace
+    {
+        // An app's stdout and stderr go nowhere on Android: logcat is where its log is read. A
+        // line goes there whole (logcat takes one entry per call), the trailing newline dropped.
+        void WriteLogcat(int priority, const char* text, std::uint64_t length) noexcept
+        {
+            char line[1024];
+            std::size_t n = length < sizeof(line) - 1 ? static_cast<std::size_t>(length) : sizeof(line) - 1;
+            std::memcpy(line, text, n);
+            while (n > 0 && (line[n - 1] == '\n' || line[n - 1] == '\r'))
+            {
+                --n;
+            }
+            line[n] = '\0';
+            if (n > 0)
+            {
+                __android_log_write(priority, "Engine", line);
+            }
+        }
+    }
+#endif
+
     void ConsoleWrite(const char* text, std::uint64_t length) noexcept
     {
         ssize_t result = write(STDOUT_FILENO, text, static_cast<std::size_t>(length));
         (void)result;
+#if defined(__ANDROID__)
+        WriteLogcat(ANDROID_LOG_INFO, text, length);
+#endif
     }
 
     void ConsoleWriteError(const char* text, std::uint64_t length) noexcept
     {
         ssize_t result = write(STDERR_FILENO, text, static_cast<std::size_t>(length));
         (void)result;
+#if defined(__ANDROID__)
+        WriteLogcat(ANDROID_LOG_ERROR, text, length);
+#endif
     }
 
     LibraryHandle LibraryOpen(const char* path) noexcept
@@ -1007,13 +1055,77 @@ namespace foundation::core::sys
 
 #else
 
-#include <execinfo.h>
 #include <signal.h>
+#if defined(__ANDROID__)
+#include <unwind.h> // bionic's execinfo arrives only at API 33; the unwinder is always there
+#else
+#include <execinfo.h>
+#endif
 
 namespace foundation::core::sys
 {
     void PersistUserData() noexcept {} // files are durable once written
 
+#if defined(__ANDROID__)
+    namespace
+    {
+        struct UnwindFrames
+        {
+            void** frames;
+            int count;
+            int capacity;
+        };
+
+        _Unwind_Reason_Code CollectFrame(_Unwind_Context* context, void* argument)
+        {
+            UnwindFrames& state = *static_cast<UnwindFrames*>(argument);
+            const std::uintptr_t pc = _Unwind_GetIP(context);
+            if (pc != 0)
+            {
+                if (state.count == state.capacity)
+                {
+                    return _URC_END_OF_STACK;
+                }
+                state.frames[state.count++] = reinterpret_cast<void*>(pc);
+            }
+            return _URC_NO_REASON;
+        }
+
+        int backtrace(void** frames, int capacity) noexcept
+        {
+            UnwindFrames state{frames, 0, capacity};
+            _Unwind_Backtrace(&CollectFrame, &state);
+            return state.count;
+        }
+    }
+
+    // Each frame as Android's own crash reports print it: its offset in its library and the
+    // library's path (llvm-addr2line -e <the unstripped library> -f -C <offset> resolves it).
+    int WriteBacktrace(int fd) noexcept
+    {
+        void* frames[64];
+        const int count = backtrace(frames, 64);
+        for (int i = 0; i < count; ++i)
+        {
+            Dl_info info{};
+            const bool found = dladdr(frames[i], &info) != 0 && info.dli_fbase != nullptr;
+            const std::uintptr_t offset = reinterpret_cast<std::uintptr_t>(frames[i]) -
+                                          (found ? reinterpret_cast<std::uintptr_t>(info.dli_fbase) : 0);
+            char line[512];
+            const int n = std::snprintf(line, sizeof(line), "  #%02d pc 0x%016lx  %s (%s)\n", i,
+                                        static_cast<unsigned long>(offset),
+                                        found && info.dli_fname != nullptr ? info.dli_fname : "?",
+                                        found && info.dli_sname != nullptr ? info.dli_sname : "");
+            if (n > 0)
+            {
+                const std::size_t written = static_cast<std::size_t>(n) < sizeof(line) ? static_cast<std::size_t>(n)
+                                                                                         : sizeof(line) - 1;
+                (void)!write(fd, line, written);
+            }
+        }
+        return count;
+    }
+#else
     int WriteBacktrace(int fd) noexcept
     {
         void* frames[64];
@@ -1021,6 +1133,7 @@ namespace foundation::core::sys
         backtrace_symbols_fd(frames, count, fd);
         return count;
     }
+#endif
 
     namespace
     {
