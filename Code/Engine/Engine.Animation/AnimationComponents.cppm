@@ -43,10 +43,10 @@ export namespace engine::animation
         Ignore,    // nothing: the character stays where its game puts it (the default)
         Entity,    // the animator's entity moves and turns by it (a non-physics actor)
         Character, // the nearest character at or above it walks by it (still colliding) and turns
-        Script,    // held for SceneAnimation.rootMotionTranslation / rootMotionYaw
+        Manual,    // held for game code or a script to apply (rootMotionTranslation / rootMotionYaw)
     };
 
-    // An animator's root motion as of its last tick (Script mode reads it; the others use it).
+    // An animator's root motion as of its last tick (Manual mode reads it; the others use it).
     struct RootMotionRuntime
     {
         Float3 worldTranslation{}; // the last tick's travel, in the world
@@ -975,9 +975,9 @@ export namespace engine::animation
         [[nodiscard]] bool ikReached(foundation::script::Entity entity) const;
         [[nodiscard]] f32 ikError(foundation::script::Entity entity) const;
 
-        // --- root motion (Script mode) ---
+        // --- root motion (Manual mode) ---
         // The entity's animator's travel over its last tick, in the world, and its turn (radians
-        // about up): a script steering by the clip's own speed (an animator in Script mode moves
+        // about up): a script steering by the clip's own speed (an animator in Manual mode moves
         // nothing itself). Zero for an entity with no animator.
         [[nodiscard]] Float3 rootMotionTranslation(foundation::script::Entity entity) const
         {

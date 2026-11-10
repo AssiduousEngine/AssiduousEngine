@@ -121,14 +121,14 @@ TEST_CASE("root motion: Entity mode turns with a turn clip")
     CHECK(forward.z == doctest::Approx(-1.0f).epsilon(1e-3)); // a half turn in two seconds
 }
 
-TEST_CASE("root motion: Ignore leaves the entity where it was; Script holds the world delta")
+TEST_CASE("root motion: Ignore leaves the entity where it was; Manual holds the world delta")
 {
     Stage ignore{Walking(2.0f), RootMotionMode::Ignore};
     const Float3 before = ignore.level.GetWorldPosition(ignore.walker);
     ignore.Run(1.0f);
     CHECK(Length(ignore.level.GetWorldPosition(ignore.walker) - before) < 1.0e-6f);
 
-    Stage script{Walking(3.0f), RootMotionMode::Script};
+    Stage script{Walking(3.0f), RootMotionMode::Manual};
     const Float3 still = script.level.GetWorldPosition(script.walker);
     script.Run(0.5f, 0.1f);
     CHECK(Length(script.level.GetWorldPosition(script.walker) - still) < 1.0e-6f); // moved nothing
@@ -181,12 +181,12 @@ TEST_CASE("root motion: Character mode walks the character above it, and lets it
     s.Run(0.3f, 0.1f);
     CHECK(characters->moves == 6u);
 
-    // Back on, then a script switches it to Script mode: one zero move again.
+    // Back on, then a script switches it to Manual mode: one zero move again.
     s.Animator().rootMotion = RootMotionMode::Character;
     s.Run(0.1f, 0.1f);
     const usize walking = characters->moves;
     CHECK(Length(characters->last) > 1.0f);
-    s.Animator().rootMotion = RootMotionMode::Script;
+    s.Animator().rootMotion = RootMotionMode::Manual;
     s.Run(0.2f, 0.1f);
     CHECK(characters->moves == walking + 1u);
     CHECK(Length(characters->last) == 0.0f);

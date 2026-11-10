@@ -319,7 +319,7 @@ namespace engine::animation
         builder.Value("Ignore", RootMotionMode::Ignore);
         builder.Value("Entity", RootMotionMode::Entity);
         builder.Value("Character", RootMotionMode::Character);
-        builder.Value("Script", RootMotionMode::Script);
+        builder.Value("Manual", RootMotionMode::Manual);
     }
 
     REFLECT_ENUM(PropertyLoopMode, "rtti::engine::animation")
@@ -461,8 +461,8 @@ namespace engine::animation
         ForEachIk(scene, entity.Handle(),
                   [&](IkRuntime& rt)
                   {
-                      rt.hasScriptTarget = true;
-                      rt.scriptTarget = worldPosition;
+                      rt.hasTargetPoint = true;
+                      rt.targetPoint = worldPosition;
                   });
     }
 

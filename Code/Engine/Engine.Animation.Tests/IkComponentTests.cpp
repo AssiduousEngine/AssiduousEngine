@@ -253,7 +253,7 @@ TEST_CASE("ik component: an unknown bone or no animator disables it with one log
     GlobalLogger().RemoveSink(&sink);
 }
 
-TEST_CASE("ik component: the script calls set a point and read the result; removal leaves nothing behind")
+TEST_CASE("ik component: setIkTarget gives a point, the result reads, and removal leaves nothing behind")
 {
     Stage s;
     (void)s.Leg(u8"LegIk", scene::EntityHandle::Invalid()); // no target entity: the script's point

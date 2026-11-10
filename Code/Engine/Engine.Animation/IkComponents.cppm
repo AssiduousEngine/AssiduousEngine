@@ -213,8 +213,8 @@ export namespace engine::animation
         IkStatus logged = IkStatus::Waiting;
         f32 weight = 0.0f; // eased toward the component's weight (or 0 when inactive)
         i32 order = 0;     // the order it was added to the stack at
-        bool hasScriptTarget = false;
-        Float3 scriptTarget{}; // world space (SceneAnimation.setIkTarget)
+        bool hasTargetPoint = false;
+        Float3 targetPoint{}; // world space: the point setIkTarget gives (a script or game code)
         Float3 targetWorld{};
         bool hasPoleWorld = false;
         Float3 poleWorld{};
@@ -797,9 +797,9 @@ export namespace engine::animation
                 outWorld = scene.ComposeWorldMatrix(e);
                 return true;
             }
-            if (rt.hasScriptTarget)
+            if (rt.hasTargetPoint)
             {
-                outWorld = Float4x4::Translation(rt.scriptTarget);
+                outWorld = Float4x4::Translation(rt.targetPoint);
                 return true;
             }
             outWorld = scene.ComposeWorldMatrix(owner);
