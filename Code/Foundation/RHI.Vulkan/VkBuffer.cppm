@@ -42,8 +42,14 @@ export namespace foundation::rhi::vk
             vkGetBufferMemoryRequirements(device, m_buffer, &memReqs);
 
             auto memFlags = VkAdapterImpl::getMemoryFlags(d.memory);
-            i32 memType =
-                adapter->findMemoryType(static_cast<u32>(memReqs.memoryTypeBits), memFlags);
+            i32 memType = -1;
+            // A readback reads best from cached memory; coherent as well where the device has it, so
+            // no cache maintenance is needed (Map invalidates otherwise).
+            if (d.memory == MemoryLocation::GpuToCpu)
+                memType = adapter->findMemoryType(static_cast<u32>(memReqs.memoryTypeBits),
+                                                  memFlags | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+            if (memType < 0)
+                memType = adapter->findMemoryType(static_cast<u32>(memReqs.memoryTypeBits), memFlags);
 
             if (memType < 0 && d.memory == MemoryLocation::Auto)
                 memType = adapter->findMemoryType(static_cast<u32>(memReqs.memoryTypeBits),
@@ -82,6 +88,9 @@ export namespace foundation::rhi::vk
 
             vkBindBufferMemory(device, m_buffer, m_memory, 0);
             m_allocationSize = memReqs.size;
+            m_device = device;
+            m_nonCoherent = (adapter->memoryProperties().memoryTypes[memType].propertyFlags &
+                             VK_MEMORY_PROPERTY_HOST_COHERENT_BIT) == 0;
 
             // Persistently map host-visible buffers.
             if (d.memory == MemoryLocation::CpuToGpu || d.memory == MemoryLocation::GpuToCpu)
@@ -110,8 +119,27 @@ export namespace foundation::rhi::vk
         }
 
         // ---- Buffer interface ----
-        void* Map() override { return m_mappedPtr; }
-        void Unmap() override { /* persistently mapped */ }
+        // Persistently mapped. On memory that is not coherent (a readback's cached memory on some
+        // GPUs, Mali's among them) the CPU's cache can hold stale lines over what the GPU wrote:
+        // Map invalidates them, so a read after the GPU's work (its fence waited) sees it, and
+        // Unmap flushes what the CPU wrote.
+        void* Map() override
+        {
+            if (m_nonCoherent && m_mappedPtr != nullptr)
+            {
+                const VkMappedMemoryRange range{VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE, nullptr, m_memory, 0, VK_WHOLE_SIZE};
+                (void)vkInvalidateMappedMemoryRanges(m_device, 1, &range);
+            }
+            return m_mappedPtr;
+        }
+        void Unmap() override
+        {
+            if (m_nonCoherent && m_mappedPtr != nullptr)
+            {
+                const VkMappedMemoryRange range{VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE, nullptr, m_memory, 0, VK_WHOLE_SIZE};
+                (void)vkFlushMappedMemoryRanges(m_device, 1, &range);
+            }
+        }
 
         // ---- Internal ----
         [[nodiscard]] VkBuffer handle() const { return m_buffer; }
@@ -124,6 +152,8 @@ export namespace foundation::rhi::vk
         VkBuffer m_buffer = VK_NULL_HANDLE;
         VkDeviceMemory m_memory = VK_NULL_HANDLE;
         void* m_mappedPtr = nullptr;
+        VkDevice m_device = VK_NULL_HANDLE;
+        bool m_nonCoherent = false; // mapped memory that needs Map's invalidate and Unmap's flush
     };
 
 } // namespace foundation::rhi::vk
