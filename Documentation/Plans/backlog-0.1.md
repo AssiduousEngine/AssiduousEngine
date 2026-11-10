@@ -348,12 +348,12 @@
   checked (an X11 desktop with a compositor; no unit test). Its author offered to take it.
 
 - **A script sets a scene's sky texture and environment profile** (user 2026-10-10): no script
-  can point a scene at another sky texture or Environment Profile. `EnvironmentSettings.of(scene)`
+  can point a scene at another sky texture or Environment Profile. `scene.environment`
   leaves its asset references out of AngelScript (the property loop skips a type it cannot declare)
   and in Luau takes only another bound `Ref` of the same type, a plain copy that nothing
   re-resolves (`EnvironmentSystem::ResolveResources` runs only from ResolveSceneResources and the
   editor); `UseSettingsProfile` is not on the script surface. Give scripts what
-  `SceneRender.setMesh`/`setMaterial` already do for components: set by asset (guid or a typed
+  `scene.render.setMesh`/`setMaterial` already do for components: set by asset (guid or a typed
   asset handle) and bind at once, the sky's environment rebaked; switching the profile turns the
   block's source and binds the profile. Mind that the handle resolves to `Effective()`, so in
   Profile mode a write lands in the shared profile. Then tell Sedulous (it copies the value fields

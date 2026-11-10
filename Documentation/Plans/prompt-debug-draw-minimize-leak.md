@@ -88,7 +88,8 @@ debug geometry, so the question is why that grows without bound. The chain:
 4. **Producers keep producing.** Debug geometry is appended during UPDATE, not during render -
    the editor's grid and gizmos, physics wireframes
    (`Engine.Physics/PhysicsSubsystemImpl.cpp:450`), IK (`Engine.Animation`), navigation
-   (`Engine.Navigation`), script `DebugDraw.of(scene)`. None of them know a frame was skipped.
+   (`Engine.Navigation`), script `scene.debugDraw` (then `DebugDraw.of(scene)`). None of them know a
+   frame was skipped.
 5. **The loop runs unthrottled while minimized, which is the accelerant.** `RunApplication`
    (`Foundation/Runtime.Desktop/DesktopRunner.cppm`) has NO sleep and no frame limiter -
    `host.Settings().maxFrameTime` only clamps the `dt` VALUE handed to `Tick`, it never waits.

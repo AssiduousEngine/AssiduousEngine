@@ -3,6 +3,12 @@
 Written 2026-09-19 after reviewing 392cda66..2bd83666. A recommendation, not a review finding:
 the machinery is right, the target is wrong. Keep the spelling, change what it binds to.
 
+**Our side, 2026-11-09:** the C++ engine took the `scene.X` spelling for its scene facades, as
+lowercase properties of the scene (`scene.physics`, `scene.render`, `scene.audio`, ...), in place
+of `ScenePhysics::of(scene)` and the rest; each engine domain adds its property to the Foundation
+`Scene` at registration (`ExtendScene`, over Core's `ExtendProperty`). See the week-2026-10-24
+entry "Scene facades are properties of the scene".
+
 ## The observation
 
 The runtime surface (`EngineScriptSurface`, 156 types, 815 members bound, 9 blocked) is the

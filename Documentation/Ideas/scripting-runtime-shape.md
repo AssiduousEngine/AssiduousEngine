@@ -128,6 +128,9 @@ Curation moves ONTO the reflected type: a subsystem exposes a deliberate subset 
 model), instead of a parallel facade class. The `run`/`ui`/physics/audio/... static facades collapse
 into `X.of(context)` / `X.of(scene)`.
 
+(2026-11-09: the scene axis is properties of the scene now, `scene.physics` and the like, not
+`X.of(scene)`; see the week-2026-10-24 entry "Scene facades are properties of the scene".)
+
 - Leaning: curate a subset on the real subsystem type by default; add a small reflected "script view"
   only where the real API is too low-level/sharp to expose.
 
@@ -359,7 +362,8 @@ Where it goes (the lanes already exist):
 - 2026-08-22 (closure): Spec 3's P0 audit VERDICT accepted by the user - the
   .of(context) facade conversion is NOT built (Subsystem lives outside the reflection
   system; the stubs marshal rather than forward, so they relocate rather than die; the
-  .of(scene) axis already shipped). §3 of this doc resolves to: the two existing .of
+  .of(scene) axis already shipped; since 2026-11-09 it is `scene.physics` and the like, properties
+  of the scene). §3 of this doc resolves to: the two existing .of
   axes + the five curated static views ARE the end state. The physics lastHit
   statefulness fix shipped from the audit. Specs 1 (networking) and 2 (messaging) are
   COMPLETE - all three cuts from this doc are now resolved.

@@ -106,9 +106,15 @@ supported. Stop tears the context down (isolation is between RUNS, the PIE rule)
 
 The reflection registry exposes every reflected type. On top, a curated gameplay facade set
 (`foundation.script.facades` + per-subsystem facades, kept OUT-OF-TREE per [[facade-pattern]]):
-`entity` (transform/name/destroy/findChild/components), `Scene.spawn(prefab, x, y, z)` (the scene's
-own `PrefabSpawnSystem`, see [[text-scenes]]; no host callback) /
-`Scene.find`, `Input`, `Audio`, `Physics.rayCast`, `UI`, `Net`, `Log`, `Time`, `Random`. Rule:
+`entity` (transform/name/destroy/findChild/components), `scene.find`, the scene's own systems as
+properties of the scene (`scene.prefabs.spawn(prefab, position)` over its `PrefabSpawnSystem`, see
+[[text-scenes]]; `scene.physics.rayCast`, `scene.animation`, `scene.audio`, `scene.render`,
+`scene.particles`, `scene.splines`, `scene.scripts`, `scene.debugDraw`, `scene.environment`,
+`scene.postProcess`), `Input`, `Audio`, `UI`, `Net`, `Log`, `Time`, `Random`. The script `Scene`
+lives in Foundation (`Script.Facades`) and those systems in the engine domains above it, so each
+domain adds its property at registration with `ExtendScene<&X::ForScene>("name")` (Core's
+`ExtendProperty`): the backends see an ordinary read-only property (decided 2026-11-09; before,
+`ScenePhysics::of(scene)` and the like). Rule:
 a facade lands only WITH a sample that uses it (no API-first surface). Write facades with
 natural C++ types (i32/i64), not f64 ([[script-facade-numerics]]). `Engine.Composition`
 (`RegisterAllScriptFacades`, each domain's facade registrar declared on its DomainModule) is

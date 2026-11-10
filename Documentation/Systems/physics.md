@@ -20,7 +20,7 @@ abstraction seam (deliberate - see the design history).
 - **`physics.pipeline`** (`Code/Pipeline/Physics.Pipeline`) - `PhysicalMaterial` + the collision-
   shape / material asset builders (cook via Jolt).
 - **`engine.physics`** (`Code/Engine/Engine.Physics`) - `PhysicsSubsystem` (an `ISceneObserver`; its managers install via the physics `SceneModule` - [[scene-composition]]), the
-  components, fixed-step + interpolation, and the `ScenePhysics` script facade.
+  components, fixed-step + interpolation, and the `ScenePhysics` script facade (`scene.physics`).
 - **`editor.physics`** (`Code/Editor/Editor.Physics`) - `CollisionShapePage`, the collision-shape
   asset editor. (The collision-group matrix grid is rendered by `Editor.Scene`'s `InspectorView`.)
 
