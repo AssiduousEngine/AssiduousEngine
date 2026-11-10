@@ -156,6 +156,37 @@ namespace foundation::core::detail
         return Status{ErrorCode::NotSupported}; // a computed getter is read-only
     }
 
+    // The getter of a property one module adds to a type another reflected (ExtendProperty): a
+    // free function taking the instance by const reference, since the extending module cannot
+    // give the type a member function.
+    template <typename Getter>
+    struct FreeGetterTraits;
+    template <typename C, typename R>
+    struct FreeGetterTraits<R (*)(const C&)>
+    {
+        using Class = C;
+        using Return = R;
+    };
+    template <typename C, typename R>
+    struct FreeGetterTraits<R (*)(const C&) noexcept>
+    {
+        using Class = C;
+        using Return = R;
+    };
+
+    template <typename T, typename R, auto Getter>
+    Variant FreeGetterPropertyGet(const Instance& instance)
+    {
+        if constexpr (std::is_same_v<R, Variant>)
+        {
+            return Getter(*static_cast<const T*>(instance.Pointer())); // already the crossing value
+        }
+        else
+        {
+            return ToVariantValue<R>(Getter(*static_cast<const T*>(instance.Pointer())));
+        }
+    }
+
     // The setter half of an accessor property: a one-argument member taking the value by
     // value or const reference. The Variant must carry exactly R (no coercion: an accessor
     // guards an invariant, so it takes the type it declared).
@@ -357,6 +388,61 @@ export namespace foundation::core
             }
         }
         return nullptr;
+    }
+
+    /// Adds a computed read-only property to a value type another module reflected: what that
+    /// module's TypeBuilder::ComputedProperty would have declared, from a module above it that the
+    /// type cannot name (the script Scene in Foundation gains `physics`, which lives in an engine
+    /// domain). `Getter` is a free function `R (const T&)`. Every reader of the type's properties
+    /// (the script backends, their listings, tooling) then sees it as one of the type's own.
+    ///
+    /// Call it at startup registration, on one thread, after the type's own registration and
+    /// before anything binds the type: it re-points the type's property list. Once per name: a
+    /// repeat with the same getter changes nothing and answers true, as registration repeats;
+    /// false when the type is not reflected yet (its registration would write over the property)
+    /// or already has another property by that name.
+    ///
+    /// A getter returning a Variant (a resolving handle over state the type does not hold) names
+    /// the type it declares as `Declared`, as TypeBuilder::Method's ReturnType override does.
+    template <auto Getter, typename Declared = void>
+    [[nodiscard]] bool ExtendProperty(const char* name)
+    {
+        using Traits = detail::FreeGetterTraits<decltype(Getter)>;
+        using T = typename Traits::Class;
+        using R = typename Traits::Return;
+        static_assert(std::is_same_v<R, Variant> != std::is_same_v<Declared, void>,
+                      "ExtendProperty: a Variant getter names its declared type, and only it");
+        using Shown = std::conditional_t<std::is_same_v<Declared, void>,
+                                         typename detail::VariantValue<R>::Type, Declared>;
+        TypeInfo& type = const_cast<TypeInfo&>(TypeOf<T>());
+        if (type.id == detail::SignatureTypeId<T>())
+        {
+            return false; // still the unregistered prototype
+        }
+        constexpr auto get = &detail::FreeGetterPropertyGet<T, R, Getter>;
+        for (u32 i = 0; i < type.propertyCount; ++i)
+        {
+            if (detail::CStringEquals(type.properties[i].name, name))
+            {
+                return type.properties[i].get == get;
+            }
+        }
+        // The list this extension leaves: the type's properties so far and this one. Earlier
+        // lists stay alive (each extension keeps its own), so nothing points at freed storage.
+        static Array<PropertyInfo> properties;
+        if (!properties.IsEmpty())
+        {
+            return false; // a getter is one property: this one already went in under another name
+        }
+        for (u32 i = 0; i < type.propertyCount; ++i)
+        {
+            properties.PushBack(type.properties[i]);
+        }
+        properties.PushBack(PropertyInfo{name, &TypeOf<Shown>(), PropertyFlags::ReadOnly, get,
+                                         &detail::GetterPropertySet<T, R, Getter>, nullptr});
+        type.properties = properties.Data();
+        type.propertyCount = static_cast<u32>(properties.Size());
+        return true;
     }
 
     // =======================================================================

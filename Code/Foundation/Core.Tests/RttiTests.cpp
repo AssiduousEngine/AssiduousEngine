@@ -557,6 +557,75 @@ TEST_CASE("rtti: a read-only stored property reads but refuses SetProperty - the
     CHECK(GetProperty(*reading, inst).Get<int>() == 4);
 }
 
+namespace
+{
+    // A type reflected here, extended as a module above it would: the extension's getters are free
+    // functions, since that module cannot give the type members.
+    struct Tank
+    {
+        int litres = 5;
+    };
+    struct Unreflected
+    {
+        int value = 0;
+    };
+    int DoubleLitres(const Tank& tank) { return tank.litres * 2; }
+    int TripleLitres(const Tank& tank) { return tank.litres * 3; }
+    int OtherLitres(const Tank& tank) { return tank.litres + 1; }
+    Variant LitresCrossing(const Tank& tank) { return Variant::From<int>(tank.litres); }
+    int ValueOf(const Unreflected& u) { return u.value; }
+}
+REFLECT_VALUE(Tank, "rtti::test")
+{
+    builder.Property<&Tank::litres>("litres");
+}
+void RttiRegisterValue_Tank(); // emitted by REFLECT_VALUE above
+
+TEST_CASE("rtti: ExtendProperty adds a computed property to a type another module reflected")
+{
+    // Before the type's own registration there is nothing to extend: that registration would
+    // write over the property.
+    CHECK_FALSE(ExtendProperty<&ValueOf>("value"));
+    CHECK(PropertyCount(TypeOf<Unreflected>()) == 0);
+
+    RttiRegisterValue_Tank();
+    REQUIRE(ExtendProperty<&DoubleLitres>("doubled"));
+    REQUIRE(ExtendProperty<&TripleLitres>("tripled"));
+    CHECK(PropertyCount(TypeOf<Tank>()) == 3); // its own first, then the extensions in order
+    CHECK(std::strcmp(PropertyAt(TypeOf<Tank>(), 0).name, "litres") == 0);
+    CHECK(std::strcmp(PropertyAt(TypeOf<Tank>(), 2).name, "tripled") == 0);
+
+    // Reads like a ComputedProperty: the live value, read-only, no field address.
+    const PropertyInfo* doubled = FindProperty(TypeOf<Tank>(), "doubled");
+    REQUIRE(doubled != nullptr);
+    CHECK(doubled->type == &TypeOf<int>());
+    CHECK(doubled->address == nullptr);
+    CHECK((static_cast<u32>(doubled->flags) & static_cast<u32>(PropertyFlags::ReadOnly)) != 0);
+    Tank tank;
+    const Instance inst = Instance::From(&tank);
+    CHECK(GetProperty(*doubled, inst).Get<int>() == 10);
+    tank.litres = 7;
+    CHECK(GetProperty(*FindProperty(TypeOf<Tank>(), "tripled"), inst).Get<int>() == 21);
+    CHECK(SetProperty(*doubled, inst, Variant::From<int>(1)).Code() == ErrorCode::NotSupported);
+    CHECK(tank.litres == 7);
+
+    // A getter that hands back its Variant (a resolving handle, say) declares the type it shows.
+    REQUIRE(ExtendProperty<&LitresCrossing, int>("crossing"));
+    const PropertyInfo* crossing = FindProperty(TypeOf<Tank>(), "crossing");
+    REQUIRE(crossing != nullptr);
+    CHECK(crossing->type == &TypeOf<int>());
+    CHECK(GetProperty(*crossing, inst).Get<int>() == 7); // the getter's Variant, not one around it
+
+    // Registration repeats: the same getter under the same name changes nothing. Another getter
+    // under a taken name, or one getter under a second name, is refused.
+    CHECK(ExtendProperty<&DoubleLitres>("doubled"));
+    CHECK_FALSE(ExtendProperty<&OtherLitres>("litres"));
+    CHECK_FALSE(ExtendProperty<&OtherLitres>("doubled"));
+    CHECK_FALSE(ExtendProperty<&DoubleLitres>("twice"));
+    CHECK(PropertyCount(TypeOf<Tank>()) == 4);
+    CHECK(GetProperty(*FindProperty(TypeOf<Tank>(), "litres"), inst).Get<int>() == 7);
+}
+
 void RttiRegisterValue_RefHolder(); // emitted by REFLECT_VALUE above
 
 TEST_CASE("rtti: a reference-shaped value type is read by identity through its TypeInfo - as a "
@@ -1441,6 +1510,22 @@ TEST_CASE("rtti-shared: REFLECT_VALUE patches made in one image are read by anot
     CHECK(&seen == &TypeOf<Float3>());
     CHECK(seen.propertyCount == 3u);
     CHECK(seen.id == ComputeTypeId("rtti::core", "Float3"));
+}
+
+TEST_CASE("rtti-shared: a property one image adds to a type is read by another")
+{
+    // An engine domain's library extends the script Scene that Foundation's library reflected,
+    // and the backends' libraries read it: the extension re-points the one process-wide TypeInfo,
+    // so a consumer image's first view of the type sees it. Simulate that view directly.
+    RttiRegisterValue_Tank();
+    REQUIRE(ExtendProperty<&DoubleLitres>("doubled")); // or a repeat of the case above: harmless
+    const TypeInfo& seen =
+        detail::TypeInfoSlot(detail::SignatureTypeId<Tank>(), detail::ValuePrototype<Tank>());
+    CHECK(&seen == &TypeOf<Tank>());
+    const PropertyInfo* doubled = FindProperty(seen, "doubled");
+    REQUIRE(doubled != nullptr);
+    Tank tank;
+    CHECK(GetProperty(*doubled, Instance::From(&tank)).Get<int>() == 10);
 }
 
 TEST_CASE("rtti-shared: Canonical resolves a duplicated TypeInfo to the registered one")
