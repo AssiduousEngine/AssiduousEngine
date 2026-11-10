@@ -267,6 +267,66 @@ namespace editor
             return hash != 0 ? hash : 1; // 0 means unknown to the service
         }
 
+        // The assets a scene's or a prefab's thumbnail shows, as the export's scan finds them (the
+        // document loaded into a scratch scene, its prefabs spawned, nothing bound or built),
+        // remembered per document version, since a scan loads the whole document.
+        struct ShownScan
+        {
+            u64 document = 0;
+            Array<Guid> assets;
+        };
+
+        void ShownAssets(EditorContext* context, foundation::content::Instance& instance, HashMap<Guid, ShownScan>& scans,
+                         Array<Guid>& out)
+        {
+            const u64 document = DocumentHash(instance);
+            const ShownScan* known = scans.Find(instance.Id());
+            if (known == nullptr || known->document != document)
+            {
+                ShownScan scan;
+                scan.document = document;
+                if (context != nullptr && context->Project() != nullptr && context->SceneRefScanner)
+                {
+                    Array<Guid> prefabs; // their contents are spawned into the scan already
+                    (void)context->SceneRefScanner(instance, context->Project()->SourceDb(), scan.assets, prefabs);
+                }
+                scans.InsertOrAssign(instance.Id(), Move(scan));
+                known = scans.Find(instance.Id());
+            }
+            for (const Guid& id : known->assets)
+            {
+                out.PushBack(id);
+            }
+        }
+
+        // Those of them the cook has not made yet (none while a cook runs, which settles them). A
+        // thumbnail drawn now would miss them and stay so: the cook is asked for them instead, and
+        // the thumbnail drawn when it finishes.
+        [[nodiscard]] bool WaitForUncookedAssets(EditorContext* context, foundation::content::Instance& instance,
+                                                 HashMap<Guid, ShownScan>& scans)
+        {
+            if (context == nullptr)
+            {
+                return false;
+            }
+            Array<Guid> shown;
+            ShownAssets(context, instance, scans, shown);
+            Array<Guid> waiting;
+            for (const Guid& id : shown)
+            {
+                if (context->WaitsForCook(id))
+                {
+                    waiting.PushBack(id);
+                }
+            }
+            if (waiting.IsEmpty())
+            {
+                return false;
+            }
+            context->RequestCookFor(Move(waiting));
+            return true;
+        }
+
         // Loading settles when every mesh ref with an identity has resolved or failed. A broken ref
         // is skipped, so one missing submesh does not kill the composite's thumbnail.
         [[nodiscard]] bool MeshRefsSettled(scene::Scene& stage)
@@ -420,6 +480,10 @@ namespace editor
                 if (!m_spawned)
                 {
                     foundation::content::Instance* instance = SourceInstance(m_context, id);
+                    if (instance != nullptr && WaitForUncookedAssets(m_context, *instance, m_scans))
+                    {
+                        return ThumbnailStageStep::WaitingForCook;
+                    }
                     UniquePtr<IStream> payload =
                         (instance != nullptr) ? instance->ReadData(u8"scene") : UniquePtr<IStream>{};
                     if (payload.Get() == nullptr)
@@ -448,10 +512,15 @@ namespace editor
 
             void Unstage(scene::Scene&) override { m_spawned = false; } // scene is per-job
             [[nodiscard]] u64 ContentHash(foundation::content::Instance& instance) override { return DocumentHash(instance); }
+            void Dependencies(foundation::content::Instance& instance, Array<Guid>& out) override
+            {
+                ShownAssets(m_context, instance, m_scans, out);
+            }
 
         private:
             EditorContext* m_context;
             bool m_spawned = false;
+            HashMap<Guid, ShownScan> m_scans;
         };
 
         // Scene documents: the whole scene loaded into the job's private scene, viewed as its page
@@ -478,6 +547,10 @@ namespace editor
                 if (!m_loaded)
                 {
                     foundation::content::Instance* instance = SourceInstance(m_context, id);
+                    if (instance != nullptr && WaitForUncookedAssets(m_context, *instance, m_scans))
+                    {
+                        return ThumbnailStageStep::WaitingForCook;
+                    }
                     if (instance == nullptr || !scene::LoadScene(*instance, stage).IsOk())
                     {
                         return ThumbnailStageStep::Failed;
@@ -520,6 +593,10 @@ namespace editor
                 }
                 return hash != 0 ? hash : 1;
             }
+            void Dependencies(foundation::content::Instance& instance, Array<Guid>& out) override
+            {
+                ShownAssets(m_context, instance, m_scans, out);
+            }
 
         private:
             // The view the scene's page saved when it last closed (none: hasCamera is false).
@@ -530,6 +607,7 @@ namespace editor
 
             EditorContext* m_context;
             bool m_loaded = false;
+            HashMap<Guid, ShownScan> m_scans;
         };
 
         // Skeletons: the bind pose as one mesh of flat-shaded bone octahedrons (the stage renders

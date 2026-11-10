@@ -107,6 +107,9 @@ export namespace editor
         Pending, // resources still resolving: call Stage again next frame
         Ready,   // scene populated; outFraming carries the view parameters
         Failed,  // cannot stage (missing product, unbound resource): cache the failure
+        // What it shows has an asset the cook has not made yet (the generator asked for it):
+        // nothing is drawn or cached, and the job runs again when the cook finishes.
+        WaitingForCook,
     };
 
     /// How the stage views a staged job. By default, an orthographic camera along (1,1,1) aimed at
@@ -155,6 +158,14 @@ export namespace editor
         {
             (void)instance;
             return 0;
+        }
+        /// The assets the thumbnail shows (a scene's meshes and materials), for a type named by
+        /// ContentHash: their cooked state goes into the cache file's name, so a cook that makes or
+        /// remakes one draws the thumbnail again. None, the default.
+        virtual void Dependencies(foundation::content::Instance& instance, Array<Guid>& out)
+        {
+            (void)instance;
+            (void)out;
         }
     };
 
@@ -223,6 +234,9 @@ export namespace editor
         /// the disk cache (PNG on the light lane), the RAM entry, and OnThumbnailReady. Failure
         /// caches a negative entry so Get stops rescheduling until Invalidate.
         void AcceptSceneResult(const Guid& id, image::Image pixels, bool ok);
+        /// The active job waits for a cook (its generator returned WaitingForCook): nothing is
+        /// cached, and the InvalidateAll when the cook finishes lets the next Get queue it again.
+        void DeferSceneJob(const Guid& id);
         [[nodiscard]] usize QueuedSceneJobs() const noexcept
         {
             return m_sceneQueue.Size() + (m_sceneJobActive ? 1u : 0u);
@@ -245,6 +259,11 @@ export namespace editor
                                                                       foundation::core::DefaultAllocator());
         }
 
+        /// Whether a cook is running or waiting to: a document named by its generator's hash waits
+        /// then, as an asset with no recipe hash does, since its dependencies' recipe hashes read 0
+        /// until the cook finishes. Unset (the default): never.
+        void SetCookBusy(Function<bool()> busy) { m_cookBusy = Move(busy); }
+
         /// On project close: drop the RAM cache and detach. In-flight jobs complete harmlessly
         /// against their slots, whose alive flag is cleared.
         void Reset()
@@ -261,6 +280,7 @@ export namespace editor
             m_cacheDirectory.Clear();
             m_resolve = {};
             m_contentHash = {};
+            m_cookBusy = {};
             m_tasks = nullptr;
             m_sources = {};
         }
@@ -365,7 +385,8 @@ export namespace editor
 
         void ScheduleLoad(const Guid& id);
         // What names an asset's cache file: the cook's recipe hash, else (a document no builder
-        // cooks) its GPU generator's ContentHash; 0 when neither knows it yet.
+        // cooks) its GPU generator's ContentHash with its dependencies' recipe hashes; 0 when
+        // neither knows it yet, or while a cook runs for such a document.
         [[nodiscard]] u64 HashFor(const Guid& id);
         void CompleteLoad(JobSlot* slot);
 
@@ -373,6 +394,7 @@ export namespace editor
         UniquePtr<foundation::vfs::NativeFileSystem> m_sources; // the project Sources/ mount
         Function<content::Instance*(const Guid&)> m_resolve;
         Function<u64(const Guid&)> m_contentHash;
+        Function<bool()> m_cookBusy;
         TaskPool* m_tasks = nullptr;
         TaskLane m_lane = TaskLane::Shared;
         Array<UniquePtr<IThumbnailGenerator>> m_generators;

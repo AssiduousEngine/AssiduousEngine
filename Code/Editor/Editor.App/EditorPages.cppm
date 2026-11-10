@@ -659,6 +659,10 @@ export namespace editor::app
                 for (const Guid& id : unresolved)
                     if (Sources() != nullptr && Sources()->GetInstance(id) != nullptr)
                         roots.PushBack(id);
+                // The binds that found no product logged nothing each (the resource manager is told
+                // they wait for the cook): one line says it, for the page.
+                if (!roots.IsEmpty())
+                    LOG_INFO(u8"Editor", u8"'{}': {} referenced assets wait for the cook", instance.Name(), roots.Size());
             }
             const editor::CookBadge badge = m_services.cook->BadgeFor(instance);
             if (badge == editor::CookBadge::Missing || badge == editor::CookBadge::Failed)

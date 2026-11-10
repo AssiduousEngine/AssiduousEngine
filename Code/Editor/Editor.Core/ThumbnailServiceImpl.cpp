@@ -233,12 +233,40 @@ namespace editor
     {
         if (const u64 recipe = m_contentHash ? m_contentHash(id) : 0; recipe != 0)
             return recipe;
-        // A document no builder cooks (a scene, a prefab) has no recipe: its generator names it.
+        // A document no builder cooks (a scene, a prefab) has no recipe: its generator names it,
+        // with the recipe hashes of the assets it shows, so a cook that makes or remakes one names
+        // a new file (an image drawn before they were cooked is never served again). While a cook
+        // runs, those read 0: wait for it, as an asset with no recipe hash does.
         content::Instance* instance = m_resolve ? m_resolve(id) : nullptr;
         if (instance == nullptr || GeneratorFor(instance->TypeName()) != nullptr)
             return 0;
         ISceneThumbnailGenerator* generator = SceneGeneratorFor(instance->TypeName());
-        return generator != nullptr ? generator->ContentHash(*instance) : 0;
+        if (generator == nullptr)
+            return 0;
+        u64 hash = generator->ContentHash(*instance);
+        if (hash == 0)
+            return 0;
+        if (m_cookBusy && m_cookBusy())
+            return 0;
+        Array<Guid> shown;
+        generator->Dependencies(*instance, shown);
+        for (const Guid& dependency : shown)
+        {
+            const u64 parts[] = {dependency.high, dependency.low, m_contentHash ? m_contentHash(dependency) : 0};
+            hash = HashBytes(parts, sizeof(parts), hash);
+        }
+        return hash != 0 ? hash : 1; // 0 means unknown
+    }
+
+    void ThumbnailService::DeferSceneJob(const Guid& id)
+    {
+        if (!m_sceneJobActive || m_activeSceneJob != id)
+        {
+            return;
+        }
+        m_sceneJobActive = false;
+        m_activeSceneJob = Guid{};
+        m_entries.InsertOrAssign(id, Entry{}); // wait quietly: the cook's InvalidateAll drops it
     }
 
     void ThumbnailService::AcceptSceneResult(const Guid& id, image::Image pixels, bool ok)

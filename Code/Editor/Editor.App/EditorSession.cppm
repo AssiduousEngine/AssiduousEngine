@@ -446,6 +446,9 @@ export namespace editor::app
                 &m_services.context->Tasks(), m_services.context->LightLane(),
                 Function<u64(const Guid&)>{[cook](const Guid& id) { return cook->RecipeHashFor(id); }},
                 m_project->SourcesRoot().AsView());
+            // A scene's or a prefab's thumbnail is named by the recipe hashes of what it shows, which
+            // read 0 while a cook runs: it waits for the cook rather than file under a passing name.
+            m_services.thumbnails->SetCookBusy([cook]() { return cook->IsReady() && !cook->IsIdle(); });
         }
 
         // Opens the per-project store; it is absent on a fresh project, whose sections then read
@@ -487,6 +490,12 @@ export namespace editor::app
                                                                              &m_services.context->Tasks());
             foundation::resource::ResourceManager* resources = m_resources.Get();
             view.SetFallthrough([resources](StringView ns, StringView name) { return resources->ReadsAuthoredRecord(ns, name); });
+            // An asset with a source and no product yet (an uncooked project's first open) waits for
+            // the cook: the page that binds it says so once (EditorPages::CookMissing) instead of a
+            // warning per reference. A reference to no source at all still warns.
+            editor::EditorProject* project = m_project.Get();
+            m_resources->SetAwaitsBuild([project](const Guid& id)
+                                        { return project->CookedDb().GetInstance(id) == nullptr && project->SourceDb().GetInstance(id) != nullptr; });
             m_services.context->SetResources(m_resources.Get());
             if (m_services.embeddedApp != nullptr)
                 m_services.embeddedApp->AttachResourceManager(m_resources.Get(), *m_services.embeddedHost);
@@ -502,6 +511,17 @@ export namespace editor::app
             context.OnCookRequested = [cook](bool rebuild) { cook->RequestCook(rebuild); };
             // Cook-gated starts (play waits for the cook) wait for anything in flight or a request still waiting.
             context.CookBusy = [cook]() { return cook->IsReady() && !cook->IsIdle(); };
+            // A view drawn before the project was cooked (a scene's thumbnail) asks for what it shows,
+            // and waits while the cook has not made it. A cook that ran and failed is not waited on.
+            editor::EditorProject* project = m_project.Get();
+            context.AwaitsCook = [project, cook](const Guid& id)
+            {
+                if (!cook->IsReady() || !cook->IsIdle())
+                    return false;
+                foundation::content::Instance* source = project->SourceDb().GetInstance(id);
+                return source != nullptr && cook->BadgeFor(*source) == editor::CookBadge::Missing;
+            };
+            context.OnCookRequestedFor = [cook](Array<Guid> roots) { cook->RequestCookFor(Move(roots), false); };
             context.SourceAssetTypesOf = [builders](const TypeInfo& product) { return editor::mcp::SourceAssetTypesFor(*builders, product); };
             // The build lane's work (an export, an import's writes) reads the databases: mutations and new
             // cooks wait while it has any, as during a cook.

@@ -509,6 +509,55 @@ TEST_CASE("resource: a missing factory is logged unless the manager only collect
     logger.RemoveSink(&capture);
 }
 
+namespace
+{
+    struct MissingInstanceCapture : ILogSink
+    {
+        int lines = 0;
+
+        void Write(LogLevel, StringView category, StringView message) noexcept override
+        {
+            if (category == u8"Resource" && message.StartsWith(u8"bind failed: no content instance"))
+            {
+                ++lines;
+            }
+        }
+    };
+}
+
+// An id the database lacks is a broken reference, named in a warning; one the host says is only
+// waiting to be built (an editor's first cook) binds unresolved without one, the host reporting the
+// wait once instead.
+TEST_CASE("resource: an id waiting to be built binds quietly; a broken reference still warns")
+{
+    RegisterAsyncTypes();
+    CleanDir(u8"scratch_awaits_build_db");
+    NativeFileSystem mount(u8"scratch_awaits_build_db", DefaultAllocator());
+    foundation::content::ContentDatabase db(foundation::core::DefaultAllocator(), mount,
+                                            foundation::core::BinarySerializerFactory(), u8".rasset");
+    Random rng(31);
+    const Guid waiting = Guid::Generate(rng);
+    const Guid broken = Guid::Generate(rng);
+
+    MissingInstanceCapture capture;
+    Logger& logger = GlobalLogger();
+    logger.AddSink(&capture);
+
+    ResourceManager host(DefaultAllocator(), db);
+    host.SetAwaitsBuild([waiting](const Guid& id) { return id == waiting; });
+    CHECK(host.Bind<AsyncProduct>(waiting).Get() == nullptr);
+    CHECK(capture.lines == 0); // waiting for its build: no warning
+    Array<Guid> unresolved;
+    host.CollectUnresolved(unresolved);
+    REQUIRE(unresolved.Size() == 1u); // still unresolved, so the host can ask for its build
+    CHECK(unresolved[0] == waiting);
+
+    CHECK(host.Bind<AsyncProduct>(broken).Get() == nullptr);
+    CHECK(capture.lines == 1); // not one the host named: a broken reference, warned
+
+    logger.RemoveSink(&capture);
+}
+
 TEST_CASE("resource.async: finalize follows decode-completion order (FIFO)")
 {
     RegisterAsyncTypes();

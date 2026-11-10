@@ -187,6 +187,16 @@ namespace editor
             job = {};
             state = State::Idle;
         }
+
+        // Its assets are not cooked yet (the generator asked for them): nothing drawn or cached;
+        // the job comes back when the cook finishes.
+        void DeferJob()
+        {
+            ReleaseJobScene();
+            service->DeferSceneJob(job.id);
+            job = {};
+            state = State::Idle;
+        }
     };
 
     ThumbnailStage::ThumbnailStage(runtime::IApplicationHost& host, ThumbnailService& service,
@@ -280,6 +290,9 @@ namespace editor
             case ThumbnailStageStep::Failed:
                 LOG_WARNING(u8"Thumbnails", u8"{} could not be staged for its thumbnail", impl.job.id);
                 impl.FailJob();
+                break;
+            case ThumbnailStageStep::WaitingForCook:
+                impl.DeferJob();
                 break;
             case ThumbnailStageStep::Pending:
                 if (++impl.stagingFrames > kMaxStagingFrames)

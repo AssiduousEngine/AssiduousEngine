@@ -105,6 +105,19 @@ export namespace editor
         /// busy.
         Function<bool()> CookBusy;
         [[nodiscard]] bool IsCookBusy() const { return CookBusy ? CookBusy() : false; }
+        /// Whether an asset waits for the cook to make its product: it has a source the cook builds
+        /// and no product, and no cook is running (one that failed is not waiting; it stays missing).
+        /// Wired by the application to the project and its cook; unwired, nothing waits.
+        Function<bool(const Guid&)> AwaitsCook;
+        [[nodiscard]] bool WaitsForCook(const Guid& id) const { return AwaitsCook ? AwaitsCook(id) : false; }
+        /// Cook these assets and what they need (wired to the cook service's RequestCookFor), for
+        /// a view that shows them before the project was cooked (a scene's thumbnail).
+        Function<void(Array<Guid> /*roots*/)> OnCookRequestedFor;
+        void RequestCookFor(Array<Guid> roots)
+        {
+            if (OnCookRequestedFor && !roots.IsEmpty())
+                OnCookRequestedFor(Move(roots));
+        }
 
         // === Pending asset edits (from viewport tools that edit an asset live, like sculpting) ===
         // A viewport tool edits a cooked product live, for immediate feedback, and registers a

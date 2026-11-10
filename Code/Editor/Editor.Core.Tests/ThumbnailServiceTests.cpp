@@ -476,6 +476,119 @@ TEST_CASE("thumbnails: a document the cook keeps no record of is named by its ge
     (void)RemoveDirectoryRecursive(u8"thumbs_gpu_document");
 }
 
+namespace
+{
+    // A document whose thumbnail shows one asset the cook makes (a scene's mesh).
+    class DependentDocumentGenerator final : public ISceneThumbnailGenerator
+    {
+    public:
+        explicit DependentDocumentGenerator(Guid shown) : m_shown(shown) {}
+        [[nodiscard]] Span<const StringView> AssetTypeNames() const override
+        {
+            static constexpr StringView kTypes[] = {u8"StubGpuAsset"};
+            return Span<const StringView>(kTypes, 1);
+        }
+        [[nodiscard]] ThumbnailStageStep Stage(const Guid&, foundation::scene::Scene&, foundation::resource::ResourceManager&,
+                                               ThumbnailFraming&) override
+        {
+            return ThumbnailStageStep::Failed;
+        }
+        void Unstage(foundation::scene::Scene&) override {}
+        [[nodiscard]] u64 ContentHash(content::Instance&) override { return 85; }
+        void Dependencies(content::Instance&, Array<Guid>& out) override { out.PushBack(m_shown); }
+
+    private:
+        Guid m_shown;
+    };
+
+    // How many thumbnail files the cache folder holds.
+    [[nodiscard]] usize CachedFiles(StringView dir)
+    {
+        usize files = 0;
+        (void)ListDirectory(
+            dir, [](void* ctx, StringView, bool isDirectory) { *static_cast<usize*>(ctx) += isDirectory ? 0u : 1u; }, &files);
+        return files;
+    }
+}
+
+// A document's thumbnail is named by what it shows as cooked: one drawn before its mesh was cooked
+// (or before a cook remade it) is never served again, the new name missing on disk; and while a
+// cook runs, when those recipe hashes read 0, it waits rather than file under a passing name.
+TEST_CASE("thumbnails: a document's file follows the cooked state of what it shows; a running cook waits")
+{
+    (void)RemoveDirectoryRecursive(u8"thumbs_gpu_dependent");
+    content::ContentDatabase db(DefaultAllocator(), Fixture::NullMount(), nullptr, u8"asset");
+    content::Instance instance(db, *db.RootGroup(), Guid{0x5555, 0x7777}, u8"Doc", u8"tests", u8"StubGpuAsset");
+    TaskPool jobs{DefaultAllocator(), 1u};
+    ThumbnailService service;
+    (void)CreateDirectory(u8"thumbs_gpu_dependent");
+    const Guid mesh{0x8888, 0x9999};
+    service.RegisterSceneGenerator(MakeUnique<DependentDocumentGenerator>(DefaultAllocator(), mesh));
+    content::Instance* inst = &instance;
+    const Guid known{0x5555, 0x7777};
+    u64 meshRecipe = 0; // not cooked yet
+    bool cooking = false;
+    service.Configure(u8"thumbs_gpu_dependent",
+                      Function<content::Instance*(const Guid&)>{[inst, known](const Guid& id) { return id == known ? inst : nullptr; }}, &jobs, TaskLane::Shared,
+                      Function<u64(const Guid&)>{[&meshRecipe, mesh](const Guid& id) { return id == mesh ? meshRecipe : u64{0}; }},
+                      u8"thumbs_empty_mount");
+    service.SetCookBusy([&cooking]() { return cooking; });
+
+    CHECK(service.Get(known).Get() == nullptr);
+    REQUIRE(service.QueuedSceneJobs() == 1u);
+    REQUIRE(service.TakeSceneJob().id == known);
+    service.AcceptSceneResult(known, SolidTile(90), true);
+    PumpLight(jobs);
+    CHECK(CachedFiles(u8"thumbs_gpu_dependent") == 1u);
+
+    // The cook runs: the thumbnail waits, nothing queued.
+    cooking = true;
+    service.InvalidateAll();
+    CHECK(service.Get(known).Get() == nullptr);
+    CHECK(service.QueuedSceneJobs() == 0u);
+
+    // It made the mesh: a new name, missing on disk, so the thumbnail is drawn again.
+    cooking = false;
+    meshRecipe = 0x1234;
+    service.InvalidateAll();
+    CHECK(service.Get(known).Get() == nullptr);
+    CHECK(service.QueuedSceneJobs() == 1u);
+    REQUIRE(service.TakeSceneJob().id == known);
+    service.AcceptSceneResult(known, SolidTile(120), true);
+    PumpLight(jobs);
+    CHECK(CachedFiles(u8"thumbs_gpu_dependent") == 2u);
+
+    // Unchanged since: the same name, served from disk with no new drawing.
+    service.InvalidateAll();
+    CHECK(service.Get(known).Get() == nullptr);
+    CHECK(service.QueuedSceneJobs() == 0u);
+    PumpLight(jobs);
+    CHECK(service.Get(known).Get() != nullptr);
+    service.Reset();
+    (void)RemoveDirectoryRecursive(u8"thumbs_gpu_dependent");
+}
+
+// A job whose assets wait for the cook (its generator asked for them) draws and caches nothing; it
+// does not come back each frame, and the cook's InvalidateAll lets it run again.
+TEST_CASE("thumbnails: a job waiting for its cook caches nothing and runs again after the cook")
+{
+    (void)RemoveDirectoryRecursive(u8"thumbs_gpu_deferred");
+    GpuFixture fx(u8"thumbs_gpu_deferred");
+    (void)fx.service.Get(fx.known);
+    REQUIRE(fx.service.TakeSceneJob().id == fx.known);
+    fx.service.DeferSceneJob(fx.known);
+    CHECK(fx.service.QueuedSceneJobs() == 0u);
+    CHECK(fx.service.Get(fx.known).Get() == nullptr);
+    CHECK(fx.service.QueuedSceneJobs() == 0u); // waits: no retry every frame
+    PumpLight(fx.jobs);
+    CHECK(CachedFiles(u8"thumbs_gpu_deferred") == 0u); // nothing written
+    fx.service.InvalidateAll(); // the cook finished
+    CHECK(fx.service.Get(fx.known).Get() == nullptr);
+    CHECK(fx.service.QueuedSceneJobs() == 1u);
+    fx.service.Reset();
+    (void)RemoveDirectoryRecursive(u8"thumbs_gpu_deferred");
+}
+
 TEST_CASE("thumbnails: a failed stage result caches a negative and never re-queues")
 {
     (void)RemoveDirectoryRecursive(u8"thumbs_gpu_fail");

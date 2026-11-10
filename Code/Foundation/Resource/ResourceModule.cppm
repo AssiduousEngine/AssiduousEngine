@@ -672,6 +672,12 @@ export namespace foundation::resource
         void SetReportsMissingFactories(bool enabled) noexcept { m_reportsMissingFactories = enabled; }
         [[nodiscard]] bool ReportsMissingFactories() const noexcept { return m_reportsMissingFactories; }
 
+        // Which ids not in the database are only waiting to be built (the editor: an asset with a
+        // source and no cooked product yet). Their binds land unresolved without a warning each,
+        // since the host reports the wait once; an id it does not name is a broken reference and
+        // still warns. Empty (the default): every id the database lacks warns.
+        void SetAwaitsBuild(Function<bool(const Guid&)> awaits) { m_awaitsBuild = Move(awaits); }
+
         // Rebuilds the product for an already-bound id (e.g. after the source
         // changed on disk) and, transitively, every resource that depends on it.
         // All proxies see the new products. False if `id` is unbound.
@@ -828,7 +834,13 @@ export namespace foundation::resource
             if (instance == nullptr)
             {
                 // A broken reference (the id is not in the content DB): name it, since a silent
-                // null handle is hard to diagnose.
+                // null handle is hard to diagnose. One the host says is only waiting to be built
+                // (an editor's first cook) is reported by the host, once, rather than per bind.
+                if (m_awaitsBuild && m_awaitsBuild(id))
+                {
+                    LOG_DEBUG(u8"Resource", u8"bind waits: {} is not built yet", id);
+                    return;
+                }
                 LOG_WARNING(u8"Resource", u8"bind failed: no content instance for id {}", id);
                 return;
             }
@@ -1176,6 +1188,7 @@ export namespace foundation::resource
         u64 m_mainThreadId = 0;      // thread that constructs/pumps; async finalize must run here
         bool m_asyncBinds = false;   // Ref<T>::Bind routes through BindAsync while set
         bool m_reportsMissingFactories = true; // off: a collector, quiet on a missing factory
+        Function<bool(const Guid&)> m_awaitsBuild;   // ids that only wait to be built (no warning)
         HashMap<Guid, UniquePtr<PendingLoad>> m_pending; // main-thread only (heap-stable Counter)
         bool m_burstActive = false;  // ReportSettledBurst: a burst of async loads is in flight
         usize m_burstPeak = 0;
