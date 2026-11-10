@@ -110,6 +110,11 @@ extern "C" unsigned BuildNumber(); // the build number CI stamped, 0 for a local
 
 int engine::player::PlayerMain(int argc, char** argv)
 {
+    return PlayerMain(argc, argv, PlayerMounts{});
+}
+
+int engine::player::PlayerMain(int argc, char** argv, PlayerMounts mounts)
+{
     // --version: report the engine version and build identity and exit, before any startup work.
     for (int i = 1; i < argc; ++i)
     {
@@ -131,7 +136,11 @@ int engine::player::PlayerMain(int argc, char** argv)
     PlayerOptions options;
     f32 exitAfterSeconds = 0.0f;
     f64 profileCaptureSeconds = 0.0; // --profile-capture: seconds to capture from the start
-    if (argc > 1 && argv[1][0] != '-')
+    if (mounts.game)
+    {
+        options.projectDir = String(u8"(the host's mount)"); // named in the log only
+    }
+    else if (argc > 1 && argv[1][0] != '-')
     {
         options.projectDir = String(StringView(reinterpret_cast<const utf8char*>(argv[1])));
     }
@@ -179,12 +188,15 @@ int engine::player::PlayerMain(int argc, char** argv)
     // dev tree's Project.xml. Neither, and the defaults stand.
     engine::project::ProjectSettings manifest;
     {
-        foundation::vfs::NativeFileSystem root(options.projectDir.AsView(), DefaultAllocator());
+        foundation::vfs::NativeFileSystem projectRoot(options.projectDir.AsView(), DefaultAllocator());
+        foundation::vfs::IFileSystem& root = mounts.game ? *mounts.game : static_cast<foundation::vfs::IFileSystem&>(projectRoot);
         if (!engine::project::LoadPlayerManifest(root, manifest).IsOk())
         {
             LOG_WARNING(u8"Player", u8"no manifest in '{}', the default window", options.projectDir);
         }
     }
+    options.gameRoot = Move(mounts.game);
+    options.contentPak = Move(mounts.content);
     // Captures are named after the game.
     foundation::profiler::CaptureRecorder::Get().SetApplication(
         manifest.name.IsEmpty() ? StringView(u8"Player") : manifest.name.AsView());
@@ -229,7 +241,14 @@ int engine::player::PlayerMain(int argc, char** argv)
     PlayerApplication app(static_cast<PlayerOptions&&>(options));
     // Engine data (shaders, built-in fonts): an explicit --data-root, else the discovery walk
     // from the executable (a dist stages Data/ beside the player). Resolved in Configure.
-    app.SetDataRoot(foundation::vfs::DataRootFromArguments(argc, argv).AsView());
+    if (mounts.data)
+    {
+        app.SetDataFileSystem(Move(mounts.data)); // the host's (an Android app's APK)
+    }
+    else
+    {
+        app.SetDataRoot(foundation::vfs::DataRootFromArguments(argc, argv).AsView());
+    }
     app.OnCommandLine(argc, argv); // the base app's flags (--screenshot ...)
     app.SetExitAfterSeconds(exitAfterSeconds); // --exit-after
 #if BUILD_PROFILING

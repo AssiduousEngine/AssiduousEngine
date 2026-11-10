@@ -157,6 +157,10 @@ export namespace engine::runtime
         /// subsystem that reads engine data (shaders, the built-in UI font). With no root it logs
         /// an error and calls RequestExit(1); there is no compile-time path fallback.
         void SetDataRoot(core::StringView directory) { m_dataRootOverride = core::String(directory); }
+        /// Preset before Configure: the data mount itself, made by the host, for engine data that
+        /// is not a folder (an Android app's, under its APK's assets/Data, read in place). No data
+        /// root is resolved then, and DataRoot() stays empty.
+        void SetDataFileSystem(core::UniquePtr<foundation::vfs::IFileSystem> mount) { m_dataFileSystem = core::Move(mount); }
         /// The resolved data-root directory (valid after Configure; empty = not found).
         [[nodiscard]] core::StringView DataRoot() const noexcept { return m_dataRoot.AsView(); }
         /// The mount over the data root (valid after Configure). Subsystems and samples read
@@ -339,7 +343,7 @@ export namespace engine::runtime
         [[nodiscard]] foundation::input::IInputSourceProvider* GameInputSource() noexcept;
         core::String m_dataRootOverride; // preset (SetDataRoot); empty = discover
         core::String m_dataRoot;         // resolved in Configure
-        core::UniquePtr<foundation::vfs::NativeFileSystem> m_dataFileSystem; // the data mount (owned)
+        core::UniquePtr<foundation::vfs::IFileSystem> m_dataFileSystem; // the data mount (owned)
         // What CreatePluginHost hands the process's plugin host, which goes before them.
         foundation::runtime::ClientServices m_clientServices;
         core::UniquePtr<engine::EnginePluginServices> m_enginePluginServices;

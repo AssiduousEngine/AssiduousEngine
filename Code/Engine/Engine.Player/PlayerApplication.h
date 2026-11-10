@@ -43,6 +43,9 @@ namespace engine::player
     struct PlayerOptions
     {
         String projectDir;
+        // The game's mounts made by the host (an Android app's APK); unset, they come from projectDir.
+        UniquePtr<foundation::vfs::IFileSystem> gameRoot;
+        UniquePtr<foundation::vfs::PakFileSystem> contentPak;
         String sceneOverride; // source-DB path; empty means the manifest's defaultScene
         f32 exitAfterSeconds = 0.0f;
     };
@@ -57,15 +60,21 @@ namespace engine::player
             namespace project = engine::project;
 
 
-            m_root = MakeUnique<foundation::vfs::NativeFileSystem>(
-                AppRoot(), m_options.projectDir.AsView(), AppRoot());
+            if (m_options.gameRoot)
+            {
+                m_root = Move(m_options.gameRoot);
+            }
+            else
+            {
+                m_root = MakeUnique<foundation::vfs::NativeFileSystem>(AppRoot(), m_options.projectDir.AsView(), AppRoot());
+            }
 
             // Dist layout wins when present (a staged dist can sit inside a project tree).
-            if (m_root->Exists(project::kDistContentPak))
+            if (m_options.contentPak || m_root->Exists(project::kDistContentPak))
             {
-                m_pak = MakeUnique<foundation::vfs::PakFileSystem>(
-                    AppRoot(),
-                    PathJoin(m_options.projectDir.AsView(), project::kDistContentPak).AsView());
+                m_pak = m_options.contentPak ? Move(m_options.contentPak)
+                                             : MakeUnique<foundation::vfs::PakFileSystem>(
+                                                   AppRoot(), PathJoin(m_options.projectDir.AsView(), project::kDistContentPak).AsView());
                 if (!m_pak->IsValid() ||
                     !project::LoadProjectSettings(*m_root, m_settings, project::kDistManifestFile)
                          .IsOk())
@@ -574,7 +583,7 @@ namespace engine::player
         PlayerOptions m_options;
         f32 m_elapsed = 0.0f;
         engine::project::ProjectSettings m_settings;
-        UniquePtr<foundation::vfs::NativeFileSystem> m_root;
+        UniquePtr<foundation::vfs::IFileSystem> m_root;
         UniquePtr<foundation::vfs::PakFileSystem> m_pak;             // dist mode only
         UniquePtr<foundation::vfs::NativeFileSystem> m_contentMount; // project mode only
         UniquePtr<foundation::vfs::NativeFileSystem> m_cookedMount;

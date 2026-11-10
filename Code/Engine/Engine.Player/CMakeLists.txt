@@ -126,6 +126,9 @@ else()
         Foundation::Physics Foundation::Physics.Resource Engine::Physics
         Engine::Project Foundation::VFS.Pak Foundation::Content Foundation::VFS Foundation::Xml.Serialization)
 
+    # Its interface names the mounts a host may give (PlayerMounts), so its users see those modules.
+    target_link_libraries(Engine.Player.Main PUBLIC Foundation::Core Foundation::VFS Foundation::VFS.Pak)
+
     add_executable(Engine.Player Main.cpp)
     target_link_libraries(Engine.Player PRIVATE Engine.Player.Main Foundation::Policy)
     util_link_plugins(Engine.Player ROLE player PLUGINS ${UTIL_HOST_PLUGINS}) # what a project may enable

@@ -186,8 +186,11 @@ namespace engine::runtime
         // missing, the run ends with an error naming what was searched; the mount still points at
         // the place a dist would need (Data/ beside the executable), so every miss on the way out
         // is explicit.
-        m_dataRoot = foundation::vfs::ResolveDataRoot(m_dataRootOverride.AsView());
-        if (m_dataRoot.IsEmpty())
+        if (m_dataFileSystem)
+        {
+            LOG_INFO(u8"App", u8"data root: the mount the host gave");
+        }
+        else if (m_dataRoot = foundation::vfs::ResolveDataRoot(m_dataRootOverride.AsView()); m_dataRoot.IsEmpty())
         {
             LOG_ERROR(u8"App", u8"no data root - cannot start (expected Data/.dataroot beside the "
                                u8"executable or up the tree, or --data-root <dir>)");
