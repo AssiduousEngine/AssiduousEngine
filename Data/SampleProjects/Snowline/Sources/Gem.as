@@ -55,7 +55,7 @@ class Gem
             m_taken = true;
             m_model.setActive(false);
             self.scene.events.emit("GemCollected", value);
-            ScenePrefabs::of(self.scene).spawn(kGemSparkle, self.worldPosition());
+            self.scene.prefabs.spawn(kGemSparkle, self.worldPosition());
             Audio::playOneShot(kGemChime, AudioBus::Effects, 0.6f);
         }
     }

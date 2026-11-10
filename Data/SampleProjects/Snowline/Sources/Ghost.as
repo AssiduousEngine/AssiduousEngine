@@ -79,7 +79,7 @@ class Ghost
         // A root entity, so position() holds this frame's pose; worldPosition() still holds last
         // frame's.
         Float3 at = self.position();
-        RayCastHit@ hit = ScenePhysics::of(self.scene).rayCast(Float3(at.x, at.y + 4.0f, at.z),
+        RayCastHit@ hit = self.scene.physics.rayCast(Float3(at.x, at.y + 4.0f, at.z),
                                                                 Float3(0.0f, -1.0f, 0.0f), 10.0f, 1);
         float y = (hit !is null && hit.hit) ? hit.position.y - at.y : 0.0f;
         m_model.setPosition(Float3(0.0f, y, 0.0f));

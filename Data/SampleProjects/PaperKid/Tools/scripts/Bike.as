@@ -84,7 +84,7 @@ class Bike
         @m_kid = self.findChildByName("KidBike");
         if (m_kid !is null && m_kid.isValid())
         {
-            SceneAnimation anim = SceneAnimation::of(self.scene);
+            SceneAnimation anim = self.scene.animation;
             anim.setClip(m_kid, kRideClip);
             anim.play(m_kid);
         }
@@ -95,14 +95,14 @@ class Bike
         Float3 at = self.position();
         for (int i = 0; i < kAimDots; i++)
         {
-            Entity@ dot = ScenePrefabs::of(self.scene).spawn(kAimDot, at);
+            Entity@ dot = self.scene.prefabs.spawn(kAimDot, at);
             if (dot !is null && dot.isValid())
             {
                 dot.setActive(false);
                 m_dots.insertLast(dot);
             }
         }
-        @m_ring = ScenePrefabs::of(self.scene).spawn(kTargetRing, at);
+        @m_ring = self.scene.prefabs.spawn(kTargetRing, at);
         if (m_ring !is null && m_ring.isValid())
         {
             m_ring.setActive(false);
@@ -126,7 +126,7 @@ class Bike
         Audio::playOneShot(kCrashSound, AudioBus::Effects, 1.0f, Random::range(0.9f, 1.1f));
         Input::rumble(0.9f, 0.5f, 0.35f); // the jolt of a crash
         // Road dust off the wheels (the bike's centre is 0.9 above them).
-        ScenePrefabs::of(self.scene).spawn(kFxDust, self.position() + Float3(0.0f, -0.8f, 0.0f));
+        self.scene.prefabs.spawn(kFxDust, self.position() + Float3(0.0f, -0.8f, 0.0f));
         self.scene.events.emit("BikeCrashed", 1);
     }
 
@@ -134,7 +134,7 @@ class Bike
     // follows.
     void onQuotaMet(int secondsLeft)
     {
-        ScenePrefabs::of(self.scene).spawn(kFxConfetti, self.position() + Float3(0.0f, 1.6f, 0.0f));
+        self.scene.prefabs.spawn(kFxConfetti, self.position() + Float3(0.0f, 1.6f, 0.0f));
     }
 
     void onUpdate(double dt)
@@ -199,7 +199,7 @@ class Bike
             m_throwing -= d * pace;
             if (m_throwing <= 0.0f)
             {
-                SceneAnimation anim = SceneAnimation::of(self.scene);
+                SceneAnimation anim = self.scene.animation;
                 anim.setClip(m_kid, kRideClip);
                 anim.play(m_kid);
             }
@@ -225,7 +225,7 @@ class Bike
             toZ = m_target.z - at.z;
         }
         float across = toX * Math::Cos(m_heading) - toZ * Math::Sin(m_heading);
-        SceneAnimation anim = SceneAnimation::of(self.scene);
+        SceneAnimation anim = self.scene.animation;
         anim.setClip(m_kid, (across > 0.05f) ? kThrowLeftClip : kThrowRightClip);
         anim.play(m_kid);
         m_throwing = 1.0f;
@@ -290,7 +290,7 @@ class Bike
         float aimX = f.x;
         float aimZ = f.z;
         m_hasTarget = false;
-        array<Entity@>@ zones = ScenePhysics::of(self.scene).overlapSphere(pos.x, pos.y, pos.z, aimRange,
+        array<Entity@>@ zones = self.scene.physics.overlapSphere(pos.x, pos.y, pos.z, aimRange,
                                                                           1 << zoneGroup);
         float best = aimRange * aimRange + 1.0f;
         for (uint i = 0; i < zones.length(); i++)
@@ -340,7 +340,7 @@ class Bike
         if (m_hasTarget)
         {
             Float3 from = launchPoint();
-            float g = -ScenePhysics::of(self.scene).gravity().y;
+            float g = -self.scene.physics.gravity().y;
             float drop = from.y - (m_target.y + 0.4f);
             float flight = (vy + Math::Sqrt(vy * vy + 2.0f * g * drop)) / g;
             if (flight > 0.05f)
@@ -365,7 +365,7 @@ class Bike
         }
         Float3 p = launchPoint();
         Float3 v = launchVelocity();
-        float g = ScenePhysics::of(self.scene).gravity().y;
+        float g = self.scene.physics.gravity().y;
         float drift = (m_clock * 2.0f) - float(int(m_clock * 2.0f));
         bool landed = false;
         for (uint i = 0; i < m_dots.length(); i++)
@@ -408,7 +408,7 @@ class Bike
 
     private bool throwPaper()
     {
-        Entity@ paper = ScenePrefabs::of(self.scene).spawn(kPaper, launchPoint());
+        Entity@ paper = self.scene.prefabs.spawn(kPaper, launchPoint());
         if (paper is null || !paper.isValid())
         {
             return false;
@@ -416,7 +416,7 @@ class Bike
         // An impulse is mass times the change in speed; the mass comes from the paper's rigid body.
         RigidBodyComponent@ body = RigidBodyComponent::of(paper);
         float mass = (body !is null && body.mass > 0.0f) ? body.mass : 1.0f;
-        ScenePhysics::of(self.scene).applyImpulse(paper, launchVelocity() * mass);
+        self.scene.physics.applyImpulse(paper, launchVelocity() * mass);
         return true;
     }
 }

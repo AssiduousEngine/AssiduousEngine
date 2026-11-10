@@ -31,7 +31,7 @@ class Subscriber
         Audio::playOneShot(kLandSound, AudioBus::Effects, 0.9f, Random::range(0.95f, 1.05f));
         Audio::playOneShot(kDeliveredSound, AudioBus::Effects, 0.8f);
         Input::rumble(0.1f, 0.45f, 0.1f); // a delivery's tap
-        ScenePrefabs::of(self.scene).spawn(kFxSparkle, self.position() + Float3(0.0f, 0.3f, 0.0f));
+        self.scene.prefabs.spawn(kFxSparkle, self.position() + Float3(0.0f, 0.3f, 0.0f));
         self.scene.events.emit("Delivered", value);
         Entity@ marker = self.findChildByName("Marker");
         if (marker !is null && marker.isValid())

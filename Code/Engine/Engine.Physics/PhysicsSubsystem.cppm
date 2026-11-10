@@ -1228,7 +1228,7 @@ export namespace engine::physics
     };
 
     // Scene-bound physics handle, the reflected per-scene physics API. Shaped like
-    // RigidBody.of(entity): `ScenePhysics.of(scene)` returns a handle whose operations act on that
+    // RigidBody.of(entity): `scene.physics` returns a handle whose operations act on that
     // scene's world (its PhysicsSceneSystem), not the first started scene. A plain value carrying
     // the scene pointer (returned by value: a concrete type, cross-backend, no hook slot); a null
     // scene, or a scene with no physics system, is a safe no-op.
@@ -1587,14 +1587,14 @@ export namespace engine::physics
             return bodies != nullptr ? bodies->Get(entity.Handle()) : nullptr;
         }
 
-        // The factory: ScenePhysics.of(scene). The argument is the bound Scene facade.
-        [[nodiscard]] static ScenePhysics of(foundation::script::Scene sceneHandle)
+        // The scene's own, read by scripts as a property of the scene (ExtendScene).
+        [[nodiscard]] static ScenePhysics ForScene(const foundation::script::Scene& sceneHandle)
         {
             return ScenePhysics{sceneHandle.scene};
         }
     };
 
-    /// Registers the physics script surface (ScenePhysics.of and the reflected components) into the
+    /// Registers the physics script surface (scene.physics and the reflected components) into the
     /// global registry and the behavior prelude. Despite the name, there is no static facade.
     void RegisterPhysicsScriptFacade();
 }

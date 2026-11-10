@@ -384,13 +384,6 @@
   shadows (`SampleLocalShadow`) the same. Contact hardening (PCSS) after, if wanted. Changes every
   game's shadows slightly: the full lanes and a visual check on the sample games.
 
-- **Scene facades as scene properties, as Sedulous has them? Decide before 0.1** (user
-  2026-10-09): Sedulous binds a scene facade as a property of the scene (`scene.Physics.RayCast`,
-  its SceneFacade role); ours are reached through the facade type (`ScenePhysics::of(scene)`,
-  `SceneRender::of`, `SceneAudio::of`, ...), kept so by the ruling of 2026-10-01 until the role
-  was revisited. Look at it before 0.1, while the script surface can still change freely: which
-  reads more naturally in AngelScript and Luau, what moving means for every facade, the sample
-  games' scripts and the docs. The earlier write-up is `Plans/beef-script-facades-note.md`.
 - **Luau variants of the sample games, and whether we keep two languages** (user 2026-10-09):
   perhaps write a Luau version of each sample game's scripts (all four are AngelScript), as an
   exercise of the Luau side end to end either way. First decide whether we really want to

@@ -347,7 +347,7 @@ export namespace engine::runtime
         engine::physics::PhysicsSubsystem* m_physics = nullptr;
         engine::animation::AnimationSubsystem* m_animation = nullptr; // none without graphics
         engine::audio::AudioSubsystem* m_audio = nullptr;
-        engine::render::RenderSubsystem* m_render = nullptr; // for the `DebugDraw.of(scene)` service
+        engine::render::RenderSubsystem* m_render = nullptr; // for the `scene.debugDraw` service
 
         net::NetworkStartup m_netStartup; // preset before Configure (default = single-player)
         engine::script::ScriptSubsystem* m_scripts = nullptr;

@@ -287,7 +287,6 @@ namespace engine::script
         builder.Method<static_cast<void (SceneScripts::*)(String, Variant) const>(&SceneScripts::emit)>(
             "emit", {"name", "payload"});
         builder.Method<&SceneScripts::addBehavior>("addBehavior", {"entity", "scriptClass"});
-        builder.Method<&SceneScripts::of>("of", {"scene"});
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
 
@@ -299,6 +298,7 @@ namespace engine::script
             GlobalTypeRegistry().Register(TypeOf<SceneScripts>());
             foundation::script::RegisterExtraScriptRootType(&TypeOf<SceneScripts>());
             foundation::script::RegisterExtraFacadeName(u8"SceneScripts");
+            foundation::script::ExtendScene<&SceneScripts::ForScene>("scripts"); // scene.scripts
             return true;
         }();
         (void)once;

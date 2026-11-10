@@ -18,6 +18,7 @@
 
 module;
 #include "Core/Prelude.h"
+#include "Core/Debug/Assert.h"
 #include "Core/Log/Log.h"
 #include "Core/Reflection/Reflect.h"
 
@@ -110,6 +111,7 @@ export namespace foundation::script
 
     struct Scene;        // bound scene handle (defined below); Entity.scene returns one
     struct SceneEvents;  // the scene event-bus handle (defined below); Scene.events returns one
+    struct ScenePrefabs; // the scene's prefab spawning (defined below); Scene.prefabs returns one
 
     /// The per-entity handle behaviors receive as their constructor argument: transform
     /// get and set, name, destroy. A value type, so the VM instance carries a copy; on a stale
@@ -429,6 +431,10 @@ export namespace foundation::script
         /// (parens-less), so scripts write `scene.events.emit(...)` without call parens. Defined
         /// out of line (SceneEvents is completed below).
         [[nodiscard]] SceneEvents eventsHandle() const;
+        /// This scene's prefab spawning: `scene.prefabs.spawn(prefab, position)`. A computed
+        /// property, as `events` is; the engine domains add theirs beside it (`scene.physics`,
+        /// see ExtendScene). Defined out of line (ScenePrefabs is completed below).
+        [[nodiscard]] ScenePrefabs prefabsHandle() const;
     };
 
     /// A bound scene event-bus handle: `scene.events.emit("OrbCollected", 1)`. Publishes a named
@@ -448,7 +454,7 @@ export namespace foundation::script
         void emit(String name, Variant payload) const;
     };
 
-    /// The scene's prefab spawning: `ScenePrefabs.of(scene)`. An authored prefab instantiated by
+    /// The scene's prefab spawning: `scene.prefabs`. An authored prefab instantiated by
     /// asset id, its root at `position` (and `rotation`) under `parent` (none: a scene root), in
     /// the parent's space. Invalid Entity when the scene has no spawn system or content source, or
     /// the prefab is nil or unknown; never a partial spawn. A value type; on a null scene every
@@ -461,13 +467,6 @@ export namespace foundation::script
         [[nodiscard]] Entity spawn(Guid prefab, Float3 position, Quaternion rotation) const;
         [[nodiscard]] Entity spawn(Guid prefab, Float3 position, Quaternion rotation,
                                    Entity parent) const;
-
-        [[nodiscard]] static ScenePrefabs of(Scene sceneHandle)
-        {
-            ScenePrefabs prefabs;
-            prefabs.scene = sceneHandle.scene;
-            return prefabs;
-        }
     };
 
     /// Wrap a (scene, handle) pair into an Entity value (an invalid handle gives an invalid Entity).
@@ -602,6 +601,13 @@ export namespace foundation::script
         return handle;
     }
 
+    inline ScenePrefabs Scene::prefabsHandle() const
+    {
+        ScenePrefabs handle;
+        handle.scene = scene;
+        return handle;
+    }
+
     // emit publishes straight onto the scene's native EventBus. Both foundation.script.facades and
     // foundation.scene are Foundation, so no ScriptRuntimeBinding hook is needed (unlike spawn, which
     // reaches an Engine-owned content DB): the call is a direct, host-independent Publish. Delivery
@@ -720,4 +726,16 @@ export namespace foundation::script
     /// handles) with the registry. Call it before a script manager is created (the run host
     /// and the cook's builder both do). Idempotent.
     void RegisterScriptFacadeReflection();
+
+    /// Gives the script Scene a property from a module above this one: a domain's scene facade,
+    /// read as `scene.physics`. `Getter` is a free function `Facade (const Scene&)` (or one
+    /// returning a resolving Variant, its declared type named as `Declared`). Call it from the
+    /// domain's script facade registration, beside registering the facade type; repeats are
+    /// harmless. A name another property already has is a programming error.
+    template <auto Getter, typename Declared = void>
+    void ExtendScene(const char* name)
+    {
+        RegisterScriptFacadeReflection(); // Scene's own registration first, or it writes over this
+        DIAGNOSTIC_VERIFY((core::ExtendProperty<Getter, Declared>(name)));
+    }
 }

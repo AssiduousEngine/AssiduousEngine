@@ -147,7 +147,7 @@ class Pet
         {
             return;
         }
-        SceneAnimation anim = SceneAnimation::of(self.scene);
+        SceneAnimation anim = self.scene.animation;
         anim.setClip(m_model, clip);
         anim.play(m_model);
     }

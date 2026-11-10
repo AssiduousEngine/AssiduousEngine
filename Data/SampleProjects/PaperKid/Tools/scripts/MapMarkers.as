@@ -74,7 +74,7 @@ class MapMarkers
     private void findZones()
     {
         Float3 c = self.position();
-        array<Entity@>@ zones = ScenePhysics::of(self.scene).overlapSphere(c.x, 0.0f, c.z, span,
+        array<Entity@>@ zones = self.scene.physics.overlapSphere(c.x, 0.0f, c.z, span,
                                                                           1 << zoneGroup);
         if (zones.length() == 0)
         {

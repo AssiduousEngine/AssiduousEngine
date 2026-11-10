@@ -50,6 +50,30 @@ that, not `a is b`: `is` asks whether they are the same handle object, and `scen
 and the rest hand out a new one each call, so a found entity is never `is` one kept from before.
 The same holds for a `Guid`: compare with `==`.
 
+## The scene
+
+What acts on a whole scene is a property of the scene: `scene.physics.rayCast(from, dir, 20.0f)`
+(Luau `scene.physics:rayCast(from, dir, 20)`), and from a behavior `self.scene.physics`:
+
+- `scene.prefabs` - spawn a prefab (`spawn(prefab, position)`, with a rotation, under a parent).
+- `scene.events` - emit a named event on the scene's bus.
+- `scene.physics` - rays, sphere casts, overlaps, gravity, velocities, forces and impulses,
+  characters.
+- `scene.animation` - clips, graph parameters, one-shots, inverse kinematics targets, root motion.
+- `scene.audio` - play, stop and pause sources, swap their clips, ease their volume and pitch.
+- `scene.render` - swap meshes and materials, a mesh's own material values, camera targets, the
+  light at a point.
+- `scene.particles` - play, stop and swap effects.
+- `scene.splines` - a spline's length, its points, a point along it, the point nearest.
+- `scene.scripts` - the scene's script time, messages to behaviors, a behavior added to an entity.
+- `scene.debugDraw` - lines, arrows, spheres, boxes and text, cleared each frame: draw them every
+  update.
+- `scene.environment`, `scene.postProcess` - the scene's live sky, fog and ambient, and its
+  exposure, tonemapping, bloom and anti-aliasing.
+
+Each reads as a handle (`ScenePhysics@ physics = scene.physics;` keeps one). The `script_api` tool
+lists every member.
+
 ## Components
 
 Every component a script reaches has three static methods on its type (AngelScript
@@ -66,12 +90,12 @@ Every component a script reaches has three static methods on its type (AngelScri
   a body leaves the physics world, a voice stops. A handle kept to it reads as gone, which is a
   script error where it is used.
 
-A prefab is still the way to make something with many parts at once (`ScenePrefabs::of(scene)
-.spawn`); `addTo` is for one component on an entity that is already there.
+A prefab is still the way to make something with many parts at once (`scene.prefabs.spawn`);
+`addTo` is for one component on an entity that is already there.
 
 ## Animation: one-shots, lengths and crossfades
 
-`SceneAnimation.of(scene)` drives what an entity's animator plays, whether a single clip
+`scene.animation` drives what an entity's animator plays, whether a single clip
 (`SkeletalAnimationComponent`) or a state-machine graph (`AnimationGraphComponent`):
 
 - `playOneShot(entity, clip)` plays `clip` once over whatever the entity is animating, blending in

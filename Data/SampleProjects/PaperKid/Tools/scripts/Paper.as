@@ -28,7 +28,7 @@ class Paper
             return;
         }
         m_landed = true;
-        ScenePrefabs::of(self.scene).spawn(kFxPuff, point);
+        self.scene.prefabs.spawn(kFxPuff, point);
     }
 
     void onUpdate(double dt)

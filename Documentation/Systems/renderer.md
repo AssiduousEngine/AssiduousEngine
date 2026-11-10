@@ -632,7 +632,7 @@ MultiMesh path - no renderer of their own. Spec: `Documentation/Archive/terrain-
 - **A mesh's own material properties (2026-10-08).** A material's properties are shared by every
  mesh that uses it (the mesh renderer keeps one `MaterialInstance` per material). A mesh can set
  some for itself alone: `MeshComponent::SetMaterialProperty(slot, name, value, size)` (scripts:
- `SceneRender.setMaterialFloat` / `setMaterialFloat4` / `clearMaterialProperty`), runtime state
+ `scene.render.setMaterialFloat` / `setMaterialFloat4` / `clearMaterialProperty`), runtime state
  that is not saved. Extraction lends them to the draw (`MeshRenderData::overrides`, with a version
  that changes with them). Such a mesh never batches; drawn alone, each slot it overrides gets an
  instance of its own, kept per (entity, slot), its values reset to the material's and the overrides

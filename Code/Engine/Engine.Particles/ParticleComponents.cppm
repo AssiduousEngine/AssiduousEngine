@@ -789,7 +789,7 @@ export namespace engine::particles
         u32 m_meshVersion = 0; // bumped per mesh batch so the instanced-mesh path re-uploads
     };
 
-    // A scene-bound particles handle (SceneParticles.of(scene)): runtime world operations on
+    // A scene-bound particles handle (scene.particles): runtime world operations on
     // particle effects that need the component's manager-owned runtime ParticleEffectInstance,
     // which the component data cannot reach: play, stop, restart and pause emission, query, and
     // swap the effect by resource id. Keyed by entity, like ScenePhysics, SceneRender, SceneAudio
@@ -854,7 +854,8 @@ export namespace engine::particles
             }
         }
 
-        [[nodiscard]] static SceneParticles of(foundation::script::Scene sceneHandle)
+        // The scene's own, read by scripts as a property of the scene (ExtendScene).
+        [[nodiscard]] static SceneParticles ForScene(const foundation::script::Scene& sceneHandle)
         {
             return SceneParticles{sceneHandle.scene};
         }
@@ -885,7 +886,7 @@ export namespace engine::particles
     void RegisterParticleComponentReflection();
 
     // Surfaces the particle component to script: ParticleEffectComponent.of(entity) for the data
-    // (visible/meshScale/light*), and SceneParticles.of(scene) for the world operations
+    // (visible/meshScale/light*), and scene.particles for the world operations
     // (play/stop/restart/pause/isPlaying/setEffect). Registers, seeds and names them. Called by the
     // composition root (like RegisterRenderScriptFacade).
     void RegisterParticleScriptFacade();

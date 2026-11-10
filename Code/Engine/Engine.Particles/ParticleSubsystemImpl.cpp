@@ -31,7 +31,7 @@ namespace engine::particles
                        String(u8"Plays a particle effect at the entity: billboards, trails, meshes "
                               u8"or lights."))
             // Script: ParticleEffectComponent.of(entity) reaches the live visible/meshScale/light*
-            // data. play/stop/setEffect are instance operations, on SceneParticles.of(scene) (keyed
+            // data. play/stop/setEffect are instance operations, on scene.particles (keyed
             // by entity).
             .Apply(&foundation::script::ComponentMethods<ParticleEffectComponent>)
             .Property<&ParticleEffectComponent::effectAsset>("effect")
@@ -43,7 +43,7 @@ namespace engine::particles
             .Property<&ParticleEffectComponent::visible>("visible");
     }
 
-    // The scene-bound particles handle: SceneParticles.of(scene).play/stop/restart/pause/isPlaying/
+    // The scene-bound particles handle: scene.particles.play/stop/restart/pause/isPlaying/
     // setEffect. `of` returns SceneParticles by value (concrete cross-backend return), like ScenePhysics.
     REFLECT_VALUE(SceneParticles, "rtti::engine::particles")
     {
@@ -53,7 +53,6 @@ namespace engine::particles
         builder.Method<&SceneParticles::pause>("pause", {"entity", "paused"});
         builder.Method<&SceneParticles::isPlaying>("isPlaying", {"entity"});
         builder.Method<&SceneParticles::setEffect>("setEffect", {"entity", "resourceId"});
-        builder.Method<&SceneParticles::of>("of", {"scene"});
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
 
@@ -76,12 +75,13 @@ namespace engine::particles
         foundation::script::RegisterExtraScriptRootType(&core::TypeOf<ParticleEffectComponent>());
         foundation::script::RegisterExtraFacadeName(u8"ParticleEffectComponent");
 
-        // The scene-bound particles handle (SceneParticles.of(scene)): reflect, register, seed,
+        // The scene-bound particles handle (scene.particles): reflect, register, seed,
         // name.
         RttiRegisterValue_SceneParticles();
         GlobalTypeRegistry().Register(core::TypeOf<SceneParticles>());
         foundation::script::RegisterExtraScriptRootType(&core::TypeOf<SceneParticles>());
         foundation::script::RegisterExtraFacadeName(u8"SceneParticles");
+        foundation::script::ExtendScene<&SceneParticles::ForScene>("particles"); // scene.particles
     }
 }
 

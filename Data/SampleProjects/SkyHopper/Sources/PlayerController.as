@@ -109,7 +109,7 @@ class PlayerController
             if (m_respawning < 0.0f)
             {
                 showModel(true);
-                ScenePrefabs::of(self.scene).spawn(kPoof, self.worldPosition());
+                self.scene.prefabs.spawn(kPoof, self.worldPosition());
             }
             return;
         }
@@ -247,7 +247,7 @@ class PlayerController
         m_deaths += 1;
         m_velX = 0.0f;
         m_velZ = 0.0f;
-        ScenePrefabs::of(self.scene).spawn(kPoof, self.worldPosition());
+        self.scene.prefabs.spawn(kPoof, self.worldPosition());
         Input::rumble(0.8f, 0.5f, 0.3f); // the jolt of a fall or a hit
         CharacterComponent::of(self).setPosition(m_spawn);
         m_yaw = m_spawnYaw;
@@ -301,14 +301,14 @@ class PlayerController
     // as ground.
     private bool groundAt(float x, float z, float feet)
     {
-        RayCastHit@ hit = ScenePhysics::of(self.scene).rayCast(Float3(x, feet + 0.6f, z),
+        RayCastHit@ hit = self.scene.physics.rayCast(Float3(x, feet + 0.6f, z),
                                                                  Float3(0.0f, -1.0f, 0.0f), 1.2f);
         return hit !is null && hit.hit && Math::Abs(hit.position.y - feet) < 0.08f;
     }
 
     private void dust()
     {
-        ScenePrefabs::of(self.scene).spawn(kDust, self.worldPosition() - Float3(0.0f, kFeet - 0.05f, 0.0f));
+        self.scene.prefabs.spawn(kDust, self.worldPosition() - Float3(0.0f, kFeet - 0.05f, 0.0f));
     }
 
     private void shake(float strength)
@@ -335,7 +335,7 @@ class PlayerController
         {
             clip = kJumpClip;
         }
-        SceneAnimation animation = SceneAnimation::of(self.scene);
+        SceneAnimation animation = self.scene.animation;
         animation.setClip(m_model, clip);
         animation.play(m_model);
     }

@@ -125,6 +125,9 @@ namespace foundation::script
         builder.Method<&Scene::entityCount>("entityCount");
         // A computed property (parens-less): `scene.events` reads this scene's event-bus handle.
         builder.ComputedProperty<&Scene::eventsHandle>("events");
+        // `scene.prefabs`, the same way; an engine domain adds its own facade beside these
+        // (ExtendScene: `scene.physics`, `scene.animation`, ...).
+        builder.ComputedProperty<&Scene::prefabsHandle>("prefabs");
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
 
@@ -147,7 +150,6 @@ namespace foundation::script
             &ScenePrefabs::spawn)>("spawn", {"prefab", "position", "rotation"});
         builder.Method<static_cast<Entity (ScenePrefabs::*)(Guid, Float3, Quaternion, Entity) const>(
             &ScenePrefabs::spawn)>("spawn", {"prefab", "position", "rotation", "parent"});
-        builder.Method<&ScenePrefabs::of>("of", {"scene"});
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
 
@@ -252,7 +254,7 @@ namespace foundation::script
             GlobalTypeRegistry().Register(TypeOf<Scene>());
             RttiRegisterValue_SceneEvents(); // the scene.events handle, like Scene
             GlobalTypeRegistry().Register(TypeOf<SceneEvents>());
-            RttiRegisterValue_ScenePrefabs(); // ScenePrefabs.of(scene)
+            RttiRegisterValue_ScenePrefabs(); // scene.prefabs
             GlobalTypeRegistry().Register(TypeOf<ScenePrefabs>());
             return true;
         }();

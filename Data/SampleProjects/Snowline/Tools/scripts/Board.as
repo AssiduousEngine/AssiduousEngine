@@ -351,7 +351,7 @@ class Board
         {
             return 0.0f;
         }
-        SceneSplines@ splines = SceneSplines::of(self.scene);
+        SceneSplines@ splines = self.scene.splines;
         float length = splines.length(course);
         float aim = down + lookAhead;
         SplineHit@ ahead = splines.sampleAtDistance(course, (aim < length) ? aim : length);
@@ -407,7 +407,7 @@ class Board
         float ease = lookEase * d;
         ease = (ease < 1.0f) ? ease : 1.0f;
         m_lookAt = m_lookAt + (want - m_lookAt) * ease;
-        SceneAnimation::of(self.scene).setIkTarget(self, m_lookAt);
+        self.scene.animation.setIkTarget(self, m_lookAt);
     }
 
     // How far down the course line the rider is (m): the closest point's distance along it.
@@ -417,7 +417,7 @@ class Board
         {
             return 0.0f;
         }
-        SplineHit@ here = SceneSplines::of(self.scene).closestPoint(course, at);
+        SplineHit@ here = self.scene.splines.closestPoint(course, at);
         return (here !is null && here.valid) ? here.distance : 0.0f;
     }
 
@@ -438,7 +438,7 @@ class Board
         }
         m_sinceMark = 0.0f;
         // The character's position is its capsule's centre; the board is 0.9 m below it.
-        Entity@ mark = ScenePrefabs::of(self.scene).spawn(trackMark, Float3(at.x, at.y - 0.9f, at.z));
+        Entity@ mark = self.scene.prefabs.spawn(trackMark, Float3(at.x, at.y - 0.9f, at.z));
         if (mark !is null && mark.isValid())
         {
             mark.setRotationEuler(0.0f, Math::RadiansToDegrees(Math::Atan2(v.x, v.z)), 0.0f);
@@ -450,7 +450,7 @@ class Board
     // child).
     private void snow(Float3 v, float steer, bool grounded)
     {
-        SceneParticles@ particles = SceneParticles::of(self.scene);
+        SceneParticles@ particles = self.scene.particles;
         float speed = Math::Sqrt(v.x * v.x + v.z * v.z);
         bool spraying = grounded && Math::Abs(steer) > sprayCarve && speed > spraySpeed;
         if (spraying != m_spraying)
@@ -491,7 +491,7 @@ class Board
         float speed = Math::Sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
         float k = speed / windSpeed;
         k = (k > 1.0f) ? 1.0f : k;
-        SceneAudio audio = SceneAudio::of(self.scene);
+        SceneAudio audio = self.scene.audio;
         audio.setVolume(source, windVolume * k * k, 0.15f);
         audio.setPitch(source, 0.8f + 0.5f * k, 0.15f);
     }
@@ -625,7 +625,7 @@ class Board
         {
             return;
         }
-        RayCastHit@ trunk = ScenePhysics::of(self.scene).nearestOverlap(at.x, at.y, at.z, nearMissReach,
+        RayCastHit@ trunk = self.scene.physics.nearestOverlap(at.x, at.y, at.z, nearMissReach,
                                                                         1 << treesGroup);
         if (trunk is null || !trunk.hit)
         {
@@ -697,7 +697,7 @@ class Board
         }
         float ease = 6.0f * d;
         m_lean += (steer - m_lean) * ((ease < 1.0f) ? ease : 1.0f);
-        SceneAnimation anim = SceneAnimation::of(self.scene);
+        SceneAnimation anim = self.scene.animation;
         anim.setFloat(figureNow, "Lean", m_lean);
         anim.setBool(figureNow, "Tuck", tuck);
         anim.setBool(figureNow, "Airborne", airborne);

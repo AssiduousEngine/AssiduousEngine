@@ -3553,10 +3553,10 @@ TEST_CASE("script.scene: OPTION 1 - RigidBodyComponent.of(entity).friction mutat
     CHECK(bodies->Get(e)->friction == doctest::Approx(0.5f)); // the live component was mutated
 }
 
-// scene.physics through the factory ScenePhysics.of(scene): reflected physics ops act on this
+// scene.physics, a property of the scene: reflected physics ops act on this
 // scene's world. Also checks parity: gravityY reads the same world the static Physics facade reads
 // (both delegate to PhysicsSceneSystem->World()->Gravity()), verified against ground truth.
-TEST_CASE("script.scene: ScenePhysics.of(scene) reads + writes gravity on THIS scene's world")
+TEST_CASE("script.scene: scene.physics reads + writes gravity on THIS scene's world")
 {
     engine::physics::RegisterPhysicsScriptFacade();
     ContactWorld world; // the world is created on scene Start (inside Play), not before
@@ -3568,7 +3568,7 @@ TEST_CASE("script.scene: ScenePhysics.of(scene) reads + writes gravity on THIS s
                   u8"    private Entity@ self;\n"
                   u8"    Driver(Entity@ entity) { @self = entity; }\n"
                   u8"    void onStart() {\n"
-                  u8"        ScenePhysics@ p = ScenePhysics::of(self.scene);\n"
+                  u8"        ScenePhysics@ p = self.scene.physics;\n"
                   u8"        p.setGravity(0.0f, -20.0f, 0.0f);\n"          // write this scene's world
                   u8"        self.setPosition(p.gravityY(), 0.0f, 0.0f);\n" // read it back: x = -20
                   u8"    }\n"
@@ -3576,7 +3576,7 @@ TEST_CASE("script.scene: ScenePhysics.of(scene) reads + writes gravity on THIS s
                   {u8"onStart"});
     world.Attach(e, driver);
 
-    world.Play(2); // onStart: ScenePhysics.of(scene).setGravity, then gravityY
+    world.Play(2); // onStart: scene.physics.setGravity, then gravityY
     auto* sys = world.scene->GetSystem<engine::physics::PhysicsSceneSystem>();
     REQUIRE(sys != nullptr);
     REQUIRE(sys->World() != nullptr);
@@ -3584,10 +3584,10 @@ TEST_CASE("script.scene: ScenePhysics.of(scene) reads + writes gravity on THIS s
     CHECK(sys->World()->Gravity().y == doctest::Approx(-20.0f)); // setGravity hit the real scene world
 }
 
-// DebugDraw.of(scene): the immediate-mode debug-draw facade is script-callable. No render service is
+// scene.debugDraw: the immediate-mode debug-draw facade is script-callable. No render service is
 // installed in this bed, so each draw is a safe no-op (SceneDebug resolves null); the facade
 // resolves and the calls run to completion without faulting (a rename after the draws lands).
-TEST_CASE("script.scene: DebugDraw.of(scene) is script-callable + null-safe without a render service")
+TEST_CASE("script.scene: scene.debugDraw is script-callable + null-safe without a render service")
 {
     engine::render::RegisterRenderScriptFacade(); // registers the DebugDraw facade type + prelude name
     ScriptedScene bed;
@@ -3597,7 +3597,7 @@ TEST_CASE("script.scene: DebugDraw.of(scene) is script-callable + null-safe with
                   u8"    private Entity@ self;\n"
                   u8"    Gizmo(Entity@ entity) { @self = entity; }\n"
                   u8"    void onStart() {\n"
-                  u8"        DebugDraw@ d = DebugDraw::of(self.scene);\n"
+                  u8"        DebugDraw@ d = self.scene.debugDraw;\n"
                   u8"        d.line(0.0f, 0.0f, 0.0f, 1.0f, 2.0f, 3.0f, 1.0f, 0.0f, 0.0f);\n"
                   u8"        d.sphere(1.0f, 1.0f, 1.0f, 0.5f, 0.0f, 1.0f, 0.0f);\n"
                   u8"        d.arrow(0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f);\n"
@@ -3609,15 +3609,15 @@ TEST_CASE("script.scene: DebugDraw.of(scene) is script-callable + null-safe with
     const scene::EntityHandle e = bed.AddScripted(gizmo, u8"gizmo");
     bed.scene.Start();
     bed.scene.SetSimulationEnabled(true);
-    bed.Frame(); // instantiate and onStart: DebugDraw::of, no-op draws, the rename
+    bed.Frame(); // instantiate and onStart: scene.debugDraw, no-op draws, the rename
     CHECK(bed.scene.GetEntityName(e) == StringView(u8"drew"));
 }
 
-// DebugDraw.of(scene) with the render service offered (the subsystem registered with the app's
+// scene.debugDraw with the render service offered (the subsystem registered with the app's
 // manager, as in a real run): the draw lands in that scene's per-scene debug list on the subsystem, and in no
 // other scene's. A headless RenderSubsystem over the NullDevice (DebugScene is pure accumulator
 // state, no GPU) is the real service, the same object the render pass reads at frame end.
-TEST_CASE("script.scene: DebugDraw.of(scene) appends to THIS scene's list on the real render service")
+TEST_CASE("script.scene: scene.debugDraw appends to THIS scene's list on the real render service")
 {
     engine::render::RegisterRenderScriptFacade();
 
@@ -3639,7 +3639,7 @@ TEST_CASE("script.scene: DebugDraw.of(scene) appends to THIS scene's list on the
                   u8"    private Entity@ self;\n"
                   u8"    Gizmo(Entity@ entity) { @self = entity; }\n"
                   u8"    void onStart() {\n"
-                  u8"        DebugDraw@ d = DebugDraw::of(self.scene);\n"
+                  u8"        DebugDraw@ d = self.scene.debugDraw;\n"
                   u8"        d.line(0.0f, 0.0f, 0.0f, 1.0f, 2.0f, 3.0f, 1.0f, 0.0f, 0.0f);\n"
                   u8"    }\n"
                   u8"}\n",
@@ -3664,9 +3664,9 @@ TEST_CASE("script.scene: DebugDraw.of(scene) appends to THIS scene's list on the
     CHECK_FALSE(sub.DebugScene(other).HasAnyDraws());
 }
 
-// scene.physics on the second backend: ScenePhysics::of returns the concrete handle type (its
-// declared return), so AngelScript boxes it right. Cross-backend parity for the scene-system facade.
-TEST_CASE("script.scene: ScenePhysics.of(scene) reads + writes gravity on THIS scene's world "
+// scene.physics on the second backend: the property's type is the concrete handle type (its
+// declared type), so AngelScript boxes it right. Cross-backend parity for the scene-system facade.
+TEST_CASE("script.scene: scene.physics reads + writes gravity on THIS scene's world "
           "(AngelScript) - cross-backend parity")
 {
     foundation::script::angelscript::RegisterAngelScriptBackend();
@@ -3680,7 +3680,7 @@ TEST_CASE("script.scene: ScenePhysics.of(scene) reads + writes gravity on THIS s
                       u8"    private Entity@ self;\n"
                       u8"    Driver(Entity@ entity) { @self = entity; }\n"
                       u8"    void onStart() {\n"
-                      u8"        ScenePhysics@ p = ScenePhysics::of(self.scene);\n"
+                      u8"        ScenePhysics@ p = self.scene.physics;\n"
                       u8"        p.setGravity(0.0f, -20.0f, 0.0f);\n"
                       u8"        self.setPosition(p.gravityY(), 0.0f, 0.0f);\n"
                       u8"    }\n"
@@ -3797,9 +3797,9 @@ TEST_CASE("script.scene: CharacterComponent velocity, groundNormal and drive (An
     CHECK(characters->Get(e)->driveVelocity.z == doctest::Approx(4.0f));
 }
 
-// A scriptable impulse on a dynamic body: ScenePhysics.of(scene).applyImpulse(entity, x, y, z), a
+// A scriptable impulse on a dynamic body: scene.physics.applyImpulse(entity, x, y, z), a
 // world op keyed by entity. The upward impulse gives the dynamic body positive Y velocity.
-TEST_CASE("script.scene: ScenePhysics.of(scene).applyImpulse(entity, ...) - scriptable impulse")
+TEST_CASE("script.scene: scene.physics.applyImpulse(entity, ...) - scriptable impulse")
 {
     engine::physics::RegisterPhysicsScriptFacade();
     ContactWorld world;
@@ -3810,7 +3810,7 @@ TEST_CASE("script.scene: ScenePhysics.of(scene).applyImpulse(entity, ...) - scri
                                            u8"    private Entity@ self;\n"
                                            u8"    Pusher(Entity@ entity) { @self = entity; }\n"
                                            u8"    void onStart() {\n"
-                                           u8"        ScenePhysics::of(self.scene).applyImpulse(self, 0.0f, 5000.0f, 0.0f);\n"
+                                           u8"        self.scene.physics.applyImpulse(self, 0.0f, 5000.0f, 0.0f);\n"
                                            u8"    }\n"
                                            u8"}\n",
                                            {u8"onStart"});
@@ -3843,7 +3843,7 @@ TEST_CASE("script.scene: ScenePhysics.overlapSphere returns a native array - beh
         u8"    private Entity@ self;\n"
         u8"    Scanner(Entity@ entity) { @self = entity; }\n"
         u8"    void onStart() {\n"
-        u8"        ScenePhysics@ p = ScenePhysics::of(self.scene);\n"
+        u8"        ScenePhysics@ p = self.scene.physics;\n"
         u8"        array<Entity@>@ hits = p.overlapSphere(0.0f, 0.0f, 0.0f, 3.0f, -1);\n"
         u8"        for (uint i = 0; i < hits.length(); i++) {\n"
         u8"            p.applyImpulse(hits[i], 0.0f, 5000.0f, 0.0f);\n"
@@ -3882,7 +3882,7 @@ TEST_CASE("script.scene: LUAU ScenePhysics.overlapSphere returns a Lua table - a
         u8"Scanner.__index = Scanner\n"
         u8"function Scanner.new(entity) return setmetatable({ entity = entity }, Scanner) end\n"
         u8"function Scanner:onStart()\n"
-        u8"    local p = ScenePhysics.of(self.entity.scene)\n"
+        u8"    local p = self.entity.scene.physics\n"
         u8"    local hits = p:overlapSphere(0.0, 0.0, 0.0, 3.0, -1)\n"
         u8"    for i = 1, #hits do\n"
         u8"        p:applyImpulse(hits[i], 0.0, 5000.0, 0.0)\n"
@@ -4378,7 +4378,7 @@ TEST_CASE("script.scene: LUAU a light's colour is written whole, field by field 
     CHECK(lights->Get(other)->color.b == doctest::Approx(0.75f));
 }
 
-// ---- The resource-swap primitive: SceneRender.of(scene).setMesh(entity, id) /
+// ---- The resource-swap primitive: scene.render.setMesh(entity, id) /
 //      setMaterial(entity, id). A world op keyed by entity (it needs the run's resource manager,
 //      which the component data cannot reach), so it lives on the scene handle like ScenePhysics.
 //      The resource id (a Guid) reaches the behaviour as an asset property ("swap to the mesh I
@@ -4400,7 +4400,7 @@ TEST_CASE("script.scene: SceneRender.setMesh / setMaterial swap a component's re
                   u8"    Guid@ matRes;\n"
                   u8"    Swapper(Entity@ entity) { @self = entity; }\n"
                   u8"    void onStart() {\n"
-                  u8"        SceneRender@ r = SceneRender::of(self.scene);\n"
+                  u8"        SceneRender@ r = self.scene.render;\n"
                   u8"        bool swapped = r.setMesh(self, meshRes);\n"
                   u8"        r.setMaterial(self, matRes);\n"
                   u8"        bool slotted = r.setMaterial(self, matRes, 2);\n"
@@ -4490,7 +4490,7 @@ TEST_CASE("script.scene: SceneRender sets and clears a mesh's own material prope
         u8"    private Entity@ self;\n"
         u8"    Tinter(Entity@ entity) { @self = entity; }\n"
         u8"    void onStart() {\n"
-        u8"        SceneRender@ r = SceneRender::of(self.scene);\n"
+        u8"        SceneRender@ r = self.scene.render;\n"
         u8"        bool a = r.setMaterialFloat(self, 0, \"Roughness\", 0.5f);\n"
         u8"        bool b = r.setMaterialFloat(self, 0, \"Roughness\", 0.25f);\n"
         u8"        bool c = r.setMaterialFloat4(self, 1, \"EmissiveColor\", Float4(0.3f, 0.4f, 0.5f, 2.0f));\n"
@@ -4512,7 +4512,7 @@ TEST_CASE("script.scene: SceneRender sets and clears a mesh's own material prope
         u8"function Tinter.new(entity) return setmetatable({ entity = entity }, Tinter) end\n"
         u8"function Tinter:onStart()\n"
         u8"    local me = self.entity\n"
-        u8"    local r = SceneRender.of(me.scene)\n"
+        u8"    local r = me.scene.render\n"
         u8"    local a = r:setMaterialFloat(me, 0, \"Roughness\", 0.5)\n"
         u8"    local b = r:setMaterialFloat(me, 0, \"Roughness\", 0.25)\n"
         u8"    local c = r:setMaterialFloat4(me, 1, \"EmissiveColor\", Float4.new(0.3, 0.4, 0.5, 2.0))\n"
@@ -4542,7 +4542,7 @@ TEST_CASE("script.scene: SceneRender.lightAt reads how lit a place is, with and 
                   u8"    private Entity@ self;\n"
                   u8"    Meter(Entity@ entity) { @self = entity; }\n"
                   u8"    void onStart() {\n"
-                  u8"        SceneRender@ r = SceneRender::of(self.scene);\n"
+                  u8"        SceneRender@ r = self.scene.render;\n"
                   u8"        Float3 lit = r.lightAt(Float3(0.0f, 0.0f, 0.0f));\n"
                   u8"        Float3 masked = r.lightAt(Float3(0.0f, 0.0f, 0.0f), 1);\n"
                   u8"        if (lit.x > 3.99f && lit.x < 4.01f && masked.y > 3.99f) {\n"
@@ -4572,14 +4572,14 @@ TEST_CASE("script.scene: SceneRender.setCameraTarget points a camera at a render
                   u8"    int frames = 0;\n"
                   u8"    Minimap(Entity@ entity) { @self = entity; }\n"
                   u8"    void onStart() {\n"
-                  u8"        if (SceneRender::of(self.scene).setCameraTarget(self, texture)) {\n"
+                  u8"        if (self.scene.render.setCameraTarget(self, texture)) {\n"
                   u8"            self.setName(\"targeted\");\n"
                   u8"        }\n"
                   u8"    }\n"
                   u8"    void onUpdate(double dt) {\n"
                   u8"        frames += 1;\n"
                   u8"        if (frames == 2) {\n"
-                  u8"            SceneRender::of(self.scene).setCameraTarget(self, Guid(0, 0));\n"
+                  u8"            self.scene.render.setCameraTarget(self, Guid(0, 0));\n"
                   u8"        }\n"
                   u8"    }\n"
                   u8"}\n",
@@ -4610,12 +4610,12 @@ TEST_CASE("script.scene: SceneRender.setCameraTarget points a camera at a render
 }
 
 // ---- Audio surface: AudioSourceComponent.of (live volume/pitch/loop, data) and
-//      SceneAudio.of(scene) (play/stop/pause/isPlaying/setClip, world ops keyed by entity that
+//      scene.audio (play/stop/pause/isPlaying/setClip, world ops keyed by entity that
 //      reach the scene's AudioEngine). No engine is wired here (the ops are null-safe), so this
 //      covers the script surface, forwarding and the data and resource paths on both backends;
 //      voice playback is covered natively in AudioSceneTests. ----
 
-TEST_CASE("script.scene: AudioSourceComponent.of props + SceneAudio.of play/stop/pause/setClip "
+TEST_CASE("script.scene: AudioSourceComponent.of props + scene.audio play/stop/pause/setClip "
           "are bound and control the component")
 {
     engine::audio::RegisterAudioScriptFacade();
@@ -4634,7 +4634,7 @@ TEST_CASE("script.scene: AudioSourceComponent.of props + SceneAudio.of play/stop
                   u8"        s.volume = 0.25f;\n"
                   u8"        s.pitch = 2.0f;\n"
                   u8"        s.loop = true;\n"
-                  u8"        SceneAudio@ a = SceneAudio::of(self.scene);\n"
+                  u8"        SceneAudio@ a = self.scene.audio;\n"
                   u8"        a.setClip(self, clipRes);\n"
                   u8"        a.play(self);\n"
                   u8"        a.pause(self, true);\n"
@@ -4670,7 +4670,7 @@ TEST_CASE("script.scene: AudioSourceComponent.of props + SceneAudio.of play/stop
     CHECK_FALSE(comp->behaviors[0].faulted); // play/stop/pause all bound and callable
 }
 
-TEST_CASE("script.scene: AudioSourceComponent::of props + SceneAudio::of play/stop/setClip "
+TEST_CASE("script.scene: AudioSourceComponent::of props + scene.audio play/stop/setClip "
           "are bound and control the component (AngelScript)")
 {
     foundation::script::angelscript::RegisterAngelScriptBackend();
@@ -4688,7 +4688,7 @@ TEST_CASE("script.scene: AudioSourceComponent::of props + SceneAudio::of play/st
         u8"        AudioSourceComponent@ s = AudioSourceComponent::of(self);\n"
         u8"        s.volume = 0.25f;\n"
         u8"        s.loop = true;\n"
-        u8"        SceneAudio a = SceneAudio::of(self.scene);\n"
+        u8"        SceneAudio a = self.scene.audio;\n"
         u8"        a.setClip(self, Guid(0xCC33, 0xDD44));\n" // construct the resource id inline
         u8"        a.play(self);\n"
         u8"        a.stop(self);\n"
@@ -4731,7 +4731,7 @@ TEST_CASE("script.scene: Guid constructs from its canonical string in AngelScrip
         u8"    void onStart() {\n"
         u8"        Guid id = Guid(\"00000000-0000-cc33-0000-00000000dd44\");\n"
         u8"        if (Guid(\"not-a-guid\").IsNil() && !id.IsNil()) {\n"
-        u8"            SceneAudio::of(self.scene).setClip(self, id);\n"
+        u8"            self.scene.audio.setClip(self, id);\n"
         u8"        }\n"
         u8"    }\n"
         u8"}\n",
@@ -4848,7 +4848,7 @@ TEST_CASE("script.scene: CameraComponent.of / SpriteComponent.of set live props"
 }
 
 // ---- Animation surface: SkeletalAnimationComponent.of / AnimationGraphComponent.of (live
-//      speed/autoPlay/active, data) and SceneAnimation.of(scene) (play/stop/pause, graph params
+//      speed/autoPlay/active, data) and scene.animation (play/stop/pause, graph params
 //      setFloat/setBool/setTrigger, and setClip: world ops keyed by entity that reach the
 //      manager-owned runtime player). No skeleton or graph is bound here, so the players are never
 //      built and the world ops are safe no-ops; this covers the surface, forwarding and the data and
@@ -4873,7 +4873,7 @@ TEST_CASE("script.scene: SkeletalAnimation/AnimationGraph .of + SceneAnimation o
                   u8"        a.speed = 2.0f;\n"
                   u8"        a.autoPlay = false;\n"
                   u8"        AnimationGraphComponent::of(self).active = false;\n"
-                  u8"        SceneAnimation@ s = SceneAnimation::of(self.scene);\n"
+                  u8"        SceneAnimation@ s = self.scene.animation;\n"
                   u8"        s.setClip(self, clipRes);\n"
                   u8"        s.play(self);\n"
                   u8"        s.stop(self);\n"
@@ -4928,7 +4928,7 @@ TEST_CASE("script.scene: SkeletalAnimation::of + SceneAnimation ops are bound (A
         u8"        SkeletalAnimationComponent@ a = SkeletalAnimationComponent::of(self);\n"
         u8"        a.speed = 2.0f;\n"
         u8"        a.autoPlay = false;\n"
-        u8"        SceneAnimation anim = SceneAnimation::of(self.scene);\n"
+        u8"        SceneAnimation anim = self.scene.animation;\n"
         u8"        anim.setClip(self, Guid(0x9911, 0x8822));\n"
         u8"        anim.play(self);\n"
         u8"        anim.setFloat(self, \"speed\", 0.5f);\n"
@@ -4952,12 +4952,12 @@ TEST_CASE("script.scene: SkeletalAnimation::of + SceneAnimation ops are bound (A
     CHECK_FALSE(comp->behaviors[0].faulted);
 }
 
-// ---- Render scene systems: EnvironmentSettings.of(scene) / PostProcessSettings.of(scene), a
+// ---- Render scene systems: scene.environment / scene.postProcess, a
 //      re-resolving handle over the scene's one-per-scene render settings (owned by the
 //      EnvironmentSystem / PostProcessSystem). A behaviour edits the live sky and ambient, exposure
 //      and bloom: the scene-scoped analogue of a component's `.of`. ----
 
-TEST_CASE("script.scene: EnvironmentSettings.of / PostProcessSettings.of edit the scene's live "
+TEST_CASE("script.scene: scene.environment / scene.postProcess edit the scene's live "
           "render settings")
 {
     engine::render::RegisterRenderScriptFacade();
@@ -4971,10 +4971,10 @@ TEST_CASE("script.scene: EnvironmentSettings.of / PostProcessSettings.of edit th
                   u8"    private Entity@ self;\n"
                   u8"    EnvTweaker(Entity@ entity) { @self = entity; }\n"
                   u8"    void onStart() {\n"
-                  u8"        EnvironmentSettings@ env = EnvironmentSettings::of(self.scene);\n"
+                  u8"        EnvironmentSettings@ env = self.scene.environment;\n"
                   u8"        env.ambientIntensity = 0.75f;\n"
                   u8"        env.skyIntensity = 2.0f;\n"
-                  u8"        PostProcessSettings@ post = PostProcessSettings::of(self.scene);\n"
+                  u8"        PostProcessSettings@ post = self.scene.postProcess;\n"
                   u8"        post.exposureEV = 1.5f;\n"
                   u8"        post.bloomEnabled = true;\n"
                   u8"    }\n"
@@ -4994,7 +4994,7 @@ TEST_CASE("script.scene: EnvironmentSettings.of / PostProcessSettings.of edit th
     CHECK(postSys->Post().bloomEnabled);
 }
 
-TEST_CASE("script.scene: EnvironmentSettings::of / PostProcessSettings::of edit the scene's live "
+TEST_CASE("script.scene: scene.environment / scene.postProcess edit the scene's live "
           "render settings (AngelScript)")
 {
     foundation::script::angelscript::RegisterAngelScriptBackend();
@@ -5009,9 +5009,9 @@ TEST_CASE("script.scene: EnvironmentSettings::of / PostProcessSettings::of edit 
         u8"    private Entity@ self;\n"
         u8"    EnvTweaker(Entity@ entity) { @self = entity; }\n"
         u8"    void onStart() {\n"
-        u8"        EnvironmentSettings@ env = EnvironmentSettings::of(self.scene);\n"
+        u8"        EnvironmentSettings@ env = self.scene.environment;\n"
         u8"        env.ambientIntensity = 0.75f;\n"
-        u8"        PostProcessSettings@ post = PostProcessSettings::of(self.scene);\n"
+        u8"        PostProcessSettings@ post = self.scene.postProcess;\n"
         u8"        post.exposureEV = 1.5f;\n"
         u8"    }\n"
         u8"}\n",
@@ -5026,13 +5026,13 @@ TEST_CASE("script.scene: EnvironmentSettings::of / PostProcessSettings::of edit 
 }
 
 // ---- Particle surface: ParticleEffectComponent.of (live visible/meshScale/light*, data) and
-//      SceneParticles.of(scene) (play/stop/restart/pause/isPlaying and setEffect: world ops keyed
+//      scene.particles (play/stop/restart/pause/isPlaying and setEffect: world ops keyed
 //      by entity that reach the manager-owned runtime ParticleEffectInstance). No effect is attached
 //      here, so the instance is never built and the world ops are safe no-ops; this covers the
 //      surface, forwarding and the data and resource paths on both backends. The simulation is
 //      tested natively. ----
 
-TEST_CASE("script.scene: ParticleEffectComponent.of + SceneParticles.of ops are bound and control "
+TEST_CASE("script.scene: ParticleEffectComponent.of + scene.particles ops are bound and control "
           "the component")
 {
     engine::particles::RegisterParticleScriptFacade();
@@ -5049,7 +5049,7 @@ TEST_CASE("script.scene: ParticleEffectComponent.of + SceneParticles.of ops are 
                   u8"        ParticleEffectComponent@ c = ParticleEffectComponent::of(self);\n"
                   u8"        c.visible = false;\n"
                   u8"        c.lightIntensity = 8.0f;\n"
-                  u8"        SceneParticles@ p = SceneParticles::of(self.scene);\n"
+                  u8"        SceneParticles@ p = self.scene.particles;\n"
                   u8"        p.setEffect(self, effectRes);\n"
                   u8"        p.play(self);\n"
                   u8"        p.pause(self, true);\n"
@@ -5085,7 +5085,7 @@ TEST_CASE("script.scene: ParticleEffectComponent.of + SceneParticles.of ops are 
     CHECK_FALSE(comp->behaviors[0].faulted); // play/stop/restart/pause all bound and callable
 }
 
-TEST_CASE("script.scene: ParticleEffectComponent::of + SceneParticles::of ops are bound (AngelScript)")
+TEST_CASE("script.scene: ParticleEffectComponent::of + scene.particles ops are bound (AngelScript)")
 {
     foundation::script::angelscript::RegisterAngelScriptBackend();
     engine::particles::RegisterParticleScriptFacade();
@@ -5101,7 +5101,7 @@ TEST_CASE("script.scene: ParticleEffectComponent::of + SceneParticles::of ops ar
         u8"        ParticleEffectComponent@ c = ParticleEffectComponent::of(self);\n"
         u8"        c.visible = false;\n"
         u8"        c.lightIntensity = 8.0f;\n"
-        u8"        SceneParticles p = SceneParticles::of(self.scene);\n"
+        u8"        SceneParticles p = self.scene.particles;\n"
         u8"        p.setEffect(self, Guid(0x7711, 0x6622));\n"
         u8"        p.play(self);\n"
         u8"        p.stop(self);\n"
@@ -5388,7 +5388,7 @@ TEST_CASE("script.scene: a Luau behaviour walks, reorders and reparents its chil
         u8"end\n");
 }
 
-// ScenePrefabs.of(scene): a prefab by asset id at a Float3, turned by a Quaternion, under a
+// scene.prefabs: a prefab by asset id at a Float3, turned by a Quaternion, under a
 // parent. Both backends spawn the same Turret the same way.
 namespace
 {
@@ -5432,7 +5432,7 @@ TEST_CASE("script.scene: ScenePrefabs spawns by asset id at a position, turned, 
         u8"    void onStart() {\n"
         u8"        Guid id = Guid(\"",
         u8"\");\n"
-        u8"        ScenePrefabs prefabs = ScenePrefabs::of(self.scene);\n"
+        u8"        ScenePrefabs prefabs = self.scene.prefabs;\n"
         u8"        Entity@ atRoot = prefabs.spawn(id, Float3(5, 0, 0));\n"
         u8"        self.setRotationEuler(0, 90, 0);\n"
         u8"        Entity@ under = prefabs.spawn(id, Float3(0, 2, 0), self.rotation(), self);\n"
@@ -5458,7 +5458,7 @@ TEST_CASE("script.scene: ScenePrefabs spawns by asset id at a position, turned, 
         u8"    local me = self.entity\n"
         u8"    local id = Guid.new(\"",
         u8"\")\n"
-        u8"    local prefabs = ScenePrefabs.of(me.scene)\n"
+        u8"    local prefabs = me.scene.prefabs\n"
         u8"    local atRoot = prefabs:spawn(id, Float3.new(5, 0, 0))\n"
         u8"    me:setRotationEuler(0, 90, 0)\n"
         u8"    local under = prefabs:spawn(id, Float3.new(0, 2, 0), me:rotation(), me)\n"
@@ -5471,7 +5471,7 @@ TEST_CASE("script.scene: ScenePrefabs spawns by asset id at a position, turned, 
         u8"end\n");
 }
 
-// SceneScripts.of(scene): the scene's script time, send to another entity's behaviours, emit on
+// scene.scripts: the scene's script time, send to another entity's behaviours, emit on
 // the scene's bus, and a behaviour added by class id (queued after the tick and present on the
 // entity next frame; a nil id is refused).
 namespace
@@ -5518,7 +5518,7 @@ TEST_CASE("script.scene: SceneScripts gives the scene's script time, sends, emit
         u8"    private int frames = 0;\n"
         u8"    Boss(Entity@ entity) { @self = entity; }\n"
         u8"    void onStart() {\n"
-        u8"        SceneScripts scripts = SceneScripts::of(self.scene);\n"
+        u8"        SceneScripts scripts = self.scene.scripts;\n"
         u8"        Entity@ target = self.scene.find(\"target\");\n"
         u8"        bool added = scripts.addBehavior(target, Guid(0xAB12, 0xCD34));\n"
         u8"        bool refused = !scripts.addBehavior(target, Guid(\"not-a-guid\"));\n"
@@ -5527,7 +5527,7 @@ TEST_CASE("script.scene: SceneScripts gives the scene's script time, sends, emit
         u8"        if (added && refused) { self.scene.find(\"flagA\").setName(\"asked\"); }\n"
         u8"    }\n"
         u8"    void onUpdate(float dt) {\n"
-        u8"        SceneScripts scripts = SceneScripts::of(self.scene);\n"
+        u8"        SceneScripts scripts = self.scene.scripts;\n"
         u8"        frames++;\n"
         u8"        if (frames == 2 && scripts.deltaTime() == 0.5f && scripts.elapsed() > 0.9) {\n"
         u8"            self.setName(\"timed\");\n"
@@ -5552,7 +5552,7 @@ TEST_CASE("script.scene: SceneScripts gives the scene's script time, sends, emit
         u8"function Boss.new(entity) return setmetatable({ entity = entity, frames = 0 }, Boss) end\n"
         u8"function Boss:onStart()\n"
         u8"    local me = self.entity\n"
-        u8"    local scripts = SceneScripts.of(me.scene)\n"
+        u8"    local scripts = me.scene.scripts\n"
         u8"    local target = me.scene:find(\"target\")\n"
         u8"    local added = scripts:addBehavior(target, Guid.new(\"00000000-0000-ab12-0000-00000000cd34\"))\n"
         u8"    local refused = not scripts:addBehavior(target, Guid.new(\"not-a-guid\"))\n"
@@ -5561,7 +5561,7 @@ TEST_CASE("script.scene: SceneScripts gives the scene's script time, sends, emit
         u8"    if added and refused then me.scene:find(\"flagA\"):setName(\"asked\") end\n"
         u8"end\n"
         u8"function Boss:onUpdate(dt)\n"
-        u8"    local scripts = SceneScripts.of(self.entity.scene)\n"
+        u8"    local scripts = self.entity.scene.scripts\n"
         u8"    self.frames = self.frames + 1\n"
         u8"    if self.frames == 2 and scripts:deltaTime() == 0.5 and scripts:elapsed() > 0.9 then\n"
         u8"        self.entity:setName(\"timed\")\n"
@@ -5699,7 +5699,7 @@ TEST_CASE("script.scene: ScenePhysics casts, overlaps, impulses and gravity by F
         u8"    private Entity@ self;\n"
         u8"    Scanner(Entity@ entity) { @self = entity; }\n"
         u8"    void onStart() {\n"
-        u8"        ScenePhysics@ p = ScenePhysics::of(self.scene);\n"
+        u8"        ScenePhysics@ p = self.scene.physics;\n"
         u8"        p.setGravity(Float3(0, -20, 0));\n"
         u8"        RayCastHit@ down = p.rayCast(Float3(-1.5f, 10, 0), Float3(0, -1, 0), 20.0f);\n"
         u8"        RayCastHit@ masked = p.rayCast(Float3(-1.5f, 10, 0), Float3(0, -1, 0), 20.0f, 0);\n"
@@ -5726,7 +5726,7 @@ TEST_CASE("script.scene: ScenePhysics casts, overlaps, impulses and gravity by F
         u8"function Scanner.new(entity) return setmetatable({ entity = entity }, Scanner) end\n"
         u8"function Scanner:onStart()\n"
         u8"    local me = self.entity\n"
-        u8"    local p = ScenePhysics.of(me.scene)\n"
+        u8"    local p = me.scene.physics\n"
         u8"    p:setGravity(Float3.new(0, -20, 0))\n"
         u8"    local down = p:rayCast(Float3.new(-1.5, 10, 0), Float3.new(0, -1, 0), 20.0)\n"
         u8"    local masked = p:rayCast(Float3.new(-1.5, 10, 0), Float3.new(0, -1, 0), 20.0, 0)\n"
@@ -5754,7 +5754,7 @@ TEST_CASE("script.scene: ScenePhysics drives an entity's character, as Sedulous'
                       u8"    private Entity@ self;\n"
                       u8"    Driver(Entity@ entity) { @self = entity; }\n"
                       u8"    void onStart() {\n"
-                      u8"        ScenePhysics@ p = ScenePhysics::of(self.scene);\n"
+                      u8"        ScenePhysics@ p = self.scene.physics;\n"
                       u8"        p.moveCharacter(self, 5.0f, 3.0f);\n"
                       u8"        p.jumpCharacter(self, 6.0f);\n"
                       u8"        p.launchCharacter(self, 4.0f);\n"
@@ -5800,7 +5800,7 @@ TEST_CASE("script.scene: DebugDraw draws by Float3 and Color, over the scene wit
                   u8"    private Entity@ self;\n"
                   u8"    Gizmo(Entity@ entity) { @self = entity; }\n"
                   u8"    void onStart() {\n"
-                  u8"        DebugDraw@ d = DebugDraw::of(self.scene);\n"
+                  u8"        DebugDraw@ d = self.scene.debugDraw;\n"
                   u8"        Color red = Color(1, 0, 0, 1);\n"
                   u8"        d.line(Float3(0, 0, 0), Float3(1, 2, 3), red);\n"
                   u8"        d.line(Float3(0, 0, 0), Float3(4, 5, 6), red, true);\n"

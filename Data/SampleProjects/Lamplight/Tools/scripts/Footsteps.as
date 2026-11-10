@@ -55,7 +55,7 @@ class Footsteps
     private void step(float noise)
     {
         Float3 at = self.worldPosition();
-        RayCastHit@ hit = ScenePhysics::of(self.scene).rayCast(at, Float3(0.0f, -1.0f, 0.0f), footDrop + 0.3f);
+        RayCastHit@ hit = self.scene.physics.rayCast(at, Float3(0.0f, -1.0f, 0.0f), footDrop + 0.3f);
         if (hit is null || !hit.hit)
         {
             return; // in the air

@@ -787,7 +787,7 @@ export namespace engine::animation
         scene::Scene* m_scene = nullptr;
     };
 
-    // A scene-bound animation handle (SceneAnimation.of(scene)): runtime world ops on the animation
+    // A scene-bound animation handle (scene.animation): runtime world ops on the animation
     // components that need the manager-owned runtime player, which the component data cannot reach.
     // It plays, stops and pauses a single-clip player, drives a graph's parameters and swaps the clip
     // by resource id. Keyed by entity, like ScenePhysics, SceneRender and SceneAudio: the component
@@ -990,7 +990,8 @@ export namespace engine::animation
             return rt != nullptr ? rt->yaw : 0.0f;
         }
 
-        [[nodiscard]] static SceneAnimation of(foundation::script::Scene sceneHandle)
+        // The scene's own, read by scripts as a property of the scene (ExtendScene).
+        [[nodiscard]] static SceneAnimation ForScene(const foundation::script::Scene& sceneHandle)
         {
             return SceneAnimation{sceneHandle.scene};
         }
@@ -1074,7 +1075,7 @@ export namespace engine::animation
 
     // Surfaces the animation components to scripts: SkeletalAnimationComponent.of(entity) and
     // AnimationGraphComponent.of(entity) for the data (speed, autoPlay, active), plus
-    // SceneAnimation.of(scene) for the world ops (play/stop, graph params, clip swap). Registers,
+    // scene.animation for the world ops (play/stop, graph params, clip swap). Registers,
     // seeds and names them so both backends bind. Called by the composition root (like
     // RegisterRenderScriptFacade).
     void RegisterAnimationScriptFacade();

@@ -53,7 +53,7 @@ class Coin
         if (distance < radius)
         {
             self.scene.events.emit("CoinCollected", value);
-            ScenePrefabs::of(self.scene).spawn(kCoinSparkle, self.worldPosition());
+            self.scene.prefabs.spawn(kCoinSparkle, self.worldPosition());
             Audio::playOneShot(kCoinSound, AudioBus::Effects, 0.7f);
             AimIkComponent@ aim = AimIkComponent::of(m_player);
             if (aim !is null)
@@ -73,7 +73,7 @@ class Coin
         {
             return;
         }
-        double frame = SceneScripts::of(self.scene).elapsed();
+        double frame = self.scene.scripts.elapsed();
         if (frame != g_lookFrame)
         {
             g_lookFrame = frame;
@@ -83,7 +83,7 @@ class Coin
         if (distance < g_lookNearest && inView())
         {
             g_lookNearest = distance;
-            SceneAnimation::of(self.scene).setIkTarget(m_player, self.worldPosition());
+            self.scene.animation.setIkTarget(m_player, self.worldPosition());
             aim.active = true;
         }
     }

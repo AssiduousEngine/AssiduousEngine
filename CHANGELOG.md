@@ -18,7 +18,7 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   when it has unsaved edits, and a page whose file was deleted stays open and writes it back when
   saved; before, the editor kept the old copy and a later save overwrote the change.
 
-- Scripts: `SceneAnimation.playOneShot` plays a clip once over whatever an entity is animating
+- Scripts: `scene.animation.playOneShot` plays a clip once over whatever an entity is animating
   (its clip or its graph), blending in and out, after which it carries on with its own animation;
   `stopOneShot` and `isPlayingOneShot`, and `onAnimationFinished(clip)` on the entity's behaviours
   when it ends. `clipLength(clip)` gives a clip's length, and `setClip(entity, clip, blendSeconds)`
@@ -36,6 +36,12 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- Scripts: what acts on a whole scene is a property of the scene: `scene.physics`,
+  `scene.animation`, `scene.audio`, `scene.render`, `scene.particles`, `scene.splines`,
+  `scene.scripts`, `scene.prefabs`, `scene.debugDraw`, `scene.environment` and
+  `scene.postProcess`, in place of `ScenePhysics::of(scene)` and the rest, which are gone. A
+  script written against `of` changes `ScenePhysics::of(scene)` to `scene.physics` (Luau
+  `ScenePhysics.of(scene)` to `scene.physics`), and so on for each.
 - Samples: Lamplight's, Snowline's and Sky Hopper's hints and controls lists name the control on
   the device in hand (and follow a rebinding) instead of an action's name or a fixed key and pad
   button.

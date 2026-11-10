@@ -251,7 +251,6 @@ namespace engine::spline
                                                                            {"entity", "x", "y", "z"});
         builder.Method<static_cast<SplineHit (SceneSplines::*)(foundation::script::Entity, Float3) const>(
             &SceneSplines::closestPoint)>("closestPoint", {"entity", "world"});
-        builder.Method<&SceneSplines::of>("of", {"scene"});
     }
 
     void RegisterSplineScriptFacade()
@@ -272,6 +271,7 @@ namespace engine::spline
             GlobalTypeRegistry().Register(TypeOf<SceneSplines>());
             foundation::script::RegisterExtraScriptRootType(&TypeOf<SceneSplines>());
             foundation::script::RegisterExtraFacadeName(u8"SceneSplines");
+            foundation::script::ExtendScene<&SceneSplines::ForScene>("splines"); // scene.splines
             return true;
         }();
         (void)once;

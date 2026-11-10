@@ -41,7 +41,7 @@ class Pickup
             && (Float3::Distance(m_player.worldPosition(), self.worldPosition()) < radius))
         {
             self.scene.events.emit(takenEvent, value);
-            ScenePrefabs::of(self.scene).spawn(kTakenSparkle, self.worldPosition());
+            self.scene.prefabs.spawn(kTakenSparkle, self.worldPosition());
             Audio::playOneShot(kTakenSound, AudioBus::Effects, 0.8f, chimePitch);
             Input::rumble(0.1f, 0.5f, 0.12f);
             self.destroy();

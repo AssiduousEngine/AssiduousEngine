@@ -100,7 +100,7 @@ Component gizmos draw the shape wires.
 
 ## Script facade
 
-`ScenePhysics.of(scene)` - a reflected, backend-neutral scene-bound value handle: queries
+`scene.physics` - a reflected, backend-neutral scene-bound value handle: queries
 (`rayCast`, `sphereCast`, `nearestOverlap`, `overlapSphere`, each with an optional group mask; a hit
 is a `RayCastHit` with `hit`, `distance`, `position`, `normal`, `surface`, `entity()`,
 `material()`), gravity (`setGravity`, `gravity`, `gravityY`), and the body ops keyed by entity:

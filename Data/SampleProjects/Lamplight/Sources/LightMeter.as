@@ -26,7 +26,7 @@ class LightMeter
     float level()
     {
         Float3 p = self.worldPosition();
-        Float3 light = SceneRender::of(self.scene).lightAt(Float3(p.x, p.y + chestHeight, p.z));
+        Float3 light = self.scene.render.lightAt(Float3(p.x, p.y + chestHeight, p.z));
         float luminance = 0.2126f * light.x + 0.7152f * light.y + 0.0722f * light.z;
         return luminance / (luminance + halfLight);
     }
@@ -67,7 +67,7 @@ class LightMeter
         {
             return;
         }
-        SceneRender@ render = SceneRender::of(self.scene);
+        SceneRender@ render = self.scene.render;
         for (int slot = 0; slot < slots; ++slot)
         {
             render.setMaterialFloat4(fig, slot, "EmissiveColor", Float4(0.55f, 0.65f, 0.9f, g));

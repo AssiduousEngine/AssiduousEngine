@@ -576,7 +576,7 @@ export namespace engine::audio
         Array<ListenerPose> m_listenerPoses;
     };
 
-    // A scene-bound audio handle (SceneAudio.of(scene)): runtime world ops on audio sources that need
+    // A scene-bound audio handle (scene.audio): runtime world ops on audio sources that need
     // the scene's AudioEngine or resource manager, which the component data cannot reach. It plays,
     // stops and pauses a source and swaps its clip by resource id. Keyed by entity, like
     // ScenePhysics and SceneRender: the component is auto-reflected data (volume, pitch, loop) and
@@ -659,7 +659,8 @@ export namespace engine::audio
             }
         }
 
-        [[nodiscard]] static SceneAudio of(foundation::script::Scene sceneHandle)
+        // The scene's own, read by scripts as a property of the scene (ExtendScene).
+        [[nodiscard]] static SceneAudio ForScene(const foundation::script::Scene& sceneHandle)
         {
             return SceneAudio{sceneHandle.scene};
         }

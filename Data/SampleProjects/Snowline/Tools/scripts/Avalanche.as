@@ -52,7 +52,7 @@ class Avalanche
             return;
         }
         float d = float(dt);
-        SceneSplines@ splines = SceneSplines::of(self.scene);
+        SceneSplines@ splines = self.scene.splines;
         // The rider is a root entity, so position() holds this frame's pose; worldPosition() still
         // holds last frame's.
         SplineHit@ here = splines.closestPoint(course, m_rider.position());
@@ -76,9 +76,9 @@ class Avalanche
             m_speed = startSpeed;
             follow.distance = rider - lead;
             follow.playing = true;
-            SceneParticles::of(self.scene).play(child("Front"));
+            self.scene.particles.play(child("Front"));
             Entity@ rumble = child("Rumble");
-            SceneAudio audio = SceneAudio::of(self.scene);
+            SceneAudio audio = self.scene.audio;
             audio.setVolume(rumble, 0.0f, 0.0f);
             audio.play(rumble);
             self.scene.events.emit("AvalancheReleased", int(lead));
@@ -115,7 +115,7 @@ class Avalanche
         // Louder and harder on the pad the closer it is: faint at hearFrom, loudest at reach.
         float near = 1.0f - (gap - reach) / (hearFrom - reach);
         near = (near < 0.0f) ? 0.0f : ((near > 1.0f) ? 1.0f : near);
-        SceneAudio::of(self.scene).setVolume(child("Rumble"), rumbleVolume * (0.25f + 0.75f * near), 0.2f);
+        self.scene.audio.setVolume(child("Rumble"), rumbleVolume * (0.25f + 0.75f * near), 0.2f);
         m_padTimer -= d;
         if (m_padTimer <= 0.0f && near > 0.3f)
         {
@@ -163,12 +163,12 @@ class Avalanche
         Entity@ front = child("Front");
         if (front !is null && front.isValid())
         {
-            SceneParticles::of(self.scene).stop(front);
+            self.scene.particles.stop(front);
         }
         Entity@ rumble = child("Rumble");
         if (rumble !is null && rumble.isValid())
         {
-            SceneAudio::of(self.scene).setVolume(rumble, 0.0f, 1.0f);
+            self.scene.audio.setVolume(rumble, 0.0f, 1.0f);
         }
     }
 

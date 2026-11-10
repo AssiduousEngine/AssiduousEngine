@@ -30,7 +30,7 @@ class Pedestrian
         @m_figure = self.findChildByName("PedestrianModel");
         if (m_figure !is null && m_figure.isValid() && walkClip !is null && !walkClip.IsNil())
         {
-            SceneAnimation anim = SceneAnimation::of(self.scene);
+            SceneAnimation anim = self.scene.animation;
             anim.setClip(m_figure, walkClip);
             anim.play(m_figure);
         }

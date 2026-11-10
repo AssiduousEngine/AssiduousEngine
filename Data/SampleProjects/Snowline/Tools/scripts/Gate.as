@@ -103,7 +103,7 @@ class Gate
         if (inReach && !wasInReach && flag !is null && flag.isValid())
         {
             Float3 v = CharacterComponent::of(m_rider).velocity;
-            ScenePhysics::of(self.scene).applyImpulse(flag, Float3(v.x * brushPush, 0.0f, v.z * brushPush));
+            self.scene.physics.applyImpulse(flag, Float3(v.x * brushPush, 0.0f, v.z * brushPush));
         }
         return inReach;
     }
@@ -139,7 +139,7 @@ class Gate
         // the gate's rotation.
         Float3 swing = Quaternion::RotateVector(self.rotation(), Float3(-now.z, 0.0f, now.x) * -1.0f);
         float push = torque * dt / flagReach;
-        ScenePhysics::of(self.scene).applyImpulse(flag, Float3(swing.x * push, 0.0f, swing.z * push));
+        self.scene.physics.applyImpulse(flag, Float3(swing.x * push, 0.0f, swing.z * push));
         return angle;
     }
 

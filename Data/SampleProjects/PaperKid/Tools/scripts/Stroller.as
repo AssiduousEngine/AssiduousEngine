@@ -33,7 +33,7 @@ class Stroller
         @m_model = self.firstChild();
         if (m_model !is null && m_model.isValid() && walkClip !is null && !walkClip.IsNil())
         {
-            SceneAnimation anim = SceneAnimation::of(self.scene);
+            SceneAnimation anim = self.scene.animation;
             anim.setClip(m_model, walkClip);
             anim.play(m_model);
             SkeletalAnimationComponent::of(m_model).speed = speed / walkMetres;

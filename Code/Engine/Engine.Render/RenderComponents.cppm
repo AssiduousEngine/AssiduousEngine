@@ -1178,7 +1178,7 @@ export namespace engine::render
     }
 
     // Live re-resolving handles over the render scene systems' one-per-scene settings:
-    // EnvironmentSettings.of(scene) and PostProcessSettings.of(scene) return a handle typed as the
+    // scene.environment and scene.postProcess return a handle typed as the
     // settings struct that re-resolves the scene's live settings on every field access, so a
     // behavior edits the scene's actual sky, fog and ambient (EnvironmentSystem) or exposure,
     // tonemap, bloom and AA (PostProcessSystem). The same idea as a component's `.of`, but
@@ -1212,24 +1212,24 @@ export namespace engine::render
         }
     }
 
-    // EnvironmentSettings.of(scene): a re-resolving handle over the scene's live environment settings
-    // (empty if the scene has no EnvironmentSystem). Reflected on EnvironmentSettings with the
-    // ReturnType override so the declared script return is EnvironmentSettings.
-    [[nodiscard]] inline Variant EnvironmentSettingsOf(foundation::script::Scene sceneHandle)
+    // scene.environment: a re-resolving handle over the scene's live environment settings
+    // (empty if the scene has no EnvironmentSystem). The scene's property declares it as
+    // EnvironmentSettings (ExtendScene's declared type), since the getter hands back a Variant.
+    [[nodiscard]] inline Variant EnvironmentSettingsOf(const foundation::script::Scene& sceneHandle)
     {
         return Variant::Resolving(&TypeOf<EnvironmentSettings>(),
                                   &settingsref::ResolveEnvironmentSettings,
                                   settingsref::SceneSettingsCtx{sceneHandle.scene});
     }
-    // PostProcessSettings.of(scene): a re-resolving handle over the scene's live post settings.
-    [[nodiscard]] inline Variant PostProcessSettingsOf(foundation::script::Scene sceneHandle)
+    // scene.postProcess: a re-resolving handle over the scene's live post settings.
+    [[nodiscard]] inline Variant PostProcessSettingsOf(const foundation::script::Scene& sceneHandle)
     {
         return Variant::Resolving(&TypeOf<PostProcessSettings>(),
                                   &settingsref::ResolvePostProcessSettings,
                                   settingsref::SceneSettingsCtx{sceneHandle.scene});
     }
 
-    // A scene-bound render handle (SceneRender.of(scene)): runtime world operations on render
+    // A scene-bound render handle (scene.render): runtime world operations on render
     // components that need a run service the component data cannot reach, such as swapping a
     // resource::Ref by id (mesh, material slot). Keyed by entity, like ScenePhysics (the component is
     // auto-reflected data; the scene handle does world operations keyed by entity). A value type
@@ -1350,7 +1350,8 @@ export namespace engine::render
             return true;
         }
 
-        [[nodiscard]] static SceneRender of(foundation::script::Scene sceneHandle)
+        // The scene's own, read by scripts as a property of the scene (ExtendScene).
+        [[nodiscard]] static SceneRender ForScene(const foundation::script::Scene& sceneHandle)
         {
             return SceneRender{sceneHandle.scene};
         }
@@ -1367,7 +1368,7 @@ export namespace engine::render
         }
     };
 
-    // DebugDraw.of(scene): immediate-mode debug drawing into a scene's per-scene gizmo list, drawn
+    // scene.debugDraw: immediate-mode debug drawing into a scene's per-scene gizmo list, drawn
     // in every view of that scene (including play-in-editor) and cleared each frame, so a persistent overlay
     // (an aim path, a marker) must be re-issued every tick from a script's update. A value handle
     // carrying the scene ptr; each call resolves the RenderSubsystem via the per-context render
@@ -1409,7 +1410,8 @@ export namespace engine::render
         void screenText(f32 x, f32 y, String label, Color color) const;
         void screenText(f32 x, f32 y, String label, Color color, f32 scale) const;
 
-        [[nodiscard]] static DebugDraw of(foundation::script::Scene sceneHandle)
+        // The scene's own, read by scripts as a property of the scene (ExtendScene).
+        [[nodiscard]] static DebugDraw ForScene(const foundation::script::Scene& sceneHandle)
         {
             return DebugDraw{sceneHandle.scene};
         }

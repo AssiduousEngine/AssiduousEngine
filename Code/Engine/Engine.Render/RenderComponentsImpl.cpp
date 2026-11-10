@@ -229,7 +229,7 @@ namespace engine::render
                                   u8"type (1 = default)"));
     }
 
-    // The scene-bound render handle: SceneRender.of(scene).setMesh(entity, id), setMaterial(...).
+    // The scene-bound render handle: scene.render.setMesh(entity, id), setMaterial(...).
     // `of` returns SceneRender by value (a concrete cross-backend return, no ReturnType override),
     // like ScenePhysics. setMesh and setMaterial are world operations keyed by entity that swap a
     // resource::Ref by id.
@@ -248,7 +248,6 @@ namespace engine::render
             "lightAt", {"position"});
         builder.Method<static_cast<Float3 (SceneRender::*)(Float3, u32) const>(&SceneRender::lightAt)>(
             "lightAt", {"position", "groupMask"});
-        builder.Method<&SceneRender::of>("of", {"scene"});
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
 
@@ -424,7 +423,6 @@ namespace engine::render
             &DebugDraw::screenText)>("screenText", {"x", "y", "label", "color"});
         builder.Method<static_cast<void (DebugDraw::*)(f32, f32, String, Color, f32) const>(
             &DebugDraw::screenText)>("screenText", {"x", "y", "label", "color", "scale"});
-        builder.Method<&DebugDraw::of>("of", {"scene"});
         builder.Constructor();
     }
 
@@ -488,9 +486,8 @@ namespace engine::render
     {
         builder.Attribute("displayName", String(u8"Environment"))
             .Attribute("category", String(u8"Rendering"))
-            // Script: EnvironmentSettings.of(scene) gives the scene's live environment (edit its
+            // Script: scene.environment gives the scene's live environment (edit its
             // ambient, sky and fog fields). A scene-scoped re-resolving handle (the settings are one per scene).
-            .Method<&EnvironmentSettingsOf, EnvironmentSettings>("of")
             .DataVersion(6) // v6: source and profile (v5: shadow reach; v4: IBL lighting dimmers)
             .ReadsDataVersionsFrom(4) // v4 and v5 scenes read the defaults for what they lack
             .Property<&EnvironmentSettings::source>("source")
@@ -626,9 +623,8 @@ namespace engine::render
             .Attribute("category", String(u8"Rendering"))
             .DataVersion(4) // v4: source and profile (v3: SSGI; v2: auto-exposure and grading)
             .ReadsDataVersionsFrom(3) // a v3 scene reads source Scene
-            // Script: PostProcessSettings.of(scene) gives the scene's live post settings (edit
+            // Script: scene.postProcess gives the scene's live post settings (edit
             // exposure, tonemap, bloom, AA). A scene-scoped re-resolving handle.
-            .Method<&PostProcessSettingsOf, PostProcessSettings>("of")
             .Property<&PostProcessSettings::source>("source")
             .PropAttribute("sceneOnly", true)
             .PropAttribute("description",
@@ -895,23 +891,25 @@ namespace engine::render
             foundation::script::RegisterExtraFacadeName(component.name);
         }
 
-        // The scene-bound render handle (SceneRender.of(scene)): reflect it, register it, seed the
+        // The scene-bound render handle (scene.render): reflect it, register it, seed the
         // emission root (nothing else reaches it), and make the class name prelude-visible.
         RttiRegisterValue_SceneRender();
         GlobalTypeRegistry().Register(core::TypeOf<SceneRender>());
         foundation::script::RegisterExtraScriptRootType(&core::TypeOf<SceneRender>());
         foundation::script::RegisterExtraFacadeName(u8"SceneRender");
+        foundation::script::ExtendScene<&SceneRender::ForScene>("render"); // scene.render
 
-        // DebugDraw.of(scene): immediate-mode debug draw into the scene's per-scene gizmo list
+        // scene.debugDraw: immediate-mode debug draw into the scene's per-scene gizmo list
         // (reaches RenderSubsystem::DebugScene via the per-context render service the app installs).
         RttiRegisterValue_DebugDraw();
         GlobalTypeRegistry().Register(core::TypeOf<DebugDraw>());
         foundation::script::RegisterExtraScriptRootType(&core::TypeOf<DebugDraw>());
         foundation::script::RegisterExtraFacadeName(u8"DebugDraw");
+        foundation::script::ExtendScene<&DebugDraw::ForScene>("debugDraw"); // scene.debugDraw
 
-        // The render scene systems' settings handles (EnvironmentSettings.of(scene) and
-        // PostProcessSettings.of(scene)): register, seed the emission root and name for the prelude.
-        // Their TypeData (including `of`) was built by RegisterRenderComponentReflection above.
+        // The render scene systems' settings handles (scene.environment and
+        // scene.postProcess): register, seed the emission root and name for the prelude.
+        // Their TypeData was built by RegisterRenderComponentReflection above.
         const core::TypeInfo* settings[] = {&core::TypeOf<EnvironmentSettings>(),
                                             &core::TypeOf<PostProcessSettings>()};
         const core::StringView settingsNames[] = {u8"EnvironmentSettings", u8"PostProcessSettings"};
@@ -921,5 +919,8 @@ namespace engine::render
             foundation::script::RegisterExtraScriptRootType(settings[i]);
             foundation::script::RegisterExtraFacadeName(settingsNames[i]);
         }
+        // Read live through the scene: scene.environment, scene.postProcess.
+        foundation::script::ExtendScene<&EnvironmentSettingsOf, EnvironmentSettings>("environment");
+        foundation::script::ExtendScene<&PostProcessSettingsOf, PostProcessSettings>("postProcess");
     }
 } // namespace engine::render

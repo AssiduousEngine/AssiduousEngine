@@ -772,7 +772,7 @@ export namespace engine::script
         }
 
         /// The scene's last delivered frame time and its simulated seconds since it started
-        /// (SceneScripts.deltaTime and elapsed): scaled time, so both stand still at time scale 0.
+        /// (scene.scripts.deltaTime and elapsed): scaled time, so both stand still at time scale 0.
         [[nodiscard]] f32 DeltaTime() const noexcept { return m_deltaTime; }
         [[nodiscard]] f64 Elapsed() const noexcept { return m_elapsed; }
 
@@ -1339,9 +1339,8 @@ export namespace engine::script
         bool m_started = false;
     };
 
-    /// The scene's scripting, in the SceneX.of shape: `SceneScripts.of(scene)`. The scene's
-    /// script time (scaled: it stands still at time scale
-    /// 0), the messages between behaviours (`send`, as `entity.send` on the target), the events
+    /// The scene's scripting, a property of the scene: `scene.scripts`. The scene's script time
+    /// (scaled: it stands still at time scale 0), the messages between behaviours (`send`, as `entity.send` on the target), the events
     /// on the scene's bus (`emit`, as `scene.events.emit`), and a behaviour added at runtime by
     /// its class's asset id. A value type; a null scene makes every call a safe no-op.
     struct SceneScripts
@@ -1399,7 +1398,8 @@ export namespace engine::script
                    system->QueueBehavior(entity.Handle(), scriptClass);
         }
 
-        [[nodiscard]] static SceneScripts of(foundation::script::Scene sceneHandle)
+        // The scene's own, read by scripts as a property of the scene (ExtendScene).
+        [[nodiscard]] static SceneScripts ForScene(const foundation::script::Scene& sceneHandle)
         {
             SceneScripts scripts;
             scripts.scene = sceneHandle.scene;

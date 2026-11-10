@@ -632,9 +632,9 @@ namespace engine::physics
         builder.Property<&PhysicsSceneSettings::debugDraw>("debugDraw");
     }
 
-    // The scene-bound physics handle: `ScenePhysics.of(scene).rayCast/gravityY/setGravity/...` on
-    // that scene's world. Reflected with authored parameter names. The `of` factory returns
-    // ScenePhysics by value (a concrete return type: cross-backend, no ReturnType override needed).
+    // The scene-bound physics handle: `scene.physics.rayCast/gravityY/setGravity/...` on
+    // that scene's world. Reflected with authored parameter names. The scene property is
+    // ScenePhysics by value (a concrete type: cross-backend, no declared-type override needed).
     // The ray-hit result is a value handle carrying the whole answer; entity()/impulse() resolve
     // live state at call time.
     REFLECT_VALUE(RayCastHit, "rtti::engine::physics")
@@ -711,7 +711,6 @@ namespace engine::physics
         builder.Method<&ScenePhysics::setCharacterPosition>("setCharacterPosition",
                                                             {"entity", "position"});
         builder.Method<&ScenePhysics::isCharacterGrounded>("isCharacterGrounded", {"entity"});
-        builder.Method<&ScenePhysics::of>("of", {"scene"});
     }
 
     void RegisterPhysicsScriptFacade()
@@ -731,7 +730,7 @@ namespace engine::physics
         foundation::script::RegisterExtraFacadeName(u8"RigidBodyComponent");
         foundation::script::RegisterExtraFacadeName(u8"CharacterComponent");
 
-        // The scene-bound physics handle (ScenePhysics.of(scene)) and its ray-hit result: reflect,
+        // The scene-bound physics handle (scene.physics) and its ray-hit result: reflect,
         // register, seed the emission roots, make the class names prelude-visible.
         RttiRegisterValue_RayCastHit();
         GlobalTypeRegistry().Register(core::TypeOf<RayCastHit>());
@@ -745,6 +744,7 @@ namespace engine::physics
         GlobalTypeRegistry().Register(core::TypeOf<ScenePhysics>());
         foundation::script::RegisterExtraScriptRootType(&core::TypeOf<ScenePhysics>());
         foundation::script::RegisterExtraFacadeName(u8"ScenePhysics");
+        foundation::script::ExtendScene<&ScenePhysics::ForScene>("physics"); // scene.physics
     }
 
     void RegisterPhysicsComponentReflection()

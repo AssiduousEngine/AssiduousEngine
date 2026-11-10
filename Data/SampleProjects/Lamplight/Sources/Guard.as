@@ -146,7 +146,7 @@ class Guard
         Float3 p = self.worldPosition();
         Float3 ahead = Float3(Math::Sin(m_yaw), 0.0f, Math::Cos(m_yaw)); // the model faces +Z
         uint mask = 0xFFFFFFFF & ~(uint(1) << uint(group));
-        RayCastHit@ hit = ScenePhysics::of(self.scene).rayCast(Float3(p.x, p.y + 1.0f, p.z), ahead, 1.2f, mask);
+        RayCastHit@ hit = self.scene.physics.rayCast(Float3(p.x, p.y + 1.0f, p.z), ahead, 1.2f, mask);
         if (hit is null || !hit.hit)
         {
             return;
@@ -235,11 +235,11 @@ class Guard
             uint mask = 0xFFFFFFFF & ~(uint(1) << uint(group));
             if (dist < cone.range && cosAngle >= Math::Cos(cone.outerAngle))
             {
-                RayCastHit@ hit = ScenePhysics::of(self.scene).rayCast(eye, Float3(to.x / dist, to.y / dist, to.z / dist),
+                RayCastHit@ hit = self.scene.physics.rayCast(eye, Float3(to.x / dist, to.y / dist, to.z / dist),
                                                                        dist, mask);
                 if (hit is null || !hit.hit)
                 {
-                    Float3 light = SceneRender::of(self.scene).lightAt(chest, mask);
+                    Float3 light = self.scene.render.lightAt(chest, mask);
                     float lum = 0.2126f * light.x + 0.7152f * light.y + 0.0722f * light.z;
                     float lit = lum / (lum + halfLight);
                     float near = 1.0f - dist / cone.range;
@@ -316,7 +316,7 @@ class Guard
         Entity@ fig = figure();
         if (fig !is null && fig.isValid())
         {
-            SceneAnimation anim = SceneAnimation::of(self.scene);
+            SceneAnimation anim = self.scene.animation;
             anim.setFloat(fig, "Speed", speed);
             anim.setBool(fig, "Searching", (m_state == kSearch && speed < 0.2f) || m_state == kSuspicious);
         }

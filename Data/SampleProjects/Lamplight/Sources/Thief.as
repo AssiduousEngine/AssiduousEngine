@@ -127,7 +127,7 @@ class Thief
         }
         Float3 p = self.worldPosition();
         Float3 ahead = Float3(Math::Sin(m_yaw), 0.0f, Math::Cos(m_yaw)); // the model faces +Z
-        Entity@ stone = ScenePrefabs::of(self.scene).spawn(pebble, Float3(p.x + ahead.x * 0.4f, p.y + 0.5f,
+        Entity@ stone = self.scene.prefabs.spawn(pebble, Float3(p.x + ahead.x * 0.4f, p.y + 0.5f,
                                                                           p.z + ahead.z * 0.4f));
         if (stone is null || !stone.isValid())
         {
@@ -137,7 +137,7 @@ class Thief
         RigidBodyComponent@ rb = RigidBodyComponent::of(stone);
         float mass = (rb !is null && rb.mass > 0.0f) ? rb.mass : 1.0f;
         float v = throwSpeed * mass;
-        ScenePhysics::of(self.scene).applyImpulse(stone, Float3(ahead.x * v * 0.82f, v * 0.57f, ahead.z * v * 0.82f));
+        self.scene.physics.applyImpulse(stone, Float3(ahead.x * v * 0.82f, v * 0.57f, ahead.z * v * 0.82f));
     }
 
     // Drives the graph from what the body actually did: its speed along the floor (so a thief
@@ -150,7 +150,7 @@ class Thief
             return;
         }
         Float3 v = body.velocity;
-        SceneAnimation anim = SceneAnimation::of(self.scene);
+        SceneAnimation anim = self.scene.animation;
         anim.setFloat(fig, "Speed", Math::Sqrt(v.x * v.x + v.z * v.z));
         anim.setBool(fig, "Crouched", crouched);
     }

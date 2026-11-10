@@ -173,7 +173,7 @@ namespace engine::audio
                               u8"flat."))
             .DataVersion(4);
         // Scripts: AudioSourceComponent.of(entity) gives live volume/pitch/loop/spatial/etc.
-        // play/stop/pause and clip swap are engine ops on SceneAudio.of(scene) (world ops keyed by entity).
+        // play/stop/pause and clip swap are engine ops on scene.audio (world ops keyed by entity).
         builder.Apply(&foundation::script::ComponentMethods<AudioSourceComponent>);
         // Source: pick Clip or Cue; only the chosen Ref shows (visibleWhen keys on sourceType).
         builder.Property<&AudioSourceComponent::sourceType>("sourceType");
@@ -275,7 +275,7 @@ namespace engine::audio
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
 
-    // The scene-bound audio handle: SceneAudio.of(scene).play(entity) / stop / pause / isPlaying /
+    // The scene-bound audio handle: scene.audio.play(entity) / stop / pause / isPlaying /
     // setClip(entity, id). `of` returns SceneAudio by value (a concrete cross-backend return), like
     // ScenePhysics. All world ops are keyed by entity, since they reach the scene's AudioEngine.
     REFLECT_VALUE(SceneAudio, "rtti::engine::audio")
@@ -287,7 +287,6 @@ namespace engine::audio
         builder.Method<&SceneAudio::setVolume>("setVolume", {"entity", "volume", "seconds"});
         builder.Method<&SceneAudio::setPitch>("setPitch", {"entity", "pitch", "seconds"});
         builder.Method<&SceneAudio::setClip>("setClip", {"entity", "resourceId"});
-        builder.Method<&SceneAudio::of>("of", {"scene"});
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
 
@@ -310,11 +309,12 @@ namespace engine::audio
         foundation::script::RegisterExtraScriptRootType(&core::TypeOf<AudioSourceComponent>());
         foundation::script::RegisterExtraFacadeName(u8"AudioSourceComponent");
 
-        // The scene-bound audio handle (SceneAudio.of(scene)): reflect, register, seed and name it.
+        // The scene-bound audio handle (scene.audio): reflect, register, seed and name it.
         RttiRegisterValue_SceneAudio();
         GlobalTypeRegistry().Register(core::TypeOf<SceneAudio>());
         foundation::script::RegisterExtraScriptRootType(&core::TypeOf<SceneAudio>());
         foundation::script::RegisterExtraFacadeName(u8"SceneAudio");
+        foundation::script::ExtendScene<&SceneAudio::ForScene>("audio"); // scene.audio
     }
 
     REFLECT_VALUE(AudioReverbZoneComponent, "rtti::engine::audio")

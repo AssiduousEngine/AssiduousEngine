@@ -154,7 +154,7 @@ export namespace engine::spline
         Float3 tangent{};
     };
 
-    /// The scene-bound spline facade (SceneSplines.of(scene), shaped like ScenePhysics): all
+    /// The scene-bound spline facade (scene.splines, shaped like ScenePhysics): all
     /// queries take the entity carrying the SplineComponent and answer in world space (the
     /// entity transform places the curve; points are stored entity-local).
     struct SceneSplines
@@ -178,7 +178,8 @@ export namespace engine::spline
             return closestPoint(entity, world.x, world.y, world.z);
         }
 
-        [[nodiscard]] static SceneSplines of(foundation::script::Scene sceneHandle)
+        // The scene's own, read by scripts as a property of the scene (ExtendScene).
+        [[nodiscard]] static SceneSplines ForScene(const foundation::script::Scene& sceneHandle)
         {
             return SceneSplines{sceneHandle.scene};
         }

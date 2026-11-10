@@ -51,7 +51,7 @@ class Lamp
         {
             LightComponent::of(light).enabled = lit;
         }
-        SceneRender render = SceneRender::of(self.scene);
+        SceneRender render = self.scene.render;
         render.setMaterial(self, lit ? flameLit : flameOut, flameSlot);
         render.setMaterial(self, lit ? chimneyLit : chimneyOut, chimneySlot);
     }

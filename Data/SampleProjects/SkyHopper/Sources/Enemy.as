@@ -47,7 +47,7 @@ class Enemy
         Entity@ model = self.firstChild();
         if (model.isValid() && walkClip !is null && !walkClip.IsNil())
         {
-            SceneAnimation animation = SceneAnimation::of(self.scene);
+            SceneAnimation animation = self.scene.animation;
             animation.setClip(model, walkClip);
             animation.play(model);
         }
@@ -106,7 +106,7 @@ class Enemy
         {
             self.scene.events.emit("EnemyDefeated", 1);
             m_player.send("Bounce");
-            ScenePrefabs::of(self.scene).spawn(kStompStars, here + Float3(0.0f, 0.4f, 0.0f));
+            self.scene.prefabs.spawn(kStompStars, here + Float3(0.0f, 0.4f, 0.0f));
             Audio::playOneShot(kSquashSound);
             self.destroy();
         }

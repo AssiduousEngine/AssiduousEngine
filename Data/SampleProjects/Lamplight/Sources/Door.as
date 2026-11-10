@@ -58,7 +58,7 @@ class Door
         if (picking)
         {
             m_pick += d;
-            SceneAnimation::of(self.scene).setIkTarget(thief, lock);
+            self.scene.animation.setIkTarget(thief, lock);
             self.scene.events.emit("Picking", lock);
             if (m_pick >= pickSeconds)
             {

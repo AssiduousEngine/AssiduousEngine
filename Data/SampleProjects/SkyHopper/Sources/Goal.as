@@ -27,7 +27,7 @@ class Goal
         if (Float3::Distance(m_player.worldPosition(), self.worldPosition()) < radius)
         {
             m_reached = true;
-            ScenePrefabs::of(self.scene).spawn(kConfetti, self.worldPosition() + Float3(0.0f, 1.0f, 0.0f));
+            self.scene.prefabs.spawn(kConfetti, self.worldPosition() + Float3(0.0f, 1.0f, 0.0f));
             m_player.send("Celebrate");
             self.scene.events.emit("GoalReached", 0);
         }

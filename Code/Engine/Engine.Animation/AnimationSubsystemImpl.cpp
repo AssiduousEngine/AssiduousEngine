@@ -40,7 +40,7 @@ namespace engine::animation
             .DataVersion(2) // v1: meshEntities persist; v2: rootMotion
             .ReadsDataVersionsFrom(1) // a v1 record reads with root motion off
             // Scripts: SkeletalAnimationComponent.of(entity) gives live speed/startTime/autoPlay.
-            // play/stop/setClip are player ops on SceneAnimation.of(scene) (world ops keyed by entity).
+            // play/stop/setClip are player ops on scene.animation (world ops keyed by entity).
             .Apply(&foundation::script::ComponentMethods<SkeletalAnimationComponent>)
             .Property<&SkeletalAnimationComponent::skeleton>("skeleton")
             .Property<&SkeletalAnimationComponent::clip>("clip")
@@ -69,7 +69,7 @@ namespace engine::animation
             .DataVersion(2) // v1: meshEntities persist; v2: rootMotion
             .ReadsDataVersionsFrom(1) // a v1 record reads with root motion off
             // Scripts: AnimationGraphComponent.of(entity) gives live `active`; graph params
-            // (setFloat/setInt/setBool/setTrigger) are player ops on SceneAnimation.of(scene).
+            // (setFloat/setInt/setBool/setTrigger) are player ops on scene.animation.
             .Apply(&foundation::script::ComponentMethods<AnimationGraphComponent>)
             .Property<&AnimationGraphComponent::skeleton>("skeleton")
             .Property<&AnimationGraphComponent::graph>("graph")
@@ -86,7 +86,7 @@ namespace engine::animation
                                   u8"or above it, or a script's reading."));
     }
 
-    // The scene-bound animation handle: SceneAnimation.of(scene).play/stop/setClip (single clip) and
+    // The scene-bound animation handle: scene.animation.play/stop/setClip (single clip) and
     // setFloat/setInt/setBool/setTrigger (graph params). `of` returns SceneAnimation by value
     // (a concrete cross-backend return), like ScenePhysics. All world ops are keyed by entity, since
     // they reach the manager-owned runtime player.
@@ -124,7 +124,6 @@ namespace engine::animation
         builder.Method<&SceneAnimation::ikError>("ikError", {"entity"});
         builder.Method<&SceneAnimation::rootMotionTranslation>("rootMotionTranslation", {"entity"});
         builder.Method<&SceneAnimation::rootMotionYaw>("rootMotionYaw", {"entity"});
-        builder.Method<&SceneAnimation::of>("of", {"scene"});
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
 
@@ -412,11 +411,12 @@ namespace engine::animation
             foundation::script::RegisterExtraFacadeName(component.name);
         }
 
-        // The scene-bound animation handle (SceneAnimation.of(scene)): reflect, register, seed and name it.
+        // The scene-bound animation handle (scene.animation): reflect, register, seed and name it.
         RttiRegisterValue_SceneAnimation();
         GlobalTypeRegistry().Register(core::TypeOf<SceneAnimation>());
         foundation::script::RegisterExtraScriptRootType(&core::TypeOf<SceneAnimation>());
         foundation::script::RegisterExtraFacadeName(u8"SceneAnimation");
+        foundation::script::ExtendScene<&SceneAnimation::ForScene>("animation"); // scene.animation
     }
 }
 
