@@ -422,6 +422,214 @@ export namespace foundation::shaders
         return report;
     }
 
+    // --- shaders that name their entry points (an RHI sample's) ------------
+
+    // A shader the RHI binds directly, often several entry points in one file, names them in its
+    // own comments, one line each, and may name its shader model (6_0 when it does not):
+    //   // entry: vertex VSMain
+    //   // entry: fragment PSMain
+    //   // model: 6_5
+    // A ray tracing library's entry has no name ("// entry: raygen"). It compiles with
+    // DirectCompileOptions, as it does when it is compiled as it runs, so a cooked one is the same.
+    struct ShaderEntryDirective
+    {
+        ShaderStage stage = ShaderStage::Vertex;
+        String entry;
+    };
+
+    struct ShaderEntryDirectives
+    {
+        Array<ShaderEntryDirective> entries;
+        String shaderModel = String(u8"6_0");
+    };
+
+    // "vertex", "fragment", "compute", "mesh", "task", "raygen", "closesthit", "anyhit", "miss",
+    // "intersection", "callable".
+    [[nodiscard]] inline bool ParseShaderStageName(StringView name, ShaderStage& out)
+    {
+        struct Named
+        {
+            StringView name;
+            ShaderStage stage;
+        };
+        static constexpr Named kNames[] = {
+            {u8"vertex", ShaderStage::Vertex},       {u8"fragment", ShaderStage::Fragment},
+            {u8"compute", ShaderStage::Compute},     {u8"mesh", ShaderStage::Mesh},
+            {u8"task", ShaderStage::Task},           {u8"raygen", ShaderStage::RayGen},
+            {u8"closesthit", ShaderStage::ClosestHit}, {u8"anyhit", ShaderStage::AnyHit},
+            {u8"miss", ShaderStage::Miss},           {u8"intersection", ShaderStage::Intersection},
+            {u8"callable", ShaderStage::Callable},
+        };
+        for (const Named& named : kNames)
+        {
+            if (named.name == name)
+            {
+                out = named.stage;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // The `// entry:` and `// model:` lines of `source`; false, with `error`, for a line it cannot
+    // read (an unknown stage). A source with no entry line names none (out.entries is empty).
+    [[nodiscard]] inline bool ParseEntryDirectives(StringView source, ShaderEntryDirectives& out, String& error)
+    {
+        usize start = 0;
+        while (start <= source.Size())
+        {
+            usize end = source.Find(u8'\n', start);
+            if (end == StringView::kNotFound)
+            {
+                end = source.Size();
+            }
+            const StringView line = Trimmed(source.SubStr(start, end - start));
+            start = end + 1;
+            if (line.StartsWith(u8"// entry:"))
+            {
+                const StringView rest = Trimmed(line.SubStr(9, line.Size() - 9));
+                usize space = rest.Find(u8' ');
+                if (space == StringView::kNotFound)
+                {
+                    space = rest.Size();
+                }
+                ShaderEntryDirective directive;
+                if (!ParseShaderStageName(rest.SubStr(0, space), directive.stage))
+                {
+                    error = Format(u8"unknown stage in '{}'", line);
+                    return false;
+                }
+                directive.entry = String(Trimmed(rest.SubStr(space, rest.Size() - space)));
+                out.entries.PushBack(Move(directive));
+            }
+            else if (line.StartsWith(u8"// model:"))
+            {
+                out.shaderModel = String(Trimmed(line.SubStr(9, line.Size() - 9)));
+            }
+            if (end == source.Size())
+            {
+                break;
+            }
+        }
+        return true;
+    }
+
+    // The pack's name for one entry: the file, relative to the folder cooked ("Sample001_Triangle/
+    // Triangle.hlsl"), and the entry ("VSMain"), as "Sample001_Triangle/Triangle.hlsl:VSMain".
+    [[nodiscard]] inline String EntryShaderName(StringView file, StringView entry)
+    {
+        return Format(u8"{}:{}", file, entry);
+    }
+
+    struct ShaderEntryCookOptions
+    {
+        StringView shaderDir;                   // the folder cooked, walked whole (Data/Samples/RHI)
+        Span<const CookedShaderFormat> formats; // SPIR-V and DXIL (WGSL is the engine shaders' alone)
+    };
+
+    namespace detail
+    {
+        inline void CollectShaderFiles(StringView root, StringView relative, Array<String>& out)
+        {
+            struct Listing
+            {
+                Array<String> files;
+                Array<String> folders;
+            } listing;
+            const String folder = relative.IsEmpty() ? String(root) : Format(u8"{}/{}", root, relative);
+            (void)ListDirectory(
+                folder.AsView(),
+                [](void* ctx, StringView name, bool isDir)
+                {
+                    Listing& l = *static_cast<Listing*>(ctx);
+                    (isDir ? l.folders : l.files).PushBack(String(name));
+                },
+                &listing);
+            SortByBytes(listing.files);
+            SortByBytes(listing.folders);
+            for (const String& file : listing.files)
+            {
+                if (file.AsView().EndsWith(u8".hlsl"))
+                {
+                    out.PushBack(relative.IsEmpty() ? String(file) : Format(u8"{}/{}", relative, file));
+                }
+            }
+            for (const String& sub : listing.folders)
+            {
+                CollectShaderFiles(root, relative.IsEmpty() ? sub.AsView() : Format(u8"{}/{}", relative, sub).AsView(), out);
+            }
+        }
+    }
+
+    // Fill `pack` with every entry the .hlsl files under opts.shaderDir name, each under its
+    // EntryShaderName, in every requested format. A file that names no entry is left out.
+    inline ShaderCookReport CookEntryShaders(Compiler& compiler, const ShaderEntryCookOptions& opts, CookedShaderPack& pack)
+    {
+        ShaderCookReport report;
+        report.success = true;
+        Array<String> files;
+        detail::CollectShaderFiles(opts.shaderDir, StringView{}, files);
+        for (const String& file : files)
+        {
+            const String path = Format(u8"{}/{}", opts.shaderDir, file);
+            const Result<Array<byte>> bytes = ReadFile(path.AsView());
+            if (!bytes.HasValue())
+            {
+                report.errors.PushBack(FormatError(file.AsView(), u8"could not read source"));
+                report.success = false;
+                continue;
+            }
+            const StringView source(reinterpret_cast<const char8_t*>(bytes.Value().Data()), bytes.Value().Size());
+            ShaderEntryDirectives directives;
+            String error;
+            if (!ParseEntryDirectives(source, directives, error))
+            {
+                report.errors.PushBack(FormatError(file.AsView(), error.AsView()));
+                report.success = false;
+                continue;
+            }
+            if (directives.entries.IsEmpty())
+            {
+                continue;
+            }
+            ++report.filesCooked;
+            for (const ShaderEntryDirective& directive : directives.entries)
+            {
+                const String name = EntryShaderName(file.AsView(), directive.entry.AsView());
+                for (const CookedShaderFormat format : opts.formats)
+                {
+                    if (format == CookedShaderFormat::Wgsl)
+                    {
+                        report.errors.PushBack(FormatError(file.AsView(), u8"WGSL is not cooked for entry shaders"));
+                        report.success = false;
+                        continue;
+                    }
+                    const ShaderTarget target = format == CookedShaderFormat::Dxil ? ShaderTarget::DXIL : ShaderTarget::SPIRV;
+                    CompileOptions options = DirectCompileOptions(target, directives.shaderModel.AsView());
+                    options.sourceName = file.AsView();
+                    CompileResult result{};
+                    const Status compiled = compiler.compile(reinterpret_cast<const u8*>(source.Data()), source.Size(), directive.stage,
+                                                             directive.entry.AsView(), target, options, result);
+                    if (!compiled.IsOk() || !result.success)
+                    {
+                        report.errors.PushBack(FormatError(
+                            name.AsView(), result.messages != nullptr ? StringView(reinterpret_cast<const char8_t*>(result.messages))
+                                                                      : StringView(u8"DXC compile failed")));
+                        report.success = false;
+                        compiler.freeResult(result);
+                        continue;
+                    }
+                    pack.Add(name.AsView(), directive.stage, ShaderFlags::None, format,
+                             Span<const byte>(reinterpret_cast<const byte*>(result.bytecode), result.bytecodeSize));
+                    pack.AddEntryPoint(name.AsView(), directive.stage, directive.entry.AsView());
+                    compiler.freeResult(result);
+                    ++report.variantsCooked;
+                }
+            }
+        }
+        return report;
+    }
+
     // --- helpers -----------------------------------------------------------
 
     // "<stem>.<vs|ps|cs>.hlsl" -> (stage, stem); false for .hlsli and anything else. Matches the

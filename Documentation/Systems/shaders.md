@@ -31,7 +31,11 @@ piece.
   over the data mount (`ShaderSystemHost`: `Shaders/` sources, or the cooked `Shaders/shaders.dpak` -
   `kShaderPackPath`) + `FileShaderSourceProvider` (the hot-reload source AND the include resolver).
 - **`shaders.pipeline`** (`Pipeline/Shaders.Pipeline`) - the cook integration.
-- **`Tools.ShaderPack`** - the CLI shader-pack cooker.
+- **`Tools.ShaderPack`** - the CLI shader-pack cooker. `--entries <dir>` cooks shaders that
+  name their entry points in their own comments (`// entry: vertex VSMain`, `// model: 6_5`),
+  each under `<file>:<entry>`: the RHI samples' (`Data/Samples/RHI`), which compile as they run
+  on the desktop (`SampleApp::LoadShader`) and read that pack where there is no compiler
+  (Android). Both take `DirectCompileOptions`, so a cooked module is the one compiled.
 
 ## Depth convention
 

@@ -1339,3 +1339,35 @@ TEST_CASE("pack: effect tables survive the round trip")
     CookedShaderPack refused;
     CHECK_FALSE(refused.Read(old).IsOk());
 }
+
+// --- Shaders that name their entry points (the RHI samples') ------------
+
+// A shader the RHI binds directly names its entry points and model in its own comments; a cook reads
+// them so a device with no compiler gets the same modules the sample compiles as it runs.
+TEST_CASE("entry shaders: the // entry: and // model: lines name what is cooked")
+{
+    ShaderEntryDirectives directives;
+    String error;
+    REQUIRE(ParseEntryDirectives(u8"// A shader.\n// entry: vertex VSMain\n  // entry: fragment   PSMain  \n"
+                                 u8"// model: 6_5\nfloat4 PSMain() : SV_TARGET { return 1; }\n// entry: raygen",
+                                 directives, error));
+    REQUIRE(directives.entries.Size() == 3u);
+    CHECK(directives.entries[0].stage == ShaderStage::Vertex);
+    CHECK(directives.entries[0].entry == u8"VSMain");
+    CHECK(directives.entries[1].stage == ShaderStage::Fragment);
+    CHECK(directives.entries[1].entry == u8"PSMain");
+    CHECK(directives.entries[2].stage == ShaderStage::RayGen);
+    CHECK(directives.entries[2].entry.IsEmpty()); // a ray tracing library's entry has no name
+    CHECK(directives.shaderModel == u8"6_5");
+
+    ShaderEntryDirectives none;
+    REQUIRE(ParseEntryDirectives(u8"float4 main() : SV_TARGET { return 1; }", none, error));
+    CHECK(none.entries.IsEmpty());
+    CHECK(none.shaderModel == u8"6_0");
+
+    ShaderEntryDirectives bad;
+    CHECK_FALSE(ParseEntryDirectives(u8"// entry: geometry GSMain", bad, error));
+    CHECK(error.AsView().Contains(u8"geometry"));
+
+    CHECK(EntryShaderName(u8"Sample001_Triangle/Shader.hlsl", u8"VSMain") == u8"Sample001_Triangle/Shader.hlsl:VSMain");
+}

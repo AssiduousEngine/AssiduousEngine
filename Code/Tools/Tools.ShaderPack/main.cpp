@@ -9,8 +9,12 @@
 // WGSL pack it produces and loads it at runtime, since there is no compiler in the browser.
 //
 //   Tools.ShaderPack <shaderDir> <output.dpak> [wgsl] [spirv] [dxil]
+//   Tools.ShaderPack --entries <dir> <output.dpak> [spirv] [dxil]
 //
-// Defaults to wgsl when no formats are given.
+// Defaults to wgsl when no formats are given. --entries cooks shaders that name their entry
+// points in their own comments (`// entry: vertex VSMain`, the RHI samples' under
+// Data/Samples/RHI), every .hlsl under <dir>, each entry under "<file>:<entry>"; it defaults to
+// spirv, the format a device without a shader compiler (Android) reads.
 
 #include "Core/Prelude.h"
 
@@ -27,23 +31,26 @@ namespace
     void PrintUsage()
     {
         std::fprintf(stderr,
-                     "usage: Tools.ShaderPack <shaderDir> <output.dpak> [wgsl] [spirv] [dxil]\n");
+                     "usage: Tools.ShaderPack <shaderDir> <output.dpak> [wgsl] [spirv] [dxil]\n"
+                     "       Tools.ShaderPack --entries <dir> <output.dpak> [spirv] [dxil]\n");
     }
 }
 
 int main(int argc, char** argv)
 {
-    if (argc < 3)
+    const bool entries = argc > 1 && StringView(reinterpret_cast<const char8_t*>(argv[1])) == u8"--entries";
+    const int first = entries ? 2 : 1;
+    if (argc < first + 2)
     {
         PrintUsage();
         return 2;
     }
 
-    const StringView shaderDir(reinterpret_cast<const char8_t*>(argv[1]));
-    const StringView outputPath(reinterpret_cast<const char8_t*>(argv[2]));
+    const StringView shaderDir(reinterpret_cast<const char8_t*>(argv[first]));
+    const StringView outputPath(reinterpret_cast<const char8_t*>(argv[first + 1]));
 
     Array<shaders::CookedShaderFormat> formats;
-    for (int i = 3; i < argc; ++i)
+    for (int i = first + 2; i < argc; ++i)
     {
         const StringView flag(reinterpret_cast<const char8_t*>(argv[i]));
         if (flag == u8"wgsl")
@@ -67,7 +74,7 @@ int main(int argc, char** argv)
     }
     if (formats.IsEmpty())
     {
-        formats.PushBack(shaders::CookedShaderFormat::Wgsl);
+        formats.PushBack(entries ? shaders::CookedShaderFormat::SpirV : shaders::CookedShaderFormat::Wgsl);
     }
 
     shaders::Compiler* compiler = nullptr;
@@ -86,7 +93,18 @@ int main(int argc, char** argv)
     opts.formats = Span<const shaders::CookedShaderFormat>(formats.Data(), formats.Size());
 
     shaders::CookedShaderPack pack;
-    const shaders::ShaderCookReport report = shaders::CookEngineShaders(*compiler, opts, pack);
+    shaders::ShaderCookReport report;
+    if (entries)
+    {
+        shaders::ShaderEntryCookOptions entryOptions;
+        entryOptions.shaderDir = shaderDir;
+        entryOptions.formats = Span<const shaders::CookedShaderFormat>(formats.Data(), formats.Size());
+        report = shaders::CookEntryShaders(*compiler, entryOptions, pack);
+    }
+    else
+    {
+        report = shaders::CookEngineShaders(*compiler, opts, pack);
+    }
     compiler->Destroy();
 
     for (usize i = 0; i < report.errors.Size(); ++i)
@@ -105,10 +123,10 @@ int main(int argc, char** argv)
     FileStream out(outputPath, FileMode::Write);
     if (!out.IsValid() || !pack.Write(out).IsOk())
     {
-        std::fprintf(stderr, "Tools.ShaderPack: could not write '%s'\n", argv[2]);
+        std::fprintf(stderr, "Tools.ShaderPack: could not write '%s'\n", argv[first + 1]);
         return 1;
     }
-    std::fprintf(stderr, "Tools.ShaderPack: wrote '%s' (%u entries)\n", argv[2],
+    std::fprintf(stderr, "Tools.ShaderPack: wrote '%s' (%u entries)\n", argv[first + 1],
                  static_cast<unsigned>(pack.Count()));
     return 0;
 }

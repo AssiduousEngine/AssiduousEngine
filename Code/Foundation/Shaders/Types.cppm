@@ -103,6 +103,28 @@ export namespace foundation::shaders
         StringView sourceName;
     };
 
+    /// The options a shader the RHI binds directly takes for `target` (an RHI sample's): optimized,
+    /// SPIR-V with the standard binding shifts over four sets, and, for native WebGPU, SPIR-V
+    /// at vulkan1.1, which naga reads. One definition, so a sample compiled as it runs and the
+    /// same sample's shader cooked into a pack are the same bytes.
+    [[nodiscard]] inline CompileOptions DirectCompileOptions(ShaderTarget target, StringView shaderModel,
+                                                             bool forWebGpu = false)
+    {
+        CompileOptions options{};
+        options.shaderModel = shaderModel;
+        options.optimizationLevel = 3;
+        if (target == ShaderTarget::SPIRV)
+        {
+            options.bindingShifts = BindingShifts::Standard();
+            options.bindingShiftSets = 4;
+            if (forWebGpu)
+            {
+                options.spirvTargetEnvironment = u8"vulkan1.1"; // naga rejects SPIR-V 1.4+
+            }
+        }
+        return options;
+    }
+
     struct CompileResult
     {
         u8* bytecode = nullptr;
