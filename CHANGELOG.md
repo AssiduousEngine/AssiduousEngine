@@ -5,6 +5,8 @@ engine, the editor or a game made with it would notice gets a line under **Unrel
 commit that makes it; a release turns Unreleased into its version and date. The steps are in
 [Documentation/Process/CONVENTIONS.md](Documentation/Process/CONVENTIONS.md), under Releases.
 
+## Unreleased
+
 ## 0.1.0-beta.2 - 2026-11-10
 
 ### Added
