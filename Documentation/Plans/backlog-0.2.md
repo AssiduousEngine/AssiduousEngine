@@ -193,6 +193,30 @@ its source (the audio pages' `ReadAuditionClip`), its peaks into a band. Decide:
 band, whether the weights show (a band's height or shade), and refreshing when a variant's clip
 changes (the thumbnail's recipe hashing the clips' sources).
 
+## Dear ImGui: a Foundation library under the plugin, and its colours checked (user 2026-11-11)
+
+**The split.** All of ImGui lives in the plugin's one part (`Code/Plugins/Imgui/Imgui.Engine`): the
+RHI renderer (`ImguiRenderer`: pipeline, font atlas, per-frame buffers, Prepare and Draw), the
+context, the input feed, and the subsystem that registers with the render subsystem as a screen
+overlay. Only the last is the engine's. Split the rest into a Foundation library (the renderer, the
+context and the input feed over RHI, Shell and Shaders, with no Runtime or Engine dependency), so a
+Foundation-level host (the RHI samples, a tool) can draw ImGui without the plugin, and leave the
+plugin's `Engine` part as the subsystem and the overlay over it. The renderer's geometry suite
+(`Imgui.Engine.Tests`) moves with it.
+
+**The colours.** Dear ImGui's colours are sRGB values, and its shader passes them through
+(`Data/Engine/Shaders/imgui.ps.hlsl`: vertex colour times the atlas, an `RGBA8Unorm` texture). Until
+dd9452761 it drew straight into the backbuffer, `BGRA8UnormSrgb` by default
+(`Graphics.cppm`), which encodes them a second time: lighter than ImGui's own look. It now draws in
+the shared overlay pass through the backbuffer's UNORM view when the window has one, as the GUI's
+screens do, which should match ImGui's look. Investigate and settle:
+- Compare a sample's ImGui against Dear ImGui's own demo on a UNORM target (the reference look).
+- The stand-alone path (`ImguiSubsystem::Render(frame)`, for a host with no render subsystem:
+  InputActions) still draws into the sRGB view; give it the UNORM view too, or encode in the shader.
+- A window with no UNORM twin (a non-sRGB swapchain; whether the web's canvas has one is unchecked):
+  the overlay pass draws the target as it is there; check each backend's case.
+- A colour picker or an image in ImGui (`ImGui::Image` of a linear texture) under the encoded blend.
+
 ## Android: a native player and its export (user 2026-10-11)
 
 Games run on phones today through the web export (touch drives the game UI, touch controls with
