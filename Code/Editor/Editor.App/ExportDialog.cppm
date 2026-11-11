@@ -67,6 +67,68 @@ export namespace editor::app
         String outputRoot;
     };
 
+    /// A preset field that names a file: its path, typed or picked with Browse. The dialog decides
+    /// how Browse picks (the editor's picker for a file of the project's, the system's dialog for one
+    /// kept outside it), given the row's path.
+    class ExportPathEditor final : public gui::PropertyEditor
+    {
+        RTTI_OBJECT(ExportPathEditor, gui::PropertyEditor)
+    public:
+        static constexpr StringView kHint = u8"exportPath";
+
+        explicit ExportPathEditor(Function<void(StringView row)> browse) : m_browse(foundation::core::Move(browse))
+        {
+            AddClass(u8"export-path");
+            EditLayoutStyle([](gui::LayoutStyle& s)
+            {
+                s.Direction = gui::FlexDirection::Row;
+                s.AlignItems = gui::Align::Center;
+                s.ColumnGap = 6.0f;
+            });
+            m_field = MakeRef<gui::TextField>(MemoryAllocator());
+            m_field->EditLayoutStyle([](gui::LayoutStyle& s)
+            {
+                s.Grow = 1.0f;
+                s.Shrink = 1.0f;
+                s.MinWidth = gui::LayoutLength::Px(0.0f);
+            });
+            ExportPathEditor* self = this;
+            m_field->SetOnTextChanged([self](StringView text) { self->ApplyEdit(gui::PropertyWrite{gui::Variant(text)}); });
+            AddChild(m_field.Get());
+            m_button = MakeRef<gui::Button>(MemoryAllocator());
+            m_button->SetText(u8"Browse...");
+            m_button->SetOnClick([self]()
+                                 {
+                                     if (self->m_browse)
+                                         self->m_browse(self->GetPath());
+                                 });
+            AddChild(m_button.Get());
+        }
+        [[nodiscard]] bool IsTyping() const override { return m_field->IsFocused(); }
+        [[nodiscard]] gui::TextField* Field() const noexcept { return m_field.Get(); }
+        [[nodiscard]] gui::Button* BrowseButton() const noexcept { return m_button.Get(); }
+
+    protected:
+        void OnBind(const gui::PropertyInfo&, const gui::PropertyValue& value) override
+        {
+            m_field->SetText(value.Value.AsString());
+            m_field->SetReadOnly(IsReadOnly());
+            m_button->SetEnabled(!IsReadOnly());
+        }
+        void OnTextStyleChange() override
+        {
+            ShareTextStyle(*m_field);
+            ShareTextStyle(*m_button);
+        }
+
+    private:
+        Function<void(StringView row)> m_browse;
+        RefPtr<gui::TextField> m_field;
+        RefPtr<gui::Button> m_button;
+    };
+
+    RTTI_DEFINE_OBJECT(ExportPathEditor, "rtti::editor::editor::app")
+
     /// ExportDialog::kPath, at namespace scope for another library to read (MSVC exports no class's
     /// static constexpr member from a shared library).
     inline constexpr const char8_t* kExportDialogPath = u8"Editor/Export.xml";
@@ -105,6 +167,12 @@ export namespace editor::app
                                                });
             }
             m_grid = Find<gui::PropertyGrid>(u8"export-grid");
+            if (m_grid != nullptr)
+            {
+                ExportDialog* owner = this;
+                m_grid->GetEditors().RegisterHint(ExportPathEditor::kHint, [owner](IAllocator& allocator) -> RefPtr<gui::PropertyEditor>
+                                                  { return MakeRef<ExportPathEditor>(allocator, [owner](StringView row) { owner->Browse(row); }); });
+            }
             m_export = Find<gui::Button>(u8"export-run");
             m_duplicate = Find<gui::Button>(u8"export-duplicate");
             m_remove = Find<gui::Button>(u8"export-remove");
@@ -331,6 +399,45 @@ export namespace editor::app
             if (root.IsEmpty() || path.Size() <= root.Size() + 1 || !path.StartsWith(root) || path[root.Size()] != utf8char('/'))
                 return {};
             return String(path.SubStr(root.Size() + 1, path.Size() - root.Size() - 1));
+        }
+        /// Browse on a path row: the app icon from the project's PNGs with the editor's picker; the
+        /// keystore with the system's dialog, as it is kept outside the project as a rule (named
+        /// relative to the project when it is inside it).
+        void Browse(StringView row)
+        {
+            const i32 index = SelectedIndex();
+            if (index < 0)
+                return;
+            ExportDialog* self = this;
+            const String path(row);
+            const auto set = [self, index, path](StringView value)
+            {
+                if (self->SelectedIndex() != index || !self->m_bag)
+                    return;
+                self->m_bag->BeginEdit(path.AsView());
+                self->m_bag->CommitEdit(path.AsView(), gui::PropertyWrite{gui::Variant(value)});
+            };
+            if (row == StringView(u8"androidIcon"))
+            {
+                if (!m_seams.pick || m_seams.projectRoot.IsEmpty())
+                    return;
+                const String png[] = {String(u8".png")};
+                const auto generated = [](StringView folder) { return engine::project::IsProjectOutputFolder(folder); };
+                PickerRequest request = PathPicker::Request(m_allocator, m_seams.projectRoot.AsView(), Span<const String>(png, 1u),
+                                                            m_presets->At(static_cast<usize>(index)).androidIcon.AsView(), generated);
+                request.OnPicked = [set](StringView picked) { set(picked); };
+                m_seams.pick(Move(request));
+            }
+            else if (m_seams.pickFiles)
+            {
+                m_seams.pickFiles([self, set](Array<String> paths)
+                                  {
+                                      if (paths.IsEmpty())
+                                          return;
+                                      const String relative = self->ProjectRelative(paths[0].AsView());
+                                      set(relative.IsEmpty() ? paths[0].AsView() : relative.AsView());
+                                  });
+            }
         }
         void AddExtraFiles(i32 index, Span<const String> files)
         {
@@ -580,11 +687,14 @@ export namespace editor::app
             Row(u8"androidLabel", gui::PropertyKind::String, gui::Variant(preset.androidLabel.AsView()), u8"App name", kAndroid,
                 u8"The name under its icon. Empty: the project's.");
             Row(u8"androidIcon", gui::PropertyKind::String, gui::Variant(preset.androidIcon.AsView()), u8"App icon", kAndroid,
-                u8"A square PNG in the project, 512 pixels or more. Empty: the platform's.");
+                u8"A square PNG in the project, 512 pixels or more. Empty: the platform's.")
+                .Hint = String(ExportPathEditor::kHint);
             EnumRow(u8"androidPackage", PresetEnum("androidPackage"), static_cast<i64>(preset.androidPackage), u8"Package", kAndroid);
             Row(u8"androidKeystore", gui::PropertyKind::String, gui::Variant(preset.androidKeystore.AsView()), u8"Keystore", kAndroid,
-                u8"The release keystore, relative to the project. Empty: the debug key, for testing. Its password is asked for "
-                u8"at export, or read from ANDROID_KEYSTORE_PASSWORD.");
+                u8"The release keystore: kept outside the project as a rule, so it is not shared with it; relative to the project "
+                u8"when inside it. Empty: the debug key, for testing. Its password is asked for at export, or read from "
+                u8"ANDROID_KEYSTORE_PASSWORD.")
+                .Hint = String(ExportPathEditor::kHint);
             Row(u8"androidKeyAlias", gui::PropertyKind::String, gui::Variant(preset.androidKeyAlias.AsView()), u8"Key alias", kAndroid,
                 u8"The key in the keystore that signs.");
             ShowOverrides(preset);

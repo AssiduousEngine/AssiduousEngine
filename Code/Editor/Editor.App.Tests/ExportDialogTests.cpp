@@ -343,6 +343,48 @@ TEST_CASE("export dialog: extra files come from the project, named relative to i
     (void)RemoveDirectoryRecursive(f.project.AsView());
 }
 
+// An Android preset's icon and keystore are paths with Browse: the icon from the project's PNGs
+// with the editor's picker, the keystore with the system's dialog (kept outside the project as a
+// rule), named relative to the project when it is inside it.
+TEST_CASE("export dialog: an Android preset's icon and keystore are browsed for")
+{
+    Fixture f;
+    (void)RemoveDirectoryRecursive(f.project.AsView());
+    const StringView files[] = {u8"Branding/AppIcon.png", u8"Branding/notes.txt", u8"Cooked/Icon.png", u8"keys/release.jks"};
+    for (const StringView file : files)
+    {
+        const String full = PathJoin(f.project.AsView(), file);
+        REQUIRE(CreateDirectories(PathParent(full.AsView())));
+        REQUIRE(WriteFile(full.AsView(), Span<const byte>{}).IsOk());
+    }
+    ExportPreset phone;
+    phone.name = String(u8"Phone");
+    phone.platform = String(u8"Android64");
+    (void)f.presets.Add(phone);
+    UniquePtr<app::ExportDialog> dialog = f.Open();
+    dialog->Select(2);
+    REQUIRE(dialog->Rows()->FindInfo(u8"androidIcon") != nullptr);
+    CHECK(dialog->Rows()->FindInfo(u8"androidIcon")->Hint == String(app::ExportPathEditor::kHint));
+    CHECK(dialog->Rows()->FindInfo(u8"androidKeystore")->Hint == String(app::ExportPathEditor::kHint));
+
+    dialog->Browse(u8"androidIcon");
+    REQUIRE(f.picks.Size() == 1u);
+    REQUIRE(f.picks[0].Items.Size() == 1u); // the project's PNGs, not a cook's
+    CHECK(f.picks[0].Items[0].Key == StringView(u8"Branding/AppIcon.png"));
+    f.picks[0].OnPicked(u8"Branding/AppIcon.png");
+    CHECK(f.presets.At(2).androidIcon == StringView(u8"Branding/AppIcon.png"));
+
+    f.fromDisk.PushBack(PathJoin(f.project.AsView(), u8"keys/release.jks"));
+    dialog->Browse(u8"androidKeystore");
+    CHECK(f.presets.At(2).androidKeystore == StringView(u8"keys/release.jks"));
+    f.fromDisk.Clear();
+    f.fromDisk.PushBack(String(u8"/home/me/keys/upload.jks"));
+    dialog->Browse(u8"androidKeystore");
+    CHECK(f.presets.At(2).androidKeystore == StringView(u8"/home/me/keys/upload.jks"));
+    CHECK(f.notices.IsEmpty()); // a keystore outside the project is no refusal
+    (void)RemoveDirectoryRecursive(f.project.AsView());
+}
+
 TEST_CASE("export dialog: add, duplicate, and remove after asking")
 {
     Fixture f;
