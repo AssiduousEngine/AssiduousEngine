@@ -1,7 +1,7 @@
 # Android: a native player and its export
 
 > STATUS: PROPOSED 2026-11-10, on branch `android`. Sized L, phases A0 to A5, green after each.
-> A0 and A1 built 2026-11-10 (see the week-2026-10-24 entries).
+> A0 to A3 built 2026-11-10, A4 built 2026-11-11 (see the week-2026-10-24 entries).
 > Origin: the 0.2 backlog's "Android: a native player and its export" (user 2026-10-11), started
 > by the user 2026-11-10. The test device is the user's Google Pixel 6 (Tensor G1, Arm Mali-G78,
 > Vulkan 1.3). Read CONVENTIONS.md first.
@@ -171,6 +171,20 @@ Not goals: the editor, on-device MCP or play-in-editor on Android; 32-bit or x86
   show them; `KnownIssues.md` and the docs repo's export page. Accept: Sky Hopper exported from
   the editor installs and runs on the phone; the MCP export flow test covers the Android preset
   (Gradle itself skipped where no SDK is present).
+  **Built 2026-11-11, accepted on the Pixel 6:** Sky Hopper's Android preset exported to an APK that
+  installs and runs (its name and icon in the launcher, landscape, play by touch with sound, the save
+  kept), and the export from the editor's Project > Export. The template carries the player as
+  `libEngine.Player.so` and the app's Gradle project, which the Android build stages beside it; the
+  exporter copies the project into `<project>/.cache/android/<preset>`, stages the app there and
+  runs the template's Gradle wrapper with the preset's values (no daemon left running). Beyond the
+  plan: the keystore's password is asked for in the editor or read from `ANDROID_KEYSTORE_PASSWORD`,
+  never stored; the app icon is picked from the project's PNGs and the keystore with the system's
+  dialog; the Android SDK and JDK folders are in Preferences (else `ANDROID_HOME`, `JAVA_HOME`).
+  The MCP side is tested through `export_preset_set` (the Android fields, their platform, the id
+  check) and the export itself through Editor.Core.Tests with a stand-in Gradle wrapper, rather
+  than an MCP export flow test. Left: a game with its own native packages is refused on Android
+  (`TODO(export)`, its player not built for Android yet); the docs repo's export page waits for its
+  next release; Run on device is in `backlog-0.2.md` (user, 2026-11-11).
 - **A5 - rotation without the compositor, and the first performance pass.** `preTransform =
   currentTransform` with the extent swapped and the present copy turned
   (`present-transform-history.md`, section 8), input turned with it. This closes the
@@ -187,6 +201,15 @@ Not goals: the editor, on-device MCP or play-in-editor on Android; 32-bit or x86
   a tiler may pay more for them than a desktop GPU), with the profiler's GPU timings. What to do
   about any of it is decided with the user from those numbers. Accept: every sample game runs on
   the phone, and the measurements are written in the weekly.
+  **Rotation built 2026-11-11, accepted on the Pixel 6** but for a brief squish on the first turn
+  of a run (`backlog-0.2.md`). None of it is Android's alone, so it is on master: a swapchain asked
+  to pre-rotate takes the surface's current transform, swaps its images' sides on a quarter turn
+  and rebuilds when a suboptimal present comes with a new turn; the frame and the screen overlays
+  carry the turn and the window's size; the player asks for it and turns its scene's fit, its
+  screens and its screenshot with the window; Dear ImGui draws as a screen overlay, turned the same
+  way. Input needed no turning: the pointer stays in the window's space, where the screens lay
+  out. What A2 saw held: Android reports the window's new size a frame before the surface's new
+  turn, so a turn rebuilds twice. Left: the measurements.
 
 ## Gotchas
 
