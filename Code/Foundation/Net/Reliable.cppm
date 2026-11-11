@@ -5,9 +5,11 @@
 ///
 /// Reliable UDP over the unreliable datagram layer. A `ReliableTransport` (an INetTransport)
 /// manages per-remote connections over an IDatagramSocket and adds: a packet header (protocol id,
-/// type, seq, ack, ackBits), ack-driven RTT, reliable messages (resent on an RTT-scaled timer until
-/// an acked packet carried them, then delivered in order by message id), unreliable pass-through, a
-/// connect and accept handshake, and keepalive and timeout. The model follows Glenn Fiedler's
+/// type, seq, and once anything has arrived ack and ackBits), ack-driven RTT, reliable messages
+/// (resent on an RTT-scaled timer until an acked packet carried them, then delivered in order by
+/// message id), unreliable pass-through (sequenced ones numbered per channel, a stale one dropped),
+/// a connect and accept handshake that tells a new session from the same address apart by its
+/// token, and keepalive and timeout. The model follows Glenn Fiedler's
 /// reliable-UDP articles and suits a low message rate. A reliable message larger than one datagram
 /// is fragmented and reassembled; an unreliable one that large is dropped. There is no congestion
 /// control.
@@ -68,6 +70,7 @@ export namespace foundation::net
         {
             Connection& c = OpenConnection(remote);
             c.state = ConnectionState::Connecting;
+            c.token = NewToken();
             SendConnectRequest(c);
             return c.peer;
         }
@@ -104,6 +107,13 @@ export namespace foundation::net
                 OutMessage m;
                 m.channel = channel;
                 m.reliable = false;
+                if (reliability == Reliability::UnreliableSequenced)
+                {
+                    m.sequenced = true;
+                    const u16* next = c->nextOutSequenced.Find(channel);
+                    m.id = next != nullptr ? *next : u16{0};
+                    c->nextOutSequenced.InsertOrAssign(channel, static_cast<u16>(m.id + 1u));
+                }
                 m.data.Resize(data.Size());
                 if (data.Size() > 0)
                 {
@@ -197,6 +207,7 @@ export namespace foundation::net
             {
                 UpdateConnection(c);
             }
+            RemoveDisconnected();
         }
 
         [[nodiscard]] TransportStats Stats(PeerId peer) const override
@@ -224,7 +235,8 @@ export namespace foundation::net
         {
             u8 channel = 0;
             bool reliable = false;
-            u16 id = 0;
+            u16 id = 0;             // reliable: its message id; sequenced: its number on its channel
+            bool sequenced = false; // unreliable, but a stale one is dropped at the far end
             // Fragmentation of a large reliable message: fragments get consecutive ids and a shared group,
             // so ordered delivery releases them consecutively and the receiver reassembles by group.
             bool fragmented = false;
@@ -235,8 +247,10 @@ export namespace foundation::net
                 -1.0e9; // RTT-based resend: only (re)sent once this plus the resend timeout elapses
             Array<byte> data;
         };
+        static constexpr usize kSentWindow = 256;
         struct SentPacket
         {
+            bool used = false; // a packet has been recorded in this slot
             u16 seq = 0;
             f64 sendTimeMs = 0.0;
             bool acked = false;
@@ -268,12 +282,18 @@ export namespace foundation::net
             PeerId peer = kInvalidPeer;
             DatagramEndpoint remote;
             ConnectionState state = ConnectionState::Connecting;
+            // The session's token, which the client picks and the server echoes: a request with
+            // another one from the same address is a new session (a client that restarted), not a
+            // resend of this one's.
+            u32 token = 0;
             // outgoing sequencing / ack tracking
             u16 localSeq = 0;
             u16 remoteSeq = 0;    // highest received Data seq
             u32 receivedBits = 0; // history of the 32 packets before remoteSeq
             bool anyReceived = false;
-            Array<SentPacket> sentWindow; // recent sent Data packets (for acks and RTT)
+            // The sent Data packets kept for acks and RTT, by seq modulo the window: a slot holds the
+            // newest packet with that remainder, so an ack finds its packet without a search.
+            FixedArray<SentPacket, kSentWindow> sentWindow{};
             // reliable messages
             u16 nextOutReliableId = 0;
             u32 nextFragGroup = 0;
@@ -282,6 +302,9 @@ export namespace foundation::net
             u16 nextInReliableId = 0;            // next ordered id to release
             Array<BufferedIn> reorderBuffer;     // received reliable ids ahead of nextInReliableId
             Reassembly reassembly;               // in-progress fragment reassembly
+            // sequenced unreliable messages, per channel
+            HashMap<u8, u16> nextOutSequenced; // the next number each channel sends
+            HashMap<u8, u16> lastInSequenced;  // the newest number each channel delivered
             // timing
             f64 rttMs = 0.0;
             f64 lastRecvMs = 0.0;
@@ -298,54 +321,93 @@ export namespace foundation::net
                    ((s1 < s2) && (static_cast<u32>(s2 - s1) > 0x8000u));
         }
 
+        // The live connection to `remote`, or a new one. One that has disconnected is let go first,
+        // so connecting again starts a session from nothing rather than carrying the old one's
+        // sequences and message ids. A new connection may move the others in memory: a Connection
+        // pointer or reference taken before is not used after.
         Connection& OpenConnection(const DatagramEndpoint& remote)
         {
-            for (Connection& c : m_connections)
+            if (Connection* existing = FindByRemote(remote))
             {
-                if (c.remote == remote)
+                if (existing->state != ConnectionState::Disconnected)
                 {
-                    return c;
+                    return *existing;
                 }
+                Forget(*existing);
             }
             Connection c;
             c.peer = m_nextPeer++;
             c.remote = remote;
             c.lastRecvMs = m_nowMs;
             m_connections.PushBack(static_cast<Connection&&>(c));
-            return m_connections[m_connections.Size() - 1];
+            const usize index = m_connections.Size() - 1;
+            m_byRemote.InsertOrAssign(remote.value, index);
+            m_byPeer.InsertOrAssign(m_connections[index].peer, index);
+            return m_connections[index];
         }
-        [[nodiscard]] Connection* FindByPeer(PeerId peer)
+        // Takes a connection out of the lookups, so its address is free for a new one. It stays in
+        // the list (its peer finds nothing) until RemoveDisconnected drops it.
+        void Forget(const Connection& c)
         {
-            for (Connection& c : m_connections)
+            const usize index = static_cast<usize>(&c - m_connections.Data());
+            if (const usize* byRemote = m_byRemote.Find(c.remote.value); byRemote != nullptr && *byRemote == index)
             {
-                if (c.peer == peer)
+                (void)m_byRemote.Remove(c.remote.value);
+            }
+            if (const usize* byPeer = m_byPeer.Find(c.peer); byPeer != nullptr && *byPeer == index)
+            {
+                (void)m_byPeer.Remove(c.peer);
+            }
+        }
+        // Drops the connections that have disconnected: their Disconnected events are queued
+        // already, and nothing more is said on the wire for them. The lookups are rebuilt, since
+        // the others' places in the list move.
+        void RemoveDisconnected()
+        {
+            bool removed = false;
+            for (usize i = m_connections.Size(); i > 0; --i)
+            {
+                if (m_connections[i - 1].state == ConnectionState::Disconnected)
                 {
-                    return &c;
+                    m_connections.RemoveAt(i - 1);
+                    removed = true;
                 }
             }
-            return nullptr;
+            if (!removed)
+            {
+                return;
+            }
+            m_byRemote.Clear();
+            m_byPeer.Clear();
+            for (usize i = 0; i < m_connections.Size(); ++i)
+            {
+                m_byRemote.InsertOrAssign(m_connections[i].remote.value, i);
+                m_byPeer.InsertOrAssign(m_connections[i].peer, i);
+            }
+        }
+        // The live connections by peer and by remote, through the lookups: a received packet and a
+        // send find theirs without a search, so the cost per connection does not grow with their number.
+        [[nodiscard]] Connection* FindByPeer(PeerId peer)
+        {
+            const usize* index = m_byPeer.Find(peer);
+            return index != nullptr ? &m_connections[*index] : nullptr;
         }
         [[nodiscard]] const Connection* FindByPeer(PeerId peer) const
         {
-            for (const Connection& c : m_connections)
-            {
-                if (c.peer == peer)
-                {
-                    return &c;
-                }
-            }
-            return nullptr;
+            const usize* index = m_byPeer.Find(peer);
+            return index != nullptr ? &m_connections[*index] : nullptr;
         }
         [[nodiscard]] Connection* FindByRemote(const DatagramEndpoint& r)
         {
-            for (Connection& c : m_connections)
-            {
-                if (c.remote == r)
-                {
-                    return &c;
-                }
-            }
-            return nullptr;
+            const usize* index = m_byRemote.Find(r.value);
+            return index != nullptr ? &m_connections[*index] : nullptr;
+        }
+        // A session token: nonzero, and, drawn from the system's entropy, unlikely to repeat across
+        // a client's restarts.
+        [[nodiscard]] u32 NewToken() noexcept
+        {
+            const u32 token = m_random.NextU32();
+            return token != 0 ? token : 1u;
         }
 
         void PushEvent(NetEventKind kind, PeerId peer, u8 channel, Array<byte>&& payload)
@@ -368,17 +430,17 @@ export namespace foundation::net
 
         void SendConnectRequest(Connection& c)
         {
-            BitWriter w;
-            w.WriteU16(m_cfg.protocolId);
-            w.WriteU8(static_cast<u8>(PacketType::ConnectRequest));
-            RawSend(c, w);
+            SendControl(c, PacketType::ConnectRequest);
             c.lastConnectSendMs = m_nowMs;
         }
+        // A control packet, carrying the session's token so the far end can tell this session from
+        // an earlier one at the same address.
         void SendControl(Connection& c, PacketType type)
         {
             BitWriter w;
             w.WriteU16(m_cfg.protocolId);
             w.WriteU8(static_cast<u8>(type));
+            w.WriteU32(c.token);
             RawSend(c, w);
         }
 
@@ -418,8 +480,14 @@ export namespace foundation::net
             w.WriteU8(static_cast<u8>(PacketType::Data));
             const u16 seq = c.localSeq++;
             w.WriteU16(seq);
-            w.WriteU16(c.remoteSeq);
-            w.WriteU32(c.receivedBits);
+            // Nothing received yet, nothing acked: an ack of the default seq would retire the far
+            // end's first packet, lost or not, and with it the reliable messages it carried.
+            w.WriteBool(c.anyReceived);
+            if (c.anyReceived)
+            {
+                w.WriteU16(c.remoteSeq);
+                w.WriteU32(c.receivedBits);
+            }
 
             SentPacket rec;
             rec.seq = seq;
@@ -465,7 +533,15 @@ export namespace foundation::net
             {
                 w.WriteU8(m->channel);
                 w.WriteBool(m->reliable);
-                if (m->reliable)
+                if (!m->reliable)
+                {
+                    w.WriteBool(m->sequenced);
+                    if (m->sequenced)
+                    {
+                        w.WriteU16(m->id);
+                    }
+                }
+                else
                 {
                     w.WriteU16(m->id);
                     w.WriteBool(m->fragmented);
@@ -491,11 +567,8 @@ export namespace foundation::net
 
         void RecordSent(Connection& c, SentPacket&& rec)
         {
-            c.sentWindow.PushBack(static_cast<SentPacket&&>(rec));
-            while (c.sentWindow.Size() > 256u)
-            {
-                c.sentWindow.RemoveAt(0);
-            }
+            rec.used = true;
+            c.sentWindow[rec.seq % kSentWindow] = static_cast<SentPacket&&>(rec);
         }
 
         void UpdateConnection(Connection& c)
@@ -561,6 +634,15 @@ export namespace foundation::net
             const PacketType type = static_cast<PacketType>(typeRaw);
 
             Connection* c = FindByRemote(from);
+            u32 token = 0;
+            if (type != PacketType::Data)
+            {
+                token = r.ReadU32();
+                if (!r.Ok())
+                {
+                    return;
+                }
+            }
             switch (type)
             {
             case PacketType::ConnectRequest:
@@ -569,24 +651,31 @@ export namespace foundation::net
                 {
                     return;
                 }
-                if (c == nullptr)
-                {
-                    Connection& nc = OpenConnection(from);
-                    nc.state = ConnectionState::Connected;
-                    nc.lastRecvMs = m_nowMs;
-                    SendControl(nc, PacketType::ConnectAccept);
-                    PushEvent(NetEventKind::Connected, nc.peer, 0, {});
-                }
-                else
+                if (c != nullptr && c->token == token && c->state != ConnectionState::Disconnected)
                 {
                     c->lastRecvMs = m_nowMs;
-                    SendControl(*c, PacketType::ConnectAccept); // re-accept (lost accept)
+                    SendControl(*c, PacketType::ConnectAccept); // re-accept: our accept was lost
+                    return;
                 }
+                if (c != nullptr && c->state != ConnectionState::Disconnected)
+                {
+                    // Another session from the same address (the client restarted, or connected
+                    // again): the old one is over, and its state must not carry into the new one.
+                    c->state = ConnectionState::Disconnected;
+                    PushEvent(NetEventKind::Disconnected, c->peer, 0, {});
+                }
+                Connection& nc = OpenConnection(from); // `c` is not used from here on
+                nc.state = ConnectionState::Connected;
+                nc.token = token;
+                nc.lastRecvMs = m_nowMs;
+                SendControl(nc, PacketType::ConnectAccept);
+                PushEvent(NetEventKind::Connected, nc.peer, 0, {});
                 return;
             }
             case PacketType::ConnectAccept:
             {
-                if (c == nullptr)
+                // An accept for an earlier session (a late one, or a resend) is not this one's.
+                if (c == nullptr || c->token != token)
                 {
                     return;
                 }
@@ -600,7 +689,7 @@ export namespace foundation::net
             }
             case PacketType::Disconnect:
             {
-                if (c != nullptr && c->state != ConnectionState::Disconnected)
+                if (c != nullptr && c->token == token && c->state != ConnectionState::Disconnected)
                 {
                     c->state = ConnectionState::Disconnected;
                     PushEvent(NetEventKind::Disconnected, c->peer, 0, {});
@@ -619,13 +708,22 @@ export namespace foundation::net
             c->ackPending = true; // owe the sender an ack for this Data packet
 
             const u16 seq = r.ReadU16();
-            const u16 ack = r.ReadU16();
-            const u32 ackBits = r.ReadU32();
+            const bool hasAck = r.ReadBool();
+            u16 ack = 0;
+            u32 ackBits = 0;
+            if (hasAck)
+            {
+                ack = r.ReadU16();
+                ackBits = r.ReadU32();
+            }
             if (!r.Ok())
             {
                 return;
             }
-            ProcessAcks(*c, ack, ackBits);
+            if (hasAck)
+            {
+                ProcessAcks(*c, ack, ackBits);
+            }
             UpdateReceivedhistory(*c, seq);
 
             const u32 count = r.ReadVarU32();
@@ -634,9 +732,18 @@ export namespace foundation::net
                 const u8 channel = r.ReadU8();
                 const bool reliable = r.ReadBool();
                 u16 id = 0;
+                bool sequenced = false;
                 bool fragmented = false;
                 u32 fragGroup = 0, fragIndex = 0, fragCount = 1;
-                if (reliable)
+                if (!reliable)
+                {
+                    sequenced = r.ReadBool();
+                    if (sequenced)
+                    {
+                        id = r.ReadU16();
+                    }
+                }
+                else
                 {
                     id = r.ReadU16();
                     fragmented = r.ReadBool();
@@ -667,12 +774,24 @@ export namespace foundation::net
                     DeliverReliable(*c, id, channel, fragmented, fragGroup, fragIndex, fragCount,
                                     static_cast<Array<byte>&&>(payload));
                 }
-                else
+                else if (!sequenced || TakeSequenced(*c, channel, id))
                 {
                     PushEvent(NetEventKind::Received, c->peer, channel,
                               static_cast<Array<byte>&&>(payload));
                 }
             }
+        }
+
+        // Whether a sequenced message numbered `id` is newer than the last delivered on its channel,
+        // noting it if so. A stale one (reordered behind a newer one, or duplicated) is dropped.
+        [[nodiscard]] bool TakeSequenced(Connection& c, u8 channel, u16 id) noexcept
+        {
+            if (const u16* last = c.lastInSequenced.Find(channel); last != nullptr && !SeqGreater(id, *last))
+            {
+                return false;
+            }
+            c.lastInSequenced.InsertOrAssign(channel, id);
+            return true;
         }
 
         // Mark sent packets acked (by ack and the 32-bit history), ack their reliable messages, sample RTT.
@@ -689,19 +808,17 @@ export namespace foundation::net
         }
         void AckOne(Connection& c, u16 seq)
         {
-            for (SentPacket& p : c.sentWindow)
+            SentPacket& p = c.sentWindow[seq % kSentWindow];
+            if (!p.used || p.seq != seq || p.acked)
             {
-                if (p.seq == seq && !p.acked)
-                {
-                    p.acked = true;
-                    const f64 sample = m_nowMs - p.sendTimeMs;
-                    c.rttMs = (c.rttMs <= 0.0) ? sample : (c.rttMs * 0.9 + sample * 0.1);
-                    for (u16 mid : p.reliableIds)
-                    {
-                        AckReliableMessage(c, mid);
-                    }
-                    return;
-                }
+                return;
+            }
+            p.acked = true;
+            const f64 sample = m_nowMs - p.sendTimeMs;
+            c.rttMs = (c.rttMs <= 0.0) ? sample : (c.rttMs * 0.9 + sample * 0.1);
+            for (u16 mid : p.reliableIds)
+            {
+                AckReliableMessage(c, mid);
             }
         }
         void AckReliableMessage(Connection& c, u16 id)
@@ -852,6 +969,9 @@ export namespace foundation::net
         f64 m_nowMs = 0.0;
         PeerId m_nextPeer = 1;
         Array<Connection> m_connections;
+        HashMap<u64, usize> m_byRemote;  // a live connection's index by its remote endpoint
+        HashMap<PeerId, usize> m_byPeer; // and by its peer
+        Random m_random = Random::FromSystemEntropy(); // session tokens
         Array<NetEvent> m_events;
         usize m_eventHead = 0;
     };

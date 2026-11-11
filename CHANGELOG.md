@@ -42,6 +42,12 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   the preset travels with it; From Disk takes a file of the project's through the system's dialog and
   refuses one outside it.
 ### Fixed
+
+- Networking: the reliable UDP transport resends a reliable message whose first packet was lost
+  (that packet was acked by mistake), lets a client connect again from the same address (after a
+  restart or a disconnect, its messages were dropped as duplicates), keeps sequenced messages in
+  order (they were sent as plain unreliable ones), and finds a connection without searching all of
+  them. The wire format changes: an older build does not talk to this one.
 - Editor: the Export dialog shows the selected preset's settings again; since the property grid
   measured its rows, the column beside the presets had shrunk to nothing.
 

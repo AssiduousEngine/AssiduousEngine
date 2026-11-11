@@ -85,6 +85,47 @@ namespace
     }
 }
 
+namespace
+{
+    // A socket that loses the first Data packet sent through it and passes everything else.
+    class DropFirstDataSocket final : public net::IDatagramSocket
+    {
+    public:
+        explicit DropFirstDataSocket(net::IDatagramSocket& inner) : m_inner(inner) {}
+        void Send(const net::DatagramEndpoint& to, Span<const byte> data) override
+        {
+            net::BitReader reader(data);
+            (void)reader.ReadU16(); // protocol
+            const u8 type = reader.ReadU8();
+            if (dropped == 0 && reader.Ok() && type == 2u) // Data
+            {
+                ++dropped;
+                return;
+            }
+            m_inner.Send(to, data);
+        }
+        [[nodiscard]] bool Receive(net::DatagramEndpoint& from, Array<byte>& out) override { return m_inner.Receive(from, out); }
+        [[nodiscard]] net::DatagramEndpoint LocalEndpoint() const override { return m_inner.LocalEndpoint(); }
+
+        int dropped = 0;
+
+    private:
+        net::IDatagramSocket& m_inner;
+    };
+
+    // Counts the events of `kind` a transport has queued, draining it.
+    int CountKind(net::INetTransport& t, net::NetEventKind kind)
+    {
+        int count = 0;
+        net::NetEvent ev;
+        while (t.Poll(ev))
+        {
+            count += ev.kind == kind ? 1 : 0;
+        }
+        return count;
+    }
+}
+
 TEST_CASE("reliable: handshake connects both sides")
 {
     net::SimConditions sim;
@@ -421,4 +462,158 @@ TEST_CASE("reliable: explicit Disconnect notifies the peer")
     fx.client.Disconnect(sp);
     fx.Pump(10);
     CHECK(AnyKind(fx.server, net::NetEventKind::Disconnected));
+}
+
+// A reliable message in a connection's very first Data packet is resent when that packet is lost:
+// the far end, having received nothing, acks nothing. The resend waits longer than the far end's
+// first keepalive, so an ack of a packet never received would retire it first.
+TEST_CASE("reliable: a reliable message in the first packet is resent when that packet is lost")
+{
+    net::SimConditions sim;
+    sim.latencyMs = 10.0f;
+    net::ReliableConfig cfg;
+    cfg.keepAliveMs = 50.0f;
+    cfg.minResendMs = 500.0f;
+    net::SimDatagramNetwork network(foundation::core::DefaultAllocator(), sim);
+    net::IDatagramSocket* serverSocket = network.CreateSocket();
+    DropFirstDataSocket dropping(*network.CreateSocket());
+    net::ReliableTransport client(dropping, cfg);
+    net::ReliableTransport server(*serverSocket, cfg);
+    server.SetAccepting(true);
+
+    const net::PeerId sp = client.Connect(serverSocket->LocalEndpoint());
+    // Queued while connecting, so it goes in the first Data packet, which is lost.
+    const Array<byte> msg = Bytes({42});
+    client.Send(sp, 0, msg.AsSpan(), net::Reliability::ReliableOrdered);
+    Array<u8> got;
+    for (int step = 0; step < 200; ++step)
+    {
+        network.Advance(10.0f);
+        client.Update(10.0f);
+        server.Update(10.0f);
+        for (u8 v : DrainReceived(server))
+        {
+            got.PushBack(v);
+        }
+    }
+    CHECK(dropping.dropped == 1);
+    REQUIRE(got.Size() == 1u); // resent, and delivered once
+    CHECK(got[0] == 42);
+}
+
+// A client that restarts and connects again from the same address starts a new session: the
+// server ends the old one and accepts the new, whose messages arrive though their ids start over.
+TEST_CASE("reliable: a client restarting at the same address connects again")
+{
+    net::SimConditions sim;
+    sim.latencyMs = 10.0f;
+    Fixture fx(sim);
+    fx.server.SetAccepting(true);
+    const net::PeerId first = fx.client.Connect(fx.sb->LocalEndpoint());
+    fx.Pump(20);
+    for (u8 i = 0; i < 3; ++i)
+    {
+        const Array<byte> msg = Bytes({i});
+        fx.client.Send(first, 0, msg.AsSpan(), net::Reliability::ReliableOrdered);
+    }
+    fx.Pump(20);
+    CHECK(DrainReceived(fx.server).Size() == 3u);
+
+    // The client process restarts on the same socket address.
+    net::ReliableTransport restarted(*fx.sa);
+    const net::PeerId second = restarted.Connect(fx.sb->LocalEndpoint());
+    for (int i = 0; i < 20; ++i)
+    {
+        fx.net.Advance(10.0f);
+        restarted.Update(10.0f);
+        fx.server.Update(10.0f);
+    }
+    CHECK(AnyKind(restarted, net::NetEventKind::Connected));
+    net::NetEvent ev;
+    int disconnected = 0;
+    int connected = 0;
+    while (fx.server.Poll(ev))
+    {
+        disconnected += ev.kind == net::NetEventKind::Disconnected ? 1 : 0;
+        connected += ev.kind == net::NetEventKind::Connected ? 1 : 0;
+    }
+    CHECK(disconnected == 1); // the old session ends
+    CHECK(connected == 1);    // the new one starts
+
+    const Array<byte> msg = Bytes({7});
+    restarted.Send(second, 0, msg.AsSpan(), net::Reliability::ReliableOrdered);
+    for (int i = 0; i < 20; ++i)
+    {
+        fx.net.Advance(10.0f);
+        restarted.Update(10.0f);
+        fx.server.Update(10.0f);
+    }
+    const Array<u8> after = DrainReceived(fx.server);
+    REQUIRE(after.Size() == 1u); // the new session's first message arrives
+    CHECK(after[0] == 7);
+}
+
+// A client that disconnects and connects again to the same server gets a working session.
+TEST_CASE("reliable: a client that disconnected connects again")
+{
+    net::SimConditions sim;
+    sim.latencyMs = 10.0f;
+    Fixture fx(sim);
+    fx.server.SetAccepting(true);
+    const net::PeerId first = fx.client.Connect(fx.sb->LocalEndpoint());
+    fx.Pump(20);
+    const Array<byte> one = Bytes({1});
+    fx.client.Send(first, 0, one.AsSpan(), net::Reliability::ReliableOrdered);
+    fx.Pump(20);
+    fx.client.Disconnect(first);
+    fx.Pump(10);
+    CHECK(CountKind(fx.server, net::NetEventKind::Disconnected) == 1);
+
+    const net::PeerId second = fx.client.Connect(fx.sb->LocalEndpoint());
+    fx.Pump(20);
+    CHECK(AnyKind(fx.client, net::NetEventKind::Connected));
+    const Array<byte> nine = Bytes({9});
+    fx.client.Send(second, 0, nine.AsSpan(), net::Reliability::ReliableOrdered);
+    fx.Pump(20);
+    const Array<u8> got = DrainReceived(fx.server);
+    REQUIRE(got.Size() == 1u); // the new session's message arrives
+    CHECK(got[0] == 9);
+}
+
+// Sequenced messages never arrive out of order: over a link that reorders, a stale one is dropped
+// rather than delivered after a newer one.
+TEST_CASE("reliable: sequenced messages never arrive out of order")
+{
+    net::SimConditions sim;
+    sim.latencyMs = 20.0f;
+    sim.lossPct = 0.1f;
+    sim.reorderPct = 0.5f;
+    sim.seed = 11;
+    Fixture fx(sim);
+    fx.server.SetAccepting(true);
+    const net::PeerId sp = fx.client.Connect(fx.sb->LocalEndpoint());
+    fx.Pump(20);
+    (void)AnyKind(fx.server, net::NetEventKind::Connected);
+
+    Array<u8> got;
+    for (u32 i = 0; i < 200; ++i)
+    {
+        const Array<byte> msg = Bytes({static_cast<u8>(i)});
+        fx.client.Send(sp, 3, msg.AsSpan(), net::Reliability::UnreliableSequenced);
+        fx.Step();
+        for (u8 v : DrainReceived(fx.server))
+        {
+            got.PushBack(v);
+        }
+    }
+    fx.Pump(20);
+    for (u8 v : DrainReceived(fx.server))
+    {
+        got.PushBack(v);
+    }
+    CHECK(got.Size() > 50u); // most arrive
+    for (usize i = 1; i < got.Size(); ++i)
+    {
+        CHECK(got[i] > got[i - 1]); // each newer than the one before
+    }
 }
