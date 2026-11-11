@@ -890,6 +890,11 @@ namespace engine::runtime
         m_screenshot.Request(path);
     }
 
+    void DefaultApplication::OnEnterBackground(IApplicationHost&)
+    {
+        ForEachInstance([](GameInstance& instance) { (void)instance.Saves().Flush(); });
+    }
+
     void DefaultApplication::FinishFrame(IApplicationHost& host, FrameContext& frame)
     {
         ++m_renderedFrames;

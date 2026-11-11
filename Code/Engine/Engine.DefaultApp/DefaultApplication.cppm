@@ -221,6 +221,10 @@ export namespace engine::runtime
 
         void OnShutdown(IApplicationHost&) override;
 
+        // Going to the background, each run writes what its game saved: the platform may end the
+        // app there without asking, and a run's save is otherwise written as the run ends.
+        void OnEnterBackground(IApplicationHost&) override;
+
         // ---- screenshots ----
 
         /// Capture the next presented frame of the main window to `path` as a PNG. F11 does this

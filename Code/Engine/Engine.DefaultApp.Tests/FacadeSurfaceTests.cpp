@@ -166,6 +166,30 @@ TEST_CASE("defaultapp: its instances are the runs, on the subsystem manager for 
 }
 
 
+TEST_CASE("defaultapp: going to the background writes what each run's game saved")
+{
+    (void)CreateDirectories(u8"scratch_defaultapp_background");
+    const String path = PathJoin(u8"scratch_defaultapp_background", u8"save.xml");
+    (void)FileDelete(path.AsView());
+
+    StubHost host;
+    engine::runtime::DefaultApplication app;
+    app.Configure(host);
+    engine::runtime::RunSave& save = app.Instance().Saves();
+    app.Instance().SetSaveFile(path.AsView());
+    save.Values().SetInt(u8"stars", 3);
+    save.MarkChanged();
+    CHECK_FALSE(FileExists(path.AsView())); // the run is still going: nothing written yet
+
+    app.OnEnterBackground(host);
+    CHECK(FileExists(path.AsView()));
+    CHECK_FALSE(save.HasChanges());
+    engine::runtime::RunSave reread(DefaultAllocator());
+    reread.Open(path.AsView());
+    CHECK(reread.Values().GetInt(u8"stars", 0) == 3);
+    (void)FileDelete(path.AsView());
+}
+
 namespace
 {
     // What the probe plugin's Engine part found when it loaded, and whether it was unloaded.
