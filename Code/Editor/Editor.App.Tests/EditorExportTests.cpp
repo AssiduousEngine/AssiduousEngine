@@ -4,7 +4,8 @@
 // Editor::App: EditorExport. An export needs a project and only one runs at a time. The templates
 // folder is the user's override when there is one. A resource report with no project writes a line
 // to the log rather than crashing. A project's saved presets are read back when it opens again. A
-// cook that fails an asset stops the export.
+// cook that fails an asset stops the export. An Android app signed with a keystore asks for the
+// keystore's password when the environment lacks it.
 #include <doctest/doctest.h>
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
@@ -156,6 +157,77 @@ TEST_CASE("export: a cook that fails an asset stops the export, said, and no exp
     CHECK_FALSE(context.Tasks().IsLaneBusy(context.BuildLane())); // no export job was submitted
 
     cook.Shutdown();
+    project.Reset();
+    context.Tasks().Finish();
+    (void)RemoveDirectoryRecursive(dir.AsView());
+}
+
+TEST_CASE("export: an Android preset signed with a keystore asks for its password when the environment lacks it")
+{
+    RegisterEditorSettingsTypes();
+    const String dir(u8"scratch_export_keystore_project");
+    (void)RemoveDirectoryRecursive(dir.AsView());
+    REQUIRE(EditorProject::Create(DefaultAllocator(), dir.AsView(), u8"P").IsOk());
+    UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir.AsView());
+    REQUIRE(static_cast<bool>(project));
+    const Optional<String> was = GetEnvironmentVariable(kAndroidStorePasswordVariable);
+    (void)SetEnvironmentVariable(kAndroidStorePasswordVariable, u8"");
+    EditorContext context{DefaultAllocator()};
+    EditorCookService cook;
+    pipeline::BuilderRegistry builders{DefaultAllocator()};
+    Array<app::NameRequest> asked;
+    const auto make = [&]()
+    {
+        app::EditorExport::Services services;
+        services.context = &context;
+        services.cook = &cook;
+        services.tasks = &context.Tasks();
+        services.lane = context.BuildLane();
+        services.builders = &builders;
+        services.askName = [&asked](app::NameRequest request) { asked.PushBack(Move(request)); };
+        UniquePtr<app::EditorExport> exporter = MakeUnique<app::EditorExport>(DefaultAllocator(), DefaultAllocator(), Move(services));
+        exporter->SetProject(project.Get());
+        return exporter;
+    };
+    {
+        UniquePtr<app::EditorExport> first = make();
+        ExportPreset phone;
+        phone.name = String(u8"Phone");
+        phone.platform = String(u8"Android64");
+        phone.androidKeystore = String(u8"release.jks");
+        (void)first->Presets().Add(phone);
+        ExportPreset debugKey;
+        debugKey.name = String(u8"Phone Test");
+        debugKey.platform = String(u8"Android64");
+        (void)first->Presets().Add(debugKey);
+        first->SavePresets();
+    }
+
+    // The debug key needs no password: the export goes ahead.
+    {
+        UniquePtr<app::EditorExport> exporter = make();
+        exporter->Run(u8"Phone Test", false);
+        CHECK(asked.IsEmpty());
+        CHECK(exporter->IsPending());
+    }
+
+    // The keystore's password is asked for, masked, and the export waits for it.
+    UniquePtr<app::EditorExport> exporter = make();
+    exporter->Run(u8"Phone", false);
+    REQUIRE(asked.Size() == 1u);
+    CHECK(asked[0].secret);
+    CHECK_FALSE(exporter->IsPending());
+    CHECK_FALSE(asked[0].refusal(u8"").IsEmpty());
+    // Given, it is kept in the environment, where the export's build reads it, and the export runs.
+    asked[0].accepted(u8"secret");
+    const Optional<String> kept = GetEnvironmentVariable(kAndroidStorePasswordVariable);
+    REQUIRE(kept.HasValue());
+    CHECK(*kept == StringView(u8"secret"));
+    CHECK(exporter->IsPending());
+    CHECK(asked.Size() == 1u);
+
+    (void)SetEnvironmentVariable(kAndroidStorePasswordVariable, was.HasValue() ? was->AsView() : StringView{});
+    exporter.Reset();
     project.Reset();
     context.Tasks().Finish();
     (void)RemoveDirectoryRecursive(dir.AsView());

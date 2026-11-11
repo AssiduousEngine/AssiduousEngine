@@ -284,6 +284,7 @@ namespace editor::app
                                     dialogs->OpenPath(where.AsView());
                             });
         };
+        exportServices.askName = [self](NameRequest request) { self->AskName(Move(request)); };
         m_export = MakeUnique<EditorExport>(m_editorAllocator, m_editorAllocator, Move(exportServices));
 
         EditorMcpService::Services mcp;

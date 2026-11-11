@@ -252,6 +252,55 @@ TEST_CASE("export dialog: a preset starts at the project's default or one of its
     CHECK(f.presets.At(0).qualityLevelId.IsNil()); // back to the project's default
 }
 
+// An Android preset's app (its id, version, name, icon, package and keystore) has a section of its
+// own, shown for an Android preset alone; Android is a platform to pick with no template installed.
+TEST_CASE("export dialog: an Android preset's app rows, shown for it alone")
+{
+    Fixture f;
+    UniquePtr<app::ExportDialog> dialog = f.Open();
+    REQUIRE(dialog->SelectedIndex() == 0);
+    gui::PropertyBag* rows = dialog->Rows();
+    REQUIRE(rows->FindInfo(u8"androidApplicationId") != nullptr);
+    CHECK(rows->FindInfo(u8"androidApplicationId")->Category == String(u8"Android"));
+    CHECK_FALSE(rows->FindInfo(u8"androidApplicationId")->Visible); // a Linux preset
+
+    // Android64 is offered though no template here has it.
+    const gui::PropertyInfo* platform = rows->FindInfo(u8"platform");
+    REQUIRE(platform != nullptr);
+    i64 android = -1;
+    for (const gui::PropertyChoice& choice : platform->Choices)
+        android = choice.Name == String(u8"Android64") ? choice.Value : android;
+    REQUIRE(android >= 0);
+    Edit(*dialog, u8"platform", gui::Variant(android));
+    CHECK(f.presets.At(0).platform == StringView(u8"Android64"));
+    rows = dialog->Rows();
+    const StringView androidRows[] = {u8"androidApplicationId", u8"androidVersionCode", u8"androidVersionName", u8"androidLabel",
+                                      u8"androidIcon",          u8"androidPackage",     u8"androidKeystore",    u8"androidKeyAlias"};
+    for (const StringView path : androidRows)
+    {
+        CAPTURE(path);
+        REQUIRE(rows->FindInfo(path) != nullptr);
+        CHECK(rows->FindInfo(path)->Visible);
+    }
+
+    Edit(*dialog, u8"androidApplicationId", gui::Variant(StringView(u8"com.studio.game")));
+    Edit(*dialog, u8"androidVersionCode", gui::Variant(i64{4}));
+    Edit(*dialog, u8"androidPackage", gui::Variant(static_cast<i64>(AndroidPackage::Bundle)));
+    Edit(*dialog, u8"androidKeystore", gui::Variant(StringView(u8"keys/release.jks")));
+    CHECK(f.presets.At(0).androidApplicationId == StringView(u8"com.studio.game"));
+    CHECK(f.presets.At(0).androidVersionCode == 4u);
+    CHECK(f.presets.At(0).androidPackage == AndroidPackage::Bundle);
+    CHECK(f.presets.At(0).androidKeystore == StringView(u8"keys/release.jks"));
+
+    // The Web preset hides them; this one shows its values again.
+    dialog->Select(1);
+    CHECK_FALSE(dialog->Rows()->FindInfo(u8"androidApplicationId")->Visible);
+    dialog->Select(0);
+    CHECK(dialog->Rows()->FindInfo(u8"androidApplicationId")->Visible);
+    CHECK(dialog->Rows()->GetValue(u8"androidApplicationId", 0).AsString() == StringView(u8"com.studio.game"));
+    CHECK(dialog->Rows()->GetValue(u8"androidVersionCode", 0).AsInt() == 4);
+}
+
 // Extra files are the project's: Add Files lists its own files (not the folders the editor, a cook
 // or an export writes) and adds the one picked by its project-relative path; From Disk takes a
 // file inside the project the same way and refuses one outside it.

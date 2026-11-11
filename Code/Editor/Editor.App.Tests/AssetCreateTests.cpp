@@ -239,7 +239,30 @@ TEST_CASE("name prompt: the name checked as it is typed, the line saying why or 
     (void)root->GetEventDispatcher()->InjectText(u8"Props");
     CHECK(accept->IsEnabled());
     CHECK(why->GetText() == StringView(u8"Makes the group Props in Content."));
+    CHECK_FALSE(name->IsPassword()); // a name shows as typed
     CHECK(accept->HandleActivate());
     CHECK(accepted == StringView(u8"Props"));
     CHECK_FALSE(window->IsOpen());
+
+    // A secret (a keystore's password): the field masks it, and the accepted text is what was typed.
+    editor::app::NameRequest secret;
+    secret.title = String(u8"Keystore Password");
+    secret.accept = String(u8"Export");
+    secret.secret = true;
+    secret.refusal = [](StringView text) { return text.IsEmpty() ? String(u8"Type the keystore's password.") : String{}; };
+    String typed;
+    secret.accepted = [&typed](StringView text) { typed = String(text); };
+    RefPtr<gui::Window> asking = editor::app::NamePrompt::Open(DefaultAllocator(), *root, Load(StringView(editor::app::kNamePromptPath)), Move(secret));
+    REQUIRE(asking);
+    (void)root->UpdateLayout();
+    auto* field = FindId<gui::TextField>(*asking, u8"name-prompt-name");
+    auto* go = FindId<gui::Button>(*asking, u8"name-prompt-accept");
+    REQUIRE(field != nullptr);
+    REQUIRE(go != nullptr);
+    CHECK(field->IsPassword());
+    CHECK_FALSE(go->IsEnabled());
+    (void)root->GetEventDispatcher()->InjectText(u8"hunter2");
+    CHECK(go->IsEnabled());
+    CHECK(go->HandleActivate());
+    CHECK(typed == StringView(u8"hunter2"));
 }

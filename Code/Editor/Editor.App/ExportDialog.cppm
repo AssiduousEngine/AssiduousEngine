@@ -10,7 +10,8 @@
 // none. Its settings are on the property grid, as Project Settings' are, with a section per
 // category (General: its name, template, platform, config, player and output folder; Content: the
 // extra files as a list, symbols, pruning, shader source; Display: its own render size, window and
-// orientation, each shown only when the preset overrides it). A template picked by name decides
+// orientation, each shown only when the preset overrides it; Android: the app's id, version, name,
+// icon, package and keystore, shown only for an Android preset). A template picked by name decides
 // the platform and config. Edits apply as they are made and are saved when the selection moves,
 // an export starts, or the dialog closes. Export runs the selected preset and Export All every
 // one; Export Templates opens that window over this one, and the card follows what it changed.
@@ -362,6 +363,7 @@ export namespace editor::app
         static constexpr StringView kGeneral = u8"General";
         static constexpr StringView kContent = u8"Content";
         static constexpr StringView kDisplay = u8"Display";
+        static constexpr StringView kAndroid = u8"Android";
 
         // The presets as the list's model.
         class Model final : public gui::IModel
@@ -392,6 +394,12 @@ export namespace editor::app
         {
             return *FindProperty(engine::project::ProjectSettings::StaticType(), property)->type;
         }
+        /// The enum type of one of ExportPreset's own properties.
+        [[nodiscard]] static const TypeInfo& PresetEnum(const char* property)
+        {
+            editor::RegisterExportPresetReflection();
+            return *FindProperty(TypeOf<editor::ExportPreset>(), property)->type;
+        }
         [[nodiscard]] RefPtr<gui::Drawable> IconFor(const editor::ExportTemplate& tmpl)
         {
             String key(tmpl.id.AsView());
@@ -419,8 +427,8 @@ export namespace editor::app
         }
 
         // The values a choice offers: the preset's own, the fallback (the host's platform,
-        // Release), then those of the templates found here; a platform with no template stays
-        // selectable.
+        // Release), then those of the templates found here and, for the platform, every one a game
+        // exports to; a platform with no template stays selectable.
         void FillChoices(gui::PropertyInfo& row, Array<String>& values, StringView current, StringView fallback, bool platforms) const
         {
             values.Clear();
@@ -437,6 +445,9 @@ export namespace editor::app
             add(fallback);
             for (usize i = 0; i < m_registry.Count(); ++i)
                 add(platforms ? m_registry.At(i)->platform.AsView() : m_registry.At(i)->EffectiveConfig());
+            if (platforms)
+                for (const editor::ExportPlatform& platform : editor::kExportPlatforms)
+                    add(platform.tag);
             for (usize i = 0; i < values.Size(); ++i)
                 row.Choices.PushBack(gui::PropertyChoice{values[i], static_cast<i64>(i)});
         }
@@ -554,6 +565,28 @@ export namespace editor::app
             quality.Choices.PushBack(gui::PropertyChoice{String(u8"The project's default"), 0});
             for (usize i = 0; i < m_qualityLevels.Size(); ++i)
                 quality.Choices.PushBack(gui::PropertyChoice{m_qualityLevels[i].name, static_cast<i64>(i) + 1});
+
+            Row(u8"androidApplicationId", gui::PropertyKind::String, gui::Variant(preset.androidApplicationId.AsView()),
+                u8"Application id", kAndroid, u8"The app's own name on the phone and in a store, as com.studio.game.");
+            gui::PropertyInfo& code = Row(u8"androidVersionCode", gui::PropertyKind::Integer,
+                                          gui::Variant(static_cast<i64>(preset.androidVersionCode)), u8"Version code", kAndroid,
+                                          u8"The version a phone and a store compare: raise it for each release.");
+            code.HasRange = true;
+            code.Min = 1.0;
+            code.Max = 2100000000.0;
+            code.Step = 1.0;
+            Row(u8"androidVersionName", gui::PropertyKind::String, gui::Variant(preset.androidVersionName.AsView()),
+                u8"Version name", kAndroid, u8"The version a person reads.");
+            Row(u8"androidLabel", gui::PropertyKind::String, gui::Variant(preset.androidLabel.AsView()), u8"App name", kAndroid,
+                u8"The name under its icon. Empty: the project's.");
+            Row(u8"androidIcon", gui::PropertyKind::String, gui::Variant(preset.androidIcon.AsView()), u8"App icon", kAndroid,
+                u8"A square PNG in the project, 512 pixels or more. Empty: the platform's.");
+            EnumRow(u8"androidPackage", PresetEnum("androidPackage"), static_cast<i64>(preset.androidPackage), u8"Package", kAndroid);
+            Row(u8"androidKeystore", gui::PropertyKind::String, gui::Variant(preset.androidKeystore.AsView()), u8"Keystore", kAndroid,
+                u8"The release keystore, relative to the project. Empty: the debug key, for testing. Its password is asked for "
+                u8"at export, or read from ANDROID_KEYSTORE_PASSWORD.");
+            Row(u8"androidKeyAlias", gui::PropertyKind::String, gui::Variant(preset.androidKeyAlias.AsView()), u8"Key alias", kAndroid,
+                u8"The key in the keystore that signs.");
             ShowOverrides(preset);
             ExportDialog* self = this;
             m_bag->SetOnCommit([self](const gui::PropertyBag::Commit&) { self->Store(); });
@@ -592,6 +625,11 @@ export namespace editor::app
             for (StringView path : {StringView(u8"windowWidth"), StringView(u8"windowHeight"), StringView(u8"windowMode"), StringView(u8"windowResizable")})
                 show(path, preset.overridesWindow);
             show(u8"orientation", preset.overridesOrientation);
+            // A field of one platform's (the Android app's) shows for a preset of that platform.
+            editor::RegisterExportPresetReflection();
+            for (const PropertyInfo& property : Properties(TypeOf<editor::ExportPreset>()))
+                if (const String* only = engine::project::SettingAttribute(property, editor::kPresetPlatformAttribute))
+                    show(StringView(reinterpret_cast<const utf8char*>(property.name)), *only == preset.platform);
             m_bag->PropertiesChanged();
         }
         // Stores the rows into the selected preset, then updates what shows it.
@@ -650,6 +688,14 @@ export namespace editor::app
             preset.qualityLevelId = level > 0 && static_cast<usize>(level) <= m_qualityLevels.Size()
                                         ? m_qualityLevels[static_cast<usize>(level) - 1].id
                                         : Guid{};
+            preset.androidApplicationId = text(u8"androidApplicationId");
+            preset.androidVersionCode = Max<u32>(1u, number(u8"androidVersionCode"));
+            preset.androidVersionName = text(u8"androidVersionName");
+            preset.androidLabel = text(u8"androidLabel");
+            preset.androidIcon = text(u8"androidIcon");
+            preset.androidPackage = static_cast<editor::AndroidPackage>(choice(u8"androidPackage"));
+            preset.androidKeystore = text(u8"androidKeystore");
+            preset.androidKeyAlias = text(u8"androidKeyAlias");
             m_presets->Update(static_cast<usize>(index), preset);
             m_dirty = true;
             m_model.Changed(index);

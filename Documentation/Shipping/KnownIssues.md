@@ -24,6 +24,19 @@ their data (assets, settings, scenes). Current engines load them through a compa
 fallback, and data converges to the current names as it is re-saved. If an asset fails to
 resolve its type, open and re-save it (or re-import the source) to migrate it.
 
+## Android: a game with its own native packages does not export yet
+
+An Android preset exports a game whose code is its scripts and the engine's plugins. A project
+with its own native packages (C++ under `Plugins/`) is refused with that reason, since the
+player with its packages is not yet built for Android. Desktop and web exports of it work.
+
+## Android: the first export downloads Gradle
+
+An Android export builds the app with the template's Gradle project. The first one on a machine
+downloads Gradle and the Android build plugin, so it needs the network and takes minutes; later
+exports reuse them, and each preset's build is kept in `<project>/.cache/android/` so the next
+export builds only what changed.
+
 ## Web (WebGPU) targets: scene MSAA is 1x or 4x only
 
 WebGPU supports sample counts 1 and 4 for the scene pass - there is no 2x. A project

@@ -5,7 +5,8 @@
 //
 // The name prompt: a small window over its markup (Data/Editor/NamePrompt.xml) that asks for one
 // name, for whatever is about to be made where the user already is (a new group in the Assets
-// panel or the group picker, a new asset in the Assets panel). It makes nothing itself: its
+// panel or the group picker, a new asset in the Assets panel), or for one secret (a keystore's
+// password, which the field masks). It makes nothing itself: its
 // request says how a name is refused and what accepting makes, and gets the accepted name. The
 // name is checked as it is typed; while it is refused the accept button does nothing and the line
 // under the field says why, and otherwise that line says what will be made. Enter accepts; Escape
@@ -32,6 +33,7 @@ export namespace editor::app
         String title;      ///< the window's title ("New Group in Models")
         String suggested;  ///< the name it starts with, selected so typing replaces it
         String accept;     ///< the accept button's text ("Create")
+        bool secret = false; ///< a password: the field shows bullets and lets nothing be copied out
         /// Why a name is refused (empty when it is accepted).
         Function<String(StringView)> refusal;
         /// What accepting `name` makes ("Makes the group Props in Models."); unset says nothing.
@@ -77,6 +79,7 @@ export namespace editor::app
                 NameRequest request;
             };
             RefPtr<State> state = MakeRef<State>(allocator);
+            name->SetPassword(request.secret);
             const String suggested = request.suggested;
             state->request = Move(request);
             gui::Window* raw = window.Get();

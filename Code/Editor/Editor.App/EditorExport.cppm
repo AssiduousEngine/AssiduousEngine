@@ -24,6 +24,7 @@ import foundation.resource;
 import foundation.settings;
 import pipeline.core;
 import editor.core;
+import :name_prompt; // NameRequest: the keystore password
 
 using namespace foundation::core;
 
@@ -45,6 +46,8 @@ export namespace editor::app
             String dataRoot;
             /// Called when the export was written to `folder` (the application offers to open it).
             Function<void(StringView folder)> onExported;
+            /// Asks the user for a name or a secret (the keystore's password an Android export signs with).
+            Function<void(NameRequest)> askName;
         };
 
         EditorExport(IAllocator& allocator, Services services) : m_allocator(allocator), m_services(Move(services)) {}
@@ -74,6 +77,28 @@ export namespace editor::app
             if (m_services.tasks->IsLaneBusy(m_services.lane) || m_pending.active)
             {
                 context.Notify(editor::NoticeKind::Info, u8"An export is already in progress.");
+                return;
+            }
+            // An Android app signed with a release keystore needs its password, which no preset
+            // holds: asked for here when the environment lacks it, and kept in this editor's
+            // environment, where the export's Gradle build reads it, until the editor closes.
+            if (NeedsKeystorePassword(presetName, all) && m_services.askName)
+            {
+                NameRequest request;
+                request.title = String(u8"Keystore Password");
+                request.accept = String(u8"Export");
+                request.secret = true;
+                request.refusal = [](StringView text) { return text.IsEmpty() ? String(u8"Type the keystore's password.") : String{}; };
+                request.describe = [](StringView)
+                { return String(u8"Signs the Android app; kept until the editor closes, never saved."); };
+                EditorExport* self = this;
+                const String name(presetName);
+                request.accepted = [self, name, all](StringView password)
+                {
+                    (void)SetEnvironmentVariable(editor::kAndroidStorePasswordVariable, password);
+                    self->Run(name.AsView(), all);
+                };
+                m_services.askName(Move(request));
                 return;
             }
             m_pending = Pending{String(presetName), all, /*waitingCook*/ true, /*active*/ true};
@@ -189,6 +214,23 @@ export namespace editor::app
         [[nodiscard]] static String Absolutize(StringView path)
         {
             return PathIsAbsolute(path) ? String(path) : PathJoin(GetCurrentDirectory().AsView(), path);
+        }
+        /// Whether the export of `presetName` (or every preset) signs an Android app with a keystore
+        /// whose password the environment does not give.
+        [[nodiscard]] bool NeedsKeystorePassword(StringView presetName, bool all) const
+        {
+            const Optional<String> given = GetEnvironmentVariable(editor::kAndroidStorePasswordVariable);
+            if (given.HasValue() && !given->IsEmpty())
+                return false;
+            editor::ExportPresetSet presets;
+            foundation::vfs::NativeFileSystem projectFs(m_project->Directory(), m_allocator);
+            if (!editor::LoadExportPresets(projectFs, presets).IsOk())
+                return false;
+            for (const editor::ExportPreset& preset : presets.presets)
+                if ((all || preset.name.AsView() == presetName) && editor::IsAndroidPlatform(preset.platform.AsView()) &&
+                    !preset.androidKeystore.IsEmpty())
+                    return true;
+            return false;
         }
         [[nodiscard]] bool AnyPresetPrunes(bool all, StringView presetName) const
         {

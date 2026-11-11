@@ -110,6 +110,11 @@ export namespace editor
         Both,
     };
 
+    /// Where an Android export reads its keystore's passwords: the environment, never a preset. The
+    /// key's own is the keystore's unless it is given.
+    inline constexpr StringView kAndroidStorePasswordVariable = u8"ANDROID_KEYSTORE_PASSWORD";
+    inline constexpr StringView kAndroidKeyPasswordVariable = u8"ANDROID_KEY_PASSWORD";
+
     /// The platform attribute on a preset field: the field is that platform's alone (the Android
     /// app's id is no desktop's), so an editor of presets shows it only for a preset of it.
     inline constexpr const char* kPresetPlatformAttribute = "platform";

@@ -20,6 +20,7 @@ import foundation.json;
 import foundation.vfs;
 import foundation.mcp;
 import editor.project;
+import engine.project; // SettingAttribute: a field one platform has alone
 import :session;
 import :reflected_fields;
 
@@ -51,6 +52,28 @@ export namespace editor::mcp::detail
         return ReflectedFieldsOf(TypeOf<editor::ExportPreset>());
     }
 
+    /// The platform `field` belongs to alone (the Android app's fields are an Android64 preset's), or
+    /// null when it is every platform's.
+    inline const String* FieldPlatform(const PropertyInfo& field)
+    {
+        return engine::project::SettingAttribute(field, editor::kPresetPlatformAttribute);
+    }
+
+    /// The fields a preset of `platform` has: every platform's and its own.
+    inline Array<const PropertyInfo*> FieldsFor(Span<const PropertyInfo* const> fields, StringView platform)
+    {
+        Array<const PropertyInfo*> out;
+        for (const PropertyInfo* field : fields)
+        {
+            const String* only = FieldPlatform(*field);
+            if (only == nullptr || only->AsView() == platform)
+            {
+                out.PushBack(field);
+            }
+        }
+        return out;
+    }
+
     /// The project's presets on disk, else the synthesized host default. True when from the file.
     inline bool LoadProjectPresets(editor::EditorProject& project, editor::ExportPresetSet& out)
     {
@@ -73,8 +96,9 @@ export namespace editor::mcp::detail
         JsonValue list = JsonValue::MakeArray();
         for (const editor::ExportPreset& preset : presets.presets)
         {
-            JsonValue json = FieldsJson(
-                Instance(const_cast<editor::ExportPreset*>(&preset), &TypeOf<editor::ExportPreset>()), span, nullptr);
+            const Array<const PropertyInfo*> own = FieldsFor(span, preset.platform.AsView());
+            JsonValue json = FieldsJson(Instance(const_cast<editor::ExportPreset*>(&preset), &TypeOf<editor::ExportPreset>()),
+                                        Span<const PropertyInfo* const>(own.Data(), own.Size()), nullptr);
             const editor::ExportTemplate* resolved = templates.Resolve(preset);
             json.Set(u8"template", resolved != nullptr ? JsonValue::MakeString(resolved->id) : JsonValue::MakeNull());
             list.Add(Move(json));
@@ -145,9 +169,13 @@ export namespace editor::mcp
             u8"stageSymbols, pruneToReachable, includeShaderSource (ship custom shaders' HLSL "
             u8"too; off by default), and the display overrides: overridesRender with "
             u8"renderWidth/renderHeight/renderFit, overridesWindow with windowWidth/windowHeight/"
-            u8"windowMode/windowResizable), qualityLevelId (the quality level the platform starts at, one "
-            u8"of the project's qualityLevelIds; \"\" is the project's default), and `template`: the id "
-            u8"it resolves to here, or null when this "
+            u8"windowMode/windowResizable; an Android64 preset also has its app's: androidApplicationId "
+            u8"(as com.studio.game), androidVersionCode, androidVersionName, androidLabel (\"\": the "
+            u8"project's name), androidIcon (a square PNG in the project), androidPackage (Apk, Bundle or "
+            u8"Both), androidKeystore (\"\": the debug key) and androidKeyAlias; the keystore's password is "
+            u8"never a field: the export reads ANDROID_KEYSTORE_PASSWORD), qualityLevelId (the quality "
+            u8"level the platform starts at, one of the project's qualityLevelIds; \"\" is the project's "
+            u8"default), and `template`: the id it resolves to here, or null when this "
             u8"machine has no template for it. A project without export_presets.xml has one "
             u8"synthesized preset for the host (`synthesized`: true). Each template: id, name, "
             u8"platform, config, engineVersion, notes, host (the player beside this tool, not an "
@@ -177,6 +205,8 @@ export namespace editor::mcp
             u8"`platform` and `config` must be ones this machine has export templates for (the "
             u8"refusal lists them); a templateId need not exist here - presets travel with the "
             u8"project and templates do not - so the answer's `template` says whether it resolves. "
+            u8"The android* fields are an Android64 preset's alone, and an application id is checked "
+            u8"as Android takes it. "
             u8"Checked in full before anything changes, then saved to export_presets.xml (a project "
             u8"with none starts from its synthesized host preset, which stays). Returns the presets "
             u8"as export_presets does.",
@@ -270,6 +300,24 @@ export namespace editor::mcp
                             detail::TemplateValues(templates, [](const editor::ExportTemplate& t)
                                                    { return t.EffectiveConfig(); })
                                 .AsView()));
+                    }
+                    // A platform's own fields go on a preset of that platform alone.
+                    for (const PropertyInfo* field : fields)
+                    {
+                        const String* only = detail::FieldPlatform(*field);
+                        const StringView key(reinterpret_cast<const utf8char*>(field->name));
+                        if (only != nullptr && args.Has(key) && !(*only == preset.platform))
+                        {
+                            return Err(Format(u8"`{}` is an {} preset's alone; '{}' is {}", key, *only, name, preset.platform));
+                        }
+                    }
+                    if (args.Has(u8"androidApplicationId"))
+                    {
+                        if (const String why = editor::CheckAndroidApplicationId(preset.androidApplicationId.AsView());
+                            !why.IsEmpty())
+                        {
+                            return Err(Format(u8"`androidApplicationId`: {}", why));
+                        }
                     }
                     if (exists)
                     {

@@ -1514,8 +1514,6 @@ namespace editor
         // libmain.so, the content and the engine's data as assets, the icon as a resource), runs the
         // project's Gradle wrapper with the preset's values and copies the APK or bundle out.
         constexpr StringView kAndroidTemplateProject = u8"android/";
-        constexpr StringView kAndroidStorePasswordVariable = u8"ANDROID_KEYSTORE_PASSWORD";
-        constexpr StringView kAndroidKeyPasswordVariable = u8"ANDROID_KEY_PASSWORD";
 
         // Copies every file under `from` to `to`, folders made as needed, leaving out the top-level
         // folder `skip` (empty: none). False when a file does not copy.
