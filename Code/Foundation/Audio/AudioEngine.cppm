@@ -269,6 +269,13 @@ export namespace foundation::audio
         /// True when mixing without a device (explicit headless, or the device-init fallback).
         [[nodiscard]] bool IsHeadless() const noexcept;
 
+        /// Stops the output, the voices kept where they are, and starts it again: the app going to
+        /// the background, where a phone's platform wants it silent, and coming back. A headless
+        /// engine has no output to stop, so only the state changes.
+        void Suspend();
+        void Resume();
+        [[nodiscard]] bool IsSuspended() const noexcept;
+
         /// Main-thread tick: reaps voices whose fade/stream finished, advances the dedupe
         /// clock, and (headless) pumps `deltaTime` worth of frames through the mixer.
         void Update(f32 deltaTime);

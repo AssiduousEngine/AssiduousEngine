@@ -209,6 +209,30 @@ TEST_CASE("audio.engine: stop always fades (~10 ms) then reaps - the fade-then-r
     CHECK(engine.ActiveVoiceCount() == 0u);
 }
 
+TEST_CASE("audio.engine: suspended for the background, the voices stay where they are")
+{
+    AudioEngine engine(DefaultAllocator(), HeadlessSettings());
+    RefPtr<AudioClip> clip = MakeToneClip(0.3f);
+    AudioPlayParams params;
+    params.loop = true;
+    const VoiceHandle voice = engine.Play(clip, params);
+    REQUIRE(voice.IsValid());
+    CHECK_FALSE(engine.IsSuspended());
+
+    engine.Suspend();
+    CHECK(engine.IsSuspended());
+    engine.Suspend(); // once is enough; a second changes nothing
+    CHECK(engine.IsSuspended());
+    CHECK(engine.IsValidHandle(voice)); // the output stops, not the voices
+    CHECK(engine.IsPlaying(voice));
+
+    engine.Resume();
+    CHECK_FALSE(engine.IsSuspended());
+    CHECK(engine.IsPlaying(voice));
+    engine.Stop(voice);
+    engine.Update(0.1f);
+}
+
 TEST_CASE("audio.engine: pause fades out but keeps the voice; resume fades back in")
 {
     AudioEngine engine(DefaultAllocator(), HeadlessSettings());

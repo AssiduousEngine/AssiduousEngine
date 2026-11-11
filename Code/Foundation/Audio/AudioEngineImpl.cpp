@@ -339,6 +339,7 @@ namespace foundation::audio
         AudioEngineSettings settings;
         bool headless = false;
         bool engineInitialized = false;
+        bool suspended = false; // Suspend stopped the output
         ma_engine engine{};
         Bridge bridge{};
 
@@ -1713,6 +1714,36 @@ namespace foundation::audio
     AudioEngine::~AudioEngine() = default;
 
     bool AudioEngine::IsHeadless() const noexcept { return m_impl->headless; }
+
+    void AudioEngine::Suspend()
+    {
+        Impl& impl = *m_impl;
+        if (impl.suspended)
+        {
+            return;
+        }
+        impl.suspended = true;
+        if (impl.engineInitialized && !impl.headless)
+        {
+            (void)ma_engine_stop(&impl.engine);
+        }
+    }
+
+    void AudioEngine::Resume()
+    {
+        Impl& impl = *m_impl;
+        if (!impl.suspended)
+        {
+            return;
+        }
+        impl.suspended = false;
+        if (impl.engineInitialized && !impl.headless)
+        {
+            (void)ma_engine_start(&impl.engine);
+        }
+    }
+
+    bool AudioEngine::IsSuspended() const noexcept { return m_impl->suspended; }
 
     void AudioEngine::Update(f32 deltaTime)
     {

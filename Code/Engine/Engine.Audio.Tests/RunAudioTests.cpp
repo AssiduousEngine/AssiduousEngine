@@ -208,3 +208,17 @@ TEST_CASE("run audio: a subsystem made after the runs catches up on the focus an
     ctx.Shutdown();
     runs.SetFocused(nullptr); // the audio stopped listening at its shutdown: nothing reaches it
 }
+
+TEST_CASE("run audio: the app in the background is silent, and its sound comes back with it")
+{
+    foundation::runtime::SubsystemManager ctx(DefaultAllocator());
+    AudioSubsystem* audio = ctx.AddSubsystem<AudioSubsystem>(Headless());
+    ctx.Startup();
+    AudioEngine& engine = *audio->Engine();
+    CHECK_FALSE(engine.IsSuspended());
+    ctx.EnterBackground();
+    CHECK(engine.IsSuspended());
+    ctx.EnterForeground();
+    CHECK_FALSE(engine.IsSuspended());
+    ctx.Shutdown();
+}

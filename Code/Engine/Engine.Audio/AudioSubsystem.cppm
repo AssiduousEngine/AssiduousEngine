@@ -720,6 +720,23 @@ export namespace engine::audio
         // render) and the engine tick.
         void Update(f32 deltaTime) override;
 
+        // The app goes to the background: its sound stops, every voice kept where it is, and goes
+        // on from there when the app comes back.
+        void OnEnterBackground() override
+        {
+            if (m_engine)
+            {
+                m_engine->Suspend();
+            }
+        }
+        void OnEnterForeground() override
+        {
+            if (m_engine)
+            {
+                m_engine->Resume();
+            }
+        }
+
         // ---- engine-global one-shots ----
 
         // `runGroup` (RunGroupFor) puts the voice in a run: the run's stop, pause and mute reach it.
