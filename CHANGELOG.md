@@ -9,6 +9,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Added
 
+- Editor: Preferences' templates folder has a Browse button, which picks the folder with the
+  system's folder dialog.
 - Export: `Tools.Export --content-only` stages the game's content, settings and shader pack with no
   player and no template, and `--platform <name>` exports a preset for another platform.
 - Runtime: an app the platform takes out of view (a phone's home button, another app in front)

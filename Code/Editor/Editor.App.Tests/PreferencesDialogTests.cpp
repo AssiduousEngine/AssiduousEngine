@@ -62,6 +62,7 @@ namespace
         Array<editor::EditorContext::EditorSettingsContribution> contributions;
         bool snapping = true; // a contributed setting
         int mcpChanged = 0;
+        String folderFrom; // where the folder dialog was asked to start
         Array<String> warnings;
         Array<EditorLook> shown;
         int persisted = 0;
@@ -98,6 +99,11 @@ namespace
             contributions.PushBack(Move(navigation));
             services.contributions = &contributions;
             services.mcpChanged = [self]() { ++self->mcpChanged; };
+            services.pickFolder = [self](StringView from, Function<void(StringView)> chosen)
+            {
+                self->folderFrom = String(from);
+                chosen(u8"/picked/folder");
+            };
             services.showLook = [self](const EditorLook& look) { self->shown.PushBack(look); };
             services.persist = [self]()
             {
@@ -291,6 +297,14 @@ TEST_CASE("preferences: the other tabs - axis views, templates, the MCP host (a 
     CHECK(snap->IsChecked());
     CHECK(snap->HandleActivate());
     CHECK_FALSE(bed.snapping);
+
+    // Browse fills the templates folder from the system's folder dialog, which starts at the
+    // folder the field names.
+    root->SetText(u8"/srv/templates");
+    REQUIRE(FindId<gui::Button>(window, u8"pref-templates-root-browse") != nullptr);
+    CHECK(FindId<gui::Button>(window, u8"pref-templates-root-browse")->HandleActivate());
+    CHECK(bed.folderFrom == String(u8"/srv/templates"));
+    CHECK(root->GetText() == StringView(u8"/picked/folder"));
 
     CHECK(ortho->HandleActivate());
     root->SetText(u8"/opt/templates");

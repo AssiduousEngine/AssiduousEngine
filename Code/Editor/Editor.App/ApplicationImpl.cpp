@@ -603,6 +603,18 @@ namespace editor::app
                 if (self->m_mcp)
                     self->m_mcp->Restart(self->m_session.Project());
             };
+            services.pickFolder = [self](StringView from, Function<void(StringView)> chosen)
+            {
+                foundation::shell::IDialogService* dialogs = self->ShellDialogs();
+                if (dialogs == nullptr)
+                    return;
+                dialogs->ShowOpenFolder(foundation::shell::DialogResultCallback{[onChosen = Move(chosen)](Span<const String> paths)
+                                                                                 {
+                                                                                     if (!paths.IsEmpty())
+                                                                                         onChosen(paths[0].AsView());
+                                                                                 }},
+                                        from);
+            };
             services.showLook = [self](const EditorLook& look) { self->m_window.SetLook(look); };
             services.persist = [self]() { return editor::SaveEditorSettingsToUserData(self->m_editorSettings).IsOk(); };
             m_preferences = MakeUnique<EditorPreferencesDialog>(m_editorAllocator, m_editorAllocator, Move(services),

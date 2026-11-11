@@ -54,6 +54,9 @@ export namespace editor::app
             const Array<editor::EditorContext::EditorSettingsContribution>* contributions = nullptr;
             /// Called when the MCP section was saved, so the host follows it for the open project.
             Function<void()> mcpChanged;
+            /// Asks for a folder with the system's dialog, starting at `from`; `chosen` gets it, or
+            /// nothing when the user cancels.
+            Function<void(StringView from, Function<void(StringView)> chosen)> pickFolder;
             /// Shows a look (the window's SetLook).
             Function<void(const EditorLook&)> showLook;
             /// Persists the user's store; false when it could not be written.
@@ -212,6 +215,14 @@ export namespace editor::app
                                               { self->ShowScaleValue(static_cast<f32>(scale->GetValue())); });
             if (auto* add = Find<gui::Button>(u8"pref-preview-add"))
                 add->SetOnClick([self]() { self->AddPreview(u8"Custom", 1920, 1080); });
+            // The export tab's folders: Browse fills its field with the folder picked.
+            const StringView folders[] = {u8"pref-templates-root"};
+            for (const StringView field : folders)
+                if (auto* browse = Find<gui::Button>(Format(u8"{}-browse", field).AsView()))
+                {
+                    const String id(field);
+                    browse->SetOnClick([self, id]() { self->BrowseFolder(id.AsView()); });
+                }
             AddContributions();
             if (auto* save = Find<gui::Button>(u8"pref-save"))
                 save->SetOnClick([self]() { (void)self->Save(); });
@@ -223,6 +234,21 @@ export namespace editor::app
                                      if (!self->m_saved && self->m_services.showLook)
                                          self->m_services.showLook(self->m_original);
                                  });
+        }
+
+        /// Browse beside a folder field: the system's folder dialog, from the folder the field names
+        /// (else what its placeholder says it stands for), into the field. Save keeps it.
+        void BrowseFolder(StringView fieldId)
+        {
+            auto* field = Find<gui::TextField>(fieldId);
+            if (field == nullptr || !m_services.pickFolder)
+                return;
+            const StringView from = !field->GetText().IsEmpty() ? field->GetText() : field->GetPlaceholder();
+            m_services.pickFolder(from.StartsWith(u8"$") ? StringView{} : from, [field](StringView chosen)
+                                  {
+                                      if (!chosen.IsEmpty())
+                                          field->SetText(chosen);
+                                  });
         }
 
         void Change(const Function<void(EditorLook&)>& edit)
