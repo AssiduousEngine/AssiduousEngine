@@ -527,7 +527,7 @@ namespace editor
                 out.PushBack(Move(v));
             }
         }
-        else if (platform.StartsWith(u8"Android"))
+        else if (IsAndroidPlatform(platform))
         {
             // One pak, its textures ASTC (Android's GPUs do not read BC), cooked into a sibling of
             // the host Cooked/ as Tools.Cook --target android does.
@@ -1506,6 +1506,301 @@ namespace editor
         return Status{};
     }
 
+    namespace
+    {
+        // The Android export: the template carries the player as the library the app loads and the
+        // app's Gradle project (android/, SDL's Java glue in android/sdl-java/); the export copies
+        // the project into the project's cache, stages what the app carries beside it (the player as
+        // libmain.so, the content and the engine's data as assets, the icon as a resource), runs the
+        // project's Gradle wrapper with the preset's values and copies the APK or bundle out.
+        constexpr StringView kAndroidTemplateProject = u8"android/";
+        constexpr StringView kAndroidStorePasswordVariable = u8"ANDROID_KEYSTORE_PASSWORD";
+        constexpr StringView kAndroidKeyPasswordVariable = u8"ANDROID_KEY_PASSWORD";
+
+        // Copies every file under `from` to `to`, folders made as needed, leaving out the top-level
+        // folder `skip` (empty: none). False when a file does not copy.
+        [[nodiscard]] bool CopyTree(StringView from, StringView to, StringView skip = {})
+        {
+            vfs::NativeFileSystem fs(from, editor::EditorRootAllocator());
+            Array<vfs::DirEntry> entries;
+            if (!fs.AsEnumerable()->Enumerate(u8"", entries).IsOk())
+            {
+                return false;
+            }
+            if (!CreateDirectories(to))
+            {
+                return false;
+            }
+            for (const vfs::DirEntry& entry : entries)
+            {
+                if (!skip.IsEmpty() && entry.name.AsView() == skip)
+                {
+                    continue;
+                }
+                const String source = PathJoin(from, entry.name.AsView());
+                const String target = PathJoin(to, entry.name.AsView());
+                if (entry.isDirectory ? !CopyTree(source.AsView(), target.AsView())
+                                      : !FileCopyPreserving(source.AsView(), target.AsView()))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // android:screenOrientation for how the game is held: the preset's own, else the project's.
+        [[nodiscard]] StringView AndroidScreenOrientation(const EditorProject& project, const ExportPreset& preset)
+        {
+            const ScreenOrientation held =
+                preset.overridesOrientation ? preset.orientation : project.Settings().orientation;
+            switch (held)
+            {
+            case ScreenOrientation::Landscape:
+                return u8"userLandscape";
+            case ScreenOrientation::Portrait:
+                return u8"userPortrait";
+            case ScreenOrientation::Any:
+                break;
+            }
+            return u8"fullUser";
+        }
+
+        // The file name the app's APK or bundle takes in the dist: the preset's player name, else
+        // the project's, without what a desktop player's name carries.
+        [[nodiscard]] String AndroidAppName(const EditorProject& project, const ExportPreset& preset)
+        {
+            return detail::SanitizeName(preset.playerName.IsEmpty() ? project.Settings().name.AsView()
+                                                                    : preset.playerName.AsView());
+        }
+    }
+
+    String AndroidWorkDir(const EditorProject& project, const ExportPreset& preset)
+    {
+        return PathJoin(project.Directory(),
+                        Format(u8"{}/android/{}", engine::project::kProjectCacheDir,
+                               detail::SanitizeName(preset.name.AsView()))
+                            .AsView());
+    }
+
+    String CheckAndroidExport(const EditorProject& project, const ExportPreset& preset, const ExportTemplate* tmpl)
+    {
+        if (String why = CheckAndroidApplicationId(preset.androidApplicationId.AsView()); !why.IsEmpty())
+        {
+            return why;
+        }
+        if (!preset.androidIcon.IsEmpty())
+        {
+            if (!preset.androidIcon.AsView().EndsWith(u8".png"))
+            {
+                return Format(u8"the app icon '{}' is not a PNG", preset.androidIcon);
+            }
+            if (!FileExists(PathJoin(project.Directory(), preset.androidIcon.AsView()).AsView()))
+            {
+                return Format(u8"the app icon '{}' is not in the project", preset.androidIcon);
+            }
+        }
+        if (!preset.androidKeystore.IsEmpty())
+        {
+            if (!FileExists(PathJoin(project.Directory(), preset.androidKeystore.AsView()).AsView()))
+            {
+                return Format(u8"the keystore '{}' is not there", preset.androidKeystore);
+            }
+            if (preset.androidKeyAlias.IsEmpty())
+            {
+                return String(u8"a keystore needs the alias of the key that signs");
+            }
+            const Optional<String> password = GetEnvironmentVariable(kAndroidStorePasswordVariable);
+            if (!password.HasValue() || password->IsEmpty())
+            {
+                return Format(u8"the keystore's password is not given: set {} (and {} when the key's own differs)",
+                              kAndroidStorePasswordVariable, kAndroidKeyPasswordVariable);
+            }
+        }
+        const Optional<String> sdk = GetEnvironmentVariable(u8"ANDROID_HOME");
+        if (!sdk.HasValue() || sdk->IsEmpty() || !DirectoryExists(sdk->AsView()))
+        {
+            return String(u8"an Android export runs Gradle, which needs the Android SDK: set ANDROID_HOME to it");
+        }
+        if (tmpl != nullptr)
+        {
+            bool hasProject = false;
+            for (const String& sidecar : tmpl->sidecars)
+            {
+                hasProject = hasProject || sidecar.AsView().StartsWith(kAndroidTemplateProject);
+            }
+            if (!hasProject)
+            {
+                return Format(u8"template '{}' carries no Android app project", tmpl->id);
+            }
+        }
+        return {};
+    }
+
+    Status StageAndroidApp(const EditorProject& project, const ExportPreset& preset, const ExportTemplate& tmpl,
+                           StringView contentDir, StringView dataRoot, StringView workDir)
+    {
+        const String gradleProject = PathJoin(workDir, u8"project");
+        const String staged = PathJoin(workDir, u8"staged");
+        const String assets = PathJoin(staged.AsView(), u8"assets");
+        // What the last export staged goes; the project and Gradle's outputs stay, for its next build.
+        const StringView stagedFolders[] = {u8"jniLibs", u8"assets", u8"res"};
+        for (const StringView folder : stagedFolders)
+        {
+            const String old = PathJoin(staged.AsView(), folder);
+            if (DirectoryExists(old.AsView()) && !RemoveDirectoryRecursive(old.AsView()))
+            {
+                return Status{ErrorCode::Internal};
+            }
+        }
+
+        // The app's Gradle project, from the template.
+        for (const String& sidecar : tmpl.sidecars)
+        {
+            const StringView file = sidecar.AsView();
+            if (!file.StartsWith(kAndroidTemplateProject))
+            {
+                continue;
+            }
+            const String target = PathJoin(gradleProject.AsView(),
+                                           file.SubStr(kAndroidTemplateProject.Size(), file.Size() - kAndroidTemplateProject.Size()));
+            if (!CreateDirectories(PathParent(target.AsView())) ||
+                !FileCopyPreserving(PathJoin(tmpl.directory.AsView(), file).AsView(), target.AsView()))
+            {
+                LOG_ERROR(u8"Export", u8"the Android project's '{}' did not copy from template '{}'", file, tmpl.id);
+                return Status{ErrorCode::NotFound};
+            }
+        }
+
+        // The player, as the library the app's activity loads.
+        const String libraries = PathJoin(staged.AsView(), u8"jniLibs/arm64-v8a");
+        if (!CreateDirectories(libraries.AsView()) ||
+            !FileCopyPreserving(PathJoin(tmpl.directory.AsView(), tmpl.playerBinary.AsView()).AsView(),
+                                PathJoin(libraries.AsView(), u8"libmain.so").AsView()))
+        {
+            return Status{ErrorCode::NotFound};
+        }
+
+        // The game (its packs and player.xml) in assets/Game; the shader pack the content export
+        // staged and the engine's other data in assets/Data, where the player reads them in place.
+        const String game = PathJoin(assets.AsView(), u8"Game");
+        if (!CopyTree(contentDir, game.AsView(), u8"Data") ||
+            !CopyTree(PathJoin(contentDir, u8"Data").AsView(), PathJoin(assets.AsView(), u8"Data").AsView()) ||
+            !CopyTree(PathJoin(dataRoot, u8"Engine").AsView(), PathJoin(assets.AsView(), u8"Data/Engine").AsView(),
+                      u8"Shaders"))
+        {
+            LOG_ERROR(u8"Export", u8"the app's assets did not stage under '{}'", assets);
+            return Status{ErrorCode::Internal};
+        }
+        (void)FileDelete(PathJoin(game.AsView(), u8"export-report.txt").AsView()); // the report stays beside the dist
+        for (const String& sidecar : tmpl.sidecars)
+        {
+            if (!sidecar.AsView().StartsWith(kAndroidTemplateProject) &&
+                !FileCopyPreserving(PathJoin(tmpl.directory.AsView(), sidecar.AsView()).AsView(),
+                                    PathJoin(assets.AsView(), sidecar.AsView()).AsView()))
+            {
+                return Status{ErrorCode::NotFound}; // the notices, which every app carries
+            }
+        }
+
+        // The launcher icon.
+        if (!preset.androidIcon.IsEmpty())
+        {
+            const String icons = PathJoin(staged.AsView(), u8"res/mipmap-xxxhdpi");
+            if (!CreateDirectories(icons.AsView()) ||
+                !FileCopyPreserving(PathJoin(project.Directory(), preset.androidIcon.AsView()).AsView(),
+                                    PathJoin(icons.AsView(), u8"ic_launcher.png").AsView()))
+            {
+                return Status{ErrorCode::NotFound};
+            }
+        }
+        return Status{};
+    }
+
+    Array<String> AndroidGradleArguments(const EditorProject& project, const ExportPreset& preset,
+                                         const ExportTemplate& tmpl, StringView workDir)
+    {
+        const bool debug = tmpl.config.AsView() == u8"Debug";
+        Array<String> args;
+        args.PushBack(String(u8"-p"));
+        args.PushBack(PathJoin(workDir, u8"project"));
+        args.PushBack(String(u8"--no-daemon")); // an export leaves no Gradle running
+        args.PushBack(String(u8"--quiet"));
+        args.PushBack(Format(u8"-PengineStaged={}", PathJoin(workDir, u8"staged")));
+        args.PushBack(Format(u8"-PengineApplicationId={}", preset.androidApplicationId));
+        args.PushBack(Format(u8"-PengineVersionCode={}", preset.androidVersionCode));
+        args.PushBack(Format(u8"-PengineVersionName={}", preset.androidVersionName));
+        args.PushBack(Format(u8"-PengineLabel={}", preset.androidLabel.IsEmpty() ? project.Settings().name.AsView()
+                                                                                 : preset.androidLabel.AsView()));
+        args.PushBack(Format(u8"-PengineOrientation={}", AndroidScreenOrientation(project, preset)));
+        if (!preset.androidKeystore.IsEmpty())
+        {
+            args.PushBack(Format(u8"-PengineKeystore={}", PathJoin(project.Directory(), preset.androidKeystore.AsView())));
+            args.PushBack(Format(u8"-PengineKeyAlias={}", preset.androidKeyAlias));
+        }
+        const StringView variant = debug ? StringView(u8"Debug") : StringView(u8"Release");
+        if (preset.androidPackage != AndroidPackage::Bundle)
+        {
+            args.PushBack(Format(u8"assemble{}", variant));
+        }
+        if (preset.androidPackage != AndroidPackage::Apk)
+        {
+            args.PushBack(Format(u8"bundle{}", variant));
+        }
+        return args;
+    }
+
+    Status BuildAndroidApp(const EditorProject& project, const ExportPreset& preset, const ExportTemplate& tmpl,
+                           StringView workDir, StringView outputDir, ExportResult& result)
+    {
+        const Array<String> args = AndroidGradleArguments(project, preset, tmpl, workDir);
+        Array<StringView> views;
+        for (const String& arg : args)
+        {
+            views.PushBack(arg.AsView());
+        }
+#if PLATFORM_WINDOWS
+        const String wrapper = PathJoin(workDir, u8"project/gradlew.bat");
+#else
+        const String wrapper = PathJoin(workDir, u8"project/gradlew");
+#endif
+        const ProcessResult built = RunProcess(wrapper.AsView(), Span<const StringView>(views.Data(), views.Size()));
+        if (!built.Ok())
+        {
+            LOG_ERROR(u8"Export", u8"the Android app's Gradle build failed ({}); it needs a JDK 17 (JAVA_HOME or java "
+                                  u8"on the PATH) and, the first time, the network:\n{}",
+                      built.exitCode, built.output);
+            result.refusal = String(u8"the Android app's Gradle build failed (the log has its output)");
+            return Status{ErrorCode::Internal};
+        }
+
+        // Gradle's outputs, under the staged folder (the project's build.gradle puts them there).
+        const bool debug = tmpl.config.AsView() == u8"Debug";
+        const StringView variant = debug ? StringView(u8"debug") : StringView(u8"release");
+        const String outputs = PathJoin(workDir, u8"staged/gradle/app/outputs");
+        const String name = AndroidAppName(project, preset);
+        if (preset.androidPackage != AndroidPackage::Bundle)
+        {
+            const String apk = Format(u8"{}/apk/{}/app-{}.apk", outputs, variant, variant);
+            if (!FileCopyPreserving(apk.AsView(), PathJoin(outputDir, Format(u8"{}.apk", name).AsView()).AsView()))
+            {
+                LOG_ERROR(u8"Export", u8"Gradle made no APK at '{}'", apk);
+                return Status{ErrorCode::NotFound};
+            }
+            ++result.filesStaged;
+        }
+        if (preset.androidPackage != AndroidPackage::Apk)
+        {
+            const String bundle = Format(u8"{}/bundle/{}/app-{}.aab", outputs, variant, variant);
+            if (!FileCopyPreserving(bundle.AsView(), PathJoin(outputDir, Format(u8"{}.aab", name).AsView()).AsView()))
+            {
+                LOG_ERROR(u8"Export", u8"Gradle made no bundle at '{}'", bundle);
+                return Status{ErrorCode::NotFound};
+            }
+            ++result.filesStaged;
+        }
+        return Status{};
+    }
+
     String PresetQualityRefusal(const engine::project::ProjectSettings& settings, const ExportPreset& preset)
     {
         if (preset.qualityLevelId.IsNil() || settings.IsQualityLevel(preset.qualityLevelId))
@@ -1626,6 +1921,29 @@ namespace editor
             }
             return Status{ErrorCode::InvalidArgument};
         }
+        // An Android app: what its preset gives the app and what its build needs, before any cook.
+        const bool android = IsAndroidPlatform(preset.platform.AsView()) && !contentOnly;
+        if (android)
+        {
+            String why = CheckAndroidExport(project, preset, tmpl);
+            if (why.IsEmpty() && choice.build)
+            {
+                // TODO(export): build the project's player for Android (the NDK toolchain over the
+                // ship build) as the desktop and the web build theirs.
+                why = String(u8"a game with its own native packages does not export to Android yet: the "
+                             u8"project's player is not built for it");
+            }
+            if (!why.IsEmpty())
+            {
+                LOG_ERROR(u8"Export", u8"preset '{}': {}", preset.name, why);
+                result.refusal = why;
+                if (outResult != nullptr)
+                {
+                    *outResult = result;
+                }
+                return Status{ErrorCode::InvalidArgument};
+            }
+        }
         if (tmpl != nullptr)
         {
             result.playerReason = choice.build ? choice.reason : Format(u8"template '{}' carries every plugin enabled on {}", tmpl->id, preset.platform);
@@ -1661,6 +1979,15 @@ namespace editor
 
         // Ensure the output dir (and outRoot) exist before the content pipeline writes into it.
         (void)CreateDirectories(result.outputDir.AsView());
+        // An Android app carries the game inside it, so its content is exported into the app's work
+        // folder (fresh each time) and the dist gets the app.
+        const String workDir = android ? AndroidWorkDir(project, preset) : String{};
+        const String contentDir = android ? PathJoin(workDir.AsView(), u8"content") : result.outputDir;
+        if (android && ((DirectoryExists(contentDir.AsView()) && !RemoveDirectoryRecursive(contentDir.AsView())) ||
+                        !CreateDirectories(contentDir.AsView())))
+        {
+            return Status{ErrorCode::Internal};
+        }
 
         // Closure pruning is opt-in per preset. It needs the scene-to-asset edges discovered, either
         // by a live scene-reference scanner (the CLI, which loads scenes on its own single thread) or
@@ -1717,14 +2044,14 @@ namespace editor
                     reachable.InsertOrAssign(g, u8(1));
                 }
                 contentStatus =
-                    ExportContent(project, result.outputDir.AsView(), result.content, onProgress,
+                    ExportContent(project, contentDir.AsView(), result.content, onProgress,
                                   sceneStreams, &reachable, &seeds, &result.pruning, variantSpan,
                                   preset.includeShaderSource);
             }
         }
         else if (cook)
         {
-            contentStatus = ExportProject(project, result.outputDir.AsView(), builders, rebuild,
+            contentStatus = ExportProject(project, contentDir.AsView(), builders, rebuild,
                                           &result.content, onProgress, sceneStreams, variantSpan,
                                           preset.includeShaderSource);
         }
@@ -1736,12 +2063,12 @@ namespace editor
             if (contentStatus.IsOk())
             {
                 contentStatus =
-                    ExportContent(project, result.outputDir.AsView(), result.content, onProgress,
+                    ExportContent(project, contentDir.AsView(), result.content, onProgress,
                                   sceneStreams, nullptr, nullptr, nullptr, variantSpan,
                                   preset.includeShaderSource);
             }
         }
-        if (!contentStatus.IsOk() || !ApplyPresetOverrides(result.outputDir.AsView(), preset).IsOk())
+        if (!contentStatus.IsOk() || !ApplyPresetOverrides(contentDir.AsView(), preset).IsOk())
         {
             if (outResult != nullptr)
             {
@@ -1768,6 +2095,99 @@ namespace editor
                 *outResult = result;
             }
             return packStatus.IsOk() ? Status{} : Status{ErrorCode::Internal};
+        }
+
+        // The dist's last steps, whichever player it runs: the preset's extra files, then the
+        // project's plugins' export hooks.
+        const auto finish = [&]() -> Status
+        {
+            // Preset additionalFiles (game extras, relative to the project) go to <outDir>/<basename>.
+            for (const String& extra : preset.additionalFiles)
+            {
+                const StringView base = detail::BaseName(extra.AsView());
+                if (detail::CopyFilePreserving(project.Directory(), extra.AsView(),
+                                               result.outputDir.AsView(), base))
+                {
+                    ++result.filesStaged;
+                }
+                else
+                {
+                    LOG_WARNING(u8"Export", u8"additional file '{}' not found", extra);
+                }
+            }
+
+            // The project's plugins' export hooks, over the staged dist.
+            if (const ExportPluginServices* hooks = plugins.hooks; hooks != nullptr && hooks->Count() > 0)
+            {
+                if (onProgress)
+                {
+                    onProgress(u8"Running the plugins' export hooks...", 0.99f);
+                }
+                const String failed = hooks->Run(ExportHookContext{&project, &preset, result.outputDir.AsView()});
+                if (!failed.IsEmpty())
+                {
+                    LOG_ERROR(u8"Export", u8"preset '{}': export hook {}", preset.name, failed);
+                    result.refusal = Format(u8"export hook {}", failed);
+                    if (outResult != nullptr)
+                    {
+                        *outResult = result;
+                    }
+                    return Status{ErrorCode::Internal};
+                }
+            }
+
+            if (onProgress)
+            {
+                onProgress(u8"Done", 1.0f);
+            }
+            if (outResult != nullptr)
+            {
+                *outResult = result;
+            }
+            return Status{};
+        };
+
+        if (android)
+        {
+            if (onProgress)
+            {
+                onProgress(u8"Cooking shaders...", 0.88f);
+            }
+            u32 shaderVariants = 0;
+            Status built = StageShaderPack(contentDir.AsView(), dataRoot, preset.platform.AsView(), project,
+                                           Span<const Guid>(result.content.shaders.Data(), result.content.shaders.Size()),
+                                           shaderVariants);
+            if (built.IsOk())
+            {
+                if (onProgress)
+                {
+                    onProgress(u8"Staging the Android app...", 0.9f);
+                }
+                built = StageAndroidApp(project, preset, *tmpl, contentDir.AsView(), dataRoot, workDir.AsView());
+            }
+            if (built.IsOk())
+            {
+                if (onProgress)
+                {
+                    onProgress(u8"Building the Android app with Gradle (this can take a while)...", 0.92f);
+                }
+                built = BuildAndroidApp(project, preset, *tmpl, workDir.AsView(), result.outputDir.AsView(), result);
+            }
+            if (!built.IsOk())
+            {
+                if (outResult != nullptr)
+                {
+                    *outResult = result;
+                }
+                return built;
+            }
+            // The pruning report beside the app, where a desktop dist has it.
+            const String report = PathJoin(contentDir.AsView(), u8"export-report.txt");
+            if (FileExists(report.AsView()))
+            {
+                (void)FileCopyPreserving(report.AsView(), PathJoin(result.outputDir.AsView(), u8"export-report.txt").AsView());
+            }
+            return finish();
         }
 
         if (onProgress)
@@ -1957,50 +2377,7 @@ namespace editor
             }
         }
 
-        // Preset additionalFiles (game extras, relative to the project) go to <outDir>/<basename>.
-        for (const String& extra : preset.additionalFiles)
-        {
-            const StringView base = detail::BaseName(extra.AsView());
-            if (detail::CopyFilePreserving(project.Directory(), extra.AsView(),
-                                           result.outputDir.AsView(), base))
-            {
-                ++result.filesStaged;
-            }
-            else
-            {
-                LOG_WARNING(u8"Export", u8"additional file '{}' not found", extra);
-            }
-        }
-
-        // The project's plugins' export hooks, over the staged dist.
-        if (const ExportPluginServices* hooks = plugins.hooks; hooks != nullptr && hooks->Count() > 0)
-        {
-            if (onProgress)
-            {
-                onProgress(u8"Running the plugins' export hooks...", 0.99f);
-            }
-            const String failed = hooks->Run(ExportHookContext{&project, &preset, result.outputDir.AsView()});
-            if (!failed.IsEmpty())
-            {
-                LOG_ERROR(u8"Export", u8"preset '{}': export hook {}", preset.name, failed);
-                result.refusal = Format(u8"export hook {}", failed);
-                if (outResult != nullptr)
-                {
-                    *outResult = result;
-                }
-                return Status{ErrorCode::Internal};
-            }
-        }
-
-        if (onProgress)
-        {
-            onProgress(u8"Done", 1.0f);
-        }
-        if (outResult != nullptr)
-        {
-            *outResult = result;
-        }
-        return Status{};
+        return finish();
     }
 
     Status ExportAll(EditorProject& project, Span<const ExportPreset> presets,

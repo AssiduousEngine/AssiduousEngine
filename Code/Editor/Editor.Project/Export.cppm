@@ -631,8 +631,42 @@ export namespace editor
         PruningReport pruning; // closure-pruning report (roots and reasons, kept and dropped
                                // counts); pruned=false for an export that packs everything
         String playerReason; // which player the dist runs (the template's, or one built), and why
-        String refusal;      // why the project's plugins stopped the export (empty when they did not)
+        String refusal;      // why the export was refused: the project's plugins, an Android preset's
+                             // app, its Gradle build (empty when nothing refused it)
     };
+
+    /// Why an Android preset cannot export, or empty when it can: its application id, its icon, its
+    /// keystore (there, with its key's alias and its password in ANDROID_KEYSTORE_PASSWORD), the
+    /// Android SDK (ANDROID_HOME) Gradle needs, and, given one, a template carrying the app's project.
+    /// Checked before anything is cooked. Defined in ExportImpl.cpp.
+    [[nodiscard]] String CheckAndroidExport(const EditorProject& project, const ExportPreset& preset,
+                                            const ExportTemplate* tmpl);
+
+    /// Where an Android preset's app is made, kept between exports: <project>/.cache/android/<preset>.
+    /// Defined in ExportImpl.cpp.
+    [[nodiscard]] String AndroidWorkDir(const EditorProject& project, const ExportPreset& preset);
+
+    /// Readies the app's build in `workDir`: the template's Gradle project in project/, and in
+    /// staged/ what the app carries: the player as jniLibs/arm64-v8a/libmain.so, the exported game
+    /// (`contentDir`: its packs and player.xml) in assets/Game, its shader pack and the engine's other
+    /// data (from `dataRoot`) in assets/Data, the template's notices in assets, and the preset's icon
+    /// as res/mipmap-xxxhdpi/ic_launcher.png. Defined in ExportImpl.cpp.
+    [[nodiscard]] Status StageAndroidApp(const EditorProject& project, const ExportPreset& preset,
+                                         const ExportTemplate& tmpl, StringView contentDir, StringView dataRoot,
+                                         StringView workDir);
+
+    /// The Gradle wrapper's arguments for the app staged in `workDir`: its project, the preset's
+    /// values as properties (id, version, name, orientation, keystore and alias) and the tasks its
+    /// package asks for, Debug for a Debug template and Release otherwise. Defined in ExportImpl.cpp.
+    [[nodiscard]] Array<String> AndroidGradleArguments(const EditorProject& project, const ExportPreset& preset,
+                                                       const ExportTemplate& tmpl, StringView workDir);
+
+    /// Runs the Gradle wrapper over the app StageAndroidApp readied and copies the APK and/or bundle
+    /// to `outputDir` as <name>.apk / <name>.aab (the preset's player name, else the project's).
+    /// Defined in ExportImpl.cpp.
+    [[nodiscard]] Status BuildAndroidApp(const EditorProject& project, const ExportPreset& preset,
+                                         const ExportTemplate& tmpl, StringView workDir, StringView outputDir,
+                                         ExportResult& result);
 
     /// Builds the project's own packages for development: a persistent per-project shared-engine
     /// build (<project>/.cache/plugins-dev) over the engine checkout, building every part of them as

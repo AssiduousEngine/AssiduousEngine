@@ -64,6 +64,12 @@ export namespace editor
         return nullptr;
     }
 
+    /// Whether `platform` is Android's: its export builds an app around the player.
+    [[nodiscard]] inline bool IsAndroidPlatform(StringView platform) noexcept
+    {
+        return platform == u8"Android64";
+    }
+
     /// The file `platform`'s build makes of a player called `base` ("libEngine.Player.so" on
     /// Android); `base` itself on a platform not among the export platforms.
     [[nodiscard]] inline String ExportPlayerFile(StringView platform, StringView base)
