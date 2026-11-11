@@ -124,14 +124,20 @@ Not goals: the editor, on-device MCP or play-in-editor on Android; 32-bit or x86
   disagreed once (`vk.queries: a calibration ...`; it passed on the next run). Both settled: the
   readback was intermittent (a readback's mapped memory, cached and maybe not coherent, never
   invalidated: 3e5d7020d), and the calibration test's 30 ms was inside Mali's calibration
-  deviation (d731de059, 200 ms). Until A2 reads the packs in place, the app's activity copies its
-  data out of the APK on the first run of each version.
+  deviation (d731de059, 200 ms). Until A2 read the packs in place, the app's activity copied its
+  data out of the APK on the first run of each version; A2 removed the copy.
   Accept: the triangle draws, in both orientations, on the Pixel 6.
 - **A2 - the player and a sample game on the phone.** The player builds as `libmain.so`;
   Decision 2's packs (a pak over a file region; the data root over a pak); the `android` cook
   target; the SPIR-V shader pack; the user data directory in the app's internal storage. A dev
   script builds an APK holding a sample's packs and installs it. Accept: Sky Hopper starts and
   plays on the phone (touch through its touch controls), and its save survives a restart.
+  **Built 2026-11-10, accepted on the Pixel 6:** Sky Hopper starts from its APK, plays by touch,
+  turns, and keeps its stars and best run across restarts. What the run found and fixed on master
+  is in the weekly (the lost device, the flicker, the stretch after a turn, the quick tap). Owed
+  to later phases: immersive (A3: the status bar covers the top of the game's frame in landscape),
+  and the first seconds' frames of the Debug build take 250 to 600 ms (A5 measures in
+  `clang-reldbg`).
 - **A3 - the app lifecycle.** Shell events for entering the background and the foreground (SDL's
   are delivered through an event watch, since the background one must be answered before
   returning); the runner stops ticking and presenting while in the background; the surface and
@@ -140,8 +146,16 @@ Not goals: the editor, on-device MCP or play-in-editor on Android; 32-bit or x86
   end the process unasked). The back button reaches the game as a key it can bind (a new
   `KeyCode` for it, what a menu's Escape does by default); unhandled, the app goes to the
   background. The game fills the screen: the status and navigation bars hidden (immersive, the
-  user swiping them back for a moment), seen on the Pixel 6 in A1 where they stay (user, 2026-11-10). Accept: home, switching apps, locking the phone and rotating it, each and back,
-  on the Pixel 6, with the game where it was and its sound back.
+  user swiping them back for a moment), seen on the Pixel 6 in A1 where they stay (user, 2026-11-10).
+  In A2 the status bar covered the top of Sky Hopper's HUD in landscape. The game also keeps out
+  of what the bars and the camera's cutout cover, immersive or not (the Pixel 6's camera hole
+  stays in immersive): the shell reports the window's safe area (`SDL_GetWindowSafeArea`, which
+  Android's window insets feed; a new `IWindow` query, the whole window on a desktop), and the
+  player fits the game's frame into it rather than into the whole window, the GUI's screens
+  with it. Targeting API 36 leaves no way out of drawing under the bars, so the safe area is the
+  way to keep out from under them. Accept: home, switching apps, locking the phone and rotating it, each and back,
+  on the Pixel 6, with the game where it was and its sound back, and none of it under the bars or
+  the camera's cutout in either orientation.
 - **A4 - the export.** The Android template (`scripts/build-export-templates.sh android`, the
   template's `Android64` platform; `Android64` among the platforms a plugin package names, in the
   scaffold, the MCP plugin tools and their checks); the preset's Android fields (application id, version name and
@@ -152,7 +166,14 @@ Not goals: the editor, on-device MCP or play-in-editor on Android; 32-bit or x86
   (Gradle itself skipped where no SDK is present).
 - **A5 - rotation without the compositor, and the first performance pass.** `preTransform =
   currentTransform` with the extent swapped and the present copy turned
-  (`present-transform-history.md`, section 8), input turned with it. The render stack stays as it
+  (`present-transform-history.md`, section 8), input turned with it. This closes the
+  `TODO(rhi)` on the swapchain's identity `preTransform` (`VkSwapChain.cppm`). What A2 saw of the
+  Pixel 6's surface, for it: the current extent is reported already turned to the phone's
+  orientation (2400x1080 in landscape, with `ROTATE_90`), and both the extent and the transform
+  lag a turn, so a swapchain rebuilt on the window's resize can read the old ones (the swapchain
+  takes the window's size within the surface's range for this, 62a841eff; with pre-rotation the
+  images are the window's size swapped on a quarter turn); and every present in landscape returns
+  `VK_SUBOPTIMAL_KHR` while `preTransform` is identity, which pre-rotation ends. The render stack stays as it
   is on the other platforms (user ruling, 2026-11-10): nothing is turned off for Android up front.
   Measure first: the frame time of each sample on the phone, in `clang-reldbg` terms (no Debug
   timing), and what each full-screen pass costs there (SSAO, SSR, screen-space GI, bloom, TAA:
