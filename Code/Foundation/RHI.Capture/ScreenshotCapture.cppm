@@ -194,11 +194,13 @@ export namespace foundation::rhi
         /// screenshot. `originX` and `originY` capture a sub-rectangle of that size from there (a
         /// letterboxed game's image without its bars). The PNG is the captured pixels: a view drawn
         /// smaller than its content's resolution is written at the size it was drawn, since
-        /// scaling it back up would only blur it.
+        /// scaling it back up would only blur it. `preRotation` is how the backbuffer's content is
+        /// turned from the window's picture (a pre-rotated swapchain's): the PNG is turned back, the
+        /// window as it shows.
         bool Record(rhi::Device& device, rhi::CommandEncoder& encoder, rhi::Texture* backbuffer,
                     rhi::TextureFormat format, u32 width, u32 height,
                     rhi::ResourceState state = rhi::ResourceState::RenderTarget, u32 originX = 0,
-                    u32 originY = 0)
+                    u32 originY = 0, ContentRotation preRotation = ContentRotation::None)
         {
             if (!m_armed)
             {
@@ -247,6 +249,7 @@ export namespace foundation::rhi
             m_height = height;
             m_bytesPerRow = bytesPerRow;
             m_format = format;
+            m_preRotation = preRotation;
             m_recorded = true;
             return true;
         }
@@ -314,8 +317,18 @@ export namespace foundation::rhi
             rgba.Resize(static_cast<usize>(m_width) * m_height * 4u);
             UnpackRows(mapped, m_bytesPerRow, m_width, m_height, m_format, Span<u8>{rgba.Data(), rgba.Size()});
             m_readback->Unmap();
-            const u32 width = m_width;
-            const u32 height = m_height;
+            u32 width = m_width;
+            u32 height = m_height;
+            if (m_preRotation != ContentRotation::None)
+            {
+                rgba = TurnBack(Span<const u8>{rgba.Data(), rgba.Size()}, width, height, m_preRotation, allocator);
+                if (TurnSwapsSides(m_preRotation))
+                {
+                    const u32 swap = width;
+                    width = height;
+                    height = swap;
+                }
+            }
             outImage = image::Image(width, height, image::PixelFormat::RGBA8,
                                     Span<const u8>{rgba.Data(), rgba.Size()});
             const Status saved =
@@ -329,6 +342,31 @@ export namespace foundation::rhi
                 LOG_INFO(u8"Screenshot", u8"wrote '{}' ({}x{})", m_path.AsView(), width, height);
             }
             return saved;
+        }
+
+        /// RGBA8 pixels of a `width` x `height` image whose content is a picture turned by `turn`
+        /// (TurnPoint), turned back: the picture as it was, its sides swapped back on a quarter.
+        [[nodiscard]] static Array<u8> TurnBack(Span<const u8> rgba, u32 width, u32 height, ContentRotation turn,
+                                                IAllocator& allocator)
+        {
+            const bool swaps = TurnSwapsSides(turn);
+            const u32 outW = swaps ? height : width;
+            const u32 outH = swaps ? width : height;
+            Array<u8> out(allocator);
+            out.Resize(static_cast<usize>(outW) * outH * 4u);
+            const Float2 picture{static_cast<f32>(outW), static_cast<f32>(outH)};
+            for (u32 y = 0; y < outH; ++y)
+            {
+                for (u32 x = 0; x < outW; ++x)
+                {
+                    // The picture's pixel centre, where it was drawn in the turned image.
+                    const Float2 at = TurnPoint(Float2{static_cast<f32>(x) + 0.5f, static_cast<f32>(y) + 0.5f}, turn, picture);
+                    const u32 sx = Min(static_cast<u32>(at.x), width - 1u);
+                    const u32 sy = Min(static_cast<u32>(at.y), height - 1u);
+                    MemCopy(out.Data() + (static_cast<usize>(y) * outW + x) * 4u, rgba.Data() + (static_cast<usize>(sy) * width + sx) * 4u, 4u);
+                }
+            }
+            return out;
         }
 
         /// Drops the readback buffer (device teardown).
@@ -357,6 +395,7 @@ export namespace foundation::rhi
         rhi::Buffer* m_readback = nullptr;
         u64 m_readbackSize = 0;
         u32 m_width = 0, m_height = 0, m_bytesPerRow = 0;
+        ContentRotation m_preRotation = ContentRotation::None; // the recorded frame's, undone on Complete
         rhi::TextureFormat m_format = rhi::TextureFormat::RGBA8Unorm;
     };
 }

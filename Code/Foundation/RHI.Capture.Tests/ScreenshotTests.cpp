@@ -303,3 +303,37 @@ TEST_CASE("screenshot: a cleared RGBA8 and BGRA8 target round-trips to a PNG on 
         webgpu->Destroy();
     }
 }
+
+// A pre-rotated backbuffer holds the window's picture turned; the screenshot turns it back. A 3 by 2
+// picture, each pixel its own value, turned each way into the image and back is itself again.
+TEST_CASE("screenshot: a pre-rotated frame's pixels are turned back to the window's picture")
+{
+    const u32 w = 3, h = 2;
+    Array<u8> picture;
+    picture.Resize(w * h * 4u);
+    for (u32 i = 0; i < w * h; ++i)
+        for (u32 c = 0; c < 4u; ++c)
+            picture[i * 4u + c] = static_cast<u8>(i * 10u + c);
+    for (const ContentRotation turn : {ContentRotation::Quarter, ContentRotation::Half, ContentRotation::ThreeQuarter})
+    {
+        CAPTURE(static_cast<int>(turn));
+        // Draw the picture turned into an image, as a pre-rotated frame is.
+        const bool swaps = TurnSwapsSides(turn);
+        const u32 iw = swaps ? h : w, ih = swaps ? w : h;
+        Array<u8> image;
+        image.Resize(iw * ih * 4u);
+        for (u32 y = 0; y < h; ++y)
+            for (u32 x = 0; x < w; ++x)
+            {
+                const Float2 at = TurnPoint(Float2{x + 0.5f, y + 0.5f}, turn, Float2{static_cast<f32>(w), static_cast<f32>(h)});
+                const u32 ix = static_cast<u32>(at.x), iy = static_cast<u32>(at.y);
+                for (u32 c = 0; c < 4u; ++c)
+                    image[(iy * iw + ix) * 4u + c] = picture[(y * w + x) * 4u + c];
+            }
+        const Array<u8> back = foundation::rhi::ScreenshotCapture::TurnBack(Span<const u8>{image.Data(), image.Size()}, iw, ih, turn,
+                                                                           DefaultAllocator());
+        REQUIRE(back.Size() == picture.Size());
+        for (usize i = 0; i < back.Size(); ++i)
+            CHECK(back[i] == picture[i]);
+    }
+}
