@@ -73,9 +73,9 @@ export namespace pipeline
     // the editor cooks against.
     struct CookTarget
     {
-        String id;         // "host", "web-bc", "web-astc", ... (DB dir and recipe salt)
+        String id;         // "host", "web-bc", "web-astc", "android", ... (DB dir and recipe salt)
         bool bc = true;    // BC1-BC7 (desktop and desktop browsers)
-        bool astc = false; // ASTC (mobile browsers)
+        bool astc = false; // ASTC (mobile browsers, Android)
         bool etc2 = false; // ETC2 (not supported)
     };
 
@@ -86,14 +86,15 @@ export namespace pipeline
     }
 
     // Resolve a target id to its capability profile. The web export splits into
-    // two variant targets: "web-bc" (desktop browsers) and "web-astc" (mobile browsers). Everything
+    // two variant targets: "web-bc" (desktop browsers) and "web-astc" (mobile browsers); "android" is
+    // ASTC, as Android's GPUs read it and not BC. Everything
     // else ("host", desktop platforms, unknown ids) is BC-capable desktop. New targets
     // (consoles, ETC2 budget mobiles) extend this; the resolver keys on capability, never on platform.
     [[nodiscard]] inline CookTarget CookTargetFor(StringView id)
     {
-        if (id == StringView(u8"web-astc"))
+        if (id == StringView(u8"web-astc") || id == StringView(u8"android"))
         {
-            return CookTarget{String(id), /*bc*/ false, /*astc*/ true, /*etc2*/ false};
+            return CookTarget{String(id), /*bc*/ false, /*astc*/ true, /*etc2*/ false}; // phones read ASTC, not BC
         }
         return CookTarget{String(id), /*bc*/ true, /*astc*/ false, /*etc2*/ false};
     }

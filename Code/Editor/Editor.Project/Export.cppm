@@ -562,13 +562,14 @@ export namespace editor
     /// `cookedDir` is the absolute cooked-DB directory this pak is packed from.
     struct ContentVariant
     {
-        String key;       // "" (the single desktop pak), "bc" or "astc"
+        String key;       // "" (the single desktop pak), "bc", "astc" or "android"
         String pakName;   // dist pak filename ("Content.pak", "Content-bc.pak" or "Content-astc.pak")
         String cookedDir; // absolute cooked-DB directory to pack from
+        String targetId;  // the cook target its products are cooked for ("web-bc", "android"); empty: the host's
     };
 
-    /// The content variants a preset ships: desktop platforms get the single host pak, and "Web"
-    /// and "Wasm" get the BC and ASTC variant paks. The cookedDir paths are siblings of the host
+    /// The content variants a preset ships: desktop platforms get the single host pak, "Web" and
+    /// "Wasm" get the BC and ASTC variant paks, and "Android64" one pak cooked for ASTC. The cookedDir paths are siblings of the host
     /// Cooked/, so the desktop pack never sees them.
     [[nodiscard]] Array<ContentVariant> VariantsForPlatform(EditorProject& project,
                                                             StringView platform);

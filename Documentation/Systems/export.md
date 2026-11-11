@@ -58,6 +58,9 @@ dist renders with no external dependency (engine shaders are cooked `.hlsl`, not
 
 - **CLI** (`Tools.Export`): `<project> [--out --preset | --all --rebuild]`, `--template list|import|
   create`; host-preset fallback when no `export_presets.xml`.
+- **Texture variants**: a preset's content is cooked per its platform's target (`VariantsForPlatform`):
+  one host pak on desktop, a BC and an ASTC pak for Web, and for `Android64` one `Content.pak`
+  cooked for the `android` target (ASTC) into `Cooked-android/` beside the host's `Cooked/`.
 - **Editor**: `Project > Export...` (`ExportDialog`) lists the project's presets beside the selected
   one's settings in tabs (General, Content, Display) under a card naming the template it resolves to
   here; edits save as they go. An export runs NON-BLOCKING (cook via `EditorCookService`, then

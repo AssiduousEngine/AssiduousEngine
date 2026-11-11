@@ -480,8 +480,20 @@ namespace editor
                 v.cookedDir = String(project.Directory());
                 v.cookedDir.Append(u8"/Cooked-web-");
                 v.cookedDir.Append(key); // Cooked-web-bc / Cooked-web-astc
+                v.targetId = Format(u8"web-{}", key);
                 out.PushBack(Move(v));
             }
+        }
+        else if (platform.StartsWith(u8"Android"))
+        {
+            // One pak, its textures ASTC (Android's GPUs do not read BC), cooked into a sibling of
+            // the host Cooked/ as Tools.Cook --target android does.
+            ContentVariant v;
+            v.key = String(u8"android");
+            v.pakName = String(engine::project::kDistContentPak);
+            v.cookedDir = Format(u8"{}/Cooked-android", project.Directory());
+            v.targetId = String(u8"android");
+            out.PushBack(Move(v));
         }
         else
         {
@@ -519,9 +531,8 @@ namespace editor
                 step += v.key.AsView();
                 onProgress(step.AsView(), 0.6f);
             }
-            // Target id "web-<key>" resolves to the capability profile (web-astc gives ASTC, else BC).
-            String targetId(u8"web-");
-            targetId += v.key.AsView();
+            // The variant's cook target resolves to its capability profile (ASTC or BC).
+            const String targetId = v.targetId;
 
             // Create Cooked-web-<key>/ and .cache/web-<key>/, carrying invariant products forward
             // from the host.
@@ -679,6 +690,7 @@ namespace editor
                 copy.key = String(v.key.AsView());
                 copy.pakName = String(v.pakName.AsView());
                 copy.cookedDir = String(v.cookedDir.AsView());
+                copy.targetId = String(v.targetId.AsView());
                 effectiveVariants.PushBack(Move(copy));
             }
         }

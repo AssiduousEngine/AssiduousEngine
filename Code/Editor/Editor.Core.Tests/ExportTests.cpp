@@ -2378,6 +2378,18 @@ TEST_CASE("export: VariantsForPlatform - desktop single pak, web BC + ASTC sibli
     CHECK(web[1].key == u8"astc");
     CHECK(web[1].pakName == u8"Content-astc.pak");
     CHECK(web[1].cookedDir.AsView().EndsWith(u8"Cooked-web-astc"));
+    CHECK(web[0].targetId == u8"web-bc");
+    CHECK(web[1].targetId == u8"web-astc");
+
+    // Android: one Content.pak, cooked for the "android" target (ASTC) into a sibling Cooked-android/.
+    const Array<editor::ContentVariant> android = editor::VariantsForPlatform(*project, u8"Android64");
+    REQUIRE(android.Size() == 1u);
+    CHECK(android[0].key == u8"android");
+    CHECK(android[0].pakName == u8"Content.pak");
+    CHECK(android[0].cookedDir.AsView().EndsWith(u8"Cooked-android"));
+    CHECK(android[0].targetId == u8"android");
+    CHECK(pipeline::CookTargetFor(u8"android").astc);
+    CHECK_FALSE(pipeline::CookTargetFor(u8"android").bc);
 
     NukeTree(projectDir.AsView());
 }
