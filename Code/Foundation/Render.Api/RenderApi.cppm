@@ -257,9 +257,42 @@ export namespace foundation::render
         // overlays keep colours encoded and blend them so, as browsers composite UI (VG's
         // Encoded blend space). False: the target as it is, linear light.
         bool encodedTarget = false;
-        // The part of the target nothing of the system covers (a phone's bars, its camera's cutout),
-        // in pixels, which a game's screens keep inside; empty (no width): the whole target.
+        // The part of the window nothing of the system covers (a phone's bars, its camera's
+        // cutout), in the window's pixels, which a game's screens keep inside; empty (no width):
+        // the whole window.
         core::Rectangle safeArea{0.0f, 0.0f, 0.0f, 0.0f};
+        // How the target's content is turned from the window's picture, clockwise: None unless the
+        // window draws pre-rotated for a display that presents turned (a phone held away from its
+        // natural orientation). Overlays lay out and draw in the window's space (WindowSize) and
+        // take WindowToTarget onto what they draw, so each lands turned where the display shows it
+        // upright; on a quarter turn the target is the window with its sides swapped.
+        core::ContentRotation preRotation = core::ContentRotation::None;
+
+        /// The window's size: the target's, its sides swapped on a quarter turn.
+        [[nodiscard]] core::Float2 WindowSize() const noexcept
+        {
+            const core::Float2 target{static_cast<f32>(width), static_cast<f32>(height)};
+            return core::TurnSwapsSides(preRotation) ? core::Float2{target.y, target.x} : target;
+        }
+        /// Where a rectangle of the window lands on the target (core::TurnRectangle).
+        [[nodiscard]] core::Rectangle WindowToTarget(core::Rectangle rect) const noexcept
+        {
+            return core::TurnRectangle(rect, preRotation, WindowSize());
+        }
+        /// The affine that takes a window point to the target's (row vectors: a point times it),
+        /// the identity when nothing is turned: what an overlay drawing in window space puts after
+        /// its own transform.
+        [[nodiscard]] core::Float4x4 WindowToTargetTransform() const noexcept
+        {
+            const core::Float2 size = WindowSize();
+            const core::Float2 origin = core::TurnPoint(core::Float2{0.0f, 0.0f}, preRotation, size);
+            const core::Float2 xAxis = core::TurnPoint(core::Float2{1.0f, 0.0f}, preRotation, size);
+            const core::Float2 yAxis = core::TurnPoint(core::Float2{0.0f, 1.0f}, preRotation, size);
+            return core::Float4x4{{{xAxis.x - origin.x, xAxis.y - origin.y, 0.0f, 0.0f},
+                                   {yAxis.x - origin.x, yAxis.y - origin.y, 0.0f, 0.0f},
+                                   {0.0f, 0.0f, 1.0f, 0.0f},
+                                   {origin.x, origin.y, 0.0f, 1.0f}}};
+        }
     };
 
     // Per-view overlay source (scene-attached UI). The pass and color target are already bound;
@@ -407,10 +440,13 @@ export namespace foundation::render
         // `encodedTarget`, when given, is a UNORM view of the same (sRGB) texture: the pass draws
         // through it and the overlays blend encoded values (ScreenOverlayView::encodedTarget).
         // `safeArea` is the window's safe area (ScreenOverlayView::safeArea), empty for all of it.
+        // `preRotation` is how the target's content is turned from the window's picture
+        // (ScreenOverlayView::preRotation); `width` and `height` stay the target's.
         virtual void RenderOverlays(rhi::CommandEncoder& encoder, rhi::TextureView* target,
                                     rhi::TextureFormat targetFormat, u32 width, u32 height,
                                     u32 frameIndex, rhi::TextureView* encodedTarget = nullptr,
-                                    core::Rectangle safeArea = {0.0f, 0.0f, 0.0f, 0.0f}) = 0;
+                                    core::Rectangle safeArea = {0.0f, 0.0f, 0.0f, 0.0f},
+                                    core::ContentRotation preRotation = core::ContentRotation::None) = 0;
     };
 
 } // namespace foundation::render

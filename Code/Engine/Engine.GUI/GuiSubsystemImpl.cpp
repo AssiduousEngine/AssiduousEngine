@@ -1737,12 +1737,28 @@ namespace engine::gui
         }
         [[nodiscard]] bool SameView(const render::ScreenOverlayView& a, const render::ScreenOverlayView& b) noexcept
         {
-            // Everything the screens' placement read, the safe area among it.
+            // Everything the screens' placement read, the safe area and the pre-rotation among it.
             return a.width == b.width && a.height == b.height && a.targetFormat == b.targetFormat &&
                    a.depthStencilFormat == b.depthStencilFormat && a.frameIndex == b.frameIndex && a.encodedTarget == b.encodedTarget &&
                    a.safeArea.x == b.safeArea.x && a.safeArea.y == b.safeArea.y && a.safeArea.width == b.safeArea.width &&
-                   a.safeArea.height == b.safeArea.height;
+                   a.safeArea.height == b.safeArea.height && a.preRotation == b.preRotation;
         }
+    }
+
+    // The affine (row-vector form) that maps a root of `drawSize` onto a rectangle of `rectSize`
+    // turned by `turn`, built from where a stretch fit with that turn takes the origin and each axis.
+    [[nodiscard]] static Float4x4 TurnedRootTransform(Float2 rectSize, Float2 drawSize, ContentRotation turn) noexcept
+    {
+        if (turn == ContentRotation::None)
+            return Float4x4::Identity();
+        const ContentFit turned{Rectangle{0.0f, 0.0f, rectSize.x, rectSize.y}, drawSize, FitMode::Stretch, turn};
+        const Float2 origin = turned.FromContent(Float2{0.0f, 0.0f});
+        const Float2 xAxis = turned.FromContent(Float2{1.0f, 0.0f});
+        const Float2 yAxis = turned.FromContent(Float2{0.0f, 1.0f});
+        return Float4x4{{{xAxis.x - origin.x, xAxis.y - origin.y, 0.0f, 0.0f},
+                         {yAxis.x - origin.x, yAxis.y - origin.y, 0.0f, 0.0f},
+                         {0.0f, 0.0f, 1.0f, 0.0f},
+                         {origin.x, origin.y, 0.0f, 1.0f}}};
     }
 
     // Places a screen tier on `view`'s target and records it, with its layers on `encoder` when one
@@ -1782,15 +1798,18 @@ namespace engine::gui
         (void)m_render->Renderer->RecordBakes(encoder, view.frameIndex);
         if (!m_screen.Root || view.width == 0 || view.height == 0)
             return;
-        const Float2 target{static_cast<f32>(view.width), static_cast<f32>(view.height)};
+        // Placed in the window's space, where the pointer is, then drawn onto the target turned with
+        // it when the window draws pre-rotated.
+        const Float2 window = view.WindowSize();
         const Function<void(SceneRoot&, Float2)> layOut = [this](SceneRoot& root, Float2 size) { StyleAndLayOut(root, size); };
         const auto prepare = [&](ScreenTier& tier)
         {
-            tier.TargetSize = target;
+            tier.TargetSize = window;
             tier.Area = view.safeArea;
-            const GuiScreenPlacement place = PlaceScreen(tier.Resolution, tier.Fit, tier.Orientation, target, view.safeArea);
+            const GuiScreenPlacement place = PlaceScreen(tier.Resolution, tier.Fit, tier.Orientation, window, view.safeArea);
             tier.Turn = place.Turn;
-            return PrepareScreenTier(*m_render->Renderer, *tier.Root, place, target, view, &encoder, layOut);
+            return PrepareScreenTier(*m_render->Renderer, *tier.Root, PlaceOnTarget(place, window, view.preRotation), window, view,
+                                     &encoder, layOut);
         };
         // Draw the drawn run's own screens (its Game tab) first, then the shared tier above them.
         ScreenTier* run = m_runScreens ? FindRunTier(m_renderRun) : nullptr;
@@ -1816,15 +1835,16 @@ namespace engine::gui
             return;
         }
         // Nothing was prepared for this view, so record now and draw the layers in place.
-        const Float2 target{static_cast<f32>(view.width), static_cast<f32>(view.height)};
+        const Float2 window = view.WindowSize();
         const Function<void(SceneRoot&, Float2)> layOut = [this](SceneRoot& root, Float2 size) { StyleAndLayOut(root, size); };
         const auto draw = [&](ScreenTier& tier)
         {
-            tier.TargetSize = target;
+            tier.TargetSize = window;
             tier.Area = view.safeArea;
-            const GuiScreenPlacement place = PlaceScreen(tier.Resolution, tier.Fit, tier.Orientation, target, view.safeArea);
+            const GuiScreenPlacement place = PlaceScreen(tier.Resolution, tier.Fit, tier.Orientation, window, view.safeArea);
             tier.Turn = place.Turn;
-            m_render->Renderer->Draw(encoder, PrepareScreenTier(*m_render->Renderer, *tier.Root, place, target, view, nullptr, layOut));
+            m_render->Renderer->Draw(encoder, PrepareScreenTier(*m_render->Renderer, *tier.Root, PlaceOnTarget(place, window, view.preRotation),
+                                                                window, view, nullptr, layOut));
         };
         if (ScreenTier* run = m_runScreens ? FindRunTier(m_renderRun) : nullptr)
             draw(*run);
@@ -1857,20 +1877,28 @@ namespace engine::gui
         place.DrawSize = swaps ? Float2{place.Rect.height, place.Rect.width} : Float2{place.Rect.width, place.Rect.height};
         const f32 scale = placed.Scale().y; // layout units per target pixel, down the game's height
         place.DpiScale = scale > 0.0f ? 1.0f / scale : 1.0f;
-        if (turn != ContentRotation::None)
-        {
-            // Map the root's pixels onto the rectangle's, rotated as the game's image is. The affine
-            // (row-vector form) is built from where the same fit takes the origin and each axis.
-            const ContentFit turned{Rectangle{0.0f, 0.0f, place.Rect.width, place.Rect.height}, place.DrawSize, FitMode::Stretch, turn};
-            const Float2 origin = turned.FromContent(Float2{0.0f, 0.0f});
-            const Float2 xAxis = turned.FromContent(Float2{1.0f, 0.0f});
-            const Float2 yAxis = turned.FromContent(Float2{0.0f, 1.0f});
-            place.Transform = Float4x4{{{xAxis.x - origin.x, xAxis.y - origin.y, 0.0f, 0.0f},
-                                        {yAxis.x - origin.x, yAxis.y - origin.y, 0.0f, 0.0f},
-                                        {0.0f, 0.0f, 1.0f, 0.0f},
-                                        {origin.x, origin.y, 0.0f, 1.0f}}};
-        }
+        // Map the root's pixels onto the rectangle's, rotated as the game's image is.
+        place.Transform = TurnedRootTransform(Float2{place.Rect.width, place.Rect.height}, place.DrawSize, turn);
         return place;
+    }
+
+    GuiScreenPlacement GuiSubsystem::PlaceOnTarget(const GuiScreenPlacement& place, Float2 window, ContentRotation preRotation) noexcept
+    {
+        if (preRotation == ContentRotation::None || window.x <= 0.0f || window.y <= 0.0f)
+            return place;
+        // A plain draw covers the whole window at its own size.
+        GuiScreenPlacement turned = place;
+        if (!turned.Fitted)
+        {
+            turned.Fitted = true;
+            turned.Rect = Rectangle{0.0f, 0.0f, window.x, window.y};
+            turned.DrawSize = window;
+            turned.DpiScale = 1.0f;
+        }
+        turned.Rect = TurnRectangle(turned.Rect, preRotation, window);
+        turned.Turn = AddTurns(turned.Turn, preRotation);
+        turned.Transform = TurnedRootTransform(Float2{turned.Rect.width, turned.Rect.height}, turned.DrawSize, turned.Turn);
+        return turned;
     }
 
     void GuiSubsystem::ApplyResolution(ScreenTier& tier, u32 width, u32 height, FitMode fit)

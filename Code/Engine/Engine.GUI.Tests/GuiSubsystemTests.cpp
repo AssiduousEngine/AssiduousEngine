@@ -1224,6 +1224,54 @@ TEST_CASE("engine.gui: the same fonts keep their service; a replaced one lives u
     CHECK(engine.gui->RetiredFontServices() == 2u); // frames later, a tier not yet styled is still safe
 }
 
+// A window drawn pre-rotated (a phone held landscape, its display presenting a quarter turn): the
+// screen is placed in the window's space, where the pointer is, and drawn onto the target turned
+// with the window, so it lands where the display shows it upright.
+TEST_CASE("engine.gui: a screen placed in the window is drawn onto a pre-rotated target turned with it")
+{
+    using engine::gui::GuiSubsystem;
+    const Float2 window{2400.0f, 1080.0f};
+    // A plain draw becomes the whole window, turned: the target is the window's sides swapped.
+    const engine::gui::GuiScreenPlacement plain = GuiSubsystem::PlaceScreen(Float2{}, FitMode::Letterbox, ScreenOrientation::Any, window);
+    REQUIRE_FALSE(plain.Fitted);
+    const engine::gui::GuiScreenPlacement onTarget = GuiSubsystem::PlaceOnTarget(plain, window, ContentRotation::Quarter);
+    REQUIRE(onTarget.Fitted);
+    CHECK(onTarget.Turn == ContentRotation::Quarter);
+    CHECK(onTarget.Rect.width == doctest::Approx(1080.0f));
+    CHECK(onTarget.Rect.height == doctest::Approx(2400.0f));
+    CHECK(onTarget.DrawSize.x == doctest::Approx(2400.0f)); // laid out as the window stands
+    CHECK(onTarget.DrawSize.y == doctest::Approx(1080.0f));
+    // The root's top-left lands at the target's top-right, its x running down the target.
+    CHECK(onTarget.Transform.m[3][0] == doctest::Approx(1080.0f));
+    CHECK(onTarget.Transform.m[3][1] == doctest::Approx(0.0f));
+    CHECK(onTarget.Transform.m[0][0] == doctest::Approx(0.0f));
+    CHECK(onTarget.Transform.m[0][1] == doctest::Approx(1.0f));
+
+    // A fitted screen inside a safe area keeps its place, turned with the window.
+    const Rectangle safe{100.0f, 0.0f, 2300.0f, 1080.0f};
+    const engine::gui::GuiScreenPlacement fitted =
+        GuiSubsystem::PlaceScreen(Float2{1920.0f, 1080.0f}, FitMode::Letterbox, ScreenOrientation::Any, window, safe);
+    const engine::gui::GuiScreenPlacement turned = GuiSubsystem::PlaceOnTarget(fitted, window, ContentRotation::ThreeQuarter);
+    const Rectangle expected = TurnRectangle(fitted.Rect, ContentRotation::ThreeQuarter, window);
+    CHECK(turned.Rect.x == doctest::Approx(expected.x));
+    CHECK(turned.Rect.y == doctest::Approx(expected.y));
+    CHECK(turned.Rect.width == doctest::Approx(expected.width));
+    CHECK(turned.Rect.height == doctest::Approx(expected.height));
+    CHECK(turned.DpiScale == doctest::Approx(fitted.DpiScale));
+
+    // A landscape game turned for a window held upright, on a display turned the other way: the
+    // turns cancel, and nothing is turned on the target.
+    const Float2 upright{1080.0f, 2400.0f};
+    const engine::gui::GuiScreenPlacement own = GuiSubsystem::PlaceScreen(Float2{}, FitMode::Letterbox, ScreenOrientation::Landscape, upright);
+    REQUIRE(own.Turn == ContentRotation::ThreeQuarter);
+    CHECK(GuiSubsystem::PlaceOnTarget(own, upright, ContentRotation::Quarter).Turn == ContentRotation::None);
+
+    // Nothing turned: the placement as it was.
+    const engine::gui::GuiScreenPlacement same = GuiSubsystem::PlaceOnTarget(fitted, window, ContentRotation::None);
+    CHECK(same.Rect.x == doctest::Approx(fitted.Rect.x));
+    CHECK(same.Turn == fitted.Turn);
+}
+
 TEST_CASE("engine.gui: the screen is placed as the game's image is: fitted at its resolution, turned for its orientation")
 {
     using engine::gui::GuiSubsystem;

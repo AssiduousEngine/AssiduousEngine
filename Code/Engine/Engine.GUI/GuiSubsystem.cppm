@@ -521,6 +521,11 @@ export namespace engine::gui
         /// with no resolution lays out at the area's size there.
         [[nodiscard]] static GuiScreenPlacement PlaceScreen(Float2 resolution, FitMode fit, ScreenOrientation orientation, Float2 target,
                                                             Rectangle area = Rectangle{0.0f, 0.0f, 0.0f, 0.0f}) noexcept;
+        /// The placement PlaceScreen made in a `window`'s space, onto a target the window draws
+        /// pre-rotated into (`preRotation`, ScreenOverlayView::preRotation): its rectangle turned
+        /// onto the target and its turn added to, so the screens land where the display shows them
+        /// upright; a plain draw becomes the whole window turned. Unchanged when nothing is turned.
+        [[nodiscard]] static GuiScreenPlacement PlaceOnTarget(const GuiScreenPlacement& place, Float2 window, ContentRotation preRotation) noexcept;
 
         // ---- a screen tier per run (the editor's Game tabs) ----
         /// Turns per-run screen tiers on or off. When on (the editor sets it once), each run gets

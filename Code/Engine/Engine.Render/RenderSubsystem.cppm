@@ -320,7 +320,8 @@ export namespace engine::render
         void RenderOverlays(rhi::CommandEncoder& encoder, rhi::TextureView* target,
                             rhi::TextureFormat targetFormat, u32 width, u32 height,
                             u32 frameIndex, rhi::TextureView* encodedTarget = nullptr,
-                            Rectangle safeArea = {0.0f, 0.0f, 0.0f, 0.0f}) override;
+                            Rectangle safeArea = {0.0f, 0.0f, 0.0f, 0.0f},
+                            ContentRotation preRotation = ContentRotation::None) override;
 
     protected:
         void OnInit() override;

@@ -639,7 +639,8 @@ namespace engine::render
 
     void RenderSubsystem::RenderOverlays(rhi::CommandEncoder& encoder, rhi::TextureView* target,
                                          rhi::TextureFormat targetFormat, u32 width, u32 height,
-                                         u32 frameIndex, rhi::TextureView* encodedTarget, Rectangle safeArea)
+                                         u32 frameIndex, rhi::TextureView* encodedTarget, Rectangle safeArea,
+                                         ContentRotation preRotation)
     {
         if (target == nullptr || width == 0 || height == 0 || m_screenOverlays.IsEmpty())
         {
@@ -716,6 +717,7 @@ namespace engine::render
         view.depthStencilFormat = haveDs ? m_overlayDsFormat : rhi::TextureFormat::Undefined;
         view.frameIndex = frameIndex;
         view.safeArea = safeArea;
+        view.preRotation = preRotation;
         for (IScreenOverlay* overlay : m_screenOverlays.Items())
         {
             overlay->PrepareOverlay(encoder, view);
