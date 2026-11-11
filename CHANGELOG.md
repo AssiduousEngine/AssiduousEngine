@@ -9,6 +9,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Added
 
+- Rendering: the player draws its frame turned for a display that presents turned (a phone held
+  away from its natural orientation), so the display has nothing to turn (pre-rotation); its scene,
+  its screens and a screenshot follow the turn, and the pointer is unchanged. A window asks for it
+  (`RenderWindowDesc::preRotate`); the RHI samples and the editor do not.
 - Editor: Preferences' templates folder has a Browse button, which picks the folder with the
   system's folder dialog.
 - Export: `Tools.Export --content-only` stages the game's content, settings and shader pack with no

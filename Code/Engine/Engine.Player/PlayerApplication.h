@@ -55,6 +55,17 @@ namespace engine::player
     public:
         explicit PlayerApplication(PlayerOptions options) : m_options(Move(options)) {}
 
+        // The player draws everything through the frame's turn (the scene through its fit, its
+        // screens through the overlay view), so on a display that presents turned (a phone held
+        // away from its natural orientation) it draws pre-rotated and the display has no turning to
+        // do. A desktop's display presents as the window stands, and nothing changes there.
+        [[nodiscard]] foundation::graphics::RenderWindowDesc MainRenderWindow() const override
+        {
+            foundation::graphics::RenderWindowDesc desc;
+            desc.preRotate = true;
+            return desc;
+        }
+
         void OnStartup(runtime::IApplicationHost& host) override
         {
             namespace project = engine::project;

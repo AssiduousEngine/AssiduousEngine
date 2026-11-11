@@ -834,10 +834,14 @@ namespace engine::runtime
             m_gui->RenderTextures(*frame.encoder, frame.frameIndex); // its canvases' and panels' textures, its bakes
         }
         render->BeginRendering(*frame.encoder, frame.frameIndex);
-        // The part of the frame nothing of the system covers (a phone's status bar, its camera's
-        // cutout): the game's frame, its screens and its pointer keep inside it.
-        const core::f32 frameW = static_cast<core::f32>(frame.width);
-        const core::f32 frameH = static_cast<core::f32>(frame.height);
+        // The part of the window nothing of the system covers (a phone's status bar, its camera's
+        // cutout): the game's frame, its screens and its pointer keep inside it. All of it is in the
+        // window's space, where the pointer is; a frame drawn pre-rotated (a phone's display that
+        // presents turned) takes the window's picture turned into the backbuffer.
+        const core::ContentRotation preRotation = frame.preRotation;
+        const core::f32 frameW = static_cast<core::f32>(frame.windowWidth != 0 ? frame.windowWidth : frame.width);
+        const core::f32 frameH = static_cast<core::f32>(frame.windowHeight != 0 ? frame.windowHeight : frame.height);
+        const core::Float2 window{frameW, frameH};
         core::Rectangle safe = frame.window->Window().SafeArea();
         safe.x = core::Clamp(safe.x, 0.0f, frameW);
         safe.y = core::Clamp(safe.y, 0.0f, frameH);
@@ -876,19 +880,23 @@ namespace engine::runtime
                     {
                         m_fittedInput->fit = fit;
                     }
-                    if (!HasRenderResolution() && !turned && !inset)
+                    if (!HasRenderResolution() && !turned && !inset && preRotation == core::ContentRotation::None)
                     {
                         render->RenderScene(*scene, frame.backbufferView, colorFormat, frame.width,
                                             frame.height);
                         continue;
                     }
-                    const core::Rectangle dst = fit.DstRect();
+                    // Drawn into the backbuffer: the window's fit, turned with the window when the
+                    // frame is pre-rotated (its region turned onto the backbuffer, its turn added to).
+                    const core::ContentFit drawn{core::TurnRectangle(fit.region, preRotation, window), fit.contentSize, fit.mode,
+                                                 core::AddTurns(fit.rotation, preRotation)};
+                    const core::Rectangle dst = drawn.DstRect();
                     const foundation::render::ViewportRect viewport{static_cast<core::i32>(dst.x), static_cast<core::i32>(dst.y),
                                                         static_cast<core::u32>(core::Max(dst.width, 1.0f)),
                                                         static_cast<core::u32>(core::Max(dst.height, 1.0f))};
                     render->RenderScene(*scene, frame.backbufferView, colorFormat, frame.width, frame.height,
                                         viewport, nullptr, {}, nullptr, nullptr, nullptr,
-                                        foundation::render::SceneSize::FromFit(fit));
+                                        foundation::render::SceneSize::FromFit(drawn));
                 }
             });
         render->EndRendering(); // scene-tier overlays (HUD/billboards) draw inside the compose
@@ -904,7 +912,7 @@ namespace engine::runtime
         frame.encoder->TransitionTexture(frame.backbuffer, rhi::ResourceState::RenderTarget,
                                          rhi::ResourceState::RenderTarget);
         render->RenderOverlays(*frame.encoder, frame.backbufferView, colorFormat, frame.width,
-                               frame.height, frame.frameIndex, frame.backbufferAlternateView, safe);
+                               frame.height, frame.frameIndex, frame.backbufferAlternateView, safe, preRotation);
     }
 
     void DefaultApplication::CaptureScreenshot(core::StringView path)
@@ -943,7 +951,8 @@ namespace engine::runtime
         }
         const bool recorded =
             m_screenshot.Record(*gfx->Raw(), *frame.encoder, frame.backbuffer,
-                                frame.window->Swap()->Format(), frame.width, frame.height);
+                                frame.window->Swap()->Format(), frame.width, frame.height,
+                                rhi::ResourceState::RenderTarget, 0, 0, frame.preRotation);
         if (!recorded && m_screenshotExitPending)
         {
             host.RequestExit(1); // asked for a file that cannot be produced: say so by exit code
