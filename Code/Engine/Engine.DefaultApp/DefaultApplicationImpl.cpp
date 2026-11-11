@@ -71,6 +71,15 @@ namespace engine::runtime
 {
     void DefaultApplication::OnUpdate(IApplicationHost& host, core::f32 deltaTime)
     {
+        // A back button nothing in the game handled (no GUI used it, no action binds it) is the
+        // platform's: a phone puts the app in the background.
+        if (m_gui != nullptr && m_gui->BackUnhandled())
+        {
+            if (foundation::shell::IShell* shell = host.Shell())
+            {
+                shell->PassBackToPlatform();
+            }
+        }
         // A screenshot recorded last frame: the GPU has run that frame by now for any slot the
         // host reuses, but not necessarily this one. A screenshot is a one-off, so wait for
         // everything, then map, write, and honour --screenshot-exit.

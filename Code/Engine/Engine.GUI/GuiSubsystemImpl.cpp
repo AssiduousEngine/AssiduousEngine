@@ -1527,6 +1527,7 @@ namespace engine::gui
     void GuiSubsystem::PumpInput()
     {
         m_pointerTaken = false;
+        m_backUnhandled = false;
         if (m_input == nullptr || !m_screen.Root)
             return;
         foundation::input::IInputSourceProvider& devices = m_input->ActiveSource();
@@ -1603,10 +1604,22 @@ namespace engine::gui
         else
             bridge->PumpDevices(mouse, touch, devices.Keyboard());
         // Keys, text and the pad go through their events, in order; the pointer was polled above.
+        bool backPressed = false;
+        bool backUsed = false;
         for (const foundation::shell::InputEvent& event : devices.Events())
             switch (event.kind)
             {
             case foundation::shell::InputEventKind::KeyDown:
+                // The back button: whether the GUI used it decides, with the game's bindings, whether
+                // it was handled (BackUnhandled).
+                if (event.key == foundation::shell::KeyCode::Back)
+                {
+                    backPressed = true;
+                    backUsed = bridge->Dispatch(event) || backUsed;
+                }
+                else
+                    (void)bridge->Dispatch(event);
+                break;
             case foundation::shell::InputEventKind::KeyUp:
             case foundation::shell::InputEventKind::TextInput:
             case foundation::shell::InputEventKind::TextEditing:
@@ -1633,14 +1646,17 @@ namespace engine::gui
             m_pressTaken = false;
         }
         const bool pointerTaken = m_pointerTaken;
+        bool backBound = false;
         m_input->ForEachActionRuntime(
-            [pointerTaken, keys](foundation::input::ActionRuntime& runtime)
+            [pointerTaken, keys, &backBound](foundation::input::ActionRuntime& runtime)
             {
                 foundation::input::ActionRuntime::ConsumptionMask mask = runtime.GetConsumptionMask();
                 mask.pointer = mask.pointer || pointerTaken;
                 mask.keyboard = mask.keyboard || keys;
                 runtime.SetConsumptionMask(mask);
+                backBound = backBound || runtime.IsKeyBound(foundation::shell::KeyCode::Back);
             });
+        m_backUnhandled = backPressed && !backUsed && !backBound;
     }
 
     void GuiSubsystem::EndFrame()

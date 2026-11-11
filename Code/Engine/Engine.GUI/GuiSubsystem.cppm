@@ -544,6 +544,11 @@ export namespace engine::gui
         /// the last input pump. A host that owns the window's text input (the editor's Game tab)
         /// starts text input when this is true.
         [[nodiscard]] bool WantsTextInput() const noexcept { return m_textWanted; }
+        /// Returns whether the back button (KeyCode::Back) was pressed in the last input pump and not
+        /// handled: the GUI did not use it (no popup or dialog closed, no screen's `back` handler
+        /// took it) and no action of the sets in effect binds it. A host on a platform with a back
+        /// of its own hands it to the platform then (IShell::PassBackToPlatform).
+        [[nodiscard]] bool BackUnhandled() const noexcept { return m_backUnhandled; }
         /// The touch controls' guide, beneath the shared tier's screens; exposed for tests.
         [[nodiscard]] GuiTouchGuide* TouchGuide() noexcept { return m_touchGuide.Get(); }
         /// Builds `document` and shows it on the overlay layer, above every screen (a loading
@@ -774,6 +779,7 @@ export namespace engine::gui
         bool m_pressTaken = false;              // that press began over GUI that takes the pointer
         bool m_pointerTaken = false;
         bool m_textWanted = false;              // the root input went to is editing text
+        bool m_backUnhandled = false;           // the last pump's back button, handled by nothing
     };
 
     /// The GUI's domain: its resource modules (documents and sheets, the vector images, the

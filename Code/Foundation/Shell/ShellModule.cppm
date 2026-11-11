@@ -352,6 +352,11 @@ export namespace foundation::shell
         core::Function<void()> OnEnterBackground;
         core::Function<void()> OnEnterForeground;
 
+        // Hands the back button the app did not use to the platform, which does with it what it
+        // does for an app that takes no back (a phone puts the app in the background). Nothing on a
+        // platform without a back of its own.
+        virtual void PassBackToPlatform() {}
+
         // OS drag-and-drop of files onto a window. Backends queue drops during
         // ProcessEvents; consumers drain once per frame (order preserved). Backends
         // without drop support leave the default no-op.

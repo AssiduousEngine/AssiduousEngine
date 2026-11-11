@@ -614,6 +614,53 @@ TEST_CASE("engine.gui: with no GUI under the pointer the keys go to the screens 
     CHECK(engine.gui->Screens()->Count() == 1u);
 }
 
+TEST_CASE("engine.gui: a back press nothing handles is unhandled; a screen that pops or a binding handles it")
+{
+    Engine engine;
+    engine.gui->ScreenRoot()->SetViewportSize(Float2{800.0f, 600.0f});
+    engine.Frame();
+    CHECK_FALSE(engine.gui->BackUnhandled());
+
+    // No screen, no binding: nothing handles it (a phone's platform takes it).
+    engine.devices.Key(foundation::shell::KeyCode::Back);
+    engine.Frame();
+    CHECK(engine.gui->BackUnhandled());
+    engine.Frame();
+    CHECK_FALSE(engine.gui->BackUnhandled()); // only the frame it was pressed in
+
+    // A screen over another backs out with it, as with Escape.
+    RefPtr<UIWidget> title = MakeRef<UIWidget>(DefaultAllocator());
+    title->AddChild(MakeButton(u8"play", Float2{20.0f, 20.0f}).Get());
+    RefPtr<UIWidget> settings = MakeRef<UIWidget>(DefaultAllocator());
+    settings->AddChild(MakeButton(u8"back", Float2{20.0f, 20.0f}).Get());
+    REQUIRE(engine.gui->Screens()->Push(*title) != nullptr);
+    REQUIRE(engine.gui->Screens()->Push(*settings) != nullptr);
+    engine.Frame();
+    engine.devices.Key(foundation::shell::KeyCode::Back);
+    engine.Frame();
+    CHECK(engine.gui->Screens()->Count() == 1u);
+    CHECK_FALSE(engine.gui->BackUnhandled());
+    (void)engine.gui->Screens()->Pop();
+    engine.Frame();
+
+    // An action the game binds to it handles it.
+    foundation::input::InputMap map;
+    foundation::input::ActionSet set;
+    set.name = String(u8"Gameplay");
+    foundation::input::Action pause;
+    pause.name = String(u8"Pause");
+    foundation::input::Binding back;
+    back.source = foundation::input::BindingSource::Key;
+    back.code = static_cast<u32>(foundation::shell::KeyCode::Back);
+    pause.bindings.PushBack(back);
+    set.actions.PushBack(Move(pause));
+    map.sets.PushBack(Move(set));
+    engine.input->Runtime().SetMap(map);
+    engine.devices.Key(foundation::shell::KeyCode::Back);
+    engine.Frame();
+    CHECK_FALSE(engine.gui->BackUnhandled());
+}
+
 TEST_CASE("engine.gui: a button on a screen a game pushed takes the hover and the click; the empty overlay layer over it takes nothing")
 {
     Engine engine;
