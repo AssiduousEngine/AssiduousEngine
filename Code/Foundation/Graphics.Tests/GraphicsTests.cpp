@@ -249,3 +249,54 @@ TEST_CASE("graphics: a profiled frame start times the slot's fence and the image
     CHECK(fences <= 3u);
 #endif
 }
+
+// A window that asks to pre-rotate, on a display that presents turned (a phone held landscape): the
+// frame is the backbuffer, the window's size turned, and says the turn and the window's own size;
+// the window is not made again for its backbuffer not matching its size. One that does not ask
+// draws as the window stands.
+TEST_CASE("graphics: a pre-rotated window's frame says its turn and the window's size")
+{
+    NullShell shell;
+    auto created = CreateNullGraphicsDevice();
+    REQUIRE(created.HasValue());
+    UniquePtr<GraphicsDevice>& gd = created.Value();
+    SetNullDisplayTurn(*gd, ContentRotation::Quarter);
+    static_cast<NullWindow*>(shell.MainWindow())->Resize(2400, 1080);
+
+    RenderWindowDesc desc;
+    desc.preRotate = true;
+    auto rwResult = gd->CreateRenderWindow(*shell.MainWindow(), desc);
+    REQUIRE(rwResult.HasValue());
+    UniquePtr<RenderWindow>& rw = rwResult.Value();
+    CHECK_FALSE(rw->SyncSize()); // the window's size is what it was made at, turned or not
+
+    FrameContext frame = rw->BeginFrame();
+    REQUIRE(frame.valid);
+    CHECK(frame.preRotation == ContentRotation::Quarter);
+    CHECK(frame.width == 1080u);
+    CHECK(frame.height == 2400u);
+    CHECK(frame.windowWidth == 2400u);
+    CHECK(frame.windowHeight == 1080u);
+    rw->EndFrame(frame);
+    gd->AdvanceFrame();
+
+    // Turned upright: made again at the window's new size, still turned for the display.
+    static_cast<NullWindow*>(shell.MainWindow())->Resize(1080, 2400);
+    CHECK(rw->SyncSize());
+    FrameContext upright = rw->BeginFrame();
+    REQUIRE(upright.valid);
+    CHECK(upright.width == 2400u);
+    CHECK(upright.windowWidth == 1080u);
+    rw->EndFrame(upright);
+    gd->AdvanceFrame();
+
+    // A window that does not ask: drawn as it stands.
+    auto plainResult = gd->CreateRenderWindow(*shell.MainWindow(), RenderWindowDesc{});
+    REQUIRE(plainResult.HasValue());
+    FrameContext plain = plainResult.Value()->BeginFrame();
+    REQUIRE(plain.valid);
+    CHECK(plain.preRotation == ContentRotation::None);
+    CHECK(plain.width == plain.windowWidth);
+    plainResult.Value()->EndFrame(plain);
+    gd->AdvanceFrame();
+}

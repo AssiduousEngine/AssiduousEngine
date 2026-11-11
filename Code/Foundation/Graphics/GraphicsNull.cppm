@@ -35,4 +35,12 @@ export namespace foundation::graphics
         }
         return GraphicsDevice::FromBackend(raw, framesInFlight);
     }
+
+    /// For a test: the turn a null graphics device's display presents at, as a phone's surface
+    /// reports one held away from its natural orientation. A window that asks to pre-rotate
+    /// (RenderWindowDesc::preRotate) and is made after this takes it.
+    inline void SetNullDisplayTurn(GraphicsDevice& device, core::ContentRotation turn)
+    {
+        static_cast<rhi::null::NullDevice*>(device.Raw())->displayTurn = turn;
+    }
 }

@@ -153,6 +153,11 @@ export namespace foundation::graphics
         rhi::TextureFormat format = rhi::TextureFormat::BGRA8UnormSrgb;
         rhi::PresentMode presentMode = rhi::PresentMode::Fifo;
         core::u32 bufferCount = 2; // swapchain images
+        // Draw the picture turned for a display that presents turned (a phone held away from its
+        // natural orientation), so it has no turning to do: the frame says how (FrameContext::
+        // preRotation) and whoever draws into the backbuffer must turn its picture. Off, the
+        // display turns it. Only a host that draws everything through the turn asks for it.
+        bool preRotate = false;
     };
 
     class GraphicsDevice; // forward (RenderWindow refs it; defined complete below)
@@ -173,8 +178,15 @@ export namespace foundation::graphics
         bool valid = false;             // false: skip (minimized, or acquire failed)
         RenderWindow* window = nullptr; // which window this frame targets
         core::u32 frameIndex = 0;       // device ring index (0..framesInFlight-1)
-        core::u32 width = 0;
+        core::u32 width = 0;  // the backbuffer's
         core::u32 height = 0;
+        // How the backbuffer's content is turned from the window's picture, clockwise (the
+        // window's RenderWindowDesc::preRotate on a display that presents turned; else None), and
+        // the window's own size: the backbuffer's with its sides swapped on a quarter turn. The
+        // window's picture lands in the backbuffer at core::TurnPoint(point, preRotation, window).
+        core::ContentRotation preRotation = core::ContentRotation::None;
+        core::u32 windowWidth = 0;
+        core::u32 windowHeight = 0;
         rhi::CommandEncoder* encoder = nullptr; // primary, host-created
         rhi::CommandPool* pool = nullptr;       // this frame's pool (extra encoders)
         rhi::Texture* backbuffer = nullptr;
@@ -429,6 +441,7 @@ export namespace foundation::graphics
             sd.height = window.PixelHeight();
             sd.format = desc.format;
             sd.presentMode = desc.presentMode;
+            sd.preRotate = desc.preRotate;
             sd.bufferCount = desc.bufferCount;
             // Viewable in its sRGB or UNORM twin too, for UI that blends encoded values (VG's
             // Encoded blend space); the swapchain says whether it could.
@@ -660,6 +673,10 @@ export namespace foundation::graphics
         // on any out-of-attachment viewport or scissor.
         f.width = m_swapChain->Width();
         f.height = m_swapChain->Height();
+        f.preRotation = m_swapChain->PreRotation();
+        const bool swaps = core::TurnSwapsSides(f.preRotation);
+        f.windowWidth = swaps ? f.height : f.width;
+        f.windowHeight = swaps ? f.width : f.height;
         f.encoder = enc;
         f.pool = m_pools[fi];
         f.backbuffer = m_swapChain->CurrentTexture();
