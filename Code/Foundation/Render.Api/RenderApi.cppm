@@ -257,6 +257,9 @@ export namespace foundation::render
         // overlays keep colours encoded and blend them so, as browsers composite UI (VG's
         // Encoded blend space). False: the target as it is, linear light.
         bool encodedTarget = false;
+        // The part of the target nothing of the system covers (a phone's bars, its camera's cutout),
+        // in pixels, which a game's screens keep inside; empty (no width): the whole target.
+        core::Rectangle safeArea{0.0f, 0.0f, 0.0f, 0.0f};
     };
 
     // Per-view overlay source (scene-attached UI). The pass and color target are already bound;
@@ -403,9 +406,11 @@ export namespace foundation::render
         // active encoder. No-op when no overlays are registered or `target` is null.
         // `encodedTarget`, when given, is a UNORM view of the same (sRGB) texture: the pass draws
         // through it and the overlays blend encoded values (ScreenOverlayView::encodedTarget).
+        // `safeArea` is the window's safe area (ScreenOverlayView::safeArea), empty for all of it.
         virtual void RenderOverlays(rhi::CommandEncoder& encoder, rhi::TextureView* target,
                                     rhi::TextureFormat targetFormat, u32 width, u32 height,
-                                    u32 frameIndex, rhi::TextureView* encodedTarget = nullptr) = 0;
+                                    u32 frameIndex, rhi::TextureView* encodedTarget = nullptr,
+                                    core::Rectangle safeArea = {0.0f, 0.0f, 0.0f, 0.0f}) = 0;
     };
 
 } // namespace foundation::render

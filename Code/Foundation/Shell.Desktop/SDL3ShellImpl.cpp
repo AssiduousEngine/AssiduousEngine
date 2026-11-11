@@ -222,6 +222,22 @@ namespace foundation::shell
         return static_cast<core::u32>(h);
     }
 
+    core::Rectangle SDL3Window::SafeArea() const noexcept
+    {
+        // SDL's safe area (on Android, from the window's insets) is in window units; the window's
+        // pixels per unit scale it.
+        const core::f32 pixelsWide = static_cast<core::f32>(PixelWidth());
+        const core::f32 pixelsHigh = static_cast<core::f32>(PixelHeight());
+        SDL_Rect area{};
+        if (m_window == nullptr || !SDL_GetWindowSafeArea(m_window, &area) || area.w <= 0 || area.h <= 0 ||
+            Width() == 0 || Height() == 0)
+            return core::Rectangle{0.0f, 0.0f, pixelsWide, pixelsHigh};
+        const core::f32 sx = pixelsWide / static_cast<core::f32>(Width());
+        const core::f32 sy = pixelsHigh / static_cast<core::f32>(Height());
+        return core::Rectangle{static_cast<core::f32>(area.x) * sx, static_cast<core::f32>(area.y) * sy,
+                               static_cast<core::f32>(area.w) * sx, static_cast<core::f32>(area.h) * sy};
+    }
+
     core::f32 SDL3Window::ContentScale() const noexcept
     {
         const float s = (m_window != nullptr) ? SDL_GetWindowDisplayScale(m_window) : 1.0f;

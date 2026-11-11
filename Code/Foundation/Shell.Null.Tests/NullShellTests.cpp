@@ -28,6 +28,11 @@ TEST_CASE("shell.null: a headless shell reports a window and run state")
     static_cast<NullWindow*>(shell.MainWindow())->SetSurfaceGone(true);
     CHECK(shell.MainWindow()->Native().window == nullptr);
     static_cast<NullWindow*>(shell.MainWindow())->SetSurfaceGone(false);
+    // Its safe area is all of it, until a test says what the system covers.
+    CHECK(shell.MainWindow()->SafeArea().width == 800.0f);
+    static_cast<NullWindow*>(shell.MainWindow())->SetSafeArea(Rectangle{0.0f, 40.0f, 800.0f, 560.0f});
+    CHECK(shell.MainWindow()->SafeArea().y == 40.0f);
+    CHECK(shell.MainWindow()->SafeArea().height == 560.0f);
     CHECK(shell.IsRunning());
 
     shell.ProcessEvents(); // no-op, must not change run state

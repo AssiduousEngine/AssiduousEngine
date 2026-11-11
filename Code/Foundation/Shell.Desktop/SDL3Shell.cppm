@@ -67,6 +67,7 @@ export namespace foundation::shell
         [[nodiscard]] core::u32 Height() const noexcept override { return m_height; }
         [[nodiscard]] core::u32 PixelWidth() const noexcept override;
         [[nodiscard]] core::u32 PixelHeight() const noexcept override;
+        [[nodiscard]] core::Rectangle SafeArea() const noexcept override;
 
         [[nodiscard]] core::i32 X() const noexcept override;
         [[nodiscard]] core::i32 Y() const noexcept override;

@@ -639,7 +639,7 @@ namespace engine::render
 
     void RenderSubsystem::RenderOverlays(rhi::CommandEncoder& encoder, rhi::TextureView* target,
                                          rhi::TextureFormat targetFormat, u32 width, u32 height,
-                                         u32 frameIndex, rhi::TextureView* encodedTarget)
+                                         u32 frameIndex, rhi::TextureView* encodedTarget, Rectangle safeArea)
     {
         if (target == nullptr || width == 0 || height == 0 || m_screenOverlays.IsEmpty())
         {
@@ -715,6 +715,7 @@ namespace engine::render
         view.encodedTarget = encoded;
         view.depthStencilFormat = haveDs ? m_overlayDsFormat : rhi::TextureFormat::Undefined;
         view.frameIndex = frameIndex;
+        view.safeArea = safeArea;
         for (IScreenOverlay* overlay : m_screenOverlays.Items())
         {
             overlay->PrepareOverlay(encoder, view);

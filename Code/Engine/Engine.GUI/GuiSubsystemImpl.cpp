@@ -1768,7 +1768,8 @@ namespace engine::gui
         const auto prepare = [&](ScreenTier& tier)
         {
             tier.TargetSize = target;
-            const GuiScreenPlacement place = PlaceScreen(tier.Resolution, tier.Fit, tier.Orientation, target);
+            tier.Area = view.safeArea;
+            const GuiScreenPlacement place = PlaceScreen(tier.Resolution, tier.Fit, tier.Orientation, target, view.safeArea);
             tier.Turn = place.Turn;
             return PrepareScreenTier(*m_render->Renderer, *tier.Root, place, target, view, &encoder, layOut);
         };
@@ -1801,7 +1802,8 @@ namespace engine::gui
         const auto draw = [&](ScreenTier& tier)
         {
             tier.TargetSize = target;
-            const GuiScreenPlacement place = PlaceScreen(tier.Resolution, tier.Fit, tier.Orientation, target);
+            tier.Area = view.safeArea;
+            const GuiScreenPlacement place = PlaceScreen(tier.Resolution, tier.Fit, tier.Orientation, target, view.safeArea);
             tier.Turn = place.Turn;
             m_render->Renderer->Draw(encoder, PrepareScreenTier(*m_render->Renderer, *tier.Root, place, target, view, nullptr, layOut));
         };
@@ -1812,19 +1814,24 @@ namespace engine::gui
 
     // ---- the game's screen ----
 
-    GuiScreenPlacement GuiSubsystem::PlaceScreen(Float2 resolution, FitMode fit, ScreenOrientation orientation, Float2 target) noexcept
+    GuiScreenPlacement GuiSubsystem::PlaceScreen(Float2 resolution, FitMode fit, ScreenOrientation orientation, Float2 target,
+                                                 Rectangle area) noexcept
     {
         GuiScreenPlacement place;
         if (target.x <= 0.0f || target.y <= 0.0f)
             return place;
-        const ContentRotation turn = TurnFor(orientation, target.x, target.y);
+        if (area.width <= 0.0f || area.height <= 0.0f)
+            area = Rectangle{0.0f, 0.0f, target.x, target.y};
+        const bool whole = area.x == 0.0f && area.y == 0.0f && area.width == target.x && area.height == target.y;
+        const ContentRotation turn = TurnFor(orientation, area.width, area.height);
         const bool hasResolution = resolution.x > 0.0f && resolution.y > 0.0f;
-        if (!hasResolution && turn == ContentRotation::None)
+        if (!hasResolution && turn == ContentRotation::None && whole)
             return place; // a plain draw
         const bool swaps = turn == ContentRotation::Quarter || turn == ContentRotation::ThreeQuarter;
-        // The game's frame: its resolution, or else the target's own pixels in the game's shape.
-        const Float2 content = hasResolution ? resolution : (swaps ? Float2{target.y, target.x} : target);
-        const ContentFit placed{Rectangle{0.0f, 0.0f, target.x, target.y}, content, hasResolution ? fit : FitMode::Stretch, turn};
+        // The game's frame: its resolution, or else the area's own pixels in the game's shape.
+        const Float2 size{area.width, area.height};
+        const Float2 content = hasResolution ? resolution : (swaps ? Float2{size.y, size.x} : size);
+        const ContentFit placed{area, content, hasResolution ? fit : FitMode::Stretch, turn};
         place.Fitted = true;
         place.Turn = turn;
         place.Rect = placed.DstRect();
@@ -1947,10 +1954,12 @@ namespace engine::gui
     Float2 GuiSubsystem::ScreenPointerPoint(const ScreenTier& tier, Float2 point) noexcept
     {
         if (!tier.HasResolution())
-            return point; // already in the target's own pixels (a rotated game's pointer arrives in its frame)
+            return point; // already in the root's own pixels (a rotated or inset game's pointer arrives in its frame)
         // Map the point as PlaceScreen fitted the tier on the last draw: offset it by the part of
         // the resolution a crop leaves out, then scale it into the root's pixels.
-        const ContentFit fit{Rectangle{0.0f, 0.0f, tier.TargetSize.x, tier.TargetSize.y}, tier.Resolution, tier.Fit, tier.Turn};
+        const Rectangle area = tier.Area.width > 0.0f && tier.Area.height > 0.0f ? tier.Area
+                                                                                : Rectangle{0.0f, 0.0f, tier.TargetSize.x, tier.TargetSize.y};
+        const ContentFit fit{area, tier.Resolution, tier.Fit, tier.Turn};
         const Rectangle source = fit.SrcRect();
         const f32 scale = fit.Scale().y;
         const f32 dpi = scale > 0.0f ? 1.0f / scale : 1.0f;

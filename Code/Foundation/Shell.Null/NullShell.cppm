@@ -93,6 +93,16 @@ export namespace foundation::shell
         }
         void SetMinimized(bool m) noexcept { m_minimized = m; }
         void SetSurfaceGone(bool gone) noexcept { m_surfaceGone = gone; }
+        // What a test says the system covers, as a phone's bars do: the safe area left, in pixels.
+        void SetSafeArea(core::Rectangle area) noexcept
+        {
+            m_safeArea = area;
+            m_hasSafeArea = true;
+        }
+        [[nodiscard]] core::Rectangle SafeArea() const noexcept override
+        {
+            return m_hasSafeArea ? m_safeArea : IWindow::SafeArea();
+        }
         /// What SetTitle was last told (the settings' title until then).
         [[nodiscard]] core::StringView Title() const noexcept { return m_title.AsView(); }
         /// How many times Raise was called.
@@ -108,6 +118,8 @@ export namespace foundation::shell
         bool m_open = true;
         bool m_minimized = false;
         bool m_surfaceGone = false;
+        bool m_hasSafeArea = false;
+        core::Rectangle m_safeArea{0.0f, 0.0f, 0.0f, 0.0f};
         bool m_textInputActive = false;
         TextInputKind m_textInputKind = TextInputKind::Text;
         TextInputArea m_textInputArea{};

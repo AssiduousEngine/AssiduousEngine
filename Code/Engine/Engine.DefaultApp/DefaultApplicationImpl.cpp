@@ -358,7 +358,7 @@ namespace engine::runtime
         {
             return;
         }
-        if (HasRenderResolution() || m_orientation != core::ScreenOrientation::Any)
+        if (HasRenderResolution() || m_orientation != core::ScreenOrientation::Any || m_inset)
         {
             if (!m_fittedInput)
             {
@@ -825,6 +825,21 @@ namespace engine::runtime
             m_gui->RenderTextures(*frame.encoder, frame.frameIndex); // its canvases' and panels' textures, its bakes
         }
         render->BeginRendering(*frame.encoder, frame.frameIndex);
+        // The part of the frame nothing of the system covers (a phone's status bar, its camera's
+        // cutout): the game's frame, its screens and its pointer keep inside it.
+        const core::f32 frameW = static_cast<core::f32>(frame.width);
+        const core::f32 frameH = static_cast<core::f32>(frame.height);
+        core::Rectangle safe = frame.window->Window().SafeArea();
+        safe.x = core::Clamp(safe.x, 0.0f, frameW);
+        safe.y = core::Clamp(safe.y, 0.0f, frameH);
+        safe.width = core::Clamp(safe.width, 1.0f, frameW - safe.x);
+        safe.height = core::Clamp(safe.height, 1.0f, frameH - safe.y);
+        const bool inset = safe.x > 0.0f || safe.y > 0.0f || safe.width < frameW || safe.height < frameH;
+        if (inset != m_inset)
+        {
+            m_inset = inset;
+            UpdateFittedInput(); // the pointer goes through the fit from now on, or no longer
+        }
         // Render every non-headless instance's scenes (a headless dedicated server simulates but
         // is not drawn) and the default group's loose scenes. Clear comes from the scene's camera.
         ForEachInstance(
@@ -836,25 +851,23 @@ namespace engine::runtime
                 }
                 for (foundation::scene::Scene* scene : gi.Scenes().ActiveScenes())
                 {
-                    // The game's frame on this window: its render resolution fitted in, and turned a
-                    // quarter when the game's orientation is not the window's shape (a landscape
-                    // game on a phone held upright: the game draws at the window's pixels turned).
-                    const core::f32 windowW = static_cast<core::f32>(frame.width);
-                    const core::f32 windowH = static_cast<core::f32>(frame.height);
-                    const core::ContentRotation turn = core::TurnFor(m_orientation, windowW, windowH);
+                    // The game's frame on this window's safe area: its render resolution fitted in,
+                    // and turned a quarter when the game's orientation is not the area's shape (a
+                    // landscape game on a phone held upright: the game draws at the area's pixels
+                    // turned).
+                    const core::ContentRotation turn = core::TurnFor(m_orientation, safe.width, safe.height);
                     const bool turned = turn != core::ContentRotation::None;
                     const core::Float2 content =
                         HasRenderResolution()
                             ? core::Float2{static_cast<core::f32>(m_renderWidth), static_cast<core::f32>(m_renderHeight)}
-                            : (turned ? core::Float2{windowH, windowW} : core::Float2{windowW, windowH});
-                    const core::ContentFit fit{core::Rectangle{0.0f, 0.0f, windowW, windowH}, content,
-                                               HasRenderResolution() ? m_renderFit : core::FitMode::Stretch, turn};
+                            : (turned ? core::Float2{safe.height, safe.width} : core::Float2{safe.width, safe.height});
+                    const core::ContentFit fit{safe, content, HasRenderResolution() ? m_renderFit : core::FitMode::Stretch, turn};
                     // The pointer's fit follows the window as it resizes and turns.
                     if (m_fittedInput)
                     {
                         m_fittedInput->fit = fit;
                     }
-                    if (!HasRenderResolution() && !turned)
+                    if (!HasRenderResolution() && !turned && !inset)
                     {
                         render->RenderScene(*scene, frame.backbufferView, colorFormat, frame.width,
                                             frame.height);
@@ -882,7 +895,7 @@ namespace engine::runtime
         frame.encoder->TransitionTexture(frame.backbuffer, rhi::ResourceState::RenderTarget,
                                          rhi::ResourceState::RenderTarget);
         render->RenderOverlays(*frame.encoder, frame.backbufferView, colorFormat, frame.width,
-                               frame.height, frame.frameIndex, frame.backbufferAlternateView);
+                               frame.height, frame.frameIndex, frame.backbufferAlternateView, safe);
     }
 
     void DefaultApplication::CaptureScreenshot(core::StringView path)

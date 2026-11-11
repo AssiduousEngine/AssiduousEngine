@@ -516,8 +516,11 @@ export namespace engine::gui
         /// the game's shape and draws rotated a quarter turn. Any never rotates.
         void SetScreenOrientation(ScreenOrientation orientation) noexcept { m_screen.Orientation = orientation; }
         /// Computes where a tier at `resolution` (0 x 0 for none), fitted by `fit` and held to
-        /// `orientation`, draws on a target of size `target`.
-        [[nodiscard]] static GuiScreenPlacement PlaceScreen(Float2 resolution, FitMode fit, ScreenOrientation orientation, Float2 target) noexcept;
+        /// `orientation`, draws on a target of size `target`, inside `area` of it (the window's safe
+        /// area: what a phone's bars and camera cutout leave; empty for the whole target). A tier
+        /// with no resolution lays out at the area's size there.
+        [[nodiscard]] static GuiScreenPlacement PlaceScreen(Float2 resolution, FitMode fit, ScreenOrientation orientation, Float2 target,
+                                                            Rectangle area = Rectangle{0.0f, 0.0f, 0.0f, 0.0f}) noexcept;
 
         // ---- a screen tier per run (the editor's Game tabs) ----
         /// Turns per-run screen tiers on or off. When on (the editor sets it once), each run gets
@@ -689,6 +692,7 @@ export namespace engine::gui
             FitMode Fit = FitMode::Letterbox;
             ScreenOrientation Orientation = ScreenOrientation::Any;
             Float2 TargetSize{0.0f, 0.0f}; ///< the target it last drew into
+            Rectangle Area{0.0f, 0.0f, 0.0f, 0.0f}; ///< the part of it the tier was fitted into (empty: all of it)
             ContentRotation Turn = ContentRotation::None;
             [[nodiscard]] bool HasResolution() const noexcept { return Resolution.x > 0.0f && Resolution.y > 0.0f; }
         };

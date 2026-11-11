@@ -141,6 +141,13 @@ export namespace foundation::shell
         // units and is scaled by the ratio of the two.
         [[nodiscard]] virtual core::u32 PixelWidth() const noexcept = 0;
         [[nodiscard]] virtual core::u32 PixelHeight() const noexcept = 0;
+        // The part of the window nothing of the system covers (a phone's status and navigation
+        // bars, its camera's cutout), in the window's pixels: the whole window where nothing does,
+        // as on a desktop. A game keeps what must be seen and touched inside it.
+        [[nodiscard]] virtual core::Rectangle SafeArea() const noexcept
+        {
+            return core::Rectangle{0.0f, 0.0f, static_cast<core::f32>(PixelWidth()), static_cast<core::f32>(PixelHeight())};
+        }
 
         // Top-left position in screen coordinates (the same global frame the OS uses). For a
         // single-window app this is just where the window landed; multi-window and dockable code

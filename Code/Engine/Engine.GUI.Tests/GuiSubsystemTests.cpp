@@ -1203,6 +1203,26 @@ TEST_CASE("engine.gui: the screen is placed as the game's image is: fitted at it
     CHECK(place.DrawSize.x == doctest::Approx(1280.0f)); // the target's sides swapped
     CHECK(place.DrawSize.y == doctest::Approx(720.0f));
     CHECK(place.Transform.m[0][0] == doctest::Approx(0.0f)); // x runs down the target
+
+    // Inside a safe area (a phone's status bar over the top 62 pixels of 2400 by 1080), a 16:9
+    // game is letterboxed into what is left, and a game with no resolution lays out at its size.
+    const Rectangle safe{0.0f, 62.0f, 2400.0f, 1018.0f};
+    place = GuiSubsystem::PlaceScreen(Float2{1920.0f, 1080.0f}, FitMode::Letterbox, ScreenOrientation::Any, Float2{2400.0f, 1080.0f}, safe);
+    REQUIRE(place.Fitted);
+    CHECK(place.Rect.y == doctest::Approx(62.0f));
+    CHECK(place.Rect.height == doctest::Approx(1018.0f));
+    CHECK(place.Rect.width == doctest::Approx(1018.0f * 16.0f / 9.0f));
+    CHECK(place.Rect.x == doctest::Approx((2400.0f - 1018.0f * 16.0f / 9.0f) * 0.5f));
+    place = GuiSubsystem::PlaceScreen(Float2{}, FitMode::Letterbox, ScreenOrientation::Any, Float2{2400.0f, 1080.0f}, safe);
+    REQUIRE(place.Fitted);
+    CHECK(place.Rect.y == doctest::Approx(62.0f));
+    CHECK(place.DrawSize.x == doctest::Approx(2400.0f));
+    CHECK(place.DrawSize.y == doctest::Approx(1018.0f));
+    CHECK(place.DpiScale == doctest::Approx(1.0f));
+    // A safe area that is the whole target changes nothing.
+    CHECK_FALSE(GuiSubsystem::PlaceScreen(Float2{}, FitMode::Letterbox, ScreenOrientation::Any, Float2{2400.0f, 1080.0f},
+                                          Rectangle{0.0f, 0.0f, 2400.0f, 1080.0f})
+                    .Fitted);
 }
 
 TEST_CASE("engine.gui: at a render resolution the screen tier lays out at it, draws fitted, and takes the pointer in render space")

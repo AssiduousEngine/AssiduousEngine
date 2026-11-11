@@ -228,6 +228,21 @@ TEST_CASE("shell.desktop: keyboard events drive double-buffered key state")
     CHECK(kb->IsKeyReleased(KeyCode::A));
 }
 
+TEST_CASE("shell.desktop: a window nothing covers is all safe area, in its pixels")
+{
+    SDL3Shell shell(DefaultAllocator());
+    if (shell.MainWindow() == nullptr)
+    {
+        return;
+    }
+    const IWindow& window = *shell.MainWindow();
+    const Rectangle safe = window.SafeArea();
+    CHECK(safe.x == 0.0f);
+    CHECK(safe.y == 0.0f);
+    CHECK(safe.width == static_cast<f32>(window.PixelWidth()));
+    CHECK(safe.height == static_cast<f32>(window.PixelHeight()));
+}
+
 TEST_CASE("shell.desktop: a phone's back button is the Back key")
 {
     SDL3Shell shell(DefaultAllocator());

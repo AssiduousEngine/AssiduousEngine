@@ -340,6 +340,9 @@ export namespace engine::runtime
         core::FitMode m_renderFit = core::FitMode::Letterbox;
         core::UniquePtr<engine::input::FittedInputSource> m_fittedInput;
         core::ScreenOrientation m_orientation = core::ScreenOrientation::Any;
+        // The window's safe area is less than the window (a phone's bars, its camera's cutout): the
+        // game's frame is fitted into it, and the pointer through that fit.
+        bool m_inset = false;
         // The fitted input while a render resolution or an orientation may move the game's frame
         // off the window's; the shell's devices directly otherwise.
         void UpdateFittedInput();
