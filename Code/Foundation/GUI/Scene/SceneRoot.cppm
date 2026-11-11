@@ -91,6 +91,7 @@ export namespace foundation::gui
             // Back: one command for the keyboard and the pad, which a game can rebind like any
             // other.
             (void)m_keymap.Bind(core::StringView(u8"escape"), core::StringView(kBackCommand));
+            (void)m_keymap.Bind(core::StringView(u8"back"), core::StringView(kBackCommand)); // a phone's back button
             (void)m_keymap.Bind(core::StringView(u8"pad-east"), core::StringView(kBackCommand));
         }
         GUIContext(const GUIContext&) = delete;

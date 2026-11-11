@@ -190,6 +190,7 @@ TEST_CASE("bridge: navigation keys map platform KeyCode to the GUI KeyCode")
         {shell::KeyCode::KeypadEnter, KeyCode::KeypadEnter}, {shell::KeyCode::KeypadDecimal, KeyCode::KeypadDecimal},
         {shell::KeyCode::CapsLock, KeyCode::CapsLock}, {shell::KeyCode::Pause, KeyCode::Pause},
         {shell::KeyCode::Menu, KeyCode::Menu},        {shell::KeyCode::LeftShift, KeyCode::LeftShift},
+        {shell::KeyCode::Back, KeyCode::Back}, // a phone's back button
         {shell::KeyCode::RightGui, KeyCode::RightSuper},
     };
     for (const auto& key : kRest)

@@ -109,6 +109,7 @@ export namespace foundation::shell
         if (eq(u8"AltRight")) return KeyCode::RightAlt;
         if (eq(u8"MetaRight")) return KeyCode::RightGui;
         if (eq(u8"ContextMenu")) return KeyCode::Menu;
+        if (eq(u8"BrowserBack")) return KeyCode::Back;
         if (eq(u8"NumpadEnter")) return KeyCode::KeypadEnter;
         if (eq(u8"NumpadAdd")) return KeyCode::KeypadPlus;
         if (eq(u8"NumpadSubtract")) return KeyCode::KeypadMinus;

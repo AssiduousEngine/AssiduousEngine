@@ -138,6 +138,7 @@ namespace foundation::shell
         builder.Value("RightAlt", KeyCode::RightAlt);
         builder.Value("RightGui", KeyCode::RightGui);
         builder.Value("Menu", KeyCode::Menu);
+        builder.Value("Back", KeyCode::Back);
     }
 
     REFLECT_ENUM(MouseButton, "rtti::shell")

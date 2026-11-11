@@ -228,6 +228,23 @@ TEST_CASE("shell.desktop: keyboard events drive double-buffered key state")
     CHECK(kb->IsKeyReleased(KeyCode::A));
 }
 
+TEST_CASE("shell.desktop: a phone's back button is the Back key")
+{
+    SDL3Shell shell(DefaultAllocator());
+    if (shell.MainWindow() == nullptr)
+    {
+        return;
+    }
+    SDL_Event e{};
+    e.type = SDL_EVENT_KEY_DOWN;
+    e.key.windowID = SDL_GetWindowID(static_cast<SDL3Window*>(shell.MainWindow())->Handle());
+    e.key.scancode = SDL_SCANCODE_AC_BACK; // what SDL reports for Android's back button
+    e.key.down = true;
+    SDL_PushEvent(&e);
+    shell.ProcessEvents();
+    CHECK(shell.Input()->Keyboard()->IsKeyDown(KeyCode::Back));
+}
+
 TEST_CASE("shell.desktop: mouse motion and buttons are tracked")
 {
     SDL3Shell shell(DefaultAllocator());

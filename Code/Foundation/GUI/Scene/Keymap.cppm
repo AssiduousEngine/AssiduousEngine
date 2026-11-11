@@ -53,7 +53,7 @@ export namespace foundation::gui
     inline constexpr const char8_t* kMenuRightCommand = u8"menu.right";
     /// Runs the focused item of an open menu (Return and Space by default).
     inline constexpr const char8_t* kMenuActivateCommand = u8"menu.activate";
-    /// The command that backs out of the current place (Escape and the pad's East by default). The topmost auto
+    /// The command that backs out of the current place (Escape, Back and the pad's East by default). The topmost auto
     /// popup handles it first by closing, then a modal dialog as its close button would, then
     /// whatever handles it on the focus path (a game's screen).
     inline constexpr const char8_t* kBackCommand = u8"back";
@@ -118,6 +118,7 @@ export namespace foundation::gui
             {KeyCode::PrintScreen, u8"printscreen", u8"Print Screen"},
             {KeyCode::Pause, u8"pause", u8"Pause"},
             {KeyCode::Menu, u8"menu", u8"Menu"},
+            {KeyCode::Back, u8"back", u8"Back"},
             {KeyCode::Keypad0, u8"numpad0", u8"Numpad 0"},
             {KeyCode::Keypad1, u8"numpad1", u8"Numpad 1"},
             {KeyCode::Keypad2, u8"numpad2", u8"Numpad 2"},

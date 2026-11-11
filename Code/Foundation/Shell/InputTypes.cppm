@@ -139,6 +139,9 @@ export namespace foundation::shell
         RightAlt,
         RightGui,
         Menu,
+        // The back button: a phone's, or a keyboard's or a browser's Back key. A GUI backs out of
+        // the current place with it, as with Escape.
+        Back,
 
         // Number of distinct codes; backends size their key arrays from this.
         Count,

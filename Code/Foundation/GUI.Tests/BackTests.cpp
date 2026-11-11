@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// GUI - the `back` command. Escape and the pad's East button run it through the keymap. The
+// GUI - the `back` command. Escape, Back (a phone's back button) and the pad's East button run it through the keymap. The
 // topmost auto popup handles it first, by closing. A modal dialog handles it as its close button
 // does. Otherwise whatever handles it on the focus path (a game's screen) does. A game rebinds or
 // unbinds it like any key.
@@ -54,13 +54,15 @@ namespace
     };
 }
 
-TEST_CASE("back: Escape and the pad's East run it, and the screen on the focus path hears it")
+TEST_CASE("back: Escape, Back and the pad's East run it, and the screen on the focus path hears it")
 {
     BackBed bed;
     bed.Escape();
     CHECK(bed.backs == 1);
     bed.d().InjectPadButton(PadButton::East);
     CHECK(bed.backs == 2);
+    (void)bed.d().InjectKeyDown(static_cast<core::u32>(KeyCode::Back)); // a phone's back button
+    CHECK(bed.backs == 3);
     CHECK(bed.root->IsCommandAvailable(core::StringView(kBackCommand)));
 }
 

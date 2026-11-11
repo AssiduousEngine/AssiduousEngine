@@ -519,6 +519,8 @@ export namespace foundation::gui
                     mapped = static_cast<KeyCode>(static_cast<u32>(KeyCode::F1) + (static_cast<u32>(key) - static_cast<u32>(shell::KeyCode::F1)));
                 else if (key == shell::KeyCode::Menu)
                     mapped = KeyCode::Menu;
+                else if (key == shell::KeyCode::Back)
+                    mapped = KeyCode::Back;
                 else
                     mapped = MapKeyRange(key);
                 break;

@@ -1564,6 +1564,8 @@ namespace foundation::shell
             return KeyCode::Pause;
         case SDL_SCANCODE_APPLICATION:
             return KeyCode::Menu;
+        case SDL_SCANCODE_AC_BACK: // a phone's back button, a keyboard's Back key
+            return KeyCode::Back;
         default:
             return KeyCode::Unknown;
         }
