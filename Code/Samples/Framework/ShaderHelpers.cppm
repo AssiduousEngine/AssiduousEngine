@@ -7,6 +7,10 @@
 /// there is no shader compiler (Android) they come from the pack Tools.ShaderPack --entries cooks
 /// from the same files (Data/Samples/RHI/shaders.dpak).
 
+module;
+// Placement new, for MakeUnique here: gcc 15 does not reach it through foundation.core's import.
+#include <new>
+
 export module samples.framework:shader_helpers;
 
 import foundation.core;
