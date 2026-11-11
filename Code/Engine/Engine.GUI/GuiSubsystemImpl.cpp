@@ -1737,8 +1737,11 @@ namespace engine::gui
         }
         [[nodiscard]] bool SameView(const render::ScreenOverlayView& a, const render::ScreenOverlayView& b) noexcept
         {
+            // Everything the screens' placement read, the safe area among it.
             return a.width == b.width && a.height == b.height && a.targetFormat == b.targetFormat &&
-                   a.depthStencilFormat == b.depthStencilFormat && a.frameIndex == b.frameIndex && a.encodedTarget == b.encodedTarget;
+                   a.depthStencilFormat == b.depthStencilFormat && a.frameIndex == b.frameIndex && a.encodedTarget == b.encodedTarget &&
+                   a.safeArea.x == b.safeArea.x && a.safeArea.y == b.safeArea.y && a.safeArea.width == b.safeArea.width &&
+                   a.safeArea.height == b.safeArea.height;
         }
     }
 
