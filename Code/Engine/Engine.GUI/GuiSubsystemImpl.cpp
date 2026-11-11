@@ -1543,8 +1543,15 @@ namespace engine::gui
         else if (mouse != nullptr)
             point = Float2{mouse->X(), mouse->Y()};
         const bool pointer = fingers || mouse != nullptr;
-        // From the first touch on, the touch guide shows the controls of the sets in effect.
-        m_touchSeen = m_touchSeen || fingers;
+        // From the first touch on, the touch guide shows the controls of the sets in effect. A tap
+        // can land and lift within one frame (a slow frame's events arrive together), which the
+        // count of fingers down now never sees, so a finger that went down this frame counts too.
+        if (!m_touchSeen)
+        {
+            m_touchSeen = fingers;
+            for (const foundation::shell::InputEvent& event : devices.Events())
+                m_touchSeen = m_touchSeen || event.kind == foundation::shell::InputEventKind::TouchDown;
+        }
         if (m_touchGuide)
             m_touchGuide->Update(*m_input, m_touchSeen);
         const bool held = fingers || (mouse != nullptr && (mouse->IsButtonDown(foundation::shell::MouseButton::Left) ||

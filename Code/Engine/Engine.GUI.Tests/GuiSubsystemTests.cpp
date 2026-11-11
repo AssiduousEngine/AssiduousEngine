@@ -1569,6 +1569,44 @@ TEST_CASE("engine.gui: the touch guide shows the game's touch controls once a fi
     CHECK(jump);
 }
 
+TEST_CASE("engine.gui: the touch guide shows after a tap that lands and lifts within one frame")
+{
+    Engine engine;
+    engine.devices.touchPresent = true;
+    engine.gui->ScreenRoot()->SetViewportSize(Float2{800.0f, 600.0f});
+    foundation::input::InputMap map;
+    foundation::input::ActionSet set;
+    set.name = String(u8"Gameplay");
+    foundation::input::Action jump;
+    jump.name = String(u8"Jump");
+    foundation::input::Binding zone;
+    zone.source = foundation::input::BindingSource::TouchButton;
+    zone.regionW = 1.0f;
+    jump.bindings.PushBack(zone);
+    set.actions.PushBack(Move(jump));
+    map.sets.PushBack(Move(set));
+    engine.input->Runtime().SetMap(map);
+
+    engine::gui::GuiTouchGuide* guide = engine.gui->TouchGuide();
+    REQUIRE(guide != nullptr);
+    engine.Frame();
+    CHECK(guide->ControlCount() == 0u);
+    // A slow frame: the finger's down and up both arrive in it, so no finger is down when the GUI
+    // looks, and the touch shows only in the frame's events.
+    foundation::shell::InputEvent down;
+    down.kind = foundation::shell::InputEventKind::TouchDown;
+    down.touchId = 1;
+    down.x = 0.5f;
+    down.y = 0.5f;
+    engine.devices.events.PushBack(down);
+    foundation::shell::InputEvent up = down;
+    up.kind = foundation::shell::InputEventKind::TouchUp;
+    engine.devices.events.PushBack(up);
+    engine.Frame();
+    CHECK(guide->ControlCount() == 1u);
+    CHECK(guide->IsVisible());
+}
+
 TEST_CASE("engine.gui: the GUI says it wants text input while a text field input reaches has the focus")
 {
     Engine engine;
