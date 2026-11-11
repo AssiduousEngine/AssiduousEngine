@@ -231,10 +231,16 @@ export namespace foundation::rhi::vk
 
                 imgBs[i] = {};
                 imgBs[i].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-                if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED)
+                if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED || tb.oldState == ResourceState::Undefined)
                 {
-                    imgBs[i].srcStageMask = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT;
-                    imgBs[i].srcAccessMask = 0;
+                    // Undefined discards the contents, not the earlier work on the image: a
+                    // transient reused every frame is still being written by the previous frame
+                    // in flight, and a swapchain image is still read by the presentation engine
+                    // until the acquire semaphore's wait. The transition (itself a write) waits for
+                    // all of it, or it races that work: on a tiled GPU, whose transition resets the
+                    // image's compression state, that can lose the device.
+                    imgBs[i].srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+                    imgBs[i].srcAccessMask = maskAccessForQueue(VK_ACCESS_2_MEMORY_WRITE_BIT, m_pool->queueType());
                 }
                 else
                 {
