@@ -52,10 +52,14 @@ export namespace foundation::shell
             m_height = height;
         }
         [[nodiscard]] core::f32 ContentScale() const noexcept override { return 1.0f; }
+        // Headless: no window system. The handle stands for the window's surface, which a test
+        // takes away as a phone's platform does in the background (SetSurfaceGone).
         [[nodiscard]] NativeWindow Native() const noexcept override
         {
-            return {};
-        } // headless: no handles
+            NativeWindow native;
+            native.window = m_surfaceGone ? nullptr : const_cast<NullWindow*>(this);
+            return native;
+        }
         [[nodiscard]] bool IsOpen() const noexcept override { return m_open; }
         [[nodiscard]] bool IsMinimized() const noexcept override { return m_minimized; }
         void Close() override { m_open = false; }
@@ -88,6 +92,7 @@ export namespace foundation::shell
             m_height = h;
         }
         void SetMinimized(bool m) noexcept { m_minimized = m; }
+        void SetSurfaceGone(bool gone) noexcept { m_surfaceGone = gone; }
         /// What SetTitle was last told (the settings' title until then).
         [[nodiscard]] core::StringView Title() const noexcept { return m_title.AsView(); }
         /// How many times Raise was called.
@@ -102,6 +107,7 @@ export namespace foundation::shell
         core::i32 m_y = 0;
         bool m_open = true;
         bool m_minimized = false;
+        bool m_surfaceGone = false;
         bool m_textInputActive = false;
         TextInputKind m_textInputKind = TextInputKind::Text;
         TextInputArea m_textInputArea{};

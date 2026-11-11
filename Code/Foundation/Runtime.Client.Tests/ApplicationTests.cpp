@@ -338,3 +338,93 @@ TEST_CASE("client: with a graphics device, every window renders each Tick")
     host.Stop();
     CHECK(host.Windows().Size() == 0u);
 }
+
+namespace
+{
+    // Hears the app go to the background and back, and keeps the order the host tells it in.
+    class BackgroundSys final : public Subsystem
+    {
+    public:
+        Array<int>* order = nullptr;
+        int updates = 0;
+        void Update(f32) override { ++updates; }
+        void OnEnterBackground() override { order->PushBack(2); }
+        void OnEnterForeground() override { order->PushBack(3); }
+    };
+
+    class BackgroundApp final : public IApplication
+    {
+    public:
+        Array<int> order; // 1, 2: the app then the subsystem going; 3, 4: the subsystem then the app coming back
+        BackgroundSys* sys = nullptr;
+        int renders = 0;
+        bool swapGoneWhenAppHeard = false;
+        RenderWindow* window = nullptr;
+        void Configure(IApplicationHost& host) override
+        {
+            sys = host.Subsystems().AddSubsystem<BackgroundSys>();
+            sys->order = &order;
+        }
+        void OnEnterBackground(IApplicationHost&) override
+        {
+            order.PushBack(1);
+            swapGoneWhenAppHeard = window->IsSuspended();
+        }
+        void OnEnterForeground(IApplicationHost&) override { order.PushBack(4); }
+        void OnRenderWindow(IApplicationHost&, FrameContext&) override { ++renders; }
+    };
+}
+
+TEST_CASE("client: in the background nothing ticks or draws, and the window's surface is made again after")
+{
+    NullShell shell;
+    auto created = CreateNullGraphicsDevice(2);
+    REQUIRE(created.HasValue());
+    UniquePtr<GraphicsDevice>& gd = created.Value();
+
+    BackgroundApp app;
+    ApplicationHost host(DefaultAllocator());
+    host.Start(app, &shell, gd.Get());
+    REQUIRE(host.Windows().Size() == 1u);
+    app.window = host.Windows()[0].Get();
+    host.Tick(0.016f);
+    CHECK(app.renders == 1);
+    CHECK(app.sys->updates == 1);
+
+    // Going: the app, then the subsystems, then the windows let go of their surfaces (the app
+    // still has its window's surface while it saves).
+    shell.EnterBackground();
+    REQUIRE(app.order.Size() == 2u);
+    CHECK(app.order[0] == 1);
+    CHECK(app.order[1] == 2);
+    CHECK_FALSE(app.swapGoneWhenAppHeard);
+    CHECK(app.window->IsSuspended());
+    CHECK(app.window->Swap() == nullptr);
+
+    // In the background no frame runs, and the runner rests.
+    host.Tick(0.016f);
+    CHECK(app.renders == 1);
+    CHECK(app.sys->updates == 1);
+    CHECK(host.IdleLastTick());
+
+    // Back, but the platform has not given the window its surface yet: the app ticks and the window
+    // waits; once the surface is there, its first frame makes the swapchain again and draws.
+    auto& window = static_cast<NullWindow&>(app.window->Window());
+    window.SetSurfaceGone(true);
+    shell.EnterForeground();
+    REQUIRE(app.order.Size() == 4u);
+    CHECK(app.order[2] == 3);
+    CHECK(app.order[3] == 4);
+    host.Tick(0.016f);
+    CHECK(app.sys->updates == 2);
+    CHECK(app.renders == 1);
+    CHECK(app.window->IsSuspended());
+    window.SetSurfaceGone(false);
+    host.Tick(0.016f);
+    CHECK_FALSE(app.window->IsSuspended());
+    CHECK(app.renders == 2);
+    CHECK_FALSE(host.IdleLastTick());
+
+    host.Stop();
+    CHECK_FALSE(static_cast<bool>(shell.OnEnterBackground)); // the host let go of the shell's callbacks
+}

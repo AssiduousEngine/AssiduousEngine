@@ -239,10 +239,10 @@ export namespace foundation::graphics
     public:
         // Built by GraphicsDevice::CreateRenderWindow; takes ownership of the RHI
         // objects. Arrays are sized to framesInFlight.
-        RenderWindow(GraphicsDevice& device, IWindow& window, rhi::Surface* surface,
-                     rhi::SwapChain* swapChain, core::Array<rhi::CommandPool*>&& pools,
-                     core::Array<rhi::Fence*>&& fences) noexcept
-            : m_device(&device), m_window(&window), m_surface(surface), m_swapChain(swapChain),
+        RenderWindow(GraphicsDevice& device, IWindow& window, const RenderWindowDesc& desc,
+                     rhi::Surface* surface, rhi::SwapChain* swapChain,
+                     core::Array<rhi::CommandPool*>&& pools, core::Array<rhi::Fence*>&& fences) noexcept
+            : m_device(&device), m_window(&window), m_desc(desc), m_surface(surface), m_swapChain(swapChain),
               m_pools(static_cast<core::Array<rhi::CommandPool*>&&>(pools)),
               m_fences(static_cast<core::Array<rhi::Fence*>&&>(fences)), m_width(window.PixelWidth()),
               m_height(window.PixelHeight())
@@ -256,7 +256,15 @@ export namespace foundation::graphics
         RenderWindow& operator=(const RenderWindow&) = delete;
 
         [[nodiscard]] IWindow& Window() noexcept { return *m_window; }
+        // Null while suspended.
         [[nodiscard]] rhi::SwapChain* Swap() noexcept { return m_swapChain; }
+
+        // Let go of the surface and swapchain, once the GPU is done with them: the app is going to
+        // the background, where a phone's platform takes the window's surface away. The next frame
+        // makes them again from the window's native handle as it is then, or, while the window has
+        // none, is skipped, and so on until it has one.
+        void Suspend();
+        [[nodiscard]] bool IsSuspended() const noexcept { return m_swapChain == nullptr; }
 
         // Poll the window size; recreate the swapchain if it changed. Returns true
         // when a resize happened.
@@ -281,6 +289,7 @@ export namespace foundation::graphics
     private:
         GraphicsDevice* m_device;               // borrowed
         IWindow* m_window;                      // borrowed
+        RenderWindowDesc m_desc;                // what the swapchain is made as, again after Suspend
         rhi::Surface* m_surface;                // owned
         rhi::SwapChain* m_swapChain;            // owned
         core::Array<rhi::CommandPool*> m_pools; // owned, one per frame-in-flight
@@ -381,10 +390,11 @@ export namespace foundation::graphics
         GraphicsDevice(const GraphicsDevice&) = delete;
         GraphicsDevice& operator=(const GraphicsDevice&) = delete;
 
-        // Create a presentation target (surface, swapchain, per-frame pools and
-        // fences) for a window. The window must outlive the RenderWindow.
-        core::Result<core::UniquePtr<RenderWindow>> CreateRenderWindow(IWindow& window,
-                                                                       const RenderWindowDesc& desc)
+        // The window's surface and swapchain, made from its native handle as it is now (false when
+        // the backend cannot). CreateRenderWindow makes them first, and RenderWindow again after
+        // a suspension.
+        bool MakePresentation(IWindow& window, const RenderWindowDesc& desc, rhi::Surface*& surface,
+                              rhi::SwapChain*& swapChain)
         {
             const NativeWindow nw = window.Native();
             // Tell the RHI which WSI the shell used so it creates the matching surface (no guessing:
@@ -407,10 +417,11 @@ export namespace foundation::graphics
             default:
                 break;
             }
-            rhi::Surface* surface = nullptr;
+            surface = nullptr;
+            swapChain = nullptr;
             if (!m_backend->CreateSurface(nw.window, nw.display, surface, plat).IsOk())
             {
-                return core::Err(core::ErrorCode::Unknown);
+                return false;
             }
 
             rhi::SwapChainDesc sd{};
@@ -423,10 +434,25 @@ export namespace foundation::graphics
             // Encoded blend space); the swapchain says whether it could.
             sd.alternateViewFormat = rhi::SrgbTwin(desc.format);
             sd.label = u8"renderwindow";
-            rhi::SwapChain* swapChain = nullptr;
             if (!m_device->CreateSwapChain(surface, sd, swapChain).IsOk())
             {
                 m_device->DestroySurface(surface);
+                surface = nullptr;
+                swapChain = nullptr;
+                return false;
+            }
+            return true;
+        }
+
+        // Create a presentation target (surface, swapchain, per-frame pools and
+        // fences) for a window. The window must outlive the RenderWindow.
+        core::Result<core::UniquePtr<RenderWindow>> CreateRenderWindow(IWindow& window,
+                                                                       const RenderWindowDesc& desc)
+        {
+            rhi::Surface* surface = nullptr;
+            rhi::SwapChain* swapChain = nullptr;
+            if (!MakePresentation(window, desc, surface, swapChain))
+            {
                 return core::Err(core::ErrorCode::Unknown);
             }
 
@@ -460,7 +486,7 @@ export namespace foundation::graphics
             }
 
             auto rw = core::MakeUnique<RenderWindow>(
-                core::DefaultAllocator(), *this, window, surface, swapChain,
+                core::DefaultAllocator(), *this, window, desc, surface, swapChain,
                 static_cast<core::Array<rhi::CommandPool*>&&>(pools),
                 static_cast<core::Array<rhi::Fence*>&&>(fences));
             return core::Result<core::UniquePtr<RenderWindow>>(
@@ -523,8 +549,29 @@ export namespace foundation::graphics
         }
     }
 
+    inline void RenderWindow::Suspend()
+    {
+        rhi::Device* dev = m_device->Raw();
+        if (dev == nullptr || m_swapChain == nullptr)
+        {
+            return;
+        }
+        dev->WaitIdle();
+        dev->DestroySwapChain(m_swapChain);
+        m_swapChain = nullptr;
+        if (m_surface != nullptr)
+        {
+            dev->DestroySurface(m_surface);
+            m_surface = nullptr;
+        }
+    }
+
     inline bool RenderWindow::SyncSize()
     {
+        if (m_swapChain == nullptr)
+        {
+            return false; // suspended: BeginFrame makes the swapchain at the window's size
+        }
         const core::u32 nw = m_window->PixelWidth();
         const core::u32 nh = m_window->PixelHeight();
         if (nw == 0 || nh == 0)
@@ -547,6 +594,20 @@ export namespace foundation::graphics
         if (m_window->IsMinimized() || m_window->Width() == 0 || m_window->Height() == 0)
         {
             return FrameContext{};
+        }
+        // Suspended: make the surface and swapchain again once the window has a native handle
+        // (a phone's window gets its new surface around when the app comes back, not before).
+        if (m_swapChain == nullptr)
+        {
+            // A phone's window has no native handle from when the platform takes its surface
+            // until it gives a new one.
+            if (m_device->Raw() == nullptr || m_device->Raw()->IsLost() || m_window->Native().window == nullptr ||
+                !m_device->MakePresentation(*m_window, m_desc, m_surface, m_swapChain))
+            {
+                return FrameContext{};
+            }
+            m_width = m_window->PixelWidth();
+            m_height = m_window->PixelHeight();
         }
         // After device loss (GPU hang / TDR, driver reset) stop rendering: continuing
         // spins through failing acquire/submit calls, flooding stderr and stalling the

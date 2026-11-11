@@ -124,6 +124,13 @@ export namespace foundation::runtime
                 }
             }
 
+            // A platform that takes the app out of view says so through the shell, as it happens.
+            if (m_shell != nullptr)
+            {
+                m_shell->OnEnterBackground = [this]() { EnterBackground(); };
+                m_shell->OnEnterForeground = [this]() { EnterForeground(); };
+            }
+
             m_app->OnStartup(*this);
             m_app->OnLaunch(*this); // standalone enters play immediately
 
@@ -134,6 +141,13 @@ export namespace foundation::runtime
         // passes wall-clock time; call directly for deterministic stepping.
         void Tick(core::f32 deltaTime)
         {
+            // In the background nothing ticks or draws: the window may have no surface, and the
+            // platform expects the app to rest until it comes back.
+            if (m_shell != nullptr && m_shell->InBackground())
+            {
+                m_presented = false;
+                return;
+            }
             PROFILE_FRAME_BEGIN();
             m_subsystems.BeginFrame(deltaTime);
 
@@ -245,11 +259,36 @@ export namespace foundation::runtime
 
         // Tear the application down: leave play, stop the SubsystemManager, destroy windows.
         // Idempotent.
+        // The app goes to the background: the app first (what it saves there reaches the
+        // subsystems), then the subsystems (sound stops, saved data is written), then each window
+        // lets go of its surface and swapchain, which the platform may take once this returns.
+        // Coming back, the subsystems and then the app hear it; each window makes its surface
+        // again on its first frame with a native handle.
+        void EnterBackground()
+        {
+            m_app->OnEnterBackground(*this);
+            m_subsystems.EnterBackground();
+            for (auto& rw : m_windows)
+            {
+                rw->Suspend();
+            }
+        }
+        void EnterForeground()
+        {
+            m_subsystems.EnterForeground();
+            m_app->OnEnterForeground(*this);
+        }
+
         void Stop()
         {
             if (!m_started)
             {
                 return;
+            }
+            if (m_shell != nullptr)
+            {
+                m_shell->OnEnterBackground = nullptr;
+                m_shell->OnEnterForeground = nullptr;
             }
             m_app->OnExit(*this);
             m_subsystems.Shutdown();

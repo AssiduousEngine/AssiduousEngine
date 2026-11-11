@@ -177,6 +177,23 @@ export namespace foundation::runtime
             }
         }
 
+        // The app goes to the background, in reverse UpdateOrder (as shutdown runs: what depends on
+        // others lets go first), and comes back in UpdateOrder.
+        void EnterBackground()
+        {
+            for (core::usize i = m_sorted.Size(); i-- > 0;)
+            {
+                m_sorted[i]->OnEnterBackground();
+            }
+        }
+        void EnterForeground()
+        {
+            for (Subsystem* s : m_sorted)
+            {
+                s->OnEnterForeground();
+            }
+        }
+
         // PrepareShutdown then Shutdown, in reverse UpdateOrder.
         void Shutdown()
         {

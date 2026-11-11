@@ -22,8 +22,12 @@ TEST_CASE("shell.null: a headless shell reports a window and run state")
     REQUIRE(shell.MainWindow() != nullptr);
     CHECK(shell.MainWindow()->Width() == 800u);
     CHECK(shell.MainWindow()->Height() == 600u);
-    CHECK(shell.MainWindow()->Native().system == WindowSystem::Unknown); // headless: no handles
+    CHECK(shell.MainWindow()->Native().system == WindowSystem::Unknown); // headless: no window system
+    // Its handle stands for its surface, which a test takes away as a phone's platform does.
+    CHECK(shell.MainWindow()->Native().window != nullptr);
+    static_cast<NullWindow*>(shell.MainWindow())->SetSurfaceGone(true);
     CHECK(shell.MainWindow()->Native().window == nullptr);
+    static_cast<NullWindow*>(shell.MainWindow())->SetSurfaceGone(false);
     CHECK(shell.IsRunning());
 
     shell.ProcessEvents(); // no-op, must not change run state

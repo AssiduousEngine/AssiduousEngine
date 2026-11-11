@@ -11,6 +11,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 - Export: `Tools.Export --content-only` stages the game's content, settings and shader pack with no
   player and no template, and `--platform <name>` exports a preset for another platform.
+- Runtime: an app the platform takes out of view (a phone's home button, another app in front)
+  stops updating, drawing and sounding, writes what each run's game saved, and lets go of its
+  window's surface, which a phone takes away; it comes back where it was. Applications and
+  subsystems hear it through `OnEnterBackground` and `OnEnterForeground`.
 
 ### Changed
 

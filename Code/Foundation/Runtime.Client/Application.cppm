@@ -124,6 +124,13 @@ export namespace foundation::runtime
             (void)host;
             (void)frame;
         }
+        // The app taken out of view and given back (a phone's home button, another app in front),
+        // before the subsystems hear it on the way out (what it saves reaches them) and after them
+        // on the way back. No frames
+        // come between the two, and the platform may end the app in between without asking, so
+        // what must last is saved in OnEnterBackground.
+        virtual void OnEnterBackground(IApplicationHost& host) { (void)host; }
+        virtual void OnEnterForeground(IApplicationHost& host) { (void)host; }
         virtual void OnExit(IApplicationHost& host) { (void)host; }     // leave play
         virtual void OnShutdown(IApplicationHost& host) { (void)host; } // before SubsystemManager.Shutdown
     };

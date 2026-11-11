@@ -61,6 +61,12 @@ export namespace foundation::runtime
         virtual void PostUpdate(core::f32 /*deltaTime*/) {}
         virtual void EndFrame() {}
 
+        // --- the app taken out of view and given back (a phone's home button, another app in
+        // front): no frames come between the two, and the platform may end the app in between
+        // without asking, so what must last is saved in OnEnterBackground ---
+        virtual void OnEnterBackground() {}
+        virtual void OnEnterForeground() {}
+
     protected:
         virtual void OnInit() {}
         virtual void OnReady() {}
