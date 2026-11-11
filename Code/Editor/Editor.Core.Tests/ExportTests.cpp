@@ -1254,6 +1254,36 @@ TEST_CASE("export: an Android app is staged for Gradle and given the preset's va
     NukeTree(dataRoot.AsView());
 }
 
+TEST_CASE("export: an Android app's paths reach Gradle absolute, from a project opened by a relative path")
+{
+    // Gradle reads a relative path against its own project folder, so the staged folder and the
+    // keystore would be looked for under it.
+    const String dir(u8"scratch_android_relative_proj");
+    NukeTree(dir.AsView());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), dir.AsView(), u8"Relative").IsOk());
+    UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), dir.AsView());
+    REQUIRE(static_cast<bool>(project));
+    editor::ExportPreset preset;
+    preset.name = String(u8"Phone");
+    preset.platform = String(u8"Android64");
+    preset.androidKeystore = String(u8"release.jks");
+    preset.androidKeyAlias = String(u8"upload");
+    const String work = editor::AndroidWorkDir(*project, preset);
+    CHECK(PathIsAbsolute(work.AsView()));
+    editor::ExportTemplate tmpl;
+    tmpl.config = String(u8"Release");
+    const String cwd = GetCurrentDirectory();
+    for (const String& arg : editor::AndroidGradleArguments(*project, preset, tmpl, work.AsView()))
+    {
+        if (arg.AsView().StartsWith(u8"-PengineStaged=") || arg.AsView().StartsWith(u8"-PengineKeystore="))
+        {
+            CAPTURE(arg);
+            CHECK(arg.AsView().Contains(cwd.AsView()));
+        }
+    }
+    NukeTree(dir.AsView());
+}
+
 #if PLATFORM_LINUX
 TEST_CASE("export: an Android preset exports its app through the template's Gradle wrapper")
 {

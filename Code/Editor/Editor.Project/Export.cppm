@@ -642,8 +642,8 @@ export namespace editor
     [[nodiscard]] String CheckAndroidExport(const EditorProject& project, const ExportPreset& preset,
                                             const ExportTemplate* tmpl);
 
-    /// Where an Android preset's app is made, kept between exports: <project>/.cache/android/<preset>.
-    /// Defined in ExportImpl.cpp.
+    /// Where an Android preset's app is made, kept between exports: <project>/.cache/android/<preset>,
+    /// absolute (Gradle reads a relative path against its own project). Defined in ExportImpl.cpp.
     [[nodiscard]] String AndroidWorkDir(const EditorProject& project, const ExportPreset& preset);
 
     /// Readies the app's build in `workDir`: the template's Gradle project in project/, and in

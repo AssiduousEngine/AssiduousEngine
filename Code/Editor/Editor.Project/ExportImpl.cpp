@@ -1574,10 +1574,12 @@ namespace editor
 
     String AndroidWorkDir(const EditorProject& project, const ExportPreset& preset)
     {
-        return PathJoin(project.Directory(),
-                        Format(u8"{}/android/{}", engine::project::kProjectCacheDir,
-                               detail::SanitizeName(preset.name.AsView()))
-                            .AsView());
+        // Absolute: Gradle reads a relative path against its own project folder, not this process's.
+        const String work = PathJoin(project.Directory(),
+                                     Format(u8"{}/android/{}", engine::project::kProjectCacheDir,
+                                            detail::SanitizeName(preset.name.AsView()))
+                                         .AsView());
+        return PathIsAbsolute(work.AsView()) ? work : PathJoin(GetCurrentDirectory().AsView(), work.AsView());
     }
 
     String CheckAndroidExport(const EditorProject& project, const ExportPreset& preset, const ExportTemplate* tmpl)
@@ -1732,7 +1734,11 @@ namespace editor
         args.PushBack(Format(u8"-PengineOrientation={}", AndroidScreenOrientation(project, preset)));
         if (!preset.androidKeystore.IsEmpty())
         {
-            args.PushBack(Format(u8"-PengineKeystore={}", PathJoin(project.Directory(), preset.androidKeystore.AsView())));
+            // Absolute, as the work folder is: Gradle reads a relative path against its project.
+            const String keystore = PathJoin(project.Directory(), preset.androidKeystore.AsView());
+            args.PushBack(Format(u8"-PengineKeystore={}", PathIsAbsolute(keystore.AsView())
+                                                              ? keystore
+                                                              : PathJoin(GetCurrentDirectory().AsView(), keystore.AsView())));
             args.PushBack(Format(u8"-PengineKeyAlias={}", preset.androidKeyAlias));
         }
         const StringView variant = debug ? StringView(u8"Debug") : StringView(u8"Release");
