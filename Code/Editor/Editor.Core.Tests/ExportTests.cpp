@@ -2393,6 +2393,59 @@ TEST_CASE("export: template create recognizes a WEB build dir (player page + web
     NukeTree(dest.AsView());
 }
 
+TEST_CASE("export: template create recognizes an ANDROID build dir (the app's library + its Gradle project)")
+{
+    // An Android build dir (Bin/<Config>/Android64-<Compiler>) holds the player as the library the
+    // app loads and the app's Gradle project beside it, listed in the runtime-libs. The template
+    // takes its platform from the directory, whatever host packages it, and carries the project's
+    // files in their folders.
+    const String bin = TempDir(u8"scratch_android_template_src");
+    const String dir = PathJoin(bin.AsView(), u8"RelWithDebInfo/Android64-Clang");
+    const String dest = TempDir(u8"scratch_android_template_out");
+    NukeTree(bin.AsView());
+    NukeTree(dest.AsView());
+    REQUIRE(CreateDirectories(PathJoin(dir.AsView(), u8"android/app").AsView()));
+    foundation::vfs::NativeFileSystem root(dir.AsView(), foundation::core::DefaultAllocator());
+
+    SaveText(root, u8"libEngine.Player.so", u8"\x7f" u8"ELF");
+    SaveText(root, u8"THIRD-PARTY-NOTICES.txt", u8"notices");
+    SaveText(root, u8"android/settings.gradle", u8"// settings");
+    SaveText(root, u8"android/app/build.gradle", u8"// app");
+    SaveText(root, u8"Engine.Player.runtime-libs",
+             u8"THIRD-PARTY-NOTICES.txt\nandroid/settings.gradle\nandroid/app/build.gradle\n");
+
+    String id, outDir;
+    REQUIRE(editor::CreateTemplate(dir.AsView(), dest.AsView(), editor::TemplateOutput::ExportFolder, &id, &outDir)
+                .IsOk());
+
+    foundation::vfs::NativeFileSystem out(outDir.AsView(), foundation::core::DefaultAllocator());
+    editor::ExportTemplate created;
+    REQUIRE(editor::LoadTemplateManifest(out, created).IsOk());
+    CHECK(created.platform == u8"Android64");
+    CHECK(created.config == u8"RelWithDebInfo");
+    CHECK(created.compiler == u8"Clang");
+    CHECK(created.playerBinary == u8"libEngine.Player.so");
+    CHECK(id.AsView().Contains(u8"-android64-relwithdebinfo-"));
+    REQUIRE(created.sidecars.Size() == 3u);
+    CHECK(out.Exists(u8"libEngine.Player.so"));
+    CHECK(out.Exists(u8"THIRD-PARTY-NOTICES.txt"));
+    CHECK(out.Exists(u8"android/settings.gradle"));
+    CHECK(out.Exists(u8"android/app/build.gradle"));
+    // Its icon is the phone's.
+    created.directory = outDir;
+    CHECK(editor::TemplateIconSvg(created, foundation::core::DefaultAllocator()) ==
+          editor::BuiltInTemplateIconSvg(u8"phone"));
+
+    // A file each platform's build makes of the player.
+    CHECK(editor::ExportPlayerFile(u8"Android64", u8"Engine.Player") == u8"libEngine.Player.so");
+    CHECK(editor::ExportPlayerFile(u8"Win64", u8"Engine.Player") == u8"Engine.Player.exe");
+    CHECK(editor::ExportPlayerFile(u8"Linux64", u8"Engine.Player") == u8"Engine.Player");
+    CHECK(editor::ExportPlayerFile(u8"Mac64", u8"Engine.Player") == u8"Engine.Player");
+
+    NukeTree(bin.AsView());
+    NukeTree(dest.AsView());
+}
+
 TEST_CASE("export: a Web preset stages the browser player + a WGSL shader pack")
 {
     // The full web export pipeline: a preset for platform Web resolves to the imported Web

@@ -166,8 +166,24 @@ else()
     # also keep a template from ever running on an older system, the Steam Deck's).
     # The third-party notices ride along the same way (cmake/ThirdPartyNotices.cmake), so every
     # template and export carries them.
-    util_copy_runtime_deps(Engine.Player EXTRA ${BUILDSYSTEM_WGPU_LIB} ${BUILDSYSTEM_NOTICES_FILE})
-    if(UNIX AND NOT APPLE)
+    # On Android the player's companions are the app's Gradle project and SDL's Java glue, staged
+    # beside the library (cmake/StageAndroidProject.cmake) and listed in its runtime-libs, so an
+    # Android export template carries the app it builds.
+    if(ANDROID)
+        add_custom_command(TARGET Engine.Player POST_BUILD
+            COMMAND ${CMAKE_COMMAND}
+                -DPROJECT_DIR=${CMAKE_CURRENT_SOURCE_DIR}/Android
+                -DSDL_JAVA_DIR=${CMAKE_SOURCE_DIR}/ThirdParty/SDL3/android-project/app/src/main/java
+                -DNOTICES=${BUILDSYSTEM_NOTICES_FILE}
+                -DOUT_DIR=$<TARGET_FILE_DIR:Engine.Player>
+                -DPLAYER=${BUILTIN_PLAYER_BASENAME}
+                -P ${CMAKE_SOURCE_DIR}/cmake/StageAndroidProject.cmake
+            VERBATIM
+            COMMENT "Staging the Android app's Gradle project beside Engine.Player")
+    else()
+        util_copy_runtime_deps(Engine.Player EXTRA ${BUILDSYSTEM_WGPU_LIB} ${BUILDSYSTEM_NOTICES_FILE})
+    endif()
+    if(UNIX AND NOT APPLE AND NOT ANDROID)
         set_property(TARGET Engine.Player APPEND PROPERTY BUILD_RPATH "$ORIGIN")
         set_property(TARGET Engine.Player PROPERTY INSTALL_RPATH "$ORIGIN")
     endif()

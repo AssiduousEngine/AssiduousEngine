@@ -220,6 +220,16 @@
         "ANDROID_PLATFORM": "android-33",
         "ANDROID_STL": "c++_static"
       }
+    },
+    {
+      "name": "android-arm64-reldbg",
+      "displayName": "Android arm64-v8a, NDK (Ninja, RelWithDebInfo)",
+      "description": "The Android export template's player.",
+      "inherits": "android-arm64",
+      "binaryDir": "${sourceDir}/build/android-arm64-reldbg",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
     }
   ],
   "buildPresets": [
@@ -298,6 +308,10 @@
     {
       "name": "android-arm64",
       "configurePreset": "android-arm64"
+    },
+    {
+      "name": "android-arm64-reldbg",
+      "configurePreset": "android-arm64-reldbg"
     }
   ],
   "testPresets": [

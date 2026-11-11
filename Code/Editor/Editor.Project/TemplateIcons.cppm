@@ -108,14 +108,8 @@ export namespace editor
     /// platform's, or the plain desktop for a platform not among them.
     [[nodiscard]] inline StringView DefaultTemplateIconName(StringView platform) noexcept
     {
-        for (const ExportPlatform& known : kExportPlatforms)
-        {
-            if (known.tag == platform)
-            {
-                return known.icon;
-            }
-        }
-        return u8"desktop";
+        const ExportPlatform* known = FindExportPlatform(platform);
+        return known != nullptr ? known->icon : StringView(u8"desktop");
     }
 
     /// A text file's whole contents, or empty when it cannot be read: a template's icon.

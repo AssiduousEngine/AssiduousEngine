@@ -16,10 +16,10 @@ distribution builds (`clang-reldbg`, `msvc-reldbg`), so a release builds the eng
 player is optimised, and its debug info goes to a `<platform>-release-symbols` folder beside the
 template (the Linux player is stripped before packaging; the Windows PDB never enters the template).
 
-### Linux + Web (from a Linux host)
+### Linux, Web and Android (from a Linux host)
 
 ```sh
-scripts/build-export-templates.sh [linux|web|all]     # default: all
+scripts/build-export-templates.sh [linux|web|android|all]     # default: all
 #   JOBS=N     build parallelism (default 4; higher OOMs the engine build)
 #   OUT=<dir>  write each platform's bundle under <dir>/<platform>/ (to zip); unset = --install locally
 ```
@@ -30,6 +30,11 @@ scripts/build-export-templates.sh [linux|web|all]     # default: all
   `~/emsdk/emsdk_env.sh`) and the SAME native exporter synthesizes a `Web` template from the
   `.html`/`.js`/`.wasm` bundle. The wasm build dir must be emscripten-configured first (the script
   prints the one-time `emcmake cmake ...` line if it is missing).
+- **Android** builds `Engine.Player` through the `android-arm64-reldbg` preset (the NDK at
+  `ANDROID_NDK_HOME`; `Bin/RelWithDebInfo/Android64-Clang`): the player is the library the app
+  loads (`libEngine.Player.so`, stripped, its debug info in `android64-release-symbols`), and the
+  app's Gradle project, which the build stages beside it, rides in the template. Exporting with it
+  needs the Android SDK and a JDK 17; making it does not.
 
 ### Windows (on a Windows agent)
 

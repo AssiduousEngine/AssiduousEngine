@@ -31,22 +31,53 @@ export namespace editor
     inline constexpr StringView kExportPresetsFile = u8"export_presets.xml";
 
     // A platform a game exports to: its tag (the Bin/<Config>/<Platform> name a template, a preset
-    // and a plugin package's platforms use) and the built-in icon its templates get unless their
-    // maker names another.
+    // and a plugin package's platforms use), the built-in icon its templates get unless their maker
+    // names another, and how its build names the player made from a base name ("Engine.Player"):
+    // an executable, a page, or the library an Android app loads.
     struct ExportPlatform
     {
         StringView tag;
         StringView icon;
+        StringView playerPrefix;
+        StringView playerSuffix;
     };
 
     /// The platforms a game exports to. A new package supports them all, and the tools that take a
     /// platform name them from here.
     inline constexpr ExportPlatform kExportPlatforms[] = {
-        {u8"Linux64", u8"linux"},
-        {u8"Win64", u8"windows"},
-        {u8"Web", u8"web"},
-        {u8"Android64", u8"phone"},
+        {u8"Linux64", u8"linux", u8"", u8""},
+        {u8"Win64", u8"windows", u8"", u8".exe"},
+        {u8"Web", u8"web", u8"", u8".html"},
+        {u8"Android64", u8"phone", u8"lib", u8".so"},
     };
+
+    /// The export platform tagged `tag`, or null when no game exports to it.
+    [[nodiscard]] inline const ExportPlatform* FindExportPlatform(StringView tag) noexcept
+    {
+        for (const ExportPlatform& platform : kExportPlatforms)
+        {
+            if (platform.tag == tag)
+            {
+                return &platform;
+            }
+        }
+        return nullptr;
+    }
+
+    /// The file `platform`'s build makes of a player called `base` ("libEngine.Player.so" on
+    /// Android); `base` itself on a platform not among the export platforms.
+    [[nodiscard]] inline String ExportPlayerFile(StringView platform, StringView base)
+    {
+        const ExportPlatform* known = FindExportPlatform(platform);
+        if (known == nullptr)
+        {
+            return String(base);
+        }
+        String out(known->playerPrefix);
+        out += base;
+        out += known->playerSuffix;
+        return out;
+    }
 
     /// The export platforms' tags, comma separated ("Linux64, Win64, ..."), for a message or a
     /// tool's description.
