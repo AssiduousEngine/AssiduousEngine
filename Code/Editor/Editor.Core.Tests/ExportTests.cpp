@@ -2707,6 +2707,12 @@ TEST_CASE("export: Add Native Code scaffolds the game's package with the parts a
                 .IsOk());
     CHECK(manifest.id == u8"myscaffold7");
     CHECK(manifest.name == u8"My Scaffold 7!");
+    // A new package supports every platform a game exports to, Android among them.
+    for (const editor::ExportPlatform& platform : editor::kExportPlatforms)
+    {
+        CHECK(manifest.FindPlatform(platform.tag) != nullptr);
+    }
+    CHECK(manifest.FindPlatform(u8"Android64") != nullptr);
     String why;
     CHECK(foundation::runtime::CheckPluginManifest(manifest, engine::project::kEngineVersionString, why));
     CHECK(fs.Exists(u8"Plugins/MyScaffold7/MyScaffold7.Engine/CMakeLists.txt"));
@@ -2785,6 +2791,12 @@ TEST_CASE("export: a created template carries its icon, the platform's unless on
         editor::BuiltInTemplateIconSvg(editor::DefaultTemplateIconName(GetHostPlatformName()));
     REQUIRE_FALSE(platformIcon.IsEmpty());
     CHECK(bundledIcon() == platformIcon);
+
+    // Each export platform's own icon; a platform not among them gets the plain desktop.
+    CHECK(editor::DefaultTemplateIconName(u8"Android64") == u8"phone");
+    CHECK(editor::DefaultTemplateIconName(u8"Web") == u8"web");
+    CHECK(editor::DefaultTemplateIconName(u8"Mac64") == u8"desktop");
+    CHECK(editor::ExportPlatformList() == u8"Linux64, Win64, Web, Android64");
 
     // A built-in one by name: the Deck build's handheld.
     editor::TemplateIdentity handheld;

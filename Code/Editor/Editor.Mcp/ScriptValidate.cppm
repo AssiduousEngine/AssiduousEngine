@@ -79,8 +79,8 @@ export namespace editor::mcp
                                u8"the source declares several")
                 .Str(u8"className", u8"the class it plays when the source declares several (a "
                                     u8"script asset's Class); default: the one named like `name`")
-                .Str(u8"platform", u8"also check it for this platform's plugins (Linux64, Win64, Web); "
-                                   u8"needs an open project")
+                .Str(u8"platform", Format(u8"also check it for this platform's plugins ({}); needs an open project",
+                                          editor::ExportPlatformList()))
                 .Build(),
                 foundation::mcp::ToolAnnotations::ReadOnly(),
             [&session](const JsonValue& args) -> ToolResult

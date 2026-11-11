@@ -12,8 +12,6 @@
 module;
 #include "Core/Prelude.h"
 
-#include <initializer_list>
-
 module editor.project;
 
 import foundation.runtime;
@@ -222,9 +220,9 @@ namespace editor
             manifest.name = project.Settings().name;
             manifest.version = String(u8"0.1.0");
             manifest.engineVersion = Format(u8"{}.{}", engine::project::kEngineVersionMajor, engine::project::kEngineVersionMinor);
-            for (StringView platform : {StringView(u8"Linux64"), StringView(u8"Win64"), StringView(u8"Web")})
+            for (const ExportPlatform& platform : kExportPlatforms)
             {
-                manifest.platforms.PushBack(foundation::runtime::PluginPlatform{String(platform)});
+                manifest.platforms.PushBack(foundation::runtime::PluginPlatform{String(platform.tag)});
             }
         }
         bool added = false;

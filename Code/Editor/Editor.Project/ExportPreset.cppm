@@ -30,6 +30,40 @@ export namespace editor
 
     inline constexpr StringView kExportPresetsFile = u8"export_presets.xml";
 
+    // A platform a game exports to: its tag (the Bin/<Config>/<Platform> name a template, a preset
+    // and a plugin package's platforms use) and the built-in icon its templates get unless their
+    // maker names another.
+    struct ExportPlatform
+    {
+        StringView tag;
+        StringView icon;
+    };
+
+    /// The platforms a game exports to. A new package supports them all, and the tools that take a
+    /// platform name them from here.
+    inline constexpr ExportPlatform kExportPlatforms[] = {
+        {u8"Linux64", u8"linux"},
+        {u8"Win64", u8"windows"},
+        {u8"Web", u8"web"},
+        {u8"Android64", u8"phone"},
+    };
+
+    /// The export platforms' tags, comma separated ("Linux64, Win64, ..."), for a message or a
+    /// tool's description.
+    [[nodiscard]] inline String ExportPlatformList()
+    {
+        String out;
+        for (const ExportPlatform& platform : kExportPlatforms)
+        {
+            if (!out.IsEmpty())
+            {
+                out += u8", ";
+            }
+            out += platform.tag;
+        }
+        return out;
+    }
+
     // One export target, a plain value type (copyable and movable) so a project can hold an
     // Array<ExportPreset>; only the root set below is a versioned-payload object.
     //
