@@ -1062,11 +1062,33 @@ export namespace foundation::rhi::vk
 
     Status VkSwapChainImpl::AcquireNextImage()
     {
+        // Pre-rotated: when a present said the surface may have turned (a phone turned from one
+        // landscape to the other keeps its size, so nothing else would say), make the swapchain
+        // again for the new transform. Only a changed transform does: a surface that keeps
+        // answering suboptimal must not be made again every frame.
+        if (m_preRotate && m_checkTransform)
+        {
+            m_checkTransform = false;
+            VkSurfaceCapabilitiesKHR caps{};
+            if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physDevice, m_surface, &caps) == VK_SUCCESS &&
+                caps.currentTransform != m_transform && !Resize(m_askedWidth, m_askedHeight).IsOk())
+                return ErrorCode::Unknown;
+        }
         VkSemaphore acquireSem = m_acquireSems[m_frameIndex];
         u32 imgIdx = 0;
         VkResult vr = vkAcquireNextImageKHR(m_device, m_swapchain, ~0ull, acquireSem,
                                             VK_NULL_HANDLE, &imgIdx);
         m_currentImageIndex = imgIdx;
+        if (vr == VK_ERROR_OUT_OF_DATE_KHR && m_preRotate)
+        {
+            // Turned past what the images can be presented as: made again for the surface as it is
+            // now, then acquired once more.
+            if (!Resize(m_askedWidth, m_askedHeight).IsOk())
+                return ErrorCode::Unknown;
+            acquireSem = m_acquireSems[m_frameIndex];
+            vr = vkAcquireNextImageKHR(m_device, m_swapchain, ~0ull, acquireSem, VK_NULL_HANDLE, &imgIdx);
+            m_currentImageIndex = imgIdx;
+        }
         if (vr == VK_ERROR_OUT_OF_DATE_KHR)
             return ErrorCode::Unknown;
         if (vr != VK_SUCCESS && vr != VK_SUBOPTIMAL_KHR)
@@ -1092,7 +1114,10 @@ export namespace foundation::rhi::vk
         if (vr == VK_ERROR_DEVICE_LOST)
             vkQ->owner()->markLost();
         if (vr == VK_ERROR_OUT_OF_DATE_KHR || vr == VK_SUBOPTIMAL_KHR)
+        {
+            m_checkTransform = m_preRotate; // the surface may have turned: the next acquire looks
             return ErrorCode::Unknown;
+        }
         return vr == VK_SUCCESS ? ErrorCode::Ok : ErrorCode::Unknown;
     }
 

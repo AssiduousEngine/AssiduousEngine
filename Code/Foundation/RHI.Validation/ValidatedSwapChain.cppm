@@ -30,6 +30,7 @@ export namespace foundation::rhi::validation
         Texture* CurrentTexture() override { return m_inner->CurrentTexture(); }
         TextureView* CurrentTextureView() override { return m_inner->CurrentTextureView(); }
         TextureFormat AlternateViewFormat() const override { return m_inner->AlternateViewFormat(); }
+        ContentRotation PreRotation() const override { return m_inner->PreRotation(); }
         TextureView* CurrentAlternateTextureView() override { return m_inner->CurrentAlternateTextureView(); }
 
         Status AcquireNextImage() override

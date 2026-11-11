@@ -50,6 +50,13 @@ export namespace foundation::rhi
         /// Undefined.
         [[nodiscard]] virtual TextureView* CurrentAlternateTextureView() = 0;
 
+        /// How the back buffers' content is turned from the window's picture, clockwise: None unless
+        /// SwapChainDesc::preRotate was asked and the surface presents turned. On a quarter turn the
+        /// back buffers are the window's size with its sides swapped (Width and Height are theirs),
+        /// and the window's picture is drawn into them turned (core::TurnPoint), its top-left
+        /// corner landing at their top-right.
+        [[nodiscard]] virtual ContentRotation PreRotation() const = 0;
+
         /// Present the current back buffer to the screen.
         virtual Status Present(Queue* queue) = 0;
         /// Resize the swap chain (e.g. after a window resize).

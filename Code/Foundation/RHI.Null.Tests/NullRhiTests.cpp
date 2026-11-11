@@ -266,3 +266,42 @@ TEST_CASE("rhi.null: a swapchain honours an asked-for sRGB or UNORM twin view, a
     device->Destroy();
     backend->Destroy();
 }
+
+// A display that presents turned (a phone held away from its natural orientation): a swapchain
+// that asks to pre-rotate is made in the display's orientation, its images the window turned, and
+// says how to turn the picture; one that does not ask is drawn as the window stands.
+TEST_CASE("rhi.null: a swapchain asked to pre-rotate takes the display's turn")
+{
+    Backend* backend = nullptr;
+    REQUIRE(null::CreateNullBackend(backend).IsOk());
+    Device* device = nullptr;
+    REQUIRE(backend->EnumerateAdapters()[0]->CreateDevice(DeviceDesc{}, device).IsOk());
+    auto* nullDevice = static_cast<null::NullDevice*>(device);
+    nullDevice->displayTurn = ContentRotation::Quarter;
+    Surface* surface = nullptr;
+    REQUIRE(backend->CreateSurface(nullptr, nullptr, surface).IsOk());
+
+    SwapChainDesc desc;
+    desc.width = 2400;
+    desc.height = 1080;
+    SwapChain* plain = nullptr;
+    REQUIRE(device->CreateSwapChain(surface, desc, plain).IsOk());
+    CHECK(plain->PreRotation() == ContentRotation::None);
+    CHECK(plain->Width() == 2400u);
+
+    desc.preRotate = true;
+    SwapChain* turned = nullptr;
+    REQUIRE(device->CreateSwapChain(surface, desc, turned).IsOk());
+    CHECK(turned->PreRotation() == ContentRotation::Quarter);
+    CHECK(turned->Width() == 1080u);
+    CHECK(turned->Height() == 2400u);
+    REQUIRE(turned->Resize(1080, 2400).IsOk()); // the phone held upright: still the window turned
+    CHECK(turned->Width() == 2400u);
+    CHECK(turned->Height() == 1080u);
+
+    device->DestroySwapChain(turned);
+    device->DestroySwapChain(plain);
+    device->DestroySurface(surface);
+    device->Destroy();
+    backend->Destroy();
+}

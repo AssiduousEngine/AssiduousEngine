@@ -317,6 +317,7 @@ export namespace foundation::rhi::null
         u32 m_height = 0;
         u32 m_count = 2;
         u32 m_imgIdx = 0;
+        ContentRotation m_rotation = ContentRotation::None; // the device's displayTurn, when asked to pre-rotate
 
         TextureFormat Format() const override { return m_format; }
         u32 Width() const override { return m_width; }
@@ -331,6 +332,7 @@ export namespace foundation::rhi::null
         Texture* CurrentTexture() override { return &tex; }
         TextureView* CurrentTextureView() override { return &view; }
         TextureFormat AlternateViewFormat() const override { return m_alternate; }
+        ContentRotation PreRotation() const override { return m_rotation; }
         TextureView* CurrentAlternateTextureView() override
         {
             return m_alternate != TextureFormat::Undefined ? &alternateView : nullptr;
@@ -338,8 +340,9 @@ export namespace foundation::rhi::null
         Status Present(Queue*) override { return ErrorCode::Ok; }
         Status Resize(u32 w, u32 h) override
         {
-            m_width = w;
-            m_height = h;
+            const bool swaps = TurnSwapsSides(m_rotation);
+            m_width = swaps ? h : w;
+            m_height = swaps ? w : h;
             return ErrorCode::Ok;
         }
     };
@@ -379,6 +382,10 @@ export namespace foundation::rhi::null
         NullQueue gfxQueue, compQueue, xferQueue;
         IAllocator& m_allocator;
         DeviceCounterBlock m_counters;
+        // The turn its display presents at, as a phone's surface reports one held away from its
+        // natural orientation (a test sets it): a swapchain asked to pre-rotate takes it, its
+        // images the window's size turned; one not asked is drawn as the window stands.
+        ContentRotation displayTurn = ContentRotation::None;
 
         explicit NullDevice(IAllocator& allocator) : m_allocator(allocator)
         {
@@ -529,8 +536,10 @@ export namespace foundation::rhi::null
             sc->tex.desc.alternateViewFormat = sc->m_alternate;
             sc->view.desc.format = d.format;
             sc->alternateView.desc.format = sc->m_alternate;
-            sc->m_width = d.width;
-            sc->m_height = d.height;
+            sc->m_rotation = d.preRotate ? displayTurn : ContentRotation::None;
+            const bool swaps = TurnSwapsSides(sc->m_rotation);
+            sc->m_width = swaps ? d.height : d.width;
+            sc->m_height = swaps ? d.width : d.height;
             sc->m_count = d.bufferCount;
             out = sc;
             return ErrorCode::Ok;

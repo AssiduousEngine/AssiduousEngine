@@ -222,6 +222,8 @@ export namespace foundation::rhi::webgpu
         // honoured. Desktop wgpu-native would need surface view formats, which webgpu.h gives no
         // way to ask about ahead of configuring, so it says Undefined and the host draws through
         // CurrentTextureView alone.
+        // A canvas is presented as it stands; the browser turns the page, not its pixels.
+        ContentRotation PreRotation() const override { return ContentRotation::None; }
         TextureFormat AlternateViewFormat() const override
         {
 #if PLATFORM_WEB

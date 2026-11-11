@@ -114,6 +114,7 @@ export namespace foundation::rhi::vk
             m_presentMode = desc.presentMode;
             m_mutableFormat = mutableFormat;
             m_requestedAlternate = desc.alternateViewFormat;
+            m_preRotate = desc.preRotate;
             return CreateSwapChain(desc.width, desc.height, desc.format, desc.bufferCount,
                                    VK_NULL_HANDLE);
         }
@@ -136,6 +137,7 @@ export namespace foundation::rhi::vk
             return m_currentImageIndex < m_views.Size() ? m_views[m_currentImageIndex] : nullptr;
         }
         TextureFormat AlternateViewFormat() const override { return m_alternate; }
+        ContentRotation PreRotation() const override { return m_rotation; }
         TextureView* CurrentAlternateTextureView() override
         {
             return m_currentImageIndex < m_alternateViews.Size() ? m_alternateViews[m_currentImageIndex]
@@ -185,7 +187,32 @@ export namespace foundation::rhi::vk
         TextureFormat m_alternate = TextureFormat::Undefined;
         Array<VkSemaphore> m_acquireSems;
         Array<VkSemaphore> m_presentSems;
+        // Pre-rotation (SwapChainDesc::preRotate): the turn the images are drawn with, the surface
+        // transform the swapchain was made for, the window size it was asked for (to make it again
+        // when only the transform changes), and whether a present said the surface may have turned.
+        bool m_preRotate = false;
+        ContentRotation m_rotation = ContentRotation::None;
+        VkSurfaceTransformFlagBitsKHR m_transform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+        u32 m_askedWidth = 0, m_askedHeight = 0;
+        bool m_checkTransform = false;
     };
+
+    // The clockwise turn a surface transform asks of the picture drawn for it; a mirrored one is not
+    // drawn turned (the display turns it).
+    [[nodiscard]] inline ContentRotation RotationOf(VkSurfaceTransformFlagBitsKHR transform) noexcept
+    {
+        switch (transform)
+        {
+        case VK_SURFACE_TRANSFORM_ROTATE_90_BIT_KHR:
+            return ContentRotation::Quarter;
+        case VK_SURFACE_TRANSFORM_ROTATE_180_BIT_KHR:
+            return ContentRotation::Half;
+        case VK_SURFACE_TRANSFORM_ROTATE_270_BIT_KHR:
+            return ContentRotation::ThreeQuarter;
+        default:
+            return ContentRotation::None;
+        }
+    }
 
     // ---- Implementation (inline in module) ----
 
@@ -194,21 +221,49 @@ export namespace foundation::rhi::vk
     {
         VkSurfaceCapabilitiesKHR caps{};
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physDevice, m_surface, &caps);
+        m_askedWidth = w;
+        m_askedHeight = h;
+        m_checkTransform = false;
+
+        // The picture is drawn as the window stands and the display turns it, unless pre-rotation
+        // was asked: then the images are made in the display's orientation, the surface's current
+        // transform their pre-transform, and the caller draws the window's picture turned into them
+        // (PreRotation), so the display has no turning to do.
+        m_transform = (caps.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) != 0
+                          ? VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
+                          : caps.currentTransform;
+        m_rotation = ContentRotation::None;
+        if (m_preRotate && RotationOf(caps.currentTransform) != ContentRotation::None &&
+            (caps.supportedTransforms & caps.currentTransform) != 0)
+        {
+            m_transform = caps.currentTransform;
+            m_rotation = RotationOf(caps.currentTransform);
+        }
 
         // The size asked (the window's pixels), within what the surface allows. Most surfaces allow
         // only their current extent, so it decides; Android allows a range and scales the images to
         // the window, and its current extent lags a turn of the phone: taken as reported, a window
-        // just turned upright gets landscape images, stretched.
+        // just turned upright gets landscape images, stretched. Both are the window's way round
+        // (Android reports its extent turned with the phone), so a quarter of pre-rotation swaps
+        // them for the images.
         const bool asked = w != 0 && h != 0;
+        u32 wantW = asked || caps.currentExtent.width == ~0u ? w : caps.currentExtent.width;
+        u32 wantH = asked || caps.currentExtent.width == ~0u ? h : caps.currentExtent.height;
+        if (TurnSwapsSides(m_rotation))
+        {
+            const u32 swap = wantW;
+            wantW = wantH;
+            wantH = swap;
+        }
         if (!asked && caps.currentExtent.width != ~0u)
         {
-            m_width = caps.currentExtent.width;
-            m_height = caps.currentExtent.height;
+            m_width = wantW;
+            m_height = wantH;
         }
         else
         {
-            m_width = Clamp(w, caps.minImageExtent.width, caps.maxImageExtent.width);
-            m_height = Clamp(h, caps.minImageExtent.height, caps.maxImageExtent.height);
+            m_width = Clamp(wantW, caps.minImageExtent.width, caps.maxImageExtent.width);
+            m_height = Clamp(wantH, caps.minImageExtent.height, caps.maxImageExtent.height);
         }
         if (m_width == 0 || m_height == 0)
             return ErrorCode::Unknown;
@@ -228,6 +283,9 @@ export namespace foundation::rhi::vk
         // How the display paces frames: under FIFO the CPU waits in the acquire for an image the
         // compositor gives back, and how many images there are bounds how far it can run ahead, so
         // a long acquire in a capture is read against these.
+        if (m_preRotate)
+            LogInfof("[RHI] swapchain pre-rotation: surface transform 0x%x, drawn turned %d quarter(s), images %ux%u",
+                     static_cast<unsigned>(caps.currentTransform), static_cast<int>(m_rotation), m_width, m_height);
         LogInfof("[RHI] swapchain present mode: requested %s, chosen %s; %u images (the surface allows %u to %u)",
                  vkPresentModeName(toVkPresentMode(m_presentMode)), vkPresentModeName(presentMode), m_bufferCount,
                  caps.minImageCount, caps.maxImageCount);
@@ -273,7 +331,9 @@ export namespace foundation::rhi::vk
         ci.imageArrayLayers = 1;
         ci.imageUsage = usage;
         ci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        ci.preTransform = caps.currentTransform;
+        // Identity, or with pre-rotation the surface's turn: claiming a turn the picture was not
+        // drawn with would show it turned twice.
+        ci.preTransform = m_transform;
         ci.compositeAlpha = compositeAlpha;
         ci.presentMode = presentMode;
         ci.clipped = VK_TRUE;

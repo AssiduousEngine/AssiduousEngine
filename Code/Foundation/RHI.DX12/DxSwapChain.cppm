@@ -103,6 +103,8 @@ export namespace foundation::rhi::dx12
             return (m_currentIndex < m_views.Size()) ? m_views[m_currentIndex] : nullptr;
         }
         TextureFormat AlternateViewFormat() const override { return m_alternate; }
+        // A desktop window is presented as it stands.
+        ContentRotation PreRotation() const override { return ContentRotation::None; }
         TextureView* CurrentAlternateTextureView() override
         {
             return (m_currentIndex < m_alternateViews.Size()) ? m_alternateViews[m_currentIndex] : nullptr;

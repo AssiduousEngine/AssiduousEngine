@@ -130,6 +130,13 @@ export namespace foundation::rhi
         /// alternateViewFormat). A request, not a guarantee: SwapChain::AlternateViewFormat says
         /// whether the device and surface honoured it.
         TextureFormat alternateViewFormat = TextureFormat::Undefined;
+        /// Draw the picture turned for the display (pre-rotation): on a surface that presents
+        /// turned (a phone held away from its natural orientation), the back buffers are made in
+        /// the display's own orientation and the caller draws the window's picture turned into
+        /// them (SwapChain::PreRotation), so the display has no turning to do. Off, the caller
+        /// draws the window as it stands and the display turns it. A request: a surface that cannot
+        /// keeps PreRotation at None. `width` and `height` stay the window's.
+        bool preRotate = false;
         StringView label;
     };
 
