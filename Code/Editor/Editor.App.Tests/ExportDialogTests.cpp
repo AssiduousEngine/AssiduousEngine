@@ -61,6 +61,10 @@ namespace
         u32 saves = 0;
         Array<String> exported{DefaultAllocator()};
         bool exportedAll = false;
+        String project = PathJoin(GetCurrentDirectory().AsView(), u8"scratch_export_dialog_project");
+        Array<app::PickerRequest> picks{DefaultAllocator()};
+        Array<String> notices{DefaultAllocator()};
+        Array<String> fromDisk{DefaultAllocator()}; // what the system's dialog answers
 
         Fixture()
         {
@@ -105,6 +109,16 @@ namespace
                 exported.PushBack(String(preset));
                 exportedAll = all;
             };
+            seams.pick = [this](app::PickerRequest request) { picks.PushBack(Move(request)); };
+            seams.notify = [this](StringView message) { notices.PushBack(String(message)); };
+            seams.pickFiles = [this](Function<void(Array<String>)> chosen)
+            {
+                Array<String> paths;
+                for (const String& path : fromDisk)
+                    paths.PushBack(path);
+                chosen(Move(paths));
+            };
+            seams.projectRoot = project;
             seams.hostPlatform = String(u8"Linux64");
             seams.outputRoot = String(u8"/tmp/project/Dist");
             return seams;
@@ -206,6 +220,48 @@ TEST_CASE("export dialog: a preset overrides the orientation, its row shown only
     dialog->Select(0);
     CHECK(dialog->Rows()->GetValue(u8"overridesOrientation", 0).AsBool());
     CHECK(dialog->Rows()->GetValue(u8"orientation", 0).AsInt() == static_cast<i64>(ScreenOrientation::Landscape));
+}
+
+// Extra files are the project's: Add Files lists its own files (not the folders the editor, a cook
+// or an export writes) and adds the one picked by its project-relative path; From Disk takes a
+// file inside the project the same way and refuses one outside it.
+TEST_CASE("export dialog: extra files come from the project, named relative to it")
+{
+    Fixture f;
+    (void)RemoveDirectoryRecursive(f.project.AsView());
+    const StringView files[] = {u8"CREDITS.md", u8"Docs/manual.txt", u8"Cooked/a.bin", u8"Cooked-android/b.bin", u8".cache/c.bin",
+                                u8"Dist/Linux64/game"};
+    for (const StringView file : files)
+    {
+        const String full = PathJoin(f.project.AsView(), file);
+        REQUIRE(CreateDirectories(PathParent(full.AsView())));
+        REQUIRE(WriteFile(full.AsView(), Span<const byte>{}).IsOk());
+    }
+    UniquePtr<app::ExportDialog> dialog = f.Open();
+    REQUIRE(dialog->SelectedIndex() == 0);
+
+    dialog->AddFiles();
+    REQUIRE(f.picks.Size() == 1u);
+    Array<String> keys;
+    for (const app::PickerItem& item : f.picks[0].Items)
+        keys.PushBack(item.Key);
+    REQUIRE(keys.Size() == 2u); // the generated folders' files are not offered
+    CHECK(keys[0] == StringView(u8"CREDITS.md"));
+    CHECK(keys[1] == StringView(u8"Docs/manual.txt"));
+    f.picks[0].OnPicked(u8"Docs/manual.txt");
+    REQUIRE(f.presets.At(0).additionalFiles.Size() == 1u);
+    CHECK(f.presets.At(0).additionalFiles[0] == StringView(u8"Docs/manual.txt"));
+
+    // From Disk: inside the project it joins by its relative path (once); outside, it is refused.
+    f.fromDisk.PushBack(PathJoin(f.project.AsView(), u8"CREDITS.md"));
+    f.fromDisk.PushBack(PathJoin(f.project.AsView(), u8"Docs/manual.txt"));
+    f.fromDisk.PushBack(String(u8"/elsewhere/licence.txt"));
+    dialog->AddFilesFromDisk();
+    REQUIRE(f.presets.At(0).additionalFiles.Size() == 2u);
+    CHECK(f.presets.At(0).additionalFiles[1] == StringView(u8"CREDITS.md"));
+    REQUIRE(f.notices.Size() == 1u);
+    CHECK(f.notices[0].AsView().StartsWith(u8"/elsewhere/licence.txt is outside the project"));
+    (void)RemoveDirectoryRecursive(f.project.AsView());
 }
 
 TEST_CASE("export dialog: add, duplicate, and remove after asking")

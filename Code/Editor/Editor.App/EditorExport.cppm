@@ -17,6 +17,7 @@ module;
 export module editor.app:export_service;
 
 import foundation.core;
+import engine.project; // kProjectDistDir: where exports go
 import foundation.content;
 import foundation.vfs;
 import foundation.resource;
@@ -215,7 +216,7 @@ export namespace editor::app
             const String toolDir = GetExecutableDirectory();
             const String templatesRoot = TemplatesRoot();
             const String dataRoot = m_services.dataRoot;
-            const String outRoot = Absolutize(PathJoin(project->Directory(), u8"Dist").AsView());
+            const String outRoot = Absolutize(PathJoin(project->Directory(), engine::project::kProjectDistDir).AsView());
             const String title(all ? StringView(u8"Export All") : StringView(u8"Export"));
             // The project's plugins as the editor loaded them: the scripts' check and the export hooks.
             const editor::ExportPlugins plugins{m_services.context->Plugins(), m_services.context->ExportHooks()};

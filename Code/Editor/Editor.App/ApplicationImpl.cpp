@@ -693,8 +693,13 @@ namespace editor::app
                                                                                }},
                                       {}, {}, true);
             };
+            seams.pick = [self](PickerRequest request) { self->ShowPicker(Move(request)); };
+            seams.notify = [self](StringView message) { self->m_context.Notify(editor::NoticeKind::Warning, message); };
+            // Absolute, as the system's dialog answers.
+            seams.projectRoot = PathIsAbsolute(project->Directory()) ? String(project->Directory())
+                                                                     : PathJoin(GetCurrentDirectory().AsView(), project->Directory());
             seams.hostPlatform = String(GetHostPlatformName());
-            seams.outputRoot = PathJoin(project->Directory(), u8"Dist");
+            seams.outputRoot = PathJoin(project->Directory(), engine::project::kProjectDistDir);
             m_exportDialog = MakeUnique<ExportDialog>(m_editorAllocator, m_editorAllocator, m_export->Presets(), Move(seams),
                                                       m_window.LoadMarkup(ExportDialog::kPath));
         }

@@ -16,6 +16,7 @@ module;
 export module editor.mcp:project_export;
 
 import foundation.core;
+import engine.project; // kProjectDistDir: where exports go
 import foundation.json;
 import foundation.content;
 import foundation.vfs;
@@ -138,7 +139,7 @@ export namespace editor::mcp
                 request.preset = *preset;
                 const String outArg = args.Get(u8"out").AsString();
                 request.outRoot = !outArg.IsEmpty() ? outArg
-                                                    : PathJoin(s->project->Directory(), u8"Dist");
+                                                    : PathJoin(s->project->Directory(), engine::project::kProjectDistDir);
                 request.rebuild = args.Get(u8"rebuild").AsBool();
                 OperationStep<ExportOutcome> step = ops->Export(call, request);
                 if (!step.HasValue())

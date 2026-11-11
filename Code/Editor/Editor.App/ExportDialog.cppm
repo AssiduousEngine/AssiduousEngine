@@ -29,6 +29,8 @@ import foundation.gui.toolkit;
 import engine.project; // the display enums (ProjectSettings' own)
 import editor.core;
 import :templates_dialog; // TemplateRow
+import :picker;              // PickerRequest: Add Files
+import :path_picker_dialog;  // PathPicker: the project's files
 
 using namespace foundation::core;
 
@@ -47,8 +49,15 @@ export namespace editor::app
         Function<void(StringView preset, bool all)> runExport;
         /// Opens Export Templates over this one; `closed` is called when it closes.
         Function<void(Function<void()> closed)> openTemplates;
-        /// Asks for files; `chosen` gets their paths, or nothing when the user cancels.
+        /// Asks for files anywhere on the machine (the system's dialog); `chosen` gets their paths,
+        /// or nothing when the user cancels.
         Function<void(Function<void(Array<String>)> chosen)> pickFiles;
+        /// Opens the editor's picker for `request` (a project file, through PathPicker).
+        Function<void(PickerRequest request)> pick;
+        /// Tells the user something the dialog refused ("is outside the project").
+        Function<void(StringView message)> notify;
+        /// The project's folder: the files a preset ships are under it, named relative to it.
+        String projectRoot;
         /// The host's platform, used for a new preset.
         String hostPlatform;
         /// Where exports are written, shown under the presets.
@@ -108,6 +117,7 @@ export namespace editor::app
             click(u8"export-all", [self]() { self->ExportAll(); });
             click(u8"export-close", [self]() { self->Close(); });
             click(u8"export-add-files", [self]() { self->AddFiles(); });
+            click(u8"export-add-disk", [self]() { self->AddFilesFromDisk(); });
             click(u8"export-templates", [self]()
                   {
                       if (self->m_seams.openTemplates)
@@ -268,7 +278,29 @@ export namespace editor::app
             Load();
         }
         /// Adds picked files to the selected preset's extra files.
+        /// Add Files: the editor's picker over the project's own files (not the folders the editor,
+        /// a cook or an export writes); the one picked joins the extra files, named relative to the
+        /// project, so the preset travels with it.
         void AddFiles()
+        {
+            if (!m_seams.pick || m_seams.projectRoot.IsEmpty() || SelectedIndex() < 0)
+                return;
+            ExportDialog* self = this;
+            const i32 index = SelectedIndex();
+            const auto generated = [](StringView folder) { return engine::project::IsProjectOutputFolder(folder); };
+            PickerRequest request = PathPicker::Request(m_allocator, m_seams.projectRoot.AsView(), {}, {}, generated);
+            request.Placeholder = String(u8"Search the project's files");
+            request.OnPicked = [self, index](StringView path)
+            {
+                const String picked(path);
+                self->AddExtraFiles(index, Span<const String>(&picked, 1u));
+            };
+            m_seams.pick(Move(request));
+        }
+        /// From Disk: the system's dialog, for a file the editor's picker does not list. One inside the
+        /// project joins as Add Files' do; one outside it is refused, since a preset names what
+        /// travels with the project.
+        void AddFilesFromDisk()
         {
             if (!m_seams.pickFiles || SelectedIndex() < 0)
                 return;
@@ -276,15 +308,43 @@ export namespace editor::app
             const i32 index = SelectedIndex();
             m_seams.pickFiles([self, index](Array<String> paths)
                               {
-                                  if (self->SelectedIndex() != index)
-                                      return;
-                                  editor::ExportPreset preset = self->m_presets->At(static_cast<usize>(index));
-                                  for (String& path : paths)
-                                      preset.additionalFiles.PushBack(Move(path));
-                                  self->m_presets->Update(static_cast<usize>(index), preset);
-                                  self->m_dirty = true;
-                                  self->Load();
+                                  Array<String> inside;
+                                  for (const String& path : paths)
+                                  {
+                                      String relative = self->ProjectRelative(path.AsView());
+                                      if (!relative.IsEmpty())
+                                          inside.PushBack(Move(relative));
+                                      else if (self->m_seams.notify)
+                                          self->m_seams.notify(Format(u8"{} is outside the project: put it in the project to ship it with the game.",
+                                                                      path).AsView());
+                                  }
+                                  self->AddExtraFiles(index, Span<const String>(inside.Data(), inside.Size()));
                               });
+        }
+        /// `path` relative to the project's folder, or empty when it is not under it.
+        [[nodiscard]] String ProjectRelative(StringView path) const
+        {
+            const StringView root = m_seams.projectRoot.AsView();
+            if (root.IsEmpty() || path.Size() <= root.Size() + 1 || !path.StartsWith(root) || path[root.Size()] != utf8char('/'))
+                return {};
+            return String(path.SubStr(root.Size() + 1, path.Size() - root.Size() - 1));
+        }
+        void AddExtraFiles(i32 index, Span<const String> files)
+        {
+            if (SelectedIndex() != index || files.IsEmpty())
+                return;
+            editor::ExportPreset preset = m_presets->At(static_cast<usize>(index));
+            for (const String& file : files)
+            {
+                bool listed = false;
+                for (const String& known : preset.additionalFiles)
+                    listed = listed || known == file;
+                if (!listed)
+                    preset.additionalFiles.PushBack(file);
+            }
+            m_presets->Update(static_cast<usize>(index), preset);
+            m_dirty = true;
+            Load();
         }
 
         /// The rows (the selected preset's, the grid's source; null with none) and the window, for tests.
@@ -457,7 +517,7 @@ export namespace editor::app
             gui::PropertyInfo& files = m_bag->AddList(u8"additionalFiles", gui::PropertyKind::String, gui::Variant(StringView{}), preset.additionalFiles.Size());
             files.DisplayName = String(u8"Extra files");
             files.Category = String(kContent);
-            files.Description = String(u8"Copied beside the player, as they are (a licence, a readme).");
+            files.Description = String(u8"Files of the project's, copied beside the player as they are (a licence, a readme).");
             for (usize i = 0; i < preset.additionalFiles.Size(); ++i)
                 m_bag->SetValue(Format(u8"additionalFiles.{}", i).AsView(), 0, gui::Variant(preset.additionalFiles[i].AsView()));
             Row(u8"stageSymbols", gui::PropertyKind::Bool, gui::Variant(preset.stageSymbols), u8"Ship debug symbols", kContent,

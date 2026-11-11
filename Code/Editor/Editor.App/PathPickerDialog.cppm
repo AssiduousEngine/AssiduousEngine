@@ -26,10 +26,12 @@ export namespace editor::app
     struct PathPicker
     {
         /// The picker's request over the files under `root` with one of `extensions` (".ttf");
-        /// `current` is the root-relative path the field names now.
-        [[nodiscard]] static PickerRequest Request(IAllocator& allocator, StringView root, Span<const String> extensions, StringView current = {})
+        /// `current` is the root-relative path the field names now. `skip`, when set, leaves out
+        /// the folders it says so of (root-relative: a project's generated ones).
+        [[nodiscard]] static PickerRequest Request(IAllocator& allocator, StringView root, Span<const String> extensions, StringView current = {},
+                                                   const Function<bool(StringView folder)>& skip = {})
         {
-            Array<String> files = Files(allocator, root, extensions);
+            Array<String> files = Files(allocator, root, extensions, skip);
             files.Sort([](const String& a, const String& b) { return a.AsView().Compare(b.AsView()) < 0; });
             PickerRequest request;
             request.Placeholder = String(u8"Search files");
@@ -61,8 +63,10 @@ export namespace editor::app
             return request;
         }
 
-        /// Every file under `root` with one of `extensions`, root-relative, in the walk's order.
-        [[nodiscard]] static Array<String> Files(IAllocator& allocator, StringView root, Span<const String> extensions)
+        /// Every file under `root` with one of `extensions`, root-relative, in the walk's order,
+        /// but in the folders `skip` leaves out.
+        [[nodiscard]] static Array<String> Files(IAllocator& allocator, StringView root, Span<const String> extensions,
+                                                 const Function<bool(StringView folder)>& skip = {})
         {
             Array<String> files;
             foundation::vfs::NativeFileSystem fs(root, allocator);
@@ -82,7 +86,10 @@ export namespace editor::app
                 {
                     String path = folder.IsEmpty() ? entry.name : PathJoin(folder.AsView(), entry.name.AsView());
                     if (entry.isDirectory)
-                        pending.PushBack(Move(path));
+                    {
+                        if (!skip || !skip(path.AsView()))
+                            pending.PushBack(Move(path));
+                    }
                     else if (Takes(path.AsView(), extensions))
                         files.PushBack(Move(path));
                 }

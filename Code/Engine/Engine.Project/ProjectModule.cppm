@@ -81,6 +81,16 @@ export namespace engine::project
     inline constexpr StringView kProjectCookedDir = u8"Cooked";
     inline constexpr StringView kProjectEditorDir = u8"Editor";
     inline constexpr StringView kProjectCacheDir = u8".cache";
+    inline constexpr StringView kProjectDistDir = u8"Dist"; // where the editor's exports go
+
+    /// Whether a project's top-level folder `name` is one the editor, a cook or an export writes
+    /// (Cooked and each target's Cooked-<target>, Editor, .cache, Dist): generated, never a file of
+    /// the project's own to pick.
+    [[nodiscard]] inline bool IsProjectOutputFolder(StringView name) noexcept
+    {
+        return name == kProjectCookedDir || name.StartsWith(u8"Cooked-") || name == kProjectEditorDir ||
+               name == kProjectCacheDir || name == kProjectDistDir;
+    }
     // A project's own plugin packages (its game code, project-local plugins): Plugins/<Name>/, each a
     // Plugin.xml and its parts, built for development as shared libraries in a shared-engine tree
     // under the cache, which lists each part's library in kPluginLibrariesFile.

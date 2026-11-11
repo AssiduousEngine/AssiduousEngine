@@ -221,6 +221,14 @@ TEST_CASE("path picker: the files under a folder with the extensions asked, igno
     const PickerRequest empty = PathPicker::Request(DefaultAllocator(), kDir, Span<const String>(none, 1u));
     CHECK(empty.Items.IsEmpty());
     CHECK(empty.EmptyTitle == String(u8"No .aeprofile files here"));
+
+    // The folders `skip` names are not walked (a project's generated ones); with no extensions,
+    // every other file is listed.
+    const auto skipBold = [](StringView folder) { return folder == StringView(u8"Fonts/Bold"); };
+    const PickerRequest skipped = PathPicker::Request(DefaultAllocator(), kDir, {}, {}, skipBold);
+    REQUIRE(skipped.Items.Size() == 3u);
+    for (const PickerItem& item : skipped.Items)
+        CHECK_FALSE(item.Key.AsView().StartsWith(u8"Fonts/Bold"));
 }
 
 TEST_CASE("picker: under the editor's sheet its list fits its frame (a list wider than the dialog ran its rows past the edge)")

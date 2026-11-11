@@ -1084,3 +1084,19 @@ TEST_CASE("project: discovery lists the packages in Plugins/ and the linked plug
     project.Reset();
     (void)RemoveDirectoryRecursive(dir);
 }
+
+TEST_CASE("project: the folders the editor, a cook and an export write are its outputs")
+{
+    const StringView outputs[] = {u8"Cooked", u8"Cooked-android", u8"Cooked-web-bc", u8"Editor", u8".cache", u8"Dist"};
+    for (const StringView name : outputs)
+    {
+        CAPTURE(name);
+        CHECK(engine::project::IsProjectOutputFolder(name));
+    }
+    const StringView owned[] = {u8"Content", u8"Sources", u8"Plugins", u8"Branding", u8"Cookbook"};
+    for (const StringView name : owned)
+    {
+        CAPTURE(name);
+        CHECK_FALSE(engine::project::IsProjectOutputFolder(name));
+    }
+}

@@ -29,6 +29,7 @@
 #include "Core/Reflection/Reflect.h"
 
 import foundation.core;
+import engine.project; // kProjectDistDir: where exports go
 import foundation.animation;
 import foundation.particles;
 import foundation.vfs;
@@ -393,7 +394,7 @@ int main(int argc, char** argv)
     BuildRegistry(registry, TemplatesRoot().AsView(), ToolDir().AsView());
 
     const String outRoot =
-        (outArg != nullptr) ? String(Sv(outArg)) : PathJoin(project->Directory(), u8"Dist");
+        (outArg != nullptr) ? String(Sv(outArg)) : PathJoin(project->Directory(), engine::project::kProjectDistDir);
 
     const editor::SceneReferenceScanner scanner =
         [](foundation::content::Instance& instance, foundation::content::ContentDatabase& db,
