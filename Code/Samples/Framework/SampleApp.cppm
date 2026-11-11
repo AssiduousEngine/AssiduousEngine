@@ -27,7 +27,7 @@ import foundation.rhi.webgpu;
 #endif
 import foundation.rhi.validation;
 import foundation.shell;
-import foundation.shell.desktop;
+import foundation.shell.sdl3;
 import foundation.vfs; // ResolveDataRoot and the NativeFileSystem mounted over the data root
 import foundation.rhi.capture; // ScreenshotCapture and the --screenshot flags
 import foundation.image;       // Image (the written screenshot)

@@ -4,7 +4,7 @@
 # builds on Vulkan (Linux) or DX12 (Windows) alike.
 
 if(NOT ((TARGET Foundation::RHI.Vulkan OR TARGET Foundation::RHI.DX12 OR TARGET Foundation::RHI.WebGPU)
-        AND TARGET Foundation::Shell.Desktop AND TARGET Foundation::Runtime.Desktop AND TARGET Foundation::Shaders))
+        AND TARGET Foundation::Shell.SDL3 AND TARGET Foundation::Runtime.Desktop AND TARGET Foundation::Shaders))
     message(STATUS "Skipping Samples::Framework - needs a GPU backend + Desktop shell + Shaders")
     return()
 endif()
@@ -17,7 +17,7 @@ target_link_libraries(SamplesFramework PUBLIC
     Foundation::RHI.Validation
     Foundation::RHI.Capture
     Foundation::Shell
-    Foundation::Shell.Desktop Foundation::Runtime.Desktop
+    Foundation::Shell.SDL3 Foundation::Runtime.Desktop
     Foundation::Shaders
     Foundation::Policy)
 

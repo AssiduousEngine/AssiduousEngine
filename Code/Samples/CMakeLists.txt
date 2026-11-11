@@ -11,7 +11,7 @@ add_subdirectory(NetEcho)
 
 # The windowed samples present through a GraphicsDevice, so they need the desktop
 # shell and the GPU factory.
-if(TARGET Foundation::Shell.Desktop AND TARGET Foundation::Runtime.Desktop AND TARGET Foundation::Graphics.Gpu)
+if(TARGET Foundation::Shell.SDL3 AND TARGET Foundation::Runtime.Desktop AND TARGET Foundation::Graphics.Gpu)
     add_subdirectory(HelloWindow)
     add_subdirectory(ScriptPlayground)   # script consumer proof (Mover/Spinner behaviors on the ScriptSubsystem)
     add_subdirectory(MultiWindow)

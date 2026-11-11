@@ -21,7 +21,7 @@ import foundation.rhi;
 import foundation.runtime;
 import foundation.runtime.client;
 import foundation.shell;
-import foundation.shell.desktop;   // CreateShell, required by APP_MAIN's desktop body
+import foundation.shell.sdl3;   // CreateShell, required by APP_MAIN's desktop body
 import foundation.runtime.desktop; // RunApplication (the blocking runner), required by APP_MAIN
 import foundation.graphics;
 import foundation.graphics.gpu;

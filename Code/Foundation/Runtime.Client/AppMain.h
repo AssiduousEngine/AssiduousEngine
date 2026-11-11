@@ -7,7 +7,7 @@
 // main translation unit, which must import:
 //   - foundation.runtime.client          (IApplication)
 //   - foundation.runtime.desktop         (RunApplication, the desktop runner)
-//   - foundation.shell.desktop           (CreateShell)
+//   - foundation.shell.sdl3           (CreateShell)
 //   - foundation.graphics + foundation.graphics.gpu (the GPU device)
 // The entry point creates the shell window, a GraphicsDevice (so the window
 // actually presents; without one the window never becomes visible on Wayland),
@@ -17,7 +17,7 @@
 //
 //   import foundation.runtime.client;
 //   import foundation.runtime.desktop;
-//   import foundation.shell.desktop;
+//   import foundation.shell.sdl3;
 //   import foundation.graphics;
 //   import foundation.graphics.gpu;
 //   #include "Runtime.Client/AppMain.h"

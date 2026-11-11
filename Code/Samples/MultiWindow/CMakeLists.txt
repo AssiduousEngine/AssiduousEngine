@@ -9,7 +9,7 @@ target_link_libraries(MultiWindow PRIVATE
     Foundation::Runtime
     Foundation::Runtime.Client
     Foundation::Shell
-    Foundation::Shell.Desktop Foundation::Runtime.Desktop
+    Foundation::Shell.SDL3 Foundation::Runtime.Desktop
     Foundation::Graphics
     Foundation::Graphics.Gpu
     Foundation::Policy)

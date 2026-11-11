@@ -114,7 +114,7 @@ else()
     target_link_libraries(Engine.Player.Main PRIVATE
         Foundation::Core
         Foundation::Runtime Foundation::Runtime.Client Foundation::Runtime.Desktop Engine::DefaultApp
-        Foundation::Shell.Desktop Foundation::Shell Foundation::Graphics Foundation::Graphics.Gpu
+        Foundation::Shell.SDL3 Foundation::Shell Foundation::Graphics Foundation::Graphics.Gpu
         Engine::Scene Foundation::Scene.Resource
         Engine::Render Engine::Animation Engine::Particles
         Foundation::Resource Foundation::Geometry.Resource Foundation::Materials.Resource Foundation::Texture.Resource

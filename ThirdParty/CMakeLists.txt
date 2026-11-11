@@ -9,18 +9,18 @@
 # Emscripten - the browser shell replaces SDL there.
 #
 # ENGINE_SDL_TARGET (the link target for the desktop shell + its consumers) is exported to the root
-# scope here; empty means no SDL, so the root skips Foundation::Shell.Desktop.
+# scope here; empty means no SDL, so the root skips Foundation::Shell.SDL3.
 option(ENGINE_SYSTEM_SDL "Use a system SDL3 (find_package) instead of the vendored static build" OFF)
 # Clear the cached choice first: a re-configure that flips ENGINE_SYSTEM_SDL (or loses the
 # vendored tree) must not leave a stale SDL3::SDL3-static in the cache - the root would then
-# add Shell.Desktop against a target that no longer exists (a confusing generate-time error
+# add Shell.SDL3 against a target that no longer exists (a confusing generate-time error
 # instead of the intended clean skip).
 unset(ENGINE_SDL_TARGET CACHE)
 if(NOT EMSCRIPTEN)
     if(NOT ENGINE_SYSTEM_SDL AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/SDL3/CMakeLists.txt)
         # SDL follows the engine's library type, for the same reason AngelScript does
-        # (below): MORE THAN ONE target links it - Foundation::Shell.Desktop and, so it can
-        # push synthetic events, Shell.Desktop.Tests. A static archive embedded in both a DLL
+        # (below): MORE THAN ONE target links it - Foundation::Shell.SDL3 and, so it can
+        # push synthetic events, Shell.SDL3.Tests. A static archive embedded in both a DLL
         # and the exe is TWO SDL runtimes with two event queues, so events pushed by one are
         # invisible to the other. A static engine link dedups and never sees this; ELF
         # interposition unifies the duplicate symbols and hides it on Linux; PE has neither,

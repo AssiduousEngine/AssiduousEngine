@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Shell - foundation.shell.desktop implementation unit.
+// Shell - foundation.shell.sdl3 implementation unit.
 //
 // Out-of-line definitions for the SDL3 backend classes: all the SDL_* call sites live here.
 // SDL3Shell.cppm keeps the class declarations (which reference SDL handle types) and trivial
@@ -15,7 +15,7 @@ module;
 #define SDL_MAIN_HANDLED
 #include <SDL3/SDL_main.h>
 
-module foundation.shell.desktop;
+module foundation.shell.sdl3;
 
 import foundation.core;
 import foundation.shell;

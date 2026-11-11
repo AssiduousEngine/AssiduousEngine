@@ -24,7 +24,7 @@ import foundation.runtime;
 import foundation.runtime.client;
 import foundation.shell;
 import foundation.runtime.desktop;
-import foundation.shell.desktop;
+import foundation.shell.sdl3;
 import foundation.graphics;
 import foundation.vfs; // DataRootFromArguments (--data-root)
 import foundation.graphics.gpu;

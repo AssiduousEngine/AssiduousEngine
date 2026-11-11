@@ -1,7 +1,7 @@
 add_executable(Smoketest Main.cpp)
 target_link_libraries(Smoketest PRIVATE
     Foundation::RHI.Null Foundation::RHI.Validation Foundation::Shaders
-    Foundation::Shell.Desktop Foundation::Runtime.Desktop Foundation::Core Foundation::Policy)
+    Foundation::Shell.SDL3 Foundation::Runtime.Desktop Foundation::Core Foundation::Policy)
 target_compile_definitions(Smoketest PRIVATE OPTION_HAS_SHADERS)
 
 # Vulkan backend: present on Linux; its section (see Main.cpp) compiles out without it.

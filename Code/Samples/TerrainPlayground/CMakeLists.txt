@@ -82,7 +82,7 @@ else()
     add_executable(TerrainPlayground Main.cpp)
     target_link_libraries(TerrainPlayground PRIVATE
         ${_terrain_common_libs}
-        Foundation::Shell.Desktop
+        Foundation::Shell.SDL3
         Foundation::Runtime.Desktop)
     util_copy_sdl3_dll(TerrainPlayground)
 

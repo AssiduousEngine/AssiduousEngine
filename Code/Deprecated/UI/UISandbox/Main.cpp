@@ -31,7 +31,7 @@ import foundation.vfs;
 import foundation.runtime;
 import foundation.runtime.client;
 import foundation.runtime.desktop;
-import foundation.shell.desktop;
+import foundation.shell.sdl3;
 import foundation.graphics;
 import foundation.graphics.gpu;
 import foundation.ui.runtime;

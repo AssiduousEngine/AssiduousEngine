@@ -23,7 +23,7 @@ import foundation.runtime.client;
 import engine.defaultapp;
 import foundation.shell;
 import foundation.runtime.desktop;
-import foundation.shell.desktop;
+import foundation.shell.sdl3;
 import foundation.graphics;
 import foundation.graphics.gpu;
 import foundation.scene;

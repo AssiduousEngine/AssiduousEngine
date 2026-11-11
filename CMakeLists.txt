@@ -158,7 +158,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Plugins.cmake) # util_add_plugin: plug
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/ThirdPartyNotices.cmake)
 
 # Add a module's sibling doctest suite, but only when the module target was built, so the web
-# subset and platform-gated backends (Shell.Desktop, ...) skip cleanly and a test never outlives
+# subset and platform-gated backends (Shell.SDL3, ...) skip cleanly and a test never outlives
 # its module. The call sites are wrapped once in if(OPTION_BUILD_TESTS).
 macro(util_test_suite dir target)
     if(TARGET ${target})
@@ -538,9 +538,9 @@ else()
     # SDL3 is resolved in ThirdParty (vendored and static by default; ENGINE_SDL_TARGET set there,
     # SDL3::SDL3-static or system SDL3::SDL3). Consumers link ${ENGINE_SDL_TARGET}.
     if(ENGINE_SDL_TARGET)
-        add_subdirectory(Code/Foundation/Shell.Desktop)
+        add_subdirectory(Code/Foundation/Shell.SDL3)
     else()
-        message(STATUS "SDL3 unavailable - skipping Foundation::Shell.Desktop")
+        message(STATUS "SDL3 unavailable - skipping Foundation::Shell.SDL3")
     endif()
 endif()
 add_subdirectory(Code/Foundation/Input)     # action-mapping layer (InputMap, ActionRuntime, the asset and its cooked form) over Core and Shell
@@ -865,7 +865,7 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Foundation/Shaders.Resource.Tests          Foundation::Shaders.Resource)
     util_test_suite(Code/Foundation/Shaders.System.Tests            Foundation::Shaders.System)
     util_test_suite(Code/Foundation/Shaders.Tests                   Foundation::Shaders)
-    util_test_suite(Code/Foundation/Shell.Desktop.Tests             Foundation::Shell.Desktop)
+    util_test_suite(Code/Foundation/Shell.SDL3.Tests             Foundation::Shell.SDL3)
     util_test_suite(Code/Foundation/Shell.Null.Tests                Foundation::Shell.Null)
     util_test_suite(Code/Foundation/Texture.Resource.Tests          Foundation::Texture.Resource)
     util_test_suite(Code/Foundation/Fonts.Resource.Tests            Foundation::Fonts.Resource)

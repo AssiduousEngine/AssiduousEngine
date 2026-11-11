@@ -17,7 +17,7 @@ import foundation.rhi.vulkan;
 import foundation.rhi.null;
 import foundation.rhi.validation;
 import foundation.shell;
-import foundation.shell.desktop;
+import foundation.shell.sdl3;
 #ifdef OPTION_HAS_SHADERS
 import foundation.shaders;
 #endif

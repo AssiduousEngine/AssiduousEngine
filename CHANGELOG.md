@@ -23,6 +23,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- Native code: the SDL3 shell is `Shell.SDL3` (module `foundation.shell.sdl3`, target
+  `Foundation::Shell.SDL3`); it was `Shell.Desktop`, but it is Android's shell too.
 - GUI: a command every handler passes on (`Propagate`: not mine) is unhandled: `runCommand`
   returns false for it, and its key goes on as an unbound key does, where before any handler on
   the path took the key. A screen stack passes on a Back it pops nothing with.

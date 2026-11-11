@@ -19,7 +19,7 @@ util_link_plugins(Tools.Editor ROLE editor PLUGINS ${UTIL_HOST_PLUGINS}) # what 
 # The editor's libraries, each Editor:: page library among them.
 target_link_libraries(Tools.Editor PRIVATE
     Foundation::Core
-    Foundation::Runtime Foundation::Runtime.Client Foundation::Runtime.Desktop Foundation::Shell.Desktop
+    Foundation::Runtime Foundation::Runtime.Client Foundation::Runtime.Desktop Foundation::Shell.SDL3
     Foundation::Shell Foundation::Graphics Foundation::Graphics.Gpu
     Engine::Scene Engine::Render Engine::Animation Engine::Particles
     Engine::Composition # RegisterAllScriptFacades: the complete engine facade surface the cook

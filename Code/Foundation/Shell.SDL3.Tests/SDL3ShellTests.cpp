@@ -14,7 +14,7 @@ import foundation.runtime;
 import foundation.shell;
 import foundation.runtime.client;
 import foundation.runtime.desktop; // RunApplication (the desktop runner)
-import foundation.shell.desktop;
+import foundation.shell.sdl3;
 
 using namespace foundation::core;
 using namespace foundation::runtime;
@@ -52,7 +52,7 @@ namespace
     };
 }
 
-TEST_CASE("shell.desktop: SDL3 shell creates a window and reports state")
+TEST_CASE("shell.sdl3: SDL3 shell creates a window and reports state")
 {
     WindowSettings settings;
     settings.title = u8"Shell Test";
@@ -85,7 +85,7 @@ TEST_CASE("shell.desktop: SDL3 shell creates a window and reports state")
     CHECK(shell.IsRunning());
 }
 
-TEST_CASE("shell.desktop: a window-close event stops the shell")
+TEST_CASE("shell.sdl3: a window-close event stops the shell")
 {
     SDL3Shell shell(DefaultAllocator());
     if (shell.MainWindow() == nullptr)
@@ -108,7 +108,7 @@ TEST_CASE("shell.desktop: a window-close event stops the shell")
 
 // On Wayland a window's new state takes effect only with the app's next frame; an app that skips
 // idle frames hears that one is wanted (otherwise a window left idle takes no pointer until resized).
-TEST_CASE("shell.desktop: an exposed window asks for a frame")
+TEST_CASE("shell.sdl3: an exposed window asks for a frame")
 {
     SDL3Shell shell(DefaultAllocator());
     if (shell.MainWindow() == nullptr)
@@ -130,7 +130,7 @@ TEST_CASE("shell.desktop: an exposed window asks for a frame")
     CHECK(exposed);
 }
 
-TEST_CASE("shell.desktop: a finger the platform takes back, and a trackpad's pinch, reach the input events")
+TEST_CASE("shell.sdl3: a finger the platform takes back, and a trackpad's pinch, reach the input events")
 {
     SDL3Shell shell(DefaultAllocator());
     if (shell.MainWindow() == nullptr)
@@ -182,7 +182,7 @@ TEST_CASE("shell.desktop: a finger the platform takes back, and a trackpad's pin
     CHECK(shell.Input()->Touch()->TouchCount() == 0); // the cancelled finger is gone
 }
 
-TEST_CASE("shell.desktop: keyboard events drive double-buffered key state")
+TEST_CASE("shell.sdl3: keyboard events drive double-buffered key state")
 {
     SDL3Shell shell(DefaultAllocator());
     if (shell.MainWindow() == nullptr)
@@ -228,7 +228,7 @@ TEST_CASE("shell.desktop: keyboard events drive double-buffered key state")
     CHECK(kb->IsKeyReleased(KeyCode::A));
 }
 
-TEST_CASE("shell.desktop: a window nothing covers is all safe area, in its pixels")
+TEST_CASE("shell.sdl3: a window nothing covers is all safe area, in its pixels")
 {
     SDL3Shell shell(DefaultAllocator());
     if (shell.MainWindow() == nullptr)
@@ -243,7 +243,7 @@ TEST_CASE("shell.desktop: a window nothing covers is all safe area, in its pixel
     CHECK(safe.height == static_cast<f32>(window.PixelHeight()));
 }
 
-TEST_CASE("shell.desktop: a phone's back button is the Back key")
+TEST_CASE("shell.sdl3: a phone's back button is the Back key")
 {
     SDL3Shell shell(DefaultAllocator());
     if (shell.MainWindow() == nullptr)
@@ -260,7 +260,7 @@ TEST_CASE("shell.desktop: a phone's back button is the Back key")
     CHECK(shell.Input()->Keyboard()->IsKeyDown(KeyCode::Back));
 }
 
-TEST_CASE("shell.desktop: mouse motion and buttons are tracked")
+TEST_CASE("shell.sdl3: mouse motion and buttons are tracked")
 {
     SDL3Shell shell(DefaultAllocator());
     if (shell.MainWindow() == nullptr)
@@ -306,7 +306,7 @@ TEST_CASE("shell.desktop: mouse motion and buttons are tracked")
     CHECK_FALSE(mouse->IsButtonPressed(MouseButton::Left));
 }
 
-TEST_CASE("shell.desktop: a click or a tap whose press and release share a frame reads as both")
+TEST_CASE("shell.sdl3: a click or a tap whose press and release share a frame reads as both")
 {
     SDL3Shell shell(DefaultAllocator());
     if (shell.MainWindow() == nullptr)
@@ -357,7 +357,7 @@ TEST_CASE("shell.desktop: a click or a tap whose press and release share a frame
     CHECK_FALSE(kb->IsKeyPressed(KeyCode::A));
 }
 
-TEST_CASE("shell.desktop: cursor state is settable")
+TEST_CASE("shell.sdl3: cursor state is settable")
 {
     SDL3Shell shell(DefaultAllocator());
     if (shell.MainWindow() == nullptr)
@@ -383,7 +383,7 @@ TEST_CASE("shell.desktop: cursor state is settable")
     mouse->SetCursor(CursorType::Default);
 }
 
-TEST_CASE("shell.desktop: input exposes a gamepad list")
+TEST_CASE("shell.sdl3: input exposes a gamepad list")
 {
     SDL3Shell shell(DefaultAllocator());
     if (shell.MainWindow() == nullptr)
@@ -398,7 +398,7 @@ TEST_CASE("shell.desktop: input exposes a gamepad list")
     CHECK(input->GetGamepad(0) == nullptr);
 }
 
-TEST_CASE("shell.desktop: RequestExit stops the shell")
+TEST_CASE("shell.sdl3: RequestExit stops the shell")
 {
     SDL3Shell shell(DefaultAllocator());
     if (shell.MainWindow() == nullptr)
@@ -412,7 +412,7 @@ TEST_CASE("shell.desktop: RequestExit stops the shell")
 
 // A phone takes the app out of view and gives it back: the shell answers as SDL raises the events
 // (its event watch), before the next pump, and says where the app is between them.
-TEST_CASE("shell.desktop: going to the background and back is answered as SDL raises it")
+TEST_CASE("shell.sdl3: going to the background and back is answered as SDL raises it")
 {
     SDL3Shell shell(DefaultAllocator());
     if (shell.MainWindow() == nullptr)
@@ -447,7 +447,7 @@ TEST_CASE("shell.desktop: going to the background and back is answered as SDL ra
     CHECK(shell.IsRunning());
 }
 
-TEST_CASE("shell.desktop: RunApplication drives the app until it exits")
+TEST_CASE("shell.sdl3: RunApplication drives the app until it exits")
 {
     SDL3Shell shell(DefaultAllocator());
     if (shell.MainWindow() == nullptr)
@@ -462,7 +462,7 @@ TEST_CASE("shell.desktop: RunApplication drives the app until it exits")
     CHECK(app.frames == 5); // RequestExit(3) ended the loop
 }
 
-TEST_CASE("shell.desktop: window geometry accessors + global mouse are callable")
+TEST_CASE("shell.sdl3: window geometry accessors + global mouse are callable")
 {
     WindowSettings settings;
     settings.width = 500;
@@ -500,7 +500,7 @@ TEST_CASE("shell.desktop: window geometry accessors + global mouse are callable"
     (void)mouse->GlobalY();
 }
 
-TEST_CASE("shell.desktop: keypad and function scancodes map (KP_ENTER was silently Unknown)")
+TEST_CASE("shell.sdl3: keypad and function scancodes map (KP_ENTER was silently Unknown)")
 {
     SDL3Shell shell(DefaultAllocator());
     if (shell.MainWindow() == nullptr)
@@ -546,7 +546,7 @@ TEST_CASE("shell.desktop: keypad and function scancodes map (KP_ENTER was silent
     }
 }
 
-TEST_CASE("shell.desktop: the screens are read, one of them primary; a moved window is reported; a raise is safe; a title is set")
+TEST_CASE("shell.sdl3: the screens are read, one of them primary; a moved window is reported; a raise is safe; a title is set")
 {
     SDL3Shell shell(DefaultAllocator());
     if (shell.MainWindow() == nullptr)
@@ -601,7 +601,7 @@ TEST_CASE("shell.desktop: the screens are read, one of them primary; a moved win
 
 // SDL's mouse events carry no modifiers: the shell gives each the ones held, so a Shift+click, a
 // Shift drag and a Ctrl+wheel reach a GUI as such.
-TEST_CASE("shell.desktop: a mouse event carries the modifiers held")
+TEST_CASE("shell.sdl3: a mouse event carries the modifiers held")
 {
     SDL3Shell shell(DefaultAllocator());
     if (shell.MainWindow() == nullptr)

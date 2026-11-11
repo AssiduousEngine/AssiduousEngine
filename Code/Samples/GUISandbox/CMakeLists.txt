@@ -4,7 +4,7 @@ add_executable(GUISandbox Main.cpp ReflectedCameraImpl.cpp MockTypesImpl.cpp)
 target_sources(GUISandbox PRIVATE FILE_SET sandbox_modules TYPE CXX_MODULES FILES StressPage.cppm LampSource.cppm ReflectedCamera.cppm CodePage.cppm MockTypes.cppm EditorMock.cppm) # the Stress page, the Toolkit page's lamps and camera, the Code page, the editor mock
 target_link_libraries(GUISandbox PRIVATE
     Foundation::Core Foundation::RHI Foundation::VFS
-    Foundation::Runtime Foundation::Runtime.Client Foundation::Runtime.Desktop Foundation::Shell.Desktop
+    Foundation::Runtime Foundation::Runtime.Client Foundation::Runtime.Desktop Foundation::Shell.SDL3
     Foundation::Graphics Foundation::Graphics.Gpu
     Foundation::Shell Foundation::Image Foundation::Image.IO Foundation::Fonts Foundation::Fonts.TrueType Foundation::Fonts.Bidi Foundation::Fonts.HarfBuzz Foundation::Xml.Serialization Foundation::Fonts.DistanceField.Baker
     Foundation::VG Foundation::VG.Renderer Foundation::GUI Foundation::GUI.Shell Foundation::GUI.Inspector Foundation::GUI.Testing Foundation::GUI.Hosting Foundation::GUI.Viewport Foundation::GUI.Docking Foundation::GUI.Toolkit Foundation::GUI.Code Foundation::GUI.Gamekit Foundation::Input Foundation::Shaders Foundation::RHI.Capture

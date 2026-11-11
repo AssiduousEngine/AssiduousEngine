@@ -8,7 +8,7 @@
 // event-driven: the callbacks fire asynchronously between animation frames, so they enqueue raw
 // events. WebInputManager::Update() (called once per frame from the shell's ProcessEvents) drains
 // the queue after snapshotting the previous frame's state, which keeps IsKeyPressed/Released
-// ("went down/up this frame") correct, the same model the SDL3 desktop shell uses (BeginFrame,
+// ("went down/up this frame") correct, the same model the SDL3 shell uses (BeginFrame,
 // then apply the frame's events). Gamepads are poll-based (the browser Gamepad API): Update()
 // samples every connected pad each frame.
 

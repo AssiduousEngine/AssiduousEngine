@@ -30,7 +30,7 @@
 
 import foundation.core;
 import foundation.shell;
-import foundation.shell.desktop;
+import foundation.shell.sdl3;
 import foundation.graphics;
 import foundation.graphics.gpu;
 import foundation.runtime;

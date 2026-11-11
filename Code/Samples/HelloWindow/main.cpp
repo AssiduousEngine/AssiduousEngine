@@ -14,7 +14,7 @@ import foundation.runtime;
 import foundation.runtime.client;
 import foundation.shell;
 import foundation.runtime.desktop;
-import foundation.shell.desktop;
+import foundation.shell.sdl3;
 import foundation.graphics; // GraphicsDevice and FrameContext (APP_MAIN sets up the device)
 import foundation.graphics.gpu; // CreateGraphicsDevice
 

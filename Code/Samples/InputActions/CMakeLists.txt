@@ -7,7 +7,7 @@ target_link_libraries(InputActions PRIVATE
     Foundation::Runtime
     Foundation::Runtime.Client
     Engine::Project
-    Foundation::Shell.Desktop Foundation::Runtime.Desktop
+    Foundation::Shell.SDL3 Foundation::Runtime.Desktop
     Foundation::Graphics
     Foundation::Graphics.Gpu
     Foundation::Input Engine::Input

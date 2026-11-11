@@ -88,7 +88,7 @@ else()
     add_executable(WebScene Main.cpp)
     target_link_libraries(WebScene PRIVATE
         ${_webscene_common_libs}
-        Foundation::Shell.Desktop
+        Foundation::Shell.SDL3
         Foundation::Runtime.Desktop)
     if(OPTION_PLUGIN_IMGUI)
         util_link_plugins(WebScene ROLE player PLUGINS imgui) # Dear ImGui, loaded as a plugin

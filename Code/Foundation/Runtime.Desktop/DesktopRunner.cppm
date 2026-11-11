@@ -5,7 +5,7 @@
 //
 // RunApplication is the desktop execution model: a blocking wall-clock loop that drives an
 // IApplication (via ApplicationHost) against an IShell until either stops. It lives here,
-// separate from the shell backend (foundation.shell.desktop) and from the execution-model-agnostic
+// separate from the shell backend (foundation.shell.sdl3) and from the execution-model-agnostic
 // client (foundation.runtime.client), because the loop is execution-model-specific:
 // desktop blocks in a while-loop, whereas Emscripten must yield to the browser via a callback
 // (foundation.runtime.web, this module's sibling). The loop works entirely through the abstract IShell

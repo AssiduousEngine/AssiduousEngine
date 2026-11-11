@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Foundation::Shell.Desktop - the `foundation.shell.desktop` module.
+// Foundation::Shell.SDL3 - the `foundation.shell.sdl3` module.
 //
-// The desktop shell target (Windows, Linux, macOS), implemented on SDL3:
+// The SDL3 shell (Windows, Linux, macOS and Android), implemented on SDL3:
 // SDL3Shell covers Wayland, X11, Win32, and Cocoa in one backend, plus input,
 // clipboard, and Vulkan-surface creation for RHI. SDL is linked dynamically
 // (system or prebuilt) and bundled for distribution. We own the entry point
@@ -24,9 +24,9 @@ module;
 #include <cstdint>
 #define SDL_MAIN_HANDLED
 
-#include "Shell.Desktop/SdlForward.h" // opaque SDL_Window/Cursor/Gamepad (interface uses pointers only)
+#include "Shell.SDL3/SdlForward.h" // opaque SDL_Window/Cursor/Gamepad (interface uses pointers only)
 
-export module foundation.shell.desktop;
+export module foundation.shell.sdl3;
 
 import foundation.core;
 import foundation.shell;

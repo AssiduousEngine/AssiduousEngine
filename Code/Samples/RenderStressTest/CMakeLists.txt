@@ -8,7 +8,7 @@ target_link_libraries(RenderStressTest PRIVATE Foundation::VFS
     Foundation::Core
     Foundation::Runtime
     Foundation::Runtime.Client
-    Foundation::Shell.Desktop Foundation::Runtime.Desktop
+    Foundation::Shell.SDL3 Foundation::Runtime.Desktop
     Foundation::Graphics
     Foundation::Graphics.Gpu
     Engine::DefaultApp

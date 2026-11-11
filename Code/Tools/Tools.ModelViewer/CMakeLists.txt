@@ -7,7 +7,7 @@ add_executable(Tools.ModelViewer Main.cpp)
 target_sources(Tools.ModelViewer PRIVATE FILE_SET viewer_modules TYPE CXX_MODULES FILES ThumbnailRenderer.cppm PreferencesDialog.cppm)
 target_link_libraries(Tools.ModelViewer PRIVATE
     Foundation::Core Foundation::Runtime Foundation::Runtime.Client Foundation::Runtime.Desktop
-    Foundation::Shell Foundation::Shell.Desktop Foundation::Graphics Foundation::Graphics.Gpu
+    Foundation::Shell Foundation::Shell.SDL3 Foundation::Graphics Foundation::Graphics.Gpu
     Foundation::RHI Foundation::VFS Foundation::Image
     Foundation::Fonts Foundation::Fonts.TrueType Foundation::Fonts.HarfBuzz Foundation::Fonts.Bidi
     Foundation::GUI Foundation::GUI.Hosting Foundation::GUI.Toolkit Foundation::GUI.VFS
