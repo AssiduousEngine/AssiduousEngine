@@ -109,7 +109,9 @@ export namespace foundation::gui
                 EditLayoutStyle([](LayoutStyle& s) { s.Kind = Display::Stack; }); // each screen fills it
             }
             ScreenStack* self = this;
-            (void)OnCommand(core::StringView(kBackCommand), [self](CommandEvent&) { (void)self->Back(); });
+            // A Back that pops nothing (the last screen, or one that keeps its back) is passed on, so
+            // what is above can handle it; when nothing does, the key is unhandled (a phone's platform takes it).
+            (void)OnCommand(core::StringView(kBackCommand), [self](CommandEvent& e) { e.Propagate = !self->Back(); });
         }
 
         /// A screen that markup (or code) adds as a child is pushed, in order, so a `<Screens>`

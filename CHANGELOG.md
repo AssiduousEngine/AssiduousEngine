@@ -22,6 +22,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- GUI: a command every handler passes on (`Propagate`: not mine) is unhandled: `runCommand`
+  returns false for it, and its key goes on as an unbound key does, where before any handler on
+  the path took the key. A screen stack passes on a Back it pops nothing with.
 - Projects: a new project starts with 4x MSAA (it was off), and the sample games have it on.
 - Downloads: the editor's archive is named `Assiduous-Editor-<version>-<platform>` (it was
   `Editor-...`), so a download says what it is.

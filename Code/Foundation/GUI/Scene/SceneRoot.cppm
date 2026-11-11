@@ -507,7 +507,8 @@ export namespace foundation::gui
         /// Runs command `id` along this root's focus path (just the root when nothing here is
         /// focused): capture handlers from the root down, then bubble handlers from the focused
         /// widget up. The first bubble handler stops it unless it sets Propagate. Returns false
-        /// when the command is disabled or nothing handled it.
+        /// when the command is disabled or nothing handled it: no capture handler stopped it, and
+        /// every bubble handler that ran passed it on (Propagate: not mine).
         bool RunCommand(core::StringView id)
         {
             if (const Command* command = m_context->GetCommands().Find(id); command != nullptr && !Untracked([&] { return command->IsEnabled(); }))
@@ -526,11 +527,10 @@ export namespace foundation::gui
                 if (n->IsRouteStop())
                     break;
             }
-            bool ran = false;
             CommandEvent event{id, CommandPhase::Capture, false, false};
             for (usize i = path.Size(); i-- > 0;)
             {
-                ran |= path[i]->RunCommandHandlers(event);
+                (void)path[i]->RunCommandHandlers(event);
                 if (event.Stop)
                     return true; // a capture handler took it (a modal wrapper, a mode that owns the key)
             }
@@ -538,14 +538,10 @@ export namespace foundation::gui
             for (const RefPtr<Node>& n : path)
             {
                 event.Propagate = false;
-                if (n->RunCommandHandlers(event))
-                {
-                    ran = true;
-                    if (!event.Propagate)
-                        break;
-                }
+                if (n->RunCommandHandlers(event) && !event.Propagate)
+                    return true; // this one took it
             }
-            return ran;
+            return false; // every handler passed it on, or none ran
         }
 
         /// Whether command `id` is enabled and a handler for it is on this root's focus path. A
@@ -640,8 +636,12 @@ export namespace foundation::gui
             }
             if (!handled)
                 return false;
-            (void)RunCommand(command.AsView());
-            return true;
+            // A disabled command that has a handler still takes the key. An enabled one takes it
+            // when a handler took the command; when every handler passed it on, the key goes on as
+            // an unbound one does.
+            const Command* found = m_context->GetCommands().Find(command.AsView());
+            const bool disabled = found != nullptr && !found->IsEnabled();
+            return RunCommand(command.AsView()) || disabled;
         }
 
         /// Sets the device pixels per logical unit: the window's content scale times a UI scale.

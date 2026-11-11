@@ -157,6 +157,9 @@ TEST_CASE("screens: back pops the top, never the last, not one that keeps it, no
     bed.Frame();
     bed.Escape();
     CHECK(bed.stack->Count() == 1u); // the last stays
+    // And nothing took the back it did not use: a key routed to it is not taken (a phone's
+    // platform takes it then).
+    CHECK_FALSE(bed.root->RunCommand(core::StringView(kBackCommand)));
     (void)bed.stack->Push(*options);
     bed.Escape(); // the frame that pushed it
     CHECK(bed.stack->Count() == 2u);

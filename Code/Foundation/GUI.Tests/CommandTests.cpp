@@ -54,6 +54,11 @@ TEST_CASE("command: running walks the focus path, capture down then bubble up")
     CHECK(root->RunCommand(SV(u8"open")));
     CHECK(reachedRoot);
 
+    // When every handler passes it on (each says: not mine), nothing took it.
+    (void)field->OnCommand(SV(u8"undo"), [](CommandEvent& e) { e.Propagate = true; });
+    (void)root->OnCommand(SV(u8"undo"), [](CommandEvent& e) { e.Propagate = true; });
+    CHECK_FALSE(root->RunCommand(SV(u8"undo")));
+
     // A disabled command does not run, and an unhandled one reports that it was not handled.
     root->GetContext().DefineCommand(SV(u8"save")).SetEnabled(false);
     order.Clear();
