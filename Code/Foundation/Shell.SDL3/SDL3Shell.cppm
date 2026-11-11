@@ -130,6 +130,11 @@ export namespace foundation::shell
         [[nodiscard]] core::Span<const WindowEvent> Events() const noexcept override;
         [[nodiscard]] core::Span<const Screen> Screens() const noexcept override;
         [[nodiscard]] WindowCapabilities Capabilities() const noexcept override;
+        /// What windows can do under SDL's video `driver` (its name, SDL_GetCurrentVideoDriver;
+        /// null for none): any number, placed by the application and the global pointer read,
+        /// except on Wayland, where a client places nothing (the compositor does), and on Android,
+        /// which gives an app one window, the activity's, that the system sizes and places.
+        [[nodiscard]] static WindowCapabilities CapabilitiesFor(const char* driver) noexcept;
 
         void FlushDestroyed() override;
 

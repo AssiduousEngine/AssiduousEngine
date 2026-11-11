@@ -637,3 +637,25 @@ TEST_CASE("shell.sdl3: a mouse event carries the modifiers held")
     }
     CHECK(carried == 3);
 }
+
+// What windows can do by SDL's video driver: as many as wanted, placed by the application, on a
+// desktop's X11 or Windows; none placed on Wayland, where the compositor places them; one, placed
+// by the system, on Android, where an app has the activity's window alone.
+TEST_CASE("sdl3 shell: window capabilities by video driver")
+{
+    const WindowCapabilities x11 = SDL3WindowManager::CapabilitiesFor("x11");
+    CHECK(x11.multipleWindows);
+    CHECK(x11.placesWindows);
+    const WindowCapabilities windows = SDL3WindowManager::CapabilitiesFor("windows");
+    CHECK(windows.multipleWindows);
+    CHECK(windows.placesWindows);
+    const WindowCapabilities wayland = SDL3WindowManager::CapabilitiesFor("wayland");
+    CHECK(wayland.multipleWindows);
+    CHECK_FALSE(wayland.placesWindows);
+    const WindowCapabilities android = SDL3WindowManager::CapabilitiesFor("android");
+    CHECK_FALSE(android.multipleWindows);
+    CHECK_FALSE(android.placesWindows);
+    const WindowCapabilities none = SDL3WindowManager::CapabilitiesFor(nullptr);
+    CHECK(none.multipleWindows);
+    CHECK(none.placesWindows);
+}

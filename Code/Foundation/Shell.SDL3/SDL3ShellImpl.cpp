@@ -530,10 +530,11 @@ namespace foundation::shell
 
     WindowCapabilities SDL3WindowManager::Capabilities() const noexcept
     {
-        // Any number of windows; placed by the application, and the global pointer read, except
-        // on Wayland, where a client does neither (the compositor places windows). Android gives
-        // an app one window, the activity's, which the system sizes and places.
-        const char* driver = SDL_GetCurrentVideoDriver();
+        return CapabilitiesFor(SDL_GetCurrentVideoDriver());
+    }
+
+    WindowCapabilities SDL3WindowManager::CapabilitiesFor(const char* driver) noexcept
+    {
         const bool wayland = driver != nullptr && SDL_strcmp(driver, "wayland") == 0;
         const bool android = driver != nullptr && SDL_strcmp(driver, "android") == 0;
         return WindowCapabilities{!android, !wayland && !android};
