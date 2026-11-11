@@ -195,7 +195,12 @@ export namespace foundation::rhi::vk
         VkSurfaceCapabilitiesKHR caps{};
         vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physDevice, m_surface, &caps);
 
-        if (caps.currentExtent.width != ~0u)
+        // The size asked (the window's pixels), within what the surface allows. Most surfaces allow
+        // only their current extent, so it decides; Android allows a range and scales the images to
+        // the window, and its current extent lags a turn of the phone: taken as reported, a window
+        // just turned upright gets landscape images, stretched.
+        const bool asked = w != 0 && h != 0;
+        if (!asked && caps.currentExtent.width != ~0u)
         {
             m_width = caps.currentExtent.width;
             m_height = caps.currentExtent.height;
