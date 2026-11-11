@@ -239,6 +239,11 @@ if(OPTION_BUILD_TESTS)
     enable_testing()
 endif()
 
+# The checkout as the test suites see it (TEST_SOURCE_DIR): where they read Data/ fixtures from. A
+# suite built for a device runs from where its data is pushed there, so this is the one place that
+# says so.
+set(BUILDSYSTEM_TEST_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
+
 # --- Engine-wide compile policy ----------------------------------------------
 # Exceptions and C++ RTTI are disabled engine-wide.
 add_library(policy INTERFACE)

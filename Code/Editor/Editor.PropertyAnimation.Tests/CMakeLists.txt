@@ -7,7 +7,7 @@ target_link_libraries(Editor.PropertyAnimation.Tests PRIVATE
     Foundation::Scene Foundation::GUI Foundation::GUI.Toolkit
     doctest::doctest)
 target_compile_definitions(Editor.PropertyAnimation.Tests PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
-    TEST_SOURCE_DIR="${CMAKE_SOURCE_DIR}") # the panel's markup the tests load
+    TEST_SOURCE_DIR="${BUILDSYSTEM_TEST_SOURCE_DIR}") # the panel's markup the tests load
 target_compile_options(Editor.PropertyAnimation.Tests PRIVATE
     "$<$<CXX_COMPILER_ID:Clang>:-Wno-error=#warnings>" "$<$<CXX_COMPILER_ID:GNU>:-Wno-error=cpp>")
 add_test(NAME Editor.PropertyAnimation.Tests COMMAND Editor.PropertyAnimation.Tests)
