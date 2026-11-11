@@ -378,6 +378,43 @@ TEST_CASE("shell.desktop: RequestExit stops the shell")
     CHECK_FALSE(shell.IsRunning());
 }
 
+// A phone takes the app out of view and gives it back: the shell answers as SDL raises the events
+// (its event watch), before the next pump, and says where the app is between them.
+TEST_CASE("shell.desktop: going to the background and back is answered as SDL raises it")
+{
+    SDL3Shell shell(DefaultAllocator());
+    if (shell.MainWindow() == nullptr)
+    {
+        return;
+    }
+    int background = 0;
+    int foreground = 0;
+    shell.OnEnterBackground = [&]() { ++background; };
+    shell.OnEnterForeground = [&]() { ++foreground; };
+    CHECK_FALSE(shell.InBackground());
+
+    SDL_Event event{};
+    event.type = SDL_EVENT_WILL_ENTER_BACKGROUND;
+    SDL_PushEvent(&event);
+    CHECK(background == 1); // during the push, before any pump
+    CHECK(shell.InBackground());
+    event.type = SDL_EVENT_DID_ENTER_BACKGROUND;
+    SDL_PushEvent(&event);
+    shell.ProcessEvents();
+    CHECK(background == 1); // once for the going, whichever of SDL's events say it
+    CHECK(shell.InBackground());
+
+    event.type = SDL_EVENT_WILL_ENTER_FOREGROUND;
+    SDL_PushEvent(&event);
+    CHECK(foreground == 0); // the window's new surface comes with the last word, not the first
+    event.type = SDL_EVENT_DID_ENTER_FOREGROUND;
+    SDL_PushEvent(&event);
+    CHECK(foreground == 1);
+    CHECK_FALSE(shell.InBackground());
+    shell.ProcessEvents();
+    CHECK(shell.IsRunning());
+}
+
 TEST_CASE("shell.desktop: RunApplication drives the app until it exits")
 {
     SDL3Shell shell(DefaultAllocator());

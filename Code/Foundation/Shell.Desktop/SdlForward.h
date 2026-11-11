@@ -9,3 +9,4 @@
 struct SDL_Window;
 struct SDL_Cursor;
 struct SDL_Gamepad;
+union SDL_Event; // the event watch's argument

@@ -345,6 +345,21 @@ export namespace foundation::shell
         }
         void RequestExit() override { m_running = false; }
 
+        [[nodiscard]] bool InBackground() const noexcept override { return m_inBackground; }
+        // A test takes the app out of view and gives it back, as a phone's platform does.
+        void EnterBackground()
+        {
+            m_inBackground = true;
+            if (OnEnterBackground)
+                OnEnterBackground();
+        }
+        void EnterForeground()
+        {
+            m_inBackground = false;
+            if (OnEnterForeground)
+                OnEnterForeground();
+        }
+
         // In-memory clipboard: no OS backing, but round-trips text so headless tests of the
         // GUI clipboard path (cut/copy/paste) work without a windowing system.
         void SetClipboardText(core::StringView text) override { m_clipboard = core::String(text); }
@@ -359,6 +374,7 @@ export namespace foundation::shell
         NullInputManager m_input;
         NullDialogService m_dialogs;
         bool m_running = true;
+        bool m_inBackground = false;
         core::String m_clipboard;
     };
 }

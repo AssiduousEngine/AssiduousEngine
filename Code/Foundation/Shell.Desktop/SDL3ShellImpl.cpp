@@ -113,6 +113,7 @@ namespace foundation::shell
             return;
         }
         m_initialized = true;
+        SDL_AddEventWatch(&SDL3Shell::OnWatchedEvent, this);
         m_windows.ReadScreens();
 
         core::Result<IWindow*> main = m_windows.CreateWindow(settings);
@@ -141,8 +142,30 @@ namespace foundation::shell
         m_windows.DestroyAllNow();
         if (m_initialized)
         {
+            SDL_RemoveEventWatch(&SDL3Shell::OnWatchedEvent, this);
             SDL_Quit();
         }
+    }
+
+    bool SDL3Shell::OnWatchedEvent(void* shellPtr, SDL_Event* event)
+    {
+        SDL3Shell& shell = *static_cast<SDL3Shell*>(shellPtr);
+        // The earliest word of going (the platform takes the window's surface soon after) and the
+        // last of coming back (the window's new surface is there by then). On Android SDL raises
+        // both on the thread that pumps its events, the app's own.
+        if (event->type == SDL_EVENT_WILL_ENTER_BACKGROUND && !shell.m_inBackground)
+        {
+            shell.m_inBackground = true;
+            if (shell.OnEnterBackground)
+                shell.OnEnterBackground();
+        }
+        else if (event->type == SDL_EVENT_DID_ENTER_FOREGROUND && shell.m_inBackground)
+        {
+            shell.m_inBackground = false;
+            if (shell.OnEnterForeground)
+                shell.OnEnterForeground();
+        }
+        return true;
     }
 
     core::i32 SDL3Window::X() const noexcept

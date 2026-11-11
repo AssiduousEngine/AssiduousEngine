@@ -335,6 +335,16 @@ export namespace foundation::shell
         // Ask the shell to quit (flips IsRunning()).
         virtual void RequestExit() = 0;
 
+        // Whether the app is in the background, where a platform that takes it out of view (a
+        // phone's home button, another app in front) puts it: there it draws nothing (its window's
+        // surface may be gone), its sound stops, and it may be ended without being asked. A
+        // desktop never puts an app there. OnEnterBackground is called as the app goes, before the
+        // shell gives control back to the platform, so what must stop or be saved is done in it;
+        // OnEnterForeground as it comes back. Unset, nothing is called.
+        [[nodiscard]] virtual bool InBackground() const noexcept { return false; }
+        core::Function<void()> OnEnterBackground;
+        core::Function<void()> OnEnterForeground;
+
         // OS drag-and-drop of files onto a window. Backends queue drops during
         // ProcessEvents; consumers drain once per frame (order preserved). Backends
         // without drop support leave the default no-op.

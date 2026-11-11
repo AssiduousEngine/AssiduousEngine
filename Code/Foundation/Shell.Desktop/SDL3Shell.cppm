@@ -417,6 +417,8 @@ export namespace foundation::shell
 
         void RequestExit() override { m_running = false; }
 
+        [[nodiscard]] bool InBackground() const noexcept override { return m_inBackground; }
+
         void SetClipboardText(core::StringView text) override;
 
         [[nodiscard]] core::String GetClipboardText() const override;
@@ -428,6 +430,10 @@ export namespace foundation::shell
         // file-local helpers in SDL3ShellImpl.cpp.
         // SDL mouse button number (1-based) minus 1 -> MouseButton (Left/Middle/Right/X1/X2).
         static MouseButton MapMouseButton(core::u32 idx) noexcept;
+        // SDL's event watch: the app's going to the background and coming back are answered as
+        // SDL raises them, not when the queue is next drained (the platform may take the window's
+        // surface away once the background one returns).
+        static bool OnWatchedEvent(void* shell, SDL_Event* event);
 
         core::IAllocator* m_allocator = nullptr; // first: the managers below init from it
         SDL3WindowManager m_windows;
@@ -435,6 +441,7 @@ export namespace foundation::shell
         SDL3DialogService m_dialogs; // ctor takes m_windows (declared above, so init order is fine)
         bool m_initialized = false;
         bool m_running = true;
+        bool m_inBackground = false;
         core::Array<DroppedFile> m_droppedFiles; // queued during ProcessEvents, drained per frame
     };
 
