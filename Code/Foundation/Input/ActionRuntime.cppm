@@ -375,6 +375,36 @@ export namespace foundation::input
             Float2 anchor{0.0f, 0.0f};      ///< where that finger came down (normalized)
             Float2 finger{0.0f, 0.0f};      ///< where it is now (normalized)
         };
+        /// Whether an action of the sets in effect (the enabled ones, or the exclusive top alone while
+        /// one is pushed) listens to `key`: a Key binding of it, or a Composite2D naming it. A host
+        /// asks it of a key the platform takes when the game does not (a phone's back button): a
+        /// game takes such a key by binding it.
+        [[nodiscard]] bool IsKeyBound(shell::KeyCode key) const
+        {
+            const u32 code = static_cast<u32>(key);
+            const i32 exclusiveTop = ExclusiveTopSet();
+            for (usize s = 0; s < m_map.sets.Size(); ++s)
+            {
+                if (m_setEnabled[s] == 0u || (exclusiveTop >= 0 && static_cast<i32>(s) != exclusiveTop))
+                {
+                    continue;
+                }
+                for (const Action& action : m_map.sets[s].actions)
+                {
+                    for (const Binding& b : action.bindings)
+                    {
+                        if ((b.source == BindingSource::Key && b.code == code) ||
+                            (b.source == BindingSource::Composite2D &&
+                             (b.negX == code || b.posX == code || b.negY == code || b.posY == code)))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
         /// Every touch binding (TouchButton, TouchStick) of the sets in effect: the enabled ones,
         /// or the exclusive top alone while one is pushed. In map order.
         template <typename Fn>

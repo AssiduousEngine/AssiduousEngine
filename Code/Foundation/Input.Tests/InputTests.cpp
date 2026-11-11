@@ -320,6 +320,49 @@ TEST_CASE("input: exclusive sets - priority resolution, suppression, and held la
 // A menu set repeating an action of the game's (Masquerade: Pause in Gameplay and in Menu, the
 // menu's set pushed exclusive while a menu is up): the query answers from the set in effect, not
 // the first enabled one, so Escape still closes the menu it opened.
+TEST_CASE("input: a key is bound while an action of a set in effect listens to it")
+{
+    InputMap map;
+    const auto action = [](const char8_t* name, Binding binding)
+    {
+        Action a;
+        a.name = String(name);
+        a.kind = ActionKind::Button;
+        a.bindings.PushBack(binding);
+        return a;
+    };
+    Binding back;
+    back.source = BindingSource::Key;
+    back.code = static_cast<u32>(shell::KeyCode::Back);
+    Binding walk;
+    walk.source = BindingSource::Composite2D;
+    walk.negX = static_cast<u32>(shell::KeyCode::A);
+    walk.posX = static_cast<u32>(shell::KeyCode::D);
+    walk.negY = static_cast<u32>(shell::KeyCode::S);
+    walk.posY = static_cast<u32>(shell::KeyCode::W);
+    ActionSet gameplay;
+    gameplay.name = String(u8"Gameplay");
+    gameplay.actions.PushBack(action(u8"Walk", walk));
+    map.sets.PushBack(static_cast<ActionSet&&>(gameplay));
+    ActionSet menu;
+    menu.name = String(u8"Menu");
+    menu.actions.PushBack(action(u8"Close", back));
+    map.sets.PushBack(static_cast<ActionSet&&>(menu));
+
+    ActionRuntime runtime;
+    runtime.SetMap(map);
+    CHECK(runtime.IsKeyBound(shell::KeyCode::Back)); // the menu's Close
+    CHECK(runtime.IsKeyBound(shell::KeyCode::W));    // one of Walk's four keys
+    CHECK_FALSE(runtime.IsKeyBound(shell::KeyCode::Escape));
+
+    runtime.EnableSet(u8"Menu", false); // a disabled set listens to nothing
+    CHECK_FALSE(runtime.IsKeyBound(shell::KeyCode::Back));
+    runtime.EnableSet(u8"Menu", true);
+    runtime.PushExclusiveSet(u8"Menu"); // the exclusive top alone is in effect
+    CHECK(runtime.IsKeyBound(shell::KeyCode::Back));
+    CHECK_FALSE(runtime.IsKeyBound(shell::KeyCode::W));
+}
+
 TEST_CASE("input: an action two sets share answers from the exclusive set while it is pushed")
 {
     InputMap map;
