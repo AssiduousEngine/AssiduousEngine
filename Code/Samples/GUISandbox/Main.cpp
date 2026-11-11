@@ -20,7 +20,7 @@
 import foundation.core;
 import foundation.rhi;
 import foundation.shell;
-import foundation.shell.sdl3;   // the window
+import foundation.shell.sdl3;      // the window
 import foundation.vfs;             // the data folder
 import foundation.graphics;        // the device and the window's frames
 import foundation.graphics.gpu;
