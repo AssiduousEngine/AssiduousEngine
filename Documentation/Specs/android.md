@@ -156,6 +156,13 @@ Not goals: the editor, on-device MCP or play-in-editor on Android; 32-bit or x86
   way to keep out from under them. Accept: home, switching apps, locking the phone and rotating it, each and back,
   on the Pixel 6, with the game where it was and its sound back, and none of it under the bars or
   the camera's cutout in either orientation.
+  **Built 2026-11-10, accepted on the Pixel 6:** home, switching apps, locking and rotating come
+  back where they were with their sound; the game is immersive; Back reaches the game, and a Back
+  nothing in the game handles sends the app to the background (`Activity.moveTaskToBack`, since the
+  activity's own back ends an activity not opened from the launcher). The engine side is on master
+  (the shell's background events, the host and windows suspended, audio stopped, saves written, the
+  Back key, the safe area, an unhandled Back); the Android shell's part is on this branch. Sky
+  Hopper binds nothing to Back, so it pauses nothing (user, 2026-11-10: left as it is).
 - **A4 - the export.** The Android template (`scripts/build-export-templates.sh android`, the
   template's `Android64` platform; `Android64` among the platforms a plugin package names, in the
   scaffold, the MCP plugin tools and their checks); the preset's Android fields (application id, version name and
