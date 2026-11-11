@@ -13,6 +13,7 @@ util_add_engine_library(SamplesFramework ALIAS Samples::Framework)
 target_link_libraries(SamplesFramework PUBLIC
     Foundation::Core
     Foundation::VFS
+    Foundation::VFS.Zip # the data in an Android app's APK
     Foundation::RHI
     Foundation::RHI.Validation
     Foundation::RHI.Capture

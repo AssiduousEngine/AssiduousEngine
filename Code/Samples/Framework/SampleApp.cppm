@@ -29,6 +29,7 @@ import foundation.rhi.validation;
 import foundation.shell;
 import foundation.shell.sdl3;
 import foundation.vfs; // ResolveDataRoot and the NativeFileSystem mounted over the data root
+import foundation.vfs.zip; // the data in an Android app's APK
 import foundation.rhi.capture; // ScreenshotCapture and the --screenshot flags
 import foundation.image;       // Image (the written screenshot)
 import foundation.shaders;     // ShaderStage (LoadShader)
@@ -205,6 +206,24 @@ export namespace samples::framework
         }
 
         m_screenshotOptions = rhi::ScreenshotOptionsFromArguments(argc, argv);
+#if PLATFORM_ANDROID
+        // On Android the data is the app's APK's assets/Data, read in place (the activity names
+        // the APK with --apk).
+        for (int i = 1; i + 1 < argc; ++i)
+        {
+            if (std::strcmp(argv[i], "--apk") == 0)
+            {
+                m_dataFileSystem = MakeUnique<vfs::ZipFileSystem>(foundation::core::DefaultAllocator(),
+                                                                  StringView(reinterpret_cast<const utf8char*>(argv[i + 1])),
+                                                                  u8"assets/Data", foundation::core::DefaultAllocator());
+            }
+        }
+        if (!m_dataFileSystem)
+        {
+            std::fprintf(stderr, "SampleApp: no --apk, so no data (the app's activity names its APK)\n");
+            return 1;
+        }
+#else
         m_dataRoot = vfs::ResolveDataRoot(argc, argv);
         if (m_dataRoot.IsEmpty())
         {
@@ -215,6 +234,7 @@ export namespace samples::framework
         m_dataFileSystem = MakeUnique<vfs::NativeFileSystem>(foundation::core::DefaultAllocator(),
                                                              m_dataRoot.AsView(),
                                                              foundation::core::DefaultAllocator());
+#endif
         m_shaders.Open(foundation::core::DefaultAllocator(), *m_dataFileSystem, u8"Samples/RHI");
 
         if (!Init().IsOk())
