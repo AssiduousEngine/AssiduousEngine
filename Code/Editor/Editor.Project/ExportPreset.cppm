@@ -369,17 +369,55 @@ export namespace editor
     // ResolveTemplatesRoot in :export_template), letting the user point the editor at a shared or
     // checked-out templates directory. Empty (the default) keeps the environment-then-default
     // behaviour.
+    // It also holds the tools an Android export runs: the Android SDK's folder and a JDK's, each
+    // empty (the default) for the environment's (ANDROID_HOME, JAVA_HOME or java on the PATH).
     class EditorExportSettings final : public ISerializable
     {
         RTTI_OBJECT(EditorExportSettings, ISerializable)
     public:
         String templatesRoot; // "" means $ENV_TEMPLATES_DIR, else <user-data>/templates
+        String androidSdk;    // "" means $ANDROID_HOME
+        String javaHome;      // "" means $JAVA_HOME, else java on the PATH
 
         void Serialize(ISerializer& ar) override
         {
             foundation::core::Serialize(ar, "templatesRoot", templatesRoot);
+            SerializeAppended(ar, "androidSdk", androidSdk);
+            SerializeAppended(ar, "javaHome", javaHome);
         }
     };
+
+    /// The environment variables an Android export's tools read: the SDK (Gradle's Android plugin and
+    /// the export's check) and the JDK (the Gradle wrapper).
+    inline constexpr StringView kAndroidHomeVariable = u8"ANDROID_HOME";
+    inline constexpr StringView kJavaHomeVariable = u8"JAVA_HOME";
+
+    /// What the process was started with of those variables, kept so a setting cleared later gives
+    /// them back.
+    struct ExportToolEnvironment
+    {
+        Optional<String> androidHome;
+        Optional<String> javaHome;
+
+        [[nodiscard]] static ExportToolEnvironment Current()
+        {
+            return ExportToolEnvironment{GetEnvironmentVariable(kAndroidHomeVariable), GetEnvironmentVariable(kJavaHomeVariable)};
+        }
+    };
+
+    /// Sets this process's ANDROID_HOME and JAVA_HOME from `settings`, where the exports it runs and
+    /// their Gradle builds read them: a folder the settings name, else what the process was started
+    /// with (`inherited`).
+    inline void ApplyExportToolEnvironment(const EditorExportSettings& settings, const ExportToolEnvironment& inherited)
+    {
+        const auto apply = [](StringView variable, const String& chosen, const Optional<String>& started)
+        {
+            const StringView value = !chosen.IsEmpty() ? chosen.AsView() : (started.HasValue() ? started->AsView() : StringView{});
+            (void)SetEnvironmentVariable(variable, value);
+        };
+        apply(kAndroidHomeVariable, settings.androidSdk, inherited.androidHome);
+        apply(kJavaHomeVariable, settings.javaHome, inherited.javaHome);
+    }
 
     namespace settings = foundation::settings;
 

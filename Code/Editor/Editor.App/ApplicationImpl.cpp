@@ -202,6 +202,9 @@ namespace editor::app
         RegisterEditorProjectSettingsTypes();   // the per-project store's sections
         // NotFound is a first run; a file that does not read is set aside and logged by the load.
         (void)editor::LoadEditorSettingsFromUserData(m_editorSettings);
+        // The Android SDK and JDK an export runs, as Preferences names them.
+        if (const editor::EditorExportSettings* exportSettings = m_editorSettings.Find<editor::EditorExportSettings>())
+            editor::ApplyExportToolEnvironment(*exportSettings, m_inheritedTools);
     }
 
     void EditorApplication::OnStartup(runtime::IApplicationHost& host)
@@ -621,6 +624,8 @@ namespace editor::app
                                                                                  }},
                                         from);
             };
+            services.exportChanged = [self]()
+            { editor::ApplyExportToolEnvironment(self->m_editorSettings.Section<editor::EditorExportSettings>(), self->m_inheritedTools); };
             services.showLook = [self](const EditorLook& look) { self->m_window.SetLook(look); };
             services.persist = [self]() { return editor::SaveEditorSettingsToUserData(self->m_editorSettings).IsOk(); };
             m_preferences = MakeUnique<EditorPreferencesDialog>(m_editorAllocator, m_editorAllocator, Move(services),

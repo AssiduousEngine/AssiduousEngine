@@ -3816,3 +3816,26 @@ TEST_CASE("export: importing a template whose id is a path is refused")
     NukeTree(src.AsView());
     NukeTree(rootDir.AsView());
 }
+
+TEST_CASE("export: the editor's Android SDK and JDK stand in for the environment's while set")
+{
+    const editor::ExportToolEnvironment was = editor::ExportToolEnvironment::Current();
+    editor::ExportToolEnvironment started;
+    started.androidHome = String(u8"/started/sdk");
+    editor::EditorExportSettings settings;
+    settings.androidSdk = String(u8"/chosen/sdk");
+    settings.javaHome = String(u8"/chosen/jdk");
+    editor::ApplyExportToolEnvironment(settings, started);
+    CHECK(*GetEnvironmentVariable(editor::kAndroidHomeVariable) == StringView(u8"/chosen/sdk"));
+    CHECK(*GetEnvironmentVariable(editor::kJavaHomeVariable) == StringView(u8"/chosen/jdk"));
+    // Cleared, what the process started with comes back; none started, none.
+    settings.androidSdk.Clear();
+    settings.javaHome.Clear();
+    editor::ApplyExportToolEnvironment(settings, started);
+    CHECK(*GetEnvironmentVariable(editor::kAndroidHomeVariable) == StringView(u8"/started/sdk"));
+    const Optional<String> jdk = GetEnvironmentVariable(editor::kJavaHomeVariable);
+    CHECK((!jdk.HasValue() || jdk->IsEmpty()));
+    // Put back as the test found them.
+    editor::EditorExportSettings none;
+    editor::ApplyExportToolEnvironment(none, was);
+}

@@ -1619,7 +1619,8 @@ namespace editor
         const Optional<String> sdk = GetEnvironmentVariable(u8"ANDROID_HOME");
         if (!sdk.HasValue() || sdk->IsEmpty() || !DirectoryExists(sdk->AsView()))
         {
-            return String(u8"an Android export runs Gradle, which needs the Android SDK: set ANDROID_HOME to it");
+            return String(u8"an Android export runs Gradle, which needs the Android SDK: set ANDROID_HOME to it (in the editor, "
+                          u8"Preferences > Export > Android SDK)");
         }
         if (tmpl != nullptr)
         {
@@ -1770,8 +1771,9 @@ namespace editor
         const ProcessResult built = RunProcess(wrapper.AsView(), Span<const StringView>(views.Data(), views.Size()));
         if (!built.Ok())
         {
-            LOG_ERROR(u8"Export", u8"the Android app's Gradle build failed ({}); it needs a JDK 17 (JAVA_HOME or java "
-                                  u8"on the PATH) and, the first time, the network:\n{}",
+            LOG_ERROR(u8"Export", u8"the Android app's Gradle build failed ({}); it needs a JDK 17 (JAVA_HOME, java "
+                                  u8"on the PATH, or in the editor Preferences > Export > JDK) and, the first time, the "
+                                  u8"network:\n{}",
                       built.exitCode, built.output);
             result.refusal = String(u8"the Android app's Gradle build failed (the log has its output)");
             return Status{ErrorCode::Internal};
