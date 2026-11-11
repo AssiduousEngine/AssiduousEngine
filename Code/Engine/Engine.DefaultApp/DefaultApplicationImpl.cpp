@@ -875,6 +875,12 @@ namespace engine::runtime
         // frame through the generic registry; the host names no source. They draw through the
         // backbuffer's UNORM view when the window has one: the screen UI blends encoded values,
         // as browsers do (VG's Encoded blend space).
+        // The overlays load the backbuffer the scene's last pass wrote, and nothing between them
+        // orders the two: the render graph leaves the backbuffer as it found it (RenderTarget) and
+        // adds no barrier, and a pass begins without one. A tiled GPU can then run them overlapped and
+        // the scene's write can land after the overlays', dropping the UI from a frame.
+        frame.encoder->TransitionTexture(frame.backbuffer, rhi::ResourceState::RenderTarget,
+                                         rhi::ResourceState::RenderTarget);
         render->RenderOverlays(*frame.encoder, frame.backbufferView, colorFormat, frame.width,
                                frame.height, frame.frameIndex, frame.backbufferAlternateView);
     }

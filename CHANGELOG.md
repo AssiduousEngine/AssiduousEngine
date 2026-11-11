@@ -18,6 +18,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Rendering (Vulkan): the screen UI waits for the scene's last pass before drawing over it, where on
+  a phone's GPU it could drop out of a frame and flicker. A render target reused every frame waits
+  for the frame before it to finish with it, where before the two could overlap, which on a phone's
+  GPU can lose the device (the picture froze while the game ran on).
 - Editor: a project opened before it was cooked (a downloaded sample) shows its scenes' and
   prefabs' thumbnails whole: they wait for the cook to make what they show, where before they were
   drawn with those meshes missing and kept so, even after the cook. A thumbnail is drawn again
