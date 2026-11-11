@@ -114,7 +114,7 @@ export namespace foundation::core
         {
             if (FileIsValid(m_file) &&
                 (FileSize(m_file) < static_cast<i64>(offset + size) ||
-                 FileSeek(m_file, static_cast<i64>(offset), SeekOrigin::Begin) != static_cast<i64>(offset)))
+                 core::FileSeek(m_file, static_cast<i64>(offset), SeekOrigin::Begin) != static_cast<i64>(offset)))
             {
                 FileClose(m_file); // the region lies past the file's end
                 m_file = kInvalidFile;
@@ -168,7 +168,9 @@ export namespace foundation::core
             {
                 return -1;
             }
-            if (FileSeek(m_file, static_cast<i64>(m_offset) + target, SeekOrigin::Begin) < 0)
+            // Named in full: with a cast offset, argument-dependent lookup also finds the backend's
+            // sys::FileSeek, and MSVC calls the two ambiguous.
+            if (core::FileSeek(m_file, static_cast<i64>(m_offset) + target, SeekOrigin::Begin) < 0)
             {
                 return -1;
             }
