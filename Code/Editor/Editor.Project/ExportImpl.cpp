@@ -1507,10 +1507,10 @@ namespace editor
                      const ExportProgress& onProgress, bool cook,
                      const HashMap<Guid, Array<byte>>* sceneStreams,
                      const SceneReferenceScanner* scanner,
-                     const Array<Guid>* precomputedReachableRoots, ExportPlugins plugins)
+                     const Array<Guid>* precomputedReachableRoots, ExportPlugins plugins, bool contentOnly)
     {
-        const ExportTemplate* tmpl = templates.Resolve(preset);
-        if (tmpl == nullptr)
+        const ExportTemplate* tmpl = contentOnly ? nullptr : templates.Resolve(preset);
+        if (tmpl == nullptr && !contentOnly)
         {
             LOG_ERROR(u8"Export",
                                u8"no export template for preset '{}' (platform '{}') - import one",
@@ -1521,7 +1521,11 @@ namespace editor
         ExportResult result;
 
         // The player this dist runs, and whether the project's plugins allow the export at all.
-        const detail::PlayerChoice choice = detail::ChoosePlayer(project, *tmpl, preset.platform.AsView());
+        detail::PlayerChoice choice;
+        if (tmpl != nullptr)
+        {
+            choice = detail::ChoosePlayer(project, *tmpl, preset.platform.AsView());
+        }
         if (!choice.refusal.IsEmpty())
         {
             LOG_ERROR(u8"Export", u8"preset '{}': {}", preset.name, choice.refusal);
@@ -1544,15 +1548,18 @@ namespace editor
             }
             return Status{ErrorCode::InvalidArgument};
         }
-        result.playerReason = choice.build ? choice.reason : Format(u8"template '{}' carries every plugin enabled on {}", tmpl->id, preset.platform);
-        LOG_INFO(u8"Export", u8"preset '{}': {} player ({})", preset.name, choice.build ? u8"a built" : u8"the template's",
-                 result.playerReason);
+        if (tmpl != nullptr)
+        {
+            result.playerReason = choice.build ? choice.reason : Format(u8"template '{}' carries every plugin enabled on {}", tmpl->id, preset.platform);
+            LOG_INFO(u8"Export", u8"preset '{}': {} player ({})", preset.name, choice.build ? u8"a built" : u8"the template's",
+                     result.playerReason);
+        }
 
         // Soft engine-version match, like EditorProject::Open's project-manifest check: a template
         // built against a different engine version may be binary-incompatible with the cooked
         // content, but that is not known, so warn and keep going rather than block. An empty version
         // means an older or hand-written template with no stamp; skip the check.
-        if (!tmpl->engineVersion.IsEmpty() &&
+        if (tmpl != nullptr && !tmpl->engineVersion.IsEmpty() &&
             tmpl->engineVersion != engine::project::kEngineVersionString)
         {
             LOG_WARNING(u8"Export",
@@ -1663,6 +1670,26 @@ namespace editor
                 *outResult = result;
             }
             return Status{ErrorCode::Internal};
+        }
+
+        if (contentOnly)
+        {
+            // What the game reads and no player: the shader pack beside the content, and done.
+            u32 shaderVariants = 0;
+            const Status packStatus = StageShaderPack(
+                result.outputDir.AsView(), dataRoot, preset.platform.AsView(), project,
+                Span<const Guid>(result.content.shaders.Data(), result.content.shaders.Size()), shaderVariants);
+            if (packStatus.IsOk())
+            {
+                result.filesStaged += 2; // the pack and the marker
+                LOG_INFO(u8"Export", u8"preset '{}': content only, at '{}' ({} shader variants)", preset.name,
+                         result.outputDir, shaderVariants);
+            }
+            if (outResult != nullptr)
+            {
+                *outResult = result;
+            }
+            return packStatus.IsOk() ? Status{} : Status{ErrorCode::Internal};
         }
 
         if (onProgress)

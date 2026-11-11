@@ -7,6 +7,11 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ## Unreleased
 
+### Added
+
+- Export: `Tools.Export --content-only` stages the game's content, settings and shader pack with no
+  player and no template, and `--platform <name>` exports a preset for another platform.
+
 ### Changed
 
 - Projects: a new project starts with 4x MSAA (it was off), and the sample games have it on.

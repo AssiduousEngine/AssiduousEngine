@@ -57,7 +57,10 @@ SPIR-V on Linux, SPIR-V and DXIL on Windows, WGSL for Web): the data-root layout
 dist renders with no external dependency (engine shaders are cooked `.hlsl`, not baked into the binary).
 
 - **CLI** (`Tools.Export`): `<project> [--out --preset | --all --rebuild]`, `--template list|import|
-  create`; host-preset fallback when no `export_presets.xml`.
+  create`; host-preset fallback when no `export_presets.xml`. `--platform <name>` exports the chosen
+  preset for another platform, and `--content-only` stages what the game reads with no player and no
+  template (`ExportOne`'s `contentOnly`: the content pak, `player.xml` and the shader pack), for a
+  build that packs the player itself, as an Android app does.
 - **Texture variants**: a preset's content is cooked per its platform's target (`VariantsForPlatform`):
   one host pak on desktop, a BC and an ASTC pak for Web, and for `Android64` one `Content.pak`
   cooked for the `android` target (ASTC) into `Cooked-android/` beside the host's `Cooked/`.

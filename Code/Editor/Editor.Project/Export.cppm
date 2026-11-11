@@ -686,6 +686,9 @@ export namespace editor
     // project's scripts are checked against what the preset's platform has of them (a script using a
     // plugin absent there refuses the export, ExportResult::refusal); its export hooks (none when
     // null) run once the dist is staged, and one that fails fails the export.
+    // `contentOnly` stages what the game reads and no player: the content pak(s), player.xml and the
+    // shader pack, with no template needed (an Android app's assets, which its own build packs
+    // beside the player library).
     [[nodiscard]] Status ExportOne(EditorProject& project, const ExportPreset& preset,
                                    const TemplateRegistry& templates, BuilderRegistry& builders,
                                    StringView outRoot, StringView dataRoot, bool rebuild,
@@ -694,7 +697,7 @@ export namespace editor
                                    const HashMap<Guid, Array<byte>>* sceneStreams = nullptr,
                                    const SceneReferenceScanner* scanner = nullptr,
                                    const Array<Guid>* precomputedReachableRoots = nullptr,
-                                   ExportPlugins plugins = {});
+                                   ExportPlugins plugins = {}, bool contentOnly = false);
 
     /// Produces every preset's dist under `outRoot` (a failing preset is logged and skipped; the
     /// others continue). Returns Ok only when all presets succeeded.

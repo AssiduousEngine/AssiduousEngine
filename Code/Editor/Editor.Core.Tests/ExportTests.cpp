@@ -864,6 +864,45 @@ TEST_CASE("export: ExportOne stages the resolved template's player + sidecars al
     NukeTree(outRoot.AsView());
 }
 
+TEST_CASE("export: ExportOne with contentOnly stages the content and the shader pack, needing no template")
+{
+    const String projectDir = TempDir(u8"scratch_exportone_content_proj");
+    const String outRoot = TempDir(u8"scratch_exportone_content_out");
+    NukeTree(projectDir.AsView());
+    NukeTree(outRoot.AsView());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"ContentOnlyTest").IsOk());
+    UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
+    REQUIRE(static_cast<bool>(project));
+    REQUIRE(project->SaveSettings().IsOk());
+
+    editor::TemplateRegistry registry; // no templates at all: a content export needs none
+    editor::ExportPreset preset;
+    preset.name = String(u8"Android");
+    preset.platform = String(u8"Android64");
+    preset.outputSubdir = String(u8"android");
+    pipeline::BuilderRegistry builders{DefaultAllocator()};
+    editor::ExportResult result;
+    REQUIRE(editor::ExportOne(*project, preset, registry, builders, outRoot.AsView(), TestDataRoot(), false, &result,
+                              {}, true, nullptr, nullptr, nullptr, {}, /*contentOnly*/ true)
+                .IsOk());
+
+    // What the game reads, and no player: the platform's one pak, the settings and the shader pack.
+    foundation::vfs::NativeFileSystem distFs(result.outputDir.AsView(), DefaultAllocator());
+    CHECK(distFs.Exists(u8"Content.pak"));
+    CHECK(distFs.Exists(u8"player.xml"));
+    CHECK(distFs.Exists(u8"Data/Engine/Shaders/shaders.dpak"));
+    CHECK_FALSE(distFs.Exists(GetExecutableName(u8"Engine.Player").AsView()));
+    CHECK(result.playerReason.IsEmpty());
+    // Its content is cooked for the platform's target, beside the host's Cooked/.
+    CHECK(DirectoryExists(PathJoin(projectDir.AsView(), u8"Cooked-android").AsView()));
+
+    // Without contentOnly the same preset needs a template, and there is none.
+    CHECK_FALSE(editor::ExportOne(*project, preset, registry, builders, outRoot.AsView(), TestDataRoot(), false).IsOk());
+
+    NukeTree(projectDir.AsView());
+    NukeTree(outRoot.AsView());
+}
+
 // A project's custom shader ships as bytecode: the export cooks both its stages, every declared
 // variant under its entry point, into the dist's shader pack beside the engine's, so a
 // compiler-free player draws it; the dist's product carries no HLSL unless the preset keeps it.

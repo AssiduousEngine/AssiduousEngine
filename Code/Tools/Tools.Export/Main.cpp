@@ -9,6 +9,7 @@
 //
 // Usage:
 //   Tools.Export <projectDir> [--out <dir>] [--preset <name> | --all] [--rebuild] [--data-root <dir>]
+//   Tools.Export <projectDir> --content-only --platform <name> [--out <dir>] [--rebuild]
 //   Tools.Export --template list
 //   Tools.Export --template import <templateDir>
 //   Tools.Export --template create <configDir> [--install | --out <folder>] [--id <id>] [--name <name>]
@@ -16,7 +17,9 @@
 //
 // Without an export_presets.xml in the project, a host preset for the current platform is
 // synthesized, so a quick development export works out of the box (the host template is the
-// player next to this tool).
+// player next to this tool). --content-only stages what the game reads and no player (the content
+// pak, player.xml and the shader pack) for a platform named with --platform, Android64 for an
+// Android app's assets, and needs no template.
 
 #include <cstdio>
 #include <cstring>
@@ -127,6 +130,7 @@ namespace
             stderr,
             "usage:\n"
             "  Tools.Export <projectDir> [--out <dir>] [--preset <name> | --all] [--rebuild]\n"
+            "  Tools.Export <projectDir> --content-only --platform <name> [--out <dir>] [--rebuild]\n"
             "  Tools.Export --template list\n"
             "  Tools.Export --template import <templateDir>\n"
             "  Tools.Export --template create <configDir> [--install | --out <folder>]\n"
@@ -286,6 +290,8 @@ int main(int argc, char** argv)
     const char* presetName = nullptr;
     bool all = false;
     bool rebuild = false;
+    bool contentOnly = false;
+    const char* platformArg = nullptr;
     for (int i = 2; i < argc; ++i)
     {
         if (std::strcmp(argv[i], "--out") == 0 && i + 1 < argc)
@@ -304,6 +310,14 @@ int main(int argc, char** argv)
         {
             rebuild = true;
         }
+        else if (std::strcmp(argv[i], "--content-only") == 0)
+        {
+            contentOnly = true;
+        }
+        else if (std::strcmp(argv[i], "--platform") == 0 && i + 1 < argc)
+        {
+            platformArg = argv[++i];
+        }
         else if (std::strcmp(argv[i], "--data-root") == 0 && i + 1 < argc)
         {
             ++i; // ResolveDataRoot reads it below; the loop only has to step over it
@@ -317,6 +331,11 @@ int main(int argc, char** argv)
     if (all && presetName != nullptr)
     {
         std::fprintf(stderr, "--all and --preset are mutually exclusive\n");
+        return 1;
+    }
+    if (contentOnly && (all || platformArg == nullptr))
+    {
+        std::fprintf(stderr, "--content-only takes --platform <name> and one preset, not --all\n");
         return 1;
     }
 
@@ -408,10 +427,16 @@ int main(int argc, char** argv)
         return 1;
     }
 
+    // --platform names the platform the content is for, over the chosen preset's own.
+    editor::ExportPreset chosen = *preset;
+    if (platformArg != nullptr)
+    {
+        chosen.platform = String(Sv(platformArg));
+    }
     editor::ExportResult result;
-    if (!editor::ExportOne(*project, *preset, registry, builders, outRoot.AsView(),
+    if (!editor::ExportOne(*project, chosen, registry, builders, outRoot.AsView(),
                            dataRoot.AsView(), rebuild, &result, {}, true, &sceneStreams, &scanner, nullptr,
-                           editor::ExportPlugins{&plugins.Host(), &exportHooks})
+                           editor::ExportPlugins{&plugins.Host(), &exportHooks}, contentOnly)
              .IsOk())
     {
         if (!result.refusal.IsEmpty())
