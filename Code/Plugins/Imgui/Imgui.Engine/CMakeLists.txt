@@ -5,6 +5,7 @@ util_add_plugin_part()
 target_link_libraries(${PLUGIN_PART}
     PUBLIC Foundation::Core Foundation::RHI Foundation::Runtime Foundation::Runtime.Client Foundation::Shell
            Foundation::Graphics Foundation::Shaders Foundation::Shaders.System
+           Foundation::Render.Api Engine::Render
            ThirdParty::ImGui Foundation::Policy)
 
 target_sources(${PLUGIN_PART}

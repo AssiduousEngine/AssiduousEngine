@@ -260,10 +260,6 @@ namespace
                 }
             }
             RenderFrame(host, frame); // the scenes and window overlays; FinishFrame takes the screenshot
-            if (auto* gui = host.Subsystems().GetSubsystem<imgui::ImguiSubsystem>())
-            {
-                gui->Render(frame);
-            }
             FinishFrame(host, frame); // copies the screenshot, overlay included
         }
 

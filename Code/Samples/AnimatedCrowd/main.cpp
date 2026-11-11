@@ -716,12 +716,6 @@ namespace
                 }
             }
             RenderFrame(host, frame); // the scenes and window overlays; FinishFrame takes the screenshot
-
-            // HUD over the scene (backbuffer is RenderTarget after the default render path).
-            if (auto* g = host.Subsystems().GetSubsystem<imgui::ImguiSubsystem>())
-            {
-                g->Render(frame);
-            }
             FinishFrame(host, frame); // copies the screenshot, overlay included
         }
 

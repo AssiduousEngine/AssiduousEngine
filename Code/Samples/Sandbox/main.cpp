@@ -1228,11 +1228,10 @@ namespace
             frame.encoder->TransitionTexture(frame.backbuffer, rhi::ResourceState::CopyDst,
                                              rhi::ResourceState::RenderTarget);
 
-            // Debug UI on top of the scene (the backbuffer is RenderTarget again; ImGui loads and draws over it).
-            if (auto* g = host.Subsystems().GetSubsystem<imgui::ImguiSubsystem>())
-            {
-                g->Render(frame);
-            }
+            // The window overlays (the debug UI among them) over the scene: the backbuffer is
+            // RenderTarget again, and they load and draw over it.
+            render->RenderOverlays(*frame.encoder, frame.backbufferView, fmt, frame.width, frame.height, frame.frameIndex,
+                                   frame.backbufferAlternateView, {0.0f, 0.0f, 0.0f, 0.0f}, frame.preRotation);
             FinishFrame(host, frame); // the screenshot copy, off the finished backbuffer
         }
 

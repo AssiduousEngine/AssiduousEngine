@@ -297,16 +297,6 @@ namespace
             }
         }
 
-        void OnRenderWindow(runtime::IApplicationHost& host, graphics::FrameContext& frame) override
-        {
-            RenderFrame(host, frame); // the scenes and window overlays; FinishFrame takes the screenshot
-            if (auto* g = host.Subsystems().GetSubsystem<imgui::ImguiSubsystem>())
-            {
-                g->Render(frame);
-            }
-            FinishFrame(host, frame); // copies the screenshot, overlay included
-        }
-
         // Free the explosion flipbook atlas we created in OnStartup (device still alive here).
         void OnShutdown(runtime::IApplicationHost& host) override
         {

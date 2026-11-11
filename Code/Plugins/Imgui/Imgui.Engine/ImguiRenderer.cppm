@@ -4,9 +4,11 @@
 /// Plugins::Imgui.Engine - the `:renderer` partition.
 ///
 /// A Dear ImGui renderer built on our RHI rather than a stock imgui backend. It owns the GPU
-/// pipeline, the font atlas and the per-frame dynamic vertex, index and uniform buffers, and records
-/// ImDrawData into a render pass on a target each frame. The font atlas upload waits for the first
-/// Render, since a command encoder is available there and not at init.
+/// pipeline, the font atlas and the per-frame dynamic vertex, index and uniform buffers. Prepare readies
+/// a frame's ImDrawData before a pass and Draw records it into one (the render subsystem's shared
+/// overlay pass, the window turned onto the target when the swapchain is pre-rotated); Render does
+/// both in a pass of its own. The font atlas upload waits for the first Prepare, since a command
+/// encoder is available there and not at init.
 
 module;
 #include "Core/Prelude.h"
@@ -105,68 +107,94 @@ export namespace imgui
             return Status{};
         }
 
-        // Record ImDrawData into a render pass on `target`, loaded and drawn on top of the scene. `enc` is
-        // the frame's primary encoder; the font upload and buffer fills happen on it before the pass opens.
-        void Render(rhi::CommandEncoder& enc, rhi::TextureView* target,
-                    rhi::TextureFormat targetFormat, u32 width, u32 height,
-                    const ImDrawData* drawData, u32 frameIndex)
+        /// The projection a vertex in window pixels takes to clip space on a target of `target`
+        /// pixels that the window is drawn into turned (`windowToTarget`: ScreenOverlayView::
+        /// WindowToTargetTransform, the identity when nothing is turned): the turn, then the
+        /// target's orthographic map (0..width, 0..height, y down). Row vectors.
+        [[nodiscard]] static Float4x4 Projection(Float2 target, const Float4x4& windowToTarget) noexcept
         {
-            if (target == nullptr || drawData == nullptr)
+            Float4x4 ortho{};
+            ortho.m[0][0] = 2.0f / target.x;
+            ortho.m[1][1] = -2.0f / target.y;
+            ortho.m[2][2] = 1.0f;
+            ortho.m[3][3] = 1.0f;
+            ortho.m[3][0] = -1.0f;
+            ortho.m[3][1] = 1.0f;
+            return windowToTarget * ortho;
+        }
+
+        /// The scissor for a draw's clip rectangle, in window pixels, on the target: turned with the
+        /// window (`turn`, the window `window` pixels) and kept inside the target, which a scissor
+        /// outside the attachment is not on WebGPU. False when nothing of it is left.
+        [[nodiscard]] static bool Scissor(Rectangle clip, ContentRotation turn, Float2 window, u32 targetWidth,
+                                          u32 targetHeight, u32& x, u32& y, u32& width, u32& height) noexcept
+        {
+            const Rectangle r = TurnRectangle(clip, turn, window);
+            const f32 x0 = r.x < 0.0f ? 0.0f : r.x;
+            const f32 y0 = r.y < 0.0f ? 0.0f : r.y;
+            const f32 right = r.x + r.width;
+            const f32 bottom = r.y + r.height;
+            const f32 x1 = right > static_cast<f32>(targetWidth) ? static_cast<f32>(targetWidth) : right;
+            const f32 y1 = bottom > static_cast<f32>(targetHeight) ? static_cast<f32>(targetHeight) : bottom;
+            if (x1 <= x0 || y1 <= y0)
             {
-                return;
+                return false;
+            }
+            x = static_cast<u32>(x0);
+            y = static_cast<u32>(y0);
+            width = static_cast<u32>(x1) - x;
+            height = static_cast<u32>(y1) - y;
+            return width > 0 && height > 0;
+        }
+
+        /// Readies `drawData` for a pass on a target of `targetFormat` (with `depthStencilFormat`'s
+        /// attachment, Undefined for none) and `target` pixels: the font, the geometry and the
+        /// projection, recorded on `enc` before the pass opens. False when there is nothing to draw;
+        /// Draw then draws nothing.
+        bool Prepare(rhi::CommandEncoder& enc, rhi::TextureFormat targetFormat, rhi::TextureFormat depthStencilFormat,
+                     Float2 target, const Float4x4& windowToTarget, const ImDrawData* drawData, u32 frameIndex)
+        {
+            m_prepared = nullptr;
+            if (drawData == nullptr || drawData->TotalVtxCount <= 0 || drawData->CmdListsCount <= 0)
+            {
+                return false;
             }
             EnsureFontUploaded(enc);
-            rhi::RenderPipeline* pipeline = EnsurePipeline(targetFormat);
+            rhi::RenderPipeline* pipeline = EnsurePipeline(targetFormat, depthStencilFormat);
             if (pipeline == nullptr)
             {
-                return;
+                return false;
             }
-            if (drawData->TotalVtxCount <= 0 || drawData->CmdListsCount <= 0)
-            {
-                return;
-            }
-
             FrameSlot& slot = m_frames[frameIndex % m_fif];
             if (!UploadGeometry(slot, drawData))
             {
-                return;
+                return false;
             }
-
-            // Ortho off-center (0..W, 0..H, y-down) as a row-major matrix for row-vector mul.
-            const f32 W = (drawData->DisplaySize.x > 0.0f) ? drawData->DisplaySize.x
-                                                           : static_cast<f32>(width);
-            const f32 H = (drawData->DisplaySize.y > 0.0f) ? drawData->DisplaySize.y
-                                                           : static_cast<f32>(height);
-            Float4x4 proj{};
-            proj.m[0][0] = 2.0f / W;
-            proj.m[1][1] = -2.0f / H;
-            proj.m[2][2] = 1.0f;
-            proj.m[3][3] = 1.0f;
-            proj.m[3][0] = -1.0f;
-            proj.m[3][1] = 1.0f;
+            const Float4x4 proj = Projection(target, windowToTarget);
             if (void* p = slot.ubo->Map())
             {
                 MemCopy(p, &proj, sizeof(Float4x4));
                 slot.ubo->Unmap();
             }
+            m_prepared = &slot;
+            return true;
+        }
 
-            rhi::ColorAttachment ca{};
-            ca.view = target;
-            ca.loadOp = rhi::LoadOp::Load;
-            ca.storeOp = rhi::StoreOp::Store;
-            rhi::RenderPassDesc rp{};
-            rp.colorAttachments.Add(ca);
-            rp.label = u8"imgui";
-            rhi::RenderPassEncoder* pass = enc.BeginRenderPass(rp);
-            if (pass == nullptr)
+        /// Draws what Prepare readied into the open `pass` on a `targetWidth` x `targetHeight`
+        /// target, the window (`window` pixels) drawn into it turned by `turn`.
+        void Draw(rhi::RenderPassEncoder& pass, const ImDrawData* drawData, ContentRotation turn, Float2 window, u32 targetWidth,
+                  u32 targetHeight)
+        {
+            FrameSlot* slot = m_prepared;
+            m_prepared = nullptr;
+            if (slot == nullptr || drawData == nullptr)
             {
                 return;
             }
-            pass->SetViewport(0.0f, 0.0f, static_cast<f32>(width), static_cast<f32>(height));
-            pass->SetPipeline(pipeline);
-            pass->SetVertexBuffer(0, slot.vtx, 0);
-            pass->SetIndexBuffer(slot.idx, rhi::IndexFormat::UInt16, 0);
-
+            pass.SetViewport(0.0f, 0.0f, static_cast<f32>(targetWidth), static_cast<f32>(targetHeight));
+            pass.SetPipeline(m_pipeline);
+            pass.SetVertexBuffer(0, slot->vtx, 0);
+            pass.SetIndexBuffer(slot->idx, rhi::IndexFormat::UInt16, 0);
             const ImVec2 clipOff = drawData->DisplayPos;
             u32 globalVtx = 0, globalIdx = 0;
             for (i32 n = 0; n < drawData->CmdListsCount; ++n)
@@ -179,30 +207,56 @@ export namespace imgui
                     {
                         continue;
                     }
-                    // Clamp the clip rect to the actual render target: io.DisplaySize is one
-                    // frame stale across a resize (set at NewFrame), and WebGPU validation drops
-                    // the whole command buffer on a scissor outside the attachment.
-                    i32 x0 = static_cast<i32>(cmd.ClipRect.x - clipOff.x);
-                    i32 y0 = static_cast<i32>(cmd.ClipRect.y - clipOff.y);
-                    i32 x1 = static_cast<i32>(cmd.ClipRect.z - clipOff.x);
-                    i32 y1 = static_cast<i32>(cmd.ClipRect.w - clipOff.y);
-                    x0 = x0 < 0 ? 0 : x0;
-                    y0 = y0 < 0 ? 0 : y0;
-                    x1 = x1 > static_cast<i32>(width) ? static_cast<i32>(width) : x1;
-                    y1 = y1 > static_cast<i32>(height) ? static_cast<i32>(height) : y1;
-                    if (x1 <= x0 || y1 <= y0)
+                    const Rectangle clip{cmd.ClipRect.x - clipOff.x, cmd.ClipRect.y - clipOff.y, cmd.ClipRect.z - cmd.ClipRect.x,
+                                         cmd.ClipRect.w - cmd.ClipRect.y};
+                    u32 x = 0, y = 0, w = 0, h = 0;
+                    if (!Scissor(clip, turn, window, targetWidth, targetHeight, x, y, w, h))
                     {
                         continue;
                     }
-                    pass->SetScissor(static_cast<u32>(x0), static_cast<u32>(y0),
-                                     static_cast<u32>(x1 - x0), static_cast<u32>(y1 - y0));
-                    pass->SetBindGroup(0, slot.bindGroup, Span<const u32>{});
-                    pass->DrawIndexed(cmd.ElemCount, 1, cmd.IdxOffset + globalIdx,
-                                      static_cast<i32>(cmd.VtxOffset + globalVtx), 0);
+                    pass.SetScissor(x, y, w, h);
+                    pass.SetBindGroup(0, slot->bindGroup, Span<const u32>{});
+                    pass.DrawIndexed(cmd.ElemCount, 1, cmd.IdxOffset + globalIdx, static_cast<i32>(cmd.VtxOffset + globalVtx), 0);
                 }
                 globalVtx += static_cast<u32>(cmdList->VtxBuffer.Size);
                 globalIdx += static_cast<u32>(cmdList->IdxBuffer.Size);
             }
+        }
+
+        // Records ImDrawData in a render pass of its own on `target`, loaded and drawn on top of the
+        // scene, for an application with no render subsystem whose overlays would draw it. `enc` is
+        // the frame's primary encoder; the font upload and buffer fills happen on it before the pass.
+        void Render(rhi::CommandEncoder& enc, rhi::TextureView* target, rhi::TextureFormat targetFormat, u32 width, u32 height,
+                    const ImDrawData* drawData, u32 frameIndex)
+        {
+            if (target == nullptr || width == 0 || height == 0)
+            {
+                return;
+            }
+            // The projection spans the display size ImGui laid out for, which trails the target by a
+            // frame across a resize (it is set at NewFrame); the scissors keep to the target.
+            const Float2 size{static_cast<f32>(width), static_cast<f32>(height)};
+            const Float2 display = drawData != nullptr && drawData->DisplaySize.x > 0.0f && drawData->DisplaySize.y > 0.0f
+                                       ? Float2{drawData->DisplaySize.x, drawData->DisplaySize.y}
+                                       : size;
+            if (!Prepare(enc, targetFormat, rhi::TextureFormat::Undefined, display, Float4x4::Identity(), drawData, frameIndex))
+            {
+                return;
+            }
+            rhi::ColorAttachment ca{};
+            ca.view = target;
+            ca.loadOp = rhi::LoadOp::Load;
+            ca.storeOp = rhi::StoreOp::Store;
+            rhi::RenderPassDesc rp{};
+            rp.colorAttachments.Add(ca);
+            rp.label = u8"imgui";
+            rhi::RenderPassEncoder* pass = enc.BeginRenderPass(rp);
+            if (pass == nullptr)
+            {
+                m_prepared = nullptr;
+                return;
+            }
+            Draw(*pass, drawData, ContentRotation::None, display, width, height);
             pass->End();
         }
 
@@ -381,9 +435,11 @@ export namespace imgui
             return true;
         }
 
-        rhi::RenderPipeline* EnsurePipeline(rhi::TextureFormat fmt)
+        // The pipeline for a pass on a `fmt` target with `depthStencilFormat`'s attachment (Undefined
+        // for none: a pass of its own); ImGui neither tests nor writes it.
+        rhi::RenderPipeline* EnsurePipeline(rhi::TextureFormat fmt, rhi::TextureFormat depthStencilFormat)
         {
-            if (m_pipeline != nullptr && m_pipelineFormat == fmt)
+            if (m_pipeline != nullptr && m_pipelineFormat == fmt && m_pipelineDepthStencil == depthStencilFormat)
             {
                 return m_pipeline;
             }
@@ -426,6 +482,15 @@ export namespace imgui
             pd.fragment = frag;
             pd.primitive.topology = rhi::PrimitiveTopology::TriangleList;
             pd.primitive.cullMode = rhi::CullMode::None;
+            if (depthStencilFormat != rhi::TextureFormat::Undefined)
+            {
+                rhi::DepthStencilState ds{};
+                ds.format = depthStencilFormat;
+                ds.depthTestEnabled = false;
+                ds.depthWriteEnabled = false;
+                ds.depthCompare = rhi::CompareFunction::Always;
+                pd.depthStencil = ds;
+            }
             pd.label = u8"imgui";
             if (!m_device->CreateRenderPipeline(pd, m_pipeline).IsOk())
             {
@@ -433,6 +498,7 @@ export namespace imgui
                 return nullptr;
             }
             m_pipelineFormat = fmt;
+            m_pipelineDepthStencil = depthStencilFormat;
             return m_pipeline;
         }
 
@@ -506,6 +572,7 @@ export namespace imgui
         rhi::PipelineLayout* m_pipelineLayout = nullptr;
         rhi::RenderPipeline* m_pipeline = nullptr;
         rhi::TextureFormat m_pipelineFormat = rhi::TextureFormat::Undefined;
+        rhi::TextureFormat m_pipelineDepthStencil = rhi::TextureFormat::Undefined;
 
         rhi::Texture* m_fontTex = nullptr;
         rhi::TextureView* m_fontView = nullptr;
@@ -518,6 +585,7 @@ export namespace imgui
 #endif
 
         FrameSlot m_frames[kMaxFIF] = {};
+        FrameSlot* m_prepared = nullptr; // what Prepare readied for the next Draw
     };
 
 } // namespace imgui

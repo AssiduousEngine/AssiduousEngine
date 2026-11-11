@@ -5,10 +5,11 @@
 ///
 /// ImguiSubsystem: an application-level subsystem that owns the Dear ImGui context and the RHI
 /// renderer, and exposes the per-frame hooks an app drives. NewFrame feeds input and the display size
-/// and begins the UI frame; Render records the built draw data onto the frame's target. Apps register
-/// it, call NewFrame at the top of their update, build UI with ImGui:: directly, and call Render after
-/// the scene. The subsystem has its own DXC compiler and ShaderSystem, so it does not depend on the
-/// renderer.
+/// and begins the UI frame; the app builds its UI with ImGui:: directly. Where the application has a
+/// render subsystem, ImGui is one of its screen overlays, drawn over the game's screens in the shared
+/// overlay pass and turned with the window when the swapchain is pre-rotated. An application without
+/// one calls Render after its scene, which draws onto the frame's target in a pass of its own. The
+/// subsystem has its own ShaderSystem, so it does not depend on the renderer's.
 
 module;
 #include "Core/Prelude.h"
@@ -24,6 +25,8 @@ import foundation.graphics; // FrameContext
 import foundation.shaders;
 import foundation.shaders.system;
 import foundation.vfs; // IFileSystem: the application's data mount, which holds the ImGui shaders
+import foundation.render.api; // IScreenOverlay, ScreenOverlayView
+import engine.render;         // RenderSubsystem: the screen overlays' host
 import :renderer;
 
 using namespace foundation::core;
@@ -34,9 +37,12 @@ namespace shell = foundation::shell;
 export namespace imgui
 {
 
-    class ImguiSubsystem final : public foundation::runtime::Subsystem
+    class ImguiSubsystem final : public foundation::runtime::Subsystem, public foundation::render::IScreenOverlay
     {
     public:
+        /// Above the game's screens (the GUI draws at 10): a debugging UI stays on top.
+        static constexpr i32 kOverlayOrder = 100;
+
         // `dataFileSystem` is the application's data mount, borrowed. The ImGui shaders resolve
         // from it like every other engine shader.
         ImguiSubsystem(rhi::Device& device, u32 framesInFlight,
@@ -63,6 +69,7 @@ export namespace imgui
                 ImGui::EndFrame();
                 m_frameOpen = false;
             }
+            m_drawReady = false;
             ImGuiIO& io = ImGui::GetIO();
             io.DisplaySize = ImVec2(static_cast<float>(m_width), static_cast<float>(m_height));
             io.DeltaTime = deltaTime > 0.0f ? deltaTime : (1.0f / 60.0f);
@@ -71,11 +78,13 @@ export namespace imgui
             m_frameOpen = true;
         }
 
-        // Finish the UI frame and render it onto the frame's backbuffer, over the scene. Call after the
-        // app has rendered its scene to the backbuffer, before present.
+        // Finish the UI frame and render it onto the frame's backbuffer, over the scene, for an
+        // application whose render subsystem does not draw it as an overlay. Call after the app has
+        // rendered its scene to the backbuffer, before present. Does nothing where the overlay pass
+        // draws ImGui.
         void Render(foundation::graphics::FrameContext& frame)
         {
-            if (!m_ready)
+            if (!m_ready || m_overlayHost != nullptr)
             {
                 return;
             }
@@ -98,6 +107,51 @@ export namespace imgui
         }
 
         [[nodiscard]] bool Ready() const noexcept { return m_ready; }
+
+        /// Whether a render subsystem draws ImGui as one of its screen overlays.
+        [[nodiscard]] bool IsOverlay() const noexcept { return m_overlayHost != nullptr; }
+
+        // --- IScreenOverlay ---
+        [[nodiscard]] i32 OverlayOrder() const noexcept override { return kOverlayOrder; }
+
+        // Finishes the frame's UI (once, however many targets the overlay pass draws this frame) and
+        // readies it for the view: lays it out at the window's size from the next frame on.
+        void PrepareOverlay(rhi::CommandEncoder& encoder, const foundation::render::ScreenOverlayView& view) override
+        {
+            m_overlayPrepared = false;
+            if (!m_ready)
+            {
+                return;
+            }
+            const Float2 window = view.WindowSize();
+            m_width = static_cast<u32>(window.x);
+            m_height = static_cast<u32>(window.y);
+            if (m_frameOpen)
+            {
+                ImGui::Render();
+                m_frameOpen = false;
+                m_drawReady = true;
+            }
+            if (!m_drawReady)
+            {
+                return; // no NewFrame since the last frame drawn: nothing new to show
+            }
+            const Float2 target{static_cast<f32>(view.width), static_cast<f32>(view.height)};
+            m_overlayPrepared = m_renderer->Prepare(encoder, view.targetFormat, view.depthStencilFormat, target,
+                                                    view.WindowToTargetTransform(), ImGui::GetDrawData(),
+                                                    view.frameIndex);
+        }
+
+        void Render(rhi::RenderPassEncoder& encoder, const foundation::render::ScreenOverlayView& view) override
+        {
+            if (!m_overlayPrepared)
+            {
+                return;
+            }
+            m_overlayPrepared = false;
+            m_renderer->Draw(encoder, ImGui::GetDrawData(), view.preRotation, view.WindowSize(), view.width,
+                             view.height);
+        }
 
     protected:
         void OnInit() override
@@ -128,8 +182,29 @@ export namespace imgui
             m_ready = true;
         }
 
+        // Draws as a screen overlay where there is a render subsystem (headless and plain
+        // applications have none, and call Render).
+        void OnReady() override
+        {
+            foundation::runtime::SubsystemManager* manager = Manager();
+            if (!m_ready || manager == nullptr || m_overlayHost != nullptr)
+            {
+                return;
+            }
+            if (auto* renderer = manager->GetSubsystem<engine::render::RenderSubsystem>())
+            {
+                m_overlayHost = renderer;
+                m_overlayHost->RegisterOverlay(static_cast<foundation::render::IScreenOverlay*>(this));
+            }
+        }
+
         void OnShutdown() override
         {
+            if (m_overlayHost != nullptr)
+            {
+                m_overlayHost->UnregisterOverlay(static_cast<foundation::render::IScreenOverlay*>(this));
+                m_overlayHost = nullptr;
+            }
             if (m_device != nullptr)
             {
                 m_device->WaitIdle();
@@ -191,9 +266,12 @@ export namespace imgui
         UniquePtr<ImguiRenderer> m_renderer;
         ImGuiContext* m_context = nullptr;
         u32 m_width = 1280,
-            m_height = 720; // cached from the last Render, the display size for NewFrame
+            m_height = 720; // the window's size at the last Render or overlay, the display size for NewFrame
         bool m_ready = false;
         bool m_frameOpen = false;
+        bool m_drawReady = false;       // ImGui::Render ran since the last NewFrame
+        bool m_overlayPrepared = false; // PrepareOverlay readied the view Render draws
+        foundation::render::IScreenRenderer* m_overlayHost = nullptr; // the render subsystem drawing it, borrowed
     };
 
 } // namespace imgui

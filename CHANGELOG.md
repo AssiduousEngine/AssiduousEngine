@@ -29,6 +29,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- Native code: the Dear ImGui plugin draws as a screen overlay of the render subsystem, over the
+  game's screens, in the shared overlay pass (blending encoded colours as the screens do), and
+  turned with a pre-rotated window. An application with a render subsystem no longer calls
+  `ImguiSubsystem::Render`; one without (a plain `IApplication`) still does.
 - Native code: the SDL3 shell is `Shell.SDL3` (module `foundation.shell.sdl3`, target
   `Foundation::Shell.SDL3`); it was `Shell.Desktop`, but it is Android's shell too.
 - GUI: a command every handler passes on (`Propagate`: not mine) is unhandled: `runCommand`
