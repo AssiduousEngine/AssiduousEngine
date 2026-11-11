@@ -95,6 +95,59 @@ export namespace editor
         return out;
     }
 
+    /// What an Android export builds: an APK to install (on a phone, or from a store that takes
+    /// one), an Android App Bundle for Google Play, or both.
+    enum class AndroidPackage : u8
+    {
+        Apk,
+        Bundle,
+        Both,
+    };
+
+    /// The platform attribute on a preset field: the field is that platform's alone (the Android
+    /// app's id is no desktop's), so an editor of presets shows it only for a preset of it.
+    inline constexpr const char* kPresetPlatformAttribute = "platform";
+
+    /// Why `id` cannot be an Android application id, or empty when it can: two or more parts
+    /// joined by '.', each a letter followed by letters, digits or '_' ("com.studio.game").
+    [[nodiscard]] inline String CheckAndroidApplicationId(StringView id)
+    {
+        if (id.IsEmpty())
+        {
+            return String(u8"an Android export needs an application id (as com.studio.game)");
+        }
+        usize parts = 0;
+        usize start = 0;
+        for (usize i = 0; i <= id.Size(); ++i)
+        {
+            if (i < id.Size() && id[i] != utf8char('.'))
+            {
+                continue;
+            }
+            const StringView part = id.SubStr(start, i - start);
+            const auto letter = [](utf8char c)
+            { return (c >= utf8char('a') && c <= utf8char('z')) || (c >= utf8char('A') && c <= utf8char('Z')); };
+            if (part.IsEmpty() || !letter(part[0]))
+            {
+                return Format(u8"'{}' is not an application id: each part, between the dots, starts with a letter", id);
+            }
+            for (const utf8char c : part)
+            {
+                if (!letter(c) && !(c >= utf8char('0') && c <= utf8char('9')) && c != utf8char('_'))
+                {
+                    return Format(u8"'{}' is not an application id: its parts hold letters, digits and '_'", id);
+                }
+            }
+            ++parts;
+            start = i + 1;
+        }
+        if (parts < 2)
+        {
+            return Format(u8"'{}' is not an application id: it has two parts or more (as com.studio.game)", id);
+        }
+        return {};
+    }
+
     // One export target, a plain value type (copyable and movable) so a project can hold an
     // Array<ExportPreset>; only the root set below is a versioned-payload object.
     //
@@ -141,6 +194,21 @@ export namespace editor
         // The quality level this platform starts at, one of the project's levels (a phone's lower
         // than a desktop's); nil is the project's default.
         Guid qualityLevelId;
+        // An Android export's app (Android64 presets alone): its id, the version a store and a
+        // phone compare (the code) and the one a person reads (the name), the name under its icon
+        // (empty: the project's), the launcher icon (a square PNG in the project, 512 pixels or
+        // more; empty: the platform's), what it builds, and the release keystore it is signed with
+        // (empty: the developer's debug key) by the key `androidKeyAlias`. The keystore's
+        // passwords are never in a preset: the export asks for them, or reads them from the
+        // environment.
+        String androidApplicationId;
+        u32 androidVersionCode = 1;
+        String androidVersionName = String(u8"1.0");
+        String androidLabel;
+        String androidIcon;
+        AndroidPackage androidPackage = AndroidPackage::Apk;
+        String androidKeystore;
+        String androidKeyAlias;
 
         void Serialize(ISerializer& ar)
         {
@@ -174,6 +242,14 @@ export namespace editor
                 ar.Key("qualityLevelId");
                 ar.GuidValue(qualityLevelId);
             }
+            SerializeAppended(ar, "androidApplicationId", androidApplicationId);
+            SerializeAppended(ar, "androidVersionCode", androidVersionCode);
+            SerializeAppended(ar, "androidVersionName", androidVersionName);
+            SerializeAppended(ar, "androidLabel", androidLabel);
+            SerializeAppended(ar, "androidIcon", androidIcon);
+            SerializeAppended(ar, "androidPackage", androidPackage);
+            SerializeAppended(ar, "androidKeystore", androidKeystore);
+            SerializeAppended(ar, "androidKeyAlias", androidKeyAlias);
         }
     };
 

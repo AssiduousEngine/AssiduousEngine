@@ -48,6 +48,11 @@ namespace vfs = foundation::vfs;
 
 namespace editor
 {
+    REFLECT_ENUM(AndroidPackage, "rtti::editor::editor")
+    {
+        builder.Value("Apk", AndroidPackage::Apk).Value("Bundle", AndroidPackage::Bundle).Value("Both", AndroidPackage::Both);
+    }
+
     REFLECT_VALUE(ExportPreset, "rtti::editor::editor")
     {
         using engine::project::kSettingLabelAttribute;
@@ -106,6 +111,34 @@ namespace editor
         label(u8"Quality level");
         builder.PropAttribute(engine::project::kSettingAssetTypeAttribute, String(u8"RenderQualityAsset"))
             .PropAttribute(engine::project::kSettingEmptyTextAttribute, String(u8"(the project's default)"));
+        // The Android app's fields, for an Android64 preset alone.
+        const auto android = [&builder] { builder.PropAttribute(kPresetPlatformAttribute, String(u8"Android64")); };
+        RttiRegisterEnum_AndroidPackage();
+        builder.Property<&ExportPreset::androidApplicationId>("androidApplicationId");
+        label(u8"Application id");
+        android();
+        builder.Property<&ExportPreset::androidVersionCode>("androidVersionCode");
+        label(u8"Version code");
+        builder.PropAttribute("range", Float4{1.0f, 2100000000.0f, 1.0f, 0.0f}); // Google Play's ceiling
+        android();
+        builder.Property<&ExportPreset::androidVersionName>("androidVersionName");
+        label(u8"Version name");
+        android();
+        builder.Property<&ExportPreset::androidLabel>("androidLabel");
+        label(u8"App name");
+        android();
+        builder.Property<&ExportPreset::androidIcon>("androidIcon");
+        label(u8"App icon");
+        android();
+        builder.Property<&ExportPreset::androidPackage>("androidPackage");
+        label(u8"Package");
+        android();
+        builder.Property<&ExportPreset::androidKeystore>("androidKeystore");
+        label(u8"Keystore");
+        android();
+        builder.Property<&ExportPreset::androidKeyAlias>("androidKeyAlias");
+        label(u8"Key alias");
+        android();
     }
 
     void RegisterExportPresetReflection()

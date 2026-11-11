@@ -533,7 +533,7 @@ TEST_CASE("export: a preset describes its fields through reflection")
         CHECK(engine::project::SettingAttribute(property, engine::project::kSettingLabelAttribute) != nullptr);
         ++labelled;
     }
-    CHECK(labelled == 22u);
+    CHECK(labelled == 30u);
     const PropertyInfo* files = FindProperty(type, "additionalFiles");
     REQUIRE(files != nullptr);
     CHECK(IsContainer(*files->type));
@@ -544,6 +544,19 @@ TEST_CASE("export: a preset describes its fields through reflection")
     REQUIRE(fit != nullptr);
     CHECK(EnumeratorCount(*fit->type) == 4u);
     CHECK(FindAttribute(*FindProperty(type, "windowWidth"), u8"range") != nullptr);
+    // The Android app's fields are an Android64 preset's alone; the others are every platform's.
+    for (const char* field : {"androidApplicationId", "androidVersionCode", "androidVersionName", "androidLabel",
+                              "androidIcon", "androidPackage", "androidKeystore", "androidKeyAlias"})
+    {
+        CAPTURE(field);
+        const PropertyInfo* property = FindProperty(type, field);
+        REQUIRE(property != nullptr);
+        const String* only = engine::project::SettingAttribute(*property, editor::kPresetPlatformAttribute);
+        REQUIRE(only != nullptr);
+        CHECK(*only == u8"Android64");
+    }
+    CHECK(engine::project::SettingAttribute(*FindProperty(type, "name"), editor::kPresetPlatformAttribute) == nullptr);
+    CHECK(EnumeratorCount(*FindProperty(type, "androidPackage")->type) == 3u);
 
     // Reading a field through it reads the preset.
     editor::ExportPreset preset;
@@ -551,6 +564,18 @@ TEST_CASE("export: a preset describes its fields through reflection")
     const PropertyInfo* platform = FindProperty(type, "platform");
     REQUIRE(platform != nullptr);
     CHECK(*static_cast<const String*>(platform->address(Instance(&preset, &type))) == StringView(u8"Linux64"));
+}
+
+TEST_CASE("export: an Android application id is two or more parts of letters, digits and '_'")
+{
+    CHECK(editor::CheckAndroidApplicationId(u8"com.studio.game").IsEmpty());
+    CHECK(editor::CheckAndroidApplicationId(u8"org.my_studio.Game2").IsEmpty());
+    CHECK_FALSE(editor::CheckAndroidApplicationId(u8"").IsEmpty());
+    CHECK_FALSE(editor::CheckAndroidApplicationId(u8"game").IsEmpty());          // one part
+    CHECK_FALSE(editor::CheckAndroidApplicationId(u8"com..game").IsEmpty());     // an empty part
+    CHECK_FALSE(editor::CheckAndroidApplicationId(u8"com.studio.").IsEmpty());   // a trailing dot
+    CHECK_FALSE(editor::CheckAndroidApplicationId(u8"com.2studio").IsEmpty());   // a part's first is a digit
+    CHECK_FALSE(editor::CheckAndroidApplicationId(u8"com.my-studio").IsEmpty()); // '-'
 }
 
 TEST_CASE("export: preset set round-trips through export_presets.xml")
@@ -592,15 +617,30 @@ TEST_CASE("export: preset set round-trips through export_presets.xml")
     b.outputSubdir = String(u8"Win64");
     b.additionalFiles.PushBack(String(u8"icon.ico"));
     b.additionalFiles.PushBack(String(u8"config.xml"));
+    editor::ExportPreset c;
+    c.name = String(u8"Android");
+    c.platform = String(u8"Android64");
+    c.androidApplicationId = String(u8"com.studio.game");
+    c.androidVersionCode = 12;
+    c.androidVersionName = String(u8"1.2");
+    c.androidLabel = String(u8"The Game");
+    c.androidIcon = String(u8"Branding/icon.png");
+    c.androidPackage = editor::AndroidPackage::Both;
+    c.androidKeystore = String(u8"/keys/release.jks");
+    c.androidKeyAlias = String(u8"upload");
     out.presets.PushBack(Move(a));
     out.presets.PushBack(Move(b));
+    out.presets.PushBack(Move(c));
     REQUIRE(editor::SaveExportPresets(*root.AsWritable(), out).IsOk());
 
     // Load back and check every field survived, including the additionalFiles array and lookup.
     editor::ExportPresetSet loaded;
     REQUIRE(editor::LoadExportPresets(root, loaded).IsOk());
-    REQUIRE(loaded.presets.Size() == 2u);
+    REQUIRE(loaded.presets.Size() == 3u);
     CHECK(loaded.presets[0].name == u8"Linux Desktop");
+    CHECK(loaded.presets[0].androidVersionCode == 1u); // the Android fields' defaults
+    CHECK(loaded.presets[0].androidVersionName == u8"1.0");
+    CHECK(loaded.presets[0].androidPackage == editor::AndroidPackage::Apk);
     CHECK(loaded.presets[0].templateId.IsEmpty());
     CHECK(loaded.presets[0].playerName.IsEmpty());
 
@@ -620,6 +660,16 @@ TEST_CASE("export: preset set round-trips through export_presets.xml")
     CHECK(win->additionalFiles[0] == u8"icon.ico");
     CHECK(win->additionalFiles[1] == u8"config.xml");
     CHECK(loaded.Find(u8"nope") == nullptr);
+    const editor::ExportPreset* android = loaded.Find(u8"Android");
+    REQUIRE(android != nullptr);
+    CHECK(android->androidApplicationId == u8"com.studio.game");
+    CHECK(android->androidVersionCode == 12u);
+    CHECK(android->androidVersionName == u8"1.2");
+    CHECK(android->androidLabel == u8"The Game");
+    CHECK(android->androidIcon == u8"Branding/icon.png");
+    CHECK(android->androidPackage == editor::AndroidPackage::Both);
+    CHECK(android->androidKeystore == u8"/keys/release.jks");
+    CHECK(android->androidKeyAlias == u8"upload");
 
     NukeTree(dir.AsView());
 }
