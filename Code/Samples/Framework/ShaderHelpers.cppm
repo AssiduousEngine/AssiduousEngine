@@ -12,11 +12,13 @@ export module samples.framework:shader_helpers;
 import foundation.core;
 import foundation.rhi;
 import foundation.shaders;
+import foundation.vfs;
 
 using namespace foundation::core;
 using namespace foundation;
 namespace rhi = foundation::rhi;
 namespace shaders = foundation::shaders;
+namespace vfs = foundation::vfs;
 
 export namespace samples::framework
 {
@@ -82,22 +84,23 @@ export namespace samples::framework
         SampleShaders& operator=(const SampleShaders&) = delete;
         ~SampleShaders() { Close(); }
 
-        /// `folder` holds the samples' shader files (Data/Samples/RHI); its shaders.dpak, if there
-        /// is one, is read too, for when no compiler is (a cooked pack never wins over the files).
-        void Open(IAllocator& allocator, StringView folder)
+        /// `folder` (in `data`, the data mount) holds the samples' shader files (Samples/RHI); its
+        /// shaders.dpak, if there is one, is read too, for when no compiler is (a cooked pack never
+        /// wins over the files). `data` outlives this.
+        void Open(IAllocator& allocator, vfs::IFileSystem& data, StringView folder)
         {
             Close();
+            m_data = &data;
             m_folder = String(folder);
             if (!shaders::createCompiler(shaders::CompilerDesc{}, m_compiler).IsOk())
             {
                 m_compiler = nullptr;
             }
             const String packPath = Format(u8"{}/shaders.dpak", folder);
-            if (FileExists(packPath.AsView()))
+            if (UniquePtr<IStream> in = data.Open(packPath.AsView(), FileMode::Read))
             {
-                FileStream in(packPath.AsView(), FileMode::Read);
                 m_pack = MakeUnique<shaders::CookedShaderPack>(allocator);
-                if (!in.IsValid() || !m_pack->Read(in).IsOk())
+                if (!m_pack->Read(*in).IsOk())
                 {
                     rhi::LogErrorf("SampleShaders: '%s' could not be read", reinterpret_cast<const char*>(packPath.CStr()));
                     m_pack.Reset();
@@ -126,13 +129,14 @@ export namespace samples::framework
             if (m_compiler != nullptr)
             {
                 const String path = Format(u8"{}/{}", m_folder, file);
-                const Result<Array<byte>> bytes = ReadFile(path.AsView());
-                if (!bytes.HasValue())
+                UniquePtr<IStream> in = m_data != nullptr ? m_data->Open(path.AsView(), FileMode::Read) : UniquePtr<IStream>{};
+                Array<byte> bytes(in ? static_cast<usize>(in->Size()) : 0u);
+                if (!in || (!bytes.IsEmpty() && in->Read(bytes.Data(), bytes.Size()) != bytes.Size()))
                 {
                     rhi::LogErrorf("SampleShaders: no shader file '%s'", reinterpret_cast<const char*>(path.CStr()));
                     return ErrorCode::NotFound;
                 }
-                const StringView source(reinterpret_cast<const char8_t*>(bytes.Value().Data()), bytes.Value().Size());
+                const StringView source(reinterpret_cast<const char8_t*>(bytes.Data()), bytes.Size());
                 return CompileToModule(m_compiler, device, source, stage, entryPoint, label, shaderModel, out);
             }
             const String name = shaders::EntryShaderName(file, entryPoint);
@@ -158,6 +162,7 @@ export namespace samples::framework
         }
 
     private:
+        vfs::IFileSystem* m_data = nullptr; // the data mount the files are in
         String m_folder;
         shaders::Compiler* m_compiler = nullptr;
         UniquePtr<shaders::CookedShaderPack> m_pack;

@@ -161,7 +161,7 @@ export namespace samples::framework
         bool m_validationEnabled;
         UniquePtr<shell::IShell> m_shellOwner;
         String m_dataRoot;
-        UniquePtr<vfs::NativeFileSystem> m_dataFileSystem;
+        UniquePtr<vfs::IFileSystem> m_dataFileSystem;
         SampleShaders m_shaders; // the RHI samples' shaders (Data/Samples/RHI)
 
         rhi::ScreenshotCapture m_screenshot;
@@ -215,7 +215,7 @@ export namespace samples::framework
         m_dataFileSystem = MakeUnique<vfs::NativeFileSystem>(foundation::core::DefaultAllocator(),
                                                              m_dataRoot.AsView(),
                                                              foundation::core::DefaultAllocator());
-        m_shaders.Open(foundation::core::DefaultAllocator(), DataPath(u8"Samples/RHI").AsView());
+        m_shaders.Open(foundation::core::DefaultAllocator(), *m_dataFileSystem, u8"Samples/RHI");
 
         if (!Init().IsOk())
         {
