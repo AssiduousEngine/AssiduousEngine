@@ -406,6 +406,50 @@ namespace
     };
 }
 
+// A grid in a column that grows beside a fixed one, as a dialog lays one out: its rows take the
+// width they are given, so the column gets the rest of the row, not a width a flex row has to
+// shrink from unbounded (which left it none).
+TEST_CASE("property grid: in a column that grows beside a fixed one, the grid gets the rest of the row")
+{
+    core::RefPtr<SceneRoot> root = core::MakeRef<SceneRoot>(core::DefaultAllocator(), core::MakeRef<GUIContext>(core::DefaultAllocator()));
+    root->SetSize(core::Float2{800.0f, 400.0f});
+    core::RefPtr<Panel> split = core::MakeRef<Panel>(core::DefaultAllocator());
+    split->EditLayoutStyle([](LayoutStyle& s)
+    {
+        s.Direction = FlexDirection::Row;
+        s.Grow = 1.0f;
+    });
+    core::RefPtr<Panel> fixed = core::MakeRef<Panel>(core::DefaultAllocator());
+    fixed->EditLayoutStyle([](LayoutStyle& s)
+    {
+        s.Width = LayoutLength::Px(250.0f);
+        s.Shrink = 0.0f;
+    });
+    core::RefPtr<Panel> column = core::MakeRef<Panel>(core::DefaultAllocator());
+    column->EditLayoutStyle([](LayoutStyle& s)
+    {
+        s.Grow = 1.0f;
+        s.MinWidth = LayoutLength::Px(0.0f);
+        s.Direction = FlexDirection::Column;
+    });
+    core::RefPtr<PropertyGrid> grid = core::MakeRef<PropertyGrid>(core::DefaultAllocator());
+    grid->EditLayoutStyle([](LayoutStyle& s) { s.Grow = 1.0f; });
+    PropertyBag bag(core::DefaultAllocator(), 1);
+    (void)bag.Add(SV(u8"name"), PropertyKind::String, Variant(SV(u8"Linux")));
+    (void)bag.Add(SV(u8"stageSymbols"), PropertyKind::Bool, Variant(false));
+    column->AddChild(grid.Get());
+    split->AddChild(fixed.Get());
+    split->AddChild(column.Get());
+    root->AddChild(split.Get());
+    grid->SetSource(&bag);
+    (void)root->UpdateLayout();
+    (void)root->UpdateLayout();
+    CHECK(fixed->GetScreenBounds().width == doctest::Approx(250.0f));
+    CHECK(column->GetScreenBounds().width == doctest::Approx(550.0f));
+    CHECK(grid->GetScreenBounds().width == doctest::Approx(550.0f));
+    grid->SetSource(nullptr);
+}
+
 TEST_CASE("property grid: a multi-line editor's row is as tall as the editor, its name in the first line; other rows are a line")
 {
     Bed bed;

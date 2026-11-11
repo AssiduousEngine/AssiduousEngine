@@ -811,7 +811,10 @@ namespace foundation::gui
             const LayoutConstraints within{core::Float2{room, 0.0f}, core::Float2{room, kUnbounded}};
             height = core::Max(height, m_editor->Measure(within).y + 2.0f);
         }
-        return core::Float2{available.x, height};
+        // A row takes the width it is given. Asked with none to give (a flex row finding its
+        // children's own widths), it wants none: the unbounded width would ask its column for all
+        // there is, and the column would be shrunk back to nothing.
+        return core::Float2{available.x < kUnbounded ? available.x : 0.0f, height};
     }
     inline void PropertyRowContent::OnLayout()
     {
