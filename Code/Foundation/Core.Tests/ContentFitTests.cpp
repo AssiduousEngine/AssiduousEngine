@@ -4,6 +4,7 @@
 // presented. Covers a landscape game fitted into a portrait screen turned a quarter, points that
 // round-trip through the turn, deltas turned with it, and the unturned fit.
 #include <doctest/doctest.h>
+#include <initializer_list>
 #include "Core/Prelude.h"
 
 import foundation.core;
@@ -159,4 +160,83 @@ TEST_CASE("content fit: the turn an orientation asks of a window")
     CHECK(TurnFor(ScreenOrientation::Landscape, 800, 800) == ContentRotation::None);
     CHECK(TurnFor(ScreenOrientation::Any, 1080, 1920) == ContentRotation::None);
     CHECK(TurnFor(ScreenOrientation::Any, 1920, 1080) == ContentRotation::None);
+}
+
+// A window drawn turned into a swapchain image held another way (pre-rotation): its points and
+// rectangles land in the turned space, and two turns add.
+TEST_CASE("content fit: a space's points and rectangles turned, and turns added")
+{
+    const Float2 window{2400.0f, 1080.0f}; // a phone held landscape
+    // A quarter: the window's top-left lands at the turned space's top-right (it is 1080 wide).
+    CHECK(TurnPoint(Float2{0.0f, 0.0f}, ContentRotation::Quarter, window).x == doctest::Approx(1080.0f));
+    CHECK(TurnPoint(Float2{0.0f, 0.0f}, ContentRotation::Quarter, window).y == doctest::Approx(0.0f));
+    CHECK(TurnPoint(Float2{2400.0f, 0.0f}, ContentRotation::Quarter, window).y == doctest::Approx(2400.0f));
+    // Three quarters: the top-left lands at the bottom-left.
+    CHECK(TurnPoint(Float2{0.0f, 0.0f}, ContentRotation::ThreeQuarter, window).x == doctest::Approx(0.0f));
+    CHECK(TurnPoint(Float2{0.0f, 0.0f}, ContentRotation::ThreeQuarter, window).y == doctest::Approx(2400.0f));
+    // A half: the opposite corner.
+    CHECK(TurnPoint(Float2{0.0f, 0.0f}, ContentRotation::Half, window).x == doctest::Approx(2400.0f));
+    CHECK(TurnPoint(Float2{0.0f, 0.0f}, ContentRotation::Half, window).y == doctest::Approx(1080.0f));
+
+    // A safe area clear of a camera cutout on the window's left lands at the turned space's top.
+    const Rectangle safe{100.0f, 0.0f, 2300.0f, 1080.0f};
+    const Rectangle quarter = TurnRectangle(safe, ContentRotation::Quarter, window);
+    CHECK(quarter.x == doctest::Approx(0.0f));
+    CHECK(quarter.y == doctest::Approx(100.0f));
+    CHECK(quarter.width == doctest::Approx(1080.0f));
+    CHECK(quarter.height == doctest::Approx(2300.0f));
+    const Rectangle none = TurnRectangle(safe, ContentRotation::None, window);
+    CHECK(none.x == doctest::Approx(safe.x));
+    CHECK(none.width == doctest::Approx(safe.width));
+
+    // A rectangle turned, then turned back by the inverse in the turned space, is where it was.
+    for (const ContentRotation turn : {ContentRotation::None, ContentRotation::Quarter, ContentRotation::Half, ContentRotation::ThreeQuarter})
+    {
+        CAPTURE(static_cast<int>(turn));
+        const Float2 turnedSize = TurnSwapsSides(turn) ? Float2{window.y, window.x} : window;
+        const Rectangle back = TurnRectangle(TurnRectangle(safe, turn, window), InverseTurn(turn), turnedSize);
+        CHECK(back.x == doctest::Approx(safe.x));
+        CHECK(back.y == doctest::Approx(safe.y));
+        CHECK(back.width == doctest::Approx(safe.width));
+        CHECK(back.height == doctest::Approx(safe.height));
+    }
+
+    // Turns add, a whole turn is none, and each has its inverse.
+    CHECK(AddTurns(ContentRotation::Quarter, ContentRotation::ThreeQuarter) == ContentRotation::None);
+    CHECK(AddTurns(ContentRotation::ThreeQuarter, ContentRotation::Half) == ContentRotation::Quarter);
+    CHECK(AddTurns(ContentRotation::None, ContentRotation::Half) == ContentRotation::Half);
+    CHECK(InverseTurn(ContentRotation::Quarter) == ContentRotation::ThreeQuarter);
+    CHECK(InverseTurn(ContentRotation::None) == ContentRotation::None);
+    CHECK(TurnSwapsSides(ContentRotation::ThreeQuarter));
+    CHECK_FALSE(TurnSwapsSides(ContentRotation::Half));
+}
+
+// A fit in the window, its region and its turn turned with the window into the image, covers the
+// window fit's rectangle turned: the scene drawn into the image lands where it shows in the window.
+TEST_CASE("content fit: a fit turned with its window lands on the window fit's rectangle, turned")
+{
+    const Float2 window{2400.0f, 1080.0f};
+    const Rectangle safe{100.0f, 0.0f, 2300.0f, 1080.0f};
+    for (const FitMode mode : {FitMode::Stretch, FitMode::Letterbox, FitMode::Crop})
+        for (const ContentRotation own : {ContentRotation::None, ContentRotation::ThreeQuarter})
+            for (const ContentRotation surface : {ContentRotation::Quarter, ContentRotation::Half, ContentRotation::ThreeQuarter})
+            {
+                CAPTURE(static_cast<int>(mode));
+                CAPTURE(static_cast<int>(own));
+                CAPTURE(static_cast<int>(surface));
+                const ContentFit inWindow{safe, Float2{1920.0f, 1080.0f}, mode, own};
+                const ContentFit inImage{TurnRectangle(safe, surface, window), Float2{1920.0f, 1080.0f}, mode, AddTurns(own, surface)};
+                const Rectangle expected = TurnRectangle(inWindow.DstRect(), surface, window);
+                const Rectangle drawn = inImage.DstRect();
+                CHECK(drawn.x == doctest::Approx(expected.x));
+                CHECK(drawn.y == doctest::Approx(expected.y));
+                CHECK(drawn.width == doctest::Approx(expected.width));
+                CHECK(drawn.height == doctest::Approx(expected.height));
+                // A content point lands where the window shows it, turned.
+                const Float2 c{400.0f, 300.0f};
+                const Float2 shown = TurnPoint(inWindow.FromContent(c), surface, window);
+                const Float2 put = inImage.FromContent(c);
+                CHECK(put.x == doctest::Approx(shown.x));
+                CHECK(put.y == doctest::Approx(shown.y));
+            }
 }

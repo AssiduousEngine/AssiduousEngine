@@ -73,6 +73,57 @@ export namespace foundation::core
         return ContentRotation::None;
     }
 
+    /// The turn of `first` followed by `second`, both clockwise.
+    [[nodiscard]] constexpr ContentRotation AddTurns(ContentRotation first, ContentRotation second) noexcept
+    {
+        return static_cast<ContentRotation>((static_cast<int>(first) + static_cast<int>(second)) % 4);
+    }
+
+    /// The turn that undoes `turn`.
+    [[nodiscard]] constexpr ContentRotation InverseTurn(ContentRotation turn) noexcept
+    {
+        return static_cast<ContentRotation>((4 - static_cast<int>(turn)) % 4);
+    }
+
+    /// Whether `turn` swaps a space's sides (a quarter either way).
+    [[nodiscard]] constexpr bool TurnSwapsSides(ContentRotation turn) noexcept
+    {
+        return turn == ContentRotation::Quarter || turn == ContentRotation::ThreeQuarter;
+    }
+
+    /// Where a point of a `size` space lands when the space is turned by `turn` (clockwise, as a
+    /// picture is): the turned space is `size` with its sides swapped on a quarter turn, and a
+    /// quarter takes the space's top-left corner to the turned space's top-right. How a window's
+    /// point lands on a swapchain image drawn turned for the display (pre-rotation).
+    [[nodiscard]] constexpr Float2 TurnPoint(Float2 point, ContentRotation turn, Float2 size) noexcept
+    {
+        switch (turn)
+        {
+        case ContentRotation::Quarter:
+            return Float2{size.y - point.y, point.x};
+        case ContentRotation::Half:
+            return Float2{size.x - point.x, size.y - point.y};
+        case ContentRotation::ThreeQuarter:
+            return Float2{point.y, size.x - point.x};
+        case ContentRotation::None:
+        default:
+            return point;
+        }
+    }
+
+    /// Where a rectangle of a `size` space lands when the space is turned by `turn` (TurnPoint),
+    /// as an axis-aligned rectangle of the turned space.
+    [[nodiscard]] constexpr Rectangle TurnRectangle(Rectangle rect, ContentRotation turn, Float2 size) noexcept
+    {
+        const Float2 a = TurnPoint(Float2{rect.x, rect.y}, turn, size);
+        const Float2 b = TurnPoint(Float2{rect.x + rect.width, rect.y + rect.height}, turn, size);
+        const f32 x0 = a.x < b.x ? a.x : b.x;
+        const f32 y0 = a.y < b.y ? a.y : b.y;
+        const f32 x1 = a.x < b.x ? b.x : a.x;
+        const f32 y1 = a.y < b.y ? b.y : a.y;
+        return Rectangle{x0, y0, x1 - x0, y1 - y0};
+    }
+
     struct ContentFit
     {
         Rectangle region = Rectangle{0, 0, 0, 0}; // outer rect, region space
