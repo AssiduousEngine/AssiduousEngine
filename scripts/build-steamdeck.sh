@@ -19,7 +19,7 @@
 #   Env:    JOBS=N        build parallelism (default 4)
 #           RT=podman     force a container runtime (default: first of podman, docker found)
 #           TEMPLATE=0    skip the export template
-#           SHADERPACK=   the host's Tools.ShaderPack (default: the newest host Clang build's); the
+#           SHADERPACK=   the host's Tools.ShaderPack (default: built from this tree in build/clang); the
 #                         container cannot run DXC (glibc 2.38), so the pack is cooked here
 set -euo pipefail
 
@@ -51,13 +51,16 @@ echo "== building image $IMAGE (first run installs Clang 21 + GCC 14; SDL3 is ve
 # uid:gid explicitly there.
 # The shader pack, cooked on the host: DXC needs glibc 2.38, which the 22.04 container lacks. The
 # pack is platform-independent SPIR-V; the container stages this copy.
+# The cooker is built from this tree first (the host clang preset), since one built before a
+# shader syntax change cannot read today's shaders.
 SHADERPACK="${SHADERPACK:-}"
 if [[ -z "$SHADERPACK" ]]; then
-    for c in Bin/Release/Linux64-Clang/Tools.ShaderPack Bin/Debug/Linux64-Clang/Tools.ShaderPack; do
-        [[ -x "$c" ]] && { SHADERPACK="$c"; break; }
-    done
+    echo "== building the host Tools.ShaderPack (the clang preset) =="
+    [[ -f build/clang/CMakeCache.txt ]] || cmake --preset clang
+    cmake --build build/clang --target Tools.ShaderPack -j"$JOBS"
+    SHADERPACK="Bin/Debug/Linux64-Clang/Tools.ShaderPack"
 fi
-[[ -n "$SHADERPACK" ]] || { echo "!! no host Tools.ShaderPack; build it (or set SHADERPACK)" >&2; exit 1; }
+[[ -x "$SHADERPACK" ]] || { echo "!! no host Tools.ShaderPack at $SHADERPACK" >&2; exit 1; }
 echo "== cooking shaders.dpak on the host ($SHADERPACK) =="
 mkdir -p build
 "$SHADERPACK" "Data/Engine/Shaders" "build/steamdeck-shaders.dpak" spirv
