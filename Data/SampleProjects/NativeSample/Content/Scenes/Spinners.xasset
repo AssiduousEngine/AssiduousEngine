@@ -2,6 +2,7 @@
 	<string name="guid">1f71df2c-8289-4bf2-a468-9ee8efd763b0</string>
 	<string name="typeNamespace">rtti::scene</string>
 	<string name="typeName">SceneDocument</string>
+	<string name="source"/>
 	<array name="dataVersions" count="1">
 		<u64 name="type">10281239718989168749</u64>
 		<u32 name="version">0</u32>

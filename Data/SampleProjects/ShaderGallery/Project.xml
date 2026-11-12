@@ -1,7 +1,7 @@
 <root>
 	<array name="dataVersions" count="1">
 		<u64 name="type">3041078812905029385</u64>
-		<u32 name="version">11</u32>
+		<u32 name="version">12</u32>
 	</array>
 	<string name="name">Shader Gallery</string>
 	<string name="engineVersion">0.1.0</string>
@@ -12,7 +12,6 @@
 	<string name="defaultBusLayoutId">00000000-0000-0000-0000-000000000000</string>
 	<string name="startupScriptId">00000000-0000-0000-0000-000000000000</string>
 	<string name="defaultUiFontId">75a7ad85-5b16-456f-aa1e-0cf910df2d09</string>
-	<u32 name="renderMsaaSamples">4</u32>
 	<array name="uiFontIds" count="0"/>
 	<u32 name="renderWidth">0</u32>
 	<u32 name="renderHeight">0</u32>
@@ -27,4 +26,8 @@
 	</array>
 	<string name="guiLoadingDocumentId">00000000-0000-0000-0000-000000000000</string>
 	<array name="plugins" count="0"/>
+	<array name="qualityLevelIds" count="1">
+		<string>9348f2f0-ee1f-46e3-bd10-02ecaa754701</string>
+	</array>
+	<string name="defaultQualityId">9348f2f0-ee1f-46e3-bd10-02ecaa754701</string>
 </root>

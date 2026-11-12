@@ -1,7 +1,7 @@
 <root>
 	<array name="dataVersions" count="1">
 		<u64 name="type">3041078812905029385</u64>
-		<u32 name="version">11</u32>
+		<u32 name="version">12</u32>
 	</array>
 	<string name="name">NativeSample</string>
 	<string name="engineVersion">0.1.0</string>
@@ -12,7 +12,6 @@
 	<string name="defaultBusLayoutId">00000000-0000-0000-0000-000000000000</string>
 	<string name="startupScriptId">00000000-0000-0000-0000-000000000000</string>
 	<string name="defaultUiFontId">00000000-0000-0000-0000-000000000000</string>
-	<u32 name="renderMsaaSamples">4</u32>
 	<array name="uiFontIds" count="0"/>
 	<u32 name="renderWidth">0</u32>
 	<u32 name="renderHeight">0</u32>
@@ -32,4 +31,8 @@
 			<object name="settings"/>
 		</object>
 	</array>
+	<array name="qualityLevelIds" count="1">
+		<string>b632e335-0831-4de7-9021-e9509510b163</string>
+	</array>
+	<string name="defaultQualityId">b632e335-0831-4de7-9021-e9509510b163</string>
 </root>

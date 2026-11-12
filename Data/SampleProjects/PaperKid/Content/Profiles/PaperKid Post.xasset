@@ -2,9 +2,10 @@
 	<string name="guid">2bedeedc-9a67-4472-81a5-697b9762f580</string>
 	<string name="typeNamespace">rtti::pipeline::render</string>
 	<string name="typeName">PostProcessProfileAsset</string>
+	<string name="source"/>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2666163304852131750</u64>
-		<u32 name="version">0</u32>
+		<u32 name="version">1</u32>
 	</array>
 	<object name="payload">
 		<string name="fileName"/>
@@ -20,7 +21,6 @@
 		<f32 name="aoIntensity">1</f32>
 		<bool name="ssrEnabled">false</bool>
 		<f32 name="ssrIntensity">1</f32>
-		<u32 name="aaMode">1</u32>
 		<f32 name="taaBlendFactor">0.97</f32>
 		<f32 name="taaVarianceGamma">1.25</f32>
 		<f32 name="fxaaSubpixel">0.75</f32>
