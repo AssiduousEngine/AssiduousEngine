@@ -16,10 +16,15 @@
 #   - an RHI sample: their shaders cooked from Data/Samples/RHI (the host's Tools.ShaderPack
 #     --entries), since Android has no shader compiler.
 #
-#   Usage:  scripts/android-app.sh <Target> [--game <project>] [--install] [--run]
+#   Usage:  scripts/android-app.sh <Target> [--game <project>] [--install] [--run] [--args "<flags>"]
 #           e.g. scripts/android-app.sh Engine.Player --game Data/SampleProjects/SkyHopper --run
 #                scripts/android-app.sh Sample001_Triangle --install --run
-#   Env:    CONFIG=Debug         the Android build's configuration (default Debug)
+#                CONFIG=RelWithDebInfo scripts/android-app.sh Engine.Player --game <project> \
+#                    --run --args "--profile-capture 20"
+#   --args passes flags to the program at launch (the development app is debuggable, so it takes
+#   them; an exported game does not); it implies --run.
+#   Env:    CONFIG=Debug         the Android build's configuration (default Debug): Debug builds in
+#                                build/android-arm64, RelWithDebInfo in build/android-arm64-reldbg
 #           HOST_BIN=<dir>       the host build with Tools.ShaderPack and Tools.Export
 #                                (default Bin/Debug/Linux64-Clang)
 #           SERIAL=<id>          the phone, when more than one is attached (adb -s)
@@ -29,9 +34,9 @@
 #                                layers in its own library folder, and the engine asks for
 #                                validation in Debug
 #
-# Needs the Android build tree (cmake --preset android-arm64), ANDROID_HOME and a JDK 17 for
-# Gradle, and network access the first time (the wrapper fetches Gradle, Gradle the Android
-# plugin).
+# Needs the Android build tree (cmake --preset android-arm64, or android-arm64-reldbg),
+# ANDROID_HOME and a JDK 17 for Gradle, and network access the first time (the wrapper fetches
+# Gradle, Gradle the Android plugin).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -39,18 +44,20 @@ cd "$ROOT"
 
 TARGET="${1:-}"
 if [[ -z "$TARGET" || "$TARGET" == -* ]]; then
-    sed -n '6,35p' "$0" >&2
+    sed -n '6,39p' "$0" >&2
     exit 2
 fi
 shift
 INSTALL=0
 RUN=0
 GAME=""
+ARGS=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --install) INSTALL=1 ;;
         --run) INSTALL=1; RUN=1 ;;
         --game) GAME="$2"; shift ;;
+        --args) INSTALL=1; RUN=1; ARGS="$2"; shift ;;
         *) echo "unknown option: $1" >&2; exit 2 ;;
     esac
     shift
@@ -58,6 +65,11 @@ done
 
 CONFIG="${CONFIG:-Debug}"
 ANDROID_BIN="Bin/$CONFIG/Android64-Clang"
+case "$CONFIG" in
+    Debug) BUILD_TREE="build/android-arm64" ;;
+    RelWithDebInfo) BUILD_TREE="build/android-arm64-reldbg" ;;
+    *) echo "CONFIG is Debug or RelWithDebInfo, not $CONFIG" >&2; exit 2 ;;
+esac
 HOST_BIN="${HOST_BIN:-Bin/Debug/Linux64-Clang}"
 STAGED="$ROOT/build/android-app/$TARGET"
 PROJECT="$ROOT/Code/Engine/Engine.Player/Android"
@@ -68,11 +80,11 @@ if [[ -n "${SERIAL:-}" ]]; then ADB+=(-s "$SERIAL"); fi
 STRIP="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
 
 if [[ "${NO_BUILD:-0}" != "1" ]]; then
-    TMPDIR="$ROOT/build/tmp" cmake --build build/android-arm64 -j4 --target "$TARGET"
+    TMPDIR="$ROOT/build/tmp" cmake --build "$BUILD_TREE" -j4 --target "$TARGET"
 fi
 LIBRARY="$ANDROID_BIN/lib$TARGET.so"
 if [[ ! -f "$LIBRARY" ]]; then
-    echo "no $LIBRARY: build $TARGET in build/android-arm64 (an RHI sample builds as a library there)" >&2
+    echo "no $LIBRARY: build $TARGET in $BUILD_TREE (an RHI sample builds as a library there)" >&2
     exit 1
 fi
 
@@ -112,7 +124,11 @@ if [[ "$INSTALL" == "1" ]]; then
 fi
 if [[ "$RUN" == "1" ]]; then
     "${ADB[@]}" logcat -c
-    "${ADB[@]}" shell am start -n com.assiduousengine.player/.GameActivity
+    if [[ -n "$ARGS" ]]; then
+        "${ADB[@]}" shell am start -n com.assiduousengine.player/.GameActivity --es args "\"$ARGS\""
+    else
+        "${ADB[@]}" shell am start -n com.assiduousengine.player/.GameActivity
+    fi
     echo "== logcat (Ctrl+C to stop)"
     "${ADB[@]}" logcat -s Engine SDL SDL/APP AndroidRuntime DEBUG
 fi
