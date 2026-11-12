@@ -5,7 +5,7 @@ engine, the editor or a game made with it would notice gets a line under **Unrel
 commit that makes it; a release turns Unreleased into its version and date. The steps are in
 [Documentation/Process/CONVENTIONS.md](Documentation/Process/CONVENTIONS.md), under Releases.
 
-## Unreleased
+## 0.1.0-beta.3 - 2026-11-12
 
 ### Added
 
@@ -45,11 +45,11 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Animation: the root motion mode that moves nothing and holds the travel for the game to apply
   is called `Manual` (it was `Script`), since game code reads it as well as a script; a script
   names it `RootMotionMode::Manual`. Saved scenes read unchanged.
-
 - Editor: an export preset's extra files are the project's: Add Files picks from the project's own
   files (not what the editor, a cook or an export writes) and names each relative to the project, so
   the preset travels with it; From Disk takes a file of the project's through the system's dialog and
   refuses one outside it.
+
 ### Fixed
 
 - Editor: play-in-editor draws the game at the project's scene-pass MSAA, as the player does; it
@@ -73,7 +73,6 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   them. The wire format changes: an older build does not talk to this one.
 - Editor: the Export dialog shows the selected preset's settings again; since the property grid
   measured its rows, the column beside the presets had shrunk to nothing.
-
 - Rendering (Vulkan): the screen UI waits for the scene's last pass before drawing over it, where on
   a phone's GPU it could drop out of a frame and flicker. A render target reused every frame waits
   for the frame before it to finish with it, where before the two could overlap, which on a phone's
