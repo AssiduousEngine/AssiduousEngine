@@ -184,7 +184,38 @@ namespace engine::render
     void RenderSubsystem::SetMsaaSamples(u32 count) noexcept
     {
         m_globalMsaaSamples = (count < 1) ? 1u : count; // clamped to the device ceiling per view
-        m_globalPostActive = true;
+    }
+
+    ViewPostConfig RenderSubsystem::ViewPost(scene::Scene& scene) const
+    {
+        ViewPostConfig post;
+        if (m_globalPostActive)
+        {
+            post.exposure = m_exposure;
+            post.agxTonemap = true; // the global override API has no operator toggle
+            post.bloomEnabled = m_bloomEnabled;
+            post.bloomThreshold = m_bloomThreshold;
+            post.bloomKnee = m_bloomKnee;
+            post.bloomIntensity = m_bloomIntensity;
+            post.aoMode = static_cast<u32>(m_aoMode);
+            post.aoStrength = m_aoStrength;
+            post.aoRadius = m_aoRadius;
+            post.aoIntensity = m_aoIntensity;
+            post.taaEnabled = m_taaEnabled;
+            post.taaBlend = m_taaBlend;
+            post.taaGamma = m_taaGamma;
+            post.fxaaEnabled = m_fxaaEnabled;
+            post.fxaaSubpixel = m_fxaaSubpixel;
+            post.ssrEnabled = m_ssrEnabled;
+            post.ssrIntensity = m_ssrParams.intensity;
+        }
+        else if (const PostProcessSystem* pp = scene.GetSystem<PostProcessSystem>())
+        {
+            post = ResolveScenePost(pp->Effective()); // the scene's, or its profile's
+        }
+        // The host's scene-pass MSAA (a project's setting) over either: a count is not a post look.
+        post.msaaSamples = static_cast<u8>(m_globalMsaaSamples);
+        return post;
     }
 
     bool RenderSubsystem::SupportsMsaaSamples(u32 count) const noexcept
@@ -446,35 +477,10 @@ namespace engine::render
         settings.targetCurrentState = targetState.currentState;
         settings.targetFinalState = targetState.finalState;
 
-        // Resolve this view's post-processing (exposure, bloom, AO). The programmatic global override
-        // (samples' debug panels) wins once touched; otherwise the scene's authored PostProcessSettings
-        // drive, and exposure authored in EV stops is resolved to the tonemap's linear multiplier here.
-        // (AA and SSR remain frame-global.)
-        if (m_globalPostActive)
-        {
-            settings.post.exposure = m_exposure;
-            settings.post.agxTonemap = true; // the global override API has no operator toggle
-            settings.post.bloomEnabled = m_bloomEnabled;
-            settings.post.bloomThreshold = m_bloomThreshold;
-            settings.post.bloomKnee = m_bloomKnee;
-            settings.post.bloomIntensity = m_bloomIntensity;
-            settings.post.aoMode = static_cast<u32>(m_aoMode);
-            settings.post.aoStrength = m_aoStrength;
-            settings.post.aoRadius = m_aoRadius;
-            settings.post.aoIntensity = m_aoIntensity;
-            settings.post.taaEnabled = m_taaEnabled;
-            settings.post.taaBlend = m_taaBlend;
-            settings.post.taaGamma = m_taaGamma;
-            settings.post.fxaaEnabled = m_fxaaEnabled;
-            settings.post.fxaaSubpixel = m_fxaaSubpixel;
-            settings.post.ssrEnabled = m_ssrEnabled;
-            settings.post.ssrIntensity = m_ssrParams.intensity;
-            settings.post.msaaSamples = static_cast<u8>(m_globalMsaaSamples);
-        }
-        else if (const PostProcessSystem* pp = scene.GetSystem<PostProcessSystem>())
-        {
-            settings.post = ResolveScenePost(pp->Effective()); // the scene's, or its profile's
-        }
+        // Resolve this view's post-processing: the samples' global override once touched, else the
+        // scene's authored PostProcessSettings (exposure in EV stops resolved to the tonemap's
+        // linear multiplier), with the host's scene-pass MSAA either way.
+        settings.post = ViewPost(scene);
         // Editor viewport "show flags": ephemeral per-view overrides that strip effects for editing
         // clarity, layered on top of the resolved post and never written back to the scene.
         if (postOverride != nullptr)

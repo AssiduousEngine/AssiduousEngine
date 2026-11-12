@@ -169,9 +169,15 @@ export namespace engine::render
 
         // Exposure, bloom and AO are authored per scene (PostProcessSettings) and resolved per view.
         // These programmatic setters are a global override (samples' debug panels): calling any of
-        // them latches m_globalPostActive, and the resolve in RenderScene then prefers the global
-        // values over the scene's authored ones for exposure, bloom and AO. Untouched (the editor
-        // path), the scene's authored settings drive. (AO debug below is a frame-global toggle.)
+        // them latches m_globalPostActive, and ViewPost then prefers the global values over the
+        // scene's authored ones for exposure, bloom and AO. Untouched (the editor and the player),
+        // the scene's authored settings drive. (AO debug below is a frame-global toggle.) The
+        // scene-pass MSAA count is not one of them: it is the host's, applied over either.
+
+        /// The post-processing a view of `scene` gets: the global override once a setter above was
+        /// called, else the scene's authored settings (or its profile's); either way with the
+        /// scene-pass MSAA count SetMsaaSamples gave.
+        [[nodiscard]] ViewPostConfig ViewPost(scene::Scene& scene) const;
 
         // The app's run clock in seconds, handed to the frame every BeginRendering: the wind
         // vertex sway phase (DefaultApplication feeds it from its OnUpdate accumulator).
@@ -208,8 +214,10 @@ export namespace engine::render
         // thickness, screen-edge fade, roughness cutoff, march steps). Reflects the lit HDR before AO and TAA.
         void SetSsrEnabled(bool on) noexcept;
         [[nodiscard]] bool SsrEnabled() const noexcept { return m_ssrEnabled; }
-        // Scene-pass MSAA sample count (1, 2, 4) for the global post path, clamped per view to what the
-        // device supports. Samples and tools drive it directly (the editor uses the per-view override).
+        // Scene-pass MSAA sample count (1, 2, 4) for every view (a project's setting, a sample's
+        // toggle), clamped per view to what the device supports. It leaves the scene's authored post
+        // settings in effect: the count is not part of the global override (the editor uses the
+        // per-view override).
         void SetMsaaSamples(u32 count) noexcept;
         [[nodiscard]] u32 MsaaSamples() const noexcept { return m_globalMsaaSamples; }
         // Whether this exact scene-pass MSAA count is usable on the active device (the valid set is not
@@ -403,7 +411,7 @@ export namespace engine::render
         f32 m_aoRadius = 0.5f;
         f32 m_aoIntensity = 1.0f;
         bool m_ssrEnabled = false;  // SSR off by default (UI toggle)
-        u32 m_globalMsaaSamples = 1; // scene-pass MSAA count for the global post path (off by default)
+        u32 m_globalMsaaSamples = 1; // scene-pass MSAA count for every view (off by default)
         SsrPass::Params m_ssrParams{};
         bool m_instanceSharing = true; // instance data shared from prepass to forward (A/B toggle)
         bool m_viewCulling = true;     // view-frustum cull camera draw lists

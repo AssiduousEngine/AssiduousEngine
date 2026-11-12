@@ -2359,3 +2359,36 @@ TEST_CASE("render: a subsystem never initialized lets its overlay depth target g
     }
     CHECK(device.Counters().textures == 0);
 }
+
+TEST_CASE("render: the host's scene-pass MSAA keeps the scene's post settings in effect")
+{
+    // A project's MSAA reached the views through the samples' global post override, so a game with
+    // MSAA on lost its scene's post-processing (its profile's auto exposure, AO, SSR, TAA) in the
+    // player, which sets the project's MSAA, and kept it in the editor, which does not.
+    rhi::null::NullDevice device{DefaultAllocator()};
+    foundation::vfs::NativeFileSystem dataFs(foundation::vfs::FindDataRoot(), DefaultAllocator());
+    RenderSubsystem sub{DefaultAllocator(), device, 2, dataFs};
+
+    scene::Scene scene{DefaultAllocator()};
+    auto* post = scene.AddSystem<PostProcessSystem>();
+    REQUIRE(post != nullptr);
+    post->Post().autoExposure = true;
+    post->Post().aoMode = foundation::render::AoMode::SSAO;
+    post->Post().ssrEnabled = true;
+    post->Post().aaMode = AaMode::TAA;
+
+    sub.SetMsaaSamples(4);
+    const ViewPostConfig withMsaa = sub.ViewPost(scene);
+    CHECK(withMsaa.msaaSamples == 4u);
+    CHECK(withMsaa.autoExposure);
+    CHECK(withMsaa.aoMode == static_cast<u32>(foundation::render::AoMode::SSAO));
+    CHECK(withMsaa.ssrEnabled);
+    CHECK(withMsaa.taaEnabled);
+
+    // A sample's debug panel still overrides the scene's look, and the MSAA count stays.
+    sub.SetExposure(2.0f);
+    const ViewPostConfig overridden = sub.ViewPost(scene);
+    CHECK(overridden.exposure == doctest::Approx(2.0f));
+    CHECK_FALSE(overridden.autoExposure);
+    CHECK(overridden.msaaSamples == 4u);
+}

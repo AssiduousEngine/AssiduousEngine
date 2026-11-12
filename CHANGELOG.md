@@ -51,6 +51,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   refuses one outside it.
 ### Fixed
 
+- Rendering: a game with MSAA on keeps its scenes' post-processing in the player (auto exposure,
+  AO, SSR and TAA, from the scene or its profile); the project's MSAA setting replaced them with the
+  engine's defaults, so since the samples turned MSAA on the player drew them darker and plainer
+  than the editor.
 - Rendering: a scene's sky lighting (IBL) and its reflection probes bake once, not again in each of
   the scene's first 20 frames; on a phone those frames ran at about 4 fps, the first seconds of
   every game.
