@@ -214,6 +214,14 @@ export namespace engine::project
         // saved before it reads none.
         Array<foundation::runtime::EnabledPlugin> plugins;
 
+        // The game's quality levels (Render Quality assets), in the order an options menu lists
+        // them, and the one it starts at where no export preset picks another (play-in-editor, a run
+        // from the project folder): nil is the list's last level, and a project with no list runs at
+        // the engine's own highest. An export preset picks its own among these. Appended: a manifest
+        // saved before them reads none.
+        Array<Guid> qualityLevelIds;
+        Guid defaultQualityId;
+
         /// The project's entry for plugin `id`, or null when it enables no such plugin.
         [[nodiscard]] foundation::runtime::EnabledPlugin* FindPlugin(StringView id) noexcept
         {
@@ -238,6 +246,20 @@ export namespace engine::project
 
         /// Whether the game draws at a fixed resolution rather than at its output's size.
         [[nodiscard]] bool HasRenderResolution() const noexcept { return renderWidth > 0 && renderHeight > 0; }
+
+        /// Whether `id` is one of the game's quality levels, the only ones a default or a preset
+        /// may start at (an options menu offers the list alone).
+        [[nodiscard]] bool IsQualityLevel(const Guid& id) const noexcept
+        {
+            for (const Guid& level : qualityLevelIds)
+            {
+                if (level == id)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
 
         /// Re-derives the human-readable path mirrors (defaultScene, startupScript) from their
         /// guids after a change: `pathOf` answers an asset's source-DB path, empty when unknown.
@@ -305,6 +327,12 @@ export namespace engine::project
                 ar.GuidValue(guiLoadingDocumentId);
             }
             SerializeAppended(ar, "plugins", plugins);
+            SerializeAppended(ar, "qualityLevelIds", qualityLevelIds);
+            if (ar.Mode() != SerializeMode::Read || ar.HasKey("defaultQualityId")) // appended
+            {
+                ar.Key("defaultQualityId");
+                ar.GuidValue(defaultQualityId);
+            }
             if (!nativeModule.IsEmpty())
             {
                 foundation::runtime::EnabledPlugin entry = NativeModulePackageEntry(nativeModule.AsView());

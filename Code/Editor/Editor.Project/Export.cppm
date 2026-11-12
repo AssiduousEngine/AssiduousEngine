@@ -660,10 +660,16 @@ export namespace editor
     /// UI thread.
     [[nodiscard]] Status BuildProjectPlugins(EditorProject& project);
 
-    /// Writes a preset's own render resolution, window or orientation over what the project's
-    /// dist manifest (player.xml in `outDir`) says, so the platform's values ship. Does nothing
-    /// when the preset overrides none of them.
-    [[nodiscard]] Status ApplyPresetDisplay(StringView outDir, const ExportPreset& preset);
+    /// Writes a preset's own render resolution, window, orientation or quality level over what the
+    /// project's dist manifest (player.xml in `outDir`) says, so the platform's values ship: the
+    /// preset's level becomes the dist's default. Does nothing when the preset overrides none of
+    /// them; InvalidArgument when its level is not one of the project's.
+    [[nodiscard]] Status ApplyPresetOverrides(StringView outDir, const ExportPreset& preset);
+
+    /// Why a preset may not export with the project's quality levels (its level is not one of
+    /// them), or empty when it may.
+    [[nodiscard]] String PresetQualityRefusal(const engine::project::ProjectSettings& settings,
+                                              const ExportPreset& preset);
 
     /// The project's plugins as the exporting host loaded them (either may be null: none).
     struct ExportPlugins

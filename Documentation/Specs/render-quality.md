@@ -12,9 +12,9 @@
 
 A game looks the same everywhere and costs what each platform can pay. The scene keeps deciding
 what it looks like; a **quality level** decides what that costs. A project offers a few levels
-(Low, Medium, High, its own), each platform starts at one, an export preset can pick another, and
-the player can change it from a game's options menu, kept across runs. The editor previews any
-level, and the Game tab plays at the level of the preset it previews.
+(Low, Medium, High, its own) and starts at one; each export preset (a platform's target) can pick
+another, and the player can change it from a game's options menu, kept across runs. The editor
+previews any level, and the Game tab plays at the level of the preset it previews.
 
 Not goals: a separate mobile renderer (one render path; the cost is in a few effects a level turns
 down or off), choosing a level from the GPU at runtime (no reference engine does; a platform and a
@@ -24,8 +24,11 @@ compression per platform (the export preset's, decided at cook, as today).
 ## Decided (user, 2026-11-12, on the proposal that led to this spec)
 
 1. **A quality level is an asset**, a Render Quality, made and edited like the render profiles.
-2. **The project lists its levels and each platform's default**, by reference; an export preset may
-   override its platform's default with another level.
+2. **The project lists its levels and the one it starts at; each export preset picks its own**, by
+   reference (ruled 2026-11-12 over per-platform defaults in the project): presets are the
+   targets, every run on a platform comes from one, and each already names its platform. The
+   project's default serves play-in-editor and a run from the project folder. Per-platform defaults
+   can come later as a layer under the presets if a new preset's starting level proves a nuisance.
 3. **Antialiasing is the level's**, with MSAA: a cost decision. The post profile's `aaMode` goes (a
    data version bump); Lamplight's and Masquerade's FXAA move to their levels. (Flax keeps the AA
    mode in the authored post; Traktor makes it quality.)
@@ -116,10 +119,11 @@ look's values (radius, strength, intensity); it changes how many samples get the
 ### What the project and a preset hold
 
 - `ProjectSettings::qualityLevelIds`: the project's levels, in the order an options menu lists them.
-- `ProjectSettings::platformQuality`: a list of (platform, level) pairs. A platform without an entry
-  starts at the list's last level (by convention the highest).
-- `ExportPreset::overridesQuality` and `qualityLevelId`: the preset's own default level (the Steam
-  Deck's Medium beside the Linux desktop's High).
+- `ProjectSettings::defaultQualityId`: the level the game starts at where no preset picks another
+  (play-in-editor, a run from the project folder); nil is the list's last level (by convention the
+  highest). It must be one of the levels.
+- `ExportPreset::qualityLevelId`: the level the preset's platform starts at (the Steam Deck's Medium
+  beside the Linux desktop's High), one of the project's levels; nil is the project's default.
 - `renderMsaaSamples` leaves the project: each level carries its count. A project saved before is
   migrated (a data version bump): the editor makes one level, `Default`, with the project's count
   and the effects at High, and lists it. A project without levels runs at the engine's built-in
@@ -128,8 +132,8 @@ look's values (radius, strength, intensity); it changes how many samples get the
 ### Which level applies
 
 At startup, in this order, the last one found wins:
-1. The platform's default (`platformQuality`, else the list's last level).
-2. The export preset's override (written into the dist's `player.xml` as the default).
+1. The project's default (`defaultQualityId`, else the list's last level).
+2. The export preset's level (written into the dist's `player.xml` as its default).
 3. The player's own choice, if the game saved one (a `foundation.settings` section in the game's
    user data, by level guid; a guid the project no longer lists is ignored).
 
@@ -153,10 +157,10 @@ Changing the level at runtime:
 ### In the editor
 
 - The Render Quality page edits a level's fields, as the profile pages do.
-- Project Settings has a Quality tab: the levels in order (add, remove, reorder) and the platform
-  defaults. The Export dialog's preset settings gain the quality override.
+- Project Settings has a Quality tab: the levels in order (add, remove, reorder) and the default.
+  The Export dialog's preset settings gain the preset's level.
 - The Game tab plays at the level of the preset its resolution dropdown previews, and at the
-  platform default for the project's own entry. A Quality dropdown beside it overrides that for the
+  project's default for the project's own entry. A Quality dropdown beside it overrides that for the
   session.
 - The scene viewport draws as authored (no level) by default, and can preview any level from its
   toolbar, an editor-only setting.
@@ -175,8 +179,8 @@ Per-effect overrides from an options menu (shadows Off at High) are for later ev
 
 - `asset_create` makes a Render Quality by its creator's name; `asset_data_write` edits it.
 - `project_settings_set` takes `qualityLevelIds` (the whole list, as `uiFontIds`) and
-  `platformQuality` (the whole list of pairs).
-- `export_preset_set` takes `overridesQuality` and `qualityLevelId`.
+  `defaultQualityId` (one of them).
+- `export_preset_set` takes `qualityLevelId` (one of the project's levels).
 - `pie_quality` sets the Game tab's override, as `pie_resolution` sets its resolution.
 - McpGuide.md documents them in the same commits.
 
@@ -185,8 +189,8 @@ Per-effect overrides from an options menu (shadows Off at High) are for later ev
 **Q0: the asset, the project and the preset.**
 - `RenderQualitySource`, `RenderQuality`, its factory and resource module (`engine.render`), the
   pipeline asset beside the profiles (`render.pipeline`), and its creator.
-- `ProjectSettings::qualityLevelIds` and `platformQuality`; `ExportPreset::overridesQuality` and
-  `qualityLevelId`; `player.xml` carries the default and the list. Nothing reads them yet:
+- `ProjectSettings::qualityLevelIds` and `defaultQualityId`; `ExportPreset::qualityLevelId`;
+  `player.xml` carries the list and the default (the preset's level when it has one). Nothing reads them yet:
   `renderMsaaSamples` and the post profile's `aaMode` still drive, so every game draws as before.
 - The export cooks the listed levels and keeps them in a pruned pak.
 - MCP: `project_settings_set` and `export_preset_set` take the new fields. McpGuide.md.
@@ -232,7 +236,7 @@ Per-effect overrides from an options menu (shadows Off at High) are for later ev
   choice is the player's starting level on the next run.
 
 **Q5: the samples.**
-- Each sample game gets Low, Medium and High levels (made through MCP), Android64 and Web defaults,
+- Each sample game gets Low, Medium and High levels (made through MCP), its presets' levels,
   and an options entry where the game has an options menu.
 - The tier numbers are tuned on the Pixel 6 and the desktop; the phone measurements are taken again.
 - Integration.Mcp's sample checks read the new data versions.

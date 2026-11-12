@@ -900,6 +900,52 @@ TEST_CASE("integration.mcp: an agent sets the project's settings")
         CHECK(session.project->Settings().windowMode == engine::project::WindowMode::Borderless);
     }
 
+    // The quality levels: Render Quality assets made by asset_create, listed in an options menu's
+    // order, and a default that must be one of them (as the list stands after the call).
+    {
+        const auto level = [&](StringView name)
+        {
+            return FfCall(server, u8"asset_create",
+                          FfStr(FfStr(JsonValue::MakeObject(), u8"creator", u8"Render Quality"), u8"name", name))
+                .Get(u8"guid")
+                .AsString();
+        };
+        const String low = level(u8"Low");
+        const String high = level(u8"High");
+        const auto quality = [](std::initializer_list<StringView> ids, StringView startsAt)
+        {
+            JsonValue list = JsonValue::MakeArray();
+            for (StringView id : ids)
+            {
+                list.Add(JsonValue::MakeString(String(id)));
+            }
+            JsonValue args = JsonValue::MakeObject();
+            args.Set(u8"qualityLevelIds", Move(list));
+            args.Set(u8"defaultQualityId", JsonValue::MakeString(String(startsAt)));
+            return args;
+        };
+        CHECK(refused(quality({low.AsView()}, high.AsView()))
+                  .AsView()
+                  .StartsWith(u8"`defaultQualityId` must be one of `qualityLevelIds`"));
+        CHECK(refused(quality({low.AsView(), sceneId.AsView()}, u8""))
+                  .AsView()
+                  .StartsWith(u8"`qualityLevelIds[1]` takes an asset of type RenderQualityAsset"));
+        JsonValue set = FfCall(server, u8"project_settings_set", quality({low.AsView(), high.AsView()}, high.AsView()))
+                            .Get(u8"settings");
+        REQUIRE(set.Get(u8"qualityLevelIds").Count() == 2);
+        CHECK(set.Get(u8"qualityLevelIds").At(0).Get(u8"guid").AsString() == low.AsView());
+        CHECK(set.Get(u8"defaultQualityId").Get(u8"guid").AsString() == high.AsView());
+        // Taking the default's level out of the list alone is refused; clearing both is not.
+        JsonValue lowOnly = JsonValue::MakeObject();
+        JsonValue just = JsonValue::MakeArray();
+        just.Add(JsonValue::MakeString(low));
+        lowOnly.Set(u8"qualityLevelIds", Move(just));
+        CHECK(refused(Move(lowOnly)).AsView().StartsWith(u8"`defaultQualityId` must be one of"));
+        JsonValue none = FfCall(server, u8"project_settings_set", quality({}, u8"")).Get(u8"settings");
+        CHECK(none.Get(u8"qualityLevelIds").Count() == 0);
+        CHECK(none.Get(u8"defaultQualityId").IsNull());
+    }
+
     owner.project.Reset();
     session.project = nullptr;
     (void)RemoveDirectoryRecursive(u8"mcp_settings");
@@ -1002,6 +1048,7 @@ TEST_CASE("integration.mcp: export_presets and export_preset_set")
     pipeline::BuilderRegistry builders{DefaultAllocator()};
     pipeline::ImporterRegistry importers{DefaultAllocator()};
     pipeline::AssetCreatorRegistry creators{DefaultAllocator()};
+    (void)pipeline::RegisterAllCreators(creators); // the Render Quality levels a preset starts at
     editor::EditorLogBuffer logBuffer{DefaultAllocator()};
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;
@@ -1098,6 +1145,31 @@ TEST_CASE("integration.mcp: export_presets and export_preset_set")
         CHECK(refused(Move(both)) == StringView(u8"`remove` takes only `name`"));
     }
     CHECK(FfCall(server, u8"export_presets", JsonValue::MakeObject()).Get(u8"presets").Count() == 2);
+
+    // A preset's quality level: one of the project's levels, or refused (the export would ship a
+    // level the game's options menu does not know).
+    {
+        const auto level = [&](StringView name)
+        {
+            return FfCall(server, u8"asset_create",
+                          FfStr(FfStr(JsonValue::MakeObject(), u8"creator", u8"Render Quality"), u8"name", name))
+                .Get(u8"guid")
+                .AsString();
+        };
+        const String low = level(u8"Low");
+        const String high = level(u8"High");
+        JsonValue listed = JsonValue::MakeArray();
+        listed.Add(JsonValue::MakeString(low));
+        JsonValue settings = JsonValue::MakeObject();
+        settings.Set(u8"qualityLevelIds", Move(listed));
+        (void)FfCall(server, u8"project_settings_set", Move(settings));
+        CHECK(refused(FfStr(FfStr(JsonValue::MakeObject(), u8"name", u8"Deck"), u8"qualityLevelId", high.AsView()))
+                  .AsView()
+                  .StartsWith(u8"preset 'Deck' starts at a quality level the project does not list"));
+        JsonValue set = FfCall(server, u8"export_preset_set",
+                               FfStr(FfStr(JsonValue::MakeObject(), u8"name", u8"Deck"), u8"qualityLevelId", low.AsView()));
+        CHECK(set.Get(u8"presets").At(1).Get(u8"qualityLevelId").Get(u8"guid").AsString() == low.AsView());
+    }
 
     // Removal.
     {

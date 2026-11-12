@@ -145,7 +145,9 @@ export namespace editor::mcp
             u8"stageSymbols, pruneToReachable, includeShaderSource (ship custom shaders' HLSL "
             u8"too; off by default), and the display overrides: overridesRender with "
             u8"renderWidth/renderHeight/renderFit, overridesWindow with windowWidth/windowHeight/"
-            u8"windowMode/windowResizable), and `template`: the id it resolves to here, or null when this "
+            u8"windowMode/windowResizable), qualityLevelId (the quality level the platform starts at, one "
+            u8"of the project's qualityLevelIds; \"\" is the project's default), and `template`: the id "
+            u8"it resolves to here, or null when this "
             u8"machine has no template for it. A project without export_presets.xml has one "
             u8"synthesized preset for the host (`synthesized`: true). Each template: id, name, "
             u8"platform, config, engineVersion, notes, host (the player beside this tool, not an "
@@ -252,6 +254,14 @@ export namespace editor::mcp
                             detail::TemplateValues(templates, [](const editor::ExportTemplate& t)
                                                    { return t.platform.AsView(); })
                                 .AsView()));
+                    }
+                    if (args.Has(u8"qualityLevelId"))
+                    {
+                        if (String refusal = editor::PresetQualityRefusal(s->project->Settings(), preset);
+                            !refusal.IsEmpty())
+                        {
+                            return Err(Move(refusal));
+                        }
                     }
                     if (args.Has(u8"config") && !configKnown)
                     {

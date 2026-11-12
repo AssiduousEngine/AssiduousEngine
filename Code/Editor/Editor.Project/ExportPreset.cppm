@@ -73,6 +73,9 @@ export namespace editor
         // the pack carries the shaders as bytecode and the dist ships no shader source, as the
         // engine's own shaders ship none.
         bool includeShaderSource = false;
+        // The quality level this platform starts at, one of the project's levels (a phone's lower
+        // than a desktop's); nil is the project's default.
+        Guid qualityLevelId;
 
         void Serialize(ISerializer& ar)
         {
@@ -101,6 +104,11 @@ export namespace editor
             SerializeAppended(ar, "overridesOrientation", overridesOrientation);
             SerializeAppended(ar, "orientation", orientation);
             SerializeAppended(ar, "includeShaderSource", includeShaderSource);
+            if (ar.Mode() != SerializeMode::Read || ar.HasKey("qualityLevelId")) // appended
+            {
+                ar.Key("qualityLevelId");
+                ar.GuidValue(qualityLevelId);
+            }
         }
     };
 

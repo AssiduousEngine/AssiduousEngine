@@ -434,8 +434,8 @@ TEST_CASE("editor-project: the settings describe themselves, and the path mirror
             CHECK(engine::project::SettingAttribute(property, engine::project::kSettingEmptyTextAttribute) != nullptr);
         }
     }
-    CHECK(assets == 6u); // scene, script, input map, bus layout, UI font, GUI loading screen
-    CHECK(lists == 2u); // uiFontIds, guiStyleSheetIds
+    CHECK(assets == 7u); // scene, script, input map, bus layout, UI font, GUI loading screen, default quality
+    CHECK(lists == 3u); // uiFontIds, guiStyleSheetIds, qualityLevelIds
     const PropertyInfo* scene = FindProperty(type, "defaultSceneId");
     REQUIRE(scene != nullptr);
     CHECK(*engine::project::SettingAttribute(*scene, engine::project::kSettingAssetTypeAttribute) ==
@@ -578,6 +578,77 @@ TEST_CASE("project: the GUI's sheets are an appended list, in order, every asset
     engine::project::ForEachSettingAsset(project->Settings(),
                                          [&](const PropertyInfo&, const Guid& id) { visited += (id == shared || id == game) ? 1u : 0u; });
     CHECK(visited == 2u);
+
+    project.Reset();
+    (void)FileDelete(PathJoin(dir, u8"Project.xml"));
+}
+
+// The quality levels and the default among them are appended: a manifest saved before them opens
+// with none (the engine's own level). Once set they round-trip in order, the dist copy carries
+// them, every asset walk reaches them (so a pruned export keeps them), and only a listed level is
+// one the game may start at.
+TEST_CASE("project: the quality levels are an appended list with a default among them")
+{
+    const StringView dir = u8"scratch_project_quality_levels_test";
+    (void)FileDelete(PathJoin(dir, u8"Project.xml"));
+    (void)RemoveDirectory(dir);
+    REQUIRE(EditorProject::Create(DefaultAllocator(), dir, u8"P").IsOk());
+    {
+        // Saved before them: no key for either.
+        Result<Array<byte>> bytes = ReadFile(PathJoin(dir, u8"Project.xml").AsView());
+        REQUIRE(bytes.HasValue());
+        String older(StringView(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size()));
+        const usize start = older.AsView().Find(u8"<array name=\"qualityLevelIds\"");
+        REQUIRE(start != StringView::kNotFound);
+        const usize close = older.AsView().Find(u8"/>", start);
+        REQUIRE(close != StringView::kNotFound);
+        older.Remove(start, close + 2 - start);
+        const usize key = older.AsView().Find(u8"defaultQualityId");
+        REQUIRE(key != StringView::kNotFound);
+        const usize open = older.AsView().FindLast(u8'<', key);
+        const usize end = older.AsView().Find(u8'>', key);
+        REQUIRE(open != StringView::kNotFound);
+        REQUIRE(end != StringView::kNotFound);
+        usize stop = end + 1;
+        if (older.AsView()[end - 1] != u8'/') // <guid ...>...</guid>: through its closing tag
+            stop = older.AsView().Find(u8'>', older.AsView().Find(u8"</", end)) + 1;
+        older.Remove(open, stop - open);
+        foundation::vfs::NativeFileSystem root(dir, foundation::core::DefaultAllocator());
+        REQUIRE(root.AsWritable()
+                    ->Save(u8"Project.xml", Span<const byte>(reinterpret_cast<const byte*>(older.Data()), older.Size()))
+                    .IsOk());
+    }
+    const Guid low{0x71, 0x72};
+    const Guid high{0x73, 0x74};
+    {
+        UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir);
+        REQUIRE(static_cast<bool>(project)); // an older manifest still opens
+        CHECK(project->Settings().qualityLevelIds.IsEmpty());
+        CHECK(project->Settings().defaultQualityId.IsNil());
+        project->Settings().qualityLevelIds.PushBack(low);
+        project->Settings().qualityLevelIds.PushBack(high);
+        project->Settings().defaultQualityId = high;
+        REQUIRE(project->SaveSettings().IsOk());
+    }
+    UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir);
+    REQUIRE(static_cast<bool>(project));
+    const engine::project::ProjectSettings& settings = project->Settings();
+    REQUIRE(settings.qualityLevelIds.Size() == 2u);
+    CHECK(settings.qualityLevelIds[0] == low); // an options menu's order
+    CHECK(settings.qualityLevelIds[1] == high);
+    CHECK(settings.defaultQualityId == high);
+    CHECK(settings.IsQualityLevel(low));
+    CHECK_FALSE(settings.IsQualityLevel(Guid{0x75, 0x76}));
+
+    engine::project::ProjectSettings dist;
+    REQUIRE(engine::project::CopyProjectSettings(settings, dist).IsOk());
+    CHECK(dist.qualityLevelIds.Size() == 2u);
+    CHECK(dist.defaultQualityId == high);
+
+    usize visited = 0;
+    engine::project::ForEachSettingAsset(settings,
+                                         [&](const PropertyInfo&, const Guid& id) { visited += (id == low || id == high) ? 1u : 0u; });
+    CHECK(visited == 3u); // both levels, and the default again
 
     project.Reset();
     (void)FileDelete(PathJoin(dir, u8"Project.xml"));

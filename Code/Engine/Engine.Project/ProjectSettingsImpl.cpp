@@ -109,5 +109,11 @@ namespace engine::project
         builder.Property<&ProjectSettings::orientation>("orientation")
             .PropAttribute(kSettingLabelAttribute, String(u8"Orientation"))
             .PropAttribute(kSettingCategoryAttribute, String(u8"Display"));
+        // The quality levels in an options menu's order, and the one the game starts at where no
+        // export preset picks another.
+        builder.Property<&ProjectSettings::qualityLevelIds>("qualityLevelIds");
+        asset(u8"Quality levels", u8"RenderQualityAsset", u8"(none)", u8"Quality");
+        builder.Property<&ProjectSettings::defaultQualityId>("defaultQualityId");
+        asset(u8"Default quality", u8"RenderQualityAsset", u8"(the last level)", u8"Quality");
     }
 }

@@ -102,6 +102,10 @@ namespace editor
         label(u8"Own orientation");
         builder.Property<&ExportPreset::orientation>("orientation");
         label(u8"Orientation");
+        builder.Property<&ExportPreset::qualityLevelId>("qualityLevelId");
+        label(u8"Quality level");
+        builder.PropAttribute(engine::project::kSettingAssetTypeAttribute, String(u8"RenderQualityAsset"))
+            .PropAttribute(engine::project::kSettingEmptyTextAttribute, String(u8"(the project's default)"));
     }
 
     void RegisterExportPresetReflection()
@@ -1462,9 +1466,21 @@ namespace editor
         return Status{};
     }
 
-    Status ApplyPresetDisplay(StringView outDir, const ExportPreset& preset)
+    String PresetQualityRefusal(const engine::project::ProjectSettings& settings, const ExportPreset& preset)
     {
-        if (!preset.overridesRender && !preset.overridesWindow && !preset.overridesOrientation)
+        if (preset.qualityLevelId.IsNil() || settings.IsQualityLevel(preset.qualityLevelId))
+        {
+            return String();
+        }
+        return Format(u8"preset '{}' starts at a quality level the project does not list ({}): add it to "
+                      u8"the project's quality levels, or pick one of them",
+                      preset.name, preset.qualityLevelId);
+    }
+
+    Status ApplyPresetOverrides(StringView outDir, const ExportPreset& preset)
+    {
+        if (!preset.overridesRender && !preset.overridesWindow && !preset.overridesOrientation &&
+            preset.qualityLevelId.IsNil())
         {
             return Status{};
         }
@@ -1472,7 +1488,7 @@ namespace editor
         engine::project::ProjectSettings dist;
         if (!engine::project::LoadProjectSettings(mount, dist, engine::project::kDistManifestFile).IsOk())
         {
-            LOG_ERROR(u8"Export", u8"the dist manifest did not read back for the preset's display");
+            LOG_ERROR(u8"Export", u8"the dist manifest did not read back for the preset's overrides");
             return Status{ErrorCode::Internal};
         }
         if (preset.overridesRender)
@@ -1492,10 +1508,19 @@ namespace editor
         {
             dist.orientation = preset.orientation;
         }
+        if (!preset.qualityLevelId.IsNil())
+        {
+            if (const String refusal = PresetQualityRefusal(dist, preset); !refusal.IsEmpty())
+            {
+                LOG_ERROR(u8"Export", u8"{}", refusal);
+                return Status{ErrorCode::InvalidArgument};
+            }
+            dist.defaultQualityId = preset.qualityLevelId;
+        }
         if (!engine::project::SaveProjectSettings(*mount.AsWritable(), dist, engine::project::kDistManifestFile)
                  .IsOk())
         {
-            LOG_ERROR(u8"Export", u8"failed to write the preset's display into the dist manifest");
+            LOG_ERROR(u8"Export", u8"failed to write the preset's overrides into the dist manifest");
             return Status{ErrorCode::Internal};
         }
         return Status{};
@@ -1519,6 +1544,19 @@ namespace editor
         }
 
         ExportResult result;
+
+        // A preset starts at one of the project's quality levels, or the export would ship a level
+        // the game's options menu does not know: refused before any cook.
+        if (String refusal = PresetQualityRefusal(project.Settings(), preset); !refusal.IsEmpty())
+        {
+            LOG_ERROR(u8"Export", u8"{}", refusal);
+            result.refusal = Move(refusal);
+            if (outResult != nullptr)
+            {
+                *outResult = result;
+            }
+            return Status{ErrorCode::InvalidArgument};
+        }
 
         // The player this dist runs, and whether the project's plugins allow the export at all.
         detail::PlayerChoice choice;
@@ -1663,7 +1701,7 @@ namespace editor
                                   preset.includeShaderSource);
             }
         }
-        if (!contentStatus.IsOk() || !ApplyPresetDisplay(result.outputDir.AsView(), preset).IsOk())
+        if (!contentStatus.IsOk() || !ApplyPresetOverrides(result.outputDir.AsView(), preset).IsOk())
         {
             if (outResult != nullptr)
             {

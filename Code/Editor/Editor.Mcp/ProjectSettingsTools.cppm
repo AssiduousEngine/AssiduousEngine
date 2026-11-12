@@ -99,7 +99,9 @@ export namespace editor::mcp
             u8"the game UI loads beside the default, each a family a label picks with font-family) "
             u8"takes the whole list, [] for none; a count takes its range (the display's sizes), a "
             u8"choice one of its values by name (renderFit, windowMode), a flag true or false; MSAA "
-            u8"takes the render levels. Checked "
+            u8"takes the render levels; qualityLevelIds lists the game's Render Quality assets in an "
+            u8"options menu's order and defaultQualityId, one of them, is the level it starts at where "
+            u8"no export preset picks another (\"\": the list's last). Checked "
             u8"in full before anything changes, then saved to the manifest; the editor re-applies "
             u8"what depends on them (the game UI's font and theme). Returns the settings and their "
             u8"categories as project_info does.",
@@ -125,6 +127,25 @@ export namespace editor::mcp
                 if (!checked.HasValue())
                 {
                     return Err(Move(checked.Error()));
+                }
+                // The default quality must be one of the levels, as they stand after this call.
+                const Array<Guid>* levels = &settings.qualityLevelIds;
+                const Guid* startsAt = &settings.defaultQualityId;
+                for (const detail::FieldChange& change : checked.Value())
+                {
+                    const void* address = change.field->address(instance);
+                    levels = address == &settings.qualityLevelIds ? &change.ids : levels;
+                    startsAt = address == &settings.defaultQualityId ? &change.id : startsAt;
+                }
+                bool listed = startsAt->IsNil();
+                for (const Guid& level : *levels)
+                {
+                    listed = listed || level == *startsAt;
+                }
+                if (!listed)
+                {
+                    return Err(String(u8"`defaultQualityId` must be one of `qualityLevelIds` (give both to "
+                                      u8"add a level and start at it)"));
                 }
                 for (const detail::FieldChange& change : checked.Value())
                 {

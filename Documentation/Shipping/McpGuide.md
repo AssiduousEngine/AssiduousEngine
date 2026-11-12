@@ -202,12 +202,15 @@ those before it (its fonts are the UI's), `guiLoadingDocumentId`, a `.xml` docum
 boot splash shows through the engine GUI instead of the engine's own (its load progress the GUI's data
 value `bootProgress`, 0 to 1), and the
 display: `renderWidth`/`renderHeight`, the resolution the game draws at, 0 for its output's size,
-`renderFit`, and the player's `windowWidth`, `windowHeight`, `windowMode` and `windowResizable`),
-and `settingCategories`, how they group: the Project Settings dialog's tabs in order (General,
-Startup, Audio, UI, Display), each with the names of its settings.
+`renderFit`, and the player's `windowWidth`, `windowHeight`, `windowMode` and `windowResizable`,
+and the quality: `qualityLevelIds`, the game's `Render Quality` levels in the order an options menu
+lists them, and `defaultQualityId`, the one it starts at where no export preset picks another, null
+for the list's last), and `settingCategories`, how they group: the Project Settings dialog's tabs in
+order (General, Startup, Audio, UI, Display, Quality), each with the names of its settings.
 `project_settings_set` changes them, by the names `project_info` reports: each asset setting must
-name an asset of its type, `""` clears it, `uiFontIds` and `guiStyleSheetIds` take the whole list, a choice takes one of its values by name, and nothing changes
-when any of it is refused. `plugin_list` reports the plugins the project enables, in order: each
+name an asset of its type, `""` clears it, `uiFontIds`, `guiStyleSheetIds` and `qualityLevelIds`
+take the whole list, `defaultQualityId` must be one of the levels as the call leaves them, a choice
+takes one of its values by name, and nothing changes when any of it is refused. `plugin_list` reports the plugins the project enables, in order: each
 entry's id, path (a project-local package, empty for the engine's), platforms (empty is every
 platform its manifest supports) and its state in this host (`loaded`, `notEnabled` on this
 platform, `refused` or `missing`, with the reason), plus `unsupportedPlatforms`, platforms the
@@ -302,6 +305,17 @@ values with `asset_data_read` / `asset_data_write` (its fields are the block's, 
 the profile's guid. A change to the look is then one profile edit and a cook. To change one
 scene's look, edit the profile when every scene should follow, or set that scene back to
 `source` 0 with its own values.
+
+**What the look costs (quality levels)**: a `Render Quality` asset (`asset_create` with that
+creator, edited with `asset_data_read` / `asset_data_write`) is one level a game offers: its `label`
+(what an options menu shows), the scene pass's `msaaSamples` and its `antialiasing`, and a tier
+(`Off`, `Low`, `Medium`, `High`) for `shadows`, `ambientOcclusion`, `reflections`,
+`globalIllumination` and `bloom`, with `shadowDistanceMax` (metres, 0 caps nothing) and
+`environmentResolution` (`Low` to `High`). The scene keeps deciding the look and which effects it
+wants; a level is what that look costs on a platform. List the levels in the project's
+`qualityLevelIds`, pick its `defaultQualityId`, and give a phone's or a handheld's export preset
+its own `qualityLevelId`; the export carries them into the dist. The player does not apply a level:
+it draws at the project's `renderMsaaSamples` with each scene's own effects and antialiasing.
 
 **Colours**: every colour is written as it is meant to look, in sRGB, the value a colour picker
 and a hex code show (0.5 is `#808080`): component colours, the environment's ambient and sky, a
@@ -450,6 +464,8 @@ export templates this machine has (each preset's `template` is the one it resolv
 when none); `export_preset_set` creates, changes or removes one by `name` - another device's
 target, say, with its own render size or window. Its platform and config must be ones a template
 here has; its templateId need not, since presets travel with the project and templates do not.
+A preset's `qualityLevelId` is the level its platform starts at, written into the dist as its
+default; it must be one of the project's `qualityLevelIds` (empty: the project's default).
 A project's custom shaders ship as bytecode in the dist's shader pack, their HLSL left out unless
 the preset's `includeShaderSource` is set. The result's `player` says which player the dist runs and
 why: the template's when it carries every plugin the project enables on the preset's platform, or one

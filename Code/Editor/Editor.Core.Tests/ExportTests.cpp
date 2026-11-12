@@ -385,7 +385,7 @@ TEST_CASE("export: a preset's display overrides what the dist manifest carries")
     // Overriding neither: the project's values ship.
     writeDist();
     editor::ExportPreset plain;
-    REQUIRE(editor::ApplyPresetDisplay(dir.AsView(), plain).IsOk());
+    REQUIRE(editor::ApplyPresetOverrides(dir.AsView(), plain).IsOk());
     {
         engine::project::ProjectSettings dist;
         readDist(dist);
@@ -399,7 +399,7 @@ TEST_CASE("export: a preset's display overrides what the dist manifest carries")
     handheld.windowHeight = 800;
     handheld.windowMode = engine::project::WindowMode::Fullscreen;
     handheld.windowResizable = false;
-    REQUIRE(editor::ApplyPresetDisplay(dir.AsView(), handheld).IsOk());
+    REQUIRE(editor::ApplyPresetOverrides(dir.AsView(), handheld).IsOk());
     {
         engine::project::ProjectSettings dist;
         readDist(dist);
@@ -415,7 +415,7 @@ TEST_CASE("export: a preset's display overrides what the dist manifest carries")
     handheld.renderHeight = 400;
     handheld.renderFit = FitMode::IntegerScale;
     writeDist();
-    REQUIRE(editor::ApplyPresetDisplay(dir.AsView(), handheld).IsOk());
+    REQUIRE(editor::ApplyPresetOverrides(dir.AsView(), handheld).IsOk());
     {
         engine::project::ProjectSettings dist;
         readDist(dist);
@@ -428,7 +428,7 @@ TEST_CASE("export: a preset's display overrides what the dist manifest carries")
     handheld.overridesOrientation = true;
     handheld.orientation = ScreenOrientation::Landscape;
     writeDist();
-    REQUIRE(editor::ApplyPresetDisplay(dir.AsView(), handheld).IsOk());
+    REQUIRE(editor::ApplyPresetOverrides(dir.AsView(), handheld).IsOk());
     {
         engine::project::ProjectSettings dist;
         readDist(dist);
@@ -450,6 +450,75 @@ TEST_CASE("export: a preset's display overrides what the dist manifest carries")
     NukeTree(dir.AsView());
 }
 
+// A preset's quality level becomes the dist's default, the level its player starts at; it must be
+// one of the project's levels, or the export refuses it.
+TEST_CASE("export: a preset's quality level is the dist's default, when the project lists it")
+{
+    const String dir = PathJoin(GetTempDirectory().AsView(), u8"scratch_preset_quality_test");
+    NukeTree(dir.AsView());
+    REQUIRE(CreateDirectory(dir.AsView()));
+    foundation::vfs::NativeFileSystem root(dir.AsView(), foundation::core::DefaultAllocator());
+    const Guid low{0x81, 0x82};
+    const Guid high{0x83, 0x84};
+    engine::project::ProjectSettings project;
+    project.qualityLevelIds.PushBack(low);
+    project.qualityLevelIds.PushBack(high);
+    project.defaultQualityId = high;
+    const auto writeDist = [&root, &project]()
+    {
+        REQUIRE(engine::project::SaveProjectSettings(*root.AsWritable(), project, engine::project::kDistManifestFile)
+                    .IsOk());
+    };
+    const auto readDefault = [&root]()
+    {
+        engine::project::ProjectSettings dist;
+        REQUIRE(engine::project::LoadProjectSettings(root, dist, engine::project::kDistManifestFile).IsOk());
+        return dist.defaultQualityId;
+    };
+    const auto readLevelCount = [&root]()
+    {
+        engine::project::ProjectSettings dist;
+        REQUIRE(engine::project::LoadProjectSettings(root, dist, engine::project::kDistManifestFile).IsOk());
+        return dist.qualityLevelIds.Size();
+    };
+
+    // No level of its own: the project's default ships.
+    writeDist();
+    editor::ExportPreset desktop;
+    desktop.name = String(u8"Desktop");
+    CHECK(editor::PresetQualityRefusal(project, desktop).IsEmpty());
+    REQUIRE(editor::ApplyPresetOverrides(dir.AsView(), desktop).IsOk());
+    CHECK(readDefault() == high);
+
+    // A phone's own level: the dist starts there, with the project's list unchanged.
+    editor::ExportPreset phone;
+    phone.name = String(u8"Phone");
+    phone.qualityLevelId = low;
+    CHECK(editor::PresetQualityRefusal(project, phone).IsEmpty());
+    REQUIRE(editor::ApplyPresetOverrides(dir.AsView(), phone).IsOk());
+    CHECK(readDefault() == low);
+    CHECK(readLevelCount() == 2u);
+
+    // A level the project does not list is refused, and the dist is left as it was.
+    writeDist();
+    editor::ExportPreset stray;
+    stray.name = String(u8"Stray");
+    stray.qualityLevelId = Guid{0x85, 0x86};
+    CHECK(editor::PresetQualityRefusal(project, stray).AsView().Contains(u8"Stray"));
+    CHECK(editor::ApplyPresetOverrides(dir.AsView(), stray).Code() == ErrorCode::InvalidArgument);
+    CHECK(readDefault() == high);
+
+    // The level round-trips through export_presets.xml.
+    editor::ExportPresetSet set;
+    set.presets.PushBack(phone);
+    REQUIRE(editor::SaveExportPresets(*root.AsWritable(), set).IsOk());
+    editor::ExportPresetSet loaded;
+    REQUIRE(editor::LoadExportPresets(root, loaded).IsOk());
+    REQUIRE(loaded.presets.Size() == 1u);
+    CHECK(loaded.presets[0].qualityLevelId == low);
+    NukeTree(dir.AsView());
+}
+
 // Every field a preset editor sets is described by ExportPreset's reflection rather than a
 // hand-written list: each is labelled, and the sizes carry their ranges.
 TEST_CASE("export: a preset describes its fields through reflection")
@@ -463,7 +532,7 @@ TEST_CASE("export: a preset describes its fields through reflection")
         CHECK(engine::project::SettingAttribute(property, engine::project::kSettingLabelAttribute) != nullptr);
         ++labelled;
     }
-    CHECK(labelled == 21u);
+    CHECK(labelled == 22u);
     const PropertyInfo* files = FindProperty(type, "additionalFiles");
     REQUIRE(files != nullptr);
     CHECK(IsContainer(*files->type));
