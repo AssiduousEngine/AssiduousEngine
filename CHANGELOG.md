@@ -53,6 +53,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 - Rendering: a Vulkan surface that offers RGBA formats and no BGRA ones (an Android phone's) gets an
   sRGB swapchain and its UNORM view; it got a UNORM one, which drew every game too dark.
+- Rendering: the MSAA resolve and TAA retire a bind group they replace until the frames in flight
+  that may use it have finished; they freed it at once, which Vulkan's validation reports as a
+  descriptor set freed while in use (`vkFreeDescriptorSets`), at the start of a scene with MSAA.
 - Networking: the reliable UDP transport resends a reliable message whose first packet was lost
   (that packet was acked by mistake), lets a client connect again from the same address (after a
   restart or a disconnect, its messages were dropped as duplicates), keeps sequenced messages in

@@ -296,10 +296,7 @@ namespace foundation::render
         {
             return cached;
         }
-        if (stale != nullptr)
-        {
-            m_device->DestroyBindGroup(stale);
-        }
+        RetireBindGroup(*m_device, m_retire, stale); // a frame in flight may still use it
         rhi::BindGroupEntry ent[] = {
             rhi::BindGroupEntry::TextureEntry(inputs.views[0]),
             rhi::BindGroupEntry::TextureEntry(histPrev),

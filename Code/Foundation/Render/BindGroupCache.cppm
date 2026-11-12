@@ -17,6 +17,7 @@ export module foundation.render:bind_group_cache;
 
 import foundation.core;
 import foundation.rhi;
+import :resources; // GpuRetireQueue
 
 using namespace foundation::core;
 namespace rhi = foundation::rhi;
@@ -59,6 +60,25 @@ export namespace foundation::render
         [[nodiscard]] bool operator==(const BindGroupInputs&) const = default;
     };
 
+    // Disposes of a bind group its owner has replaced, such as one a cache handed back as stale. A
+    // frame still in flight may have recorded it, so it is retired into `retire` and freed once
+    // every such frame has aged out; with no queue wired (a pass used on its own, as the backend
+    // probes do), the GPU is idled first, as GpuRetireQueue's consumers do.
+    inline void RetireBindGroup(rhi::Device& device, GpuRetireQueue* retire, rhi::BindGroup* group)
+    {
+        if (group == nullptr)
+        {
+            return;
+        }
+        if (retire != nullptr)
+        {
+            retire->Retire(group);
+            return;
+        }
+        device.WaitIdle();
+        device.DestroyBindGroup(group);
+    }
+
     // Bind groups keyed by the view that selects one (a history texture, an input that is stable
     // per size), each remembering the inputs it was built from.
     template <usize N>
@@ -66,7 +86,8 @@ export namespace foundation::render
     {
     public:
         // The group built for `key` from exactly `inputs`, or null. A group built for `key` from
-        // anything else is forgotten and handed back in `stale` for the caller to destroy.
+        // anything else is forgotten and handed back in `stale` for the caller to retire
+        // (RetireBindGroup: a frame in flight may still use it).
         [[nodiscard]] rhi::BindGroup* Find(rhi::TextureView* key, const BindGroupInputs<N>& inputs,
                                            rhi::BindGroup*& stale)
         {

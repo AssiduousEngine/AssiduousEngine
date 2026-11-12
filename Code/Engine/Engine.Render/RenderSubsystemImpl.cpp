@@ -888,6 +888,10 @@ namespace engine::render
         {
             m_taaPass.Reset();
         }
+        else
+        {
+            m_taaPass->SetRetireQueue(&m_retireQueue);
+        }
 
         // Ambient occlusion (GTAO or SSAO from the G-buffer). Optional.
         m_aoPass = MakeUnique<AoPass>(m_allocator, *m_device, *m_shaders);
@@ -916,6 +920,10 @@ namespace engine::render
         if (!m_msaaResolvePass->Initialize().IsOk())
         {
             m_msaaResolvePass.Reset();
+        }
+        else
+        {
+            m_msaaResolvePass->SetRetireQueue(&m_retireQueue);
         }
         // Scene-pass MSAA device ceiling: the max sample count the device supports
         // for color and depth, capped at 4 by the query. Views clamp their authored intent to this. If the
