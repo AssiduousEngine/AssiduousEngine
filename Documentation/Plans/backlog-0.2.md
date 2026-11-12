@@ -217,25 +217,6 @@ screens do, which should match ImGui's look. Investigate and settle:
   the overlay pass draws the target as it is there; check each backend's case.
 - A colour picker or an image in ImGui (`ImGui::Image` of a linear texture) under the encoded blend.
 
-## IBL and reflection probes bake once, in a submit of their own (user 2026-11-11)
-
-The IBL bake (env faces, env mips, the 30 prefilter passes, SH) runs again every frame for the
-first 20 frames of every context (`IBLSystem::Context::m_bakeWarmup`, `IBLSystemImpl.cpp`), and
-`ReflectionProbeSystem` keeps a window like it. It was added for the web (e747d766a, 2026-07-31;
-`Archive/handoff-shaders-web.md`): the bake rode in the frame's submit, and at startup Dawn could drop
-that submit when the swapchain's one surface texture expired before the browser processed it, leaving
-the sky black for good; re-baking for 20 frames let one copy land on a submit that survived. It runs
-on every backend: on the Pixel 6 each of those frames costs about 190 to 260 ms of prefilter, so
-every game starts at about 4 fps for about 5 seconds (`Documentation/Audits`, not tracked; 2026-11-11),
-and the Debug desktop player pays about 368 ms a frame. A review flagged it before
-(`Archive/review-14f16a84-HEAD.md`).
-
-The fix the web notes name: the one-shot precompute (the IBL bake, a probe's bake) goes in a submit
-of its own that never targets the backbuffer, so no surface texture's expiry can drop it, and the
-warm-up windows go on every backend. Not a gate by backend. Check after: the sky and the probes come
-up on the web (the browser and desktop `--webgpu`), the user's check; a start capture on the phone
-shows one bake.
-
 ## Android: a native player and its export (user 2026-10-11)
 
 Games run on phones today through the web export (touch drives the game UI, touch controls with

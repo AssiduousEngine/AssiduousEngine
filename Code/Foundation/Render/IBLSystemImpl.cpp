@@ -392,22 +392,13 @@ namespace foundation::render
                                         rhi::ResourceState::ShaderRead, ctx.m_envState);
         ctx.m_envState = rhi::ResourceState::ShaderRead;
 
-        if (!ctx.m_dirty && ctx.m_bakeWarmup == 0)
+        // The products bake once, when their sky changed, and are read from then on.
+        if (!ctx.m_dirty)
         {
             return;
         }
-        if (ctx.m_bakeWarmup > 0)
-        {
-            --ctx.m_bakeWarmup; // startup re-bake window (survives dropped-submit startup frames)
-        }
-        // Generation tracks product identity (consumers key bind-group caches on it), so it moves
-        // only on a real content change, not on a warmup re-bake, which re-renders the same
-        // content into the same textures. Bumping it there would rebuild every downstream cache
-        // through the whole warmup window.
-        if (ctx.m_dirty)
-        {
-            ctx.m_generation = ++m_nextGeneration; // system-wide: never collides across contexts
-        }
+        // Generation tracks product identity (consumers key bind-group caches on it).
+        ctx.m_generation = ++m_nextGeneration; // system-wide: never collides across contexts
         ctx.m_dirty = false;
 
         // Step 1, source to env cube: 6 faces. The scene-authored asset texture wins over the

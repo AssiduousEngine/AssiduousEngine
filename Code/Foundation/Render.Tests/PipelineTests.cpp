@@ -796,26 +796,15 @@ TEST_CASE("ReflectionProbeSystem accumulates per-scene ranges (multi-scene frame
         CHECK(t.scene == ((t.slot == 0u) ? &sceneA : &sceneB));
     }
 
-    // Captured static probes stop producing tasks once the startup warmup window has drained.
-    // The first frames re-capture so a dropped web startup submit cannot silently lose the
-    // one-shot bake, as the IBL env-bake warmup does.
-    u32 warmupFrames = 0;
-    for (; warmupFrames < 64; ++warmupFrames)
+    // A static probe is captured once: from the next frame on it produces no task (a capture
+    // re-run each startup frame made every game's first seconds crawl on a phone).
+    for (const ReflectionProbeSystem::CaptureTask& t : probes.Captures())
     {
-        for (const ReflectionProbeSystem::CaptureTask& t : probes.Captures())
-        {
-            probes.MarkCaptured(t.slot);
-        }
-        probes.BeginFrame();
-        probes.Assign(&sceneA, Span<const ReflectionProbe>{listA, 1});
-        probes.Assign(&sceneB, Span<const ReflectionProbe>{listB, 2});
-        if (probes.Captures().Size() == 0u)
-        {
-            break;
-        }
+        probes.MarkCaptured(t.slot);
     }
-    CHECK(warmupFrames > 0u);  // the warmup window re-captured at least once
-    CHECK(warmupFrames < 64u); // and it drains: static probes go quiet
+    probes.BeginFrame();
+    probes.Assign(&sceneA, Span<const ReflectionProbe>{listA, 1});
+    probes.Assign(&sceneB, Span<const ReflectionProbe>{listB, 2});
     CHECK(probes.Captures().Size() == 0u);
     CHECK(probes.RangeFor(&sceneB).base == 1u); // ranges rebuilt identically
 
@@ -871,6 +860,22 @@ TEST_CASE("IBLSystem: per-scene contexts; env rebuilds when a scene's sky-textur
     hdr.textureUid = 101;
     hdr.textureIsCube = false;
 
+    // The prefilter passes a frame's graph declares: 30 (5 mips by 6 faces) for each context that
+    // bakes in it.
+    const auto prefilterPasses = [](const foundation::rendergraph::RenderGraph& graph)
+    {
+        u32 n = 0;
+        for (const foundation::rendergraph::RenderGraphPass* pass : graph.Passes())
+        {
+            if (pass != nullptr && pass->name == StringView(u8"ibl.prefilter"))
+            {
+                ++n;
+            }
+        }
+        return n;
+    };
+    constexpr u32 kBake = IBLSystem::kPrefilterMips * 6;
+
     // Two scenes with different skies get their own contexts and products.
     IBLSystem::Context *ctxA = nullptr, *ctxB = nullptr;
     {
@@ -878,6 +883,7 @@ TEST_CASE("IBLSystem: per-scene contexts; env rebuilds when a scene's sky-textur
         ibl.BeginFrame(graph);
         ctxA = ibl.Prepare(&sceneA, procedural, sun, graph);
         ctxB = ibl.Prepare(&sceneB, hdr, sun, graph);
+        CHECK(prefilterPasses(graph) == 2 * kBake); // both bake on their first frame
     }
     REQUIRE(ctxA != nullptr);
     REQUIRE(ctxB != nullptr);
@@ -889,13 +895,16 @@ TEST_CASE("IBLSystem: per-scene contexts; env rebuilds when a scene's sky-textur
     CHECK(ctxA->HasSunDisc());
     CHECK_FALSE(ctxB->HasSunDisc()); // textured env carries its own sun
 
-    // Steady state: the same scenes re-Prepare into the same contexts with no rebuild.
+    // Steady state: the same scenes re-Prepare into the same contexts with no rebuild, and bake
+    // nothing: the products bake once (re-baking each startup frame made every game's first
+    // seconds crawl on a phone).
     const u64 genA = ctxA->Generation(), genB = ctxB->Generation();
     {
         foundation::rendergraph::RenderGraph graph(DefaultAllocator(), &h.device);
         ibl.BeginFrame(graph);
         CHECK(ibl.Prepare(&sceneA, procedural, sun, graph) == ctxA);
         CHECK(ibl.Prepare(&sceneB, hdr, sun, graph) == ctxB);
+        CHECK(prefilterPasses(graph) == 0u);
     }
     CHECK(ctxA->Generation() == genA);
     CHECK(ctxB->Generation() == genB);
@@ -908,6 +917,7 @@ TEST_CASE("IBLSystem: per-scene contexts; env rebuilds when a scene's sky-textur
         ibl.BeginFrame(graph);
         (void)ibl.Prepare(&sceneA, procedural, sun, graph);
         (void)ibl.Prepare(&sceneB, hdr, sun, graph);
+        CHECK(prefilterPasses(graph) == kBake); // B alone bakes again
     }
     CHECK(ctxA->Generation() == genA);
     CHECK(ctxB->Generation() > genB);

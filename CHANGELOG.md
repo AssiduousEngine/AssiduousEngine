@@ -51,6 +51,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   refuses one outside it.
 ### Fixed
 
+- Rendering: a scene's sky lighting (IBL) and its reflection probes bake once, not again in each of
+  the scene's first 20 frames; on a phone those frames ran at about 4 fps, the first seconds of
+  every game.
 - Rendering: a Vulkan surface that offers RGBA formats and no BGRA ones (an Android phone's) gets an
   sRGB swapchain and its UNORM view; it got a UNORM one, which drew every game too dark.
 - Rendering: the MSAA resolve and TAA retire a bind group they replace until the frames in flight
