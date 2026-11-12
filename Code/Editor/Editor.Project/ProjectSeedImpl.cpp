@@ -3,7 +3,8 @@
 
 // editor.project - the starter content a new project is seeded with. The editor's New Project and
 // the MCP project_create both run this one function, so every new project ships a font (the
-// engine's built-in font is not in a dist).
+// engine's built-in font is not in a dist). And the content an older project gains on its upgrade:
+// its first quality level.
 
 module;
 #include "Core/Prelude.h"
@@ -18,6 +19,7 @@ import pipeline.core;
 import pipeline.importer;
 import fonts.pipeline;
 import texture.pipeline;
+import render.pipeline; // a quality level (RenderQualityAsset)
 
 using namespace foundation::core;
 
@@ -31,6 +33,38 @@ namespace editor
             foundation::content::Group* group = root->GetGroup(name);
             return (group != nullptr) ? group : root->CreateGroup(name);
         }
+    }
+
+    void EditorProject::UpgradeToQualityLevels(EditorProject& project, u32 msaa)
+    {
+        ProjectSettings& settings = project.Settings();
+        foundation::content::Group* group = GroupNamed(project.SourceDb().RootGroup(), u8"Quality");
+        foundation::content::Instance* instance = group != nullptr ? group->GetInstance(u8"Default") : nullptr;
+        if (instance == nullptr && group != nullptr)
+        {
+            instance = group->CreateInstance(u8"Default", pipeline::RenderQualityAsset::StaticType());
+        }
+        pipeline::RenderQualityAsset asset;
+        asset.values.label = String(u8"Default");
+        asset.values.msaaSamples = msaa;
+        if (instance == nullptr || instance->TypeName() != StringView(u8"RenderQualityAsset") ||
+            !instance->WriteObject(asset).IsOk())
+        {
+            LOG_ERROR(u8"Project", u8"the upgrade to quality levels could not write Quality/Default: the project "
+                                   u8"runs at the engine's own highest level until it lists one");
+            return;
+        }
+        settings.qualityLevelIds.PushBack(instance->Id());
+        settings.defaultQualityId = instance->Id();
+        if (!project.SaveSettings().IsOk())
+        {
+            LOG_ERROR(u8"Project", u8"the upgrade to quality levels wrote Quality/Default but not the manifest");
+            return;
+        }
+        LOG_INFO(u8"Project",
+                 u8"upgraded to quality levels: Quality/Default at {}x MSAA is the game's level; antialiasing "
+                 u8"is the level's now, so give it the one the scenes asked for (their loads say which)",
+                 msaa);
     }
 
     void SeedStarterContent(IAllocator& allocator, EditorProject& project,

@@ -420,7 +420,7 @@ TEST_CASE("project manifest v7: defaultUiFontId (and the once-dropped defaults) 
         project->Settings().defaultUiFontId = fontId;
         project->Settings().defaultBusLayoutId = busId; // the per-field move must not drop this
         project->Settings().guiLoadingDocumentId = loadingId; // nor these two
-        project->Settings().renderMsaaSamples = 4;
+        project->Settings().windowResizable = false;
         REQUIRE(project->SaveSettings().IsOk());
     }
     {
@@ -429,7 +429,7 @@ TEST_CASE("project manifest v7: defaultUiFontId (and the once-dropped defaults) 
         CHECK(project->Settings().defaultUiFontId == fontId);
         CHECK(project->Settings().defaultBusLayoutId == busId);
         CHECK(project->Settings().guiLoadingDocumentId == loadingId);
-        CHECK(project->Settings().renderMsaaSamples == 4u);
+        CHECK_FALSE(project->Settings().windowResizable);
     }
     RemoveProjectTree(dir);
 }

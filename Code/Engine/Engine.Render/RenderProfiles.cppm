@@ -34,13 +34,17 @@ export namespace engine::render
         void Serialize(ISerializer& ar) override { SerializeEnvironmentValues(ar, values, true); }
     };
 
-    // The cooked Post Process Profile.
+    // The cooked Post Process Profile. Data version 1 has no antialiasing mode (the quality
+    // level's); a version 0 record, cooked before, still reads.
     class PostProcessProfileSource final : public ISerializable
     {
         RTTI_OBJECT(PostProcessProfileSource, ISerializable)
     public:
         PostProcessSettings values;
-        void Serialize(ISerializer& ar) override { SerializePostValues(ar, values); }
+        void Serialize(ISerializer& ar) override
+        {
+            SerializePostValues(ar, values, ar.Mode() == SerializeMode::Read && ar.Version() < 1);
+        }
     };
 
     // The cooked Render Quality: a quality level's values.
@@ -161,7 +165,7 @@ export namespace engine::render
     }
 
     RTTI_DEFINE_OBJECT(EnvironmentProfileSource, "rtti::engine::render")
-    RTTI_DEFINE_OBJECT(PostProcessProfileSource, "rtti::engine::render")
+    // PostProcessProfileSource's reflection (its data version) is in RenderComponentsImpl.cpp.
     RTTI_DEFINE_OBJECT(RenderQualitySource, "rtti::engine::render")
 
     inline constexpr foundation::resource::ResourceFactoryDesc kRenderProfileFactories[] = {

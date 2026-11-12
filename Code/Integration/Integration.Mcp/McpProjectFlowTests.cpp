@@ -126,20 +126,20 @@ TEST_CASE("integration.mcp: an agent creates, opens, and inspects a project via 
     REQUIRE(categories.Count() > 1);
     CHECK(categories.KeyAt(0) == StringView(u8"General"));
     i64 grouped = 0;
-    bool msaaOnDisplay = false;
+    bool levelsOnQuality = false;
     for (i64 i = 0; i < categories.Count(); ++i)
     {
         const JsonValue names = categories.Get(categories.KeyAt(i));
         grouped += names.Count();
         for (i64 n = 0; n < names.Count(); ++n)
         {
-            msaaOnDisplay = msaaOnDisplay ||
-                            (categories.KeyAt(i) == StringView(u8"Display") &&
-                             names.At(n).AsString() == StringView(u8"renderMsaaSamples"));
+            levelsOnQuality = levelsOnQuality ||
+                              (categories.KeyAt(i) == StringView(u8"Quality") &&
+                               names.At(n).AsString() == StringView(u8"qualityLevelIds"));
         }
     }
     CHECK(grouped == info.Get(u8"settings").Count());
-    CHECK(msaaOnDisplay);
+    CHECK(levelsOnQuality);
 
     // The manifest is written to disk.
     CHECK(FileExists(u8"mcp_fixture_project/Project.xml"));

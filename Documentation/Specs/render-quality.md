@@ -126,7 +126,7 @@ look's values (radius, strength, intensity); it changes how many samples get the
   beside the Linux desktop's High), one of the project's levels; nil is the project's default.
 - `renderMsaaSamples` leaves the project: each level carries its count. A project saved before is
   migrated (a data version bump): the editor makes one level, `Default`, with the project's count
-  and the effects at High, and lists it. A project without levels runs at the engine's built-in
+  and the effects at High, and lists it as the default. A project without levels runs at the engine's built-in
   level (every tier High, MSAA 4), which is what today's player does.
 
 ### Which level applies
@@ -201,18 +201,21 @@ Per-effect overrides from an options menu (shadows Off at High) are for later ev
 
 **Q1: the renderer applies a level.**
 - `RenderSubsystem::SetQuality`; `ViewPost` gates, caps and takes the MSAA count and the AA from it.
-- The old fields go, with a data version bump each: `renderMsaaSamples` from the project, `aaMode`
-  from the post settings and profiles. The migration makes the project's `Default` level from its
-  MSAA count and the AA of its default scene (or that scene's profile), and lists it; a scene or
-  profile whose AA differs is reported, since one level serves every scene. The samples are
-  migrated through MCP in the same phase.
-- The player resolves its starting level (platform, preset, saved choice) through one function in
-  `engine.project` (`ResolveStartupQuality`), and applies it before the first scene; play-in-editor
-  applies the Game tab's.
+- The old fields go, with a data version bump each: `renderMsaaSamples` from the project (12),
+  `aaMode` from the post settings (5), the post profile asset and its cooked record (2). Opening a
+  project saved before makes its `Default` level from its MSAA count, lists it and saves the
+  manifest. The AA is not carried over (ruled 2026-11-12, as reading it back would keep a removed
+  field alive for the migration): an older post block or profile whose AA was on says so in the log
+  when it loads, for its level to take it. The samples are migrated through MCP in the same phase.
+- The player resolves its starting level (preset, project default, saved choice) through one
+  function in `engine.project` (`ProjectSettings::StartupQuality`), and applies it before the first
+  scene. Play-in-editor plays at the project's level on the Game tab's own views
+  (`RenderSubsystem::SetViewportQuality`, keyed by the page), since one render subsystem serves every
+  editor page.
 - Tests: Engine.Render.Tests (an Off tier gates the scene's effect and keeps its values; a tier
-  never turns an effect on; the shadow cap holds; the MSAA count and the AA come from the level),
-  Editor.Core.Tests' ProjectTests (an old manifest migrates into a `Default` level with its MSAA
-  count and its default scene's AA; a differing scene is reported), and a new
+  never turns an effect on; the shadow cap and Off hold; the MSAA count and the AA come from the
+  level; a viewport's own level), Editor.Core.Tests' ProjectTests (an old manifest upgrades into a
+  `Default` level with its MSAA count, once), Editor.Play.Tests (the Game tab's level), and a new
   Engine.Project.Tests (the module has none yet) for the order of the three sources and a saved guid
   the project no longer lists.
 

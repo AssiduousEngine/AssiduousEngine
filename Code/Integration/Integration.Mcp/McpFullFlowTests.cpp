@@ -784,9 +784,6 @@ TEST_CASE("integration.mcp: an agent sets the project's settings")
                             FfStr(JsonValue::MakeObject(), u8"defaultMap", mapId.AsView()))
               .AsView()
               .StartsWith(u8"project_settings_set: no argument 'defaultMap' (it takes: "));
-    JsonValue msaa3 = JsonValue::MakeObject();
-    msaa3.Set(u8"renderMsaaSamples", JsonValue::MakeNumber(3));
-    CHECK(refused(Move(msaa3)).AsView() == StringView(u8"`renderMsaaSamples` takes 1, 2, 4"));
     CHECK(changed == 0u);
     CHECK(FfCall(server, u8"project_info", JsonValue::MakeObject())
               .Get(u8"settings")
@@ -795,13 +792,12 @@ TEST_CASE("integration.mcp: an agent sets the project's settings")
 
     JsonValue arguments = FfStr(FfStr(JsonValue::MakeObject(), u8"defaultInputMapId", mapId.AsView()),
                                 u8"defaultSceneId", sceneId.AsView());
-    arguments.Set(u8"renderMsaaSamples", JsonValue::MakeNumber(4));
     JsonValue set = FfCall(server, u8"project_settings_set", Move(arguments));
     CHECK(changed == 1u);
     const JsonValue settings = set.Get(u8"settings");
     CHECK(settings.Get(u8"defaultInputMapId").Get(u8"path").AsString().AsView().EndsWith(u8"Controls"));
     CHECK(settings.Get(u8"defaultSceneId").Get(u8"path").AsString() == StringView(u8"Scenes/Level1"));
-    CHECK(settings.Get(u8"renderMsaaSamples").AsNumber() == doctest::Approx(4.0));
+    CHECK_FALSE(settings.Has(u8"renderMsaaSamples")); // the quality levels hold the count
     CHECK(session.project->Settings().defaultScene == u8"Scenes/Level1"); // the path mirror follows
 
     // Saved: a reopen reads it from the manifest; then "" clears one and leaves the rest.

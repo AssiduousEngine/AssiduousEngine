@@ -673,14 +673,23 @@ namespace engine::render
                            String(u8"The resolution of the sky's prefiltered lighting and the reflection probes"));
     }
 
+    // The cooked Post Process Profile: v1 has no antialiasing mode (the quality level's); v0, cooked
+    // before, still reads.
+    REFLECT_MEMBERS(PostProcessProfileSource, "rtti::engine::render")
+    {
+        builder.DataVersion(1).ReadsDataVersionsFrom(0);
+    }
+
     REFLECT_VALUE(PostProcessSettings, "rtti::engine::render")
     {
         builder.Attribute("displayName", String(u8"Post Processing"))
             .Attribute("category", String(u8"Rendering"))
-            .DataVersion(4) // v4: source and profile (v3: SSGI; v2: auto-exposure and grading)
+            // v5: no antialiasing mode (the quality level's); v4: source and profile (v3: SSGI;
+            // v2: auto-exposure and grading)
+            .DataVersion(5)
             .ReadsDataVersionsFrom(3) // a v3 scene reads source Scene
             // Script: scene.postProcess gives the scene's live post settings (edit
-            // exposure, tonemap, bloom, AA). A scene-scoped re-resolving handle.
+            // exposure, tonemap, bloom, AO). A scene-scoped re-resolving handle.
             .Property<&PostProcessSettings::source>("source")
             .PropAttribute("sceneOnly", true)
             .PropAttribute("description",
@@ -752,19 +761,19 @@ namespace engine::render
             .Property<&PostProcessSettings::ssgiIntensity>("ssgiIntensity")
             .PropAttribute("range", Float4{0.0f, 3.0f, 0.02f, 0.0f})
             .PropAttribute("visibleWhen", String(u8"ssgiEnabled"))
-            .Property<&PostProcessSettings::aaMode>("aaMode")
-            .PropAttribute("displayName", String(u8"Anti-Aliasing"))
+            // How each antialiasing looks where the quality level runs it.
             .Property<&PostProcessSettings::taaBlendFactor>("taaBlendFactor")
             .PropAttribute("range", Float4{0.5f, 0.99f, 0.005f, 0.0f})
-            .PropAttribute("visibleWhen", String(u8"aaMode=2"))
+            .PropAttribute("displayName", String(u8"TAA Blend"))
             .PropAttribute("description",
-                           String(u8"TAA history weight (higher = steadier, more ghosting)"))
+                           String(u8"TAA history weight (higher = steadier, more ghosting), where the "
+                                  u8"quality level runs TAA"))
             .Property<&PostProcessSettings::taaVarianceGamma>("taaVarianceGamma")
             .PropAttribute("range", Float4{0.5f, 3.0f, 0.05f, 0.0f})
-            .PropAttribute("visibleWhen", String(u8"aaMode=2"))
+            .PropAttribute("displayName", String(u8"TAA Variance Gamma"))
             .Property<&PostProcessSettings::fxaaSubpixel>("fxaaSubpixel")
             .PropAttribute("range", Float4{0.0f, 1.0f, 0.05f, 0.0f})
-            .PropAttribute("visibleWhen", String(u8"aaMode=1"));
+            .PropAttribute("displayName", String(u8"FXAA Subpixel"));
     }
 
 } // namespace engine::render (reflection bodies)

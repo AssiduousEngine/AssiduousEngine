@@ -13,6 +13,7 @@
 module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h" // RTTI_OBJECT (the profile products)
+#include "Core/Log/Log.h"               // an older post block's antialiasing, now the quality level's
 
 export module engine.render:components;
 
@@ -935,11 +936,11 @@ export namespace engine::render
         foundation::resource::Ref<texture::Texture> gradingLut;
         f32 gradingIntensity = 1.0f;
 
-        // Anti-aliasing (aaMode selects the exclusive path; the others' params are ignored).
-        AaMode aaMode = AaMode::Off;
-        f32 taaBlendFactor = 0.97f;   // history weight   (aaMode == TAA)
-        f32 taaVarianceGamma = 1.25f; // variance-clip box half-width (aaMode == TAA)
-        f32 fxaaSubpixel = 0.75f;     // subpixel aliasing removal    (aaMode == FXAA)
+        // How the antialiasing looks where it runs. Which one runs (TAA, FXAA or none) is the
+        // quality level's (RenderQualitySettings::antialiasing), not the scene's.
+        f32 taaBlendFactor = 0.97f;   // history weight
+        f32 taaVarianceGamma = 1.25f; // variance-clip box half-width
+        f32 fxaaSubpixel = 0.75f;     // subpixel aliasing removal
 
         // Where the values come from: the scene's own above, or `profile`'s (a Post Process
         // Profile asset) while the source is Profile. Scene-only: a profile carries no source.
@@ -948,7 +949,10 @@ export namespace engine::render
     };
 
     // The post settings' value fields, in one order for the scene block and the profile records.
-    inline void SerializePostValues(ISerializer& ar, PostProcessSettings& p)
+    // `storedAaMode`: the payload has the older layout, with the antialiasing mode the quality
+    // levels now hold; it is read and dropped (a mode other than Off is logged, for its level to
+    // take), and written as Off (a payload at that layout, as a test writes one).
+    inline void SerializePostValues(ISerializer& ar, PostProcessSettings& p, bool storedAaMode)
     {
         const auto enumField = [&ar]<typename E>(const char* key, E& value)
         {
@@ -971,7 +975,18 @@ export namespace engine::render
         foundation::core::Serialize(ar, "aoIntensity", p.aoIntensity);
         foundation::core::Serialize(ar, "ssrEnabled", p.ssrEnabled);
         foundation::core::Serialize(ar, "ssrIntensity", p.ssrIntensity);
-        enumField("aaMode", p.aaMode);
+        if (storedAaMode)
+        {
+            u32 aaMode = 0;
+            foundation::core::Serialize(ar, "aaMode", aaMode);
+            if (ar.Mode() == SerializeMode::Read && aaMode != 0)
+            {
+                LOG_WARNING(u8"Render",
+                            u8"post settings saved with antialiasing {}: antialiasing is the quality "
+                            u8"level's now (a Render Quality's `antialiasing`); set it there",
+                            aaMode == 2 ? StringView(u8"TAA") : StringView(u8"FXAA"));
+            }
+        }
         foundation::core::Serialize(ar, "taaBlendFactor", p.taaBlendFactor);
         foundation::core::Serialize(ar, "taaVarianceGamma", p.taaVarianceGamma);
         foundation::core::Serialize(ar, "fxaaSubpixel", p.fxaaSubpixel);
@@ -1084,9 +1099,10 @@ export namespace engine::render
         [[nodiscard]] StringView SettingsId() const noexcept override { return u8"postprocess"; }
         void SerializeSettings(ISerializer& ar) override
         {
-            SerializePostValues(ar, m_post);
-            // v4 added the source (the legacy reader takes a v3 payload: source Scene).
+            // v5 dropped the antialiasing mode (the quality level's now); v4 added the source (the
+            // legacy reader takes a v3 payload: source Scene).
             const bool write = ar.Mode() == SerializeMode::Write;
+            SerializePostValues(ar, m_post, !write && (ar.Version() == 3 || ar.Version() == 4));
             if (write || ar.Version() >= 4)
             {
                 u32 source = static_cast<u32>(m_post.source);
@@ -1173,10 +1189,10 @@ export namespace engine::render
         vp.aoStrength = s.aoStrength;
         vp.aoRadius = s.aoRadius;
         vp.aoIntensity = s.aoIntensity;
-        vp.taaEnabled = (s.aaMode == AaMode::TAA);
+        vp.taaEnabled = false; // which AA runs is the quality level's (ApplyQuality)
         vp.taaBlend = s.taaBlendFactor;
         vp.taaGamma = s.taaVarianceGamma;
-        vp.fxaaEnabled = (s.aaMode == AaMode::FXAA);
+        vp.fxaaEnabled = false;
         vp.fxaaSubpixel = s.fxaaSubpixel;
         vp.ssrEnabled = s.ssrEnabled;
         vp.ssrIntensity = s.ssrIntensity;
@@ -1243,6 +1259,53 @@ export namespace engine::render
         if (o.msaaOverride != 0)
         {
             vp.msaaSamples = o.msaaOverride;
+        }
+    }
+
+    // A quality level over a view's resolved post: an Off tier turns its effect off (the scene's
+    // values stay, for a level that allows it), and the scene pass takes the level's MSAA count.
+    // With `antialiasing`, the view also takes the level's antialiasing; without it (a sample's
+    // debug panel set its own), the resolved one stays. A tier never turns an effect on.
+    inline void ApplyQuality(ViewPostConfig& vp, const RenderQualitySettings& q, bool antialiasing)
+    {
+        if (q.bloom == QualityTier::Off)
+        {
+            vp.bloomEnabled = false;
+        }
+        if (q.ambientOcclusion == QualityTier::Off)
+        {
+            vp.aoMode = 0u; // AoMode::Off
+        }
+        if (q.reflections == QualityTier::Off)
+        {
+            vp.ssrEnabled = false;
+        }
+        if (q.globalIllumination == QualityTier::Off)
+        {
+            vp.ssgiEnabled = false;
+        }
+        vp.msaaSamples = static_cast<u8>(q.msaaSamples < 1 ? 1u : q.msaaSamples);
+        if (antialiasing)
+        {
+            vp.taaEnabled = q.antialiasing == AaMode::TAA;
+            vp.fxaaEnabled = q.antialiasing == AaMode::FXAA;
+            vp.needsMotion = vp.taaEnabled; // the caller ORs in SSR's and SSGI's temporal passes
+        }
+    }
+
+    // A quality level over a scene's extracted frame: shadows Off draws none, and the level's cap
+    // shortens the scene's shadow reach (a cap of 0 leaves it).
+    inline void ApplyQuality(foundation::render::ExtractedScene& scene, const RenderQualitySettings& q)
+    {
+        if (q.shadows == QualityTier::Off)
+        {
+            scene.DisableShadows();
+        }
+        if (q.shadowDistanceMax > 0.0f && scene.ShadowSettings().distance > q.shadowDistanceMax)
+        {
+            foundation::render::SceneShadowSettings capped = scene.ShadowSettings();
+            capped.distance = q.shadowDistanceMax;
+            scene.SetShadowSettings(capped);
         }
     }
 

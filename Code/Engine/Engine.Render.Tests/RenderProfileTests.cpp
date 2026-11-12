@@ -114,7 +114,7 @@ TEST_CASE("render profiles: the blocks round-trip their source, and older blocks
     const TypeInfo& envType = TypeOf<EnvironmentSettings>();
     const TypeInfo& postType = TypeOf<PostProcessSettings>();
     CHECK(envType.dataVersion == 6u);
-    CHECK(postType.dataVersion == 4u);
+    CHECK(postType.dataVersion == 5u);
 
     // Current version: the source and the profile's id survive.
     EnvironmentSystem written;
@@ -155,10 +155,14 @@ TEST_CASE("render profiles: the blocks round-trip their source, and older blocks
     CHECK(fromV5.Environment().source == SettingsSource::Scene);
     CHECK(fromV5.Environment().ambientIntensity == doctest::Approx(0.4f));
 
+    // A v3 block carries the antialiasing mode the quality levels now hold: read and dropped, with
+    // the fields after it where they belong.
     PostProcessSettings olderPost;
     olderPost.exposureEV = -1.0f;
+    olderPost.taaBlendFactor = 0.8f;
+    olderPost.ssgiIntensity = 2.0f;
     MemoryStream v3 = WriteAtVersion(postType, 3, [&](ISerializer& ar)
-                                     { SerializePostValues(ar, olderPost); });
+                                     { SerializePostValues(ar, olderPost, true); });
     PostProcessSystem fromV3;
     {
         BinarySerializer ar(v3, SerializeMode::Read);
@@ -169,6 +173,24 @@ TEST_CASE("render profiles: the blocks round-trip their source, and older blocks
     }
     CHECK(fromV3.Post().source == SettingsSource::Scene);
     CHECK(fromV3.Post().exposureEV == doctest::Approx(-1.0f));
+    CHECK(fromV3.Post().taaBlendFactor == doctest::Approx(0.8f));
+    CHECK(fromV3.Post().ssgiIntensity == doctest::Approx(2.0f));
+
+    // A cooked Post Process Profile of version 0 carries the mode too, and still reads.
+    const TypeInfo& recordType = PostProcessProfileSource::StaticType();
+    CHECK(recordType.dataVersion == 1u);
+    MemoryStream record = WriteAtVersion(recordType, 0, [&](ISerializer& ar)
+                                         { SerializePostValues(ar, olderPost, true); });
+    PostProcessProfileSource fromV0;
+    {
+        BinarySerializer ar(record, SerializeMode::Read);
+        BeginVersionedPayload(ar, recordType);
+        fromV0.Serialize(ar);
+        EndVersionedPayload(ar);
+        REQUIRE(ar.IsOk());
+    }
+    CHECK(fromV0.values.taaBlendFactor == doctest::Approx(0.8f));
+    CHECK(fromV0.values.ssgiIntensity == doctest::Approx(2.0f));
 }
 
 TEST_CASE("render profiles: a cooked profile loads through its factory")
@@ -190,7 +212,7 @@ TEST_CASE("render profiles: a cooked profile loads through its factory")
         envSource.values.shadowFadeDistance = 12.0f;
         REQUIRE(envInstance->WriteObject(envSource).IsOk());
         PostProcessProfileSource postSource;
-        postSource.values.aaMode = AaMode::FXAA;
+        postSource.values.fxaaSubpixel = 0.5f;
         postSource.values.bloomIntensity = 0.2f;
         REQUIRE(postInstance->WriteObject(postSource).IsOk());
 
@@ -208,7 +230,7 @@ TEST_CASE("render profiles: a cooked profile loads through its factory")
         CHECK(envProfile->values.skyMode == foundation::render::SkyMode::Analytic);
         CHECK(envProfile->values.turbidity == doctest::Approx(7.0f));
         CHECK(envProfile->values.shadowFadeDistance == doctest::Approx(12.0f));
-        CHECK(postProfile->values.aaMode == AaMode::FXAA);
+        CHECK(postProfile->values.fxaaSubpixel == doctest::Approx(0.5f));
         CHECK(postProfile->values.bloomIntensity == doctest::Approx(0.2f));
     }
     RemoveTree(dir);

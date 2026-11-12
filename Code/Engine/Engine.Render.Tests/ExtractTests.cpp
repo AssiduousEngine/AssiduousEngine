@@ -867,7 +867,6 @@ TEST_CASE("PostProcessSettings: defaults match today's look, and round-trip thro
         CHECK(d.aoMode == AoMode::Off);
         CHECK(Near(d.aoStrength, 0.6f));
         CHECK(d.ssrEnabled == false);
-        CHECK(d.aaMode == AaMode::Off);
         CHECK(Near(d.taaBlendFactor, 0.97f));
         CHECK(Near(d.taaVarianceGamma, 1.25f));
     }
@@ -887,7 +886,6 @@ TEST_CASE("PostProcessSettings: defaults match today's look, and round-trip thro
     postA->Post().ssrEnabled = true;
     postA->Post().ssgiEnabled = true;
     postA->Post().ssgiIntensity = 1.5f;
-    postA->Post().aaMode = AaMode::TAA;
     postA->Post().taaBlendFactor = 0.9f;
     (void)a.CreateEntity(u8"e");
 
@@ -913,7 +911,6 @@ TEST_CASE("PostProcessSettings: defaults match today's look, and round-trip thro
     CHECK(r.ssrEnabled);
     CHECK(r.ssgiEnabled);           // v3 fields ride the versioned payload
     CHECK(Near(r.ssgiIntensity, 1.5f));
-    CHECK(r.aaMode == AaMode::TAA);
     CHECK(Near(r.taaBlendFactor, 0.9f));
 }
 
@@ -946,25 +943,17 @@ TEST_CASE("ResolveScenePost maps authored settings to the per-view ViewPostConfi
         CHECK(vp.aoMode == 2u); // AoMode::SSAO
         CHECK_FALSE(vp.bloomEnabled);
     }
-    // The AA-mode enum becomes the mutually exclusive TAA and FXAA flags, the tonemap operator the
-    // agx bool; SSR.
+    // Which antialiasing runs is the quality level's, not the scene's: the scene's own resolves to
+    // none, with its TAA look kept for a level that runs TAA. The tonemap operator becomes the agx
+    // bool; SSR.
     {
         PostProcessSettings taa;
-        taa.aaMode = AaMode::TAA;
         taa.taaBlendFactor = 0.9f;
         const ViewPostConfig vp = ResolveScenePost(taa);
-        CHECK(vp.taaEnabled);
+        CHECK_FALSE(vp.taaEnabled);
         CHECK_FALSE(vp.fxaaEnabled);
         CHECK(Near(vp.taaBlend, 0.9f));
-        CHECK(vp.needsMotion); // TAA needs motion vectors
-    }
-    {
-        PostProcessSettings fx;
-        fx.aaMode = AaMode::FXAA;
-        const ViewPostConfig vp = ResolveScenePost(fx);
-        CHECK(vp.fxaaEnabled);
-        CHECK_FALSE(vp.taaEnabled);
-        CHECK_FALSE(vp.needsMotion); // FXAA is post-tonemap, no motion
+        CHECK_FALSE(vp.needsMotion);
     }
     {
         PostProcessSettings tm;
@@ -2360,11 +2349,123 @@ TEST_CASE("render: a subsystem never initialized lets its overlay depth target g
     CHECK(device.Counters().textures == 0);
 }
 
-TEST_CASE("render: the host's scene-pass MSAA keeps the scene's post settings in effect")
+TEST_CASE("render: a quality level turns effects off and sets the MSAA and AA, never turning one on")
 {
-    // A project's MSAA reached the views through the samples' global post override, so a game with
-    // MSAA on lost its scene's post-processing (its profile's auto exposure, AO, SSR, TAA) in the
-    // player, which sets the project's MSAA, and kept it in the editor, which does not.
+    // A scene that asks for everything.
+    PostProcessSettings scene;
+    scene.aoMode = foundation::render::AoMode::GTAO;
+    scene.ssrEnabled = true;
+    scene.ssgiEnabled = true;
+    scene.bloomEnabled = true;
+    scene.taaBlendFactor = 0.9f;
+
+    // The engine's own highest: every effect the scene asks for runs, at 4x MSAA, with no AA.
+    {
+        ViewPostConfig vp = ResolveScenePost(scene);
+        ApplyQuality(vp, RenderQualitySettings{}, true);
+        CHECK(vp.aoMode == static_cast<u32>(foundation::render::AoMode::GTAO));
+        CHECK(vp.ssrEnabled);
+        CHECK(vp.ssgiEnabled);
+        CHECK(vp.bloomEnabled);
+        CHECK(vp.msaaSamples == 4u);
+        CHECK_FALSE(vp.taaEnabled);
+        CHECK_FALSE(vp.fxaaEnabled);
+    }
+    // A phone's level: each Off turns its effect off; MSAA off; TAA runs, with the scene's TAA look.
+    RenderQualitySettings phone;
+    phone.msaaSamples = 1;
+    phone.antialiasing = AaMode::TAA;
+    phone.ambientOcclusion = QualityTier::Off;
+    phone.reflections = QualityTier::Off;
+    phone.globalIllumination = QualityTier::Off;
+    phone.bloom = QualityTier::Off;
+    {
+        ViewPostConfig vp = ResolveScenePost(scene);
+        ApplyQuality(vp, phone, true);
+        CHECK(vp.aoMode == 0u);
+        CHECK_FALSE(vp.ssrEnabled);
+        CHECK_FALSE(vp.ssgiEnabled);
+        CHECK_FALSE(vp.bloomEnabled);
+        CHECK(vp.msaaSamples == 1u);
+        CHECK(vp.taaEnabled);
+        CHECK(Near(vp.taaBlend, 0.9f));
+        CHECK(vp.needsMotion); // TAA reads motion vectors
+    }
+    // FXAA: no motion. A level whose tiers are High turns nothing on that the scene left off.
+    {
+        PostProcessSettings plain;
+        plain.bloomEnabled = false;
+        RenderQualitySettings fxaa;
+        fxaa.antialiasing = AaMode::FXAA;
+        ViewPostConfig vp = ResolveScenePost(plain);
+        ApplyQuality(vp, fxaa, true);
+        CHECK(vp.fxaaEnabled);
+        CHECK_FALSE(vp.taaEnabled);
+        CHECK_FALSE(vp.needsMotion);
+        CHECK(vp.aoMode == 0u);
+        CHECK_FALSE(vp.ssrEnabled);
+        CHECK_FALSE(vp.ssgiEnabled);
+        CHECK_FALSE(vp.bloomEnabled);
+    }
+    // Without `antialiasing` (a debug panel set its own), the view's AA stays as it was.
+    {
+        ViewPostConfig vp = ResolveScenePost(scene);
+        vp.fxaaEnabled = true;
+        ApplyQuality(vp, phone, false);
+        CHECK(vp.fxaaEnabled);
+        CHECK_FALSE(vp.taaEnabled);
+        CHECK(vp.msaaSamples == 1u); // the count is the level's either way
+    }
+}
+
+TEST_CASE("render: a quality level's shadows: Off draws none, the cap shortens the reach")
+{
+    foundation::render::ExtractedScene extracted{DefaultAllocator()};
+    foundation::render::GpuLight sun{};
+    sun.shadowIndex = 0.0f; // the cascades
+    extracted.AddLight(sun);
+    foundation::render::GpuLight lamp{};
+    lamp.shadowIndex = 2.0f; // an atlas tile
+    extracted.AddLight(lamp);
+    extracted.AddLocalShadowCaster(foundation::render::LocalShadowCaster{});
+    foundation::render::DirectionalShadow shadow;
+    shadow.valid = true;
+    extracted.SetDirectionalShadow(shadow);
+    extracted.SetShadowSettings(foundation::render::SceneShadowSettings{300.0f, 0.5f, 40.0f});
+
+    // High, with no cap: the scene's shadows as extracted.
+    ApplyQuality(extracted, RenderQualitySettings{});
+    CHECK(extracted.DirectionalShadowData().valid);
+    CHECK(extracted.LocalShadowCasters().Size() == 1u);
+    CHECK(extracted.ShadowSettings().distance == doctest::Approx(300.0f));
+
+    // A cap shorter than the scene's reach takes its place; one longer leaves it.
+    RenderQualitySettings capped;
+    capped.shadowDistanceMax = 60.0f;
+    ApplyQuality(extracted, capped);
+    CHECK(extracted.ShadowSettings().distance == doctest::Approx(60.0f));
+    CHECK(extracted.ShadowSettings().cascadeSplit == doctest::Approx(0.5f));
+    capped.shadowDistanceMax = 500.0f;
+    ApplyQuality(extracted, capped);
+    CHECK(extracted.ShadowSettings().distance == doctest::Approx(60.0f));
+
+    // Off: no sun cascades, no local tiles, and no light reads a shadow.
+    RenderQualitySettings off;
+    off.shadows = QualityTier::Off;
+    ApplyQuality(extracted, off);
+    CHECK_FALSE(extracted.DirectionalShadowData().valid);
+    CHECK(extracted.LocalShadowCasters().IsEmpty());
+    for (const foundation::render::GpuLight& light : extracted.Lights())
+    {
+        CHECK(light.shadowIndex == doctest::Approx(-1.0f));
+    }
+}
+
+TEST_CASE("render: a view draws at its viewport's level, else the global one, over the scene's post")
+{
+    // A game's level keeps the scene's own post settings (its profile's auto exposure, AO, SSR) in
+    // effect; the level sets the MSAA count and the AA. A Game tab plays at its game's level while
+    // the editor's own views keep the global one.
     rhi::null::NullDevice device{DefaultAllocator()};
     foundation::vfs::NativeFileSystem dataFs(foundation::vfs::FindDataRoot(), DefaultAllocator());
     RenderSubsystem sub{DefaultAllocator(), device, 2, dataFs};
@@ -2375,20 +2476,40 @@ TEST_CASE("render: the host's scene-pass MSAA keeps the scene's post settings in
     post->Post().autoExposure = true;
     post->Post().aoMode = foundation::render::AoMode::SSAO;
     post->Post().ssrEnabled = true;
-    post->Post().aaMode = AaMode::TAA;
 
-    sub.SetMsaaSamples(4);
-    const ViewPostConfig withMsaa = sub.ViewPost(scene);
-    CHECK(withMsaa.msaaSamples == 4u);
-    CHECK(withMsaa.autoExposure);
-    CHECK(withMsaa.aoMode == static_cast<u32>(foundation::render::AoMode::SSAO));
-    CHECK(withMsaa.ssrEnabled);
-    CHECK(withMsaa.taaEnabled);
+    // Until a host sets one, the engine's own highest.
+    CHECK(sub.Quality().msaaSamples == 4u);
+    RenderQualitySettings game;
+    game.msaaSamples = 2;
+    game.antialiasing = AaMode::TAA;
+    sub.SetQuality(game);
+    const ViewPostConfig level = sub.ViewPost(scene);
+    CHECK(level.msaaSamples == 2u);
+    CHECK(level.taaEnabled);
+    CHECK(level.autoExposure);
+    CHECK(level.aoMode == static_cast<u32>(foundation::render::AoMode::SSAO));
+    CHECK(level.ssrEnabled);
 
-    // A sample's debug panel still overrides the scene's look, and the MSAA count stays.
+    // A viewport's own level, for its views alone, until cleared.
+    int gameTab = 0;
+    RenderQualitySettings phone;
+    phone.msaaSamples = 1;
+    phone.antialiasing = AaMode::FXAA;
+    phone.ambientOcclusion = QualityTier::Off;
+    sub.SetViewportQuality(&gameTab, phone);
+    const ViewPostConfig tab = sub.ViewPost(scene, &gameTab);
+    CHECK(tab.msaaSamples == 1u);
+    CHECK(tab.fxaaEnabled);
+    CHECK(tab.aoMode == 0u);
+    CHECK(sub.ViewPost(scene).msaaSamples == 2u); // other views keep the global level
+    sub.ClearViewportQuality(&gameTab);
+    CHECK(sub.ViewPost(scene, &gameTab).msaaSamples == 2u);
+
+    // A sample's debug panel still overrides the scene's look and its AA, under the level's MSAA.
     sub.SetExposure(2.0f);
     const ViewPostConfig overridden = sub.ViewPost(scene);
     CHECK(overridden.exposure == doctest::Approx(2.0f));
     CHECK_FALSE(overridden.autoExposure);
-    CHECK(overridden.msaaSamples == 4u);
+    CHECK(overridden.msaaSamples == 2u);
+    CHECK_FALSE(overridden.taaEnabled); // the panel's own TAA setting (off)
 }

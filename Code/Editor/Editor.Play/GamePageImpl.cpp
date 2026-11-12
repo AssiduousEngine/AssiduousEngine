@@ -795,10 +795,11 @@ namespace editor
 
         // No camera override: the scene's primary camera drives the view, its clear color
         // included, which is the player's presentation rather than the editor's; and the game's
-        // own scene-pass MSAA, as the player draws it.
-        const render::ViewPostOverride post = (m_context != nullptr && m_context->Project() != nullptr)
-                                                  ? GameViewPost(m_context->Project()->Settings())
-                                                  : render::ViewPostOverride{};
+        // own quality level, as the player draws it, on this tab's views alone (keyed by the page).
+        // Asked every frame, so a level's edit or a project settings change shows at once.
+        m_render->SetViewportQuality(this, (m_context != nullptr && m_context->Project() != nullptr)
+                                               ? GameQuality(m_context->Project()->Settings(), m_context->Resources())
+                                               : engine::render::RenderQualitySettings{});
         render::TargetState targetState;
         targetState.texture = m_viewport->ColorTexture();
         targetState.currentState = m_viewport->ColorState();
@@ -817,7 +818,7 @@ namespace editor
                                                 static_cast<u32>(Max(dst.width, 1.0f)),
                                                 static_cast<u32>(Max(dst.height, 1.0f))};
             m_render->RenderScene(*m_scene, m_viewport->ColorView(), m_viewport->ColorFormat(), w, h,
-                                  viewport, nullptr, targetState, &post, nullptr, nullptr,
+                                  viewport, nullptr, targetState, nullptr, this, nullptr,
                                   render::SceneSize::FromFit(fit));
             m_captureX = static_cast<u32>(Max(viewport.x, 0));
             m_captureY = static_cast<u32>(Max(viewport.y, 0));
@@ -827,7 +828,7 @@ namespace editor
         else
         {
             m_render->RenderScene(*m_scene, m_viewport->ColorView(), m_viewport->ColorFormat(), w, h,
-                                  render::ViewportRect{0, 0, w, h}, nullptr, targetState, &post);
+                                  render::ViewportRect{0, 0, w, h}, nullptr, targetState, nullptr, this);
         }
         m_viewport->SetColorState(rhi::ResourceState::ShaderRead);
         if (m_running)
@@ -904,6 +905,10 @@ namespace editor
     {
         DropScriptedInput(); // before the sources it replaced are torn down
         Stop();
+        if (m_render != nullptr)
+        {
+            m_render->ClearViewportQuality(this); // the key is this page, about to go
+        }
         // Stop leaves this page's viewport source as the input override, so a stopped but open tab
         // keeps viewport input. On close the source is about to be freed, so clear the override when
         // it is ours, or ActiveSource() would dangle and the next PumpInput would crash.

@@ -807,7 +807,7 @@ namespace samples
                     {
                         continue;
                     }
-                    if (renderSub->MsaaSamples() >= count)
+                    if (renderSub->Quality().msaaSamples >= count)
                     {
                         msaaIdx = msaaN; // select the highest supported count <= the current setting
                     }
@@ -819,7 +819,10 @@ namespace samples
                 }
                 if (msaaN > 0 && ImGui::Combo("MSAA", &msaaIdx, msaaItems, msaaN))
                 {
-                    renderSub->SetMsaaSamples(msaaCounts[msaaIdx]);
+                    // The count is the quality level's: change it on the one the sample draws at.
+                    engine::render::RenderQualitySettings quality = renderSub->Quality();
+                    quality.msaaSamples = msaaCounts[msaaIdx];
+                    renderSub->SetQuality(quality);
                 }
                 // Judging SSR by eye needs a tunable reflector: roughness feeds the SSR cutoff and
                 // cone gather, and metallic drives reflectivity.

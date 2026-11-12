@@ -174,9 +174,6 @@ export namespace engine::project
         Guid defaultBusLayoutId; // the audio mixer layout applied at startup (nil: built-in)
         Guid defaultUiFontId; // the cooked FontResource the game UI defaults to (nil: the dev
                               // TTF fallback path)
-        u32 renderMsaaSamples = 4; // scene-pass MSAA sample count (1 is off, 2, 4); the player and
-                                   // play-in-editor apply it, clamped to the device at runtime.
-                                   // A new project starts at 4 (every manifest writes its own).
         Array<Guid> uiFontIds; // cooked fonts the game UI loads beside the default one, each its
                                // own family a label picks by font-family (a title face beside
                                // the body text). Appended: a manifest saved before it reads none.
@@ -222,6 +219,12 @@ export namespace engine::project
         Array<Guid> qualityLevelIds;
         Guid defaultQualityId;
 
+        // The scene-pass MSAA count a manifest of version 11 or before carried, before the count
+        // was a quality level's: what the editor's upgrade gives the project's first level. Read
+        // from such a manifest alone, never written (so a copy of the settings carries none); 0
+        // when the manifest has none.
+        u32 msaaSamplesBeforeLevels = 0;
+
         /// The project's entry for plugin `id`, or null when it enables no such plugin.
         [[nodiscard]] foundation::runtime::EnabledPlugin* FindPlugin(StringView id) noexcept
         {
@@ -261,6 +264,23 @@ export namespace engine::project
             return false;
         }
 
+        /// The quality level the game starts at: the player's own choice (`saved`, a level the game
+        /// saved for it) when it is still one of the game's levels, else the manifest's default (a
+        /// dist's is its export preset's) when it is one, else the list's last. Nil when the game
+        /// lists none, which runs at the engine's own highest level.
+        [[nodiscard]] Guid StartupQuality(const Guid& saved) const noexcept
+        {
+            if (!saved.IsNil() && IsQualityLevel(saved))
+            {
+                return saved;
+            }
+            if (!defaultQualityId.IsNil() && IsQualityLevel(defaultQualityId))
+            {
+                return defaultQualityId;
+            }
+            return qualityLevelIds.IsEmpty() ? Guid{} : qualityLevelIds[qualityLevelIds.Size() - 1];
+        }
+
         /// Re-derives the human-readable path mirrors (defaultScene, startupScript) from their
         /// guids after a change: `pathOf` answers an asset's source-DB path, empty when unknown.
         void RefreshPathMirrors(const Function<String(const Guid&)>& pathOf)
@@ -269,11 +289,12 @@ export namespace engine::project
             startupScript = startupScriptId.IsNil() ? String() : pathOf(startupScriptId);
         }
 
-        // The current data version's layout (REFLECT_MEMBERS' DataVersion, 11). Versions 9 and 10
-        // still read: both name the native game module by its library path (nativeModule), which
-        // becomes the entry of the game's package (NativeModulePackageEntry); version 9 also
-        // carries a theme and loading document for a UI library the engine no longer has, read and
-        // dropped. Older versions are refused by the versioned-payload reader; outside a payload
+        // The current data version's layout (REFLECT_MEMBERS' DataVersion, 12). Versions 9 to 11
+        // still read: they carry the scene-pass MSAA count the quality levels now hold
+        // (msaaSamplesBeforeLevels); 9 and 10 name the native game module by its library path
+        // (nativeModule), which becomes the entry of the game's package (NativeModulePackageEntry);
+        // version 9 also carries a theme and loading document for a UI library the engine no
+        // longer has, read and dropped. Older versions are refused by the versioned-payload reader; outside a payload
         // (CopyProjectSettings) the version reads 0, the current layout.
         void Serialize(ISerializer& ar) override
         {
@@ -310,7 +331,10 @@ export namespace engine::project
                 ar.Key("loadingDocumentId");
                 ar.GuidValue(dropped);
             }
-            foundation::core::Serialize(ar, "renderMsaaSamples", renderMsaaSamples);
+            if (reading && ar.Version() >= 9 && ar.Version() <= 11)
+            {
+                foundation::core::Serialize(ar, "renderMsaaSamples", msaaSamplesBeforeLevels);
+            }
             SerializeAppended(ar, "uiFontIds", uiFontIds);
             SerializeAppended(ar, "renderWidth", renderWidth);
             SerializeAppended(ar, "renderHeight", renderHeight);

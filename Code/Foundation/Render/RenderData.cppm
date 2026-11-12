@@ -950,6 +950,17 @@ export namespace foundation::render
         void SetDirectionalShadow(const DirectionalShadow& s) noexcept { m_shadow = s; }
         [[nodiscard]] const DirectionalShadow& DirectionalShadowData() const noexcept;
         void SetShadowSettings(const SceneShadowSettings& s) noexcept { m_shadowSettings = s; }
+        // Draws no shadows this frame (a quality level whose shadows are off): no sun cascades, no
+        // spot or point tiles, and no light reads a shadow. Call after the lights are extracted.
+        void DisableShadows() noexcept
+        {
+            m_shadow.valid = false;
+            m_localCasters.Clear();
+            for (GpuLight& light : m_lights)
+            {
+                light.shadowIndex = -1.0f;
+            }
+        }
         [[nodiscard]] const SceneShadowSettings& ShadowSettings() const noexcept
         {
             return m_shadowSettings;

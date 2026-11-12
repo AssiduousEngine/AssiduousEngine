@@ -103,7 +103,7 @@ TEST_CASE("render.pipeline: a Post Process Profile cooks and loads with its valu
         content::ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
         PostProcessProfileAsset asset;
         asset.values.exposureEV = 1.0f;
-        asset.values.aaMode = render::AaMode::FXAA;
+        asset.values.fxaaSubpixel = 0.5f;
         asset.values.aoMode = foundation::render::AoMode::GTAO;
         auto* cooked =
             db.RootGroup()->CreateInstance(u8"look", render::PostProcessProfileSource::StaticType());
@@ -119,7 +119,7 @@ TEST_CASE("render.pipeline: a Post Process Profile cooks and loads with its valu
             manager.Bind<render::PostProcessProfile>(cooked->Id());
         REQUIRE(profile);
         CHECK(profile->values.exposureEV == doctest::Approx(1.0f));
-        CHECK(profile->values.aaMode == render::AaMode::FXAA);
+        CHECK(profile->values.fxaaSubpixel == doctest::Approx(0.5f));
         CHECK(profile->values.aoMode == foundation::render::AoMode::GTAO);
     }
     RemoveTree(dir);

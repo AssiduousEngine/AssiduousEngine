@@ -32,7 +32,6 @@ import foundation.core;
 import foundation.content;
 import foundation.gui;
 import foundation.gui.toolkit;
-import engine.render;  // the MSAA levels
 import engine.project; // ProjectSettings' reflected settings
 import foundation.runtime; // the plugins' entries and host
 import editor.core;
@@ -47,10 +46,6 @@ export namespace editor::app
     /// ProjectSettingsDialog::kEngineVersionRow, at namespace scope for another library to read (MSVC exports no class's
     /// static constexpr member from a shared library).
     inline constexpr StringView kProjectSettingsDialogEngineVersionRow = u8"engineVersion";
-
-    /// ProjectSettingsDialog::kMsaaSetting, at namespace scope for another library to read (MSVC exports no class's
-    /// static constexpr member from a shared library).
-    inline constexpr StringView kProjectSettingsDialogMsaaSetting = u8"renderMsaaSamples";
 
     /// ProjectSettingsDialog::kPluginsCategory, at namespace scope for another library to read.
     inline constexpr StringView kProjectSettingsDialogPluginsCategory = u8"Plugins";
@@ -160,8 +155,6 @@ export namespace editor::app
         /// The section the project's plugins show in; plugin `id`'s group is `plugins.<id>`, its
         /// state `plugins.<id>.state` and each setting `plugins.<id>.<name>`.
         static constexpr StringView kPluginsCategory = kProjectSettingsDialogPluginsCategory;
-        /// The MSAA setting, whose choices are the render subsystem's levels.
-        static constexpr StringView kMsaaSetting = kProjectSettingsDialogMsaaSetting;
         /// The row the entries' groups sit under (`plugins.<id>`), and the one the plugins the
         /// project could enable sit under (`available.<n>`).
         static constexpr StringView kPluginEntriesGroup = u8"plugins";
@@ -370,13 +363,6 @@ export namespace editor::app
                 if (gui::PropertyInfo* element = m_bag->FindElementInfo(name))
                     element->ReferenceType = SourceTypeNamed(assetType->AsView());
                 return m_bag->FindInfo(name);
-            }
-            if (name == kMsaaSetting)
-            {
-                gui::PropertyInfo& row = m_bag->Add(name, gui::PropertyKind::Enum, gui::Variant(static_cast<i64>(*static_cast<const u32*>(address))));
-                for (u32 i = 0; i < engine::render::MsaaLevelCount(); ++i)
-                    row.Choices.PushBack(gui::PropertyChoice{String(engine::render::kMsaaLevels[i].label), static_cast<i64>(engine::render::kMsaaLevels[i].samples)});
-                return &row;
             }
             if (IsEnum(type))
             {

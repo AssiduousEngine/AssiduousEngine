@@ -27,8 +27,9 @@ namespace engine::project
     REFLECT_MEMBERS(ProjectSettings, "rtti::engine::project")
     {
         // 9 carried two settings of a removed UI library; 9 and 10 named the native game module by
-        // its library path, which reads as the entry of the game's package.
-        builder.DataVersion(11).ReadsDataVersionsFrom(9);
+        // its library path, which reads as the entry of the game's package; 9 to 11 carried the
+        // scene-pass MSAA count, which is a quality level's now.
+        builder.DataVersion(12).ReadsDataVersionsFrom(9);
         // The enums the display settings take (their enumerators name the dialog's and the MCP
         // tools' choices): FitMode is the core's.
         RegisterCoreTypes();
@@ -63,10 +64,6 @@ namespace engine::project
         builder.Property<&ProjectSettings::defaultUiFontId>("defaultUiFontId");
         asset(u8"Default UI font", u8"FontAsset", u8"(built-in)", u8"UI");
         builder.PropAttribute(kSettingSummaryAttribute, String(u8"UI font"));
-        // Scene-pass MSAA samples (the render subsystem's levels: 1 is off, 2, 4).
-        builder.Property<&ProjectSettings::renderMsaaSamples>("renderMsaaSamples")
-            .PropAttribute(kSettingLabelAttribute, String(u8"MSAA"))
-            .PropAttribute(kSettingCategoryAttribute, String(u8"Display"));
         // Cooked fonts the game UI loads beside the default one, each a family a label picks.
         RegisterArrayType<Guid>(); // the list container (the dialog's list, the MCP tools)
         builder.Property<&ProjectSettings::uiFontIds>("uiFontIds");

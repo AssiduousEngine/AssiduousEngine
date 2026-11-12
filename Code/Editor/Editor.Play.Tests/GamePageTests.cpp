@@ -23,8 +23,11 @@ import engine.scene;        // a run needs the scenes
 import engine.gameinstance; // the run the tab plays
 import editor.core;
 import editor.play;
-import engine.project;      // ProjectSettings: the game's scene-pass MSAA
-import foundation.render.api; // ViewPostOverride
+import engine.project;      // ProjectSettings: the game's quality levels
+import engine.render;       // RenderQuality: the level the Game tab plays at
+import foundation.vfs;
+import foundation.content;
+import foundation.resource;
 
 using namespace foundation::core;
 using namespace editor;
@@ -302,22 +305,40 @@ TEST_CASE("game tab: a run with no game script still keeps its save, written to 
     (void)RemoveDirectoryRecursive(dir.AsView());
 }
 
-TEST_CASE("game page: the Game tab draws at the project's scene-pass MSAA, its look untouched")
+TEST_CASE("game page: the Game tab plays at the project's starting quality level")
 {
-    // The player sets the project's MSAA for every view; the Game tab drew at 1x, so a playtest did
-    // not show the game the player shows.
-    engine::project::ProjectSettings settings;
-    settings.renderMsaaSamples = 4;
-    const foundation::render::ViewPostOverride post = editor::GameViewPost(settings);
-    CHECK(post.msaaOverride == 4u);
-    CHECK_FALSE(post.disablePost); // nothing of the game's own post-processing is stripped
-    CHECK_FALSE(post.disableBloom);
-    CHECK_FALSE(post.disableAo);
-    CHECK_FALSE(post.disableSsr);
-    CHECK_FALSE(post.disableAa);
-    CHECK_FALSE(post.disableSsgi);
-    CHECK_FALSE(post.disableCulling);
+    // The player starts at the project's level; the Game tab plays the game at the same one.
+    engine::render::RegisterRenderProfileResources();
+    const StringView dir = u8"scratch_game_page_quality_db";
+    (void)RemoveDirectoryRecursive(dir);
+    {
+        foundation::vfs::NativeFileSystem mount(dir, DefaultAllocator());
+        foundation::content::ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
+        engine::render::RenderQualitySource low;
+        low.values.label = String(u8"Low");
+        low.values.msaaSamples = 1;
+        low.values.antialiasing = engine::render::AaMode::FXAA;
+        low.values.ambientOcclusion = engine::render::QualityTier::Off;
+        auto* lowInstance = db.RootGroup()->CreateInstance(u8"low", engine::render::RenderQualitySource::StaticType());
+        REQUIRE(lowInstance->WriteObject(low).IsOk());
+        engine::render::RenderQualityFactory factory(DefaultAllocator());
+        foundation::resource::ResourceManager manager(DefaultAllocator(), db);
+        manager.AddFactory(&factory);
 
-    settings.renderMsaaSamples = 1; // off, as the project asks
-    CHECK(editor::GameViewPost(settings).msaaOverride == 1u);
+        // No levels: the engine's own highest.
+        engine::project::ProjectSettings settings;
+        CHECK(editor::GameQuality(settings, &manager).msaaSamples == 4u);
+        // The project's level, read through the editor's resources.
+        settings.qualityLevelIds.PushBack(lowInstance->Id());
+        const engine::render::RenderQualitySettings quality = editor::GameQuality(settings, &manager);
+        CHECK(quality.label == StringView(u8"Low"));
+        CHECK(quality.msaaSamples == 1u);
+        CHECK(quality.antialiasing == engine::render::AaMode::FXAA);
+        CHECK(quality.ambientOcclusion == engine::render::QualityTier::Off);
+        // Without the resources, or a level that does not resolve: the engine's own highest.
+        CHECK(editor::GameQuality(settings, nullptr).msaaSamples == 4u);
+        settings.qualityLevelIds[0] = Guid{0x91, 0x92};
+        CHECK(editor::GameQuality(settings, &manager).msaaSamples == 4u);
+    }
+    (void)RemoveDirectoryRecursive(dir);
 }

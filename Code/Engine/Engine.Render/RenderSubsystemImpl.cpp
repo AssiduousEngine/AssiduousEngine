@@ -181,12 +181,23 @@ namespace engine::render
         m_ssrEnabled = on;
         m_globalPostActive = true;
     }
-    void RenderSubsystem::SetMsaaSamples(u32 count) noexcept
+    void RenderSubsystem::SetViewportQuality(const void* viewportKey, const RenderQualitySettings& quality)
     {
-        m_globalMsaaSamples = (count < 1) ? 1u : count; // clamped to the device ceiling per view
+        m_viewportQuality.InsertOrAssign(viewportKey, quality);
     }
 
-    ViewPostConfig RenderSubsystem::ViewPost(scene::Scene& scene) const
+    void RenderSubsystem::ClearViewportQuality(const void* viewportKey)
+    {
+        (void)m_viewportQuality.Remove(viewportKey);
+    }
+
+    const RenderQualitySettings& RenderSubsystem::QualityFor(const void* viewportKey) const noexcept
+    {
+        const RenderQualitySettings* own = m_viewportQuality.Find(viewportKey);
+        return own != nullptr ? *own : m_quality;
+    }
+
+    ViewPostConfig RenderSubsystem::ViewPost(scene::Scene& scene, const void* viewportKey) const
     {
         ViewPostConfig post;
         if (m_globalPostActive)
@@ -213,8 +224,9 @@ namespace engine::render
         {
             post = ResolveScenePost(pp->Effective()); // the scene's, or its profile's
         }
-        // The host's scene-pass MSAA (a project's setting) over either: a count is not a post look.
-        post.msaaSamples = static_cast<u8>(m_globalMsaaSamples);
+        // The view's quality level over either: its MSAA count, its tiers over the effects and its
+        // antialiasing, unless a debug panel set its own.
+        ApplyQuality(post, QualityFor(viewportKey), !m_globalPostActive);
         return post;
     }
 
@@ -449,6 +461,7 @@ namespace engine::render
             ExtractReflectionProbesInto(scene,
                                         *snapshot); // reflection probes (capture and prefilter inputs)
             ExtractEnvironmentInto(scene, *snapshot); // per-scene ambient
+            ApplyQuality(*snapshot, QualityFor(viewportKey)); // the level's shadows over the scene's
             // Downstream systems (particles, world-UI, ...) registered for this scene contribute into
             // the same snapshot; render stays ignorant of their types (scene-free IRenderDataProvider).
             for (const SceneProvider& sp : m_providers)
@@ -480,7 +493,7 @@ namespace engine::render
         // Resolve this view's post-processing: the samples' global override once touched, else the
         // scene's authored PostProcessSettings (exposure in EV stops resolved to the tonemap's
         // linear multiplier), with the host's scene-pass MSAA either way.
-        settings.post = ViewPost(scene);
+        settings.post = ViewPost(scene, viewportKey);
         // Editor viewport "show flags": ephemeral per-view overrides that strip effects for editing
         // clarity, layered on top of the resolved post and never written back to the scene.
         if (postOverride != nullptr)

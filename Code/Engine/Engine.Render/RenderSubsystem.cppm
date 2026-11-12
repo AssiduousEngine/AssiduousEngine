@@ -172,12 +172,26 @@ export namespace engine::render
         // them latches m_globalPostActive, and ViewPost then prefers the global values over the
         // scene's authored ones for exposure, bloom and AO. Untouched (the editor and the player),
         // the scene's authored settings drive. (AO debug below is a frame-global toggle.) The
-        // scene-pass MSAA count is not one of them: it is the host's, applied over either.
+        // quality level is not one of them: it is the host's, applied over either.
 
-        /// The post-processing a view of `scene` gets: the global override once a setter above was
-        /// called, else the scene's authored settings (or its profile's); either way with the
-        /// scene-pass MSAA count SetMsaaSamples gave.
-        [[nodiscard]] ViewPostConfig ViewPost(scene::Scene& scene) const;
+        /// The quality level every view draws at (the player's, from its project and preset; the
+        /// built-in highest until a host sets one): its MSAA count and antialiasing, and its tiers
+        /// over what each scene asks for (ApplyQuality).
+        void SetQuality(const RenderQualitySettings& quality) { m_quality = quality; }
+        [[nodiscard]] const RenderQualitySettings& Quality() const noexcept { return m_quality; }
+
+        /// A level for the views drawn with `viewportKey` alone (a Game tab plays at its game's level
+        /// while the editor's own views keep theirs), until cleared.
+        void SetViewportQuality(const void* viewportKey, const RenderQualitySettings& quality);
+        void ClearViewportQuality(const void* viewportKey);
+        /// The level the views drawn with `viewportKey` take: its own, else the global one.
+        [[nodiscard]] const RenderQualitySettings& QualityFor(const void* viewportKey) const noexcept;
+
+        /// The post-processing a view of `scene` drawn with `viewportKey` gets: the global override
+        /// once a setter above was called, else the scene's authored settings (or its profile's);
+        /// either way under that view's quality level (whose antialiasing the global override's
+        /// own replaces).
+        [[nodiscard]] ViewPostConfig ViewPost(scene::Scene& scene, const void* viewportKey = nullptr) const;
 
         // The app's run clock in seconds, handed to the frame every BeginRendering: the wind
         // vertex sway phase (DefaultApplication feeds it from its OnUpdate accumulator).
@@ -214,12 +228,6 @@ export namespace engine::render
         // thickness, screen-edge fade, roughness cutoff, march steps). Reflects the lit HDR before AO and TAA.
         void SetSsrEnabled(bool on) noexcept;
         [[nodiscard]] bool SsrEnabled() const noexcept { return m_ssrEnabled; }
-        // Scene-pass MSAA sample count (1, 2, 4) for every view (a project's setting, a sample's
-        // toggle), clamped per view to what the device supports. It leaves the scene's authored post
-        // settings in effect: the count is not part of the global override (the editor uses the
-        // per-view override).
-        void SetMsaaSamples(u32 count) noexcept;
-        [[nodiscard]] u32 MsaaSamples() const noexcept { return m_globalMsaaSamples; }
         // Whether this exact scene-pass MSAA count is usable on the active device (the valid set is not
         // contiguous: WebGPU supports only {1, 4}). UIs should offer only counts that return true.
         [[nodiscard]] bool SupportsMsaaSamples(u32 count) const noexcept;
@@ -411,7 +419,8 @@ export namespace engine::render
         f32 m_aoRadius = 0.5f;
         f32 m_aoIntensity = 1.0f;
         bool m_ssrEnabled = false;  // SSR off by default (UI toggle)
-        u32 m_globalMsaaSamples = 1; // scene-pass MSAA count for every view (off by default)
+        RenderQualitySettings m_quality; // the level every view draws at (QualityFor)
+        HashMap<const void*, RenderQualitySettings> m_viewportQuality; // a viewport's own level
         SsrPass::Params m_ssrParams{};
         bool m_instanceSharing = true; // instance data shared from prepass to forward (A/B toggle)
         bool m_viewCulling = true;     // view-frustum cull camera draw lists

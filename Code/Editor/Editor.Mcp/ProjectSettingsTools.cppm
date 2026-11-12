@@ -19,7 +19,6 @@ import foundation.json;
 import foundation.content;
 import foundation.mcp;
 import engine.project;
-import engine.render; // the canonical MSAA level table
 import editor.project;
 import :session;
 import :reflected_fields;
@@ -98,8 +97,8 @@ export namespace editor::mcp
             u8"type (the refusal says which), \"\" clears it; a list setting (uiFontIds, the fonts "
             u8"the game UI loads beside the default, each a family a label picks with font-family) "
             u8"takes the whole list, [] for none; a count takes its range (the display's sizes), a "
-            u8"choice one of its values by name (renderFit, windowMode), a flag true or false; MSAA "
-            u8"takes the render levels; qualityLevelIds lists the game's Render Quality assets in an "
+            u8"choice one of its values by name (renderFit, windowMode), a flag true or false; "
+            u8"qualityLevelIds lists the game's Render Quality assets in an "
             u8"options menu's order and defaultQualityId, one of them, is the level it starts at where "
             u8"no export preset picks another (\"\": the list's last). Checked "
             u8"in full before anything changes, then saved to the manifest; the editor re-applies "
@@ -122,7 +121,7 @@ export namespace editor::mcp
                 // A misspelled setting never gets here: the schema declares every setting, and the
                 // server refuses an argument it does not declare.
                 // Everything is checked before anything changes: a refusal leaves the settings as
-                // they were. MSAA must also be a level in the render subsystem's table.
+                // they were.
                 Result<Array<detail::FieldChange>, String> checked = detail::CheckFields(args, fields, project);
                 if (!checked.HasValue())
                 {
@@ -146,25 +145,6 @@ export namespace editor::mcp
                 {
                     return Err(String(u8"`defaultQualityId` must be one of `qualityLevelIds` (give both to "
                                       u8"add a level and start at it)"));
-                }
-                for (const detail::FieldChange& change : checked.Value())
-                {
-                    if (change.field->address(instance) != &settings.renderMsaaSamples)
-                    {
-                        continue;
-                    }
-                    bool level = false;
-                    String levels;
-                    for (u32 i = 0; i < engine::render::MsaaLevelCount(); ++i)
-                    {
-                        level = level || engine::render::kMsaaLevels[i].samples == change.number;
-                        levels += levels.IsEmpty() ? u8"" : u8", ";
-                        levels += Format(u8"{}", engine::render::kMsaaLevels[i].samples);
-                    }
-                    if (!level)
-                    {
-                        return Err(Format(u8"`{}` takes {}", detail::PropertyName(*change.field), levels.AsView()));
-                    }
                 }
                 detail::ApplyFields(instance, Span<const detail::FieldChange>(checked.Value().Data(),
                                                                               checked.Value().Size()));

@@ -24,7 +24,8 @@ namespace pipeline
 
     REFLECT_MEMBERS(PostProcessProfileAsset, "rtti::pipeline::render")
     {
-        builder.Attribute("displayName", String(u8"Post Process Profile"));
+        // v1: no antialiasing mode (the quality level's); v0, saved before, still reads.
+        builder.DataVersion(1).ReadsDataVersionsFrom(0).Attribute("displayName", String(u8"Post Process Profile"));
     }
 
     REFLECT_MEMBERS(RenderQualityAsset, "rtti::pipeline::render")

@@ -64,15 +64,22 @@ namespace rhi = foundation::rhi;
 
 export namespace editor
 {
-    /// The per-view settings the Game tab draws its game with: the project's scene-pass MSAA, as
-    /// the player sets it for every view (the editor's render subsystem serves every page, so the
-    /// tab asks for the count on its own view), and nothing of the game's look stripped.
-    [[nodiscard]] inline foundation::render::ViewPostOverride GameViewPost(
-        const engine::project::ProjectSettings& settings) noexcept
+    /// The quality level the Game tab plays its game at: the project's starting level, as a run
+    /// from the project folder starts at, read through `resources`. The engine's own highest when
+    /// the project lists no levels, or its level does not resolve. The editor's render subsystem
+    /// serves every page, so the tab asks for the level on its own views alone.
+    [[nodiscard]] inline engine::render::RenderQualitySettings GameQuality(
+        const engine::project::ProjectSettings& settings, foundation::resource::ResourceManager* resources)
     {
-        foundation::render::ViewPostOverride post;
-        post.msaaOverride = static_cast<u8>(settings.renderMsaaSamples < 1 ? 1u : settings.renderMsaaSamples);
-        return post;
+        const Guid level = settings.StartupQuality(Guid{});
+        if (!level.IsNil() && resources != nullptr)
+        {
+            if (auto quality = resources->Bind<engine::render::RenderQuality>(level))
+            {
+                return quality->values;
+            }
+        }
+        return engine::render::RenderQualitySettings{};
     }
 
     // The editor's game-audio preference (a user settings section, the Preferences dialog's

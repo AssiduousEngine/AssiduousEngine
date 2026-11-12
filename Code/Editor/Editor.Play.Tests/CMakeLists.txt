@@ -4,7 +4,8 @@ add_executable(Editor.Play.Tests TestsMain.cpp PieMcpToolsTests.cpp GameResoluti
 target_link_libraries(Editor.Play.Tests PRIVATE
     Editor::Play Editor::Scene Editor::Core Engine::Project Engine::Scene Engine::GameInstance Foundation::Input Foundation::Shell
     Foundation::Scene Foundation::Mcp Foundation::Json Foundation::Runtime Foundation::Runtime.Client Foundation::Graphics
-    Foundation::Settings Foundation::GUI Foundation::GUI.Toolkit Foundation::GUI.Viewport doctest::doctest)
+    Foundation::Settings Foundation::GUI Foundation::GUI.Toolkit Foundation::GUI.Viewport
+    Engine::Render Foundation::VFS Foundation::Content Foundation::Resource doctest::doctest)
 target_compile_definitions(Editor.Play.Tests PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
     TEST_SOURCE_DIR="${BUILDSYSTEM_TEST_SOURCE_DIR}") # the Game tab's markup the page tests load
 target_compile_options(Editor.Play.Tests PRIVATE

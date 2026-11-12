@@ -66,7 +66,6 @@ namespace
             GlobalTypeRegistry().Register(foundation::scene::SceneDocument::StaticType());
             project->Settings().defaultSceneId = scene;
             project->Settings().uiFontIds.PushBack(font);
-            project->Settings().renderMsaaSamples = 4;
             context.SetProject(project.Get());
             root->SetSize(Float2{900.0f, 700.0f});
             dialog = MakeUnique<ProjectSettingsDialog>(DefaultAllocator(), DefaultAllocator(), context, refs,
@@ -115,12 +114,14 @@ TEST_CASE("project settings: the labelled settings as rows in their categories; 
     CHECK(bag.ElementCount(u8"uiFontIds", 0) == 1u);
     CHECK(bag.GetValue(u8"uiFontIds.0", 0).AsString() == Text(bed.font).AsView());
 
-    const gui::PropertyInfo* msaa = bag.FindInfo(editor::app::kProjectSettingsDialogMsaaSetting);
-    REQUIRE(msaa != nullptr);
-    CHECK(msaa->Kind == gui::PropertyKind::Enum);
-    REQUIRE(msaa->Choices.Size() == 3u);
-    CHECK(msaa->Choices[2].Name == String(u8"4x"));
-    CHECK(bag.GetValue(editor::app::kProjectSettingsDialogMsaaSetting, 0).AsInt() == 4);
+    // The quality levels, a list of Render Quality assets, and the default among them.
+    const gui::PropertyInfo* levels = bag.FindInfo(u8"qualityLevelIds");
+    REQUIRE(levels != nullptr);
+    CHECK(levels->Kind == gui::PropertyKind::List);
+    CHECK(bag.ElementCount(u8"qualityLevelIds", 0) == 0u);
+    const gui::PropertyInfo* startsAt = bag.FindInfo(u8"defaultQualityId");
+    REQUIRE(startsAt != nullptr);
+    CHECK(startsAt->Kind == gui::PropertyKind::Reference);
 
     const gui::PropertyInfo* mode = bag.FindInfo(u8"windowMode");
     REQUIRE(mode != nullptr);
@@ -150,7 +151,7 @@ TEST_CASE("project settings: Save writes the rows back, a list's empty and repea
     CHECK(bed.Bag().GetValue(u8"name", 0).AsString() == StringView(u8"Settings")); // the rows again, from the manifest
     bed.Edit(u8"name", gui::Variant(StringView(u8"Renamed")));
     bed.Edit(u8"defaultSceneId", gui::Variant(StringView{}));
-    bed.Edit(editor::app::kProjectSettingsDialogMsaaSetting, gui::Variant(i64{2}));
+    bed.Edit(u8"windowResizable", gui::Variant(false));
     bed.Bag().ResizeList(u8"uiFontIds", 0, 3);
     bed.Bag().SetValue(u8"uiFontIds.1", 0, gui::Variant(Text(bed.font).AsView()));
     REQUIRE(bed.dialog->Save());
@@ -158,7 +159,7 @@ TEST_CASE("project settings: Save writes the rows back, a list's empty and repea
     const engine::project::ProjectSettings& saved = bed.project->Settings();
     CHECK(saved.name == String(u8"Renamed"));
     CHECK(saved.defaultSceneId.IsNil());
-    CHECK(saved.renderMsaaSamples == 2u);
+    CHECK_FALSE(saved.windowResizable);
     REQUIRE(saved.uiFontIds.Size() == 1u);
     CHECK(saved.uiFontIds[0] == bed.font);
 

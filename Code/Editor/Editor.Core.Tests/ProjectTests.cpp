@@ -15,6 +15,8 @@ import foundation.content;
 import foundation.xml.serialization;
 import foundation.runtime; // the plugins' entries
 import engine.project;
+import engine.render;  // a quality level's values
+import render.pipeline; // RenderQualityAsset: an older project's upgrade
 import editor.core;
 
 using namespace foundation::core;
@@ -73,7 +75,9 @@ TEST_CASE("editor-project: create scaffolds the layout and open round-trips the 
     CHECK(project->Name() == u8"Test Project");
     // (The manifest's data version is in the versioned-payload envelope, not a field.)
     CHECK(project->Settings().defaultScene.IsEmpty());
-    CHECK(project->Settings().renderMsaaSamples == 4u); // a new project starts with 4x MSAA
+    // A new project lists no quality levels: it runs at the engine's own highest (4x MSAA).
+    CHECK(project->Settings().qualityLevelIds.IsEmpty());
+    CHECK(project->Settings().msaaSamplesBeforeLevels == 0u); // nothing to upgrade
     CHECK(project->SourceDb().RootGroup() != nullptr);
     CHECK(project->CookedDb().RootGroup() != nullptr);
     CHECK(project->SourcesRoot() == PathJoin(dir, u8"Sources"));
@@ -390,8 +394,22 @@ TEST_CASE("project: a version 9 manifest opens without the old UI's two settings
         Guid fontId;
         REQUIRE(Guid::TryParse(u8"6ba7b813-9dad-11d1-80b4-00c04fd430c8", fontId));
         CHECK(project->Settings().defaultUiFontId == fontId); // read past the dropped theme
-        CHECK(project->Settings().renderMsaaSamples == 4u);   // and past the dropped document
         CHECK(project->Settings().guiLoadingDocumentId.IsNil());
+        // Its MSAA count (read past the dropped document) became the project's first quality level,
+        // Quality/Default, listed and the default, the manifest saved with it.
+        REQUIRE(project->Settings().qualityLevelIds.Size() == 1u);
+        CHECK(project->Settings().defaultQualityId == project->Settings().qualityLevelIds[0]);
+        CHECK(project->Settings().msaaSamplesBeforeLevels == 0u);
+        foundation::content::Instance* level = project->SourceDb().GetInstance(u8"Quality/Default");
+        REQUIRE(level != nullptr);
+        CHECK(level->Id() == project->Settings().defaultQualityId);
+        CHECK(level->TypeName() == StringView(u8"RenderQualityAsset"));
+        pipeline::RegisterRenderProfileAssets();
+        RefPtr<ISerializable> written = level->ReadObject();
+        const auto* asset = Cast<pipeline::RenderQualityAsset>(written.Get());
+        REQUIRE(asset != nullptr);
+        CHECK(asset->values.msaaSamples == 4u); // the manifest's count
+        CHECK(asset->values.ambientOcclusion == engine::render::QualityTier::High); // every effect as before
         REQUIRE(project->SaveSettings().IsOk()); // saved at the current version, without them
     }
     {
@@ -401,12 +419,12 @@ TEST_CASE("project: a version 9 manifest opens without the old UI's two settings
         const StringView savedText(reinterpret_cast<const utf8char*>(saved.Value().Data()), saved.Value().Size());
         CHECK_FALSE(savedText.ContainsIgnoreCase(u8"\"defaultUiThemeId\""));
         CHECK_FALSE(savedText.ContainsIgnoreCase(u8"\"loadingDocumentId\"")); // guiLoadingDocumentId stays
+        CHECK_FALSE(savedText.Contains(u8"\"renderMsaaSamples\"")); // the level holds it now
         UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir);
         REQUIRE(static_cast<bool>(project));
-        CHECK(project->Settings().renderMsaaSamples == 4u);
+        CHECK(project->Settings().qualityLevelIds.Size() == 1u); // upgraded once, not again
     }
-    (void)FileDelete(PathJoin(dir, u8"Project.xml"));
-    (void)RemoveDirectory(dir);
+    (void)RemoveDirectoryRecursive(dir);
 }
 
 // The settings that the Project Settings dialog and project_settings_set edit come from the
@@ -415,7 +433,7 @@ TEST_CASE("project: a version 9 manifest opens without the old UI's two settings
 TEST_CASE("editor-project: the settings describe themselves, and the path mirrors follow the guids")
 {
     const TypeInfo& type = engine::project::ProjectSettings::StaticType();
-    CHECK(type.dataVersion == 11u); // version 11 drops the native module path for the game's package
+    CHECK(type.dataVersion == 12u); // version 12 drops the MSAA count for the quality levels
     CHECK(type.minReadDataVersion == 9u); // a version 9 manifest still reads
     u32 assets = 0;
     u32 lists = 0;
@@ -1010,7 +1028,8 @@ TEST_CASE("project: a version 10 manifest's native module becomes the entry of t
         REQUIRE(root.AsWritable()->Save(u8"Project.xml", Span<const byte>(reinterpret_cast<const byte*>(text.CStr()), text.Size())).IsOk());
         UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir);
         REQUIRE(static_cast<bool>(project));
-        CHECK(project->Settings().renderMsaaSamples == 2u); // read past the dropped path
+        // Read past the dropped path: its MSAA count is the project's first quality level now.
+        CHECK(project->Settings().qualityLevelIds.Size() == 1u);
         return project;
     };
 
@@ -1027,7 +1046,7 @@ TEST_CASE("project: a version 10 manifest's native module becomes the entry of t
         REQUIRE(saved.HasValue());
         const StringView savedText(reinterpret_cast<const utf8char*>(saved.Value().Data()), saved.Value().Size());
         CHECK_FALSE(savedText.Contains(u8"\"nativeModule\""));
-        CHECK(savedText.Contains(u8"<u32 name=\"version\">11</u32>"));
+        CHECK(savedText.Contains(u8"<u32 name=\"version\">12</u32>"));
         project.Reset();
         UniquePtr<EditorProject> again = EditorProject::Open(DefaultAllocator(), dir);
         REQUIRE(static_cast<bool>(again));

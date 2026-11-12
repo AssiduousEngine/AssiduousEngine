@@ -99,7 +99,8 @@ export namespace pipeline
         void Serialize(ISerializer& ar) override
         {
             pipeline::Asset::Serialize(ar);
-            engine::render::SerializePostValues(ar, values);
+            // Data version 1 has no antialiasing mode (the quality level's); version 0 still reads.
+            engine::render::SerializePostValues(ar, values, ar.Mode() == SerializeMode::Read && ar.Version() < 1);
         }
     };
 

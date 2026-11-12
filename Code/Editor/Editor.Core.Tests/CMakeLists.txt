@@ -15,7 +15,7 @@ add_executable(Editor.Core.Tests TestsMain.cpp CommandTests.cpp ActionsTests.cpp
     EditorResourcesTests.cpp ContentWatcherTests.cpp AuthoredResourceNotifyTests.cpp)
 target_link_libraries(Editor.Core.Tests PRIVATE Editor::Core Pipeline::Geometry Foundation::Geometry.Resource
     Pipeline::Shaders Foundation::Shaders.Resource
-    Engine::Render Foundation::Scene.Resource Foundation::VFS.Pak Engine::Project Foundation::Content Foundation::VFS Foundation::Settings
+    Engine::Render Pipeline::Render Foundation::Scene.Resource Foundation::VFS.Pak Engine::Project Foundation::Content Foundation::VFS Foundation::Settings
     ${_editor_core_script_libs} doctest::doctest)
 target_compile_definitions(Editor.Core.Tests PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)
 target_compile_options(Editor.Core.Tests PRIVATE

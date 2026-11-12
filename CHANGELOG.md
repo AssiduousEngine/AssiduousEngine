@@ -7,6 +7,23 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ## Unreleased
 
+### Added
+
+- Rendering: quality levels. A Render Quality asset is one level a game offers: its label, the
+  scene pass's MSAA count and antialiasing, a tier (Off to High) for shadows, AO, SSR, SSGI and
+  bloom, a cap on the shadow reach and the environment's resolution. The project lists its levels
+  and the one it starts at, and an export preset picks its own, so a phone's export can ask less
+  than a desktop's. The player starts at its preset's level and play-in-editor at the project's; an
+  Off tier turns its effect off whatever a scene asks, and no tier turns one on.
+
+### Changed
+
+- Rendering: the MSAA count and the antialiasing are the quality level's. The project's MSAA
+  setting and a scene's or post profile's antialiasing mode are gone; a project saved before opens
+  with one level, Default, at its MSAA count. The antialiasing is not carried over: an older scene
+  or profile that ran TAA or FXAA says so in the log when it loads, and its level's `antialiasing`
+  takes it. A scene's post settings keep how TAA and FXAA look.
+
 ## 0.1.0-beta.3 - 2026-11-12
 
 ### Added

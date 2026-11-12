@@ -232,17 +232,27 @@ namespace engine::player
                 }
             }
 
-            // The project's scene-pass MSAA sample count drives the render subsystem's global
-            // path. The subsystem clamps per view to what the device supports (an unsupported count
-            // degrades, for example 2x to 1x on WebGPU), so the authored value passes straight
-            // through. Only when > 1: 1 is off, the default, and leaves the global-post path alone.
-            if (m_settings.renderMsaaSamples > 1)
+            // The quality level the game starts at (its export preset's, else the project's), set
+            // before the first scene: its MSAA count, antialiasing and tiers over what the scenes ask
+            // for. The subsystem clamps the count per view to what the device supports (2x is 1x
+            // on WebGPU). A game that lists no levels runs at the engine's own highest.
+            if (auto* render = host.Subsystems().GetSubsystem<engine::render::RenderSubsystem>())
             {
-                if (auto* render = host.Subsystems().GetSubsystem<engine::render::RenderSubsystem>())
+                const Guid level = m_settings.StartupQuality(Guid{});
+                if (level.IsNil())
                 {
-                    render->SetMsaaSamples(m_settings.renderMsaaSamples);
-                    LOG_INFO(u8"Player", u8"scene-pass MSAA requested: {}x",
-                                      m_settings.renderMsaaSamples);
+                    LOG_INFO(u8"Player", u8"quality: the engine's own highest ({}x MSAA)",
+                             render->Quality().msaaSamples);
+                }
+                else if (auto quality = Resources()->Bind<engine::render::RenderQuality>(level))
+                {
+                    render->SetQuality(quality->values);
+                    LOG_INFO(u8"Player", u8"quality level '{}' ({}x MSAA)", quality->values.label,
+                             quality->values.msaaSamples);
+                }
+                else
+                {
+                    LOG_WARNING(u8"Player", u8"the quality level did not resolve: the engine's own highest");
                 }
             }
 

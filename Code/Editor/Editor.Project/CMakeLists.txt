@@ -9,6 +9,7 @@ target_link_libraries(Editor.Project
            Foundation::Settings Foundation::Scene.Resource
            Pipeline::Cook Pipeline::Script Foundation::Resource Foundation::Policy
            Pipeline::Core Pipeline::Fonts Pipeline::Texture # the new project's starter font and sky
+           Pipeline::Render # an older project's upgrade to a quality level
            Foundation::Shaders Foundation::Shaders.System # export cooks the dist's shader pack
            Foundation::Shaders.Resource # a custom shader's product (stripped of its HLSL in a dist)
            Engine::Composition) # the engine service a tool's plugin host offers its Engine parts

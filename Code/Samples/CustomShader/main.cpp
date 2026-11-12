@@ -112,9 +112,12 @@ namespace
                 env->Environment().ambientColor = core::Color{0.45f, 0.5f, 0.6f, 1.0f};
                 env->Environment().ambientIntensity = 0.6f;
             }
-            if (auto* post = m_scene->GetSystem<engine::render::PostProcessSystem>())
             {
-                post->Post().aaMode = engine::render::AaMode::TAA; // the toon motion vectors in use
+                // TAA, so the toon shader's motion vectors are in use: the antialiasing is the
+                // quality level's, so the sample draws at a level that runs TAA.
+                engine::render::RenderQualitySettings quality = render->Quality();
+                quality.antialiasing = engine::render::AaMode::TAA;
+                render->SetQuality(quality);
             }
 
             m_camera = m_scene->CreateEntity(u8"camera");

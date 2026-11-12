@@ -141,9 +141,23 @@ export namespace editor
                     u8"Project", u8"project was last saved by engine {} (this editor is {})",
                     settings.engineVersion, engine::project::kEngineVersionString);
             }
+            // Read from the manifest here: the project's own copy of the settings is a serialized
+            // one, which carries no count (it is never written).
+            const u32 msaaBeforeLevels = settings.msaaSamplesBeforeLevels;
             EditorProject* project = allocator.New<EditorProject>(allocator, directory, settings);
+            if (msaaBeforeLevels != 0 && project->m_settings.qualityLevelIds.IsEmpty())
+            {
+                UpgradeToQualityLevels(*project, msaaBeforeLevels);
+            }
             return UniquePtr<EditorProject>(project, allocator);
         }
+
+        /// A project saved before the quality levels (manifest version 11 or before) carried its
+        /// scene-pass MSAA count; the count is a quality level's now. Writes the project's first
+        /// level, `Quality/Default`, at that count with every effect at High, lists it as the
+        /// default and saves the manifest. The antialiasing a scene or profile asked for is not
+        /// carried over: their loads say which asked for one, for the level to take it.
+        static void UpgradeToQualityLevels(EditorProject& project, u32 msaaSamples);
 
         [[nodiscard]] StringView Name() const noexcept { return m_settings.name.AsView(); }
         [[nodiscard]] StringView Directory() const noexcept { return m_directory.AsView(); }

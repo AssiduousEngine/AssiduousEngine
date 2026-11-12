@@ -274,7 +274,7 @@ TEST_CASE("export: project -> dist pak -> player-style load-back (versioned form
         project->Settings().defaultScene = String(u8"Scenes/Main");
         project->Settings().startupScriptId = scriptId;
         project->Settings().guiLoadingDocumentId = sceneId; // any guid: the dist must carry it
-        project->Settings().renderMsaaSamples = 4;
+        project->Settings().qualityLevelIds.PushBack(sceneId); // any guid: the manifest copies the list
         project->Settings().uiFontIds.PushBack(sceneId); // any guid: the dist must carry the list
         REQUIRE(project->SaveSettings().IsOk());
 
@@ -315,7 +315,8 @@ TEST_CASE("export: project -> dist pak -> player-style load-back (versioned form
           scriptId); // the startup script is carried as a guid (bound from the DB)
     // The player reads the loading screen and the MSAA from the dist manifest too.
     CHECK(manifest.guiLoadingDocumentId == sceneId);
-    CHECK(manifest.renderMsaaSamples == 4u);
+    REQUIRE(manifest.qualityLevelIds.Size() == 1u); // the quality levels
+    CHECK(manifest.qualityLevelIds[0] == sceneId);
     REQUIRE(manifest.uiFontIds.Size() == 1u); // the other UI fonts
     CHECK(manifest.uiFontIds[0] == sceneId);
 
