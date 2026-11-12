@@ -217,6 +217,36 @@ screens do, which should match ImGui's look. Investigate and settle:
   the overlay pass draws the target as it is there; check each backend's case.
 - A colour picker or an image in ImGui (`ImGui::Image` of a linear texture) under the encoded blend.
 
+## The GPU profile probe's frame check on a device without calibrated timestamps (user 2026-11-12)
+
+`Render.Backend.Tests`' GPU profile probe (`GpuProfileProbeTests.cpp`) checks that every GPU pass
+lies inside its frame's CPU span, give or take 2 ms (`slack`). On CI's Windows clang Debug job it
+failed once on WebGPU (`outsideFrame` 20, CI on bfb22ac89) and passed on a rerun. WebGPU has no
+calibrated timestamps (`Features::timestampCalibration` false, `WebGpuQueue.cppm`), so the
+profiler maps GPU time to CPU time from one sync point taken at the start (`GraphProfiler::
+Calibrate`, `SyncPoint`) and never again: the error is the sync point's own uncertainty plus the
+two clocks' drift since, and on a loaded CI machine that passes 2 ms. Settle what the check means
+on such a device, rather than widening the slack until it passes:
+- Bound the sync point's error (it lies between a submit and a wait's end; keep that window and
+  check against it), or take a sync point again from time to time, as the calibrated path does once
+  a second.
+- Or check only what the mapping cannot move (passes in order, and within the frame's length of
+  each other), and keep the absolute check for calibrated devices.
+
+## The AngelScript bridge reads arguments at misaligned addresses (2026-11-12)
+
+The ASAN lane (UBSan) reports 46 misaligned accesses in `Code/Foundation/Script.AngelScript/
+AngelScriptScriptImpl.cpp`, on 49a575473: member calls at 181 and a constructor call at 188 (the
+`std::string` bridge), a reference bound at 1256, loads at 1279 and 1309 (an object handle and a
+function handle read from an argument address), and a constructor call at 1453 (a returned
+`std::string`). AngelScript lays arguments and return slots out on 4-byte boundaries, so an 8-byte
+pointer or a `std::string` in one can be misaligned; the code dates from August to October and is
+not new. x86-64 tolerates the loads; an `std::string` built in place at a misaligned address is
+undefined behaviour anywhere, and ARM64 (Android) is where it would show first. Read and write those
+slots through `memcpy` (or `asIScriptGeneric`'s typed getters where AngelScript gives one), and
+check what AngelScript's own add-ons (`scriptstdstring`) do for a string return; then the lane's
+reports in `Code/` are gone.
+
 ## Android: a native player and its export (user 2026-10-11)
 
 Games run on phones today through the web export (touch drives the game UI, touch controls with
