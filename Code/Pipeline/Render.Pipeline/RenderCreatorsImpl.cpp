@@ -2,7 +2,7 @@
 // Copyright (c) 2026-Present Robert Campbell
 
 // Render.Pipeline - the render domain's New Asset creators: what File > New and asset_create make
-// (the render profiles, at the engine's defaults).
+// (the render profiles and a quality level, at the engine's defaults).
 
 module;
 #include "Core/Prelude.h"
@@ -45,6 +45,20 @@ namespace pipeline
                 PostProcessProfileAsset asset;
                 return CreateWrittenInstance(context.Target(), context.NameOr(u8"PostProcessProfile"),
                                              PostProcessProfileAsset::StaticType(), asset);
+            };
+            registry.Register(Move(creator));
+        }
+        {
+            AssetCreator creator;
+            creator.label = String(u8"Render Quality");
+            creator.category = String(u8"Rendering");
+            creator.defaultGroup = u8"Quality";
+            creator.type = &RenderQualityAsset::StaticType();
+            creator.run = [](const AssetCreationContext& context) -> foundation::content::Instance*
+            {
+                RenderQualityAsset asset;
+                return CreateWrittenInstance(context.Target(), context.NameOr(u8"RenderQuality"),
+                                             RenderQualityAsset::StaticType(), asset);
             };
             registry.Register(Move(creator));
         }

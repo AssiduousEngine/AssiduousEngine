@@ -183,6 +183,7 @@ namespace pipeline
         AddBuilder<PhysicalMaterialAssetBuilder>(registry);
         AddBuilder<EnvironmentProfileAssetBuilder>(registry);
         AddBuilder<PostProcessProfileAssetBuilder>(registry);
+        AddBuilder<RenderQualityAssetBuilder>(registry);
         AddBuilder<NavigationZoneAssetBuilder>(registry);
         AddBuilder<VectorImageAssetBuilder>(registry);
         AddBuilder<GuiDocumentAssetBuilder>(registry);

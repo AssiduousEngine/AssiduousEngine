@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Pipeline::Render - the `render.pipeline` module (tooling): the render profile assets. An
-// Environment Profile or a Post Process Profile carries the value fields of a scene's environment
-// or post settings block (the block's own serializer writes them), cooks to its record by a copy,
-// and is what a block whose source is Profile uses (engine.render :profiles).
+// Pipeline::Render - the `render.pipeline` module (tooling): the render profile assets and the
+// quality levels. An Environment Profile or a Post Process Profile carries the value fields of a
+// scene's environment or post settings block (the block's own serializer writes them), cooks to
+// its record by a copy, and is what a block whose source is Profile uses (engine.render
+// :profiles). A Render Quality is one quality level a project offers, cooked by a copy as well.
 
 module;
 #include "Core/Prelude.h"
@@ -102,6 +103,20 @@ export namespace pipeline
         }
     };
 
+    // A Render Quality: one quality level, what the scenes' look costs on it.
+    class RenderQualityAsset final : public pipeline::Asset
+    {
+        RTTI_OBJECT(RenderQualityAsset, pipeline::Asset)
+    public:
+        engine::render::RenderQualitySettings values;
+
+        void Serialize(ISerializer& ar) override
+        {
+            pipeline::Asset::Serialize(ar);
+            engine::render::SerializeQualityValues(ar, values);
+        }
+    };
+
     class EnvironmentProfileAssetBuilder final : public pipeline::DefaultAssetBuilder
     {
     public:
@@ -170,6 +185,27 @@ export namespace pipeline
         }
     };
 
+    class RenderQualityAssetBuilder final : public pipeline::DefaultAssetBuilder
+    {
+    public:
+        [[nodiscard]] const TypeInfo* AssetType() const override { return &RenderQualityAsset::StaticType(); }
+        [[nodiscard]] const TypeInfo* ProductType() const override
+        {
+            return &engine::render::RenderQualitySource::StaticType();
+        }
+        [[nodiscard]] Status Build(const pipeline::Asset& asset,
+                                   pipeline::AssetBuildContext& ctx) override
+        {
+            if (ctx.output == nullptr)
+            {
+                return Status{ErrorCode::InvalidArgument};
+            }
+            engine::render::RenderQualitySource cooked;
+            cooked.values = static_cast<const RenderQualityAsset&>(asset).values;
+            return ctx.output->WriteObject(cooked);
+        }
+    };
+
     // Registers the asset types for content-DB construction and deserialization.
     inline void RegisterRenderProfileAssets()
     {
@@ -178,6 +214,8 @@ export namespace pipeline
         RegisterSerializable<EnvironmentProfileAsset>();
         GlobalTypeRegistry().Register(PostProcessProfileAsset::StaticType(), TypeDomain(u8"Pipeline"));
         RegisterSerializable<PostProcessProfileAsset>();
+        GlobalTypeRegistry().Register(RenderQualityAsset::StaticType(), TypeDomain(u8"Pipeline"));
+        RegisterSerializable<RenderQualityAsset>();
     }
 
     /// File > New's render creators (pipeline.registration composes every domain's).

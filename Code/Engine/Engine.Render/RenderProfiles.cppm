@@ -2,9 +2,11 @@
 // Copyright (c) 2026-Present Robert Campbell
 
 // Engine::Render - :profiles partition: the cooked records, factories and resource module of the
-// render profiles (an Environment Profile, a Post Process Profile). A profile is a shared data
-// asset carrying the value fields of a scene's environment or post settings block; a block whose
-// source is Profile uses its values (RenderComponents.cppm: SettingsSource, Effective()).
+// render profiles (an Environment Profile, a Post Process Profile) and of the quality levels (a
+// Render Quality). A profile is a shared data asset carrying the value fields of a scene's
+// environment or post settings block; a block whose source is Profile uses its values
+// (RenderComponents.cppm: SettingsSource, Effective()). A Render Quality is one level a project
+// offers: what the scenes' look costs on it.
 
 module;
 #include "Core/Prelude.h"
@@ -39,6 +41,15 @@ export namespace engine::render
     public:
         PostProcessSettings values;
         void Serialize(ISerializer& ar) override { SerializePostValues(ar, values); }
+    };
+
+    // The cooked Render Quality: a quality level's values.
+    class RenderQualitySource final : public ISerializable
+    {
+        RTTI_OBJECT(RenderQualitySource, ISerializable)
+    public:
+        RenderQualitySettings values;
+        void Serialize(ISerializer& ar) override { SerializeQualityValues(ar, values); }
     };
 
     // Loads a profile, binding its texture references through the manager (the bind records the
@@ -107,6 +118,34 @@ export namespace engine::render
         IAllocator* m_allocator;
     };
 
+    // Loads a quality level (it references nothing).
+    class RenderQualityFactory final : public foundation::resource::IResourceFactory
+    {
+    public:
+        explicit RenderQualityFactory(IAllocator& allocator) noexcept : m_allocator(&allocator) {}
+        [[nodiscard]] const TypeInfo* ProductType() const override { return &RenderQuality::StaticType(); }
+        [[nodiscard]] const TypeInfo* CookedType() const override
+        {
+            return &RenderQualitySource::StaticType();
+        }
+        [[nodiscard]] RefPtr<Object> Create(foundation::resource::ResourceManager&,
+                                            foundation::content::Instance& instance) override
+        {
+            RefPtr<ISerializable> object = instance.ReadObject();
+            auto* source = Cast<RenderQualitySource>(object.Get());
+            if (source == nullptr)
+            {
+                return RefPtr<Object>{};
+            }
+            RefPtr<RenderQuality> quality = MakeRef<RenderQuality>(*m_allocator);
+            quality->values = source->values;
+            return quality;
+        }
+
+    private:
+        IAllocator* m_allocator;
+    };
+
     // Registers the cooked records and products (content-DB construction by type name). Idempotent.
     inline void RegisterRenderProfileResources()
     {
@@ -116,16 +155,21 @@ export namespace engine::render
         GlobalTypeRegistry().Register(PostProcessProfileSource::StaticType());
         RegisterSerializable<PostProcessProfileSource>();
         GlobalTypeRegistry().Register(PostProcessProfile::StaticType());
+        GlobalTypeRegistry().Register(RenderQualitySource::StaticType());
+        RegisterSerializable<RenderQualitySource>();
+        GlobalTypeRegistry().Register(RenderQuality::StaticType());
     }
 
     RTTI_DEFINE_OBJECT(EnvironmentProfileSource, "rtti::engine::render")
     RTTI_DEFINE_OBJECT(PostProcessProfileSource, "rtti::engine::render")
+    RTTI_DEFINE_OBJECT(RenderQualitySource, "rtti::engine::render")
 
     inline constexpr foundation::resource::ResourceFactoryDesc kRenderProfileFactories[] = {
         foundation::resource::FactoryWithAllocator<EnvironmentProfile, EnvironmentProfileSource,
                                                EnvironmentProfileFactory>(),
         foundation::resource::FactoryWithAllocator<PostProcessProfile, PostProcessProfileSource,
                                                PostProcessProfileFactory>(),
+        foundation::resource::FactoryWithAllocator<RenderQuality, RenderQualitySource, RenderQualityFactory>(),
     };
     inline constexpr foundation::resource::ResourceModule kRenderProfileResourceModule{
         u8"render.profiles", &RegisterRenderProfileResources, kRenderProfileFactories,

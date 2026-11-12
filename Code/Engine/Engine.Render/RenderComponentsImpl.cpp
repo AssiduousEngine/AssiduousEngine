@@ -617,6 +617,62 @@ namespace engine::render
         builder.Value("SSAO", AoMode::SSAO);
     }
 
+    REFLECT_ENUM(QualityTier, "rtti::engine::render")
+    {
+        builder.Value("Off", QualityTier::Off);
+        builder.Value("Low", QualityTier::Low);
+        builder.Value("Medium", QualityTier::Medium);
+        builder.Value("High", QualityTier::High);
+    }
+
+    REFLECT_ENUM(ResolutionTier, "rtti::engine::render")
+    {
+        builder.Value("Low", ResolutionTier::Low);
+        builder.Value("Medium", ResolutionTier::Medium);
+        builder.Value("High", ResolutionTier::High);
+    }
+
+    REFLECT_VALUE(RenderQualitySettings, "rtti::engine::render")
+    {
+        builder.Attribute("displayName", String(u8"Render Quality"))
+            .Attribute("category", String(u8"Rendering"))
+            .DataVersion(1)
+            .Property<&RenderQualitySettings::label>("label")
+            .PropAttribute("description", String(u8"The name a game's options menu shows for this level"))
+            .Property<&RenderQualitySettings::msaaSamples>("msaaSamples")
+            .PropAttribute("range", Float4{1.0f, 4.0f, 1.0f, 0.0f})
+            .PropAttribute("displayName", String(u8"MSAA Samples"))
+            .PropAttribute("description",
+                           String(u8"The scene pass's sample count: 1 is off, 2 or 4, clamped to the device"))
+            .Property<&RenderQualitySettings::antialiasing>("antialiasing")
+            .PropAttribute("displayName", String(u8"Anti-Aliasing"))
+            .Property<&RenderQualitySettings::shadows>("shadows")
+            .PropAttribute("description", String(u8"Off draws no shadows; Low to High raise their resolution"))
+            .Property<&RenderQualitySettings::shadowDistanceMax>("shadowDistanceMax")
+            .PropAttribute("range", Float4{0.0f, 2000.0f, 1.0f, 0.0f})
+            .PropAttribute("displayName", String(u8"Shadow Distance Max"))
+            .PropAttribute("description",
+                           String(u8"Caps how far from the camera a scene's shadows reach (metres); 0 caps nothing"))
+            .Property<&RenderQualitySettings::ambientOcclusion>("ambientOcclusion")
+            .PropAttribute("displayName", String(u8"Ambient Occlusion"))
+            .PropAttribute("description",
+                           String(u8"Off turns a scene's AO off; Low to High set its samples"))
+            .Property<&RenderQualitySettings::reflections>("reflections")
+            .PropAttribute("displayName", String(u8"Screen-Space Reflections"))
+            .PropAttribute("description",
+                           String(u8"Off turns a scene's SSR off; Low to High set its march steps"))
+            .Property<&RenderQualitySettings::globalIllumination>("globalIllumination")
+            .PropAttribute("displayName", String(u8"Screen-Space GI"))
+            .PropAttribute("description",
+                           String(u8"Off turns a scene's SSGI off; Low to High set its rays and steps"))
+            .Property<&RenderQualitySettings::bloom>("bloom")
+            .PropAttribute("description", String(u8"Off turns a scene's bloom off; Low to High set its levels"))
+            .Property<&RenderQualitySettings::environmentResolution>("environmentResolution")
+            .PropAttribute("displayName", String(u8"Environment Resolution"))
+            .PropAttribute("description",
+                           String(u8"The resolution of the sky's prefiltered lighting and the reflection probes"));
+    }
+
     REFLECT_VALUE(PostProcessSettings, "rtti::engine::render")
     {
         builder.Attribute("displayName", String(u8"Post Processing"))
@@ -849,6 +905,9 @@ namespace engine::render
             RttiRegisterEnum_AaMode();
             RttiRegisterEnum_AoMode();
             RttiRegisterValue_PostProcessSettings();
+            RttiRegisterEnum_QualityTier();
+            RttiRegisterEnum_ResolutionTier();
+            RttiRegisterValue_RenderQualitySettings();
             RegisterArrayType<foundation::resource::Ref<foundation::materials::Material>>();
             RttiRegisterValue_MeshComponent();
             RttiRegisterValue_InstancedMeshComponent();

@@ -995,8 +995,77 @@ export namespace engine::render
         PostProcessSettings values; // source and profile unused here
     };
 
+    // How much an effect may cost on a quality level. Off turns the effect off whatever a scene asks;
+    // Low to High set its samples, steps or resolution. A tier never turns an effect on: a scene
+    // without AO has none at High.
+    enum class QualityTier : u8
+    {
+        Off,
+        Low,
+        Medium,
+        High
+    };
+
+    // A resolution with no Off: the environment's prefiltered maps (the sky's IBL, the probes).
+    enum class ResolutionTier : u8
+    {
+        Low,
+        Medium,
+        High
+    };
+
+    // A quality level's values: what a game's look costs on one level. The MSAA count and the
+    // antialiasing are the level's; every other field is a tier over what the scene authors, which
+    // keeps deciding the look and which effects it wants. The defaults are the engine's highest.
+    struct RenderQualitySettings
+    {
+        String label = String(u8"High"); // the name a game's options menu shows
+        u32 msaaSamples = 4;             // the scene pass's sample count (1 is off, 2, 4)
+        AaMode antialiasing = AaMode::Off;
+        QualityTier shadows = QualityTier::High;
+        f32 shadowDistanceMax = 0.0f; // caps the scene's shadow reach (metres); 0 caps nothing
+        QualityTier ambientOcclusion = QualityTier::High;
+        QualityTier reflections = QualityTier::High;        // screen-space reflections
+        QualityTier globalIllumination = QualityTier::High; // screen-space GI
+        QualityTier bloom = QualityTier::High;
+        ResolutionTier environmentResolution = ResolutionTier::High;
+    };
+
+    // A quality level's fields, written by its asset and its cooked record alike.
+    inline void SerializeQualityValues(ISerializer& ar, RenderQualitySettings& q)
+    {
+        const auto enumField = [&ar]<typename E>(const char* key, E& value)
+        {
+            u32 raw = static_cast<u32>(value);
+            foundation::core::Serialize(ar, key, raw);
+            if (ar.Mode() == SerializeMode::Read)
+            {
+                value = static_cast<E>(raw);
+            }
+        };
+        foundation::core::Serialize(ar, "label", q.label);
+        foundation::core::Serialize(ar, "msaaSamples", q.msaaSamples);
+        enumField("antialiasing", q.antialiasing);
+        enumField("shadows", q.shadows);
+        foundation::core::Serialize(ar, "shadowDistanceMax", q.shadowDistanceMax);
+        enumField("ambientOcclusion", q.ambientOcclusion);
+        enumField("reflections", q.reflections);
+        enumField("globalIllumination", q.globalIllumination);
+        enumField("bloom", q.bloom);
+        enumField("environmentResolution", q.environmentResolution);
+    }
+
+    // A Render Quality asset's product: one quality level a project offers.
+    class RenderQuality final : public Object
+    {
+        RTTI_OBJECT(RenderQuality, Object)
+    public:
+        RenderQualitySettings values;
+    };
+
     RTTI_DEFINE_OBJECT(EnvironmentProfile, "rtti::engine::render")
     RTTI_DEFINE_OBJECT(PostProcessProfile, "rtti::engine::render")
+    RTTI_DEFINE_OBJECT(RenderQuality, "rtti::engine::render")
 
     class PostProcessSystem final : public scene::SceneSystem
     {
