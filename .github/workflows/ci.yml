@@ -75,6 +75,7 @@ jobs:
           chmod +x /tmp/llvm.sh
           sudo /tmp/llvm.sh 21
           clang++-21 --version   # fail loudly here if the install did not produce the binary
+          ld.lld-21 --version    # and LLD beside it: Clang links with it (the root CMakeLists requires it)
 
       # SDL3 is vendored as source (ThirdParty/SDL3) and built statically in-tree, so there is no
       # SDL to install here - only its build deps (the X11/Wayland/audio -dev packages above),
@@ -175,6 +176,7 @@ jobs:
           chmod +x /tmp/llvm.sh
           sudo /tmp/llvm.sh 21
           clang++-21 --version   # fail loudly here if the install did not produce the binary
+          ld.lld-21 --version    # and LLD beside it: Clang links with it (the root CMakeLists requires it)
 
       # SDL3 is vendored as source (ThirdParty/SDL3) and built statically in-tree, so there is no
       # SDL to install here - only its build deps (the X11/Wayland/audio -dev packages above),

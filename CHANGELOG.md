@@ -23,6 +23,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   with one level, Default, at its MSAA count. The antialiasing is not carried over: an older scene
   or profile that ran TAA or FXAA says so in the log when it loads, and its level's `antialiasing`
   takes it. A scene's post settings keep how TAA and FXAA look.
+- Building: Clang builds on Linux link with LLD, which they now require (see
+  Documentation/BUILDING.md), and Clang's module interfaces are reduced
+  (`-fmodules-reduced-bmi`). A clean Debug build of the engine and editor compiles in about a third
+  of the time, and links about five times as fast.
 
 ## 0.1.0-beta.3 - 2026-11-12
 

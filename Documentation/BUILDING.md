@@ -7,7 +7,7 @@
   development libraries, and SDL3's build dependencies. On Ubuntu or Debian:
 
   ```
-  sudo apt install cmake ninja-build clang pkg-config \
+  sudo apt install cmake ninja-build clang lld pkg-config \
       libvulkan-dev vulkan-tools vulkan-validationlayers mesa-vulkan-drivers \
       libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev \
       libxtst-dev libwayland-dev wayland-protocols libxkbcommon-dev libasound2-dev
@@ -16,6 +16,12 @@
   Clang 21 is what development and CI use. Ubuntu 24.04's default Clang 18 does not work (it
   rejects flags the build passes under `-Werror`); 19 and 20 are untested. `build-clang.sh` picks
   the newest Clang installed.
+
+  Clang builds link with LLD (`-fuse-ld=lld`), about five times as fast as GNU ld, and configure
+  stops if Clang cannot find it. apt.llvm.org's `llvm.sh 21` installs `lld-21` beside `clang-21`,
+  where Clang finds it. With a Clang that has no LLD of its own version beside it, any `ld.lld` on
+  `PATH` works, for example a link to another version's: `ln -s /usr/bin/ld.lld-22
+  ~/.local/bin/ld.lld`.
 
   The GCC that works is Ubuntu's packaged GCC 15 (`g++-15` on 24.04 backports or 26.04 LTS). The
   upstream 15.2.0 release cannot resolve transitive module CMIs from CMake's module maps ("Bad

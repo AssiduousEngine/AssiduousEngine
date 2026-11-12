@@ -316,6 +316,30 @@ target_compile_options(policy INTERFACE
     $<$<CXX_COMPILER_ID:Clang,GNU>:-Wall;-Wextra;-Wpedantic>
     $<$<CXX_COMPILER_ID:MSVC>:/W4>)
 
+# Reduced module interfaces (BMIs): a .pcm carries what an importer needs, not the module's whole
+# AST, so a unit importing a large module (the editor's) compiles in about a second, not 40, and
+# the tree's .pcm files are a seventh the size. Clang alone: GCC rejects the flag and MSVC has none.
+# Emscripten builds clean with it but gains nothing measurable (em++ precompiles each interface in
+# a step of its own, and the web build has no editor); the NDK's Clang is untried.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND NOT ANDROID)
+    target_compile_options(policy INTERFACE -fmodules-reduced-bmi)
+endif()
+
+# LLD links Clang's Linux builds, about five times as fast as GNU ld (an editor-sized executable in
+# under a second). Required there: clang must find `ld.lld` (apt.llvm.org's lld-21 beside clang-21,
+# or an ld.lld on PATH). Windows clang links with lld-link already, the NDK and Emscripten with
+# their own LLD.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT ANDROID)
+    include(CheckLinkerFlag)
+    check_linker_flag(CXX "-fuse-ld=lld" HAVE_LLD_LINKER)
+    if(NOT HAVE_LLD_LINKER)
+        message(FATAL_ERROR
+            "LLD not found: Clang links with it on Linux. Install lld for your Clang (apt.llvm.org's "
+            "lld-21 with clang-21), or put an ld.lld on PATH.")
+    endif()
+    target_link_options(policy INTERFACE -fuse-ld=lld)
+endif()
+
 if(OPTION_WARNINGS_AS_ERRORS)
     target_compile_options(policy INTERFACE
         $<$<CXX_COMPILER_ID:Clang,GNU>:-Werror>
