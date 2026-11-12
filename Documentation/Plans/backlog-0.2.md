@@ -247,6 +247,24 @@ slots through `memcpy` (or `asIScriptGeneric`'s typed getters where AngelScript 
 check what AngelScript's own add-ons (`scriptstdstring`) do for a string return; then the lane's
 reports in `Code/` are gone.
 
+## Render quality: values per tier in a scene (user 2026-11-12; evaluate later)
+
+`Specs/render-quality.md` scales one authored value per scene by the quality tier (Decided 4).
+Traktor lets a scene author one entry per tier instead (`WorldRenderSettings::shadowSettings[Quality]`:
+reach, resolution, bias, cascade splits), which the global tier picks. Evaluate once the levels are
+in the samples: whether a game needs a different value at Low than the tier's scaling gives (a
+shadow reach that suits the phone but not the desktop), and if so which fields, and how a scene
+page shows several values without drowning the one most scenes use.
+
+## Render quality: per-effect overrides from an options menu (user 2026-11-12; evaluate later)
+
+`Specs/render-quality.md` has a platform and a preset pick one named level made of per-effect
+tiers, and a script switch between levels (Decided 5). Evaluate letting a game's options menu
+override single effects over the chosen level (shadows Off at High, AO Low): where the overrides
+are kept (beside the saved level, in the player's settings), how the `RenderQuality` facade names
+them, and what happens to them when the player picks another level. Traktor, Flax and ezEngine set
+quality per effect at runtime; Traktor's user config overrides a target's per effect.
+
 ## Android: a native player and its export (user 2026-10-11)
 
 Games run on phones today through the web export (touch drives the game UI, touch controls with
