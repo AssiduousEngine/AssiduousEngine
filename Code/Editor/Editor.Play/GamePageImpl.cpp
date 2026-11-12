@@ -794,7 +794,11 @@ namespace editor
         }
 
         // No camera override: the scene's primary camera drives the view, its clear color
-        // included, which is the player's presentation rather than the editor's.
+        // included, which is the player's presentation rather than the editor's; and the game's
+        // own scene-pass MSAA, as the player draws it.
+        const render::ViewPostOverride post = (m_context != nullptr && m_context->Project() != nullptr)
+                                                  ? GameViewPost(m_context->Project()->Settings())
+                                                  : render::ViewPostOverride{};
         render::TargetState targetState;
         targetState.texture = m_viewport->ColorTexture();
         targetState.currentState = m_viewport->ColorState();
@@ -813,7 +817,7 @@ namespace editor
                                                 static_cast<u32>(Max(dst.width, 1.0f)),
                                                 static_cast<u32>(Max(dst.height, 1.0f))};
             m_render->RenderScene(*m_scene, m_viewport->ColorView(), m_viewport->ColorFormat(), w, h,
-                                  viewport, nullptr, targetState, nullptr, nullptr, nullptr,
+                                  viewport, nullptr, targetState, &post, nullptr, nullptr,
                                   render::SceneSize::FromFit(fit));
             m_captureX = static_cast<u32>(Max(viewport.x, 0));
             m_captureY = static_cast<u32>(Max(viewport.y, 0));
@@ -823,7 +827,7 @@ namespace editor
         else
         {
             m_render->RenderScene(*m_scene, m_viewport->ColorView(), m_viewport->ColorFormat(), w, h,
-                                  render::ViewportRect{0, 0, w, h}, nullptr, targetState);
+                                  render::ViewportRect{0, 0, w, h}, nullptr, targetState, &post);
         }
         m_viewport->SetColorState(rhi::ResourceState::ShaderRead);
         if (m_running)

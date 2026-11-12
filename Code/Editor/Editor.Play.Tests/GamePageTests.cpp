@@ -23,6 +23,8 @@ import engine.scene;        // a run needs the scenes
 import engine.gameinstance; // the run the tab plays
 import editor.core;
 import editor.play;
+import engine.project;      // ProjectSettings: the game's scene-pass MSAA
+import foundation.render.api; // ViewPostOverride
 
 using namespace foundation::core;
 using namespace editor;
@@ -298,4 +300,24 @@ TEST_CASE("game tab: a run with no game script still keeps its save, written to 
     context.SetProject(nullptr);
     project.Reset();
     (void)RemoveDirectoryRecursive(dir.AsView());
+}
+
+TEST_CASE("game page: the Game tab draws at the project's scene-pass MSAA, its look untouched")
+{
+    // The player sets the project's MSAA for every view; the Game tab drew at 1x, so a playtest did
+    // not show the game the player shows.
+    engine::project::ProjectSettings settings;
+    settings.renderMsaaSamples = 4;
+    const foundation::render::ViewPostOverride post = editor::GameViewPost(settings);
+    CHECK(post.msaaOverride == 4u);
+    CHECK_FALSE(post.disablePost); // nothing of the game's own post-processing is stripped
+    CHECK_FALSE(post.disableBloom);
+    CHECK_FALSE(post.disableAo);
+    CHECK_FALSE(post.disableSsr);
+    CHECK_FALSE(post.disableAa);
+    CHECK_FALSE(post.disableSsgi);
+    CHECK_FALSE(post.disableCulling);
+
+    settings.renderMsaaSamples = 1; // off, as the project asks
+    CHECK(editor::GameViewPost(settings).msaaOverride == 1u);
 }

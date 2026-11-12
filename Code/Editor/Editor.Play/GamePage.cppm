@@ -53,6 +53,7 @@ import engine.audio;
 import engine.defaultapp;
 import engine.gameinstance; // GameInstance: each tab drives its own run (several PIE instances)
 import editor.core;
+import engine.project; // ProjectSettings: the game's scene-pass MSAA
 import :game_resolution;
 import editor.app;
 import editor.scene;         // ViewportCapture, ViewportCaptureRecorder (pie_screenshot), IGameScenePage
@@ -63,6 +64,17 @@ namespace rhi = foundation::rhi;
 
 export namespace editor
 {
+    /// The per-view settings the Game tab draws its game with: the project's scene-pass MSAA, as
+    /// the player sets it for every view (the editor's render subsystem serves every page, so the
+    /// tab asks for the count on its own view), and nothing of the game's look stripped.
+    [[nodiscard]] inline foundation::render::ViewPostOverride GameViewPost(
+        const engine::project::ProjectSettings& settings) noexcept
+    {
+        foundation::render::ViewPostOverride post;
+        post.msaaOverride = static_cast<u8>(settings.renderMsaaSamples < 1 ? 1u : settings.renderMsaaSamples);
+        return post;
+    }
+
     // The editor's game-audio preference (a user settings section, the Preferences dialog's
     // "Game audio" category): with several Game tabs running, hear only the focused one (the
     // default) or every instance at once.
