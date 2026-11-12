@@ -926,11 +926,12 @@ TEST_CASE("integration.mcp: an agent sets the project's settings")
         CHECK(refused(quality({low.AsView(), sceneId.AsView()}, u8""))
                   .AsView()
                   .StartsWith(u8"`qualityLevelIds[1]` takes an asset of type RenderQualityAsset"));
-        JsonValue set = FfCall(server, u8"project_settings_set", quality({low.AsView(), high.AsView()}, high.AsView()))
-                            .Get(u8"settings");
-        REQUIRE(set.Get(u8"qualityLevelIds").Count() == 2);
-        CHECK(set.Get(u8"qualityLevelIds").At(0).Get(u8"guid").AsString() == low.AsView());
-        CHECK(set.Get(u8"defaultQualityId").Get(u8"guid").AsString() == high.AsView());
+        JsonValue withLevels =
+            FfCall(server, u8"project_settings_set", quality({low.AsView(), high.AsView()}, high.AsView()))
+                .Get(u8"settings");
+        REQUIRE(withLevels.Get(u8"qualityLevelIds").Count() == 2);
+        CHECK(withLevels.Get(u8"qualityLevelIds").At(0).Get(u8"guid").AsString() == low.AsView());
+        CHECK(withLevels.Get(u8"defaultQualityId").Get(u8"guid").AsString() == high.AsView());
         // Taking the default's level out of the list alone is refused; clearing both is not.
         JsonValue lowOnly = JsonValue::MakeObject();
         JsonValue just = JsonValue::MakeArray();
@@ -1154,11 +1155,11 @@ TEST_CASE("integration.mcp: export_presets and export_preset_set")
         };
         const String low = level(u8"Low");
         const String high = level(u8"High");
-        JsonValue listed = JsonValue::MakeArray();
-        listed.Add(JsonValue::MakeString(low));
-        JsonValue settings = JsonValue::MakeObject();
-        settings.Set(u8"qualityLevelIds", Move(listed));
-        (void)FfCall(server, u8"project_settings_set", Move(settings));
+        JsonValue levelList = JsonValue::MakeArray();
+        levelList.Add(JsonValue::MakeString(low));
+        JsonValue levelSettings = JsonValue::MakeObject();
+        levelSettings.Set(u8"qualityLevelIds", Move(levelList));
+        (void)FfCall(server, u8"project_settings_set", Move(levelSettings));
         CHECK(refused(FfStr(FfStr(JsonValue::MakeObject(), u8"name", u8"Deck"), u8"qualityLevelId", high.AsView()))
                   .AsView()
                   .StartsWith(u8"preset 'Deck' starts at a quality level the project does not list"));
