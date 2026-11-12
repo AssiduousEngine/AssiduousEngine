@@ -114,6 +114,7 @@ export namespace foundation::rhi::vk
             m_presentMode = desc.presentMode;
             m_mutableFormat = mutableFormat;
             m_requestedAlternate = desc.alternateViewFormat;
+            m_requestedFormat = desc.format;
             m_preRotate = desc.preRotate;
             return CreateSwapChain(desc.width, desc.height, desc.format, desc.bufferCount,
                                    VK_NULL_HANDLE);
@@ -184,6 +185,9 @@ export namespace foundation::rhi::vk
         Array<VkTextureViewImpl*> m_alternateViews; // in m_alternate, when honoured
         bool m_mutableFormat = false;                // VK_KHR_swapchain_mutable_format enabled
         TextureFormat m_requestedAlternate = TextureFormat::Undefined;
+        // The format first asked for: a rebuild asks it again, so it negotiates as the first did and
+        // the alternate view asked as its twin follows (the format negotiated may be another).
+        TextureFormat m_requestedFormat = TextureFormat::Undefined;
         TextureFormat m_alternate = TextureFormat::Undefined;
         Array<VkSemaphore> m_acquireSems;
         Array<VkSemaphore> m_presentSems;
@@ -212,6 +216,71 @@ export namespace foundation::rhi::vk
         default:
             return ContentRotation::None;
         }
+    }
+
+    // The surface format a swapchain asked for `desired` takes from what the surface offers: the
+    // format itself; else an 8-bit sRGB format in the sRGB colour space, in either channel order (a
+    // desktop's surface offers BGRA, an Android phone's RGBA only); else an 8-bit UNORM one; else
+    // the first offered.
+    [[nodiscard]] inline VkSurfaceFormatKHR ChooseSurfaceFormat(Span<const VkSurfaceFormatKHR> offered,
+                                                                VkFormat desired) noexcept
+    {
+        if (offered.IsEmpty())
+        {
+            return VkSurfaceFormatKHR{desired, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
+        }
+        for (const VkSurfaceFormatKHR& f : offered)
+        {
+            if (f.format == desired)
+            {
+                return f;
+            }
+        }
+        const VkFormat srgb[] = {VK_FORMAT_B8G8R8A8_SRGB, VK_FORMAT_R8G8B8A8_SRGB};
+        for (const VkFormat wanted : srgb)
+        {
+            for (const VkSurfaceFormatKHR& f : offered)
+            {
+                if (f.format == wanted && f.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+                {
+                    return f;
+                }
+            }
+        }
+        const VkFormat unorm[] = {VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_R8G8B8A8_UNORM};
+        for (const VkFormat wanted : unorm)
+        {
+            for (const VkSurfaceFormatKHR& f : offered)
+            {
+                if (f.format == wanted)
+                {
+                    return f;
+                }
+            }
+        }
+        return offered[0];
+    }
+
+    // The alternate view a swapchain of `negotiated` images honours, asked for `requestedAlternate`
+    // with `requested` images: the one asked when it is the negotiated format's sRGB or UNORM twin;
+    // asked as the twin of the format requested, the twin of the one negotiated (the surface had
+    // RGBA where BGRA was asked); else none.
+    [[nodiscard]] inline TextureFormat AlternateViewFor(TextureFormat requested, TextureFormat requestedAlternate,
+                                                        TextureFormat negotiated) noexcept
+    {
+        if (requestedAlternate == TextureFormat::Undefined)
+        {
+            return TextureFormat::Undefined;
+        }
+        if (requestedAlternate == SrgbTwin(negotiated))
+        {
+            return requestedAlternate;
+        }
+        if (requestedAlternate == SrgbTwin(requested))
+        {
+            return SrgbTwin(negotiated);
+        }
+        return TextureFormat::Undefined;
     }
 
     // ---- Implementation (inline in module) ----
@@ -340,16 +409,15 @@ export namespace foundation::rhi::vk
         ci.oldSwapchain = old;
 
         // The images viewable in their sRGB or UNORM twin too, when asked and the device can.
-        m_alternate = (m_mutableFormat && m_requestedAlternate != TextureFormat::Undefined &&
-                       m_requestedAlternate == SrgbTwin(m_format))
-                          ? m_requestedAlternate
-                          : TextureFormat::Undefined;
+        m_alternate = m_mutableFormat ? AlternateViewFor(reqFormat, m_requestedAlternate, m_format)
+                                      : TextureFormat::Undefined;
         if (m_requestedAlternate != TextureFormat::Undefined)
         {
-            LogInfof("[RHI] swapchain alternate view format %s: %s", vkFormatName(toVkFormat(m_requestedAlternate)),
-                     m_alternate != TextureFormat::Undefined ? "honoured"
+            LogInfof("[RHI] swapchain alternate view format %s: %s%s", vkFormatName(toVkFormat(m_requestedAlternate)),
+                     m_alternate != TextureFormat::Undefined ? "honoured as "
                      : m_mutableFormat ? "not the swapchain format's sRGB or UNORM twin"
-                                       : "unavailable (no VK_KHR_swapchain_mutable_format)");
+                                       : "unavailable (no VK_KHR_swapchain_mutable_format)",
+                     m_alternate != TextureFormat::Undefined ? vkFormatName(toVkFormat(m_alternate)) : "");
         }
         VkFormat viewFormats[2] = {surfFmt.format, toVkFormat(m_alternate)};
         VkImageFormatListCreateInfo formatList{};
@@ -380,19 +448,7 @@ export namespace foundation::rhi::vk
         vkGetPhysicalDeviceSurfaceFormatsKHR(m_physDevice, m_surface, &count, nullptr);
         Array<VkSurfaceFormatKHR> fmts(count);
         vkGetPhysicalDeviceSurfaceFormatsKHR(m_physDevice, m_surface, &count, fmts.Data());
-
-        VkFormat desired = toVkFormat(requested);
-        for (auto& f : fmts)
-            if (f.format == desired)
-                return f;
-        for (auto& f : fmts)
-            if (f.format == VK_FORMAT_B8G8R8A8_SRGB &&
-                f.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
-                return f;
-        for (auto& f : fmts)
-            if (f.format == VK_FORMAT_B8G8R8A8_UNORM)
-                return f;
-        return fmts[0];
+        return ChooseSurfaceFormat(Span<const VkSurfaceFormatKHR>(fmts.Data(), count), toVkFormat(requested));
     }
 
     inline VkPresentModeKHR VkSwapChainImpl::choosePresentMode(PresentMode requested)
@@ -556,7 +612,7 @@ export namespace foundation::rhi::vk
         vkDeviceWaitIdle(m_device);
         cleanupImages();
         destroySyncObjects();
-        return CreateSwapChain(w, h, m_format, m_bufferCount, m_swapchain);
+        return CreateSwapChain(w, h, m_requestedFormat, m_bufferCount, m_swapchain);
     }
 
     inline void VkSwapChainImpl::cleanup()
