@@ -265,6 +265,26 @@ are kept (beside the saved level, in the player's settings), how the `RenderQual
 them, and what happens to them when the player picks another level. Traktor, Flax and ezEngine set
 quality per effect at runtime; Traktor's user config overrides a target's per effect.
 
+## Reduced module interfaces on Android: memcpy through one core wrapper (user 2026-11-12)
+
+The root CMakeLists gives Clang `-fmodules-reduced-bmi` everywhere but Android (8b51e8fff). With it,
+NDK r30's Clang 21.0.0 fails one unit of the Android player, `Engine.Render/RenderComponentsImpl.cpp`
+(the module's reflection bodies): "definition with same mangled name '_ZL6memcpy...'" at bionic's
+`bits/fortify/string.h:52`. Bionic's fortified `memcpy` is a `static inline` function in
+`<string.h>`, and each core partition that calls `memcpy` in inline or template code includes
+`<cstring>` in its global module fragment (43 calls in 19 interfaces: `Array.cppm`, `Variant.cppm`,
+`Allocator.cppm` and more), so each carries its own copy. A unit that instantiates code of two of
+them emits both; with full BMIs Clang merges them, and with reduced ones this Clang does not (the
+desktop's Clang 21.1.8 compiles the unit clean; that a later Clang fixed it is an inference). The
+rest of the Android player compiles with the flag, its summed compile time 25.1 to 12.0 minutes.
+
+The fix in our code (the user's pick, 2026-11-12): a core `MemCopy` over `__builtin_memcpy` (MSVC's
+`memcpy` where there is no builtin), which names no header function, used at every `memcpy` call in
+a module interface; likewise for the other fortified functions those interfaces call (`memset`,
+`memmove`, `memcmp`, `strlen`: 9 calls). Then the flag for Android, checked by a full Android
+build. Turning `_FORTIFY_SOURCE` off is not the fix (it gives up bionic's checks). Check first
+whether an NDK with a newer Clang has shipped, which would make the change unneeded.
+
 ## Android: a native player and its export (user 2026-10-11)
 
 Games run on phones today through the web export (touch drives the game UI, touch controls with

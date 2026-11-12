@@ -320,7 +320,9 @@ target_compile_options(policy INTERFACE
 # AST, so a unit importing a large module (the editor's) compiles in about a second, not 40, and
 # the tree's .pcm files are a seventh the size. Clang alone: GCC rejects the flag and MSVC has none.
 # Emscripten builds clean with it but gains nothing measurable (em++ precompiles each interface in
-# a step of its own, and the web build has no editor); the NDK's Clang is untried.
+# a step of its own, and the web build has no editor). Not on Android: NDK r30's Clang 21.0.0 then
+# finds bionic's fortified memcpy defined twice in a unit that instantiates code of two partitions
+# calling it (backlog-0.2.md, "Reduced module interfaces on Android").
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND NOT ANDROID)
     target_compile_options(policy INTERFACE -fmodules-reduced-bmi)
 endif()
