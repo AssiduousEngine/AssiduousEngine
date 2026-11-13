@@ -148,7 +148,7 @@ Bin/Debug/Linux64-Clang/Tools.Editor
 Bin/Debug/Linux64-Clang/Tools.Editor <dir>             # open a project directly
 
 # The player runs a project directly.
-Bin/Debug/Linux64-Clang/Engine.Player <projectDir> [--scene <source-db-path>]
+Bin/Debug/Linux64-Clang/Engine.Player <projectDir> [--scene <source-db-path>] [--quality <label>]
 
 # The renderer comparison scene, desktop Vulkan vs WebGPU:
 Bin/Debug/Linux64-Clang/WebScene --vulkan

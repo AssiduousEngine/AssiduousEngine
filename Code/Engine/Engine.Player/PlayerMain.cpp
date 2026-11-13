@@ -15,6 +15,7 @@
 // WebMain.cpp; both share PlayerApplication.h.
 //
 // Usage: Engine.Player <projectDir> [--scene <source-db-path>] [--exit-after <seconds>]
+//                      [--quality <label>]  (start at that quality level; the choice is not kept)
 //                      [--profile-capture <seconds>] [--profile-overlay]
 //                      [--data-root <dir>]  (engine data; default = the Data/.dataroot walk)
 //                      [--screenshot <png> [--screenshot-frame N | --screenshot-after S]
@@ -172,6 +173,10 @@ int engine::player::PlayerMain(int argc, char** argv, PlayerMounts mounts)
         {
             options.sceneOverride =
                 String(StringView(reinterpret_cast<const utf8char*>(argv[i + 1])));
+        }
+        if (std::strcmp(argv[i], "--quality") == 0)
+        {
+            options.qualityOverride = String(StringView(reinterpret_cast<const utf8char*>(argv[i + 1])));
         }
         if (std::strcmp(argv[i], "--exit-after") == 0)
         {

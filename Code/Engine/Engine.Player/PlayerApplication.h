@@ -47,6 +47,7 @@ namespace engine::player
         UniquePtr<foundation::vfs::IFileSystem> gameRoot;
         UniquePtr<foundation::vfs::PakFileSystem> contentPak;
         String sceneOverride; // source-DB path; empty means the manifest's defaultScene
+        String qualityOverride; // a quality level's label to start at, ahead of the saved choice (not kept)
         f32 exitAfterSeconds = 0.0f;
     };
 
@@ -245,8 +246,17 @@ namespace engine::player
             if (auto* render = host.Subsystems().GetSubsystem<engine::render::RenderSubsystem>())
             {
                 auto& choice = Instance().Add<engine::render::RenderQualityChoice>();
-                const Guid start = engine::runtime::OfferQualityLevels(
+                Guid start = engine::runtime::OfferQualityLevels(
                     choice, m_settings, *Resources(), engine::runtime::SavedQualityLevel(m_userSettings));
+                // --quality: this run's level by its label, for measuring a level or trying it; a
+                // label the game does not offer leaves the start as it was.
+                if (!m_options.qualityOverride.IsEmpty())
+                {
+                    if (const engine::render::OfferedQualityLevel* asked = choice.Find(m_options.qualityOverride.AsView()))
+                        choice.current = start = asked->id;
+                    else
+                        LOG_WARNING(u8"Player", u8"--quality '{}': the game offers no level of that label", m_options.qualityOverride);
+                }
                 if (const engine::render::OfferedQualityLevel* level = choice.Find(start))
                 {
                     render->SetQuality(level->values);

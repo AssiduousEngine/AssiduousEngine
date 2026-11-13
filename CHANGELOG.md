@@ -27,6 +27,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   it; in the Game tab it picks the level in the quality dropdown.
 - MCP: `asset_rename` renames an asset within its group as the Assets browser does, keeping its
   guid; the default scene's path follows.
+- Player: `--quality <label>` starts a run at one of the game's quality levels, ahead of the saved
+  choice, without keeping it.
 
 ### Changed
 
