@@ -57,17 +57,11 @@ export namespace editor::app
                 return refused;
             if (Waits([this, id, renamed = String(name)]() { (void)Rename(id, renamed.AsView()); }, u8"Rename"))
                 return String{};
-            editor::EditorProject& project = *Project();
+            // The project's rename, as an agent's asset_rename: the cooked product and the default
+            // scene's path mirror follow.
             const String oldPath = instance->Path();
-            if (const Status renamed = project.SourceDb().RenameInstance(id, name); !renamed.IsOk())
+            if (const String failed = Project()->RenameAsset(id, name); !failed.IsEmpty())
                 return String(u8"The rename failed (see the Console).");
-            (void)project.CookedDb().RenameInstance(id, name); // keep its product's name in step (everything binds by guid)
-            if (project.Settings().defaultSceneId == id || project.Settings().defaultScene == oldPath)
-            {
-                project.Settings().defaultSceneId = id;
-                project.Settings().defaultScene = instance->Path(); // keep the path mirror in step
-                (void)project.SaveSettings();
-            }
             LOG_INFO(u8"Assets", u8"renamed '{}' -> '{}'", oldPath, instance->Path());
             return String{};
         }

@@ -173,6 +173,49 @@ export namespace editor
         [[nodiscard]] ProjectSettings& Settings() noexcept { return m_settings; }
         [[nodiscard]] const ProjectSettings& Settings() const noexcept { return m_settings; }
 
+        /// Why `name` cannot name an asset (empty, a character a file cannot hold, a space at an end,
+        /// a dot at its end); empty when it can. The one rule for a name a file takes.
+        [[nodiscard]] static String AssetNameRefusal(StringView name)
+        {
+            if (name.IsEmpty())
+                return String(u8"Enter a name.");
+            for (const utf8char c : name)
+                for (const utf8char refused : StringView(u8"/\\:*?\"<>|"))
+                    if (c == refused)
+                        return Format(u8"A name cannot hold {}.", StringView(&c, 1));
+            if (name[0] == u8' ' || name[name.Size() - 1] == u8' ' || name[name.Size() - 1] == u8'.')
+                return String(u8"A name cannot start or end with a space, or end with a dot.");
+            return String{};
+        }
+
+        /// Renames the asset `id` within its group, its guid kept (everything binds by guid): the
+        /// source instance, its cooked product's name, and the default scene's path mirror. Empty
+        /// when it was renamed (or already had the name), else why not: no such asset, a name the
+        /// rule refuses, one taken in its group, or a failed write.
+        [[nodiscard]] String RenameAsset(const Guid& id, StringView name)
+        {
+            foundation::content::Instance* instance = m_sourceDb->GetInstance(id);
+            if (instance == nullptr)
+                return Format(u8"no asset with guid {}", id);
+            if (instance->Name() == name)
+                return String{};
+            if (String refused = AssetNameRefusal(name); !refused.IsEmpty())
+                return refused;
+            if (instance->OwningGroup().GetInstance(name) != nullptr)
+                return Format(u8"an asset named '{}' already exists in '{}'", name, instance->OwningGroup().Path());
+            const String oldPath = instance->Path();
+            if (!m_sourceDb->RenameInstance(id, name).IsOk())
+                return String(u8"the rename failed (the log says why)");
+            (void)m_cookedDb->RenameInstance(id, name); // its product keeps step; a product not cooked yet has none
+            if (m_settings.defaultSceneId == id || m_settings.defaultScene == oldPath)
+            {
+                m_settings.defaultSceneId = id;
+                m_settings.defaultScene = instance->Path(); // the path mirror follows
+                (void)SaveSettings();
+            }
+            return String{};
+        }
+
         /// The quality levels the manifest lists, in its order, each named by its asset's path
         /// (by its id when the asset is gone), for the menus that offer them.
         [[nodiscard]] Array<ProjectQualityLevel> QualityLevels()

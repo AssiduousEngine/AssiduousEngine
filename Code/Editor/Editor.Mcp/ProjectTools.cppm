@@ -25,6 +25,7 @@ export import :plugin_services;
 export import :reflected_fields;
 export import :export_presets;
 export import :asset_delete;
+export import :asset_rename;
 export import :scene_tools;
 export import :asset_uses;
 export import :project_health;
@@ -744,6 +745,16 @@ export namespace editor::mcp
             return Optional<bool>(true);
         }
 
+        /// Renames at once: no pages here, and nothing reads the databases meanwhile.
+        [[nodiscard]] OperationStep<bool> Rename(foundation::mcp::ToolCall&, const Guid& id, StringView name) override
+        {
+            if (String refused = m_session->project->RenameAsset(id, name); !refused.IsEmpty())
+            {
+                return Err(Move(refused));
+            }
+            return Optional<bool>(true);
+        }
+
     private:
         ProjectSession* m_session;
         pipeline::BuilderRegistry* m_builders;
@@ -768,7 +779,7 @@ export namespace editor::mcp
     // The number of tools RegisterEngineTools registers. Adding an engine tool means bumping
     // this by hand, so a lost registration fails the test loudly. host_info and the stdio host's
     // project_create and project_open are not counted: each host registers its own.
-    inline constexpr usize kEngineToolCount = 38;
+    inline constexpr usize kEngineToolCount = 39;
 
     // Every *.md in `docsDir` as a read-only `docs://<FileName>` resource: the curated,
     // distribution-facing docs set (internal design and process docs are never exposed).
@@ -846,6 +857,7 @@ export namespace editor::mcp
         RegisterAssetDataTools(server, session);
         RegisterAssetUsesTool(server, session, builders);
         RegisterAssetDeleteTool(server, session, builders, operations);
+        RegisterAssetRenameTool(server, session, operations);
         RegisterProjectHealthTool(server, session, builders);
         RegisterLogTools(server, logBuffer, paths.knownIssues);
         RegisterSceneTools(server, session);

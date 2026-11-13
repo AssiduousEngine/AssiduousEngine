@@ -18,6 +18,7 @@ export module editor.app:asset_create_dialog;
 import foundation.core;
 import foundation.content;
 import foundation.gui;
+import editor.project; // EditorProject::AssetNameRefusal, the name rule
 import :group_picker_dialog; // GroupPicker: a group's name and key
 
 using namespace foundation::core;
@@ -49,19 +50,8 @@ export namespace editor::app
             return refused;
         }
         /// Why `name` cannot name a file (empty, a character a file cannot hold, space at an end, a
-        /// dot at its end); empty when it can.
-        [[nodiscard]] static String FormRefusal(StringView name)
-        {
-            if (name.IsEmpty())
-                return String(u8"Enter a name.");
-            for (const utf8char c : name)
-                for (const utf8char refused : StringView(u8"/\\:*?\"<>|"))
-                    if (c == refused)
-                        return Format(u8"A name cannot hold {}.", StringView(&c, 1));
-            if (name[0] == u8' ' || name[name.Size() - 1] == u8' ' || name[name.Size() - 1] == u8'.')
-                return String(u8"A name cannot start or end with a space, or end with a dot.");
-            return String{};
-        }
+        /// dot at its end); empty when it can. The project's rule, which an agent's rename keeps too.
+        [[nodiscard]] static String FormRefusal(StringView name) { return editor::EditorProject::AssetNameRefusal(name); }
     };
 
     /// AssetCreate::kPath, at namespace scope for another library to read (MSVC exports no class's

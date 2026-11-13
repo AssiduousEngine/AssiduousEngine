@@ -81,6 +81,10 @@ export namespace editor::app
         /// as a creation does); then deletes as the browser does, through onDelete.
         [[nodiscard]] editor::mcp::OperationStep<bool> Delete(foundation::mcp::ToolCall& call,
                                                               const Guid& id) override;
+        /// Runs on the main thread, never while a cook or an export reads the databases (it waits,
+        /// as a delete does); then renames through the project, as the browser does.
+        [[nodiscard]] editor::mcp::OperationStep<bool> Rename(foundation::mcp::ToolCall& call, const Guid& id,
+                                                              StringView name) override;
 
     private:
         /// A cook requested and awaited. It is finished once the service's revision has moved past

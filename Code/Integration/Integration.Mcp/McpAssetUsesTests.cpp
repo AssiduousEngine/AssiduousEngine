@@ -416,3 +416,94 @@ TEST_CASE("integration.mcp: asset_delete - refused while used, unless forced")
     session.project = nullptr;
     RemoveDirectoryRecursive(u8"mcp_delete_project");
 }
+
+// asset_rename, the Assets browser's Rename for an agent: the asset keeps its guid, so what used it
+// still does, and the default scene's path follows; a name the rule refuses or one taken in the
+// group is refused, saying why.
+TEST_CASE("integration.mcp: asset_rename - keeps the guid, the default scene's path follows; bad and taken names refused")
+{
+    RemoveDirectoryRecursive(u8"mcp_rename_project");
+
+    McpServer server;
+    editor::mcp::ProjectSession session;
+    pipeline::BuilderRegistry builders{DefaultAllocator()};
+    pipeline::RegisterPipelineTypes();
+    pipeline::RegisterAllBuilders(builders, foundation::vfs::FindDataRoot());
+    engine::RegisterAllSceneComponentReflection();
+    editor::mcp::ProjectOwner owner;
+    editor::mcp::InlineProjectOperations operations(session, builders, String(), String());
+    editor::mcp::RegisterProjectOpenTools(server, session, owner);
+    editor::mcp::RegisterAssetRenameTool(server, session, operations);
+
+    (void)UsesCallOk(server, u8"project_create",
+                     UsesWith(UsesWith(UsesObj(), u8"directory", u8"mcp_rename_project"), u8"name", u8"Rename"));
+    (void)UsesCallOk(server, u8"project_open", UsesWith(UsesObj(), u8"directory", u8"mcp_rename_project"));
+    auto* root = session.project->SourceDb().RootGroup();
+
+    // A texture a material uses, and the project's default scene.
+    auto* tex = root->CreateInstance(u8"stone", pipeline::TextureAsset::StaticType());
+    REQUIRE(tex != nullptr);
+    {
+        pipeline::TextureAsset asset;
+        REQUIRE(tex->WriteObject(asset).IsOk());
+    }
+    const Guid texId = tex->Id();
+    auto* mat = root->CreateInstance(u8"wall", pipeline::MaterialAsset::StaticType());
+    REQUIRE(mat != nullptr);
+    {
+        pipeline::MaterialAsset asset;
+        asset.source.textureSlots.PushBack(String(u8"albedo"));
+        asset.source.textureIds.PushBack(texId);
+        REQUIRE(mat->WriteObject(asset).IsOk());
+    }
+    const Guid matId = mat->Id();
+    Guid sceneId;
+    {
+        scene::Scene authored(DefaultAllocator(), u8"level");
+        engine::AddAllSceneManagers(authored);
+        auto* inst = root->CreateInstance(u8"level", scene::SceneDocument::StaticType());
+        REQUIRE(inst != nullptr);
+        REQUIRE(scene::SaveScene(authored, *inst).IsOk());
+        sceneId = inst->Id();
+    }
+    session.project->Settings().defaultSceneId = sceneId;
+    session.project->Settings().defaultScene = String(u8"level");
+
+    const auto rename = [](StringView guid, StringView name) { return UsesWith(UsesWith(UsesObj(), u8"guid", guid), u8"name", name); };
+
+    // Renamed, the guid kept: the material still names it.
+    JsonValue renamed = UsesCallOk(server, u8"asset_rename", rename(GuidText(texId).AsView(), u8"granite"));
+    CHECK(renamed.Get(u8"name").AsString() == StringView(u8"granite"));
+    CHECK(renamed.Get(u8"path").AsString() == StringView(u8"granite"));
+    CHECK(session.project->SourceDb().GetInstance(texId) != nullptr);
+    CHECK(session.project->SourceDb().GetInstance(texId)->Name() == StringView(u8"granite"));
+    CHECK(session.project->SourceDb().GetInstance(u8"stone") == nullptr);
+    {
+        RefPtr<ISerializable> read = session.project->SourceDb().GetInstance(matId)->ReadObject();
+        const auto* material = Cast<pipeline::MaterialAsset>(read.Get());
+        REQUIRE(material != nullptr);
+        CHECK(material->source.textureIds[0] == texId);
+    }
+
+    // The default scene's path follows its rename.
+    (void)UsesCallOk(server, u8"asset_rename", rename(GuidText(sceneId).AsView(), u8"Level1"));
+    CHECK(session.project->Settings().defaultSceneId == sceneId);
+    CHECK(session.project->Settings().defaultScene == StringView(u8"Level1"));
+
+    // Refused, saying why; nothing renamed.
+    CHECK(UsesCallErr(server, u8"asset_rename", rename(GuidText(matId).AsView(), u8"granite"))
+              .AsView()
+              .StartsWith(u8"an asset named 'granite' already exists"));
+    CHECK(UsesCallErr(server, u8"asset_rename", rename(GuidText(matId).AsView(), u8"a/b")) == StringView(u8"A name cannot hold /."));
+    CHECK(UsesCallErr(server, u8"asset_rename", rename(GuidText(matId).AsView(), u8"wall.")) ==
+          StringView(u8"A name cannot start or end with a space, or end with a dot."));
+    CHECK(session.project->SourceDb().GetInstance(matId)->Name() == StringView(u8"wall"));
+    CHECK(UsesCallErr(server, u8"asset_rename", rename(GuidText(Guid{0x31, 0x32}).AsView(), u8"x"))
+              .AsView()
+              .StartsWith(u8"no asset with guid"));
+    CHECK(UsesCallErr(server, u8"asset_rename", rename(u8"not-a-guid", u8"x")).AsView().Contains(u8"is not a valid guid"));
+
+    owner.project.Reset();
+    session.project = nullptr;
+    RemoveDirectoryRecursive(u8"mcp_rename_project");
+}

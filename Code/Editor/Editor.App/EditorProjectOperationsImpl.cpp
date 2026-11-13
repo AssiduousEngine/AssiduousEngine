@@ -461,4 +461,27 @@ namespace editor::app
         }
         return Optional<bool>(true);
     }
+
+    OperationStep<bool> EditorProjectOperations::Rename(foundation::mcp::ToolCall& call, const Guid& id, StringView name)
+    {
+        if (m_seams.cook->MutationLocked())
+        {
+            CreateWait& wait = CallState<CreateWait>(call);
+            if (wait.startedTicks == 0)
+            {
+                wait.startedTicks = GetTicks();
+            }
+            if (TimedOut(wait.startedTicks))
+            {
+                return Err(Format(u8"rename of an asset: the databases stayed locked by a cook or export for {} s",
+                                  static_cast<i64>(m_seams.timeoutSeconds)));
+            }
+            return Optional<bool>{};
+        }
+        if (String refused = m_seams.project->RenameAsset(id, name); !refused.IsEmpty())
+        {
+            return Err(Move(refused));
+        }
+        return Optional<bool>(true);
+    }
 }

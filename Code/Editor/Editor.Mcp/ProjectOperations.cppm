@@ -2,8 +2,8 @@
 // Copyright (c) 2026-Present Robert Campbell
 // Editor::Mcp - :operations partition
 //
-// IProjectOperations: how a host runs the work behind asset_cook, asset_import, asset_create and
-// project_export. The tools themselves are shared (their arguments, refusals and result shapes
+// IProjectOperations: how a host runs the work behind asset_cook, asset_import, asset_create,
+// asset_delete, asset_rename and project_export. The tools themselves are shared (their arguments, refusals and result shapes
 // are the same on every host), but the host decides where the work runs. The stdio host runs it
 // inline on the calling thread, so every step answers at once. The editor runs it on its own
 // background services (the cook service, the job service) and re-enters the tool each pump until
@@ -135,6 +135,10 @@ export namespace editor::mcp
         /// original file an import copied under Sources/. The host closes what has it open. The
         /// step's value is set once the asset is gone.
         [[nodiscard]] virtual OperationStep<bool> Delete(foundation::mcp::ToolCall& call, const Guid& id) = 0;
+        /// One source asset renamed within its group, its guid kept (asset_rename), through
+        /// EditorProject::RenameAsset; the error is the refusal. The step's value is set once the
+        /// asset has the name.
+        [[nodiscard]] virtual OperationStep<bool> Rename(foundation::mcp::ToolCall& call, const Guid& id, StringView name) = 0;
     };
 
     /// asset_create's work, the same on every host: resolve the group (made when missing), refuse
