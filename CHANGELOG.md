@@ -83,6 +83,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   Exports from MCP and the command line stop as well on an asset the game uses whose source does
   not read. MCP: `asset_cook` reports `unreadable` apart from `unbuildable` (types with no
   builder, as scenes and prefabs).
+- Editor: a navigation bake that finds no geometry, or no walkable surface, leaves the zone its
+  last navmesh and says so. It wrote an empty one over it.
 
 ## 0.1.0-beta.3 - 2026-11-12
 

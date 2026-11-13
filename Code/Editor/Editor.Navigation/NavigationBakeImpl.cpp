@@ -142,16 +142,17 @@ namespace editor::navigation
             // Nothing was collected: no static geometry touched the zone box (centered on the
             // zone's entity, sized by Extents). Render meshes are not read, so a floor that is
             // only a mesh, with no static body, gives nothing.
-            return String(u8"No static geometry inside the zone box. Check the zone's Extents cover "
-                          u8"your floor, that the floor has a static, non-trigger Rigid Body (or is a "
-                          u8"terrain), and that the zone is placed over it. Render meshes are not "
-                          u8"read: what agents walk on and avoid is what the physics collides with.");
+            return String(u8"No static geometry inside the zone box, so the zone keeps its last bake. "
+                          u8"Check the zone's Extents cover your floor, that the floor has a static, "
+                          u8"non-trigger Rigid Body (or is a terrain), and that the zone is placed over "
+                          u8"it. Render meshes are not read: what agents walk on and avoid is what the "
+                          u8"physics collides with.");
         }
         // Geometry was collected but Recast produced no walkable surface: the agent and cell
         // parameters did not fit the geometry.
-        return Format(u8"Collected {} triangle(s) but Recast produced no walkable surface. Try a "
-                      u8"larger Cell Size or a smaller Agent Radius/Height, and check the surface "
-                      u8"is within Agent Max Slope.",
+        return Format(u8"Collected {} triangle(s) but Recast produced no walkable surface, so the "
+                      u8"zone keeps its last bake. Try a larger Cell Size or a smaller Agent "
+                      u8"Radius/Height, and check the surface is within Agent Max Slope.",
                       result.triangleCount);
     }
 
@@ -204,7 +205,8 @@ namespace editor::navigation
             }
         }
 
-        if (!pipeline::WriteNavigationZoneAsset(targetAsset, asset).IsOk())
+        // Only a bake is written: a bake that made nothing leaves the zone its last navmesh.
+        if (result.baked && !pipeline::WriteNavigationZoneAsset(targetAsset, asset).IsOk())
         {
             LOG_ERROR(u8"Editor", u8"navigation bake: writing the zone asset failed");
             result.baked = false;

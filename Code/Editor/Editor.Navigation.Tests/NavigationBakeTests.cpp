@@ -276,6 +276,42 @@ TEST_CASE("editor.navigation: bake succeeds when the zone shares a SCALED entity
     RemoveTree(u8"scratch_navbake_scaled_db");
 }
 
+TEST_CASE("editor.navigation: a bake that makes nothing leaves the zone its last navmesh")
+{
+    pipeline::RegisterNavigationZoneAsset();
+    RemoveTree(u8"scratch_navbake_keep_db");
+    foundation::vfs::NativeFileSystem mount(u8"scratch_navbake_keep_db", foundation::core::DefaultAllocator());
+    content::ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
+    auto* assetInstance = db.RootGroup()->CreateInstance(u8"zone", pipeline::NavigationZoneAsset::StaticType());
+    REQUIRE(assetInstance != nullptr);
+
+    scene::Scene sceneObj(DefaultAllocator(), u8"bake_keep");
+    engine::navigation::AddNavigationSceneManagers(sceneObj);
+    sceneObj.AddSystem<engine::physics::RigidBodyComponentManager>();
+    const scene::EntityHandle ground =
+        AddBody(sceneObj, u8"ground", Float3{0, 0, 0}, Float3{10, 0.5f, 10}, foundation::physics::MotionKind::Static);
+    const scene::EntityHandle zoneEntity = sceneObj.CreateEntity(u8"zone");
+    sceneObj.GetSystem<engine::navigation::NavMeshZoneComponentManager>()->Add(zoneEntity).extents = Float3{15, 10, 15};
+    sceneObj.UpdateTransforms();
+    REQUIRE(editor::navigation::BakeNavigationZone(sceneObj, zoneEntity, *assetInstance).baked);
+    pipeline::NavigationZoneAsset first;
+    REQUIRE(pipeline::EnsureNavMeshLoaded(*assetInstance, first).IsOk());
+    REQUIRE_FALSE(first.navMeshBlob.IsEmpty());
+
+    // The floor gone: nothing to bake against, and the asset keeps what it had.
+    sceneObj.DestroyEntity(ground);
+    sceneObj.UpdateTransforms();
+    const editor::navigation::BakeResult empty = editor::navigation::BakeNavigationZone(sceneObj, zoneEntity, *assetInstance);
+    CHECK_FALSE(empty.baked);
+    CHECK(empty.triangleCount == 0u);
+    pipeline::NavigationZoneAsset kept;
+    REQUIRE(pipeline::EnsureNavMeshLoaded(*assetInstance, kept).IsOk());
+    CHECK(kept.navMeshBlob.Size() == first.navMeshBlob.Size());
+    CHECK(editor::navigation::DescribeBake(empty).AsView().Contains(u8"keeps its last bake"));
+
+    RemoveTree(u8"scratch_navbake_keep_db");
+}
+
 TEST_CASE("editor.navigation: terrain contributes walkable surface to the bake")
 {
     usize triangles = 0;
