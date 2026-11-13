@@ -847,7 +847,7 @@ namespace foundation::core::sys
                        static_cast<int>(outCap), 0, reinterpret_cast<sockaddr*>(&addr), &len);
         if (n == SOCKET_ERROR)
         {
-            return (WSAGetLastError() == WSAEWOULDBLOCK) ? 0 : -1;
+            return (WSAGetLastError() == WSAEWOULDBLOCK) ? kSocketWouldBlock : -1;
         }
         if (fromIp != nullptr)
         {

@@ -94,7 +94,7 @@ export namespace foundation::net
             u32 ip = 0;
             u16 port = 0;
             const i64 n = core::UdpRecvFrom(m_handle, out.Data(), out.Size(), ip, port);
-            if (n <= 0)
+            if (n < 0) // none waiting, or an error; an empty datagram is a datagram
             {
                 out.Clear();
                 return false;

@@ -122,3 +122,27 @@ TEST_CASE("udp: reliable transport handshakes + delivers a reliable message over
     }
     CHECK(delivered);
 }
+
+TEST_CASE("udp: an empty datagram is a datagram, and the ones behind it are read the same frame")
+{
+    // An empty datagram read as "nothing waiting": the receive loop stopped there, so a stream of
+    // them held back every real packet behind them.
+    net::UdpSocket a(0);
+    net::UdpSocket b(0);
+    REQUIRE(a.IsOpen());
+    REQUIRE(b.IsOpen());
+    const u8 msg[] = {0x5A};
+    a.Send(b.LocalEndpoint(), Span<const byte>{});
+    a.Send(b.LocalEndpoint(), Span<const byte>(reinterpret_cast<const byte*>(msg), sizeof(msg)));
+    SleepMilliseconds(50); // both are queued on loopback by then
+
+    net::DatagramEndpoint from;
+    Array<byte> got;
+    REQUIRE(b.Receive(from, got));
+    CHECK(got.Size() == 0u);
+    CHECK(net::EndpointPort(from) == a.BoundPort());
+    REQUIRE(b.Receive(from, got));
+    REQUIRE(got.Size() == 1u);
+    CHECK(static_cast<u8>(got[0]) == 0x5Au);
+    CHECK_FALSE(b.Receive(from, got)); // and then nothing is waiting
+}

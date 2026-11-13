@@ -801,7 +801,7 @@ namespace foundation::core::sys
                                      reinterpret_cast<sockaddr*>(&addr), &len);
         if (n < 0)
         {
-            return (errno == EWOULDBLOCK || errno == EAGAIN) ? 0 : -1;
+            return (errno == EWOULDBLOCK || errno == EAGAIN) ? kSocketWouldBlock : -1;
         }
         if (fromIp != nullptr)
         {

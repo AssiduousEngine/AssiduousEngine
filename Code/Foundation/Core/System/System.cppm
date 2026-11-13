@@ -600,6 +600,9 @@ export namespace foundation::core
     {
         return sys::UdpSendTo(socket, ip, port, data, size);
     }
+    /// UdpRecvFrom's result when no datagram is waiting (0 is an empty datagram).
+    inline constexpr i64 kSocketWouldBlock = sys::kSocketWouldBlock;
+    /// One datagram's size (>= 0), kSocketWouldBlock when none is waiting, or -1 on error.
     [[nodiscard]] inline i64 UdpRecvFrom(SocketHandle socket, void* out, usize outCap, u32& fromIp,
                                          u16& fromPort) noexcept
     {

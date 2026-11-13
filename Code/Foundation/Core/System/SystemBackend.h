@@ -222,8 +222,12 @@ namespace foundation::core::sys
     // real error (a would-block on a full send buffer returns 0; the caller may retry).
     std::int64_t UdpSendTo(SocketHandle socket, std::uint32_t ip, std::uint16_t port,
                            const void* data, std::size_t size) noexcept;
-    // Receive one datagram into `out` (capacity outCap). Returns bytes read (>0), 0 when none are
-    // pending (non-blocking), or -1 on error. Fills the sender's (ip,port) host-order when non-null.
+    // What UdpRecvFrom returns when no datagram is waiting (non-blocking). Not 0: a datagram may be
+    // empty, and one read as "none waiting" stopped a receive loop with the rest still queued.
+    inline constexpr std::int64_t kSocketWouldBlock = -2;
+    // Receive one datagram into `out` (capacity outCap). Returns its size (>= 0; an empty datagram
+    // is 0), kSocketWouldBlock when none is pending, or -1 on error. Fills the sender's (ip,port)
+    // host-order when non-null.
     std::int64_t UdpRecvFrom(SocketHandle socket, void* out, std::size_t outCap,
                              std::uint32_t* fromIp, std::uint16_t* fromPort) noexcept;
 
