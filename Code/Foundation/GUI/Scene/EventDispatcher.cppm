@@ -963,6 +963,9 @@ export namespace foundation::gui
             if (node != nullptr && (m_root == nullptr || !m_root->IsAncestorOrSelf(*node)))
                 return; // asked for, then taken out of the tree, while the focus settled
             Node* previous = m_focusNode;
+            // The node losing the focus may be alive only through the hold (taken out of the tree
+            // while the focus settled): kept until it has been told.
+            const core::RefPtr<Node> losing(previous);
             m_focusNode = node;
             m_focusHold = core::RefPtr<Node>(node); // alive until the settling ends, should it leave the tree
             m_focusChanged.Notify(); // the focus path decides which commands are available
