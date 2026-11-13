@@ -248,6 +248,57 @@ TEST_CASE("game-instance: each instance owns an independent networked endpoint (
     CHECK(server.NetEndpoint() != nullptr); // the server is unaffected (isolation)
 }
 
+// A message's handler that stops the networking, as a script's Net.disconnect in a Net.on handler
+// does: the endpoint is released at once (the run is offline) and freed after the pump returns.
+TEST_CASE("game-instance: networking stopped from inside the pump is freed after it")
+{
+    engine::runtime::GameInstance server;
+    engine::runtime::GameInstance client;
+    REQUIRE(server.StartServer(/*port=*/0, /*dedicated=*/true));
+    REQUIRE(client.Connect(u8"127.0.0.1", server.NetEndpoint()->BoundPort()));
+    bool offlineInHandler = false;
+    server.NetEndpoint()->Rpc().On(u8"leave",
+                                   [&server, &offlineInHandler](foundation::net::PeerId, foundation::net::BitReader&)
+                                   {
+                                       server.StopNetworking();
+                                       offlineInHandler = server.NetEndpoint() == nullptr;
+                                       server.StartServer(/*port=*/0, /*dedicated=*/true); // a new role, at once
+                                   });
+    // As the network subsystem pumps a run: its mutations deferred, flushed after.
+    const auto pump = [](engine::runtime::GameInstance& gi)
+    {
+        if (foundation::net::NetworkManager* endpoint = gi.NetEndpoint())
+        {
+            {
+                foundation::run::RunMutations::Scope scripts(gi.Mutations());
+                endpoint->UpdateTransport(16.0f);
+            }
+            gi.Mutations().Flush();
+        }
+    };
+    for (int i = 0; i < 400 && server.NetEndpoint()->Session().PeerCount() == 0u; ++i)
+    {
+        pump(server);
+        pump(client);
+        SleepMilliseconds(1);
+    }
+    REQUIRE(server.NetEndpoint()->Session().PeerCount() == 1u);
+    foundation::net::NetworkManager* first = server.NetEndpoint();
+    client.NetEndpoint()->Rpc().Call(client.NetEndpoint()->Session(), client.NetEndpoint()->Session().ServerPeer(), u8"leave");
+    client.NetEndpoint()->Rpc().Call(client.NetEndpoint()->Session(), client.NetEndpoint()->Session().ServerPeer(), u8"leave");
+    for (int i = 0; i < 400 && !offlineInHandler; ++i)
+    {
+        pump(client);
+        pump(server); // the handler frees nothing under the pump
+        SleepMilliseconds(1);
+    }
+    CHECK(offlineInHandler);
+    REQUIRE(server.NetEndpoint() != nullptr);
+    CHECK(server.NetEndpoint() != first); // the new role's endpoint
+    CHECK(server.NetEndpoint()->Session().PeerCount() == 0u);
+    CHECK(server.Mutations().PendingCount() == 0u); // the old one freed at the flush
+}
+
 // A ws:// join address: a native client joins the host's browser gateway, at the game port + 1 (the
 // StartServer convention) since the address names none.
 TEST_CASE("game-instance: a ws:// address joins the host's gateway at port + 1, natively")

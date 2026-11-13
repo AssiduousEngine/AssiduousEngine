@@ -186,7 +186,7 @@ export namespace foundation::net
             m_session.Update(deltaMs);
 
             NetEvent ev;
-            while (m_session.PollEvent(ev))
+            while (!m_closed && m_session.PollEvent(ev))
             {
                 if (ev.kind == NetEventKind::Received && ev.channel == kRpcChannel)
                 {
@@ -244,6 +244,11 @@ export namespace foundation::net
         /// map's networked entities are there to take it. Off by default (state flows at once). RPCs
         /// are never held: the host's welcome (naming its map, say) reaches a held joiner.
         void SetWaitForReady(bool wait) noexcept { m_waitForReady = wait; }
+
+        /// Its owner released it from inside its pump (a message's handler stopped the networking):
+        /// the pump delivers nothing more, and the owner frees it once the pump has returned.
+        void Close() noexcept { m_closed = true; }
+        [[nodiscard]] bool IsClosed() const noexcept { return m_closed; }
         [[nodiscard]] bool WaitsForReady() const noexcept { return m_waitForReady; }
         /// Host: whether a client is held (joined, not yet ready).
         [[nodiscard]] bool IsHeld(PeerId peer) const { return m_held.Contains(peer); }
@@ -384,6 +389,7 @@ export namespace foundation::net
         Function<void(bool joined, u32 player)> m_playerEvents;
         bool m_welcomed = false; // client: the welcome has been reported
         bool m_waitForReady = false; // host: joiners wait for their ready before any state
+        bool m_closed = false;       // released mid-pump: deliver nothing more (Close)
         HashSet<PeerId> m_held;      // host: joined, not yet ready
         StateReplication m_replication;
         InterpolationBuffer m_interp;    // client-side smoothing of received states

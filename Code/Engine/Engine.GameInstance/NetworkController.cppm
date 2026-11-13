@@ -19,6 +19,7 @@ import foundation.net.replication; // StateReplication::SpawnHandler (the net-sp
 import foundation.script;       // IScriptContext (InstallNetScriptService)
 import foundation.net.tls;      // ITlsBackend (a wss join checks the host with it)
 import engine.net;              // NetworkSceneSystem (the per-scene fixed-lane replication driver)
+import foundation.run;          // RunMutations: an endpoint released mid-pump is freed at the flush
 
 using namespace foundation::core;
 
@@ -74,6 +75,14 @@ export namespace engine::runtime
 
         /// Where a wss join's TLS backend comes from (the run's, made on first use).
         void SetTlsBackendSource(Function<net::ITlsBackend*()> source) { m_tlsSource = static_cast<Function<net::ITlsBackend*()>&&>(source); }
+        /// The run's mutations: an endpoint released while they defer (a message's handler stopped
+        /// or replaced the networking, inside the endpoint's own pump) is freed at their flush.
+        void SetMutations(foundation::run::RunMutations* mutations) noexcept { m_mutations = mutations; }
+        ~NetworkController() override
+        {
+            if (m_mutations != nullptr)
+                m_mutations->Cancel(this);
+        }
 
         /// The net binding the Net facade resolves this run's controller through (controller=this;
         /// the run holds it as a service). Stable: the endpoint m_net points at may come and go.
@@ -95,6 +104,11 @@ export namespace engine::runtime
         [[nodiscard]] net::NetworkManager* NetEndpoint() const override { return m_net.Get(); }
 
     private:
+        /// Releases the endpoint (StopNetworking, or a new role replacing it): detached at once, so
+        /// the run is offline from here; freed now, or, while the run's mutations defer (this may
+        /// be inside its pump), closed and freed at their flush.
+        void ReleaseEndpoint();
+
         /// Point the current replicated scene's NetworkSceneSystem at `endpoint` (its live endpoint
         /// when attaching, null when detaching or offline). No-op when there is no scene, or for a
         /// scene built without the net module (no NetworkSceneSystem). The scene system dies with
@@ -118,5 +132,7 @@ export namespace engine::runtime
         SpawnResolverFactory m_spawnResolverFactory; // app-injected; makes a resolver per endpoint
         scene::Scene* m_scene = nullptr;            // the scene a fresh endpoint replicates
         Function<net::ITlsBackend*()> m_tlsSource;  // the run's TLS backend, for a wss join
+        foundation::run::RunMutations* m_mutations = nullptr; // the run's (SetMutations)
+        Array<core::UniquePtr<net::NetworkManager>> m_closedEndpoints; // released mid-pump, freed at the flush
     };
 }

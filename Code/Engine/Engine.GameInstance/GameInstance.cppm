@@ -329,6 +329,7 @@ export namespace engine::runtime
             // join use the run's TLS backend, made when first needed.
             m_http.SetFactory([this]() { return foundation::http::CreateHttpClient(*m_allocator, TlsBackend()); });
             m_network.SetTlsBackendSource([this]() { return TlsBackend(); });
+            m_network.SetMutations(&Mutations());
             // What the run owns and others reach through it (run.Get<T>()): borrowed, members all.
             Register<GameInstance>(*this);
             Register<NetworkController>(m_network);

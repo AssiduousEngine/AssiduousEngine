@@ -30,6 +30,7 @@ namespace engine::runtime
         // tools) stay UDP-only.
         const u16 webSocketPort =
             (port != 0 && port != 0xFFFF) ? static_cast<u16>(port + 1) : u16{0};
+        ReleaseEndpoint();
         m_net = net::NetworkManager::HostServer(foundation::core::DefaultAllocator(), port,
                                                 dedicated, {}, webSocketPort);
         if (!m_net)
@@ -67,6 +68,7 @@ namespace engine::runtime
         {
             port = static_cast<u16>(port + 1);
         }
+        ReleaseEndpoint();
         m_net = net::NetworkManager::JoinServer(foundation::core::DefaultAllocator(), host, port, {},
                                                 m_tlsSource ? m_tlsSource() : nullptr);
         if (!m_net)
@@ -87,11 +89,32 @@ namespace engine::runtime
 
     void NetworkController::StopNetworking()
     {
-        WireSceneSystem(nullptr); // detach the scene system before the endpoint dies (no dangling driver)
         if (m_net)
         {
             LOG_INFO(u8"App", u8"networking stopped");
         }
-        m_net = nullptr; // closes the session (drops peers) and the owned socket
+        ReleaseEndpoint();
+    }
+
+    void NetworkController::ReleaseEndpoint()
+    {
+        WireSceneSystem(nullptr); // detach the scene system before the endpoint dies (no dangling driver)
+        if (!m_net)
+        {
+            return;
+        }
+        if (m_mutations == nullptr || !m_mutations->IsDeferring())
+        {
+            m_net = nullptr; // closes the session (drops peers) and the owned socket
+            return;
+        }
+        // Possibly inside its own pump (a message's handler): it delivers nothing more, and goes
+        // once the pump has returned.
+        m_net->Close();
+        m_closedEndpoints.PushBack(Move(m_net));
+        if (m_closedEndpoints.Size() == 1u)
+        {
+            m_mutations->Enqueue(this, [this]() { m_closedEndpoints.Clear(); });
+        }
     }
 }

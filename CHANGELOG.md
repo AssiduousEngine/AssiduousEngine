@@ -95,6 +95,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Scripting: `run.loadScene` loads the scene before it returns, and the scene becomes the level at
   the next frame's start, as `run.loadSceneAsync`'s does; the level it replaces is destroyed then.
   Called from the fixed step or an event handler, it destroyed the scene the script was running in.
+- Networking: `Net.disconnect`, `Net.host` or `Net.join` from a `Net.on` handler no longer crashes
+  the game. The handler freed the connection that was delivering its message; it is now closed at
+  once and freed after the message delivery returns, and no further message from it is delivered.
 
 ## 0.1.0-beta.3 - 2026-11-12
 
