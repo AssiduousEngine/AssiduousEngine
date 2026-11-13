@@ -4,6 +4,7 @@
 // Render - foundation.render:mesh_renderer implementation unit.
 module;
 #include "Core/Prelude.h"
+#include "Core/Log/Log.h"
 
 module foundation.render;
 
@@ -295,7 +296,7 @@ namespace foundation::render
         if (!m_viewRing.Reserve(maxDraws) ||
             !m_shadowViewRing.Reserve(shadowViewCap) ||
             !m_objectRing.Reserve(drawCap) || !m_instanceRing.Reserve(drawCap) ||
-            !m_offsetsRing.Reserve(drawCap) || !m_lightRing.Reserve(kMaxLights) ||
+            !m_offsetsRing.Reserve(drawCap) || !m_lightRing.Reserve(Max(kMaxLights, m_sceneLights)) ||
             !m_localShadowRing.Reserve(kMaxLocalShadows) || !m_boneRing.Reserve(m_boneSlotsWanted))
         {
             return;
@@ -320,6 +321,7 @@ namespace foundation::render
         m_instanceRing.BeginFrame(frameIndex);
         m_offsetsRing.BeginFrame(frameIndex);
         m_lightRing.BeginFrame(frameIndex);
+        m_lightUploads.Clear();
         m_localShadowRing.BeginFrame(frameIndex);
         m_boneRing.BeginFrame(frameIndex);
         m_instShareCache
@@ -1056,24 +1058,39 @@ namespace foundation::render
 
         // Upload this view's lights into the light ring (bound whole at set 0; the shader reads
         // Lights[lightOffset + i]). Clamp to the per-frame capacity.
-        u32 lightCount = static_cast<u32>(ctx.lights.Size());
-        if (lightCount > kMaxLights)
-        {
-            lightCount = kMaxLights;
-        }
+        // A scene's lights go up once a frame: Resolve runs per renderer run in each pass of each
+        // view, and an upload per call ran the ring out, after which a view read slot 0 onward, the
+        // lights of whichever scene uploaded first.
+        u32 lightCount = Min(static_cast<u32>(ctx.lights.Size()), kMaxLights);
         u32 lightOffset = 0;
         if (lightCount > 0)
         {
-            const DynamicUniformRing::Range lr = m_lightRing.AllocateRange(lightCount);
-            if (lr.ok)
+            if (const LightUpload* up = m_lightUploads.Find(ctx.lights.Data()); up != nullptr)
             {
-                MemCopy(lr.ptr, ctx.lights.Data(),
-                        static_cast<usize>(lightCount) * sizeof(GpuLight));
-                lightOffset = lr.slotIndex;
+                lightOffset = up->offset;
+                lightCount = up->count;
             }
             else
             {
-                lightCount = 0;
+                const DynamicUniformRing::Range lr = m_lightRing.AllocateRange(lightCount);
+                if (lr.ok)
+                {
+                    MemCopy(lr.ptr, ctx.lights.Data(), static_cast<usize>(lightCount) * sizeof(GpuLight));
+                    lightOffset = lr.slotIndex;
+                }
+                else
+                {
+                    // SetSceneLights sized the ring for every scene; a renderer driven without it
+                    // runs out here. The view draws unlit rather than with another scene's lights.
+                    if (!m_lightOverflowLogged)
+                    {
+                        LOG_WARNING(u8"Render", u8"mesh renderer: light ring full ({} slots per frame), {} lights dropped, view drawn unlit",
+                                    m_lightRing.SlotsPerFrame(), lightCount);
+                        m_lightOverflowLogged = true;
+                    }
+                    lightCount = 0;
+                }
+                m_lightUploads.InsertOrAssign(ctx.lights.Data(), LightUpload{lightOffset, lightCount});
             }
         }
 
@@ -1082,7 +1099,7 @@ namespace foundation::render
         // The clustered light lists for this view (set 3). An empty binding gets the dummy and
         // ClusterGridX=0, which makes the shader fall back to looping all lights.
         rhi::BindGroup* clusterBG = m_dummyClusterBG;
-        if (ctx.cluster.Valid())
+        if (ctx.cluster.Valid() && lightCount > 0) // no lights uploaded: the binned indices name none
         {
             // Per-(view, frame) slot: two views in one frame have different cluster buffers and
             // must not share a bind group, or it would be rebuilt and free a set still in flight.

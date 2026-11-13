@@ -143,6 +143,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Rendering: a double-sided material (foliage cards, a sail, a flag) casts its shadow from both
   sides, and a material that culls front faces casts from its back; shadows always came from the
   front faces.
+- Rendering: lights no longer go missing, or come from another scene, when a scene has many
+  lights or several scenes are drawn at once (editor pages side by side, a page and its play).
 - Rendering: the sky's diffuse light is right along world z: one of its nine terms was three
   times too strong, so a sky brighter to the front or back over- or under-lit surfaces facing
   those ways. Scenes lit by such a sky look a little different.

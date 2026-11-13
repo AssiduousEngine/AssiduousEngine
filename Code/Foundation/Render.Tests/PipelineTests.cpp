@@ -328,6 +328,75 @@ namespace
     };
 }
 
+TEST_CASE("RenderFrame uploads each scene's lights once a frame, into a ring sized for every scene")
+{
+    // Resolve runs per renderer run in every pass of every view, and each call uploaded the view's
+    // lights again into a ring of 256 a frame: a scene with many lights, or two scenes, ran it out,
+    // and a view whose upload failed read the lights of whichever scene went first.
+    RenderHarness h;
+    if (!h.Init(256, 256))
+    {
+        return;
+    }
+    shaders::ShaderSystem shaderSystem(*h.compiler, h.device);
+    WireEngineShaders(shaderSystem);
+    materials::PipelineStateCache psoCache(shaderSystem, h.device);
+    materials::MaterialSystem materialSystem;
+    REQUIRE(materialSystem.Initialize(h.device).IsOk());
+    MeshRenderer meshRenderer(DefaultAllocator(), h.device, shaderSystem, psoCache, materialSystem,
+                              /*framesInFlight*/ 2);
+    REQUIRE(meshRenderer.Initialize().IsOk());
+    RendererRegistry registry;
+    registry.Register(&meshRenderer);
+    RenderFrame frame(DefaultAllocator(), h.device, registry, /*framesInFlight*/ 2);
+
+    RefPtr<geometry::StaticMesh> cube = geometry::Primitives::Cube(DefaultAllocator(), 1.0f);
+    RefPtr<materials::Material> material = materials::MaterialBuilder(u8"lit").Shader(u8"forward").Build();
+    constexpr u32 kLights = 200;
+    ExtractedScene first{DefaultAllocator()}, second{DefaultAllocator()};
+    ExtractedScene* const both[] = {&first, &second};
+    for (ExtractedScene* scene : both)
+    {
+        MeshRenderData* rd = scene->Add<MeshRenderData>();
+        rd->world = Float4x4::Identity();
+        rd->worldRadius = 1.0f;
+        rd->mesh = cube.Get();
+        rd->material = material.Get();
+        rd->category = RenderCategories::Opaque;
+        for (u32 i = 0; i < kLights; ++i)
+        {
+            GpuLight light;
+            light.type = 1.0f;
+            light.positionWS = Float3{static_cast<f32>(i), 2, 0};
+            light.range = 3.0f;
+            scene->AddLight(light);
+        }
+    }
+    ViewCamera camera;
+    camera.view = Float4x4::LookAtRH(Float3{0, 0, 5}, Float3{0, 0, 0}, Float3{0, 1, 0});
+    camera.projection = Float4x4::PerspectiveFovRH(1.0472f, 1.0f, 0.1f, 100.0f);
+    ViewSettings settings;
+
+    // Each scene drawn through two views: each scene's 200 lights go up once, and the ring holds
+    // both scenes' in the first frame.
+    frame.Begin(*h.encoder, 0);
+    for (ExtractedScene* scene : both)
+    {
+        frame.AddView(*scene, camera, settings, h.colorView, rhi::TextureFormat::BGRA8Unorm, 256, 256);
+        frame.AddView(*scene, camera, settings, h.colorView, rhi::TextureFormat::BGRA8Unorm, 256, 256);
+    }
+    frame.End();
+    CHECK(meshRenderer.LightSlotsPerFrame() >= 2 * kLights);
+    CHECK(meshRenderer.LightSlotsUsed() == 2 * kLights);
+
+    // One scene alone takes its lights once.
+    frame.Begin(*h.encoder, 1);
+    frame.AddView(first, camera, settings, h.colorView, rhi::TextureFormat::BGRA8Unorm, 256, 256);
+    frame.AddView(first, camera, settings, h.colorView, rhi::TextureFormat::BGRA8Unorm, 256, 256);
+    frame.End();
+    CHECK(meshRenderer.LightSlotsUsed() == kLights);
+}
+
 TEST_CASE("RenderData::kind says what an item is; the caster list never downcasts by renderer id")
 {
     // The stamp: the base is Generic, MeshRenderData and everything derived from it is Mesh.

@@ -253,6 +253,7 @@ export namespace foundation::render
         // Reflection-probe capture faces re-emit the draws (one forward pass each); count them into the ring.
         void SetCaptureFacePasses(u32 passes) override { m_captureFacePasses = passes; }
         void SetPickPasses(u32 passes) override { m_pickPasses = passes; }
+        void SetSceneLights(u32 lights) override { m_sceneLights = lights; }
         void SetShadowCasterDraws(u32 draws) override { m_shadowCasterDraws = draws; }
 
         /// The per-frame slots the object, instance and offset rings need. Each camera pass (the
@@ -495,6 +496,9 @@ export namespace foundation::render
         /// draw skinned; otherwise in their bind pose).
         [[nodiscard]] bool IsSkinUploaded(const Float4x4* boneMatrices) const { return m_boneStart.Contains(boneMatrices); }
         [[nodiscard]] static constexpr u32 InitialBonePoolSlots() noexcept { return kInitialBoneMatrices; }
+        /// Light slots the ring holds per frame, and those this frame's uploads took (tests pin them).
+        [[nodiscard]] u32 LightSlotsPerFrame() const noexcept { return m_lightRing.SlotsPerFrame(); }
+        [[nodiscard]] u32 LightSlotsUsed() const noexcept { return m_lightRing.FrameAllocatedSlots(); }
     private:
 
         void ResolveSingle(const RenderRecordContext& ctx, u32 viewOffset,
@@ -764,6 +768,16 @@ export namespace foundation::render
             u32 count = 0;
         };
         HashMap<u64, InstShare> m_instShareCache{*m_allocator};
+        // This frame's light uploads, one per scene's light list (keyed by the list): every view
+        // and pass of a scene reads the same range, so the ring holds each scene's lights once.
+        struct LightUpload
+        {
+            u32 offset = 0;
+            u32 count = 0;
+        };
+        HashMap<const GpuLight*, LightUpload> m_lightUploads{*m_allocator};
+        u32 m_sceneLights = 0;           // SetSceneLights: what the light ring is sized for
+        bool m_lightOverflowLogged = false; // the first overflow is said once
         // Keyed by the view pointer, not viewIndex: the main view's prepass and forward share one RenderView, but
         // probe-capture forwards reuse viewIndex 0 with a different draw list, and a distinct pointer keeps them apart.
         static u64 InstShareKey(const void* view, const void* runHead) noexcept;

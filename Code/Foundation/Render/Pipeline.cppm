@@ -350,6 +350,11 @@ export namespace foundation::render
         // capture faces). Called before PrepareFrame.
         virtual void SetPickPasses(u32 passes) { (void)passes; }
 
+        // The lights this frame's scenes hold together, each scene's list counted once (every view
+        // of a scene draws its one list). A renderer that uploads each scene's lights once a frame
+        // sizes its ring by it. Called before PrepareFrame.
+        virtual void SetSceneLights(u32 lights) { (void)lights; }
+
         // The shadow passes' draws this frame: for each view, its scene's caster count (every
         // cascade and local tile of that view draws from it). Casters are camera-independent, so
         // they can far outnumber the view's own draws; per-object rings must hold them too.

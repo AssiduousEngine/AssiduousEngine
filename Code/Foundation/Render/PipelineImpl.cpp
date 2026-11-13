@@ -1388,6 +1388,15 @@ namespace foundation::render
             {
                 r->SetPickPasses(pickPasses);
             }
+            u32 sceneLights = 0;
+            for (usize k = 0; k < sceneCount; ++k)
+            {
+                sceneLights += static_cast<u32>(m_sceneShadowPool[k]->scene->Lights().Size());
+            }
+            for (Renderer* r : m_registry->Unique())
+            {
+                r->SetSceneLights(sceneLights);
+            }
             // Each view draws its own cascades from its scene's caster list.
             u32 casterDraws = 0;
             for (usize i = 0; i < m_views.ActiveCount(); ++i)
