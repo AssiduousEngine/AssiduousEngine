@@ -93,6 +93,45 @@ TEST_CASE("vg.renderer: initialize + prepare a batch (headless Null backend)")
     device.DestroyShaderModule(fs);
 }
 
+TEST_CASE("vg.renderer: a batch whose indices outgrow the frame's buffers draws once they grow")
+{
+    // The growth target came from the vertices alone, so a batch with few vertices and many
+    // indices (three a vertex of capacity is the index buffer's size) asked for the size the
+    // buffers already were, and never drew.
+    rhi::null::NullDevice device{DefaultAllocator()};
+    rhi::ShaderModule* vs = MakeModule(device);
+    rhi::ShaderModule* fs = MakeModule(device);
+    REQUIRE(vs != nullptr);
+    REQUIRE(fs != nullptr);
+    VGRenderer renderer{DefaultAllocator()};
+    REQUIRE(renderer.Initialize(device, *vs, *fs, rhi::TextureFormat::BGRA8UnormSrgb, /*frameCount*/ 2).IsOk());
+
+    VGContext ctx;
+    ctx.FillRect(Rectangle{10, 10, 100, 50}, Color::Red);
+    VGBatch& batch = ctx.GetBatch();
+    REQUIRE(batch.VertexCount() == 4u);
+    REQUIRE(batch.CommandCount() == 1u);
+    const u32 quad[6] = {batch.indices[0], batch.indices[1], batch.indices[2],
+                         batch.indices[3], batch.indices[4], batch.indices[5]};
+    constexpr u32 kIndices = 131072u * 3u + 600u; // past the starting index capacity, by indices alone
+    batch.indices.Clear();
+    for (u32 i = 0; i < kIndices; ++i)
+    {
+        batch.indices.PushBack(quad[i % 6u]);
+    }
+    batch.commands[0].startIndex = 0;
+    batch.commands[0].indexCount = static_cast<i32>(kIndices);
+
+    renderer.BeginFrame(0);
+    CHECK_FALSE(renderer.Prepare(batch, 0, 800, 600).isValid); // this frame's buffers are too small
+    renderer.BeginFrame(1);
+    CHECK(renderer.Prepare(batch, 1, 800, 600).isValid); // the next frame's have grown
+
+    renderer.Dispose();
+    device.DestroyShaderModule(vs);
+    device.DestroyShaderModule(fs);
+}
+
 TEST_CASE("vg.renderer: external texture register / rebind / unregister")
 {
     rhi::null::NullDevice device{DefaultAllocator()};

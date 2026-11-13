@@ -333,8 +333,13 @@ export namespace foundation::vg::renderer
                 // The per-frame buffers are too small for this frame's accumulated geometry. Bump the
                 // target (grown at the next BeginFrame, when the slot is free) and skip this slice.
                 // One frame may blank during a growth step; the next renders.
-                const u32 neededVerts =
+                // The index buffer holds three indices a vertex of capacity, so the target covers
+                // both: one from the vertices alone never grew a list whose indices overflowed first.
+                const u32 neededVertsForVertices =
                     (sliceVertOffset + vertByteSize + boxByteSize) / static_cast<u32>(sizeof(VGRenderVertex)) + 1u;
+                const u32 neededIndices = (sliceIdxOffset + idxByteSize) / static_cast<u32>(sizeof(u32));
+                const u32 neededVertsForIndices = (neededIndices + 2u) / 3u;
+                const u32 neededVerts = Max(neededVertsForVertices, neededVertsForIndices);
                 if (neededVerts > static_cast<u32>(MaxVertexCapacity))
                 {
                     if (!m_capacityWarned)
@@ -1519,13 +1524,15 @@ export namespace foundation::vg::renderer
                     ds.stencilEnabled = true;
                     if (clipped)
                     {
-                        // Inside means clip set and winding != 0: value != 0x80 under a full
-                        // read mask. Pass op Replace (ref 0x80) zeroes the winding while
-                        // restoring the clip mask.
+                        // Inside means clip set and winding != 0: a value above 0x80 under a
+                        // full read mask, so ref 0x80 Less than it (the test is ref OP stencil).
+                        // Outside the clip the value is 0, which NotEqual let through: the cover
+                        // painted everywhere the clip did not reach. Pass op Replace (ref 0x80)
+                        // zeroes the winding while restoring the clip mask.
                         ds.stencilReadMask = 0xFF;
                         ds.stencilWriteMask = 0xFF;
                         ds.stencilFront =
-                            rhi::StencilFaceState{rhi::CompareFunction::NotEqual,
+                            rhi::StencilFaceState{rhi::CompareFunction::Less,
                                                   rhi::StencilOperation::Keep,
                                                   rhi::StencilOperation::Keep,
                                                   rhi::StencilOperation::Replace};

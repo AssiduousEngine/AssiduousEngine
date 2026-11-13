@@ -675,6 +675,88 @@ namespace
     }
 }
 
+namespace
+{
+    // A concave shape over the whole canvas, filled inside a rounded clip: a stencil-then-cover
+    // fill under a clip. Its cover passed wherever the stencil was not the clip value, which
+    // includes everywhere outside the clip (stencil 0), so it painted the corners.
+    void ProbeClippedStencilFill(rhi::Device& device, const char* name)
+    {
+        INFO(doctest::String(name));
+        const Pixels px = RenderScene(
+            device,
+            [](vg::VGContext& ctx)
+            {
+                vg::PathBuilder clip;
+                vg::ShapeBuilder::BuildRoundedRect(Rectangle{16, 16, 96, 96}, vg::CornerRadii{24, 24, 24, 24}, clip);
+                ctx.PushClipPath(clip.ToPath());
+                vg::PathBuilder dented; // the canvas with a notch cut up from its bottom edge to the middle
+                dented.MoveTo(0, 0);
+                dented.LineTo(128, 0);
+                dented.LineTo(128, 128);
+                dented.LineTo(64, 64);
+                dented.LineTo(0, 128);
+                dented.Close();
+                ctx.FillPath(dented.ToPath(), ByteColor(255, 0, 0), vg::FillRule::NonZero, false);
+                ctx.PopClipPath();
+                // The clip mask is intact after the fill: a fill after the pop covers everything.
+                vg::PathBuilder band;
+                band.MoveTo(0, 120);
+                band.LineTo(128, 120);
+                band.LineTo(128, 128);
+                band.LineTo(0, 128);
+                band.Close();
+                ctx.FillPath(band.ToPath(), ByteColor(0, 0, 255), vg::FillRule::NonZero, false);
+            });
+        REQUIRE(px.valid);
+        const auto red = [&](u32 x, u32 y) { return px.At(x, y)[0] > 200 && px.At(x, y)[2] < 60; };
+        const auto dark = [&](u32 x, u32 y) { return px.At(x, y)[0] < 40 && px.At(x, y)[1] < 40 && px.At(x, y)[2] < 40; };
+        const auto blue = [&](u32 x, u32 y) { return px.At(x, y)[2] > 200 && px.At(x, y)[0] < 60; };
+        CHECK(red(40, 40));    // inside the shape and the clip
+        CHECK(red(100, 40));
+        CHECK(dark(4, 4));     // inside the shape, outside the clip
+        CHECK(dark(124, 60));
+        CHECK(dark(20, 20));   // inside the shape, outside the clip's rounded corner
+        CHECK(dark(64, 100));  // inside the clip, in the notch
+        CHECK(blue(4, 124));   // after the pop, outside where the clip was
+        CHECK(blue(64, 124));
+    }
+}
+
+TEST_CASE("vg.pixels: a stencil-then-cover fill under a clip path stays inside the clip")
+{
+    rhi::Backend* vulkan = nullptr;
+    (void)rhi::vk::CreateBackend(rhi::vk::VkBackendDesc{}, vulkan);
+    rhi::Backend* webgpu = nullptr;
+    (void)rhi::webgpu::CreateBackend(rhi::webgpu::WebGpuBackendDesc{}, webgpu, DefaultAllocator());
+    if (rhi::Device* device = MakeDevice(vulkan))
+    {
+        ProbeClippedStencilFill(*device, "vulkan");
+        device->Destroy();
+    }
+    else
+    {
+        MESSAGE("Vulkan unavailable - vulkan clipped stencil fill probe skipped");
+    }
+    if (rhi::Device* device = MakeDevice(webgpu))
+    {
+        ProbeClippedStencilFill(*device, "webgpu");
+        device->Destroy();
+    }
+    else
+    {
+        MESSAGE("WebGPU unavailable - webgpu clipped stencil fill probe skipped");
+    }
+    if (vulkan != nullptr)
+    {
+        vulkan->Destroy();
+    }
+    if (webgpu != nullptr)
+    {
+        webgpu->Destroy();
+    }
+}
+
 TEST_CASE("vg.pixels: clip paths nest as intersections, with a clip rect inside one")
 {
     rhi::Backend* vulkan = nullptr;
