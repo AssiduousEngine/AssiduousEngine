@@ -634,6 +634,55 @@ TEST_CASE("RenderFrame keeps skinned and unskinned instances of one mesh in runs
     CHECK(mixed > alike); // the posed half draws in a run of its own
 }
 
+TEST_CASE("RenderFrame gives a two-sided material's depth pass its own faces, not the back-culled default")
+{
+    RenderHarness h;
+    if (!h.Init(256, 256))
+    {
+        return;
+    }
+    shaders::ShaderSystem shaderSystem(*h.compiler, h.device);
+    WireEngineShaders(shaderSystem);
+    materials::PipelineStateCache psoCache(shaderSystem, h.device);
+    materials::MaterialSystem materialSystem;
+    REQUIRE(materialSystem.Initialize(h.device).IsOk());
+    MeshRenderer meshRenderer(DefaultAllocator(), h.device, shaderSystem, psoCache, materialSystem, /*framesInFlight*/ 2);
+    REQUIRE(meshRenderer.Initialize().IsOk());
+    RendererRegistry registry;
+    registry.Register(&meshRenderer);
+    RenderFrame frame(DefaultAllocator(), h.device, registry, /*framesInFlight*/ 2);
+    RefPtr<geometry::StaticMesh> cube = geometry::Primitives::Cube(DefaultAllocator(), 1.0f);
+    RefPtr<materials::Material> solid = materials::MaterialBuilder(u8"solid").Shader(u8"forward").Build();
+    RefPtr<materials::Material> card = materials::MaterialBuilder(u8"card").Shader(u8"forward").DoubleSided().Build();
+    ViewCamera camera;
+    camera.view = Float4x4::LookAtRH(Float3{0, 0, 20}, Float3{0, 0, 0}, Float3{0, 1, 0});
+    camera.projection = Float4x4::PerspectiveFovRH(1.0472f, 1.0f, 0.1f, 100.0f);
+    ViewSettings settings;
+    const auto render = [&](bool withCard)
+    {
+        ExtractedScene scene{DefaultAllocator()};
+        for (int n = 0; n < (withCard ? 2 : 1); ++n)
+        {
+            MeshRenderData* rd = scene.Add<MeshRenderData>();
+            rd->world = Float4x4::Translation(Float3{static_cast<f32>(n) * 2.0f, 0, 0});
+            rd->worldCenter = Float3{static_cast<f32>(n) * 2.0f, 0, 0};
+            rd->mesh = cube.Get();
+            rd->material = n == 0 ? solid.Get() : card.Get();
+            rd->sortBatchKey = BatchKey(rd->mesh, rd->material);
+            rd->category = RenderCategories::Opaque;
+        }
+        frame.Begin(*h.encoder, 0);
+        frame.AddView(scene, camera, settings, h.colorView, rhi::TextureFormat::BGRA8Unorm, 256, 256);
+        frame.End();
+        return psoCache.Size();
+    };
+    const usize solidOnly = render(false);
+    const usize withCard = render(true);
+    // The card's forward pipeline, and its prepass one: the prepass was the solid one's (culled
+    // back) before, so the card added only one.
+    CHECK(withCard >= solidOnly + 2u);
+}
+
 TEST_CASE("RenderFrame parallel emit: many distinct draws fan out across the job system")
 {
     RenderHarness h;

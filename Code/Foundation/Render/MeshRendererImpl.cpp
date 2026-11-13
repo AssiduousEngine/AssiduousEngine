@@ -2068,9 +2068,11 @@ namespace foundation::render
         {
             choice.config.shaderName = own;
         }
-        if (pick && material != nullptr)
+        if (material != nullptr)
         {
-            choice.config.cullMode = material->pipeline.cullMode; // a two-sided material picks both faces
+            // The material's faces, in every depth-like pass: a two-sided card casts its shadow and
+            // fills the prepass from both sides, and picks from both, as the forward draws it.
+            choice.config.cullMode = material->pipeline.cullMode;
         }
         // An active effect's block is in the material's set (b1), so its draw binds the set.
         choice.materialSet = masked || effects != shaders::ShaderFlags::None || !own.IsEmpty();
@@ -2109,6 +2111,7 @@ namespace foundation::render
         // architectural casters get tight contacts. Curved casters (spheres) keep a small grazing-contact
         // gap inherent to shadow maps; a contact or screen-space shadow pass would close it, where a
         // cull-mode or bias change only moves the gap onto flat casters, which are far more common.
+        // A material's own cull mode replaces it (DepthLikeFor): a two-sided one casts from both.
         c.cullMode = materials::CullModeConfig::Back;
         // Hardware depth bias: a constant offset and a slope-scaled term, applied in shadow-map depth
         // space (so it adds little visible spatial gap, unlike the normal offset). Pairs with the
