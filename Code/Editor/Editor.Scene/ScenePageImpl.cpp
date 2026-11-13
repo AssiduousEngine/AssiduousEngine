@@ -703,28 +703,32 @@ namespace editor
             m_context->Notify(NoticeKind::Warning, Format(u8"'{}' did not load, so it is not saved over: the Console says why.", m_title).AsView());
             return Status{ErrorCode::NotSupported};
         }
-        const bool isPrefab = instance->TypeName() == StringView(u8"PrefabDocument");
-        if (isPrefab)
+        // During Simulate the scene holds what the run did to it; the scene the edits made is the
+        // one Simulate started from, rebuilt aside from its snapshot.
+        const bool simulating = IsSimulating();
+        foundation::scene::Scene* source = m_scene;
+        if (simulating)
         {
-            if (const String refused = PrefabFlows::SaveRefusal(*m_scene, InstanceId()); !refused.IsEmpty())
+            source = m_sceneManager.CreateScene(m_scene->Name(), false);
+            source->SetSimulationEnabled(false);
+            if (const Status rebuilt = m_simulation.RestoreStartInto(*source); !rebuilt.IsOk())
             {
-                m_context->Notify(NoticeKind::Warning, refused.AsView());
-                return Status{ErrorCode::InvalidArgument};
+                m_sceneManager.DestroyScene(source);
+                m_context->Notify(NoticeKind::Error, Format(u8"'{}' was not saved: the scene Simulate started from could not be rebuilt. Stop Simulate and save again.", m_title).AsView());
+                return rebuilt;
             }
         }
-        // What the animation panel posed is not part of the scene: save the scene as it is, then
-        // pose again.
-        if (m_animation)
-            m_animation->StopPreview();
-        const Status saved = isPrefab ? scene::SavePrefab(*m_scene, *instance) : scene::SaveScene(*m_scene, *instance);
-        if (m_animation)
-            m_animation->Repose();
+        const Status saved = SaveSceneFrom(*source, *instance);
+        if (simulating)
+            m_sceneManager.DestroyScene(source);
         if (!saved.IsOk())
             return saved;
         ClearDirty();
+        const bool isPrefab = instance->TypeName() == StringView(u8"PrefabDocument");
         LOG_INFO(u8"Editor", u8"saved {} '{}'", isPrefab ? StringView(u8"prefab") : StringView(u8"scene"), m_title);
-        // The launcher's picture of the project follows its default scene as it is saved.
-        if (!isPrefab && IsProjectDefaultScene())
+        // The launcher's picture of the project follows its default scene as it is saved (a
+        // running Simulate would picture the run, not the scene).
+        if (!isPrefab && !simulating && IsProjectDefaultScene())
             (void)RequestProjectThumbnail();
         // The template changed: its instances in every other open scene rebuild, their overrides
         // kept.
@@ -735,6 +739,28 @@ namespace editor
         // would tell it.
         if (isPrefab)
             m_context->ReloadAuthoredResource(InstanceId());
+        return saved;
+    }
+
+    Status SceneEditorPage::SaveSceneFrom(foundation::scene::Scene& source, foundation::content::Instance& instance)
+    {
+        const bool isPrefab = instance.TypeName() == StringView(u8"PrefabDocument");
+        if (isPrefab)
+        {
+            if (const String refused = PrefabFlows::SaveRefusal(source, InstanceId()); !refused.IsEmpty())
+            {
+                m_context->Notify(NoticeKind::Warning, refused.AsView());
+                return Status{ErrorCode::InvalidArgument};
+            }
+        }
+        // What the animation panel posed is not part of the scene: save the scene as it is, then
+        // pose again.
+        const bool posed = &source == m_scene && m_animation;
+        if (posed)
+            m_animation->StopPreview();
+        const Status saved = isPrefab ? scene::SavePrefab(source, instance) : scene::SaveScene(source, instance);
+        if (posed)
+            m_animation->Repose();
         return saved;
     }
 
@@ -752,14 +778,32 @@ namespace editor
     {
         if (m_scene == nullptr || m_context->Project() == nullptr)
             return;
-        foundation::content::Instance* instance = m_context->Project()->SourceDb().GetInstance(InstanceId());
-        if (instance == nullptr)
-            return;
         if (IsDirty())
         {
             m_context->Notify(NoticeKind::Warning, Format(u8"'{}' changed on disk but has unsaved edits here - not refreshed.", m_title).AsView());
             return;
         }
+        if (IsSimulating())
+        {
+            m_context->Notify(NoticeKind::Warning, Format(u8"'{}' changed on disk while it simulates - stop Simulate and reload it to see the change.", m_title).AsView());
+            return;
+        }
+        (void)ReloadFromSource();
+    }
+
+    bool SceneEditorPage::DiscardChanges()
+    {
+        StopSimulation();
+        return UIEditorPage::DiscardChanges();
+    }
+
+    bool SceneEditorPage::ReloadFromSource()
+    {
+        if (m_scene == nullptr || m_context->Project() == nullptr || IsSimulating())
+            return false;
+        foundation::content::Instance* instance = m_context->Project()->SourceDb().GetInstance(InstanceId());
+        if (instance == nullptr)
+            return false;
         // The same entities come back from the stream; the history predates the reload and would
         // replay onto the old content, so it goes.
         while (m_scene->GetFirstRoot().IsAssigned())
@@ -770,7 +814,8 @@ namespace editor
         m_loadFailed = !LoadEditorScene(*m_context, *instance, *m_scene).IsOk() && instance->ReadData(u8"scene").Get() != nullptr;
         if (gui::Node* state = Find<gui::Node>(u8"scene-state"))
             state->SetDisplayed(m_loadFailed);
-        ClearDirty(); // Commands().Clear() told OnChanged, which marks it dirty
+        ClearDirty();
+        return true;
     }
 
     void SceneEditorPage::StartSimulation()

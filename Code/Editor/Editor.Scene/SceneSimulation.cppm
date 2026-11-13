@@ -98,6 +98,14 @@ export namespace editor
             scene.SetSimulationEnabled(!paused);
             m_run.SetPaused(paused);
         }
+        /// Builds the scene as it was when Simulate started into `into`, an empty scene (a save
+        /// during Simulate writes that, not what the run changed). NotFound when not running.
+        [[nodiscard]] Status RestoreStartInto(foundation::scene::Scene& into) const
+        {
+            if (!m_running || !m_snapshot)
+                return Status{ErrorCode::NotFound};
+            return m_snapshot->Restore(into);
+        }
         /// Stops and restores the snapshot into `scene`, its resources resolved through `resources`
         /// (null: none), `commands` unlocked. The run's session ends last, after the scene's
         /// behaviours have stopped, taking down what they left on screen and playing.

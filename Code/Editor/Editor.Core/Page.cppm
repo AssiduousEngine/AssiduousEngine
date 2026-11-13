@@ -75,16 +75,14 @@ export namespace editor
     };
 
     // One open document. Owns its command stack; the context routes Edit > Undo and Redo to the
-    // active page's stack. The base wires `Commands().OnChanged` to mark the page dirty.
+    // active page's stack. The page is unsaved when its history has left the point last saved, or
+    // when it changed without a step (MarkDirty).
     class EditorPage
     {
     public:
         // The allocator (required; the page factory forwards the EditorContext's tagged "Editor"
         // root) backs everything this page creates.
-        explicit EditorPage(IAllocator& allocator) : m_allocator(&allocator)
-        {
-            m_commands.OnChanged = [this]() { m_dirty = true; };
-        }
+        explicit EditorPage(IAllocator& allocator) : m_allocator(&allocator) {}
 
         [[nodiscard]] IAllocator& Allocator() const noexcept { return *m_allocator; }
         virtual ~EditorPage() = default;
@@ -97,24 +95,42 @@ export namespace editor
         /// Persist the edited object(s) back to the source database. Clears dirty on success.
         [[nodiscard]] virtual Status Save() = 0;
 
-        [[nodiscard]] bool IsDirty() const noexcept { return m_dirty; }
-        void MarkDirty() noexcept { m_dirty = true; }
-        void ClearDirty() noexcept { m_dirty = false; }
-
-        /// Revert all unsaved edits to the last-saved state (the toolbar's "Discard Changes").
-        /// The default undoes the whole command stack, then clears it and the dirty flag, which is
-        /// correct for pages that route every edit through commands. Pages that change state
-        /// directly (or cache loaded content) override it to reload from the last-saved snapshot or
-        /// the source database.
-        virtual void DiscardChanges()
+        [[nodiscard]] bool IsDirty() const noexcept { return m_markedDirty || !m_commands.IsAtSaved(); }
+        /// The page changed without a step in its history.
+        void MarkDirty() noexcept { m_markedDirty = true; }
+        /// What the page shows is what its file holds (after a save or a load).
+        void ClearDirty() noexcept
         {
-            while (m_commands.CanUndo())
+            m_markedDirty = false;
+            m_commands.MarkSaved();
+        }
+
+        /// Puts the page back to what its file holds (the toolbar's "Discard Changes"): the history
+        /// goes back to the point last saved, or, when it no longer holds that point or the page
+        /// changed without a step, the page reads its file again (ReloadFromSource). The history
+        /// is dropped after. False, with the edits kept, when neither can be done: the history is
+        /// locked (a scene page stops Simulate first), or the page cannot read its file.
+        virtual bool DiscardChanges()
+        {
+            if (m_commands.IsLocked())
             {
-                m_commands.Undo();
+                return false;
+            }
+            if (m_markedDirty || !m_commands.ReturnToSaved())
+            {
+                if (!ReloadFromSource())
+                {
+                    return false;
+                }
             }
             m_commands.Clear();
             ClearDirty();
+            return true;
         }
+
+        /// Reads the page's file again and shows it, dropping the history. False, with nothing
+        /// changed, when the page has no file or it does not read.
+        virtual bool ReloadFromSource() { return false; }
 
         [[nodiscard]] EditorCommandStack& Commands() noexcept { return m_commands; }
 
@@ -193,7 +209,6 @@ export namespace editor
         IAllocator* m_allocator;
         EditorCommandStack m_commands;
         Guid m_instanceId{};
-        bool m_dirty = false;
 
     private:
         friend class EditorContext; // tells it its asset went, and that it came back
@@ -213,6 +228,7 @@ export namespace editor
             m_deletedTypeName.Clear();
         }
 
+        bool m_markedDirty = false; // changed without a step in the history
         HashMap<TypeId, IPageService*> m_services; // keyed like the SubsystemManager's subsystems
         // Where its asset's record lived when its file went outside the editor, and its stored type.
         bool m_assetDeleted = false;

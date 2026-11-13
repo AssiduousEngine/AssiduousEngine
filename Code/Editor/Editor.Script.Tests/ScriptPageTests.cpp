@@ -168,6 +168,30 @@ TEST_CASE("script page: the source read and checked, a broken edit's problem on 
     CHECK(page->ErrorCount() == 0u);
 }
 
+TEST_CASE("script page: Discard puts back the source as last saved, and the code's history goes with the page's")
+{
+    Bed bed;
+    UniquePtr<ScriptEditorPage> page = bed.Open(*bed.hero);
+    REQUIRE(page->Code() != nullptr);
+    page->Code()->SetCaret(gui::CodePosition{0, 0});
+    page->Code()->Type(u8"// saved\n");
+    REQUIRE(page->Save().IsOk());
+    page->Code()->Type(u8"// not saved\n");
+    REQUIRE(page->IsDirty());
+
+    CHECK(page->DiscardChanges());
+    CHECK_FALSE(page->IsDirty());
+    CHECK(page->Text().AsView().StartsWith(u8"// saved\n"));
+    CHECK_FALSE(page->Text().AsView().Contains(u8"// not saved"));
+    CHECK_FALSE(page->Commands().CanUndo());
+    CHECK(page->Code()->GetDocument().UndoCount() == 0u);
+
+    // Typing after the discard is a step of its own again.
+    page->Code()->Type(u8"x");
+    CHECK(page->IsDirty());
+    CHECK(page->Commands().CanUndo());
+}
+
 TEST_CASE("script page: a source that is not there is a problem, the code read only, Save refused")
 {
     Bed bed;

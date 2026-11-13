@@ -44,7 +44,7 @@ export namespace editor
         [[nodiscard]] bool HasClip() const noexcept { return !m_id.IsNil(); }
         [[nodiscard]] const Guid& ClipId() const noexcept { return m_id; }
         [[nodiscard]] StringView Name() const noexcept { return m_name.AsView(); }
-        [[nodiscard]] bool IsDirty() const noexcept { return HasClip() && m_commands.UndoIndex() != m_savedAt; }
+        [[nodiscard]] bool IsDirty() const noexcept { return HasClip() && !m_commands.IsAtSaved(); }
         [[nodiscard]] const foundation::propertyanimation::PropertyAnimationClip& Clip() const noexcept { return m_clip; }
         /// The clip's length: the authored length or its last key's time, whichever is later (at
         /// least a second).
@@ -77,8 +77,6 @@ export namespace editor
         Guid m_id;
         String m_name;
         EditorCommandStack m_commands;
-        static constexpr i64 kNeverSaved = -2; // the history no longer contains the saved state
-        i64 m_savedAt = -1;                    // the history's position when last saved (or loaded)
         foundation::propertyanimation::PropertyAnimationClip m_gestureBefore;
         bool m_inGesture = false;
     };

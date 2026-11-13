@@ -145,6 +145,31 @@ export namespace editor::app
             return saved;
         }
 
+        /// Reads the source file and the asset again. Replacing the text drops the code's own
+        /// history with the page's.
+        bool ReloadFromSource() override
+        {
+            String text;
+            if (m_read)
+            {
+                Result<Array<byte>> bytes = ReadFile(m_sourcePath.AsView());
+                if (!bytes.HasValue())
+                    return false;
+                text = String(StringView(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size()));
+            }
+            if (!AssetObjectPage::ReloadFromSource())
+                return false;
+            if (m_read)
+            {
+                m_saved = Move(text);
+                if (m_code != nullptr)
+                    m_code->SetText(m_saved.AsView());
+            }
+            ClearDirty(); // the new text marked the page changed
+            CheckSoon();
+            return true;
+        }
+
         /// Checks the code now with the page's check, showing the problems in the list and on their lines.
         void CheckNow()
         {

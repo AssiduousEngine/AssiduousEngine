@@ -68,6 +68,12 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   another group takes its own source file instead of writing over the first one's, and
   `asset_create` refuses a name the New dialog refuses. A glTF's sidecar whose uri is absolute or
   leaves the model's folder is not copied.
+- Editor: Discard Changes goes back to the page's last save. It undid every step since the page
+  opened, past a save, and marked the page saved; during Simulate it froze the editor. It stops
+  Simulate first now, and a page whose history no longer reaches the save reads its file again.
+  Undoing back to the save marks the page saved.
+- Editor: Save during Simulate writes the scene as it was when Simulate started. It wrote what the
+  run had done to it.
 
 ## 0.1.0-beta.3 - 2026-11-12
 

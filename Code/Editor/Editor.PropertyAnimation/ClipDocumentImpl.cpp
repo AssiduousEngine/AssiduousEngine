@@ -65,7 +65,7 @@ namespace editor
         m_id = clipId;
         m_name = String(instance->Name());
         m_commands.Clear();
-        m_savedAt = m_commands.UndoIndex();
+        m_commands.MarkSaved();
         Changed();
         return true;
     }
@@ -83,7 +83,7 @@ namespace editor
             LOG_WARNING(u8"Editor", u8"writing the clip '{}' failed", m_name);
             return written;
         }
-        m_savedAt = m_commands.UndoIndex();
+        m_commands.MarkSaved();
         m_context->RequestCook(false);
         Changed(); // updates the unsaved mark
         return written;
@@ -96,7 +96,7 @@ namespace editor
         m_id = Guid{};
         m_name = String{};
         m_commands.Clear();
-        m_savedAt = m_commands.UndoIndex();
+        m_commands.MarkSaved();
         Changed();
     }
 
@@ -146,10 +146,6 @@ namespace editor
         // The length never cuts a key off.
         m_clip.duration = Max(m_clip.duration, m_clip.ComputeDuration());
         propanim::PropertyAnimationClip after = m_clip;
-        // A step taken below the saved position removes the save from the history, so no position
-        // counts as saved now.
-        if (m_savedAt > m_commands.UndoIndex())
-            m_savedAt = kNeverSaved;
         (void)m_commands.Execute(UniquePtr<IEditorCommand>(EditorRootAllocator().New<Step>(*this, typeId, Move(before), Move(after)), EditorRootAllocator()));
     }
 

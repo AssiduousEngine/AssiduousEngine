@@ -37,6 +37,13 @@ namespace editor
             IEditorCommand& top = *m_stack[static_cast<usize>(m_undoIndex)];
             if (top.TypeId() == command->TypeId() && command->MergeInto(top))
             {
+                // A merge is a new step, as a push is: what was undone no longer follows it.
+                TruncateRedo();
+                // The saved step now holds more than was saved.
+                if (m_savedIndex == m_undoIndex)
+                {
+                    LoseSaved();
+                }
                 const bool ok = top.Execute();
                 DIAGNOSTIC_ASSERT(ok); // re-executing a merged command must not fail
                 (void)ok;
@@ -59,12 +66,12 @@ namespace editor
 
     bool EditorCommandStack::CanRedo() const noexcept
     {
-        return !m_inGroup && m_undoIndex + 1 < static_cast<i64>(m_stack.Size());
+        return !m_locked && !m_inGroup && m_undoIndex + 1 < static_cast<i64>(m_stack.Size());
     }
 
     void EditorCommandStack::Undo()
     {
-        if (m_locked || !CanUndo())
+        if (!CanUndo())
         {
             return;
         }
@@ -92,7 +99,7 @@ namespace editor
 
     void EditorCommandStack::Redo()
     {
-        if (m_locked || !CanRedo())
+        if (!CanRedo())
         {
             return;
         }
@@ -138,6 +145,11 @@ namespace editor
                 auto& end = static_cast<detail::EndGroupCommand&>(top);
                 if (!end.locked && end.GroupType() == groupType)
                 {
+                    // The saved point ends a group this one reopens: it falls inside a group.
+                    if (m_savedIndex == m_undoIndex)
+                    {
+                        LoseSaved();
+                    }
                     m_stack.PopBack();
                     --m_undoIndex;
                     m_inGroup = true;
@@ -191,13 +203,43 @@ namespace editor
     void EditorCommandStack::Clear()
     {
         DIAGNOSTIC_ASSERT(!m_inGroup);
+        m_savedIndex = IsAtSaved() ? -1 : kSavedLost;
         m_stack.Clear();
         m_undoIndex = -1;
         Notify();
     }
 
+    void EditorCommandStack::MarkSaved() noexcept
+    {
+        m_savedIndex = m_inGroup ? kSavedLost : m_undoIndex;
+    }
+
+    bool EditorCommandStack::ReturnToSaved()
+    {
+        if (m_locked || m_inGroup || m_savedIndex == kSavedLost)
+        {
+            return false;
+        }
+        // Undo and Redo step over a whole group, and a saved point is never inside one (MarkSaved,
+        // BeginGroup), so stepping toward it lands on it.
+        while (m_undoIndex > m_savedIndex)
+        {
+            Undo();
+        }
+        while (m_undoIndex < m_savedIndex)
+        {
+            Redo();
+        }
+        DIAGNOSTIC_ASSERT(IsAtSaved());
+        return true;
+    }
+
     void EditorCommandStack::TruncateRedo()
     {
+        if (m_savedIndex > m_undoIndex)
+        {
+            LoseSaved();
+        }
         while (static_cast<i64>(m_stack.Size()) > m_undoIndex + 1)
         {
             m_stack.PopBack();

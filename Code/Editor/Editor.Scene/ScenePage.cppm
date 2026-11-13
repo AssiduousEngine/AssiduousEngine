@@ -104,7 +104,14 @@ export namespace editor
         void OnClose() override;
 
         // === EditorPage ===
+        /// During Simulate, writes the scene as it was when Simulate started: what the run
+        /// changed is not an edit.
         [[nodiscard]] Status Save() override;
+        /// Stops Simulate first: its run is not an edit, and it locks the history.
+        bool DiscardChanges() override;
+        /// Reads the scene again from its asset, dropping the history. False while Simulate runs
+        /// (its stop would put the old scene back).
+        bool ReloadFromSource() override;
         /// The clip its animation panel edits, while unsaved, so it is asked about beside the
         /// scene.
         void ListUnsavedBesides(Array<String>& out) const override;
@@ -189,6 +196,9 @@ export namespace editor
         void SaveViewState();
         void RestoreViewState();
         [[nodiscard]] bool IsProjectDefaultScene() const;
+        // Writes `source` (the page's scene, or the one Simulate started from) to `instance`, as
+        // a scene or a prefab.
+        [[nodiscard]] Status SaveSceneFrom(foundation::scene::Scene& source, foundation::content::Instance& instance);
         void Confirm(StringView title, StringView text, StringView verb, Function<void()> yes);
         void Later(Function<void()> work);
         void BuildAnimationPanel(EditorContext& context);

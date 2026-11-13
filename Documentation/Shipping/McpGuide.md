@@ -60,7 +60,8 @@ an obstacle agents should respect needs a static body, and what moves never bake
 zone's Navigation Zone asset, which must be assigned first, the scene itself unchanged - cook
 for the game to see it). A `scene_write` / `prefab_write` / `asset_data_write` over an asset the user has open
 reaches its page at once: a clean page reloads in place, a page with unsaved edits keeps
-them and warns the user - ask before `page_reload` with `force`, which discards them.
+them and warns the user - ask before `page_reload` with `force`, which discards them (back to the
+page's last save; when its file does not read, the call refuses and the changes stay).
 
 The user sees what you do: the editor's MCP panel (View > MCP, or the status bar's MCP item, which
 names a call while it runs) lists every tools/call with its arguments, its answer, how long it took

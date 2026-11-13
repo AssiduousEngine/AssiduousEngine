@@ -362,6 +362,57 @@ TEST_CASE("scene page: Simulate locks the edits and gives the scene back as it w
     page->OnClose();
 }
 
+TEST_CASE("scene page: Save during Simulate writes the scene Simulate started from, not what the run did")
+{
+    Bed bed;
+    UniquePtr<SceneEditorPage> page = bed.Open(*bed.level);
+    const Guid barrel = page->EditContext().CreateEntity(u8"Barrel");
+    REQUIRE_FALSE(barrel.IsNil());
+    REQUIRE(page->IsDirty());
+    page->StartSimulation();
+    REQUIRE(page->IsSimulating());
+    (void)page->ScenePtr()->CreateEntity(u8"Spawned by the run");
+    page->ScenePtr()->DestroyEntity(page->ScenePtr()->FindEntity(bed.crate));
+
+    REQUIRE(page->Save().IsOk());
+    CHECK_FALSE(page->IsDirty()); // the edits are saved; the run is not an edit
+    {
+        scene::Scene stored(DefaultAllocator(), u8"stored");
+        REQUIRE(scene::LoadScene(*bed.level, stored).IsOk());
+        CHECK(stored.FindEntity(barrel).IsAssigned());
+        CHECK(stored.FindEntity(bed.crate).IsAssigned());
+        CHECK_FALSE(stored.FindEntityByName(u8"Spawned by the run").IsAssigned());
+    }
+    // The run goes on as it was, and its stop puts the edited scene back, still saved.
+    CHECK(page->IsSimulating());
+    CHECK(page->ScenePtr()->FindEntityByName(u8"Spawned by the run").IsAssigned());
+    page->StopSimulation();
+    CHECK(page->ScenePtr()->FindEntity(barrel).IsAssigned());
+    CHECK(page->ScenePtr()->FindEntity(bed.crate).IsAssigned());
+    CHECK_FALSE(page->IsDirty());
+    page->OnClose();
+}
+
+TEST_CASE("scene page: Discard during Simulate stops it, then puts the scene back as last saved")
+{
+    Bed bed;
+    UniquePtr<SceneEditorPage> page = bed.Open(*bed.level);
+    const Guid saved = page->EditContext().CreateEntity(u8"Saved");
+    REQUIRE(page->Save().IsOk());
+    const Guid unsaved = page->EditContext().CreateEntity(u8"Unsaved");
+    page->StartSimulation();
+    (void)page->ScenePtr()->CreateEntity(u8"Spawned by the run");
+
+    CHECK(page->DiscardChanges());
+    CHECK_FALSE(page->IsSimulating());
+    CHECK_FALSE(page->IsDirty());
+    CHECK(page->ScenePtr()->FindEntity(saved).IsAssigned());
+    CHECK_FALSE(page->ScenePtr()->FindEntity(unsaved).IsAssigned());
+    CHECK_FALSE(page->ScenePtr()->FindEntityByName(u8"Spawned by the run").IsAssigned());
+    CHECK(page->ScenePtr()->FindEntity(bed.crate).IsAssigned());
+    page->OnClose();
+}
+
 namespace
 {
     // What the runs announce, counted.

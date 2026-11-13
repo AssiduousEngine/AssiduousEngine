@@ -1529,7 +1529,7 @@ export namespace foundation::scene
         /// Drain `scene` and rebuild it from the snapshot. Pass the resource manager to re-bind
         /// component refs immediately (the same post-load resolve pass scene loading runs).
         [[nodiscard]] Status Restore(Scene& scene,
-                                     foundation::resource::ResourceManager* resources = nullptr)
+                                     foundation::resource::ResourceManager* resources = nullptr) const
         {
             // Drain: destroy every root (children go with them). Collect first: destroying
             // while iterating the entity storage is undefined.

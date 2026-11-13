@@ -42,7 +42,10 @@ namespace
             return Status{};
         }
         void OnAssetExternallyModified() override { ++reloads; }
+        // Discard reads the file again for a change made outside the history.
+        bool ReloadFromSource() override { return readable; }
         u32 reloads = 0;
+        bool readable = true;
 
     private:
         String m_title;
@@ -208,6 +211,16 @@ TEST_CASE("page-tools: list, open, focus, the dirty refusals of reload and close
     CHECK(factoryPtr->created == 2u);
     CHECK_FALSE(reload.payload.Get(u8"dirty").AsBool());
     CHECK(reload.payload.Get(u8"active").AsBool());
+    // A file that does not read cannot be gone back to: the changes stay, and the call says so.
+    pageOne->readable = false;
+    pageOne->MarkDirty();
+    reload = Call(server, u8"page_reload",
+                  Format(u8"{{\"guid\":\"{}\",\"force\":true}}", oneGuid.AsView()).AsView());
+    CHECK_FALSE(reload.ok);
+    CHECK(reload.error.AsView().Contains(u8"could not be discarded"));
+    CHECK(pageOne->IsDirty());
+    CHECK(pageOne->reloads == 2u);
+    pageOne->readable = true;
     CHECK(context.OpenPages().Size() == 2u);
 
     pageOne->MarkDirty();

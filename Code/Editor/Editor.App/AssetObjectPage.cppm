@@ -206,6 +206,8 @@ export namespace editor::app
             (void)ReadAgain();
         }
 
+        bool ReloadFromSource() override { return ReadAgain(); }
+
         [[nodiscard]] Status Save() override
         {
             if (m_object.Get() == nullptr || m_context->Project() == nullptr)

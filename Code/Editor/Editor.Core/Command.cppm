@@ -104,7 +104,8 @@ export namespace editor
         // if Execute() failed. May merge into the current top instead of pushing.
         bool Execute(UniquePtr<IEditorCommand> command);
 
-        [[nodiscard]] bool CanUndo() const noexcept { return !m_inGroup && m_undoIndex >= 0; }
+        /// Undo and Redo refuse while locked, so neither is offered then.
+        [[nodiscard]] bool CanUndo() const noexcept { return !m_locked && !m_inGroup && m_undoIndex >= 0; }
         [[nodiscard]] bool CanRedo() const noexcept;
 
         void Undo();
@@ -121,7 +122,19 @@ export namespace editor
         // Prevent the most recent group from coalescing with the next same-type group.
         void LockGroup();
 
+        /// Drops the history. The point it was at stays the saved one when it was saved.
         void Clear();
+
+        /// The history's current point is what the file holds (after a save or a load). Taken
+        /// inside an open group, the point is one no undo or redo lands on, so none counts.
+        void MarkSaved() noexcept;
+        /// Whether the history is at the point last marked saved.
+        [[nodiscard]] bool IsAtSaved() const noexcept { return m_undoIndex == m_savedIndex; }
+        /// Undoes or redoes to the point last marked saved. False, with nothing changed, when the
+        /// stack is locked or in a group, or when the history no longer holds that point: a step
+        /// merged into the saved one, or the steps after it were dropped by a new step taken
+        /// below it. The page then reads its file again instead.
+        bool ReturnToSaved();
 
         // Entry count including group markers (for diagnostics and tests).
         [[nodiscard]] usize Size() const noexcept { return m_stack.Size(); }
@@ -130,11 +143,17 @@ export namespace editor
     private:
         void TruncateRedo();
 
+        /// The saved point no undo or redo reaches any more.
+        void LoseSaved() noexcept { m_savedIndex = kSavedLost; }
+
         void Notify();
+
+        static constexpr i64 kSavedLost = -2;
 
         Array<UniquePtr<IEditorCommand>> m_stack;
         bool m_locked = false;
         i64 m_undoIndex = -1; // index of the last executed (undoable) entry
+        i64 m_savedIndex = -1; // m_undoIndex when last saved, or kSavedLost
         bool m_inGroup = false;
         String m_groupType;
     };

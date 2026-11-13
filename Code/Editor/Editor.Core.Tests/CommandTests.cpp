@@ -3,7 +3,8 @@
 
 // EditorCommandStack tests: execute, undo and redo; a failed execute is dropped; a new command
 // truncates the redo tail; same-type commands merge (slider drags); group transactions undo and
-// redo atomically, coalesce by type, and stay separate after LockGroup.
+// redo atomically, coalesce by type, and stay separate after LockGroup; the saved point, and a
+// page's Discard returning to it.
 
 #include <doctest/doctest.h>
 
@@ -348,6 +349,7 @@ TEST_CASE("command-stack: locked stack refuses execute/undo/redo (Simulate mode)
     stack.SetLocked(true);
     CHECK_FALSE(stack.Execute(makeSet(2))); // refused: no runtime edits on the history
     CHECK(value == 1);
+    CHECK_FALSE(stack.CanUndo()); // nothing offers what Undo refuses
     stack.Undo();
     CHECK(value == 1); // undo refused too
 
@@ -356,4 +358,223 @@ TEST_CASE("command-stack: locked stack refuses execute/undo/redo (Simulate mode)
     CHECK(value == 0); // unlocked: history intact and working
     stack.Redo();
     CHECK(value == 1);
+}
+
+TEST_CASE("command-stack: the saved point follows undo and redo")
+{
+    EditorCommandStack stack;
+    i32 value = 0;
+    CHECK(stack.IsAtSaved()); // an empty history is what was loaded
+
+    REQUIRE(stack.Execute(Add(value, 1)));
+    REQUIRE(stack.Execute(Add(value, 2)));
+    CHECK_FALSE(stack.IsAtSaved());
+    stack.MarkSaved();
+    CHECK(stack.IsAtSaved());
+
+    REQUIRE(stack.Execute(Add(value, 4)));
+    CHECK_FALSE(stack.IsAtSaved());
+    stack.Undo();
+    CHECK(stack.IsAtSaved()); // undone back to what the file holds
+    stack.Undo();
+    CHECK_FALSE(stack.IsAtSaved());
+    CHECK(value == 1);
+
+    // Past the save: going back to it redoes.
+    CHECK(stack.ReturnToSaved());
+    CHECK(value == 3);
+    CHECK(stack.IsAtSaved());
+
+    // After the save: going back to it undoes.
+    stack.Redo();
+    CHECK(value == 7);
+    CHECK(stack.ReturnToSaved());
+    CHECK(value == 3);
+
+    // Dropping the history keeps the point saved when it was.
+    stack.Clear();
+    CHECK(stack.IsAtSaved());
+    REQUIRE(stack.Execute(Add(value, 1)));
+    stack.Clear();
+    CHECK_FALSE(stack.IsAtSaved()); // the history is gone, and the change it made is not saved
+}
+
+TEST_CASE("command-stack: a step below the save removes the save from the history")
+{
+    EditorCommandStack stack;
+    i32 value = 0;
+    REQUIRE(stack.Execute(Add(value, 1)));
+    REQUIRE(stack.Execute(Add(value, 2)));
+    stack.MarkSaved(); // value 3, two steps
+    stack.Undo();
+    stack.Undo();
+    REQUIRE(stack.Execute(Add(value, 10))); // the saved step is dropped
+    REQUIRE(stack.Execute(Add(value, 20))); // the history is two steps long again
+    CHECK(value == 30);
+    CHECK_FALSE(stack.IsAtSaved()); // at the saved position, not the saved state
+    CHECK_FALSE(stack.ReturnToSaved());
+    CHECK(value == 30); // nothing changed
+}
+
+TEST_CASE("command-stack: a step merged into the saved one removes the save, and drops the redo tail")
+{
+    EditorCommandStack stack;
+    i32 value = 0;
+    REQUIRE(stack.Execute(Add(value, 1, true)));
+    stack.MarkSaved();
+    REQUIRE(stack.Execute(Add(value, 5, true))); // a drag continuing into the saved step
+    CHECK(stack.Size() == 1);
+    CHECK_FALSE(stack.IsAtSaved());
+    CHECK_FALSE(stack.ReturnToSaved());
+
+    // A merge is a new step: what was undone before it no longer follows.
+    EditorCommandStack other;
+    i32 n = 0;
+    REQUIRE(other.Execute(Add(n, 1, true)));
+    REQUIRE(other.Execute(Add(n, 100)));
+    other.Undo();
+    REQUIRE(other.Execute(Add(n, 2, true)));
+    CHECK_FALSE(other.CanRedo());
+    CHECK(n == 2);
+}
+
+TEST_CASE("command-stack: a group reopened over the save, or a save inside a group, is no saved point")
+{
+    EditorCommandStack stack;
+    i32 value = 0;
+    stack.BeginGroup(u8"drag");
+    REQUIRE(stack.Execute(Add(value, 1)));
+    stack.EndGroup();
+    stack.MarkSaved();
+    stack.BeginGroup(u8"drag"); // coalesces: the saved end marker is reopened
+    REQUIRE(stack.Execute(Add(value, 1)));
+    stack.EndGroup();
+    CHECK_FALSE(stack.IsAtSaved());
+    CHECK_FALSE(stack.ReturnToSaved());
+
+    EditorCommandStack inside;
+    inside.BeginGroup(u8"drag");
+    REQUIRE(inside.Execute(Add(value, 1)));
+    inside.MarkSaved(); // no undo or redo lands mid-group
+    CHECK_FALSE(inside.IsAtSaved());
+    inside.EndGroup();
+    CHECK_FALSE(inside.ReturnToSaved());
+}
+
+TEST_CASE("command-stack: a locked stack does not go back to the save")
+{
+    EditorCommandStack stack;
+    i32 value = 0;
+    stack.MarkSaved();
+    REQUIRE(stack.Execute(Add(value, 1)));
+    stack.SetLocked(true);
+    CHECK_FALSE(stack.CanRedo());
+    CHECK_FALSE(stack.ReturnToSaved());
+    CHECK(value == 1);
+}
+
+namespace
+{
+    // A page over one number: its "file" holds `stored`, and reading it again can be refused.
+    class NumberPage final : public EditorPage
+    {
+    public:
+        NumberPage() : EditorPage(DefaultAllocator()) {}
+        [[nodiscard]] StringView Title() const override { return u8"number"; }
+        [[nodiscard]] Status Save() override
+        {
+            stored = value;
+            ClearDirty();
+            return Status{};
+        }
+        bool ReloadFromSource() override
+        {
+            ++reloads;
+            if (!readable)
+                return false;
+            value = stored;
+            Commands().Clear();
+            ClearDirty();
+            return true;
+        }
+
+        i32 value = 0;
+        i32 stored = 0;
+        i32 reloads = 0;
+        bool readable = true;
+    };
+}
+
+TEST_CASE("page: Discard goes back to the last save, not past it")
+{
+    NumberPage page;
+    REQUIRE(page.Commands().Execute(Add(page.value, 1)));
+    REQUIRE(page.Save().IsOk());
+    REQUIRE(page.Commands().Execute(Add(page.value, 2)));
+    CHECK(page.IsDirty());
+
+    CHECK(page.DiscardChanges());
+    CHECK(page.value == 1); // the saved step stays applied
+    CHECK_FALSE(page.IsDirty());
+    CHECK(page.reloads == 0); // the history reached the save
+
+    // Undone past the save, Discard redoes back to it.
+    REQUIRE(page.Commands().Execute(Add(page.value, 4)));
+    REQUIRE(page.Save().IsOk());
+    page.Commands().Undo();
+    CHECK(page.value == 1);
+    CHECK(page.IsDirty());
+    CHECK(page.DiscardChanges());
+    CHECK(page.value == 5);
+    CHECK_FALSE(page.IsDirty());
+}
+
+TEST_CASE("page: undoing back to the save makes the page clean")
+{
+    NumberPage page;
+    REQUIRE(page.Commands().Execute(Add(page.value, 1)));
+    CHECK(page.IsDirty());
+    page.Commands().Undo();
+    CHECK_FALSE(page.IsDirty());
+    page.MarkDirty(); // a change outside the history keeps it unsaved
+    CHECK(page.IsDirty());
+}
+
+TEST_CASE("page: Discard reads the file again when the history does not reach the save")
+{
+    NumberPage page;
+    REQUIRE(page.Commands().Execute(Add(page.value, 1)));
+    REQUIRE(page.Save().IsOk());
+    page.Commands().Undo();
+    REQUIRE(page.Commands().Execute(Add(page.value, 7))); // drops the saved step
+    CHECK(page.DiscardChanges());
+    CHECK(page.reloads == 1);
+    CHECK(page.value == 1);
+    CHECK_FALSE(page.IsDirty());
+
+    // A change made outside the history is undone only by reading the file.
+    page.value = 9;
+    page.MarkDirty();
+    CHECK(page.DiscardChanges());
+    CHECK(page.reloads == 2);
+    CHECK(page.value == 1);
+
+    // A file that does not read keeps the edits, and says so.
+    page.readable = false;
+    page.value = 9;
+    page.MarkDirty();
+    CHECK_FALSE(page.DiscardChanges());
+    CHECK(page.value == 9);
+    CHECK(page.IsDirty());
+}
+
+TEST_CASE("page: Discard on a locked history returns at once and keeps the edits")
+{
+    NumberPage page;
+    REQUIRE(page.Commands().Execute(Add(page.value, 1)));
+    page.Commands().SetLocked(true); // Simulate
+    CHECK_FALSE(page.DiscardChanges()); // used to loop on CanUndo while Undo refused
+    CHECK(page.value == 1);
+    CHECK(page.IsDirty());
+    CHECK(page.reloads == 0);
 }

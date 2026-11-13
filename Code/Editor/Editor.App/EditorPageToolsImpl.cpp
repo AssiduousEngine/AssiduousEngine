@@ -165,7 +165,11 @@ namespace editor::app
                     // Discard through the page itself, then refresh. A page refreshes only when
                     // clean (an apply-to-prefab or a re-import leaves a dirty page alone with a
                     // warning), so the discard must come first.
-                    page->DiscardChanges();
+                    if (!page->DiscardChanges())
+                    {
+                        return Err(String(u8"the page's unsaved changes could not be discarded: its file "
+                                          u8"did not read (the Console says why), so they are kept"));
+                    }
                 }
                 page->OnAssetExternallyModified();
                 return PageIdentity(context, *page);
