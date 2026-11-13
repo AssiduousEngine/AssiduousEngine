@@ -153,7 +153,7 @@ export namespace foundation::core
         // can index per-worker scratch without locking.
         [[nodiscard]] u32 CurrentSlot() const noexcept
         {
-            const i32 self = WorkerSlot();
+            const i32 self = CallerWorkerIndex();
             return (self >= 0) ? static_cast<u32>(self) : m_workerCount;
         }
 
@@ -303,7 +303,7 @@ export namespace foundation::core
                 return;
             }
 
-            const i32 self = WorkerSlot();
+            const i32 self = CallerWorkerIndex();
             u32 target;
             if (self >= 0)
             {
@@ -341,7 +341,7 @@ export namespace foundation::core
 
         bool TryGetJob(detail::JobItem& out)
         {
-            const i32 self = WorkerSlot();
+            const i32 self = CallerWorkerIndex();
 
             // 1) own deque (LIFO: cache-friendly)
             if (self >= 0)
@@ -431,7 +431,7 @@ export namespace foundation::core
 
         void WorkerLoop(u32 index)
         {
-            WorkerSlot() = static_cast<i32>(index);
+            CallerIdentity() = WorkerIdentity{this, static_cast<i32>(index)};
             String name;
             AppendFormat(name, u8"Worker {}", index);
             SetCurrentThreadName(name.AsView());
@@ -477,12 +477,24 @@ export namespace foundation::core
 
         static void YieldThread() noexcept { sys::ThreadYield(); }
 
-        // The calling thread's worker slot: a worker's index, or -1 for any non-worker thread.
-        // Defined out of line in JobSystemImpl.cpp: an in-class body is implicitly inline, so
-        // each shared library would get its own thread_local copy, and a worker calling an inline
-        // JobSystem method instantiated in another library would then read -1 and corrupt the
-        // work-stealing deque indexing.
-        static i32& WorkerSlot() noexcept;
+        // Which pool the calling thread works for, and its index there (none: no pool's worker).
+        struct WorkerIdentity
+        {
+            const JobSystem* pool = nullptr;
+            i32 index = -1;
+        };
+        // The calling thread's identity. Defined out of line in JobSystemImpl.cpp: an in-class
+        // body is implicitly inline, so each shared library would get its own thread_local copy,
+        // and a worker calling an inline JobSystem method instantiated in another library would
+        // then read none and corrupt the work-stealing deque indexing.
+        static WorkerIdentity& CallerIdentity() noexcept;
+        // The calling thread's index in this pool, or -1: a worker of another pool is any other
+        // thread here, or its index would reach past this pool's deques.
+        [[nodiscard]] i32 CallerWorkerIndex() const noexcept
+        {
+            const WorkerIdentity& self = CallerIdentity();
+            return self.pool == this ? self.index : -1;
+        }
 
         IAllocator* m_allocator;
         u32 m_workerCount = 0;

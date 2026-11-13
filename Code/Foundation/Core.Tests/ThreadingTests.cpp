@@ -541,3 +541,39 @@ TEST_CASE("cancel: work on another thread stops at its next check once its sourc
     CHECK(steps.load() < 100000000);
 }
 #endif // !PLATFORM_WEB
+
+TEST_CASE("threading: a worker of one pool submitting to another is any other thread there (pools of 6 and 2)")
+{
+    JobSystem wide(DefaultAllocator(), 6);
+    JobSystem narrow(DefaultAllocator(), 2);
+    Atomic<i64> ran{0};
+    Atomic<u32> slotsOutOfRange{0};
+    Atomic<u32> wrongForeignSlot{0};
+    constexpr int kOuter = 300;
+    for (int i = 0; i < kOuter; ++i)
+    {
+        wide.Submit(
+            [&]()
+            {
+                // From the wide pool's worker (index up to 5), the narrow pool sees a stranger.
+                if (narrow.CurrentSlot() != narrow.WorkerCount())
+                {
+                    wrongForeignSlot.fetch_add(1);
+                }
+                narrow.Submit(
+                    [&]()
+                    {
+                        if (narrow.CurrentSlot() > narrow.WorkerCount())
+                        {
+                            slotsOutOfRange.fetch_add(1);
+                        }
+                        ran.fetch_add(1);
+                    });
+            });
+    }
+    wide.WaitForAll();
+    narrow.WaitForAll();
+    CHECK(ran.load() == kOuter);
+    CHECK(wrongForeignSlot.load() == 0u);
+    CHECK(slotsOutOfRange.load() == 0u);
+}

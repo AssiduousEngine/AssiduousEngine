@@ -22,9 +22,9 @@ namespace foundation::core
 
     const JobHooks* CurrentJobHooks() noexcept { return g_jobHooks.load(MemoryOrder::Acquire); }
 
-    i32& JobSystem::WorkerSlot() noexcept
+    JobSystem::WorkerIdentity& JobSystem::CallerIdentity() noexcept
     {
-        static thread_local i32 slot = -1;
+        static thread_local WorkerIdentity slot;
         return slot;
     }
 
