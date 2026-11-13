@@ -183,8 +183,9 @@ Each item names its finding, where it is on master, the test that proves it, and
 - The static shadow layer is cleared whole while only dirty tiles redraw (`PipelineImpl.cpp:1505`):
   load the layer, clear each dirty tile. Render.Backend.Tests.
 - Ambient SH L20 three times too strong (`lighting.hlsli:54`, `ssgi_resolve.ps.hlsl:64`):
-  `0.247708 * (3z^2 - 1)`, one shared evaluator. A visible change: every lit sample darkens or
-  brightens a little with the sky's vertical gradient; the user checks the samples.
+  `0.247708 * (3z^2 - 1)`, one shared evaluator. A visible change: the sky's diffuse light on a
+  surface changes with how the sky varies along world z (front to back: the SH's z axis is
+  horizontal in the Y-up world, so it is not the vertical gradient); the user checks the samples.
   Render.Backend.Tests (an environment varying with z).
 - The render graph orders a reader after its nearest writer only (`RenderGraph.cppm:804-839`;
   latent): every overlapping writer until the range is covered. RenderGraph.Tests.

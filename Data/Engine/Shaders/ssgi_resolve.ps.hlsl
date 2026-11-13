@@ -12,6 +12,7 @@
 // the flat fill, as the forward pass computes them.
 
 #include "push_constant.hlsli"
+#include "sh9.hlsli"
 Texture2D<float4> GiTex       : register(t0, space0);   // current trace (rgb, hit fraction in a)
 Texture2D<float4> HistoryTex  : register(t1, space0);   // previous accumulated GI
 Texture2D         VelocityTex : register(t2, space0);   // screen-space motion (viewport-local uv delta)
@@ -53,18 +54,11 @@ float3 OctDecode(float2 e) {
     n.y += n.y >= 0.0 ? -t : t;
     return normalize(n);
 }
-// The forward pass's SH9 irradiance in direction n (EvalSH9 in lighting.hlsli).
+// The forward pass's SH9 irradiance in direction n (sh9.hlsli, as lighting.hlsli reads it).
 float3 EvalSH9(float3 n) {
-    float3 r = IblSH[0].rgb * 0.886227;
-    r += IblSH[1].rgb * (2.0 * 0.511664 * n.y);
-    r += IblSH[2].rgb * (2.0 * 0.511664 * n.z);
-    r += IblSH[3].rgb * (2.0 * 0.511664 * n.x);
-    r += IblSH[4].rgb * (2.0 * 0.429043 * n.x * n.y);
-    r += IblSH[5].rgb * (2.0 * 0.429043 * n.y * n.z);
-    r += IblSH[6].rgb * (0.743125 * (3.0 * n.z * n.z - 1.0));
-    r += IblSH[7].rgb * (2.0 * 0.429043 * n.x * n.z);
-    r += IblSH[8].rgb * (0.429043 * (n.x * n.x - n.y * n.y));
-    return max(r, 0.0);
+    float3 sh[9];
+    for (uint i = 0; i < 9; ++i) { sh[i] = IblSH[i].rgb; }
+    return EvalSH9Irradiance(sh, n);
 }
 // The ambient radiance the forward pass lit this pixel with (diffuse = albedo * this).
 float3 SkyRadiance(float2 uv) {

@@ -143,6 +143,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Rendering: a double-sided material (foliage cards, a sail, a flag) casts its shadow from both
   sides, and a material that culls front faces casts from its back; shadows always came from the
   front faces.
+- Rendering: the sky's diffuse light is right along world z: one of its nine terms was three
+  times too strong, so a sky brighter to the front or back over- or under-lit surfaces facing
+  those ways. Scenes lit by such a sky look a little different.
 - Rendering: a Static spot or point light keeps its shadow while something moves near another
   Static light; the cached shadows of every other Static light were wiped whenever one of them
   redrew.
