@@ -1099,7 +1099,8 @@ export namespace foundation::gui
         /// Opens `popup` as a child of `owner`, attaching it there if it is not already.
         void OpenPopup(Node& owner, Node& popup, PopupOptions options)
         {
-            if (FindPopup(popup) >= 0)
+            // A popup above its owner (or the owner itself) would take the owner into itself.
+            if (FindPopup(popup) >= 0 || popup.IsAncestorOrSelf(owner))
                 return;
             // A popup opened again while its exit plays is restored, and its exit and pending
             // removal are forgotten.

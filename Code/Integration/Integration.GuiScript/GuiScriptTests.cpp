@@ -1202,6 +1202,35 @@ TEST_CASE("gui-script: Luau opens windows, menus and popups of its own (E16)")
 }
 #endif
 
+#ifdef OPTION_HAS_LUAU
+TEST_CASE("gui-script: a node above the anchor is refused as its popup")
+{
+    RefPtr<IScriptManager> manager = Bound(CreateLuauScriptManager(DefaultAllocator()));
+    GuiBed bed(*manager);
+    const Status loaded = bed.scriptContext->Load(
+        u8"local root = gui.root()\n"
+        u8"local box = root:add(\"Panel\"); box.width = 100; box.height = 60\n"
+        u8"local anchor = box:add(\"Button\"); anchor.width = 80; anchor.height = 30\n"
+        u8"local opened = 1\n"
+        u8"function openAbove() opened = anchor:popup(box) and 1 or 0 end\n"
+        u8"function openSelf() opened = anchor:popup(anchor) and 1 or 0 end\n"
+        u8"function openedLast() return opened end\n"
+        u8"function rootChildren() return root:childCount() end\n"
+        u8"function boxChildren() return box:childCount() end\n",
+        u8"main");
+    INFO(doctest::String(reinterpret_cast<const char*>(bed.errors.last.CStr())));
+    REQUIRE(loaded.IsOk());
+    const f64 rootChildren = bed.Number(u8"rootChildren");
+    bed.Run(u8"openAbove");
+    CHECK(bed.Number(u8"openedLast") == doctest::Approx(0.0));
+    bed.Run(u8"openSelf");
+    CHECK(bed.Number(u8"openedLast") == doctest::Approx(0.0));
+    CHECK(bed.Number(u8"rootChildren") == doctest::Approx(rootChildren)); // the box stays where it was
+    CHECK(bed.Number(u8"boxChildren") == doctest::Approx(1.0));           // the anchor too
+    (void)bed.root->UpdateLayout(); // a loop would never return from this
+}
+#endif
+
 namespace
 {
     // A script's list model and localized texts: the script made a ListModel of three rows,

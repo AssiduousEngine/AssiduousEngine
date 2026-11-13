@@ -108,6 +108,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   no longer corrupts the scene or crashes it.
 - Scripting (Luau): a coroutine that starts coroutines, or whose owner is destroyed while it runs,
   no longer crashes the game; a cancelled coroutine never runs again.
+- GUI: a node can no longer be added under itself or one of its descendants, and `popup` refuses
+  content that holds its anchor; either made the tree a loop and froze the game.
 
 ## 0.1.0-beta.3 - 2026-11-12
 

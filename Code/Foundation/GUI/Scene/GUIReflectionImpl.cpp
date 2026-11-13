@@ -622,7 +622,8 @@ namespace foundation::gui
     {
         Node* node = FromHandle(content);
         EventDispatcher* dispatcher = GetEventDispatcher();
-        if (node == nullptr || node == this || dispatcher == nullptr)
+        // Content above the anchor (or the anchor itself) would carry the anchor into its own popup.
+        if (node == nullptr || node->IsAncestorOrSelf(*this) || dispatcher == nullptr)
             return core::Variant::From<bool>(false);
         node->SetDisplayed(true);
         PopupOptions options;

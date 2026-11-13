@@ -269,3 +269,21 @@ TEST_CASE("node: a child's index follows adds, moves, removes and a move to anot
     CHECK(root->GetChildIndex(kids[2].Get()) == 2);
     CHECK(root->GetChildIndex(nullptr) == kNodeInvalidIndex);
 }
+
+TEST_CASE("node: a node added under itself or one below it is refused, so the tree never loops")
+{
+    auto top = MakeNode();
+    auto middle = MakeNode();
+    auto leaf = MakeNode();
+    top->AddChild(middle.Get());
+    middle->AddChild(leaf.Get());
+    leaf->AddChild(top.Get());    // the root under its own grandchild
+    leaf->AddChild(middle.Get()); // a parent under its child
+    middle->AddChild(middle.Get());
+    CHECK(top->GetParent() == nullptr);
+    CHECK(middle->GetParent() == top.Get());
+    CHECK(leaf->GetParent() == middle.Get());
+    CHECK(leaf->ChildCount() == 0u);
+    CHECK(top->IsAncestorOrSelf(*leaf));
+    CHECK_FALSE(leaf->IsAncestorOrSelf(*top));
+}

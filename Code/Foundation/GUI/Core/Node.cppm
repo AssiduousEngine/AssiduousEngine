@@ -195,6 +195,14 @@ export namespace foundation::gui
         }
         /// Counts changes to the children (added, removed, moved), for caches kept per arrangement.
         [[nodiscard]] u32 ChildrenGeneration() const noexcept { return m_childrenGeneration; }
+        /// Whether this node is `node` or somewhere above it.
+        [[nodiscard]] bool IsAncestorOrSelf(const Node& node) const noexcept
+        {
+            for (const Node* n = &node; n != nullptr; n = n->m_parent)
+                if (n == this)
+                    return true;
+            return false;
+        }
         [[nodiscard]] bool HasChild(const Node* child) const
         {
             return GetChildIndex(child) != kInvalidIndex;
@@ -218,9 +226,11 @@ export namespace foundation::gui
         }
 
         // === Tree mutation === (the tree owns its children through a RefPtr to each)
+        /// Refused for this node or one above it: that would make the tree a loop, which every
+        /// walk up or down then follows for ever.
         virtual Node* AddChild(Node* child)
         {
-            if (child == nullptr || child == this || child->m_parent == this)
+            if (child == nullptr || child->m_parent == this || child->IsAncestorOrSelf(*this))
                 return this;
             RefPtr<Node> keepAlive(child); // keeps the child alive while it is removed from its old parent
             if (child->m_parent != nullptr)

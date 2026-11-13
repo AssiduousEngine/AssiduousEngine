@@ -592,3 +592,18 @@ TEST_CASE("popups: one open that goes back home on close does not keep its root 
     root = core::RefPtr<SceneRoot>{};
     CHECK(weak.Expired());
 }
+
+TEST_CASE("popups: content above its owner is refused, so the owner is never carried into its own popup")
+{
+    Bed bed;
+    auto panel = Make<Probe>(u8"panel");
+    panel->SetSize(core::Float2{100.0f, 100.0f});
+    bed.root->AddChild(panel.Get());
+    auto button = MakeButton(*panel, core::Float2{10.0f, 10.0f});
+    bed.d().OpenPopup(*button, *panel, At(core::Float2{10.0f, 30.0f}));
+    CHECK_FALSE(bed.d().IsPopupOpen(*panel));
+    CHECK(panel->GetParent() == bed.root.Get());
+    CHECK(button->GetParent() == panel.Get());
+    bed.d().OpenPopup(*button, *button, At(core::Float2{10.0f, 30.0f}));
+    CHECK_FALSE(bed.d().IsPopupOpen(*button));
+}
