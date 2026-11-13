@@ -94,7 +94,8 @@ export namespace foundation::render
         // slot and capture state persist across frames). Call once per frame before any Assign.
         void BeginFrame();
 
-        // Map one scene's extracted probes onto persistent array slots (stable per ProbeKey) and append
+        // Map one scene's extracted probes onto persistent array slots (stable per ProbeKey, handed
+        // to another probe only once the first was not assigned in a frame) and append
         // their CPU-side GpuProbe records to this frame's buffer. Called once per extracted scene per
         // frame (frames can render several scenes side by side; each view later reads its own scene's
         // record range, see RangeFor). Re-assigning a scene already seen this frame is a no-op (several
@@ -179,9 +180,13 @@ export namespace foundation::render
             bool captured = false; // a full cube has been captured and prefiltered at least once
             bool dirty = false;    // needs (re)capture this frame
             u32 captureRequest = 0; // the probe's request count when last seen
+            u64 lastSeen = 0;       // the frame the probe was last assigned
         };
 
-        // Stable slot for a probe key: reuse if seen, else claim the next free slot (up to kMaxProbes).
+        // Stable slot for a probe key: reuse if seen, else claim the next unused slot, else take the
+        // slot of the probe seen longest ago that no scene assigned this frame (a probe gone, or one
+        // in a scene no longer drawn, which recaptures if it comes back). Full of this frame's
+        // probes, kInvalidSlot.
         u32 SlotFor(u64 key);
 
         // Cheap change signature over a probe's captured-input state (transform and box). A bit-mixed
@@ -257,6 +262,7 @@ export namespace foundation::render
 
         HashMap<u64, u32> m_slots; // ProbeKey -> array slot (persistent)
         u32 m_nextSlot = 0;
+        u64 m_frame = 0; // BeginFrame's count, for SlotState::lastSeen
         SlotState m_slotState[kMaxProbes];
         GpuProbe m_cpuProbes[kMaxProbes];
         u32 m_active = 0;

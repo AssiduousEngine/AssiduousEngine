@@ -1007,6 +1007,71 @@ TEST_CASE("ReflectionProbeSystem accumulates per-scene ranges (multi-scene frame
     probes.SetRetireQueue(nullptr);
 }
 
+TEST_CASE("ReflectionProbeSystem hands the slot of a probe gone to the next probe")
+{
+    // Slots were claimed for good: once kMaxProbes keys had been seen (probes deleted and added in
+    // the editor, levels loaded one after another), every new probe was dropped.
+    RenderHarness h;
+    if (!h.Init(64, 64))
+    {
+        MESSAGE("DXC/Null unavailable; skipping");
+        return;
+    }
+
+    shaders::ShaderSystem shaderSystem(*h.compiler, h.device);
+    WireEngineShaders(shaderSystem);
+    ReflectionProbeSystem probes(h.device, shaderSystem);
+    REQUIRE(probes.Initialize().IsOk());
+
+    constexpr u32 kMax = ReflectionProbeSystem::kMaxProbes;
+    ExtractedScene level{DefaultAllocator()};
+    Array<ReflectionProbe> first;
+    for (u32 i = 0; i < kMax; ++i)
+    {
+        ReflectionProbe p{};
+        p.key = 100 + i;
+        p.center = Float3{static_cast<f32>(i), 1, 0};
+        first.PushBack(p);
+    }
+    probes.BeginFrame();
+    probes.Assign(&level, Span<const ReflectionProbe>{first.Data(), first.Size()});
+    REQUIRE(probes.ActiveCount() == kMax);
+    for (const ReflectionProbeSystem::CaptureTask& t : probes.Captures())
+    {
+        probes.MarkCaptured(t.slot);
+    }
+
+    // While every slot holds a probe of this frame, one more has nowhere to go.
+    ExtractedScene other{DefaultAllocator()};
+    ReflectionProbe extra{};
+    extra.key = 999;
+    probes.BeginFrame();
+    probes.Assign(&level, Span<const ReflectionProbe>{first.Data(), first.Size()});
+    probes.Assign(&other, Span<const ReflectionProbe>{&extra, 1});
+    CHECK(probes.RangeFor(&other).count == 0u);
+
+    // The probe in slot 3 is deleted: the next frame's new probe takes its slot and captures into
+    // it; the others keep theirs and are not captured again.
+    const f32 freedSlice = probes.CpuProbes()[3].slice;
+    first[3].key = 500;
+    probes.BeginFrame();
+    probes.Assign(&level, Span<const ReflectionProbe>{first.Data(), first.Size()});
+    REQUIRE(probes.ActiveCount() == kMax);
+    CHECK(probes.CpuProbes()[3].slice == doctest::Approx(freedSlice));
+    REQUIRE(probes.Captures().Size() == 1u);
+    CHECK(static_cast<f32>(probes.Captures()[0].slot) == doctest::Approx(freedSlice));
+    probes.MarkCaptured(probes.Captures()[0].slot);
+
+    // A scene that stops drawing gives its slots up in the order its probes were last seen.
+    probes.BeginFrame();
+    probes.Assign(&level, Span<const ReflectionProbe>{first.Data(), first.Size() - 1});
+    probes.BeginFrame();
+    probes.Assign(&other, Span<const ReflectionProbe>{&extra, 1});
+    REQUIRE(probes.ActiveCount() == 1u);
+    CHECK(probes.CpuProbes()[0].slice == doctest::Approx(static_cast<f32>(kMax - 1)));
+    CHECK(probes.Captures().Size() == 1u);
+}
+
 TEST_CASE("IBLSystem: per-scene contexts; env rebuilds when a scene's sky-texture product changes")
 {
     RenderHarness h;

@@ -91,6 +91,7 @@ namespace foundation::render
             m_pipelineShaderVersion = shaderVersion;
         }
 
+        ++m_frame;
         m_active = 0;
         m_captures.Clear();
         m_sceneRanges.Clear();
@@ -147,6 +148,7 @@ namespace foundation::render
             st.signature = sig;
             st.captureRequest = p.captureRequest;
             st.probeKey = p.key;
+            st.lastSeen = m_frame;
             if (st.dirty)
             {
                 // Dedupe by slot (a scene assigned twice, or key reuse, must not double a task).
@@ -359,11 +361,28 @@ namespace foundation::render
         {
             return *found;
         }
-        if (m_nextSlot >= kMaxProbes)
+        u32 slot = kInvalidSlot;
+        if (m_nextSlot < kMaxProbes)
         {
-            return kInvalidSlot;
+            slot = m_nextSlot++;
         }
-        const u32 slot = m_nextSlot++;
+        else
+        {
+            for (u32 i = 0; i < kMaxProbes; ++i)
+            {
+                const SlotState& st = m_slotState[i];
+                if (st.lastSeen < m_frame && (slot == kInvalidSlot || st.lastSeen < m_slotState[slot].lastSeen))
+                {
+                    slot = i;
+                }
+            }
+            if (slot == kInvalidSlot)
+            {
+                return kInvalidSlot; // every slot holds a probe assigned this frame
+            }
+            m_slots.Remove(m_slotState[slot].probeKey);
+            m_slotState[slot] = SlotState{}; // not captured: the new probe captures into it
+        }
         m_slots.InsertOrAssign(key, slot);
         return slot;
     }
