@@ -883,3 +883,200 @@ TEST_CASE("reliable: before a round trip is measured, resends back off")
     CHECK(clientSocket.messagePackets >= 3);
     CHECK(clientSocket.messagePackets <= 5);
 }
+
+namespace
+{
+    // The reliable message ids in a Data packet, read as the transport writes them.
+    void ReliableIdsIn(Span<const byte> data, Array<u16>& out)
+    {
+        net::BitReader r(data);
+        (void)r.ReadU16();
+        if (r.ReadU8() != 2u)
+            return;
+        (void)r.ReadU32(); // token
+        (void)r.ReadU16(); // seq
+        if (r.ReadBool())
+        {
+            (void)r.ReadU16();
+            (void)r.ReadU32();
+        }
+        const u32 count = r.ReadVarU32();
+        for (u32 i = 0; i < count && r.Ok(); ++i)
+        {
+            (void)r.ReadU8();
+            const bool reliable = r.ReadBool();
+            u16 id = 0;
+            if (!reliable)
+            {
+                if (r.ReadBool())
+                    (void)r.ReadU16();
+            }
+            else
+            {
+                id = r.ReadU16();
+                if (r.ReadBool())
+                {
+                    (void)r.ReadVarU32();
+                    (void)r.ReadVarU32();
+                    (void)r.ReadVarU32();
+                }
+            }
+            const u32 len = r.ReadVarU32();
+            for (u32 b = 0; b < len; ++b)
+                (void)r.ReadU8();
+            if (reliable && r.Ok())
+                out.PushBack(id);
+        }
+    }
+
+    class ReliableIdRecorder final : public net::IDatagramSocket
+    {
+    public:
+        explicit ReliableIdRecorder(net::IDatagramSocket& inner) : m_inner(inner) {}
+        void Send(const net::DatagramEndpoint& to, Span<const byte> data) override
+        {
+            ReliableIdsIn(data, ids);
+            m_inner.Send(to, data);
+        }
+        [[nodiscard]] bool Receive(net::DatagramEndpoint& from, Array<byte>& out) override { return m_inner.Receive(from, out); }
+        [[nodiscard]] net::DatagramEndpoint LocalEndpoint() const override { return m_inner.LocalEndpoint(); }
+        Array<u16> ids;
+
+    private:
+        net::IDatagramSocket& m_inner;
+    };
+
+    // A connection made by hand: the handshake through a raw socket, with token `token`.
+    bool RawConnect(net::SimDatagramNetwork& network, net::IDatagramSocket& raw, net::ReliableTransport& server,
+                    const net::DatagramEndpoint& serverEndpoint, u32 token)
+    {
+        raw.Send(serverEndpoint, Handshake(0u, token, 0u).AsSpan());
+        network.Advance(10.0f);
+        server.Update(10.0f);
+        network.Advance(10.0f);
+        const Array<Received> challenge = ReceiveAll(raw);
+        if (challenge.IsEmpty() || challenge[0].type != 4u)
+            return false;
+        raw.Send(serverEndpoint, Handshake(5u, token, challenge[0].cookie).AsSpan());
+        network.Advance(10.0f);
+        server.Update(10.0f);
+        network.Advance(10.0f);
+        (void)ReceiveAll(raw);
+        return true;
+    }
+
+    // One Data packet carrying one reliable message of one byte.
+    Array<byte> ReliableDataPacket(u32 token, u16 seq, u16 id, u8 value)
+    {
+        net::BitWriter w;
+        w.WriteU16(0xDCE8);
+        w.WriteU8(2u);
+        w.WriteU32(token);
+        w.WriteU16(seq);
+        w.WriteBool(false); // no ack
+        w.WriteVarU32(1u);
+        w.WriteU8(0u);      // channel
+        w.WriteBool(true);  // reliable
+        w.WriteU16(id);
+        w.WriteBool(false); // not fragmented
+        w.WriteVarU32(1u);
+        w.WriteU8(value);
+        Array<byte> out;
+        for (byte b : w.Data())
+            out.PushBack(b);
+        return out;
+    }
+}
+
+TEST_CASE("reliable: a peer that stops acking past the queue cap is disconnected")
+{
+    // The unacked queue grew without end while a peer stayed connected and acked nothing.
+    net::SimDatagramNetwork network(DefaultAllocator(), net::SimConditions{});
+    net::IDatagramSocket* cs = network.CreateSocket();
+    net::IDatagramSocket* ss = network.CreateSocket();
+    net::ReliableConfig cfg;
+    cfg.maxQueuedReliable = 10;
+    net::ReliableTransport client(*cs, cfg);
+    net::ReliableTransport server(*ss, cfg);
+    server.SetAccepting(true);
+    const net::PeerId sp = client.Connect(ss->LocalEndpoint());
+    for (int i = 0; i < 10; ++i)
+    {
+        network.Advance(10.0f);
+        client.Update(10.0f);
+        server.Update(10.0f);
+    }
+    REQUIRE(AnyKind(client, net::NetEventKind::Connected));
+    Array<byte> m = Bytes({1});
+    for (int i = 0; i < 10; ++i) // the server is silent from here: nothing is acked
+    {
+        client.Send(sp, 0, m.AsSpan(), net::Reliability::ReliableOrdered);
+    }
+    CHECK(CountKind(client, net::NetEventKind::Disconnected) == 0);
+    client.Send(sp, 0, m.AsSpan(), net::Reliability::ReliableOrdered); // the eleventh
+    CHECK(CountKind(client, net::NetEventKind::Disconnected) == 1);
+}
+
+TEST_CASE("reliable: with nothing acked, no message past the window goes out")
+{
+    // The sender sent every queued message: ids could run past the receiver's buffer and, past
+    // 32768 in flight, past where u16 ids still tell older from newer.
+    net::SimDatagramNetwork network(DefaultAllocator(), net::SimConditions{});
+    net::IDatagramSocket* cs = network.CreateSocket();
+    net::IDatagramSocket* ss = network.CreateSocket();
+    ReliableIdRecorder recorder(*cs);
+    net::ReliableTransport client(recorder);
+    net::ReliableTransport server(*ss);
+    server.SetAccepting(true);
+    const net::PeerId sp = client.Connect(ss->LocalEndpoint());
+    for (int i = 0; i < 10; ++i)
+    {
+        network.Advance(10.0f);
+        client.Update(10.0f);
+        server.Update(10.0f);
+    }
+    REQUIRE(AnyKind(client, net::NetEventKind::Connected));
+    Array<byte> m = Bytes({1});
+    for (int i = 0; i < 3000; ++i)
+    {
+        client.Send(sp, 0, m.AsSpan(), net::Reliability::ReliableOrdered);
+    }
+    for (int i = 0; i < 300; ++i) // 3 s, the server silent
+    {
+        network.Advance(10.0f);
+        client.Update(10.0f);
+    }
+    REQUIRE_FALSE(recorder.ids.IsEmpty());
+    u16 highest = 0;
+    for (u16 id : recorder.ids)
+        highest = Max(highest, id);
+    CHECK(highest == 1023u); // ids 0 to 1023, the window from the oldest unacked
+}
+
+TEST_CASE("reliable: a message past the receive window is not buffered")
+{
+    // Early arrivals were buffered at any distance ahead: a peer could park 32767 messages each.
+    net::SimDatagramNetwork network(DefaultAllocator(), net::SimConditions{});
+    net::IDatagramSocket* raw = network.CreateSocket();
+    net::IDatagramSocket* ss = network.CreateSocket();
+    net::ReliableTransport server(*ss);
+    server.SetAccepting(true);
+    REQUIRE(RawConnect(network, *raw, server, ss->LocalEndpoint(), 99u));
+    REQUIRE(CountKind(server, net::NetEventKind::Connected) == 1);
+
+    u16 seq = 0;
+    const auto deliver = [&](u16 id)
+    {
+        raw->Send(ss->LocalEndpoint(), ReliableDataPacket(99u, seq++, id, static_cast<u8>(id)).AsSpan());
+        network.Advance(10.0f);
+        server.Update(10.0f);
+    };
+    deliver(1029); // 1029 ahead of the next expected id, 0: past the window of 1024
+    for (u16 id = 0; id < 1029; ++id)
+    {
+        deliver(id);
+    }
+    CHECK(CountKind(server, net::NetEventKind::Received) == 1029); // 0 to 1028; 1029 was never kept
+    deliver(1029); // sent again once inside the window, it goes through
+    CHECK(CountKind(server, net::NetEventKind::Received) == 1);
+}

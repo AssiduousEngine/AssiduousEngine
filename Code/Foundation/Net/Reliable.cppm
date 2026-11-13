@@ -50,6 +50,9 @@ export namespace foundation::net
                                    // messages fragment into this-sized pieces and reassemble
         u32 maxPacketsPerUpdate = 64; // most Data packets one update sends a connection (a burst cap)
         u32 maxPeers = 64; // live connections a server holds; a handshake past them is refused
+        // Reliable messages queued to one peer and not yet acked. A peer that stays connected but
+        // stops acking past this is disconnected, rather than the queue growing without end.
+        u32 maxQueuedReliable = 16384;
     };
 
     enum class ConnectionState : u8
@@ -127,6 +130,16 @@ export namespace foundation::net
                 return;
             }
             // Reliable: one message when it fits, else fragment into consecutive-id pieces.
+            const usize pieces = (data.Size() + limit - 1) / limit;
+            if (c->unackedReliable.Size() + Max<usize>(pieces, 1) > m_cfg.maxQueuedReliable)
+            {
+                LOG_WARNING(u8"Net", u8"peer {}: {} reliable messages unacked, over maxQueuedReliable {}, disconnecting",
+                            c->peer, c->unackedReliable.Size(), m_cfg.maxQueuedReliable);
+                SendControl(*c, PacketType::Disconnect);
+                c->state = ConnectionState::Disconnected;
+                PushEvent(NetEventKind::Disconnected, c->peer, 0, {});
+                return;
+            }
             if (data.Size() <= limit)
             {
                 OutMessage m;
@@ -236,6 +249,12 @@ export namespace foundation::net
             Challenge = 4,      // server: the cookie a ConnectResponse must echo
             ConnectResponse = 5 // client: the ConnectRequest again, with the challenge's cookie
         };
+        // Reliable message ids in flight at once: the sender sends none past its oldest unacked id plus
+        // this, and the receiver buffers none past its next expected id plus this. Every id below the
+        // sender's oldest unacked one has reached the receiver, so a sender inside its window is inside
+        // the receiver's. Both ends use it, so it is not a setting; it keeps ids well inside u16's
+        // half range, where SeqGreater stops telling older from newer.
+        static constexpr u16 kReliableWindow = 1024;
         // A handshake packet's size: protocol, type, token and a cookie. A ConnectRequest is padded
         // to it, so a challenge is never bigger than the request that drew it (no amplification
         // toward a spoofed address).
@@ -530,10 +549,19 @@ export namespace foundation::net
             }
             return Clamp(timeout, static_cast<f64>(m_cfg.minResendMs), static_cast<f64>(m_cfg.maxResendMs));
         }
+        // Whether message `m` is inside the send window (unackedReliable is in id order, oldest first).
+        [[nodiscard]] static bool InSendWindow(const Connection& c, const OutMessage& m) noexcept
+        {
+            return static_cast<u16>(m.id - c.unackedReliable[0].id) < kReliableWindow;
+        }
         [[nodiscard]] bool AnyReliableDue(const Connection& c) const noexcept
         {
             for (const OutMessage& m : c.unackedReliable)
             {
+                if (!InSendWindow(c, m))
+                {
+                    break;
+                }
                 if (m_nowMs - m.lastSentMs >= ResendTimeout(c, m))
                 {
                     return true;
@@ -568,6 +596,10 @@ export namespace foundation::net
             usize budget = m_cfg.maxPacketBytes;
             for (OutMessage& m : c.unackedReliable)
             {
+                if (!InSendWindow(c, m))
+                {
+                    break; // waits for the window to move
+                }
                 if (m_nowMs - m.lastSentMs < ResendTimeout(c, m))
                 {
                     continue;
@@ -1005,7 +1037,12 @@ export namespace foundation::net
             }
             else
             {
-                // early arrival: buffer unless already buffered
+                // Early arrival: buffer unless already buffered, or past the window, which a sender
+                // keeping to it never sends (the buffer is bounded by the window, not by the peer).
+                if (static_cast<u16>(id - c.nextInReliableId) >= kReliableWindow)
+                {
+                    return;
+                }
                 for (const BufferedIn& b : c.reorderBuffer)
                 {
                     if (b.id == id)
