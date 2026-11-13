@@ -164,7 +164,7 @@
 			<bool name="overridesOrientation">true</bool>
 			<i32 name="orientation">1</i32>
 			<bool name="includeShaderSource">false</bool>
-			<string name="qualityLevelId">00000000-0000-0000-0000-000000000000</string>
+			<string name="qualityLevelId">ce35f89c-ee65-4712-8dc7-7a17d8ee7bc8</string>
 			<string name="androidApplicationId">com.assiduousengine.skyhopper</string>
 			<u32 name="androidVersionCode">1</u32>
 			<string name="androidVersionName">1.0</string>
