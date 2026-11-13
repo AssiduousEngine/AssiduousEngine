@@ -354,6 +354,46 @@ TEST_CASE("DynamicUniformRing: per-frame regions are disjoint; exhaustion + grow
     CHECK(ring.Generation() == gen1); // no shrink, no realloc
 }
 
+namespace
+{
+    // Warnings in one category, kept for a test to read.
+    struct WarningSink final : ILogSink
+    {
+        explicit WarningSink(StringView category) : m_category(category) {}
+        Array<String> lines;
+        void Write(LogLevel level, StringView category, StringView message) noexcept override
+        {
+            if (level == LogLevel::Warning && category == m_category)
+                lines.PushBack(String(message));
+        }
+
+    private:
+        StringView m_category;
+    };
+}
+
+TEST_CASE("DynamicUniformRing: a ring that runs out says so once, by its label")
+{
+    // A fixed ring that ran out dropped what did not fit without a word.
+    rhi::null::NullDevice device{DefaultAllocator()};
+    DynamicUniformRing ring(device, /*framesInFlight*/ 2, /*slotSize*/ 256, rhi::BufferUsage::Uniform,
+                            u8"test.objects");
+    REQUIRE(ring.Reserve(2));
+    WarningSink sink(u8"Render");
+    GlobalLogger().AddSink(&sink);
+    for (u32 frame = 0; frame < 3; ++frame)
+    {
+        ring.BeginFrame(frame);
+        CHECK(ring.Allocate().ok);
+        CHECK(ring.Allocate().ok);
+        CHECK_FALSE(ring.Allocate().ok); // every frame drops the third
+        ring.EndFrame();
+    }
+    GlobalLogger().RemoveSink(&sink);
+    REQUIRE(sink.lines.Size() == 1u); // the first time only
+    CHECK(sink.lines[0].AsView().Find(StringView(u8"test.objects")) != StringView::kNotFound);
+}
+
 TEST_CASE("ViewUniformRing: one slot per distinct view a frame; a frame of more views grows the next")
 {
     // A renderer resolves several runs per view, and a slot per run spent a ring of eight within one

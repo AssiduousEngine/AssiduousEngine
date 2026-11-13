@@ -322,7 +322,10 @@ export namespace foundation::vg::renderer
 
             // Uniform slots stay a hard cap (one per slice and one per layer, MaxUniformSlots a frame).
             if (sliceUniformSlot >= static_cast<u32>(MaxUniformSlots))
+            {
+                LogUniformSlotsExhausted();
                 return VGRenderSlice{};
+            }
             const u32 curVertCap =
                 static_cast<u32>(m_frameVertexCapacity[static_cast<usize>(frameIndex)]);
             const u32 maxVertBytes = curVertCap * static_cast<u32>(sizeof(VGRenderVertex));
@@ -418,8 +421,12 @@ export namespace foundation::vg::renderer
                 layer.backdropBlur = m_blurPipeline != nullptr ? source.backdropBlur : 0.0f;
                 const bool blurs = layer.blur > 0.0f || layer.backdropBlur > 0.0f;
                 const u32 slots = blurs ? 3u : 1u;
-                layer.valid = parentValid && layer.width > 0 && layer.height > 0 &&
-                              nextUniformSlot + slots <= static_cast<u32>(MaxUniformSlots);
+                const bool slotsRemaining = nextUniformSlot + slots <= static_cast<u32>(MaxUniformSlots);
+                if (!slotsRemaining)
+                {
+                    LogUniformSlotsExhausted();
+                }
+                layer.valid = parentValid && layer.width > 0 && layer.height > 0 && slotsRemaining;
                 if (layer.valid)
                 {
                     layer.uniformOffset = nextUniformSlot * static_cast<u32>(UniformSlotSize);
@@ -1072,6 +1079,17 @@ export namespace foundation::vg::renderer
         // tracks vertexCapacity * 3.
         static constexpr i32 MaxVertexCapacity = 131072 * 16; // ~2.1M vertices (~92 MB a frame at 44 B each)
         static constexpr i32 MaxUniformSlots = 256; // a slice's slot, then one per layer
+
+        // A frame's uniform slots ran out: the slice or layer asking draws nothing. Logged once.
+        void LogUniformSlotsExhausted()
+        {
+            if (!m_uniformSlotsWarned)
+            {
+                m_uniformSlotsWarned = true;
+                LOG_WARNING(u8"VG", u8"uniform slots full ({} per frame), dropping surfaces and layers this frame",
+                            static_cast<u32>(MaxUniformSlots));
+            }
+        }
         static constexpr i32 UniformSlotSize =
             256; // dynamic-offset alignment (>= sizeof(VGUniforms) = 80)
 
@@ -2052,6 +2070,7 @@ export namespace foundation::vg::renderer
         i32 m_targetVertexCapacity = MaxVertices; // desired vertex capacity (verts); only grows
         Array<i32> m_frameVertexCapacity;         // each frame's actual vertex-buffer capacity
         bool m_capacityWarned = false;            // one-shot warn when a batch exceeds the hard ceiling
+        bool m_uniformSlotsWarned = false;        // one-shot warn when a frame's uniform slots run out
 
         // Evicted entries wait here until every in-flight frame has aged past them.
         struct RetiredTexture

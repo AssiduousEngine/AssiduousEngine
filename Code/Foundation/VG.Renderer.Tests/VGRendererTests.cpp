@@ -132,6 +132,49 @@ TEST_CASE("vg.renderer: a batch whose indices outgrow the frame's buffers draws 
     device.DestroyShaderModule(fs);
 }
 
+TEST_CASE("vg.renderer: a frame past its uniform slots says so once")
+{
+    // A slice past the frame's uniform slots drew nothing, without a word.
+    struct WarningSink final : ILogSink
+    {
+        Array<String> lines;
+        void Write(LogLevel level, StringView category, StringView message) noexcept override
+        {
+            if (level == LogLevel::Warning && category == StringView(u8"VG"))
+                lines.PushBack(String(message));
+        }
+    };
+    rhi::null::NullDevice device{DefaultAllocator()};
+    rhi::ShaderModule* vs = MakeModule(device);
+    rhi::ShaderModule* fs = MakeModule(device);
+    REQUIRE(vs != nullptr);
+    REQUIRE(fs != nullptr);
+    VGRenderer renderer{DefaultAllocator()};
+    REQUIRE(renderer.Initialize(device, *vs, *fs, rhi::TextureFormat::BGRA8UnormSrgb, /*frameCount*/ 2).IsOk());
+    VGContext ctx;
+    ctx.FillRect(Rectangle{0, 0, 10, 10}, Color::Green);
+
+    WarningSink sink;
+    GlobalLogger().AddSink(&sink);
+    u32 drawn = 0;
+    for (u32 frame = 0; frame < 2; ++frame)
+    {
+        renderer.BeginFrame(frame);
+        drawn = 0;
+        for (u32 i = 0; i < 300; ++i) // one slot a slice: past the 256 a frame
+        {
+            drawn += renderer.Prepare(ctx.GetBatch(), frame, 800, 600).isValid ? 1u : 0u;
+        }
+    }
+    GlobalLogger().RemoveSink(&sink);
+    CHECK(drawn == 256u);
+    CHECK(sink.lines.Size() == 1u); // the first frame past them, not every slice or frame
+
+    renderer.Dispose();
+    device.DestroyShaderModule(vs);
+    device.DestroyShaderModule(fs);
+}
+
 TEST_CASE("vg.renderer: external texture register / rebind / unregister")
 {
     rhi::null::NullDevice device{DefaultAllocator()};

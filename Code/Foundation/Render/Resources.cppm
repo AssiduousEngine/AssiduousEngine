@@ -452,9 +452,20 @@ export namespace foundation::render
 
         [[nodiscard]] Range AllocateRange(u32 count)
         {
-            if (!m_inFrame || m_buffer == nullptr || count == 0 ||
-                m_cursor + count > m_slotsPerFrame)
+            if (!m_inFrame || m_buffer == nullptr || count == 0)
             {
+                return Range{};
+            }
+            if (m_cursor + count > m_slotsPerFrame)
+            {
+                // What the caller meant to draw with these slots is not drawn this frame. A ring
+                // its owner grows says so too; a fixed one says it here, once.
+                if (!m_exhaustionLogged)
+                {
+                    LOG_WARNING(u8"Render", u8"{}: ring full ({} slots per frame), dropped a request for {}",
+                                StringView(m_label), m_slotsPerFrame, count);
+                    m_exhaustionLogged = true;
+                }
                 return Range{};
             }
             if (m_mapped == nullptr)
@@ -532,6 +543,7 @@ export namespace foundation::render
         u32 m_cursor = 0;
         u32 m_generation = 0;
         bool m_inFrame = false;
+        bool m_exhaustionLogged = false; // the first exhaustion is logged (once)
     };
 
     /// A renderer's per-view uniforms (camera matrices and the like), one dynamic-offset slot per

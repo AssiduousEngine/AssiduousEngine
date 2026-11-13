@@ -143,6 +143,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Rendering: a double-sided material (foliage cards, a sail, a flag) casts its shadow from both
   sides, and a material that culls front faces casts from its back; shadows always came from the
   front faces.
+- Rendering and GUI: a fixed per-frame budget that runs out (a renderer's ring, the vector
+  renderer's uniform slots) now logs a warning the first time instead of dropping draws silently.
 - GUI and vector graphics: a complex shape (concave, or several contours) filled inside a clip
   path no longer paints outside the clip; and a draw list whose indices outgrow the frame's
   buffers draws from the next frame instead of never.
