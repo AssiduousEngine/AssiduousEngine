@@ -28,6 +28,7 @@
 			<bool name="overridesOrientation">false</bool>
 			<i32 name="orientation">0</i32>
 			<bool name="includeShaderSource">false</bool>
+			<string name="qualityLevelId">00000000-0000-0000-0000-000000000000</string>
 		</object>
 		<object>
 			<string name="name">Desktop</string>
@@ -51,6 +52,7 @@
 			<bool name="overridesOrientation">false</bool>
 			<i32 name="orientation">0</i32>
 			<bool name="includeShaderSource">false</bool>
+			<string name="qualityLevelId">00000000-0000-0000-0000-000000000000</string>
 		</object>
 		<object>
 			<string name="name">Steam Deck</string>
@@ -76,6 +78,7 @@
 			<bool name="overridesOrientation">false</bool>
 			<i32 name="orientation">0</i32>
 			<bool name="includeShaderSource">false</bool>
+			<string name="qualityLevelId">e4ddab8c-5e54-4db8-8c10-eeb135af7926</string>
 		</object>
 		<object>
 			<string name="name">Web</string>
@@ -101,6 +104,7 @@
 			<bool name="overridesOrientation">true</bool>
 			<i32 name="orientation">1</i32>
 			<bool name="includeShaderSource">false</bool>
+			<string name="qualityLevelId">e4ddab8c-5e54-4db8-8c10-eeb135af7926</string>
 		</object>
 		<object>
 			<string name="name">Windows Desktop</string>
@@ -126,6 +130,7 @@
 			<bool name="overridesOrientation">false</bool>
 			<i32 name="orientation">0</i32>
 			<bool name="includeShaderSource">false</bool>
+			<string name="qualityLevelId">00000000-0000-0000-0000-000000000000</string>
 		</object>
 	</array>
 </root>
