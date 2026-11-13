@@ -474,3 +474,27 @@ TEST_CASE("xml.serialize: an appended field reads its default from an older payl
         CHECK(loaded.scale == doctest::Approx(1.0f));
     }
 }
+
+TEST_CASE("xml serializer: a file that is not well-formed fails the read and says so")
+{
+    const StringView broken = u8"<root><a>1</a";
+    MemoryStream stream;
+    REQUIRE(stream.Write(broken.Data(), broken.Size()) == broken.Size());
+    REQUIRE(stream.Seek(0, SeekOrigin::Begin) == 0);
+    UniquePtr<SerializerContext> ctx = XmlSerializerFactory()(stream, SerializeMode::Read);
+    REQUIRE(ctx);
+    REQUIRE(ctx->serializer != nullptr);
+    CHECK_FALSE(ctx->serializer->IsOk());
+    String why;
+    ctx->serializer->DescribeFailure(why);
+    CHECK(why.AsView().Contains(u8"not well-formed"));
+
+    // A well-formed one still reads.
+    const StringView fine = u8"<root/>";
+    MemoryStream good;
+    REQUIRE(good.Write(fine.Data(), fine.Size()) == fine.Size());
+    REQUIRE(good.Seek(0, SeekOrigin::Begin) == 0);
+    UniquePtr<SerializerContext> ok = XmlSerializerFactory()(good, SerializeMode::Read);
+    REQUIRE(ok);
+    CHECK(ok->serializer->IsOk());
+}

@@ -312,6 +312,11 @@ export namespace foundation::xml
 
         void DescribeFailure(String& outText) const override { outText += m_failure.AsView(); }
 
+        /// The document under this reader is not what its file held (it did not parse, or the
+        /// file was cut short): the read fails, saying why, so a loader never takes a damaged
+        /// file for an empty one and writes its defaults back over it.
+        void FailDocument(StringView why) { FailRead(ErrorCode::InvalidArgument, why); }
+
     private:
         struct ReadScope
         {
@@ -709,14 +714,21 @@ export namespace foundation::xml
             // allocator, so the contexts root on the process allocator.
             explicit XmlReadSerializerContext(IStream& stream) : doc(DefaultAllocator())
             {
-                const u64 sz = stream.Size();
-                Array<utf8char> buf(static_cast<usize>(sz));
-                u64 n = stream.Read(buf.Data(), buf.Size());
-                (void)n;
-                auto pr = doc.Parse(StringView(buf.Data(), buf.Size()));
-                (void)pr;
+                const i64 sz = stream.Size();
+                Array<utf8char> buf(static_cast<usize>(sz > 0 ? sz : 0));
+                const u64 n = buf.IsEmpty() ? 0 : stream.Read(buf.Data(), buf.Size());
+                const XmlResult parsed = n == buf.Size() ? doc.Parse(StringView(buf.Data(), buf.Size()))
+                                                         : XmlResult::UnexpectedEndOfFile;
                 xmlSer = DefaultAllocator().New<XmlSerializer>(doc);
                 serializer = xmlSer;
+                if (sz < 0 || n != buf.Size())
+                {
+                    xmlSer->FailDocument(u8"the file could not be read whole");
+                }
+                else if (parsed != XmlResult::Ok)
+                {
+                    xmlSer->FailDocument(Format(u8"the file is not well-formed XML ({})", Describe(parsed)).AsView());
+                }
             }
 
             ~XmlReadSerializerContext() override

@@ -56,6 +56,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   a file cut short; each write now goes to a temporary beside it, flushed to the disk, then renamed
   over. The editor's MCP token file is readable by its user alone (it was readable by every account
   on the machine).
+- Files: an XML file that is not well-formed, or could not be read whole, fails to load and says
+  why. It was read as empty, so whatever loaded it got its defaults and could save them over it.
 
 ## 0.1.0-beta.3 - 2026-11-12
 
