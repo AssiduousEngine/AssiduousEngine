@@ -143,6 +143,16 @@ namespace foundation::core::sys
     // so the file's own bytes stay readable).
     bool FileTryLock(FileHandle handle) noexcept;
     void FileUnlock(FileHandle handle) noexcept;
+    // Flushes the open file's written bytes to the device (fsync; FlushFileBuffers on Win32), so
+    // a rename after it publishes a whole file even across a power loss.
+    bool FileSync(FileHandle handle) noexcept;
+    // Makes the open file readable and writable by its owner only (0600 on Linux). On Win32 a
+    // file takes its folder's access list, and the user-data folders are the user's own, so there
+    // is nothing to change.
+    bool FileRestrictToOwner(FileHandle handle) noexcept;
+    // Whether no account but the owner may read or write the file at `path` (no group or other
+    // bits on Linux). True on Win32, where access follows the folder.
+    bool FileIsOwnerOnly(const char* path) noexcept;
     bool FileExists(const char* path) noexcept;
     bool FileDelete(const char* path) noexcept;
 

@@ -51,6 +51,11 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   took the files of a `Rock.2` beside it (the name the editor gives a second `Rock`), and an export
   that pruned or stripped `Rock` dropped or packed `Rock.2`'s as well. A data stream's name may no
   longer contain a dot.
+- Files: every save replaces its file whole or not at all. Assets, scenes, settings, sources and
+  exports were written over in place, so a crash, a power loss or a full disk mid-save could leave
+  a file cut short; each write now goes to a temporary beside it, flushed to the disk, then renamed
+  over. The editor's MCP token file is readable by its user alone (it was readable by every account
+  on the machine).
 
 ## 0.1.0-beta.3 - 2026-11-12
 

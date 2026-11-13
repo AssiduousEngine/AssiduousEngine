@@ -97,6 +97,11 @@ export namespace foundation::core
         [[nodiscard]] i64 Tell() const override { return FileSeek(m_file, 0, SeekOrigin::Current); }
         [[nodiscard]] i64 Size() const override { return FileSize(m_file); }
 
+        /// Flushes what was written to the device (FileSync).
+        [[nodiscard]] bool Sync() noexcept { return FileSync(m_file); }
+        /// The file is its owner's alone from now on (FileRestrictToOwner).
+        [[nodiscard]] bool RestrictToOwner() noexcept { return FileRestrictToOwner(m_file); }
+
     private:
         FileHandle m_file = kInvalidFile;
     };

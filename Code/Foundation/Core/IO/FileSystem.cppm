@@ -20,6 +20,8 @@ import :string;
 import :system;
 import :io;
 import :path; // PathJoin (CopyDirectoryRecursive)
+import :format; // TemporaryPathFor
+import :atomic;
 
 export namespace foundation::core
 {
@@ -52,38 +54,47 @@ export namespace foundation::core
         return data;
     }
 
-    // Writes a byte buffer to a file, replacing any existing contents.
-    [[nodiscard]] inline Status WriteFile(StringView path, Span<const byte> data)
+    // Who may read a file a write makes: whoever its folder lets (Shared), or its owner alone
+    // (OwnerOnly, for a secret such as a token).
+    enum class FileAccess : u8
     {
-        FileStream file(path, FileMode::Write);
-        if (!file.IsValid())
-        {
-            return Status{ErrorCode::Internal};
-        }
-        if (!data.IsEmpty())
-        {
-            const u64 written = file.Write(data.Data(), data.Size());
-            if (written != data.Size())
-            {
-                return Status{ErrorCode::Internal};
-            }
-        }
-        return Status{};
+        Shared,
+        OwnerOnly
+    };
+
+    // The temporary file a whole-file write goes to before it is renamed over `path`:
+    // "<path>.<process>-<n>.tmp", unique per process and per write, so two writers of one file
+    // never share a temporary. The ".tmp" ending is what file watchers skip.
+    [[nodiscard]] inline String TemporaryPathFor(StringView path, IAllocator& allocator = DefaultAllocator())
+    {
+        static Atomic<u32> writes{0};
+        const u32 n = writes.fetch_add(1, MemoryOrder::Relaxed);
+        String temporary(path, allocator);
+        temporary.Append(Format(u8".{}-{}.tmp", ProcessId(), n).AsView());
+        return temporary;
     }
 
-    // Writes a byte buffer to a file so that a reader (or the next run, after a crash) sees the old
-    // contents or the new ones, never a torn mix: the bytes go to `<path>.tmp` beside the target,
-    // which is then renamed over it (a rename on one volume replaces the target atomically). A
-    // failed write leaves the target as it was.
+    // Writes a byte buffer to a file so that a reader, or the next run after a crash or a power
+    // loss, sees the old contents or the new ones, never a torn mix: the bytes go to a temporary
+    // file beside the target (TemporaryPathFor), are flushed to the device, and the temporary is
+    // renamed over the target (a rename on one volume replaces it atomically). A failed write
+    // leaves the target as it was and no temporary behind.
     [[nodiscard]] inline Status WriteFileAtomic(StringView path, Span<const byte> data,
-                                                IAllocator& allocator = DefaultAllocator())
+                                                IAllocator& allocator = DefaultAllocator(),
+                                                FileAccess access = FileAccess::Shared)
     {
-        String temporary(path, allocator);
-        temporary.Append(u8".tmp");
-        if (const Status written = WriteFile(temporary.AsView(), data); !written.IsOk())
+        const String temporary = TemporaryPathFor(path, allocator);
+        bool written = false;
+        {
+            FileStream file(temporary.AsView(), FileMode::Write);
+            written = file.IsValid() && (access == FileAccess::Shared || file.RestrictToOwner()) &&
+                      (data.IsEmpty() || file.Write(data.Data(), data.Size()) == data.Size()) &&
+                      file.Sync();
+        }
+        if (!written)
         {
             (void)FileDelete(temporary.AsView());
-            return written;
+            return Status{ErrorCode::Internal};
         }
         if (!FileMove(temporary.AsView(), path))
         {
@@ -91,6 +102,13 @@ export namespace foundation::core
             return Status{ErrorCode::Internal};
         }
         return Status{};
+    }
+
+    // Writes a byte buffer to a file, replacing its contents whole or not at all
+    // (WriteFileAtomic): never a truncated file after a crash or a full disk.
+    [[nodiscard]] inline Status WriteFile(StringView path, Span<const byte> data)
+    {
+        return WriteFileAtomic(path, data);
     }
 
     // Copies the folder `from` and everything under it into `to` (made as needed), each file with

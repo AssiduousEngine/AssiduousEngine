@@ -236,13 +236,11 @@ export namespace foundation::vfs
             const String full = PathJoin(m_root.AsView(), path, *m_allocator);
             EnsureParentDirectories(full.AsView());
 
-            bool written = false;
-            {
-                FileStream stream(full.AsView(), FileMode::Write);
-                written = stream.IsValid() && (data.IsEmpty() || stream.Write(data.Data(), data.Size()) == data.Size());
-            }
-            Wrote(path); // the stream closed: the file is as it will stay
-            return written ? Status{} : Status{ErrorCode::Internal};
+            // Whole or not at all: a crash or a full disk mid-save leaves the old file, never a
+            // truncated one.
+            const Status written = WriteFileAtomic(full.AsView(), data, *m_allocator);
+            Wrote(path); // the file is as it will stay
+            return written;
         }
 
         [[nodiscard]] Status Delete(StringView path) override

@@ -13,7 +13,6 @@ import foundation.core;
 import foundation.json;
 import foundation.mcp;
 import foundation.mcp.http;
-import foundation.vfs;
 import pipeline.core;
 import editor.core;
 import editor.mcp;
@@ -87,13 +86,14 @@ namespace editor::app
         }
         if (!config.tokenFileDirectory.IsEmpty())
         {
-            // The same trust domain as the settings file next to it: user-readable, so a local
-            // agent reads the secret instead of the user pasting it.
+            // Beside the settings file, readable by the user alone: a local agent of the user's
+            // reads the secret instead of the user pasting it, and no other account can.
             (void)CreateDirectory(config.tokenFileDirectory.AsView());
-            foundation::vfs::NativeFileSystem fs(config.tokenFileDirectory.AsView(), *m_allocator);
-            const Status saved = fs.AsWritable()->Save(
-                kTokenFileName, Span<const byte>(reinterpret_cast<const byte*>(config.token.Data()),
-                                                 config.token.Size()));
+            const String tokenPath = PathJoin(config.tokenFileDirectory.AsView(), kTokenFileName, *m_allocator);
+            const Status saved = WriteFileAtomic(
+                tokenPath.AsView(),
+                Span<const byte>(reinterpret_cast<const byte*>(config.token.Data()), config.token.Size()),
+                *m_allocator, FileAccess::OwnerOnly);
             if (!saved.IsOk())
             {
                 LOG_WARNING(u8"Editor", u8"MCP: the token file could not be written under '{}' - "

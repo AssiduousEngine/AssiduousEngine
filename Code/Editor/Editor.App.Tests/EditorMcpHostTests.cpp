@@ -151,6 +151,7 @@ TEST_CASE("editor-mcp-host: serves the engine surface over the live project on l
     const u16 port = host.BoundPort();
     REQUIRE(port != 0);
     CHECK(ReadText(u8"mcp_host_userdata/mcp-token") == u8"sekrit");
+    CHECK(FileIsOwnerOnly(u8"mcp_host_userdata/mcp-token")); // no other account reads the secret
 
     struct Outcome
     {

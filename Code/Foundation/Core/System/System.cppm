@@ -180,6 +180,22 @@ export namespace foundation::core
     [[nodiscard]] inline bool FileTryLock(FileHandle handle) noexcept { return sys::FileTryLock(handle); }
     inline void FileUnlock(FileHandle handle) noexcept { sys::FileUnlock(handle); }
 
+    /// Flushes the open file's written bytes to the device, so a rename after it publishes a
+    /// whole file even across a power loss.
+    [[nodiscard]] inline bool FileSync(FileHandle handle) noexcept { return sys::FileSync(handle); }
+    /// Makes the open file readable and writable by its owner only (a secret: a token). On
+    /// Windows the file keeps its folder's access list (the user-data folders are the user's).
+    [[nodiscard]] inline bool FileRestrictToOwner(FileHandle handle) noexcept
+    {
+        return sys::FileRestrictToOwner(handle);
+    }
+    /// Whether the file at `path` is its owner's alone (no group or other access on Linux). On
+    /// Windows, whether it exists: its access follows its folder.
+    [[nodiscard]] inline bool FileIsOwnerOnly(StringView path) noexcept
+    {
+        return sys::FileIsOwnerOnly(detail::NullTerminated(path).CStr());
+    }
+
     [[nodiscard]] inline bool FileExists(StringView path) noexcept
     {
         return sys::FileExists(detail::NullTerminated(path).CStr());

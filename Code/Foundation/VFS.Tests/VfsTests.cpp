@@ -443,3 +443,30 @@ TEST_CASE("vfs: data-root discovery via the .dataroot marker")
     (void)RemoveDirectory(dataDir.AsView());
     (void)RemoveDirectory(base);
 }
+
+TEST_CASE("vfs: a save replaces the file whole; a reader that had it open keeps the old bytes")
+{
+    const StringView dir = u8"scratch_vfs_atomic_save";
+    (void)RemoveDirectoryRecursive(dir);
+    NativeFileSystem native(dir, DefaultAllocator());
+    const byte before[] = {byte{1}, byte{2}, byte{3}, byte{4}};
+    const byte after[] = {byte{9}};
+    REQUIRE(native.Save(u8"a.bin", Span<const byte>{before, 4}).IsOk());
+
+    // A save truncating in place would leave this reader looking at the new bytes, or at nothing
+    // (a crash between the truncate and the write leaves the file empty). A replacing save leaves
+    // the reader the file it opened.
+    UniquePtr<IStream> reader = native.Open(u8"a.bin", FileMode::Read);
+    REQUIRE(reader);
+    REQUIRE(native.Save(u8"a.bin", Span<const byte>{after, 1}).IsOk());
+    byte held[4] = {};
+    CHECK(reader->Read(held, 4) == 4);
+    CHECK(held[3] == byte{4});
+    reader.Reset();
+
+    Result<Array<byte>> now = ReadFile(u8"scratch_vfs_atomic_save/a.bin");
+    REQUIRE(now.HasValue());
+    REQUIRE(now.Value().Size() == 1);
+    CHECK(now.Value()[0] == byte{9});
+    (void)RemoveDirectoryRecursive(dir);
+}

@@ -494,13 +494,51 @@ TEST_CASE("io: WriteFileAtomic replaces a file whole and leaves no temporary beh
     REQUIRE(result.Value().Size() == ArrayCount(second));
     CHECK(result.Value()[0] == byte{9});
     CHECK(result.Value()[1] == byte{8});
-    CHECK_FALSE(FileExists(u8"scratch_fs_atomic.bin.tmp"));
+    // No temporary is left beside it.
+    i32 temporaries = 0;
+    (void)ListDirectory(
+        u8".",
+        [](void* ctx, StringView name, bool)
+        {
+            if (name.StartsWith(u8"scratch_fs_atomic.bin.") && name.EndsWith(u8".tmp"))
+            {
+                ++*static_cast<i32*>(ctx);
+            }
+        },
+        &temporaries);
+    CHECK(temporaries == 0);
 
     // A write that cannot happen (its directory does not exist) fails and touches nothing.
     CHECK_FALSE(WriteFileAtomic(u8"scratch_fs_no_such_dir/save.bin",
                                 Span<const byte>{first, ArrayCount(first)})
                     .IsOk());
-    CHECK_FALSE(FileExists(u8"scratch_fs_no_such_dir/save.bin.tmp"));
+    CHECK_FALSE(DirectoryExists(u8"scratch_fs_no_such_dir"));
+    CHECK(FileDelete(path));
+}
+
+TEST_CASE("io: a whole-file write's temporary is unique to the write, and ends in .tmp")
+{
+    const String a = TemporaryPathFor(u8"dir/save.bin");
+    const String b = TemporaryPathFor(u8"dir/save.bin");
+    CHECK(a != b);
+    CHECK(a.AsView().StartsWith(u8"dir/save.bin."));
+    CHECK(a.AsView().EndsWith(u8".tmp"));
+}
+
+TEST_CASE("io: a secret written owner-only is its owner's alone, over a file that was not")
+{
+    const StringView path = u8"scratch_fs_secret.txt";
+    const byte open[] = {byte{'o'}};
+    const byte secret[] = {byte{'s'}};
+    REQUIRE(WriteFileAtomic(path, Span<const byte>{open, ArrayCount(open)}).IsOk());
+    REQUIRE(WriteFileAtomic(path, Span<const byte>{secret, ArrayCount(secret)}, DefaultAllocator(),
+                            FileAccess::OwnerOnly)
+                .IsOk());
+    CHECK(FileIsOwnerOnly(path));
+    Result<Array<byte>> read = ReadFile(path);
+    REQUIRE(read.HasValue());
+    REQUIRE(read.Value().Size() == 1);
+    CHECK(read.Value()[0] == byte{'s'});
     CHECK(FileDelete(path));
 }
 

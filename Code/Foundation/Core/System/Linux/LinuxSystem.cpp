@@ -513,6 +513,22 @@ namespace foundation::core::sys
 
     bool FileMove(const char* from, const char* to) noexcept { return std::rename(from, to) == 0; }
 
+    bool FileSync(FileHandle handle) noexcept
+    {
+        return handle != kInvalidFile && fsync(static_cast<int>(handle)) == 0;
+    }
+
+    bool FileRestrictToOwner(FileHandle handle) noexcept
+    {
+        return handle != kInvalidFile && fchmod(static_cast<int>(handle), S_IRUSR | S_IWUSR) == 0;
+    }
+
+    bool FileIsOwnerOnly(const char* path) noexcept
+    {
+        struct stat info{};
+        return stat(path, &info) == 0 && (info.st_mode & (S_IRWXG | S_IRWXO)) == 0;
+    }
+
     bool FileCopyPreserving(const char* from, const char* to) noexcept
     {
         const int src = ::open(from, O_RDONLY);

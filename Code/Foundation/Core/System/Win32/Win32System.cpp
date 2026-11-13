@@ -545,6 +545,15 @@ namespace foundation::core::sys
         return MoveFileExA(from, to, MOVEFILE_REPLACE_EXISTING) != 0;
     }
 
+    bool FileSync(FileHandle handle) noexcept
+    {
+        return handle != kInvalidFile && FlushFileBuffers(ToHandle(handle)) != 0;
+    }
+
+    bool FileRestrictToOwner(FileHandle handle) noexcept { return handle != kInvalidFile; }
+
+    bool FileIsOwnerOnly(const char* path) noexcept { return FileExists(path); }
+
     bool FileCopyPreserving(const char* from, const char* to) noexcept
     {
         // CopyFileA preserves attributes natively (there is no +x bit on Windows).
