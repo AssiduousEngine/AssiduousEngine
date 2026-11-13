@@ -882,8 +882,33 @@ namespace foundation::physics
 
     void PhysicsWorld::MoveKinematic(BodyId id, Float3 position, Quaternion rotation, f32 deltaTime)
     {
+        // Jolt moves a static body through null motion properties: a kinematic asked over a
+        // static-only shape is static here, and moving it crashed.
+        if (MotionOf(id) != MotionKind::Kinematic)
+        {
+            return;
+        }
         m_impl->system->GetBodyInterface().MoveKinematic(JPH::BodyID(id.value), ToJph(position),
                                                          ToJph(rotation), deltaTime);
+    }
+
+    MotionKind PhysicsWorld::MotionOf(BodyId id) const
+    {
+        const JPH::BodyID body(id.value);
+        if (!id.IsValid() || !m_impl->system->GetBodyInterface().IsAdded(body))
+        {
+            return MotionKind::Static;
+        }
+        switch (m_impl->system->GetBodyInterface().GetMotionType(body))
+        {
+        case JPH::EMotionType::Kinematic:
+            return MotionKind::Kinematic;
+        case JPH::EMotionType::Dynamic:
+            return MotionKind::Dynamic;
+        case JPH::EMotionType::Static:
+        default:
+            return MotionKind::Static;
+        }
     }
 
     void PhysicsWorld::SetLinearVelocity(BodyId id, Float3 velocity)

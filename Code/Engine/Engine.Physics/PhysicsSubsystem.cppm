@@ -255,7 +255,7 @@ export namespace engine::physics
             bodies->ForEach(
                 [&](RigidBodyComponent& c, scene::EntityHandle e)
                 {
-                    if (!c.body.IsValid() || c.motion != MotionKind::Kinematic)
+                    if (!c.body.IsValid() || c.effectiveMotion != MotionKind::Kinematic)
                     {
                         return;
                     }
@@ -273,7 +273,7 @@ export namespace engine::physics
             bodies->ForEach(
                 [&](RigidBodyComponent& c, scene::EntityHandle)
                 {
-                    if (c.body.IsValid() && c.motion == MotionKind::Dynamic &&
+                    if (c.body.IsValid() && c.effectiveMotion == MotionKind::Dynamic &&
                         (c.heldForce.x != 0.0f || c.heldForce.y != 0.0f || c.heldForce.z != 0.0f))
                     {
                         m_world->AddForce(c.body, c.heldForce);
@@ -381,7 +381,7 @@ export namespace engine::physics
             bodies->ForEach(
                 [&](RigidBodyComponent& c, scene::EntityHandle)
                 {
-                    if (!c.body.IsValid() || c.motion != MotionKind::Dynamic)
+                    if (!c.body.IsValid() || c.effectiveMotion != MotionKind::Dynamic)
                     {
                         return;
                     }
@@ -409,7 +409,7 @@ export namespace engine::physics
             bodies->ForEach(
                 [&](RigidBodyComponent& c, scene::EntityHandle e)
                 {
-                    if (!c.body.IsValid() || c.motion != MotionKind::Dynamic)
+                    if (!c.body.IsValid() || c.effectiveMotion != MotionKind::Dynamic)
                     {
                         return;
                     }
@@ -973,6 +973,7 @@ export namespace engine::physics
                     const Quaternion rotation = desc.rotation;
 
                     c.body = m_world->CreateBody(desc);
+                    c.effectiveMotion = m_world->MotionOf(c.body); // static for a moving body over a static-only shape
                     c.prevPosition = c.currPosition = position;
                     c.prevRotation = c.currRotation = rotation;
                     // Flush an impulse queued before the body existed (spawn, then launch, such as

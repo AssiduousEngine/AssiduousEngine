@@ -476,6 +476,30 @@ TEST_CASE("physics.scene: a tilted plane entity makes boxes slide downhill")
     CHECK(position.y > -30.0f);
 }
 
+TEST_CASE("physics.scene: a kinematic body over a plane is made static and is never moved as kinematic")
+{
+    PlayScene play;
+    const scene::EntityHandle platform = play.scene.CreateEntity(u8"platform");
+    {
+        RigidBodyComponent& body = play.scene.GetSystem<RigidBodyComponentManager>()->Add(platform);
+        body.motion = MotionKind::Kinematic; // asked kinematic, over a static-only shape
+        body.shape = ShapeKind::Plane;
+    }
+    play.Start();
+    play.Step(1);
+    RigidBodyComponent* body = play.scene.GetSystem<RigidBodyComponentManager>()->Get(platform);
+    REQUIRE(body != nullptr);
+    REQUIRE(body->body.IsValid());
+    CHECK(body->effectiveMotion == MotionKind::Static);
+    CHECK(play.physics->World()->MotionOf(body->body) == MotionKind::Static);
+    // The scene moves it, as a script moving a platform would: the step drives it as what it is.
+    play.scene.SetLocalPosition(platform, Float3{0.0f, 2.0f, 0.0f});
+    play.scene.UpdateTransforms();
+    play.Step(10); // moved as kinematic, Jolt read a static body's null motion properties
+    play.physics->World()->MoveKinematic(body->body, Float3{0.0f, 3.0f, 0.0f}, Quaternion::Identity, 1.0f / 60.0f); // refused
+    CHECK(play.physics->World()->MotionOf(body->body) == MotionKind::Static);
+}
+
 TEST_CASE("physics.scene: ScenePhysics.rayCast returns an EXPLICIT RayCastHit (no stored state)")
 {
     // The RayCastHit result travels by value from the cast that produced it,

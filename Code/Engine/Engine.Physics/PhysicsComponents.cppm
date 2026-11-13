@@ -63,6 +63,9 @@ export namespace engine::physics
 
         // Runtime (transient):
         BodyId body;
+        // How the body moves as made (PhysicsWorld::MotionOf), which the subsystem drives it by: a
+        // moving body over a static-only shape (mesh, plane, heightfield) is static.
+        MotionKind effectiveMotion = MotionKind::Static;
         // An impulse applied to this body before its Jolt body existed (a script that spawns a
         // prefab and launches it the same frame, such as a thrown paper). Accumulated by
         // ScenePhysics.applyImpulse when `body` is invalid, then flushed once in

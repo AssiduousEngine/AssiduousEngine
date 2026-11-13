@@ -331,8 +331,12 @@ export namespace foundation::physics
         /// Teleport: snaps the body (velocities untouched). Dynamic bodies mid-sim should
         /// use this, never per-frame scene writes (transform ownership).
         void SetBodyTransform(BodyId id, Float3 position, Quaternion rotation);
-        /// Velocity-correct kinematic move over `deltaTime` (the fixed step).
+        /// Velocity-correct kinematic move over `deltaTime` (the fixed step). Refused for a body
+        /// that is not kinematic (one asked kinematic over a static-only shape was made static).
         void MoveKinematic(BodyId id, Float3 position, Quaternion rotation, f32 deltaTime);
+        /// How the body moves as it was made, which can differ from what was asked: a moving body
+        /// over a mesh, plane or heightfield shape is static (CreateBody). Static for an invalid id.
+        [[nodiscard]] MotionKind MotionOf(BodyId id) const;
         void SetLinearVelocity(BodyId id, Float3 velocity);
         /// The body's actual mass in kg (0 for static, kinematic or invalid bodies): the
         /// density-derived value, or the massOverride when one was set.
