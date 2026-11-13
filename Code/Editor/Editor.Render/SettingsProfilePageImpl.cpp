@@ -38,9 +38,9 @@ namespace editor
 {
     namespace
     {
-        [[nodiscard]] pipeline::SettingsProfileAsset* AssetOf(ISerializable* object)
+        [[nodiscard]] pipeline::PreviewedSettingsAsset* AssetOf(ISerializable* object)
         {
-            return Cast<pipeline::SettingsProfileAsset>(object);
+            return Cast<pipeline::PreviewedSettingsAsset>(object);
         }
     }
 
@@ -173,7 +173,7 @@ namespace editor
     };
 
     SettingsProfilePage::SettingsProfilePage(EditorContext& context, app::AssetPageServices services, foundation::content::Instance& instance)
-        : app::AssetObjectPage(context, Move(services), instance, pipeline::SettingsProfileAsset::StaticType(), kPath), m_format(context.Allocator())
+        : app::AssetObjectPage(context, Move(services), instance, pipeline::PreviewedSettingsAsset::StaticType(), kPath), m_format(context.Allocator())
     {
         // The asset's own reflection is its wrapper; the rows show its values, as a scene's
         // settings do.
@@ -182,7 +182,7 @@ namespace editor
         SettingsProfilePage* self = this;
         m_values->Inner().SetOnChange([self](const gui::ReflectedChange& change)
                                       {
-                                          pipeline::SettingsProfileAsset* asset = AssetOf(self->Object());
+                                          pipeline::PreviewedSettingsAsset* asset = AssetOf(self->Object());
                                           if (asset == nullptr)
                                               return;
                                           (void)self->Commands().Execute(UniquePtr<IEditorCommand>(
@@ -190,7 +190,7 @@ namespace editor
                                                   *asset->ValuesType(),
                                                   [self]() -> void*
                                                   {
-                                                      pipeline::SettingsProfileAsset* a = AssetOf(self->Object());
+                                                      pipeline::PreviewedSettingsAsset* a = AssetOf(self->Object());
                                                       return a != nullptr ? a->Values() : nullptr;
                                                   },
                                                   change, self->m_format, u8"edit_settings_profile",
@@ -205,7 +205,7 @@ namespace editor
         // not only on the commit at its release.
         m_values->OnValuesWritten = [self]() { self->ApplyPreview(); };
         BindValues();
-        if (pipeline::SettingsProfileAsset* asset = AssetOf(Object()))
+        if (pipeline::PreviewedSettingsAsset* asset = AssetOf(Object()))
             AddSection(u8"values", TypeAttrString(*asset->ValuesType(), "displayName", u8"Values"), *m_values);
         if (Content())
         {
@@ -219,7 +219,9 @@ namespace editor
             // The scene the profile is previewed on: the built-in one, or one of the project's.
             m_sceneSlot = MakeRef<app::AssetPickerSlot>(Allocator());
             m_sceneSlot->AddClass(u8"preview-slot");
-            m_sceneSlot->SetTooltip(u8"A scene of the project to preview the profile in (the built-in one when none); kept for this profile");
+            m_sceneSlot->SetTooltip(PreviewsQualityLevel()
+                                        ? u8"A scene of the project to preview the level in (the built-in one when none); kept for this level"
+                                        : u8"A scene of the project to preview the profile in (the built-in one when none); kept for this profile");
             const app::ResourceRefServices* refs = Services().refs;
             if (refs != nullptr && refs->AcceptedTypes)
                 m_sceneSlot->SetAcceptedTypes(refs->AcceptedTypes(scene::SceneDocument::StaticType()));
@@ -255,7 +257,7 @@ namespace editor
 
     void SettingsProfilePage::BindValues()
     {
-        pipeline::SettingsProfileAsset* asset = AssetOf(Object());
+        pipeline::PreviewedSettingsAsset* asset = AssetOf(Object());
         m_values->Bind(asset != nullptr ? asset->Values() : nullptr, asset != nullptr ? asset->ValuesType() : nullptr);
     }
 
@@ -265,11 +267,26 @@ namespace editor
         ApplyPreview();
     }
 
+    bool SettingsProfilePage::PreviewsQualityLevel() const
+    {
+        return Cast<pipeline::RenderQualityAsset>(Object()) != nullptr;
+    }
+
     void SettingsProfilePage::OnUpdate(foundation::runtime::IApplicationHost& host, f32 dt)
     {
         app::AssetObjectPage::OnUpdate(host, dt);
         if (m_pane)
             m_pane->Update(dt);
+        // A quality level is what the preview is drawn at, on its own view: given every frame, so an
+        // edit (or an undo behind the values) shows at once.
+        auto* level = Cast<pipeline::RenderQualityAsset>(Object());
+        auto* render = host.Subsystems().GetSubsystem<engine::render::RenderSubsystem>();
+        if (level != nullptr && render != nullptr && Preview() != nullptr)
+        {
+            const void* key = Preview()->ViewportKey();
+            render->SetViewportQuality(key, level->values);
+            m_clearPreviewLevel = [render, key]() { render->ClearViewportQuality(key); };
+        }
     }
 
     void SettingsProfilePage::OnRenderWindow(foundation::runtime::IApplicationHost&, foundation::graphics::FrameContext& frame)
@@ -280,6 +297,11 @@ namespace editor
 
     void SettingsProfilePage::OnClose()
     {
+        if (m_clearPreviewLevel)
+        {
+            m_clearPreviewLevel(); // the key is the preview's, about to go
+            m_clearPreviewLevel = {};
+        }
         if (m_pane)
             m_pane->Close();
     }
@@ -482,7 +504,7 @@ namespace editor
 
     const TypeInfo* SettingsProfilePageFactory::PrimaryType() const
     {
-        return &pipeline::SettingsProfileAsset::StaticType();
+        return &pipeline::PreviewedSettingsAsset::StaticType();
     }
 
     UniquePtr<EditorPage> SettingsProfilePageFactory::CreatePage(EditorContext& context, foundation::content::Instance& instance)

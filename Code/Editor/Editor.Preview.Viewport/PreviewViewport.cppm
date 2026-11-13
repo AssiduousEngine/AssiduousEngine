@@ -93,6 +93,11 @@ export namespace editor
         // 1.0 is real time and 0 is paused. Applies to the preview scene's own SceneManager only.
         void SetTimeScale(f32 scale);
 
+        // The key the preview's views are drawn with: a page gives the preview a quality level of
+        // its own under it (RenderSubsystem::SetViewportQuality; a Render Quality page previews its
+        // level so) and clears it when it closes.
+        [[nodiscard]] const void* ViewportKey() const noexcept { return this; }
+
         // Per-frame input and camera drive. Call from the page's OnUpdate before any page logic
         // that reads the camera. Returns true when F was pressed over it this frame, for the page
         // to frame its content.

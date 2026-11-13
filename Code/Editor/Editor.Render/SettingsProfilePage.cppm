@@ -3,11 +3,12 @@
 
 // Editor::Render - :settings_profile_page partition.
 //
-// SettingsProfilePage edits a profile asset (an Environment Profile, a Post Process Profile, or any
-// other pipeline::SettingsProfileAsset). It is built from the preview pages' markup
-// (Data/Editor/PreviewPage.xml): a preview rendered with the profile applied, beside the profile's
-// values. The values show as a scene's settings rows do, from the settings type's reflection,
-// without the block's own source and profile fields, which belong to a scene.
+// SettingsProfilePage edits a settings asset shown beside a preview (pipeline::PreviewedSettingsAsset):
+// a profile (an Environment Profile, a Post Process Profile), whose values the preview scene's block
+// takes, or a quality level (a Render Quality), which the preview is drawn at, on its own view. It is
+// built from the preview pages' markup (Data/Editor/PreviewPage.xml): the preview beside the
+// asset's values. The values show as a scene's settings rows do, from the settings type's
+// reflection, without a block's own source and profile fields, which belong to a scene.
 //
 // The preview is a built-in scene (a ground, spheres of a few materials, a cube and a sun) or one
 // of the project's scenes, picked on the preview's bar, since shared profiles are tuned by how they
@@ -115,6 +116,9 @@ export namespace editor
         [[nodiscard]] app::PreviewPane* Pane() const noexcept { return m_pane.Get(); }
         /// How often the values were given to the preview scene (a test has no scene to look at).
         [[nodiscard]] usize PreviewsApplied() const noexcept { return m_previewsApplied; }
+        /// Whether the asset is a quality level, which the preview is drawn at (not a profile its
+        /// scene takes).
+        [[nodiscard]] bool PreviewsQualityLevel() const;
 
     protected:
         void OnObjectChanged() override;
@@ -141,13 +145,15 @@ export namespace editor
         Guid m_previewSceneId; // the project scene previewed on; nil = the built-in one
         Array<RefPtr<RefCounted>> m_previewContent; // the preview's runtime meshes and materials
         usize m_previewsApplied = 0;
+        Function<void()> m_clearPreviewLevel; // drops the level the preview was drawn at (OnClose)
     };
 
     class SettingsProfilePageFactory final : public IEditorPageFactory
     {
     public:
         explicit SettingsProfilePageFactory(const app::AssetPageServicesSource& services) : m_services(&services) {}
-        /// Every profile asset (the registry matches along the asset type's base chain).
+        /// Every previewed settings asset, profiles and quality levels (the registry matches along
+        /// the asset type's base chain).
         [[nodiscard]] const TypeInfo* PrimaryType() const override;
         [[nodiscard]] UniquePtr<EditorPage> CreatePage(EditorContext& context, foundation::content::Instance& instance) override;
 

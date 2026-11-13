@@ -221,8 +221,10 @@ namespace editor
         targetState.currentState = view.ColorState();
         targetState.finalState = rhi::ResourceState::ShaderRead;
 
+        // Keyed by this viewport (ViewportKey), so a level a page gives it reaches its views alone.
         m_impl->render->RenderScene(*m_impl->scene, view.ColorView(), view.ColorFormat(), w, h,
-                                    render::ViewportRect{0, 0, w, h}, &cameraOverride, targetState);
+                                    render::ViewportRect{0, 0, w, h}, &cameraOverride, targetState,
+                                    nullptr, this);
         view.SetColorState(rhi::ResourceState::ShaderRead);
     }
 

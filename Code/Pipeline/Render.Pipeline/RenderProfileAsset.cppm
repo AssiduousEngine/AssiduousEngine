@@ -22,14 +22,22 @@ using namespace foundation::core;
 
 export namespace pipeline
 {
-    // A profile asset: a settings block's values, reached without naming the block (the editor
-    // edits any profile through this, the reflected layout ValuesType() over Values()).
-    class SettingsProfileAsset : public pipeline::Asset
+    // A settings asset the editor shows beside a preview: its values, reached without naming their
+    // type (the reflected layout ValuesType() over Values()). A render profile or a quality level.
+    class PreviewedSettingsAsset : public pipeline::Asset
     {
-        RTTI_OBJECT(SettingsProfileAsset, pipeline::Asset)
+        RTTI_OBJECT(PreviewedSettingsAsset, pipeline::Asset)
     public:
         [[nodiscard]] virtual const TypeInfo* ValuesType() const noexcept = 0;
         [[nodiscard]] virtual void* Values() noexcept = 0;
+    };
+
+    // A profile asset: a settings block's values, which a scene's block takes (by reference, or
+    // copied into a preview scene's).
+    class SettingsProfileAsset : public PreviewedSettingsAsset
+    {
+        RTTI_OBJECT(SettingsProfileAsset, PreviewedSettingsAsset)
+    public:
         /// Take a settings block's values (ValuesType()'s layout); the block's own source and
         /// profile reference are not a profile's.
         virtual void SetValues(const void* values) = 0;
@@ -105,11 +113,16 @@ export namespace pipeline
     };
 
     // A Render Quality: one quality level, what the scenes' look costs on it.
-    class RenderQualityAsset final : public pipeline::Asset
+    class RenderQualityAsset final : public PreviewedSettingsAsset
     {
-        RTTI_OBJECT(RenderQualityAsset, pipeline::Asset)
+        RTTI_OBJECT(RenderQualityAsset, PreviewedSettingsAsset)
     public:
         engine::render::RenderQualitySettings values;
+        [[nodiscard]] const TypeInfo* ValuesType() const noexcept override
+        {
+            return &TypeOf<engine::render::RenderQualitySettings>();
+        }
+        [[nodiscard]] void* Values() noexcept override { return &values; }
 
         void Serialize(ISerializer& ar) override
         {
@@ -210,6 +223,7 @@ export namespace pipeline
     // Registers the asset types for content-DB construction and deserialization.
     inline void RegisterRenderProfileAssets()
     {
+        GlobalTypeRegistry().Register(PreviewedSettingsAsset::StaticType(), TypeDomain(u8"Pipeline"));
         GlobalTypeRegistry().Register(SettingsProfileAsset::StaticType(), TypeDomain(u8"Pipeline"));
         GlobalTypeRegistry().Register(EnvironmentProfileAsset::StaticType(), TypeDomain(u8"Pipeline"));
         RegisterSerializable<EnvironmentProfileAsset>();
@@ -222,6 +236,7 @@ export namespace pipeline
     /// File > New's render creators (pipeline.registration composes every domain's).
     void RegisterRenderCreators(AssetCreatorRegistry& registry);
 
+    RTTI_DEFINE_OBJECT(PreviewedSettingsAsset, "rtti::pipeline::render")
     RTTI_DEFINE_OBJECT(SettingsProfileAsset, "rtti::pipeline::render")
     // The concrete profiles' reflection (their display names) is in RenderProfileAssetImpl.cpp.
 }

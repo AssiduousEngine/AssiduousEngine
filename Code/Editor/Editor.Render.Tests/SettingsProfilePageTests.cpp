@@ -221,3 +221,46 @@ TEST_CASE("settings profile page: a gesture's previews reach the preview as they
     CHECK(page->PreviewsApplied() == before + 3u); // the value back, the preview with it
     CHECK(rows.GetValue(u8"turbidity", 0).AsFloat() == doctest::Approx(3.0));
 }
+
+// A Render Quality opens on the same page: its rows are the level's fields, an edit is one undo
+// step, and the preview is drawn at the level rather than a scene's block taking it.
+TEST_CASE("settings profile page: a Render Quality's rows are the level's, and its preview is drawn at it")
+{
+    Bed bed;
+    foundation::content::Instance* phone =
+        bed.project->SourceDb().RootGroup()->CreateInstance(u8"Phone", pipeline::RenderQualityAsset::StaticType());
+    REQUIRE(phone != nullptr);
+    pipeline::RenderQualityAsset level;
+    level.values.label = String(u8"Low");
+    level.values.msaaSamples = 1;
+    REQUIRE(phone->WriteObject(level).IsOk());
+
+    // The page factory takes it: profiles and quality levels share a base the registry matches.
+    CHECK(IsDerivedFrom(&pipeline::RenderQualityAsset::StaticType(), &pipeline::PreviewedSettingsAsset::StaticType()));
+    CHECK(IsDerivedFrom(&pipeline::EnvironmentProfileAsset::StaticType(), &pipeline::PreviewedSettingsAsset::StaticType()));
+
+    editor::app::AssetPageServices services;
+    services.loadMarkup = [](StringView path) { return LoadMarkup(path); };
+    UniquePtr<editor::SettingsProfilePage> page =
+        MakeUnique<editor::SettingsProfilePage>(DefaultAllocator(), bed.context, Move(services), *phone);
+    REQUIRE_FALSE(page->LoadFailed());
+    CHECK(page->PreviewsQualityLevel());
+    gui::IPropertySource& rows = page->Rows();
+    CHECK(HasRow(rows, u8"label"));
+    CHECK(HasRow(rows, u8"msaaSamples"));
+    CHECK(HasRow(rows, u8"ambientOcclusion"));
+    CHECK(HasRow(rows, u8"environmentResolution"));
+    CHECK(rows.GetValue(u8"msaaSamples", 0).AsInt() == 1);
+    // A quality level is not a profile a scene's block takes.
+    scene::Scene scene(DefaultAllocator(), u8"quality.preview");
+    (void)scene.AddSystem<PostProcessSystem>();
+    CHECK_FALSE(editor::ApplySettingsProfileToScene(*page->Object(), scene, nullptr));
+
+    // An edit is one undo step.
+    page->EditValue(u8"msaaSamples", gui::PropertyWrite{gui::Variant(i64{4})});
+    CHECK(rows.GetValue(u8"msaaSamples", 0).AsInt() == 4);
+    CHECK(page->IsDirty());
+    page->Commands().Undo();
+    CHECK(rows.GetValue(u8"msaaSamples", 0).AsInt() == 1);
+    CHECK_FALSE(bed.Open()->PreviewsQualityLevel()); // a profile previews in its scene's block
+}
