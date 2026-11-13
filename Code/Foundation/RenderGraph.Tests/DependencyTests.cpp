@@ -113,6 +113,45 @@ TEST_CASE("rg.dep: subresource writes are independent, reader last")
     CHECK(PassName(graph, 2) == u8"Forward");
 }
 
+TEST_CASE("rg.dep: a reader of a range written in parts depends on every part's writer, not the nearest alone")
+{
+    RenderGraph graph(DefaultAllocator(), nullptr);
+    graph.BeginFrame(0);
+    RGTextureDesc atlasDesc(rhi::TextureFormat::Depth32Float);
+    atlasDesc.arrayLayerCount = 4;
+    const RGHandle atlas = graph.CreateTransient(u8"ShadowAtlas", atlasDesc);
+    for (u32 layer = 0; layer < 3; ++layer) // three cascades, a layer each; layer 3 never written
+    {
+        graph.AddRenderPass(layer == 0 ? u8"Cascade0" : layer == 1 ? u8"Cascade1" : u8"Cascade2",
+                            [&, layer](PassBuilder& b)
+                            {
+                                b.SetDepthTarget(atlas, rhi::LoadOp::Clear, rhi::StoreOp::Store, 1.0f,
+                                                 RGSubresourceRange{0, 1, layer, 1});
+                                b.NeverCull();
+                            });
+    }
+    graph.AddRenderPass(u8"Forward",
+                        [&](PassBuilder& b)
+                        {
+                            b.ReadTexture(atlas);
+                            b.NeverCull();
+                        });
+    REQUIRE(graph.Compile().IsOk());
+    const RenderGraphPass* forward = graph.Passes()[3];
+    REQUIRE(forward->name.AsView() == StringView(u8"Forward"));
+    bool needs[3] = {false, false, false};
+    for (PassHandle dep : forward->dependencies)
+    {
+        if (dep.index < 3)
+        {
+            needs[dep.index] = true;
+        }
+    }
+    CHECK(needs[0]);
+    CHECK(needs[1]);
+    CHECK(needs[2]);
+}
+
 TEST_CASE("rg.dep: LoadOp on a color target creates a dependency on the writer")
 {
     RenderGraph graph(DefaultAllocator(), nullptr);

@@ -807,12 +807,15 @@ export namespace foundation::rendergraph
                     {
                         continue;
                     }
-                    for (usize j = passIdx; j-- > 0;)
+                    // Every writer it reads from, nearest first, until each subresource it reads
+                    // has its last one: a range written in parts by several passes (a mip each)
+                    // orders the reader after all of them, not after the nearest alone.
+                    ReadCoverage coverage = CoverageOf(readAccess);
+                    for (usize j = passIdx; j-- > 0 && coverage.left > 0;)
                     {
-                        if (!m_passes[j]->isCulled && AnyOverlap(outputs[j], readAccess))
+                        if (!m_passes[j]->isCulled && Cover(coverage, outputs[j], readAccess))
                         {
                             AddDependencyIfNew(*pass, PassHandle{static_cast<u32>(j)});
-                            break;
                         }
                     }
                 }
@@ -849,6 +852,77 @@ export namespace foundation::rendergraph
         }
 
         // Whether any of `accesses` touches the resource and subresources `access` does.
+        // The (mip, layer) cells a read covers, and which of them have no writer found yet.
+        struct ReadCoverage
+        {
+            u32 baseMip = 0;
+            u32 mips = 1;
+            u32 baseLayer = 0;
+            u32 layers = 1;
+            Array<u8> open; // one per cell, mip-major; 1 while no writer covers it
+            usize left = 0;
+        };
+        [[nodiscard]] ReadCoverage CoverageOf(const RGResourceAccess& read) const
+        {
+            const RenderGraphResource* res = m_resources[read.handle.index];
+            const u32 totalMips = res != nullptr ? res->TotalMipLevels() : 1u;
+            const u32 totalLayers = res != nullptr ? res->TotalArrayLayers() : 1u;
+            const RGSubresourceRange& r = read.subresource;
+            ReadCoverage c;
+            c.baseMip = r.baseMipLevel;
+            c.mips = r.mipLevelCount == 0 ? (totalMips > r.baseMipLevel ? totalMips - r.baseMipLevel : 1u) : r.mipLevelCount;
+            c.baseLayer = r.baseArrayLayer;
+            c.layers = r.arrayLayerCount == 0 ? (totalLayers > r.baseArrayLayer ? totalLayers - r.baseArrayLayer : 1u) : r.arrayLayerCount;
+            c.left = static_cast<usize>(c.mips) * c.layers;
+            c.open.Resize(c.left, u8{1});
+            return c;
+        }
+        // Marks the cells of `coverage` that `outputs` write (same resource); true when it found
+        // any still open, that is, this pass is the last writer of some of what is read.
+        [[nodiscard]] bool Cover(ReadCoverage& coverage, const Array<RGResourceAccess>& outputs,
+                                 const RGResourceAccess& read) const
+        {
+            const RenderGraphResource* res = m_resources[read.handle.index];
+            const u32 totalMips = res != nullptr ? res->TotalMipLevels() : 1u;
+            const u32 totalLayers = res != nullptr ? res->TotalArrayLayers() : 1u;
+            bool any = false;
+            for (const RGResourceAccess& w : outputs)
+            {
+                if (w.handle != read.handle)
+                {
+                    continue;
+                }
+                const RGSubresourceRange& r = w.subresource;
+                const u32 wMipEnd = r.mipLevelCount == 0 ? totalMips : r.baseMipLevel + r.mipLevelCount;
+                const u32 wLayerEnd = r.arrayLayerCount == 0 ? totalLayers : r.baseArrayLayer + r.arrayLayerCount;
+                const bool all = r.IsAll();
+                for (u32 m = 0; m < coverage.mips; ++m)
+                {
+                    const u32 mip = coverage.baseMip + m;
+                    if (!all && (mip < r.baseMipLevel || mip >= wMipEnd))
+                    {
+                        continue;
+                    }
+                    for (u32 l = 0; l < coverage.layers; ++l)
+                    {
+                        const u32 layer = coverage.baseLayer + l;
+                        if (!all && (layer < r.baseArrayLayer || layer >= wLayerEnd))
+                        {
+                            continue;
+                        }
+                        u8& cell = coverage.open[static_cast<usize>(m) * coverage.layers + l];
+                        if (cell != 0)
+                        {
+                            cell = 0;
+                            --coverage.left;
+                            any = true;
+                        }
+                    }
+                }
+            }
+            return any;
+        }
+
         [[nodiscard]] bool AnyOverlap(const Array<RGResourceAccess>& accesses,
                                       const RGResourceAccess& access) const noexcept
         {
