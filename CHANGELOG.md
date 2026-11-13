@@ -122,6 +122,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Animation: a skinned mesh whose animator is removed, or no longer names it, draws in its bind
   pose; it drew from the animator's freed matrices. `MeshComponent` no longer carries bone
   matrices: drawing asks the system that poses the mesh for them.
+- Rendering: an instanced mesh set restored by an undo or a reload draws its restored instances;
+  it drew the ones it held before, and read past them when it had fewer.
 
 ## 0.1.0-beta.3 - 2026-11-12
 

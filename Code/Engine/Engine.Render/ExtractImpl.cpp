@@ -253,7 +253,10 @@ namespace engine::render
                 // authored set changed (version) or the entity moved (world matrix compare). The renderer
                 // keys uploads on composedVersion, so both kinds of change re-upload the GPU buffer.
                 const Float4x4 entityWorld = scene.GetWorldMatrix(e);
-                if (c.composedFromVersion != c.version || !(c.composedEntityWorld == entityWorld))
+                // A cache of another size than the instances is stale whatever the version says (the
+                // draw is told the instances' count, and would read past the cache's end).
+                if (c.composedFromVersion != c.version || !(c.composedEntityWorld == entityWorld) ||
+                    c.worldTransforms.Size() != c.instances.Size() || c.linearTints.Size() != c.tints.Size())
                 {
                     c.worldTransforms.Resize(c.instances.Size());
                     for (usize i = 0; i < c.instances.Size(); ++i)

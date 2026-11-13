@@ -524,6 +524,12 @@ export namespace engine::render
         c.poseAssignment = static_cast<PoseAssignment>(policy);
         foundation::core::Serialize(ar, "poseIndices", c.poseIndices);
         foundation::core::Serialize(ar, "instanceClips", c.instanceClips);
+        // Read over a live set (an undo, a reload in place), its instances changed as SetInstances
+        // changes them: the version says so, or the set would draw what it composed before.
+        if (ar.Mode() == SerializeMode::Read)
+        {
+            ++c.version;
+        }
     }
     inline void ResolveResources(foundation::resource::ResourceManager& manager,
                                  InstancedMeshComponent& c)

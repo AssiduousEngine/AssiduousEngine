@@ -472,6 +472,54 @@ TEST_CASE("instanced-mesh: seeded identity instance + entity-relative compositio
     CHECK(Near(rd4->transforms[1].m[3][0], 4.0f)); // -1 + entity x=5
 }
 
+TEST_CASE("instanced-mesh: a set read in place (an undo, a reload) draws what it was read as")
+{
+    scene::Scene scene(DefaultAllocator(), u8"world");
+    auto* mgr = scene.AddSystem<InstancedMeshComponentManager>();
+    RefPtr<geometry::StaticMesh> cube = geometry::Primitives::Cube(DefaultAllocator(), 1.0f);
+    const scene::EntityHandle e = scene.CreateEntity(u8"scatter");
+    InstancedMeshComponent& c = mgr->Add(e);
+    c.mesh = cube;
+    scene.UpdateTransforms();
+    const auto drawn = [&]()
+    {
+        ExtractedScene out{DefaultAllocator()};
+        ExtractInstancedMeshesInto(scene, out);
+        REQUIRE(out.Items().Size() == 1u);
+        const auto* rd = static_cast<const MultiMeshRenderData*>(out.Items()[0]);
+        Array<f32> xs;
+        for (u32 i = 0; i < rd->instanceCount; ++i)
+            xs.PushBack(rd->transforms[i].m[3][0]);
+        return xs;
+    };
+    REQUIRE(drawn().Size() == 1u); // composed once, at one instance
+    const auto readInto = [&](Span<const Float4x4> instances)
+    {
+        InstancedMeshComponent saved;
+        saved.SetInstances(instances);
+        MemoryStream stream;
+        {
+            BinarySerializer write(stream, SerializeMode::Write);
+            Serialize(write, saved);
+        }
+        (void)stream.Seek(0, SeekOrigin::Begin);
+        BinarySerializer read(stream, SerializeMode::Read);
+        Serialize(read, c); // over the live set, as an undo restores it
+    };
+    const Float4x4 three[3] = {Float4x4::Translation(Float3{1, 0, 0}), Float4x4::Translation(Float3{2, 0, 0}),
+                               Float4x4::Translation(Float3{3, 0, 0})};
+    readInto(Span<const Float4x4>{three, 3});
+    Array<f32> xs = drawn();
+    REQUIRE(xs.Size() == 3u);
+    CHECK(Near(xs[2], 3.0f)); // composed again: nothing read past the old one-instance cache
+    const Float4x4 moved[3] = {Float4x4::Translation(Float3{7, 0, 0}), Float4x4::Translation(Float3{8, 0, 0}),
+                               Float4x4::Translation(Float3{9, 0, 0})};
+    readInto(Span<const Float4x4>{moved, 3}); // same size, new places
+    xs = drawn();
+    REQUIRE(xs.Size() == 3u);
+    CHECK(Near(xs[0], 7.0f));
+}
+
 TEST_CASE("instanced-mesh: members draw after the authored instances, where they are, on their clips")
 {
     scene::Scene scene(DefaultAllocator(), u8"world");
