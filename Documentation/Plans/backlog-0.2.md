@@ -308,6 +308,27 @@ the counts (SSGI's resolve, composite, denoise and blur, about 20 ms) dominate.
 - Measure each on the Pixel 6 as the levels were: the RelWithDebInfo development app, each game
   run with `--profile-capture 30 --exit-after 40 --quality <label>`, GPU frame ms at the median.
 
+## Stability: left over (2026-11-13)
+
+What the audit of 2026-11-11 raised that `Specs/stability.md` leaves out, to take up after it:
+
+- **Autosave and crash recovery.** Atomic saves stop a crash from corrupting a file; nothing
+  keeps unsaved work.
+- **An allocation-failure policy.** Allocators return null; containers assert, and the asserts
+  are compiled out of Shipping.
+- **MCP tools confined to the project** (their paths), and the tool table guarded against
+  changes during a call.
+- **Network design limits**: no admission hook, all network I/O, the TLS handshake and DNS on
+  the game thread, whole-component replication at full precision with no budget, one reliable
+  stream for every channel, IPv4 only.
+- **Unread by the audit**: RHI.Null; most Vulkan, DX12 and WebGPU pipeline and encoder code (and
+  DX12 has no test target); the Windows backend beyond file I/O; Editor.Input, Particles,
+  ModelPreview, Render, Texture, Physics, Camera, Image and Shaders; Tools.Editor's Main.cpp;
+  Android and web export packaging; GUI.Hosting's Offscreen and PassRenderer; GUI.Inspector; most
+  per-domain resource factories; Mcp.Reflection and Mcp.Script; Engine.Project; Code/Samples.
+- **The audit's lower findings** not in the spec (its per-area digests): a second read once the
+  spec is done, keeping what still holds.
+
 ## Reduced module interfaces on Android: memcpy through one core wrapper (user 2026-11-12)
 
 The root CMakeLists gives Clang `-fmodules-reduced-bmi` everywhere but Android (8b51e8fff). With it,
