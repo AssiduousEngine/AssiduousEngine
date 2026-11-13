@@ -14,6 +14,7 @@
 
 module;
 #include "Core/Prelude.h"
+#include "Core/Log/Log.h"
 #include <cstddef> // offsetof
 #include <initializer_list>
 
@@ -562,10 +563,11 @@ export namespace engine::terrain
         {
             const u32 chunk = 4096u;
             // Each terrain allocates a view slot per pass in a frame: 1 colour, 1 depth prepass and
-            // kCascadeCount shadow cascades (plus extra views). The chunk ring holds every pass's
-            // chunk allocations (sized from the observed peak, both passes).
-            const u32 wantViews =
-                Max(kMaxTerrains * (2u + kCascadeCount), maxDraws == 0 ? 1u : maxDraws);
+            // kCascadeCount shadow cascades (plus extra views). Both rings are sized from the most a
+            // frame asked for, failed allocations included: counting only the ones that fit kept a
+            // full ring full, and the terrains or chunks past it never drew.
+            const u32 wantViews = Max(Max(kMaxTerrains * (2u + kCascadeCount), maxDraws == 0 ? 1u : maxDraws),
+                                      m_maxViewAllocs);
             m_viewRing.Reserve(wantViews);
             const u32 wantChunks = ((m_maxChunkAllocs + chunk - 1u) / chunk) * chunk;
             m_chunkRing.Reserve(wantChunks == 0 ? chunk : wantChunks);
@@ -573,6 +575,7 @@ export namespace engine::terrain
             m_chunkRing.BeginFrame(frameIndex);
             m_frameChunks = 0;
             m_frameChunkAllocs = 0;
+            m_frameViewAllocs = 0;
         }
 
         void Resolve(const render::RenderRecordContext& ctx, Span<const render::DrawItem> items,
@@ -633,9 +636,11 @@ export namespace engine::terrain
                 // folded into ViewProj) so the PS can shadow-sample worldPos against the world-space
                 // cascade matrices. The cascade fields stay zero (cascadeCount 0, so SampleCSM
                 // returns fully lit) unless the CSM fill below sets them.
+                ++m_frameViewAllocs;
                 const render::DynamicUniformRing::Range vr = m_viewRing.Allocate();
                 if (!vr.ok)
                 {
+                    LogRingOverflow();
                     continue;
                 }
                 GpuTerrainView ubo{};
@@ -743,13 +748,14 @@ export namespace engine::terrain
                         continue;
                     }
 
+                    ++m_frameChunkAllocs;
                     const render::DynamicUniformRing::Range cr = m_chunkRing.Allocate();
                     if (!cr.ok)
                     {
+                        LogRingOverflow();
                         continue;
                     }
                     ++m_frameChunks;
-                    ++m_frameChunkAllocs;
                     GpuTerrainChunk cb = MakeChunkUBO(*data, c);
                     MemCopy(cr.ptr, &cb, sizeof(cb));
 
@@ -832,9 +838,11 @@ export namespace engine::terrain
                 {
                     continue;
                 }
+                ++m_frameViewAllocs;
                 const render::DynamicUniformRing::Range vr = m_viewRing.Allocate();
                 if (!vr.ok)
                 {
+                    LogRingOverflow();
                     continue;
                 }
                 if (pick)
@@ -908,12 +916,13 @@ export namespace engine::terrain
                     {
                         continue;
                     }
+                    ++m_frameChunkAllocs;
                     const render::DynamicUniformRing::Range cr = m_chunkRing.Allocate();
                     if (!cr.ok)
                     {
+                        LogRingOverflow();
                         continue;
                     }
-                    ++m_frameChunkAllocs;
                     GpuTerrainChunk cb = MakeChunkUBO(*data, c);
                     MemCopy(cr.ptr, &cb, sizeof(cb));
 
@@ -941,6 +950,7 @@ export namespace engine::terrain
         {
             m_maxChunksSeen = Max(m_maxChunksSeen, m_frameChunks);
             m_maxChunkAllocs = Max(m_maxChunkAllocs, m_frameChunkAllocs);
+            m_maxViewAllocs = Max(m_maxViewAllocs, m_frameViewAllocs);
             m_viewRing.EndFrame();
             m_chunkRing.EndFrame();
         }
@@ -980,13 +990,27 @@ export namespace engine::terrain
         /// Peak per-frame chunk-draw count seen so far (diagnostics and headless verification): > 0
         /// only once a frame emitted terrain draws, which requires the PSO (so the shaders) to build.
         [[nodiscard]] u32 MaxChunksDrawn() const noexcept { return m_maxChunksSeen; }
+        /// Slots the view and chunk rings hold per frame (tests pin their growth).
+        [[nodiscard]] u32 ViewSlotsPerFrame() const noexcept { return m_viewRing.SlotsPerFrame(); }
+        [[nodiscard]] u32 ChunkSlotsPerFrame() const noexcept { return m_chunkRing.SlotsPerFrame(); }
 
         /// Draws the LOD-seam skirts (default on). Off draws only the surface, which shows whether
         /// the skirts plug cracks (a skirtless mixed-LOD frame leaks background through the seams).
         void SetSkirtsEnabled(bool enabled) noexcept { m_skirtsEnabled = enabled; }
 
     private:
-        static constexpr u32 kMaxTerrains = 8;
+        static constexpr u32 kMaxTerrains = 8; // the view ring's start: terrains a frame draws before it grows
+
+        // A ring ran out this frame: the rest of it waits for the next frame, which holds what this
+        // one asked for. Logged the first time.
+        void LogRingOverflow()
+        {
+            if (!m_overflowLogged)
+            {
+                LOG_WARNING(u8"Terrain", u8"terrain renderer: view or chunk ring full, growing next frame");
+                m_overflowLogged = true;
+            }
+        }
         static constexpr u32 kCascadeCount = kTerrainCascadeCount;
         // GpuTerrainView (672 bytes; the pick pass's GpuTerrainPickView, 144, shares the slot), padded
         // to the dynamic-offset alignment.
@@ -1104,15 +1128,9 @@ export namespace engine::terrain
             }
             if (bg != nullptr)
             {
-                // May sit in a submitted frame's descriptor set: retire (frame-aged) when possible.
-                if (m_retire != nullptr)
-                {
-                    m_retire->Retire(bg);
-                }
-                else
-                {
-                    m_device->DestroyBindGroup(bg);
-                }
+                // May sit in a submitted frame's descriptor set: retired (frame-aged), or with no
+                // queue wired, freed after the GPU idles.
+                render::RetireBindGroup(*m_device, m_retire, bg);
                 bg = nullptr;
             }
             if (m_viewRing.Buffer() == nullptr || shadowT1 == nullptr)
@@ -1147,7 +1165,8 @@ export namespace engine::terrain
             }
             if (m_chunkBg != nullptr)
             {
-                m_device->DestroyBindGroup(m_chunkBg);
+                // May sit in a submitted frame's descriptor set, now that the ring grows.
+                render::RetireBindGroup(*m_device, m_retire, m_chunkBg);
                 m_chunkBg = nullptr;
             }
             if (m_chunkRing.Buffer() == nullptr)
@@ -1902,8 +1921,11 @@ export namespace engine::terrain
         Array<tmodel::ChunkDraw> m_draws; // scratch, reused each terrain (Resolve is single-threaded)
         u32 m_frameChunks = 0;      // color-pass visible chunks (the MaxChunksDrawn diagnostic)
         u32 m_maxChunksSeen = 0;
-        u32 m_frameChunkAllocs = 0; // chunk-ring allocs this frame across all passes (sizes the ring)
+        u32 m_frameChunkAllocs = 0; // chunk-ring allocs asked for this frame across all passes (sizes the ring)
         u32 m_maxChunkAllocs = 0;
+        u32 m_frameViewAllocs = 0;  // view-ring allocs asked for this frame (sizes the ring)
+        u32 m_maxViewAllocs = 0;
+        bool m_overflowLogged = false;
         bool m_skirtsEnabled = true;
     };
 }

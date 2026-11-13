@@ -207,6 +207,65 @@ TEST_CASE("terrain renderer: visible chunks draw (extract -> Resolve -> per-LOD 
     heightCache.Clear(harness.device); // GPU objects back to the device before it dies
 }
 
+TEST_CASE("terrain renderer: a frame that outgrows the view ring draws everything from the next frame")
+{
+    // The rings were sized from the allocations that fit, so a full ring stayed full and the
+    // terrains past it never drew. Sixty terrains in one view ask for more view slots (colour and
+    // depth passes each) than the ring starts with.
+    RenderHarness harness;
+    if (!harness.Init(256, 256))
+    {
+        MESSAGE("DXC/Null unavailable; skipping");
+        return;
+    }
+    shaders::ShaderSystem shaderSystem(*harness.compiler, harness.device);
+    WireEngineShaders(shaderSystem);
+    engine::terrain::TerrainRenderer renderer(harness.device, shaderSystem, /*framesInFlight*/ 2);
+    REQUIRE(renderer.Initialize().IsOk());
+    RendererRegistry registry;
+    registry.Register(&renderer);
+    RenderFrame frame(DefaultAllocator(), harness.device, registry, /*framesInFlight*/ 2);
+
+    RefPtr<hf::Heightfield> h = MakeRampX();
+    Array<tmodel::TerrainChunk> chunks;
+    tmodel::BuildChunks(*h, chunks);
+    REQUIRE(chunks.Size() == 4u);
+    tmodel::TerrainQuadtree tree;
+    tree.Build(Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()}, tmodel::ChunksPerSide(h->Size()));
+    engine::terrain::TerrainHeightTextureCache heightCache;
+    rhi::TextureView* heightView = heightCache.GetOrCreate(harness.device, *h, 1);
+    REQUIRE(heightView != nullptr);
+
+    constexpr u32 kTerrains = 60;
+    ExtractedScene scene{DefaultAllocator()};
+    for (u32 i = 0; i < kTerrains; ++i)
+    {
+        engine::terrain::TerrainRenderData* rd = scene.Add<engine::terrain::TerrainRenderData>();
+        REQUIRE(rd != nullptr);
+        FillTerrainRenderData(*rd, *h, Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()}, tree,
+                              heightView, renderer.RendererId());
+    }
+    ViewCamera camera;
+    camera.view = Float4x4::LookAtRH(Float3{0.0f, 300.0f, 0.1f}, Float3{0.0f, 0.0f, 0.0f}, Float3{0.0f, 0.0f, 1.0f});
+    camera.projection = Float4x4::PerspectiveFovRH(1.2f, 1.0f, 1.0f, 2000.0f);
+    ViewSettings settings;
+
+    const u32 startSlots = [&]
+    {
+        frame.Begin(*harness.encoder, 0);
+        frame.AddView(scene, camera, settings, harness.colorView, rhi::TextureFormat::BGRA8Unorm, 256, 256);
+        frame.End();
+        return renderer.ViewSlotsPerFrame();
+    }();
+    REQUIRE(renderer.MaxChunksDrawn() < kTerrains * 4u); // the first frame ran out
+    frame.Begin(*harness.encoder, 1);
+    frame.AddView(scene, camera, settings, harness.colorView, rhi::TextureFormat::BGRA8Unorm, 256, 256);
+    frame.End();
+    CHECK(renderer.ViewSlotsPerFrame() > startSlots);
+    CHECK(renderer.MaxChunksDrawn() == kTerrains * 4u); // every terrain's every chunk
+    heightCache.Clear(harness.device);
+}
+
 TEST_CASE("terrain renderer: a chunk cut everywhere draws nothing; a holed chunk draws its own buffers")
 {
     RenderHarness harness;
