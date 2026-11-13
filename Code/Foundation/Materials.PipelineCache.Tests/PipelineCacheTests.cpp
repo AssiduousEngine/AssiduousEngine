@@ -125,3 +125,60 @@ TEST_CASE("pso cache: depth-only config builds without a fragment shader")
     cache.Clear();
     device.DestroyPipelineLayout(layout);
 }
+
+TEST_CASE("pso cache: configs apart in any field are apart; a failed build waits for the shader to change")
+{
+    rhi::null::NullDevice device{DefaultAllocator()};
+    shaders::CookedShaderPack pack;
+    AddPlaceholder(pack, u8"shadow", shaders::ShaderStage::Vertex);
+    AddPlaceholder(pack, u8"shadow", shaders::ShaderStage::Fragment);
+    shaders::ShaderSystem shaderSystem(device);
+    shaderSystem.SetCookedPack(&pack);
+    rhi::PipelineLayout* layout = nullptr;
+    REQUIRE(device.CreatePipelineLayout(rhi::PipelineLayoutDesc{}, layout).IsOk());
+    PipelineStateCache cache(shaderSystem, device, /*framesInFlight*/ 2);
+
+    // Two depth passes apart only in their slope bias are two pipelines (the hash left it out, so
+    // they were one).
+    PipelineConfig caster = PipelineConfig::ForOpaqueMesh(u8"shadow");
+    caster.depthBiasSlopeScale = 1.5f;
+    PipelineConfig prepass = caster;
+    prepass.depthBiasSlopeScale = 0.0f;
+    rhi::RenderPipeline* a = cache.GetPipeline(caster, layout);
+    rhi::RenderPipeline* b = cache.GetPipeline(prepass, layout);
+    REQUIRE(a != nullptr);
+    REQUIRE(b != nullptr);
+    CHECK(a != b);
+    CHECK(cache.Size() == 2u);
+
+    // A name held elsewhere (a view into other storage) finds the same entry: the name is matched.
+    String sameName(u8"shadow");
+    PipelineConfig again = caster;
+    again.shaderName = sameName.AsView();
+    CHECK(cache.GetPipeline(again, layout) == a);
+
+    // A shader with no variants fails once, and is not built again on every draw after.
+    const PipelineConfig broken = PipelineConfig::ForOpaqueMesh(u8"missing");
+    CHECK(cache.GetPipeline(broken, layout) == nullptr);
+    const u64 tried = cache.BuildAttempts();
+    for (int draw = 0; draw < 10; ++draw)
+    {
+        CHECK(cache.GetPipeline(broken, layout) == nullptr);
+    }
+    CHECK(cache.BuildAttempts() == tried);
+    shaderSystem.InvalidateShader(u8"missing"); // an edit: worth trying again
+    (void)cache.GetPipeline(broken, layout);
+    CHECK(cache.BuildAttempts() == tried + 1u);
+
+    // A pipeline a reload superseded lives through the frames in flight, then goes.
+    shaderSystem.InvalidateShader(u8"shadow");
+    REQUIRE(cache.GetPipeline(caster, layout) != a);
+    CHECK(cache.RetiredCount() == 1u);
+    cache.TickRetired();
+    CHECK(cache.RetiredCount() == 1u); // one frame in flight may still draw with it
+    cache.TickRetired();
+    CHECK(cache.RetiredCount() == 0u);
+
+    cache.Clear();
+    device.DestroyPipelineLayout(layout);
+}

@@ -350,6 +350,10 @@ namespace engine::render
         const u32 slotCount = HasGlobalJobSystem() ? GlobalJobs().SlotCount() : 1u;
         m_renderCtx.BeginFrame(slotCount);
         m_retireQueue.Tick(); // free retired GPU resources that have aged past all in-flight frames
+        if (m_psoCache)
+        {
+            m_psoCache->TickRetired(); // and pipelines a shader reload superseded
+        }
         m_frame->SetExposure(m_exposure);
         m_frame->SetTime(m_timeSeconds); // the wind sway clock (prev is last frame's)
         m_frame->SetBloom(m_bloomEnabled ? m_bloomIntensity : 0.0f, m_bloomThreshold, m_bloomKnee);
@@ -811,7 +815,7 @@ namespace engine::render
         }
 
         m_psoCache =
-            MakeUnique<materials::PipelineStateCache>(m_allocator, *m_shaders, *m_device);
+            MakeUnique<materials::PipelineStateCache>(m_allocator, *m_shaders, *m_device, m_framesInFlight);
         m_materialSystem = MakeUnique<materials::MaterialSystem>(m_allocator);
         if (!m_materialSystem->Initialize(*m_device).IsOk())
         {
