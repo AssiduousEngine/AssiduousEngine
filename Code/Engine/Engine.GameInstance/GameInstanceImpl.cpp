@@ -270,6 +270,29 @@ namespace engine::runtime
         return scene;
     }
 
+    bool GameInstance::LoadSceneForScript(content::Instance& sceneInstance, resource::ResourceManager& resources)
+    {
+        scene::Scene* scene = CreateScene(sceneInstance.Name(), /*activate*/ false);
+        if (scene == nullptr || !scene::LoadScene(sceneInstance, *scene).IsOk())
+        {
+            if (scene != nullptr)
+            {
+                DestroyScene(scene);
+            }
+            return false;
+        }
+        scene::ResolveSceneResources(*scene, resources);
+        if (scene->PendingPrefabInstanceCount() > 0)
+        {
+            scene::ResolveScenePrefabs(*scene, resources);
+            scene::ResolveSceneResources(*scene, resources); // bind the spawned prefabs' refs
+        }
+        SceneLoadHandle handle; // complete: everything bound already
+        handle.m_scene = scene;
+        (void)TrackScriptLoad(core::Move(handle));
+        return true;
+    }
+
     SceneLoadHandle GameInstance::LoadSceneAsync(content::Instance& sceneInstance, resource::ResourceManager& resources)
     {
         SceneLoadHandle handle;

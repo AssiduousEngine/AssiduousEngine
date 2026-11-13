@@ -124,7 +124,8 @@ export namespace engine::runtime
 
     /// run.*: the run and app tier. `run.events()` is the run-bus handle; `loadSceneAsync` starts
     /// an async scene load and returns a ticket the script polls: `var t = run.loadSceneAsync(id);
-    /// while (!run.loadComplete(t)) yield`. loadScene is a synchronous convenience; sceneReady
+    /// while (!run.loadComplete(t)) yield`. loadScene is a synchronous convenience (loaded when it
+    /// returns, the level from the next frame's top); sceneReady
     /// reports whether the instance's current scene is live. A static facade (resolved per call
     /// through CurrentScriptContext), bound to scripts as `run` through ScriptName. It resolves its
     /// own per-context service; unwired, every call is a safe no-op (an empty RunEvents whose emit
@@ -467,6 +468,13 @@ export namespace engine::runtime
         /// it is placed.
         scene::Scene* LoadScene(content::Instance& sceneInstance, resource::ResourceManager& resources);
 
+        /// A script's synchronous run.loadScene: loads the scene now, inactive, its resources
+        /// bound now, and leaves it to PumpScriptLoads to adopt (activate, make the level, destroy
+        /// the old one) at the frame's top. Adopted where it was asked (the fixed step, an event
+        /// handler), it grew the scene list being ticked and freed the scene the script ran in.
+        /// False when it did not load.
+        bool LoadSceneForScript(content::Instance& sceneInstance, resource::ResourceManager& resources);
+
         /// Async load: creates the scene inactive, deserializes it, and starts its resource binds
         /// on workers (BindAsync). Returns a SceneLoadHandle: poll IsComplete()/Progress() for a
         /// loading screen, then call ActivateLoadedScene(). The scene never ticks or renders while
@@ -493,7 +501,8 @@ export namespace engine::runtime
         /// beside the new one (its player reading input, its events reaching the run bus), and
         /// every restart would stack one more. A behaviour that loads a level from inside the scene
         /// it replaces is safe: the scene manager defers a destroy asked for during its update to
-        /// the end of that update. The async pump and the synchronous run.loadScene both use this.
+        /// the end of that update. PumpScriptLoads uses this for both run.loadSceneAsync and
+        /// run.loadScene.
         void AdoptLoadedScene(scene::Scene* activated);
 
         /// The post-activation policy the app owns (EnsureCamera, Start, SetSimulationEnabled: the

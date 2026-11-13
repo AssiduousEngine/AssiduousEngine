@@ -1419,12 +1419,48 @@ TEST_CASE("game-instance: LoadScene / LoadSceneAsync own the scene load orchestr
         CHECK(gi.Scenes().IsActive(level2));
         CHECK(gi.Scenes().SceneCount() == 1u);
 
-        // The synchronous path (run.loadScene) adopts the same way.
-        scene::Scene* level3 =
-            gi.LoadScene(*sceneInst, resources);
-        REQUIRE(level3 != nullptr);
-        gi.AdoptLoadedScene(level3);
-        CHECK(gi.GetScene() == level3);
+        // The synchronous path (run.loadScene) loads at once and is adopted by the same pump.
+        REQUIRE(gi.LoadSceneForScript(*sceneInst, resources));
+        CHECK(gi.GetScene() == level2); // still the level until the pump
+        CHECK(gi.Scenes().SceneCount() == 2u);
+        gi.PumpScriptLoads();
+        CHECK(gi.GetScene() != level2);
+        CHECK(gi.Scenes().IsActive(gi.GetScene()));
+        CHECK(gi.Scenes().SceneCount() == 1u);
+    }
+
+    SUBCASE("run.loadScene from a level's own fixed step leaves it whole until the pump")
+    {
+        engine::runtime::GameInstance gi;
+        gi.SetSceneActivationPolicy(Function<void(scene::Scene*)>{[](scene::Scene*) {}});
+        REQUIRE(gi.LoadSceneForScript(*sceneInst, resources));
+        gi.PumpScriptLoads();
+        scene::Scene* level = gi.GetScene();
+        REQUIRE(level != nullptr);
+        // Its fixed step loads the next level, as a behaviour's onFixedUpdate would.
+        struct Loader final : scene::SceneSystem
+        {
+            engine::runtime::GameInstance* gi = nullptr;
+            content::Instance* next = nullptr;
+            resource::ResourceManager* resources = nullptr;
+            int loads = 0;
+            void OnFixedUpdate(f32) override
+            {
+                if (loads++ == 0)
+                    CHECK(gi->LoadSceneForScript(*next, *resources));
+            }
+        };
+        Loader* loader = level->AddSystem<Loader>();
+        loader->gi = &gi;
+        loader->next = sceneInst;
+        loader->resources = &resources;
+        scene::FrameTime time(1.0f / 30.0f);
+        gi.Scenes().BeginFrame(time); // two fixed steps over the active list
+        CHECK(loader->loads == 2);    // the level kept stepping, whole
+        CHECK(gi.GetScene() == level);
+        CHECK(gi.Scenes().IsActive(level));
+        gi.PumpScriptLoads();
+        CHECK(gi.GetScene() != level);
         CHECK(gi.Scenes().SceneCount() == 1u);
     }
 

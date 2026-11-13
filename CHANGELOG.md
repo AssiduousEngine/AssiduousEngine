@@ -92,6 +92,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   message or a destroy hook waits until that step or handler is done, as it did inside an update;
   it was done at once, under the code still walking the scene, and could crash the game. The
   entity stays valid until then.
+- Scripting: `run.loadScene` loads the scene before it returns, and the scene becomes the level at
+  the next frame's start, as `run.loadSceneAsync`'s does; the level it replaces is destroyed then.
+  Called from the fixed step or an event handler, it destroyed the scene the script was running in.
 
 ## 0.1.0-beta.3 - 2026-11-12
 

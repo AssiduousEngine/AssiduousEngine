@@ -491,8 +491,10 @@ namespace engine::runtime
         gi.RunBinding().loadFailed = core::Function<bool(core::i32)>{
             [instance](core::i32 ticket) -> bool { return instance->ScriptLoadFailed(ticket); }};
 
-        // run.loadScene(id): synchronous convenience for tiny scenes. Load, make current and apply
-        // the same activation policy, all before the call returns. false on a resolve or load failure.
+        // run.loadScene(id): synchronous convenience for tiny scenes. Loads before the call
+        // returns; PumpScriptLoads makes it the level (current, the activation policy, the old one
+        // destroyed) at the next frame's top, where no script runs. false on a resolve or load
+        // failure.
         gi.RunBinding().loadScene =
             core::Function<bool(const core::Guid&)>{[self, instance](const core::Guid& sceneId) -> bool
             {
@@ -505,15 +507,7 @@ namespace engine::runtime
                 {
                     return false;
                 }
-                foundation::scene::Scene* scene = instance->LoadScene(*sceneInst, *self->Resources());
-                if (scene == nullptr)
-                {
-                    return false;
-                }
-                // The async pump's own path: current scene, the app's policy, and the level it
-                // lands over destroyed (deferred when a behaviour of that level asked for it).
-                instance->AdoptLoadedScene(scene);
-                return true;
+                return instance->LoadSceneForScript(*sceneInst, *self->Resources());
             }};
 
         gi.RunBinding().sceneReady =
