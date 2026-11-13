@@ -44,8 +44,19 @@ export namespace foundation::render
         i32 frameMod = 0;
         i32 debugMode = 0;
         i32 orthographic = 0; // 1: view rays are parallel, no divide by depth
+        i32 slices = 3;       // horizon slices (the view's budget)
+        i32 steps = 6;        // march steps per slice direction
     };
-    static_assert(sizeof(GpuGtaoPush) == 96, "push GtaoPush layout drift");
+    static_assert(sizeof(GpuGtaoPush) == 104, "push GtaoPush layout drift");
+
+    // What AO may cost in one view (a quality level's tier): SSAO's kernel samples (1 to 16, the
+    // kernel's size), GTAO's slices and steps. The defaults are the full budgets.
+    struct AoBudget
+    {
+        u32 ssaoSamples = 16;
+        u32 gtaoSlices = 3;
+        u32 gtaoSteps = 6;
+    };
     struct GpuSsaoPush
     {
         Float4x4 invProj{};
@@ -113,7 +124,8 @@ export namespace foundation::render
                                                       rendergraph::RGHandle normal, u32 w, u32 h,
                                                       const Float4x4& invProj, const Float4x4& proj,
                                                       f32 radius, f32 intensity, u32 frameIndex,
-                                                      AoMode mode, i32 debugMode = 0);
+                                                      AoMode mode, const AoBudget& budget,
+                                                      i32 debugMode = 0);
 
         // Multiply the AO into `hdr` (out = hdr * lerp(1, ao, strength)), writing and returning a fresh HDR
         // transient. Run it before the TAA resolve so TAA stabilizes the AO; applied after TAA, the AO

@@ -2407,6 +2407,45 @@ TEST_CASE("render: a quality level turns effects off and sets the MSAA and AA, n
         CHECK_FALSE(vp.ssgiEnabled);
         CHECK_FALSE(vp.bloomEnabled);
     }
+    // The tiers set what each effect may cost: High each pass's full budget, Medium and Low less.
+    {
+        ViewPostConfig high = ResolveScenePost(scene);
+        ApplyQuality(high, RenderQualitySettings{}, true);
+        CHECK(high.ssaoSamples == 16u);
+        CHECK(high.gtaoSlices == 3u);
+        CHECK(high.gtaoSteps == 6u);
+        CHECK(high.ssrMaxSteps == 96u);
+        CHECK(high.ssgiRayCount == 4u);
+        CHECK(high.ssgiMaxSteps == 12u);
+        CHECK(high.bloomMaxLevels == 7u);
+        RenderQualitySettings medium;
+        medium.ambientOcclusion = QualityTier::Medium;
+        medium.reflections = QualityTier::Medium;
+        medium.globalIllumination = QualityTier::Medium;
+        medium.bloom = QualityTier::Medium;
+        ViewPostConfig mid = ResolveScenePost(scene);
+        ApplyQuality(mid, medium, true);
+        CHECK(mid.ssaoSamples == 12u);
+        CHECK(mid.gtaoSlices == 2u);
+        CHECK(mid.ssrMaxSteps == 64u);
+        CHECK(mid.ssgiRayCount == 2u);
+        CHECK(mid.bloomMaxLevels == 5u);
+        RenderQualitySettings low = medium;
+        low.ambientOcclusion = QualityTier::Low;
+        low.reflections = QualityTier::Low;
+        low.globalIllumination = QualityTier::Low;
+        low.bloom = QualityTier::Low;
+        ViewPostConfig lo = ResolveScenePost(scene);
+        ApplyQuality(lo, low, true);
+        CHECK(lo.ssaoSamples == 8u);
+        CHECK(lo.gtaoSlices == 2u);
+        CHECK(lo.gtaoSteps == 4u);
+        CHECK(lo.ssrMaxSteps == 32u);
+        CHECK(lo.ssgiRayCount == 1u);
+        CHECK(lo.bloomMaxLevels == 4u);
+        CHECK(lo.aoMode == static_cast<u32>(foundation::render::AoMode::GTAO)); // Low still runs it
+        CHECK(lo.ssrEnabled);
+    }
     // Without `antialiasing` (a debug panel set its own), the view's AA stays as it was.
     {
         ViewPostConfig vp = ResolveScenePost(scene);

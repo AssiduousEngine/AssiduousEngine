@@ -1262,12 +1262,27 @@ export namespace engine::render
         }
     }
 
+    // A tier's value of three: Low's, Medium's or High's (Off takes Low's; its effect does not run).
+    template <typename T>
+    [[nodiscard]] constexpr T TierValue(QualityTier tier, T low, T medium, T high) noexcept
+    {
+        return tier == QualityTier::High ? high : (tier == QualityTier::Medium ? medium : low);
+    }
+
     // A quality level over a view's resolved post: an Off tier turns its effect off (the scene's
-    // values stay, for a level that allows it), and the scene pass takes the level's MSAA count.
-    // With `antialiasing`, the view also takes the level's antialiasing; without it (a sample's
-    // debug panel set its own), the resolved one stays. A tier never turns an effect on.
+    // values stay, for a level that allows it), the other tiers set what each effect may cost
+    // (High is each pass's full budget), and the scene pass takes the level's MSAA count. With
+    // `antialiasing`, the view also takes the level's antialiasing; without it (a sample's debug
+    // panel set its own), the resolved one stays. A tier never turns an effect on.
     inline void ApplyQuality(ViewPostConfig& vp, const RenderQualitySettings& q, bool antialiasing)
     {
+        vp.ssaoSamples = TierValue<u8>(q.ambientOcclusion, 8, 12, 16);
+        vp.gtaoSlices = TierValue<u8>(q.ambientOcclusion, 2, 2, 3);
+        vp.gtaoSteps = TierValue<u8>(q.ambientOcclusion, 4, 6, 6);
+        vp.ssrMaxSteps = TierValue<u8>(q.reflections, 32, 64, 96);
+        vp.ssgiRayCount = TierValue<u8>(q.globalIllumination, 1, 2, 4);
+        vp.ssgiMaxSteps = 12;
+        vp.bloomMaxLevels = TierValue<u8>(q.bloom, 4, 5, 7);
         if (q.bloom == QualityTier::Off)
         {
             vp.bloomEnabled = false;

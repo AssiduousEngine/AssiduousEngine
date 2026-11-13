@@ -95,7 +95,7 @@ namespace foundation::render
                                             rendergraph::RGHandle normal, u32 w, u32 h,
                                             const Float4x4& invProj, const Float4x4& proj,
                                             f32 radius, f32 intensity, u32 frameIndex, AoMode mode,
-                                            i32 debugMode)
+                                            const AoBudget& budget, i32 debugMode)
     {
         if (mode == AoMode::Off || w == 0 || h == 0)
         {
@@ -149,6 +149,8 @@ namespace foundation::render
             gp.frameMod = static_cast<i32>(frameIndex & 63u);
             gp.debugMode = debugMode;
             gp.orthographic = projection::IsOrthographic(proj) ? 1 : 0;
+            gp.slices = static_cast<i32>(Clamp(budget.gtaoSlices, 1u, 8u));
+            gp.steps = static_cast<i32>(Clamp(budget.gtaoSteps, 1u, 16u));
             push = PushBuf::From(gp);
             pipeline = m_gtaoPipeline;
         }
@@ -165,7 +167,7 @@ namespace foundation::render
             sp.radius = radius;
             sp.intensity = intensity;
             sp.bias = 0.05f;
-            sp.sampleCount = 16;
+            sp.sampleCount = static_cast<i32>(Clamp(budget.ssaoSamples, 1u, 16u)); // the kernel's size
             sp.debugMode = debugMode;
             push = PushBuf::From(sp);
             pipeline = m_ssaoPipeline;

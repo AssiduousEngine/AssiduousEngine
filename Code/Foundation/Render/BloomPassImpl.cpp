@@ -78,7 +78,7 @@ namespace foundation::render
 
     rendergraph::RGHandle BloomPass::DeclareBloom(rendergraph::RenderGraph& graph,
                                                   rendergraph::RGHandle hdr, u32 vpW, u32 vpH,
-                                                  f32 threshold, f32 knee)
+                                                  f32 threshold, f32 knee, u32 maxLevels)
     {
         if (vpW < 4 || vpH < 4)
         {
@@ -106,9 +106,10 @@ namespace foundation::render
         {
             return {};
         }
-        // Level count: halve until a small floor, capped.
+        // Level count: halve until a small floor, capped by the pass and by the view's budget.
+        const u32 cap = Clamp(maxLevels, 1u, kMaxLevels);
         u32 levels = 1;
-        for (u32 w = vpW / 2, h = vpH / 2; levels < kMaxLevels && w > 8 && h > 8; w /= 2, h /= 2)
+        for (u32 w = vpW / 2, h = vpH / 2; levels < cap && w > 8 && h > 8; w /= 2, h /= 2)
         {
             ++levels;
         }

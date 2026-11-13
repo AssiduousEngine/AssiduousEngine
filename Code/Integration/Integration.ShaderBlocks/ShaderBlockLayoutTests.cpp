@@ -393,6 +393,8 @@ namespace
         FIELD(render::GpuGtaoPush, frameMod, "FrameMod"),
         FIELD(render::GpuGtaoPush, debugMode, "DebugMode"),
         FIELD(render::GpuGtaoPush, orthographic, "Orthographic"),
+        FIELD(render::GpuGtaoPush, slices, "Slices"),
+        FIELD(render::GpuGtaoPush, steps, "Steps"),
     };
     const FieldRow kSsaoPush[] = {
         FIELD(render::GpuSsaoPush, invProj, "InvProj"),

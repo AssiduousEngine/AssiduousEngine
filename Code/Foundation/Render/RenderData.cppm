@@ -834,6 +834,15 @@ export namespace foundation::render
         // subsystem before it lands here, so this is the count the pipeline actually renders at.
         // 1 keeps the whole single-sample path.
         u8 msaaSamples = 1;
+        // What each effect may cost in this view (a quality level's tiers): sample, step, ray and level
+        // budgets the passes take at declare time. The defaults are the passes' full budgets.
+        u8 ssaoSamples = 16;  // SSAO kernel samples
+        u8 gtaoSlices = 3;    // GTAO horizon slices
+        u8 gtaoSteps = 6;     // GTAO march steps per slice direction
+        u8 ssrMaxSteps = 96;  // SSR march steps, at most (a lower frame-global setting stands)
+        u8 ssgiRayCount = 4;  // SSGI hemisphere rays per pixel
+        u8 ssgiMaxSteps = 12; // SSGI march steps per ray
+        u8 bloomMaxLevels = 7; // bloom pyramid levels, at most
     };
 
     // The per-frame environment snapshot driving IBL and sky. Plain types (colors as Float3) so the

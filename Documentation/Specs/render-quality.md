@@ -102,15 +102,16 @@ Its cooked record is `RenderQualitySource`; its product, `engine::render::Render
 | `label` | text | The name a game's options menu shows ("High") |
 | `msaaSamples` | 1, 2, 4 | The scene pass's MSAA count, clamped to the device (was the project's) |
 | `antialiasing` | Off, FXAA, TAA | The AA after the scene pass (Decided 3); was the post profile's `aaMode` |
-| `shadows` | Off, Low, Medium, High | Off: no sun or point shadows. Low to High: cascade resolution 512, 1024, 2048; point atlas tiles 256, 512, 512 |
+| `shadows` | Off, Low, Medium, High | Off: no sun or point shadows. Low to High: cascade resolution 512, 768, 1024; point atlas tiles 256, 512, 512 |
 | `shadowDistanceMax` | metres, 0 for none | Caps the scene's `shadowDistance` |
-| `ambientOcclusion` | Off, Low, Medium, High | Off gates the scene's AO. SSAO samples 8, 16, 24; GTAO's own budget scaled alike (its parameters read in Q2) |
+| `ambientOcclusion` | Off, Low, Medium, High | Off gates the scene's AO. SSAO samples 8, 12, 16; GTAO slices by steps 2x4, 2x6, 3x6 |
 | `reflections` | Off, Low, Medium, High | Off gates SSR. March steps 32, 64, 96 |
 | `globalIllumination` | Off, Low, Medium, High | Off gates SSGI. Rays and steps 1x12, 2x12, 4x12 |
-| `bloom` | Off, Low, High | Off gates bloom. Pyramid levels 4, 7 |
+| `bloom` | Off, Low, Medium, High | Off gates bloom. Pyramid levels 4, 5, 7 |
 | `environmentResolution` | Low, Medium, High | IBL prefilter 128, 256, 256; probes 64, 128, 128 |
 
-The numbers are a starting point, measured and tuned in Q5. What a scene authors stays the
+High is each effect's full cost as it was before the levels, so a game at High draws as it did; Low
+and Medium cost less. The numbers are a starting point, measured and tuned in Q5. What a scene authors stays the
 scene's: a gated effect keeps its values and comes back at a level that allows it.
 
 A tier never turns an effect on: a scene without AO has none at High. A tier never changes the

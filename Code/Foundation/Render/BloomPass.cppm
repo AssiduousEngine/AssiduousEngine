@@ -63,10 +63,12 @@ export namespace foundation::render
 
         // Declare the pyramid for one view's HDR input. Returns the accumulated bloom (mip 0, half-res), or
         // an invalid handle if the view is too small. threshold and knee gate what blooms (soft-knee
-        // prefilter).
+        // prefilter); maxLevels caps the pyramid's depth (a quality level's budget; 1 to kMaxLevels),
+        // fewer levels a tighter glow for less work.
         [[nodiscard]] rendergraph::RGHandle DeclareBloom(rendergraph::RenderGraph& graph,
                                                          rendergraph::RGHandle hdr, u32 vpW,
-                                                         u32 vpH, f32 threshold, f32 knee);
+                                                         u32 vpH, f32 threshold, f32 knee,
+                                                         u32 maxLevels);
 
     private:
         rhi::RenderPipeline* MakePipeline(StringView name, bool additive);

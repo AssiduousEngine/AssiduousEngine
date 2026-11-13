@@ -1571,3 +1571,53 @@ TEST_CASE("render: a view keeps its history slot by its key, wherever it falls i
     CHECK(newcomer == side);
     frame.End();
 }
+
+TEST_CASE("bloom: the pyramid takes the view's level budget, at most the pass's own")
+{
+    // A 1024 view halves to seven levels; a view's budget (a quality level's bloom tier) caps them.
+    RenderHarness h;
+    if (!h.Init(1024, 1024))
+    {
+        MESSAGE("DXC/Null unavailable; skipping");
+        return;
+    }
+    shaders::ShaderSystem shaderSystem(*h.compiler, h.device);
+    WireEngineShaders(shaderSystem);
+    materials::PipelineStateCache psoCache(shaderSystem, h.device);
+    materials::MaterialSystem materialSystem;
+    REQUIRE(materialSystem.Initialize(h.device).IsOk());
+    MeshRenderer meshRenderer(DefaultAllocator(), h.device, shaderSystem, psoCache, materialSystem,
+                              /*framesInFlight*/ 2);
+    REQUIRE(meshRenderer.Initialize().IsOk());
+    RendererRegistry registry;
+    registry.Register(&meshRenderer);
+    TonemapPass tonemap(h.device, shaderSystem, /*framesInFlight*/ 2);
+    REQUIRE(tonemap.Initialize().IsOk());
+    BloomPass bloom(h.device, shaderSystem);
+    REQUIRE(bloom.Initialize().IsOk());
+    RenderFrame frame(DefaultAllocator(), h.device, registry, /*framesInFlight*/ 2,
+                      /*clusters*/ nullptr, &tonemap, nullptr, nullptr, nullptr, &bloom);
+
+    ExtractedScene scene{DefaultAllocator()};
+    ViewCamera camera;
+    camera.view = Float4x4::LookAtRH(Float3{0, 0, 5}, Float3{0, 0, 0}, Float3{0, 1, 0});
+    camera.projection = Float4x4::PerspectiveFovRH(1.0472f, 1.0f, 0.1f, 100.0f);
+    const auto downs = [&](u8 budget)
+    {
+        ViewSettings settings;
+        settings.post.bloomEnabled = true;
+        settings.post.bloomMaxLevels = budget;
+        frame.Begin(*h.encoder, 0);
+        frame.AddView(scene, camera, settings, h.colorView, rhi::TextureFormat::BGRA8Unorm, 1024, 1024);
+        frame.End();
+        u32 n = 0;
+        for (const foundation::rendergraph::RenderGraphPass* pass : frame.Graph().Passes())
+        {
+            n += (pass != nullptr && pass->name == StringView(u8"bloom.down")) ? 1u : 0u;
+        }
+        return n;
+    };
+    CHECK(downs(7) == 7u);  // High: the full pyramid
+    CHECK(downs(4) == 4u);  // Low
+    CHECK(downs(12) == 7u); // never past the pass's own
+}

@@ -2136,6 +2136,8 @@ namespace foundation::render
                     {
                         SsgiPass::Params ssgiParams;
                         ssgiParams.intensity = post.ssgiIntensity;
+                        ssgiParams.rayCount = Clamp(static_cast<i32>(post.ssgiRayCount), 1, 4);
+                        ssgiParams.maxSteps = Max(static_cast<i32>(post.ssgiMaxSteps), 1);
                         SsgiPass::Sky sky;
                         // The forward's own test for using the scene's IBL (MeshRenderer view set).
                         if (ibl.valid && ibl.shBuffer != nullptr && ibl.prefilterView != nullptr &&
@@ -2162,9 +2164,11 @@ namespace foundation::render
                     // G-buffer to gate and fade; lerps over the IBL specular where it hits. Produces a fresh HDR.
                     if (m_ssr != nullptr && post.ssrEnabled)
                     {
-                        // Per-view enable and intensity over the frame-global SSR config.
+                        // Per-view enable, intensity and step budget over the frame-global SSR config
+                        // (a lower frame-global step count, a debug panel's, stands).
                         SsrPass::Params ssrParams = m_ssrParams;
                         ssrParams.intensity = post.ssrIntensity;
+                        ssrParams.maxSteps = Min(ssrParams.maxSteps, Max(static_cast<i32>(post.ssrMaxSteps), 1));
                         sceneHdr = m_ssr->DeclareSsr(
                             m_graph, sceneHdr, postDepth, postNormal, postMaterial, postVelocity,
                             v->Width(), v->Height(), v->ViewportX(), v->ViewportY(), v->ViewportWidth(),
@@ -2186,7 +2190,9 @@ namespace foundation::render
                         aoH = m_ao->DeclareAo(m_graph, postDepth, postNormal, v->Width(), v->Height(),
                                               Inverse(v->Camera().projection),
                                               v->Camera().projection, post.aoRadius,
-                                              post.aoIntensity, m_frameIndex, aoMode, m_aoDebug);
+                                              post.aoIntensity, m_frameIndex, aoMode,
+                                              AoBudget{post.ssaoSamples, post.gtaoSlices, post.gtaoSteps},
+                                              m_aoDebug);
                     }
                     const bool showAo =
                         aoH.IsValid() && m_aoDebug != 0; // debug: AO or channel straight to screen
@@ -2223,7 +2229,8 @@ namespace foundation::render
                     if (m_bloom != nullptr && post.bloomEnabled && post.bloomIntensity > 0.0f)
                     {
                         bloomH = m_bloom->DeclareBloom(m_graph, sceneColor, v->Width(), v->Height(),
-                                                       post.bloomThreshold, post.bloomKnee);
+                                                       post.bloomThreshold, post.bloomKnee,
+                                                       post.bloomMaxLevels);
                     }
                     const f32 bloomStrength = bloomH.IsValid() ? post.bloomIntensity : 0.0f;
                     const rendergraph::RGHandle bloomTex =
