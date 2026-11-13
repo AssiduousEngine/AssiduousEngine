@@ -8,7 +8,6 @@ for every one.
 
 | Spec | Size | State |
 |---|---|---|
-| [render-quality.md](render-quality.md) | L | APPROVED 2026-11-12: quality levels as assets, per platform and preset, Q0 to Q6 |
 | [2d-games.md](2d-games.md) | L | PROPOSED: 2D inside the 3D world, L0 to L7 |
 | [plugins.md](plugins.md) | L | APPROVED 2026-11-03: source plugins for every host and platform, X0 to X6 |
 | [whiteboxing.md](whiteboxing.md) | M | PROPOSED and reviewed 2026-09-23: parametric blockout pieces, P0 to P3 |

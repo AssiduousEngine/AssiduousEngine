@@ -249,7 +249,7 @@ reports in `Code/` are gone.
 
 ## Render quality: values per tier in a scene (user 2026-11-12; evaluate later)
 
-`Specs/render-quality.md` scales one authored value per scene by the quality tier (Decided 4).
+`Archive/render-quality-history.md` scales one authored value per scene by the quality tier (Decided 4).
 Traktor lets a scene author one entry per tier instead (`WorldRenderSettings::shadowSettings[Quality]`:
 reach, resolution, bias, cascade splits), which the global tier picks. Evaluate once the levels are
 in the samples: whether a game needs a different value at Low than the tier's scaling gives (a
@@ -258,12 +258,37 @@ page shows several values without drowning the one most scenes use.
 
 ## Render quality: per-effect overrides from an options menu (user 2026-11-12; evaluate later)
 
-`Specs/render-quality.md` has a platform and a preset pick one named level made of per-effect
+`Archive/render-quality-history.md` has a platform and a preset pick one named level made of per-effect
 tiers, and a script switch between levels (Decided 5). Evaluate letting a game's options menu
 override single effects over the chosen level (shadows Off at High, AO Low): where the overrides
 are kept (beside the saved level, in the player's settings), how the `RenderQuality` facade names
 them, and what happens to them when the player picks another level. Traktor, Flax and ezEngine set
 quality per effect at runtime; Traktor's user config overrides a target's per effect.
+
+## Render quality: cheaper effects, a render scale and half-resolution traces (user 2026-11-12)
+
+The render quality spec's last phase, backlogged when its levels landed in the samples
+(`Archive/render-quality-history.md`, Q6). Why, from the Pixel 6 measurements (week 2026-10-24,
+"the samples' levels, measured on the phone"): an effect there costs mostly by being on, at full
+resolution. Medium's smaller counts saved little on the samples with SSGI and AO (Lamplight 94 ms
+at Medium against 129 at High, 21 at Low with them off), because the passes that do not scale with
+the counts (SSGI's resolve, composite, denoise and blur, about 20 ms) dominate.
+
+- **A render scale as a level field**: the 3D scene at a fraction of the output, then upscaled,
+  the screen UI at full size. It differs from the project's render resolution, which is a design
+  size: a fixed width and height (and so a fixed shape, with bars or a crop by its fit mode) that
+  the screen UI lays out at and the pointer reads in, the same on every platform. A scale is a
+  cost: a fraction of whatever the output is, the window's shape kept, the UI and the pointer at
+  the window's pixels, chosen per level and so per preset and by the player. The two compose (a
+  1920 x 1080 game at 0.5 renders 960 x 540 and fits as before). The mechanism is there: a view
+  with a scene size of its own runs its chain at that size and the tone map's copy scales it into
+  its rectangle (`Views.cppm`, `PipelineImpl.cpp`); the scale sets that size from the output and
+  the render resolution. Decide the upscale filter (the bilinear copy, or a sharpened one) and
+  what TAA's jitter does at a fraction.
+- **Half-resolution SSR and SSGI traces as a tier**, their resolve, denoise and composite
+  following.
+- Measure both on the Pixel 6 as the levels were: the RelWithDebInfo development app, each game
+  run with `--profile-capture 30 --exit-after 40 --quality <label>`, GPU frame ms at the median.
 
 ## Reduced module interfaces on Android: memcpy through one core wrapper (user 2026-11-12)
 

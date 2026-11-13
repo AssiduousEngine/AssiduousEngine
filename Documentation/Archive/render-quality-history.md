@@ -1,5 +1,9 @@
 # Render quality
 
+> ARCHIVED 2026-11-12, built Q0 to Q5; Q6 (cheaper effects: a render scale and half-resolution
+> traces) is in Documentation/Plans/backlog-0.2.md. Non-authoritative: the spec as approved, kept
+> as the record of what was built and why; the code and the tests are the truth.
+>
 > STATUS: APPROVED 2026-11-12 (user), with its three questions decided the same day. Sized L, in phases Q0 to Q6, green after each.
 > Origin: the sample games measured on a Pixel 6 with their scenes' post-processing applied
 > (2026-11-12) run at 8 to 55 fps, and what costs most there is what a scene asks for (Lamplight's
@@ -245,7 +249,7 @@ Per-effect overrides from an options menu (shadows Off at High) are for later ev
 - The tier numbers are tuned on the Pixel 6 and the desktop; the phone measurements are taken again.
 - Integration.Mcp's sample checks read the new data versions.
 
-**Q6 (later): cheaper effects.**
+**Q6 (backlogged 2026-11-12, in `backlog-0.2.md`): cheaper effects.**
 - Why, from Q5's measurements on the Pixel 6: an effect there costs mostly by being on, at full
   resolution. Medium's smaller counts saved little on the samples with SSGI and AO (Lamplight 94 ms
   at Medium against 129 at High, 21 at Low with them off), because the passes that do not scale
