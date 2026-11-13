@@ -607,6 +607,7 @@ export namespace foundation::render
             const ExtractedScene* lastStaticScene =
                 nullptr;                       // pool-slot reuse detection (dirty-all)
             u32 staticTileBase = 0;            // scene's first static tile (layout-shift detection)
+            u64 staticAtlasGeneration = 0;     // the atlas the static tiles were drawn into (a resize)
             u32 entryBase = 0;                 // scene's first entry in m_localShadows
             IBLSystem::Context* ibl = nullptr; // this scene's IBL products (per-scene sky)
         };

@@ -115,3 +115,52 @@ TEST_CASE("render.retire: with no queue, a replaced bind group is destroyed once
     CHECK(device.idleWaits == 1u);
     CHECK(device.destroyed == 1u);
 }
+
+TEST_CASE("shadows: a new resolution remakes each slot's textures, retiring the old")
+{
+    // A quality level's shadows tier sizes the cascades and the atlas; a frame slot made at another
+    // size remakes its textures when it next prepares, the old ones retired, not freed in flight.
+    rhi::null::NullDevice device{DefaultAllocator()};
+    GpuRetireQueue queue;
+    queue.Initialize(&device, /*framesInFlight*/ 2);
+    ShadowSystem shadows(device, /*framesInFlight*/ 2);
+    REQUIRE(shadows.Initialize().IsOk());
+    shadows.SetRetireQueue(&queue);
+
+    // The sizes before the levels: 1024 cascades, a 2048 atlas of 512 tiles.
+    rhi::TextureView* cascades = shadows.PrepareFrame(0, 1);
+    REQUIRE(cascades != nullptr);
+    CHECK(cascades->texture->desc.width == 1024u);
+    rhi::TextureView* atlas = shadows.PrepareAtlas(0);
+    REQUIRE(atlas != nullptr);
+    CHECK(atlas->texture->desc.width == 2048u);
+    CHECK(shadows.AtlasTileCapacity() == 16u);
+    const u64 atlasGeneration = shadows.AtlasGeneration();
+    CHECK(queue.PendingCount() == 0u);
+
+    // The same sizes again: nothing is remade.
+    CHECK(shadows.PrepareFrame(0, 1) == cascades);
+    CHECK(shadows.PrepareAtlas(0) == atlas);
+
+    // Low: 512 cascades, a 1024 atlas of 256 tiles, still 16 of them.
+    shadows.SetResolutions(512, 256);
+    CHECK(shadows.Resolution() == 512u);
+    CHECK(shadows.AtlasResolution() == 1024u);
+    rhi::TextureView* smaller = shadows.PrepareFrame(0, 1);
+    REQUIRE(smaller != nullptr);
+    CHECK(smaller->texture->desc.width == 512u);
+    rhi::TextureView* smallerAtlas = shadows.PrepareAtlas(0);
+    REQUIRE(smallerAtlas != nullptr);
+    CHECK(smallerAtlas->texture->desc.width == 1024u);
+    CHECK(shadows.AtlasTileCapacity() == 16u);
+    CHECK(shadows.AtlasGeneration() != atlasGeneration); // the cached static tiles redraw
+    CHECK(queue.PendingCount() == 6u); // each old texture and its two views, retired
+
+    // Only the cascades change: the atlas, at the same tile, stays.
+    const u64 kept = shadows.AtlasGeneration();
+    shadows.SetResolutions(768, 256);
+    CHECK(shadows.PrepareFrame(0, 1)->texture->desc.width == 768u);
+    CHECK(shadows.PrepareAtlas(0) == smallerAtlas);
+    CHECK(shadows.AtlasGeneration() == kept);
+    queue.Flush();
+}

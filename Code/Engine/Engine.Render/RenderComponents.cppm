@@ -1308,6 +1308,18 @@ export namespace engine::render
         }
     }
 
+    // The shadow textures' sizes a shadows tier takes: each cascade's resolution and the local-light
+    // atlas's tile. High is the sizes they had before the levels; Off draws none, so it takes Low's.
+    struct ShadowResolution
+    {
+        u32 cascade = 1024;
+        u32 atlasTile = 512;
+    };
+    [[nodiscard]] constexpr ShadowResolution ShadowResolutionFor(QualityTier tier) noexcept
+    {
+        return ShadowResolution{TierValue<u32>(tier, 512, 768, 1024), TierValue<u32>(tier, 256, 512, 512)};
+    }
+
     // A quality level over a scene's extracted frame: shadows Off draws none, and the level's cap
     // shortens the scene's shadow reach (a cap of 0 leaves it).
     inline void ApplyQuality(foundation::render::ExtractedScene& scene, const RenderQualitySettings& q)

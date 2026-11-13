@@ -77,46 +77,51 @@ namespace foundation::render
         return h;
     }
 
+    void ShadowSystem::Release(rhi::Texture*& texture, rhi::TextureView*& attach, rhi::TextureView*& sample)
+    {
+        // In-flight frames may still sample them, so retire them through the queue when wired
+        // (web-safe: no mid-frame WaitIdle pumping the browser event loop), otherwise drain.
+        if (texture == nullptr)
+        {
+            return;
+        }
+        if (m_retire != nullptr)
+        {
+            m_retire->Retire(sample);
+            m_retire->Retire(attach);
+            m_retire->Retire(texture);
+        }
+        else
+        {
+            m_device->WaitIdle();
+            if (sample != nullptr)
+            {
+                m_device->DestroyTextureView(sample);
+            }
+            if (attach != nullptr)
+            {
+                m_device->DestroyTextureView(attach);
+            }
+            m_device->DestroyTexture(texture);
+        }
+        sample = nullptr;
+        attach = nullptr;
+        texture = nullptr;
+    }
+
     bool ShadowSystem::EnsureTexture(u32 slot, u32 layerCount)
     {
-        if (m_textures[slot] != nullptr && m_layerCounts[slot] >= layerCount)
+        if (m_textures[slot] != nullptr && m_layerCounts[slot] >= layerCount &&
+            m_slotResolutions[slot] == m_resolution)
         {
             return true;
         }
-        if (m_textures[slot] != nullptr)
-        { // grow: replace the old array and its views. In-flight frames may still sample
-          // them, so retire them through the queue when wired (web-safe: no mid-frame
-          // WaitIdle pumping the browser event loop), otherwise drain.
-            if (m_retire != nullptr)
-            {
-                m_retire->Retire(m_sampleViews[slot]);
-                m_retire->Retire(m_attachViews[slot]);
-                m_retire->Retire(m_textures[slot]);
-                m_sampleViews[slot] = nullptr;
-                m_attachViews[slot] = nullptr;
-                m_textures[slot] = nullptr;
-            }
-            else
-            {
-                m_device->WaitIdle();
-                if (m_sampleViews[slot] != nullptr)
-                {
-                    m_device->DestroyTextureView(m_sampleViews[slot]);
-                    m_sampleViews[slot] = nullptr;
-                }
-                if (m_attachViews[slot] != nullptr)
-                {
-                    m_device->DestroyTextureView(m_attachViews[slot]);
-                    m_attachViews[slot] = nullptr;
-                }
-                m_device->DestroyTexture(m_textures[slot]);
-                m_textures[slot] = nullptr;
-            }
-        }
+        // Grow (more views) or resize (another resolution): replace the old array and its views.
+        Release(m_textures[slot], m_attachViews[slot], m_sampleViews[slot]);
         rhi::TextureDesc td{};
         td.format = kShadowFormat;
-        td.width = kShadowResolution;
-        td.height = kShadowResolution;
+        td.width = m_resolution;
+        td.height = m_resolution;
         td.arrayLayerCount = layerCount;
         td.usage = rhi::TextureUsage::DepthStencil | rhi::TextureUsage::Sampled;
         td.label = u8"shadow.cascades";
@@ -146,6 +151,7 @@ namespace foundation::render
             return false;
         }
         m_layerCounts[slot] = layerCount;
+        m_slotResolutions[slot] = m_resolution;
         m_states[slot] = rhi::ResourceState::Undefined;
         ++m_generation; // a new physical shadow texture exists: invalidate consumer bind-group caches
         return true;
@@ -153,14 +159,15 @@ namespace foundation::render
 
     bool ShadowSystem::EnsureAtlas(u32 slot)
     {
-        if (m_atlasTextures[slot] != nullptr)
+        if (m_atlasTextures[slot] != nullptr && m_atlasSlotTiles[slot] == m_atlasTile)
         {
             return true;
         }
+        Release(m_atlasTextures[slot], m_atlasAttachViews[slot], m_atlasSampleViews[slot]);
         rhi::TextureDesc td{};
         td.format = kShadowFormat;
-        td.width = kAtlasResolution;
-        td.height = kAtlasResolution;
+        td.width = AtlasResolution();
+        td.height = AtlasResolution();
         td.arrayLayerCount = kAtlasLayers;
         td.usage = rhi::TextureUsage::DepthStencil | rhi::TextureUsage::Sampled;
         td.label = u8"shadow.atlas";
@@ -189,6 +196,8 @@ namespace foundation::render
         {
             return false;
         }
+        m_atlasSlotTiles[slot] = m_atlasTile;
+        ++m_atlasGeneration; // its static layer starts empty
         m_atlasStates[slot] = rhi::ResourceState::Undefined;
         ++m_generation;
         return true;

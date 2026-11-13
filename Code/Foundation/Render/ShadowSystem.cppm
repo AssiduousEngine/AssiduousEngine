@@ -267,7 +267,17 @@ export namespace foundation::render
         Status Initialize() { return Status{}; }
 
         [[nodiscard]] rhi::TextureFormat Format() const noexcept { return kShadowFormat; }
-        [[nodiscard]] u32 Resolution() const noexcept { return kShadowResolution; }
+        [[nodiscard]] u32 Resolution() const noexcept { return m_resolution; }
+
+        /// The sizes the shadow textures take from now on (a quality level's shadows tier): each
+        /// cascade's square resolution, and the local-light atlas's tile (the atlas is 4 x 4 tiles).
+        /// A frame slot whose textures are another size recreates them when it next prepares, retiring
+        /// the old through the queue; the cached static atlas tiles redraw (AtlasGeneration).
+        void SetResolutions(u32 cascade, u32 atlasTile) noexcept
+        {
+            m_resolution = Clamp(cascade, 256u, 4096u);
+            m_atlasTile = Clamp(atlasTile, 128u, 1024u);
+        }
         [[nodiscard]] u32 FramesInFlight() const noexcept { return m_framesInFlight; }
 
         static constexpr u32 kMaxShadowViews =
@@ -296,21 +306,22 @@ export namespace foundation::render
         // Layer 0 is realtime (cleared and re-rendered every frame); layer 1 is static (rendered only when the
         // static caster set changes, then cached). Each caster gets a fixed square tile in its
         // layer; the forward samples float3(uv_tile, layer).
-        static constexpr u32 kAtlasResolution = 2048;
-        static constexpr u32 kAtlasTile = 512; // 4x4 = 16 tiles per layer
+        static constexpr u32 kAtlasTilesPerRow = 4; // 4x4 = 16 tiles per layer, whatever the tile size
         static constexpr u32 kAtlasLayers = 2;
         static constexpr u32 kAtlasLayerRealtime = 0;
         static constexpr u32 kAtlasLayerStatic = 1;
-        [[nodiscard]] u32 AtlasResolution() const noexcept { return kAtlasResolution; }
-        [[nodiscard]] u32 AtlasTileResolution() const noexcept { return kAtlasTile; }
+        [[nodiscard]] u32 AtlasResolution() const noexcept { return m_atlasTile * kAtlasTilesPerRow; }
+        [[nodiscard]] u32 AtlasTileResolution() const noexcept { return m_atlasTile; }
         [[nodiscard]] u32 AtlasTileCapacity() const noexcept
         { // per layer
-            const u32 perRow = kAtlasResolution / kAtlasTile;
-            return perRow * perRow;
+            return kAtlasTilesPerRow * kAtlasTilesPerRow;
         }
+        /// Bumped whenever an atlas is (re)created: its static layer starts empty, so the cached static
+        /// tiles must redraw.
+        [[nodiscard]] u64 AtlasGeneration() const noexcept { return m_atlasGeneration; }
 
-        // Ensure this frame's atlas exists; returns its sample view (null on failure). Created lazily and
-        // once (fixed size), so it costs nothing after the first shadowed frame.
+        // Ensure this frame's atlas exists at the current tile size; returns its sample view (null on
+        // failure). Created lazily, and again only when the tile size changes.
         rhi::TextureView* PrepareAtlas(u32 frameIndex);
 
         // Import this frame's atlas into the graph: the atlas depth pass writes it, then it transitions to
@@ -320,7 +331,12 @@ export namespace foundation::render
     private:
         GpuRetireQueue* m_retire = nullptr; // borrowed; null means WaitIdle on grow
         static constexpr rhi::TextureFormat kShadowFormat = rhi::TextureFormat::Depth32Float;
-        static constexpr u32 kShadowResolution = 1024; // per cascade
+        u32 m_resolution = 1024; // per cascade (SetResolutions)
+        u32 m_atlasTile = 512;   // the atlas's tile (SetResolutions)
+        u64 m_atlasGeneration = 0;
+
+        // Retire (or, without a queue, drain and destroy) a texture and its two views.
+        void Release(rhi::Texture*& texture, rhi::TextureView*& attach, rhi::TextureView*& sample);
         static constexpr u32 kCascadeCount = ShadowCascades::kCount;
         static constexpr u32 kMaxFramesInFlight = 8;
 
@@ -347,6 +363,7 @@ export namespace foundation::render
         rhi::ResourceState m_states[kMaxFramesInFlight] =
             {};                                     // last-known state (import current-state)
         u32 m_layerCounts[kMaxFramesInFlight] = {}; // current array layer count per slot
+        u32 m_slotResolutions[kMaxFramesInFlight] = {}; // the cascade resolution each slot was made at
 
         // Local-light shadow atlas: one 2-layer depth array per frame slot.
         rhi::Texture* m_atlasTextures[kMaxFramesInFlight] = {};
@@ -354,6 +371,7 @@ export namespace foundation::render
         rhi::TextureView* m_atlasSampleViews[kMaxFramesInFlight] =
             {}; // sampled in the forward shader
         rhi::ResourceState m_atlasStates[kMaxFramesInFlight] = {};
+        u32 m_atlasSlotTiles[kMaxFramesInFlight] = {}; // the tile size each slot's atlas was made at
     };
 
 } // namespace foundation::render

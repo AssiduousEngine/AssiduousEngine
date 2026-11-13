@@ -181,6 +181,18 @@ namespace engine::render
         m_ssrEnabled = on;
         m_globalPostActive = true;
     }
+    void RenderSubsystem::SetQuality(const RenderQualitySettings& quality)
+    {
+        m_quality = quality;
+        if (m_shadowSystem.Get() != nullptr)
+        {
+            // The cascades' and the atlas tiles' resolution: High is the sizes they had before the
+            // levels; Off draws none, so it holds Low's small textures.
+            const ShadowResolution sizes = ShadowResolutionFor(quality.shadows);
+            m_shadowSystem->SetResolutions(sizes.cascade, sizes.atlasTile);
+        }
+    }
+
     void RenderSubsystem::SetViewportQuality(const void* viewportKey, const RenderQualitySettings& quality)
     {
         m_viewportQuality.InsertOrAssign(viewportKey, quality);
@@ -869,6 +881,9 @@ namespace engine::render
             if (m_shadowSystem)
             {
                 m_shadowSystem->SetRetireQueue(&m_retireQueue);
+                // A level set before the renderer started (a host's first SetQuality).
+                const ShadowResolution sizes = ShadowResolutionFor(m_quality.shadows);
+                m_shadowSystem->SetResolutions(sizes.cascade, sizes.atlasTile);
             }
         }
 

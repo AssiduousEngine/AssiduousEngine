@@ -1286,7 +1286,8 @@ namespace foundation::render
                 // tracked by a per-tile dirty countdown (a tile re-renders for FramesInFlight frames to
                 // refresh every in-flight slot's copy). A tile is dirtied by the scene's static caster set
                 // changing (signature), the scene landing on a different pool slot or tile range (the atlas
-                // layout shifted under it), or an animated caster's sphere overlapping the tile.
+                // layout shifted under it), a new atlas (its size changed: its static layer starts empty),
+                // or an animated caster's sphere overlapping the tile.
                 ctx.staticTiles.Clear();
                 for (const AtlasDraw& d : m_staticAtlasDraws)
                 {
@@ -1298,11 +1299,13 @@ namespace foundation::render
                 ctx.staticTileDirty.Resize(ctx.staticTiles.Size());
                 const u64 sig = StaticCasterSignature(ctx.scene);
                 if (sig != ctx.staticSig || ctx.scene != ctx.lastStaticScene ||
-                    sceneStaticTileBase != ctx.staticTileBase)
+                    sceneStaticTileBase != ctx.staticTileBase ||
+                    m_shadows->AtlasGeneration() != ctx.staticAtlasGeneration)
                 {
                     ctx.staticSig = sig;
                     ctx.lastStaticScene = ctx.scene;
                     ctx.staticTileBase = sceneStaticTileBase;
+                    ctx.staticAtlasGeneration = m_shadows->AtlasGeneration();
                     for (u32& d : ctx.staticTileDirty)
                     {
                         d = fif;

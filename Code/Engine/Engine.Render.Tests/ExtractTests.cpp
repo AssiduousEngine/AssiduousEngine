@@ -2446,6 +2446,13 @@ TEST_CASE("render: a quality level turns effects off and sets the MSAA and AA, n
         CHECK(lo.aoMode == static_cast<u32>(foundation::render::AoMode::GTAO)); // Low still runs it
         CHECK(lo.ssrEnabled);
     }
+    // The shadows tier sizes the shared shadow textures: High the sizes before the levels, Off Low's.
+    CHECK(ShadowResolutionFor(QualityTier::High).cascade == 1024u);
+    CHECK(ShadowResolutionFor(QualityTier::High).atlasTile == 512u);
+    CHECK(ShadowResolutionFor(QualityTier::Medium).cascade == 768u);
+    CHECK(ShadowResolutionFor(QualityTier::Low).cascade == 512u);
+    CHECK(ShadowResolutionFor(QualityTier::Low).atlasTile == 256u);
+    CHECK(ShadowResolutionFor(QualityTier::Off).cascade == 512u);
     // Without `antialiasing` (a debug panel set its own), the view's AA stays as it was.
     {
         ViewPostConfig vp = ResolveScenePost(scene);
