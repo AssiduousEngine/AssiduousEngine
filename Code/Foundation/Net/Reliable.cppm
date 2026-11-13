@@ -1062,6 +1062,16 @@ export namespace foundation::net
             }
         }
 
+        void LogOversizedMessage(const Connection& c)
+        {
+            if (!m_oversizedLogged)
+            {
+                LOG_WARNING(u8"Net", u8"peer {}: fragmented message over maxMessageBytes {}, dropped", c.peer,
+                            m_cfg.maxMessageBytes);
+                m_oversizedLogged = true;
+            }
+        }
+
         // A reliable message, released in order. A whole message is delivered as is; a fragment is appended to
         // the reassembly buffer (fragments arrive consecutively since delivery is ordered); deliver the
         // whole when the last fragment lands.
@@ -1077,6 +1087,14 @@ export namespace foundation::net
             Reassembly& ra = c.reassembly;
             if (fragIndex == 0)
             { // first fragment starts a fresh reassembly
+                // Every fragment carries at least a byte, so more fragments than maxMessageBytes
+                // cannot make a message this end takes.
+                if (fragCount == 0 || fragCount > m_cfg.maxMessageBytes)
+                {
+                    ra.active = false;
+                    LogOversizedMessage(c);
+                    return;
+                }
                 ra.active = true;
                 ra.group = fragGroup;
                 ra.nextIndex = 0;
@@ -1091,6 +1109,15 @@ export namespace foundation::net
                 return;
             }
             const usize base = ra.data.Size();
+            if (base + payload.Size() > m_cfg.maxMessageBytes)
+            {
+                // Bigger than a message may be: the sender's limit is this end's, so this is a
+                // peer not keeping to it. What it sent so far is let go, and the rest is dropped.
+                ra.active = false;
+                ra.data.Clear();
+                LogOversizedMessage(c);
+                return;
+            }
             ra.data.Resize(base + payload.Size());
             if (payload.Size() > 0)
             {
@@ -1114,6 +1141,7 @@ export namespace foundation::net
         Array<Connection> m_connections;
         HashMap<u64, usize> m_byRemote;  // a live connection's index by its remote endpoint
         HashMap<PeerId, usize> m_byPeer; // and by its peer
+        bool m_oversizedLogged = false; // the first oversized reassembly is logged
         Random m_random = Random::FromSystemEntropy(); // session tokens
         // Keys the handshake cookies; drawn once, so a cookie made by another transport, or before a
         // restart, is not this one's.

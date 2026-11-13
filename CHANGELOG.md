@@ -143,6 +143,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Rendering: a double-sided material (foliage cards, a sail, a flag) casts its shadow from both
   sides, and a material that culls front faces casts from its back; shadows always came from the
   front faces.
+- Networking: a received message is held to `maxMessageBytes` as a sent one is; a peer's fragments
+  past it are dropped instead of reassembled without limit.
 - Networking: at most 1024 reliable messages are in flight to a peer, and a receiver buffers none
   further ahead; a peer that leaves more than `maxQueuedReliable` (16384) unacknowledged is
   disconnected.

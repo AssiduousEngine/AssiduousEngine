@@ -1080,3 +1080,75 @@ TEST_CASE("reliable: a message past the receive window is not buffered")
     deliver(1029); // sent again once inside the window, it goes through
     CHECK(CountKind(server, net::NetEventKind::Received) == 1);
 }
+
+namespace
+{
+    // One Data packet carrying one fragment of `bytes` bytes.
+    Array<byte> FragmentPacket(u32 token, u16 seq, u16 id, u32 group, u32 index, u32 count, u32 bytes)
+    {
+        net::BitWriter w;
+        w.WriteU16(0xDCE8);
+        w.WriteU8(2u);
+        w.WriteU32(token);
+        w.WriteU16(seq);
+        w.WriteBool(false);
+        w.WriteVarU32(1u);
+        w.WriteU8(0u);
+        w.WriteBool(true);
+        w.WriteU16(id);
+        w.WriteBool(true); // fragmented
+        w.WriteVarU32(group);
+        w.WriteVarU32(index);
+        w.WriteVarU32(count);
+        w.WriteVarU32(bytes);
+        for (u32 b = 0; b < bytes; ++b)
+            w.WriteU8(static_cast<u8>(b));
+        Array<byte> out;
+        for (byte b : w.Data())
+            out.PushBack(b);
+        return out;
+    }
+}
+
+TEST_CASE("reliable: a fragmented message over maxMessageBytes is not reassembled")
+{
+    // The limit was checked when sending only: a peer's fragments were appended without end.
+    net::SimDatagramNetwork network(DefaultAllocator(), net::SimConditions{});
+    net::IDatagramSocket* raw = network.CreateSocket();
+    net::IDatagramSocket* ss = network.CreateSocket();
+    net::ReliableConfig cfg;
+    cfg.maxMessageBytes = 4096;
+    net::ReliableTransport server(*ss, cfg);
+    server.SetAccepting(true);
+    REQUIRE(RawConnect(network, *raw, server, ss->LocalEndpoint(), 7u));
+    REQUIRE(CountKind(server, net::NetEventKind::Connected) == 1);
+
+    u16 seq = 0;
+    u16 id = 0;
+    const auto send = [&](u32 group, u32 index, u32 count, u32 bytes)
+    {
+        raw->Send(ss->LocalEndpoint(), FragmentPacket(7u, seq++, id++, group, index, count, bytes).AsSpan());
+        network.Advance(10.0f);
+        server.Update(10.0f);
+    };
+    for (u32 i = 0; i < 6; ++i) // six fragments of 1000 bytes: 6000, over 4096
+        send(1u, i, 6u, 1000u);
+    send(2u, 0u, 100000u, 10u); // a first fragment claiming more pieces than 4096 bytes can hold
+    CHECK(CountKind(server, net::NetEventKind::Received) == 0);
+
+    for (u32 i = 0; i < 3; ++i) // then one that fits: delivered whole
+        send(3u, i, 3u, 1000u);
+    net::NetEvent ev;
+    usize size = 0;
+    int received = 0;
+    while (server.Poll(ev))
+    {
+        if (ev.kind == net::NetEventKind::Received)
+        {
+            ++received;
+            size = ev.payload.Size();
+        }
+    }
+    CHECK(received == 1);
+    CHECK(size == 3000u);
+}
