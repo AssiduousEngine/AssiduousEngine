@@ -3230,3 +3230,17 @@ TEST_CASE("export: a script using a plugin's type is refused on a platform the p
     NukeTree(package.AsView());
 }
 #endif // OPTION_HAS_ANGELSCRIPT
+
+TEST_CASE("export: a pruned or stripped asset's files are its own, never a dotted neighbour's")
+{
+    using editor::detail::FileOwnerReachable;
+    HashMap<String, u8> paths;
+    paths.InsertOrAssign(String(u8"Models/Rock"), u8{1});
+    CHECK(FileOwnerReachable(u8"Models/Rock.rasset", paths));
+    CHECK(FileOwnerReachable(u8"Models/Rock.geometry.bin", paths));
+    // "Rock.2" is another asset: reaching (or stripping) "Rock" says nothing about it.
+    CHECK_FALSE(FileOwnerReachable(u8"Models/Rock.2.rasset", paths));
+    CHECK_FALSE(FileOwnerReachable(u8"Models/Rock.2.geometry.bin", paths));
+    CHECK_FALSE(FileOwnerReachable(u8"Models/RockBig.rasset", paths));
+    CHECK_FALSE(FileOwnerReachable(u8"Models/Rock.notes.txt", paths));
+}

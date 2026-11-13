@@ -192,33 +192,15 @@ export namespace editor
             return name;
         }
 
-        // Whether a cooked file's owning instance is reachable. The owning instance path is `file`
-        // up to a '.' in its name region (envelope "<path>.<ext>" and stream "<path>.<stream>.bin"
-        // or ".data" both begin with "<path>."). Each '.' boundary is tested against the set of
-        // reachable instance paths; the '.' delimiter makes prefix matching collision-safe (a peer
-        // "CubeBig" never matches "Cube.").
+        // Whether a cooked file's owning instance is in `reachablePaths`: the instance whose
+        // envelope ("<path>.rasset") or sidecar ("<path>.<stream>.bin" or ".data") the file is.
+        // Exact, so "Rock" never claims "Rock.2"'s files.
         [[nodiscard]] inline bool FileOwnerReachable(StringView file,
                                                      const HashMap<String, u8>& reachablePaths)
         {
-            usize nameStart = 0;
-            for (usize i = 0; i < file.Size(); ++i)
-            {
-                if (file[i] == utf8char('/'))
-                {
-                    nameStart = i + 1;
-                }
-            }
-            for (usize i = nameStart; i < file.Size(); ++i)
-            {
-                if (file[i] == utf8char('.'))
-                {
-                    if (reachablePaths.Find(String(file.SubStr(0, i))) != nullptr)
-                    {
-                        return true;
-                    }
-                }
-            }
-            return false;
+            const StringView owner =
+                foundation::content::OwnerPathOf(file, engine::project::kCookedAssetExtension);
+            return !owner.IsEmpty() && reachablePaths.Find(String(owner)) != nullptr;
         }
 
         // Recursively adds every file under `folder` to the pak (locator = mount-relative path).

@@ -45,6 +45,13 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   (`-fmodules-reduced-bmi`). A clean Debug build of the engine and editor compiles in about a third
   of the time, and links about five times as fast.
 
+### Fixed
+
+- Content: an asset's files are its own exactly. Deleting, renaming, moving or cloning `Rock`
+  took the files of a `Rock.2` beside it (the name the editor gives a second `Rock`), and an export
+  that pruned or stripped `Rock` dropped or packed `Rock.2`'s as well. A data stream's name may no
+  longer contain a dot.
+
 ## 0.1.0-beta.3 - 2026-11-12
 
 ### Added

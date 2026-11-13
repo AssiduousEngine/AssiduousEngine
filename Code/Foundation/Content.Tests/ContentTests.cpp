@@ -1357,3 +1357,143 @@ TEST_CASE("content: a layered database's undeclared type does not fall through")
     CHECK(view.GetInstance(above->Id()) == above);
     CHECK(view.GetInstance(StringView(u8"list")) == above);
 }
+
+namespace
+{
+    // "Rock" and its duplicate "Rock.2" in one group, each with a "geometry" stream holding its
+    // own byte: the layout the engine's own naming makes (a second "Rock" is named "Rock.2").
+    struct RockPair
+    {
+        foundation::content::Instance* rock = nullptr;
+        foundation::content::Instance* rock2 = nullptr;
+    };
+
+    RockPair MakeRockPair(Group& models)
+    {
+        RockPair pair;
+        pair.rock = models.CreateInstance(u8"Rock", MaterialResource::StaticType());
+        const String second = models.UniqueInstanceName(u8"Rock");
+        REQUIRE(second == u8"Rock.2");
+        pair.rock2 = models.CreateInstance(second.AsView(), MaterialResource::StaticType());
+        REQUIRE(pair.rock != nullptr);
+        REQUIRE(pair.rock2 != nullptr);
+        MaterialResource res;
+        REQUIRE(pair.rock->WriteObject(res).IsOk());
+        REQUIRE(pair.rock2->WriteObject(res).IsOk());
+        const byte one[] = {byte{1}};
+        const byte two[] = {byte{2}};
+        REQUIRE(pair.rock->WriteData(u8"geometry", Span<const byte>(one, 1)).IsOk());
+        REQUIRE(pair.rock2->WriteData(u8"geometry", Span<const byte>(two, 1)).IsOk());
+        return pair;
+    }
+
+    // The single byte an instance's "geometry" stream holds, or -1 when it has none.
+    i32 GeometryByte(const foundation::content::Instance& instance)
+    {
+        UniquePtr<IStream> data = instance.ReadData(u8"geometry");
+        byte value{};
+        if (!data || data->Read(&value, 1) != 1)
+        {
+            return -1;
+        }
+        return static_cast<i32>(value);
+    }
+} // namespace
+
+TEST_CASE("content: a sidecar belongs to its exact owner, so Rock never takes Rock.2's streams")
+{
+    GlobalTypeRegistry().Register(MaterialResource::StaticType());
+    RegisterSerializable<MaterialResource>();
+    const StringView dir = u8"scratch_content_sidecar_owner_db";
+    (void)RemoveDirectoryRecursive(dir);
+    NativeFileSystem mount(dir, DefaultAllocator());
+    ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".xasset");
+    Group* models = db.RootGroup()->CreateGroup(u8"models");
+    Group* props = db.RootGroup()->CreateGroup(u8"props");
+
+    SUBCASE("delete")
+    {
+        const RockPair pair = MakeRockPair(*models);
+        REQUIRE(db.DeleteInstance(pair.rock->Id()).IsOk());
+        CHECK_FALSE(mount.Exists(u8"models/Rock.geometry.bin"));
+        CHECK(mount.Exists(u8"models/Rock.2.geometry.bin"));
+        CHECK(GeometryByte(*pair.rock2) == 2);
+    }
+    SUBCASE("rename")
+    {
+        const RockPair pair = MakeRockPair(*models);
+        REQUIRE(db.RenameInstance(pair.rock->Id(), u8"Stone").IsOk());
+        CHECK(mount.Exists(u8"models/Stone.geometry.bin"));
+        CHECK_FALSE(mount.Exists(u8"models/Stone.2.geometry.bin"));
+        CHECK(GeometryByte(*pair.rock) == 1);
+        CHECK(GeometryByte(*pair.rock2) == 2);
+    }
+    SUBCASE("move")
+    {
+        const RockPair pair = MakeRockPair(*models);
+        REQUIRE(db.MoveInstance(pair.rock->Id(), *props).IsOk());
+        CHECK(mount.Exists(u8"props/Rock.geometry.bin"));
+        CHECK_FALSE(mount.Exists(u8"props/Rock.2.geometry.bin"));
+        CHECK(GeometryByte(*pair.rock2) == 2);
+    }
+    SUBCASE("clone")
+    {
+        const RockPair pair = MakeRockPair(*models);
+        foundation::content::Instance* copy = db.CloneInstance(pair.rock->Id(), u8"Boulder");
+        REQUIRE(copy != nullptr);
+        CHECK(GeometryByte(*copy) == 1);
+        // Only the clone's own stream: no "2.geometry" stream taken from Rock.2.
+        CHECK_FALSE(mount.Exists(u8"models/Boulder.2.geometry.bin"));
+    }
+
+    (void)RemoveDirectoryRecursive(dir);
+}
+
+TEST_CASE("content: a stream name with a dot or a separator is refused")
+{
+    GlobalTypeRegistry().Register(MaterialResource::StaticType());
+    RegisterSerializable<MaterialResource>();
+    const StringView dir = u8"scratch_content_stream_name_db";
+    (void)RemoveDirectoryRecursive(dir);
+    NativeFileSystem mount(dir, DefaultAllocator());
+    ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".xasset");
+    foundation::content::Instance* rock =
+        db.RootGroup()->CreateInstance(u8"Rock", MaterialResource::StaticType());
+    REQUIRE(rock != nullptr);
+    const byte one[] = {byte{1}};
+    for (const StringView bad : {StringView(u8"2.geometry"), StringView(u8""), StringView(u8"a/b"),
+                                 StringView(u8"a\\b")})
+    {
+        CHECK(rock->WriteData(bad, Span<const byte>(one, 1)).Code() == ErrorCode::InvalidArgument);
+        CHECK(rock->DeleteData(bad).Code() == ErrorCode::InvalidArgument);
+        CHECK_FALSE(static_cast<bool>(rock->ReadData(bad)));
+    }
+    CHECK_FALSE(mount.Exists(u8"Rock.2.geometry.bin"));
+    (void)RemoveDirectoryRecursive(dir);
+}
+
+TEST_CASE("content: a file's owner is its envelope's or its sidecar's exact instance path")
+{
+    CHECK(OwnerPathOf(u8"models/Rock.rasset", u8".rasset") == u8"models/Rock");
+    CHECK(OwnerPathOf(u8"models/Rock.2.rasset", u8".rasset") == u8"models/Rock.2");
+    CHECK(OwnerPathOf(u8"models/Rock.geometry.bin", u8".rasset") == u8"models/Rock");
+    CHECK(OwnerPathOf(u8"models/Rock.2.geometry.bin", u8".rasset") == u8"models/Rock.2");
+    CHECK(OwnerPathOf(u8"models/Rock.2.scene.data", u8".rasset") == u8"models/Rock.2");
+    CHECK(OwnerPathOf(u8"Rock.geometry.bin", u8".rasset") == u8"Rock");
+    // Neither an envelope nor a sidecar, or no owner name before the stream.
+    CHECK(OwnerPathOf(u8"models/Rock.txt", u8".rasset").IsEmpty());
+    CHECK(OwnerPathOf(u8"models/geometry.bin", u8".rasset").IsEmpty());
+    CHECK(OwnerPathOf(u8"models/.geometry.bin", u8".rasset").IsEmpty());
+    CHECK(OwnerPathOf(u8"models/.rasset", u8".rasset").IsEmpty());
+
+    StringView stream;
+    StreamEncoding encoding = StreamEncoding::Binary;
+    CHECK(MatchSidecar(u8"Rock", u8"Rock.geometry.bin", stream, encoding));
+    CHECK(stream == u8"geometry");
+    CHECK(encoding == StreamEncoding::Binary);
+    CHECK(MatchSidecar(u8"Rock.2", u8"Rock.2.scene.data", stream, encoding));
+    CHECK(encoding == StreamEncoding::Text);
+    CHECK_FALSE(MatchSidecar(u8"Rock", u8"Rock.2.geometry.bin", stream, encoding));
+    CHECK_FALSE(MatchSidecar(u8"Rock", u8"Rock.rasset", stream, encoding));
+    CHECK_FALSE(MatchSidecar(u8"Rock", u8"RockBig.geometry.bin", stream, encoding));
+}

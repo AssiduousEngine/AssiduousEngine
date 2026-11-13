@@ -45,6 +45,23 @@ export namespace foundation::content
         Text
     };
 
+    // A data stream's name: not empty, with no '.', '/' or '\'. The dot rule makes a sidecar's
+    // owner exact: an instance name may hold a dot (a duplicate is named "Rock.2"), so
+    // "Rock.2.geometry.bin" can only be the "geometry" stream of "Rock.2", never a "2.geometry"
+    // stream of "Rock".
+    [[nodiscard]] bool IsStreamName(StringView name) noexcept;
+
+    // Whether `fileName` is a sidecar of the instance named `instanceName`
+    // ("<name>.<stream>.data" text or "<name>.<stream>.bin" binary), and if so its stream and
+    // encoding.
+    [[nodiscard]] bool MatchSidecar(StringView instanceName, StringView fileName, StringView& stream,
+                                    StreamEncoding& encoding) noexcept;
+
+    // The instance path (mount-relative, no extension) that owns `file`: the envelope
+    // "<path><envelopeExtension>" or a sidecar "<path>.<stream>.data|.bin". Empty when `file` is
+    // neither.
+    [[nodiscard]] StringView OwnerPathOf(StringView file, StringView envelopeExtension) noexcept;
+
     // =======================================================================
     // Instance: one stored unit, with identity, a primary object and data streams.
     // =======================================================================

@@ -22,21 +22,119 @@ namespace foundation::content
 {
     namespace
     {
-        // Sidecar-suffix probe for the "<name>.<stream>.<suffix>" prefix scans:
-        // returns the suffix length (".data" text / ".bin" binary), 0 = not a sidecar.
-        [[nodiscard]] usize SidecarSuffixSize(StringView fileName)
+        constexpr StringView kTextSuffix = u8".data";
+        constexpr StringView kBinarySuffix = u8".bin";
+
+        // A sidecar's "<owner>.<stream>" without its suffix, and the suffix's encoding; false when
+        // the name ends in neither suffix.
+        [[nodiscard]] bool StripSidecarSuffix(StringView fileName, StringView& stem,
+                                              StreamEncoding& encoding) noexcept
         {
-            if (EndsWith(fileName, u8".data"))
+            if (fileName.EndsWith(kTextSuffix))
             {
-                return 5;
+                stem = fileName.SubStr(0, fileName.Size() - kTextSuffix.Size());
+                encoding = StreamEncoding::Text;
+                return true;
             }
-            if (EndsWith(fileName, u8".bin"))
+            if (fileName.EndsWith(kBinarySuffix))
             {
-                return 4;
+                stem = fileName.SubStr(0, fileName.Size() - kBinarySuffix.Size());
+                encoding = StreamEncoding::Binary;
+                return true;
             }
-            return 0;
+            return false;
+        }
+
+        // Each sidecar of the instance `name` in `folder`: `visit(fileName, stream, encoding)`.
+        // Streams keep no directory, so the group folder is enumerated and matched exactly.
+        template <typename Visit>
+        void ForEachSidecar(IFileSystem& mount, StringView folder, StringView name, Visit&& visit)
+        {
+            IEnumerableFileSystem* enumerable = mount.AsEnumerable();
+            if (enumerable == nullptr)
+            {
+                return;
+            }
+            Array<DirEntry> entries;
+            if (!enumerable->Enumerate(folder, entries).IsOk())
+            {
+                return;
+            }
+            for (const DirEntry& entry : entries)
+            {
+                StringView stream;
+                StreamEncoding encoding = StreamEncoding::Binary;
+                if (!entry.isDirectory && MatchSidecar(name, entry.name.AsView(), stream, encoding))
+                {
+                    visit(entry.name.AsView(), stream, encoding);
+                }
+            }
         }
     } // namespace
+
+    bool IsStreamName(StringView name) noexcept
+    {
+        if (name.IsEmpty())
+        {
+            return false;
+        }
+        for (const utf8char c : name)
+        {
+            if (c == utf8char('.') || c == utf8char('/') || c == utf8char('\\'))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool MatchSidecar(StringView instanceName, StringView fileName, StringView& stream,
+                      StreamEncoding& encoding) noexcept
+    {
+        StringView stem;
+        if (instanceName.IsEmpty() || !StripSidecarSuffix(fileName, stem, encoding))
+        {
+            return false;
+        }
+        // "<name>.<stream>": the name, a dot, then a stream name (which has no dot of its own).
+        if (stem.Size() <= instanceName.Size() + 1 || !stem.StartsWith(instanceName) ||
+            stem[instanceName.Size()] != utf8char('.'))
+        {
+            return false;
+        }
+        const StringView candidate =
+            stem.SubStr(instanceName.Size() + 1, stem.Size() - instanceName.Size() - 1);
+        if (!IsStreamName(candidate))
+        {
+            return false;
+        }
+        stream = candidate;
+        return true;
+    }
+
+    StringView OwnerPathOf(StringView file, StringView envelopeExtension) noexcept
+    {
+        const usize slash = file.FindLast(utf8char('/'));
+        const usize nameStart = slash == StringView::kNotFound ? 0 : slash + 1;
+        if (!envelopeExtension.IsEmpty() && file.EndsWith(envelopeExtension) &&
+            file.Size() - envelopeExtension.Size() > nameStart)
+        {
+            return file.SubStr(0, file.Size() - envelopeExtension.Size());
+        }
+        StringView stem;
+        StreamEncoding encoding = StreamEncoding::Binary;
+        if (!StripSidecarSuffix(file, stem, encoding))
+        {
+            return {};
+        }
+        // The stream is what follows the stem's last dot; the owner is everything before it.
+        const usize dot = stem.FindLast(utf8char('.'));
+        if (dot == StringView::kNotFound || dot <= nameStart || !IsStreamName(stem.SubStr(dot + 1, stem.Size() - dot - 1)))
+        {
+            return {};
+        }
+        return stem.SubStr(0, dot);
+    }
 
     ContentDatabase::ContentDatabase(IAllocator& allocator, IFileSystem& mount,
                                      SerializerFactory factory, StringView fileExtension,
@@ -396,6 +494,10 @@ namespace foundation::content
 
     UniquePtr<IStream> Instance::ReadData(StringView streamName) const
     {
+        if (!IsStreamName(streamName))
+        {
+            return nullptr;
+        }
         if (UniquePtr<IStream> text =
                 m_db->Mount().Open(DataPath(streamName, StreamEncoding::Text).AsView(),
                                    FileMode::Read))
@@ -460,6 +562,10 @@ namespace foundation::content
     Status Instance::WriteData(StringView streamName, Span<const byte> data,
                                StreamEncoding encoding)
     {
+        if (!IsStreamName(streamName))
+        {
+            return Status{ErrorCode::InvalidArgument};
+        }
         IWritableFileSystem* writable = m_db->Mount().AsWritable();
         if (writable == nullptr)
         {
@@ -483,6 +589,10 @@ namespace foundation::content
 
     Status Instance::DeleteData(StringView streamName)
     {
+        if (!IsStreamName(streamName))
+        {
+            return Status{ErrorCode::InvalidArgument};
+        }
         IWritableFileSystem* writable = m_db->Mount().AsWritable();
         if (writable == nullptr)
         {
@@ -546,55 +656,21 @@ namespace foundation::content
             return nullptr;
         }
 
-        // Sidecar streams keep no directory: enumerate "<srcName>.<stream>.<suffix>" siblings
-        // (the same prefix scan DeleteInstance uses) and byte-copy each under the clone's name,
-        // preserving the source's text/binary suffix.
-        if (IEnumerableFileSystem* enumerable = m_mount->AsEnumerable())
-        {
-            const String folder = group.Path();
-            String prefix(src->Name());
-            prefix.PushBack(utf8char('.'));
-            Array<DirEntry> entries;
-            if (enumerable->Enumerate(folder.AsView(), entries).IsOk())
-            {
-                for (const DirEntry& entry : entries)
-                {
-                    if (entry.isDirectory || entry.name.Size() <= prefix.Size())
-                    {
-                        continue;
-                    }
-                    if (entry.name.AsView().SubStr(0, prefix.Size()) != prefix.AsView())
-                    {
-                        continue;
-                    }
-                    const usize suffix = SidecarSuffixSize(entry.name.AsView());
-                    if (suffix == 0)
-                    {
-                        continue;
-                    }
-                    // In "<src>.<stream>.<suffix>", the stream name is between prefix and suffix.
-                    const StringView fileName = entry.name.AsView();
-                    const StringView stream =
-                        fileName.SubStr(prefix.Size(), fileName.Size() - prefix.Size() - suffix);
-                    if (stream.IsEmpty())
-                    {
-                        continue;
-                    }
-                    const StreamEncoding encoding =
-                        suffix == 5 ? StreamEncoding::Text : StreamEncoding::Binary;
-                    if (UniquePtr<IStream> data = src->ReadData(stream))
-                    {
-                        Array<byte> bytes;
-                        bytes.Resize(static_cast<usize>(data->Size()));
-                        if (data->Read(bytes.Data(), bytes.Size()) == bytes.Size())
-                        {
-                            (void)copy->WriteData(
-                                stream, Span<const byte>{bytes.Data(), bytes.Size()}, encoding);
-                        }
-                    }
-                }
-            }
-        }
+        // Every sidecar byte-copied under the clone's name, keeping its stream and encoding.
+        ForEachSidecar(*m_mount, group.Path().AsView(), src->Name(),
+                       [&](StringView, StringView stream, StreamEncoding encoding)
+                       {
+                           if (UniquePtr<IStream> data = src->ReadData(stream))
+                           {
+                               Array<byte> bytes;
+                               bytes.Resize(static_cast<usize>(data->Size()));
+                               if (data->Read(bytes.Data(), bytes.Size()) == bytes.Size())
+                               {
+                                   (void)copy->WriteData(
+                                       stream, Span<const byte>{bytes.Data(), bytes.Size()}, encoding);
+                               }
+                           }
+                       });
         return copy;
     }
 
@@ -620,54 +696,22 @@ namespace foundation::content
             return wrote;
         }
 
-        // Byte-copy every "<srcName>.<stream>.<suffix>" sidecar (streams keep no directory)
-        // into dest under the same stream name and text or binary suffix: the prefix scan
-        // CloneInstance uses, but across databases and mounts.
-        if (IEnumerableFileSystem* enumerable = src.m_mount->AsEnumerable())
-        {
-            const String folder = source->OwningGroup().Path();
-            String prefix(source->Name());
-            prefix.PushBack(utf8char('.'));
-            Array<DirEntry> entries;
-            if (enumerable->Enumerate(folder.AsView(), entries).IsOk())
-            {
-                for (const DirEntry& entry : entries)
-                {
-                    if (entry.isDirectory || entry.name.Size() <= prefix.Size())
-                    {
-                        continue;
-                    }
-                    if (entry.name.AsView().SubStr(0, prefix.Size()) != prefix.AsView())
-                    {
-                        continue;
-                    }
-                    const usize suffix = SidecarSuffixSize(entry.name.AsView());
-                    if (suffix == 0)
-                    {
-                        continue;
-                    }
-                    const StringView fileName = entry.name.AsView();
-                    const StringView stream =
-                        fileName.SubStr(prefix.Size(), fileName.Size() - prefix.Size() - suffix);
-                    if (stream.IsEmpty())
-                    {
-                        continue;
-                    }
-                    const StreamEncoding encoding =
-                        suffix == 5 ? StreamEncoding::Text : StreamEncoding::Binary;
-                    if (UniquePtr<IStream> data = source->ReadData(stream))
-                    {
-                        Array<byte> bytes;
-                        bytes.Resize(static_cast<usize>(data->Size()));
-                        if (data->Read(bytes.Data(), bytes.Size()) == bytes.Size())
-                        {
-                            (void)dest.WriteData(
-                                stream, Span<const byte>{bytes.Data(), bytes.Size()}, encoding);
-                        }
-                    }
-                }
-            }
-        }
+        // Every sidecar byte-copied into dest under the same stream and encoding: the clone's
+        // copy, but across databases and mounts.
+        ForEachSidecar(*src.m_mount, source->OwningGroup().Path().AsView(), source->Name(),
+                       [&](StringView, StringView stream, StreamEncoding encoding)
+                       {
+                           if (UniquePtr<IStream> data = source->ReadData(stream))
+                           {
+                               Array<byte> bytes;
+                               bytes.Resize(static_cast<usize>(data->Size()));
+                               if (data->Read(bytes.Data(), bytes.Size()) == bytes.Size())
+                               {
+                                   (void)dest.WriteData(
+                                       stream, Span<const byte>{bytes.Data(), bytes.Size()}, encoding);
+                               }
+                           }
+                       });
         return Status{};
     }
 
@@ -695,37 +739,16 @@ namespace foundation::content
         const String folder = instance->OwningGroup().Path();
         const String oldEnvelope = instance->EnvelopePath();
 
-        // Sidecars first (prefix scan, like delete): "<old>.<stream>.<suffix>" becomes
-        // "<new>.<stream>.<suffix>" (the tail keeps the stream's text or binary suffix).
-        if (IEnumerableFileSystem* enumerable = m_mount->AsEnumerable())
-        {
-            String prefix(instance->Name());
-            prefix.PushBack(utf8char('.'));
-            Array<DirEntry> entries;
-            if (enumerable->Enumerate(folder.AsView(), entries).IsOk())
-            {
-                for (const DirEntry& entry : entries)
-                {
-                    if (entry.isDirectory || entry.name.Size() <= prefix.Size())
-                    {
-                        continue;
-                    }
-                    if (entry.name.AsView().SubStr(0, prefix.Size()) != prefix.AsView())
-                    {
-                        continue;
-                    }
-                    if (SidecarSuffixSize(entry.name.AsView()) == 0)
-                    {
-                        continue;
-                    }
-                    String renamed(newName);
-                    renamed.Append(entry.name.AsView().SubStr(
-                        instance->Name().Size(), entry.name.Size() - instance->Name().Size()));
-                    (void)writable->Move(JoinPath(folder.AsView(), entry.name.AsView()).AsView(),
-                                         JoinPath(folder.AsView(), renamed.AsView()).AsView());
-                }
-            }
-        }
+        // Sidecars first: "<old>.<stream>.<suffix>" becomes "<new>.<stream>.<suffix>".
+        ForEachSidecar(*m_mount, folder.AsView(), instance->Name(),
+                       [&](StringView fileName, StringView, StreamEncoding)
+                       {
+                           String renamed(newName);
+                           renamed.Append(fileName.SubStr(instance->Name().Size(),
+                                                          fileName.Size() - instance->Name().Size()));
+                           (void)writable->Move(JoinPath(folder.AsView(), fileName).AsView(),
+                                                JoinPath(folder.AsView(), renamed.AsView()).AsView());
+                       });
 
         // The envelope may not exist yet (instance created, never written); that is fine.
         instance->m_name = String(newName);
@@ -771,27 +794,13 @@ namespace foundation::content
         {
             (void)writable->CreateDirectory(toFolder.AsView());
         }
-        // Sidecars first (prefix scan, as a rename does): "<name>.<stream>.<suffix>" each moves.
-        if (IEnumerableFileSystem* enumerable = m_mount->AsEnumerable())
-        {
-            String prefix(instance->Name());
-            prefix.PushBack(utf8char('.'));
-            Array<DirEntry> entries;
-            if (enumerable->Enumerate(fromFolder.AsView(), entries).IsOk())
-            {
-                for (const DirEntry& entry : entries)
-                {
-                    if (entry.isDirectory || entry.name.Size() <= prefix.Size() ||
-                        entry.name.AsView().SubStr(0, prefix.Size()) != prefix.AsView() ||
-                        SidecarSuffixSize(entry.name.AsView()) == 0)
-                    {
-                        continue;
-                    }
-                    (void)writable->Move(JoinPath(fromFolder.AsView(), entry.name.AsView()).AsView(),
-                                         JoinPath(toFolder.AsView(), entry.name.AsView()).AsView());
-                }
-            }
-        }
+        // Sidecars first, as a rename does: each "<name>.<stream>.<suffix>" moves.
+        ForEachSidecar(*m_mount, fromFolder.AsView(), instance->Name(),
+                       [&](StringView fileName, StringView, StreamEncoding)
+                       {
+                           (void)writable->Move(JoinPath(fromFolder.AsView(), fileName).AsView(),
+                                                JoinPath(toFolder.AsView(), fileName).AsView());
+                       });
 
         // Out of its group and into the other, in its name order (the envelope may not exist
         // yet: an instance created and never written).
@@ -867,35 +876,12 @@ namespace foundation::content
             return Status{ErrorCode::NotSupported};
         }
 
-        // The envelope and every "<name>.<stream>.<suffix>" sidecar (streams keep no directory, so
-        // the group folder is enumerated for siblings with the instance's file prefix).
+        // The envelope and every sidecar.
         (void)writable->Delete(instance->EnvelopePath().AsView());
-        if (IEnumerableFileSystem* enumerable = m_mount->AsEnumerable())
-        {
-            const String folder = instance->OwningGroup().Path();
-            String prefix(instance->Name());
-            prefix.PushBack(utf8char('.'));
-            Array<DirEntry> entries;
-            if (enumerable->Enumerate(folder.AsView(), entries).IsOk())
-            {
-                for (const DirEntry& entry : entries)
-                {
-                    if (entry.isDirectory || entry.name.Size() <= prefix.Size())
-                    {
-                        continue;
-                    }
-                    if (entry.name.AsView().SubStr(0, prefix.Size()) != prefix.AsView())
-                    {
-                        continue;
-                    }
-                    if (SidecarSuffixSize(entry.name.AsView()) == 0)
-                    {
-                        continue;
-                    }
-                    (void)writable->Delete(JoinPath(folder.AsView(), entry.name.AsView()).AsView());
-                }
-            }
-        }
+        const String folder = instance->OwningGroup().Path();
+        ForEachSidecar(*m_mount, folder.AsView(), instance->Name(),
+                       [&](StringView fileName, StringView, StreamEncoding)
+                       { (void)writable->Delete(JoinPath(folder.AsView(), fileName).AsView()); });
 
         m_byGuid.Remove(id);
         instance->OwningGroup().RemoveInstance(instance);
@@ -1052,18 +1038,13 @@ namespace foundation::content
     // A data stream's sidecar is "<record path>.<stream>.data" (text) or ".bin" (binary).
     void ContentDatabase::RefreshDataStream(StringView path, ContentChanges& out)
     {
-        const usize suffix = SidecarSuffixSize(path);
-        if (suffix == 0)
+        // The envelope's own extension is not a sidecar (the record refresh handles it).
+        const StringView owner = OwnerPathOf(path, {});
+        if (owner.IsEmpty())
         {
             return;
         }
-        const StringView rest = path.SubStr(0, path.Size() - suffix);
-        const usize dot = rest.FindLast(utf8char('.'));
-        if (dot == StringView::kNotFound || dot == 0)
-        {
-            return;
-        }
-        if (Instance* instance = GetInstance(rest.SubStr(0, dot)))
+        if (Instance* instance = GetInstance(owner))
         {
             for (const Guid& added : out.added)
             {
