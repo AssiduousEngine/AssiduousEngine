@@ -1,5 +1,5 @@
 <root>
-	<string name="guid">4d5248d0-e4a1-4eab-b3c2-ccc5658216e3</string>
+	<string name="guid">da59e677-a457-4473-82c0-7ab7b4d19a0c</string>
 	<string name="typeNamespace">rtti::pipeline::render</string>
 	<string name="typeName">RenderQualityAsset</string>
 	<string name="source"/>
@@ -9,7 +9,7 @@
 	</array>
 	<object name="payload">
 		<string name="fileName"/>
-		<string name="label">Default</string>
+		<string name="label">High</string>
 		<u32 name="msaaSamples">4</u32>
 		<u32 name="antialiasing">1</u32>
 		<u32 name="shadows">3</u32>

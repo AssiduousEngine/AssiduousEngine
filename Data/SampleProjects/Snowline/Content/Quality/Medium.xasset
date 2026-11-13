@@ -1,5 +1,5 @@
 <root>
-	<string name="guid">da59e677-a457-4473-82c0-7ab7b4d19a0c</string>
+	<string name="guid">2994f0dc-b97b-4af1-8c07-28e60cd949b6</string>
 	<string name="typeNamespace">rtti::pipeline::render</string>
 	<string name="typeName">RenderQualityAsset</string>
 	<string name="source"/>
@@ -9,15 +9,15 @@
 	</array>
 	<object name="payload">
 		<string name="fileName"/>
-		<string name="label">Default</string>
-		<u32 name="msaaSamples">4</u32>
+		<string name="label">Medium</string>
+		<u32 name="msaaSamples">2</u32>
 		<u32 name="antialiasing">1</u32>
-		<u32 name="shadows">3</u32>
+		<u32 name="shadows">2</u32>
 		<f32 name="shadowDistanceMax">0</f32>
-		<u32 name="ambientOcclusion">3</u32>
-		<u32 name="reflections">3</u32>
-		<u32 name="globalIllumination">3</u32>
-		<u32 name="bloom">3</u32>
-		<u32 name="environmentResolution">2</u32>
+		<u32 name="ambientOcclusion">2</u32>
+		<u32 name="reflections">2</u32>
+		<u32 name="globalIllumination">2</u32>
+		<u32 name="bloom">2</u32>
+		<u32 name="environmentResolution">1</u32>
 	</object>
 </root>

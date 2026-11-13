@@ -29,6 +29,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   guid; the default scene's path follows.
 - Player: `--quality <label>` starts a run at one of the game's quality levels, ahead of the saved
   choice, without keeping it.
+- Samples: each sample game offers Low, Medium and High quality levels; High is how it drew
+  before the levels.
 
 ### Changed
 
