@@ -504,6 +504,84 @@ TEST_CASE("gui.hosting: a press's release reaches its window though the pointer 
 }
 
 
+TEST_CASE("gui.hosting: a window closed by a press inside it closes once the press is routed")
+{
+    DrivenShell shellDriven;
+    UniquePtr<graphics::GraphicsDevice> device = graphics::CreateNullGraphicsDevice(2).Value();
+    rhi::ShaderModule* vs = MakeModule(*device->Raw());
+    rhi::ShaderModule* fs = MakeModule(*device->Raw());
+    {
+        auto& windows = *static_cast<shell::NullWindowManager*>(shellDriven.WindowManager());
+        VgShaderSet shaders;
+        shaders.Vertex = vs;
+        shaders.Fragment = fs;
+        UniquePtr<GuiHost> host = MakeUnique<GuiHost>(DefaultAllocator(), DefaultAllocator(), *device, shellDriven, nullptr, shaders);
+        Array<UniquePtr<graphics::RenderWindow>> opened;
+        int closed = 0;
+        GuiHost::WindowOpener opener;
+        opener.Open = [&](const shell::WindowSettings& settings) -> graphics::RenderWindow*
+        {
+            Result<shell::IWindow*> made = windows.CreateWindow(settings);
+            if (!made.HasValue())
+                return nullptr;
+            opened.PushBack(device->CreateRenderWindow(*made.Value(), graphics::RenderWindowDesc{}).Value());
+            return opened.Back().Get();
+        };
+        opener.Close = [&](graphics::RenderWindow& window)
+        {
+            ++closed;
+            windows.DestroyWindow(&window.Window());
+        };
+        host->SetWindowOpener(Move(opener));
+
+        // A floating window whose content closes it on a press, as a close button does.
+        RefPtr<SceneRoot> floating = MakeRef<SceneRoot>(DefaultAllocator(), host->ContextRef());
+        RefPtr<Panel> button = MakeRef<Panel>(DefaultAllocator());
+        button->EditLayoutStyle([](LayoutStyle& s) {
+            s.Width = LayoutLength::Px(100.0f);
+            s.Height = LayoutLength::Px(100.0f);
+        });
+        floating->AddChild(button.Get());
+        int presses = 0;
+        bool openWhilePressed = false;
+        GuiHost* hostPtr = host.Get();
+        button->AddEventListener(EventType::MouseDown,
+                                 [&, hostPtr](const Event&)
+                                 {
+                                     ++presses;
+                                     hostPtr->CloseWindow(*floating);
+                                     openWhilePressed = hostPtr->WindowFor(floating.Get()) != nullptr;
+                                 });
+        shell::WindowSettings settings;
+        settings.width = 200;
+        settings.height = 150;
+        graphics::RenderWindow* window = host->OpenWindow(floating, settings);
+        REQUIRE(window != nullptr);
+        DrivenMouse& mouse = shellDriven.input.mouse;
+        const auto frame = [&](f32 x, f32 y, bool down, bool edge)
+        {
+            shellDriven.input.hover = window->Window().Id();
+            mouse.x = x;
+            mouse.y = y;
+            mouse.pressed = edge && down;
+            mouse.released = edge && !down;
+            mouse.down = down;
+            host->Update(1.0f / 60.0f);
+            device->AdvanceFrame();
+        };
+        frame(50.0f, 50.0f, false, false); // laid out, the pointer over the button
+        frame(50.0f, 50.0f, true, true);   // pressed: the handler closes the window it is in
+        CHECK(presses == 1);
+        CHECK(openWhilePressed); // still there while the press was routed
+        CHECK(closed == 1);      // closed in the same frame, once routed
+        CHECK(host->WindowFor(floating.Get()) == nullptr);
+        CHECK(host->WindowCount() == 0u);
+        host.Reset();
+    }
+    device->Raw()->DestroyShaderModule(fs);
+    device->Raw()->DestroyShaderModule(vs);
+}
+
 TEST_CASE("gui.hosting: on a scaled display the GUI fills the window's pixels, and the pointer in window units lands where it shows")
 {
     DrivenShell shellDriven;

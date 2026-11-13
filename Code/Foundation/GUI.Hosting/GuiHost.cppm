@@ -232,7 +232,15 @@ export namespace foundation::gui
             if (!root || m_device.Raw() == nullptr || !m_shaders.IsUsable())
                 return;
             if (Find(&window) != nullptr)
+            {
+                if (m_routing) // its panes may be the ones routing: replaced once that is done
+                {
+                    graphics::RenderWindow* target = &window;
+                    m_context->GetMutationQueue().Enqueue([this, target, root]() { AttachWindow(*target, root); });
+                    return;
+                }
                 DetachWindow(window);
+            }
             UniquePtr<GuiWindowData> data = MakeUnique<GuiWindowData>(m_allocator, m_allocator, m_allocator);
             data->Canvas = MakeUnique<vg::VGContext>(m_allocator, m_fonts);
             data->Encoded = m_blendSpace == vg::VGBlendSpace::Encoded && window.Swap() != nullptr &&
@@ -348,11 +356,25 @@ export namespace foundation::gui
             return window;
         }
         /// Closes the window OpenWindow opened for `root`: it is detached, then closed by the opener.
+        /// Asked from input the host is routing (a close button inside the window), it happens
+        /// once the routing is done, in the same frame.
         void CloseWindow(const SceneRoot& root)
         {
             graphics::RenderWindow* window = WindowFor(&root);
             if (window == nullptr || !m_opener.Close)
                 return;
+            if (m_routing)
+            {
+                m_context->GetMutationQueue().Enqueue(
+                    [this, window]()
+                    {
+                        if (Find(window) == nullptr || !m_opener.Close)
+                            return; // closed meanwhile
+                        DetachWindow(*window);
+                        m_opener.Close(*window);
+                    });
+                return;
+            }
             DetachWindow(*window);
             m_opener.Close(*window);
         }
@@ -445,8 +467,16 @@ export namespace foundation::gui
         /// Stops drawing and feeding the window's panes and releases their roots; its renderer
         /// forgets the bakes. The rest of the payload stays on the RenderWindow, which frees it when
         /// it is destroyed (after the GPU is idle).
+        /// Asked from input the host is routing, it happens once the routing is done, in the same
+        /// frame: the panes it releases may be the ones routing.
         void DetachWindow(graphics::RenderWindow& window)
         {
+            if (m_routing)
+            {
+                graphics::RenderWindow* target = &window;
+                m_context->GetMutationQueue().Enqueue([this, target]() { DetachWindow(*target); });
+                return;
+            }
             for (usize i = 0; i < m_attached.Size(); ++i)
                 if (m_attached[i].Window == &window)
                 {
@@ -499,7 +529,11 @@ export namespace foundation::gui
                 }
                 {
                     PROFILE_SCOPE("GUI.Input.Route");
+                    // A handler may close, detach or attach a window: that waits for the context's
+                    // mutations, drained next, so nothing routing is freed or moved under it.
+                    m_routing = true;
                     RouteInput();
+                    m_routing = false;
                 }
             }
             {
@@ -953,16 +987,19 @@ export namespace foundation::gui
                        mouse->IsButtonDown(shell::MouseButton::Right);
                 mouse->SetGlobalCapture(held); // its events keep coming past the window's edge
             }
-            const Attached* pointer = FindById(m_pressWindow);
-            if (pointer == nullptr)
-                pointer = FindById(input->HoverWindow());
-            if (pointer == nullptr && m_attached.Size() == 1)
-                pointer = &m_attached[0];
-            if (pointer != nullptr)
+            // Copied, not pointed at: a handler may open a window, growing the list.
+            Attached pointer;
+            if (const Attached* found = FindById(m_pressWindow))
+                pointer = *found;
+            else if (const Attached* hovered = FindById(input->HoverWindow()))
+                pointer = *hovered;
+            else if (m_attached.Size() == 1)
+                pointer = m_attached[0];
+            if (pointer.Window != nullptr)
             {
-                graphics::RenderWindow& window = *pointer->Window;
+                graphics::RenderWindow& window = *pointer.Window;
                 const Float2 size{static_cast<f32>(window.Window().Width()), static_cast<f32>(window.Window().Height())};
-                for (const UniquePtr<GuiWindowData::Pane>& pane : pointer->Data->Panes)
+                for (const UniquePtr<GuiWindowData::Pane>& pane : pointer.Data->Panes)
                 {
                     // The pointer arrives in window units; the pane lays out in pixels, so the surface
                     // maps the one to the other.
@@ -980,13 +1017,12 @@ export namespace foundation::gui
                 m_pressWindow = 0; // its release was routed above
             // Keys, text and the gamepad go to the pane clicked last in the focused window, else to
             // its first pane.
-            const Attached* focused = FindById(input->FocusedWindow());
-            if (focused == nullptr)
-                focused = &m_attached[0];
-            GuiWindowData::Pane* keys = focused->Data->Panes.IsEmpty() ? nullptr : focused->Data->Panes[0].Get();
-            for (usize i = 1; i < focused->Data->Panes.Size(); ++i)
-                if (focused->Data->Panes[i]->Surface->Focused())
-                    keys = focused->Data->Panes[i].Get();
+            const Attached* focusedFound = FindById(input->FocusedWindow());
+            const Attached focused = focusedFound != nullptr ? *focusedFound : m_attached[0];
+            GuiWindowData::Pane* keys = focused.Data->Panes.IsEmpty() ? nullptr : focused.Data->Panes[0].Get();
+            for (usize i = 1; i < focused.Data->Panes.Size(); ++i)
+                if (focused.Data->Panes[i]->Surface->Focused())
+                    keys = focused.Data->Panes[i].Get();
             if (keys != nullptr)
                 for (const shell::InputEvent& event : input->Events())
                     switch (event.kind)
@@ -1059,6 +1095,7 @@ export namespace foundation::gui
         UniquePtr<shell::InputRouter> m_contentRouter; // the hosted contents' surfaces
         UniquePtr<GpuPictureBaker> m_baker;
         PictureBakerSetup m_bakerSetup;
+        bool m_routing = false; // RouteInput runs: window changes wait for the context's mutations
         bool m_bakerReady = false;
         bool m_bakesRecorded = false;
         Array<Attached> m_attached;
