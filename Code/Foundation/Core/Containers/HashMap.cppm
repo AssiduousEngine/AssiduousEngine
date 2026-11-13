@@ -93,72 +93,42 @@ export namespace foundation::core
         [[nodiscard]] usize Capacity() const noexcept { return m_capacity; }
 
         // Inserts the key, or overwrites the value if present. Returns the value.
+        // Looked up before anything grows; a key or value that is one of this map's own entries
+        // (`m.InsertOrAssign(k, m[other])`) is copied before a rehash frees it.
         V& InsertOrAssign(const K& key, const V& value)
         {
-            EnsureCapacityForInsert();
-
-            const usize mask = m_capacity - 1;
-            usize index = Hasher{}(key)&mask;
-            usize tombstone = kNoSlot;
-
-            while (m_states[index] != State::Empty)
+            const usize found = FindIndex(key);
+            if (found != kNoSlot)
             {
-                if (m_states[index] == State::Occupied && m_entries[index].key == key)
-                {
-                    m_entries[index].value = value;
-                    return m_entries[index].value;
-                }
-                if (m_states[index] == State::Tombstone && tombstone == kNoSlot)
-                {
-                    tombstone = index;
-                }
-                index = (index + 1) & mask;
+                m_entries[found].value = value;
+                return m_entries[found].value;
             }
-
-            const usize target = (tombstone != kNoSlot) ? tombstone : index;
-            if (tombstone != kNoSlot)
+            if (NeedsGrowthForInsert() && (Holds(AddressOf(key)) || Holds(AddressOf(value))))
             {
-                --m_tombstones;
+                const K keyCopy(key);
+                V valueCopy(value);
+                return InsertNew(keyCopy, Move(valueCopy));
             }
-            Construct<Entry>(&m_entries[target], key, value);
-            m_states[target] = State::Occupied;
-            ++m_size;
-            return m_entries[target].value;
+            return InsertNew(key, value);
         }
 
         // Move-value overload: inserts or overwrites with a moved value, so move-only values
         // (Function, UniquePtr, ...) can live in a HashMap.
         V& InsertOrAssign(const K& key, V&& value)
         {
-            EnsureCapacityForInsert();
-
-            const usize mask = m_capacity - 1;
-            usize index = Hasher{}(key)&mask;
-            usize tombstone = kNoSlot;
-
-            while (m_states[index] != State::Empty)
+            const usize found = FindIndex(key);
+            if (found != kNoSlot)
             {
-                if (m_states[index] == State::Occupied && m_entries[index].key == key)
-                {
-                    m_entries[index].value = Move(value);
-                    return m_entries[index].value;
-                }
-                if (m_states[index] == State::Tombstone && tombstone == kNoSlot)
-                {
-                    tombstone = index;
-                }
-                index = (index + 1) & mask;
+                m_entries[found].value = Move(value);
+                return m_entries[found].value;
             }
-
-            const usize target = (tombstone != kNoSlot) ? tombstone : index;
-            if (tombstone != kNoSlot)
+            if (NeedsGrowthForInsert() && (Holds(AddressOf(key)) || Holds(AddressOf(value))))
             {
-                --m_tombstones;
+                const K keyCopy(key);
+                V taken(Move(value));
+                return InsertNew(keyCopy, Move(taken));
             }
-            Construct<Entry>(&m_entries[target], key, Move(value));
-            m_states[target] = State::Occupied;
-            ++m_size;
-            return m_entries[target].value;
+            return InsertNew(key, Move(value));
         }
 
         [[nodiscard]] V* Find(const K& key) noexcept
@@ -299,6 +269,39 @@ export namespace foundation::core
             n |= (n >> 16) >> 16; // the 64-bit fold; two legal shifts so 32-bit usize
                                   // (wasm32) neither overflows nor warns; there it is a no-op
             return n + 1;
+        }
+
+        // Whether `p` points into this map's entries.
+        [[nodiscard]] bool Holds(const void* p) const noexcept
+        {
+            const auto at = reinterpret_cast<uptr>(p);
+            const auto begin = reinterpret_cast<uptr>(m_entries);
+            return m_entries != nullptr && at >= begin && at < begin + m_capacity * sizeof(Entry);
+        }
+        [[nodiscard]] bool NeedsGrowthForInsert() const noexcept
+        {
+            return m_capacity == 0 || (m_size + m_tombstones + 1) * 4 >= m_capacity * 3;
+        }
+
+        // Inserts a key known to be absent, growing first.
+        template <typename U>
+        V& InsertNew(const K& key, U&& value)
+        {
+            EnsureCapacityForInsert();
+            const usize mask = m_capacity - 1;
+            usize index = Hasher{}(key)&mask;
+            while (m_states[index] == State::Occupied)
+            {
+                index = (index + 1) & mask;
+            }
+            if (m_states[index] == State::Tombstone)
+            {
+                --m_tombstones;
+            }
+            Construct<Entry>(&m_entries[index], key, Forward<U>(value));
+            m_states[index] = State::Occupied;
+            ++m_size;
+            return m_entries[index].value;
         }
 
         void EnsureCapacityForInsert()

@@ -130,6 +130,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   lookup (`of`, `removeFrom` again) and frees it, its body or voice with it, at the end of that
   step, so the systems walking those components never see it move. `addTo` before then gives it
   back as it was.
+- Core: arrays, strings and maps accept their own elements as arguments (`a.PushBack(a[0])`,
+  `s.Append(s)`, `m.InsertOrAssign(k, m[j])`, an insert of an element before itself), and
+  `head = Move(head->next)` keeps the next node; each read freed memory when it grew or released.
 
 ## 0.1.0-beta.3 - 2026-11-12
 

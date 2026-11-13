@@ -325,7 +325,18 @@ export namespace foundation::core
             {
                 return;
             }
-            EnsureCapacity(m_size + count);
+            // Its own text (`s.Append(s)`): a growth frees the heap buffer, or writes the heap
+            // pointer over the inline one, so the source is found again after it.
+            if (Holds(str))
+            {
+                const usize offset = static_cast<usize>(str - Data());
+                EnsureCapacity(m_size + count);
+                str = Data() + offset;
+            }
+            else
+            {
+                EnsureCapacity(m_size + count);
+            }
             CharT* data = Data();
             MemCopy(data + m_size, str, count * sizeof(CharT));
             m_size += count;
@@ -374,6 +385,14 @@ export namespace foundation::core
             if (index > m_size)
             {
                 index = m_size;
+            }
+            if (Holds(view.Data()))
+            {
+                // Its own text: a growth may free it, and the shift below moves it before it is
+                // copied, so the copy is taken first.
+                const BasicString copy(view, *m_allocator);
+                Insert(index, copy.AsView());
+                return;
             }
             EnsureCapacity(m_size + count);
             CharT* data = Data();
@@ -455,6 +474,13 @@ export namespace foundation::core
                                                      ? (kInlineBytes / sizeof(CharT)) - 1
                                                      : 1;
         static constexpr usize kInitialHeapCapacity = (kInlineCapacity + 1) * 2;
+
+        // Whether `p` points into this string's own text.
+        [[nodiscard]] bool Holds(const CharT* p) const noexcept
+        {
+            const CharT* data = Data();
+            return p != nullptr && p >= data && p <= data + m_size;
+        }
 
         void EnsureCapacity(usize required)
         {

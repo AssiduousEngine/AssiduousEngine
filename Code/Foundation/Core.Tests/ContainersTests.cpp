@@ -681,3 +681,135 @@ TEST_CASE("intrusivelist: push/iterate/remove without owning")
     list.Clear();
     CHECK(list.IsEmpty());
 }
+
+namespace
+{
+    // Long enough to live on the heap, so a read of a freed one shows.
+    String Long(StringView tag)
+    {
+        String s(tag);
+        s.Append(u8" and enough text after it to leave the inline storage behind");
+        return s;
+    }
+}
+
+TEST_CASE("array: an element of its own pushed, emplaced, inserted or resized from survives the growth")
+{
+    Array<String> a;
+    a.PushBack(Long(u8"first"));
+    while (a.Size() < 70) // grows several times, each time pushing an element of its own
+    {
+        a.PushBack(a[0]);
+    }
+    for (const String& s : a)
+    {
+        CHECK(s == Long(u8"first"));
+    }
+    Array<String> e;
+    e.PushBack(Long(u8"e"));
+    while (e.Size() < 40)
+    {
+        (void)e.EmplaceBack(e.Back());
+    }
+    CHECK(e.Back() == Long(u8"e"));
+
+    // Insert from its own element, with and without growth: the shift does not move it first.
+    Array<String> ins;
+    ins.PushBack(Long(u8"a"));
+    ins.PushBack(Long(u8"b"));
+    ins.PushBack(Long(u8"c"));
+    ins.Insert(0, ins[2]); // c a b c
+    REQUIRE(ins.Size() == 4u);
+    CHECK(ins[0] == Long(u8"c"));
+    CHECK(ins[1] == Long(u8"a"));
+    CHECK(ins[3] == Long(u8"c"));
+    while (ins.Size() < ins.Capacity())
+    {
+        ins.PushBack(Long(u8"pad"));
+    }
+    ins.Insert(1, ins[1]); // full: grows, and inserts what was at 1
+    CHECK(ins[1] == Long(u8"a"));
+    CHECK(ins[2] == Long(u8"a"));
+
+    Array<String> r;
+    r.PushBack(Long(u8"fill"));
+    r.Resize(50, r[0]);
+    CHECK(r[49] == Long(u8"fill"));
+}
+
+TEST_CASE("string: its own text appended or inserted survives the growth and the shift")
+{
+    String small(u8"abcd"); // inline: growing writes the heap pointer over the inline text
+    small.Append(small.AsView());
+    CHECK(small == StringView(u8"abcdabcd"));
+    String s = Long(u8"x");
+    const String twice = [&]()
+    {
+        String t = Long(u8"x");
+        t.Append(Long(u8"x").AsView());
+        return t;
+    }();
+    s.Append(s.AsView());
+    CHECK(s == twice);
+    String in(u8"abc");
+    in.Insert(1, in.AsView()); // a + abc + bc
+    CHECK(in == StringView(u8"aabcbc"));
+}
+
+TEST_CASE("hashmap: a value of its own inserted under a new key survives the rehash")
+{
+    HashMap<u32, String> m;
+    m.InsertOrAssign(0u, Long(u8"zero"));
+    for (u32 k = 1; k < 200; ++k) // rehashes many times, each insert copying an entry of its own
+    {
+        m.InsertOrAssign(k, *m.Find(0u));
+    }
+    REQUIRE(m.Size() == 200u);
+    CHECK(*m.Find(199u) == Long(u8"zero"));
+    CHECK(*m.Find(0u) == Long(u8"zero"));
+    m.InsertOrAssign(5u, *m.Find(5u)); // assigning an entry its own value
+    CHECK(*m.Find(5u) == Long(u8"zero"));
+}
+
+namespace
+{
+    struct ListNode
+    {
+        i32 value = 0;
+        UniquePtr<ListNode> next;
+    };
+
+    struct SharedNode : RefCounted
+    {
+        i32 value = 0;
+        RefPtr<SharedNode> next;
+    };
+}
+
+TEST_CASE("pointers: head = head->next takes the next node before freeing the head")
+{
+    UniquePtr<ListNode> head = MakeUnique<ListNode>(DefaultAllocator());
+    head->value = 1;
+    head->next = MakeUnique<ListNode>(DefaultAllocator());
+    head->next->value = 2;
+    head->next->next = MakeUnique<ListNode>(DefaultAllocator());
+    head->next->next->value = 3;
+    head = Move(head->next); // the old head, and the member moved from, go after
+    REQUIRE(head);
+    CHECK(head->value == 2);
+    REQUIRE(head->next);
+    CHECK(head->next->value == 3);
+
+    RefPtr<SharedNode> shared = MakeRef<SharedNode>(DefaultAllocator());
+    shared->value = 1;
+    shared->next = MakeRef<SharedNode>(DefaultAllocator());
+    shared->next->value = 2;
+    shared->next->next = MakeRef<SharedNode>(DefaultAllocator());
+    shared->next->next->value = 3;
+    shared = shared->next; // copy: the old head is released after the next is held
+    REQUIRE(shared);
+    CHECK(shared->value == 2);
+    shared = Move(shared->next); // move
+    REQUIRE(shared);
+    CHECK(shared->value == 3);
+}

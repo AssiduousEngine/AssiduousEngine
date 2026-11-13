@@ -47,10 +47,19 @@ export namespace foundation::core
         {
             if (this != &other)
             {
-                Reset();
-                m_ptr = other.m_ptr;
-                m_allocator = other.m_allocator;
+                // Taken first, then the old one deleted: `other` may live inside what this held
+                // (`head = Move(head->next)`), and deleting first would free it.
+                T* incoming = other.m_ptr;
+                IAllocator* incomingAllocator = other.m_allocator;
                 other.m_ptr = nullptr;
+                T* old = m_ptr;
+                IAllocator* oldAllocator = m_allocator;
+                m_ptr = incoming;
+                m_allocator = incomingAllocator;
+                if (old != nullptr && oldAllocator != nullptr)
+                {
+                    oldAllocator->Delete(old);
+                }
             }
             return *this;
         }
@@ -62,11 +71,13 @@ export namespace foundation::core
 
         void Reset() noexcept
         {
-            if (m_ptr != nullptr && m_allocator != nullptr)
-            {
-                m_allocator->Delete(m_ptr);
-            }
+            // Emptied before the delete: what is deleted may reach back to this pointer.
+            T* old = m_ptr;
             m_ptr = nullptr;
+            if (old != nullptr && m_allocator != nullptr)
+            {
+                m_allocator->Delete(old);
+            }
         }
 
         [[nodiscard]] T* Release() noexcept

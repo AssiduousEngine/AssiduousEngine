@@ -194,19 +194,23 @@ export namespace foundation::core
             }
         }
 
+        // Both assignments take the new pointer before releasing the old: `other` may live inside
+        // what this held (`head = head->next`), and releasing first could free it.
         RefPtr& operator=(const RefPtr& other) noexcept
         {
             if (this != &other)
             {
-                if (other.m_ptr != nullptr)
+                T* incoming = other.m_ptr;
+                if (incoming != nullptr)
                 {
-                    other.m_ptr->AddRef();
+                    incoming->AddRef();
                 }
-                if (m_ptr != nullptr)
+                T* old = m_ptr;
+                m_ptr = incoming;
+                if (old != nullptr)
                 {
-                    m_ptr->Release();
+                    old->Release();
                 }
-                m_ptr = other.m_ptr;
             }
             return *this;
         }
@@ -215,23 +219,27 @@ export namespace foundation::core
         {
             if (this != &other)
             {
-                if (m_ptr != nullptr)
-                {
-                    m_ptr->Release();
-                }
-                m_ptr = other.m_ptr;
+                T* incoming = other.m_ptr;
                 other.m_ptr = nullptr;
+                T* old = m_ptr;
+                m_ptr = incoming;
+                if (old != nullptr)
+                {
+                    old->Release();
+                }
             }
             return *this;
         }
 
         void Reset() noexcept
         {
-            if (m_ptr != nullptr)
-            {
-                m_ptr->Release();
-            }
+            // Emptied before the release: what is released may reach back to this pointer.
+            T* old = m_ptr;
             m_ptr = nullptr;
+            if (old != nullptr)
+            {
+                old->Release();
+            }
         }
 
         [[nodiscard]] T* Get() const noexcept { return m_ptr; }

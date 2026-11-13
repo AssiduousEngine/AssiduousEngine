@@ -184,6 +184,12 @@ export namespace foundation::core
             }
             else if (newSize > m_size)
             {
+                if (newSize > m_capacity && Holds(AddressOf(value)))
+                {
+                    const T copy(value); // one of its own elements: the growth would free it
+                    Resize(newSize, copy);
+                    return;
+                }
                 ReserveForGrowth(newSize);
                 for (usize i = m_size; i < newSize; ++i)
                 {
@@ -240,16 +246,24 @@ export namespace foundation::core
         [[nodiscard]] const T* Data() const noexcept { return m_data; }
 
         // --- modifiers -----------------------------------------------------
+        // An argument may be one of this array's own elements (`a.PushBack(a[0])`): a growth
+        // builds the new element into the new storage before the old is freed (GrowAndEmplace).
         T& PushBack(const T& value)
         {
-            EnsureCapacityForOne();
+            if (m_size == m_capacity)
+            {
+                return GrowAndEmplace(value);
+            }
             Construct<T>(m_data + m_size, value);
             return m_data[m_size++];
         }
 
         T& PushBack(T&& value)
         {
-            EnsureCapacityForOne();
+            if (m_size == m_capacity)
+            {
+                return GrowAndEmplace(Move(value));
+            }
             Construct<T>(m_data + m_size, Move(value));
             return m_data[m_size++];
         }
@@ -257,7 +271,10 @@ export namespace foundation::core
         template <typename... Args>
         T& EmplaceBack(Args&&... args)
         {
-            EnsureCapacityForOne();
+            if (m_size == m_capacity)
+            {
+                return GrowAndEmplace(Forward<Args>(args)...);
+            }
             Construct<T>(m_data + m_size, Forward<Args>(args)...);
             return m_data[m_size++];
         }
@@ -294,6 +311,13 @@ export namespace foundation::core
         T& Insert(usize index, const T& value)
         {
             DIAGNOSTIC_ASSERT(index <= m_size);
+            if (Holds(AddressOf(value)))
+            {
+                // One of its own elements: the growth would free it, and the shift would move it
+                // before it is read.
+                T copy(value);
+                return Insert(index, Move(copy));
+            }
             EnsureCapacityForOne();
             if (index == m_size)
             {
@@ -313,6 +337,11 @@ export namespace foundation::core
         T& Insert(usize index, T&& value)
         {
             DIAGNOSTIC_ASSERT(index <= m_size);
+            if (Holds(AddressOf(value)))
+            {
+                T taken(Move(value)); // as above
+                return Insert(index, Move(taken));
+            }
             EnsureCapacityForOne();
             if (index == m_size)
             {
@@ -408,6 +437,48 @@ export namespace foundation::core
                 m_data[j] = Move(key);
             }
         }
+        // Whether `p` points at one of this array's elements.
+        [[nodiscard]] bool Holds(const T* p) const noexcept
+        {
+            const auto at = reinterpret_cast<uptr>(p);
+            const auto begin = reinterpret_cast<uptr>(m_data);
+            return m_data != nullptr && at >= begin && at < begin + m_size * sizeof(T);
+        }
+
+        // Appends an element built from `args` into storage grown for it, then moves the old
+        // elements over and frees them: `args` may refer to an old element, which is read while
+        // it still lives.
+        template <typename... Args>
+        T& GrowAndEmplace(Args&&... args)
+        {
+            const usize newCapacity = m_capacity == 0 ? kInitialCapacity : m_capacity * 2;
+            T* newData = static_cast<T*>(m_allocator->Allocate(newCapacity * sizeof(T), alignof(T)));
+            DIAGNOSTIC_ASSERT_MSG(newData != nullptr, "Array allocation failed");
+            Construct<T>(newData + m_size, Forward<Args>(args)...);
+            if constexpr (std::is_trivially_copyable_v<T>)
+            {
+                if (m_size > 0)
+                {
+                    std::memcpy(static_cast<void*>(newData), static_cast<const void*>(m_data), m_size * sizeof(T));
+                }
+            }
+            else
+            {
+                for (usize i = 0; i < m_size; ++i)
+                {
+                    Construct<T>(newData + i, Move(m_data[i]));
+                    Destruct(m_data + i);
+                }
+            }
+            if (m_data != nullptr)
+            {
+                m_allocator->Free(m_data);
+            }
+            m_data = newData;
+            m_capacity = newCapacity;
+            return m_data[m_size++];
+        }
+
         void EnsureCapacityForOne()
         {
             if (m_size == m_capacity)
