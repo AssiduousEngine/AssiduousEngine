@@ -133,8 +133,10 @@ export namespace foundation::scene
             {
                 return;
             }
-            OnComponentDestroyed(m_dense[i], entity);
-
+            // Unlinked first, then the hook is told, on the value moved out: a hook (a behaviour's
+            // onDestroy) may add or remove components of this manager, which moves the pool, so
+            // the index found above is only good until it runs.
+            T removed = Move(m_dense[i]);
             const u32 last = static_cast<u32>(m_dense.Size()) - 1u;
             if (i != last)
             { // swap the last element into the hole
@@ -145,6 +147,7 @@ export namespace foundation::scene
             m_dense.PopBack();
             m_owners.PopBack();
             m_sparse.Remove(entity.index);
+            OnComponentDestroyed(removed, entity);
         }
         void Remove(EntityHandle entity) { RemoveComponent(entity); }
 
@@ -201,6 +204,7 @@ export namespace foundation::scene
         // component). Override in a concrete manager subclass.
         virtual void OnComponentCreated(T& /*c*/, EntityHandle /*e*/) {}
         virtual void OnComponentInitialized(T& /*c*/, EntityHandle /*e*/) {}
+        // Told after the component left the pool, with its value: the manager no longer finds it.
         virtual void OnComponentDestroyed(T& /*c*/, EntityHandle /*e*/) {}
 
     private:

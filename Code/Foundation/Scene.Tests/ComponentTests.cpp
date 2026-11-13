@@ -218,3 +218,57 @@ TEST_CASE("scene: MakeComponentRef gives a RESOLVE Variant that re-resolves the 
     mgr->RemoveComponent(e1);
     CHECK(ToInstance(ref).Pointer() == nullptr);
 }
+
+namespace
+{
+    // Its destroy hook removes another entity's component and adds one, as a behaviour's onDestroy
+    // might, and records what it was handed.
+    class ChurningManager final : public ComponentManager<Health>
+    {
+    public:
+        EntityHandle alsoRemove = EntityHandle::Invalid();
+        EntityHandle add = EntityHandle::Invalid();
+        Array<f32> told;
+        bool foundSelf = false;
+
+    protected:
+        void OnComponentDestroyed(Health& h, EntityHandle e) override
+        {
+            told.PushBack(h.value);
+            foundSelf = foundSelf || Has(e);
+            if (alsoRemove.IsAssigned())
+            {
+                const EntityHandle other = alsoRemove;
+                alsoRemove = EntityHandle::Invalid();
+                RemoveComponent(other);
+            }
+            if (add.IsAssigned())
+            {
+                Add(add).value = 99.0f;
+                add = EntityHandle::Invalid();
+            }
+        }
+    };
+}
+
+TEST_CASE("a destroy hook that removes and adds components of its own manager leaves the pool whole")
+{
+    ChurningManager mgr;
+    mgr.Add(E(0)).value = 1.0f;
+    mgr.Add(E(1)).value = 2.0f;
+    mgr.Add(E(2)).value = 3.0f;
+    mgr.alsoRemove = E(2); // the last one, which the first remove swaps into the hole
+    mgr.add = E(3);
+    mgr.RemoveComponent(E(0));
+    REQUIRE(mgr.told.Size() == 2u);
+    CHECK(mgr.told[0] == doctest::Approx(1.0f)); // the removed value, not what took its place
+    CHECK(mgr.told[1] == doctest::Approx(3.0f));
+    CHECK_FALSE(mgr.foundSelf); // gone from the pool before the hook
+    CHECK(mgr.Count() == 2u);
+    CHECK_FALSE(mgr.Has(E(0)));
+    CHECK_FALSE(mgr.Has(E(2)));
+    REQUIRE(mgr.Get(E(1)) != nullptr);
+    CHECK(mgr.Get(E(1))->value == doctest::Approx(2.0f));
+    REQUIRE(mgr.Get(E(3)) != nullptr);
+    CHECK(mgr.Get(E(3))->value == doctest::Approx(99.0f));
+}
