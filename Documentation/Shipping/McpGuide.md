@@ -328,7 +328,10 @@ look (`taaBlendFactor`, `taaVarianceGamma`, `fxaaSubpixel`). `High` is each effe
 before the levels; `Medium` and `Low` cost less: fewer AO samples, SSR steps, SSGI rays and bloom
 levels, smaller shadow maps, and at `Low` a smaller environment (the sky's prefiltered lighting and
 the reflection probes). The shadow and environment sizes are the game's level (the player's), not a
-Game tab's: those textures serve every view.
+Game tab's: those textures serve every view. In the editor, a Render Quality asset's page draws
+its preview at the level as it is edited; a Game tab's quality dropdown (`pie_quality`) and a
+scene viewport's Shading chip (Quality Level) draw at one of the project's levels; the Export
+dialog's Quality level row is the preset's `qualityLevelId`.
 
 **Colours**: every colour is written as it is meant to look, in sRGB, the value a colour picker
 and a hex code show (0.5 is `#808080`): component colours, the environment's ambient and sky, a

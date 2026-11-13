@@ -339,6 +339,42 @@ namespace editor
                      [post, samples]() { return samples <= 1 ? post->msaaOverride <= 1 : post->msaaOverride == samples; },
                      [post, samples]() { post->msaaOverride = samples; });
         }
+        if (m_services.qualityLevel != nullptr && m_services.qualityLevels)
+        {
+            // Listed as it opens: the project's levels change while the page is open.
+            m_qualityMenu = menu.AddSubMenu(u8"Quality Level");
+            m_qualityMenu->SetOnOpening([self](gui::Menu&) { self->ListQualityLevels(); });
+            ListQualityLevels();
+        }
+    }
+
+    void SceneHud::ListQualityLevels()
+    {
+        if (m_qualityMenu == nullptr)
+            return;
+        SceneHud* self = this;
+        const Guid current = *m_services.qualityLevel;
+        const Array<ProjectQualityLevel> levels = m_services.qualityLevels();
+        // A chosen level the project no longer lists is not drawn at: the editor's own is.
+        bool listed = false;
+        for (const ProjectQualityLevel& level : levels)
+            listed = listed || level.id == current;
+        m_qualityMenu->ClearItems();
+        // Checked as built; picking one closes the menu, and the next opening lists it again.
+        (void)m_qualityMenu->AddCheckItem(u8"Editor's Own", !listed, [self](bool) { self->SetQualityLevel(Guid{}); });
+        if (!levels.IsEmpty())
+            m_qualityMenu->AddSeparator();
+        for (const ProjectQualityLevel& level : levels)
+        {
+            const Guid id = level.id;
+            (void)m_qualityMenu->AddCheckItem(level.name.AsView(), current == id, [self, id](bool) { self->SetQualityLevel(id); });
+        }
+    }
+
+    void SceneHud::SetQualityLevel(const Guid& level)
+    {
+        if (m_services.qualityLevel != nullptr)
+            *m_services.qualityLevel = level;
     }
 
     void SceneHud::BuildOverlays(gui::Menu& menu)

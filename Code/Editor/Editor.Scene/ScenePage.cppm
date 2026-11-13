@@ -161,6 +161,9 @@ export namespace editor
         [[nodiscard]] SceneOverlaySettings& Overlays() noexcept { return m_overlays.settings; }
         [[nodiscard]] SceneBar* Bar() const noexcept { return m_bar.Get(); }
         [[nodiscard]] SceneHud* Hud() const noexcept { return m_hud.Get(); }
+        /// The quality level the viewport is drawn at: the one its HUD chose while the project lists
+        /// it and it resolves; none draws it at the editor's own.
+        [[nodiscard]] Optional<engine::render::RenderQualitySettings> PreviewedQuality() const;
         [[nodiscard]] SceneCameraPreview* CameraPreview() const noexcept { return m_cameraPreview.Get(); }
         [[nodiscard]] SceneTools* ToolsView() const noexcept { return m_tools.Get(); }
         [[nodiscard]] SceneViewport& Viewport() noexcept { return *m_viewport; }
@@ -222,6 +225,7 @@ export namespace editor
         GizmoRendererRegistry m_componentGizmos;
         foundation::render::ViewPostOverride m_postOverride; // the viewport's post show flags (not saved)
         foundation::render::ViewDebugView m_debugView;       // the viewport's debug view (not saved)
+        Guid m_qualityLevel; // the project's quality level the viewport previews; nil: the editor's own (not saved)
         RefPtr<foundation::gui::Node> m_content;
         UniquePtr<SceneBar> m_bar;
         UniquePtr<SceneHud> m_hud; // over the viewport

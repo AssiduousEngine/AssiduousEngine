@@ -184,6 +184,12 @@ namespace editor
             if (m_services.pick)
                 hud.pick = [self](app::PickerRequest request) { self->m_services.pick(Move(request)); };
             hud.overlaysChanged = [self]() { self->SaveViewState(); };
+            hud.qualityLevel = &m_qualityLevel;
+            hud.qualityLevels = [self]()
+            {
+                EditorProject* project = self->m_context->Project();
+                return project != nullptr ? project->QualityLevels() : Array<ProjectQualityLevel>{};
+            };
             m_hud = MakeUnique<SceneHud>(Allocator(), Allocator(), Move(hud), [self](StringView id) { return self->Find<gui::Node>(id); });
         }
         if (m_editContext)
@@ -604,10 +610,23 @@ namespace editor
         (void)m_viewportTools.Update(in);
     }
 
+    Optional<engine::render::RenderQualitySettings> SceneEditorPage::PreviewedQuality() const
+    {
+        const EditorProject* project = m_context->Project();
+        foundation::resource::ResourceManager* resources = m_context->Resources();
+        if (m_qualityLevel.IsNil() || project == nullptr || resources == nullptr || !project->Settings().IsQualityLevel(m_qualityLevel))
+            return NullOpt;
+        if (auto quality = resources->Bind<engine::render::RenderQuality>(m_qualityLevel))
+            return quality->values;
+        return NullOpt;
+    }
+
     void SceneEditorPage::OnRenderWindow(runtime::IApplicationHost&, foundation::graphics::FrameContext& frame)
     {
         if (m_scene == nullptr)
             return;
+        const Optional<engine::render::RenderQualitySettings> level = PreviewedQuality();
+        m_viewport->SetQualityLevel(level.HasValue() ? &level.Value() : nullptr);
         m_viewport->Render(frame, *m_scene, &m_postOverride, m_viewport->CleanCaptureFrame() ? nullptr : &m_debugView);
         if (m_cameraPreview)
             m_cameraPreview->Render(frame);

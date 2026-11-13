@@ -1682,6 +1682,76 @@ TEST_CASE("scene HUD: the chips say what is on and change it; the stats, the vie
     page->OnClose();
 }
 
+TEST_CASE("scene HUD: the Shading chip's Quality Level draws the viewport at one of the project's levels, listed as it opens")
+{
+    // A level in a database of its own, read through the resources as the editor's are.
+    engine::render::RegisterRenderProfileResources();
+    const StringView levelsDir = u8"scratch_scene_page_quality_db";
+    (void)RemoveDirectoryRecursive(levelsDir);
+    {
+        foundation::vfs::NativeFileSystem mount(levelsDir, DefaultAllocator());
+        foundation::content::ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
+        engine::render::RenderQualitySource low;
+        low.values.label = String(u8"Low");
+        low.values.msaaSamples = 1;
+        low.values.ambientOcclusion = engine::render::QualityTier::Off;
+        foundation::content::Instance* lowInstance = db.RootGroup()->CreateInstance(u8"low", engine::render::RenderQualitySource::StaticType());
+        REQUIRE(lowInstance->WriteObject(low).IsOk());
+        engine::render::RenderQualityFactory factory(DefaultAllocator());
+        foundation::resource::ResourceManager manager(DefaultAllocator(), db);
+        manager.AddFactory(&factory);
+
+        Bed bed;
+        bed.context.SetResources(&manager);
+        const Guid lowId = lowInstance->Id();
+        bed.project->Settings().qualityLevelIds.PushBack(lowId);
+        {
+            UniquePtr<SceneEditorPage> page = bed.Open(*bed.level);
+            SceneHud* hud = page->Hud();
+            REQUIRE(hud != nullptr);
+            gui::Menu* levels = hud->QualityMenu();
+            REQUIRE(levels != nullptr);
+
+            // The editor's own level, checked, then the project's levels by name.
+            hud->ListQualityLevels();
+            REQUIRE(levels->RowCount() == 3u); // its own, a separator, Low
+            CHECK(levels->ItemCount() == 2u);
+            const auto row = [levels](usize i) { return Cast<gui::MenuItem>(levels->GetChildAt(i)); };
+            REQUIRE(row(0) != nullptr);
+            REQUIRE(row(2) != nullptr);
+            CHECK(row(0)->GetText() == StringView(u8"Editor's Own"));
+            CHECK(row(0)->IsChecked());
+            CHECK(row(2)->GetText() == Format(u8"{}", lowId).AsView()); // its asset is not in the project's sources
+            CHECK_FALSE(page->PreviewedQuality().HasValue());
+
+            // Picking a level draws the viewport at it; the next listing checks it.
+            CHECK(row(2)->HandleActivate());
+            const Optional<engine::render::RenderQualitySettings> previewed = page->PreviewedQuality();
+            REQUIRE(previewed.HasValue());
+            CHECK(previewed.Value().label == StringView(u8"Low"));
+            CHECK(previewed.Value().ambientOcclusion == engine::render::QualityTier::Off);
+            hud->ListQualityLevels();
+            CHECK_FALSE(row(0)->IsChecked());
+            CHECK(row(2)->IsChecked());
+
+            // A level the project stops listing is no longer drawn at, nor offered.
+            bed.project->Settings().qualityLevelIds.Clear();
+            CHECK_FALSE(page->PreviewedQuality().HasValue());
+            hud->ListQualityLevels();
+            CHECK(levels->RowCount() == 1u);
+            CHECK(row(0)->IsChecked()); // the level the viewport is drawn at
+
+            // The editor's own again.
+            bed.project->Settings().qualityLevelIds.PushBack(lowId);
+            hud->SetQualityLevel(Guid{});
+            CHECK_FALSE(page->PreviewedQuality().HasValue());
+            page->OnClose();
+        }
+        bed.context.SetResources(nullptr);
+    }
+    (void)RemoveDirectoryRecursive(levelsDir);
+}
+
 namespace
 {
     // Two brushes in one category, one with a panel; the second is available only when the test

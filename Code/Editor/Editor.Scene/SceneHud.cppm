@@ -123,6 +123,10 @@ export namespace editor
             Function<void(app::PickerRequest request)> pick;
             /// Called when an overlay changed, so the page keeps its view state.
             Function<void()> overlaysChanged;
+            /// The project's quality levels, which the viewport can be drawn at.
+            Function<Array<ProjectQualityLevel>()> qualityLevels;
+            /// The level the viewport is drawn at; nil draws it at the editor's own level.
+            Guid* qualityLevel = nullptr;
         };
 
         /// The HUD's zones in `pane`, found by `find` from the markup's ids (`chip-projection`,
@@ -150,6 +154,12 @@ export namespace editor
         void SetShading(foundation::render::ViewDebugSemantic semantic);
         void ShowTexture(StringView name);
         void OpenTextures();
+        /// Draws the viewport at the project's quality level `level`, or at the editor's own when
+        /// nil.
+        void SetQualityLevel(const Guid& level);
+        /// Fills the Quality Level menu with the editor's own level and the project's levels as
+        /// they are now. The menu does this each time it opens.
+        void ListQualityLevels();
 
         // === For tests ===
         [[nodiscard]] StringView ChipText(StringView id) const;
@@ -159,6 +169,7 @@ export namespace editor
         [[nodiscard]] bool ZoomShown() const;
         [[nodiscard]] bool StatsShown() const;
         [[nodiscard]] foundation::gui::Menu* ChipMenu(StringView id) const;
+        [[nodiscard]] foundation::gui::Menu* QualityMenu() const noexcept { return m_qualityMenu; }
 
     private:
         struct Chip
@@ -189,6 +200,7 @@ export namespace editor
         Chip m_shading;
         Chip m_overlays;
         Array<Checked> m_checks;
+        foundation::gui::Menu* m_qualityMenu = nullptr; // the Shading chip's Quality Level submenu (its rows made as it opens)
         foundation::gui::Label* m_stats = nullptr;
         RefPtr<ViewGizmoView> m_gizmo;
         foundation::gui::Node* m_zoomBox = nullptr;

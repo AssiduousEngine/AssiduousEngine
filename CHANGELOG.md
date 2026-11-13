@@ -17,6 +17,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   Off tier turns its effect off whatever a scene asks, and no tier turns one on. High is each
   effect's full cost, as before the levels; Medium and Low cost less: fewer AO samples, SSR steps,
   SSGI rays and bloom levels, smaller shadow maps, and at Low a smaller environment.
+- Editor: quality levels. A Render Quality asset's page draws its preview at the level as it is
+  edited. The Game tab has a quality dropdown (the preset's level, or any of the project's), a
+  scene viewport's Shading chip a Quality Level menu, and the Export dialog a Quality level row
+  for the preset's own level. MCP: `pie_quality` reads and sets a Game tab's level.
 
 ### Changed
 

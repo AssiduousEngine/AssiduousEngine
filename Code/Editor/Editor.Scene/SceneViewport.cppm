@@ -361,11 +361,26 @@ export namespace editor
         /// cancelled, and a picture recorded but not yet written is written (waiting for the GPU,
         /// since a save's launcher picture may be recorded in the same frame the editor closes).
         /// Then the readback buffer is released while the device still lives.
+        /// Draws the view at `level` (a quality level previewed), or at the renderer's own level
+        /// when null.
+        void SetQualityLevel(const engine::render::RenderQualitySettings* level)
+        {
+            if (m_services.render == nullptr)
+                return;
+            if (level != nullptr)
+                m_services.render->SetViewportQuality(Key(), *level);
+            else
+                m_services.render->ClearViewportQuality(Key());
+        }
+
         void Close(foundation::runtime::IApplicationHost& host)
         {
             m_camera.ReleaseCapture(Mouse());
             if (m_services.render != nullptr)
+            {
                 m_services.render->CancelPicks(Key());
+                m_services.render->ClearViewportQuality(Key()); // the key is this view, about to go
+            }
             if (host.Graphics() != nullptr && host.Graphics()->Raw() != nullptr)
             {
                 CompleteCapture(host);
