@@ -119,6 +119,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Editor: the inspector reads and edits the selected entity's components where they are now. A
   component added to or removed from another entity could move them, and the inspector showed,
   or wrote, what was at their old place.
+- Animation: a skinned mesh whose animator is removed, or no longer names it, draws in its bind
+  pose; it drew from the animator's freed matrices. `MeshComponent` no longer carries bone
+  matrices: drawing asks the system that poses the mesh for them.
 
 ## 0.1.0-beta.3 - 2026-11-12
 

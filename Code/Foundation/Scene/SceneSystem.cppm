@@ -87,6 +87,27 @@ export namespace foundation::scene
         [[nodiscard]] virtual bool EntityBounds(Scene& scene, EntityHandle entity, AABB& out) = 0;
     };
 
+    // A skinned mesh's bone matrices this frame: borrowed from whatever poses it, valid until
+    // that system's next update. `previous` is the frame before's (null: reuse `current`).
+    struct SkinningPalette
+    {
+        const Float4x4* current = nullptr;
+        const Float4x4* previous = nullptr;
+        u32 boneCount = 0;
+    };
+
+    // A system that poses skinned meshes (the animators), asked for a mesh's palette when it is
+    // drawn rather than writing the palette into the mesh: a mesh whose animator goes, or stops
+    // naming it, then draws static instead of reading the animator's freed matrices.
+    class ISkinningPaletteSource
+    {
+    public:
+        virtual ~ISkinningPaletteSource() = default;
+
+        // The palette `mesh` is posed with now; false when this system does not pose it.
+        [[nodiscard]] virtual bool SkinningPaletteOf(EntityHandle mesh, SkinningPalette& out) = 0;
+    };
+
     // What a ray found on a solid surface (world space).
     struct SceneRayHit
     {
@@ -191,6 +212,8 @@ export namespace foundation::scene
         [[nodiscard]] virtual IStaticColliderSource* AsStaticColliderSource() noexcept { return nullptr; }
         // And for one that measures entities (ISceneEntityBounds).
         [[nodiscard]] virtual ISceneEntityBounds* AsEntityBounds() noexcept { return nullptr; }
+        // And for one that poses skinned meshes (ISkinningPaletteSource).
+        [[nodiscard]] virtual ISkinningPaletteSource* AsSkinningPaletteSource() noexcept { return nullptr; }
         // And for one that answers rays against what it draws (ISceneSurfaceQuery).
         [[nodiscard]] virtual ISceneSurfaceQuery* AsSurfaceQuery() noexcept { return nullptr; }
         // And for a component manager with networked state of its own (IReplicatedStateSource).

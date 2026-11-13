@@ -118,13 +118,8 @@ export namespace engine::render
             }
         }
 
-        // GPU skinning: per-bone skinning matrices for a skinned mesh, supplied per frame by the owner
-        // (e.g. an AnimationPlayer's GetSkinningMatrices()). Borrowed: valid for the frame it's set;
-        // null means the mesh draws static (bind pose). Extraction copies the pointer into MeshRenderData.
-        const Float4x4* boneMatrices = nullptr;
-        const Float4x4* prevBoneMatrices =
-            nullptr; // previous-frame matrices (motion vectors); null reuses the current ones
-        u32 boneCount = 0;
+        // GPU skinning is not held here: extraction asks the system that poses the mesh for its
+        // palette (scene::FindSkinningPalette), so a mesh never points into an animator that went.
 
         // LOD knobs. lodBias > 0 switches coarser sooner (each unit halves the
         // effective screen coverage; negative holds detail longer). forceLod pins one

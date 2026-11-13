@@ -365,6 +365,28 @@ TEST_CASE("ExtractSceneInto carries a mesh's fade, clamped, and draws a faded op
     CHECK(glassy == 1u);
 }
 
+namespace
+{
+    // Poses one mesh with fixed palettes, as an animator would.
+    class FixedPose final : public scene::SceneSystem, public scene::ISkinningPaletteSource
+    {
+    public:
+        scene::EntityHandle mesh = scene::EntityHandle::Invalid();
+        const Float4x4* current = nullptr;
+        const Float4x4* previous = nullptr;
+        [[nodiscard]] scene::ISkinningPaletteSource* AsSkinningPaletteSource() noexcept override { return this; }
+        [[nodiscard]] bool SkinningPaletteOf(scene::EntityHandle entity, scene::SkinningPalette& out) override
+        {
+            if (entity != mesh)
+                return false;
+            out.current = current;
+            out.previous = previous;
+            out.boneCount = 1;
+            return true;
+        }
+    };
+}
+
 TEST_CASE("extract: a skinned mesh in a scene that is not simulating reports no motion")
 {
     // The animator's last two poses stay a step apart while nothing advances them; drawn as
@@ -374,12 +396,14 @@ TEST_CASE("extract: a skinned mesh in a scene that is not simulating reports no 
     RefPtr<geometry::StaticMesh> mesh = geometry::Primitives::Quad(DefaultAllocator());
     const Float4x4 pose[1] = {Float4x4::Translation(Float3{0.1f, 0.0f, 0.0f})};
     const Float4x4 lastPose[1] = {Float4x4::Identity()};
-    MeshComponent& m = meshes->Add(scene.CreateEntity());
+    const scene::EntityHandle e = scene.CreateEntity();
+    MeshComponent& m = meshes->Add(e);
     m.mesh = mesh;
     m.SetMaterial(materials::MaterialBuilder(u8"skin").Shader(u8"forward").Build());
-    m.boneMatrices = pose;
-    m.prevBoneMatrices = lastPose;
-    m.boneCount = 1;
+    FixedPose* posing = scene.AddSystem<FixedPose>();
+    posing->mesh = e;
+    posing->current = pose;
+    posing->previous = lastPose;
     scene.UpdateTransforms();
 
     ExtractedScene running{DefaultAllocator()};

@@ -14,6 +14,8 @@ import foundation.animation;
 import foundation.scene;
 import engine.animation;
 import engine.render;
+import foundation.render;   // ExtractedScene, MeshRenderData: what drawing is handed
+import foundation.geometry; // Primitives: a mesh to draw
 
 using namespace foundation::core;
 namespace scene = foundation::scene;
@@ -37,6 +39,22 @@ namespace
     Float3 Moved(const Float4x4& m) { return TransformPoint(Float3{0, 0, 1}, m); }
 }
 
+namespace
+{
+    // Whether the animator poses `mesh`, and its first bone's matrix (as drawing asks for them).
+    bool IsPosed(scene::Scene& level, scene::EntityHandle mesh)
+    {
+        scene::SkinningPalette palette;
+        return scene::FindSkinningPalette(level, mesh, palette);
+    }
+    Float4x4 PosedBone(scene::Scene& level, scene::EntityHandle mesh)
+    {
+        scene::SkinningPalette palette;
+        REQUIRE(scene::FindSkinningPalette(level, mesh, palette));
+        return palette.current[0];
+    }
+}
+
 TEST_CASE("rest pose: a standing scene's animator feeds the rest pose and holds its clip")
 {
     RefPtr<animation::Skeleton> skeleton = TurnedRig();
@@ -55,12 +73,12 @@ TEST_CASE("rest pose: a standing scene's animator feeds the rest pose and holds 
 
     level.SetSimulationEnabled(false);
     level.Update(0.5f);
-    const engine::render::MeshComponent* mesh = meshes->Get(body);
-    REQUIRE(mesh->boneMatrices != nullptr);
-    REQUIRE(mesh->boneCount == 1u);
+    scene::SkinningPalette palette;
+    REQUIRE(scene::FindSkinningPalette(level, body, palette));
+    REQUIRE(palette.boneCount == 1u);
     const Float3 rest = Moved(Float4x4::RotationX(-kHalfPi));
-    CHECK(Moved(mesh->boneMatrices[0]).y == doctest::Approx(rest.y)); // turned, not raw
-    CHECK(Moved(mesh->boneMatrices[0]).z == doctest::Approx(rest.z));
+    CHECK(Moved(palette.current[0]).y == doctest::Approx(rest.y)); // turned, not raw
+    CHECK(Moved(palette.current[0]).z == doctest::Approx(rest.z));
     REQUIRE(animator.player.Get() != nullptr);
     CHECK(animator.player->CurrentClip() == nullptr); // the clip waits for the simulation
     CHECK(animator.player->CurrentTime() == doctest::Approx(0.0f));
@@ -69,7 +87,7 @@ TEST_CASE("rest pose: a standing scene's animator feeds the rest pose and holds 
     level.SetSimulationEnabled(true);
     level.Update(0.25f);
     CHECK(animator.player->CurrentClip() == clip.Get());
-    CHECK(Moved(meshes->Get(body)->boneMatrices[0]).y == doctest::Approx(rest.y + 2.0f));
+    CHECK(Moved(PosedBone(level, body)).y == doctest::Approx(rest.y + 2.0f));
 }
 
 TEST_CASE("rest pose: an animator with no clip feeds the rest pose while simulating too")
@@ -82,8 +100,8 @@ TEST_CASE("rest pose: an animator with no clip feeds the rest pose while simulat
     meshes->Add(body);
     level.GetSystem<engine::animation::SkeletalAnimationComponentManager>()->Add(body).skeleton.SetDirect(skeleton);
     level.Update(0.5f);
-    REQUIRE(meshes->Get(body)->boneMatrices != nullptr);
-    CHECK(Moved(meshes->Get(body)->boneMatrices[0]).y == doctest::Approx(Moved(Float4x4::RotationX(-kHalfPi)).y));
+    REQUIRE(IsPosed(level, body));
+    CHECK(Moved(PosedBone(level, body)).y == doctest::Approx(Moved(Float4x4::RotationX(-kHalfPi)).y));
 }
 
 TEST_CASE("rest pose: a graph player starts in the rig's rest pose, fed while the scene stands still")
@@ -102,8 +120,36 @@ TEST_CASE("rest pose: a graph player starts in the rig's rest pose, fed while th
     component.graph.SetDirect(graph);
     level.SetSimulationEnabled(false);
     level.Update(0.5f);
-    REQUIRE(meshes->Get(body)->boneMatrices != nullptr);
+    REQUIRE(IsPosed(level, body));
     // Its rest position (three up) under the turn, not the identity a default pose gives.
-    CHECK(Moved(meshes->Get(body)->boneMatrices[0]).y ==
+    CHECK(Moved(PosedBone(level, body)).y ==
           doctest::Approx(Moved(Float4x4::RotationX(-kHalfPi)).y + 3.0f));
+}
+
+TEST_CASE("skinning: a mesh whose animator is removed draws static, never the animator's freed matrices")
+{
+    RefPtr<animation::Skeleton> skeleton = TurnedRig();
+    scene::Scene level{DefaultAllocator(), u8"removed"};
+    auto* meshes = level.AddSystem<engine::render::MeshComponentManager>();
+    engine::animation::AddAnimationSceneManagers(level);
+    const scene::EntityHandle body = level.CreateEntity(u8"Body");
+    meshes->Add(body).mesh = foundation::geometry::Primitives::Quad(DefaultAllocator());
+    auto* animators = level.GetSystem<engine::animation::SkeletalAnimationComponentManager>();
+    animators->Add(body).skeleton.SetDirect(skeleton);
+    level.Update(0.5f);
+    REQUIRE(IsPosed(level, body));
+    {
+        foundation::render::ExtractedScene posed{DefaultAllocator()};
+        engine::render::ExtractSceneInto(level, posed);
+        REQUIRE(posed.Size() == 1u);
+        CHECK(static_cast<const foundation::render::MeshRenderData*>(posed.Items()[0])->boneMatrices != nullptr);
+    }
+    animators->RemoveComponent(body); // its player, and the matrices, go with it
+    CHECK_FALSE(IsPosed(level, body));
+    foundation::render::ExtractedScene still{DefaultAllocator()};
+    engine::render::ExtractSceneInto(level, still);
+    REQUIRE(still.Size() == 1u);
+    const auto* md = static_cast<const foundation::render::MeshRenderData*>(still.Items()[0]);
+    CHECK(md->boneMatrices == nullptr);
+    CHECK(md->boneCount == 0u);
 }

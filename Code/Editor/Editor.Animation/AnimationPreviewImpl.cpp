@@ -31,6 +31,27 @@ namespace editor
     namespace gui = foundation::gui;
     namespace scene = foundation::scene;
 
+    // Poses the preview's mesh with the rig's matrices, as an animator poses a game's: drawing asks
+    // it for the palette (scene::ISkinningPaletteSource).
+    class AnimationPreviewPose final : public scene::SceneSystem, public scene::ISkinningPaletteSource
+    {
+    public:
+        scene::EntityHandle mesh = scene::EntityHandle::Invalid();
+        const Float4x4* matrices = nullptr; // the rig's, for the frame; null: the bind pose
+        u32 count = 0;
+
+        [[nodiscard]] scene::ISkinningPaletteSource* AsSkinningPaletteSource() noexcept override { return this; }
+        [[nodiscard]] bool SkinningPaletteOf(scene::EntityHandle entity, scene::SkinningPalette& out) override
+        {
+            if (entity != mesh || matrices == nullptr || count == 0)
+                return false;
+            out.current = matrices;
+            out.previous = nullptr;
+            out.boneCount = count;
+            return true;
+        }
+    };
+
     void DrawSkeletonBones(foundation::render::debug::DebugDraw& draw, animation::Skeleton& skeleton,
                            Span<const animation::BoneTransform> localPoses, Array<Float4x4>& worldScratch, const Float4x4& base, i32 chosen,
                            bool overTheModel)
@@ -194,6 +215,8 @@ namespace editor
         m_meshEntity = scenePtr->CreateEntity(u8"PreviewMesh");
         if (auto* components = scenePtr->GetSystem<engine::render::MeshComponentManager>())
             components->Add(m_meshEntity);
+        m_posing = scenePtr->AddSystem<AnimationPreviewPose>();
+        m_posing->mesh = m_meshEntity;
         if (PreviewViewport* preview = pane.Viewport())
         {
             preview->Camera().position = Float3{0.0f, 1.4f, 3.2f};
@@ -279,8 +302,11 @@ namespace editor
             component->mesh = mesh;
         else
             component->mesh.SetDirect(RefPtr<foundation::geometry::StaticMesh>{});
-        component->boneMatrices = nullptr;
-        component->boneCount = 0;
+        if (m_posing != nullptr)
+        {
+            m_posing->matrices = nullptr; // until the next pose is shown
+            m_posing->count = 0;
+        }
     }
 
     bool AnimationPreviewRig::Frame()
@@ -338,8 +364,11 @@ namespace editor
         // m_skinning's matrices for this frame's drawing.
         m_skinning.Resize(boneCount);
         skeleton->ComputeSkinningMatrices(pose, Span<Float4x4>{m_skinning.Data(), boneCount});
-        component->boneMatrices = m_skinning.Data();
-        component->boneCount = static_cast<u32>(boneCount);
+        if (m_posing != nullptr)
+        {
+            m_posing->matrices = m_skinning.Data();
+            m_posing->count = static_cast<u32>(boneCount);
+        }
         Transform placed;
         placed.position = Float3{base.m[3][0], base.m[3][1], base.m[3][2]};
         placed.rotation = QuaternionFromRotationMatrix(base);

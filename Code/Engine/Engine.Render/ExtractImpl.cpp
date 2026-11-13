@@ -76,13 +76,17 @@ namespace engine::render
         // Batch-cluster key for the sort (opaque draws stay contiguous by mesh and material). rendererId
         // keeps its default 0: the MeshRenderer is the first-registered renderer, so mesh data routes to it.
         rd.sortBatchKey = BatchKey(mc.mesh.Get(), primary);
-        rd.boneMatrices = mc.boneMatrices; // borrowed for the frame (GPU skinning); null means static
-        // Borrowed; null reuses the current pose (no motion). A scene that is not simulating (the Game
-        // tab's pause, a debugger break) runs no animation, so the pose holds still, but the animator's
-        // last two poses stay a step apart. Drawn as motion, they would make TAA drop its history on
-        // every skinned character every frame, and the characters would shimmer.
-        rd.prevBoneMatrices = scene.SimulationEnabled() ? mc.prevBoneMatrices : nullptr;
-        rd.boneCount = mc.boneCount;
+        // GPU skinning: the palette of whatever poses the mesh now, borrowed for the frame; none (an
+        // animator that went, or never was) draws the mesh static.
+        scene::SkinningPalette palette;
+        const bool skinned = scene::FindSkinningPalette(scene, e, palette);
+        rd.boneMatrices = skinned ? palette.current : nullptr;
+        // Null reuses the current pose (no motion). A scene that is not simulating (the Game tab's
+        // pause, a debugger break) runs no animation, so the pose holds still, but the animator's last
+        // two poses stay a step apart. Drawn as motion, they would make TAA drop its history on every
+        // skinned character every frame, and the characters would shimmer.
+        rd.prevBoneMatrices = skinned && scene.SimulationEnabled() ? palette.previous : nullptr;
+        rd.boneCount = skinned ? palette.boneCount : 0u;
         rd.lodBias = mc.lodBias; // per-view selection happens in the renderer (one snapshot, N views)
         rd.forceLod = mc.forceLod;
         // Submesh routing only when the mesh is genuinely multi-material; a single entry is the

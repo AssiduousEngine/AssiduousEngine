@@ -295,8 +295,51 @@ export namespace engine::animation
     // render extraction): advances each player, then writes its current and previous skinning
     // matrices into the target MeshComponents. They are borrowed for the frame; the player, owned by
     // the component, keeps the matrix storage alive. Creates each component's player on first tick.
+    // Which animator posed each mesh at its last update: what an animator manager answers
+    // ISkinningPaletteSource from, so a mesh holds no pointer into the animator's player.
+    class PosedMeshes
+    {
+    public:
+        void Clear() { m_byMesh.Clear(); }
+        void Record(scene::EntityHandle mesh, scene::EntityHandle animator) { m_byMesh.InsertOrAssign(mesh.index, Entry{mesh, animator}); }
+        [[nodiscard]] scene::EntityHandle AnimatorOf(scene::EntityHandle mesh) const
+        {
+            const Entry* entry = m_byMesh.Find(mesh.index);
+            return entry != nullptr && entry->mesh == mesh ? entry->animator : scene::EntityHandle::Invalid();
+        }
+
+    private:
+        struct Entry
+        {
+            scene::EntityHandle mesh;
+            scene::EntityHandle animator;
+        };
+        HashMap<u32, Entry> m_byMesh;
+    };
+
+    // Records the meshes animator `a` (on `owner`) poses: its own entity's, or those it names.
+    template <typename Animator>
+    void RecordPosedMeshes(PosedMeshes& posed, scene::Scene& scene, engine::render::MeshComponentManager& meshes, const Animator& a,
+                           scene::EntityHandle owner)
+    {
+        const auto record = [&](scene::EntityHandle e)
+        {
+            if (e.IsAssigned() && meshes.Get(e) != nullptr)
+                posed.Record(e, owner);
+        };
+        if (a.meshEntities.IsEmpty())
+        {
+            record(owner);
+            return;
+        }
+        for (const scene::EntityRef& r : a.meshEntities)
+        {
+            record(scene.FindEntity(r.id)); // guid -> live handle each frame
+        }
+    }
+
     class SkeletalAnimationComponentManager final
-        : public scene::SerializableComponentManager<SkeletalAnimationComponent>
+        : public scene::SerializableComponentManager<SkeletalAnimationComponent>, public scene::ISkinningPaletteSource
     {
     public:
         SkeletalAnimationComponentManager()
@@ -340,9 +383,12 @@ export namespace engine::animation
             }
 
             PROFILE_SCOPE("Animation.Skeletal");
+            m_posed.Clear(); // recorded again below: an animator gone, or a mesh it stopped naming, drops out
             ForEach(
                 [&](SkeletalAnimationComponent& a, scene::EntityHandle owner)
                 {
+                    // Recorded first, so a frozen animator's meshes keep its last pose.
+                    RecordPosedMeshes(m_posed, *m_scene, *meshes, a, owner);
                     if (!m_scene->IsEffectivelyActive(owner))
                     {
                         root_motion_apply::Release(*m_scene, a.rootMotionState);
@@ -397,28 +443,9 @@ export namespace engine::animation
                             *m_scene, owner, Span<const scene::EntityRef>{a.meshEntities.Data(), a.meshEntities.Size()},
                             a.rootMotionTarget, a.rootMotion, a.rootMotionState, a.player->ConsumeRootMotion(), deltaTime);
                     }
-                    const Span<const Float4x4> mats = a.player->GetSkinningMatrices();
-                    const Span<const Float4x4> prev = a.player->GetPrevSkinningMatrices();
-                    const auto feed = [&](scene::EntityHandle e)
-                    {
-                        if (engine::render::MeshComponent* mc = meshes->Get(e))
-                        {
-                            mc->boneMatrices = mats.Data();
-                            mc->prevBoneMatrices = prev.Data();
-                            mc->boneCount = static_cast<u32>(mats.Size());
-                        }
-                    };
-                    if (a.meshEntities.IsEmpty())
-                    {
-                        feed(owner);
-                    }
-                    else
-                    {
-                        for (const scene::EntityRef& r : a.meshEntities)
-                        {
-                            feed(m_scene->FindEntity(r.id)); // guid -> live handle each frame
-                        }
-                    }
+                    // The pose is evaluated here, once a frame, whether or not anything draws it: its
+                    // modifiers (foot IK's ground probes) step with the frame, not with a reader.
+                    (void)a.player->GetSkinningMatrices();
                 });
         }
 
@@ -432,9 +459,28 @@ export namespace engine::animation
             m_ended.Clear();
         }
 
+        [[nodiscard]] scene::ISkinningPaletteSource* AsSkinningPaletteSource() noexcept override { return this; }
+        // The palette of the animator that posed `mesh` at its last update, read from its player now.
+        [[nodiscard]] bool SkinningPaletteOf(scene::EntityHandle mesh, scene::SkinningPalette& out) override
+        {
+            const scene::EntityHandle animator = m_posed.AnimatorOf(mesh);
+            const auto* a = animator.IsAssigned() ? Get(animator) : nullptr;
+            if (a == nullptr || a->player.Get() == nullptr)
+            {
+                return false; // the animator went (its player with it): the mesh draws static
+            }
+            const Span<const Float4x4> mats = a->player->GetSkinningMatrices();
+            const Span<const Float4x4> prev = a->player->GetPrevSkinningMatrices();
+            out.current = mats.Data();
+            out.previous = prev.Data();
+            out.boneCount = static_cast<u32>(mats.Size());
+            return true;
+        }
+
     private:
         scene::Scene* m_scene = nullptr;
         Array<OneShotEnded> m_ended;
+        PosedMeshes m_posed;
     };
 
     // State-machine-driven skeletal animation: a graph player over a borrowed, shared skeleton and
@@ -483,7 +529,7 @@ export namespace engine::animation
     // SkeletalAnimationComponentManager, so the graph runs before the clip; an entity is expected to
     // use one or the other (mixing both pushes to the same MeshComponent, and the later writer wins).
     class AnimationGraphComponentManager final
-        : public scene::SerializableComponentManager<AnimationGraphComponent>
+        : public scene::SerializableComponentManager<AnimationGraphComponent>, public scene::ISkinningPaletteSource
     {
     public:
         AnimationGraphComponentManager()
@@ -521,9 +567,12 @@ export namespace engine::animation
             }
 
             PROFILE_SCOPE("Animation.Graph");
+            m_posed.Clear(); // recorded again below: an animator gone, or a mesh it stopped naming, drops out
             ForEach(
                 [&](AnimationGraphComponent& a, scene::EntityHandle owner)
                 {
+                    // Recorded first, so a frozen animator's meshes keep its last pose.
+                    RecordPosedMeshes(m_posed, *m_scene, *meshes, a, owner);
                     if (!m_scene->IsEffectivelyActive(owner))
                     {
                         root_motion_apply::Release(*m_scene, a.rootMotionState);
@@ -563,28 +612,9 @@ export namespace engine::animation
                     {
                         root_motion_apply::Release(*m_scene, a.rootMotionState);
                     }
-                    const Span<const Float4x4> mats = a.player->GetSkinningMatrices();
-                    const Span<const Float4x4> prev = a.player->GetPrevSkinningMatrices();
-                    const auto feed = [&](scene::EntityHandle e)
-                    {
-                        if (engine::render::MeshComponent* mc = meshes->Get(e))
-                        {
-                            mc->boneMatrices = mats.Data();
-                            mc->prevBoneMatrices = prev.Data();
-                            mc->boneCount = static_cast<u32>(mats.Size());
-                        }
-                    };
-                    if (a.meshEntities.IsEmpty())
-                    {
-                        feed(owner);
-                    }
-                    else
-                    {
-                        for (const scene::EntityRef& r : a.meshEntities)
-                        {
-                            feed(m_scene->FindEntity(r.id)); // guid -> live handle each frame
-                        }
-                    }
+                    // The pose is evaluated here, once a frame, whether or not anything draws it: its
+                    // modifiers (foot IK's ground probes) step with the frame, not with a reader.
+                    (void)a.player->GetSkinningMatrices();
                 });
         }
 
@@ -598,9 +628,28 @@ export namespace engine::animation
             m_ended.Clear();
         }
 
+        [[nodiscard]] scene::ISkinningPaletteSource* AsSkinningPaletteSource() noexcept override { return this; }
+        // The palette of the animator that posed `mesh` at its last update, read from its player now.
+        [[nodiscard]] bool SkinningPaletteOf(scene::EntityHandle mesh, scene::SkinningPalette& out) override
+        {
+            const scene::EntityHandle animator = m_posed.AnimatorOf(mesh);
+            const auto* a = animator.IsAssigned() ? Get(animator) : nullptr;
+            if (a == nullptr || a->player.Get() == nullptr)
+            {
+                return false; // the animator went (its player with it): the mesh draws static
+            }
+            const Span<const Float4x4> mats = a->player->GetSkinningMatrices();
+            const Span<const Float4x4> prev = a->player->GetPrevSkinningMatrices();
+            out.current = mats.Data();
+            out.previous = prev.Data();
+            out.boneCount = static_cast<u32>(mats.Size());
+            return true;
+        }
+
     private:
         scene::Scene* m_scene = nullptr;
         Array<OneShotEnded> m_ended;
+        PosedMeshes m_posed;
     };
 
     // Instanced skinning for crowds: the companion to an engine::render::InstancedMeshComponent that

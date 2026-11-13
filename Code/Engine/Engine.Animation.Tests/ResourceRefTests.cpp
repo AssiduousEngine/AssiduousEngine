@@ -255,14 +255,12 @@ TEST_CASE("mesh-entities: one animator feeds multiple parts by EntityRef, and th
     a.meshEntities.PushBack(scene.GetEntityId(partB));
 
     scene.Update(1.0f / 60.0f);
-    engine::render::MeshComponent* fedA = meshes->Get(partA);
-    engine::render::MeshComponent* fedB = meshes->Get(partB);
-    REQUIRE(fedA != nullptr);
-    REQUIRE(fedB != nullptr);
-    CHECK(fedA->boneMatrices != nullptr); // both parts received the one player's matrices
-    CHECK(fedB->boneMatrices != nullptr);
-    CHECK(fedA->boneCount == 2u);
-    CHECK(fedA->boneMatrices == fedB->boneMatrices); // same evaluation, not per-part players
+    scene::SkinningPalette fedA;
+    scene::SkinningPalette fedB;
+    REQUIRE(scene::FindSkinningPalette(scene, partA, fedA)); // both parts posed by the one player
+    REQUIRE(scene::FindSkinningPalette(scene, partB, fedB));
+    CHECK(fedA.boneCount == 2u);
+    CHECK(fedA.current == fedB.current); // same evaluation, not per-part players
 
     // The refs are part of the component's persisted state (data version 1): a scene round-trip
     // keeps them, still naming the same entities by guid.

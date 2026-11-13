@@ -58,6 +58,8 @@ export namespace editor
     /// Where the rig stands at `time` when it travels by `clip`'s root motion from its start.
     [[nodiscard]] Float4x4 RootMotionPlacement(const animation::AnimationClip& clip, f32 time);
 
+    class AnimationPreviewPose; // answers the preview mesh's palette (AnimationPreviewImpl.cpp)
+
     class AnimationPreviewRig
     {
     public:
@@ -126,6 +128,7 @@ export namespace editor
         Array<animation::BoneTransform> m_bind;
         Array<Float4x4> m_world;
         Array<Float4x4> m_skinning;
+        AnimationPreviewPose* m_posing = nullptr; // the preview scene's (it owns it): poses the mesh with m_skinning
         animation::Skeleton* m_framedFor = nullptr; // the skeleton OnFirstShown was last called for
     };
 }

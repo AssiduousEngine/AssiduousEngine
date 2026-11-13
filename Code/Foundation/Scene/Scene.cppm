@@ -681,6 +681,22 @@ export namespace foundation::scene
         return any;
     }
 
+    // The palette `mesh` is skinned with this frame, from the system that poses it
+    // (ISkinningPaletteSource). False when none does: the mesh draws in its bind pose.
+    [[nodiscard]] inline bool FindSkinningPalette(Scene& scene, EntityHandle mesh, SkinningPalette& out)
+    {
+        bool found = false;
+        scene.ForEachSystem(
+            [&](SceneSystem& system)
+            {
+                if (found)
+                    return;
+                if (ISkinningPaletteSource* source = system.AsSkinningPaletteSource())
+                    found = source->SkinningPaletteOf(mesh, out) && out.current != nullptr && out.boneCount > 0;
+            });
+        return found;
+    }
+
     // The closest hit of a ray on the scene's drawn surfaces, as every system that answers rays
     // against what it draws (ISceneSurfaceQuery) finds it: along unit `direction` from `origin`
     // within `maxDistance`, on the entities `accept` takes (an empty function takes all). False
