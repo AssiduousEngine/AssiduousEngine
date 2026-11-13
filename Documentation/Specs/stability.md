@@ -246,8 +246,9 @@ Each item names its finding, where it is on master, the test that proves it, and
 
 - An ASAN-only test must still fail without ASAN where it can (an assert, a count, a validity
   check); the lanes run Debug suites without the sanitizer.
-- Stream names with a dot: none exist in the tree today; S0 refuses them going forward, so no data
-  migrates.
+- Stream names with a dot: the terrain's four palette arrays had them ("palette.normal" and on);
+  they were renamed and the terrain builder's version bumped, so cooked terrain rebuilds. Sources
+  never held them (the cook writes them), so no source data migrates.
 - Atomic rename over a file an editor watches fires the watcher on the temp name and the target;
   the watcher ignores temp names or the editor reloads its own save.
 - A set-aside store keeps every byte under "<file>.unreadable" (numbered when taken) and the log
