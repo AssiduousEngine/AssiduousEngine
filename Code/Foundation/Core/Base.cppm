@@ -10,7 +10,7 @@
 module;
 #include "Core/Prelude.h"
 #include "Core/Debug/Assert.h" // classic header, so no module cycle (see Assert.h)
-#include <bit>                 // std::byteswap
+#include <bit>                 // std::byteswap, std::bit_cast
 #include <cstdint>
 #include <cstddef>
 #include <new> // placement new
@@ -116,6 +116,18 @@ export namespace foundation::core
     [[nodiscard]] constexpr usize ArrayCount(const T (&)[N]) noexcept
     {
         return N;
+    }
+
+    // =======================================================================
+    // Bit reinterpretation
+    // =======================================================================
+    // The bits of `value` read as a To of the same size (a float's bits as a u32, a u64 off the
+    // wire as an f64): defined, unlike a pointer cast, and constexpr.
+    template <typename To, typename From>
+        requires(sizeof(To) == sizeof(From) && std::is_trivially_copyable_v<To> && std::is_trivially_copyable_v<From>)
+    [[nodiscard]] constexpr To BitCast(const From& value) noexcept
+    {
+        return std::bit_cast<To>(value);
     }
 
     // =======================================================================

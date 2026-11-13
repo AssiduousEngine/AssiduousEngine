@@ -196,3 +196,12 @@ TEST_CASE("base: byte order helpers")
     CHECK(NativeToLittle<u32>(0x01020304u) == 0x01020304u);
     CHECK(BigToNative(NativeToBig<u32>(0xDEADBEEFu)) == 0xDEADBEEFu);
 }
+
+TEST_CASE("base: BitCast reads a value's bits as another type of its size, both ways")
+{
+    CHECK(BitCast<u32>(1.0f) == 0x3F800000u);
+    CHECK(BitCast<f32>(0x3F800000u) == 1.0f);
+    const f64 time = 12345.678;
+    CHECK(BitCast<f64>(BitCast<u64>(time)) == time);
+    static_assert(BitCast<u32>(2.0f) == 0x40000000u); // constexpr
+}

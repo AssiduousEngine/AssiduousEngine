@@ -96,9 +96,7 @@ export namespace foundation::materials
             mix(static_cast<u64>(depthCompare));
             mix(static_cast<u64>(depthFormat));
             mix(static_cast<u64>(static_cast<u16>(depthBias)));
-            u32 slopeBits = 0; // compared by operator==, so hashed too
-            MemCopy(&slopeBits, &depthBiasSlopeScale, sizeof(slopeBits));
-            mix(slopeBits);
+            mix(BitCast<u32>(depthBiasSlopeScale)); // compared by operator==, so hashed too
             for (u8 i = 0; i < colorTargetCount && i < rhi::MaxColorAttachments; ++i)
             {
                 mix(static_cast<u64>(colorFormats[i]));
