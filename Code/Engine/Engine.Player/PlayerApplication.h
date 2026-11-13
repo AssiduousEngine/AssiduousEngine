@@ -232,28 +232,38 @@ namespace engine::player
                 }
             }
 
-            // The quality level the game starts at (its export preset's, else the project's), set
-            // before the first scene: its MSAA count, antialiasing and tiers over what the scenes ask
-            // for. The subsystem clamps the count per view to what the device supports (2x is 1x
-            // on WebGPU). A game that lists no levels runs at the engine's own highest.
+            // The user's settings (the saved quality choice, the mixer's volumes), read once: every
+            // section is kept, and the file is written whole.
+            LoadUserSettings();
+
+            // The quality level the game starts at (the player's saved choice, else its export
+            // preset's, else the project's), set before the first scene: its MSAA count,
+            // antialiasing and tiers over what the scenes ask for. The subsystem clamps the count
+            // per view to what the device supports (2x is 1x on WebGPU). A game that lists no levels
+            // runs at the engine's own highest. The run offers the levels to its scripts
+            // (RenderQuality): a choice plays at once and is kept for the next run.
             if (auto* render = host.Subsystems().GetSubsystem<engine::render::RenderSubsystem>())
             {
-                const Guid level = m_settings.StartupQuality(Guid{});
-                if (level.IsNil())
+                auto& choice = Instance().Add<engine::render::RenderQualityChoice>();
+                const Guid start = engine::runtime::OfferQualityLevels(
+                    choice, m_settings, *Resources(), engine::runtime::SavedQualityLevel(m_userSettings));
+                if (const engine::render::OfferedQualityLevel* level = choice.Find(start))
                 {
-                    LOG_INFO(u8"Player", u8"quality: the engine's own highest ({}x MSAA)",
-                             render->Quality().msaaSamples);
-                }
-                else if (auto quality = Resources()->Bind<engine::render::RenderQualityLevel>(level))
-                {
-                    render->SetQuality(quality->values);
-                    LOG_INFO(u8"Player", u8"quality level '{}' ({}x MSAA)", quality->values.label,
-                             quality->values.msaaSamples);
+                    render->SetQuality(level->values);
+                    LOG_INFO(u8"Player", u8"quality level '{}' ({}x MSAA)", level->values.label, level->values.msaaSamples);
                 }
                 else
                 {
-                    LOG_WARNING(u8"Player", u8"the quality level did not resolve: the engine's own highest");
+                    LOG_INFO(u8"Player", u8"quality: the engine's own highest ({}x MSAA)", render->Quality().msaaSamples);
                 }
+                PlayerApplication* self = this;
+                choice.choose = [self, render](const engine::render::OfferedQualityLevel& level)
+                {
+                    render->SetQuality(level.values);
+                    engine::runtime::KeepQualityLevel(self->m_userSettings, level.id);
+                    self->SaveUserSettings();
+                    LOG_INFO(u8"Player", u8"quality level '{}' chosen", level.values.label);
+                };
             }
 
             // The project's default audio bus layout: cooked mixer data, handed to the engine.
@@ -274,29 +284,16 @@ namespace engine::player
                 }
             }
 
-            // Per-user audio volumes: <userdata>/<project>.user.settings.xml, applied on top of
-            // the layout (the user's slider is absolute, as an options menu expects). Absent on
-            // first run; captured back at shutdown so script-driven changes (Audio.setBusVolume)
-            // persist too.
+            // Per-user audio volumes (a section of the user's settings), applied on top of the
+            // layout (the user's slider is absolute, as an options menu expects). Absent on first
+            // run; captured back at shutdown so script-driven changes (Audio.setBusVolume) persist
+            // too.
             if (Audio() != nullptr && Audio()->Engine() != nullptr)
             {
-                engine::audio::RegisterAudioSettingsTypes();
-                foundation::vfs::NativeFileSystem userFs(
-                    foundation::core::GetUserDataDirectory().AsView(),
-                    AppRoot());
-                UniquePtr<IStream> stream =
-                    userFs.Open(UserSettingsFileName().AsView(), FileMode::Read);
-                if (stream)
+                if (const auto* audio = m_userSettings.Find<engine::audio::AudioUserSettings>())
                 {
-                    foundation::settings::Settings store(AppRoot());
-                    if (store.Load(*stream, foundation::xml::XmlSerializerFactory()).IsOk())
-                    {
-                        if (const auto* audio = store.Find<engine::audio::AudioUserSettings>())
-                        {
-                            engine::audio::ApplyAudioUserSettings(*Audio()->Engine(), *audio);
-                            LOG_INFO(u8"Player", u8"user audio settings applied");
-                        }
-                    }
+                    engine::audio::ApplyAudioUserSettings(*Audio()->Engine(), *audio);
+                    LOG_INFO(u8"Player", u8"user audio settings applied");
                 }
             }
 
@@ -384,6 +381,38 @@ namespace engine::player
             }
         }
 
+        // The user's settings: <userdata>/<project>.user.settings.xml. Absent is empty; a section
+        // this build does not know is kept for the next write.
+        void LoadUserSettings()
+        {
+            engine::audio::RegisterAudioSettingsTypes();
+            engine::runtime::RegisterQualityUserSettingsType();
+            foundation::vfs::NativeFileSystem userFs(foundation::core::GetUserDataDirectory().AsView(), AppRoot());
+            UniquePtr<IStream> stream = userFs.Open(UserSettingsFileName().AsView(), FileMode::Read);
+            if (stream && !m_userSettings.Load(*stream, foundation::xml::XmlSerializerFactory()).IsOk())
+            {
+                LOG_WARNING(u8"Player", u8"the user settings did not read; the game starts with its own");
+            }
+        }
+
+        // Writes the user's settings whole.
+        void SaveUserSettings()
+        {
+            const String dir = foundation::core::GetUserDataDirectory();
+            (void)foundation::core::CreateDirectory(dir.AsView());
+            foundation::vfs::NativeFileSystem userFs(dir.AsView(), AppRoot());
+            MemoryStream buffer;
+            if (m_userSettings.Save(buffer, foundation::xml::XmlSerializerFactory()).IsOk() &&
+                userFs.AsWritable()->Save(UserSettingsFileName().AsView(), buffer.Bytes()).IsOk())
+            {
+                foundation::core::PersistUserData();
+            }
+            else
+            {
+                LOG_WARNING(u8"Player", u8"the user settings could not be written");
+            }
+        }
+
         [[nodiscard]] String UserSettingsFileName() const
         {
             String name =
@@ -423,22 +452,13 @@ namespace engine::player
 
         void OnShutdown(runtime::IApplicationHost& host) override
         {
-            // Persist the user's mixer state (see the startup load).
+            // Persist the user's mixer state (see the startup load), beside the rest of their
+            // settings.
             if (Audio() != nullptr && Audio()->Engine() != nullptr)
             {
-                foundation::settings::Settings store(AppRoot());
-                engine::audio::CaptureAudioUserSettings(
-                    *Audio()->Engine(), store.Section<engine::audio::AudioUserSettings>());
-                const String dir = foundation::core::GetUserDataDirectory();
-                (void)foundation::core::CreateDirectory(dir.AsView());
-                foundation::vfs::NativeFileSystem userFs(dir.AsView(), AppRoot());
-                MemoryStream buffer;
-                if (store.Save(buffer, foundation::xml::XmlSerializerFactory()).IsOk())
-                {
-                    (void)userFs.AsWritable()->Save(UserSettingsFileName().AsView(),
-                                                    buffer.Bytes());
-                    foundation::core::PersistUserData();
-                }
+                engine::audio::CaptureAudioUserSettings(*Audio()->Engine(),
+                                                        m_userSettings.Section<engine::audio::AudioUserSettings>());
+                SaveUserSettings();
             }
             engine::runtime::DefaultApplication::OnShutdown(host); // releases products device-alive
         }
@@ -604,6 +624,7 @@ namespace engine::player
         PlayerOptions m_options;
         f32 m_elapsed = 0.0f;
         engine::project::ProjectSettings m_settings;
+        foundation::settings::Settings m_userSettings{AppRoot()}; // the user's settings file, whole
         UniquePtr<foundation::vfs::IFileSystem> m_root;
         UniquePtr<foundation::vfs::PakFileSystem> m_pak;             // dist mode only
         UniquePtr<foundation::vfs::NativeFileSystem> m_contentMount; // project mode only

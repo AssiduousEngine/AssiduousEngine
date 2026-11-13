@@ -36,10 +36,14 @@ target_link_libraries(Engine.DefaultApp PUBLIC
 target_sources(Engine.DefaultApp
     PRIVATE
         DefaultApplicationImpl.cpp   # out-of-line defs (see DefaultApplication.cppm)
+        QualityLevelsImpl.cpp        # the quality levels a run offers (see QualityLevels.cppm)
     PUBLIC
         FILE_SET runtime_defaultapp_modules TYPE CXX_MODULES FILES
             DefaultApplication.cppm
-            ProfilerOverlayHost.cppm)
+            ProfilerOverlayHost.cppm
+            QualityLevels.cppm)
 
 target_link_libraries(Engine.DefaultApp PUBLIC Engine::GUI) # the engine GUI
-target_link_libraries(Engine.DefaultApp PRIVATE Engine::Project) # the engine version a plugin host checks plugins against
+# The engine version a plugin host checks plugins against, and the project's quality levels a run
+# offers (the :quality partition's interface names ProjectSettings and the user settings store).
+target_link_libraries(Engine.DefaultApp PUBLIC Engine::Project Foundation::Settings)
