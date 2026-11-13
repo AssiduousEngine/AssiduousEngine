@@ -397,6 +397,53 @@ TEST_CASE("RenderFrame uploads each scene's lights once a frame, into a ring siz
     CHECK(meshRenderer.LightSlotsUsed() == kLights);
 }
 
+TEST_CASE("SpriteRenderer draws every run of a view, however many the view resolves")
+{
+    // Each Resolve took a view slot from a ring of eight a frame: transparent sprites interleaved
+    // with other renderers' draws resolve one run at a time, and past the eighth run of a frame
+    // the rest drew nothing.
+    RenderHarness h;
+    if (!h.Init(64, 64))
+    {
+        return;
+    }
+    shaders::ShaderSystem shaderSystem(*h.compiler, h.device);
+    WireEngineShaders(shaderSystem);
+    rhi::TextureDesc td{};
+    td.format = rhi::TextureFormat::RGBA8Unorm;
+    td.width = 4;
+    td.height = 4;
+    td.usage = rhi::TextureUsage::Sampled;
+    rhi::Texture* texture = nullptr;
+    REQUIRE(h.device.CreateTexture(td, texture).IsOk());
+    rhi::TextureViewDesc vd{};
+    vd.format = rhi::TextureFormat::RGBA8Unorm;
+    rhi::TextureView* view = nullptr;
+    REQUIRE(h.device.CreateTextureView(texture, vd, view).IsOk());
+
+    {
+        SpriteRenderer sprites(h.device, shaderSystem, /*framesInFlight*/ 2);
+        REQUIRE(sprites.Initialize().IsOk());
+        SpriteRenderData sprite{};
+        sprite.texture = view;
+        sprite.category = RenderCategories::Transparent;
+        const DrawItem item{0, &sprite};
+        RenderRecordContext ctx{};
+        Array<ResolvedDraw> out;
+        constexpr u32 kRuns = 12;
+        sprites.PrepareFrame(kRuns, 0);
+        for (u32 run = 0; run < kRuns; ++run)
+        {
+            sprites.Resolve(ctx, Span<const DrawItem>{&item, 1}, out);
+        }
+        sprites.FinishFrame();
+        CHECK(out.Size() == kRuns);
+        CHECK(sprites.ViewSlotsUsed() == 1u); // one view, one slot
+    } // the renderer, and its bind group over the texture, go first
+    h.device.DestroyTextureView(view);
+    h.device.DestroyTexture(texture);
+}
+
 TEST_CASE("RenderData::kind says what an item is; the caster list never downcasts by renderer id")
 {
     // The stamp: the base is Generic, MeshRenderData and everything derived from it is Mesh.

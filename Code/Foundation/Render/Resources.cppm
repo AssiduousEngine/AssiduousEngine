@@ -19,6 +19,7 @@
 
 module;
 #include "Core/Prelude.h"
+#include "Core/Log/Log.h"
 
 export module foundation.render:resources;
 
@@ -531,6 +532,101 @@ export namespace foundation::render
         u32 m_cursor = 0;
         u32 m_generation = 0;
         bool m_inFrame = false;
+    };
+
+    /// A renderer's per-view uniforms (camera matrices and the like), one dynamic-offset slot per
+    /// distinct view a frame. A renderer resolves several runs per view, and a slot per run used up a
+    /// fixed ring within one view. The same bytes asked for again this frame get the slot already
+    /// written. A frame that asks for more views than the ring holds gets no slot for the rest, and
+    /// the next frame's ring holds that many (the first time logged): the ring cannot grow while
+    /// the frame's draws already name its buffer.
+    class ViewUniformRing
+    {
+    public:
+        /// `slotSize` is the dynamic-uniform stride (256-aligned); `minViews` what the ring holds
+        /// from the start.
+        ViewUniformRing(rhi::Device& device, u32 framesInFlight, u64 slotSize, u32 minViews,
+                        const char8_t* label) noexcept
+            : m_ring(device, framesInFlight, slotSize, rhi::BufferUsage::Uniform | rhi::BufferUsage::CopyDst, label),
+              m_label(label), m_slotSize(slotSize), m_wanted(minViews < 1 ? 1 : minViews)
+        {
+        }
+
+        void SetRetireQueue(GpuRetireQueue* retire) noexcept { m_ring.SetRetireQueue(retire); }
+
+        /// Starts a frame: the ring holds every view the last frame asked for.
+        bool BeginFrame(u32 frameIndex)
+        {
+            if (!m_ring.Reserve(m_wanted))
+            {
+                return false;
+            }
+            m_ring.BeginFrame(frameIndex);
+            m_written.Clear();
+            m_bytes.Clear();
+            m_asked = 0;
+            return true;
+        }
+
+        /// The byte offset of the slot holding `size` bytes at `data` this frame: the one already
+        /// written with them, else a new one. False when the frame's slots are exhausted.
+        [[nodiscard]] bool SlotFor(const void* data, u32 size, u32& byteOffset)
+        {
+            for (const Written& w : m_written)
+            {
+                if (w.size == size && MemCompare(m_bytes.Data() + w.at, data, size) == 0)
+                {
+                    byteOffset = w.byteOffset;
+                    return true;
+                }
+            }
+            ++m_asked;
+            if (m_asked > m_wanted)
+            {
+                if (!m_overflowLogged)
+                {
+                    LOG_WARNING(u8"Render", u8"{}: {} views this frame, ring holds {}, growing next frame",
+                                StringView(m_label), m_asked, m_wanted);
+                    m_overflowLogged = true;
+                }
+                m_wanted = m_asked;
+            }
+            const DynamicUniformRing::Range range = size <= m_slotSize ? m_ring.Allocate() : DynamicUniformRing::Range{};
+            if (!range.ok)
+            {
+                return false;
+            }
+            MemCopy(range.ptr, data, size);
+            const usize at = m_bytes.Size();
+            m_bytes.Resize(at + size);
+            MemCopy(m_bytes.Data() + at, data, size);
+            m_written.PushBack(Written{static_cast<u32>(at), size, range.byteOffset});
+            byteOffset = range.byteOffset;
+            return true;
+        }
+
+        void EndFrame() { m_ring.EndFrame(); }
+
+        [[nodiscard]] rhi::Buffer* Buffer() const noexcept { return m_ring.Buffer(); }
+        [[nodiscard]] u32 Generation() const noexcept { return m_ring.Generation(); } // bumps on growth
+        [[nodiscard]] u32 SlotsPerFrame() const noexcept { return m_ring.SlotsPerFrame(); }
+        [[nodiscard]] u32 FrameSlots() const noexcept { return m_ring.FrameAllocatedSlots(); }
+
+    private:
+        struct Written
+        {
+            u32 at = 0; // the bytes' start in m_bytes (a CPU copy: the mapping may be write-combined)
+            u32 size = 0;
+            u32 byteOffset = 0;
+        };
+        DynamicUniformRing m_ring;
+        const char8_t* m_label;
+        u64 m_slotSize;
+        u32 m_wanted;     // slots the next BeginFrame reserves
+        u32 m_asked = 0;  // distinct views asked for this frame
+        bool m_overflowLogged = false;
+        Array<Written> m_written;
+        Array<u8> m_bytes;
     };
 
 } // namespace foundation::render

@@ -354,6 +354,44 @@ TEST_CASE("DynamicUniformRing: per-frame regions are disjoint; exhaustion + grow
     CHECK(ring.Generation() == gen1); // no shrink, no realloc
 }
 
+TEST_CASE("ViewUniformRing: one slot per distinct view a frame; a frame of more views grows the next")
+{
+    // A renderer resolves several runs per view, and a slot per run spent a ring of eight within one
+    // view, after which the view's remaining runs were dropped.
+    rhi::null::NullDevice device{DefaultAllocator()};
+    ViewUniformRing ring(device, /*framesInFlight*/ 2, /*slotSize*/ 256, /*minViews*/ 2, u8"test.view");
+    Float4x4 views[3] = {Float4x4::Identity(), Float4x4::Translation(Float3{1, 0, 0}),
+                         Float4x4::Translation(Float3{2, 0, 0})};
+    REQUIRE(ring.BeginFrame(0));
+    CHECK(ring.SlotsPerFrame() == 2u);
+    u32 first = ~0u, again = ~0u, second = ~0u;
+    REQUIRE(ring.SlotFor(&views[0], sizeof(Float4x4), first));
+    for (u32 run = 0; run < 20; ++run) // twenty runs of one view: one slot
+    {
+        REQUIRE(ring.SlotFor(&views[0], sizeof(Float4x4), again));
+        CHECK(again == first);
+    }
+    REQUIRE(ring.SlotFor(&views[1], sizeof(Float4x4), second));
+    CHECK(second != first);
+    CHECK(ring.FrameSlots() == 2u);
+    u32 third = 0;
+    CHECK_FALSE(ring.SlotFor(&views[2], sizeof(Float4x4), third)); // a third view: none this frame
+    ring.EndFrame();
+
+    // The next frame holds the three, in a new buffer (the bind group over it is rebuilt).
+    const u32 generation = ring.Generation();
+    REQUIRE(ring.BeginFrame(1));
+    CHECK(ring.SlotsPerFrame() == 3u);
+    CHECK(ring.Generation() != generation);
+    for (const Float4x4& view : views)
+    {
+        u32 offset = 0;
+        CHECK(ring.SlotFor(&view, sizeof(Float4x4), offset));
+    }
+    CHECK(ring.FrameSlots() == 3u);
+    ring.EndFrame();
+}
+
 TEST_CASE("GpuBufferPool sub-allocates within a chunk and grows by adding chunks")
 {
     rhi::null::NullDevice device{DefaultAllocator()};

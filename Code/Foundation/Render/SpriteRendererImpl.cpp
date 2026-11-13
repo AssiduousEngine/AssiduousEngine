@@ -26,6 +26,7 @@ import foundation.shaders.system;
 import :data;
 import :pipeline;
 import :resources;
+import :bind_group_cache; // RetireBindGroup
 
 using namespace foundation::core;
 namespace shaders = foundation::shaders;
@@ -106,11 +107,10 @@ namespace foundation::render
     void SpriteRenderer::PrepareFrame(u32 maxDraws, u32 frameIndex)
     {
         // One draw pass (blended forward), so the instance ring only needs `maxDraws` (no cascade or prepass
-        // re-emit factor). The view ring needs a slot per view; kMaxViews is a safe upper bound.
+        // re-emit factor). The view ring holds a slot per view (ViewUniformRing).
         m_instanceRing.Reserve(maxDraws == 0 ? 1u : maxDraws);
-        m_viewRing.Reserve(kMaxViews);
         m_instanceRing.BeginFrame(frameIndex);
-        m_viewRing.BeginFrame(frameIndex);
+        (void)m_viewRing.BeginFrame(frameIndex);
     }
 
     void SpriteRenderer::Resolve(const RenderRecordContext& ctx, Span<const DrawItem> items,
@@ -127,14 +127,14 @@ namespace foundation::render
             return;
         }
 
-        // This view's ViewProj and View into the view ring (dynamic-offset uniform).
-        const DynamicUniformRing::Range vr = m_viewRing.Allocate();
-        if (!vr.ok)
+        // This view's ViewProj and View in the view ring (dynamic-offset uniform), once a frame per
+        // view however many runs it resolves.
+        const GpuSpriteView ubo{ctx.viewProj, ctx.viewMatrix};
+        u32 viewOffset = 0;
+        if (!m_viewRing.SlotFor(&ubo, sizeof(ubo), viewOffset))
         {
             return;
         }
-        const GpuSpriteView ubo{ctx.viewProj, ctx.viewMatrix};
-        MemCopy(vr.ptr, &ubo, sizeof(ubo));
 
         // Fuse consecutive sprites sharing (texture, blend) into one instanced draw.
         usize i = 0;
@@ -181,7 +181,7 @@ namespace foundation::render
                     d.pso = pso;
                     d.viewSet = viewBg;
                     d.viewDynamic = true;
-                    d.viewOffset = vr.byteOffset;
+                    d.viewOffset = viewOffset;
                     d.drawSet = texBg; // set 1: sprite texture (see shader register space1)
                     d.vertexBuffer0 = m_instanceRing.Buffer();
                     d.vertexOffset0 = ir.byteOffset;
@@ -211,7 +211,7 @@ namespace foundation::render
         }
         if (m_viewBg != nullptr)
         {
-            m_device->DestroyBindGroup(m_viewBg);
+            RetireBindGroup(*m_device, m_retire, m_viewBg); // a frame in flight may still use it
             m_viewBg = nullptr;
         }
         if (m_viewRing.Buffer() == nullptr)

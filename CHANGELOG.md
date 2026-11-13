@@ -143,6 +143,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Rendering: a double-sided material (foliage cards, a sail, a flag) casts its shadow from both
   sides, and a material that culls front faces casts from its back; shadows always came from the
   front faces.
+- Rendering: sprites and particles no longer vanish in a busy frame: past the eighth run of
+  transparent draws in a frame, or the eighth view, the rest drew nothing.
 - Rendering: lights no longer go missing, or come from another scene, when a scene has many
   lights or several scenes are drawn at once (editor pages side by side, a page and its play).
 - Rendering: the sky's diffuse light is right along world z: one of its nine terms was three

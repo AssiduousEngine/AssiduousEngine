@@ -69,8 +69,7 @@ export namespace engine::particles
               m_trailRing(device, framesInFlight, sizeof(TrailVertex),
                           rhi::BufferUsage::Vertex | rhi::BufferUsage::CopyDst,
                           u8"particle.trailverts"),
-              m_viewRing(device, framesInFlight, kViewSlotSize,
-                         rhi::BufferUsage::Uniform | rhi::BufferUsage::CopyDst, u8"particle.view")
+              m_viewRing(device, framesInFlight, kViewSlotSize, kMinViews, u8"particle.view")
         {
         }
         ~ParticleRenderer() override { Shutdown(); }
@@ -252,10 +251,9 @@ export namespace engine::particles
             m_instanceRing.Reserve(want == 0 ? 1u : want);
             const u32 twant = ((m_maxTrailVertsSeen + chunk - 1u) / chunk) * chunk;
             m_trailRing.Reserve(twant == 0 ? 1u : twant);
-            m_viewRing.Reserve(kMaxViews);
             m_instanceRing.BeginFrame(frameIndex);
             m_trailRing.BeginFrame(frameIndex);
-            m_viewRing.BeginFrame(frameIndex);
+            (void)m_viewRing.BeginFrame(frameIndex); // a slot per view, grown to the views a frame has
             m_frameInstances = 0; // sum of instances allocated this frame (all systems/views)
             m_frameTrailVerts = 0;
 
@@ -291,11 +289,6 @@ export namespace engine::particles
                 return;
             }
 
-            const render::DynamicUniformRing::Range vr = m_viewRing.Allocate();
-            if (!vr.ok)
-            {
-                return;
-            }
             // The projection terms that reconstruct view-space depth from a sampled NDC depth
             // (Proj[2][2], Proj[3][2], Proj[2][3]: 0 for an orthographic projection, which the
             // shader linearizes as such).
@@ -307,7 +300,12 @@ export namespace engine::particles
             ubo.projZScale = proj(2, 2);
             ubo.projZOffset = proj(3, 2);
             ubo.projWScale = proj(2, 3);
-            MemCopy(vr.ptr, &ubo, sizeof(ubo));
+            // Once a frame per view, however many runs it resolves.
+            u32 viewOffset = 0;
+            if (!m_viewRing.SlotFor(&ubo, sizeof(ubo), viewOffset))
+            {
+                return;
+            }
 
             // Scene-depth bind group (set 2) for soft particles. The transparent pass hands us the
             // opaque depth (already DepthStencilRead). Fresh per Resolve, retired after
@@ -328,7 +326,7 @@ export namespace engine::particles
                 if (base->particleKind == 1) // trail ribbon
                 {
                     EmitTrailDraw(ctx, static_cast<const ParticleTrailRenderData*>(base), viewBg,
-                                  vr, out);
+                                  viewOffset, out);
                     ++i;
                     continue;
                 }
@@ -381,7 +379,7 @@ export namespace engine::particles
                             d.pso = pso;
                             d.viewSet = viewBg;
                             d.viewDynamic = true;
-                            d.viewOffset = vr.byteOffset;
+                            d.viewOffset = viewOffset;
                             d.drawSet = texBg;
                             d.materialSet = depthBg; // set 2: scene depth (soft particles)
                             d.vertexBuffer0 = m_instanceRing.Buffer();
@@ -416,10 +414,15 @@ export namespace engine::particles
             m_instanceRing.SetRetireQueue(retire);
             m_trailRing.SetRetireQueue(retire);
             m_viewRing.SetRetireQueue(retire);
+            m_retire = retire;
         }
 
+        /// View slots the ring holds per frame, and those this frame took (tests pin them).
+        [[nodiscard]] u32 ViewSlotsPerFrame() const noexcept { return m_viewRing.SlotsPerFrame(); }
+        [[nodiscard]] u32 ViewSlotsUsed() const noexcept { return m_viewRing.FrameSlots(); }
+
     private:
-        static constexpr u32 kMaxViews = 8;
+        static constexpr u32 kMinViews = 8; // the view ring's start; it grows to the views a frame has
         static constexpr u64 kViewSlotSize =
             256; // GpuParticleView (2x mat4 + a float4), padded to the dynamic-uniform alignment
         static constexpr u32 kTrailMaxIndices =
@@ -434,7 +437,7 @@ export namespace engine::particles
             }
             if (m_viewBg != nullptr)
             {
-                m_device->DestroyBindGroup(m_viewBg);
+                render::RetireBindGroup(*m_device, m_retire, m_viewBg); // a frame in flight may still use it
                 m_viewBg = nullptr;
             }
             if (m_viewRing.Buffer() == nullptr)
@@ -624,7 +627,7 @@ export namespace engine::particles
         // ring and emit a triangle-list draw through the identity index buffer. Reuses the view UBO
         // and a texture.
         void EmitTrailDraw(const render::RenderRecordContext& ctx, const ParticleTrailRenderData* b,
-                           rhi::BindGroup* viewBg, const render::DynamicUniformRing::Range& vr,
+                           rhi::BindGroup* viewBg, u32 viewOffset,
                            Array<render::ResolvedDraw>& out)
         {
             if (b->vertexCount == 0 || b->vertices == nullptr)
@@ -661,7 +664,7 @@ export namespace engine::particles
             d.pso = pso;
             d.viewSet = viewBg;
             d.viewDynamic = true;
-            d.viewOffset = vr.byteOffset;
+            d.viewOffset = viewOffset;
             d.drawSet = texBg;
             d.vertexBuffer0 = m_trailRing.Buffer();
             d.vertexOffset0 = tr.byteOffset;
@@ -848,7 +851,8 @@ export namespace engine::particles
         u32 m_frameCounter = 0;
         render::DynamicUniformRing m_instanceRing;
         render::DynamicUniformRing m_trailRing; // trail ribbon vertices (per-frame)
-        render::DynamicUniformRing m_viewRing;
+        render::ViewUniformRing m_viewRing;
+        render::GpuRetireQueue* m_retire = nullptr; // borrowed; null idles the GPU before freeing a replaced bind group
         rhi::BindGroupLayout* m_viewLayout = nullptr;
         rhi::BindGroupLayout* m_texLayout = nullptr;
         rhi::BindGroupLayout* m_depthLayout = nullptr; // set 2: scene depth (soft particles)

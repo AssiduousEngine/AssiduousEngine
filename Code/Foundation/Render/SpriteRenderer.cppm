@@ -80,8 +80,7 @@ export namespace foundation::render
               m_instanceRing(device, framesInFlight, sizeof(SpriteInstance),
                              rhi::BufferUsage::Vertex | rhi::BufferUsage::CopyDst,
                              u8"sprite.instances"),
-              m_viewRing(device, framesInFlight, kViewSlotSize,
-                         rhi::BufferUsage::Uniform | rhi::BufferUsage::CopyDst, u8"sprite.view")
+              m_viewRing(device, framesInFlight, kViewSlotSize, kMinViews, u8"sprite.view")
         {
         }
         ~SpriteRenderer() override { Shutdown(); }
@@ -105,15 +104,20 @@ export namespace foundation::render
         {
             m_instanceRing.SetRetireQueue(retire);
             m_viewRing.SetRetireQueue(retire);
+            m_retire = retire;
         }
 
+        /// View slots the ring holds per frame, and those this frame took (tests pin them).
+        [[nodiscard]] u32 ViewSlotsPerFrame() const noexcept { return m_viewRing.SlotsPerFrame(); }
+        [[nodiscard]] u32 ViewSlotsUsed() const noexcept { return m_viewRing.FrameSlots(); }
+
     private:
-        static constexpr u32 kMaxViews = 8;
+        static constexpr u32 kMinViews = 8; // the view ring's start; it grows to the views a frame has
         static constexpr u64 kViewSlotSize = 256; // GpuSpriteView padded to the dynamic-uniform alignment
 
-        // One bind group over the whole view ring (a per-draw dynamic offset selects the slot). Rebuilt only
-        // when the ring reallocates (generation bump), which drains the GPU first (Reserve's WaitIdle), so
-        // we never free a descriptor set an in-flight frame still references.
+        // One bind group over the whole view ring (a per-draw dynamic offset selects the slot). Rebuilt
+        // when the ring grows (generation bump); the old one is retired through the queue when wired,
+        // since a frame in flight may still use it.
         rhi::BindGroup* EnsureViewBindGroup();
 
         rhi::BindGroup* EnsureTextureBindGroup(rhi::TextureView* tex);
@@ -137,7 +141,8 @@ export namespace foundation::render
         rhi::Device* m_device;
         shaders::ShaderSystem* m_shaders;
         DynamicUniformRing m_instanceRing;
-        DynamicUniformRing m_viewRing;
+        ViewUniformRing m_viewRing;
+        GpuRetireQueue* m_retire = nullptr; // borrowed; null idles the GPU before freeing a replaced bind group
         rhi::BindGroupLayout* m_viewLayout = nullptr;
         rhi::BindGroupLayout* m_texLayout = nullptr;
         rhi::PipelineLayout* m_pipelineLayout = nullptr;
