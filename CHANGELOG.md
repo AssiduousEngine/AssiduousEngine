@@ -104,6 +104,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Scripting: an entity, a scene, a component or a scene's settings kept in a script past its scene
   (a Game class member across a level load) reads as gone, and its calls do nothing; they reached
   the freed scene.
+- Scripting: an `onDestroy` that moves entities between parents, or adds or removes components,
+  no longer corrupts the scene or crashes it.
 
 ## 0.1.0-beta.3 - 2026-11-12
 
