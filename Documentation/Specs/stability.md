@@ -262,5 +262,6 @@ Each item names its finding, where it is on master, the test that proves it, and
 
 ## Tests (the contract)
 
-Listed per item above. Every phase is green on the lanes (clang, gcc, clang-shared, the wasm
-build, ASAN) before the next starts; the ASAN lane is the proof for the use-after-free items.
+Listed per item above. Every phase is green on clang, gcc and clang-shared before the next starts;
+the wasm build and ASAN run at the end of the day or of the series, and the ASAN lane is the proof
+for the use-after-free items.
