@@ -970,3 +970,24 @@ TEST_CASE("replication: an effectively-inactive entity's transform state FREEZES
     CHECK(server.GetSystem<net::NetworkedTransformComponentManager>()->Get(e)->position ==
           Float3{9.0f, 0.0f, 0.0f});
 }
+
+TEST_CASE("replication: a component record whose length passes the packet is not applied or allocated")
+{
+    // The record's blob length was read and allocated before anything checked the packet held it:
+    // a few bytes made a client allocate 4 GB.
+    net::BitWriter w;
+    w.WriteVarU32(1u);  // one entry
+    w.WriteU32(5u);     // its network id
+    w.WriteU8(0u);      // not a spawn, not a removal
+    w.WriteVarU32(1u);  // one component record
+    w.WriteVarU32(1u);  // its type id: one byte
+    w.WriteU8(static_cast<u8>('x'));
+    w.WriteVarU32(0xFFFFFFF0u); // the blob's length
+    w.WriteU8(0u);
+    scene::Scene client{DefaultAllocator()};
+    client.AddSystem<net::NetworkComponentManager>();
+    net::StateReplication clientRep;
+    net::BitReader reader(w.Data());
+    clientRep.ApplySnapshot(client, reader);
+    CHECK_FALSE(reader.Ok()); // refused as truncated
+}

@@ -143,6 +143,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Rendering: a double-sided material (foliage cards, a sail, a flag) casts its shadow from both
   sides, and a material that culls front faces casts from its back; shadows always came from the
   front faces.
+- Networking: a length in a packet is checked against what the packet holds before anything is
+  allocated for it; a crafted replication record could make a client allocate 4 GB.
 - Networking: an empty UDP datagram no longer stops the frame's reads, which let a stream of them
   hold back every real packet.
 - Networking: a received message is held to `maxMessageBytes` as a sent one is; a peer's fragments

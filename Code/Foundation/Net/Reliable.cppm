@@ -891,7 +891,7 @@ export namespace foundation::net
                         fragCount = r.ReadVarU32();
                     }
                 }
-                const u32 len = r.ReadVarU32();
+                const u32 len = r.ReadByteCount();
                 if (!r.Ok() || len > m_cfg.maxPacketBytes)
                 {
                     return;

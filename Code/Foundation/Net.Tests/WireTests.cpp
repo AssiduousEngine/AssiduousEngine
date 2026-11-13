@@ -122,3 +122,22 @@ TEST_CASE("wire: reading past the end degrades safely (Ok() == false)")
     (void)r.ReadU32();   // past the end
     CHECK_FALSE(r.Ok()); // overflow flagged, not garbage read
 }
+
+TEST_CASE("wire: a byte count past what the buffer holds fails the reader and reads as 0")
+{
+    // A VarU32 length was taken as is, and a few bytes could ask a peer to allocate 4 GB.
+    net::BitWriter w;
+    w.WriteVarU32(3u);
+    w.WriteU8(1u);
+    w.WriteU8(2u);
+    w.WriteU8(3u);
+    w.WriteVarU32(0xFFFFFFF0u);
+    w.WriteU8(9u);
+    net::BitReader r(w.Data());
+    CHECK(r.ReadByteCount() == 3u); // exactly what follows
+    for (int i = 0; i < 3; ++i)
+        (void)r.ReadU8();
+    CHECK(r.Ok());
+    CHECK(r.ReadByteCount() == 0u); // one byte left, not four billion
+    CHECK_FALSE(r.Ok());
+}

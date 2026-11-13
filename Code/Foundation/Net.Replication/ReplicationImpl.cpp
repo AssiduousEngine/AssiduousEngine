@@ -45,7 +45,7 @@ namespace foundation::net
         }
         [[nodiscard]] String ReadWireString(BitReader& reader)
         {
-            const u32 n = reader.ReadVarU32();
+            const u32 n = reader.ReadByteCount();
             if (n == 0 || !reader.Ok())
             {
                 return String{};
@@ -761,7 +761,7 @@ namespace foundation::net
         for (u32 j = 0; j < count && in.Ok(); ++j)
         {
             const String typeId = ReadWireString(in);
-            const u32 blobBytes = in.ReadVarU32();
+            const u32 blobBytes = in.ReadByteCount();
             Array<byte> blob;
             blob.Resize(blobBytes);
             if (blobBytes > 0)

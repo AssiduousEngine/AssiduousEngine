@@ -625,7 +625,7 @@ export namespace foundation::net
                                   }
                                   else if (kind == static_cast<u8>(ScriptRpcKind::Text))
                                   {
-                                      const u32 size = r.ReadVarU32();
+                                      const u32 size = r.ReadByteCount();
                                       if (!r.Ok() || size > (1u << 20))
                                       {
                                           return;

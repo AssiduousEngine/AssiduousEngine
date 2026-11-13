@@ -202,6 +202,25 @@ export namespace foundation::net
             return v;
         }
 
+        /// A VarU32 count of the bytes that follow. A count past what the buffer holds fails the
+        /// reader (Ok false) and reads as 0, so no caller sizes a buffer from a length the packet
+        /// does not carry (a 4 GB one from a few bytes).
+        u32 ReadByteCount()
+        {
+            const u32 count = ReadVarU32();
+            if (!m_overflow && count > BytesLeft())
+            {
+                m_overflow = true;
+            }
+            return m_overflow ? 0u : count;
+        }
+
+        /// Whole bytes left to read.
+        [[nodiscard]] usize BytesLeft() const noexcept
+        {
+            return (m_data.Size() - m_bytePos) + m_scratchBits / 8u;
+        }
+
         f32 ReadFloatRanged(f32 min, f32 max, u32 bits)
         {
             DIAGNOSTIC_ASSERT(bits >= 1 && bits <= 32);
