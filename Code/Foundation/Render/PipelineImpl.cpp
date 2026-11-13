@@ -1344,6 +1344,22 @@ namespace foundation::render
                 m_staticRenderDraws.PushBack(AtlasDraw{t, &ctx});
             }
         }
+        // The static layer's pass loads the layer and clears each tile it redraws. Without the tile
+        // clear it must clear the whole layer, so a dirty tile redraws every static tile with it.
+        rhi::RenderPipeline* const staticTileClear =
+            (m_shadows != nullptr && !m_staticRenderDraws.IsEmpty()) ? m_shadows->TileClearPipeline() : nullptr;
+        if (!m_staticRenderDraws.IsEmpty() && staticTileClear == nullptr)
+        {
+            m_staticRenderDraws.Clear();
+            for (usize k = 0; k < sceneCount; ++k)
+            {
+                SceneShadowCtx& ctx = *m_sceneShadowPool[k];
+                for (const LocalShadowTile& t : ctx.staticTiles)
+                {
+                    m_staticRenderDraws.PushBack(AtlasDraw{t, &ctx});
+                }
+            }
+        }
         const bool renderStatic = !m_staticRenderDraws.IsEmpty();
         // Per-renderer ring sizing: count only the atlas passes that actually re-emit casters this frame.
         const u32 localPassCount =
@@ -1475,9 +1491,12 @@ namespace foundation::render
             }
 
             // Local-light shadow atlas: a 2-layer array. Layer 0 (realtime) re-renders every frame;
-            // layer 1 (static) only when the static set changed (renderStatic). Each pass targets its
-            // layer (subresource), clears it, and renders its tiles (per-tile viewport and scissor). Every
-            // forward pass reads the array, which orders both passes ahead and makes it readable.
+            // layer 1 (static) only its dirty tiles (renderStatic). Each pass targets its layer
+            // (subresource) and renders its tiles (per-tile viewport and scissor). The realtime pass
+            // clears its layer; the static pass loads its layer, which holds the clean tiles, and
+            // clears each tile it redraws (staticTileClear), or clears whole when it redraws every
+            // tile. Every forward pass reads the array, which orders both passes ahead and makes it
+            // readable.
             rendergraph::RGHandle atlasH;
             const bool atlasActive =
                 atlasView != nullptr && (!m_rtAtlasDraws.IsEmpty() || staticTileCount > 0);
@@ -1489,7 +1508,7 @@ namespace foundation::render
                 // Declare one layer's depth pass over a draw list (tiles across all scenes; each draw
                 // records its own scene's casters). The graph runs each pass's lambda at execute time,
                 // ordered before the forward by its ReadTexture of atlasH.
-                const auto declareLayer = [&](u32 layer, Array<AtlasDraw>* draws)
+                const auto declareLayer = [&](u32 layer, Array<AtlasDraw>* draws, rhi::RenderPipeline* tileClear)
                 {
                     if (draws->IsEmpty())
                     {
@@ -1497,17 +1516,17 @@ namespace foundation::render
                     }
                     m_graph.AddRenderPass(
                         u8"shadow.atlas",
-                        [this, atlasH, reg, draws, atlasRes, layer](rendergraph::PassBuilder& b)
+                        [this, atlasH, reg, draws, atlasRes, layer, tileClear](rendergraph::PassBuilder& b)
                         {
                             rendergraph::RGSubresourceRange sub{};
                             sub.baseArrayLayer = layer;
                             sub.arrayLayerCount = 1;
-                            b.SetDepthTarget(atlasH, rhi::LoadOp::Clear, rhi::StoreOp::Store,
-                                             rhi::depth::ClearValue(), sub);
+                            b.SetDepthTarget(atlasH, tileClear != nullptr ? rhi::LoadOp::Load : rhi::LoadOp::Clear,
+                                             rhi::StoreOp::Store, rhi::depth::ClearValue(), sub);
                             b.SetViewport(0, 0, atlasRes,
                                           atlasRes); // pass default; each tile sets its own below
                             b.SetExecute(
-                                [this, reg, draws](rhi::RenderPassEncoder& rp)
+                                [this, reg, draws, tileClear](rhi::RenderPassEncoder& rp)
                                 {
                                     for (const AtlasDraw& d : *draws)
                                     {
@@ -1519,6 +1538,11 @@ namespace foundation::render
                                                        static_cast<f32>(t.h));
                                         rp.SetScissor(static_cast<i32>(t.x), static_cast<i32>(t.y),
                                                       t.w, t.h);
+                                        if (tileClear != nullptr)
+                                        {
+                                            rp.SetPipeline(tileClear); // this tile to the far depth
+                                            rp.Draw(3, 1, 0, 0);
+                                        }
                                         RecordShadowCasters(rp, casters, *reg, t.viewProj,
                                                             t.cullCenter, t.cullRadius,
                                                             /*frustumCull*/ false, {}, nullptr,
@@ -1527,10 +1551,10 @@ namespace foundation::render
                                 });
                         });
                 };
-                declareLayer(0u, &m_rtAtlasDraws); // realtime layer, every frame
+                declareLayer(0u, &m_rtAtlasDraws, nullptr); // realtime layer, every frame
                 if (renderStatic)
                 {
-                    declareLayer(1u, &m_staticRenderDraws);
+                    declareLayer(1u, &m_staticRenderDraws, staticTileClear);
                 } // static layer, only dirty tiles
             }
             if (shadowActive)

@@ -19,6 +19,8 @@ export module foundation.render:shadows;
 import foundation.core;
 import foundation.rhi;
 import foundation.rendergraph;
+import foundation.shaders;
+import foundation.shaders.system;
 import :data;  // ShadowCascades
 import :views;     // ViewCamera
 import :resources; // GpuRetireQueue
@@ -259,6 +261,18 @@ export namespace foundation::render
 
         /// Wire the frames-in-flight retire queue (web-safe atlas grows). Null means drain.
         void SetRetireQueue(GpuRetireQueue* retire) noexcept { m_retire = retire; }
+
+        /// The shaders the atlas tile clear builds from (borrowed). Without them, or when the clear
+        /// does not build, the static atlas layer clears whole and every static tile redraws when
+        /// one is dirty.
+        void SetShaderSystem(shaders::ShaderSystem* shaders) noexcept { m_shaders = shaders; }
+
+        /// A depth-only pipeline writing the far depth wherever it draws (a fullscreen triangle,
+        /// compare Always, 3 vertices, no bindings). Drawn inside a tile's viewport and scissor it
+        /// clears that tile, in a pass that loads the rest of the layer. Built on first use and again
+        /// when its shader reloads; a failed build is not retried until then. Null without a shader
+        /// system or a build.
+        [[nodiscard]] rhi::RenderPipeline* TileClearPipeline();
         ShadowSystem(const ShadowSystem&) = delete;
         ShadowSystem& operator=(const ShadowSystem&) = delete;
 
@@ -330,6 +344,10 @@ export namespace foundation::render
 
     private:
         GpuRetireQueue* m_retire = nullptr; // borrowed; null means WaitIdle on grow
+        shaders::ShaderSystem* m_shaders = nullptr; // borrowed; the tile clear's shader
+        rhi::PipelineLayout* m_tileClearLayout = nullptr;
+        rhi::RenderPipeline* m_tileClearPipeline = nullptr;
+        u64 m_tileClearVersion = ~0ull; // the shader version the clear was built (or failed) at
         static constexpr rhi::TextureFormat kShadowFormat = rhi::TextureFormat::Depth32Float;
         u32 m_resolution = 1024; // per cascade (SetResolutions)
         u32 m_atlasTile = 512;   // the atlas's tile (SetResolutions)

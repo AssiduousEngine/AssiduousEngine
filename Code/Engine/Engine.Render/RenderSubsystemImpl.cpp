@@ -894,6 +894,7 @@ namespace engine::render
             if (m_shadowSystem)
             {
                 m_shadowSystem->SetRetireQueue(&m_retireQueue);
+                m_shadowSystem->SetShaderSystem(m_shaders);
                 // A level set before the renderer started (a host's first SetQuality).
                 const ShadowResolution sizes = ShadowResolutionFor(m_quality.shadows);
                 m_shadowSystem->SetResolutions(sizes.cascade, sizes.atlasTile);

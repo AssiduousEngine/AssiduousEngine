@@ -19,6 +19,8 @@ module foundation.render;
 import foundation.core;
 import foundation.rhi;
 import foundation.rendergraph;
+import foundation.shaders;
+import foundation.shaders.system;
 import :data;  // ShadowCascades
 import :views; // ViewCamera
 
@@ -203,8 +205,70 @@ namespace foundation::render
         return true;
     }
 
+    rhi::RenderPipeline* ShadowSystem::TileClearPipeline()
+    {
+        if (m_shaders == nullptr)
+        {
+            return nullptr;
+        }
+        const u64 version = m_shaders->Version(u8"shadow_tile_clear");
+        if (version == m_tileClearVersion)
+        {
+            return m_tileClearPipeline;
+        }
+        // A reload: the GPU is idle then, as for every engine pass's pipeline rebuild.
+        if (m_tileClearPipeline != nullptr)
+        {
+            m_device->DestroyRenderPipeline(m_tileClearPipeline);
+            m_tileClearPipeline = nullptr;
+        }
+        m_tileClearVersion = version;
+        if (m_tileClearLayout == nullptr)
+        {
+            rhi::PipelineLayoutDesc pld{};
+            if (!m_device->CreatePipelineLayout(pld, m_tileClearLayout).IsOk())
+            {
+                m_tileClearLayout = nullptr;
+                return nullptr;
+            }
+        }
+        rhi::ShaderModule* vs =
+            m_shaders->GetVariant(u8"shadow_tile_clear", shaders::ShaderStage::Vertex, shaders::ShaderFlags::None);
+        if (vs == nullptr)
+        {
+            return nullptr;
+        }
+        rhi::DepthStencilState ds{};
+        ds.format = kShadowFormat;
+        ds.depthTestEnabled = true; // Vulkan writes depth only with the test on
+        ds.depthWriteEnabled = true;
+        ds.depthCompare = rhi::CompareFunction::Always;
+        rhi::RenderPipelineDesc pd{};
+        pd.layout = m_tileClearLayout;
+        pd.vertex.shader = rhi::StageOf(vs, rhi::ShaderStage::Vertex);
+        pd.depthStencil = ds;
+        pd.primitive.topology = rhi::PrimitiveTopology::TriangleList;
+        pd.primitive.cullMode = rhi::CullMode::None;
+        pd.label = u8"shadow.tile-clear";
+        if (!m_device->CreateRenderPipeline(pd, m_tileClearPipeline).IsOk())
+        {
+            m_tileClearPipeline = nullptr;
+        }
+        return m_tileClearPipeline;
+    }
+
     void ShadowSystem::Shutdown()
     {
+        if (m_tileClearPipeline != nullptr)
+        {
+            m_device->DestroyRenderPipeline(m_tileClearPipeline);
+            m_tileClearPipeline = nullptr;
+        }
+        if (m_tileClearLayout != nullptr)
+        {
+            m_device->DestroyPipelineLayout(m_tileClearLayout);
+            m_tileClearLayout = nullptr;
+        }
         for (u32 i = 0; i < kMaxFramesInFlight; ++i)
         {
             if (m_sampleViews[i] != nullptr)
