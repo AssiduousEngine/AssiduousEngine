@@ -88,3 +88,50 @@ TEST_CASE("editor-context: a loaded prefab reloads when told its record changed,
     }
     (void)RemoveDirectoryRecursive(dir);
 }
+
+TEST_CASE("editor-context: a page's dropped live edit is built again from what is stored, so no page shows it")
+{
+    const StringView dir = u8"scratch_authored_resource_drop";
+    (void)RemoveDirectoryRecursive(dir);
+    scene::RegisterSceneResourceTypes();
+    REQUIRE(EditorProject::Create(DefaultAllocator(), dir, u8"Dropped").IsOk());
+    {
+        UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir);
+        REQUIRE(project);
+        content::Instance* record = project->SourceDb().RootGroup()->CreateInstance(u8"crate", scene::PrefabDocument::StaticType());
+        REQUIRE(record != nullptr);
+        SaveCrate(*record, u8"Crate");
+        const Guid id = record->Id();
+        foundation::content::LayeredContentDatabase& view = project->ResourceDb();
+        foundation::resource::ResourceManager resources(DefaultAllocator(), view);
+        scene::PrefabFactory factory(DefaultAllocator());
+        resources.AddFactory(&factory);
+        view.SetFallthrough([&resources](StringView ns, StringView name) { return resources.ReadsAuthoredRecord(ns, name); });
+        EditorContext context{DefaultAllocator()};
+        context.SetProject(project.Get());
+        context.SetResources(&resources);
+        foundation::resource::Proxy<scene::PrefabResource> loaded = resources.Bind<scene::PrefabResource>(id);
+        REQUIRE(loaded);
+
+        // The loaded product differs from what is stored (as a sculpted grid differs from its
+        // file), and a page holds an edit of it waiting for its save.
+        SaveCrate(*record, u8"Barrel");
+        EditorCommandStack page;
+        bool written = false;
+        context.RegisterAssetEdit(page, id, [&written](content::ContentDatabase&)
+                                  {
+                                      written = true;
+                                      return Status{};
+                                  });
+        CHECK(RootName(*loaded) == String(u8"Crate"));
+        context.DropAssetEdits(page);
+        CHECK_FALSE(written);
+        REQUIRE(loaded);
+        CHECK(RootName(*loaded) == String(u8"Barrel")); // what is stored, not what was edited
+
+        context.SetResources(nullptr);
+        context.SetProject(nullptr);
+        view.SetFallthrough({});
+    }
+    (void)RemoveDirectoryRecursive(dir);
+}

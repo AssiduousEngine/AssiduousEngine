@@ -7,8 +7,8 @@
 // second terrain tool after Sculpt. It ray-picks the terrain heightfield under the cursor, maps the
 // hit to the splatmap's 0..1 footprint UV, and paints the selected layer channel into the shared
 // runtime Splatmap. Painting lerps toward one-hot, so painting another layer erases this one. It
-// records one region-delta undo command per stroke, and on Save writes the painted RGBA8 back to
-// its source asset's pixel sidecar.
+// records one region-delta undo command per stroke, and the page's save writes the weights back to
+// their source asset (PersistSplatWeights).
 //
 // For GCC module hygiene, the heavy engine.terrain and resource imports live in SplatToolImpl.cpp;
 // this interface imports only light modules.

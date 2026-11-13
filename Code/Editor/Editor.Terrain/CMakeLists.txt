@@ -12,6 +12,6 @@ target_link_libraries(Editor.Terrain PUBLIC
     Foundation::Image Foundation::Image.IO Foundation::Texture.Resource Foundation::Policy)
 
 target_sources(Editor.Terrain
-    PRIVATE SculptImpl.cpp SplatToolImpl.cpp HoleToolImpl.cpp ToolPanelsImpl.cpp TerrainEditorPageImpl.cpp
+    PRIVATE AssetEditsImpl.cpp SculptImpl.cpp SplatToolImpl.cpp HoleToolImpl.cpp ToolPanelsImpl.cpp TerrainEditorPageImpl.cpp
     PUBLIC FILE_SET editorterrain_modules TYPE CXX_MODULES FILES
-        Sculpt.cppm SplatTool.cppm HoleTool.cppm SplatmapThumbnailGenerator.cppm ToolPanels.cppm TerrainEditorPage.cppm EditorTerrainModule.cppm)
+        AssetEdits.cppm Sculpt.cppm SplatTool.cppm HoleTool.cppm SplatmapThumbnailGenerator.cppm ToolPanels.cppm TerrainEditorPage.cppm EditorTerrainModule.cppm)

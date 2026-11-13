@@ -38,16 +38,18 @@ namespace
     class FakeAssetEditSink final : public editor::IAssetEditSink
     {
     public:
-        void RegisterAssetEdit(const Guid& assetId,
-                               Function<Status(foundation::content::ContentDatabase&)> persist) override
+        void RegisterAssetEdit(const editor::EditorCommandStack& owner, const Guid& assetId,
+                               editor::AssetEditPersist persist) override
         {
             ++count;
+            lastOwner = &owner;
             lastId = assetId;
             hasPersist = static_cast<bool>(persist);
             lastPersist = Move(persist); // captured so tests can run it against a real database
         }
 
         i32 count = 0;
+        const editor::EditorCommandStack* lastOwner = nullptr;
         Guid lastId;
         bool hasPersist = false;
         Function<Status(foundation::content::ContentDatabase&)> lastPersist;
@@ -123,6 +125,7 @@ TEST_CASE("terrain sculpt: a press-drag-release stroke raises the shared heightf
     CHECK(commands.CanUndo());
     CHECK(sink.count == 1);
     CHECK(sink.lastId == Guid{7, 99});
+    CHECK(sink.lastOwner == &commands); // its page's save writes it
     CHECK(sink.hasPersist);
 }
 
@@ -290,6 +293,62 @@ TEST_CASE("terrain sculpt: a save persists to the source asset and survives a re
     FileDelete(u8"scratch_sculpt_persist_db/hf.rasset");
     FileDelete(u8"scratch_sculpt_persist_db/hf.heights.bin");
     RemoveDirectory(dbDir);
+}
+
+TEST_CASE("terrain sculpt: a save after a hole cut keeps the holes (one persist writes the whole grid)")
+{
+    using foundation::vfs::NativeFileSystem;
+    namespace content = foundation::content;
+    const StringView dbDir = u8"scratch_sculpt_holes_db";
+    (void)RemoveDirectoryRecursive(dbDir);
+    Guid id;
+    {
+        NativeFileSystem mount(dbDir, DefaultAllocator());
+        content::ContentDatabase db(foundation::core::DefaultAllocator(), mount, foundation::core::BinarySerializerFactory(), u8".rasset");
+        pipeline::RegisterHeightfieldAsset();
+        auto* inst = db.RootGroup()->CreateInstance(u8"hf", pipeline::HeightfieldAsset::StaticType());
+        REQUIRE(inst != nullptr);
+        id = inst->Id();
+        pipeline::HeightfieldAsset src;
+        src.size = 65;
+        src.worldSize = Float2{64.0f, 64.0f};
+        src.maxY = 10.0f;
+        REQUIRE(inst->WriteObject(src).IsOk());
+    }
+    Fixture fx;
+    fx.res->heightfield.SetId(id);
+    // A hole the hole tool cut earlier, its edit replaced by the sculpt's below (one per asset).
+    Array<u8> plane;
+    plane.Resize(fx.grid->Holes().Size(), u8{0});
+    plane[0] = 255;
+    REQUIRE(fx.grid->SetHoles(Span<const u8>(plane.Data(), plane.Size())));
+    FakeAssetEditSink sink;
+    editor::EditorCommandStack commands;
+    editor::TerrainSculptTool tool(fx.scene, commands, &sink);
+    editor::ViewportToolInput press = CenterRay(0.1f);
+    press.leftPressed = true;
+    press.leftDown = true;
+    (void)tool.Update(press);
+    editor::ViewportToolInput release = CenterRay(0.0f);
+    release.leftReleased = true;
+    (void)tool.Update(release);
+    REQUIRE(sink.lastPersist);
+    {
+        NativeFileSystem mount(dbDir, DefaultAllocator());
+        content::ContentDatabase db(foundation::core::DefaultAllocator(), mount, foundation::core::BinarySerializerFactory(), u8".rasset");
+        REQUIRE(sink.lastPersist(db).IsOk());
+        content::Instance* inst = db.GetInstance(id);
+        REQUIRE(inst != nullptr);
+        UniquePtr<IStream> holes = inst->ReadData(foundation::heightfield::kHoleStream);
+        REQUIRE(holes);
+        Array<u8> written;
+        written.Resize(static_cast<usize>(holes->Size()));
+        REQUIRE(holes->Read(written.Data(), written.Size()) == written.Size());
+        REQUIRE(written.Size() == plane.Size());
+        CHECK(written[0] != 0);
+        CHECK(inst->ReadData(foundation::heightfield::kHeightStream));
+    }
+    (void)RemoveDirectoryRecursive(dbDir);
 }
 
 TEST_CASE("terrain sculpt: the wheel resizes the brush only with Shift (the bare wheel is the camera's)")

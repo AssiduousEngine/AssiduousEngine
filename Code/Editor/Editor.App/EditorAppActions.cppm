@@ -86,6 +86,9 @@ export namespace editor::app
     /// What Edit's actions run (undo, redo and discard work on the subject page itself).
     struct EditActions
     {
+        /// Discard Changes over the page (EditorContext::DiscardPage, telling the user when it
+        /// could not).
+        Function<void(EditorPage&)> discard;
         Function<void()> preferences;
         Function<void()> exportTemplates;
     };
@@ -106,10 +109,11 @@ export namespace editor::app
             d.execute = [](EditorPage* page) { page->Commands().Redo(); };
             (void)actions.Register(Move(d));
         }
+        if (run.discard)
         {
             EditorActionDeclaration d = detail::Declare(u8"page.discardChanges", u8"Discard Changes", u8"Revert the page's unsaved edits", u8"", 0);
             d.enabled = [](EditorPage* page) { return page != nullptr && page->IsDirty(); };
-            d.execute = [](EditorPage* page) { page->DiscardChanges(); };
+            d.execute = [discard = Move(run.discard)](EditorPage* page) { discard(*page); };
             (void)actions.Register(Move(d));
         }
         RegisterPlaybackActions(actions);

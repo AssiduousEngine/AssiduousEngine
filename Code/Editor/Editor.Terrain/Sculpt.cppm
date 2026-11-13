@@ -7,9 +7,8 @@
 // the select tool stays the default, and sculpt is one of the palette modes. It ray-picks the
 // terrain under the cursor (through the entity transform, into heightfield-local space), edits the
 // shared runtime Heightfield in place with the cosine-falloff brushes (foundation.heightfield),
-// and records one region-delta undo command per stroke. On save the tool's registered closure
-// writes the runtime heightfield back to its source asset (HeightfieldSource and the "heights"
-// sidecar) through the drain path.
+// and records one region-delta undo command per stroke. The page's save writes the runtime
+// heightfield back to its source asset (PersistHeightfield).
 //
 // For GCC module hygiene, the heavy engine.terrain, foundation.terrain.resource and
 // heightfield.resource imports live in SculptImpl.cpp; this interface imports only light modules.

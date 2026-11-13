@@ -38,8 +38,7 @@ namespace editor
         }
     }
 
-    void EditorContext::RegisterAssetEdit(const Guid& assetId,
-                                          Function<Status(foundation::content::ContentDatabase&)> persist)
+    void EditorContext::RegisterAssetEdit(const EditorCommandStack& owner, const Guid& assetId, AssetEditPersist persist)
     {
         if (assetId.IsNil() || !persist)
         {
@@ -47,28 +46,49 @@ namespace editor
         }
         for (PendingAssetEdit& e : m_pendingAssetEdits)
         {
-            if (e.id == assetId)
+            if (e.owner == &owner && e.id == assetId)
             {
                 e.persist = Move(persist); // last edit for this asset wins
                 return;
             }
         }
-        m_pendingAssetEdits.PushBack(PendingAssetEdit{assetId, Move(persist)});
+        m_pendingAssetEdits.PushBack(PendingAssetEdit{&owner, assetId, Move(persist)});
     }
 
-    Status EditorContext::DrainAssetEdits(foundation::content::ContentDatabase& db)
+    bool EditorContext::HasPendingAssetEdits(const EditorCommandStack& owner) const noexcept
     {
-        if (m_pendingAssetEdits.IsEmpty())
+        for (const PendingAssetEdit& e : m_pendingAssetEdits)
         {
-            return Status{};
+            if (e.owner == &owner)
+            {
+                return true;
+            }
         }
-        Array<PendingAssetEdit> pending = Move(m_pendingAssetEdits);
-        m_pendingAssetEdits.Clear();
+        return false;
+    }
+
+    Status EditorContext::DrainAssetEdits(foundation::content::ContentDatabase& db, const EditorCommandStack& owner)
+    {
+        // Taken out first: a persist may register again (it should not, but the list must not
+        // move under the loop).
+        Array<PendingAssetEdit> mine;
+        for (usize i = 0; i < m_pendingAssetEdits.Size();)
+        {
+            if (m_pendingAssetEdits[i].owner == &owner)
+            {
+                mine.PushBack(Move(m_pendingAssetEdits[i]));
+                m_pendingAssetEdits.RemoveAt(i);
+            }
+            else
+            {
+                ++i;
+            }
+        }
         Status result{};
         bool anyOk = false;
-        for (PendingAssetEdit& e : pending)
+        for (PendingAssetEdit& e : mine)
         {
-            const Status s = e.persist ? e.persist(db) : Status{};
+            const Status s = e.persist(db);
             if (s.IsOk())
             {
                 anyOk = true;
@@ -83,6 +103,32 @@ namespace editor
             RequestCook(false); // hot-swap the re-persisted products
         }
         return result;
+    }
+
+    void EditorContext::DropAssetEdits(const EditorCommandStack& owner)
+    {
+        Array<Guid> dropped;
+        for (usize i = 0; i < m_pendingAssetEdits.Size();)
+        {
+            if (m_pendingAssetEdits[i].owner == &owner)
+            {
+                dropped.PushBack(m_pendingAssetEdits[i].id);
+                m_pendingAssetEdits.RemoveAt(i);
+            }
+            else
+            {
+                ++i;
+            }
+        }
+        // The edit is in the live product, which every page showing it shares: build it again from
+        // what was cooked, which is what the file held at its last save.
+        if (m_resources != nullptr)
+        {
+            for (const Guid& id : dropped)
+            {
+                (void)m_resources->Reload(id);
+            }
+        }
     }
 
     StringView EditorContext::AssetNameFor(const Guid& id) const
@@ -273,6 +319,8 @@ namespace editor
         {
             if (m_pages[i].Get() == page)
             {
+                // A page closed with edits unsaved: what its tools edited live goes with them.
+                DropAssetEdits(page->Commands());
                 if (m_activePage == page)
                 {
                     m_activePage = m_pages.Size() > 1
@@ -396,6 +444,33 @@ namespace editor
     }
 
     Status EditorContext::SavePage(EditorPage& page)
+    {
+        const Status saved = SavePageItself(page);
+        // What the page's tools edited live in other assets (a terrain's heights) is part of its
+        // save: written whether or not the page's own file was.
+        if (m_project == nullptr || !HasPendingAssetEdits(page.Commands()))
+        {
+            return saved;
+        }
+        const Status persisted = DrainAssetEdits(m_project->SourceDb(), page.Commands());
+        if (!persisted.IsOk())
+        {
+            LOG_ERROR(u8"Editor", u8"'{}': writing what its tools edited in other assets failed", page.Title());
+        }
+        return saved.IsOk() ? persisted : saved;
+    }
+
+    bool EditorContext::DiscardPage(EditorPage& page)
+    {
+        if (!page.DiscardChanges())
+        {
+            return false;
+        }
+        DropAssetEdits(page.Commands());
+        return true;
+    }
+
+    Status EditorContext::SavePageItself(EditorPage& page)
     {
         if (!page.IsAssetDeleted() || m_project == nullptr)
         {

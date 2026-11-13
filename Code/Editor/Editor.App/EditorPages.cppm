@@ -189,23 +189,14 @@ export namespace editor::app
                 CloseNow(m_open.Back().page);
         }
 
-        /// Saves a page, then flushes what live tools edited in cooked products (any save flushes
-        /// them).
+        /// Saves a page, with what its tools edited live in other assets (a terrain's heights).
         void Save(editor::EditorPage& page)
         {
-            foundation::content::ContentDatabase* sources = Sources();
             editor::EditorContext& context = *m_services.context;
             if (context.SavePage(page).IsOk()) // a page whose file went on disk writes it back
                 context.Notify(editor::NoticeKind::Success, Format(u8"Saved '{}'.", page.Title()).AsView());
             else
                 context.Notify(editor::NoticeKind::Error, u8"Save FAILED (see Console).");
-            if (sources != nullptr && context.HasPendingAssetEdits())
-            {
-                if (context.DrainAssetEdits(*sources).IsOk())
-                    context.Notify(editor::NoticeKind::Success, u8"Persisted live asset edits.");
-                else
-                    context.Notify(editor::NoticeKind::Error, u8"Asset-edit persist FAILED (see Console).");
-            }
         }
 
         /// Asks about the unsaved pages before `proceed` (an exit, a project's close). With none,

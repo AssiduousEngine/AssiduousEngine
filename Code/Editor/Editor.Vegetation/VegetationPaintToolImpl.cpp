@@ -332,7 +332,7 @@ namespace editor
                 RefPtr<veg::VegetationMask> mask = m_strokeMask;
                 const Guid id = m_strokeMaskId;
                 m_assetEdits->RegisterAssetEdit(
-                    id,
+                    *m_commands, id,
                     [mask, id](content::ContentDatabase& db) -> Status
                     {
                         content::Instance* inst = db.GetInstance(id);

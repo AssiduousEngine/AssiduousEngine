@@ -74,6 +74,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   Undoing back to the save marks the page saved.
 - Editor: Save during Simulate writes the scene as it was when Simulate started. It wrote what the
   run had done to it.
+- Editor: terrain and vegetation brush strokes are saved with the page they were made on, by
+  Save, Save All and the save when closing or exiting; only Save wrote them, and wrote every
+  page's. Discard, or closing the page without saving, drops them and shows the terrain as last
+  saved. A sculpt after a hole cut no longer loses the holes on save.
 
 ## 0.1.0-beta.3 - 2026-11-12
 

@@ -52,8 +52,8 @@ namespace editor
         return instance.WriteObject(*asset);
     }
 
-    void QueueSettingsProfileEdit(EditorContext& context, scene::SceneSystem& system,
-                                  const Guid& profile)
+    void QueueSettingsProfileEdit(EditorContext& context, const EditorCommandStack& owner,
+                                  scene::SceneSystem& system, const Guid& profile)
     {
         EditorProject* project = context.Project();
         if (project == nullptr || profile.IsNil() || system.SettingsProfile() != profile)
@@ -73,7 +73,7 @@ namespace editor
         }
         asset->SetValues(system.EffectiveSettingsInstance()); // a snapshot: the drain may be later
         context.RegisterAssetEdit(
-            profile,
+            owner, profile,
             [object, profile](foundation::content::ContentDatabase& db) -> Status
             {
                 foundation::content::Instance* target = db.GetInstance(profile);

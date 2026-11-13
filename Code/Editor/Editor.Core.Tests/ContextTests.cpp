@@ -547,7 +547,7 @@ TEST_CASE("editor-context: script value probe slot")
     CHECK(!context.ScriptValueProbe);
 }
 
-TEST_CASE("editor-context: pending asset-edit registry (register/replace/nil, drain, recook)")
+TEST_CASE("editor-context: pending asset edits are their page's: registered, replaced, drained by its save")
 {
     const StringView dir = u8"scratch_editor_test_assetedit_db";
     RemoveDbTree(dir);
@@ -561,30 +561,140 @@ TEST_CASE("editor-context: pending asset-edit registry (register/replace/nil, dr
 
     const Guid a(1, 1);
     const Guid b(2, 2);
+    EditorCommandStack one;
+    EditorCommandStack two;
     int runsA = 0;
     int runsB = 0;
+    int runsTwo = 0;
 
-    CHECK_FALSE(ctx.HasPendingAssetEdits());
-    ctx.RegisterAssetEdit(a, [&runsA](foundation::content::ContentDatabase&)
+    CHECK_FALSE(ctx.HasPendingAssetEdits(one));
+    ctx.RegisterAssetEdit(one, a, [&runsA](foundation::content::ContentDatabase&)
                           { ++runsA; return Status{}; });
-    ctx.RegisterAssetEdit(a, [&runsA](foundation::content::ContentDatabase&)
-                          { ++runsA; return Status{}; }); // same guid -> replaces (last wins)
-    ctx.RegisterAssetEdit(b, [&runsB](foundation::content::ContentDatabase&)
+    ctx.RegisterAssetEdit(one, a, [&runsA](foundation::content::ContentDatabase&)
+                          { ++runsA; return Status{}; }); // same page and guid -> replaces (last wins)
+    ctx.RegisterAssetEdit(one, b, [&runsB](foundation::content::ContentDatabase&)
                           { ++runsB; return Status{}; });
-    ctx.RegisterAssetEdit(Guid{}, [](foundation::content::ContentDatabase&)
+    ctx.RegisterAssetEdit(one, Guid{}, [](foundation::content::ContentDatabase&)
                           { return Status{}; }); // nil -> ignored (edit-live-only)
-    CHECK(ctx.HasPendingAssetEdits());
+    ctx.RegisterAssetEdit(two, a, [&runsTwo](foundation::content::ContentDatabase&)
+                          { ++runsTwo; return Status{}; }); // another page's edit of the same asset
+    CHECK(ctx.HasPendingAssetEdits(one));
+    CHECK(ctx.HasPendingAssetEdits(two));
 
-    const Status drained = ctx.DrainAssetEdits(db);
+    const Status drained = ctx.DrainAssetEdits(db, one);
     CHECK(drained.IsOk());
     CHECK(runsA == 1); // replaced, so ran once (not twice)
     CHECK(runsB == 1);
-    CHECK(cooked);                      // a successful drain requests a recook
-    CHECK_FALSE(ctx.HasPendingAssetEdits()); // drained clears
+    CHECK(runsTwo == 0); // the other page saves its own
+    CHECK(cooked);       // a successful drain requests a recook
+    CHECK_FALSE(ctx.HasPendingAssetEdits(one));
+    CHECK(ctx.HasPendingAssetEdits(two));
 
     cooked = false;
-    CHECK(ctx.DrainAssetEdits(db).IsOk()); // empty drain is a no-op
+    CHECK(ctx.DrainAssetEdits(db, one).IsOk()); // empty drain is a no-op
     CHECK_FALSE(cooked);
+
+    ctx.DropAssetEdits(two);
+    CHECK_FALSE(ctx.HasPendingAssetEdits(two));
+    CHECK(runsTwo == 0); // dropped unwritten
+}
+
+namespace
+{
+    // Sets an int, as an edit on a page's history.
+    class SetValue final : public IEditorCommand
+    {
+    public:
+        SetValue(i32& target, i32 to) : m_target(&target), m_to(to) {}
+        [[nodiscard]] bool Execute() override
+        {
+            m_from = *m_target;
+            *m_target = m_to;
+            return true;
+        }
+        void Undo() override { *m_target = m_from; }
+        [[nodiscard]] StringView TypeId() const override { return u8"set-value"; }
+
+    private:
+        i32* m_target;
+        i32 m_to;
+        i32 m_from = 0;
+    };
+}
+
+TEST_CASE("editor-context: a page's save writes its tools' edits; its Discard drops them")
+{
+    const String dir = String(u8"scratch_editor_test_assetedit_pages");
+    (void)RemoveDirectoryRecursive(dir.AsView());
+    REQUIRE(EditorProject::Create(DefaultAllocator(), dir.AsView(), u8"P").IsOk());
+    UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir.AsView());
+    REQUIRE(static_cast<bool>(project));
+    EditorContext ctx{DefaultAllocator()};
+    ctx.SetProject(project.Get());
+    TestPage page(u8"Level");
+    int writes = 0;
+    const Guid terrain(3, 3);
+    auto persist = [&writes](foundation::content::ContentDatabase&)
+    {
+        ++writes;
+        return Status{};
+    };
+
+    // Save: the page's file, then its tools' edits.
+    page.MarkDirty();
+    ctx.RegisterAssetEdit(page.Commands(), terrain, persist);
+    CHECK(ctx.SavePage(page).IsOk());
+    CHECK(writes == 1);
+    CHECK_FALSE(ctx.HasPendingAssetEdits(page.Commands()));
+
+    // Discard: the edits go unwritten.
+    i32 value = 0;
+    REQUIRE(page.Commands().Execute(UniquePtr<IEditorCommand>(DefaultAllocator().New<SetValue>(value, 5), DefaultAllocator())));
+    ctx.RegisterAssetEdit(page.Commands(), terrain, persist);
+    CHECK(ctx.DiscardPage(page));
+    CHECK(value == 0);
+    CHECK_FALSE(ctx.HasPendingAssetEdits(page.Commands()));
+    CHECK(writes == 1);
+
+    // A Discard that cannot happen keeps them for the save.
+    REQUIRE(page.Commands().Execute(UniquePtr<IEditorCommand>(DefaultAllocator().New<SetValue>(value, 6), DefaultAllocator())));
+    ctx.RegisterAssetEdit(page.Commands(), terrain, persist);
+    page.Commands().SetLocked(true);
+    CHECK_FALSE(ctx.DiscardPage(page));
+    CHECK(ctx.HasPendingAssetEdits(page.Commands()));
+    page.Commands().SetLocked(false);
+
+    ctx.SetProject(nullptr);
+    project.Reset();
+    (void)RemoveDirectoryRecursive(dir.AsView());
+}
+
+TEST_CASE("editor-context: closing a page drops its tools' unsaved edits")
+{
+    RegisterTestTypes();
+    const StringView dir = u8"scratch_editor_test_assetedit_close";
+    RemoveDbTree(dir);
+    foundation::vfs::NativeFileSystem mount(dir, foundation::core::DefaultAllocator());
+    foundation::content::ContentDatabase db(foundation::core::DefaultAllocator(), mount, foundation::xml::XmlSerializerFactory(),
+                                          u8".xasset");
+    auto* a = db.RootGroup()->CreateInstance(u8"a", BaseAsset::StaticType());
+    REQUIRE(a != nullptr);
+    EditorContext ctx{DefaultAllocator()};
+    ctx.Pages().Register(MakeFactory(BaseAsset::StaticType(), u8"base"));
+    EditorPage* page = ctx.OpenPage(*a);
+    REQUIRE(page != nullptr);
+    int writes = 0;
+    ctx.RegisterAssetEdit(page->Commands(), Guid(4, 4), [&writes](foundation::content::ContentDatabase&)
+                          {
+                              ++writes;
+                              return Status{};
+                          });
+    EditorCommandStack* history = &page->Commands();
+    REQUIRE(ctx.HasPendingAssetEdits(*history));
+    ctx.ClosePage(page);
+    CHECK_FALSE(ctx.HasPendingAssetEdits(*history)); // compared by address only, never read
+    CHECK(writes == 0);
+    RemoveDbTree(dir);
 }
 
 TEST_CASE("context: MCP tool contributions register at boot and apply to a host's server in order")

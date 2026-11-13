@@ -9,6 +9,7 @@
 export module editor.terrain;
 
 export import :splatmap_thumbnail;
+export import :asset_edits;
 export import :sculpt;
 export import :splat;
 export import :hole;

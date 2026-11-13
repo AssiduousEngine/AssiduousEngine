@@ -6,7 +6,7 @@
 //
 // The heavy engine and resource imports that the interface partition keeps out (for GCC module
 // hygiene) live here: the terrain component and manager (to find the terrain and its shared
-// splatmap) and the splatmap source (to serialize the painted RGBA8 back on save).
+// splatmap).
 
 module;
 #include "Core/Prelude.h"
@@ -17,11 +17,9 @@ import foundation.core;
 import foundation.scene;
 import foundation.render;            // debug::DebugDraw
 import foundation.shell;            // IKeyboard (layer hotkeys)
-import foundation.content;          // ContentDatabase, Instance (the save closure)
 import foundation.resource;         // Ref<>
 import foundation.heightfield;      // Heightfield (ray-pick for the UV mapping)
-import foundation.terrain.resource; // SplatWeights, PaintTopK/EraseTopK, SplatWeightsSource
-import terrain.pipeline;            // SplatmapAsset (the source envelope the save rewrites)
+import foundation.terrain.resource; // SplatWeights, PaintTopK/EraseTopK
 import engine.terrain;              // TerrainComponent, TerrainComponentManager
 import editor.core;
 import editor.viewporttools;
@@ -406,46 +404,10 @@ namespace editor
                                                            Move(beforeI), Move(afterI)),
                 editor::EditorRootAllocator()));
 
-            // Register the closure that writes back to the source (drained on Save). It rewrites
-            // the source SplatmapAsset envelope, syncing the dimensions and clearing fileName so
-            // an imported asset becomes embedded and editable, then writes both sidecars.
+            // Written to the source with the page's save (the persist keeps the weights alive).
             if (m_assetEdits != nullptr && !m_strokeWeightsId.IsNil())
             {
-                RefPtr<terrain::SplatWeights> weights = m_strokeWeights;
-                const Guid id = m_strokeWeightsId;
-                m_assetEdits->RegisterAssetEdit(
-                    id,
-                    [weights, id](content::ContentDatabase& db) -> Status
-                    {
-                        content::Instance* inst = db.GetInstance(id);
-                        if (inst == nullptr || weights.Get() == nullptr)
-                        {
-                            return Status{ErrorCode::NotFound};
-                        }
-                        RefPtr<ISerializable> object = inst->ReadObject();
-                        auto* asset = Cast<pipeline::SplatmapAsset>(object.Get());
-                        if (asset == nullptr)
-                        {
-                            return Status{ErrorCode::InvalidArgument}; // not a splatmap asset
-                        }
-                        asset->fileName = {};
-                        asset->width = weights->Width();
-                        asset->height = weights->Height();
-                        const Status wrote = inst->WriteObject(*asset);
-                        if (!wrote.IsOk())
-                        {
-                            return wrote;
-                        }
-                        const Status wroteWeights =
-                            inst->WriteData(terrain::kSplatStream,
-                                            terrain::SplatWeightsSource::WeightBlob(*weights));
-                        if (!wroteWeights.IsOk())
-                        {
-                            return wroteWeights;
-                        }
-                        return inst->WriteData(terrain::kSplatIndexStream,
-                                               terrain::SplatWeightsSource::IndexBlob(*weights));
-                    });
+                m_assetEdits->RegisterAssetEdit(*m_commands, m_strokeWeightsId, PersistSplatWeights(m_strokeWeights, m_strokeWeightsId));
             }
         }
 

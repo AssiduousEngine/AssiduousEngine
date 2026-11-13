@@ -470,28 +470,8 @@ namespace editor
             return; // no live weights (not cooked yet), so nothing refers to the layers by channel
         if (product->weights.id.IsNil())
             return;
-        // Written with the next save, as brush strokes are.
-        RefPtr<terrain::SplatWeights> kept(weights);
-        const Guid id = product->weights.id;
-        Context().RegisterAssetEdit(id,
-                                    [kept, id](foundation::content::ContentDatabase& db) -> Status
-                                    {
-                                        foundation::content::Instance* instance = db.GetInstance(id);
-                                        if (instance == nullptr || kept.Get() == nullptr)
-                                            return Status{ErrorCode::NotFound};
-                                        RefPtr<ISerializable> object = instance->ReadObject();
-                                        auto* splat = Cast<pipeline::SplatmapAsset>(object.Get());
-                                        if (splat == nullptr)
-                                            return Status{ErrorCode::InvalidArgument};
-                                        splat->fileName = {};
-                                        splat->width = kept->Width();
-                                        splat->height = kept->Height();
-                                        if (const Status wrote = instance->WriteObject(*splat); !wrote.IsOk())
-                                            return wrote;
-                                        if (const Status wrote = instance->WriteData(terrain::kSplatStream, terrain::SplatWeightsSource::WeightBlob(*kept)); !wrote.IsOk())
-                                            return wrote;
-                                        return instance->WriteData(terrain::kSplatIndexStream, terrain::SplatWeightsSource::IndexBlob(*kept));
-                                    });
+        // Written with the page's save, as brush strokes are.
+        Context().RegisterAssetEdit(Commands(), product->weights.id, PersistSplatWeights(RefPtr<terrain::SplatWeights>(weights), product->weights.id));
     }
 
     bool TerrainEditorPage::CreateSplatWeights(i32 size)

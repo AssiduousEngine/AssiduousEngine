@@ -1115,6 +1115,12 @@ namespace editor::app
             file.closeProject = [self]() { self->CloseProjectToManager(); };
         RegisterFileActions(actions, Move(file));
         EditActions edit;
+        edit.discard = [self](editor::EditorPage& page)
+        {
+            if (!self->m_context.DiscardPage(page))
+                self->m_context.Notify(editor::NoticeKind::Error,
+                                       Format(u8"'{}' could not go back to its last save: its file did not read (see Console). Its changes are kept.", page.Title()).AsView());
+        };
         edit.preferences = [self]() { self->OpenPreferences(); };
         edit.exportTemplates = [self]() { self->OpenTemplates(); };
         RegisterEditActions(actions, Move(edit));

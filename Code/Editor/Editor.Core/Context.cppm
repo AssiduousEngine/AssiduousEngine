@@ -45,6 +45,9 @@ export namespace editor
         Error
     };
 
+    /// Writes a live asset edit to the asset's source, given the source database when it runs.
+    using AssetEditPersist = Function<Status(foundation::content::ContentDatabase&)>;
+
     /// A sink for closures that persist live asset edits (terrain sculpting, for one).
     /// EditorContext implements it; the viewport tool framework (editor.viewporttools) holds a
     /// borrowed IAssetEditSink* so a domain tool can register a closure that writes back to the
@@ -54,9 +57,10 @@ export namespace editor
     {
     public:
         virtual ~IAssetEditSink() = default;
-        virtual void
-        RegisterAssetEdit(const Guid& assetId,
-                          Function<Status(foundation::content::ContentDatabase&)> persist) = 0;
+        /// The edit belongs to the page whose history is `owner` (its undo is a step there): that
+        /// page's save writes it, and its Discard, or its close without saving, drops it. The last
+        /// edit registered per page and asset wins.
+        virtual void RegisterAssetEdit(const EditorCommandStack& owner, const Guid& assetId, AssetEditPersist persist) = 0;
     };
 
     class EditorContext : public IAssetEditSink
@@ -121,20 +125,24 @@ export namespace editor
 
         // === Pending asset edits (from viewport tools that edit an asset live, like sculpting) ===
         // A viewport tool edits a cooked product live, for immediate feedback, and registers a
-        // closure that persists the edit back to its source asset. The editor's save flow drains
-        // these, passing the source ContentDatabase it owns, and requests a recook on success. The
-        // last edit per asset guid wins. This records what is dirty and how to persist it without
-        // the framework knowing the domain: the closure lives in the domain's editor library
-        // (Editor.Terrain), and it receives the database at drain time so it holds no handle to it.
-        void RegisterAssetEdit(const Guid& assetId,
-                               Function<Status(foundation::content::ContentDatabase&)> persist) override;
-        [[nodiscard]] bool HasPendingAssetEdits() const noexcept
-        {
-            return !m_pendingAssetEdits.IsEmpty();
-        }
-        /// Runs and clears every pending edit, persisting through `db`; requests a recook if any
-        /// succeeded.
-        Status DrainAssetEdits(foundation::content::ContentDatabase& db);
+        // closure that persists the edit back to its source asset, for the page whose history
+        // holds the edit's undo. That page's save (SavePage) drains them, passing the source
+        // ContentDatabase it owns, and requests a recook on success; its Discard (DiscardPage) or
+        // its close without saving drops them. This records what is dirty and how to persist it
+        // without the framework knowing the domain: the closure lives in the domain's editor
+        // library (Editor.Terrain), and it receives the database at drain time so it holds no
+        // handle to it.
+        void RegisterAssetEdit(const EditorCommandStack& owner, const Guid& assetId, AssetEditPersist persist) override;
+        /// Whether the page whose history is `owner` has edits waiting for its save.
+        [[nodiscard]] bool HasPendingAssetEdits(const EditorCommandStack& owner) const noexcept;
+        /// Runs and clears the pending edits of the page whose history is `owner`, persisting
+        /// through `db`; requests a recook if any succeeded. The first failure, the others still
+        /// tried.
+        Status DrainAssetEdits(foundation::content::ContentDatabase& db, const EditorCommandStack& owner);
+        /// Drops the pending edits of the page whose history is `owner`, unwritten. The live
+        /// products they changed are built again from what was cooked, so no page shows an edit
+        /// its file does not hold.
+        void DropAssetEdits(const EditorCommandStack& owner);
 
         /// Transient status-bar text.
         Function<void(StringView)> OnStatus;
@@ -245,8 +253,9 @@ export namespace editor
 
         struct PendingAssetEdit
         {
+            const EditorCommandStack* owner;
             Guid id;
-            Function<Status(foundation::content::ContentDatabase&)> persist;
+            AssetEditPersist persist;
         };
         Array<PendingAssetEdit> m_pendingAssetEdits;
 
@@ -473,6 +482,9 @@ export namespace editor
         /// that fails takes the record out again. Refused, said, when another asset has taken the
         /// place: Save As keeps the content.
         [[nodiscard]] Status SavePage(EditorPage& page);
+        /// Puts `page` back to its last save (EditorPage::DiscardChanges) and drops the live
+        /// asset edits it made since. False, with everything kept, when the page could not.
+        bool DiscardPage(EditorPage& page);
 
         [[nodiscard]] EditorPage* ActivePage() const noexcept { return m_activePage; }
         void SetActivePage(EditorPage* page);
@@ -595,6 +607,8 @@ export namespace editor
 
     private:
         void NotifyPagesChanged();
+        // SavePage's write of the page's own file.
+        [[nodiscard]] Status SavePageItself(EditorPage& page);
 
         EditorProject* m_project = nullptr;
         foundation::runtime::PluginHost* m_plugins = nullptr; // borrowed (owned by the application)

@@ -43,14 +43,16 @@ namespace
     class FakeAssetEditSink final : public editor::IAssetEditSink
     {
     public:
-        void RegisterAssetEdit(const Guid& assetId,
-                               Function<Status(foundation::content::ContentDatabase&)> persist) override
+        void RegisterAssetEdit(const editor::EditorCommandStack& owner, const Guid& assetId,
+                               editor::AssetEditPersist persist) override
         {
             ++count;
+            lastOwner = &owner;
             lastId = assetId;
             lastPersist = Move(persist);
         }
         i32 count = 0;
+        const editor::EditorCommandStack* lastOwner = nullptr;
         Guid lastId;
         Function<Status(foundation::content::ContentDatabase&)> lastPersist;
     };

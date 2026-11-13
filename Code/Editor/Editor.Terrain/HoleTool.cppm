@@ -5,9 +5,8 @@
 // TerrainHoleTool: the scene-viewport terrain hole brush, a modal tool beside sculpt and splat. It
 // ray-picks the terrain under the cursor into heightfield-local space, cuts or fills the samples
 // inside a hard-edged disc (foundation.heightfield's CutHoles and FillHoles), and records one
-// region-delta undo command per stroke over the hole plane. On save the registered closure writes
-// the runtime heightfield back to its source asset. It writes both the "heights" and the "holes"
-// streams, so an imported heightfield keeps its heights when the file name is cleared.
+// region-delta undo command per stroke over the hole plane. The page's save writes the runtime
+// heightfield back to its source asset (PersistHeightfield).
 //
 // For GCC module hygiene, the heavy engine.terrain and resource imports live in HoleToolImpl.cpp.
 module;

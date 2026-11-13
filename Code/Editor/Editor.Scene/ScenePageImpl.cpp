@@ -125,10 +125,11 @@ namespace editor
             {
                 EditorContext* profileContext = &context;
                 SceneEditContext* profileEdit = m_editContext.Get();
-                m_editContext->OnSettingsProfileEdited = [profileContext, profileEdit](const TypeInfo* type, const Guid& profile)
+                const EditorCommandStack* owner = &Commands();
+                m_editContext->OnSettingsProfileEdited = [profileContext, profileEdit, owner](const TypeInfo* type, const Guid& profile)
                 {
                     if (scene::SceneSystem* system = profileEdit->FindSystemBySettingsType(type))
-                        QueueSettingsProfileEdit(*profileContext, *system, profile);
+                        QueueSettingsProfileEdit(*profileContext, *owner, *system, profile);
                 };
             }
             EditorContext* resolverContext = &context;

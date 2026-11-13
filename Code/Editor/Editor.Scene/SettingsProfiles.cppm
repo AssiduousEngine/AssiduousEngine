@@ -32,9 +32,10 @@ export namespace editor
     Status WriteSettingsProfileValues(foundation::content::Instance& instance, const void* values);
 
     /// An edit made live in `profile` (the values `system` has in effect): the asset's write is
-    /// queued for the save flow (EditorContext::RegisterAssetEdit), the values taken now.
-    void QueueSettingsProfileEdit(EditorContext& context, foundation::scene::SceneSystem& system,
-                                  const Guid& profile);
+    /// queued for the save of the page whose history is `owner` (EditorContext::RegisterAssetEdit),
+    /// the values taken now.
+    void QueueSettingsProfileEdit(EditorContext& context, const EditorCommandStack& owner,
+                                  foundation::scene::SceneSystem& system, const Guid& profile);
 
     /// Make profile: a new profile asset (named `name`, in the creator's default group) holding
     /// the block's values in effect, and the block switched to it (one undo step). The new

@@ -678,12 +678,12 @@ TEST_CASE("settings profiles: Make Profile writes the values and switches; an ed
         edit.OnSettingsProfileEdited = [&](const TypeInfo* type, const Guid& profile)
         {
             if (scene::SceneSystem* system = edit.FindSystemBySettingsType(type))
-                QueueSettingsProfileEdit(context, *system, profile);
+                QueueSettingsProfileEdit(context, commands, *system, profile);
         };
         edit.SetSceneSettingProperty(EnvType(), "turbidity", Variant::From<f32>(8.0f));
         CHECK(product->values.turbidity == doctest::Approx(8.0f));
-        REQUIRE(context.HasPendingAssetEdits());
-        REQUIRE(context.DrainAssetEdits(project->SourceDb()).IsOk());
+        REQUIRE(context.HasPendingAssetEdits(commands));
+        REQUIRE(context.DrainAssetEdits(project->SourceDb(), commands).IsOk());
         {
             RefPtr<ISerializable> object = project->SourceDb().GetInstance(id)->ReadObject();
             auto* asset = Cast<pipeline::EnvironmentProfileAsset>(object.Get());

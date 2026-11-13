@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
-// Editor::Terrain - :hole implementation (TerrainHoleTool, its stroke command and the save path).
+// Editor::Terrain - :hole implementation (TerrainHoleTool and its stroke command).
 module;
 #include "Core/Prelude.h"
 
@@ -10,11 +10,8 @@ import foundation.core;
 import foundation.scene;
 import foundation.render;
 import foundation.shell;
-import foundation.content;
 import foundation.resource;
 import foundation.heightfield;
-import foundation.heightfield.resource;
-import heightfield.pipeline;
 import foundation.terrain.resource;
 import engine.terrain;
 import editor.core;
@@ -277,47 +274,7 @@ namespace editor
                     editor::EditorRootAllocator()));
                 if (m_assetEdits != nullptr && !m_strokeHeightfieldId.IsNil())
                 {
-                    RefPtr<hf::Heightfield> grid = m_strokeHf;
-                    const Guid id = m_strokeHeightfieldId;
-                    m_assetEdits->RegisterAssetEdit(
-                        id,
-                        [grid, id](content::ContentDatabase& db) -> Status
-                        {
-                            // Write the source HeightfieldAsset, never the cooked type: sync the
-                            // params, clear fileName (the sidecars become authoritative), then
-                            // write both streams. The heights are written too, or an imported
-                            // heightfield would lose the heights from its image as soon as its
-                            // file name is cleared.
-                            content::Instance* inst = db.GetInstance(id);
-                            if (inst == nullptr || grid.Get() == nullptr)
-                            {
-                                return Status{ErrorCode::NotFound};
-                            }
-                            RefPtr<ISerializable> object = inst->ReadObject();
-                            auto* asset = Cast<pipeline::HeightfieldAsset>(object.Get());
-                            if (asset == nullptr)
-                            {
-                                return Status{ErrorCode::InvalidArgument};
-                            }
-                            asset->fileName = {};
-                            asset->size = grid->Size();
-                            asset->worldSize = grid->WorldSize();
-                            asset->minY = grid->MinY();
-                            asset->maxY = grid->MaxY();
-                            const Status wrote = inst->WriteObject(*asset);
-                            if (!wrote.IsOk())
-                            {
-                                return wrote;
-                            }
-                            const Status heights = inst->WriteData(
-                                hf::kHeightStream, hf::HeightfieldSource::HeightBlob(*grid));
-                            if (!heights.IsOk())
-                            {
-                                return heights;
-                            }
-                            return inst->WriteData(hf::kHoleStream,
-                                                   hf::HeightfieldSource::HoleBlob(*grid));
-                        });
+                    m_assetEdits->RegisterAssetEdit(*m_commands, m_strokeHeightfieldId, PersistHeightfield(m_strokeHf, m_strokeHeightfieldId));
                 }
             }
         }

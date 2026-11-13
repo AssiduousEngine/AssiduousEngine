@@ -33,14 +33,16 @@ namespace
     class FakeAssetEditSink final : public editor::IAssetEditSink
     {
     public:
-        void RegisterAssetEdit(const Guid& assetId,
-                               Function<Status(foundation::content::ContentDatabase&)> persist) override
+        void RegisterAssetEdit(const editor::EditorCommandStack& owner, const Guid& assetId,
+                               editor::AssetEditPersist persist) override
         {
             ++count;
+            lastOwner = &owner;
             lastId = assetId;
             lastPersist = Move(persist);
         }
         i32 count = 0;
+        const editor::EditorCommandStack* lastOwner = nullptr;
         Guid lastId;
         Function<Status(foundation::content::ContentDatabase&)> lastPersist;
     };
@@ -138,6 +140,7 @@ TEST_CASE("terrain holes: a stroke cuts a hard-edged disc, bumps the version, an
     REQUIRE(commands.CanUndo());
     CHECK(sink.count == 1);
     CHECK(sink.lastId == Guid{7, 99});
+    CHECK(sink.lastOwner == &commands); // its page's save writes it
     const u32 cut = fx.grid->HoleCount();
     REQUIRE(cut > 0u);
     const u64 vStroke = fx.grid->Version();

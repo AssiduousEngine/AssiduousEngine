@@ -5,7 +5,7 @@
 //
 // The heavy engine and resource imports that the interface partition keeps out (for GCC module
 // hygiene) live here: the terrain component and manager (to find the terrain in the scene and its
-// shared heightfield) and the heightfield source (to serialize the runtime grid back on save).
+// shared heightfield).
 
 module;
 #include "Core/Prelude.h"
@@ -16,11 +16,8 @@ import foundation.core;
 import foundation.scene;
 import foundation.render;              // debug::DebugDraw
 import foundation.shell;              // IKeyboard (mode hotkeys)
-import foundation.content;            // ContentDatabase, Instance (the persist closure)
 import foundation.resource;           // Ref<>
 import foundation.heightfield;        // Sculpt* brushes, HeightfieldRegion
-import foundation.heightfield.resource; // HeightfieldSource, kHeightStream (the save path)
-import heightfield.pipeline;           // HeightfieldAsset (the source envelope the save rewrites)
 import foundation.terrain.resource;   // TerrainResource
 import engine.terrain;                // TerrainComponent, TerrainComponentManager
 import editor.core;
@@ -337,47 +334,10 @@ namespace editor
                                                             Move(after)),
                 editor::EditorRootAllocator()));
 
-            // Register the closure that writes back to the source (drained on Save). It captures a
-            // RefPtr to the grid (keeping it alive) and its source guid; the database is passed
-            // in when the closure is drained.
+            // Written to the source with the page's save (the persist keeps the grid alive).
             if (m_assetEdits != nullptr && !m_strokeHeightfieldId.IsNil())
             {
-                RefPtr<hf::Heightfield> grid = m_strokeHf;
-                const Guid id = m_strokeHeightfieldId;
-                m_assetEdits->RegisterAssetEdit(
-                    id,
-                    [grid, id](content::ContentDatabase& db) -> Status
-                    {
-                        // The source instance's envelope is a HeightfieldAsset. Never write the
-                        // cooked HeightfieldSource type here, since that clobbers the source asset.
-                        // Read, modify and write: sync the grid params and clear fileName, so the
-                        // authored "heights" sidecar becomes authoritative (the builder's embedded
-                        // path cooks from it, and a re-import resets by setting fileName again),
-                        // then write the sidecar samples.
-                        content::Instance* inst = db.GetInstance(id);
-                        if (inst == nullptr || grid.Get() == nullptr)
-                        {
-                            return Status{ErrorCode::NotFound}; // heightfield source vanished
-                        }
-                        RefPtr<ISerializable> object = inst->ReadObject();
-                        auto* asset = Cast<pipeline::HeightfieldAsset>(object.Get());
-                        if (asset == nullptr)
-                        {
-                            return Status{ErrorCode::InvalidArgument}; // not a heightfield asset
-                        }
-                        asset->fileName = {};
-                        asset->size = grid->Size();
-                        asset->worldSize = grid->WorldSize();
-                        asset->minY = grid->MinY();
-                        asset->maxY = grid->MaxY();
-                        const Status wrote = inst->WriteObject(*asset);
-                        if (!wrote.IsOk())
-                        {
-                            return wrote;
-                        }
-                        return inst->WriteData(hf::kHeightStream,
-                                               hf::HeightfieldSource::HeightBlob(*grid));
-                    });
+                m_assetEdits->RegisterAssetEdit(*m_commands, m_strokeHeightfieldId, PersistHeightfield(m_strokeHf, m_strokeHeightfieldId));
             }
         }
 
