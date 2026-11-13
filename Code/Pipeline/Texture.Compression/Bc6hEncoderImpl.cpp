@@ -52,8 +52,7 @@ namespace texcomp
             {
                 return 0x7BFF;
             }
-            u32 bits = 0;
-            std::memcpy(&bits, &value, sizeof(bits));
+            const u32 bits = BitCast<u32>(value);
             const u32 exponent = (bits >> 23) & 0xFFu;
             u32 mantissa = bits & 0x7FFFFFu;
             const i32 e = static_cast<i32>(exponent) - 127 + 15;

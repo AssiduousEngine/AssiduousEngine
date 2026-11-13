@@ -281,10 +281,7 @@ namespace foundation::net
         }
         if (type == &TypeOf<f64>())
         {
-            const u64 bits = reader.ReadU64();
-            f64 v = 0.0;
-            MemCopy(&v, &bits, sizeof(v));
-            out = Variant::From<f64>(v);
+            out = Variant::From<f64>(BitCast<f64>(reader.ReadU64()));
             return true;
         }
         if (type == &TypeOf<i8>())

@@ -204,9 +204,7 @@ export namespace foundation::net
                     {
                         // Packet: the server capture time (for interpolation), then the delta.
                         BitReader reader(ev.payload.AsSpan());
-                        const u64 bits = reader.ReadU64();
-                        f64 serverTimeMs = 0.0;
-                        MemCopy(&serverTimeMs, &bits, sizeof(serverTimeMs));
+                        const f64 serverTimeMs = BitCast<f64>(reader.ReadU64());
                         m_replication.ApplyDelta(*m_scene, reader, m_interp, serverTimeMs);
                     }
                 }
@@ -281,9 +279,7 @@ export namespace foundation::net
                 // Pull each networked entity's authoritative local transform into its NetworkedTransform
                 // component, so the capture below sends the current pose.
                 CaptureEntityTransforms(*m_scene);
-                const f64 now = m_session.NetworkTimeMs();
-                u64 bits = 0;
-                MemCopy(&bits, &now, sizeof(bits));
+                const u64 bits = BitCast<u64>(m_session.NetworkTimeMs());
                 for (const NetPeer& peer : m_session.Peers())
                 {
                     if (m_held.Contains(peer.id))
@@ -625,10 +621,7 @@ export namespace foundation::net
                                   usize count = 1;
                                   if (kind == static_cast<u8>(ScriptRpcKind::Number))
                                   {
-                                      const u64 bits = r.ReadU64();
-                                      f64 value = 0.0;
-                                      MemCopy(&value, &bits, sizeof(value));
-                                      args[count++] = Variant::From(value);
+                                      args[count++] = Variant::From(BitCast<f64>(r.ReadU64()));
                                   }
                                   else if (kind == static_cast<u8>(ScriptRpcKind::Text))
                                   {
@@ -679,9 +672,7 @@ export namespace foundation::net
             return [value](BitWriter& w)
             {
                 w.WriteU8(static_cast<u8>(ScriptRpcKind::Number));
-                u64 bits = 0;
-                MemCopy(&bits, &value, sizeof(bits));
-                w.WriteU64(bits);
+                w.WriteU64(BitCast<u64>(value));
             };
         }
         static Function<void(BitWriter&)> WriteText(String text)

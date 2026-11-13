@@ -15,6 +15,7 @@
 #include <windows.h>
 #include <bcrypt.h> // BCryptGenRandom (FillEntropy)
 
+#include <bit> // std::bit_cast (LibrarySymbol)
 #include <cstdio>
 #include <cstring>
 
@@ -665,11 +666,10 @@ namespace foundation::core::sys
         {
             return nullptr;
         }
-        // memcpy avoids the function-pointer to void* cast warning (MSVC C4054 under /W4 /WX).
-        FARPROC proc = GetProcAddress(reinterpret_cast<HMODULE>(handle), name);
-        void* result = nullptr;
-        std::memcpy(&result, &proc, sizeof(result));
-        return result;
+        // A bit cast, not a cast, between the function pointer and void* (MSVC C4054 under /W4 /WX).
+        // This backend sits below Core's module, so it uses std::bit_cast, as Core::BitCast does.
+        const FARPROC proc = GetProcAddress(reinterpret_cast<HMODULE>(handle), name);
+        return std::bit_cast<void*>(proc);
     }
 
     void LibraryClose(LibraryHandle handle) noexcept

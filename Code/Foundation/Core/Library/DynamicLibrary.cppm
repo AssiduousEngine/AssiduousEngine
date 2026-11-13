@@ -8,7 +8,6 @@
 
 module;
 #include "Core/Prelude.h"
-#include <cstring> // memcpy (avoids the pedantic void* to function-pointer cast)
 
 export module foundation.core:library;
 
@@ -78,9 +77,7 @@ export namespace foundation::core
             static_assert(sizeof(T) == sizeof(void*), "GetSymbol<T> expects a pointer type.");
             void* symbol = (m_handle != nullptr) ? GetLibrarySymbol(m_handle, name) : nullptr;
 
-            T result{};
-            std::memcpy(&result, &symbol, sizeof(result));
-            return result;
+            return BitCast<T>(symbol);
         }
 
     private:

@@ -337,9 +337,7 @@ export namespace engine::terrain
             u64 h = kFnv1a64OffsetBasis; // FNV-1a
             const auto mix = [&h](f32 v)
             {
-                u32 bits;
-                MemCopy(&bits, &v, sizeof(bits));
-                h = (h ^ bits) * kFnv1a64Prime;
+                h = (h ^ BitCast<u32>(v)) * kFnv1a64Prime;
             };
             for (usize i = 0; i < scales.Size(); ++i)
             {

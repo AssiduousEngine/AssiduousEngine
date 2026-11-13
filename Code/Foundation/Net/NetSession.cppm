@@ -127,9 +127,7 @@ export namespace foundation::net
                 m_lastSyncSendMs = m_nowMs;
                 BitWriter w;
                 w.WriteU8(static_cast<u8>(ControlType::TimeSync));
-                u64 bits = 0;
-                MemCopy(&bits, &m_nowMs, sizeof(bits));
-                w.WriteU64(bits); // server time (ms), bit-exact
+                w.WriteU64(BitCast<u64>(m_nowMs)); // server time (ms), bit-exact
                 const Span<const byte> payload = w.Data();
                 Broadcast(kControlChannel, payload,
                           Reliability::Unreliable); // frequent, latest-wins
@@ -251,8 +249,7 @@ export namespace foundation::net
                 {
                     return;
                 }
-                f64 serverTime = 0.0;
-                MemCopy(&serverTime, &bits, sizeof(serverTime));
+                const f64 serverTime = BitCast<f64>(bits);
                 // The sync took ~RTT/2 to arrive, so the server's clock has advanced ~RTT/2 since.
                 const f64 rtt = static_cast<f64>(m_transport.Stats(ev.peer).rttMs);
                 const f64 estimatedServerNow = serverTime + rtt * 0.5;

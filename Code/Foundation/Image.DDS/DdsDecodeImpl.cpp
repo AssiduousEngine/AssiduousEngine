@@ -58,9 +58,7 @@ namespace foundation::image::dds
             {
                 bits = sign | ((exponent + 127 - 15) << 23) | (mantissa << 13);
             }
-            f32 f;
-            std::memcpy(&f, &bits, sizeof(f));
-            return f;
+            return BitCast<f32>(bits);
         }
 
         [[nodiscard]] u8 UnitToByte(f32 v) noexcept

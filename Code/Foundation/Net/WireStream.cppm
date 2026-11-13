@@ -61,9 +61,7 @@ export namespace foundation::net
         void WriteI32(i32 v) { WriteU32(static_cast<u32>(v)); }
         void WriteFloat(f32 v)
         {
-            u32 bits = 0;
-            MemCopy(&bits, &v, sizeof(bits));
-            WriteU32(bits);
+            WriteU32(BitCast<u32>(v));
         }
 
         // Variable-length u32 (LEB128, 7 bits per byte): small values cost 1 byte. Suits lengths and ids.
@@ -185,10 +183,7 @@ export namespace foundation::net
         i32 ReadI32() { return static_cast<i32>(ReadU32()); }
         f32 ReadFloat()
         {
-            const u32 bits = ReadU32();
-            f32 v = 0.0f;
-            MemCopy(&v, &bits, sizeof(v));
-            return v;
+            return BitCast<f32>(ReadU32());
         }
 
         u32 ReadVarU32()
