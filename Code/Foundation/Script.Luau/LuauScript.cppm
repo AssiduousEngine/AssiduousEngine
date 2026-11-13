@@ -455,13 +455,36 @@ namespace foundation::script
             f64 remainingSeconds = 0.0;
             int predicateRef = LUA_NOREF; // LUA_NOREF for a timed wait
             bool started = false;         // first resume pending?
+            bool cancelled = false;       // cancelled while the scheduler ran: swept after it
         };
         Array<Coroutine> coroutines;
+
+        /// Schedules a coroutine. While the scheduler runs (a script it resumed starts one), it
+        /// waits in a side list and joins once the scheduler is done, so the list it walks never
+        /// grows under a running thread.
+        void AddCoroutine(const Coroutine& entry)
+        {
+            if (m_advancing)
+            {
+                m_startedWhileAdvancing.PushBack(entry);
+            }
+            else
+            {
+                coroutines.PushBack(entry);
+            }
+        }
 
         // The entry whose thread is `state` (the wait primitives run on the thread).
         [[nodiscard]] Coroutine* FindCoroutine(lua_State* state)
         {
             for (Coroutine& entry : coroutines)
+            {
+                if (entry.thread == state)
+                {
+                    return &entry;
+                }
+            }
+            for (Coroutine& entry : m_startedWhileAdvancing)
             {
                 if (entry.thread == state)
                 {
@@ -478,6 +501,13 @@ namespace foundation::script
     private:
         void DropCoroutinesOf(LuauScriptContext* context);
         void DropCoroutineAt(usize index);
+        // Unrefs an entry's thread and predicate (nothing more: the caller removes it).
+        void ReleaseCoroutine(Coroutine& entry);
+        // After the scheduler: the cancelled entries go and the ones started meanwhile join.
+        void SettleCoroutines();
+
+        bool m_advancing = false;                 // AdvanceCoroutines is walking `coroutines`
+        Array<Coroutine> m_startedWhileAdvancing; // joins `coroutines` once it is done
         // Resume one entry; true when it should be removed (finished or faulted).
         [[nodiscard]] bool ResumeCoroutine(Coroutine& entry);
 
@@ -2135,7 +2165,7 @@ namespace foundation::script
             entry.owner = (lua_gettop(state) >= 2 && lua_istable(state, 2))
                               ? lua_topointer(state, 2)
                               : nullptr;
-            manager->coroutines.PushBack(entry);
+            manager->AddCoroutine(entry);
             // First resume happens in AdvanceCoroutines (started=false) so a coroutine
             // begun mid-script-call never re-enters the VM re-entrantly here.
             return 0;
@@ -2218,6 +2248,10 @@ namespace foundation::script
 
     bool LuauScriptManager::ResumeCoroutine(Coroutine& entry)
     {
+        if (entry.cancelled)
+        {
+            return true; // cancelled by a script the scheduler ran (its own body, a predicate)
+        }
         if (m_debugger != nullptr)
         {
             lua_singlestep(entry.thread, 1); // arm stepping so a breakpoint in the body can break
@@ -2249,9 +2283,22 @@ namespace foundation::script
 
     void LuauScriptManager::AdvanceCoroutines(f64 deltaSeconds)
     {
+        if (m_advancing)
+        {
+            return; // asked from a script it resumed: the walk under way covers it
+        }
+        // While it runs, a coroutine started or cancelled by a script it resumes waits (AddCoroutine,
+        // CancelCoroutinesFor), so `coroutines` neither grows nor shrinks under a running thread
+        // and `entry` stays where it is across each resume.
+        m_advancing = true;
         for (usize i = 0; i < coroutines.Size();)
         {
             Coroutine& entry = coroutines[i];
+            if (entry.cancelled)
+            {
+                ++i;
+                continue;
+            }
             // A coroutine thread the debugger broke has status LUA_BREAK; the scheduler must not
             // resume it, which would steal the debugger's held thread mid-break. The debugger's
             // Continue owns resuming it.
@@ -2311,7 +2358,7 @@ namespace foundation::script
                 }
             }
 
-            if (drop)
+            if (drop || entry.cancelled) // a script it ran may have cancelled it meanwhile
             {
                 DropCoroutineAt(i);
             }
@@ -2320,6 +2367,28 @@ namespace foundation::script
                 ++i;
             }
         }
+        m_advancing = false;
+        SettleCoroutines();
+    }
+
+    void LuauScriptManager::SettleCoroutines()
+    {
+        for (usize i = 0; i < coroutines.Size();)
+        {
+            if (coroutines[i].cancelled)
+            {
+                DropCoroutineAt(i);
+            }
+            else
+            {
+                ++i;
+            }
+        }
+        for (const Coroutine& entry : m_startedWhileAdvancing)
+        {
+            coroutines.PushBack(entry);
+        }
+        m_startedWhileAdvancing.Clear();
     }
 
     void LuauScriptManager::CancelCoroutinesFor(ScriptObject& instance)
@@ -2329,45 +2398,92 @@ namespace foundation::script
         {
             return;
         }
-        for (usize i = 0; i < coroutines.Size();)
+        // Started during the scheduler's walk: never resumed yet, so they go at once.
+        for (usize i = 0; i < m_startedWhileAdvancing.Size();)
         {
-            if (coroutines[i].owner == owner)
+            if (m_startedWhileAdvancing[i].owner == owner)
             {
-                DropCoroutineAt(i);
+                ReleaseCoroutine(m_startedWhileAdvancing[i]);
+                m_startedWhileAdvancing.RemoveAt(i);
             }
             else
             {
                 ++i;
             }
+        }
+        for (usize i = 0; i < coroutines.Size();)
+        {
+            if (coroutines[i].owner != owner)
+            {
+                ++i;
+            }
+            else if (m_advancing)
+            {
+                coroutines[i].cancelled = true; // it may be the thread running: swept after the walk
+                ++i;
+            }
+            else
+            {
+                DropCoroutineAt(i);
+            }
+        }
+    }
+
+    void LuauScriptManager::ReleaseCoroutine(Coroutine& entry)
+    {
+        if (entry.predicateRef == LUA_NOREF && entry.threadRef == LUA_NOREF)
+        {
+            return; // released already (its context went): the context may be gone too
+        }
+        lua_State* state = entry.context->State();
+        if (entry.predicateRef != LUA_NOREF)
+        {
+            lua_unref(state, entry.predicateRef);
+            entry.predicateRef = LUA_NOREF;
+        }
+        if (entry.threadRef != LUA_NOREF)
+        {
+            lua_unref(state, entry.threadRef);
+            entry.threadRef = LUA_NOREF;
         }
     }
 
     void LuauScriptManager::DropCoroutineAt(usize index)
     {
-        Coroutine& entry = coroutines[index];
-        lua_State* state = entry.context->State();
-        if (entry.predicateRef != LUA_NOREF)
-        {
-            lua_unref(state, entry.predicateRef);
-        }
-        if (entry.threadRef != LUA_NOREF)
-        {
-            lua_unref(state, entry.threadRef);
-        }
+        ReleaseCoroutine(coroutines[index]);
         coroutines.RemoveAt(index);
     }
 
     void LuauScriptManager::DropCoroutinesOf(LuauScriptContext* context)
     {
-        for (usize i = 0; i < coroutines.Size();)
+        for (usize i = 0; i < m_startedWhileAdvancing.Size();)
         {
-            if (coroutines[i].context == context)
+            if (m_startedWhileAdvancing[i].context == context)
             {
-                DropCoroutineAt(i);
+                ReleaseCoroutine(m_startedWhileAdvancing[i]);
+                m_startedWhileAdvancing.RemoveAt(i);
             }
             else
             {
                 ++i;
+            }
+        }
+        for (usize i = 0; i < coroutines.Size();)
+        {
+            if (coroutines[i].context != context)
+            {
+                ++i;
+            }
+            else if (m_advancing)
+            {
+                // Released now, while its state lives; removed by the sweep after the walk.
+                ReleaseCoroutine(coroutines[i]);
+                coroutines[i].cancelled = true;
+                ++i;
+            }
+            else
+            {
+                DropCoroutineAt(i);
             }
         }
     }

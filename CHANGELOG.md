@@ -106,6 +106,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   the freed scene.
 - Scripting: an `onDestroy` that moves entities between parents, or adds or removes components,
   no longer corrupts the scene or crashes it.
+- Scripting (Luau): a coroutine that starts coroutines, or whose owner is destroyed while it runs,
+  no longer crashes the game; a cancelled coroutine never runs again.
 
 ## 0.1.0-beta.3 - 2026-11-12
 

@@ -121,6 +121,20 @@ end
         West = 5 // non-contiguous, so a bare-ordinal assumption would fail
     };
 
+    // Calls back into the host from a script: a coroutine that cancels its own owner's coroutines
+    // (as destroying the behaviour that owns them does) while the scheduler resumes it.
+    class Canceller : public Object
+    {
+        RTTI_OBJECT(Canceller, Object)
+    public:
+        static inline Function<void()> onFire;
+        void fire() const
+        {
+            if (onFire)
+                onFire();
+        }
+    };
+
     class Compass : public Object
     {
         RTTI_OBJECT(Compass, Object)
@@ -1186,6 +1200,12 @@ REFLECT_ENUM(Facing, "rtti::luau::test")
     builder.Value("West", Facing::West);
 }
 
+REFLECT_MEMBERS(Canceller, "rtti::luau::test")
+{
+    builder.Constructor();
+    builder.Method<&Canceller::fire>("fire");
+}
+
 REFLECT_MEMBERS(Compass, "rtti::luau::test")
 {
     builder.Constructor();
@@ -1456,4 +1476,48 @@ function Limits:most() return Math.Max(2, -3) end
     CHECK(call(u8"inside") == doctest::Approx(0.25));
     CHECK(call(u8"least") == doctest::Approx(-3.0));
     CHECK(call(u8"most") == doctest::Approx(2.0));
+}
+
+TEST_CASE("script.luau: a coroutine that starts coroutines and cancels its own owner mid-schedule")
+{
+    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    manager->RegisterType(Canceller::StaticType());
+    manager->FinalizeTypes();
+    RefPtr<IScriptContext> scriptContext = manager->CreateContext();
+    REQUIRE(scriptContext
+                ->Load(u8"Spawner = {}\n"
+                       u8"Spawner.__index = Spawner\n"
+                       u8"function Spawner.new() return setmetatable({ started = 0, ran = 0, after = 0 }, Spawner) end\n"
+                       u8"function Spawner:go()\n"
+                       u8"    local this = self\n"
+                       u8"    startCoroutine(function()\n"
+                       u8"        for i = 1, 64 do\n" // grows the list many times while it is walked
+                       u8"            startCoroutine(function() this.ran = this.ran + 1 end, this)\n"
+                       u8"            this.started = this.started + 1\n"
+                       u8"        end\n"
+                       u8"        Canceller.new():fire()\n" // cancels every coroutine of its owner, itself too
+                       u8"        waitSeconds(0.1)\n"
+                       u8"        this.after = 1\n"
+                       u8"    end, self)\n"
+                       u8"end\n",
+                       u8"luau.coroutine.churn")
+                .IsOk());
+    RefPtr<ScriptObject> spawner = scriptContext->CreateInstance(u8"Spawner", Span<Variant>{});
+    REQUIRE(spawner.Get() != nullptr);
+    Canceller::onFire = [&manager, &spawner]() { manager->CancelCoroutinesFor(*spawner); };
+    REQUIRE(spawner->Invoke(u8"go", Span<Variant>{}).HasValue());
+    for (int i = 0; i < 5; ++i)
+    {
+        manager->AdvanceCoroutines(0.1);
+    }
+    Canceller::onFire = {};
+    const auto field = [&spawner](StringView name)
+    {
+        Result<Variant> got = spawner->GetProperty(name);
+        REQUIRE(got.HasValue());
+        return got.Value().Get<f64>();
+    };
+    CHECK(field(u8"started") == doctest::Approx(64.0));
+    CHECK(field(u8"ran") == doctest::Approx(0.0)); // cancelled with their owner before they began
+    CHECK(field(u8"after") == doctest::Approx(0.0)); // the running one was cancelled too
 }
