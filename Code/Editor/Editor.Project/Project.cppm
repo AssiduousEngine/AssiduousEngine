@@ -61,6 +61,13 @@ export namespace editor
     using engine::project::kSourceAssetExtension;
     using engine::project::ProjectSettings;
 
+    /// One of the project's quality levels as the editor offers it: its id and its asset's path.
+    struct ProjectQualityLevel
+    {
+        Guid id;
+        String name;
+    };
+
     // An opened project: the manifest and the mounted source and cooked content databases.
     class EditorProject
     {
@@ -165,6 +172,19 @@ export namespace editor
         [[nodiscard]] IAllocator& Allocator() const noexcept { return *m_allocator; }
         [[nodiscard]] ProjectSettings& Settings() noexcept { return m_settings; }
         [[nodiscard]] const ProjectSettings& Settings() const noexcept { return m_settings; }
+
+        /// The quality levels the manifest lists, in its order, each named by its asset's path
+        /// (by its id when the asset is gone), for the menus that offer them.
+        [[nodiscard]] Array<ProjectQualityLevel> QualityLevels()
+        {
+            Array<ProjectQualityLevel> levels;
+            for (const Guid& id : m_settings.qualityLevelIds)
+            {
+                const foundation::content::Instance* instance = m_sourceDb->GetInstance(id);
+                levels.PushBack(ProjectQualityLevel{id, instance != nullptr ? instance->Path() : Format(u8"{}", id)});
+            }
+            return levels;
+        }
 
         /// The authored source database (XML envelopes), which the editor edits.
         [[nodiscard]] foundation::content::ContentDatabase& SourceDb() noexcept

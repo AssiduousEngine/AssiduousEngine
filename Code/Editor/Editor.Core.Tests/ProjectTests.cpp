@@ -423,6 +423,15 @@ TEST_CASE("project: a version 9 manifest opens without the old UI's two settings
         UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir);
         REQUIRE(static_cast<bool>(project));
         CHECK(project->Settings().qualityLevelIds.Size() == 1u); // upgraded once, not again
+        // The menus' list: each level by its asset's path, one whose asset is gone by its id.
+        const Guid gone{0x51, 0x52};
+        project->Settings().qualityLevelIds.PushBack(gone);
+        const Array<ProjectQualityLevel> levels = project->QualityLevels();
+        REQUIRE(levels.Size() == 2u);
+        CHECK(levels[0].id == project->Settings().defaultQualityId);
+        CHECK(levels[0].name == StringView(u8"Quality/Default"));
+        CHECK(levels[1].id == gone);
+        CHECK(levels[1].name == Format(u8"{}", gone));
     }
     (void)RemoveDirectoryRecursive(dir);
 }
