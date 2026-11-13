@@ -38,6 +38,11 @@ export namespace foundation::geometry
         // page-local mesh can be allocated at a freed address, and keyed by pointer it would
         // alias the dead mesh's GPU geometry.
         const u64 uid = NextUid();
+        // Moves whenever the mesh's geometry is rebuilt in place (ContentChanged), so what a renderer
+        // uploaded from it knows to upload again.
+        u32 contentVersion = 0;
+        // Whoever rewrites vertices, indices or submeshes of a live mesh calls this after.
+        void ContentChanged() noexcept { ++contentVersion; }
 
         String name;
         Array<StaticMeshVertex> vertices;

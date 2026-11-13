@@ -183,10 +183,10 @@ export namespace foundation::render
 
 
     // A chunked GPU buffer sub-allocator: hands out (buffer, offset) ranges from large shared
-    // chunks instead of one buffer per allocation (no per-mesh buffers). Allocations are
-    // bump-forward and persist until Clear(); the pool grows by adding a new chunk (existing
-    // allocations keep their buffer, so growth never invalidates a live range). Used for mesh
-    // vertex and index streams (uploaded once, kept for the resource's lifetime).
+    // chunks instead of one buffer per allocation (no per-mesh buffers). A range freed (Free, once
+    // the GPU is done with it) is reused by a later allocation that fits; otherwise allocations go
+    // bump-forward, and the pool grows by adding a new chunk (existing allocations keep their
+    // buffer, so growth never invalidates a live range). Used for mesh vertex and index streams.
     class GpuBufferPool
     {
     public:
@@ -216,6 +216,36 @@ export namespace foundation::render
             {
                 return Alloc{};
             }
+            // A freed range it fits in, first: what freed meshes left is reused, not leaked.
+            for (usize i = 0; i < m_free.Size(); ++i)
+            {
+                Range& r = m_free[i];
+                const u64 aligned = AlignUp(r.offset, alignment);
+                if (aligned + size > r.offset + r.size)
+                {
+                    continue;
+                }
+                const Alloc out{r.buffer, aligned, true};
+                const u64 end = r.offset + r.size;
+                if (aligned > r.offset) // the alignment gap stays free in front
+                {
+                    r.size = aligned - r.offset;
+                    if (aligned + size < end)
+                    {
+                        m_free.PushBack(Range{out.buffer, aligned + size, end - (aligned + size)});
+                    }
+                }
+                else if (aligned + size < end)
+                {
+                    r.offset = aligned + size;
+                    r.size = end - r.offset;
+                }
+                else
+                {
+                    m_free.RemoveAtSwap(i);
+                }
+                return out;
+            }
             if (!m_chunks.IsEmpty())
             {
                 Chunk& c = m_chunks[m_current];
@@ -235,8 +265,48 @@ export namespace foundation::render
             return Alloc{c.buffer, 0, true};
         }
 
+        // Gives a range back for reuse. The caller frees it once no frame in flight reads it.
+        void Free(const Alloc& alloc, u64 size)
+        {
+            if (!alloc.ok || size == 0)
+            {
+                return;
+            }
+            // Merged with a free neighbour in the same buffer, so freed ranges do not crumble.
+            for (Range& r : m_free)
+            {
+                if (r.buffer != alloc.buffer)
+                {
+                    continue;
+                }
+                if (r.offset + r.size == alloc.offset)
+                {
+                    r.size += size;
+                    return;
+                }
+                if (alloc.offset + size == r.offset)
+                {
+                    r.offset = alloc.offset;
+                    r.size += size;
+                    return;
+                }
+            }
+            m_free.PushBack(Range{alloc.buffer, alloc.offset, size});
+        }
+        // Bytes freed and waiting to be reused (for tests and stats).
+        [[nodiscard]] u64 FreeBytes() const noexcept
+        {
+            u64 total = 0;
+            for (const Range& r : m_free)
+            {
+                total += r.size;
+            }
+            return total;
+        }
+
         void Clear()
         {
+            m_free.Clear();
             for (Chunk& c : m_chunks)
             {
                 if (c.buffer)
@@ -275,12 +345,20 @@ export namespace foundation::render
             return true;
         }
 
+        struct Range
+        {
+            rhi::Buffer* buffer = nullptr;
+            u64 offset = 0;
+            u64 size = 0;
+        };
+
         rhi::Device* m_device;
         rhi::BufferUsage m_usage;
         u64 m_chunkSize;
         const char8_t* m_label;
         Array<Chunk> m_chunks;
         usize m_current = 0;
+        Array<Range> m_free; // ranges freed for reuse
     };
 
     class DynamicUniformRing

@@ -107,6 +107,10 @@ export namespace foundation::core
             }
         }
 
+        /// Whether it was made by MakeRef, and so can be held by RefPtr and WeakRefPtr (an object on
+        /// the stack or inside another is not counted).
+        [[nodiscard]] bool IsCounted() const noexcept { return m_control != nullptr; }
+
         [[nodiscard]] u32 RefCount() const noexcept
         {
             DIAGNOSTIC_ASSERT(m_control != nullptr);

@@ -275,6 +275,7 @@ namespace foundation::render
         PruneStaleMaterialInstances();
         PruneOverrideInstances();
         TickRetiredBindGroups();    // free per-frame bind groups retired long enough ago to be idle
+        m_meshes.Tick();            // and mesh streams of meshes gone or rebuilt
         m_materials->TickRetired(); // same, for material set-2 groups replaced by rebuilds
         if (maxDraws == 0)
         {

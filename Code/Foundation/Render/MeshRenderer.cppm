@@ -209,7 +209,7 @@ export namespace foundation::render
                      materials::PipelineStateCache& psoCache,
                      materials::MaterialSystem& materialSystem, u32 framesInFlight) noexcept
             : m_allocator(&allocator), m_device(&device), m_shaders(&shaderSystem), m_psoCache(&psoCache),
-              m_materials(&materialSystem), m_meshes(device),
+              m_materials(&materialSystem), m_meshes(device, framesInFlight),
               m_framesInFlight(framesInFlight < 1 ? 1 : framesInFlight),
               m_viewRing(device, framesInFlight, kViewDataSlot,
                          rhi::BufferUsage::Uniform | rhi::BufferUsage::CopyDst, u8"mesh.view"),

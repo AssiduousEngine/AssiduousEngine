@@ -44,8 +44,10 @@ export namespace foundation::render
     class GpuMeshCache
     {
     public:
-        explicit GpuMeshCache(rhi::Device& device) noexcept
-            : m_queue(device.GetQueue(rhi::QueueType::Graphics)),
+        /// `framesInFlight`: how many frames the ranges of a mesh gone or rebuilt are kept for
+        /// before reuse (Tick), since frames still in flight may draw from them.
+        explicit GpuMeshCache(rhi::Device& device, u32 framesInFlight = 3) noexcept
+            : m_queue(device.GetQueue(rhi::QueueType::Graphics)), m_framesInFlight(framesInFlight < 1 ? 1u : framesInFlight),
               m_vertexPool(device, rhi::BufferUsage::Vertex | rhi::BufferUsage::CopyDst,
                            kVertexChunk, u8"mesh.vertexPool"),
               m_indexPool(device, rhi::BufferUsage::Index | rhi::BufferUsage::CopyDst, kIndexChunk,
@@ -60,8 +62,9 @@ export namespace foundation::render
         GpuMeshCache(const GpuMeshCache&) = delete;
         GpuMeshCache& operator=(const GpuMeshCache&) = delete;
 
-        // Uploads `mesh` on first request (sub-allocating from the pools), returns its cached GPU
-        // location (null if empty or allocation failed). The pointer is stable until Clear().
+        // Uploads `mesh` on first request (sub-allocating from the pools), and again when its
+        // geometry was rebuilt in place (StaticMesh::contentVersion); returns its cached GPU location
+        // (null if empty or allocation failed). The pointer is good for the frame.
         [[nodiscard]] const GpuMesh* GetOrUpload(geometry::StaticMesh* mesh)
         {
             if (mesh == nullptr)
@@ -90,9 +93,14 @@ export namespace foundation::render
                 }
                 return nullptr;
             }
-            if (GpuMesh* cached = m_cache.Find(mesh->uid))
+            if (Entry* cached = m_cache.Find(mesh->uid))
             {
-                return cached;
+                if (cached->version == mesh->contentVersion)
+                {
+                    return &cached->gpu;
+                }
+                Retire(*cached); // rebuilt in place: its old streams go once the GPU is done with them
+                m_cache.Remove(mesh->uid);
             }
 
             const GpuBufferPool::Alloc v =
@@ -118,7 +126,23 @@ export namespace foundation::render
                 }
             }
 
-            GpuMesh g;
+            Entry entry;
+            if (mesh->IsCounted()) // a mesh on the stack (a test's) is not watched: it stays until Clear
+            {
+                entry.mesh = WeakRefPtr<geometry::StaticMesh>(RefPtr<geometry::StaticMesh>(mesh));
+                entry.watched = true;
+            }
+            entry.version = mesh->contentVersion;
+            entry.vertex = v;
+            entry.vertexSize = mesh->VertexDataSize();
+            entry.index = idx;
+            entry.indexSize = mesh->indices.DataSize();
+            if (hasSkin)
+            {
+                entry.skin = sk;
+                entry.skinSize = skin.Size() * sizeof(geometry::VertexSkinning);
+            }
+            GpuMesh& g = entry.gpu;
             g.vertexBuffer = v.buffer;
             g.vertexOffset = v.offset;
             g.indexBuffer = idx.buffer;
@@ -155,8 +179,42 @@ export namespace foundation::render
                 }
             }
 
-            m_cache.InsertOrAssign(mesh->uid, g);
-            return m_cache.Find(mesh->uid);
+            return &m_cache.InsertOrAssign(mesh->uid, Move(entry)).gpu;
+        }
+
+        // Once a frame: the streams of meshes that are gone are retired, and retired streams old
+        // enough that no frame in flight reads them return to the pools for reuse.
+        void Tick()
+        {
+            for (usize i = 0; i < m_retired.Size();)
+            {
+                if (m_retired[i].framesLeft <= 1)
+                {
+                    const Retired& r = m_retired[i];
+                    m_vertexPool.Free(r.vertex, r.vertexSize);
+                    m_indexPool.Free(r.index, r.indexSize);
+                    m_skinPool.Free(r.skin, r.skinSize);
+                    m_retired.RemoveAtSwap(i);
+                }
+                else
+                {
+                    --m_retired[i].framesLeft;
+                    ++i;
+                }
+            }
+            Array<u64> gone;
+            for (auto& slot : m_cache)
+            {
+                if (slot.value.watched && slot.value.mesh.Expired())
+                {
+                    gone.PushBack(slot.key);
+                }
+            }
+            for (u64 uid : gone)
+            {
+                Retire(*m_cache.Find(uid));
+                m_cache.Remove(uid);
+            }
         }
 
         // Frees all pooled GPU memory and the cache.
@@ -166,9 +224,13 @@ export namespace foundation::render
             m_indexPool.Clear();
             m_skinPool.Clear();
             m_cache.Clear();
+            m_retired.Clear();
         }
 
         [[nodiscard]] usize Size() const noexcept { return m_cache.Size(); }
+        [[nodiscard]] usize RetiredCount() const noexcept { return m_retired.Size(); }
+        // Bytes of vertex streams freed for reuse (tests).
+        [[nodiscard]] u64 FreeVertexBytes() const noexcept { return m_vertexPool.FreeBytes(); }
 
     private:
         static constexpr u64 kVertexChunk = 4ull * 1024 * 1024; // 4 MB vertex chunks
@@ -176,14 +238,36 @@ export namespace foundation::render
         static constexpr u64 kVertexAlign = 16; // safe vertex-stream offset alignment
         static constexpr u64 kIndexAlign = 4;   // covers u16 and u32 index offsets
 
+        struct Entry
+        {
+            GpuMesh gpu;
+            WeakRefPtr<geometry::StaticMesh> mesh; // expired: the mesh is gone, its streams retire
+            bool watched = false;                   // `mesh` holds it (a counted mesh)
+            u32 version = 0;                        // the mesh's contentVersion uploaded
+            GpuBufferPool::Alloc vertex, index, skin;
+            u64 vertexSize = 0, indexSize = 0, skinSize = 0;
+        };
+        struct Retired
+        {
+            GpuBufferPool::Alloc vertex, index, skin;
+            u64 vertexSize = 0, indexSize = 0, skinSize = 0;
+            u32 framesLeft = 0;
+        };
+        void Retire(const Entry& e)
+        {
+            m_retired.PushBack(Retired{e.vertex, e.index, e.skin, e.vertexSize, e.indexSize, e.skinSize, m_framesInFlight});
+        }
+
         rhi::Queue* m_queue;
+        u32 m_framesInFlight = 3;
         GpuBufferPool m_vertexPool;
         GpuBufferPool m_indexPool;
         GpuBufferPool m_skinPool; // skinning streams (joints and weights) for skinned meshes
         // Keyed by StaticMesh::uid, not the pointer: freed addresses are reused, and a new mesh
-        // landing on a dead mesh's address must not inherit its GPU geometry. Entries of dead
-        // meshes idle in the pools until Clear(); reloads re-upload under the new object's uid.
-        HashMap<u64, GpuMesh> m_cache;
+        // landing on a dead mesh's address must not inherit its GPU geometry. A dead mesh's entry
+        // retires at the next Tick; reloads re-upload under the new object's uid.
+        HashMap<u64, Entry> m_cache;
+        Array<Retired> m_retired; // streams awaiting the frames in flight, then reused
     };
 
 } // namespace foundation::render
