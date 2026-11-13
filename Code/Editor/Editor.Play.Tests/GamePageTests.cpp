@@ -24,7 +24,7 @@ import engine.gameinstance; // the run the tab plays
 import editor.core;
 import editor.play;
 import engine.project;      // ProjectSettings: the game's quality levels
-import engine.render;       // RenderQuality: the level the Game tab plays at
+import engine.render;       // RenderQualityLevel: the level the Game tab plays at
 import foundation.vfs;
 import foundation.content;
 import foundation.resource;

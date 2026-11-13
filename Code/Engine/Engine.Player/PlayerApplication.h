@@ -244,7 +244,7 @@ namespace engine::player
                     LOG_INFO(u8"Player", u8"quality: the engine's own highest ({}x MSAA)",
                              render->Quality().msaaSamples);
                 }
-                else if (auto quality = Resources()->Bind<engine::render::RenderQuality>(level))
+                else if (auto quality = Resources()->Bind<engine::render::RenderQualityLevel>(level))
                 {
                     render->SetQuality(quality->values);
                     LOG_INFO(u8"Player", u8"quality level '{}' ({}x MSAA)", quality->values.label,

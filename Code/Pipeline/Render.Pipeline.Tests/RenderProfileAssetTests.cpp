@@ -176,7 +176,7 @@ TEST_CASE("render.pipeline: a Render Quality round-trips, cooks and loads with i
         render::RenderQualityFactory factory(DefaultAllocator());
         foundation::resource::ResourceManager manager(DefaultAllocator(), db);
         manager.AddFactory(&factory);
-        foundation::resource::Proxy<render::RenderQuality> quality = manager.Bind<render::RenderQuality>(cooked->Id());
+        foundation::resource::Proxy<render::RenderQualityLevel> quality = manager.Bind<render::RenderQualityLevel>(cooked->Id());
         REQUIRE(quality);
         CHECK(quality->values.label == StringView(u8"Low"));
         CHECK(quality->values.msaaSamples == 1u);

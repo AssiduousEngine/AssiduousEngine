@@ -95,7 +95,7 @@ a platform gives the default, a target overrides it, the player's choice overrid
 ### The Render Quality asset
 
 A Render Quality is a data asset, made by `asset_create` and edited on a page as the profiles are.
-Its cooked record is `RenderQualitySource`; its product, `engine::render::RenderQuality`. Fields:
+Its cooked record is `RenderQualitySource`; its product, `engine::render::RenderQualityLevel`. Fields:
 
 | Field | Values | What it does |
 | --- | --- | --- |
@@ -144,7 +144,7 @@ count and the shadow resolution shape render targets.
 
 ### In the renderer
 
-`RenderSubsystem` holds the active `RenderQuality`. `ViewPost` resolves the scene's post (as now),
+`RenderSubsystem` holds the active level. `ViewPost` resolves the scene's post (as now),
 then applies the level: gates (an Off tier clears the effect's enable), caps (`shadowDistanceMax`)
 and the MSAA count. The cost parameters (samples, steps, rays, levels) go to the passes per frame
 from the level, not from the scene.
@@ -188,7 +188,7 @@ Per-effect overrides from an options menu (shadows Off at High) are for later ev
 ## Phases
 
 **Q0: the asset, the project and the preset.**
-- `RenderQualitySource`, `RenderQuality`, its factory and resource module (`engine.render`), the
+- `RenderQualitySource`, `RenderQualityLevel`, its factory and resource module (`engine.render`), the
   pipeline asset beside the profiles (`render.pipeline`), and its creator.
 - `ProjectSettings::qualityLevelIds` and `defaultQualityId`; `ExportPreset::qualityLevelId`;
   `player.xml` carries the list and the default (the preset's level when it has one). Nothing reads them yet:

@@ -616,7 +616,7 @@ namespace editor
         foundation::resource::ResourceManager* resources = m_context->Resources();
         if (m_qualityLevel.IsNil() || project == nullptr || resources == nullptr || !project->Settings().IsQualityLevel(m_qualityLevel))
             return NullOpt;
-        if (auto quality = resources->Bind<engine::render::RenderQuality>(m_qualityLevel))
+        if (auto quality = resources->Bind<engine::render::RenderQualityLevel>(m_qualityLevel))
             return quality->values;
         return NullOpt;
     }

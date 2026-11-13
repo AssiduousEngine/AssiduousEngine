@@ -78,7 +78,7 @@ export namespace editor
         const Guid level = !chosen.IsNil() && settings.IsQualityLevel(chosen) ? chosen : settings.StartupQuality(Guid{});
         if (!level.IsNil() && resources != nullptr)
         {
-            if (auto quality = resources->Bind<engine::render::RenderQuality>(level))
+            if (auto quality = resources->Bind<engine::render::RenderQualityLevel>(level))
             {
                 return quality->values;
             }

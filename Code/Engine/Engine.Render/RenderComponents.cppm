@@ -1071,16 +1071,16 @@ export namespace engine::render
     }
 
     // A Render Quality asset's product: one quality level a project offers.
-    class RenderQuality final : public Object
+    class RenderQualityLevel final : public Object
     {
-        RTTI_OBJECT(RenderQuality, Object)
+        RTTI_OBJECT(RenderQualityLevel, Object)
     public:
         RenderQualitySettings values;
     };
 
     RTTI_DEFINE_OBJECT(EnvironmentProfile, "rtti::engine::render")
     RTTI_DEFINE_OBJECT(PostProcessProfile, "rtti::engine::render")
-    RTTI_DEFINE_OBJECT(RenderQuality, "rtti::engine::render")
+    RTTI_DEFINE_OBJECT(RenderQualityLevel, "rtti::engine::render")
 
     class PostProcessSystem final : public scene::SceneSystem
     {

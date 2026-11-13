@@ -127,7 +127,7 @@ export namespace engine::render
     {
     public:
         explicit RenderQualityFactory(IAllocator& allocator) noexcept : m_allocator(&allocator) {}
-        [[nodiscard]] const TypeInfo* ProductType() const override { return &RenderQuality::StaticType(); }
+        [[nodiscard]] const TypeInfo* ProductType() const override { return &RenderQualityLevel::StaticType(); }
         [[nodiscard]] const TypeInfo* CookedType() const override
         {
             return &RenderQualitySource::StaticType();
@@ -141,7 +141,7 @@ export namespace engine::render
             {
                 return RefPtr<Object>{};
             }
-            RefPtr<RenderQuality> quality = MakeRef<RenderQuality>(*m_allocator);
+            RefPtr<RenderQualityLevel> quality = MakeRef<RenderQualityLevel>(*m_allocator);
             quality->values = source->values;
             return quality;
         }
@@ -161,7 +161,7 @@ export namespace engine::render
         GlobalTypeRegistry().Register(PostProcessProfile::StaticType());
         GlobalTypeRegistry().Register(RenderQualitySource::StaticType());
         RegisterSerializable<RenderQualitySource>();
-        GlobalTypeRegistry().Register(RenderQuality::StaticType());
+        GlobalTypeRegistry().Register(RenderQualityLevel::StaticType());
     }
 
     RTTI_DEFINE_OBJECT(EnvironmentProfileSource, "rtti::engine::render")
@@ -173,7 +173,7 @@ export namespace engine::render
                                                EnvironmentProfileFactory>(),
         foundation::resource::FactoryWithAllocator<PostProcessProfile, PostProcessProfileSource,
                                                PostProcessProfileFactory>(),
-        foundation::resource::FactoryWithAllocator<RenderQuality, RenderQualitySource, RenderQualityFactory>(),
+        foundation::resource::FactoryWithAllocator<RenderQualityLevel, RenderQualitySource, RenderQualityFactory>(),
     };
     inline constexpr foundation::resource::ResourceModule kRenderProfileResourceModule{
         u8"render.profiles", &RegisterRenderProfileResources, kRenderProfileFactories,
