@@ -881,16 +881,25 @@ namespace foundation::scene
 
     void Scene::DestroyEntityImmediate(EntityHandle entity)
     {
+        if (!IsValid(entity))
+        {
+            return; // gone already (a destroy queued twice)
+        }
         const u32 index = entity.index;
 
-        // Destroy the subtree first (snapshot the next sibling before each child dies).
-        EntityHandle child = m_transforms[index].firstChild;
-        while (child.IsAssigned())
+        // Destroy the subtree first. The first child is read again after each one goes: each
+        // unlinks itself, and a hook may have moved a sibling (reparented it here or away), so a
+        // next sibling read before the destroy could name an entity that is no longer there.
+        for (EntityHandle child = m_transforms[index].firstChild; child.IsAssigned();
+             child = m_transforms[index].firstChild)
         {
-            const EntityHandle nextSibling =
-                IsValid(child) ? m_transforms[child.index].nextSibling : EntityHandle::Invalid();
+            if (!IsValid(child))
+            {
+                m_transforms[index].firstChild = EntityHandle::Invalid(); // a link to the dead: cut
+                m_transforms[index].lastChild = EntityHandle::Invalid();
+                break;
+            }
             DestroyEntityImmediate(child);
-            child = nextSibling;
         }
 
         RemoveFromParent(entity);

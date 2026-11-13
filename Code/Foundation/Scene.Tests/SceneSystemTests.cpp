@@ -414,3 +414,53 @@ TEST_CASE("scene: while its run defers, a destroy waits for the run's flush; a s
         run.Mutations().Flush(); // nothing reaches the freed scene
     }
 }
+
+namespace
+{
+    // When `trigger` is destroyed, moves `away` to the roots and `into` under `parent`, as a
+    // behaviour's onDestroy might.
+    class Reparenter final : public SceneSystem
+    {
+    public:
+        Scene* scene = nullptr;
+        EntityHandle trigger = EntityHandle::Invalid();
+        EntityHandle away = EntityHandle::Invalid();
+        EntityHandle into = EntityHandle::Invalid();
+        EntityHandle parent = EntityHandle::Invalid();
+        void OnSceneCreate(Scene& s) override { scene = &s; }
+        void OnEntityDestroyed(EntityHandle e) override
+        {
+            if (e != trigger)
+                return;
+            scene->SetParent(away, EntityHandle::Invalid());
+            scene->SetParent(into, parent);
+        }
+    };
+}
+
+TEST_CASE("scene: a subtree's destroy follows its children as hooks move them, never a stale sibling")
+{
+    Scene scene(DefaultAllocator(), u8"subtree");
+    Reparenter* hooks = scene.AddSystem<Reparenter>();
+    const EntityHandle parent = scene.CreateEntity(u8"parent");
+    const EntityHandle first = scene.CreateEntity(u8"first");
+    const EntityHandle second = scene.CreateEntity(u8"second");
+    const EntityHandle outsider = scene.CreateEntity(u8"outsider");
+    scene.SetParent(first, parent);
+    scene.SetParent(second, parent);
+    hooks->trigger = first;
+    hooks->away = second;   // the sibling read before the first went, moved out
+    hooks->into = outsider; // moved in while the parent goes
+    hooks->parent = parent;
+    scene.DestroyEntity(parent);
+    CHECK_FALSE(scene.IsValid(parent));
+    CHECK_FALSE(scene.IsValid(first));
+    CHECK(scene.IsValid(second)); // no longer a child when its turn would have come
+    CHECK_FALSE(scene.GetParent(second).IsAssigned());
+    CHECK_FALSE(scene.IsValid(outsider)); // a child by then: it went with the parent
+    CHECK(scene.EntityCount() == 1u);
+    const EntityHandle next = scene.CreateEntity(u8"next"); // the free list is sound
+    const EntityHandle more = scene.CreateEntity(u8"more");
+    CHECK(next != more);
+    CHECK(scene.EntityCount() == 3u);
+}
