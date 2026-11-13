@@ -222,6 +222,14 @@ TEST_CASE("reliable: unreliable messages can drop under loss (no resend)")
     Fixture fx(sim);
     fx.server.SetAccepting(true);
     const net::PeerId sp = fx.client.Connect(fx.sb->LocalEndpoint());
+    // The handshake's four legs (request, challenge, response, accept) take a few resends at 60% loss.
+    bool connected = false;
+    for (int step = 0; step < 1000 && !connected; ++step)
+    {
+        fx.Step();
+        connected = AnyKind(fx.client, net::NetEventKind::Connected);
+    }
+    REQUIRE(connected);
     fx.Pump(20);
     (void)DrainReceived(fx.server);
 
@@ -616,4 +624,199 @@ TEST_CASE("reliable: sequenced messages never arrive out of order")
     {
         CHECK(got[i] > got[i - 1]); // each newer than the one before
     }
+}
+
+namespace
+{
+    // A handshake packet as the transport writes it: protocol, type, token, and a cookie or padding.
+    Array<byte> Handshake(u8 type, u32 token, u64 cookie, bool padded = true)
+    {
+        net::BitWriter w;
+        w.WriteU16(0xDCE8);
+        w.WriteU8(type);
+        w.WriteU32(token);
+        if (padded)
+        {
+            w.WriteU64(cookie);
+        }
+        Array<byte> out;
+        for (byte b : w.Data())
+        {
+            out.PushBack(b);
+        }
+        return out;
+    }
+
+    // The packets a socket received, by type.
+    struct Received
+    {
+        u8 type = 0;
+        u32 token = 0;
+        u64 cookie = 0;
+        usize size = 0;
+    };
+    Array<Received> ReceiveAll(net::IDatagramSocket& socket)
+    {
+        Array<Received> out;
+        net::DatagramEndpoint from;
+        Array<byte> data;
+        while (socket.Receive(from, data))
+        {
+            net::BitReader r(data.AsSpan());
+            (void)r.ReadU16();
+            Received p;
+            p.type = r.ReadU8();
+            p.token = r.ReadU32();
+            p.size = data.Size();
+            if (p.type == 4u)
+            {
+                p.cookie = r.ReadU64();
+            }
+            out.PushBack(p);
+        }
+        return out;
+    }
+}
+
+TEST_CASE("reliable: a request alone makes no peer; it draws one challenge no bigger than itself")
+{
+    // A connection was made for any ConnectRequest, spoofed addresses included: a flood of them
+    // filled the server with peers. Now a request is answered with a cookie and nothing is kept.
+    net::SimConditions sim;
+    Fixture fx(sim);
+    fx.server.SetAccepting(true);
+    net::IDatagramSocket* raw = fx.net.CreateSocket();
+    const Array<byte> request = Handshake(0u, 1234u, 0u);
+    raw->Send(fx.sb->LocalEndpoint(), request.AsSpan());
+    raw->Send(fx.sb->LocalEndpoint(), Handshake(0u, 1234u, 0u, /*padded*/ false).AsSpan()); // too short to answer
+    fx.Pump(5);
+    CHECK(CountKind(fx.server, net::NetEventKind::Connected) == 0);
+    const Array<Received> got = ReceiveAll(*raw);
+    REQUIRE(got.Size() == 1u); // the padded one, once
+    CHECK(got[0].type == 4u);  // a challenge
+    CHECK(got[0].token == 1234u);
+    CHECK(got[0].size <= request.Size());
+
+    // A response with any other cookie makes no peer either; the challenge's does.
+    raw->Send(fx.sb->LocalEndpoint(), Handshake(5u, 1234u, got[0].cookie ^ 1u).AsSpan());
+    fx.Pump(5);
+    CHECK(CountKind(fx.server, net::NetEventKind::Connected) == 0);
+    CHECK(ReceiveAll(*raw).IsEmpty());
+    raw->Send(fx.sb->LocalEndpoint(), Handshake(5u, 1234u, got[0].cookie).AsSpan());
+    fx.Pump(5);
+    CHECK(CountKind(fx.server, net::NetEventKind::Connected) == 1);
+    const Array<Received> accepted = ReceiveAll(*raw);
+    REQUIRE_FALSE(accepted.IsEmpty());
+    CHECK(accepted[0].type == 1u); // ConnectAccept
+}
+
+TEST_CASE("reliable: a server at its peer limit refuses the next client, who stops")
+{
+    net::SimConditions sim;
+    sim.latencyMs = 10.0f;
+    net::ReliableConfig cfg;
+    cfg.maxPeers = 1;
+    Fixture fx(sim, cfg);
+    fx.server.SetAccepting(true);
+    (void)fx.client.Connect(fx.sb->LocalEndpoint());
+    fx.Pump(20);
+    CHECK(AnyKind(fx.client, net::NetEventKind::Connected));
+
+    net::IDatagramSocket* second = fx.net.CreateSocket();
+    net::ReliableTransport late(*second, cfg);
+    (void)late.Connect(fx.sb->LocalEndpoint());
+    bool refused = false;
+    bool connected = false;
+    for (int step = 0; step < 40; ++step)
+    {
+        fx.Step();
+        late.Update(10.0f);
+        net::NetEvent ev;
+        while (late.Poll(ev))
+        {
+            refused = refused || ev.kind == net::NetEventKind::Disconnected;
+            connected = connected || ev.kind == net::NetEventKind::Connected;
+        }
+    }
+    CHECK(refused);
+    CHECK_FALSE(connected);
+    CHECK(CountKind(fx.server, net::NetEventKind::Connected) == 1); // the first client only
+}
+
+namespace
+{
+    // Holds back the first Data packet that carries a message, for the test to replay.
+    class HoldDataSocket final : public net::IDatagramSocket
+    {
+    public:
+        explicit HoldDataSocket(net::IDatagramSocket& inner) : m_inner(inner) {}
+        void Send(const net::DatagramEndpoint& to, Span<const byte> data) override
+        {
+            net::BitReader reader(data);
+            (void)reader.ReadU16();
+            const u8 type = reader.ReadU8();
+            if (arm && held.IsEmpty() && type == 2u && data.Size() > 16u) // a Data packet with a message
+            {
+                for (byte b : data)
+                {
+                    held.PushBack(b);
+                }
+                heldTo = to;
+                return;
+            }
+            m_inner.Send(to, data);
+        }
+        [[nodiscard]] bool Receive(net::DatagramEndpoint& from, Array<byte>& out) override { return m_inner.Receive(from, out); }
+        [[nodiscard]] net::DatagramEndpoint LocalEndpoint() const override { return m_inner.LocalEndpoint(); }
+        void SendRaw(Span<const byte> data) { m_inner.Send(heldTo, data); }
+
+        bool arm = false;
+        Array<byte> held;
+        net::DatagramEndpoint heldTo;
+
+    private:
+        net::IDatagramSocket& m_inner;
+    };
+}
+
+TEST_CASE("reliable: a data packet of another session at the peer's address is dropped")
+{
+    // Data packets carried no session token: one from an earlier session at the same address (or
+    // forged with it) was read as this session's.
+    net::SimDatagramNetwork network(DefaultAllocator(), net::SimConditions{});
+    net::IDatagramSocket* clientRaw = network.CreateSocket();
+    net::IDatagramSocket* serverSocket = network.CreateSocket();
+    HoldDataSocket clientSocket(*clientRaw);
+    net::ReliableTransport client(clientSocket);
+    net::ReliableTransport server(*serverSocket);
+    server.SetAccepting(true);
+    const net::PeerId sp = client.Connect(serverSocket->LocalEndpoint());
+    const auto step = [&]
+    {
+        network.Advance(10.0f);
+        client.Update(10.0f);
+        server.Update(10.0f);
+    };
+    for (int i = 0; i < 20; ++i)
+        step();
+    REQUIRE(AnyKind(client, net::NetEventKind::Connected));
+    (void)DrainReceived(server);
+
+    clientSocket.arm = true;
+    Array<byte> m = Bytes({42});
+    client.Send(sp, 1, m.AsSpan(), net::Reliability::Unreliable);
+    step();
+    REQUIRE_FALSE(clientSocket.held.IsEmpty());
+    Array<byte> forged = clientSocket.held;
+    forged[3] = static_cast<byte>(static_cast<u8>(forged[3]) ^ 0xFFu); // the token's first byte
+    clientSocket.SendRaw(forged.AsSpan());
+    step();
+    step();
+    CHECK(DrainReceived(server).IsEmpty());
+    clientSocket.SendRaw(clientSocket.held.AsSpan()); // the same packet with its own token
+    step();
+    step();
+    const Array<u8> delivered = DrainReceived(server);
+    REQUIRE(delivered.Size() == 1u);
+    CHECK(delivered[0] == 42u);
 }

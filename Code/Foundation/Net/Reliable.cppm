@@ -36,7 +36,7 @@ export namespace foundation::net
     // Tunables for a ReliableTransport (all times in ms).
     struct ReliableConfig
     {
-        u16 protocolId = 0xDCE7;  // reject foreign or mismatched-version packets
+        u16 protocolId = 0xDCE8;  // reject foreign or mismatched-version packets (bumped with the wire format)
         f32 keepAliveMs = 100.0f; // send an ack-only packet if idle this long (keeps acks flowing)
         f32 connectResendMs = 100.0f; // resend ConnectRequest until accepted
         f32 timeoutMs = 5000.0f;      // no packet received in this long => disconnect
@@ -46,6 +46,7 @@ export namespace foundation::net
         u32 maxPacketBytes = 1200; // soft budget per datagram (< typical MTU); large reliable
                                    // messages fragment into this-sized pieces and reassemble
         u32 maxPacketsPerUpdate = 64; // most Data packets one update sends a connection (a burst cap)
+        u32 maxPeers = 64; // live connections a server holds; a handshake past them is refused
     };
 
     enum class ConnectionState : u8
@@ -228,8 +229,16 @@ export namespace foundation::net
             ConnectRequest = 0,
             ConnectAccept = 1,
             Data = 2,
-            Disconnect = 3
+            Disconnect = 3,
+            Challenge = 4,      // server: the cookie a ConnectResponse must echo
+            ConnectResponse = 5 // client: the ConnectRequest again, with the challenge's cookie
         };
+        // A handshake packet's size: protocol, type, token and a cookie. A ConnectRequest is padded
+        // to it, so a challenge is never bigger than the request that drew it (no amplification
+        // toward a spoofed address).
+        static constexpr usize kHandshakeBytes = 2 + 1 + 4 + 8;
+        // A cookie is good for the window it was made in and the one after.
+        static constexpr f64 kCookieWindowMs = 10000.0;
 
         struct OutMessage
         {
@@ -310,6 +319,8 @@ export namespace foundation::net
             f64 lastRecvMs = 0.0;
             f64 lastSendMs = -1000.0;
             f64 lastConnectSendMs = -1000.0;
+            u64 cookie = 0;          // client: the server's challenge, echoed until accepted
+            bool haveCookie = false;
             bool ackPending = false; // received data since our last send, so ack promptly
             u32 sentBytes = 0, recvBytes = 0;
         };
@@ -428,10 +439,58 @@ export namespace foundation::net
             c.lastSendMs = m_nowMs;
         }
 
+        // Client: the request, or once challenged, the response with the server's cookie.
         void SendConnectRequest(Connection& c)
         {
-            SendControl(c, PacketType::ConnectRequest);
+            BitWriter w;
+            w.WriteU16(m_cfg.protocolId);
+            w.WriteU8(static_cast<u8>(c.haveCookie ? PacketType::ConnectResponse : PacketType::ConnectRequest));
+            w.WriteU32(c.token);
+            w.WriteU64(c.haveCookie ? c.cookie : 0u); // the request's is padding (kHandshakeBytes)
+            RawSend(c, w);
             c.lastConnectSendMs = m_nowMs;
+        }
+        // Server: a packet to an address it holds no connection for (a challenge, a refusal).
+        void SendStateless(const DatagramEndpoint& to, PacketType type, u32 token, const u64* cookie = nullptr)
+        {
+            BitWriter w;
+            w.WriteU16(m_cfg.protocolId);
+            w.WriteU8(static_cast<u8>(type));
+            w.WriteU32(token);
+            if (cookie != nullptr)
+            {
+                w.WriteU64(*cookie);
+            }
+            m_socket->Send(to, w.Data());
+        }
+        // The cookie for a handshake from `remote` with `token` in cookie window `window`: a hash keyed
+        // by this transport's secret, so only an address that received the challenge can answer it.
+        [[nodiscard]] u64 Cookie(const DatagramEndpoint& remote, u32 token, u64 window) const noexcept
+        {
+            u8 input[8 + 8 + 4 + 8];
+            MemCopy(input, &m_cookieSecret, 8);
+            MemCopy(input + 8, &remote.value, 8);
+            MemCopy(input + 16, &token, 4);
+            MemCopy(input + 20, &window, 8);
+            const Sha256Digest digest = Sha256::Of(Span<const byte>(reinterpret_cast<const byte*>(input), sizeof(input)));
+            u64 cookie = 0;
+            MemCopy(&cookie, digest.bytes, 8);
+            return cookie;
+        }
+        [[nodiscard]] u64 CookieWindow() const noexcept { return static_cast<u64>(m_nowMs / kCookieWindowMs); }
+        [[nodiscard]] bool CookieValid(const DatagramEndpoint& remote, u32 token, u64 cookie) const noexcept
+        {
+            const u64 window = CookieWindow();
+            return cookie == Cookie(remote, token, window) || (window > 0 && cookie == Cookie(remote, token, window - 1));
+        }
+        [[nodiscard]] usize LiveConnections() const noexcept
+        {
+            usize live = 0;
+            for (const Connection& c : m_connections)
+            {
+                live += c.state != ConnectionState::Disconnected ? 1u : 0u;
+            }
+            return live;
         }
         // A control packet, carrying the session's token so the far end can tell this session from
         // an earlier one at the same address.
@@ -478,6 +537,7 @@ export namespace foundation::net
             BitWriter w;
             w.WriteU16(m_cfg.protocolId);
             w.WriteU8(static_cast<u8>(PacketType::Data));
+            w.WriteU32(c.token); // the session's: a packet of another session at this address is dropped
             const u16 seq = c.localSeq++;
             w.WriteU16(seq);
             // Nothing received yet, nothing acked: an ack of the default seq would retire the far
@@ -627,27 +687,25 @@ export namespace foundation::net
             BitReader r(bytes);
             const u16 protocol = r.ReadU16();
             const u8 typeRaw = r.ReadU8();
-            if (!r.Ok() || protocol != m_cfg.protocolId)
+            if (!r.Ok() || protocol != m_cfg.protocolId || typeRaw > static_cast<u8>(PacketType::ConnectResponse))
             {
                 return;
-            } // foreign or corrupt
+            } // foreign, corrupt, or a type this version does not know
             const PacketType type = static_cast<PacketType>(typeRaw);
 
             Connection* c = FindByRemote(from);
-            u32 token = 0;
-            if (type != PacketType::Data)
+            const u32 token = r.ReadU32();
+            if (!r.Ok())
             {
-                token = r.ReadU32();
-                if (!r.Ok())
-                {
-                    return;
-                }
+                return;
             }
             switch (type)
             {
             case PacketType::ConnectRequest:
             {
-                if (!m_accepting)
+                // Nothing is kept for a request: it is answered with a challenge, which only the
+                // address that sent it receives, so a spoofed request costs one packet and no peer.
+                if (!m_accepting || bytes.Size() < kHandshakeBytes)
                 {
                     return;
                 }
@@ -657,7 +715,42 @@ export namespace foundation::net
                     SendControl(*c, PacketType::ConnectAccept); // re-accept: our accept was lost
                     return;
                 }
-                if (c != nullptr && c->state != ConnectionState::Disconnected)
+                const u64 cookie = Cookie(from, token, CookieWindow());
+                SendStateless(from, PacketType::Challenge, token, &cookie);
+                return;
+            }
+            case PacketType::Challenge:
+            {
+                const u64 cookie = r.ReadU64();
+                if (!r.Ok() || c == nullptr || c->token != token || c->state != ConnectionState::Connecting)
+                {
+                    return;
+                }
+                c->cookie = cookie;
+                c->haveCookie = true;
+                SendConnectRequest(*c); // the response, now
+                return;
+            }
+            case PacketType::ConnectResponse:
+            {
+                const u64 cookie = r.ReadU64();
+                if (!m_accepting || !r.Ok() || !CookieValid(from, token, cookie))
+                {
+                    return;
+                }
+                if (c != nullptr && c->token == token && c->state != ConnectionState::Disconnected)
+                {
+                    c->lastRecvMs = m_nowMs;
+                    SendControl(*c, PacketType::ConnectAccept); // re-accept: our accept was lost
+                    return;
+                }
+                const bool replaces = c != nullptr && c->state != ConnectionState::Disconnected;
+                if (!replaces && LiveConnections() >= m_cfg.maxPeers)
+                {
+                    SendStateless(from, PacketType::Disconnect, token); // full: the client stops trying
+                    return;
+                }
+                if (replaces)
                 {
                     // Another session from the same address (the client restarted, or connected
                     // again): the old one is over, and its state must not carry into the new one.
@@ -699,7 +792,7 @@ export namespace foundation::net
             case PacketType::Data:
                 break;
             }
-            if (c == nullptr || c->state == ConnectionState::Disconnected)
+            if (c == nullptr || c->state == ConnectionState::Disconnected || c->token != token)
             {
                 return;
             }
@@ -972,6 +1065,9 @@ export namespace foundation::net
         HashMap<u64, usize> m_byRemote;  // a live connection's index by its remote endpoint
         HashMap<PeerId, usize> m_byPeer; // and by its peer
         Random m_random = Random::FromSystemEntropy(); // session tokens
+        // Keys the handshake cookies; drawn once, so a cookie made by another transport, or before a
+        // restart, is not this one's.
+        u64 m_cookieSecret = (static_cast<u64>(m_random.NextU32()) << 32) | m_random.NextU32();
         Array<NetEvent> m_events;
         usize m_eventHead = 0;
     };

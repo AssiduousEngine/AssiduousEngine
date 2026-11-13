@@ -143,6 +143,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Rendering: a double-sided material (foliage cards, a sail, a flag) casts its shadow from both
   sides, and a material that culls front faces casts from its back; shadows always came from the
   front faces.
+- Networking: a server makes a peer only for a client that answers its challenge, and holds at
+  most `maxPeers` (64 by default); data packets carry the session token. The wire format changed:
+  a game built before this cannot connect to one built after.
 - Rendering and GUI: a fixed per-frame budget that runs out (a renderer's ring, the vector
   renderer's uniform slots) now logs a warning the first time instead of dropping draws silently.
 - GUI and vector graphics: a complex shape (concave, or several contours) filled inside a clip
