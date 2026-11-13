@@ -246,6 +246,10 @@ Per-effect overrides from an options menu (shadows Off at High) are for later ev
 - Integration.Mcp's sample checks read the new data versions.
 
 **Q6 (later): cheaper effects.**
+- Why, from Q5's measurements on the Pixel 6: an effect there costs mostly by being on, at full
+  resolution. Medium's smaller counts saved little on the samples with SSGI and AO (Lamplight 94 ms
+  at Medium against 129 at High, 21 at Low with them off), because the passes that do not scale
+  with the counts (SSGI's resolve, composite, denoise and blur, about 20 ms) dominate.
 - A render scale (the 3D scene at a fraction of the output, then upscaled; the UI at full size) as a
   level field.
 - Half-resolution SSR and SSGI traces as a tier.
