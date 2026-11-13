@@ -34,6 +34,7 @@ import foundation.rendergraph;
 import foundation.shaders;
 import foundation.shaders.system;
 import :data;        // SkySnapshot, SkyMode, ExtractedScene (context identity)
+import :resources;   // GpuRetireQueue (a resized prefilter's old cube)
 
 using namespace foundation::core;
 namespace rendergraph = foundation::rendergraph;
@@ -75,7 +76,6 @@ export namespace foundation::render
     public:
         static constexpr u32 kEnvResolution = 256;
         static constexpr u32 kEnvMips = 5; // env mip pyramid (256..16) for prefilter PDF sampling
-        static constexpr u32 kPrefilterRes = 256;
         static constexpr u32 kPrefilterMips = 5; // roughness = mip / (kPrefilterMips - 1)
         static constexpr u32 kBrdfResolution = 256;
         static constexpr u32 kShCoeffCount = 9;
@@ -138,6 +138,7 @@ export namespace foundation::render
             rhi::TextureView* m_envMipView[kEnvMips] = {};
             rhi::Texture* m_prefilterCube = nullptr;
             rhi::TextureView* m_prefilterView = nullptr;
+            u32 m_prefilterRes = 0; // the size the prefilter cube was made at
             rhi::Buffer* m_shBuffer = nullptr;
             rhi::BindGroup* m_envBindGroup = nullptr;  // env full-chain sample (prefilter input)
             rhi::BindGroup* m_envMipBG[kEnvMips] = {}; // mip m as the downsample source
@@ -169,6 +170,15 @@ export namespace foundation::render
         IBLSystem& operator=(const IBLSystem&) = delete;
 
         Status Initialize();
+
+        /// Wire the frames-in-flight retire queue: a resized prefilter's old cube is retired, not
+        /// freed while a frame in flight may still sample it. Null means drain.
+        void SetRetireQueue(GpuRetireQueue* retire) noexcept { m_retire = retire; }
+
+        /// The prefiltered specular cube's face resolution from now on (a quality level's environment
+        /// tier). A context made at another size remakes its cube when next prepared and bakes once.
+        void SetPrefilterResolution(u32 resolution) noexcept { m_prefilterRes = Clamp(resolution, 32u, 1024u); }
+        [[nodiscard]] u32 PrefilterResolution() const noexcept { return m_prefilterRes; }
 
         // Shared products (sky-independent).
         [[nodiscard]] rhi::TextureView* BrdfView() const noexcept { return m_brdfView; }
@@ -235,6 +245,12 @@ export namespace foundation::render
 
         // One scene's products and the bind groups referencing them.
         bool CreateContextResources(Context& ctx);
+        // The context's prefiltered cube and its view, at the system's current resolution; and their
+        // release (retired through the queue when wired, else after draining the device).
+        bool CreatePrefilter(Context& ctx);
+        void ReleasePrefilter(Context& ctx);
+        GpuRetireQueue* m_retire = nullptr; // borrowed
+        u32 m_prefilterRes = 256;
 
         void DestroyContext(Context& ctx);
 

@@ -823,6 +823,31 @@ TEST_CASE("ReflectionProbeSystem accumulates per-scene ranges (multi-scene frame
     probes.Assign(&sceneA, Span<const ReflectionProbe>{listA, 1});
     probes.Assign(&sceneB, Span<const ReflectionProbe>{listB, 2});
     CHECK(probes.Captures().Size() == 0u);
+
+    // Another resolution (a quality level's environment tier): the next frame remakes both arrays at
+    // it, retiring the old ones, and every probe is captured again, once.
+    GpuRetireQueue retire;
+    retire.Initialize(&h.device, /*framesInFlight*/ 2);
+    probes.SetRetireQueue(&retire);
+    REQUIRE(probes.PrefilterArrayView()->texture->desc.width == 128u);
+    probes.SetResolution(64);
+    probes.BeginFrame();
+    probes.Assign(&sceneA, Span<const ReflectionProbe>{listA, 1});
+    probes.Assign(&sceneB, Span<const ReflectionProbe>{listB, 2});
+    CHECK(probes.PrefilterArrayView()->texture->desc.width == 64u);
+    CHECK(probes.CapturedSampleView()->texture->desc.width == 64u);
+    CHECK(retire.PendingCount() == 4u); // the two arrays and their two array views
+    CHECK(probes.Captures().Size() == 3u);
+    for (const ReflectionProbeSystem::CaptureTask& t : probes.Captures())
+    {
+        probes.MarkCaptured(t.slot);
+    }
+    probes.BeginFrame();
+    probes.Assign(&sceneA, Span<const ReflectionProbe>{listA, 1});
+    probes.Assign(&sceneB, Span<const ReflectionProbe>{listB, 2});
+    CHECK(probes.Captures().Size() == 0u);
+    retire.Flush();
+    probes.SetRetireQueue(nullptr);
 }
 
 TEST_CASE("IBLSystem: per-scene contexts; env rebuilds when a scene's sky-texture product changes")
@@ -921,6 +946,33 @@ TEST_CASE("IBLSystem: per-scene contexts; env rebuilds when a scene's sky-textur
     }
     CHECK(ctxA->Generation() == genA);
     CHECK(ctxB->Generation() > genB);
+
+    // Another environment resolution (a quality level's): each context remakes its prefiltered cube
+    // at it, the old one retired rather than freed in flight, and bakes once more; then rests.
+    GpuRetireQueue retire;
+    retire.Initialize(&h.device, /*framesInFlight*/ 2);
+    ibl.SetRetireQueue(&retire);
+    REQUIRE(ctxA->PrefilterView()->texture->desc.width == 256u);
+    ibl.SetPrefilterResolution(128);
+    {
+        foundation::rendergraph::RenderGraph graph(DefaultAllocator(), &h.device);
+        ibl.BeginFrame(graph);
+        CHECK(ibl.Prepare(&sceneA, procedural, sun, graph) == ctxA);
+        CHECK(ibl.Prepare(&sceneB, hdr, sun, graph) == ctxB);
+        CHECK(prefilterPasses(graph) == 2 * kBake);
+    }
+    CHECK(ctxA->PrefilterView()->texture->desc.width == 128u);
+    CHECK(ctxB->PrefilterView()->texture->desc.width == 128u);
+    CHECK(retire.PendingCount() == 4u); // each context's old cube and its view
+    {
+        foundation::rendergraph::RenderGraph graph(DefaultAllocator(), &h.device);
+        ibl.BeginFrame(graph);
+        (void)ibl.Prepare(&sceneA, procedural, sun, graph);
+        (void)ibl.Prepare(&sceneB, hdr, sun, graph);
+        CHECK(prefilterPasses(graph) == 0u);
+    }
+    retire.Flush();
+    ibl.SetRetireQueue(nullptr);
 
     h.device.DestroyTextureView(view);
     h.device.DestroyTexture(tex);

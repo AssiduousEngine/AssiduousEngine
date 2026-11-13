@@ -177,8 +177,8 @@ export namespace engine::render
         /// The quality level every view draws at (the player's, from its project and preset; the
         /// built-in highest until a host sets one): its MSAA count and antialiasing, and its tiers
         /// over what each scene asks for (ApplyQuality).
-        /// The shadow textures are shared by every view, so they follow this level's tiers, not a
-        /// viewport's.
+        /// The shadow textures and the environment's prefiltered maps are shared by every view, so
+        /// they follow this level's tiers, not a viewport's.
         void SetQuality(const RenderQualitySettings& quality);
         [[nodiscard]] const RenderQualitySettings& Quality() const noexcept { return m_quality; }
 

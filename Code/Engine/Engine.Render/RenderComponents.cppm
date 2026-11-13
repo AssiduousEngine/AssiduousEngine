@@ -1320,6 +1320,20 @@ export namespace engine::render
         return ShadowResolution{TierValue<u32>(tier, 512, 768, 1024), TierValue<u32>(tier, 256, 512, 512)};
     }
 
+    // The face resolution an environment tier gives the sky's prefiltered lighting (each scene's IBL):
+    // High is the size it had before the levels.
+    [[nodiscard]] constexpr u32 EnvironmentResolutionFor(ResolutionTier tier) noexcept
+    {
+        return tier == ResolutionTier::Low ? 128u : 256u;
+    }
+
+    // The face resolution an environment tier gives every reflection probe (one shared array): High is
+    // the size it had before the levels.
+    [[nodiscard]] constexpr u32 ProbeResolutionFor(ResolutionTier tier) noexcept
+    {
+        return tier == ResolutionTier::Low ? 64u : 128u;
+    }
+
     // A quality level over a scene's extracted frame: shadows Off draws none, and the level's cap
     // shortens the scene's shadow reach (a cap of 0 leaves it).
     inline void ApplyQuality(foundation::render::ExtractedScene& scene, const RenderQualitySettings& q)

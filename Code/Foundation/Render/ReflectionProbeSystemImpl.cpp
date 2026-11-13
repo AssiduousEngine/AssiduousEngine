@@ -16,6 +16,7 @@
 
 module;
 #include "Core/Prelude.h"
+#include "Core/Log/Log.h" // a resize that cannot remake the arrays
 
 module foundation.render;
 
@@ -48,6 +49,26 @@ namespace foundation::render
 
     void ReflectionProbeSystem::BeginFrame()
     {
+        // Another resolution (a quality level's environment tier): the arrays are remade at it, and
+        // every probe is captured again, once (an uncaptured slot is dirty at its next Assign).
+        if (m_capturedCube != nullptr && m_arraysResolution != m_resolution)
+        {
+            const u32 previous = m_arraysResolution;
+            ReleaseArrays();
+            if (!CreateArrays())
+            {
+                LOG_ERROR(u8"Render", u8"reflection probes: the arrays did not remake at {}; back to {}",
+                          m_resolution, previous);
+                ReleaseArrays();
+                m_resolution = previous;
+                (void)CreateArrays();
+            }
+            for (SlotState& slot : m_slotState)
+            {
+                slot.captured = false;
+            }
+        }
+
         // Hot reload: rebuild the blit and prefilter pipelines when their shaders changed
         // (the GPU is idle on reload; layouts and cached bind groups survive).
         const u64 shaderVersion = m_shaders->Version(u8"probe_blit_vs") +
@@ -254,7 +275,7 @@ namespace foundation::render
                     b.SetColorTarget(0, prefilteredH, rhi::LoadOp::Clear, rhi::StoreOp::Store,
                                      rhi::ClearColor::Black(), sub);
                     b.ReadTexture(capturedH);
-                    b.SetViewport(0, 0, kPrefilterRes, kPrefilterRes);
+                    b.SetViewport(0, 0, m_arraysResolution, m_arraysResolution);
                     b.NeverCull();
                     b.SetExecute(
                         [this, faceBG](rhi::RenderPassEncoder& rp)
@@ -282,7 +303,7 @@ namespace foundation::render
         for (u32 mip = 1; mip < kPrefilterMips; ++mip)
         {
             const f32 roughness = static_cast<f32>(mip) / static_cast<f32>(kPrefilterMips - 1);
-            const u32 mipRes = kPrefilterRes >> mip;
+            const u32 mipRes = Max(m_arraysResolution >> mip, 1u);
             for (u32 face = 0; face < 6; ++face)
             {
                 graph.AddRenderPass(
@@ -366,52 +387,7 @@ namespace foundation::render
 
     bool ReflectionProbeSystem::CreateResources()
     {
-        const u32 layers = kMaxProbes * 6u;
-
-        // Captured cube-array: the raw 6-face scene render per probe (RenderTarget), sampled by prefilter.
-        rhi::TextureDesc cd{};
-        cd.format = kCubeFormat;
-        cd.width = kCaptureRes;
-        cd.height = kCaptureRes;
-        cd.arrayLayerCount = layers;
-        cd.mipLevelCount = 1;
-        cd.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::Sampled |
-                   rhi::TextureUsage::CopySrc;
-        cd.label = u8"probes.captured";
-        if (!m_device->CreateTexture(cd, m_capturedCube).IsOk())
-        {
-            return false;
-        }
-        rhi::TextureViewDesc cv{};
-        cv.format = kCubeFormat;
-        cv.dimension = rhi::TextureViewDimension::TextureCubeArray;
-        cv.arrayLayerCount = layers;
-        cv.mipLevelCount = 1;
-        if (!m_device->CreateTextureView(m_capturedCube, cv, m_capturedArrayView).IsOk())
-        {
-            return false;
-        }
-
-        // Prefiltered specular cube-array (mip chain): GGX split-sum per probe, sampled by the forward.
-        rhi::TextureDesc pd{};
-        pd.format = kCubeFormat;
-        pd.width = kPrefilterRes;
-        pd.height = kPrefilterRes;
-        pd.arrayLayerCount = layers;
-        pd.mipLevelCount = kPrefilterMips;
-        pd.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::Sampled |
-                   rhi::TextureUsage::CopyDst;
-        pd.label = u8"probes.prefilter";
-        if (!m_device->CreateTexture(pd, m_prefilterCube).IsOk())
-        {
-            return false;
-        }
-        rhi::TextureViewDesc pv{};
-        pv.format = kCubeFormat;
-        pv.dimension = rhi::TextureViewDimension::TextureCubeArray;
-        pv.arrayLayerCount = layers;
-        pv.mipLevelCount = kPrefilterMips;
-        if (!m_device->CreateTextureView(m_prefilterCube, pv, m_prefilterArrayView).IsOk())
+        if (!CreateArrays())
         {
             return false;
         }
@@ -443,6 +419,122 @@ namespace foundation::render
         }
 
         return true;
+    }
+
+    bool ReflectionProbeSystem::CreateArrays()
+    {
+        const u32 layers = kMaxProbes * 6u;
+
+        // Captured cube-array: the raw 6-face scene render per probe (RenderTarget), sampled by prefilter.
+        rhi::TextureDesc cd{};
+        cd.format = kCubeFormat;
+        cd.width = m_resolution;
+        cd.height = m_resolution;
+        cd.arrayLayerCount = layers;
+        cd.mipLevelCount = 1;
+        cd.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::Sampled |
+                   rhi::TextureUsage::CopySrc;
+        cd.label = u8"probes.captured";
+        if (!m_device->CreateTexture(cd, m_capturedCube).IsOk())
+        {
+            return false;
+        }
+        rhi::TextureViewDesc cv{};
+        cv.format = kCubeFormat;
+        cv.dimension = rhi::TextureViewDimension::TextureCubeArray;
+        cv.arrayLayerCount = layers;
+        cv.mipLevelCount = 1;
+        if (!m_device->CreateTextureView(m_capturedCube, cv, m_capturedArrayView).IsOk())
+        {
+            return false;
+        }
+
+        // Prefiltered specular cube-array (mip chain): GGX split-sum per probe, sampled by the forward.
+        rhi::TextureDesc pd{};
+        pd.format = kCubeFormat;
+        pd.width = m_resolution;
+        pd.height = m_resolution;
+        pd.arrayLayerCount = layers;
+        pd.mipLevelCount = kPrefilterMips;
+        pd.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::Sampled |
+                   rhi::TextureUsage::CopyDst;
+        pd.label = u8"probes.prefilter";
+        if (!m_device->CreateTexture(pd, m_prefilterCube).IsOk())
+        {
+            return false;
+        }
+        rhi::TextureViewDesc pv{};
+        pv.format = kCubeFormat;
+        pv.dimension = rhi::TextureViewDimension::TextureCubeArray;
+        pv.arrayLayerCount = layers;
+        pv.mipLevelCount = kPrefilterMips;
+        if (!m_device->CreateTextureView(m_prefilterCube, pv, m_prefilterArrayView).IsOk())
+        {
+            return false;
+        }
+        m_arraysResolution = m_resolution;
+        m_layoutsInit = false; // the new arrays start Undefined: InitLayouts transitions them once
+        return true;
+    }
+
+    void ReflectionProbeSystem::ReleaseArrays()
+    {
+        // Retired when the queue is wired (frames in flight may still sample them), else drained.
+        const auto dropGroup = [this](rhi::BindGroup*& group)
+        {
+            if (group != nullptr && m_retire != nullptr)
+            {
+                m_retire->Retire(group);
+            }
+            else if (group != nullptr)
+            {
+                m_device->DestroyBindGroup(group);
+            }
+            group = nullptr;
+        };
+        const auto dropView = [this](rhi::TextureView*& view)
+        {
+            if (view != nullptr && m_retire != nullptr)
+            {
+                m_retire->Retire(view);
+            }
+            else if (view != nullptr)
+            {
+                m_device->DestroyTextureView(view);
+            }
+            view = nullptr;
+        };
+        const auto dropTexture = [this](rhi::Texture*& texture)
+        {
+            if (texture != nullptr && m_retire != nullptr)
+            {
+                m_retire->Retire(texture);
+            }
+            else if (texture != nullptr)
+            {
+                m_device->DestroyTexture(texture);
+            }
+            texture = nullptr;
+        };
+        if (m_retire == nullptr)
+        {
+            m_device->WaitIdle();
+        }
+        for (u32 i = 0; i < kMaxProbes * 6; ++i)
+        {
+            dropGroup(m_blitFaceBG[i]);
+            dropView(m_capturedFaceView[i]);
+        }
+        for (u32 i = 0; i < kMaxProbes; ++i)
+        {
+            dropGroup(m_prefilterSrcBG[i]);
+            dropView(m_prefilterSrcView[i]);
+        }
+        dropView(m_prefilterArrayView);
+        dropTexture(m_prefilterCube);
+        dropView(m_capturedArrayView);
+        dropTexture(m_capturedCube);
+        m_arraysResolution = 0;
     }
 
     bool ReflectionProbeSystem::CreateBlitPipeline()

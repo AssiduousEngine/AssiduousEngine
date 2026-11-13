@@ -25,6 +25,7 @@ import foundation.rendergraph;
 import foundation.shaders;
 import foundation.shaders.system;
 import :data; // ReflectionProbe, kMaxReflectionProbes, ProbeUpdateMode
+import :resources; // GpuRetireQueue (a resize's old arrays)
 
 using namespace foundation::core;
 namespace rendergraph = foundation::rendergraph;
@@ -65,9 +66,8 @@ export namespace foundation::render
     class ReflectionProbeSystem
     {
     public:
-        // One resolution for every probe: they share one cube array, and its slices cannot differ.
-        static constexpr u32 kCaptureRes = 128;
-        static constexpr u32 kPrefilterRes = 128;
+        // One resolution for every probe, captured and prefiltered alike: they share one cube array,
+        // and its slices cannot differ.
         static constexpr u32 kPrefilterMips = 5; // roughness = mip / (mips - 1)
         static constexpr u32 kMaxProbes = kMaxReflectionProbes;
         static constexpr rhi::TextureFormat kCubeFormat = rhi::TextureFormat::RGBA16Float;
@@ -80,6 +80,15 @@ export namespace foundation::render
         ~ReflectionProbeSystem() { DestroyResources(); }
 
         Status Initialize();
+
+        /// Wire the frames-in-flight retire queue: a resize retires the old arrays and their views,
+        /// rather than freeing them while a frame in flight may still sample them. Null means drain.
+        void SetRetireQueue(GpuRetireQueue* retire) noexcept { m_retire = retire; }
+
+        /// Every probe's face resolution from now on (a quality level's environment tier). At the next
+        /// BeginFrame the arrays are remade at it, and every probe is captured once more.
+        void SetResolution(u32 resolution) noexcept { m_resolution = Clamp(resolution, 32u, 512u); }
+        [[nodiscard]] u32 Resolution() const noexcept { return m_resolution; }
 
         // Reset the frame's record accumulation (records are per-scene ranges appended by Assign;
         // slot and capture state persist across frames). Call once per frame before any Assign.
@@ -180,6 +189,14 @@ export namespace foundation::render
         [[nodiscard]] static u64 TransformSignature(const ReflectionProbe& p);
 
         bool CreateResources();
+        // The captured and prefiltered cube arrays and their array views, at m_resolution; and their
+        // release with every slot's face views and bind groups over them (retired through the queue
+        // when wired, else after draining the device).
+        bool CreateArrays();
+        void ReleaseArrays();
+        GpuRetireQueue* m_retire = nullptr; // borrowed
+        u32 m_resolution = 128;      // the arrays' size from now on (SetResolution)
+        u32 m_arraysResolution = 0;  // the size the arrays were made at
 
         bool CreateBlitPipeline();
 

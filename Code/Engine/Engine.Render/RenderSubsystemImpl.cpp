@@ -187,9 +187,18 @@ namespace engine::render
         if (m_shadowSystem.Get() != nullptr)
         {
             // The cascades' and the atlas tiles' resolution: High is the sizes they had before the
-            // levels; Off draws none, so it holds Low's small textures.
+            // levels; Off draws none, so it holds Low's small textures. Then the environment: the sky's
+            // prefiltered lighting every scene's IBL context bakes at, and the reflection probes.
             const ShadowResolution sizes = ShadowResolutionFor(quality.shadows);
             m_shadowSystem->SetResolutions(sizes.cascade, sizes.atlasTile);
+        }
+        if (m_iblSystem.Get() != nullptr)
+        {
+            m_iblSystem->SetPrefilterResolution(EnvironmentResolutionFor(quality.environmentResolution));
+        }
+        if (m_probeSystem.Get() != nullptr)
+        {
+            m_probeSystem->SetResolution(ProbeResolutionFor(quality.environmentResolution));
         }
     }
 
@@ -893,9 +902,16 @@ namespace engine::render
         {
             m_iblSystem.Reset();
         }
+        if (m_iblSystem)
+        {
+            m_iblSystem->SetRetireQueue(&m_retireQueue);
+            m_iblSystem->SetPrefilterResolution(EnvironmentResolutionFor(m_quality.environmentResolution));
+        }
 
         m_probeSystem =
             MakeUnique<ReflectionProbeSystem>(m_allocator, *m_device, *m_shaders);
+        m_probeSystem->SetRetireQueue(&m_retireQueue);
+        m_probeSystem->SetResolution(ProbeResolutionFor(m_quality.environmentResolution)); // made at it
         if (!m_probeSystem->Initialize().IsOk())
         {
             m_probeSystem.Reset();

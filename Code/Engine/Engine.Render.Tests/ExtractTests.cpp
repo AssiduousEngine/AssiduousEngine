@@ -2453,6 +2453,12 @@ TEST_CASE("render: a quality level turns effects off and sets the MSAA and AA, n
     CHECK(ShadowResolutionFor(QualityTier::Low).cascade == 512u);
     CHECK(ShadowResolutionFor(QualityTier::Low).atlasTile == 256u);
     CHECK(ShadowResolutionFor(QualityTier::Off).cascade == 512u);
+    // The environment tier sizes every scene's prefiltered sky lighting: High the size before the levels.
+    CHECK(EnvironmentResolutionFor(ResolutionTier::High) == 256u);
+    CHECK(EnvironmentResolutionFor(ResolutionTier::Medium) == 256u);
+    CHECK(EnvironmentResolutionFor(ResolutionTier::Low) == 128u);
+    CHECK(ProbeResolutionFor(ResolutionTier::High) == 128u); // and every reflection probe
+    CHECK(ProbeResolutionFor(ResolutionTier::Low) == 64u);
     // Without `antialiasing` (a debug panel set its own), the view's AA stays as it was.
     {
         ViewPostConfig vp = ResolveScenePost(scene);

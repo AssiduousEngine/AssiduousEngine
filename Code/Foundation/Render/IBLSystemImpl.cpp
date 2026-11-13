@@ -144,6 +144,17 @@ namespace foundation::render
             ctx = m_contexts[m_contexts.Size() - 1].Get();
         }
         ctx->m_lastUsedFrame = m_frame;
+        // Another environment resolution (a quality level's): the prefiltered cube is remade at it and
+        // the context bakes again, once.
+        if (ctx->m_prefilterRes != m_prefilterRes)
+        {
+            ReleasePrefilter(*ctx);
+            if (!CreatePrefilter(*ctx))
+            {
+                return nullptr;
+            }
+            ctx->m_dirty = true;
+        }
 
         // Sky authoring: re-dirty only for fields baked into the env cube (sunAngularSize is
         // analytic only; the sky pass draws the disc live). Sun direction feeds the procedural env.
@@ -561,7 +572,7 @@ namespace foundation::render
         rhi::BindGroup* envBG = ctx.m_envBindGroup;
         for (u32 mip = 0; mip < kPrefilterMips; ++mip)
         {
-            const u32 res = kPrefilterRes >> mip;
+            const u32 res = Max(ctx.m_prefilterRes >> mip, 1u);
             const f32 roughness = (kPrefilterMips > 1)
                                       ? static_cast<f32>(mip) / static_cast<f32>(kPrefilterMips - 1)
                                       : 0.0f;
@@ -647,6 +658,58 @@ namespace foundation::render
         return true;
     }
 
+    bool IBLSystem::CreatePrefilter(Context& ctx)
+    {
+        // Prefilter cube (mip chain), at the current resolution.
+        rhi::TextureDesc pd{};
+        pd.format = kCubeFormat;
+        pd.width = m_prefilterRes;
+        pd.height = m_prefilterRes;
+        pd.arrayLayerCount = 6;
+        pd.mipLevelCount = kPrefilterMips;
+        pd.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::Sampled;
+        pd.label = u8"ibl.prefilter";
+        if (!m_device->CreateTexture(pd, ctx.m_prefilterCube).IsOk())
+        {
+            return false;
+        }
+        rhi::TextureViewDesc pv{};
+        pv.format = kCubeFormat;
+        pv.dimension = rhi::TextureViewDimension::TextureCube;
+        pv.arrayLayerCount = 6;
+        pv.mipLevelCount = kPrefilterMips;
+        if (!m_device->CreateTextureView(ctx.m_prefilterCube, pv, ctx.m_prefilterView).IsOk())
+        {
+            return false;
+        }
+        ctx.m_prefilterRes = m_prefilterRes;
+        ctx.m_prefilterState = rhi::ResourceState::Undefined;
+        return true;
+    }
+
+    void IBLSystem::ReleasePrefilter(Context& ctx)
+    {
+        if (m_retire != nullptr)
+        {
+            m_retire->Retire(ctx.m_prefilterView);
+            m_retire->Retire(ctx.m_prefilterCube);
+        }
+        else
+        {
+            m_device->WaitIdle();
+            if (ctx.m_prefilterView != nullptr)
+            {
+                m_device->DestroyTextureView(ctx.m_prefilterView);
+            }
+            if (ctx.m_prefilterCube != nullptr)
+            {
+                m_device->DestroyTexture(ctx.m_prefilterCube);
+            }
+        }
+        ctx.m_prefilterView = nullptr;
+        ctx.m_prefilterCube = nullptr;
+    }
+
     bool IBLSystem::CreateContextResources(Context& ctx)
     {
         // Env cube (mip pyramid): mip 0 holds the full-res source radiance; mips 1..N are box-downsampled
@@ -688,25 +751,7 @@ namespace foundation::render
             }
         }
 
-        // Prefilter cube (mip chain).
-        rhi::TextureDesc pd{};
-        pd.format = kCubeFormat;
-        pd.width = kPrefilterRes;
-        pd.height = kPrefilterRes;
-        pd.arrayLayerCount = 6;
-        pd.mipLevelCount = kPrefilterMips;
-        pd.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::Sampled;
-        pd.label = u8"ibl.prefilter";
-        if (!m_device->CreateTexture(pd, ctx.m_prefilterCube).IsOk())
-        {
-            return false;
-        }
-        rhi::TextureViewDesc pv{};
-        pv.format = kCubeFormat;
-        pv.dimension = rhi::TextureViewDimension::TextureCube;
-        pv.arrayLayerCount = 6;
-        pv.mipLevelCount = kPrefilterMips;
-        if (!m_device->CreateTextureView(ctx.m_prefilterCube, pv, ctx.m_prefilterView).IsOk())
+        if (!CreatePrefilter(ctx))
         {
             return false;
         }

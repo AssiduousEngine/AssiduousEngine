@@ -14,7 +14,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   bloom, a cap on the shadow reach and the environment's resolution. The project lists its levels
   and the one it starts at, and an export preset picks its own, so a phone's export can ask less
   than a desktop's. The player starts at its preset's level and play-in-editor at the project's; an
-  Off tier turns its effect off whatever a scene asks, and no tier turns one on.
+  Off tier turns its effect off whatever a scene asks, and no tier turns one on. High is each
+  effect's full cost, as before the levels; Medium and Low cost less: fewer AO samples, SSR steps,
+  SSGI rays and bloom levels, smaller shadow maps, and at Low a smaller environment.
 
 ### Changed
 

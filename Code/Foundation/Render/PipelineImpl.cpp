@@ -1660,7 +1660,7 @@ namespace foundation::render
                 !m_probeSystem->Captures().IsEmpty())
             {
                 const rendergraph::RGHandle capturedH = probeCapturedH;
-                const u32 res = ReflectionProbeSystem::kCaptureRes;
+                const u32 res = m_probeSystem->Resolution(); // the arrays' size (BeginFrame keeps them at it)
                 const f32 nearZ = ReflectionProbeSystem::kCaptureNear;
                 const f32 farZ = ReflectionProbeSystem::kCaptureFar;
                 // Round-robin: capture one dirty probe per frame, cycling through them. Keeps the capture to 6
