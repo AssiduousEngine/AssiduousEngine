@@ -413,6 +413,7 @@ namespace
                         ->skeletonIndex;
             }
             merged->CalculateBounds();
+            merged->CalculateJointBounds();
             return core::RefPtr<geometry::StaticMesh>(merged.Get());
         }
 

@@ -218,6 +218,7 @@ export namespace foundation::geometry
             {
                 MemCopy(mesh.skinning.Data(), skinningBlob.Data(), scount * sizeof(VertexSkinning));
             }
+            mesh.CalculateJointBounds(); // derived at load, as the bounds are
             mesh.skeletonIndex = skeletonIndex;
         }
     };

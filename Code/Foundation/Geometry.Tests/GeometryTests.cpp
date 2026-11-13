@@ -254,3 +254,63 @@ TEST_CASE("mesh raycast: the nearest triangle hit, from either side, and its nea
     StaticMesh empty;
     CHECK_FALSE(RaycastMesh(empty, Float3{0, 5, 0}, Float3{0, -1, 0}, 100.0f, hit));
 }
+
+TEST_CASE("skinned mesh: posed bounds follow the joints, and hold every skinned vertex")
+{
+    // Three vertices along x: one moved by joint 0, one by joint 2, one shared half and half (joint
+    // 1 moves nothing).
+    SkinnedMesh mesh;
+    const Float3 positions[3] = {Float3{-1, 0, 0}, Float3{0, 0, 0}, Float3{1, 0, 0}};
+    for (const Float3& p : positions)
+    {
+        mesh.vertices.PushBack(StaticMeshVertex{p, Float3{0, 1, 0}, Float2{0, 0}, 0xFFFFFFFFu, Float3{1, 0, 0}});
+    }
+    VertexSkinning left{}, middle{}, right{};
+    left.joints[0] = 0;
+    middle.joints[0] = 0;
+    middle.joints[1] = 2;
+    middle.weights = Float4{0.5f, 0.5f, 0, 0};
+    right.joints[0] = 2;
+    mesh.skinning.PushBack(left);
+    mesh.skinning.PushBack(middle);
+    mesh.skinning.PushBack(right);
+    mesh.CalculateBounds();
+    mesh.CalculateJointBounds();
+    REQUIRE(mesh.jointBounds.Size() == 3u);
+    CHECK(mesh.jointBounds[0].max.x == doctest::Approx(0.0f));
+    CHECK_FALSE(mesh.jointBounds[1].IsValid()); // moves nothing
+    CHECK(mesh.jointBounds[2].min.x == doctest::Approx(0.0f));
+
+    // Joint 2 raised ten up: the box reaches it, where the bind-pose box stays at y 0.
+    const Float4x4 palette[3] = {Float4x4::Identity(), Float4x4::Identity(),
+                                 Float4x4::Translation(Float3{0, 10, 0})};
+    AABB posed;
+    REQUIRE(mesh.PosedBounds(Span<const Float4x4>{palette, 3}, posed));
+    CHECK(posed.max.y == doctest::Approx(10.0f));
+    CHECK(posed.min.y == doctest::Approx(0.0f));
+    CHECK(posed.min.x == doctest::Approx(-1.0f));
+    CHECK(posed.max.x == doctest::Approx(1.0f));
+    CHECK(mesh.bounds.max.y == doctest::Approx(0.0f));
+    // Every vertex, skinned as the shader does, lies in the box (the shared one at y 5).
+    for (usize i = 0; i < mesh.vertices.Size(); ++i)
+    {
+        const VertexSkinning& s = mesh.skinning[i];
+        const f32 w[4] = {s.weights.x, s.weights.y, s.weights.z, s.weights.w};
+        Float3 skinned = Float3::Zero;
+        for (u32 k = 0; k < 4; ++k)
+        {
+            skinned += TransformPoint(mesh.vertices[i].position, palette[s.joints[k]]) * w[k];
+        }
+        CHECK(posed.Contains(skinned));
+    }
+
+    // A palette shorter than the joints cannot bound the pose; a static mesh never can.
+    CHECK_FALSE(mesh.PosedBounds(Span<const Float4x4>{palette, 2}, posed));
+    StaticMesh plain;
+    CHECK_FALSE(plain.PosedBounds(Span<const Float4x4>{palette, 3}, posed));
+
+    // Streams of different lengths give no joint bounds.
+    mesh.skinning.PopBack();
+    mesh.CalculateJointBounds();
+    CHECK(mesh.jointBounds.IsEmpty());
+}

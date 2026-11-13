@@ -387,6 +387,44 @@ namespace
     };
 }
 
+TEST_CASE("extract: a skinned mesh culls by its pose, not its bind pose")
+{
+    // A character walked fifty metres from its bind pose by its root joint: culled by the bind-pose
+    // box, it vanished whenever that box left the view, and drew when it was out of it.
+    scene::Scene scene{DefaultAllocator()};
+    auto* meshes = scene.AddSystem<MeshComponentManager>();
+    RefPtr<geometry::StaticMesh> quad = geometry::Primitives::Quad(DefaultAllocator());
+    RefPtr<geometry::SkinnedMesh> mesh = MakeRef<geometry::SkinnedMesh>(DefaultAllocator());
+    mesh->vertices = quad->vertices;
+    mesh->skinning.Resize(mesh->vertices.Size()); // every vertex on joint 0
+    mesh->CalculateBounds();
+    mesh->CalculateJointBounds();
+    const Float4x4 pose[1] = {Float4x4::Translation(Float3{50.0f, 0.0f, 0.0f})};
+    const scene::EntityHandle e = scene.CreateEntity();
+    MeshComponent& m = meshes->Add(e);
+    m.mesh = mesh;
+    m.SetMaterial(materials::MaterialBuilder(u8"skin").Shader(u8"forward").Build());
+    FixedPose* posing = scene.AddSystem<FixedPose>();
+    posing->mesh = e;
+    posing->current = pose;
+    posing->previous = pose;
+    scene.UpdateTransforms();
+
+    ExtractedScene out{DefaultAllocator()};
+    ExtractSceneInto(scene, out);
+    REQUIRE(out.Size() == 1);
+    const auto* md = static_cast<const MeshRenderData*>(out.Items()[0]);
+    CHECK(md->worldCenter.x == doctest::Approx(50.0f));
+    CHECK(md->worldRadius == doctest::Approx(Length(mesh->bounds.Extents())));
+
+    // Without an animator it draws, and culls, as bound.
+    posing->mesh = scene::EntityHandle::Invalid();
+    ExtractedScene still{DefaultAllocator()};
+    ExtractSceneInto(scene, still);
+    REQUIRE(still.Size() == 1);
+    CHECK(static_cast<const MeshRenderData*>(still.Items()[0])->worldCenter.x == doctest::Approx(mesh->bounds.Center().x));
+}
+
 TEST_CASE("extract: a skinned mesh in a scene that is not simulating reports no motion")
 {
     // The animator's last two poses stay a step apart while nothing advances them; drawn as

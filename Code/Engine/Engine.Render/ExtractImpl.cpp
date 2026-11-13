@@ -72,9 +72,19 @@ namespace engine::render
         materials::Material* primary =
             mc.materialCache.IsEmpty() ? nullptr : mc.materialCache[0].Get();
 
+        // GPU skinning: the palette of whatever poses the mesh now, borrowed for the frame; none (an
+        // animator that went, or never was) draws the mesh static.
+        scene::SkinningPalette palette;
+        const bool skinned = scene::FindSkinningPalette(scene, e, palette);
+
         rd.world = scene.GetWorldMatrix(e);
-        const AABB lb =
-            (mc.mesh.Get() != nullptr) ? mc.mesh->bounds : AABB{Float3{0, 0, 0}, Float3{0, 0, 0}};
+        AABB lb = (mc.mesh.Get() != nullptr) ? mc.mesh->bounds : AABB{Float3{0, 0, 0}, Float3{0, 0, 0}};
+        AABB posed;
+        if (skinned && mc.mesh.Get() != nullptr &&
+            mc.mesh->PosedBounds(Span<const Float4x4>{palette.current, palette.boneCount}, posed))
+        {
+            lb = posed; // a pose reaching past the bind pose (an arm raised, a crouch) culls as posed
+        }
         rd.worldCenter = TransformPoint(lb.Center(), rd.world); // bounds center (cull and depth sort)
         rd.worldRadius = WorldBoundsRadius(lb, rd.world);
         rd.color = ToLinear(mc.color); // authored sRGB -> linear render data
@@ -83,10 +93,6 @@ namespace engine::render
         rd.entityId = PackEntity(e);
         rd.fade = Clamp(mc.fade, 0.0f, 1.0f);
         rd.category = MeshSlotCategory(primary, rd.fade); // a fading mesh is out of the depth prepass
-        // GPU skinning: the palette of whatever poses the mesh now, borrowed for the frame; none (an
-        // animator that went, or never was) draws the mesh static.
-        scene::SkinningPalette palette;
-        const bool skinned = scene::FindSkinningPalette(scene, e, palette);
         rd.boneMatrices = skinned ? palette.current : nullptr;
         // Null reuses the current pose (no motion). A scene that is not simulating (the Game tab's
         // pause, a debugger break) runs no animation, so the pose holds still, but the animator's last

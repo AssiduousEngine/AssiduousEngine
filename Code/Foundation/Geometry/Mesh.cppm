@@ -103,6 +103,15 @@ export namespace foundation::geometry
         {
             return {};
         }
+        /// The mesh's local box in the pose `palette` (one skinning matrix per joint) gives it, for
+        /// culling a posed mesh; false when the mesh cannot tell (a static mesh, a skinned one without
+        /// joint bounds), and `bounds` is the box then.
+        [[nodiscard]] virtual bool PosedBounds(Span<const Float4x4> palette, AABB& out) const noexcept
+        {
+            (void)palette;
+            (void)out;
+            return false;
+        }
 
         // Resets the mesh to empty in place, so a hot-reload can re-populate the same
         // instance without invalidating outside references (GPU caches, renderers).
@@ -283,11 +292,66 @@ export namespace foundation::geometry
     public:
         Array<VertexSkinning> skinning; // parallel to StaticMesh::vertices
         i32 skeletonIndex = -1;         // index into the import skeleton list (-1 = none)
+        // Per joint, the bind-pose box of the vertices it moves (weight above zero); an invalid box
+        // for a joint that moves none. Derived from the streams by CalculateJointBounds, as `bounds`
+        // is by CalculateBounds.
+        Array<AABB> jointBounds;
 
         [[nodiscard]] bool IsSkinned() const noexcept override { return true; }
         [[nodiscard]] Span<const VertexSkinning> SkinningStream() const noexcept override
         {
             return {skinning.Data(), skinning.Size()};
+        }
+
+        // Recomputes `jointBounds` from the static and skinning streams (none when they differ in
+        // length, so the mesh culls by `bounds`).
+        void CalculateJointBounds()
+        {
+            jointBounds.Clear();
+            if (skinning.Size() != vertices.Size())
+            {
+                return;
+            }
+            for (usize i = 0; i < vertices.Size(); ++i)
+            {
+                const VertexSkinning& s = skinning[i];
+                const f32 weights[4] = {s.weights.x, s.weights.y, s.weights.z, s.weights.w};
+                for (u32 k = 0; k < 4; ++k)
+                {
+                    if (weights[k] <= 0.0f)
+                    {
+                        continue;
+                    }
+                    const u32 joint = s.joints[k];
+                    while (jointBounds.Size() <= joint)
+                    {
+                        jointBounds.PushBack(AABB::Empty());
+                    }
+                    jointBounds[joint].Expand(vertices[i].position);
+                }
+            }
+        }
+
+        // A skinned vertex is a weighted average of its joints' matrices applied to it, so it lies
+        // within the boxes of those joints, each carried by its joint's matrix: their union bounds
+        // the posed mesh.
+        [[nodiscard]] bool PosedBounds(Span<const Float4x4> palette, AABB& out) const noexcept override
+        {
+            if (jointBounds.IsEmpty() || palette.Size() < jointBounds.Size())
+            {
+                return false; // a joint past the palette: the pose cannot be bounded from it
+            }
+            out = AABB::Empty();
+            for (usize j = 0; j < jointBounds.Size(); ++j)
+            {
+                if (jointBounds[j].IsValid())
+                {
+                    const AABB posed = TransformAABB(jointBounds[j], palette[j]);
+                    out.Expand(posed.min);
+                    out.Expand(posed.max);
+                }
+            }
+            return out.IsValid();
         }
 
         [[nodiscard]] static constexpr u32 SkinningStride() noexcept
@@ -307,6 +371,7 @@ export namespace foundation::geometry
         {
             StaticMesh::ClearForReload();
             skinning.Clear();
+            jointBounds.Clear();
             skeletonIndex = -1;
         }
     };
