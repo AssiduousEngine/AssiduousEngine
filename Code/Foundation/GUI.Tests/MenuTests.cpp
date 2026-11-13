@@ -239,6 +239,55 @@ TEST_CASE("menu: a submenu opens to the right of its item on hover")
     CHECK(sub->GetPosition().y == doctest::Approx(76.0f));  // menu.y(50) + item.y(26)
 }
 
+TEST_CASE("menu: a submenu that empties itself as it opens shows the rows it adds then")
+{
+    auto root = core::MakeRef<SceneRoot>(core::DefaultAllocator(), core::MakeRef<GUIContext>(core::DefaultAllocator()));
+    root->SetSize(core::Float2{600.0f, 600.0f});
+    auto anchor = Make<UIWidget>();
+    root->AddChild(anchor.Get());
+    EventDispatcher* d = root->GetEventDispatcher();
+
+    auto menu = Make<Menu>();
+    menu->SetWidth(160.0f);
+    menu->SetItemHeight(26.0f);
+    menu->AddItem(core::StringView(u8"Top"), [] {});
+    Menu* sub = menu->AddSubMenu(core::StringView(u8"Levels"));
+    sub->AddItem(core::StringView(u8"Stale"), [] {});
+    Menu* nested = sub->AddSubMenu(core::StringView(u8"Nested"));
+    nested->AddItem(core::StringView(u8"Gone"), [] {});
+    int listed = 2;
+    int picked = -1;
+    sub->SetOnOpening([&](Menu& opening)
+    {
+        opening.ClearItems();
+        for (int i = 0; i < listed; ++i)
+            opening.AddItem(core::StringView(i == 0 ? u8"Low" : u8"High"), [&picked, i] { picked = i; });
+    });
+    CHECK(sub->RowCount() == 2u); // before it opens: what it was built with
+
+    menu->Open(*anchor, core::Float2{50.0f, 50.0f});
+    d->InjectMouseMove(core::Float2{60.0f, 88.0f}); // the "Levels" row opens the submenu
+    REQUIRE(sub->IsOpen());
+    CHECK(sub->RowCount() == 2u);
+    CHECK(sub->ItemCount() == 2u);
+    CHECK(sub->GetSize().y == doctest::Approx(52.0f)); // two rows, sized to them
+
+    // The submenu's second row (High) is at its y + 26.
+    const core::Float2 high{sub->GetPosition().x + 10.0f, sub->GetPosition().y + 39.0f};
+    d->InjectMouseMove(high);
+    d->InjectMouseDown(high, MouseButton::Left);
+    d->InjectMouseUp(high, MouseButton::Left);
+    CHECK(picked == 1);
+    CHECK_FALSE(menu->IsOpen());
+
+    listed = 1; // the list shrank while the menu was closed
+    menu->Open(*anchor, core::Float2{50.0f, 50.0f});
+    d->InjectMouseMove(core::Float2{60.0f, 88.0f});
+    REQUIRE(sub->IsOpen());
+    CHECK(sub->RowCount() == 1u);
+    CHECK(sub->GetSize().y == doctest::Approx(26.0f));
+}
+
 TEST_CASE("menu: hovering a different row closes the open submenu")
 {
     auto root = core::MakeRef<SceneRoot>(core::DefaultAllocator(), core::MakeRef<GUIContext>(core::DefaultAllocator()));

@@ -710,6 +710,22 @@ export namespace foundation::gui
         /// Adds an item made elsewhere, such as a MenuItem from markup.
         void AdoptItem(MenuItem& item) { AddItemNode(&item, &item); }
 
+        /// Removes every row (items, separators, and submenus with theirs), closing the menu first
+        /// when it is open. An owner whose list changes (the files or levels it offers) empties
+        /// the menu as it opens and adds what it knows now.
+        void ClearItems()
+        {
+            Close();
+            for (MenuRow* row : m_rows)
+                RemoveChild(row);
+            m_rows.Clear();
+            m_ownedSubMenus.Clear();
+            m_deferredRow = nullptr; // was one of the rows
+            m_deferring = false;
+            m_scroll = 0.0f;
+            Relayout();
+        }
+
         /// Sets the title, which a menu bar shows on its button, or a parent menu on the submenu
         /// item (markup's `text`).
         void SetTitle(core::StringView title)
