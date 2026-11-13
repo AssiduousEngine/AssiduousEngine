@@ -391,3 +391,43 @@ TEST_CASE("plain stream: a bare socket as a stream, the same conventions")
     CHECK(ended);
     CHECK(nowhere.Failure().ContainsIgnoreCase(u8"could not be made"));
 }
+
+TEST_CASE("net stream: a peer that stops reading fails the stream instead of growing its buffer")
+{
+    // Send took every byte into the unsent buffer and reported it sent: a peer that never read
+    // (a stalled browser tab on a WebSocket server) grew the sender's memory without end.
+    TcpListener listener(0);
+    REQUIRE(listener.IsOpen());
+    TcpSocket clientSocket = TcpSocket::Connect(u8"127.0.0.1", listener.BoundPort());
+    REQUIRE(clientSocket.IsOpen());
+    TcpSocket accepted;
+    for (int i = 0; i < 300 && !(accepted.IsOpen() && clientSocket.ConnectStatus() == 1); ++i)
+    {
+        if (!accepted.IsOpen())
+            accepted = listener.Accept();
+        SleepMilliseconds(1);
+    }
+    REQUIRE(accepted.IsOpen());
+    PlainStream stream(Move(clientSocket));
+    for (int i = 0; i < 100 && !stream.Ready(); ++i)
+        (void)stream.Pump();
+    REQUIRE(stream.Ready());
+
+    Array<byte> chunk;
+    chunk.Resize(1u << 20);
+    usize queued = 0;
+    bool failed = false;
+    while (queued < (64u << 20)) // the far end reads nothing
+    {
+        if (stream.Send(chunk.AsSpan()) < 0)
+        {
+            failed = true;
+            break;
+        }
+        queued += chunk.Size();
+        (void)stream.Pump();
+    }
+    CHECK(failed);
+    CHECK(stream.Failure().Find(StringView(u8"stopped reading")) != StringView::kNotFound);
+    MESSAGE("queued ", queued >> 20, " MB");
+}

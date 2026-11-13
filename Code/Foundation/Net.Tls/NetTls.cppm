@@ -160,8 +160,11 @@ export namespace foundation::net
         virtual bool Pump() = 0;
         /// Connected, and for TLS the handshake done: what is sent now goes at once.
         [[nodiscard]] virtual bool Ready() const = 0;
-        /// Plaintext to send: all of it taken (`data.Size()`), or -1 when the stream is done.
+        /// Plaintext to send: all of it taken (`data.Size()`), or -1 when the stream is done. A
+        /// stream holding more than kMaxUnsentBytes the socket has not taken (a peer that stopped
+        /// reading) fails instead of holding more: Failure says so.
         virtual i64 Send(Span<const byte> data) = 0;
+        static constexpr usize kMaxUnsentBytes = 8u << 20;
         /// Plaintext received: bytes read (>0), 0 when none is ready yet, -1 when the stream is done.
         virtual i64 Receive(Span<byte> out) = 0;
         virtual void Close() = 0;
@@ -182,7 +185,8 @@ export namespace foundation::net
 
     private:
         TcpSocket m_socket;
-        Array<byte> m_out; // what the socket did not take yet
+        Array<byte> m_out; // what the socket did not take yet, from m_outHead
+        usize m_outHead = 0;
         bool m_connected = false;
         bool m_done = false;
         String m_failure;
@@ -208,7 +212,8 @@ export namespace foundation::net
 
         TcpSocket m_socket;
         UniquePtr<ITlsSession> m_session;
-        Array<byte> m_out; // ciphertext the socket did not take yet
+        Array<byte> m_out; // ciphertext the socket did not take yet, from m_outHead
+        usize m_outHead = 0;
         bool m_connected = false;
         bool m_socketGone = false;
         String m_failure;

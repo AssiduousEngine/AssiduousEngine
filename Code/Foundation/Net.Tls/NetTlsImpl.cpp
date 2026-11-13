@@ -78,27 +78,31 @@ namespace foundation::net
 
     namespace
     {
-        // As much of `pending` as the socket takes now, the rest kept; false when the socket is gone.
-        bool SendSome(TcpSocket& socket, Array<byte>& pending)
+        // As much of `pending` from `head` as the socket takes now, the rest kept; false when the
+        // socket is gone. What was sent is skipped by moving `head`, and dropped once it is most of
+        // the buffer: copying the rest down on every partial send cost a backlog's size each time.
+        bool SendSome(TcpSocket& socket, Array<byte>& pending, usize& head)
         {
-            usize sent = 0;
-            while (sent < pending.Size())
+            while (head < pending.Size())
             {
-                const i64 n = socket.Send(Span<const byte>(pending.Data() + sent, pending.Size() - sent));
+                const i64 n = socket.Send(Span<const byte>(pending.Data() + head, pending.Size() - head));
                 if (n < 0)
                     return false;
                 if (n == 0)
                     break; // would block: the rest on the next Pump
-                sent += static_cast<usize>(n);
+                head += static_cast<usize>(n);
             }
-            if (sent == pending.Size())
-                pending.Clear();
-            else if (sent > 0)
+            if (head == pending.Size())
             {
-                Array<byte> rest;
-                for (usize i = sent; i < pending.Size(); ++i)
-                    rest.PushBack(pending[i]);
-                pending = Move(rest);
+                pending.Clear();
+                head = 0;
+            }
+            else if (head >= (64u << 10) && head * 2 >= pending.Size())
+            {
+                const usize rest = pending.Size() - head;
+                MemMove(pending.Data(), pending.Data() + head, rest);
+                pending.Resize(rest);
+                head = 0;
             }
             return true;
         }
@@ -132,7 +136,7 @@ namespace foundation::net
         }
         if (status == 0)
             return true;
-        if (!SendSome(m_socket, m_out))
+        if (!SendSome(m_socket, m_out, m_outHead))
         {
             m_done = true;
             m_failure = String(u8"the connection closed while sending");
@@ -144,9 +148,17 @@ namespace foundation::net
     {
         if (m_done)
             return -1;
-        for (const byte b : data)
-            m_out.PushBack(b);
-        if (m_connected && !SendSome(m_socket, m_out))
+        if (m_out.Size() - m_outHead + data.Size() > kMaxUnsentBytes)
+        {
+            m_done = true;
+            m_failure = Format(u8"the peer stopped reading ({} bytes unsent)", m_out.Size() - m_outHead);
+            return -1;
+        }
+        const usize at = m_out.Size();
+        m_out.Resize(at + data.Size());
+        if (!data.IsEmpty())
+            MemCopy(m_out.Data() + at, data.Data(), data.Size());
+        if (m_connected && !SendSome(m_socket, m_out, m_outHead))
         {
             m_done = true;
             m_failure = String(u8"the connection closed while sending");
@@ -169,7 +181,7 @@ namespace foundation::net
 
     void PlainStream::Close()
     {
-        (void)SendSome(m_socket, m_out);
+        (void)SendSome(m_socket, m_out, m_outHead);
         m_socket.Close();
         m_done = true;
     }
@@ -181,7 +193,7 @@ namespace foundation::net
         (void)m_session->TakeOutgoing(m_out);
         if (!m_connected || m_socketGone)
             return !m_socketGone;
-        if (!SendSome(m_socket, m_out))
+        if (!SendSome(m_socket, m_out, m_outHead))
             m_socketGone = true;
         return !m_socketGone;
     }
@@ -229,6 +241,12 @@ namespace foundation::net
         if (!m_session->Write(data).IsOk())
             return -1;
         (void)Flush();
+        if (m_out.Size() - m_outHead > kMaxUnsentBytes)
+        {
+            m_socketGone = true;
+            m_failure = Format(u8"the peer stopped reading ({} bytes unsent)", m_out.Size() - m_outHead);
+            return -1;
+        }
         return static_cast<i64>(data.Size());
     }
 
