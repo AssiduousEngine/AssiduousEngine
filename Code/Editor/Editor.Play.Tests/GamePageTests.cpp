@@ -28,6 +28,7 @@ import engine.render;       // RenderQualityLevel: the level the Game tab plays 
 import foundation.vfs;
 import foundation.content;
 import foundation.resource;
+import foundation.scene.resource; // SceneDocument: a default scene that does not load
 
 using namespace foundation::core;
 using namespace editor;
@@ -426,4 +427,44 @@ TEST_CASE("game page: the Game tab plays at the project's starting quality level
         CHECK(editor::GameQuality(settings, &manager).msaaSamples == 4u);
     }
     (void)RemoveDirectoryRecursive(dir);
+}
+
+TEST_CASE("game tab: a start whose default scene does not load leaves nothing wired to the tab")
+{
+    const String dir(u8"scratch_game_page_failed_start");
+    (void)RemoveDirectoryRecursive(dir.AsView());
+    REQUIRE(EditorProject::Create(DefaultAllocator(), dir.AsView(), u8"P").IsOk());
+    UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir.AsView());
+    REQUIRE(static_cast<bool>(project));
+    foundation::content::Instance* broken =
+        project->SourceDb().RootGroup()->CreateInstance(u8"Broken", foundation::scene::SceneDocument::StaticType());
+    REQUIRE(broken != nullptr);
+    const char8_t junk[] = u8"this is not a scene";
+    REQUIRE(broken->WriteData(u8"scene", Span<const byte>(reinterpret_cast<const byte*>(junk), sizeof(junk) - 1),
+                              foundation::content::StreamEncoding::Text)
+                .IsOk());
+    project->Settings().defaultSceneId = broken->Id();
+    foundation::settings::Settings store{DefaultAllocator()};
+    EditorContext context{DefaultAllocator()};
+    context.SetProject(project.Get());
+    context.SetProjectEditorSettings(&store);
+    SceneHost host;
+    engine::runtime::GameInstance instance;
+    {
+        GameEditorPage::Services services;
+        services.loadMarkup = [](StringView path) { return LoadMarkup(path); };
+        GameEditorPage page(context, host, Move(services), nullptr, &instance, u8"game-page");
+        page.Play();
+        page.OnUpdate(host, 1.0f / 60.0f); // the start runs, and fails on the scene
+        CHECK_FALSE(page.IsRunning());
+        // What the start wired to this tab for the run is undone with it.
+        CHECK_FALSE(static_cast<bool>(context.OnBreakpointsChanged));
+        CHECK_FALSE(static_cast<bool>(context.ScriptValueProbe));
+        page.OnClose();
+    }
+    CHECK_FALSE(static_cast<bool>(context.OnBreakpointsChanged)); // nothing reaches the closed tab
+    context.SetProjectEditorSettings(nullptr);
+    context.SetProject(nullptr);
+    project.Reset();
+    (void)RemoveDirectoryRecursive(dir.AsView());
 }

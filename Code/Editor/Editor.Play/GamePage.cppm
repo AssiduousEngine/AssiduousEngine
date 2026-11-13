@@ -420,6 +420,9 @@ export namespace editor
         // The deferred half of Play(): the actual boot (script launch and default scene), run by
         // OnUpdate once the cook is idle.
         void StartRunNow();
+        // Undoes whatever a run set up, however far its start got: the debugger wired to this tab,
+        // the script, the scenes, the input. Stop and every failed start end through it.
+        void TearDownRun();
 
         // Scripted input (pie_run) installs a timeline source in place of the viewport's, on this
         // tab's game instance and, while this tab holds it, on the input subsystem, so the other

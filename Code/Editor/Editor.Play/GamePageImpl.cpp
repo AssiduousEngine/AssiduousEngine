@@ -476,15 +476,9 @@ namespace editor
             if (startScene == nullptr || !scene::LoadScene(*instance, *startScene).IsOk())
             {
                 m_context->Notify(NoticeKind::Error, u8"Game: default scene failed to load.");
-                if (startScene != nullptr)
-                {
-                    SceneGroup().DestroyScene(startScene);
-                }
-                if (m_gameInstance != nullptr)
-                {
-                    m_gameInstance
-                        ->StopScript(); // stop the script launched above rather than leave it running
-                }
+                // Undone as a Stop undoes a run: the script launched above, the debugger wired to
+                // this tab, the scenes. Left wired, the editor would call into this tab once closed.
+                TearDownRun();
                 return;
             }
             // Products bind through the editor's shared manager, and the prefabs the scene places come
@@ -550,6 +544,11 @@ namespace editor
         {
             return;
         }
+        TearDownRun();
+    }
+
+    void GameEditorPage::TearDownRun()
+    {
         DropScriptedInput(); // a stopped run scripts nothing
         // The map clears, so no actions are bound between runs. The source stays, since it is the
         // runtime input's permanent provider, but its scene binding drops with the run, which
