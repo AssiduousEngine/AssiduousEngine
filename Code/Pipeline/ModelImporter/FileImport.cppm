@@ -923,7 +923,7 @@ export namespace pipeline
 
         // Copy every relative "uri" the .gltf references (buffers, images) from next to the
         // original file into Sources/, preserving relative subpaths. Data URIs and
-        // parent-escaping paths are skipped. A plain text scan (the uris live in JSON string
+        // paths that leave the model's folder (PathStaysInside) are skipped. A plain text scan (the uris live in JSON string
         // values); failures only log, since the import itself already succeeded from the original.
         static void CopyGltfSidecars(StringView originalPath, const pipeline::ImportContext& context,
                                      Array<pipeline::DeferredImportWrite>* deferredWrites)
@@ -988,17 +988,11 @@ export namespace pipeline
                 {
                     continue;
                 }
-                bool escapes = false;
-                for (usize k = 0; k + 1 < uri.Size(); ++k)
+                // Only a path that stays under the model's folder: an absolute one, a drive, a
+                // scheme or a ".." would read, and then write, outside the package and the sources.
+                if (!PathStaysInside(uri))
                 {
-                    if (uri[k] == utf8char('.') && uri[k + 1] == utf8char('.'))
-                    {
-                        escapes = true;
-                        break;
-                    }
-                }
-                if (escapes)
-                {
+                    LOG_WARNING(u8"Import", u8"gltf sidecar skipped, its uri leaves the model's folder: {}", uri);
                     continue;
                 }
 

@@ -3294,3 +3294,52 @@ TEST_CASE("export: unreadable editor settings are set aside before anything save
     CHECK(root.Exists(aside.AsView()));
     NukeTree(dir.AsView());
 }
+
+TEST_CASE("export: removing a template deletes the folder its manifest names, never a path from its id")
+{
+    const String rootDir = TempDir(u8"scratch_templates_remove_safe");
+    const String victim = TempDir(u8"scratch_templates_victim");
+    NukeTree(rootDir.AsView());
+    NukeTree(victim.AsView());
+    REQUIRE(CreateDirectories(rootDir.AsView()));
+    REQUIRE(CreateDirectories(victim.AsView()));
+    const StringView keep = u8"keep";
+    REQUIRE(WriteFile(PathJoin(victim.AsView(), u8"f.txt").AsView(),
+                      Span<const byte>(reinterpret_cast<const byte*>(keep.Data()), keep.Size()))
+                .IsOk());
+
+    // An id that is a path out of the root names no template there: nothing is deleted.
+    const String escape = Format(u8"../{}", PathFilename(victim.AsView()));
+    CHECK(editor::RemoveTemplate(rootDir.AsView(), escape.AsView()).Code() == ErrorCode::NotFound);
+    CHECK(FileExists(PathJoin(victim.AsView(), u8"f.txt").AsView()));
+
+    // A template whose folder was renamed by hand is still the one removed by its id.
+    foundation::vfs::NativeFileSystem rootFs(rootDir.AsView(), foundation::core::DefaultAllocator());
+    editor::ExportTemplate t;
+    t.id = String(u8"web-release");
+    t.platform = String(u8"Web");
+    REQUIRE(editor::SaveTemplateManifest(*rootFs.AsWritable(), t, u8"renamed-by-hand/template.xml").IsOk());
+    REQUIRE(editor::RemoveTemplate(rootDir.AsView(), u8"web-release").IsOk());
+    CHECK_FALSE(DirectoryExists(PathJoin(rootDir.AsView(), u8"renamed-by-hand").AsView()));
+
+    NukeTree(rootDir.AsView());
+    NukeTree(victim.AsView());
+}
+
+TEST_CASE("export: importing a template whose id is a path is refused")
+{
+    const String src = TempDir(u8"scratch_templates_import_src");
+    const String rootDir = TempDir(u8"scratch_templates_import_root");
+    NukeTree(src.AsView());
+    NukeTree(rootDir.AsView());
+    REQUIRE(CreateDirectories(src.AsView()));
+    foundation::vfs::NativeFileSystem srcFs(src.AsView(), foundation::core::DefaultAllocator());
+    editor::ExportTemplate t;
+    t.id = String(u8"../escaped");
+    t.platform = String(u8"Web");
+    REQUIRE(editor::SaveTemplateManifest(*srcFs.AsWritable(), t).IsOk());
+    CHECK(editor::ImportTemplate(src.AsView(), rootDir.AsView()).Code() == ErrorCode::InvalidArgument);
+    CHECK_FALSE(DirectoryExists(PathJoin(rootDir.AsView(), u8"../escaped").AsView()));
+    NukeTree(src.AsView());
+    NukeTree(rootDir.AsView());
+}

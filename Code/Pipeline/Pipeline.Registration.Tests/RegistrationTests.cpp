@@ -212,3 +212,43 @@ TEST_CASE("pipeline.registration: every type a project holds declares a display 
     }
     CHECK(assets >= 30u);
 }
+
+// Names are unique per group but the sources folder is flat: a second "Menu" document in another
+// group takes its own file, never the first one's, and a name that is not one file name is refused.
+TEST_CASE("pipeline.registration: a file-backed creation never writes over another asset's source")
+{
+    pipeline::RegisterPipelineTypes();
+    pipeline::AssetCreatorRegistry creators{DefaultAllocator()};
+    (void)pipeline::RegisterAllCreators(creators);
+    const pipeline::AssetCreator* document = creators.FindByLabel(u8"GUI Document");
+    REQUIRE(document != nullptr);
+
+    constexpr StringView kRoot = u8"scratch_creators_flat_db";
+    constexpr StringView kSources = u8"scratch_creators_flat_sources";
+    (void)RemoveDirectoryRecursive(kRoot);
+    (void)RemoveDirectoryRecursive(kSources);
+    REQUIRE(CreateDirectory(kSources));
+    {
+        foundation::vfs::NativeFileSystem mount(kRoot, DefaultAllocator());
+        foundation::content::ContentDatabase db(DefaultAllocator(), mount, foundation::core::BinarySerializerFactory(),
+                                                u8".xasset");
+        const String sourcesRoot = PathJoin(GetCurrentDirectory().AsView(), kSources);
+        foundation::content::Group* a = db.RootGroup()->CreateGroup(u8"A");
+        foundation::content::Group* b = db.RootGroup()->CreateGroup(u8"B");
+        REQUIRE(document->Create(a, db.RootGroup(), sourcesRoot.AsView(), u8"Menu") != nullptr);
+        const String first = PathJoin(sourcesRoot.AsView(), u8"Menu.xml");
+        const StringView edited = u8"<edited/>";
+        REQUIRE(WriteFile(first.AsView(), Span<const byte>(reinterpret_cast<const byte*>(edited.Data()), edited.Size())).IsOk());
+
+        REQUIRE(document->Create(b, db.RootGroup(), sourcesRoot.AsView(), u8"Menu") != nullptr);
+        Result<Array<byte>> kept = ReadFile(first.AsView());
+        REQUIRE(kept.HasValue());
+        CHECK(kept.Value().Size() == edited.Size());
+        CHECK(FileExists(PathJoin(sourcesRoot.AsView(), u8"Menu.2.xml").AsView()));
+
+        CHECK(document->Create(b, db.RootGroup(), sourcesRoot.AsView(), u8"../Escape") == nullptr);
+        CHECK_FALSE(FileExists(PathJoin(GetCurrentDirectory().AsView(), u8"Escape.xml").AsView()));
+    }
+    (void)RemoveDirectoryRecursive(kRoot);
+    (void)RemoveDirectoryRecursive(kSources);
+}

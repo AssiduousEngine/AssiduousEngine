@@ -62,6 +62,12 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   library that do not read are set aside as `<file>.unreadable` before anything is written, and the
   log says where. They were replaced by an empty store or the defaults, which the next save wrote
   over the file.
+- Editor: names and paths read from files stay where they belong. Removing an export template
+  deletes the folder whose `template.xml` names it, never a path built from that id, and a template
+  whose id is a path is not imported. A script, GUI document or shader made with the name of one in
+  another group takes its own source file instead of writing over the first one's, and
+  `asset_create` refuses a name the New dialog refuses. A glTF's sidecar whose uri is absolute or
+  leaves the model's folder is not copied.
 
 ## 0.1.0-beta.3 - 2026-11-12
 

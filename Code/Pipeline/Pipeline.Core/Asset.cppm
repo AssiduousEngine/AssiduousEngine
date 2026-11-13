@@ -325,8 +325,10 @@ export namespace pipeline
 
     /// A file-backed creation: `starter` written to "<name><extension>" in the context's
     /// sources folder, and a uniquely named instance of `type` whose `asset` links that file
-    /// through fileName (a script, a UI document). Null when there is no sources folder or a
-    /// write is refused.
+    /// through fileName (a script, a UI document). Names are unique per group and the sources
+    /// folder is flat, so a file already there (another group's asset of that name) is never
+    /// written over: the first free "<name>.2<extension>", ".3" and on is taken instead. Null when
+    /// there is no sources folder, the name is not one plain file name, or a write is refused.
     [[nodiscard]] inline foundation::content::Instance*
     CreateLinkedTextAsset(const AssetCreationContext& context, StringView baseName,
                           StringView extension, StringView starter, const TypeInfo& type,
@@ -338,9 +340,18 @@ export namespace pipeline
             return nullptr;
         }
         const String name = target->UniqueInstanceName(context.NameOr(baseName));
+        if (!PathIsPlainComponent(name.AsView()))
+        {
+            return nullptr;
+        }
         String fileName(name.AsView());
         fileName.Append(extension);
-        const String path = PathJoin(context.sourcesRoot, fileName.AsView());
+        String path = PathJoin(context.sourcesRoot, fileName.AsView());
+        for (u32 n = 2; FileExists(path.AsView()); ++n)
+        {
+            fileName = Format(u8"{}.{}{}", name.AsView(), n, extension);
+            path = PathJoin(context.sourcesRoot, fileName.AsView());
+        }
         if (!WriteFile(path.AsView(), Span<const byte>(reinterpret_cast<const byte*>(starter.Data()),
                                                        starter.Size()))
                  .IsOk())

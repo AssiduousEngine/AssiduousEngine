@@ -131,6 +131,11 @@ namespace editor
         {
             return Status{ErrorCode::NotFound};
         }
+        // The id names the folder it lands in: one plain name, never a path out of the root.
+        if (!PathIsPlainComponent(manifest.id.AsView()))
+        {
+            return Status{ErrorCode::InvalidArgument};
+        }
 
         (void)CreateDirectories(templatesRoot);
         const String dst = PathJoin(templatesRoot, manifest.id.AsView());
@@ -151,15 +156,30 @@ namespace editor
         {
             return Status{ErrorCode::InvalidArgument};
         }
-        const String dir = PathJoin(templatesRoot, templateId);
-        if (!DirectoryExists(dir.AsView()))
+        // The folder whose template.xml names the id, among the root's own folders: never a path
+        // built from the id (which a bundle wrote), and the right folder when one was renamed.
+        vfs::NativeFileSystem rootFs(templatesRoot, editor::EditorRootAllocator());
+        Array<vfs::DirEntry> entries;
+        if (rootFs.AsEnumerable() == nullptr || !rootFs.AsEnumerable()->Enumerate(u8"", entries).IsOk())
         {
-            return Status{ErrorCode::NotFound}; // nothing to delete, so it was not there
+            return Status{ErrorCode::NotFound};
         }
-        if (!RemoveDirectoryRecursive(dir.AsView()))
+        for (const vfs::DirEntry& entry : entries)
         {
-            return Status{ErrorCode::Internal};
+            if (!entry.isDirectory)
+            {
+                continue;
+            }
+            ExportTemplate manifest;
+            const String manifestPath = PathJoin(entry.name.AsView(), kTemplateManifestFile);
+            if (!LoadTemplateManifest(rootFs, manifest, manifestPath.AsView()).IsOk() ||
+                manifest.id.AsView() != templateId)
+            {
+                continue;
+            }
+            const String dir = PathJoin(templatesRoot, entry.name.AsView());
+            return RemoveDirectoryRecursive(dir.AsView()) ? Status{} : Status{ErrorCode::Internal};
         }
-        return Status{};
+        return Status{ErrorCode::NotFound}; // nothing to delete, so it was not there
     }
 }

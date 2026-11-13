@@ -51,6 +51,50 @@ export namespace foundation::core
         return false;
     }
 
+    // Whether `name` is one plain path component: not empty, not "." or "..", with no separator
+    // and no colon (a drive, a scheme). What a name read from a file must be before it is joined
+    // onto a folder, so the join stays a child of that folder.
+    [[nodiscard]] inline bool PathIsPlainComponent(StringView name) noexcept
+    {
+        if (name.IsEmpty() || name == StringView(u8".") || name == StringView(u8".."))
+        {
+            return false;
+        }
+        for (const utf8char c : name)
+        {
+            if (PathIsSeparator(c) || c == utf8char(':') || c == utf8char('\0'))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // Whether `path` is relative and stays under the folder it is joined to: not absolute, no
+    // colon (a drive, a scheme), and no ".." or empty component. What a path read from a file (a
+    // model's texture uri) must be before it is joined onto a folder.
+    [[nodiscard]] inline bool PathStaysInside(StringView path) noexcept
+    {
+        if (path.IsEmpty() || PathIsAbsolute(path))
+        {
+            return false;
+        }
+        usize start = 0;
+        for (usize i = 0; i <= path.Size(); ++i)
+        {
+            if (i == path.Size() || PathIsSeparator(path[i]))
+            {
+                const StringView part = path.SubStr(start, i - start);
+                if (part != StringView(u8".") && !PathIsPlainComponent(part))
+                {
+                    return false;
+                }
+                start = i + 1;
+            }
+        }
+        return true;
+    }
+
     // The final component (after the last separator).
     [[nodiscard]] inline StringView PathFilename(StringView path) noexcept
     {

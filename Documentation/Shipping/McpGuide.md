@@ -271,7 +271,10 @@ is refused while anything uses it - the refusal names the users, as `asset_uses`
 `force`. `asset_rename` renames one within its group as the browser does: its guid stays, so what
 uses it still does, and the default scene's path follows; a name a file cannot take, or one taken
 in the group, is refused. What File > New makes comes from
-`asset_create` (`asset_creators` lists them). A data asset's content (an input map's actions
+`asset_create` (`asset_creators` lists them); its `name` follows the same rule as the New dialog's
+(no `/ \ : * ? " < > |`, no space at an end, no dot at the end), and a script or GUI document
+whose name another group's asset already holds gets its own source file (`Menu.2.xml`), never the
+other one's. A data asset's content (an input map's actions
 and bindings, a material, a physics material, a sound cue) is edited through its envelope:
 `asset_data_read` gives the XML, and `asset_data_write` takes the edited whole back, loading it
 exactly as the engine would and refusing it, unchanged, when it does not load. Enum fields are

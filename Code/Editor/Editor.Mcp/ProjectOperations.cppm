@@ -142,8 +142,9 @@ export namespace editor::mcp
     };
 
     /// asset_create's work, the same on every host: resolve the group (made when missing), refuse
-    /// a taken name (an agent that names an asset means that name), and run the creator. Main
-    /// thread only: it writes the source database.
+    /// a name the editor's dialog refuses (EditorProject::AssetNameRefusal: a name is one plain
+    /// file name) or a taken one (an agent that names an asset means that name), and run the
+    /// creator. Main thread only: it writes the source database.
     [[nodiscard]] inline Result<foundation::content::Instance*, String>
     RunAssetCreation(editor::EditorProject& project, const CreateRequest& request)
     {
@@ -171,6 +172,10 @@ export namespace editor::mcp
         }
         if (!request.name.IsEmpty())
         {
+            if (String refused = editor::EditorProject::AssetNameRefusal(request.name.AsView()); !refused.IsEmpty())
+            {
+                return Err(refused);
+            }
             foundation::content::Group* target = request.creator->TargetFor(picked, root);
             if (target != nullptr && target->GetInstance(request.name.AsView()) != nullptr)
             {

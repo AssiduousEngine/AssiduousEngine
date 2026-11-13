@@ -800,3 +800,26 @@ TEST_CASE("io: an unreadable file is set aside under a free name, its bytes kept
     CHECK(FileDelete(u8"scratch_fs_damaged.xml.unreadable"));
     CHECK(FileDelete(u8"scratch_fs_damaged.xml.unreadable-2"));
 }
+
+TEST_CASE("path: a name or a path read from a file stays inside the folder it is joined to")
+{
+    CHECK(PathIsPlainComponent(u8"web-release"));
+    CHECK(PathIsPlainComponent(u8"Rock.2"));
+    CHECK_FALSE(PathIsPlainComponent(u8""));
+    CHECK_FALSE(PathIsPlainComponent(u8"."));
+    CHECK_FALSE(PathIsPlainComponent(u8".."));
+    CHECK_FALSE(PathIsPlainComponent(u8"a/b"));
+    CHECK_FALSE(PathIsPlainComponent(u8"a\\b"));
+    CHECK_FALSE(PathIsPlainComponent(u8"C:"));
+
+    CHECK(PathStaysInside(u8"textures/shared/x.dds"));
+    CHECK(PathStaysInside(u8"./x.bin"));
+    CHECK_FALSE(PathStaysInside(u8""));
+    CHECK_FALSE(PathStaysInside(u8"/home/u/.bashrc"));
+    CHECK_FALSE(PathStaysInside(u8"\\\\server\\share\\x"));
+    CHECK_FALSE(PathStaysInside(u8"C:/x"));
+    CHECK_FALSE(PathStaysInside(u8"C:x"));
+    CHECK_FALSE(PathStaysInside(u8"a/../../x"));
+    CHECK_FALSE(PathStaysInside(u8"a//x"));
+    CHECK_FALSE(PathStaysInside(u8"http://x/y"));
+}

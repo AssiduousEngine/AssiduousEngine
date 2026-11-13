@@ -10,6 +10,8 @@
 #include <doctest/doctest.h>
 #include "Core/Prelude.h"
 
+#include <initializer_list> // a test lists the names it refuses
+
 import foundation.core;
 import foundation.content;
 import pipeline.core;
@@ -374,4 +376,28 @@ TEST_CASE("editor-operations: a creation waits for the cook gate, then creates a
     REQUIRE_FALSE(step.HasValue());
     CHECK(step.Error().AsView().ContainsIgnoreCase(u8"already exists"));
     CHECK(effects == 1u);
+}
+
+TEST_CASE("editor-operations: a creation's name follows the dialog's rule, so it is one file name")
+{
+    Bench bench(u8"mcp_ops_create_name");
+    app::EditorProjectOperations ops(bench.Seams());
+    pipeline::AssetCreator creator;
+    creator.label = String(u8"Options");
+    creator.type = &pipeline::ImportOptions::StaticType();
+    creator.run = [](const pipeline::AssetCreationContext& context)
+    {
+        pipeline::ImportOptions options;
+        return pipeline::CreateWrittenInstance(context.Target(), context.NameOr(u8"Options"),
+                                               pipeline::ImportOptions::StaticType(), options);
+    };
+    for (const StringView bad : {StringView(u8"../Escape"), StringView(u8"/abs"), StringView(u8"C:x"), StringView(u8"Ends.")})
+    {
+        editor::mcp::CreateRequest request;
+        request.creator = &creator;
+        request.name = String(bad);
+        foundation::mcp::ToolCall call;
+        editor::mcp::OperationStep<editor::mcp::CreateOutcome> step = ops.Create(call, request);
+        CHECK_FALSE(step.HasValue());
+    }
 }
