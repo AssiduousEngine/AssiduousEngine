@@ -437,8 +437,8 @@ class Game
         return true;
     }
 
-    /// The volumes, set on the audio buses, which the player saves on exit; a change made here
-    /// persists without the game storing anything itself.
+    /// The volumes, set on the audio buses, and the graphics quality level, both of which the player
+    /// keeps; a change made here persists without the game storing anything itself.
     bool onSettings(GuiEvent e)
     {
         click();
@@ -446,6 +446,7 @@ class Game
         bindVolume("master", AudioBus::Master, EventHandler(this.onMasterChanged));
         bindVolume("music", AudioBus::Music, EventHandler(this.onMusicChanged));
         bindVolume("effects", AudioBus::Effects, EventHandler(this.onEffectsChanged));
+        bindQuality();
         wire("settings-back-btn", "click", EventHandler(this.onSettingsBack));
         enter(Phase::Settings);
         return true;
@@ -567,6 +568,34 @@ class Game
     private void showVolume(string row, float level)
     {
         setText(row + "-value", "" + int(level * 100.0f + 0.5f) + "%");
+    }
+
+    /// The graphics row: a step per quality level the game offers (RenderQuality), at the one it
+    /// plays at. A step switches at once, and the player keeps the choice for the next run.
+    private void bindQuality()
+    {
+        array<string>@ levels = RenderQuality::levels();
+        string current = RenderQuality::current();
+        int at = 0;
+        for (uint i = 0; i < levels.length(); i++)
+        {
+            if (levels[i] == current)
+                at = int(i);
+        }
+        Slider@ slider = Slider::of(find("quality-slider"));
+        slider.max = levels.length() > 0 ? double(levels.length() - 1) : 0.0;
+        slider.value = at;
+        setText("quality-value", current);
+        wire("quality-slider", "input", EventHandler(this.onQualityChanged));
+    }
+
+    bool onQualityChanged(GuiEvent e)
+    {
+        array<string>@ levels = RenderQuality::levels();
+        int index = int(Slider::of(find("quality-slider")).value + 0.5);
+        if (index >= 0 && index < int(levels.length()) && RenderQuality::set(levels[index]))
+            setText("quality-value", levels[index]);
+        return true;
     }
 
     private void showTitle()

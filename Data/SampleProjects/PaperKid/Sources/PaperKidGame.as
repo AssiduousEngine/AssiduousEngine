@@ -9,8 +9,8 @@
 // A run is the blocks in order. A cleared block banks its score (deliveries plus a time bonus); a
 // failed one costs a life and replays from the banked score. Running out of lives, or clearing the
 // last block, leads to the Game over screen. Pause (the Pause action) freezes the block under a
-// menu. Settings, opened from the title or the pause menu, sets the audio bus volumes, which the
-// player saves on exit, and returns to whichever screen opened it.
+// menu. Settings, opened from the title or the pause menu, sets the audio bus volumes and the
+// graphics quality level, which the player keeps, and returns to whichever screen opened it.
 //
 // A cleared block is celebrated before its screen: the clock stops, a banner drops in, the world
 // eases into slow motion under a fanfare while the music fades, and only then does the Block
@@ -314,6 +314,7 @@ class Game
         bindVolume("master", AudioBus::Master, EventHandler(this.onMasterChanged));
         bindVolume("music", AudioBus::Music, EventHandler(this.onMusicChanged));
         bindVolume("effects", AudioBus::Effects, EventHandler(this.onEffectsChanged));
+        bindQuality();
         wire("settings-back-btn", "click", EventHandler(this.onSettingsBack));
         m_phase = Phase::Settings;
     }
@@ -412,6 +413,34 @@ class Game
     private void showVolume(string row, float level)
     {
         setText(row + "-value", "" + int(level * 100.0f + 0.5f) + "%");
+    }
+
+    /// The graphics row: a step per quality level the game offers (RenderQuality), at the one it
+    /// plays at. A step switches at once, and the player keeps the choice for the next run.
+    private void bindQuality()
+    {
+        array<string>@ levels = RenderQuality::levels();
+        string current = RenderQuality::current();
+        int at = 0;
+        for (uint i = 0; i < levels.length(); i++)
+        {
+            if (levels[i] == current)
+                at = int(i);
+        }
+        Slider@ slider = Slider::of(find("quality-slider"));
+        slider.max = levels.length() > 0 ? double(levels.length() - 1) : 0.0;
+        slider.value = at;
+        setText("quality-value", current);
+        wire("quality-slider", "input", EventHandler(this.onQualityChanged));
+    }
+
+    bool onQualityChanged(GuiEvent e)
+    {
+        array<string>@ levels = RenderQuality::levels();
+        int index = int(Slider::of(find("quality-slider")).value + 0.5);
+        if (index >= 0 && index < int(levels.length()) && RenderQuality::set(levels[index]))
+            setText("quality-value", levels[index]);
+        return true;
     }
 
     private void showGameOver(bool won)

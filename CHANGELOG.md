@@ -30,7 +30,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Player: `--quality <label>` starts a run at one of the game's quality levels, ahead of the saved
   choice, without keeping it.
 - Samples: each sample game offers Low, Medium and High quality levels; High is how it drew
-  before the levels.
+  before the levels. Their Steam Deck and Web exports start at Medium, and Sky Hopper's and
+  PaperKid's settings choose the graphics level.
 
 ### Changed
 

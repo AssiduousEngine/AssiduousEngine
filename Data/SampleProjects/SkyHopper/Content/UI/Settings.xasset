@@ -2,6 +2,7 @@
 	<string name="guid">3ad8e4fb-0f47-4f4f-8c81-8c3969ebe58b</string>
 	<string name="typeNamespace">rtti::pipeline::gui</string>
 	<string name="typeName">GuiDocumentAsset</string>
+	<string name="source">Settings.xml</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">4454064819806775415</u64>
 		<u32 name="version">0</u32>
