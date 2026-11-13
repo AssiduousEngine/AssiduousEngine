@@ -406,6 +406,12 @@ namespace editor
                           builders, &sourcesMount, &cacheMount, &jobs);
         CookPlan plan = driver.PlanFor(planRoots, rebuild);
         outReachable = plan.reachable;
+        if (plan.unreadable > 0)
+        {
+            LOG_ERROR(u8"Export", u8"aborting - {} asset(s) the game uses did not read, so they cannot cook (the Cook lines above name them)",
+                      plan.unreadable);
+            return Status{ErrorCode::InvalidArgument};
+        }
 
         if (cook)
         {

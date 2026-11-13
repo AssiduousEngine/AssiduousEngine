@@ -1700,6 +1700,33 @@ TEST_CASE("export: EditorExportSettings round-trips through the editor settings 
     NukeTree(dir.AsView());
 }
 
+TEST_CASE("export: an asset the game uses whose source does not read stops the export")
+{
+    pipeline::RegisterMeshAssets();
+    const String projectDir = TempDir(u8"scratch_unreadable_proj");
+    NukeTree(projectDir.AsView());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Unreadable").IsOk());
+    UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
+    REQUIRE(static_cast<bool>(project));
+    const Guid good = AuthorMesh(*project->SourceDb().RootGroup(), u8"Good");
+    const Guid bad = AuthorMesh(*project->SourceDb().RootGroup(), u8"Bad");
+    const char8_t junk[] = u8"<this is not a mesh";
+    REQUIRE(WriteFile(PathJoin(PathJoin(project->Directory(), engine::project::kProjectContentDir).AsView(), u8"Bad.xasset").AsView(),
+                      Span<const byte>(reinterpret_cast<const byte*>(junk), sizeof(junk) - 1))
+                .IsOk());
+    pipeline::BuilderRegistry builders{DefaultAllocator()};
+    builders.Register(UniquePtr<pipeline::IAssetBuilder>(DefaultAllocator().New<pipeline::StaticMeshAssetBuilder>(), DefaultAllocator()));
+
+    editor::ExportStats stats;
+    Array<Guid> reachable;
+    CHECK(editor::CookReachable(*project, builders, Span<const Guid>(&good, 1), /*cook*/ true, /*rebuild*/ false, stats, reachable).IsOk());
+    CHECK_FALSE(editor::CookReachable(*project, builders, Span<const Guid>(&bad, 1), /*cook*/ true, false, stats, reachable).IsOk());
+    // The editor cooks before its export job, which only plans: the refusal holds there too.
+    CHECK_FALSE(editor::CookReachable(*project, builders, Span<const Guid>(&bad, 1), /*cook*/ false, false, stats, reachable).IsOk());
+    project.Reset();
+    NukeTree(projectDir.AsView());
+}
+
 TEST_CASE("export: pruned dist keeps the referenced closure, drops the rest, and reports both")
 {
     GlobalTypeRegistry().Register(scene::SceneDocument::StaticType());

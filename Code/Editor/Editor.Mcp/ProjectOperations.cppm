@@ -44,6 +44,7 @@ export namespace editor::mcp
         usize orphansSwept = 0;
         usize upToDate = 0;
         usize unbuildable = 0;
+        usize unreadable = 0;
     };
 
     /// asset_import's resolved request: the importer is routed by the tool (by extension), the

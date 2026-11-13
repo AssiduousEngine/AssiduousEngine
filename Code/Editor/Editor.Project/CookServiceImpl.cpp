@@ -194,6 +194,7 @@ namespace editor
             m_lastSummary.planned = total;
             m_lastSummary.upToDate = m_plan.upToDate;
             m_lastSummary.unbuildable = m_plan.unbuildable;
+            m_lastSummary.unreadable = m_plan.unreadable;
         }
         // Plans with no work run silently (no "cooking 0 asset(s)" line): page-open and import
         // requests are cheap to make and often find everything already cooked.

@@ -53,7 +53,7 @@ export namespace editor
     };
 
     /// What the most recent cook did: the plan's split (planned, the dirty items; upToDate;
-    /// unbuildable) and the build's counts. Valid from when OnCookFinished fires until the
+    /// unbuildable; unreadable) and the build's counts. Valid from when OnCookFinished fires until the
     /// next cook finishes; the app's result toast and the MCP asset_cook read it.
     struct CookSummary
     {
@@ -63,6 +63,7 @@ export namespace editor
         usize orphansSwept = 0;
         usize upToDate = 0;
         usize unbuildable = 0;
+        usize unreadable = 0; // sources with a builder that did not read: never cooked
     };
 
     class EditorCookService

@@ -271,14 +271,14 @@ namespace pipeline
                                  u8"if re-cooking does not recover it)",
                                  item.path, instance->TypeNamespace(), instance->TypeName(),
                                  instance->Id());
-            ++plan.unbuildable;
+            ++plan.unreadable;
             return;
         }
         Asset* asset = Cast<Asset>(item.asset.Get());
         if (asset == nullptr)
         {
             LOG_WARNING(u8"Cook", u8"'{}' has a builder but is not an Asset", item.path);
-            ++plan.unbuildable;
+            ++plan.unreadable;
             return;
         }
 

@@ -77,20 +77,43 @@ export namespace editor::app
                 return;
             }
             m_pending = Pending{String(presetName), all, /*waitingCook*/ true, /*active*/ true};
+            m_pending.cookRevision = m_services.cook->Revision();
             context.Notify(editor::NoticeKind::Info, u8"Cooking before export...");
             m_services.cook->RequestCook(false); // safe background cook; Pump submits the job after it
         }
         [[nodiscard]] bool IsPending() const noexcept { return m_pending.active; }
 
-        /// Called each frame: submits an export waiting on its cook to the jobs once the cook is done.
+        /// Called each frame: submits an export waiting on its cook to the jobs once the cook is
+        /// done, and the cook it remembered after it too (IsIdle). A cook that left an asset
+        /// failed or unread stops the export, with a notice: the game would ship without it.
         void Pump()
         {
-            if (m_pending.active && m_pending.waitingCook && !m_services.cook->IsCooking())
+            if (!m_pending.active || !m_pending.waitingCook)
+                return;
+            editor::EditorCookService& cook = *m_services.cook;
+            // Each cook that finishes while the export waits is counted (Revision moves once a
+            // cook), so a later, smaller cook does not hide what an earlier one failed.
+            if (cook.Revision() != m_pending.cookRevision)
             {
-                m_pending.waitingCook = false;
-                SubmitJob(m_pending.presetName, m_pending.all);
-                m_pending.active = false; // the job owns it now
+                m_pending.cookRevision = cook.Revision();
+                m_pending.failed += cook.LastCookSummary().failed;
+                m_pending.unreadable += cook.LastCookSummary().unreadable;
             }
+            if (!cook.IsIdle())
+                return;
+            if (m_pending.failed > 0 || m_pending.unreadable > 0)
+            {
+                m_services.context->Notify(editor::NoticeKind::Error,
+                                           Format(u8"Export stopped: {} asset(s) failed to cook and {} did not read; the Console names them. "
+                                                  u8"Fix or remove them, then export again.",
+                                                  m_pending.failed, m_pending.unreadable)
+                                               .AsView());
+                m_pending = Pending{};
+                return;
+            }
+            m_pending.waitingCook = false;
+            SubmitJob(m_pending.presetName, m_pending.all);
+            m_pending.active = false; // the job owns it now
         }
 
         /// The templates' folder: the user's override (Preferences), else $ENV_TEMPLATES_DIR, else
@@ -158,6 +181,9 @@ export namespace editor::app
             bool all = false;
             bool waitingCook = false;
             bool active = false;
+            u64 cookRevision = 0;  // the cook service's Revision last counted
+            usize failed = 0;      // items the cooks it waited on failed
+            usize unreadable = 0;  // sources those cooks could not read
         };
 
         [[nodiscard]] static String Absolutize(StringView path)

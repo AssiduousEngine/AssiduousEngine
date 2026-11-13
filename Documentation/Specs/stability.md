@@ -108,7 +108,8 @@ Each item names its finding, where it is on master, the test that proves it, and
   persist for every tool (envelope, heights, holes); pending edits belong to their page and are
   dropped, the grid reverted, on Discard. Editor.Terrain.Tests, Editor.App.Tests.
 - The editor export ignores cook failures (`EditorExport.cppm:65-92, 237-250`): wait for `IsIdle`,
-  abort with a notice on failed or unbuildable items. Editor.App.Tests.
+  abort with a notice on failed or unreadable items (a source with a builder that does not read;
+  "unbuildable" also counts scenes and prefabs, which have no builder by design). Editor.App.Tests.
 - A failed nav bake writes an empty navmesh (`NavigationBakeImpl.cpp:158-210`): write only a
   baked result. Editor.Navigation.Tests.
 

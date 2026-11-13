@@ -516,6 +516,26 @@ TEST_CASE("cook: failures stay dirty and keep the record failed; orphans are swe
     CHECK(driver.Plan().orphans.IsEmpty());
 }
 
+TEST_CASE("cook: a source with no builder is unbuildable; one with a builder that does not read is unreadable")
+{
+    Fixture fx(u8"cook_unreadable_test");
+    (void)fx.AddWidget(u8"good", 1);
+    (void)fx.AddWidget(u8"bad", 1);
+    const char8_t junk[] = u8"this is no widget";
+    REQUIRE(fx.contentFs->AsWritable()
+                ->Save(u8"bad.xasset", Span<const byte>(reinterpret_cast<const byte*>(junk), sizeof(junk) - 1))
+                .IsOk());
+    content::Instance* loose = fx.sourceDb->RootGroup()->CreateInstance(u8"loose", CookWidgetProduct::StaticType());
+    REQUIRE(loose != nullptr);
+    CookWidgetProduct product;
+    REQUIRE(loose->WriteObject(product).IsOk());
+    CookDriver driver = fx.MakeDriver();
+    const CookPlan plan = driver.Plan();
+    CHECK(plan.dirty.Size() == 1u); // good
+    CHECK(plan.unreadable == 1u);   // bad: it has a builder, and would never cook
+    CHECK(plan.unbuildable == 1u);  // loose: nothing builds its type
+}
+
 TEST_CASE("cook: pipeline db persists across sessions; corruption degrades to a full re-plan")
 {
     Fixture fx(u8"scratch_cook_test_e");

@@ -583,7 +583,9 @@ export namespace editor::mcp
         server.RegisterTool(
             u8"asset_cook",
             u8"Run the incremental cook over the open project: plan the dirty set and build it into "
-            u8"the cooked database. Returns the cook stats (planned/cooked/failed/orphans).",
+            u8"the cooked database. Returns the cook stats (planned/cooked/failed/orphans; unbuildable, no "
+            u8"builder, as scenes and prefabs; unreadable, a source that did not read and never cooks: the "
+            u8"Console names it).",
             SchemaBuilder()
                 .Boolean(u8"force", u8"re-cook every buildable asset regardless of cleanliness")
                 .Build(),
@@ -613,6 +615,8 @@ export namespace editor::mcp
                 out.Set(u8"upToDate", JsonValue::MakeNumber(static_cast<f64>(done.upToDate)));
                 out.Set(u8"unbuildable",
                         JsonValue::MakeNumber(static_cast<f64>(done.unbuildable)));
+                out.Set(u8"unreadable",
+                        JsonValue::MakeNumber(static_cast<f64>(done.unreadable)));
                 return out;
             });
     }
@@ -654,6 +658,7 @@ export namespace editor::mcp
             outcome.orphansSwept = stats.orphansSwept;
             outcome.upToDate = plan.upToDate;
             outcome.unbuildable = plan.unbuildable;
+            outcome.unreadable = plan.unreadable;
             return Optional<CookOutcome>(outcome);
         }
 

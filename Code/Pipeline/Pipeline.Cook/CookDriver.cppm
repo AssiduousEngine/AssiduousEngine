@@ -157,7 +157,10 @@ export namespace pipeline
         Array<Guid> orphans;         // records whose source is gone; their products are swept
         usize orphansSweptCount = 0; // filled by PrepareProducts
         usize upToDate = 0;
-        usize unbuildable = 0; // instances with no registered builder (informational)
+        usize unbuildable = 0; // instances with no registered builder (scenes and prefabs are staged, not built)
+        usize unreadable = 0;  // instances with a builder whose source did not read (an unknown type,
+                               // another data version, not an Asset): they cannot cook, and an
+                               // export would ship without them
         Array<Guid> reachable; // PlanFor only: the roots and their whole dependency closure (every
                                // visited guid, clean or dirty, buildable or not), the reachable
                                // set export pruning ships. Empty for a whole-project Plan().

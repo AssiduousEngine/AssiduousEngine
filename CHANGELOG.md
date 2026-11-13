@@ -78,6 +78,11 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   Save, Save All and the save when closing or exiting; only Save wrote them, and wrote every
   page's. Discard, or closing the page without saving, drops them and shows the terrain as last
   saved. A sculpt after a hole cut no longer loses the holes on save.
+- Editor: Export stops, and says so, when the cook before it failed an asset or could not read
+  one; it exported without them. It also waits for a cook asked for during the first one.
+  Exports from MCP and the command line stop as well on an asset the game uses whose source does
+  not read. MCP: `asset_cook` reports `unreadable` apart from `unbuildable` (types with no
+  builder, as scenes and prefabs).
 
 ## 0.1.0-beta.3 - 2026-11-12
 

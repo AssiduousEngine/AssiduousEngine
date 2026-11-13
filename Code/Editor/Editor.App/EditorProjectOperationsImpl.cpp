@@ -66,6 +66,7 @@ namespace editor::app
         outcome.orphansSwept = summary.orphansSwept;
         outcome.upToDate = summary.upToDate;
         outcome.unbuildable = summary.unbuildable;
+        outcome.unreadable = summary.unreadable;
         return outcome;
     }
 
