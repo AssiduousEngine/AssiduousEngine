@@ -159,6 +159,8 @@ export namespace editor
         void HeaderMenu(foundation::gui::Menu& menu, const foundation::gui::PropertyRow& row);
         void ComponentChanged(const TypeInfo* type, const foundation::gui::ReflectedChange& change);
         [[nodiscard]] Array<foundation::core::Instance> InstancesOf(const TypeInfo& type) const;
+        // The component of `type` on the `object`th entity shown, where it is now (empty when gone).
+        [[nodiscard]] foundation::core::Instance InstanceOf(const TypeInfo& type, usize object) const;
         [[nodiscard]] static String TitleOf(const TypeInfo& type);
         template <typename T>
         [[nodiscard]] T* Find(StringView id) const;

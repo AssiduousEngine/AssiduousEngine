@@ -502,6 +502,9 @@ namespace editor
                                  const Array<Instance> objects = InstancesOf(*type);
                                  section->source->SetObjects(Span<const Instance>(objects.Data(), objects.Size()));
                                  SceneInspectorView* self = this;
+                                 // Found again on every read and write: a component added to or removed
+                                 // from another entity packs the pool and moves this one.
+                                 section->source->SetObjectResolver([self, type](usize object) { return self->InstanceOf(*type, object); });
                                  section->source->SetOnChange([self, type](const gui::ReflectedChange& change) { self->ComponentChanged(type, change); });
                                  m_sections.Add(section->key.AsView(), section->title.AsView(), *section->source);
                                  section->extras = BuildExtras(*section->type, section->key.AsView(), section->title.AsView(), m_entities.Size());
@@ -657,6 +660,15 @@ namespace editor
             if (section->title.AsView() == title && section->profile)
                 return section->profile->Run(name);
         return false;
+    }
+
+    Instance SceneInspectorView::InstanceOf(const TypeInfo& type, usize object) const
+    {
+        scene::ComponentManagerBase* manager = m_edit->FindManager(&type);
+        if (manager == nullptr || object >= m_entities.Size())
+            return Instance{};
+        const scene::EntityHandle entity = m_edit->Resolve(m_entities[object]);
+        return entity.IsAssigned() ? manager->GetComponentInstance(entity) : Instance{};
     }
 
     Array<Instance> SceneInspectorView::InstancesOf(const TypeInfo& type) const

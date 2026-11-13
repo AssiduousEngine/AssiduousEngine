@@ -153,12 +153,18 @@ export namespace foundation::gui
                     m_objects.PushBack(object);
             m_originals.Clear();
             m_seen.Clear(); // the next look at new objects tells the grid
+            m_resolve = {};  // a resolver was for the objects before
             // The type's defaults come from an instance its creator makes (none for a type without
             // a creator).
             m_typeDefault = m_objects.IsEmpty() ? core::RefPtr<core::Object>{} : core::CreateObject(*m_objects[0].Type(), m_allocator);
             NotifyPropertiesChanged();
         }
         [[nodiscard]] core::Span<const core::Instance> GetObjects() const noexcept { return m_objects.AsSpan(); }
+        /// For objects whose storage moves (components in a pool that packs as others come and
+        /// go): `resolve(i)` gives object i's instance as it is now, empty once it is gone, and
+        /// every read and write asks it rather than keep the address SetObjects gave. Set after
+        /// SetObjects, which drops it.
+        void SetObjectResolver(core::Function<core::Instance(usize)> resolve) { m_resolve = core::Move(resolve); }
         /// Sets the text format that changes and copies are written in (not owned; null for none).
         void SetTextFormat(IPropertyTextFormat* format) noexcept { m_format = format; }
         /// Called with each change made, so it can be kept for undo.
@@ -612,7 +618,14 @@ export namespace foundation::gui
         // Resolves the place `path` names in object `object`.
         bool Resolve(usize object, core::StringView path, Target& out) const
         {
-            return object < m_objects.Size() && ResolveIn(m_objects[object], path, out);
+            if (object >= m_objects.Size())
+                return false;
+            if (m_resolve)
+            {
+                const core::Instance now = m_resolve(object);
+                return !now.IsEmpty() && ResolveIn(now, path, out);
+            }
+            return ResolveIn(m_objects[object], path, out);
         }
         bool ResolveIn(const core::Instance& root, core::StringView path, Target& out) const
         {
@@ -1845,6 +1858,7 @@ export namespace foundation::gui
 
         core::IAllocator& m_allocator;
         core::Array<core::Instance> m_objects;
+        core::Function<core::Instance(usize)> m_resolve; // where each object is now (SetObjectResolver)
         core::Array<Original> m_originals;
         IPropertyTextFormat* m_format = nullptr; // not owned
         struct Provider

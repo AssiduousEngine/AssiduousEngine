@@ -116,6 +116,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   leaves the container it was moving into styled as holding the focus.
 - Editor: a Play whose default scene does not load undoes its start as Stop does; the debugger,
   breakpoint sync and hover values stayed wired to the Game tab, and reached it after it closed.
+- Editor: the inspector reads and edits the selected entity's components where they are now. A
+  component added to or removed from another entity could move them, and the inspector showed,
+  or wrote, what was at their old place.
 
 ## 0.1.0-beta.3 - 2026-11-12
 

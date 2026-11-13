@@ -914,6 +914,46 @@ TEST_CASE("inspector: a transform edit and a component edit are each one undo st
     page->OnClose();
 }
 
+TEST_CASE("inspector: an edit lands on the shown component after others are added around it and its pool moves")
+{
+    Bed bed;
+    UniquePtr<SceneEditorPage> page = bed.Open(*bed.level);
+    SceneInspectorView* inspector = page->Inspector();
+    page->EditContext().EntitySelection().Set(bed.crate);
+    page->OnUpdate(bed.host, 1.0f / 60.0f);
+    REQUIRE(inspector->AddComponent(u8"LightComponent"));
+    page->OnUpdate(bed.host, 1.0f / 60.0f);
+    scene::Scene& scene = *page->ScenePtr();
+    auto* manager = page->EditContext().FindManager(&TypeOf<engine::render::LightComponent>());
+    REQUIRE(manager != nullptr);
+    // Lights on other entities, with no frame between: the pool grows (moving every light) and,
+    // with a removal, packs.
+    Array<scene::EntityHandle> others;
+    for (int i = 0; i < 64; ++i)
+    {
+        const scene::EntityHandle e = scene.CreateEntity(u8"lamp");
+        (void)manager->AddDefaultComponent(e);
+        others.PushBack(e);
+    }
+    manager->RemoveComponent(others[0]);
+    const String intensity = inspector->PathOf(u8"Light", u8"intensity");
+    // What the grid reads is the crate's light as it is now, not what was at its old place.
+    static_cast<engine::render::LightComponent*>(manager->GetComponentInstance(scene.FindEntity(bed.crate)).Pointer())->intensity = 3.0f;
+    const gui::Variant shown = gui::ReadPropertyValue(inspector->Sections(), intensity.AsView(), gui::PropertyKind::Float).Value;
+    CHECK(shown.AsFloat() == doctest::Approx(3.0));
+    gui::PropertyWrite write;
+    write.Value = gui::Variant(5.0);
+    inspector->Sections().BeginEdit(intensity.AsView());
+    inspector->Sections().CommitEdit(intensity.AsView(), write);
+    const auto* light = static_cast<engine::render::LightComponent*>(manager->GetComponentInstance(scene.FindEntity(bed.crate)).Pointer());
+    REQUIRE(light != nullptr);
+    CHECK(light->intensity == doctest::Approx(5.0f)); // the crate's light, where it is now
+    const auto* lamp = static_cast<engine::render::LightComponent*>(manager->GetComponentInstance(others[1]).Pointer());
+    REQUIRE(lamp != nullptr);
+    CHECK(lamp->intensity != doctest::Approx(5.0f));
+    page->OnClose();
+}
+
 namespace
 {
     // The editor's built-in inspector extras (a block's or a component's rows reflection does not
