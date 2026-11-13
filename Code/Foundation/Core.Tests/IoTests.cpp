@@ -777,3 +777,26 @@ TEST_CASE("serialization: a held type id keeps its type and factory; another typ
     CHECK(seen.offered == &iorival::Widget::StaticType());
     CHECK(types.FindById(Widget::StaticType().id) == &Widget::StaticType());
 }
+
+TEST_CASE("io: an unreadable file is set aside under a free name, its bytes kept")
+{
+    const StringView path = u8"scratch_fs_damaged.xml";
+    (void)FileDelete(u8"scratch_fs_damaged.xml.unreadable");
+    (void)FileDelete(u8"scratch_fs_damaged.xml.unreadable-2");
+    const byte bytes[] = {byte{'x'}};
+    REQUIRE(WriteFile(path, Span<const byte>{bytes, 1}).IsOk());
+    Result<String> first = SetAsideUnreadable(path);
+    REQUIRE(first.HasValue());
+    CHECK(first.Value() == u8"scratch_fs_damaged.xml.unreadable");
+    CHECK_FALSE(FileExists(path));
+
+    REQUIRE(WriteFile(path, Span<const byte>{bytes, 1}).IsOk());
+    Result<String> second = SetAsideUnreadable(path);
+    REQUIRE(second.HasValue());
+    CHECK(second.Value() == u8"scratch_fs_damaged.xml.unreadable-2");
+    CHECK(FileExists(u8"scratch_fs_damaged.xml.unreadable"));
+
+    CHECK_FALSE(SetAsideUnreadable(u8"scratch_fs_no_such_file.xml").HasValue());
+    CHECK(FileDelete(u8"scratch_fs_damaged.xml.unreadable"));
+    CHECK(FileDelete(u8"scratch_fs_damaged.xml.unreadable-2"));
+}

@@ -419,3 +419,27 @@ TEST_CASE("model viewer library: the tags that are on show the models with any o
     const String none[] = {String(u8"missing")};
     CHECK(modelviewer::WithAnyTag(library, all.AsSpan(), Span<const String>(none, 1)).IsEmpty());
 }
+
+TEST_CASE("model viewer library: an unreadable library is set aside, never written over")
+{
+    const String folder = Folder(u8"scratch_library_damaged");
+    const String path = PathJoin(folder.AsView(), modelviewer::LibraryFile::kFileName);
+    const StringView damaged = u8"not xml";
+    REQUIRE(WriteFile(path.AsView(), Span<const byte>(reinterpret_cast<const byte*>(damaged.Data()), damaged.Size())));
+    {
+        modelviewer::LibrarySession session(DefaultAllocator());
+        String error;
+        CHECK_FALSE(session.Open(folder.AsView(), error));
+        CHECK(error.AsView().Contains(u8"unreadable"));
+    }
+    // The damaged file is kept beside, whole, and the library starts again empty and writable.
+    const String aside = Format(u8"{}.unreadable", path.AsView());
+    Result<Array<byte>> kept = ReadFile(aside.AsView());
+    REQUIRE(kept.HasValue());
+    CHECK(kept.Value().Size() == damaged.Size());
+    const String knight = Model(folder.AsView(), u8"Knight.fbx");
+    Session next(folder.AsView());
+    CHECK_FALSE(next.session.ReadOnly());
+    next.Add(knight.AsView());
+    CHECK(next.Found(u8"") == 1u);
+}

@@ -546,16 +546,36 @@ export namespace editor
 
     // Load the editor settings store from `root` (XML). NotFound when the file is absent (on a first
     // run the store stays empty and every section reads as its defaults). Types must be registered
-    // first.
+    // first. A file there that does not read is set aside first ("<file>.unreadable",
+    // vfs::SetAsideUnreadable), so the defaults this run saves never write over the sections it held
+    // (the recent projects most painfully); the log says where it went.
     [[nodiscard]] inline Status LoadEditorSettings(vfs::IFileSystem& root, settings::Settings& out,
                                                    StringView fileName = kEditorSettingsFile)
     {
-        UniquePtr<IStream> stream = root.Open(fileName, FileMode::Read);
-        if (!stream)
+        Status loaded{};
         {
-            return Status{ErrorCode::NotFound};
+            UniquePtr<IStream> stream = root.Open(fileName, FileMode::Read);
+            if (!stream)
+            {
+                return Status{ErrorCode::NotFound};
+            }
+            loaded = out.Load(*stream, foundation::xml::XmlSerializerFactory());
+        } // closed before it may be moved
+        if (loaded.IsOk())
+        {
+            return loaded;
         }
-        return out.Load(*stream, foundation::xml::XmlSerializerFactory());
+        Result<String> aside = vfs::SetAsideUnreadable(root, fileName);
+        if (aside.HasValue())
+        {
+            LOG_ERROR(u8"Editor", u8"{} could not be read; it was moved to {} and the settings start again", fileName,
+                      aside.Value().AsView());
+        }
+        else
+        {
+            LOG_ERROR(u8"Editor", u8"{} could not be read, nor moved aside; saving the settings will replace it", fileName);
+        }
+        return loaded;
     }
 
     // Persist the editor settings store to `root` (XML).

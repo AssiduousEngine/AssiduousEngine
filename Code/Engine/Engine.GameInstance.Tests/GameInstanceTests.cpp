@@ -1744,17 +1744,26 @@ TEST_CASE("game-instance: a run save writes what changed, reads it back, and sur
     CHECK(reread.Values().GetInt(u8"best.level2", 0) == 4210);
     CHECK(reread.Values().GetFloat(u8"time.level2", 0.0f) == 41.5f);
 
-    // A file that is not a save: an empty save, and the file is left alone until the game writes.
+    // A file that is not a save: an empty save, and the file is set aside, so the game's next
+    // write never replaces what the player had.
     const char garbage[] = "not a save";
+    const String aside = Format(u8"{}.unreadable", path.AsView());
+    (void)FileDelete(aside.AsView());
     REQUIRE(WriteFile(path.AsView(), Span<const byte>{reinterpret_cast<const byte*>(garbage), sizeof(garbage) - 1})
                 .IsOk());
     engine::runtime::RunSave damaged(DefaultAllocator());
     damaged.Open(path.AsView());
     CHECK(damaged.Values().Count() == 0u);
+    damaged.Values().SetInt(u8"best.level1", 99);
+    damaged.MarkChanged();
     CHECK(damaged.Flush());
-    Result<Array<byte>> bytes = ReadFile(path.AsView());
+    Result<Array<byte>> bytes = ReadFile(aside.AsView());
     REQUIRE(bytes.HasValue());
     CHECK(bytes.Value().Size() == sizeof(garbage) - 1);
+    engine::runtime::RunSave after(DefaultAllocator());
+    after.Open(path.AsView());
+    CHECK(after.Values().GetInt(u8"best.level1", 0) == 99);
+    (void)FileDelete(aside.AsView());
 }
 
 TEST_CASE("game-instance: a game keeps its values between runs through Save (AngelScript)")

@@ -250,8 +250,10 @@ Each item names its finding, where it is on master, the test that proves it, and
   migrates.
 - Atomic rename over a file an editor watches fires the watcher on the temp name and the target;
   the watcher ignores temp names or the editor reloads its own save.
-- A quarantined player save must not lose the player's progress silently: the game is told the
-  save was unreadable (a run event) as well as the log.
+- A set-aside store keeps every byte under "<file>.unreadable" (numbered when taken) and the log
+  names it; a store from a newer build that this one cannot read is set aside too, which the newer
+  build undoes by renaming it back. Telling a game its save was set aside (a run event) is not in
+  this spec.
 - The mutation queue changes when a script sees a destroyed entity vanish (end of the phase, not
   at once); `isValid` stays true until the flush, as inside `Scene::Update` today.
 - Sedulous ports this series; every phase's commits go to it with the hashes.

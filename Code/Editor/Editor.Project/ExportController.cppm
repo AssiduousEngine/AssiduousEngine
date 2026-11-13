@@ -12,6 +12,7 @@
 
 module;
 #include "Core/Prelude.h"
+#include "Core/Log/Log.h"
 
 export module editor.project:export_controller;
 
@@ -33,20 +34,53 @@ export namespace editor
     public:
         // Loads the project's export_presets.xml. When it is absent (the first export), seeds the
         // built-in default (one host-platform preset) so the panel always has something to show
-        // and export.
+        // and export. When it is there but does not read, it is set aside first
+        // ("export_presets.xml.unreadable", LoadProblem says where) so saving the defaults never
+        // writes over the presets it held; when it cannot be moved, Save refuses instead.
         void Load(vfs::IFileSystem& projectFs)
         {
             m_set.presets.Clear();
-            if (!LoadExportPresets(projectFs, m_set).IsOk())
+            m_problem.Clear();
+            m_saveRefused = false;
+            const Status loaded = LoadExportPresets(projectFs, m_set);
+            if (loaded.IsOk())
             {
-                DefaultExportPresets(m_set);
+                return;
             }
+            m_set.presets.Clear();
+            DefaultExportPresets(m_set);
+            if (loaded.Code() == ErrorCode::NotFound)
+            {
+                return;
+            }
+            Result<String> aside = vfs::SetAsideUnreadable(projectFs, kExportPresetsFile);
+            if (aside.HasValue())
+            {
+                m_problem = Format(u8"{} could not be read; it was moved to {} and the presets start again",
+                                   kExportPresetsFile, aside.Value().AsView());
+            }
+            else
+            {
+                m_problem = Format(u8"{} could not be read, nor moved aside; the presets are not saved over it",
+                                   kExportPresetsFile);
+                m_saveRefused = true;
+            }
+            LOG_ERROR(u8"Export", u8"{}", m_problem.AsView());
         }
 
+        // Why the last Load did not read the project's presets; empty when it did, or there were
+        // none.
+        [[nodiscard]] StringView LoadProblem() const noexcept { return m_problem.AsView(); }
+
         // Saves the current set to export_presets.xml (the panel calls this after every change it
-        // wants to keep: Add, Edit, Duplicate, Delete).
+        // wants to keep: Add, Edit, Duplicate, Delete). Refused over a file Load could not read
+        // or set aside.
         [[nodiscard]] Status Save(vfs::IWritableFileSystem& projectFs)
         {
+            if (m_saveRefused)
+            {
+                return Status{ErrorCode::InvalidArgument};
+            }
             return SaveExportPresets(projectFs, m_set);
         }
 
@@ -154,5 +188,7 @@ export namespace editor
 
     private:
         ExportPresetSet m_set;
+        String m_problem;          // why the last Load did not read the file
+        bool m_saveRefused = false; // the unread file is still there: never save over it
     };
 }

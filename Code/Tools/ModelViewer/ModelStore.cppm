@@ -610,7 +610,10 @@ export namespace modelviewer
         ~LibraryFile() { Close(); }
 
         /// Opens the library in `folder` into `library`, which stays empty when there is no file
-        /// yet. Returns false only when the file exists and cannot be read (`error` says why).
+        /// yet. Returns false only when the file exists and cannot be read (`error` says why). The
+        /// unreadable file is never written over: the viewer holding the lock sets it aside
+        /// ("library.xml.unreadable") and starts an empty library; when it cannot, or another
+        /// viewer holds the lock, this one stays read-only.
         bool Open(StringView folder, Library& library, String& error)
         {
             Close();
@@ -618,10 +621,22 @@ export namespace modelviewer
             (void)CreateDirectories(folder);
             m_readOnly = !TakeLock();
             const String path = PathJoin(folder, kFileName);
-            Result<Array<byte>> bytes = ReadFile(path.AsView());
-            if (!bytes.HasValue())
+            if (!FileExists(path.AsView()))
                 return true; // a first run
-            return library.Read(StringView(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size()), error);
+            Result<Array<byte>> bytes = ReadFile(path.AsView());
+            if (bytes.HasValue() &&
+                library.Read(StringView(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size()), error))
+                return true;
+            if (!bytes.HasValue())
+                error = Format(u8"the library '{}' could not be read", path.AsView());
+            if (m_readOnly)
+                return false;
+            Result<String> aside = SetAsideUnreadable(path.AsView());
+            if (aside.HasValue())
+                error += Format(u8"; it was moved to '{}' and the library starts empty", aside.Value().AsView()).AsView();
+            else
+                m_readOnly = true; // it stays, so nothing may be written over it
+            return false;
         }
 
         /// Writes `library`; refused while read-only.
@@ -631,11 +646,7 @@ export namespace modelviewer
                 return false;
             const String text = library.Write();
             const String path = PathJoin(m_folder.AsView(), kFileName);
-            const String temporary = Format(u8"{}.tmp", path.AsView());
-            if (!WriteFile(temporary.AsView(), Span<const byte>(reinterpret_cast<const byte*>(text.Data()), text.Size())).IsOk())
-                return false;
-            (void)FileDelete(path.AsView());
-            return FileMove(temporary.AsView(), path.AsView());
+            return WriteFile(path.AsView(), Span<const byte>(reinterpret_cast<const byte*>(text.Data()), text.Size())).IsOk();
         }
 
         void Close()

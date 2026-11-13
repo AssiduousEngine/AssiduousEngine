@@ -3244,3 +3244,53 @@ TEST_CASE("export: a pruned or stripped asset's files are its own, never a dotte
     CHECK_FALSE(FileOwnerReachable(u8"Models/RockBig.rasset", paths));
     CHECK_FALSE(FileOwnerReachable(u8"Models/Rock.notes.txt", paths));
 }
+
+TEST_CASE("export: unreadable presets are set aside before the defaults are saved, never written over")
+{
+    const String dir = TempDir(u8"scratch_presets_damaged");
+    NukeTree(dir.AsView());
+    REQUIRE(CreateDirectory(dir.AsView()));
+    foundation::vfs::NativeFileSystem root(dir.AsView(), foundation::core::DefaultAllocator());
+    const StringView damaged = u8"<presets><preset name=\"Web\"";
+    REQUIRE(root.Save(editor::kExportPresetsFile, Span<const byte>(reinterpret_cast<const byte*>(damaged.Data()), damaged.Size()))
+                .IsOk());
+
+    editor::ExportPresetsController ctl;
+    ctl.Load(root);
+    CHECK(ctl.Count() == 1u); // the defaults, so the panel has something to show
+    CHECK(ctl.LoadProblem().Contains(u8"export_presets.xml.unreadable"));
+    const String aside = Format(u8"{}.unreadable", editor::kExportPresetsFile);
+    Result<Array<byte>> kept = ReadFile(PathJoin(dir.AsView(), aside.AsView()).AsView());
+    REQUIRE(kept.HasValue());
+    CHECK(kept.Value().Size() == damaged.Size());
+
+    // Saving now writes the presets file afresh; the damaged one stays beside it.
+    REQUIRE(ctl.Save(*root.AsWritable()).IsOk());
+    editor::ExportPresetsController reloaded;
+    reloaded.Load(root);
+    CHECK(reloaded.LoadProblem().IsEmpty());
+    CHECK(root.Exists(aside.AsView()));
+    NukeTree(dir.AsView());
+}
+
+TEST_CASE("export: unreadable editor settings are set aside before anything saves over them")
+{
+    namespace settings = foundation::settings;
+    editor::RegisterEditorSettingsTypes();
+    const String dir = TempDir(u8"scratch_editor_settings_damaged");
+    NukeTree(dir.AsView());
+    REQUIRE(CreateDirectory(dir.AsView()));
+    foundation::vfs::NativeFileSystem root(dir.AsView(), foundation::core::DefaultAllocator());
+    const StringView damaged = u8"<settings><sections";
+    REQUIRE(root.Save(editor::kEditorSettingsFile, Span<const byte>(reinterpret_cast<const byte*>(damaged.Data()), damaged.Size()))
+                .IsOk());
+
+    settings::Settings store(foundation::core::DefaultAllocator());
+    const Status loaded = editor::LoadEditorSettings(root, store);
+    CHECK_FALSE(loaded.IsOk());
+    CHECK(loaded.Code() != ErrorCode::NotFound);
+    CHECK_FALSE(root.Exists(editor::kEditorSettingsFile));
+    const String aside = Format(u8"{}.unreadable", editor::kEditorSettingsFile);
+    CHECK(root.Exists(aside.AsView()));
+    NukeTree(dir.AsView());
+}

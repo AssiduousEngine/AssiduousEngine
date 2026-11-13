@@ -111,6 +111,27 @@ export namespace foundation::core
         return WriteFileAtomic(path, data);
     }
 
+    // Moves a file that could not be read out of the way, so that what replaces it never writes
+    // over it and it can still be recovered by hand: to "<path>.unreadable", or "<path>.unreadable-2",
+    // -3 and on when that is taken. The path it went to, or an error when it could not be moved
+    // (then nothing may be written over it).
+    [[nodiscard]] inline Result<String> SetAsideUnreadable(StringView path,
+                                                           IAllocator& allocator = DefaultAllocator())
+    {
+        String aside(path, allocator);
+        aside.Append(u8".unreadable");
+        for (u32 n = 2; FileExists(aside.AsView()); ++n)
+        {
+            aside = String(path, allocator);
+            aside.Append(Format(u8".unreadable-{}", n).AsView());
+        }
+        if (!FileMove(path, aside.AsView()))
+        {
+            return Err(ErrorCode::Internal);
+        }
+        return aside;
+    }
+
     // Copies the folder `from` and everything under it into `to` (made as needed), each file with
     // FileCopyPreserving, so what is there already is overwritten and executables keep their +x
     // bit. Composes the portable primitives, as RemoveDirectoryRecursive does. False at the first

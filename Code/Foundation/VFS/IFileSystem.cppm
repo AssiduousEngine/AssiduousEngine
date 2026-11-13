@@ -136,4 +136,29 @@ export namespace foundation::vfs
 
         [[nodiscard]] virtual IChangeSource* ChangeSource() = 0;
     };
+
+    // Moves a file on `fs` that could not be read out of the way, as core::SetAsideUnreadable does
+    // on the disk: to "<path>.unreadable", or "-2", "-3" and on when taken, so what replaces it
+    // never writes over it. The path it went to, or an error when it could not be moved (a mount
+    // that cannot write, or a failed move): then nothing may be written over it.
+    [[nodiscard]] inline Result<String> SetAsideUnreadable(IFileSystem& fs, StringView path)
+    {
+        IWritableFileSystem* writable = fs.AsWritable();
+        if (writable == nullptr)
+        {
+            return Err(ErrorCode::NotSupported);
+        }
+        String aside(path);
+        aside.Append(u8".unreadable");
+        for (u32 n = 2; fs.Exists(aside.AsView()); ++n)
+        {
+            aside = String(path);
+            aside.Append(Format(u8".unreadable-{}", n).AsView());
+        }
+        if (const Status moved = writable->Move(path, aside.AsView()); !moved.IsOk())
+        {
+            return Err(moved.Code());
+        }
+        return aside;
+    }
 }

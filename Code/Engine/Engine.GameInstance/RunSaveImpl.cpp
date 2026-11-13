@@ -31,13 +31,27 @@ namespace engine::runtime
             return;
         }
         settings::RegisterSaveValuesType(); // the load instantiates the section by its name
-        FileStream file(m_path.AsView(), FileMode::Read);
-        if (!file.IsValid() || !m_store->Load(file, xml::XmlSerializerFactory()).IsOk())
+        bool read = false;
         {
-            LOG_WARNING(u8"Save", u8"could not read the save '{}'; starting from an empty save",
-                        m_path.AsView());
-            m_store = MakeUnique<settings::Settings>(*m_allocator, *m_allocator);
+            // Closed before the file might be moved aside below.
+            FileStream file(m_path.AsView(), FileMode::Read);
+            read = file.IsValid() && m_store->Load(file, xml::XmlSerializerFactory()).IsOk();
         }
+        if (read)
+        {
+            return;
+        }
+        m_store = MakeUnique<settings::Settings>(*m_allocator, *m_allocator);
+        Result<String> aside = SetAsideUnreadable(m_path.AsView(), *m_allocator);
+        if (aside.HasValue())
+        {
+            LOG_WARNING(u8"Save", u8"could not read the save '{}'; it was moved to '{}', and the game starts from an empty save",
+                        m_path.AsView(), aside.Value().AsView());
+            return;
+        }
+        LOG_WARNING(u8"Save", u8"could not read the save '{}', nor move it aside; this run writes no save, so the file stays as it is",
+                    m_path.AsView());
+        m_path = String(*m_allocator);
     }
 
     bool RunSave::Flush()

@@ -38,9 +38,11 @@ export namespace engine::runtime
         RunSave(const RunSave&) = delete;
         RunSave& operator=(const RunSave&) = delete;
 
-        // Names the save's file and reads it. Absent is an empty save; unreadable is an empty save
-        // and a warning, and the file is left as it is until the game writes. An empty path closes
-        // the save: values stay readable but are written nowhere.
+        // Names the save's file and reads it. Absent is an empty save. Unreadable is an empty save
+        // and a warning, and the file is set aside first ("<path>.unreadable", SetAsideUnreadable)
+        // so the game's next write never replaces the player's progress; when it cannot be moved,
+        // the save is closed instead and this run writes nowhere. An empty path closes the save:
+        // values stay readable but are written nowhere.
         void Open(StringView path);
 
         [[nodiscard]] bool IsOpen() const noexcept { return !m_path.IsEmpty(); }

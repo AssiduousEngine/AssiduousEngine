@@ -190,13 +190,8 @@ namespace editor::app
         editor::RegisterEditorSettingsTypes();
         editor::RegisterProjectRegistryTypes(); // the manager's recent projects
         RegisterEditorProjectSettingsTypes();   // the per-project store's sections
-        const Status loaded = editor::LoadEditorSettingsFromUserData(m_editorSettings);
-        if (!loaded.IsOk() && loaded.Code() != ErrorCode::NotFound)
-            // NotFound (a first run) is fine; anything else is a partial load, which a later save
-            // would write back without the sections it dropped (the project registry most painfully).
-            LOG_ERROR(u8"Editor",
-                      u8"editor.settings.xml load FAILED (partial store) - check for unregistered section types; later saves may "
-                      u8"drop sections");
+        // NotFound is a first run; a file that does not read is set aside and logged by the load.
+        (void)editor::LoadEditorSettingsFromUserData(m_editorSettings);
     }
 
     void EditorApplication::OnStartup(runtime::IApplicationHost& host)
