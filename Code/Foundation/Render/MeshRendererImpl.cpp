@@ -1193,6 +1193,8 @@ namespace foundation::render
             // collapse into one instanced draw, and a lone one draws by the single path, which carries
             // the same bones and fade per object.
             const bool headFaded = head->fade > 0.0f;
+            // A run draws skinned or not by its head: an item that is the other breaks it.
+            const bool headSkinned = head->boneMatrices != nullptr && head->boneCount > 0;
             // Extend the run while mesh and material match (a batchable group) and the run is faded
             // or solid as a whole: the two draw with different pipelines (DITHER). A mesh with
             // material overrides draws alone, with instances of its own.
@@ -1204,6 +1206,7 @@ namespace foundation::render
                     const auto* nd = static_cast<const MeshRenderData*>(items[j].data);
                     if (nd->multiMesh || nd->mesh != head->mesh || nd->material != head->material ||
                         !nd->SameSubmeshMaterials(*head) || (nd->fade > 0.0f) != headFaded || nd->overrideCount > 0 ||
+                        (nd->boneMatrices != nullptr && nd->boneCount > 0) != headSkinned ||
                         nd->categorySlots != head->categorySlots) // a split mesh's item draws some slots only
                     {
                         break;
@@ -1304,12 +1307,15 @@ namespace foundation::render
                 continue;
             }
             // Skinned casters batch like static ones; a lone one draws by the single path (its bone
-            // base rides the object block there).
+            // base rides the object block there). A run draws skinned or not by its head, so an item
+            // that is the other breaks it.
+            const bool headSkinned = head->boneMatrices != nullptr && head->boneCount > 0;
             usize j = i + 1;
             while (j < items.Size())
             {
                 const auto* nd = static_cast<const MeshRenderData*>(items[j].data);
                 if (nd->multiMesh || nd->mesh != head->mesh || nd->material != head->material || !nd->SameSubmeshMaterials(*head) ||
+                    (nd->boneMatrices != nullptr && nd->boneCount > 0) != headSkinned ||
                     nd->categorySlots != head->categorySlots) // a split mesh's item draws some slots only
                 {
                     break;
@@ -1500,7 +1506,7 @@ namespace foundation::render
         const bool faded = head.fade > 0.0f;
         u64 offsByteOffset;
         const InstShare* shared =
-            faded ? nullptr : m_instShareCache.Find(InstShareKey(ctx.view, head.mesh, head.material));
+            faded ? nullptr : m_instShareCache.Find(InstShareKey(ctx.view, items[first].data));
         if (shared != nullptr && shared->count == count)
         {
             offsByteOffset = shared->offsByteOffset;
@@ -1734,7 +1740,7 @@ namespace foundation::render
         }
         if (feedsForward)
         { // record this group's draw offsets range for the forward to reuse
-            m_instShareCache.InsertOrAssign(InstShareKey(ctx.view, head.mesh, head.material),
+            m_instShareCache.InsertOrAssign(InstShareKey(ctx.view, items[first].data),
                                             InstShare{offs.byteOffset, count});
         }
 
@@ -3204,12 +3210,11 @@ namespace foundation::render
         return (idx < m_prevWorld.Size()) ? m_prevWorld[idx] : cur;
     }
 
-    u64 MeshRenderer::InstShareKey(const void* view, const void* mesh, const void* mat) noexcept
+    u64 MeshRenderer::InstShareKey(const void* view, const void* runHead) noexcept
     {
         u64 k = kFnv1a64OffsetBasis; // FNV-1a
         k = (k ^ static_cast<u64>(reinterpret_cast<usize>(view))) * kFnv1a64Prime;
-        k = (k ^ static_cast<u64>(reinterpret_cast<usize>(mesh))) * kFnv1a64Prime;
-        k = (k ^ static_cast<u64>(reinterpret_cast<usize>(mat))) * kFnv1a64Prime;
+        k = (k ^ static_cast<u64>(reinterpret_cast<usize>(runHead))) * kFnv1a64Prime;
         return k;
     }
 

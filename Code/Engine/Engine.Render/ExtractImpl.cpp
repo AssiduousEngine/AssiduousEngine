@@ -94,7 +94,8 @@ namespace engine::render
         // Batch-cluster key for the sort (opaque draws stay contiguous by mesh and materials, every
         // slot's). rendererId keeps its default 0: the MeshRenderer is the first-registered renderer,
         // so mesh data routes to it.
-        rd.sortBatchKey = BatchKey(mc.mesh.Get(), primary, rd.submeshMaterials, rd.submeshMaterialCount);
+        rd.sortBatchKey = BatchKey(mc.mesh.Get(), primary, rd.submeshMaterials, rd.submeshMaterialCount) ^
+                          (rd.boneMatrices != nullptr ? 1u : 0u); // skinned ones sort beside each other
         rd.overrides = mc.materialOverrides.IsEmpty() ? nullptr : mc.materialOverrides.Data(); // borrowed
         rd.overrideCount = static_cast<u32>(mc.materialOverrides.Size());
         rd.overrideVersion = mc.materialOverrideVersion;

@@ -753,9 +753,11 @@ export namespace foundation::render
         [[nodiscard]] Float4x4 PrevWorldFor(u64 entityId, const Float4x4& cur);
 
         // Instance sharing from the camera depth prepass to the forward pass. The prepass fills the full
-        // InstanceData (world, real prevWorld, tint) for each opaque (mesh, material) group once and records the
-        // group's draw offsets range here; the forward looks it up and reuses that instance data instead of
-        // filling it again. Keyed by (view, mesh, material); cleared each frame. Instanced path only.
+        // InstanceData (world, real prevWorld, tint) for each opaque run once and records the run's draw
+        // offsets range here; the forward looks it up and reuses that instance data instead of filling it
+        // again. Keyed by (view, the run's first item): runs of one mesh and material split by their slot
+        // materials, skinning or fade are apart, and each finds its own. Cleared each frame. Instanced
+        // path only.
         struct InstShare
         {
             u64 offsByteOffset = 0;
@@ -764,7 +766,7 @@ export namespace foundation::render
         HashMap<u64, InstShare> m_instShareCache{*m_allocator};
         // Keyed by the view pointer, not viewIndex: the main view's prepass and forward share one RenderView, but
         // probe-capture forwards reuse viewIndex 0 with a different draw list, and a distinct pointer keeps them apart.
-        static u64 InstShareKey(const void* view, const void* mesh, const void* mat) noexcept;
+        static u64 InstShareKey(const void* view, const void* runHead) noexcept;
 
         // LOD hysteresis memory: the last selected level per (view pointer, item), kept
         // across frames. Bounded by a size cap: when it overflows, the map clears wholesale
