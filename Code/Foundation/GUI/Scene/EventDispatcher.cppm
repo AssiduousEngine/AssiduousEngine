@@ -921,33 +921,71 @@ export namespace foundation::gui
             if (m_focusNode != nullptr && !m_focusNode->IsTreeVisible())
                 SetFocusNode(nullptr);
         }
+        /// Moves the focus to `node` (null: none), telling the node that loses it and the one that
+        /// gains it. A focus asked for from inside those (a FocusLost handler focusing elsewhere)
+        /// waits and is applied as the next change once this one is whole, the latest asked
+        /// winning, so every node told it gained the focus is later told it lost it and no
+        /// `:focus-within` stays behind.
         void SetFocusNode(Node* node)
         {
             if (node != nullptr)
                 m_pendingFocus = nullptr; // a focus given now outranks one still waiting for the sheet
+            if (m_settlingFocus)
+            {
+                m_focusRequest = core::RefPtr<Node>(node);
+                m_focusRequested = true;
+                return;
+            }
+            m_settlingFocus = true;
+            ApplyFocus(node);
+            for (u32 i = 0; m_focusRequested && i < kMaxFocusSettles; ++i)
+            {
+                m_focusRequested = false;
+                const core::RefPtr<Node> next = core::Move(m_focusRequest);
+                ApplyFocus(next.Get());
+            }
+            m_focusRequested = false; // handlers that kept moving it past the bound: the last applied stays
+            m_focusRequest = nullptr;
+            m_settlingFocus = false;
+            if (m_focusNode != nullptr && (m_root == nullptr || !m_root->IsAncestorOrSelf(*m_focusNode)))
+                m_focusNode = nullptr; // removed while it settled, and the bound cut its loss short
+            m_focusHold = nullptr;
+        }
+
+    private:
+        static constexpr u32 kMaxFocusSettles = 8; // handlers bouncing the focus give up here
+
+        // One focus change, its handlers' own requests waiting (SetFocusNode).
+        void ApplyFocus(Node* node)
+        {
             if (node == m_focusNode || (node != nullptr && node->IsTreeInert())) // a node that is leaving or inert takes no focus
                 return;
+            if (node != nullptr && (m_root == nullptr || !m_root->IsAncestorOrSelf(*node)))
+                return; // asked for, then taken out of the tree, while the focus settled
             Node* previous = m_focusNode;
             m_focusNode = node;
+            m_focusHold = core::RefPtr<Node>(node); // alive until the settling ends, should it leave the tree
             m_focusChanged.Notify(); // the focus path decides which commands are available
             if (previous)
                 previous->HandleFocusLost();
-            if (m_focusNode)
+            if (node != nullptr)
             {
-                RememberInScopes(*m_focusNode); // returning to a scope later focuses this node again
-                m_focusNode->SetFocusVisible(m_inputKind != InputKind::Pointer);
-                m_focusNode->HandleFocusGained();
+                RememberInScopes(*node); // returning to a scope later focuses this node again
+                node->SetFocusVisible(m_inputKind != InputKind::Pointer);
+                node->HandleFocusGained();
                 // The scrollers around the node bring it into view, but only those inside its popup,
                 // not those around the popup's owner. A popup is placed in the root's space and does
                 // not scroll with them; scrolling them would move the page a little further each
                 // time a menu opened in it.
-                for (Node* n = m_focusNode; n != nullptr && !n->IsInTopLayer(); n = n->GetParent())
+                for (Node* n = node; n != nullptr && !n->IsInTopLayer(); n = n->GetParent())
                     if (Node* p = n->GetParent())
-                        p->OnDescendantFocused(*m_focusNode);
+                        p->OnDescendantFocused(*node);
             }
             if (m_dragActive && m_dragFromKeyboard)
                 QueryAtFocus(); // a keyboard drag queries the drop at the new focus
         }
+
+    public:
 
         // === Drag and drop ===
         // A left press (or a finger's press after a long press) that moves past the threshold
@@ -2977,6 +3015,10 @@ export namespace foundation::gui
         core::Float2 m_panLast{0.0f, 0.0f}; // where the finger was at the last pan step
         bool m_clickSuppressed = false;    // the press has already activated (SuppressClick)
         Node* m_focusNode = nullptr;       // non-owning
+        bool m_settlingFocus = false;      // SetFocusNode is telling the nodes: a new request waits
+        bool m_focusRequested = false;     // one waits in m_focusRequest (null: no focus)
+        core::RefPtr<Node> m_focusRequest; // the latest focus asked for while it settled
+        core::RefPtr<Node> m_focusHold;    // the focus node, kept alive while it settles
         Node* m_pendingFocus = nullptr;    // non-owning: a focus asked before the sheet showed its node
         bool m_dragActive = false;                   // drag-and-drop in progress
         bool m_dragTried = true;                     // this press has already offered its drag

@@ -573,3 +573,56 @@ TEST_CASE("keyboard: a field's label (for) marks an access key, and Alt with it 
     CHECK(label->GetText() == SV(u8"Size & Weight"));
     CHECK(label->GetMnemonic() == U'w');
 }
+
+TEST_CASE("focus: a FocusLost handler that focuses elsewhere leaves no :focus-within behind")
+{
+    Bed bed;
+    core::RefPtr<Panel> leftBox = Make<Panel>();
+    core::RefPtr<Panel> midBox = Make<Panel>();
+    core::RefPtr<Panel> rightBox = Make<Panel>();
+    bed.root->AddChild(leftBox.Get());
+    bed.root->AddChild(midBox.Get());
+    bed.root->AddChild(rightBox.Get());
+    Button& left = bed.Add(u8"left", leftBox.Get());
+    Button& mid = bed.Add(u8"mid", midBox.Get());
+    Button& right = bed.Add(u8"right", rightBox.Get());
+    int midGained = 0;
+    int midLost = 0;
+    bool redirected = false;
+    // Leaving `left` sends the focus to `right` instead, as a field that validates on blur might.
+    left.AddEventListener(EventType::FocusLost, [&](const Event&)
+                          {
+                              if (!redirected)
+                              {
+                                  redirected = true;
+                                  bed.D().SetFocusNode(&right);
+                              }
+                          });
+    mid.AddEventListener(EventType::FocusGained, [&](const Event&) { ++midGained; });
+    mid.AddEventListener(EventType::FocusLost, [&](const Event&) { ++midLost; });
+    bed.D().SetFocusNode(&left);
+    bed.D().SetFocusNode(&mid);
+    CHECK(bed.Focused() == core::String(u8"right")); // the handler's request, applied last
+    CHECK(midGained == midLost);                     // told it lost what it was told it gained
+    CHECK_FALSE(leftBox->IsFocusWithin());
+    CHECK_FALSE(midBox->IsFocusWithin());
+    CHECK(rightBox->IsFocusWithin());
+    CHECK_FALSE(mid.IsFocused());
+}
+
+TEST_CASE("focus: a node removed while the focus settles is let go, never kept as the focus")
+{
+    Bed bed;
+    Button& first = bed.Add(u8"first");
+    core::RefPtr<Button> second = Make<Button>();
+    second->SetSize(core::Float2{40.0f, 20.0f});
+    bed.root->AddChild(second.Get());
+    Button* secondRaw = second.Get();
+    second = nullptr; // the tree alone keeps it
+    // Leaving `first` takes `second`, the node being focused, out of the tree.
+    first.AddEventListener(EventType::FocusLost, [&](const Event&) { secondRaw->RemoveFromParent(); });
+    bed.D().SetFocusNode(&first);
+    bed.D().SetFocusNode(secondRaw);
+    CHECK(bed.D().GetFocusNode() == nullptr);
+    bed.Tab(); // nothing freed is reached
+}
