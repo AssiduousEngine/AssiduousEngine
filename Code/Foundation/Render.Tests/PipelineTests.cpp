@@ -526,6 +526,62 @@ TEST_CASE("RenderFrame batches same-mesh-same-material draws into an instanced d
     CHECK(psoCache.Size() >= 1);
 }
 
+TEST_CASE("RenderFrame keeps instances apart whose per-slot materials differ beyond the first")
+{
+    RenderHarness h;
+    if (!h.Init(256, 256))
+    {
+        return;
+    }
+    shaders::ShaderSystem shaderSystem(*h.compiler, h.device);
+    WireEngineShaders(shaderSystem);
+    materials::PipelineStateCache psoCache(shaderSystem, h.device);
+    materials::MaterialSystem materialSystem;
+    REQUIRE(materialSystem.Initialize(h.device).IsOk());
+    MeshRenderer meshRenderer(DefaultAllocator(), h.device, shaderSystem, psoCache, materialSystem, /*framesInFlight*/ 2);
+    REQUIRE(meshRenderer.Initialize().IsOk());
+    RendererRegistry registry;
+    registry.Register(&meshRenderer);
+    RenderFrame frame(DefaultAllocator(), h.device, registry, /*framesInFlight*/ 2);
+
+    RefPtr<geometry::StaticMesh> cube = geometry::Primitives::Cube(DefaultAllocator(), 1.0f);
+    RefPtr<materials::Material> body = materials::MaterialBuilder(u8"body").Shader(u8"forward").Build();
+    RefPtr<materials::Material> red = materials::MaterialBuilder(u8"red").Shader(u8"forward").Build();
+    RefPtr<materials::Material> blue = materials::MaterialBuilder(u8"blue").Shader(u8"forward").Build();
+    const RefPtr<materials::Material> redSlots[2] = {body, red};
+    const RefPtr<materials::Material> blueSlots[2] = {body, blue};
+    ViewCamera camera;
+    camera.view = Float4x4::LookAtRH(Float3{0, 0, 20}, Float3{0, 0, 0}, Float3{0, 1, 0});
+    camera.projection = Float4x4::PerspectiveFovRH(1.0472f, 1.0f, 0.1f, 100.0f);
+    ViewSettings settings;
+    // Draw calls of a frame of eight cubes: one mesh, slot 0 shared, slot 1 red or blue per cube.
+    const auto drawsOf = [&](bool mixed)
+    {
+        ExtractedScene scene{DefaultAllocator()};
+        for (int n = 0; n < 8; ++n)
+        {
+            MeshRenderData* rd = scene.Add<MeshRenderData>();
+            rd->world = Float4x4::Translation(Float3{static_cast<f32>(n) - 4.0f, 0, 0});
+            rd->worldCenter = Float3{static_cast<f32>(n) - 4.0f, 0, 0};
+            rd->mesh = cube.Get();
+            rd->material = body.Get();
+            rd->submeshMaterials = (mixed && (n % 2) == 1) ? blueSlots : redSlots;
+            rd->submeshMaterialCount = 2;
+            rd->sortBatchKey = BatchKey(rd->mesh, rd->material, rd->submeshMaterials, rd->submeshMaterialCount);
+            rd->category = RenderCategories::Opaque;
+        }
+        const u64 before = h.device.Counters().draws;
+        frame.Begin(*h.encoder, 0);
+        frame.AddView(scene, camera, settings, h.colorView, rhi::TextureFormat::BGRA8Unorm, 256, 256);
+        frame.End();
+        return h.device.Counters().draws - before;
+    };
+    const u64 alike = drawsOf(false);
+    const u64 mixed = drawsOf(true);
+    CHECK(alike > 0u);
+    CHECK(mixed > alike); // the blue-slotted cubes draw in a run of their own, not with the red ones'
+}
+
 TEST_CASE("RenderFrame parallel emit: many distinct draws fan out across the job system")
 {
     RenderHarness h;

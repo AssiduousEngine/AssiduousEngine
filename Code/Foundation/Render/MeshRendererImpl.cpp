@@ -1203,7 +1203,7 @@ namespace foundation::render
                 {
                     const auto* nd = static_cast<const MeshRenderData*>(items[j].data);
                     if (nd->multiMesh || nd->mesh != head->mesh || nd->material != head->material ||
-                        (nd->fade > 0.0f) != headFaded || nd->overrideCount > 0 ||
+                        !nd->SameSubmeshMaterials(*head) || (nd->fade > 0.0f) != headFaded || nd->overrideCount > 0 ||
                         nd->categorySlots != head->categorySlots) // a split mesh's item draws some slots only
                     {
                         break;
@@ -1309,7 +1309,7 @@ namespace foundation::render
             while (j < items.Size())
             {
                 const auto* nd = static_cast<const MeshRenderData*>(items[j].data);
-                if (nd->multiMesh || nd->mesh != head->mesh || nd->material != head->material ||
+                if (nd->multiMesh || nd->mesh != head->mesh || nd->material != head->material || !nd->SameSubmeshMaterials(*head) ||
                     nd->categorySlots != head->categorySlots) // a split mesh's item draws some slots only
                 {
                     break;

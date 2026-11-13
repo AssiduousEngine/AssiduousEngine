@@ -241,6 +241,24 @@ export namespace foundation::render
         // the renderer draws each submesh with submeshMaterials[matIdx]; else `material` covers the mesh.
         const RefPtr<materials::Material>* submeshMaterials = nullptr;
         u32 submeshMaterialCount = 0;
+
+        // Whether `other` draws with the same per-submesh materials (an instanced run draws every
+        // instance with its head's).
+        [[nodiscard]] bool SameSubmeshMaterials(const MeshRenderData& other) const noexcept
+        {
+            if (submeshMaterialCount != other.submeshMaterialCount)
+            {
+                return false;
+            }
+            for (u32 i = 0; i < submeshMaterialCount; ++i)
+            {
+                if (submeshMaterials[i].Get() != other.submeshMaterials[i].Get())
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
         // A multi-material mesh whose slots draw in different categories (a pane's glass blended,
         // its frame opaque) comes as one item per category: this item draws only the submeshes
         // whose material is in its `category` (MeshSlotCategory).
@@ -687,6 +705,19 @@ export namespace foundation::render
         const usize m = reinterpret_cast<usize>(a);
         const usize n = reinterpret_cast<usize>(b);
         const usize mixed = (m >> 4) * 1099511628211ull + (n >> 4);
+        return static_cast<u32>(mixed & ((1u << kSortStateBits) - 1));
+    }
+
+    // The same, telling meshes apart by their per-submesh materials too: two instances of one mesh
+    // whose second slot differs must not sort into (and be drawn as) one run.
+    [[nodiscard]] inline u32 BatchKey(const void* mesh, const void* material, const RefPtr<materials::Material>* submesh,
+                                      u32 submeshCount) noexcept
+    {
+        usize mixed = (reinterpret_cast<usize>(mesh) >> 4) * 1099511628211ull + (reinterpret_cast<usize>(material) >> 4);
+        for (u32 i = 0; i < submeshCount; ++i)
+        {
+            mixed = mixed * 1099511628211ull + (reinterpret_cast<usize>(submesh[i].Get()) >> 4);
+        }
         return static_cast<u32>(mixed & ((1u << kSortStateBits) - 1));
     }
 

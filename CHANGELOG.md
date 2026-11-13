@@ -135,6 +135,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   `head = Move(head->next)` keeps the next node; each read freed memory when it grew or released.
 - Core: a frame of infinite or enormous length (a clock gone wrong, a long debugger pause) runs at
   most the fixed step's cap and goes on; the fixed-step loop never ended.
+- Rendering: meshes that share a mesh and their first material but differ in another slot's draw
+  each with their own; drawn as one batch, they all took the first one's.
 
 ## 0.1.0-beta.3 - 2026-11-12
 

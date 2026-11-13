@@ -73,9 +73,6 @@ namespace engine::render
         rd.entityId = PackEntity(e);
         rd.fade = Clamp(mc.fade, 0.0f, 1.0f);
         rd.category = MeshSlotCategory(primary, rd.fade); // a fading mesh is out of the depth prepass
-        // Batch-cluster key for the sort (opaque draws stay contiguous by mesh and material). rendererId
-        // keeps its default 0: the MeshRenderer is the first-registered renderer, so mesh data routes to it.
-        rd.sortBatchKey = BatchKey(mc.mesh.Get(), primary);
         // GPU skinning: the palette of whatever poses the mesh now, borrowed for the frame; none (an
         // animator that went, or never was) draws the mesh static.
         scene::SkinningPalette palette;
@@ -94,6 +91,10 @@ namespace engine::render
         rd.submeshMaterials = mc.materialCache.Size() > 1 ? mc.materialCache.Data() : nullptr;
         rd.submeshMaterialCount =
             mc.materialCache.Size() > 1 ? static_cast<u32>(mc.materialCache.Size()) : 0u;
+        // Batch-cluster key for the sort (opaque draws stay contiguous by mesh and materials, every
+        // slot's). rendererId keeps its default 0: the MeshRenderer is the first-registered renderer,
+        // so mesh data routes to it.
+        rd.sortBatchKey = BatchKey(mc.mesh.Get(), primary, rd.submeshMaterials, rd.submeshMaterialCount);
         rd.overrides = mc.materialOverrides.IsEmpty() ? nullptr : mc.materialOverrides.Data(); // borrowed
         rd.overrideCount = static_cast<u32>(mc.materialOverrides.Size());
         rd.overrideVersion = mc.materialOverrideVersion;
