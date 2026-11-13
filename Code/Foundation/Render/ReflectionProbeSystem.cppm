@@ -10,7 +10,7 @@
 ///                                                             forward (set 0, t8) with parallax.
 ///   - probe-metadata StructuredBuffer (GpuProbe[])          : center, box, blend, slice; sampled per froxel.
 ///
-/// A stable map from ProbeKey (entity id) to slot keeps a probe's array slice across frames, so only
+/// A stable map from ProbeKey (the probe's scene and entity) to slot keeps a probe's array slice across frames, so only
 /// dirty probes re-capture (static caching). This system allocates the resources and the slot
 /// assignment and drives capture, prefilter and the debug view.
 

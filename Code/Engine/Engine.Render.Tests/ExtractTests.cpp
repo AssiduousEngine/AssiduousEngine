@@ -2221,6 +2221,44 @@ TEST_CASE("extract: a reflection probe's capture requests reach the extracted pr
     CHECK(after.ReflectionProbes()[0].captureRequest != before.ReflectionProbes()[0].captureRequest);
 }
 
+// The renderer keeps an instanced set's buffer and a reflection probe's cube per key. Two scenes
+// drawn in one frame reuse entity handles, so the key carries the scene too; it stays the same from
+// one extraction to the next.
+TEST_CASE("extract: persistent keys tell scenes apart and hold across frames")
+{
+    scene::Scene first(DefaultAllocator(), u8"first");
+    scene::Scene second(DefaultAllocator(), u8"second");
+    RefPtr<geometry::StaticMesh> cube = geometry::Primitives::Cube(DefaultAllocator(), 1.0f);
+    scene::Scene* const both[] = {&first, &second};
+    for (scene::Scene* scene : both)
+    {
+        scene::EntityHandle e = scene->CreateEntity(u8"thing");
+        scene->AddSystem<ReflectionProbeComponentManager>()->Add(e);
+        scene->AddSystem<InstancedMeshComponentManager>()->Add(e).mesh = cube;
+        scene->UpdateTransforms();
+    }
+    REQUIRE(first.FindEntityByName(u8"thing") == second.FindEntityByName(u8"thing")); // one handle
+
+    const auto probeKey = [](scene::Scene& scene) -> u64
+    {
+        ExtractedScene out{DefaultAllocator()};
+        ExtractReflectionProbesInto(scene, out);
+        REQUIRE(out.ReflectionProbes().Size() == 1u);
+        return out.ReflectionProbes()[0].key;
+    };
+    const auto setKey = [](scene::Scene& scene) -> u64
+    {
+        ExtractedScene out{DefaultAllocator()};
+        ExtractInstancedMeshesInto(scene, out);
+        REQUIRE(out.Items().Size() == 1u);
+        return static_cast<const MultiMeshRenderData*>(out.Items()[0])->key;
+    };
+    CHECK(probeKey(first) != probeKey(second));
+    CHECK(probeKey(first) == probeKey(first));
+    CHECK(setKey(first) != setKey(second));
+    CHECK(setKey(first) == setKey(first));
+}
+
 // A v0 probe stored a per-probe resolution between intensity and priority; v1 has none. The
 // legacy reader reads past it, so the fields after it land where they belong.
 TEST_CASE("ReflectionProbeComponent: a v0 probe reads, its resolution dropped")

@@ -345,7 +345,7 @@ export namespace foundation::render
     // instance has its own transform in `transforms`).
     struct MultiMeshRenderData : MeshRenderData
     {
-        u64 key = 0; // stable per-component id, keying the renderer's persistent buffer slot
+        u64 key = 0; // stable tag of the set's scene and entity, keying the renderer's persistent buffer slot
         const Float4x4* transforms =
             nullptr; // borrowed per-instance world transforms (instanceCount entries), valid this frame
         const Color* tints =
@@ -657,7 +657,8 @@ export namespace foundation::render
     // from `center`, prefilters it, and the forward samples it with parallax correction against the box
     // [center - halfExtents, center + halfExtents] (world-axis-aligned box, not an OBB). `blendDistance`
     // softens the influence toward the box edge so overlapping probes blend without a seam. `key` is a
-    // stable per-entity tag (PackEntity) so the system maps a probe to a persistent GPU slot across frames.
+    // stable tag of the probe's scene and entity, so the system maps a probe to a persistent GPU slot
+    // across frames.
     struct ReflectionProbe
     {
         u64 key = 0;

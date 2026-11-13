@@ -143,6 +143,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Rendering: a double-sided material (foliage cards, a sail, a flag) casts its shadow from both
   sides, and a material that culls front faces casts from its back; shadows always came from the
   front faces.
+- Rendering: two scenes drawn at once (two editor pages, a page and its play) no longer share
+  an instanced mesh's instances or a reflection probe's cube when their entities have the same
+  handle.
 - Rendering: a reflection probe added after sixteen others had ever existed (probes deleted and
   added in the editor, levels loaded one after another) now reflects; its slot was never handed
   back, so it was dropped.

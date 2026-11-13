@@ -41,6 +41,16 @@ namespace engine::render
         return EntityTag::Pack(e.index, e.generation); // the one layout the pick readback decodes
     }
 
+    // The key of what the renderer keeps across frames for one entity (an instanced set's buffer, a
+    // reflection probe's cube): the scene's serial with the entity. Scenes drawn in one frame (two
+    // editor pages, a page and its play) reuse entity handles, and a key of the entity alone gave
+    // their entities one buffer or one cube.
+    u64 PersistentKey(const scene::Scene& scene, scene::EntityHandle e) noexcept
+    {
+        const u64 identity[2] = {scene.Serial(), PackEntity(e)};
+        return HashBytes(identity, sizeof(identity));
+    }
+
     f32 WorldBoundsRadius(const AABB& local, const Float4x4& world)
     {
         const f32 sx = Length(Float3{world.m[0][0], world.m[0][1], world.m[0][2]});
@@ -319,7 +329,7 @@ namespace engine::render
                     return;
                 }
                 rd->multiMesh = true;
-                rd->key = PackEntity(e);
+                rd->key = PersistentKey(scene, e);
                 rd->transforms = drawn.Data(); // borrowed for the frame (immutable snapshot)
                 const bool tinted = !c.linearTints.IsEmpty() && c.linearTints.Size() == c.instances.Size();
                 bool memberTinted = false;
@@ -833,7 +843,7 @@ namespace engine::render
                 }
                 const Float4x4 world = scene.GetWorldMatrix(e);
                 ReflectionProbe p;
-                p.key = PackEntity(e);
+                p.key = PersistentKey(scene, e);
                 p.center = TransformPoint(Float3{0, 0, 0}, world);
                 p.halfExtents = pc.halfExtents;
                 p.blendDistance = pc.blendDistance;
