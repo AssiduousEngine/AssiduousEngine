@@ -87,3 +87,70 @@ TEST_CASE("event bus: a runaway emit loop is bounded (Drain terminates, never ha
     CHECK(calls >= 1);
     CHECK(calls <= static_cast<int>(kEventBusMaxDrainPasses)); // capped, not infinite
 }
+
+TEST_CASE("event bus: a handler that unsubscribes itself stays alive for its call, and the next still hears")
+{
+    EventBus bus;
+    String order;
+    u32 self = 0;
+    self = bus.Subscribe(StringHash(u8"A"),
+                         [&order, &bus, &self, tag = String(u8"1")](const Variant&)
+                         {
+                             bus.Unsubscribe(self);
+                             order += tag; // its captures are still there after the unsubscribe
+                         });
+    (void)bus.Subscribe(StringHash(u8"A"), [&](const Variant&) { order += u8"2"; });
+    bus.Publish(StringHash(u8"A"), Variant{});
+    bus.Publish(StringHash(u8"A"), Variant{});
+    bus.Drain();
+    CHECK(order == StringView(u8"122")); // the second event no longer reaches the first
+    CHECK(bus.SubscriberCount() == 1u);
+}
+
+TEST_CASE("event bus: a subscription made by a handler joins after that event; many at once move nothing that runs")
+{
+    EventBus bus;
+    int late = 0;
+    String order;
+    (void)bus.Subscribe(StringHash(u8"A"),
+                        [&, tag = String(u8"a")](const Variant&)
+                        {
+                            for (int i = 0; i < 64; ++i) // enough to grow the list many times over
+                            {
+                                (void)bus.Subscribe(StringHash(u8"A"), [&late](const Variant&) { ++late; });
+                            }
+                            order += tag;
+                        });
+    bus.Publish(StringHash(u8"A"), Variant{});
+    bus.Publish(StringHash(u8"A"), Variant{});
+    bus.Drain();
+    CHECK(order == StringView(u8"aa"));
+    CHECK(late == 64); // the first event's 64 hear the second; none hears the event it was made in
+    CHECK(bus.SubscriberCount() == 129u);
+}
+
+TEST_CASE("event bus: Clear from a handler stops every delivery; a Drain from a handler leaves it to the running one")
+{
+    EventBus bus;
+    String order;
+    (void)bus.Subscribe(StringHash(u8"A"),
+                        [&](const Variant&)
+                        {
+                            bus.Publish(StringHash(u8"B"), Variant{});
+                            bus.Drain(); // nested: does nothing; B goes in the next pass
+                            order += u8"A";
+                        });
+    (void)bus.Subscribe(StringHash(u8"B"), [&](const Variant&) { order += u8"B"; });
+    bus.Publish(StringHash(u8"A"), Variant{});
+    bus.Drain();
+    CHECK(order == StringView(u8"AB"));
+
+    EventBus closing;
+    int after = 0;
+    (void)closing.Subscribe(StringHash(u8"A"), [&closing](const Variant&) { closing.Clear(); });
+    (void)closing.Subscribe(StringHash(u8"A"), [&after](const Variant&) { ++after; });
+    closing.Publish(StringHash(u8"A"), Variant{});
+    closing.Drain();
+    CHECK(after == 0);
+    CHECK(closing.SubscriberCount() == 0u);
+}

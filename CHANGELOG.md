@@ -85,6 +85,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   builder, as scenes and prefabs).
 - Editor: a navigation bake that finds no geometry, or no walkable surface, leaves the zone its
   last navmesh and says so. It wrote an empty one over it.
+- Scripting: an event handler may subscribe and unsubscribe, itself included, and a scene may
+  stop from inside one. Unsubscribing freed the handler while it ran and skipped the next one, and
+  subscribing could move the handlers under the one running.
 
 ## 0.1.0-beta.3 - 2026-11-12
 
