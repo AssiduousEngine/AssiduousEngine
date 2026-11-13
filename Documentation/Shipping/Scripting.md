@@ -160,6 +160,25 @@ Save.setFloat("time.level2", 41.5)              -- Luau
 - The audio bus volumes a settings screen sets are saved by the player on its own; a game
   does not need to save them.
 
+## Graphics quality
+
+The `RenderQuality` facade is an options menu's graphics setting: the project's quality levels
+(its Render Quality assets, in the order the project lists them), the one the game plays at, and a
+switch between them by label:
+
+```
+array<string>@ levels = RenderQuality::levels();   // AngelScript: "Low", "Medium", "High"
+string now = RenderQuality::current();
+bool switched = RenderQuality::set("Medium");      // false for a label the game does not offer
+RenderQuality.set(RenderQuality.levels()[1])       -- Luau
+```
+
+- `set` switches at once, and the player keeps the choice: the next run starts at it, ahead of
+  the export preset's level and the project's. A level the project no longer lists is ignored
+  then. A game does not need to save it.
+- In the editor's Game tab, `set` picks the level in the tab's quality dropdown, for the session.
+- `current()` is empty when the game plays at the engine's own level (the project lists none).
+
 ## Web requests
 
 The `Http` facade reaches web services: a leaderboard, a news feed, the game's own server. A

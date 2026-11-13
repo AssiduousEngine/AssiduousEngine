@@ -253,6 +253,11 @@ namespace editor
                                                                               LOG_INFO(u8"Editor", u8"Game: '{}' requested exit({})", self->m_pieId, code);
                                                                               self->m_exitRequested = true;
                                                                           }};
+            // A script's RenderQuality.set picks the level in the tab's quality dropdown, as the
+            // user would; the player would keep it for the next run, the tab keeps it for the session.
+            m_qualityChoice.choose = [self](const engine::render::OfferedQualityLevel& level)
+            { (void)self->SelectQuality(Format(u8"{}", level.id).AsView()); };
+            m_gameInstance->Register<engine::render::RenderQualityChoice>(m_qualityChoice);
         }
 
         // The tab is built from its markup: the bar over the stage, and the game beside the debugger.
@@ -448,6 +453,10 @@ namespace editor
                          engine::project::SaveFileName(project.Settings().name.AsView(), Allocator()).AsView(),
                          Allocator())
                     .AsView());
+            // The project's levels as they are at this start, for the run's scripts.
+            if (m_context->Resources() != nullptr)
+                (void)engine::runtime::OfferQualityLevels(m_qualityChoice, project.Settings(), *m_context->Resources(), Guid{});
+            SyncQualityChoice();
             m_scriptErrors.context = m_context;
             m_gameInstance->SetScriptErrorHandler(&m_scriptErrors);
             EnableDebugging();
@@ -731,6 +740,7 @@ namespace editor
         AdvanceScriptedInput();
         TickResolution(dt);
         SyncGameFit(); // the target may have changed shape, which changes the turn and the pointer's mapping
+        SyncQualityChoice(); // the dropdown or the previewed preset may have changed the level played
         // A running game owns every key while its view has the focus (the editor's focus moves and
         // shortcuts stay out of it); Shift+F1 gives the keyboard and the focus back until a click in
         // the view. Capture is armed only while the view is focused: armed whenever the game ran, a
@@ -927,6 +937,7 @@ namespace editor
         {
             m_gameInstance->SetInputSource(m_input != nullptr ? &m_input->ShellSource() : nullptr);
             m_gameInstance->RunBinding().requestExit = Function<void(i32)>{}; // it points at this page
+            m_gameInstance->Remove<engine::render::RenderQualityChoice>(); // this page's member
         }
         // Destroy this tab's extra instance (which unregisters its scene manager and tears down its
         // run host) so nothing dangling is ticked or rendered after the tab closes. Does nothing for
@@ -1508,6 +1519,14 @@ namespace editor
             }
         }
         return false;
+    }
+
+    void GameEditorPage::SyncQualityChoice()
+    {
+        // The level the scripts read as current is the one the tab plays at, when it is offered.
+        const EditorProject* project = m_context != nullptr ? m_context->Project() : nullptr;
+        const Guid played = project != nullptr ? GameQualityLevel(project->Settings(), PlayedQualityLevel()) : Guid{};
+        m_qualityChoice.current = m_qualityChoice.Find(played) != nullptr ? played : Guid{};
     }
 
     Guid GameEditorPage::PlayedQualityLevel() const

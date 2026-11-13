@@ -305,6 +305,85 @@ TEST_CASE("game tab: a run with no game script still keeps its save, written to 
     (void)RemoveDirectoryRecursive(dir.AsView());
 }
 
+TEST_CASE("game tab: its run offers the project's levels to scripts; a script's choice moves the quality dropdown")
+{
+    // RenderQuality in a Game tab: the run lists the project's levels and reads the one the tab
+    // plays at; a script's set picks that level in the dropdown, for the session, as the user would.
+    engine::render::RegisterRenderProfileResources();
+    const String dir(u8"scratch_game_page_quality_choice");
+    const String levelsDir(u8"scratch_game_page_quality_choice_db");
+    (void)RemoveDirectoryRecursive(dir.AsView());
+    (void)RemoveDirectoryRecursive(levelsDir.AsView());
+    REQUIRE(EditorProject::Create(DefaultAllocator(), dir.AsView(), u8"P").IsOk());
+    UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir.AsView());
+    REQUIRE(static_cast<bool>(project));
+    {
+        foundation::vfs::NativeFileSystem mount(levelsDir.AsView(), DefaultAllocator());
+        foundation::content::ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
+        const auto write = [&db](StringView name) -> Guid
+        {
+            engine::render::RenderQualitySource source;
+            source.values.label = String(name);
+            foundation::content::Instance* instance = db.RootGroup()->CreateInstance(name, engine::render::RenderQualitySource::StaticType());
+            REQUIRE(instance != nullptr);
+            REQUIRE(instance->WriteObject(source).IsOk());
+            return instance->Id();
+        };
+        const Guid low = write(u8"Low");
+        const Guid high = write(u8"High");
+        engine::render::RenderQualityFactory factory(DefaultAllocator());
+        foundation::resource::ResourceManager resources(DefaultAllocator(), db);
+        resources.AddFactory(&factory);
+        project->Settings().qualityLevelIds.PushBack(low);
+        project->Settings().qualityLevelIds.PushBack(high);
+        project->Settings().defaultQualityId = high;
+
+        foundation::settings::Settings store{DefaultAllocator()};
+        EditorContext context{DefaultAllocator()};
+        context.SetProject(project.Get());
+        context.SetProjectEditorSettings(&store);
+        context.SetResources(&resources);
+        SceneHost host;
+        engine::runtime::GameInstance instance;
+        {
+            GameEditorPage::Services services;
+            services.loadMarkup = [](StringView path) { return LoadMarkup(path); };
+            GameEditorPage page(context, host, Move(services), nullptr, &instance, u8"game-page");
+            page.Play();
+            page.OnUpdate(host, 1.0f / 60.0f);
+            REQUIRE(page.IsRunning());
+
+            engine::render::RenderQualityChoice* choice = instance.Get<engine::render::RenderQualityChoice>();
+            REQUIRE(choice != nullptr);
+            REQUIRE(choice->levels.Size() == 2u);
+            CHECK(choice->levels[0].values.label == StringView(u8"Low"));
+            CHECK(choice->levels[1].values.label == StringView(u8"High"));
+            CHECK(choice->current == high); // the dropdown's preset entry: the project's starting level
+
+            // A script's choice is the dropdown's.
+            CHECK(choice->Choose(u8"Low"));
+            CHECK(page.QualityKey() == Format(u8"{}", low).AsView());
+            page.OnUpdate(host, 1.0f / 60.0f);
+            CHECK(choice->current == low);
+            CHECK(GameQualityLevel(project->Settings(), page.PlayedQualityLevel()) == low);
+
+            // The user's pick back to the preset's reaches the scripts.
+            CHECK(page.SelectQuality(kPresetQualityKey));
+            page.OnUpdate(host, 1.0f / 60.0f);
+            CHECK(choice->current == high);
+            page.Stop();
+            page.OnClose();
+        }
+        CHECK(instance.Get<engine::render::RenderQualityChoice>() == nullptr); // the page's, gone with it
+        context.SetResources(nullptr);
+        context.SetProjectEditorSettings(nullptr);
+        context.SetProject(nullptr);
+    }
+    project.Reset();
+    (void)RemoveDirectoryRecursive(dir.AsView());
+    (void)RemoveDirectoryRecursive(levelsDir.AsView());
+}
+
 TEST_CASE("game page: the Game tab plays at the project's starting quality level")
 {
     // The player starts at the project's level; the Game tab plays the game at the same one.

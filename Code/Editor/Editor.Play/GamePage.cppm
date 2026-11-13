@@ -66,16 +66,20 @@ export namespace editor
 {
     /// The quality level the Game tab plays its game at: `chosen` (the tab's quality dropdown's, or
     /// the previewed export preset's) when the project lists it, else the project's starting level,
-    /// as a run from the project folder starts at; read through `resources`. The engine's own highest when
-    /// the project lists no levels, or its level does not resolve. The editor's render subsystem
-    /// serves every page, so the tab asks for the level on its own views alone.
+    /// as a run from the project folder starts at. Nil when the project lists no levels.
+    [[nodiscard]] inline Guid GameQualityLevel(const engine::project::ProjectSettings& settings, const Guid& chosen = Guid{})
+    {
+        return !chosen.IsNil() && settings.IsQualityLevel(chosen) ? chosen : settings.StartupQuality(Guid{});
+    }
+
+    /// That level's values (GameQualityLevel), read through `resources`. The engine's own highest
+    /// when the project lists no levels, or its level does not resolve. The editor's render
+    /// subsystem serves every page, so the tab asks for the level on its own views alone.
     [[nodiscard]] inline engine::render::RenderQualitySettings GameQuality(
         const engine::project::ProjectSettings& settings, foundation::resource::ResourceManager* resources,
         const Guid& chosen = Guid{})
     {
-        // A level the tab chose (its dropdown's, or the previewed preset's) while the project still
-        // lists it; else where the game starts.
-        const Guid level = !chosen.IsNil() && settings.IsQualityLevel(chosen) ? chosen : settings.StartupQuality(Guid{});
+        const Guid level = GameQualityLevel(settings, chosen);
         if (!level.IsNil() && resources != nullptr)
         {
             if (auto quality = resources->Bind<engine::render::RenderQualityLevel>(level))
@@ -378,6 +382,8 @@ export namespace editor
         void BindResolution();
         void BindQuality();
         void RefreshQualityChoices();
+        // The run's quality choice follows the level the tab plays at.
+        void SyncQualityChoice();
         [[nodiscard]] i32 SelectedResolution() const;
         void TickResolution(f32 dt);
         void RefreshResolutionChoices(bool force);
@@ -457,6 +463,9 @@ export namespace editor
         Array<GameQualityChoice> m_qualityChoices;
         String m_qualityKey = String(kPresetQualityKey); // the quality dropdown's choice, for the session
         foundation::gui::ComboBox* m_qualityCombo = nullptr;
+        // The levels the run offers its scripts (RenderQuality): the project's, the one the tab
+        // plays at, and a script's choice moving the quality dropdown for the session.
+        engine::render::RenderQualityChoice m_qualityChoice;
         String m_resolutionSignature; // what the choices were built from
         String m_resolutionKey;       // the chosen entry, kept across rebuilds, saved per project
         f32 m_resolutionRefresh = 0.0f;
