@@ -16,6 +16,7 @@ module;
 export module foundation.core:fixed_stepper;
 
 import :base;
+import :math; // Floor, IsFinite
 
 export namespace foundation::core
 {
@@ -32,12 +33,27 @@ export namespace foundation::core
                 accumulator = 0.0f;
                 return 0;
             } // a zero step must not spin
-            if (deltaTime > 0.0f)
+            // A delta that is not a number of seconds (infinite, NaN) is no time at all: added, it
+            // would make the accumulator infinite and the drain below never end.
+            if (deltaTime > 0.0f && IsFinite(deltaTime))
             {
                 accumulator += deltaTime;
             }
+            // More whole steps due than one call runs (a long stall, a huge delta): the excess is
+            // dropped at once, keeping the fraction, rather than drained a step at a time (which
+            // never ends once a step is below the accumulator's precision).
+            const f32 due = accumulator / step;
+            if (due >= static_cast<f32>(maxSteps) + 1.0f)
+            {
+                accumulator -= Floor(due) * step;
+                if (!(accumulator >= 0.0f && accumulator < step))
+                {
+                    accumulator = 0.0f; // what is left of a huge value is no fraction worth keeping
+                }
+                return maxSteps;
+            }
             u32 steps = 0;
-            while (accumulator >= step)
+            while (accumulator >= step) // at most maxSteps + 1 times, from the guard above
             {
                 accumulator -= step;
                 ++steps;

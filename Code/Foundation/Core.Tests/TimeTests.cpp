@@ -6,6 +6,7 @@
 // or throttled machine can't make them flaky.
 #include <doctest/doctest.h>
 #include "Core/Prelude.h"
+#include <limits> // infinity and NaN, for the stepper
 import foundation.core;
 
 using namespace foundation::core;
@@ -155,4 +156,26 @@ TEST_CASE("time: default-constructed Stopwatch is stopped at zero")
     CHECK(sw.Elapsed().IsZero());
     SleepMilliseconds(2);
     CHECK(sw.Elapsed().IsZero()); // never started -> still zero
+}
+
+TEST_CASE("fixed stepper: an infinite, NaN or huge delta runs at most maxSteps and returns at once")
+{
+    FixedStepper stepper;
+    stepper.step = 1.0f / 60.0f;
+    stepper.maxSteps = 4;
+    CHECK(stepper.Advance(std::numeric_limits<f32>::infinity()) == 0u); // no time at all
+    CHECK(stepper.accumulator == doctest::Approx(0.0f));
+    CHECK(stepper.Advance(std::numeric_limits<f32>::quiet_NaN()) == 0u);
+    CHECK(stepper.Advance(1.0e9f) == 4u); // a stall of decades: the step drains no more
+    CHECK(stepper.accumulator >= 0.0f);
+    CHECK(stepper.accumulator < stepper.step);
+    // Ordinary deltas step as before: two and a half steps run two and keep the half.
+    FixedStepper plain;
+    plain.step = 0.1f;
+    plain.maxSteps = 4;
+    CHECK(plain.Advance(0.25f) == 2u);
+    CHECK(plain.Alpha() == doctest::Approx(0.5f).epsilon(1e-3));
+    // Five and a half steps due: four run, one is dropped, the half kept.
+    CHECK(plain.Advance(0.5f) == 4u);
+    CHECK(plain.Alpha() == doctest::Approx(0.5f).epsilon(1e-2));
 }

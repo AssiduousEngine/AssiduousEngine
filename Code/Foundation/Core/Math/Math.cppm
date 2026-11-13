@@ -46,6 +46,8 @@ export namespace foundation::core
     [[nodiscard]] inline f32 Acos(f32 x) noexcept { return std::acos(x); }
     [[nodiscard]] inline f32 Atan2(f32 y, f32 x) noexcept { return std::atan2(y, x); }
     [[nodiscard]] inline f32 Floor(f32 x) noexcept { return std::floor(x); }
+    /// Neither infinite nor NaN.
+    [[nodiscard]] inline bool IsFinite(f32 x) noexcept { return std::isfinite(x); }
     [[nodiscard]] inline f32 Ceil(f32 x) noexcept { return std::ceil(x); }
     [[nodiscard]] inline f32 Round(f32 x) noexcept
     {

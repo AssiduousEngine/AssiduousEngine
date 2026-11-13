@@ -133,6 +133,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Core: arrays, strings and maps accept their own elements as arguments (`a.PushBack(a[0])`,
   `s.Append(s)`, `m.InsertOrAssign(k, m[j])`, an insert of an element before itself), and
   `head = Move(head->next)` keeps the next node; each read freed memory when it grew or released.
+- Core: a frame of infinite or enormous length (a clock gone wrong, a long debugger pause) runs at
+  most the fixed step's cap and goes on; the fixed-step loop never ended.
 
 ## 0.1.0-beta.3 - 2026-11-12
 
