@@ -112,3 +112,31 @@ TEST_CASE("game-resolution: the game on a previewed phone is turned as a phone t
     CHECK(panel.rotation == ContentRotation::None);
     CHECK(panel.contentSize.x == doctest::Approx(1600.0f));
 }
+
+TEST_CASE("game-resolution: an export preset's own quality level makes it an entry, carrying the level")
+{
+    // A preset that changes neither size nor orientation but starts at its own level plays
+    // differently, so the Game tab offers it, and plays at its level while it is chosen.
+    engine::project::ProjectSettings settings;
+    settings.renderWidth = 1280;
+    settings.renderHeight = 720;
+    editor::ExportPresetSet presets;
+    editor::ExportPreset plain;
+    plain.name = String(u8"Desktop");
+    presets.presets.PushBack(plain);
+    editor::ExportPreset phone;
+    phone.name = String(u8"Phone");
+    phone.qualityLevelId = Guid{0x31u, 0x32u};
+    presets.presets.PushBack(phone);
+    const Array<GameResolutionChoice> choices = CollectGameResolutions(&settings, &presets, {});
+    usize found = choices.Size();
+    for (usize i = 0; i < choices.Size(); ++i)
+    {
+        CHECK(choices[i].key != StringView(u8"export:Desktop")); // the same as the project entry
+        found = choices[i].key == StringView(u8"export:Phone") ? i : found;
+    }
+    REQUIRE(found < choices.Size());
+    CHECK(choices[found].qualityLevelId == Guid{0x31u, 0x32u});
+    CHECK(choices[found].label.AsView().Contains(u8"its quality level"));
+    CHECK(choices[0].qualityLevelId.IsNil()); // the project's entry plays at the project's level
+}

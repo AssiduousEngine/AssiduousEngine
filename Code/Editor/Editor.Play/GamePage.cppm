@@ -64,14 +64,18 @@ namespace rhi = foundation::rhi;
 
 export namespace editor
 {
-    /// The quality level the Game tab plays its game at: the project's starting level, as a run
-    /// from the project folder starts at, read through `resources`. The engine's own highest when
+    /// The quality level the Game tab plays its game at: `chosen` (the tab's quality dropdown's, or
+    /// the previewed export preset's) when the project lists it, else the project's starting level,
+    /// as a run from the project folder starts at; read through `resources`. The engine's own highest when
     /// the project lists no levels, or its level does not resolve. The editor's render subsystem
     /// serves every page, so the tab asks for the level on its own views alone.
     [[nodiscard]] inline engine::render::RenderQualitySettings GameQuality(
-        const engine::project::ProjectSettings& settings, foundation::resource::ResourceManager* resources)
+        const engine::project::ProjectSettings& settings, foundation::resource::ResourceManager* resources,
+        const Guid& chosen = Guid{})
     {
-        const Guid level = settings.StartupQuality(Guid{});
+        // A level the tab chose (its dropdown's, or the previewed preset's) while the project still
+        // lists it; else where the game starts.
+        const Guid level = !chosen.IsNil() && settings.IsQualityLevel(chosen) ? chosen : settings.StartupQuality(Guid{});
         if (!level.IsNil() && resources != nullptr)
         {
             if (auto quality = resources->Bind<engine::render::RenderQuality>(level))
@@ -304,6 +308,12 @@ export namespace editor
         [[nodiscard]] Span<const GameResolutionChoice> ResolutionChoices() override;
         [[nodiscard]] StringView ResolutionKey() const noexcept override { return m_resolutionKey.AsView(); }
         bool SelectResolution(StringView key) override;
+        [[nodiscard]] Span<const GameQualityChoice> QualityChoices() override;
+        [[nodiscard]] StringView QualityKey() const noexcept override { return m_qualityKey.AsView(); }
+        bool SelectQuality(StringView key) override;
+        /// The level the tab plays at: the dropdown's, else the previewed preset's (nil: the
+        /// project's starting level).
+        [[nodiscard]] Guid PlayedQualityLevel() const;
         [[nodiscard]] bool PhonePreview() const noexcept override { return m_phonePreview; }
         /// The game's view (for tests: its focus and capture).
         [[nodiscard]] foundation::gui::Viewport* View() const noexcept { return m_viewport.Get(); }
@@ -366,6 +376,8 @@ export namespace editor
         // and the debugger toggle.
         void BindBar();
         void BindResolution();
+        void BindQuality();
+        void RefreshQualityChoices();
         [[nodiscard]] i32 SelectedResolution() const;
         void TickResolution(f32 dt);
         void RefreshResolutionChoices(bool force);
@@ -442,6 +454,9 @@ export namespace editor
         f32 m_debuggerShare = 0.22f;                    // the debugger's share of the split, kept while hidden
         foundation::gui::ComboBox* m_resolutionCombo = nullptr;
         Array<GameResolutionChoice> m_resolutionChoices;
+        Array<GameQualityChoice> m_qualityChoices;
+        String m_qualityKey = String(kPresetQualityKey); // the quality dropdown's choice, for the session
+        foundation::gui::ComboBox* m_qualityCombo = nullptr;
         String m_resolutionSignature; // what the choices were built from
         String m_resolutionKey;       // the chosen entry, kept across rebuilds, saved per project
         f32 m_resolutionRefresh = 0.0f;

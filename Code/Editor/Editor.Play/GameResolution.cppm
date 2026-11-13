@@ -37,6 +37,21 @@ export namespace editor
         // that way in the Game tab; otherwise the project's orientation applies.
         bool overridesOrientation = false;
         ScreenOrientation orientation = ScreenOrientation::Any;
+        // The quality level an export preset starts at (nil: the project's), which the Game tab
+        // plays at while it previews that preset.
+        Guid qualityLevelId{};
+    };
+
+    /// The quality dropdown's entry that plays at the previewed preset's level (else the project's).
+    inline constexpr StringView kPresetQualityKey = u8"preset";
+
+    /// One entry of the Game tab's quality dropdown: the previewed preset's level, or one of the
+    /// project's levels for the session.
+    struct GameQualityChoice
+    {
+        String key;   // "preset", or the level's guid
+        String label; // what the dropdown shows: the level's asset path
+        Guid levelId; // nil for "preset"
     };
 
     /// The Game tab's phone preview: a phone held upright, 9 by 19.5.
@@ -104,11 +119,12 @@ export namespace editor
             const u32 projectHeight = out[0].height;
             for (const ExportPreset& preset : presets->presets)
             {
-                // A preset that draws at its own size or is held its own way. One that changes
-                // neither looks the same as the project entry.
+                // A preset that draws at its own size, is held its own way or starts at its own quality
+                // level. One that changes none of them looks the same as the project entry.
                 const bool ownSize = preset.overridesRender && preset.renderWidth > 0 && preset.renderHeight > 0;
                 const StringView held = preset.overridesOrientation ? OrientationLabel(preset.orientation) : StringView();
-                if (!ownSize && held.IsEmpty())
+                const bool ownLevel = !preset.qualityLevelId.IsNil();
+                if (!ownSize && held.IsEmpty() && !ownLevel)
                 {
                     continue;
                 }
@@ -123,6 +139,11 @@ export namespace editor
                     choice.label += Format(u8", {}", held).AsView();
                     choice.overridesOrientation = true;
                     choice.orientation = preset.orientation;
+                }
+                if (ownLevel)
+                {
+                    choice.label += StringView(u8", its quality level");
+                    choice.qualityLevelId = preset.qualityLevelId;
                 }
                 out.PushBack(Move(choice));
             }

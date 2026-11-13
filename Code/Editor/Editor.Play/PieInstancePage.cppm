@@ -86,6 +86,14 @@ export namespace editor
         /// Chooses the entry with this key as the dropdown does: it is shown there, kept for the
         /// project and applied at once. False when no entry has the key.
         virtual bool SelectResolution(StringView key) = 0;
+        /// The quality levels the tab's quality dropdown offers, in its order: the previewed
+        /// preset's level first, then the project's levels.
+        [[nodiscard]] virtual Span<const GameQualityChoice> QualityChoices() = 0;
+        /// The chosen entry's key.
+        [[nodiscard]] virtual StringView QualityKey() const noexcept = 0;
+        /// Chooses the entry with this key as the dropdown does, for the session; applied at once.
+        /// False when no entry has the key.
+        virtual bool SelectQuality(StringView key) = 0;
         /// Whether the tab previews a phone held upright (its Phone toggle).
         [[nodiscard]] virtual bool PhonePreview() const noexcept = 0;
         /// Sets the Phone toggle as a click does: it is shown, kept for the project and applied at once.

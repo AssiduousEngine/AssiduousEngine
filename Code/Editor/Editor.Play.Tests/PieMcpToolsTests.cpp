@@ -125,6 +125,23 @@ namespace
             }
             return false;
         }
+        [[nodiscard]] Span<const GameQualityChoice> QualityChoices() override
+        {
+            return Span<const GameQualityChoice>(qualities.Data(), qualities.Size());
+        }
+        [[nodiscard]] StringView QualityKey() const noexcept override { return qualityKey.AsView(); }
+        bool SelectQuality(StringView key) override
+        {
+            for (const GameQualityChoice& choice : qualities)
+            {
+                if (choice.key.AsView() == key)
+                {
+                    qualityKey = choice.key;
+                    return true;
+                }
+            }
+            return false;
+        }
         [[nodiscard]] bool PhonePreview() const noexcept override { return phone; }
         void SelectPhonePreview(bool on) override { phone = on; }
 
@@ -188,6 +205,17 @@ namespace
             return out;
         }();
         String resolutionKey{u8"project"};
+        Array<GameQualityChoice> qualities = []()
+        {
+            Array<GameQualityChoice> out;
+            out.PushBack(GameQualityChoice{String(kPresetQualityKey), String(u8"Quality: the preset's"), Guid{}});
+            out.PushBack(GameQualityChoice{String(u8"11111111-0000-0000-0000-000000000001"), String(u8"Quality/Low"),
+                                           Guid{0x1u, 0x1u}});
+            out.PushBack(GameQualityChoice{String(u8"11111111-0000-0000-0000-000000000002"), String(u8"Quality/High"),
+                                           Guid{0x1u, 0x2u}});
+            return out;
+        }();
+        String qualityKey{kPresetQualityKey};
         bool phone = false;
 
     private:
@@ -865,4 +893,36 @@ TEST_CASE("pie-tools: pie_resolution reads the tab's choice and chooses by key, 
     CHECK_FALSE(got.ok);
     CHECK(got.error.AsView().ContainsIgnoreCase(u8"preset:HD"));
     CHECK(client->resolutionKey == u8"panel");
+}
+
+TEST_CASE("pie-tools: pie_quality reads the tab's level and chooses by key or label")
+{
+    PlayRig rig;
+    HeadlessGamePage* host = rig.Open(u8"game-page");
+    HeadlessGamePage* client = rig.Open(u8"game-page-1");
+
+    // Read: the preset's level first, then the project's levels.
+    Answer got = Pump(rig.server, u8"pie_quality", u8"{}");
+    REQUIRE(got.ok);
+    CHECK(got.payload.Get(u8"level").Get(u8"key").AsString() == kPresetQualityKey);
+    CHECK(got.payload.Get(u8"choices").Count() == 3);
+
+    // By label, in any case, on the tab asked for only.
+    got = Pump(rig.server, u8"pie_quality", u8"{\"pie\":\"game-page-1\",\"level\":\"quality/low\"}");
+    REQUIRE(got.ok);
+    CHECK(client->qualityKey == u8"11111111-0000-0000-0000-000000000001");
+    CHECK(host->qualityKey == kPresetQualityKey);
+    CHECK(got.payload.Get(u8"level").Get(u8"label").AsString() == u8"Quality/Low");
+
+    // By key, back to the preset's.
+    got = Pump(rig.server, u8"pie_quality", u8"{\"pie\":\"game-page-1\",\"level\":\"preset\"}");
+    REQUIRE(got.ok);
+    CHECK(client->qualityKey == kPresetQualityKey);
+
+    // Nothing of that name: an error naming what there is; the choice stands.
+    got = Pump(rig.server, u8"pie_quality", u8"{\"pie\":\"game-page-1\",\"level\":\"Ultra\"}");
+    REQUIRE(got.finished);
+    CHECK_FALSE(got.ok);
+    CHECK(got.error.AsView().ContainsIgnoreCase(u8"Quality/High"));
+    CHECK(client->qualityKey == kPresetQualityKey);
 }

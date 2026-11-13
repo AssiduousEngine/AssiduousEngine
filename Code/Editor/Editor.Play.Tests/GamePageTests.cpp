@@ -335,6 +335,12 @@ TEST_CASE("game page: the Game tab plays at the project's starting quality level
         CHECK(quality.msaaSamples == 1u);
         CHECK(quality.antialiasing == engine::render::AaMode::FXAA);
         CHECK(quality.ambientOcclusion == engine::render::QualityTier::Off);
+        // A level the tab chose (its dropdown's, or the previewed preset's) while the project lists
+        // it; one it does not list is ignored for the project's starting level.
+        settings.qualityLevelIds.PushBack(Guid{0x93, 0x94});
+        CHECK(editor::GameQuality(settings, &manager, lowInstance->Id()).label == StringView(u8"Low"));
+        CHECK(editor::GameQuality(settings, &manager, Guid{0x95, 0x96}).label == StringView(u8"High")); // unlisted: the last, unresolved
+        settings.qualityLevelIds.PopBack();
         // Without the resources, or a level that does not resolve: the engine's own highest.
         CHECK(editor::GameQuality(settings, nullptr).msaaSamples == 4u);
         settings.qualityLevelIds[0] = Guid{0x91, 0x92};

@@ -324,6 +324,7 @@ namespace editor
         if (m_debuggerToggle != nullptr)
             m_debuggerToggle->SetOnToggled([self](bool shown) { self->ShowDebugger(shown); });
         BindResolution();
+        BindQuality();
     }
 
     String GameEditorPage::TitleFor(StringView pieId)
@@ -795,10 +796,12 @@ namespace editor
 
         // No camera override: the scene's primary camera drives the view, its clear color
         // included, which is the player's presentation rather than the editor's; and the game's
-        // own quality level, as the player draws it, on this tab's views alone (keyed by the page).
+        // quality level (the dropdown's, else the previewed preset's, else the project's), as the
+        // player draws it, on this tab's views alone (keyed by the page).
         // Asked every frame, so a level's edit or a project settings change shows at once.
         m_render->SetViewportQuality(this, (m_context != nullptr && m_context->Project() != nullptr)
-                                               ? GameQuality(m_context->Project()->Settings(), m_context->Resources())
+                                               ? GameQuality(m_context->Project()->Settings(), m_context->Resources(),
+                                                             PlayedQualityLevel())
                                                : engine::render::RenderQualitySettings{});
         render::TargetState targetState;
         targetState.texture = m_viewport->ColorTexture();
@@ -1433,6 +1436,92 @@ namespace editor
             m_resolutionRebuilding = false;
         }
         ApplyResolution();
+        RefreshQualityChoices(); // the project's levels change with its settings too
+    }
+
+    void GameEditorPage::BindQuality()
+    {
+        GameEditorPage* self = this;
+        m_qualityCombo = Find<gui::ComboBox>(u8"game-quality");
+        if (m_qualityCombo != nullptr)
+            m_qualityCombo->SetOnSelectionChanged([self](i32 index)
+                                                  {
+                                                      if (self->m_resolutionRebuilding || index < 0 ||
+                                                          static_cast<usize>(index) >= self->m_qualityChoices.Size())
+                                                          return;
+                                                      self->m_qualityKey = self->m_qualityChoices[static_cast<usize>(index)].key;
+                                                  });
+        RefreshQualityChoices();
+    }
+
+    void GameEditorPage::RefreshQualityChoices()
+    {
+        Array<GameQualityChoice> fresh;
+        fresh.PushBack(GameQualityChoice{String(kPresetQualityKey), String(u8"Quality: the preset's"), Guid{}});
+        if (EditorProject* project = m_context != nullptr ? m_context->Project() : nullptr)
+        {
+            for (ProjectQualityLevel& level : project->QualityLevels())
+                fresh.PushBack(GameQualityChoice{Format(u8"{}", level.id), Move(level.name), level.id});
+        }
+        bool same = fresh.Size() == m_qualityChoices.Size();
+        for (usize i = 0; same && i < fresh.Size(); ++i)
+            same = fresh[i].key == m_qualityChoices[i].key && fresh[i].label == m_qualityChoices[i].label;
+        if (same)
+            return;
+        m_qualityChoices = Move(fresh);
+        // The choice survives a rebuild by its key; a level the project no longer lists falls back
+        // to the preset's.
+        usize selected = 0;
+        for (usize i = 0; i < m_qualityChoices.Size(); ++i)
+            selected = m_qualityChoices[i].key == m_qualityKey ? i : selected;
+        m_qualityKey = m_qualityChoices[selected].key;
+        if (m_qualityCombo != nullptr)
+        {
+            m_resolutionRebuilding = true; // the dropdown shows the choice; its handler ignores this change
+            m_qualityCombo->SetItemsText(String{});
+            for (const GameQualityChoice& choice : m_qualityChoices)
+                m_qualityCombo->AddItem(choice.label.AsView());
+            m_qualityCombo->SetSelectedIndex(static_cast<i32>(selected));
+            m_resolutionRebuilding = false;
+        }
+    }
+
+    Span<const GameQualityChoice> GameEditorPage::QualityChoices()
+    {
+        RefreshQualityChoices();
+        return Span<const GameQualityChoice>(m_qualityChoices.Data(), m_qualityChoices.Size());
+    }
+
+    bool GameEditorPage::SelectQuality(StringView key)
+    {
+        RefreshQualityChoices();
+        for (usize i = 0; i < m_qualityChoices.Size(); ++i)
+        {
+            if (m_qualityChoices[i].key.AsView() == key)
+            {
+                m_qualityKey = m_qualityChoices[i].key;
+                m_resolutionRebuilding = true;
+                if (m_qualityCombo != nullptr)
+                    m_qualityCombo->SetSelectedIndex(static_cast<i32>(i));
+                m_resolutionRebuilding = false;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    Guid GameEditorPage::PlayedQualityLevel() const
+    {
+        for (const GameQualityChoice& choice : m_qualityChoices)
+        {
+            if (choice.key == m_qualityKey && !choice.levelId.IsNil())
+                return choice.levelId; // one of the project's levels, chosen for the session
+        }
+        // The previewed preset's level, if it has one.
+        const i32 index = SelectedResolution();
+        return index >= 0 && static_cast<usize>(index) < m_resolutionChoices.Size()
+                   ? m_resolutionChoices[static_cast<usize>(index)].qualityLevelId
+                   : Guid{};
     }
 
     void GameEditorPage::ApplyResolution()

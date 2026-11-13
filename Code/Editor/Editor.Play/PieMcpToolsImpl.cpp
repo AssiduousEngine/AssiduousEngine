@@ -541,6 +541,80 @@ namespace editor
                 return out;
             });
 
+        server.RegisterTool(
+            u8"pie_quality",
+            u8"The quality level one Game tab plays the game at, as its quality dropdown sets it. "
+            u8"Without `level`, reads it. `level` chooses an entry by its key (`preset`: the "
+            u8"previewed export preset's level, else the project's starting one; or a level's guid) "
+            u8"or its label (the level's asset path, any case). The choice lasts the session and "
+            u8"applies at once, running or not. Returns {pie, level, choices}, each entry {key, "
+            u8"label}. An entry that matches nothing is an error listing the choices.",
+            SchemaBuilder()
+                .Str(u8"pie", kPieArgument)
+                .Str(u8"level", u8"the entry to choose: `preset`, a level's guid or its asset path")
+                .Build(),
+            ToolAnnotations::Adjusts(),
+            [ctx](const JsonValue& args) -> ToolOutcome
+            {
+                Result<EditorPage*, String> resolved = ResolvePie(*ctx, args);
+                if (!resolved.HasValue())
+                {
+                    return Err(Move(resolved.Error()));
+                }
+                IPieInstancePage& pie = *PieOf(resolved.Value());
+                const auto entry = [](const GameQualityChoice& choice)
+                {
+                    JsonValue out = JsonValue::MakeObject();
+                    out.Set(u8"key", JsonValue::MakeString(choice.key));
+                    out.Set(u8"label", JsonValue::MakeString(choice.label));
+                    return out;
+                };
+                const String asked = args.Get(u8"level").AsString();
+                if (!asked.IsEmpty())
+                {
+                    const Span<const GameQualityChoice> choices = pie.QualityChoices();
+                    Optional<usize> match;
+                    for (usize i = 0; i < choices.Size() && !match.HasValue(); ++i)
+                    {
+                        const StringView label = choices[i].label.AsView();
+                        if (choices[i].key.AsView() == asked.AsView() ||
+                            (label.Size() == asked.Size() && label.ContainsIgnoreCase(asked.AsView())))
+                        {
+                            match = i;
+                        }
+                    }
+                    if (!match.HasValue())
+                    {
+                        String known;
+                        for (const GameQualityChoice& choice : choices)
+                        {
+                            known += Format(u8"{}{} ({})", known.IsEmpty() ? u8"" : u8", ", choice.key.AsView(),
+                                            choice.label.AsView())
+                                         .AsView();
+                        }
+                        return Err(Format(u8"no quality level '{}' in {}'s dropdown; it offers: {}", asked.AsView(),
+                                          pie.PieId(), known.AsView()));
+                    }
+                    (void)pie.SelectQuality(choices[match.Value()].key.AsView());
+                }
+                const Span<const GameQualityChoice> choices = pie.QualityChoices();
+                JsonValue items = JsonValue::MakeArray();
+                JsonValue chosen = JsonValue::MakeNull();
+                for (const GameQualityChoice& choice : choices)
+                {
+                    items.Add(entry(choice));
+                    if (choice.key.AsView() == pie.QualityKey())
+                    {
+                        chosen = entry(choice);
+                    }
+                }
+                JsonValue out = JsonValue::MakeObject();
+                out.Set(u8"pie", JsonValue::MakeString(String(pie.PieId())));
+                out.Set(u8"level", Move(chosen));
+                out.Set(u8"choices", Move(items));
+                return out;
+            });
+
         auto serial = MakeUnique<CaptureSerial>(context.Allocator());
         CaptureSerial* serialPtr = serial.Get();
         server.RegisterTool(

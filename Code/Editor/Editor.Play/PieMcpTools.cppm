@@ -25,7 +25,7 @@ using namespace foundation::core;
 export namespace editor
 {
     /// The number of tools RegisterPieTools registers; a tripwire like kSceneLiveToolCount.
-    inline constexpr usize kPieToolCount = 7;
+    inline constexpr usize kPieToolCount = 8;
 
     void RegisterPieTools(foundation::mcp::McpServer& server, EditorContext& context);
 
