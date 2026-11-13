@@ -229,7 +229,9 @@ export namespace pipeline
         // 8: per-layer coverage/opacity mask array.
         // 9: on-demand sidecars are deleted when their map is removed, so existing terrains shed
         //    any stale arrays.
-        [[nodiscard]] u32 Version() const override { return 9; }
+        // 10: the normal, ORM, height and mask arrays are the streams paletteNormal, paletteOrm,
+        //     paletteHeight and paletteMask (a stream name has no dot).
+        [[nodiscard]] u32 Version() const override { return 10; }
 
         // The palette pack reads every palette albedo/normal/ORM/height/mask content (hash-chained:
         // editing any re-cooks the terrain's arrays); base/heightfield/weights are runtime refs only.

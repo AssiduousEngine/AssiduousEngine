@@ -147,12 +147,13 @@ export namespace foundation::terrain
     };
 
     /// The terrain cooked instance's palette sidecar streams (see TerrainPaletteData). The normal,
-    /// ORM, height and mask streams are absent when no palette layer uses that map.
+    /// ORM, height and mask streams are absent when no palette layer uses that map. A stream name
+    /// has no dot (content::IsStreamName).
     inline constexpr StringView kPaletteStream = u8"palette";
-    inline constexpr StringView kPaletteNormalStream = u8"palette.normal";
-    inline constexpr StringView kPaletteOrmStream = u8"palette.orm";
-    inline constexpr StringView kPaletteHeightStream = u8"palette.height";
-    inline constexpr StringView kPaletteMaskStream = u8"palette.mask";
+    inline constexpr StringView kPaletteNormalStream = u8"paletteNormal";
+    inline constexpr StringView kPaletteOrmStream = u8"paletteOrm";
+    inline constexpr StringView kPaletteHeightStream = u8"paletteHeight";
+    inline constexpr StringView kPaletteMaskStream = u8"paletteMask";
 
     /// The runtime terrain product: the resolved resource handles the renderer draws with. The
     /// heightfield drives geometry (through foundation.terrain's chunk model) and the shared collision.

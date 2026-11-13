@@ -33,10 +33,10 @@ namespace
         FileDelete(u8"scratch_terrainpipe_db/hf.heights.bin");
         FileDelete(u8"scratch_terrainpipe_db/terrain.rasset");
         FileDelete(u8"scratch_terrainpipe_db/terrain.palette.bin");
-        FileDelete(u8"scratch_terrainpipe_db/terrain.palette.normal.bin");
-        FileDelete(u8"scratch_terrainpipe_db/terrain.palette.orm.bin");
-        FileDelete(u8"scratch_terrainpipe_db/terrain.palette.height.bin");
-        FileDelete(u8"scratch_terrainpipe_db/terrain.palette.mask.bin");
+        FileDelete(u8"scratch_terrainpipe_db/terrain.paletteNormal.bin");
+        FileDelete(u8"scratch_terrainpipe_db/terrain.paletteOrm.bin");
+        FileDelete(u8"scratch_terrainpipe_db/terrain.paletteHeight.bin");
+        FileDelete(u8"scratch_terrainpipe_db/terrain.paletteMask.bin");
         RemoveDirectory(u8"scratch_terrainpipe_db");
     }
 }
