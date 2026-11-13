@@ -109,7 +109,13 @@ export namespace engine::net
                     {
                         if (net::NetworkManager* endpoint = controller->NetEndpoint())
                         {
-                            endpoint->UpdateTransport(deltaMs);
+                            // A message's handler may stop the networking or replace the scene:
+                            // that waits until the pump has returned.
+                            {
+                                foundation::run::RunMutations::Scope scripts(run.Mutations());
+                                endpoint->UpdateTransport(deltaMs);
+                            }
+                            run.Mutations().Flush();
                         }
                     }
                 });

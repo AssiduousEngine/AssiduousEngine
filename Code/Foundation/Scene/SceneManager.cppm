@@ -43,6 +43,11 @@ export namespace foundation::scene
         // The allocator (required; the owner decides) backs every scene this
         // manager creates (and becomes each scene's own authority).
         explicit SceneManager(IAllocator& allocator) noexcept : m_allocator(&allocator) {}
+        ~SceneManager()
+        {
+            if (m_sceneRun != nullptr)
+                m_sceneRun->Mutations().Cancel(this); // a scene destroy it queued goes with it
+        }
 
         /// Install a composition installer: CreateScene assembles via `installer(scene)` while set (the
         /// only assembly path).
@@ -55,7 +60,12 @@ export namespace foundation::scene
         /// The run every created scene belongs to (Scene::SetRun), set by the owning run: its bus
         /// is the scenes' bus. Applied before assembly, so the script systems bind to it. Null
         /// (default) leaves scenes outside every run, with no bus.
-        void SetSceneRun(foundation::run::IRun* run) noexcept { m_sceneRun = run; }
+        void SetSceneRun(foundation::run::IRun* run) noexcept
+        {
+            if (m_sceneRun != nullptr && m_sceneRun != run)
+                m_sceneRun->Mutations().Cancel(this);
+            m_sceneRun = run;
+        }
 
         /// The group time scale: the `instance` term of dt = host x context x group x scene. Default
         /// 1.0, so the editor or default manager applies no group scaling.
@@ -137,7 +147,9 @@ export namespace foundation::scene
             }
             return false;
         }
-        // Deferred to the end of Update if called while updating.
+        // Deferred to the end of Update if called while updating, and to the run's flush while
+        // the run defers (a script asked from a handler or the fixed step: the scene may be the
+        // one it runs in).
         void DestroyScene(Scene* scene)
         {
             if (scene == nullptr)
@@ -147,6 +159,16 @@ export namespace foundation::scene
             if (m_updating)
             {
                 m_pendingRemove.PushBack(scene);
+                return;
+            }
+            if (m_sceneRun != nullptr && m_sceneRun->Mutations().IsDeferring())
+            {
+                m_sceneRun->Mutations().Enqueue(this,
+                                                [this, scene]()
+                                                {
+                                                    if (Owns(scene)) // destroyed meanwhile: nothing
+                                                        DestroyImmediate(scene);
+                                                });
                 return;
             }
             DestroyImmediate(scene);
@@ -185,25 +207,36 @@ export namespace foundation::scene
         // composed in one place (FrameTime). The fixed accumulator itself is per scene.
         void BeginFrame(const FrameTime& time)
         {
-            for (Scene* s : m_active)
-            {
-                if (time.fixedStep > 0.0f && s->FixedTimeStep() != time.fixedStep)
+            Deferring(
+                [&]()
                 {
-                    s->SetFixedTiming(time.fixedStep, 4);
-                }
-                (void)s->AdvanceTime(time.ContextDt() * m_timeScale * s->TimeScale());
-            }
+                    m_updating = true;
+                    for (Scene* s : m_active)
+                    {
+                        if (time.fixedStep > 0.0f && s->FixedTimeStep() != time.fixedStep)
+                        {
+                            s->SetFixedTiming(time.fixedStep, 4);
+                        }
+                        (void)s->AdvanceTime(time.ContextDt() * m_timeScale * s->TimeScale());
+                    }
+                    m_updating = false;
+                    ProcessPendingRemoves();
+                });
         }
         // Variable lane: same chain, same single composition point.
         void Update(const FrameTime& time)
         {
-            m_updating = true;
-            for (Scene* s : m_active)
-            {
-                s->Update(time.ContextDt() * m_timeScale * s->TimeScale());
-            }
-            m_updating = false;
-            ProcessPendingRemoves();
+            Deferring(
+                [&]()
+                {
+                    m_updating = true;
+                    for (Scene* s : m_active)
+                    {
+                        s->Update(time.ContextDt() * m_timeScale * s->TimeScale());
+                    }
+                    m_updating = false;
+                    ProcessPendingRemoves();
+                });
         }
 
         // Destroy every scene in the group (notifying): the group teardown.
@@ -220,6 +253,22 @@ export namespace foundation::scene
         }
 
     private:
+        // Runs `step` (where scripts run) with the run's mutations deferred, then flushes them.
+        template <typename Fn>
+        void Deferring(Fn&& step)
+        {
+            if (m_sceneRun == nullptr)
+            {
+                step();
+                return;
+            }
+            {
+                foundation::run::RunMutations::Scope scripts(m_sceneRun->Mutations());
+                step();
+            }
+            m_sceneRun->Mutations().Flush();
+        }
+
         void NotifyDestroyed(Scene& scene)
         {
             if (m_uninstaller)
@@ -276,11 +325,15 @@ export namespace foundation::scene
         }
         void ProcessPendingRemoves()
         {
-            for (Scene* s : m_pendingRemove)
+            Array<Scene*> batch = Move(m_pendingRemove); // a destroy's stop hooks may ask again
+            m_pendingRemove = Array<Scene*>{};
+            for (Scene* s : batch)
             {
-                DestroyImmediate(s);
+                if (Owns(s)) // asked twice: destroyed once
+                {
+                    DestroyImmediate(s);
+                }
             }
-            m_pendingRemove.Clear();
         }
 
         SceneInstaller m_installer;   // composition path (type-erased; owned, callable or empty)

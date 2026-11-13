@@ -311,3 +311,106 @@ TEST_CASE("EntityWorldBounds merges what every measuring system answers, and say
     // An entity neither measures.
     CHECK_FALSE(EntityWorldBounds(scene, marker, out));
 }
+
+namespace
+{
+    // On its first fixed step, destroys `target` and records whether it was still valid after.
+    class FixedDestroyer final : public SceneSystem
+    {
+    public:
+        Scene* scene = nullptr;
+        void OnSceneCreate(Scene& s) override { scene = &s; }
+        Scene& GetScene() const { return *scene; }
+        EntityHandle target = EntityHandle::Invalid();
+        bool validAfterAsk = false;
+        void OnFixedUpdate(f32) override
+        {
+            if (!target.IsAssigned())
+                return;
+            GetScene().DestroyEntity(target);
+            validAfterAsk = GetScene().IsValid(target);
+            target = EntityHandle::Invalid();
+        }
+    };
+
+    // Destroying one entity destroys `also` from its hook, as a behaviour's onDestroy might.
+    class ChainDestroyer final : public SceneSystem
+    {
+    public:
+        Scene* scene = nullptr;
+        void OnSceneCreate(Scene& s) override { scene = &s; }
+        Scene& GetScene() const { return *scene; }
+        EntityHandle trigger = EntityHandle::Invalid();
+        EntityHandle also = EntityHandle::Invalid();
+        int seen = 0;
+        void OnEntityDestroyed(EntityHandle e) override
+        {
+            ++seen;
+            if (e == trigger && GetScene().IsValid(also))
+                GetScene().DestroyEntity(also);
+        }
+    };
+}
+
+TEST_CASE("scene: a destroy asked in the fixed step waits for the end of the step")
+{
+    Scene scene(DefaultAllocator(), u8"fixed");
+    FixedDestroyer* destroyer = scene.AddSystem<FixedDestroyer>();
+    const EntityHandle e = scene.CreateEntity(u8"e");
+    destroyer->target = e;
+    scene.SetFixedTiming(1.0f / 60.0f, 4);
+    (void)scene.AdvanceTime(1.0f / 30.0f); // two steps
+    CHECK(destroyer->validAfterAsk); // the step still saw it
+    CHECK_FALSE(scene.IsValid(e));   // gone once the steps ended
+}
+
+TEST_CASE("scene: a destroy hook that destroys a sibling destroys it after, never inside, the first")
+{
+    Scene scene(DefaultAllocator(), u8"hooks");
+    ChainDestroyer* chain = scene.AddSystem<ChainDestroyer>();
+    const EntityHandle parent = scene.CreateEntity(u8"parent");
+    const EntityHandle first = scene.CreateEntity(u8"first");
+    const EntityHandle second = scene.CreateEntity(u8"second");
+    scene.SetParent(first, parent);
+    scene.SetParent(second, parent);
+    chain->trigger = first;
+    chain->also = second;
+    scene.DestroyEntity(first);
+    CHECK_FALSE(scene.IsValid(first));
+    CHECK_FALSE(scene.IsValid(second)); // destroyed in the same call, after the first
+    CHECK(scene.IsValid(parent));
+    CHECK(chain->seen == 2);
+    const EntityHandle next = scene.CreateEntity(u8"next"); // the free list is sound
+    CHECK(scene.IsValid(next));
+    CHECK(scene.EntityCount() == 2u);
+}
+
+TEST_CASE("scene: while its run defers, a destroy waits for the run's flush; a scene gone first cancels it")
+{
+    foundation::run::RunBase run(DefaultAllocator(), u8"run");
+    {
+        Scene scene(DefaultAllocator(), u8"deferred");
+        scene.SetRun(&run);
+        const EntityHandle e = scene.CreateEntity(u8"e");
+        {
+            foundation::run::RunMutations::Scope scripts(run.Mutations());
+            scene.DestroyEntity(e);
+            CHECK(scene.IsValid(e));
+        }
+        CHECK(scene.IsValid(e));
+        run.Mutations().Flush();
+        CHECK_FALSE(scene.IsValid(e));
+    }
+    {
+        UniquePtr<Scene> scene = MakeUnique<Scene>(DefaultAllocator(), DefaultAllocator(), u8"gone");
+        scene->SetRun(&run);
+        const EntityHandle e = scene->CreateEntity(u8"e");
+        {
+            foundation::run::RunMutations::Scope scripts(run.Mutations());
+            scene->DestroyEntity(e);
+        }
+        scene.Reset(); // the scene goes before the flush
+        CHECK(run.Mutations().PendingCount() == 0u);
+        run.Mutations().Flush(); // nothing reaches the freed scene
+    }
+}

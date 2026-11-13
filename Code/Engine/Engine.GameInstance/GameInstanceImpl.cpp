@@ -406,6 +406,16 @@ namespace engine::runtime
 
     void GameInstance::TickScript(f32 hostDeltaTime, f32 contextTimeScale)
     {
+        // What the game script asks to destroy or replace waits until its update returns.
+        {
+            foundation::run::RunMutations::Scope scripts(Mutations());
+            TickScriptDeferred(hostDeltaTime, contextTimeScale);
+        }
+        Mutations().Flush();
+    }
+
+    void GameInstance::TickScriptDeferred(f32 hostDeltaTime, f32 contextTimeScale)
+    {
         // Debug-paused: the debugger holds a suspended update mid-call. Starting a new update each
         // frame would hit the breakpoint again every frame (pause-event spam, flickering locals)
         // and orphan the held context. Hold script time still, like the scene simulation.

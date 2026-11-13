@@ -230,3 +230,58 @@ TEST_CASE("run registry: a late listener catches up by listing the runs; a regis
     a.Dispose();
     CHECK(Logged({}));
 }
+
+TEST_CASE("run mutations: work waits while a scope is open, runs in order at the flush, and an owner gone cancels its own")
+{
+    RunMutations queue;
+    String done;
+    int a = 0;
+    int b = 0;
+    CHECK_FALSE(queue.IsDeferring());
+    {
+        RunMutations::Scope outer(queue);
+        {
+            RunMutations::Scope inner(queue); // scopes nest
+            queue.Enqueue(&a, [&done]() { done += u8"1"; });
+        }
+        CHECK(queue.IsDeferring());
+        queue.Flush(); // a scope is still open: nothing runs
+        CHECK(done.IsEmpty());
+        queue.Enqueue(&b, [&done]() { done += u8"2"; });
+        queue.Enqueue(&a, [&done, &queue, &a]()
+                      {
+                          done += u8"3";
+                          queue.Enqueue(&a, [&done]() { done += u8"4"; }); // work queued by work
+                      });
+        queue.Cancel(&b); // b went away
+    }
+    CHECK(queue.PendingCount() == 2u);
+    queue.Flush();
+    CHECK(done == StringView(u8"134"));
+    CHECK(queue.PendingCount() == 0u);
+
+    // An owner going away during the flush cancels its work still waiting.
+    {
+        RunMutations::Scope scope(queue);
+        queue.Enqueue(&a, [&queue, &b]() { queue.Cancel(&b); });
+        queue.Enqueue(&b, [&done]() { done += u8"X"; });
+    }
+    queue.Flush();
+    CHECK(done == StringView(u8"134"));
+}
+
+TEST_CASE("run: its bus is drained with its mutations deferred, flushed after")
+{
+    RunBase run(DefaultAllocator(), u8"drained");
+    bool ranInside = true;
+    (void)run.Events().Subscribe(StringHash(u8"go"),
+                                 [&run, &ranInside](const Variant&)
+                                 {
+                                     run.Mutations().Enqueue(&run, [&ranInside]() { ranInside = false; });
+                                     CHECK(run.Mutations().IsDeferring());
+                                 });
+    run.Events().Publish(StringHash(u8"go"), Variant{});
+    run.DrainEvents();
+    CHECK_FALSE(ranInside); // ran, after the handler returned
+    CHECK_FALSE(run.Mutations().IsDeferring());
+}

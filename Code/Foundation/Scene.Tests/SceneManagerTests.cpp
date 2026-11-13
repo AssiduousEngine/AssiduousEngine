@@ -210,3 +210,54 @@ TEST_CASE("scene-manager: created scenes carry the run the manager was given")
     CHECK(a->Run() == &runIdentity);
     CHECK(b->Run() == &runIdentity);
 }
+
+namespace
+{
+    // Destroys its own scene from the fixed step, as run.loadScene from onFixedUpdate did.
+    class SelfDestroyer final : public SceneSystem
+    {
+    public:
+        Scene* scene = nullptr;
+        void OnSceneCreate(Scene& s) override { scene = &s; }
+        Scene& GetScene() const { return *scene; }
+        SceneManager* manager = nullptr;
+        bool stepsAfter = false;
+        int steps = 0;
+        void OnFixedUpdate(f32) override
+        {
+            ++steps;
+            if (steps == 1)
+            {
+                manager->DestroyScene(&GetScene());
+                stepsAfter = GetScene().Name() == StringView(u8"self"); // still alive here
+            }
+        }
+    };
+}
+
+TEST_CASE("scene-manager: a scene destroyed from its own fixed step or a run handler goes after, once")
+{
+    foundation::run::RunBase run(DefaultAllocator(), u8"run");
+    SceneManager manager(DefaultAllocator());
+    manager.SetSceneRun(&run);
+    Scene* self = manager.CreateScene(u8"self");
+    SelfDestroyer* destroyer = self->AddSystem<SelfDestroyer>();
+    destroyer->manager = &manager;
+    FrameTime time(1.0f / 30.0f, 1.0f, 1.0f, 1.0f);
+    time.fixedStep = 1.0f / 60.0f;
+    manager.BeginFrame(time); // two fixed steps; the destroy waits for both
+    CHECK(manager.SceneCount() == 0u);
+
+    // From a run-bus handler, asked twice: destroyed once, at the flush.
+    Scene* other = manager.CreateScene(u8"other");
+    (void)run.Events().Subscribe(StringHash(u8"leave"),
+                                 [&manager, other](const Variant&)
+                                 {
+                                     manager.DestroyScene(other);
+                                     manager.DestroyScene(other);
+                                     CHECK(manager.SceneCount() == 1u);
+                                 });
+    run.Events().Publish(StringHash(u8"leave"), Variant{});
+    run.DrainEvents();
+    CHECK(manager.SceneCount() == 0u);
+}

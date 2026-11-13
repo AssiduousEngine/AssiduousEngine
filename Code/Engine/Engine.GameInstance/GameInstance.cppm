@@ -544,6 +544,8 @@ export namespace engine::runtime
         /// sceneScale. A faulting update disables this instance's script (drops the `Game`), not
         /// the app.
         void TickScript(f32 hostDeltaTime, f32 contextTimeScale);
+        // TickScript's body, run with the run's mutations deferred.
+        void TickScriptDeferred(f32 hostDeltaTime, f32 contextTimeScale);
 
     private:
         // A fault in `handler`: the script stops, and the reason is kept (ScriptFault).
@@ -603,7 +605,7 @@ export namespace engine::runtime
         /// (no VM call active), so a subscriber may dispatch script handlers directly.
         /// Cascade-bounded like the scene bus; safe with no game script (native run-bus subscribers
         /// still fire).
-        void DrainRunEvents() { Events().Drain(); }
+        void DrainRunEvents() { DrainEvents(); }
 
         // ---- input (this instance's own action runtime, the input counterpart of the per-instance
         // scene group and net endpoint) ----

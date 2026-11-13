@@ -519,7 +519,7 @@ namespace editor
         // The page's run: its scripts' clock, and its bus drained once a frame (events a Simulate
         // tick emitted last frame arrive now).
         m_simulation.Run().Scripts().Advance(dt);
-        m_simulation.Run().Events().Drain();
+        m_simulation.Run().DrainEvents();
         // Clicking into a simulating viewport makes its run the one heard, as with a Game tab.
         if (m_simulation.IsRunning() && m_services.runs != nullptr && m_viewport->IsFocused() &&
             m_services.runs->Focused() != &m_simulation.Run())

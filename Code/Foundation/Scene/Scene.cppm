@@ -45,6 +45,7 @@ export namespace foundation::scene
         {
         }
 
+        ~Scene();
         Scene(const Scene&) = delete;
         Scene& operator=(const Scene&) = delete;
 
@@ -74,9 +75,10 @@ export namespace foundation::scene
         // Creates an entity with a specific Guid (used when loading a scene from disk).
         EntityHandle CreateEntity(const Guid& id, StringView name = {});
 
-        // Destroys an entity and its whole subtree. No-op if the handle is stale. If called
-        // during Update (a system destroying entities), destruction is deferred to the
-        // frame's Cleanup so iteration stays stable.
+        // Destroys an entity and its whole subtree. No-op if the handle is stale. Asked for while
+        // the scene steps (Update, the fixed step, a destroy hook) or while its run defers
+        // (RunMutations: a script runs somewhere), it waits for the end of that step or the run's
+        // flush, so nothing walking the scene sees it go; IsValid stays true until then.
         void DestroyEntity(EntityHandle entity);
 
         [[nodiscard]] bool IsValid(EntityHandle entity) const noexcept;
@@ -476,7 +478,13 @@ export namespace foundation::scene
         // scene by it (its audio nests under the run's), so the run's stop, pause and mute reach
         // it. Null = outside every run (a tool's scratch scene, a test's).
         [[nodiscard]] foundation::run::IRun* Run() const noexcept { return m_run; }
-        void SetRun(foundation::run::IRun* run) noexcept { m_run = run; }
+        void SetRun(foundation::run::IRun* run) noexcept
+        {
+            if (m_run != nullptr && m_run != run)
+                m_run->Mutations().Cancel(this);
+            m_runFlushQueued = false;
+            m_run = run;
+        }
 
         // ---- play / edit state ----
 
@@ -585,8 +593,8 @@ export namespace foundation::scene
         // Insertion sort into m_sortedSystems, ascending by UpdateOrder (stable).
         void InsertSortedSystem(SceneSystem* system);
 
-        // Destroys entities queued during Update (snapshot, since destroying a subtree can
-        // be re-entrant). Stale/duplicate entries are skipped by the IsValid guard.
+        // Destroys the entities queued meanwhile, and those their destroy hooks queue, until none
+        // is left. Stale/duplicate entries are skipped by the IsValid guard.
         void ProcessPendingDestroys();
 
         [[nodiscard]] static u64 NextSerial() noexcept
@@ -622,7 +630,8 @@ export namespace foundation::scene
         Array<UnresolvedComponent> m_unresolvedComponents;      // records awaiting their manager
         Array<UnresolvedSettings> m_unresolvedSettings;         // settings awaiting their system
         Array<EntityHandle> m_pendingDestroys;
-        bool m_isUpdating = false;
+        bool m_isUpdating = false;      // stepping (Update, the fixed step, a destroy's hooks)
+        bool m_runFlushQueued = false;  // ProcessPendingDestroys waits in the run's mutations
         bool m_started = false;
         bool m_simulationEnabled = true;
         f32 m_timeScale = 1.0f;

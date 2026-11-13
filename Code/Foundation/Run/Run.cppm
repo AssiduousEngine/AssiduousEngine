@@ -46,6 +46,85 @@ export namespace foundation::run
 
     class IRun;
 
+    /// What a run defers while its scripts run. A script may destroy an entity, remove a
+    /// component, destroy or replace a scene, or stop its networking from anywhere it runs: an
+    /// update, the fixed step, an event handler, a network message, a destroy hook. Done at once,
+    /// that frees what the code that called the script is still walking. So whoever runs a run's
+    /// scripts enters a Scope first, and what is asked for meanwhile waits here until Flush, which
+    /// the same caller runs once the scope is left, between the frame's phases.
+    ///
+    /// Each piece of work names its owner (the scene, the manager it acts on); an owner that goes
+    /// away first cancels its work (Cancel), so the order the work was queued in can never reach
+    /// a freed owner.
+    class RunMutations
+    {
+    public:
+        RunMutations() = default;
+        RunMutations(const RunMutations&) = delete;
+        RunMutations& operator=(const RunMutations&) = delete;
+
+        /// While one is alive (they nest), work is queued rather than done.
+        class Scope
+        {
+        public:
+            explicit Scope(RunMutations& queue) noexcept : m_queue(&queue) { ++m_queue->m_depth; }
+            ~Scope() { --m_queue->m_depth; }
+            Scope(const Scope&) = delete;
+            Scope& operator=(const Scope&) = delete;
+
+        private:
+            RunMutations* m_queue;
+        };
+
+        /// Whether work asked for now must wait for Flush.
+        [[nodiscard]] bool IsDeferring() const noexcept { return m_depth > 0; }
+        /// Queues `work` for `owner` until the next Flush.
+        void Enqueue(const void* owner, Function<void()> work) { m_items.PushBack(Item{owner, Move(work)}); }
+        /// Drops what `owner` queued: it is going away. Safe during Flush.
+        void Cancel(const void* owner) noexcept
+        {
+            for (Item& item : m_items)
+                if (item.owner == owner)
+                    item.owner = nullptr;
+        }
+        /// Runs what was queued, in order, once no scope is open; work queued by work runs in the
+        /// same flush. Nothing while a scope is open.
+        void Flush()
+        {
+            if (m_depth > 0 || m_flushing)
+                return;
+            m_flushing = true;
+            for (usize i = 0; i < m_items.Size(); ++i)
+            {
+                if (m_items[i].owner == nullptr)
+                    continue;
+                // Moved out: the list may grow while it runs.
+                Function<void()> work = Move(m_items[i].work);
+                m_items[i].owner = nullptr;
+                work();
+            }
+            m_items.Clear();
+            m_flushing = false;
+        }
+        [[nodiscard]] usize PendingCount() const noexcept
+        {
+            usize count = 0;
+            for (const Item& item : m_items)
+                count += item.owner != nullptr ? 1u : 0u;
+            return count;
+        }
+
+    private:
+        struct Item
+        {
+            const void* owner; // null: done or cancelled
+            Function<void()> work;
+        };
+        Array<Item> m_items;
+        u32 m_depth = 0;
+        bool m_flushing = false;
+    };
+
     /// What a run's lifecycle is told to: a subsystem keeping per-run state (through the run
     /// manager), and the run manager itself (from each run).
     class IRunListener
@@ -80,6 +159,8 @@ export namespace foundation::run
         [[nodiscard]] virtual RunState State() const noexcept = 0;
         /// The run's event bus: its scenes' and its scripts' (`run.events()`).
         [[nodiscard]] virtual messaging::EventBus& Events() noexcept = 0;
+        /// What waits while its scripts run (RunMutations).
+        [[nodiscard]] virtual RunMutations& Mutations() noexcept = 0;
 
         /// The service of type `T` the run holds, or null.
         template <typename T>
@@ -128,6 +209,16 @@ export namespace foundation::run
         [[nodiscard]] StringView Name() const noexcept override { return m_name.AsView(); }
         [[nodiscard]] RunState State() const noexcept override { return m_state; }
         [[nodiscard]] messaging::EventBus& Events() noexcept override { return m_events; }
+        [[nodiscard]] RunMutations& Mutations() noexcept override { return m_mutations; }
+        /// Delivers the run bus's events with its mutations deferred, then flushes them.
+        void DrainEvents()
+        {
+            {
+                RunMutations::Scope scripts(m_mutations);
+                m_events.Drain();
+            }
+            m_mutations.Flush();
+        }
         void SetName(StringView name) { m_name = String(name, *m_allocator); }
 
         /// Constructs a service the run owns, for the run's life. A type held already is
@@ -209,6 +300,7 @@ export namespace foundation::run
         String m_name;
         RunState m_state = RunState::Idle;
         messaging::EventBus m_events;
+        RunMutations m_mutations;
         Array<Entry> m_services; // registration order
         IRunListener* m_listener = nullptr;
     };

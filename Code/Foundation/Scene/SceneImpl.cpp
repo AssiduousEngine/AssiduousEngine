@@ -38,6 +38,14 @@ namespace foundation::scene
         return CreateEntityInternal(id, name);
     }
 
+    Scene::~Scene()
+    {
+        if (m_run != nullptr)
+        {
+            m_run->Mutations().Cancel(this); // its queued destroys go with it
+        }
+    }
+
     void Scene::DestroyEntity(EntityHandle entity)
     {
         if (!IsValid(entity))
@@ -49,7 +57,24 @@ namespace foundation::scene
             m_pendingDestroys.PushBack(entity);
             return;
         }
-        DestroyEntityImmediate(entity);
+        if (m_run != nullptr && m_run->Mutations().IsDeferring())
+        {
+            m_pendingDestroys.PushBack(entity);
+            if (!m_runFlushQueued)
+            {
+                m_runFlushQueued = true;
+                m_run->Mutations().Enqueue(this,
+                                           [this]()
+                                           {
+                                               m_runFlushQueued = false;
+                                               ProcessPendingDestroys();
+                                           });
+            }
+            return;
+        }
+        // Now, through the queue, so the hooks of what goes destroy after it, not inside it.
+        m_pendingDestroys.PushBack(entity);
+        ProcessPendingDestroys();
     }
 
     bool Scene::IsValid(EntityHandle entity) const noexcept
@@ -728,11 +753,19 @@ namespace foundation::scene
     u32 Scene::AdvanceTime(f32 scaledDelta)
     {
         const u32 steps = m_stepper.Advance(scaledDelta);
+        // The fixed step walks the scene as Update does: what it destroys waits for the end.
+        const bool outermost = !m_isUpdating;
+        m_isUpdating = true;
         for (u32 i = 0; i < steps; ++i)
         {
             FixedUpdate(m_stepper.step);
         }
         m_fixedAlpha = m_stepper.Alpha();
+        if (outermost)
+        {
+            m_isUpdating = false;
+            ProcessPendingDestroys();
+        }
         return steps;
     }
 
@@ -1024,18 +1057,25 @@ namespace foundation::scene
 
     void Scene::ProcessPendingDestroys()
     {
-        if (m_pendingDestroys.IsEmpty())
+        // A destroy's hooks (a behaviour's onDestroy) may destroy more: those queue behind, and
+        // run in this same call, so no hook destroys under the walk of the subtree going.
+        const bool outermost = !m_isUpdating;
+        m_isUpdating = true;
+        while (!m_pendingDestroys.IsEmpty())
         {
-            return;
-        }
-        Array<EntityHandle> batch = Move(m_pendingDestroys);
-        m_pendingDestroys = Array<EntityHandle>{};
-        for (EntityHandle e : batch)
-        {
-            if (IsValid(e))
+            Array<EntityHandle> batch = Move(m_pendingDestroys);
+            m_pendingDestroys = Array<EntityHandle>{};
+            for (EntityHandle e : batch)
             {
-                DestroyEntityImmediate(e);
+                if (IsValid(e))
+                {
+                    DestroyEntityImmediate(e);
+                }
             }
+        }
+        if (outermost)
+        {
+            m_isUpdating = false;
         }
     }
 
