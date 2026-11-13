@@ -97,6 +97,12 @@ export namespace foundation::scene
         // flush, so nothing walking the scene sees it go; IsValid stays true until then.
         void DestroyEntity(EntityHandle entity);
 
+        // Takes `entity`'s component out of `manager`; whether it had one. Asked while the scene
+        // steps or its run defers, the component is gone at once to every lookup (Has, Get,
+        // ForEach, a script's `of`), and leaves the pool, its hook told, at the end of that step
+        // or the run's flush, so nothing walking the pool sees it move; otherwise it leaves now.
+        bool RemoveComponent(ComponentManagerBase& manager, EntityHandle entity);
+
         [[nodiscard]] bool IsValid(EntityHandle entity) const noexcept;
 
         [[nodiscard]] Guid GetEntityId(EntityHandle entity) const;
@@ -612,6 +618,8 @@ export namespace foundation::scene
         // Destroys the entities queued meanwhile, and those their destroy hooks queue, until none
         // is left. Stale/duplicate entries are skipped by the IsValid guard.
         void ProcessPendingDestroys();
+        // Asks the run to flush what waits here (ProcessPendingDestroys), once.
+        void QueueRunFlush();
 
         [[nodiscard]] static u64 NextSerial() noexcept
         {
@@ -647,6 +655,7 @@ export namespace foundation::scene
         Array<UnresolvedComponent> m_unresolvedComponents;      // records awaiting their manager
         Array<UnresolvedSettings> m_unresolvedSettings;         // settings awaiting their system
         Array<EntityHandle> m_pendingDestroys;
+        Array<ComponentManagerBase*> m_leavingManagers; // managers with components marked leaving
         bool m_isUpdating = false;      // stepping (Update, the fixed step, a destroy's hooks)
         bool m_runFlushQueued = false;  // ProcessPendingDestroys waits in the run's mutations
         bool m_started = false;

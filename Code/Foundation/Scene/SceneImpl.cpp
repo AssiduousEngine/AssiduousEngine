@@ -61,16 +61,7 @@ namespace foundation::scene
         if (m_run != nullptr && m_run->Mutations().IsDeferring())
         {
             m_pendingDestroys.PushBack(entity);
-            if (!m_runFlushQueued)
-            {
-                m_runFlushQueued = true;
-                m_run->Mutations().Enqueue(this,
-                                           [this]()
-                                           {
-                                               m_runFlushQueued = false;
-                                               ProcessPendingDestroys();
-                                           });
-            }
+            QueueRunFlush();
             return;
         }
         // Now, through the queue, so the hooks of what goes destroy after it, not inside it.
@@ -677,6 +668,14 @@ namespace foundation::scene
         }
         SceneSystem* system = *found;
         m_systemsByType.Remove(systemType);
+        for (usize i = 0; i < m_leavingManagers.Size(); ++i)
+        {
+            if (m_leavingManagers[i] == system->AsComponentManager())
+            {
+                m_leavingManagers.RemoveAt(i); // its components go with it
+                break;
+            }
+        }
         for (usize i = 0; i < m_sortedSystems.Size(); ++i)
         {
             if (m_sortedSystems[i] == system)
@@ -1070,14 +1069,65 @@ namespace foundation::scene
         }
     }
 
+    void Scene::QueueRunFlush()
+    {
+        if (m_runFlushQueued || m_run == nullptr)
+        {
+            return;
+        }
+        m_runFlushQueued = true;
+        m_run->Mutations().Enqueue(this,
+                                   [this]()
+                                   {
+                                       m_runFlushQueued = false;
+                                       ProcessPendingDestroys();
+                                   });
+    }
+
+    bool Scene::RemoveComponent(ComponentManagerBase& manager, EntityHandle entity)
+    {
+        if (!manager.HasComponent(entity))
+        {
+            return false;
+        }
+        const bool runDefers = m_run != nullptr && m_run->Mutations().IsDeferring();
+        if (!m_isUpdating && !runDefers)
+        {
+            manager.RemoveComponent(entity);
+            return true;
+        }
+        (void)manager.MarkLeaving(entity);
+        bool listed = false;
+        for (ComponentManagerBase* m : m_leavingManagers)
+        {
+            listed = listed || m == &manager;
+        }
+        if (!listed)
+        {
+            m_leavingManagers.PushBack(&manager);
+        }
+        if (!m_isUpdating)
+        {
+            QueueRunFlush(); // the step's end flushes it otherwise
+        }
+        return true;
+    }
+
     void Scene::ProcessPendingDestroys()
     {
         // A destroy's hooks (a behaviour's onDestroy) may destroy more: those queue behind, and
-        // run in this same call, so no hook destroys under the walk of the subtree going.
+        // run in this same call, so no hook destroys under the walk of the subtree going. The
+        // components marked leaving go first, each told as a removal tells it.
         const bool outermost = !m_isUpdating;
         m_isUpdating = true;
-        while (!m_pendingDestroys.IsEmpty())
+        while (!m_pendingDestroys.IsEmpty() || !m_leavingManagers.IsEmpty())
         {
+            Array<ComponentManagerBase*> managers = Move(m_leavingManagers);
+            m_leavingManagers = Array<ComponentManagerBase*>{};
+            for (ComponentManagerBase* manager : managers)
+            {
+                manager->RemoveLeaving();
+            }
             Array<EntityHandle> batch = Move(m_pendingDestroys);
             m_pendingDestroys = Array<EntityHandle>{};
             for (EntityHandle e : batch)

@@ -464,3 +464,101 @@ TEST_CASE("scene: a subtree's destroy follows its children as hooks move them, n
     CHECK(next != more);
     CHECK(scene.EntityCount() == 3u);
 }
+
+namespace
+{
+    // During its update, removes `target`'s Health and records what the pool shows after.
+    class Remover final : public SceneSystem
+    {
+    public:
+        Scene* scene = nullptr;
+        HealthManager* health = nullptr;
+        EntityHandle target = EntityHandle::Invalid();
+        bool giveBack = false;
+        bool had = false;
+        bool hasAfter = true;
+        bool getAfter = true;
+        int walkedAfter = -1;
+        int destroyedDuring = -1;
+        void OnSceneCreate(Scene& s) override { scene = &s; }
+        void OnUpdate(ScenePhase phase, f32) override
+        {
+            if (phase != ScenePhase::Update || !target.IsAssigned())
+                return;
+            had = scene->RemoveComponent(*health, target);
+            hasAfter = health->Has(target);
+            getAfter = health->Get(target) != nullptr;
+            walkedAfter = 0;
+            health->ForEach([this](Health&, EntityHandle) { ++walkedAfter; });
+            destroyedDuring = health->destroyed;
+            if (giveBack)
+                (void)health->Add(target); // given back before it left
+            target = EntityHandle::Invalid();
+        }
+    };
+}
+
+TEST_CASE("scene: a component removed during a step is gone to every lookup at once, and leaves the pool at the step's end")
+{
+    Scene scene(DefaultAllocator(), u8"leaving");
+    HealthManager* health = scene.AddSystem<HealthManager>();
+    Remover* remover = scene.AddSystem<Remover>();
+    remover->health = health;
+    const EntityHandle a = scene.CreateEntity(u8"a");
+    const EntityHandle b = scene.CreateEntity(u8"b");
+    health->Add(a).value = 1.0f;
+    health->Add(b).value = 2.0f;
+    remover->target = a;
+    scene.Update(1.0f / 60.0f);
+    CHECK(remover->had);
+    CHECK_FALSE(remover->hasAfter);
+    CHECK_FALSE(remover->getAfter);
+    CHECK(remover->walkedAfter == 1);     // the walk passes it by
+    CHECK(remover->destroyedDuring == 0); // its hook waits for the step's end
+    CHECK(health->destroyed == 1);
+    CHECK(health->Count() == 1u);
+    REQUIRE(health->Get(b) != nullptr);
+    CHECK(health->Get(b)->value == doctest::Approx(2.0f));
+
+    // Outside a step it leaves at once.
+    CHECK(scene.RemoveComponent(*health, b));
+    CHECK(health->Count() == 0u);
+    CHECK(health->destroyed == 2);
+    CHECK_FALSE(scene.RemoveComponent(*health, b)); // none to take
+}
+
+TEST_CASE("scene: a component removed and given back within a step was never removed")
+{
+    Scene scene(DefaultAllocator(), u8"given back");
+    HealthManager* health = scene.AddSystem<HealthManager>();
+    Remover* remover = scene.AddSystem<Remover>();
+    remover->health = health;
+    const EntityHandle a = scene.CreateEntity(u8"a");
+    health->Add(a).value = 7.0f;
+    remover->target = a;
+    remover->giveBack = true;
+    scene.Update(1.0f / 60.0f);
+    REQUIRE(health->Get(a) != nullptr);
+    CHECK(health->Get(a)->value == doctest::Approx(7.0f)); // its values kept
+    CHECK(health->destroyed == 0);                          // never destroyed
+    CHECK(health->Count() == 1u);
+}
+
+TEST_CASE("scene: while its run defers, a component removed leaves at the run's flush")
+{
+    foundation::run::RunBase run(DefaultAllocator(), u8"run");
+    Scene scene(DefaultAllocator(), u8"run defers");
+    scene.SetRun(&run);
+    HealthManager* health = scene.AddSystem<HealthManager>();
+    const EntityHandle a = scene.CreateEntity(u8"a");
+    health->Add(a);
+    {
+        foundation::run::RunMutations::Scope scripts(run.Mutations());
+        CHECK(scene.RemoveComponent(*health, a));
+        CHECK_FALSE(health->Has(a));
+        CHECK(health->destroyed == 0);
+    }
+    run.Mutations().Flush();
+    CHECK(health->destroyed == 1);
+    CHECK(health->Count() == 0u);
+}

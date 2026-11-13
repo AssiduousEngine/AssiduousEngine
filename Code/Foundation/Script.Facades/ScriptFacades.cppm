@@ -684,12 +684,8 @@ export namespace foundation::script
             return false;
         }
         scene::ComponentManagerBase* manager = entity.scene->FindManagerByComponentType(TypeOf<T>());
-        if (manager == nullptr || !manager->HasComponent(entity.Handle()))
-        {
-            return false;
-        }
-        manager->RemoveComponent(entity.Handle());
-        return true;
+        // Gone at once to every lookup; taken out of the pool once no walk is under way.
+        return manager != nullptr && entity.scene->RemoveComponent(*manager, entity.Handle());
     }
 
     /// A component's script methods, registered together: `of`, `addTo` and `removeFrom`, static

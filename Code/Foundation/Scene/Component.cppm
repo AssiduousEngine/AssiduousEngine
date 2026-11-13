@@ -42,6 +42,12 @@ export namespace foundation::scene
 
         [[nodiscard]] virtual bool HasComponent(EntityHandle entity) const = 0;
         virtual void RemoveComponent(EntityHandle entity) = 0;
+        /// Marks `entity`'s component as leaving (Scene::RemoveComponent, while the scene steps):
+        /// from now every lookup (Has, Get, ForEach) passes it by, while its storage stays where
+        /// it is for whatever walks the pool; RemoveLeaving takes it out. False when it has none.
+        virtual bool MarkLeaving(EntityHandle entity) = 0;
+        /// Removes the components marked leaving, each told as RemoveComponent tells it.
+        virtual void RemoveLeaving() = 0;
         virtual void InitializePendingComponents() {}
         [[nodiscard]] virtual u32 ComponentCount() const = 0;
         // Stable per-component-type id (for type -> manager routing on load).
@@ -83,6 +89,12 @@ export namespace foundation::scene
         // InitializePendingComponents (so sibling components can be set up first).
         T& Add(EntityHandle entity)
         {
+            // Taken off and given back before it left (a script's removeFrom, then addTo, in one
+            // step): it was never taken off, so it keeps its values and is not destroyed.
+            if (!m_leaving.IsEmpty() && Unmark(entity))
+            {
+                return m_dense[RawIndex(entity)];
+            }
             DIAGNOSTIC_ASSERT(!HasComponent(entity));
             const u32 dense = static_cast<u32>(m_dense.Size());
             m_dense.PushBack(T{});
@@ -128,10 +140,14 @@ export namespace foundation::scene
 
         void RemoveComponent(EntityHandle entity) override
         {
-            const u32 i = DenseIndex(entity);
+            const u32 i = RawIndex(entity); // a leaving one too: this is how it leaves
             if (i == kInvalid)
             {
                 return;
+            }
+            if (!m_leaving.IsEmpty())
+            {
+                (void)Unmark(entity);
             }
             // Unlinked first, then the hook is told, on the value moved out: a hook (a behaviour's
             // onDestroy) may add or remove components of this manager, which moves the pool, so
@@ -151,6 +167,29 @@ export namespace foundation::scene
         }
         void Remove(EntityHandle entity) { RemoveComponent(entity); }
 
+        bool MarkLeaving(EntityHandle entity) override
+        {
+            if (RawIndex(entity) == kInvalid)
+            {
+                return false;
+            }
+            if (!IsLeaving(entity))
+            {
+                m_leaving.PushBack(entity);
+            }
+            return true;
+        }
+        void RemoveLeaving() override
+        {
+            // Taken out first: a destroy hook may mark more, which a later call removes.
+            Array<EntityHandle> leaving = Move(m_leaving);
+            m_leaving = Array<EntityHandle>{};
+            for (EntityHandle e : leaving)
+            {
+                RemoveComponent(e);
+            }
+        }
+
         [[nodiscard]] u32 ComponentCount() const override
         {
             return static_cast<u32>(m_dense.Size());
@@ -168,13 +207,25 @@ export namespace foundation::scene
             return {m_owners.Data(), m_owners.Size()};
         }
 
-        // Visits every component with its owning entity (dense, no holes).
+        // Visits every component with its owning entity (dense, no holes), passing by those
+        // leaving (MarkLeaving). Dense() and Owners() are the raw pool, leaving ones included.
         template <typename Fn>
         void ForEach(Fn&& fn)
         {
+            if (m_leaving.IsEmpty()) // the common case: no check per component
+            {
+                for (usize i = 0; i < m_dense.Size(); ++i)
+                {
+                    fn(m_dense[i], m_owners[i]);
+                }
+                return;
+            }
             for (usize i = 0; i < m_dense.Size(); ++i)
             {
-                fn(m_dense[i], m_owners[i]);
+                if (!IsLeaving(m_owners[i]))
+                {
+                    fn(m_dense[i], m_owners[i]);
+                }
             }
         }
 
@@ -210,8 +261,38 @@ export namespace foundation::scene
     private:
         static constexpr u32 kInvalid = 0xFFFFFFFFu;
 
-        // Dense index for a live, generation-matching component, or kInvalid.
+        // Dense index for a live, generation-matching component not leaving, or kInvalid.
         [[nodiscard]] u32 DenseIndex(EntityHandle entity) const
+        {
+            const u32 dense = RawIndex(entity);
+            return (dense != kInvalid && !m_leaving.IsEmpty() && IsLeaving(entity)) ? kInvalid : dense;
+        }
+        // Whether `entity`'s component is marked leaving (few are, and only within a step).
+        [[nodiscard]] bool IsLeaving(EntityHandle entity) const noexcept
+        {
+            for (const EntityHandle& e : m_leaving)
+            {
+                if (e == entity)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+        bool Unmark(EntityHandle entity) noexcept
+        {
+            for (usize i = 0; i < m_leaving.Size(); ++i)
+            {
+                if (m_leaving[i] == entity)
+                {
+                    m_leaving.RemoveAt(i);
+                    return true;
+                }
+            }
+            return false;
+        }
+        // Dense index for a live, generation-matching component, leaving or not, or kInvalid.
+        [[nodiscard]] u32 RawIndex(EntityHandle entity) const
         {
             const u32* found = m_sparse.Find(entity.index);
             if (found == nullptr)
@@ -228,6 +309,7 @@ export namespace foundation::scene
         Array<EntityHandle> m_owners;      // owning entity per dense slot
         HashMap<u32, u32> m_sparse;        // entity.index -> dense index
         Array<EntityHandle> m_pendingInit; // entities awaiting OnComponentInitialized
+        Array<EntityHandle> m_leaving;     // components marked leaving (MarkLeaving), removed by RemoveLeaving
     };
 
     namespace detail

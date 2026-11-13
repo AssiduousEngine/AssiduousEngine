@@ -272,3 +272,62 @@ TEST_CASE("a destroy hook that removes and adds components of its own manager le
     REQUIRE(mgr.Get(E(3)) != nullptr);
     CHECK(mgr.Get(E(3))->value == doctest::Approx(99.0f));
 }
+
+TEST_CASE("component pool: lookups and walks over 10k components, timed (perf case)")
+{
+    constexpr u32 kCount = 10000;
+    constexpr u32 kRounds = 200;
+    HealthManager mgr;
+    for (u32 i = 0; i < kCount; ++i)
+    {
+        mgr.Add(E(i)).value = 1.0f;
+    }
+    f64 sum = 0.0;
+    Stopwatch lookups = Stopwatch::StartNew();
+    for (u32 r = 0; r < kRounds; ++r)
+    {
+        for (u32 i = 0; i < kCount; ++i)
+        {
+            if (const Health* h = mgr.Get(E(i)))
+            {
+                sum += h->value;
+            }
+        }
+    }
+    const f64 lookupMs = lookups.Elapsed().AsMilliseconds();
+    Stopwatch walks = Stopwatch::StartNew();
+    for (u32 r = 0; r < kRounds; ++r)
+    {
+        mgr.ForEach([&sum](Health& h, EntityHandle) { sum += h.value; });
+    }
+    const f64 walkMs = walks.Elapsed().AsMilliseconds();
+    CHECK(sum == doctest::Approx(2.0 * kCount * kRounds));
+    MESSAGE("Get x " << kCount * kRounds << ": " << lookupMs << " ms; ForEach of " << kCount << " x " << kRounds << ": " << walkMs
+                     << " ms");
+
+    // The same with one component leaving (removed mid-step, the step not over): every lookup and
+    // every walk checks the mark.
+    REQUIRE(mgr.MarkLeaving(E(kCount / 2)));
+    f64 sumLeaving = 0.0;
+    Stopwatch leavingLookups = Stopwatch::StartNew();
+    for (u32 r = 0; r < kRounds; ++r)
+    {
+        for (u32 i = 0; i < kCount; ++i)
+        {
+            if (const Health* h = mgr.Get(E(i)))
+            {
+                sumLeaving += h->value;
+            }
+        }
+    }
+    const f64 leavingLookupMs = leavingLookups.Elapsed().AsMilliseconds();
+    Stopwatch leavingWalks = Stopwatch::StartNew();
+    for (u32 r = 0; r < kRounds; ++r)
+    {
+        mgr.ForEach([&sumLeaving](Health& h, EntityHandle) { sumLeaving += h.value; });
+    }
+    const f64 leavingWalkMs = leavingWalks.Elapsed().AsMilliseconds();
+    CHECK(sumLeaving == doctest::Approx(2.0 * (kCount - 1) * kRounds));
+    MESSAGE("one leaving: Get x " << kCount * kRounds << ": " << leavingLookupMs << " ms; ForEach of " << kCount << " x " << kRounds
+                                  << ": " << leavingWalkMs << " ms");
+}
