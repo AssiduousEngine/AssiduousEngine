@@ -118,11 +118,13 @@ namespace
                     paths.PushBack(path);
                 chosen(Move(paths));
             };
+            seams.qualityLevels = [this]() { return levels; };
             seams.projectRoot = project;
             seams.hostPlatform = String(u8"Linux64");
             seams.outputRoot = String(u8"/tmp/project/Dist");
             return seams;
         }
+        Array<editor::ProjectQualityLevel> levels; // the project's quality levels the seam offers
         UniquePtr<app::ExportDialog> Open()
         {
             UniquePtr<app::ExportDialog> dialog = MakeUnique<app::ExportDialog>(DefaultAllocator(), DefaultAllocator(), presets, Seams(), LoadExport());
@@ -220,6 +222,34 @@ TEST_CASE("export dialog: a preset overrides the orientation, its row shown only
     dialog->Select(0);
     CHECK(dialog->Rows()->GetValue(u8"overridesOrientation", 0).AsBool());
     CHECK(dialog->Rows()->GetValue(u8"orientation", 0).AsInt() == static_cast<i64>(ScreenOrientation::Landscape));
+}
+
+// A preset's quality level is one of the project's levels, offered by name, or the project's default.
+TEST_CASE("export dialog: a preset starts at the project's default or one of its quality levels")
+{
+    Fixture f;
+    const Guid low{0xa1, 0xa2};
+    const Guid high{0xa3, 0xa4};
+    f.levels.PushBack(editor::ProjectQualityLevel{low, String(u8"Quality/Low")});
+    f.levels.PushBack(editor::ProjectQualityLevel{high, String(u8"Quality/High")});
+    f.presets.At(1).qualityLevelId = high; // the other preset already starts at High
+    UniquePtr<app::ExportDialog> dialog = f.Open();
+    REQUIRE(dialog->SelectedIndex() == 0);
+
+    const gui::PropertyInfo* row = dialog->Rows()->FindInfo(u8"qualityLevel");
+    REQUIRE(row != nullptr);
+    REQUIRE(row->Choices.Size() == 3u);
+    CHECK(row->Choices[0].Name == String(u8"The project's default"));
+    CHECK(row->Choices[1].Name == String(u8"Quality/Low"));
+    CHECK(dialog->Rows()->GetValue(u8"qualityLevel", 0).AsInt() == 0);
+
+    Edit(*dialog, u8"qualityLevel", gui::Variant(i64{1}));
+    CHECK(f.presets.At(0).qualityLevelId == low);
+    dialog->Select(1);
+    CHECK(dialog->Rows()->GetValue(u8"qualityLevel", 0).AsInt() == 2); // its own, High
+    dialog->Select(0);
+    Edit(*dialog, u8"qualityLevel", gui::Variant(i64{0}));
+    CHECK(f.presets.At(0).qualityLevelId.IsNil()); // back to the project's default
 }
 
 // Extra files are the project's: Add Files lists its own files (not the folders the editor, a cook

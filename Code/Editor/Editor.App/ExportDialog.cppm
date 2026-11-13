@@ -41,6 +41,8 @@ export namespace editor::app
     /// What the export dialog asks of the application.
     struct ExportDialogSeams
     {
+        /// The project's quality levels, in its order: the ones a preset may start at.
+        Function<Array<editor::ProjectQualityLevel>()> qualityLevels;
         /// Fills `registry` with the templates this host sees.
         Function<void(editor::TemplateRegistry&)> refresh;
         /// Persists the presets (the controller the dialog edits) to the project.
@@ -541,6 +543,17 @@ export namespace editor::app
             Row(u8"overridesOrientation", gui::PropertyKind::Bool, gui::Variant(preset.overridesOrientation), u8"Own orientation", kDisplay,
                 u8"This platform is held its own way.");
             EnumRow(u8"orientation", SettingEnum("orientation"), static_cast<i64>(preset.orientation), u8"Orientation", kDisplay);
+            // The quality level the platform starts at: the project's default, or one of its levels
+            // (a preset may start at those alone).
+            m_qualityLevels = m_seams.qualityLevels ? m_seams.qualityLevels() : Array<editor::ProjectQualityLevel>{};
+            i64 level = 0;
+            for (usize i = 0; i < m_qualityLevels.Size(); ++i)
+                level = m_qualityLevels[i].id == preset.qualityLevelId ? static_cast<i64>(i) + 1 : level;
+            gui::PropertyInfo& quality = Row(u8"qualityLevel", gui::PropertyKind::Enum, gui::Variant(level), u8"Quality level", kDisplay,
+                                             u8"The quality level this platform starts at; one of the project's (Project Settings, Quality).");
+            quality.Choices.PushBack(gui::PropertyChoice{String(u8"The project's default"), 0});
+            for (usize i = 0; i < m_qualityLevels.Size(); ++i)
+                quality.Choices.PushBack(gui::PropertyChoice{m_qualityLevels[i].name, static_cast<i64>(i) + 1});
             ShowOverrides(preset);
             ExportDialog* self = this;
             m_bag->SetOnCommit([self](const gui::PropertyBag::Commit&) { self->Store(); });
@@ -633,6 +646,10 @@ export namespace editor::app
             preset.windowResizable = flag(u8"windowResizable");
             preset.overridesOrientation = flag(u8"overridesOrientation");
             preset.orientation = static_cast<ScreenOrientation>(choice(u8"orientation"));
+            const i64 level = choice(u8"qualityLevel");
+            preset.qualityLevelId = level > 0 && static_cast<usize>(level) <= m_qualityLevels.Size()
+                                        ? m_qualityLevels[static_cast<usize>(level) - 1].id
+                                        : Guid{};
             m_presets->Update(static_cast<usize>(index), preset);
             m_dirty = true;
             m_model.Changed(index);
@@ -724,6 +741,7 @@ export namespace editor::app
         HashMap<String, RefPtr<gui::Drawable>> m_icons; // by template id and folder
         UniquePtr<gui::PropertyBag> m_bag;              // the selected preset's rows
         Array<String> m_platforms;                      // the platform row's choices, by index
+        Array<editor::ProjectQualityLevel> m_qualityLevels;      // the quality row's levels, by index less one
         Array<String> m_configs;                        // the config row's choices, by index
         gui::ListView* m_list = nullptr;
         gui::PropertyGrid* m_grid = nullptr;

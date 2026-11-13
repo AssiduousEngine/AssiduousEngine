@@ -707,6 +707,11 @@ namespace editor::app
             };
             seams.pick = [self](PickerRequest request) { self->ShowPicker(Move(request)); };
             seams.notify = [self](StringView message) { self->m_context.Notify(editor::NoticeKind::Warning, message); };
+            seams.qualityLevels = [self]()
+            {
+                editor::EditorProject* open = self->m_context.Project();
+                return open != nullptr ? open->QualityLevels() : Array<editor::ProjectQualityLevel>{};
+            };
             // Absolute, as the system's dialog answers.
             seams.projectRoot = PathIsAbsolute(project->Directory()) ? String(project->Directory())
                                                                      : PathJoin(GetCurrentDirectory().AsView(), project->Directory());
