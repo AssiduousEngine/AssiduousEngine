@@ -1070,12 +1070,76 @@ export namespace engine::render
         enumField("environmentResolution", q.environmentResolution);
     }
 
-    // A Render Quality asset's product: one quality level a project offers.
+    // A Render Quality asset's product: one quality level a project offers. (Scripts' `RenderQuality`
+    // is the facade over the levels a run offers, below.)
     class RenderQualityLevel final : public Object
     {
         RTTI_OBJECT(RenderQualityLevel, Object)
     public:
         RenderQualitySettings values;
+    };
+
+    /// One of the levels a run offers its scripts: the Render Quality asset's id and its values.
+    struct OfferedQualityLevel
+    {
+        Guid id;
+        RenderQualitySettings values;
+    };
+
+    /// The quality levels a run's game offers (what an options menu lists), the one it plays at,
+    /// and what choosing one does. The host fills it and gives it to the run: the player plays at
+    /// a choice and keeps it in the user's settings, a Game tab plays at it for the session.
+    /// Scripts reach it through the `RenderQuality` facade.
+    class RenderQualityChoice
+    {
+    public:
+        Array<OfferedQualityLevel> levels; // in the project's order
+        Guid current;                      // the level played at; nil: the engine's own
+        /// Plays at `level` and keeps the choice. `current` is the level's when it is called.
+        Function<void(const OfferedQualityLevel& level)> choose;
+
+        [[nodiscard]] const OfferedQualityLevel* Find(StringView label) const noexcept
+        {
+            for (const OfferedQualityLevel& level : levels)
+                if (level.values.label.AsView() == label)
+                    return &level;
+            return nullptr;
+        }
+        [[nodiscard]] const OfferedQualityLevel* Find(const Guid& id) const noexcept
+        {
+            for (const OfferedQualityLevel& level : levels)
+                if (level.id == id)
+                    return &level;
+            return nullptr;
+        }
+        /// Plays at the level labelled `label`; false, and nothing changes, when none is.
+        bool Choose(StringView label)
+        {
+            const OfferedQualityLevel* level = Find(label);
+            if (level == nullptr)
+                return false;
+            current = level->id;
+            if (choose)
+                choose(*level);
+            return true;
+        }
+    };
+
+    /// The `RenderQuality` script facade over the calling run's RenderQualityChoice:
+    /// `RenderQuality.levels()`, `.current()` and `.set(label)` in Luau, `RenderQuality::` in
+    /// AngelScript. A run that offers no levels lists none, reads an empty label and refuses a set.
+    class RenderQuality final : public Object
+    {
+        RTTI_OBJECT(RenderQuality, Object)
+    public:
+        [[nodiscard]] static RenderQualityChoice* Resolve();
+        /// The levels' labels, in the project's order.
+        [[nodiscard]] static Array<String> levels();
+        /// The label of the level the game plays at (empty: the engine's own).
+        [[nodiscard]] static String current();
+        /// Plays at the level labelled `label` now and keeps the choice; false for a label the
+        /// game does not offer.
+        static bool set(String label);
     };
 
     RTTI_DEFINE_OBJECT(EnvironmentProfile, "rtti::engine::render")

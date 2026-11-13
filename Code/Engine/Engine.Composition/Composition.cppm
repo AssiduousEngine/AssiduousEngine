@@ -104,5 +104,5 @@ export namespace engine
     /// names RegisterAllScriptFacades installs beyond the base behaviour facades, that is, the
     /// domain facades. A new domain facade bumps this on purpose; a lost registration fails the
     /// test.
-    inline constexpr usize kSubsystemFacadeNameCount = 45;
+    inline constexpr usize kSubsystemFacadeNameCount = 46;
 }

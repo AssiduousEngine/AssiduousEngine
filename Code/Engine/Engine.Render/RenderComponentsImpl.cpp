@@ -931,6 +931,41 @@ namespace engine::render
         (void)once;
     }
 
+    RenderQualityChoice* RenderQuality::Resolve()
+    {
+        return foundation::script::CurrentService<RenderQualityChoice>(); // the calling script's run's
+    }
+
+    Array<String> RenderQuality::levels()
+    {
+        Array<String> labels;
+        if (const RenderQualityChoice* choice = Resolve())
+            for (const OfferedQualityLevel& level : choice->levels)
+                labels.PushBack(level.values.label);
+        return labels;
+    }
+
+    String RenderQuality::current()
+    {
+        const RenderQualityChoice* choice = Resolve();
+        const OfferedQualityLevel* level = choice != nullptr ? choice->Find(choice->current) : nullptr;
+        return level != nullptr ? level->values.label : String{};
+    }
+
+    bool RenderQuality::set(String label)
+    {
+        RenderQualityChoice* choice = Resolve();
+        return choice != nullptr && choice->Choose(label.AsView());
+    }
+
+    REFLECT_MEMBERS(RenderQuality, "rtti::engine::render")
+    {
+        builder.Method<&RenderQuality::levels>("levels");
+        builder.Method<&RenderQuality::current>("current");
+        builder.Method<&RenderQuality::set>("set", {"label"});
+        builder.Constructor(); // some backends only materialize constructible foreign classes
+    }
+
     void RegisterRenderScriptFacade()
     {
         RegisterRenderComponentReflection(); // ensure component TypeData (including `of`) is built first
@@ -990,5 +1025,10 @@ namespace engine::render
         // Read live through the scene: scene.environment, scene.postProcess.
         foundation::script::ExtendScene<&EnvironmentSettingsOf, EnvironmentSettings>("environment");
         foundation::script::ExtendScene<&PostProcessSettingsOf, PostProcessSettings>("postProcess");
+
+        // The quality levels the run offers (RenderQuality.levels() lists them as array<string>).
+        RegisterArrayType<String>();
+        GlobalTypeRegistry().Register(RenderQuality::StaticType());
+        foundation::script::RegisterExtraFacadeName(u8"RenderQuality");
     }
 } // namespace engine::render
