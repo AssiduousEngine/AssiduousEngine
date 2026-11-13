@@ -129,3 +129,26 @@ TEST_CASE("listbox: selecting an off-screen row scrolls it into view")
     lb->SetSelectedIndex(0); // back to top
     CHECK(lb->GetScrollOffset().y == doctest::Approx(0.0f));
 }
+
+TEST_CASE("listbox: a row taken out by a script leaves the list, and the selection follows its row")
+{
+    auto lb = Make<ListBox>();
+    lb->SetSize(core::Float2{200.0f, 100.0f});
+    lb->AddItem(core::StringView(u8"Alpha"));
+    lb->AddItem(core::StringView(u8"Beta"));
+    lb->AddItem(core::StringView(u8"Gamma"));
+    lb->SetSelectedIndex(2);
+    {
+        core::RefPtr<Node> beta(lb->GetChildAt(1)); // as a script's destroy takes it out
+        beta->RemoveFromParent();
+    }
+    CHECK(lb->ItemCount() == 2u);
+    CHECK(lb->GetItem(1) == core::StringView(u8"Gamma"));
+    CHECK(lb->GetSelectedIndex() == 1); // Gamma, still selected
+    lb->GetChildAt(1)->RemoveFromParent(); // the selected row
+    CHECK(lb->ItemCount() == 1u);
+    CHECK(lb->GetSelectedIndex() == -1);
+    lb->SetSelectedIndex(0); // nothing freed is reached
+    CHECK(lb->GetSelectedIndex() == 0);
+    lb->SetItemHeight(30.0f);
+}

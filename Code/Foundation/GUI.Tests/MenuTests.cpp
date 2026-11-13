@@ -880,3 +880,21 @@ TEST_CASE("menu: a shortcut or text an item takes after the menu measured widens
     item->SetText(core::StringView(u8"Command Palette and a great deal more"));
     CHECK(menu->GetSize().x >= item->PreferredWidth() - 0.5f);
 }
+
+TEST_CASE("menu: a row taken out by a script leaves the menu, which sizes to the rest")
+{
+    auto menu = Make<Menu>();
+    menu->SetWidth(140.0f);
+    menu->SetItemHeight(25.0f);
+    MenuItem* cut = menu->AddItem(core::StringView(u8"Cut"), [] {});
+    MenuItem* copy = menu->AddItem(core::StringView(u8"Copy"), [] {});
+    menu->AddItem(core::StringView(u8"Paste"), [] {});
+    (void)cut;
+    copy->RemoveFromParent(); // as a script's destroy takes it out
+    CHECK(menu->RowCount() == 2u);
+    CHECK(menu->ItemCount() == 2u); // asks each row: none of them freed
+    CHECK(menu->GetSize().y == doctest::Approx(50.0f));
+    menu->SetItemHeight(30.0f); // walks the rows again
+    menu->ClearItems();
+    CHECK(menu->RowCount() == 0u);
+}

@@ -716,9 +716,10 @@ export namespace foundation::gui
         void ClearItems()
         {
             Close();
-            for (MenuRow* row : m_rows)
+            Array<MenuRow*> rows = core::Move(m_rows); // each removal is told to OnChildrenChanged
+            m_rows = Array<MenuRow*>{};
+            for (MenuRow* row : rows)
                 RemoveChild(row);
-            m_rows.Clear();
             m_ownedSubMenus.Clear();
             m_deferredRow = nullptr; // was one of the rows
             m_deferring = false;
@@ -1229,6 +1230,27 @@ export namespace foundation::gui
                 if (Menu* m = core::Cast<Menu>(n))
                     root = m;
             return root;
+        }
+
+        /// A row taken out other than by ClearItems (a script destroying it) leaves the rows, and a
+        /// hover waiting on it is dropped. The row being removed is still alive here.
+        void OnChildrenChanged() override
+        {
+            usize kept = 0;
+            for (MenuRow* row : m_rows)
+            {
+                if (row->GetParent() == this)
+                    m_rows[kept++] = row;
+                else if (row == m_deferredRow)
+                {
+                    m_deferredRow = nullptr;
+                    m_deferring = false;
+                }
+            }
+            if (kept == m_rows.Size())
+                return;
+            m_rows.Resize(kept);
+            Relayout();
         }
 
         core::String m_title;

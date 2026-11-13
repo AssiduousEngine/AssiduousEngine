@@ -311,6 +311,29 @@ export namespace foundation::gui
                 SetScrollOffset(core::Float2{off.x, bottom - viewH});
         }
 
+        /// A row taken out other than by Clear (a script destroying it) leaves the list: the rows
+        /// after it close up, and the selection follows its row or clears with it. The row being
+        /// removed is still alive here, so every entry can be asked where it is.
+        void OnChildrenChanged() override
+        {
+            usize kept = 0;
+            i32 selected = -1;
+            for (usize i = 0; i < m_items.Size(); ++i)
+            {
+                ListBoxItem* item = m_items[i];
+                if (item->GetParent() != this)
+                    continue;
+                if (static_cast<i32>(i) == m_selected)
+                    selected = static_cast<i32>(kept);
+                item->SetIndex(static_cast<i32>(kept));
+                m_items[kept++] = item;
+            }
+            if (kept == m_items.Size())
+                return;
+            m_items.Resize(kept);
+            m_selected = selected;
+        }
+
         Array<ListBoxItem*> m_items; // non-owning; the rows are owned as children
         f32 m_itemHeight = 24.0f;
         i32 m_selected = -1;
