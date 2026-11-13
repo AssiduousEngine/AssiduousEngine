@@ -283,11 +283,29 @@ the counts (SSGI's resolve, composite, denoise and blur, about 20 ms) dominate.
   1920 x 1080 game at 0.5 renders 960 x 540 and fits as before). The mechanism is there: a view
   with a scene size of its own runs its chain at that size and the tone map's copy scales it into
   its rectangle (`Views.cppm`, `PipelineImpl.cpp`); the scale sets that size from the output and
-  the render resolution. Decide the upscale filter (the bilinear copy, or a sharpened one) and
-  what TAA's jitter does at a fraction.
+  the render resolution.
+- **The upscaler as the level's second field** (user 2026-11-13): the scale decides how many
+  pixels render, the upscaler how they become the output's. FSR's quality modes are scales by
+  another name (Quality 0.67, Balanced 0.59, Performance 0.5). Three kinds:
+  - **Copy**: the tone map's filtered copy the scaled view has today. Free, soft below about 0.8.
+  - **Spatial** (FSR 1's edge-adaptive upscale and sharpen, Snapdragon GSR): one finished frame,
+    after the tone map and before the screen UI. Cheap enough for the phone, the web and the
+    Deck; it needs an antialiased input, since it sharpens jaggies rather than removing them.
+    FSR 1 is MIT and small enough to port as our own shader (check the licence, credit it).
+  - **Temporal** (FSR 2 and 3, XeSS, DLSS, MetalFX's temporal mode): replaces TAA. A jittered
+    frame at the render size, its depth and motion vectors and a history at the output size
+    reconstruct the output; 0.5 can come close to native. It runs before the post chain, which
+    then runs at the output size, and it is the antialiasing, so a level with it turns MSAA off.
+    Our TAA has most of it (`taa.ps.hlsl`: the jitter, per-pixel motion vectors with skinning
+    and sway, a history that keeps depth to drop stale history where something was uncovered):
+    a temporal upscaler is that TAA with an output larger than its input, the jitter in render
+    pixels and the history at the output size. DLSS is NVIDIA's and closed; FSR 4 and DLSS's
+    newer models need their vendors' hardware.
+  - Likely fit, unmeasured: copy at 0.85 and above, spatial for the cheap levels and the web,
+    temporal for desktop levels at 0.5 to 0.67. The phone may not pay for temporal.
 - **Half-resolution SSR and SSGI traces as a tier**, their resolve, denoise and composite
   following.
-- Measure both on the Pixel 6 as the levels were: the RelWithDebInfo development app, each game
+- Measure each on the Pixel 6 as the levels were: the RelWithDebInfo development app, each game
   run with `--profile-capture 30 --exit-after 40 --quality <label>`, GPU frame ms at the median.
 
 ## Reduced module interfaces on Android: memcpy through one core wrapper (user 2026-11-12)
