@@ -118,7 +118,7 @@ export namespace foundation::script
     /// handle (entity destroyed) every call safely does nothing.
     struct Entity
     {
-        scene::Scene* scene = nullptr;
+        scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
         u32 entityIndex = scene::kEntityHandleInvalidIndex;
         u32 entityGeneration = 0;
 
@@ -394,7 +394,8 @@ export namespace foundation::script
     };
 
     /// A bound scene handle. `scene.spawn(prefab,x,y,z)`, `scene.find(name)` and
-    /// `scene.findByPath(path)` all operate on this scene (the pointer the value carries), so there
+    /// `scene.findByPath(path)` all operate on this scene (the one the value refers to, read
+    /// through its life each call, so a handle kept past the scene does nothing), so there
     /// is no ambient "current scene" to keep correct: a call from any site (update, onDestroy, a
     /// physics contact, a resumed coroutine, a stored callback) always targets the right scene.
     /// Behaviors reach it via `entity.scene`; the Level tier receives one as its constructor
@@ -402,7 +403,7 @@ export namespace foundation::script
     /// a copy); on a null or stale scene every call does nothing and returns an invalid Entity.
     struct Scene
     {
-        scene::Scene* scene = nullptr;
+        scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
 
         /// Instantiate a prefab into this scene at a position (the root's local position under
         /// the scene root); invalid Entity if the scene is null, has no PrefabSpawnSystem or the
@@ -446,7 +447,7 @@ export namespace foundation::script
     /// `unsubscribe` to join it.
     struct SceneEvents
     {
-        scene::Scene* scene = nullptr;
+        scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
 
         // One method, an arity family on the script surface: the bus is StringHash and Variant
         // underneath, so the payload is a single Variant carrying any script value.
@@ -461,7 +462,7 @@ export namespace foundation::script
     /// call does nothing.
     struct ScenePrefabs
     {
-        scene::Scene* scene = nullptr;
+        scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
 
         [[nodiscard]] Entity spawn(Guid prefab, Float3 position) const;
         [[nodiscard]] Entity spawn(Guid prefab, Float3 position, Quaternion rotation) const;

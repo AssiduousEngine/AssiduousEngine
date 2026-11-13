@@ -1164,7 +1164,7 @@ export namespace engine::physics
     // call time (never cached pointers).
     struct RayCastHit
     {
-        scene::Scene* scene = nullptr;
+        scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
         foundation::physics::BodyId body;
         u64 packedEntity = 0;
         bool hit = false;
@@ -1234,7 +1234,7 @@ export namespace engine::physics
     // scene, or a scene with no physics system, is a safe no-op.
     struct ScenePhysics
     {
-        scene::Scene* scene = nullptr;
+        scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
 
         [[nodiscard]] PhysicsSceneSystem* System() const
         {

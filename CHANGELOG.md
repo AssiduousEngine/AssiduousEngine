@@ -101,6 +101,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Editor and games: a floating window closed by a click inside it (its close button, a docked
   panel's) closes once the click has been handled, in the same frame; it was freed while the click
   was still being delivered to it.
+- Scripting: an entity, a scene, a component or a scene's settings kept in a script past its scene
+  (a Game class member across a level load) reads as gone, and its calls do nothing; they reached
+  the freed scene.
 
 ## 0.1.0-beta.3 - 2026-11-12
 

@@ -2894,6 +2894,35 @@ TEST_CASE("script-facade: entity.scene() is bound to the entity's OWN scene (cro
     CHECK_FALSE(wb.sceneHandle().find(String(u8"target")).Live());
 }
 
+TEST_CASE("script-facade: handles kept past their scene (a level load) do nothing rather than reach it")
+{
+    EnsureGadgetRegistered();
+    Entity kept;
+    foundation::script::Scene keptScene;
+    Variant keptGadget;
+    {
+        UniquePtr<scene::Scene> level = MakeUnique<scene::Scene>(DefaultAllocator(), DefaultAllocator(), u8"level");
+        GadgetManager* gadgets = level->AddSystem<GadgetManager>();
+        const scene::EntityHandle e = level->CreateEntity(u8"player");
+        gadgets->Add(e).power = 3.0f;
+        kept = WrapEntity(level.Get(), e);
+        keptScene = kept.sceneHandle();
+        keptGadget = ComponentOf<Gadget>(kept);
+        REQUIRE(kept.isValid());
+        REQUIRE(ToInstance(keptGadget).Pointer() != nullptr);
+        CHECK(keptScene.name() == StringView(u8"level"));
+        // The level goes, as a load replacing it destroys it; the game's members keep the handles.
+    }
+    CHECK_FALSE(kept.isValid());
+    CHECK(kept.name().IsEmpty());
+    kept.setName(String(u8"ghost")); // does nothing
+    CHECK(kept.scene == nullptr);
+    CHECK(keptScene.name().IsEmpty());
+    CHECK(keptScene.entityCount() == 0u);
+    CHECK_FALSE(keptScene.find(String(u8"player")).Live());
+    CHECK(ToInstance(keptGadget).Pointer() == nullptr); // the component handle reads gone too
+}
+
 TEST_CASE("script.scene: entity.scene.spawn works from onDestroy - a FORMER footgun")
 {
     ScriptedScene bed;

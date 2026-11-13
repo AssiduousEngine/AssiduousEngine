@@ -796,7 +796,7 @@ export namespace engine::animation
     // a call before the first animation tick (e.g. onStart) is a safe no-op.
     struct SceneAnimation
     {
-        scene::Scene* scene = nullptr;
+        scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
 
         // --- single-clip playback (SkeletalAnimationComponent) ---
         // Play the entity's currently-bound clip from the start (manual re-trigger; autoPlay covers

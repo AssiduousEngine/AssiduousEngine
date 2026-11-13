@@ -1422,29 +1422,30 @@ export namespace engine::render
     // scene-scoped: these settings are one per scene, owned by the render scene systems, not entities.
     namespace settingsref
     {
+        // Nothing: the handle's anchor, the scene's life, is all its resolver reads.
         struct SceneSettingsCtx
         {
-            scene::Scene* scene = nullptr;
         };
+
 
         [[nodiscard]] inline void* ResolveEnvironmentSettings(const Variant& value)
         {
-            const auto* ctx = static_cast<const SceneSettingsCtx*>(value.ResolveContext());
-            if (ctx == nullptr || ctx->scene == nullptr)
+            scene::Scene* scene = scene::AnchoredScene(value); // null once the scene is gone
+            if (scene == nullptr)
             {
                 return nullptr;
             }
-            EnvironmentSystem* system = ctx->scene->GetSystem<EnvironmentSystem>();
+            EnvironmentSystem* system = scene->GetSystem<EnvironmentSystem>();
             return system != nullptr ? &system->Effective() : nullptr; // the values in effect
         }
         [[nodiscard]] inline void* ResolvePostProcessSettings(const Variant& value)
         {
-            const auto* ctx = static_cast<const SceneSettingsCtx*>(value.ResolveContext());
-            if (ctx == nullptr || ctx->scene == nullptr)
+            scene::Scene* scene = scene::AnchoredScene(value); // null once the scene is gone
+            if (scene == nullptr)
             {
                 return nullptr;
             }
-            PostProcessSystem* system = ctx->scene->GetSystem<PostProcessSystem>();
+            PostProcessSystem* system = scene->GetSystem<PostProcessSystem>();
             return system != nullptr ? &system->Effective() : nullptr; // the values in effect
         }
     }
@@ -1454,16 +1455,24 @@ export namespace engine::render
     // EnvironmentSettings (ExtendScene's declared type), since the getter hands back a Variant.
     [[nodiscard]] inline Variant EnvironmentSettingsOf(const foundation::script::Scene& sceneHandle)
     {
-        return Variant::Resolving(&TypeOf<EnvironmentSettings>(),
-                                  &settingsref::ResolveEnvironmentSettings,
-                                  settingsref::SceneSettingsCtx{sceneHandle.scene});
+        scene::Scene* scene = sceneHandle.scene;
+        if (scene == nullptr)
+        {
+            return Variant{};
+        }
+        // The scene is the anchor and the whole context: the resolver reads it from the anchor.
+        return Variant::Resolving(&TypeOf<EnvironmentSettings>(), &settingsref::ResolveEnvironmentSettings, settingsref::SceneSettingsCtx{}, scene->Life().Get());
     }
     // scene.postProcess: a re-resolving handle over the scene's live post settings.
     [[nodiscard]] inline Variant PostProcessSettingsOf(const foundation::script::Scene& sceneHandle)
     {
-        return Variant::Resolving(&TypeOf<PostProcessSettings>(),
-                                  &settingsref::ResolvePostProcessSettings,
-                                  settingsref::SceneSettingsCtx{sceneHandle.scene});
+        scene::Scene* scene = sceneHandle.scene;
+        if (scene == nullptr)
+        {
+            return Variant{};
+        }
+        // The scene is the anchor and the whole context: the resolver reads it from the anchor.
+        return Variant::Resolving(&TypeOf<PostProcessSettings>(), &settingsref::ResolvePostProcessSettings, settingsref::SceneSettingsCtx{}, scene->Life().Get());
     }
 
     // A scene-bound render handle (scene.render): runtime world operations on render
@@ -1473,7 +1482,7 @@ export namespace engine::render
     // carrying the scene pointer.
     struct SceneRender
     {
-        scene::Scene* scene = nullptr;
+        scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
 
         // How much light reaches `position` (linear RGB, the units lights are authored in): every
         // enabled light with the renderer's own range falloff and spot cone, a light that casts
@@ -1615,7 +1624,7 @@ export namespace engine::render
     // RenderSubsystem; this :components interface cannot).
     struct DebugDraw
     {
-        scene::Scene* scene = nullptr;
+        scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
 
         // A depth-tested world-space segment from (x0,y0,z0) to (x1,y1,z1).
         void line(f32 x0, f32 y0, f32 z0, f32 x1, f32 y1, f32 z1, f32 r, f32 g, f32 b) const;

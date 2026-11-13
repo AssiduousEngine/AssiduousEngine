@@ -34,6 +34,20 @@ namespace messaging = foundation::messaging;
 
 export namespace foundation::scene
 {
+    class Scene;
+
+    /// Whether a scene still exists, shared by everything that holds on to it past a call: the
+    /// scene clears it as it is destroyed. WeakSceneRef reads it.
+    class SceneLife final : public RefCounted
+    {
+    public:
+        explicit SceneLife(Scene* scene) noexcept : m_scene(scene) {}
+        [[nodiscard]] Scene* Get() const noexcept { return m_scene; }
+
+    private:
+        friend class Scene;
+        Scene* m_scene;
+    };
 
     class Scene
     {
@@ -41,7 +55,7 @@ export namespace foundation::scene
         // The allocator (required; the owner decides, and SceneManager threads its own) is
         // the per-scene authority every scene system builds on (Allocator() below).
         explicit Scene(IAllocator& allocator, StringView name = {})
-            : m_allocator(&allocator), m_name(name, allocator)
+            : m_allocator(&allocator), m_name(name, allocator), m_life(MakeRef<SceneLife>(allocator, this))
         {
         }
 
@@ -65,6 +79,8 @@ export namespace foundation::scene
         // tells the renderer a view now shows another scene, so a pass that eases from last
         // frame (auto exposure) starts over instead of carrying the old scene's state in.
         [[nodiscard]] u64 Serial() const noexcept { return m_serial; }
+        /// Whether this scene still exists, for a handle that outlives a call (WeakSceneRef).
+        [[nodiscard]] const RefPtr<SceneLife>& Life() const noexcept { return m_life; }
 
         [[nodiscard]] u32 EntityCount() const noexcept { return m_aliveCount; }
 
@@ -606,6 +622,7 @@ export namespace foundation::scene
         IAllocator* m_allocator;
         String m_name;
         u64 m_serial = NextSerial(); // see Serial()
+        RefPtr<SceneLife> m_life;    // cleared as the scene goes (see Life())
         Array<EntitySlot> m_entities;        // entity pool (index = slot)
         Array<TransformData> m_transforms;   // parallel transform pool (same index)
         Array<u32> m_freeList;               // free slot indices for reuse
@@ -690,4 +707,36 @@ export namespace foundation::scene
         return any;
     }
 
+
+    /// A scene held past a call (a script's handle: an entity, the scene, its domains), read
+    /// through the scene's life each time: null once the scene is destroyed, so a handle kept
+    /// across a level load does nothing rather than reach freed memory. Converts to and from
+    /// Scene*, so it is used as the pointer was.
+    class WeakSceneRef
+    {
+    public:
+        WeakSceneRef() noexcept = default;
+        WeakSceneRef(Scene* scene) // NOLINT(google-explicit-constructor): it stands where a Scene* did
+            : m_life(scene != nullptr ? scene->Life() : RefPtr<SceneLife>{})
+        {
+        }
+        WeakSceneRef(std::nullptr_t) noexcept {} // NOLINT(google-explicit-constructor)
+
+        [[nodiscard]] Scene* Get() const noexcept { return m_life ? m_life->Get() : nullptr; }
+        operator Scene*() const noexcept { return Get(); } // NOLINT(google-explicit-constructor)
+        Scene* operator->() const noexcept { return Get(); }
+        Scene& operator*() const noexcept { return *Get(); }
+
+    private:
+        RefPtr<SceneLife> m_life;
+    };
+
+    /// The scene a re-resolving handle over its state was anchored to (Variant::Resolving with the
+    /// scene's Life() as the anchor), or null once that scene is gone: a resolver asks this before
+    /// reading anything its context points into.
+    [[nodiscard]] inline Scene* AnchoredScene(const Variant& handle) noexcept
+    {
+        const auto* life = static_cast<const SceneLife*>(handle.ResolveAnchor());
+        return life != nullptr ? life->Get() : nullptr;
+    }
 } // namespace foundation::scene

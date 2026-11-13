@@ -799,7 +799,7 @@ export namespace engine::particles
     // no-op.
     struct SceneParticles
     {
-        scene::Scene* scene = nullptr;
+        scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
 
         // Begin or resume emission on the entity's effect. No-op if no effect is attached yet.
         void play(foundation::script::Entity entity) const

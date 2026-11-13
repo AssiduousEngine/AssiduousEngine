@@ -40,6 +40,7 @@ namespace foundation::scene
 
     Scene::~Scene()
     {
+        m_life->m_scene = nullptr; // what scripts hold reads gone from here
         if (m_run != nullptr)
         {
             m_run->Mutations().Cancel(this); // its queued destroys go with it
@@ -723,10 +724,15 @@ namespace foundation::scene
         };
 
         // The resolver a resolve-mode Variant calls each deref: the current component address, or
-        // null (component absent or entity stale; the manager's generation check handles staleness).
+        // null (the scene gone, the component absent or the entity stale; the manager's generation
+        // check handles staleness).
         void* ResolveComponent(const Variant& value)
         {
             const auto* ctx = static_cast<const ComponentRefCtx*>(value.ResolveContext());
+            if (AnchoredScene(value) == nullptr)
+            {
+                return nullptr; // its scene (and the manager with it) is gone: a handle kept over a level load
+            }
             return (ctx->manager != nullptr)
                        ? ctx->manager->GetComponentInstance(ctx->entity).Pointer()
                        : nullptr;
@@ -741,7 +747,7 @@ namespace foundation::scene
             return Variant{};
         }
         return Variant::Resolving(&componentType, &ResolveComponent,
-                                  ComponentRefCtx{this, entity, manager});
+                                  ComponentRefCtx{this, entity, manager}, m_life.Get());
     }
 
     void Scene::SetFixedTiming(f32 step, u32 maxSteps) noexcept

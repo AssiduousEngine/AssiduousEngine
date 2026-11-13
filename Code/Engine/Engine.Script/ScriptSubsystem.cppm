@@ -1345,7 +1345,7 @@ export namespace engine::script
     /// its class's asset id. A value type; a null scene makes every call a safe no-op.
     struct SceneScripts
     {
-        scene::Scene* scene = nullptr;
+        scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
 
         [[nodiscard]] ScriptSceneSystem* System() const
         {

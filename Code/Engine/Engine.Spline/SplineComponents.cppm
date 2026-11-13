@@ -159,7 +159,7 @@ export namespace engine::spline
     /// entity transform places the curve; points are stored entity-local).
     struct SceneSplines
     {
-        foundation::scene::Scene* scene = nullptr;
+        foundation::scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
 
         [[nodiscard]] f32 length(foundation::script::Entity entity) const;
         [[nodiscard]] i32 pointCount(foundation::script::Entity entity) const;

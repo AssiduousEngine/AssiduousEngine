@@ -30,7 +30,8 @@ under "Stability: left over".
 2. **A synchronous `run.loadScene` adopts at the safe point** the asynchronous one already uses
    (`PumpScriptLoads`), so a script never frees the scene it runs in.
 3. **No borrowed pointers in component data or script handles.** A script handle resolves its
-   scene through the run each call (a scene id and generation); a mesh asks the animation system
+   scene each call through the scene's life (`WeakSceneRef`, cleared as the scene is destroyed;
+   not through the run, since scenes outside every run run behaviours too); a mesh asks the animation system
    for its palette at extract; the inspector holds re-resolving refs, as `MakeComponentRef`
    already does.
 4. **A save never truncates in place**: write a unique temp file beside the target, flush it to

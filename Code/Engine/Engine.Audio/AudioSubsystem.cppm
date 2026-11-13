@@ -584,7 +584,7 @@ export namespace engine::audio
     // stays on AudioSourceComponent; starting a voice now is an engine op, so it lives here.
     struct SceneAudio
     {
-        scene::Scene* scene = nullptr;
+        scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
 
         [[nodiscard]] AudioSceneSystem* System() const
         {
