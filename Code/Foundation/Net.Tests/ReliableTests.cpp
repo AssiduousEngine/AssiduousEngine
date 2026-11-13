@@ -820,3 +820,66 @@ TEST_CASE("reliable: a data packet of another session at the peer's address is d
     REQUIRE(delivered.Size() == 1u);
     CHECK(delivered[0] == 42u);
 }
+
+namespace
+{
+    // Counts the Data packets bigger than a bare keepalive: the ones carrying a message.
+    class MessagePacketCounter final : public net::IDatagramSocket
+    {
+    public:
+        explicit MessagePacketCounter(net::IDatagramSocket& inner) : m_inner(inner) {}
+        void Send(const net::DatagramEndpoint& to, Span<const byte> data) override
+        {
+            net::BitReader reader(data);
+            (void)reader.ReadU16();
+            // A keepalive from a client that has received nothing carries no ack fields: 11 bytes.
+            if (reader.ReadU8() == 2u && data.Size() > 11u)
+            {
+                ++messagePackets;
+            }
+            m_inner.Send(to, data);
+        }
+        [[nodiscard]] bool Receive(net::DatagramEndpoint& from, Array<byte>& out) override { return m_inner.Receive(from, out); }
+        [[nodiscard]] net::DatagramEndpoint LocalEndpoint() const override { return m_inner.LocalEndpoint(); }
+        int messagePackets = 0;
+
+    private:
+        net::IDatagramSocket& m_inner;
+    };
+}
+
+TEST_CASE("reliable: before a round trip is measured, resends back off")
+{
+    // With no RTT sample yet the resend timeout was the 20 ms floor: a message sent the moment a
+    // connection opened, to a peer that went quiet, was resent fifty times a second.
+    net::SimDatagramNetwork network(DefaultAllocator(), net::SimConditions{});
+    net::IDatagramSocket* clientRaw = network.CreateSocket();
+    net::IDatagramSocket* serverSocket = network.CreateSocket();
+    MessagePacketCounter clientSocket(*clientRaw);
+    net::ReliableConfig cfg; // initialResendMs 200, maxResendMs 1000
+    net::ReliableTransport client(clientSocket, cfg);
+    net::ReliableTransport server(*serverSocket, cfg);
+    server.SetAccepting(true);
+    const net::PeerId sp = client.Connect(serverSocket->LocalEndpoint());
+    bool connected = false;
+    for (int step = 0; step < 50 && !connected; ++step)
+    {
+        network.Advance(10.0f);
+        client.Update(10.0f);
+        server.Update(10.0f);
+        connected = AnyKind(client, net::NetEventKind::Connected);
+    }
+    REQUIRE(connected);
+
+    Array<byte> m = Bytes({7});
+    client.Send(sp, 0, m.AsSpan(), net::Reliability::ReliableOrdered);
+    for (int step = 0; step < 200; ++step) // 2 s, the server silent
+    {
+        network.Advance(10.0f);
+        client.Update(10.0f);
+    }
+    // Sent at 0 and resent after 200, 400, 800 and 1000 ms (the ceiling): at 0, 200, 600 and 1400.
+    MESSAGE("message packets in 2 s: ", clientSocket.messagePackets);
+    CHECK(clientSocket.messagePackets >= 3);
+    CHECK(clientSocket.messagePackets <= 5);
+}

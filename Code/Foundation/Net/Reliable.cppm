@@ -42,6 +42,9 @@ export namespace foundation::net
         f32 timeoutMs = 5000.0f;      // no packet received in this long => disconnect
         f32 minResendMs = 20.0f;   // reliable resend floor (a message resends no faster than this)
         f32 maxResendMs = 1000.0f; // reliable resend ceiling (caps the RTT-scaled backoff)
+        // Before the first round trip is measured: a reliable message's first resend waits this, and
+        // each one after twice the last, up to maxResendMs.
+        f32 initialResendMs = 200.0f;
         u32 maxMessageBytes = 256u * 1024u; // largest message (reassembled); bigger is dropped
         u32 maxPacketBytes = 1200; // soft budget per datagram (< typical MTU); large reliable
                                    // messages fragment into this-sized pieces and reassemble
@@ -254,6 +257,7 @@ export namespace foundation::net
             u32 fragCount = 1;
             f64 lastSentMs =
                 -1.0e9; // RTT-based resend: only (re)sent once this plus the resend timeout elapses
+            u32 sendCount = 0; // times sent; before an RTT sample, each resend waits twice the last
             Array<byte> data;
         };
         static constexpr usize kSentWindow = 256;
@@ -316,6 +320,7 @@ export namespace foundation::net
             HashMap<u8, u16> lastInSequenced;  // the newest number each channel delivered
             // timing
             f64 rttMs = 0.0;
+            bool rttSampled = false; // an ack has measured a round trip (a 0 ms one counts)
             f64 lastRecvMs = 0.0;
             f64 lastSendMs = -1000.0;
             f64 lastConnectSendMs = -1000.0;
@@ -509,20 +514,27 @@ export namespace foundation::net
             // headroom (packet header ~13 + message header with frag fields ~24).
             return (m_cfg.maxPacketBytes > 64u) ? (m_cfg.maxPacketBytes - 64u) : 1u;
         }
-        // How long to wait before resending an unacked reliable message: RTT-scaled, clamped.
-        [[nodiscard]] f64 ResendTimeout(const Connection& c) const noexcept
+        // How long to wait before resending an unacked reliable message: RTT-scaled once a round trip
+        // is measured; before that, initialResendMs doubled per resend (the floor alone resent every
+        // message every 20 ms on a link whose acks had not come back yet). Clamped either way.
+        [[nodiscard]] f64 ResendTimeout(const Connection& c, const OutMessage& m) const noexcept
         {
-            const f64 base =
-                (c.rttMs > 0.0) ? (c.rttMs * 1.5) : static_cast<f64>(m_cfg.minResendMs);
-            return Clamp(base, static_cast<f64>(m_cfg.minResendMs),
-                         static_cast<f64>(m_cfg.maxResendMs));
+            f64 timeout = c.rttMs * 1.5;
+            if (!c.rttSampled)
+            {
+                timeout = static_cast<f64>(m_cfg.initialResendMs);
+                for (u32 i = 1; i < m.sendCount && timeout < static_cast<f64>(m_cfg.maxResendMs); ++i)
+                {
+                    timeout *= 2.0;
+                }
+            }
+            return Clamp(timeout, static_cast<f64>(m_cfg.minResendMs), static_cast<f64>(m_cfg.maxResendMs));
         }
         [[nodiscard]] bool AnyReliableDue(const Connection& c) const noexcept
         {
-            const f64 timeout = ResendTimeout(c);
             for (const OutMessage& m : c.unackedReliable)
             {
-                if (m_nowMs - m.lastSentMs >= timeout)
+                if (m_nowMs - m.lastSentMs >= ResendTimeout(c, m))
                 {
                     return true;
                 }
@@ -554,10 +566,9 @@ export namespace foundation::net
             rec.sendTimeMs = m_nowMs;
             Array<OutMessage*> chosen;
             usize budget = m_cfg.maxPacketBytes;
-            const f64 resendTimeout = ResendTimeout(c);
             for (OutMessage& m : c.unackedReliable)
             {
-                if (m_nowMs - m.lastSentMs < resendTimeout)
+                if (m_nowMs - m.lastSentMs < ResendTimeout(c, m))
                 {
                     continue;
                 } // not due yet (RTT-timed resend)
@@ -569,6 +580,7 @@ export namespace foundation::net
                 budget -= (m.data.Size() + 24u);
                 rec.reliableIds.PushBack(m.id);
                 m.lastSentMs = m_nowMs;
+                ++m.sendCount;
             }
             usize unreliableTaken = 0;
             for (OutMessage& m : c.pendingUnreliable)
@@ -908,7 +920,8 @@ export namespace foundation::net
             }
             p.acked = true;
             const f64 sample = m_nowMs - p.sendTimeMs;
-            c.rttMs = (c.rttMs <= 0.0) ? sample : (c.rttMs * 0.9 + sample * 0.1);
+            c.rttMs = !c.rttSampled ? sample : (c.rttMs * 0.9 + sample * 0.1);
+            c.rttSampled = true;
             for (u16 mid : p.reliableIds)
             {
                 AckReliableMessage(c, mid);

@@ -143,6 +143,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Rendering: a double-sided material (foliage cards, a sail, a flag) casts its shadow from both
   sides, and a material that culls front faces casts from its back; shadows always came from the
   front faces.
+- Networking: before the first round trip is measured, an unacknowledged message is resent after
+  200 ms, then twice as long each time, instead of every 20 ms.
 - Networking: a server makes a peer only for a client that answers its challenge, and holds at
   most `maxPeers` (64 by default); data packets carry the session token. The wire format changed:
   a game built before this cannot connect to one built after.
