@@ -490,7 +490,47 @@ What the audit of 2026-11-11 raised that `Specs/stability.md` leaves out, to tak
   message.
 - Glyph atlases are baked once over a fixed codepoint range, with no glyphs on demand: the largest
   functional gap.
-- Flex: three departures from the CSS algorithm, which RmlUi's freeze loop fixes (not re-read).
+- Flex: three departures from the CSS algorithm, which RmlUi's freeze loop fixes (not re-read):
+  grow is one pass, so space clamped by `max-width` is not redistributed; percent and calc
+  `min-width` are ignored on the main axis unless the line shrinks; lines break on unclamped base
+  sizes (`GUI/Layout/LayoutImpl.cpp:246-248, 278-288, 357-361`). Grid `auto` columns never shrink
+  toward min-content (`:713`).
+- Style sheets: `@import`, `@font-face` and `@spritesheet` do nothing in subtree sheets, which is
+  how the engine applies every component sheet, and a failed import is silent
+  (`StyleManager.cppm:784-845`, `GuiSubsystemImpl.cpp:1167`); bad values fail silently and the cook
+  checks names only (`StyleSheet.cppm:319-326`, `StyleCheck.cppm:72-91`); a nested `@media`
+  replaces the outer condition instead of combining with it (`CSSParser.cppm:225-226`); an unclosed
+  at-rule gives no diagnostic; a duplicate `@keyframes` keeps the first where CSS keeps the last
+  (`StyleSheet.cppm:686-692`); `! important` with a space is not taken (`CSSParser.cppm:536-541`);
+  `currentColor` is replaced as a bare substring, inside `url()` and quoted names too
+  (`StyleSheet.cppm:392-424`); property and style lookups are linear by name.
+- Rendering: backdrop blur draws nothing inside a path clip (`VG/Context.cppm:528`), so a frosted
+  panel in a rounded `overflow: hidden` card has no blur, and each blur walks and relabels every
+  earlier command (`:536-549`); idle frames still run layers and blur passes in the window host
+  (`GuiHost.cppm:624-631`); damage rectangles are computed and no host uses them, so one spinning
+  icon redraws the whole pane; the filter grammar is `blur()` only, though VG carries saturation and
+  brightness (`StyleValue.cppm:257-262`); per-draw arrays and path builders in the tree walk
+  (`Node.cppm:765, 779`; to measure); the cull margin is a constant 32 px (`DrawContext.cppm:75`).
+- Animation: a tick copies the whole string-keyed `ResolvedStyle` and reapplies the full style per
+  node, twice on an ending tick (`StyleAnimation.cppm:372-384, 438-439`).
+- Layout and text: absolute positioning ignores positioned ancestors and `z-index` cannot lift a
+  node above a cousin; no `text-transform`, `word-spacing`, line-through or overline, and
+  `text-align: justify` maps to left; labels cannot be selected; a TextArea lays out its whole text
+  per edit and undo keeps up to 100 whole copies; each word is shaped twice; `UpdateLayout` gives up
+  silently after 8 rounds (`LayoutImpl.cpp:1212`).
+- Markup nested to the XML limit (512) is 512 recursive frames in inflate, style, layout and draw
+  (inference): measure the stack it takes, on the web above all, and give the GUI its own lower
+  limit if it is large.
+- Events and data: no cancellable default action (a listener on a node cannot veto its own
+  handling, `Node.cppm:1680-1691`); custom events carry one string and do not bubble;
+  `DataModel` looks names up linearly and creates an entry for any name read, never removed
+  (`DataModel.cppm:132-137, 196-206`); no `data-if` or `data-for` structure in markup.
+- Accessibility reaches no platform: the bridge has no production implementer.
+- Tests: the input fuzzer draws key codes below 80 only (no modifiers, keypad, Back, so no Alt
+  mnemonics), sends no touch cancel, pinch, held direction, scroll stick, context menu or key
+  capture, links only Foundation::GUI (no Toolkit, Code editor, Docking or Gamekit), fuzzes markup
+  without a data model, and its "nested deep" case is one repeated character, not nested elements;
+  no script-driven target; no headless benchmark suite.
 
 **Editor**
 - External edits to an open script are overwritten silently (`CodeAssetPage.cppm:64-76`), and

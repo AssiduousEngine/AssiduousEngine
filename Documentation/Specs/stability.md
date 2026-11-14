@@ -194,6 +194,11 @@ Each item names its finding, where it is on master, the test that proves it, and
 - The pipeline cache is keyed by hash alone and retries a failed build per draw
   (`PipelineStateCache.cppm:57-128`): an owned key with equality, failures cached by shader
   version, `ReleaseRetired` from the frame ring. Materials.PipelineCache.Tests.
+- The GUI style cache (added 2026-11-13 from the GUI comparison): `StyleManager::IsOwn` takes the
+  entries at a widget's address as its own when the widget is in no GUI
+  (`GUI/Styling/StyleManager.cppm:1015-1019`), so a widget made where a dead one stood inherits its
+  cached style and animation state: entries are keyed by a node serial that is never reused.
+  GUI.Tests.
 - CPU-side tests in Render.Tests and Engine.Render.Tests over `NullDevice`, as
   `MultiMeshLifecycleTests.cpp` does, unless marked.
 
@@ -209,6 +214,9 @@ Each item names its finding, where it is on master, the test that proves it, and
   clipped stencil cover paints outside the clip (`:1518-1531`, `Less` against 0x80).
   VG.Renderer.Tests, VG.Backend.Tests.
 - Every remaining fixed ring reports its first overflow once (Decided 6).
+- The vector layer cap (added 2026-11-13 from the GUI comparison): past 128 layers in a batch,
+  group opacity becomes per-shape opacity and blur is dropped with no message
+  (`VG/Context.cppm:444-449`). VG.Tests.
 
 **S7: untrusted input.**
 - Network: a cookie handshake and `maxPeers` before a peer exists; the session token in data
