@@ -270,19 +270,6 @@
 
 ## Engine
 
-- **The sky light re-bakes for its first 20 frames, on every platform** (user 2026-11-08, from the
-  flagship's slow first seconds of play): `IBLSystem`'s `m_bakeWarmup = 20`
-  (`Foundation/Render/IBLSystem.cppm`) re-runs the whole bake (the env cube, its mips, the
-  prefilter: 30 passes of 1024 samples a texel, and the SH) for each context's first 20 frames, so
-  a dropped web start-up submit cannot lose the one-shot bake. Every platform pays it: a profile of
-  the flagship's first 4 seconds of play (Debug, Vulkan) had frames of 360 to 430 ms, nearly all
-  of it the CPU waiting at the frame fence on `ibl.prefilter` (about 386 ms of GPU a frame), so
-  about 8 seconds at 2 to 3 fps on every play start, and on every scene page's view. The reflection
-  probes copy it (`ReflectionProbeSystem`'s `m_captureWarmup = 20`). Fix: the backends say whether
-  a start-up submit can be dropped (a flag in `rhi::AdapterInfo::Features`, true on WebGPU only),
-  and the IBL and the probes warm up only where it is set, the rest baking once; on WebGPU, space
-  the repeats (a few bakes over the first frames, not one a frame). A test that a context bakes
-  once where the flag is off.
 - **A sequencer for cutscenes** (user 2026-11-08, from the flagship's act 1): timelines that drive
   several entities at once (transforms and any reflected property, skeletal clips, camera cuts,
   sounds, events, fades, nested sequences), authored on a timeline page and played from script. The
