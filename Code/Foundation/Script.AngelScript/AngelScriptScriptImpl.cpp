@@ -2135,6 +2135,28 @@ namespace foundation::script::angelscript
         }
 
     public:
+        // Whether a live coroutine runs code of `module`: its owner is an instance of one of its
+        // classes, or the function it started in is one of its functions.
+        [[nodiscard]] bool CoroutineRunsCodeOf(const asIScriptModule* module) const
+        {
+            for (const Coroutine& co : m_coroutines)
+            {
+                if (co.owner != nullptr && co.owner->GetObjectType()->GetModule() == module)
+                {
+                    return true;
+                }
+                const asIScriptFunction* started =
+                    co.ctx != nullptr && co.ctx->GetCallstackSize() > 0
+                        ? co.ctx->GetFunction(co.ctx->GetCallstackSize() - 1)
+                        : nullptr;
+                if (started != nullptr && started->GetModule() == module)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         [[nodiscard]] bool IsCoroutineContext(asIScriptContext* ctx) const { return FindCoroutine(ctx) >= 0; }
         // Whether `ctx` is a coroutine whose `wait` is suspending it: AngelScript honours the
         // suspend after the next line begins, which no breakpoint or step may stop on.
@@ -3312,6 +3334,7 @@ namespace foundation::script::angelscript
     // here so AngelScriptContext can hold Array<AngelScriptDelegate*>; the methods that
     // touch its members stay out of line (it is defined further down).
     class AngelScriptDelegate;
+    class AngelScriptObject;
 
     class AngelScriptContext final : public IScriptContext
     {
@@ -3334,6 +3357,12 @@ namespace foundation::script::angelscript
         // the context can Detach() it at close (after which its Invoke fails cleanly instead of
         // touching a discarded module). Borrowed; the delegate untracks itself on destruction.
         void TrackDelegate(AngelScriptDelegate* delegate) { m_delegates.PushBack(delegate); }
+
+        // A live instance wrapper registers itself here, so a replaced module is discarded only
+        // once no wrapper holds an instance of one of its classes. Borrowed; the wrapper untracks
+        // itself on destruction, which is when a replaced module may become unused.
+        void TrackObject(AngelScriptObject* object) { m_objects.PushBack(object); }
+        void UntrackObject(AngelScriptObject* object); // after AngelScriptObject
         void UntrackDelegate(AngelScriptDelegate* delegate)
         {
             for (core::usize i = 0; i < m_delegates.Size(); ++i)
@@ -3341,6 +3370,7 @@ namespace foundation::script::angelscript
                 if (m_delegates[i] == delegate)
                 {
                     m_delegates.RemoveAt(i);
+                    DiscardUnusedReplacedModules();
                     return;
                 }
             }
@@ -3429,6 +3459,7 @@ namespace foundation::script::angelscript
 
             m_ownedModules.PushBack(module);
             m_module = module;
+            RetireModulesReplacedBy(module);
 
             // Top-level entry convention: a module-level `void main()` runs at load.
             // AngelScript has no top-level statements, so this is where Load's
@@ -3491,6 +3522,7 @@ namespace foundation::script::angelscript
             }
             m_ownedModules.PushBack(module);
             m_module = module;
+            RetireModulesReplacedBy(module);
             // Same top-level entry convention as Load: a module-level `void main()` runs at load.
             if (asIScriptFunction* entry = module->GetFunctionByName("main"))
             {
@@ -3581,6 +3613,7 @@ namespace foundation::script::angelscript
 
             m_ownedModules.PushBack(module);
             m_module = module;
+            RetireModulesReplacedBy(module);
 
             if (asIScriptFunction* entry = module->GetFunctionByName("main"))
             {
@@ -3775,6 +3808,12 @@ namespace foundation::script::angelscript
         }
 
     private:
+        // A newer module that declares every class an older one does replaces it: lookups find the
+        // newer first, so only instances made before the reload still run the older's code.
+        void RetireModulesReplacedBy(asIScriptModule* newer);
+        // Discards each replaced module nothing runs code of any more (see m_replacedModules).
+        void DiscardUnusedReplacedModules();
+
         [[nodiscard]] asIScriptFunction* FindFunction(core::StringView name, int argc) const
         {
             const core::String functionName(name);
@@ -3955,6 +3994,11 @@ namespace foundation::script::angelscript
         asIScriptModule* m_module = nullptr; // most recent successful Load
         core::Array<asIScriptModule*> m_ownedModules;
         core::Array<AngelScriptDelegate*> m_delegates; // borrowed; Detach()ed at close
+        core::Array<AngelScriptObject*> m_objects;     // borrowed; the live instance wrappers
+        // Owned modules a newer one replaced (it declares every class they do), discarded once
+        // nothing runs their code: discarding resets a module's globals, which a live instance
+        // of an old class may still read.
+        core::Array<asIScriptModule*> m_replacedModules;
     };
 
     // A live instance of a script-declared class. Holds the asIScriptObject plus a
@@ -3967,6 +4011,7 @@ namespace foundation::script::angelscript
                           asIScriptObject* instance) noexcept
             : m_owner(core::Move(owner)), m_instance(instance)
         {
+            m_owner->TrackObject(this);
         }
 
         ~AngelScriptObject() override
@@ -3975,6 +4020,7 @@ namespace foundation::script::angelscript
             {
                 m_instance->Release();
             }
+            m_owner->UntrackObject(this);
         }
 
         AngelScriptObject(const AngelScriptObject&) = delete;
@@ -4115,6 +4161,9 @@ namespace foundation::script::angelscript
             }
         }
 
+        /// The wrapped script function (a replaced module is kept while a delegate holds one of its).
+        [[nodiscard]] const asIScriptFunction* Function() const noexcept { return m_function; }
+
         AngelScriptDelegate(const AngelScriptDelegate&) = delete;
         AngelScriptDelegate& operator=(const AngelScriptDelegate&) = delete;
 
@@ -4146,6 +4195,82 @@ namespace foundation::script::angelscript
     // wrapped one of this context's functions so a later Invoke fails cleanly, then discard the
     // owned modules. No ScriptObject outlives its context (they hold a strong ref), so the
     // module discard is safe here.
+    void AngelScriptContext::UntrackObject(AngelScriptObject* object)
+    {
+        for (core::usize i = 0; i < m_objects.Size(); ++i)
+        {
+            if (m_objects[i] == object)
+            {
+                m_objects.RemoveAt(i);
+                break;
+            }
+        }
+        DiscardUnusedReplacedModules();
+    }
+
+    void AngelScriptContext::RetireModulesReplacedBy(asIScriptModule* newer)
+    {
+        for (asIScriptModule* older : m_ownedModules)
+        {
+            if (older == newer || older->GetObjectTypeCount() == 0)
+            {
+                continue; // a module of free functions alone is never replaced
+            }
+            bool replaced = true;
+            for (asUINT t = 0; t < older->GetObjectTypeCount() && replaced; ++t)
+            {
+                replaced = newer->GetTypeInfoByName(older->GetObjectTypeByIndex(t)->GetName()) != nullptr;
+            }
+            bool known = false;
+            for (const asIScriptModule* retired : m_replacedModules)
+            {
+                known = known || retired == older;
+            }
+            if (replaced && !known)
+            {
+                m_replacedModules.PushBack(older);
+            }
+        }
+        DiscardUnusedReplacedModules();
+    }
+
+    void AngelScriptContext::DiscardUnusedReplacedModules()
+    {
+        if (asGetActiveContext() != nullptr)
+        {
+            return; // a call may be running an old module's code (an instance that destroyed its
+                    // own entity); the next load or release sweeps again
+        }
+        for (core::usize r = m_replacedModules.Size(); r-- > 0;)
+        {
+            asIScriptModule* module = m_replacedModules[r];
+            bool used = module == m_module || m_manager->CoroutineRunsCodeOf(module);
+            for (const AngelScriptObject* object : m_objects)
+            {
+                used = used || (object->ScriptInstance() != nullptr &&
+                                object->ScriptInstance()->GetObjectType()->GetModule() == module);
+            }
+            for (const AngelScriptDelegate* delegate : m_delegates)
+            {
+                used = used || (delegate->Function() != nullptr && delegate->Function()->GetModule() == module);
+            }
+            if (used)
+            {
+                continue;
+            }
+            m_replacedModules.RemoveAt(r);
+            for (core::usize m = 0; m < m_ownedModules.Size(); ++m)
+            {
+                if (m_ownedModules[m] == module)
+                {
+                    m_ownedModules.RemoveAt(m);
+                    break;
+                }
+            }
+            module->Discard();
+        }
+    }
+
     AngelScriptContext::~AngelScriptContext()
     {
         for (AngelScriptDelegate* delegate : m_delegates)

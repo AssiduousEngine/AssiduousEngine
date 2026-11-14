@@ -13,6 +13,8 @@
 
 #include <cstring> // std::strcmp (alias-name assertions)
 
+#include <angelscript.h> // the engine's module count, through AngelScriptEngineHandle
+
 #include "Core/Prelude.h" // <new> reachability for reflection containers (GCC)
 #include "Core/Reflection/Reflect.h"
 
@@ -2073,4 +2075,70 @@ TEST_CASE("angelscript: a behaviour class's includes load with it, and a breakpo
     CHECK(frames[0].line == 3);
     debugger->Continue();
     debugger->SetListener(nullptr);
+}
+
+// A reload loads a class beside its predecessor. The predecessor's module was kept until the
+// context closed; discarding it resets its globals, so it goes once nothing runs its code.
+namespace
+{
+    [[nodiscard]] asUINT ModuleCount(IScriptManager& manager)
+    {
+        return static_cast<asIScriptEngine*>(angelscript::AngelScriptEngineHandle(manager))->GetModuleCount();
+    }
+
+    [[nodiscard]] Status LoadCounter(IScriptContext& scriptContext, StringView source, StringView moduleName)
+    {
+        const BehaviorModuleClass entry{u8"Counter.as", source, {}, {}};
+        return scriptContext.LoadBehaviorModule(Span<const BehaviorModuleClass>{&entry, 1}, moduleName);
+    }
+
+    [[nodiscard]] f64 Next(ScriptObject& counter, f64 value)
+    {
+        Variant args[] = {Variant::From<f64>(value)};
+        return counter.Invoke(u8"next", Span<Variant>{args, 1}).Value().Get<f64>();
+    }
+
+    constexpr StringView kCounterBy3 = u8"double g_step = 3;\nclass Counter { double next(double v) { return v + g_step; } }\n";
+    constexpr StringView kCounterBy10 = u8"double g_step = 10;\nclass Counter { double next(double v) { return v + g_step; } }\n";
+}
+
+TEST_CASE("angelscript: a replaced class's module stays while an old instance lives, and goes with the last")
+{
+    RefPtr<IScriptManager> manager = angelscript::CreateScriptManager(DefaultAllocator());
+    RefPtr<IScriptContext> scriptContext = manager->CreateContext();
+    REQUIRE(LoadCounter(*scriptContext, kCounterBy3, u8"behaviors#1").IsOk());
+    const asUINT loaded = ModuleCount(*manager);
+    RefPtr<ScriptObject> old = scriptContext->CreateInstance(u8"Counter", Span<Variant>{});
+    REQUIRE(static_cast<bool>(old));
+
+    REQUIRE(LoadCounter(*scriptContext, kCounterBy10, u8"behaviors#2").IsOk());
+    CHECK(ModuleCount(*manager) == loaded + 1); // the old instance still runs the old module
+    CHECK(Next(*old, 1.0) == 4.0);              // and its globals are intact
+    RefPtr<ScriptObject> fresh = scriptContext->CreateInstance(u8"Counter", Span<Variant>{});
+    REQUIRE(static_cast<bool>(fresh));
+    CHECK(Next(*fresh, 1.0) == 11.0);
+
+    old = nullptr;
+    CHECK(ModuleCount(*manager) == loaded); // the last old instance gone, so is its module
+    CHECK(Next(*fresh, 1.0) == 11.0);
+}
+
+TEST_CASE("angelscript: a replaced class's module with no instance goes at once; one with another class stays")
+{
+    RefPtr<IScriptManager> manager = angelscript::CreateScriptManager(DefaultAllocator());
+    RefPtr<IScriptContext> scriptContext = manager->CreateContext();
+    REQUIRE(LoadCounter(*scriptContext, kCounterBy3, u8"behaviors#1").IsOk());
+    const asUINT loaded = ModuleCount(*manager);
+    REQUIRE(LoadCounter(*scriptContext, kCounterBy10, u8"behaviors#2").IsOk());
+    CHECK(ModuleCount(*manager) == loaded);
+
+    // A module that also declares a class the newer one does not is not replaced.
+    REQUIRE(LoadCounter(*scriptContext,
+                        u8"class Counter { double next(double v) { return v; } }\nclass Other {}\n",
+                        u8"behaviors#3")
+                .IsOk());
+    REQUIRE(LoadCounter(*scriptContext, kCounterBy3, u8"behaviors#4").IsOk());
+    CHECK(ModuleCount(*manager) == loaded + 1);
+    RefPtr<ScriptObject> other = scriptContext->CreateInstance(u8"Other", Span<Variant>{});
+    CHECK(static_cast<bool>(other));
 }

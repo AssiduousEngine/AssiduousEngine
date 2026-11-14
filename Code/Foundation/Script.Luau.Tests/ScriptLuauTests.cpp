@@ -1760,3 +1760,32 @@ end
     foundation::script::benchmark::RunScriptBackendBenchmark(
         []() { return CreateLuauScriptManager(DefaultAllocator()); }, dialect);
 }
+
+// A reload loads a class beside its predecessor; in Luau the newer class table takes the global,
+// so the old one is collected once no instance holds it (AngelScript discards a replaced module
+// explicitly, once nothing runs its code).
+TEST_CASE("script.luau: a replaced class's table is collected once no instance holds it")
+{
+    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RefPtr<IScriptContext> scriptContext = manager->CreateContext();
+    const char8_t* counter = u8"Counter = {}\nCounter.__index = Counter\n"
+                             u8"function Counter.new() return setmetatable({}, Counter) end\n";
+    const BehaviorModuleClass first[] = {{u8"Counter.luau", counter, {}, {}}};
+    REQUIRE(scriptContext->LoadBehaviorModule(Span<const BehaviorModuleClass>{first, 1}, u8"behaviors#1").IsOk());
+    RefPtr<ScriptObject> old = scriptContext->CreateInstance(u8"Counter", Span<Variant>{});
+    REQUIRE(static_cast<bool>(old));
+
+    // The reload keeps a weak reference to the class it replaces.
+    const char8_t* reloaded = u8"Probe = setmetatable({class = Counter}, {__mode = \"v\"})\n"
+                              u8"Counter = {}\nCounter.__index = Counter\n"
+                              u8"function Counter.new() return setmetatable({}, Counter) end\n"
+                              u8"function oldClassGone() return Probe.class == nil end\n";
+    const BehaviorModuleClass second[] = {{u8"Counter.luau", reloaded, {}, {}}};
+    REQUIRE(scriptContext->LoadBehaviorModule(Span<const BehaviorModuleClass>{second, 1}, u8"behaviors#2").IsOk());
+    manager->CollectGarbage();
+    CHECK_FALSE(scriptContext->Call(u8"oldClassGone", Span<Variant>{}).Value().Get<bool>()); // its instance holds it
+
+    old = nullptr;
+    manager->CollectGarbage();
+    CHECK(scriptContext->Call(u8"oldClassGone", Span<Variant>{}).Value().Get<bool>());
+}

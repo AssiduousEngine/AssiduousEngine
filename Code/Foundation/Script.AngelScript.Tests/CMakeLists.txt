@@ -8,7 +8,8 @@ if(OPTION_ENABLE_ANGELSCRIPT)
         ScriptAngelScriptTests.cpp)
 
     target_link_libraries(Script.AngelScript.Tests PRIVATE
-        ${SCRIPTLIB_ANGELSCRIPT} ${SCRIPTLIB_LUAU} doctest::doctest)
+        ${SCRIPTLIB_ANGELSCRIPT} ${SCRIPTLIB_LUAU} doctest::doctest
+        ThirdParty::AngelScript) # a test counts the engine's modules through AngelScriptEngineHandle
 
     target_compile_definitions(Script.AngelScript.Tests PRIVATE
         DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)

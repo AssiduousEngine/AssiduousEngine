@@ -53,6 +53,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Scripting (AngelScript): reloading a behaviour frees the replaced version's compiled code once no
+  instance, coroutine or delegate of it is left; every version stayed loaded until the run stopped.
 - Scripting (AngelScript): `#include` works as one path rule everywhere: it resolves against the
   including file, inside the project's sources; editing an included file recooks the scripts that
   include it; an error or a breakpoint in one names that file; and a class compiled from source
