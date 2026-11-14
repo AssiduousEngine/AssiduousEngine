@@ -460,17 +460,9 @@ alone (`StyleValue.cppm`, ParseFilters): a list naming any other function does n
   runs as the same sequential loop as every phase (`Scene::RunPhase`). (2026-11-13)
 
 **Scripting and plugins**
-- `EnsureClassLoaded` reloads every class for each new one: Luau re-runs top levels, AngelScript
-  builds N^2/2 modules, and one failed class poisons the later ones
-  (`Engine.Script/ScriptSubsystem.cppm:447`).
-- Luau lacks i8, u8, i16 and u16 marshalling, so `collisionGroup` and `priority` are unusable from
-  Luau (`LuauScript.cppm:1036-1130`).
-- Luau's `waitUntil` predicate runs without a `ScriptCallScope`, so facades in it do nothing.
+- The scripting items (class loading, Luau's small integers and `waitUntil`, the surface hash,
+  `ContainerDispatch` and `lua_error`) are in `Specs/scripting.md` (2026-11-14).
 - Plugin parts carry no ABI or build stamp (`Runtime/PluginLoader.cppm:70-88`).
-- The script surface hash omits parameter and return types and enum values: stale bytecode
-  (`Script.Pipeline/ScriptAssetImpl.cpp:31-66`).
-- AngelScript `ContainerDispatch` does not refuse a gone object, and a failed invoke silently
-  returns a default; Luau's `lua_error` longjmp skips C++ destructors.
 
 **Networking**
 - Replication's relevance hook `StateReplication::SetRelevance` (`Net.Replication/Replication.cppm:281`)

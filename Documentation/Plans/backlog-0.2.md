@@ -348,6 +348,21 @@ What the audit of 2026-11-11 raised that `Archive/stability-history.md` leaves o
   re-checked against master: re-read each in source before acting on it. The spec took 61
   findings; everything else is here. Two more, found since by search, are marked (2026-11-13).
 
+## Scripting: later (2026-11-14)
+
+What `Specs/scripting.md` leaves out, from the same review of the AngelScript integration:
+
+- **Typed messages and delayed posting**: a handler whose parameter type selects the message, beside
+  the named events, and a message posted for a later frame.
+- **An update scheduler** that spreads interval updates over frames, rather than a per-behaviour
+  accumulator checked every tick (`Engine.Script/ScriptSubsystem.cppm`).
+- **Interned string literals**, and enum scoping required in scripts.
+- **Up and down casts generated from the type hierarchy.**
+- **Tracked `#include`** with line remapping and the included file as a cook dependency (the spec
+  refuses `#include` at cook instead).
+- **Shipping**: the compiler and debug information stripped from shipped builds, the source left out
+  of packs, and loaded bytecode validated against hostile input.
+
 ## Reduced module interfaces on Android: memcpy through one core wrapper (user 2026-11-12)
 
 The root CMakeLists gives Clang `-fmodules-reduced-bmi` everywhere but Android (8b51e8fff). With it,
