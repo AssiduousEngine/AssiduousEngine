@@ -128,6 +128,10 @@ export namespace foundation::script
             return core::Array<ScriptApiType>{};
         }
 
+        /// The bound API as a declarations file for an external editor (ScriptDeclarations),
+        /// written from what this manager bound. Empty for a backend that writes none.
+        [[nodiscard]] virtual ScriptDeclarations Declarations() const { return ScriptDeclarations{}; }
+
         // ---- debugger, profiler and bytecode (optional capabilities) ----
 
         /// A step debugger for this VM, or null (the default) when

@@ -479,6 +479,7 @@ namespace foundation::script
         }
 
         [[nodiscard]] Array<ScriptApiType> DescribeBoundApi() const override;
+        [[nodiscard]] ScriptDeclarations Declarations() const override;
 
         void AdvanceCoroutines(f64 deltaSeconds) override;
         void CancelCoroutinesFor(ScriptObject& instance) override;
@@ -3645,6 +3646,19 @@ export namespace foundation::script
             out += u8"}\n\n";
         }
 
+        return out;
+    }
+}
+
+namespace foundation::script
+{
+    // The bound surface as a `.d.luau` an external editor (luau-lsp) reads; the declarations come
+    // from the same emitter the cook's checks would use.
+    ScriptDeclarations LuauScriptManager::Declarations() const
+    {
+        ScriptDeclarations out;
+        out.fileName = core::String(u8"engine.d.luau");
+        out.text = EmitLuauDeclarations(core::Span<const core::TypeInfo* const>{m_types.Data(), m_types.Size()});
         return out;
     }
 }

@@ -1,6 +1,7 @@
 # Scripting: faults reported, cook and run agreeing, a cheaper call path
 
-> STATUS: APPROVED 2026-11-14 (user: "spec approved"). Sized L, in phases C0 to C6, each green on
+> STATUS: DONE 2026-11-14 (C0 to C6; C6 cut to the declarations file, the rest to backlog-0.2).
+> APPROVED 2026-11-14 (user: "spec approved"). Sized L, in phases C0 to C6, each green on
 > clang and gcc before the next and on the five lanes at the end.
 > Origin: a read-only review of the AngelScript integration (2026-11-14, kept local), and the
 > scripting items of backlog-0.1's "What the stability spec left out". Every finding below was
@@ -157,9 +158,10 @@ shipped builds, validating hostile bytecode. Those go to `backlog-0.2.md` under 
   memory functions are process-wide, not per engine, so the cap is one for every AngelScript
   manager in the process (accepted with the spec).
 
-**C6: conveniences** (each its own commit, each optional on review).
-- Default argument values from reflection; bitflag enums; an export of the bound API as a
-  declarations file for external editors (`DescribeBoundApi` already holds it).
+**C6: an export of the bound API** (user, 2026-11-14: the declarations file only; default argument
+values and bitflag enums moved to `backlog-0.2.md`).
+- An export of the bound API as a declarations file for external editors (`DescribeBoundApi`
+  already holds it).
 
 ## Gotchas
 

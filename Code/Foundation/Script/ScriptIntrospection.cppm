@@ -67,6 +67,14 @@ export namespace foundation::script
         ScriptApiMemberKind kind = ScriptApiMemberKind::Method;
     };
 
+    /// The bound API as the file an external editor reads to complete and check scripts
+    /// (AngelScript's `as.predefined`, Luau's `.d.luau`): its file name and its text.
+    struct ScriptDeclarations
+    {
+        core::String fileName;
+        core::String text;
+    };
+
     /// One script-visible type (or namespace) the backend bound, with its members. The
     /// `scriptName` is the exact name a script uses; `isNamespace` distinguishes a real
     /// class from a namespace a backend synthesizes for statics.

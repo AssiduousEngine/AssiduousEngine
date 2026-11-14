@@ -3,7 +3,7 @@
 
 // Foundation::Mcp.Script - `foundation.mcp.script`
 //
-// The scripting MCP tool: script_api. It dumps the bound API per backend, the exact script-visible
+// The scripting MCP tools: script_api and script_declarations. It dumps the bound API per backend, the exact script-visible
 // names and signatures a given language (AngelScript, Luau, ...) bound, so an agent can write
 // correct scripts instead of guessing. This is the reflection registry's answer projected through
 // a real backend: DescribeBoundApi says what a backend bound and how it spells it (they differ per
@@ -167,6 +167,72 @@ export namespace foundation::mcp
 
                 JsonValue out = JsonValue::MakeObject();
                 out.Set(u8"languages", Move(languages));
+                return out;
+            });
+
+        server.RegisterTool(
+            u8"script_declarations",
+            u8"Writes each backend's bound scripting API as the declarations file an external editor "
+            u8"reads to complete and check scripts (AngelScript's as.predefined, Luau's engine.d.luau) "
+            u8"into 'directory', usually the project's folder. Write them again after the engine "
+            u8"changes. Optional 'language' writes one.",
+            SchemaBuilder()
+                .Str(u8"directory", u8"the folder to write into (the project's folder, say)", true)
+                .Str(u8"language", u8"backend language id (e.g. \"angelscript\", \"luau\"); default: all")
+                .Build(),
+            foundation::mcp::ToolAnnotations::Overwrites(),
+            [](const JsonValue& args) -> Result<JsonValue, String>
+            {
+                const String directory = args.Get(u8"directory").AsString();
+                const String language = args.Get(u8"language").AsString();
+                if (directory.IsEmpty() || !DirectoryExists(directory.AsView()))
+                {
+                    return Err(Format(u8"no such folder '{}'", directory.AsView()));
+                }
+                RegisterCoreTypes();
+                foundation::script::RegisterScriptFacadeReflection();
+                JsonValue files = JsonValue::MakeArray();
+                bool matched = false;
+                for (const foundation::script::ScriptBackendDesc& backend :
+                     foundation::script::ScriptBackendRegistry::Get().All())
+                {
+                    if (!language.IsEmpty() && backend.languageId.AsView() != language.AsView())
+                    {
+                        continue;
+                    }
+                    matched = true;
+                    RefPtr<foundation::script::IScriptManager> manager =
+                        foundation::script::CreateScriptManagerForLanguage(backend.languageId.AsView(),
+                                                                           core::DefaultAllocator());
+                    if (manager.Get() == nullptr)
+                    {
+                        continue;
+                    }
+                    foundation::script::RegisterReflectedTypes(*manager);
+                    const foundation::script::ScriptDeclarations declarations = manager->Declarations();
+                    if (declarations.fileName.IsEmpty())
+                    {
+                        continue;
+                    }
+                    const String path = PathJoin(directory.AsView(), declarations.fileName.AsView());
+                    const Span<const byte> bytes(reinterpret_cast<const byte*>(declarations.text.Data()),
+                                                 declarations.text.Size());
+                    if (!WriteFile(path.AsView(), bytes).IsOk())
+                    {
+                        return Err(Format(u8"could not write '{}'", path.AsView()));
+                    }
+                    JsonValue file = JsonValue::MakeObject();
+                    file.Set(u8"language", JsonValue::MakeString(backend.languageId));
+                    file.Set(u8"path", JsonValue::MakeString(path));
+                    file.Set(u8"bytes", JsonValue::MakeNumber(static_cast<f64>(declarations.text.Size())));
+                    files.Add(Move(file));
+                }
+                if (!language.IsEmpty() && !matched)
+                {
+                    return Err(Format(u8"no scripting backend registered for language '{}'", language.AsView()));
+                }
+                JsonValue out = JsonValue::MakeObject();
+                out.Set(u8"files", Move(files));
                 return out;
             });
     }

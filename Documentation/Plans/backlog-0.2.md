@@ -360,6 +360,11 @@ What `Specs/scripting.md` leaves out, from the same review of the AngelScript in
 - **Up and down casts generated from the type hierarchy.**
 - **Shipping**: the compiler and debug information stripped from shipped builds, the source left out
   of packs, and loaded bytecode validated against hostile input.
+- **Default argument values from reflection** (moved from the spec's last phase by the user,
+  2026-11-14): a reflected method's trailing parameters with defaults, so a script may leave them
+  out, in both languages.
+- **Bitflag enums** (moved likewise): an enum the reflection marks as flags combines with `|` and
+  tests with `&` in script, in both languages.
 
 ## Reduced module interfaces on Android: memcpy through one core wrapper (user 2026-11-12)
 

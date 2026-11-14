@@ -140,3 +140,36 @@ TEST_CASE("mcp.script: script_api narrows by language, and an unknown language i
                                    }());
     CHECK(bogus.Get(u8"result").Get(u8"isError").AsBool() == true);
 }
+
+TEST_CASE("mcp.script: script_declarations writes the backend's declarations file into the folder")
+{
+    const StringView backend = RegisterSomeBackend();
+    McpServer server;
+    RegisterScriptTools(server);
+    const String folder(u8"scratch_script_declarations");
+    (void)CreateDirectory(folder.AsView());
+
+    JsonValue args = JsonValue::MakeObject();
+    args.Set(u8"directory", JsonValue::MakeString(folder));
+    args.Set(u8"language", JsonValue::MakeString(String(backend)));
+    JsonValue written = CallOk(server, u8"script_declarations", Move(args));
+    REQUIRE(written.Get(u8"files").Count() == 1);
+    const String path = written.Get(u8"files").At(0).Get(u8"path").AsString();
+    Result<Array<byte>> bytes = ReadFile(path.AsView());
+    REQUIRE(bytes.HasValue());
+    const StringView text(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size());
+    // The core math type is declared, in the backend's own syntax.
+    CHECK(text.Find(StringView(u8"Float3")) != StringView::kNotFound);
+#if defined(OPTION_HAS_ANGELSCRIPT)
+    CHECK(path.AsView().EndsWith(StringView(u8"as.predefined")));
+    CHECK(text.Find(StringView(u8"class Float3")) != StringView::kNotFound);
+    CHECK(text.Find(StringView(u8"float x;")) != StringView::kNotFound); // a value's field, as a member
+    CHECK(text.Find(StringView(u8"get_scene() property;")) != StringView::kNotFound); // an accessor reads as a property
+#endif
+
+    JsonValue missing = JsonValue::MakeObject();
+    missing.Set(u8"directory", JsonValue::MakeString(String(u8"no_such_folder_here")));
+    JsonValue refused = CallResponse(server, u8"script_declarations", Move(missing));
+    CHECK(refused.Get(u8"result").Get(u8"isError").AsBool());
+    (void)RemoveDirectoryRecursive(folder.AsView());
+}

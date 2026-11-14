@@ -973,6 +973,172 @@ namespace foundation::script::angelscript
         // could not express (and therefore did not register) is omitted, so the surface
         // matches what BindType actually bound, which is what the reflection diff needs to
         // catch a type that silently failed to bind.
+        // The bound API as `as.predefined`, the declarations file AngelScript editor extensions read:
+        // written from what this engine registered (enums, funcdefs, classes with their constructors,
+        // fields and methods, and the functions and globals of each namespace), so it is exactly
+        // what a script compiles against here.
+        [[nodiscard]] ScriptDeclarations Declarations() const override
+        {
+            ScriptDeclarations out;
+            out.fileName = core::String(u8"as.predefined");
+            if (m_engine == nullptr)
+            {
+                return out;
+            }
+            struct Section
+            {
+                core::String space; // the namespace, `a::b`, empty for the global one
+                core::String body;
+            };
+            core::Array<Section> sections;
+            auto body = [&](const char* space) -> core::String&
+            {
+                const core::StringView name = ViewOfAscii(space != nullptr ? space : "");
+                for (Section& section : sections)
+                {
+                    if (section.space.AsView() == name)
+                    {
+                        return section.body;
+                    }
+                }
+                sections.PushBack(Section{core::String(name), core::String{}});
+                return sections.Back().body;
+            };
+            for (asUINT i = 0; i < m_engine->GetEnumCount(); ++i)
+            {
+                const asITypeInfo* type = m_engine->GetEnumByIndex(i);
+                core::String& text = body(type->GetNamespace());
+                AppendAscii(text, "enum ");
+                AppendAscii(text, type->GetName());
+                AppendAscii(text, "\n{\n");
+                for (asUINT v = 0; v < type->GetEnumValueCount(); ++v)
+                {
+                    asINT64 value = 0;
+                    const char* valueName = type->GetEnumValueByIndex(v, &value);
+                    text.Append(core::Format(u8"    {} = {},\n", ViewOfAscii(valueName), static_cast<core::i64>(value)).AsView());
+                }
+                AppendAscii(text, "}\n\n");
+            }
+            for (asUINT i = 0; i < m_engine->GetFuncdefCount(); ++i)
+            {
+                const asITypeInfo* type = m_engine->GetFuncdefByIndex(i);
+                const asIScriptFunction* signature = type->GetFuncdefSignature();
+                if (type->GetParentType() != nullptr || signature == nullptr)
+                {
+                    continue;
+                }
+                core::String& text = body(type->GetNamespace());
+                AppendAscii(text, "funcdef ");
+                AppendAscii(text, signature->GetDeclaration(false, false, true));
+                AppendAscii(text, ";\n\n");
+            }
+            for (asUINT i = 0; i < m_engine->GetObjectTypeCount(); ++i)
+            {
+                const asITypeInfo* type = m_engine->GetObjectTypeByIndex(i);
+                core::String& text = body(type->GetNamespace());
+                AppendAscii(text, "class ");
+                AppendAscii(text, type->GetName());
+                if (type->GetSubTypeCount() > 0)
+                {
+                    AppendAscii(text, "<T>");
+                }
+                AppendAscii(text, "\n{\n");
+                for (asUINT b = 0; b < type->GetBehaviourCount(); ++b)
+                {
+                    asEBehaviours behaviour = asBEHAVE_CONSTRUCT;
+                    const asIScriptFunction* made = type->GetBehaviourByIndex(b, &behaviour);
+                    if (made == nullptr || (behaviour != asBEHAVE_CONSTRUCT && behaviour != asBEHAVE_FACTORY))
+                    {
+                        continue;
+                    }
+                    const core::StringView decl = ViewOfAscii(made->GetDeclaration(false, false, true));
+                    const core::usize open = decl.Find(core::StringView(u8"("));
+                    if (open == core::StringView::kNotFound)
+                    {
+                        continue;
+                    }
+                    AppendAscii(text, "    ");
+                    AppendAscii(text, type->GetName());
+                    text.Append(decl.SubStr(open, decl.Size() - open));
+                    AppendAscii(text, ";\n");
+                }
+                for (asUINT p = 0; p < type->GetPropertyCount(); ++p)
+                {
+                    AppendAscii(text, "    ");
+                    AppendAscii(text, type->GetPropertyDeclaration(p, true));
+                    AppendAscii(text, ";\n");
+                }
+                for (asUINT m = 0; m < type->GetMethodCount(); ++m)
+                {
+                    const asIScriptFunction* method = type->GetMethodByIndex(m, false);
+                    AppendAscii(text, "    ");
+                    AppendAscii(text, method->GetDeclaration(false, false, true));
+                    if (method->IsProperty())
+                    {
+                        AppendAscii(text, " property"); // read as `entity.scene`, not get_scene()
+                    }
+                    AppendAscii(text, ";\n");
+                }
+                AppendAscii(text, "}\n\n");
+            }
+            for (asUINT i = 0; i < m_engine->GetGlobalFunctionCount(); ++i)
+            {
+                const asIScriptFunction* function = m_engine->GetGlobalFunctionByIndex(i);
+                core::String& text = body(function->GetNamespace());
+                AppendAscii(text, function->GetDeclaration(false, false, true));
+                if (function->IsProperty())
+                {
+                    AppendAscii(text, " property");
+                }
+                AppendAscii(text, ";\n");
+            }
+            for (asUINT i = 0; i < m_engine->GetGlobalPropertyCount(); ++i)
+            {
+                const char* name = nullptr;
+                const char* space = nullptr;
+                int typeId = 0;
+                bool isConst = false;
+                if (m_engine->GetGlobalPropertyByIndex(i, &name, &space, &typeId, &isConst) < 0)
+                {
+                    continue;
+                }
+                core::String& text = body(space);
+                if (isConst)
+                {
+                    AppendAscii(text, "const ");
+                }
+                AppendAscii(text, m_engine->GetTypeDeclaration(typeId, true));
+                AppendAscii(text, " ");
+                AppendAscii(text, name);
+                AppendAscii(text, ";\n");
+            }
+
+            AppendAscii(out.text, "// Engine API declarations (as.predefined), written from what the engine bound. "
+                                  "Do not edit: write them again after the engine changes.\n\n");
+            for (const Section& section : sections)
+            {
+                core::usize depth = 0;
+                core::StringView rest = section.space.AsView();
+                while (!rest.IsEmpty())
+                {
+                    const core::usize cut = rest.Find(core::StringView(u8"::"));
+                    const core::StringView part = cut == core::StringView::kNotFound ? rest : rest.SubStr(0, cut);
+                    rest = cut == core::StringView::kNotFound ? core::StringView{} : rest.SubStr(cut + 2, rest.Size() - cut - 2);
+                    AppendAscii(out.text, "namespace ");
+                    out.text.Append(part);
+                    AppendAscii(out.text, "\n{\n");
+                    ++depth;
+                }
+                out.text.Append(section.body.AsView());
+                for (core::usize d = 0; d < depth; ++d)
+                {
+                    AppendAscii(out.text, "}\n");
+                }
+                AppendAscii(out.text, "\n");
+            }
+            return out;
+        }
+
         // Whether `bound` has a member `name` registered as a real field (RegisterObjectProperty).
         [[nodiscard]] static bool HasObjectProperty(const asITypeInfo& bound, const char* name)
         {
