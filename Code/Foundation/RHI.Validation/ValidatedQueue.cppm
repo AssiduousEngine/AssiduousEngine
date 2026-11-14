@@ -50,6 +50,11 @@ export namespace foundation::rhi::validation
             m_inner->Submit(cmdBufs, innerFence, signalValue);
         }
 
+        // Defined in :wiring, which sees the validated swapchain it unwraps.
+        void SubmitFrame(Span<CommandBuffer* const> cmdBufs, SwapChain& swapChain, Span<Fence* const> waitFences,
+                         Span<const u64> waitValues, Fence* signalFence, u64 signalValue) override;
+        using Queue::SubmitFrame;
+
         void Submit(Span<CommandBuffer* const> cmdBufs, Span<Fence* const> waitFences,
                     Span<const u64> waitValues, Fence* signalFence, u64 signalValue) override
         {

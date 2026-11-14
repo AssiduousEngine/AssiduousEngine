@@ -311,8 +311,8 @@ void MultiQueueSample::OnRender()
     // Submit graphics: wait on the compute fence, signal the graphics fence.
     rhi::Fence* waitFences[1] = {m_compFence};
     foundation::core::u64 waitValues[1] = {m_compFenceVal};
-    m_graphicsQueue->Submit(
-        Span<rhi::CommandBuffer* const>(gCbs, 1), Span<rhi::Fence* const>(waitFences, 1),
+    m_graphicsQueue->SubmitFrame(
+        Span<rhi::CommandBuffer* const>(gCbs, 1), *m_swapChain, Span<rhi::Fence* const>(waitFences, 1),
         Span<const foundation::core::u64>(waitValues, 1), m_gfxFence, m_gfxFenceVal);
     m_swapChain->Present(m_graphicsQueue);
     m_gfxPool->DestroyEncoder(gEnc);

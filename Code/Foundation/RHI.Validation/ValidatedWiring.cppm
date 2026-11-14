@@ -14,6 +14,9 @@ import foundation.rhi;
 import :validated_backend;
 import :validated_adapter;
 import :validated_device;
+import :validated_queue;
+import :validated_swap_chain;
+import :validated_fence;
 
 using namespace foundation::core;
 
@@ -39,4 +42,28 @@ namespace foundation::rhi::validation
         return ErrorCode::Ok;
     }
 
+
+    void ValidatedQueue::SubmitFrame(Span<CommandBuffer* const> cmdBufs, SwapChain& swapChain,
+                                     Span<Fence* const> waitFences, Span<const u64> waitValues,
+                                     Fence* signalFence, u64 signalValue)
+    {
+        auto& chain = static_cast<ValidatedSwapChain&>(swapChain);
+        if (!chain.NoteFrameSubmitted())
+            LogError("[Validation] Queue::submitFrame: the swapchain has no image acquired");
+        if (waitFences.Size() != waitValues.Size())
+            LogError("[Validation] Queue::submitFrame: waitFences and waitValues count mismatch");
+        if (!signalFence)
+            LogError("[Validation] Queue::submitFrame: signalFence is null");
+        Array<Fence*> innerWait(waitFences.Size());
+        for (usize i = 0; i < waitFences.Size(); ++i)
+        {
+            auto* vw = static_cast<ValidatedFence*>(waitFences[i]);
+            innerWait[i] = vw ? vw->inner() : waitFences[i];
+        }
+        auto* vf = static_cast<ValidatedFence*>(signalFence);
+        if (vf)
+            vf->trackSignal(signalValue);
+        m_inner->SubmitFrame(cmdBufs, *chain.inner(), Span<Fence* const>(innerWait.Data(), innerWait.Size()),
+                             waitValues, vf ? vf->inner() : signalFence, signalValue);
+    }
 } // namespace foundation::rhi::validation

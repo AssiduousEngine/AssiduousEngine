@@ -184,7 +184,7 @@ void BlitSample::OnRender()
     rhi::CommandBuffer* cb = enc->Finish();
     m_fenceVal++;
     rhi::CommandBuffer* cbs[1] = {cb};
-    m_graphicsQueue->Submit(Span<rhi::CommandBuffer* const>(cbs, 1), m_fence, m_fenceVal);
+    m_graphicsQueue->SubmitFrame(Span<rhi::CommandBuffer* const>(cbs, 1), *m_swapChain, m_fence, m_fenceVal);
     m_swapChain->Present(m_graphicsQueue);
     m_pool->DestroyEncoder(enc);
 }

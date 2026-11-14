@@ -47,6 +47,20 @@ export namespace foundation::rhi::vk
         void Submit(Span<CommandBuffer* const> cmdBufs, Span<Fence* const> waitFences,
                     Span<const u64> waitValues, Fence* signalFence, u64 signalValue) override;
 
+        void SubmitFrame(Span<CommandBuffer* const> cmdBufs, SwapChain& swapChain,
+                         Span<Fence* const> waitFences, Span<const u64> waitValues, Fence* signalFence,
+                         u64 signalValue) override;
+        using Queue::SubmitFrame;
+
+    private:
+        // The fenced submits' one body: waits on `waitFences` (and `acquire`, when a frame names its
+        // swapchain), signals `signalFence` (and `present`).
+        void SubmitSignalled(Span<CommandBuffer* const> cmdBufs, Span<Fence* const> waitFences,
+                             Span<const u64> waitValues, Fence* signalFence, u64 signalValue,
+                             VkSemaphore acquire, VkSemaphore present);
+
+    public:
+
         void WaitIdle() override { vkQueueWaitIdle(m_queue); }
 
         Status CreateTransferBatch(TransferBatch*& out) override

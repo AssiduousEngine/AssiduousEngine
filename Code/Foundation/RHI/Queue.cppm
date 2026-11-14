@@ -16,6 +16,7 @@ export namespace foundation::rhi
 {
 
     class TransferBatch;
+    class SwapChain;
 
     class Queue
     {
@@ -39,6 +40,20 @@ export namespace foundation::rhi
         virtual void Submit(Span<CommandBuffer* const> commandBuffers,
                             Span<Fence* const> waitFences, Span<const u64> waitValues,
                             Fence* signalFence, u64 signalValue) = 0;
+
+        /// Submit the frame that renders `swapChain`'s acquired image: it waits on `waitFences` and on
+        /// the image's acquire, and signals `signalFence` and what Present waits for. A swapchain's
+        /// acquire and present belong to this submit alone; every other submit leaves them alone
+        /// (taking them from whichever submit came first presented frames before they were drawn).
+        virtual void SubmitFrame(Span<CommandBuffer* const> commandBuffers, SwapChain& swapChain,
+                                 Span<Fence* const> waitFences, Span<const u64> waitValues,
+                                 Fence* signalFence, u64 signalValue) = 0;
+        void SubmitFrame(Span<CommandBuffer* const> commandBuffers, SwapChain& swapChain,
+                         Fence* signalFence, u64 signalValue)
+        {
+            SubmitFrame(commandBuffers, swapChain, Span<Fence* const>{}, Span<const u64>{}, signalFence,
+                        signalValue);
+        }
 
         /// Block until all submitted work on this queue completes.
         virtual void WaitIdle() = 0;

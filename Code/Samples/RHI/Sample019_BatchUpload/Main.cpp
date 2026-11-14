@@ -345,7 +345,7 @@ void BatchUploadSample::OnRender()
     rhi::CommandBuffer* cb = enc->Finish();
     m_frameFenceVal++;
     rhi::CommandBuffer* cbs[1] = {cb};
-    m_graphicsQueue->Submit(Span<rhi::CommandBuffer* const>(cbs, 1), m_frameFence, m_frameFenceVal);
+    m_graphicsQueue->SubmitFrame(Span<rhi::CommandBuffer* const>(cbs, 1), *m_swapChain, m_frameFence, m_frameFenceVal);
     m_swapChain->Present(m_graphicsQueue);
     m_pool->DestroyEncoder(enc);
 }

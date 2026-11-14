@@ -81,6 +81,14 @@ export namespace foundation::rhi::webgpu
             NoteAndSignal(signalFence, signalValue, index);
         }
 
+        // WebGPU orders the surface's texture against the queue itself: a frame is a fenced submit.
+        void SubmitFrame(Span<CommandBuffer* const> commandBuffers, SwapChain&, Span<Fence* const> waitFences,
+                         Span<const u64> waitValues, Fence* signalFence, u64 signalValue) override
+        {
+            Submit(commandBuffers, waitFences, waitValues, signalFence, signalValue);
+        }
+        using Queue::SubmitFrame;
+
         void WaitIdle() override
         {
             // A heap record, orphaned on timeout: if the pump gives up, the still-registered

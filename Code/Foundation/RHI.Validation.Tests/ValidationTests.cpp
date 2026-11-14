@@ -339,3 +339,74 @@ TEST_CASE("rhi.validation: a view in a texture's sRGB or UNORM twin needs the te
     device->Destroy();
     vb->Destroy();
 }
+
+TEST_CASE("rhi.validation: a swapchain's frame is submitted with SubmitFrame, and only one acquired")
+{
+    // The acquire and present semaphores were latched on the device and taken by the first fenced
+    // submit, whichever it was: a profiler's sync point or an offscreen pass took them, and the image
+    // was presented before its frame was drawn. The submit that renders the image now names it.
+    Backend* inner = nullptr;
+    REQUIRE(null::CreateNullBackend(inner).IsOk());
+    Backend* vb = validation::CreateValidatedBackend(inner, DefaultAllocator());
+    REQUIRE(vb != nullptr);
+    Device* device = nullptr;
+    REQUIRE(vb->EnumerateAdapters()[0]->CreateDevice(DeviceDesc{}, device).IsOk());
+    Queue* queue = device->GetQueue(QueueType::Graphics, 0);
+    SwapChainDesc desc{};
+    desc.width = 64;
+    desc.height = 64;
+    int window = 0; // a stand-in handle: the null backend draws into nothing
+    Surface* surface = nullptr;
+    REQUIRE(vb->CreateSurface(&window, nullptr, surface).IsOk());
+    SwapChain* swap = nullptr;
+    REQUIRE(device->CreateSwapChain(surface, desc, swap).IsOk());
+    Fence* fence = nullptr;
+    REQUIRE(device->CreateFence(0, fence).IsOk());
+    CommandPool* pool = nullptr;
+    REQUIRE(device->CreateCommandPool(QueueType::Graphics, pool).IsOk());
+    const auto record = [&]
+    {
+        CommandEncoder* enc = nullptr;
+        REQUIRE(pool->CreateEncoder(enc).IsOk());
+        return enc;
+    };
+
+    ErrorCapture capture;
+    capture.needle = "SubmitFrame";
+    SetLogSink(&ErrorCapture::Sink, &capture);
+
+    // The frame named: presented without a report.
+    REQUIRE(swap->AcquireNextImage().IsOk());
+    CommandEncoder* enc = record();
+    CommandBuffer* cbs[1] = {enc->Finish()};
+    queue->SubmitFrame(Span<CommandBuffer* const>(cbs, 1), *swap, fence, 1);
+    CHECK(swap->Present(queue).IsOk());
+    pool->DestroyEncoder(enc);
+    CHECK(capture.matching == 0);
+
+    // A plain fenced submit does not take the image's sync: its present is reported.
+    REQUIRE(swap->AcquireNextImage().IsOk());
+    enc = record();
+    cbs[0] = enc->Finish();
+    queue->Submit(Span<CommandBuffer* const>(cbs, 1), fence, 2);
+    (void)swap->Present(queue);
+    pool->DestroyEncoder(enc);
+    CHECK(capture.matching == 1);
+
+    // A frame for a swapchain with no image acquired is reported.
+    capture.needle = "no image acquired";
+    capture.matching = 0;
+    enc = record();
+    cbs[0] = enc->Finish();
+    queue->SubmitFrame(Span<CommandBuffer* const>(cbs, 1), *swap, fence, 3);
+    pool->DestroyEncoder(enc);
+    CHECK(capture.matching == 1);
+
+    SetLogSink(nullptr, nullptr);
+    device->DestroyCommandPool(pool);
+    device->DestroyFence(fence);
+    device->DestroySwapChain(swap);
+    device->DestroySurface(surface);
+    device->Destroy();
+    vb->Destroy();
+}

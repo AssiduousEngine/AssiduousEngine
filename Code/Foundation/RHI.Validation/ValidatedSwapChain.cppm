@@ -39,7 +39,10 @@ export namespace foundation::rhi::validation
                 LogWarning("[Validation] SwapChain::acquireNextImage: image already acquired");
             Status r = m_inner->AcquireNextImage();
             if (r == ErrorCode::Ok)
+            {
                 m_imageAcquired = true;
+                m_frameSubmitted = false;
+            }
             return r;
         }
 
@@ -47,6 +50,9 @@ export namespace foundation::rhi::validation
         {
             if (!m_imageAcquired)
                 LogWarning("[Validation] SwapChain::present: no image acquired");
+            else if (!m_frameSubmitted)
+                LogError("[Validation] SwapChain::present: the image's frame was not submitted with "
+                         "Queue::SubmitFrame (nothing waits on its acquire or signals its present)");
             m_imageAcquired = false;
             // Unwrap the validated queue so the inner swap chain gets the backend's own queue.
             auto* vq = static_cast<ValidatedQueue*>(queue);
@@ -64,9 +70,20 @@ export namespace foundation::rhi::validation
 
         SwapChain* inner() const { return m_inner; }
 
+        // Queue::SubmitFrame says the acquired image's frame was submitted (false when none is
+        // acquired: a frame for an image not acquired).
+        [[nodiscard]] bool NoteFrameSubmitted()
+        {
+            if (!m_imageAcquired)
+                return false;
+            m_frameSubmitted = true;
+            return true;
+        }
+
     private:
         SwapChain* m_inner;
         bool m_imageAcquired = false;
+        bool m_frameSubmitted = false;
     };
 
 } // namespace foundation::rhi::validation

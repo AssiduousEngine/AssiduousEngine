@@ -718,8 +718,8 @@ export namespace foundation::graphics
 
         ++m_fenceValues[fi];
         rhi::CommandBuffer* cbs[1] = {cb};
-        m_device->GfxQueue()->Submit(core::Span<rhi::CommandBuffer* const>(cbs, 1), m_fences[fi],
-                                     m_fenceValues[fi]);
+        m_device->GfxQueue()->SubmitFrame(core::Span<rhi::CommandBuffer* const>(cbs, 1), *m_swapChain,
+                                          m_fences[fi], m_fenceValues[fi]);
 
         if (m_swapChain->Present(m_device->GfxQueue()).Code() == core::ErrorCode::OutOfDate)
         {

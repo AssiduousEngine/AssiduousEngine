@@ -90,6 +90,14 @@ export namespace foundation::rhi::dx12
                 m_queue->Signal(f->handle(), signalValue);
         }
 
+        // DXGI orders the back buffer against the queue's submissions itself: a frame is a fenced submit.
+        void SubmitFrame(Span<CommandBuffer* const> cmdBufs, SwapChain&, Span<Fence* const> waitFences,
+                         Span<const u64> waitValues, Fence* signalFence, u64 signalValue) override
+        {
+            Submit(cmdBufs, waitFences, waitValues, signalFence, signalValue);
+        }
+        using Queue::SubmitFrame;
+
         void WaitIdle() override
         {
             ++m_fenceValue;

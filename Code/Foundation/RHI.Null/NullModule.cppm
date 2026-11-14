@@ -383,6 +383,13 @@ export namespace foundation::rhi::null
             if (auto* nf = static_cast<NullFence*>(f))
                 nf->signal(v);
         }
+        void SubmitFrame(Span<CommandBuffer* const>, SwapChain&, Span<Fence* const>, Span<const u64>, Fence* f,
+                         u64 v) override
+        {
+            if (auto* nf = static_cast<NullFence*>(f))
+                nf->signal(v);
+        }
+        using Queue::SubmitFrame;
         void WaitIdle() override {}
         Status CreateTransferBatch(TransferBatch*& out) override
         {

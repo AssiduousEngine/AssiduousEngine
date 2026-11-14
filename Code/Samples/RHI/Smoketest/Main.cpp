@@ -305,7 +305,7 @@ int main(int /*argc*/, char** /*argv*/)
             CommandBuffer* cb = enc->Finish();
             CommandBuffer* cbs[1] = {cb};
             fenceValue++;
-            gfx->Submit(Span<CommandBuffer* const>(cbs, 1), fence, fenceValue);
+            gfx->SubmitFrame(Span<CommandBuffer* const>(cbs, 1), *swap, fence, fenceValue);
             pool->DestroyEncoder(enc);
         }
 
@@ -434,7 +434,7 @@ int main(int /*argc*/, char** /*argv*/)
         nullDevice->CreateFence(0, nullFence);
         CommandBuffer* nullCbs[1] = {nullCb};
         nullDevice->GetQueue(QueueType::Graphics)
-            ->Submit(Span<CommandBuffer* const>(nullCbs, 1), nullFence, 1);
+            ->SubmitFrame(Span<CommandBuffer* const>(nullCbs, 1), *nullSwap, nullFence, 1);
         nullFence->Wait(1, ~0ull);
         nullSwap->Present(nullDevice->GetQueue(QueueType::Graphics));
         std::printf("null frame completed\n");

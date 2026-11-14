@@ -977,23 +977,6 @@ export namespace foundation::rhi::vk
             alloc.Free(this);
         }
 
-        // ---- Swap chain sync ----
-        void setPendingSwapChainSync(VkSemaphore acquire, VkSemaphore present)
-        {
-            m_pendingAcquire = acquire;
-            m_pendingPresent = present;
-            m_hasPendingSync = true;
-        }
-        bool consumePendingSwapChainSync(VkSemaphore& acquire, VkSemaphore& present)
-        {
-            if (!m_hasPendingSync)
-                return false;
-            acquire = m_pendingAcquire;
-            present = m_pendingPresent;
-            m_hasPendingSync = false;
-            return true;
-        }
-
         [[nodiscard]] VkDevice handle() const { return m_device; }
         [[nodiscard]] VkAdapterImpl* adapter() const { return m_adapter; }
         [[nodiscard]] bool validationEnabled() const { return m_validationEnabled; }
@@ -1037,10 +1020,6 @@ export namespace foundation::rhi::vk
         VkDescriptorPoolManager* m_poolManager = nullptr;
 
         Array<VkQueueImpl*> m_allQueues, m_gfxQueues, m_compQueues, m_xferQueues;
-
-        VkSemaphore m_pendingAcquire = VK_NULL_HANDLE;
-        VkSemaphore m_pendingPresent = VK_NULL_HANDLE;
-        bool m_hasPendingSync = false;
     };
 
     // ---- Adapter::CreateDevice implementation ----
@@ -1096,9 +1075,7 @@ export namespace foundation::rhi::vk
             return ErrorCode::OutOfDate; // the caller makes it again, at the same size if need be
         if (vr != VK_SUCCESS && vr != VK_SUBOPTIMAL_KHR)
             return ErrorCode::Unknown;
-        VkSemaphore presentSem = m_presentSems[m_currentImageIndex];
-        m_owner->setPendingSwapChainSync(acquireSem, presentSem);
-        return ErrorCode::Ok;
+        return ErrorCode::Ok; // the frame's SubmitFrame waits on this image's acquire
     }
 
     Status VkSwapChainImpl::Present(Queue* queue)
@@ -1152,81 +1129,40 @@ export namespace foundation::rhi::vk
     void VkQueueImpl::Submit(Span<CommandBuffer* const> cmdBufs, Fence* signalFence,
                              u64 signalValue)
     {
-        if (cmdBufs.Size() == 0)
-            return;
-        Array<VkCommandBuffer> bufs(cmdBufs.Size());
-        for (usize i = 0; i < cmdBufs.Size(); ++i)
-            bufs[i] = static_cast<VkCommandBufferImpl*>(cmdBufs[i])->handle();
-
-        auto* vkFence = static_cast<VkFenceImpl*>(signalFence);
-        if (!vkFence)
-            return;
-
-        // The swap chain's acquire/present semaphores are latched on the device by AcquireNextImage
-        // and belong to the submission that renders the swap-chain image, which is the graphics
-        // queue's. Another queue must not take them: an async-compute submit that ran first would
-        // wait on acquire for nothing and signal "present" before the frame was drawn.
-        VkSemaphore acquireSem = VK_NULL_HANDLE, presentSem = VK_NULL_HANDLE;
-        const bool hasSync = (queueType == QueueType::Graphics) &&
-                             m_device->consumePendingSwapChainSync(acquireSem, presentSem);
-
-        VkSemaphore waitSems[1] = {acquireSem};
-        VkPipelineStageFlags waitStages[1] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-        u64 waitValues[1] = {0};
-
-        auto timelineSem = vkFence->handle();
-        VkSemaphore signalSems[2] = {timelineSem, presentSem};
-        u64 signalValues[2] = {signalValue, 0};
-
-        VkTimelineSemaphoreSubmitInfo tsi{};
-        tsi.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
-        tsi.signalSemaphoreValueCount = hasSync ? 2u : 1u;
-        tsi.pSignalSemaphoreValues = signalValues;
-        tsi.waitSemaphoreValueCount = hasSync ? 1u : 0u;
-        tsi.pWaitSemaphoreValues = waitValues;
-
-        VkSubmitInfo si{};
-        si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-        si.pNext = &tsi;
-        si.commandBufferCount = static_cast<u32>(bufs.Size());
-        si.pCommandBuffers = bufs.Data();
-        si.signalSemaphoreCount = hasSync ? 2u : 1u;
-        si.pSignalSemaphores = signalSems;
-        if (hasSync)
-        {
-            si.waitSemaphoreCount = 1;
-            si.pWaitSemaphores = waitSems;
-            si.pWaitDstStageMask = waitStages;
-        }
-
-        if (vkQueueSubmit(m_queue, 1, &si, VK_NULL_HANDLE) == VK_ERROR_DEVICE_LOST)
-            m_device->markLost();
+        SubmitSignalled(cmdBufs, {}, {}, signalFence, signalValue, VK_NULL_HANDLE, VK_NULL_HANDLE);
     }
 
     void VkQueueImpl::Submit(Span<CommandBuffer* const> cmdBufs, Span<Fence* const> waitFences,
                              Span<const u64> waitVals, Fence* signalFence, u64 signalValue)
     {
+        SubmitSignalled(cmdBufs, waitFences, waitVals, signalFence, signalValue, VK_NULL_HANDLE, VK_NULL_HANDLE);
+    }
+
+    void VkQueueImpl::SubmitFrame(Span<CommandBuffer* const> cmdBufs, SwapChain& swapChain,
+                                  Span<Fence* const> waitFences, Span<const u64> waitVals,
+                                  Fence* signalFence, u64 signalValue)
+    {
+        auto& chain = static_cast<VkSwapChainImpl&>(swapChain);
+        SubmitSignalled(cmdBufs, waitFences, waitVals, signalFence, signalValue, chain.currentAcquireSemaphore(),
+                        chain.currentPresentSemaphore());
+    }
+
+    void VkQueueImpl::SubmitSignalled(Span<CommandBuffer* const> cmdBufs, Span<Fence* const> waitFences,
+                                      Span<const u64> waitVals, Fence* signalFence, u64 signalValue,
+                                      VkSemaphore acquireSem, VkSemaphore presentSem)
+    {
         if (cmdBufs.Size() == 0)
+            return;
+        // A fenced submit without a fence is a contract violation (the validation layer reports it;
+        // the plain overload is the fire-and-forget path).
+        if (signalFence == nullptr)
             return;
         Array<VkCommandBuffer> bufs(cmdBufs.Size());
         for (usize i = 0; i < cmdBufs.Size(); ++i)
             bufs[i] = static_cast<VkCommandBufferImpl*>(cmdBufs[i])->handle();
 
-        // A fenced overload without a fence is a contract violation (the validation layer reports
-        // it; the 2-arg overload is the fire-and-forget path). Reject it here as the 3-arg overload
-        // does, and before consuming the swap-chain sync, so a rejected submit leaves the pair
-        // latched for the graphics submit that will honour it.
-        if (signalFence == nullptr)
-            return;
-
-        // The swap-chain sync belongs to the graphics queue, whichever fenced overload it submits
-        // with. Declining it here would leave a frame whose graphics submit waits on a compute
-        // fence with an acquire semaphore that nothing signals.
-        VkSemaphore acquireSem = VK_NULL_HANDLE, presentSem = VK_NULL_HANDLE;
-        const bool hasSync = (queueType == QueueType::Graphics) &&
-                             m_device->consumePendingSwapChainSync(acquireSem, presentSem);
-
-        const usize waitCount = waitFences.Size() + (hasSync ? 1u : 0u);
+        const bool frame = acquireSem != VK_NULL_HANDLE;
+        const usize waitCount = waitFences.Size() + (frame ? 1u : 0u);
         Array<VkSemaphore> waitSems(waitCount);
         Array<VkPipelineStageFlags> waitStages(waitCount);
         Array<u64> waitValues(waitCount);
@@ -1236,7 +1172,7 @@ export namespace foundation::rhi::vk
             waitStages[i] = VK_PIPELINE_STAGE_ALL_COMMANDS_BIT;
             waitValues[i] = i < waitVals.Size() ? waitVals[i] : 0u;
         }
-        if (hasSync)
+        if (frame)
         {
             waitSems[waitFences.Size()] = acquireSem;
             waitStages[waitFences.Size()] = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -1253,14 +1189,14 @@ export namespace foundation::rhi::vk
         si.pNext = &tsi;
         si.commandBufferCount = static_cast<u32>(bufs.Size());
         si.pCommandBuffers = bufs.Data();
-        si.waitSemaphoreCount = static_cast<u32>(waitSems.Size());
+        si.waitSemaphoreCount = static_cast<u32>(waitCount);
         si.pWaitSemaphores = waitSems.Data();
         si.pWaitDstStageMask = waitStages.Data();
 
         VkSemaphore signalSems[2] = {static_cast<VkFenceImpl*>(signalFence)->handle(), VK_NULL_HANDLE};
         u64 signalValues[2] = {signalValue, 0};
         u32 signalCount = 1;
-        if (hasSync)
+        if (frame && presentSem != VK_NULL_HANDLE)
         {
             signalValues[signalCount] = 0;
             signalSems[signalCount++] = presentSem;
