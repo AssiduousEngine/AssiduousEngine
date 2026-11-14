@@ -1583,6 +1583,9 @@ export namespace foundation::gui
         /// Returns this node's entry in its GUI's element table, taking a slot the first time. A node
         /// in no GUI gets an empty ref (a null table).
         [[nodiscard]] ElementRef TakeElementRef();
+        /// A number no other node of this process has or had, set at construction: an address can
+        /// be reused by a later node, this cannot.
+        [[nodiscard]] u64 Serial() const noexcept { return m_serial; }
 
         /// Returns a handle to this node typed as `type` (this node's type or a base of it). Returns
         /// empty when the node is in no GUI, since a detached element has no table a handle could
@@ -3185,6 +3188,8 @@ export namespace foundation::gui
         bool m_accessDirty = true;       // its accessibility node waits to be sent
         bool m_accessChildDirty = false; // some descendant's accessibility node waits
         u64 m_accessSent = 0;            // a hash of its node as last sent (0: never)
+        static u64 NextSerial() noexcept;
+        u64 m_serial = NextSerial();
         bool m_placedByCode = false;     // SetPosition put it where it is (its insets are in the parent's box)
         bool m_mirrored = false; // mirror-on-rtl is set and it runs right to left, so it is flipped about its centre
         mutable Observable m_translationChanged; // its auto-translation changed (its translated bindings follow)

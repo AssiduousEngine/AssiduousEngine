@@ -157,6 +157,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - GUI: an event handler that removes its own node (the last reference to it) no longer leaves
   the dispatch reading freed memory: wheel, pointer move and press keep their nodes alive to the
   end, and a node's own listeners keep it alive while they run.
+- GUI: a widget made at the address of a destroyed one styled outside any GUI starts with its own
+  style; it took the old widget's cached style and transitioned from it.
 - Rendering (Vulkan): a frame is presented only after it is drawn. The swapchain's wait and signal
   went to whichever submit came first after the acquire, and a profiler sync point or an offscreen
   pass could take them. `Queue::SubmitFrame` names the swapchain the frame renders; code that

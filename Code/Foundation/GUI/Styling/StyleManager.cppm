@@ -1001,21 +1001,23 @@ export namespace foundation::gui
         bool m_fontFacesLoaded = false; // the current sheets' faces have been requested
         bool m_importsExpanded = false; // the current sheets' @imports have been expanded
         f32 m_rootFontSize = 16.0f;                   // CSS `rem` base
-        // Which widget owns the entries at an address: the widget's slot in its GUI's element
-        // table when the entries were made. The table is held, so after its GUI closes the slot
-        // reads as gone rather than pointing at freed memory.
+        // Which widget owns the entries at an address: its serial, and its slot in its GUI's
+        // element table when the entries were made. The serial tells a later widget at the same
+        // address apart; the slot lets a sweep find widgets that are gone. The table is held, so
+        // after its GUI closes the slot reads as gone rather than pointing at freed memory.
         struct Owner
         {
+            u64 Serial = 0;
             RefPtr<ElementTable> Table;
             u32 Slot = 0;
             u32 Generation = 0;
         };
         // Whether the entries at `widget`'s address belong to it: either there are none yet, or
-        // they were made for it (a widget in no GUI has nothing to check against, and keeps them).
+        // they were made for it.
         [[nodiscard]] bool IsOwn(const Node& widget) const
         {
             const Owner* owner = m_owners.Find(const_cast<Node*>(&widget));
-            return owner == nullptr || !owner->Table || owner->Table->Resolve(owner->Slot, owner->Generation) == &widget;
+            return owner == nullptr || owner->Serial == widget.Serial();
         }
         // Makes the entries at `widget`'s address its own, first dropping any that belonged to a
         // destroyed widget.
@@ -1026,7 +1028,7 @@ export namespace foundation::gui
             if (m_owners.Find(&widget) != nullptr)
                 return;
             const Node::ElementRef ref = widget.TakeElementRef();
-            m_owners.InsertOrAssign(&widget, Owner{RefPtr<ElementTable>(ref.table), ref.slot, ref.generation});
+            m_owners.InsertOrAssign(&widget, Owner{widget.Serial(), RefPtr<ElementTable>(ref.table), ref.slot, ref.generation});
         }
         // Drops the entries of every widget destroyed since the last sweep, once the caches have
         // doubled in size since then (so a GUI that keeps its widgets pays nothing).

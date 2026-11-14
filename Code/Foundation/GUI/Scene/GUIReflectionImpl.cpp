@@ -15,6 +15,7 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Log/Log.h"
 #include "Core/Reflection/Reflect.h"
+#include <atomic>
 
 module foundation.gui;
 
@@ -269,6 +270,12 @@ namespace foundation::gui
     }
 
     // === Weak references ===
+
+    u64 Node::NextSerial() noexcept
+    {
+        static std::atomic<u64> next{1};
+        return next.fetch_add(1, std::memory_order_relaxed);
+    }
 
     Node::ElementRef Node::TakeElementRef()
     {

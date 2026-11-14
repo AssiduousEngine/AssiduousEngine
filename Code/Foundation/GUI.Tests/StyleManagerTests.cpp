@@ -603,3 +603,35 @@ TEST_CASE("style: a number property takes a percentage as a fraction and refuses
     CHECK(half->GetAlpha() == doctest::Approx(0.5f)); // not 50
     CHECK(junk->GetAlpha() == doctest::Approx(1.0f)); // not a number, so it keeps its own value
 }
+
+TEST_CASE("style-manager: a widget at a destroyed widget's address does not take its style entries")
+{
+    // A widget styled outside any GUI had nothing to check its entries against: a later widget at
+    // its address took them, and its first style transitioned from the old widget's.
+    StyleManager mgr(CSSParser::Parse(SV(u8"button { transition: opacity 10s; } .a { opacity: 0.2; } .b { opacity: 0.9; }")));
+    auto root = core::MakeRef<SceneRoot>(core::DefaultAllocator(), core::MakeRef<GUIContext>(core::DefaultAllocator()));
+    root->SetSize(core::Float2{200.0f, 200.0f});
+    core::RefPtr<UIWidget> reused;
+    for (int attempt = 0; attempt < 64 && !reused; ++attempt)
+    {
+        const void* address = nullptr;
+        {
+            auto old = Widget(u8"button", core::Float2{0.0f, 0.0f}, core::Float2{10.0f, 10.0f});
+            old->AddClass(SV(u8"a"));
+            mgr.ApplyTree(*old.Get()); // in no GUI
+            address = old.Get();
+        }
+        auto fresh = Widget(u8"button", core::Float2{0.0f, 0.0f}, core::Float2{10.0f, 10.0f});
+        if (fresh.Get() == address)
+            reused = fresh;
+    }
+    if (!reused)
+    {
+        MESSAGE("no address reused (a sanitizer's quarantine) - skipped");
+        return;
+    }
+    reused->AddClass(SV(u8"b"));
+    root->AddChild(reused.Get());
+    mgr.ApplyTree(*root.Get());
+    CHECK(reused->GetAlpha() == doctest::Approx(0.9f)); // its first style, not a transition
+}
