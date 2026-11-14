@@ -53,6 +53,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Scripting (AngelScript): a call needing more than 16 arguments is refused with an error; it was
+  made with the arguments past 16 dropped.
 - Scripting: an AngelScript coroutine that fails is reported, and a cancelled one no longer
   reports a budget stop; a Luau `waitUntil` predicate that fails is reported.
 - Scripting: a runtime error's report includes the script call stack.

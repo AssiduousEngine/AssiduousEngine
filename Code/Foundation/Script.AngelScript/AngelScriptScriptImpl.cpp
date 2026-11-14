@@ -720,6 +720,25 @@ namespace foundation::script::angelscript
             }
             return stopped;
         }
+        // A call carries at most kMaxArgs arguments (a fixed array, so a call allocates nothing).
+        [[nodiscard]] static core::String TooManyParametersMessage(asIScriptFunction* function)
+        {
+            return core::Format(u8"'{}' takes {} parameters; a call carries at most {}",
+                                ViewOfAscii(function->GetName()), function->GetParamCount(), kMaxArgs);
+        }
+        // Whether a native function of `paramCount` parameters can be called from script; one that
+        // cannot is not bound, said once here, so a script using it fails to compile.
+        [[nodiscard]] static bool FitsCall(const char* typeName, const char* member, core::u32 paramCount)
+        {
+            if (paramCount <= static_cast<core::u32>(kMaxArgs))
+            {
+                return true;
+            }
+            LOG_ERROR(u8"Script", u8"AngelScript: {}.{} takes {} parameters, more than the {} a call carries; not bound",
+                      ViewOfAscii(typeName), ViewOfAscii(member), paramCount, kMaxArgs);
+            return false;
+        }
+
         [[nodiscard]] core::String BudgetStopMessage() const
         {
             return core::Format(u8"script call stopped: ran past its {} s budget", m_budget.callSeconds);
@@ -899,7 +918,12 @@ namespace foundation::script::angelscript
 
             std::string stringTemps[kMaxArgs];
             BoxedVariant* boxTemps[kMaxArgs] = {};
-            BindArgsInto(executor, func, args, stringTemps, boxTemps);
+            if (!BindArgsInto(executor, func, args, stringTemps, boxTemps))
+            {
+                m_engine->ReturnContext(executor);
+                core::ConsoleWriteError(TooManyParametersMessage(func).AsView());
+                return core::Err(core::ErrorCode::InvalidArgument);
+            }
             ArmBudget(executor);
             int result;
             {
@@ -1870,17 +1894,15 @@ namespace foundation::script::angelscript
         // Marshals `args` into a prepared context's argument slots against `function`'s
         // declared parameters. Used by ExecuteDelegate (and follows the context's own
         // BindArgs); boxTemps hold object references released by the caller after Execute.
-        void BindArgsInto(asIScriptContext* executor, asIScriptFunction* function,
-                          core::Span<core::Variant> args, std::string* stringTemps,
-                          BoxedVariant** boxTemps)
+        // False, binding nothing, for a function with more parameters than a call carries.
+        [[nodiscard]] bool BindArgsInto(asIScriptContext* executor, asIScriptFunction* function,
+                                        core::Span<core::Variant> args, std::string* stringTemps,
+                                        BoxedVariant** boxTemps)
         {
             const core::usize limit = function->GetParamCount();
-            if (args.Size() > static_cast<core::usize>(kMaxArgs) &&
-                limit > static_cast<core::usize>(kMaxArgs))
+            if (limit > static_cast<core::usize>(kMaxArgs))
             {
-                LOG_WARNING(u8"Script", u8"script call '{}' has {} args; only {} are marshaled",
-                            reinterpret_cast<const char8_t*>(function->GetName()), args.Size(),
-                            kMaxArgs);
+                return false;
             }
             for (core::usize i = 0;
                  i < args.Size() && i < limit && i < static_cast<core::usize>(kMaxArgs); ++i)
@@ -1942,6 +1964,7 @@ namespace foundation::script::angelscript
                     continue;
                 }
             }
+            return true;
         }
 
         // An operator as a script writes it: `Float3 + Float3 -> Float3 (and +=)`, `-Float3 ->
@@ -2494,6 +2517,10 @@ namespace foundation::script::angelscript
             for (core::usize i = 0; i < core::ConstructorCount(type); ++i)
             {
                 const core::ConstructorInfo& constructor = core::ConstructorAt(type, i);
+                if (!FitsCall(name, "constructor", constructor.paramCount))
+                {
+                    continue;
+                }
                 core::String decl;
                 AppendAscii(decl, name);
                 AppendAscii(decl, "@ f(");
@@ -2584,6 +2611,10 @@ namespace foundation::script::angelscript
             {
                 const core::MethodInfo& method = *inherited;
                 if (!IsValidIdentifier(method.name))
+                {
+                    continue;
+                }
+                if (!FitsCall(name, method.name, method.paramCount))
                 {
                     continue;
                 }
@@ -2828,14 +2859,14 @@ namespace foundation::script::angelscript
     void FactoryDispatch(asIScriptGeneric* gen)
     {
         const Binding* binding = static_cast<const Binding*>(gen->GetAuxiliary());
-        int argc = static_cast<int>(gen->GetArgCount());
-        if (argc > kMaxArgs)
+        const int argc = static_cast<int>(gen->GetArgCount());
+        if (argc > kMaxArgs) // never bound (FitsCall); refused rather than called with arguments dropped
         {
-            // Warn: a dropped trailing argument otherwise makes the facade call quietly do the
-            // wrong thing. The call still proceeds with the first kMaxArgs.
-            LOG_WARNING(u8"Script", u8"reflected factory call has {} args; only {} are marshaled",
-                        argc, kMaxArgs);
-            argc = kMaxArgs;
+            if (asIScriptContext* active = asGetActiveContext())
+            {
+                active->SetException("too many arguments for a native call");
+            }
+            return;
         }
         core::Variant args[kMaxArgs];
         for (int i = 0; i < argc; ++i)
@@ -3095,12 +3126,11 @@ namespace foundation::script::angelscript
     {
         const Binding* binding = static_cast<const Binding*>(gen->GetAuxiliary());
         const core::MethodInfo& method = *binding->method;
-        int argc = static_cast<int>(gen->GetArgCount());
-        if (argc > kMaxArgs)
+        const int argc = static_cast<int>(gen->GetArgCount());
+        if (argc > kMaxArgs) // never bound (FitsCall); refused rather than called with arguments dropped
         {
-            LOG_WARNING(u8"Script", u8"reflected call to '{}' has {} args; only {} are marshaled",
-                        reinterpret_cast<const char8_t*>(method.name), argc, kMaxArgs);
-            argc = kMaxArgs;
+            RaiseCallFailed(method);
+            return;
         }
         core::Variant args[kMaxArgs];
         for (int i = 0; i < argc; ++i)
@@ -3540,7 +3570,12 @@ namespace foundation::script::angelscript
 
             std::string stringTemps[kMaxArgs];
             BoxedVariant* boxTemps[kMaxArgs] = {};
-            BindArgs(executor, function, args, stringTemps, boxTemps);
+            if (!BindArgs(executor, function, args, stringTemps, boxTemps))
+            {
+                engine->ReturnContext(executor);
+                ReportCallError(m_manager->TooManyParametersMessage(function));
+                return core::Err(core::ErrorCode::InvalidArgument);
+            }
 
             // Arm the step debugger (if attached) on this executor: its line callback calls
             // ctx->Suspend() on a breakpoint or step line, unwinding back here as suspended.
@@ -3652,17 +3687,15 @@ namespace foundation::script::angelscript
             return byName;
         }
 
-        void BindArgs(asIScriptContext* executor, asIScriptFunction* function,
-                      core::Span<core::Variant> args, std::string* stringTemps,
-                      BoxedVariant** boxTemps)
+        // False, binding nothing, for a function with more parameters than a call carries.
+        [[nodiscard]] bool BindArgs(asIScriptContext* executor, asIScriptFunction* function,
+                                    core::Span<core::Variant> args, std::string* stringTemps,
+                                    BoxedVariant** boxTemps)
         {
             const core::usize limit = function->GetParamCount();
-            if (args.Size() > static_cast<core::usize>(kMaxArgs) &&
-                limit > static_cast<core::usize>(kMaxArgs))
+            if (limit > static_cast<core::usize>(kMaxArgs))
             {
-                LOG_WARNING(u8"Script", u8"script call '{}' has {} args; only {} are marshaled",
-                            reinterpret_cast<const char8_t*>(function->GetName()), args.Size(),
-                            kMaxArgs);
+                return false;
             }
             for (core::usize i = 0;
                  i < args.Size() && i < limit && i < static_cast<core::usize>(kMaxArgs); ++i)
@@ -3726,6 +3759,18 @@ namespace foundation::script::angelscript
                     continue;
                 }
             }
+            return true;
+        }
+
+        // A call refused before it ran (one past the parameters a call carries).
+        void ReportCallError(const core::String& message)
+        {
+            if (m_errorHandler != nullptr)
+            {
+                m_errorHandler->OnError(ScriptError{ScriptErrorKind::Runtime, {}, -1, -1, message.AsView()});
+                return;
+            }
+            core::ConsoleWriteError(message.AsView());
         }
 
         void ReportBudgetStop()
@@ -4508,7 +4553,12 @@ namespace foundation::script::angelscript
         }
         std::string stringTemps[kMaxArgs];
         BoxedVariant* boxTemps[kMaxArgs] = {};
-        BindArgs(executor, factory, args, stringTemps, boxTemps);
+        if (!BindArgs(executor, factory, args, stringTemps, boxTemps))
+        {
+            engine->ReturnContext(executor);
+            ReportCallError(m_manager->TooManyParametersMessage(factory));
+            return nullptr;
+        }
         m_manager->ArmBudget(executor); // a constructor can loop as well as a method
         int result;
         {

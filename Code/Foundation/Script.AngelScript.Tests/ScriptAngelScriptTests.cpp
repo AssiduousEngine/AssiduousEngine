@@ -1928,3 +1928,63 @@ TEST_CASE("angelscript: a compiler warning reaches the error handler as a warnin
     CHECK(kinds.others == 0);
     scriptContext->SetErrorHandler(nullptr);
 }
+
+namespace
+{
+    // A native function past the parameters a call carries, beside one within them.
+    class Wide : public Object
+    {
+        RTTI_OBJECT(Wide, Object)
+    public:
+        [[nodiscard]] static f64 Sum17(f64 a, f64 b, f64 c, f64 d, f64 e, f64 f, f64 g, f64 h, f64 i, f64 j, f64 k,
+                                       f64 l, f64 m, f64 n, f64 o, f64 p, f64 q)
+        {
+            return a + b + c + d + e + f + g + h + i + j + k + l + m + n + o + p + q;
+        }
+        [[nodiscard]] static f64 Sum2(f64 a, f64 b) { return a + b; }
+    };
+
+    struct LastError final : IScriptErrorHandler
+    {
+        String message;
+        void OnError(const ScriptError& error) override { message = String(error.message); }
+    };
+}
+
+REFLECT_MEMBERS(Wide, "rtti::script::test")
+{
+    builder.Constructor();
+    builder.Method<&Wide::Sum17>("sum17");
+    builder.Method<&Wide::Sum2>("sum2");
+}
+
+TEST_CASE("angelscript: past 16 parameters a call is refused, never made with arguments dropped")
+{
+    // A native method past the limit was bound and called with its last arguments dropped; a script
+    // function past it was called the same way from native code.
+    RefPtr<IScriptManager> manager = angelscript::CreateScriptManager(foundation::core::DefaultAllocator());
+    manager->RegisterType(Wide::StaticType());
+    manager->FinalizeTypes();
+
+    RefPtr<IScriptContext> scriptContext = manager->CreateContext();
+    LastError said;
+    scriptContext->SetErrorHandler(&said);
+    // The native method past the limit is not bound, so its use does not compile; the other is.
+    CHECK_FALSE(scriptContext->Load(u8"double f() { return Wide::sum17(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17); }\n",
+                                    u8"wide").IsOk());
+    REQUIRE(scriptContext->Load(u8"double two() { return Wide::sum2(1, 2); }\n"
+                                u8"double many(double a, double b, double c, double d, double e, double f, double g,\n"
+                                u8"            double h, double i, double j, double k, double l, double m, double n,\n"
+                                u8"            double o, double p, double q) { return q; }\n",
+                                u8"calls").IsOk());
+    CHECK(scriptContext->Call(u8"two", Span<Variant>{}).Value().Get<f64>() == doctest::Approx(3.0));
+    // A script function past the limit, called from native code: refused, and said.
+    Variant args[17];
+    for (Variant& arg : args)
+    {
+        arg = Variant::From<f64>(1.0);
+    }
+    CHECK_FALSE(scriptContext->Call(u8"many", Span<Variant>{args, 17}).HasValue());
+    CHECK(said.message.AsView().Find(StringView(u8"a call carries at most 16")) != StringView::kNotFound);
+    scriptContext->SetErrorHandler(nullptr);
+}
