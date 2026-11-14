@@ -44,6 +44,16 @@ export namespace foundation::script
         return (static_cast<core::u32>(value) & static_cast<core::u32>(flag)) != 0;
     }
 
+    /// What one call into script may use before it is stopped with an error, which fails that
+    /// call and not the game: seconds of running (a loop that never ends) and bytes a context's
+    /// heap may hold (one that allocates without end). Time a coroutine waits between resumes, or
+    /// a call spends stopped at a breakpoint, is not running.
+    struct ScriptBudget
+    {
+        core::f64 callSeconds = 5.0;
+        core::usize heapBytes = core::usize{512} << 20;
+    };
+
     class IScriptManager : public core::Object
     {
     public:
@@ -70,6 +80,10 @@ export namespace foundation::script
         // would run whatever is half written. Returns whether it compiled.
         [[nodiscard]] virtual bool Check(core::StringView source, core::StringView chunkName,
                                          IScriptErrorHandler& errors) = 0;
+
+        /// The budget every call into this manager's contexts runs under, from the next call on.
+        virtual void SetBudget(const ScriptBudget& budget) = 0;
+        [[nodiscard]] virtual ScriptBudget Budget() const = 0;
 
         // Single-step garbage collection, for backends that need it kept small in
         // real-time loops. Default: no-op.

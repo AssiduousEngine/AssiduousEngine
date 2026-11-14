@@ -1579,3 +1579,79 @@ end
     CHECK(check(u8"crossContainer"));
     CHECK(check(u8"crossIndex"));
 }
+
+namespace
+{
+    struct BudgetErrors final : IScriptErrorHandler
+    {
+        Array<String> messages;
+        void OnError(const ScriptError& error) override { messages.PushBack(String(error.message)); }
+        [[nodiscard]] bool Any(StringView needle) const
+        {
+            for (const String& m : messages)
+                if (m.AsView().Find(needle) != StringView::kNotFound)
+                    return true;
+            return false;
+        }
+    };
+
+    constexpr StringView kBudgetProbe = u8R"lua(
+Probe = {}
+Probe.__index = Probe
+function Probe.new() return setmetatable({}, Probe) end
+function Probe:forever() while true do end end
+function Probe:busy(seconds) local t = os.clock() while os.clock() - t < seconds do end return 1 end
+function Probe:hoard() local t = {} local i = 0 while true do i += 1 t[i] = { i, i, i } end end
+function Probe:fine() return 7 end
+)lua";
+}
+
+TEST_CASE("script.luau: a call past its time budget is stopped, and the context goes on")
+{
+    // A script loop that never ended hung the game: there was no budget at all.
+    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    ScriptBudget budget;
+    budget.callSeconds = 0.5;
+    manager->SetBudget(budget);
+    RefPtr<IScriptContext> scriptContext = manager->CreateContext();
+    BudgetErrors errors;
+    scriptContext->SetErrorHandler(&errors);
+    REQUIRE(scriptContext->Load(kBudgetProbe, u8"luau.budget").IsOk());
+    RefPtr<ScriptObject> probe = scriptContext->CreateInstance(u8"Probe", Span<Variant>{});
+    REQUIRE(probe.Get() != nullptr);
+
+    const Stopwatch clock = Stopwatch::StartNew();
+    CHECK_FALSE(probe->Invoke(u8"forever", Span<Variant>{}).HasValue());
+    const f64 took = clock.Elapsed().AsSeconds();
+    MESSAGE("stopped after ", took, " s");
+    CHECK(took >= 0.5);
+    CHECK(took < 2.0);
+    CHECK(errors.Any(u8"budget"));
+    CHECK(probe->Invoke(u8"fine", Span<Variant>{}).Value().Get<f64>() == doctest::Approx(7.0)); // the context goes on
+
+    // The clock is a call's own: two calls of 0.3 s each fit a 0.5 s budget.
+    Variant seconds[] = {Variant::From(0.3)};
+    CHECK(probe->Invoke(u8"busy", Span<Variant>{seconds, 1}).HasValue());
+    CHECK(probe->Invoke(u8"busy", Span<Variant>{seconds, 1}).HasValue());
+
+    // A top level that never ends fails its load the same way.
+    CHECK_FALSE(scriptContext->Load(u8"while true do end\n", u8"luau.budget.top").IsOk());
+}
+
+TEST_CASE("script.luau: a call that allocates past the heap budget fails, and the context goes on")
+{
+    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    ScriptBudget budget;
+    budget.heapBytes = usize{16} << 20;
+    manager->SetBudget(budget);
+    RefPtr<IScriptContext> scriptContext = manager->CreateContext();
+    BudgetErrors errors;
+    scriptContext->SetErrorHandler(&errors);
+    REQUIRE(scriptContext->Load(kBudgetProbe, u8"luau.heap").IsOk());
+    RefPtr<ScriptObject> probe = scriptContext->CreateInstance(u8"Probe", Span<Variant>{});
+    REQUIRE(probe.Get() != nullptr);
+    CHECK_FALSE(probe->Invoke(u8"hoard", Span<Variant>{}).HasValue());
+    CHECK(errors.Any(u8"memory"));
+    manager->CollectGarbage();
+    CHECK(probe->Invoke(u8"fine", Span<Variant>{}).Value().Get<f64>() == doctest::Approx(7.0));
+}

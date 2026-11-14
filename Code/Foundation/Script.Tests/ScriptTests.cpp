@@ -58,6 +58,9 @@ namespace
             return RefPtr<IScriptContext>(MakeRef<MockContext>(DefaultAllocator()));
         }
         bool Check(StringView, StringView, IScriptErrorHandler&) override { return true; }
+        void SetBudget(const ScriptBudget& budget) override { m_budget = budget; }
+        [[nodiscard]] ScriptBudget Budget() const override { return m_budget; }
+        ScriptBudget m_budget;
 
         [[nodiscard]] bool Has(const TypeInfo& type) const
         {
@@ -134,6 +137,8 @@ namespace
     class FakeScriptManager final : public foundation::script::IScriptManager
     {
     public:
+        void SetBudget(const foundation::script::ScriptBudget&) override {}
+        [[nodiscard]] foundation::script::ScriptBudget Budget() const override { return {}; }
         u32 registered = 0;
         bool finalized = false;
         bool finalizedAfterAll = false;

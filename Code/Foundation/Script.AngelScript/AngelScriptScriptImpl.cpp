@@ -728,6 +728,10 @@ namespace foundation::script::angelscript
             return core::RefPtr<IScriptBlob>(blob.Get());
         }
 
+        void SetBudget(const ScriptBudget& budget) override { m_budget = budget; }
+        [[nodiscard]] ScriptBudget Budget() const override { return m_budget; }
+        ScriptBudget m_budget;
+
         // Compile without running (see IScriptManager::Check). Build would run the global
         // initializers right after compiling, so the engine's init-after-build is off for the
         // one build; the module is discarded before any of it could be called.

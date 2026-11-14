@@ -143,6 +143,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Rendering: a double-sided material (foliage cards, a sail, a flag) casts its shadow from both
   sides, and a material that culls front faces casts from its back; shadows always came from the
   front faces.
+- Scripting (Luau): a call into script that runs longer than its budget (5 s by default) or
+  allocates past it (512 MB) is stopped with an error that fails that call, not the game; a script
+  loop that never ended used to hang it. `IScriptManager::SetBudget` sets both.
 - Scripting (Luau): `newproxy` is gone, and a reflected method or property called on an object of
   another type (`local f = a.method; f(b)`) raises an error instead of running on the wrong object.
 - HTTP: a redirect to another origin no longer carries the request's Authorization,

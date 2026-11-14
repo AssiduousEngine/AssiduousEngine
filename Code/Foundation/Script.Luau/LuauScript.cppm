@@ -275,6 +275,33 @@ namespace foundation::script
         // resume time (RunCallable, ResumeCoroutine) only while a debugger is attached.
         void InstallDebugHooks(LuauDebugger* debugger);
         void RemoveDebugHooks();
+        [[nodiscard]] LuauDebugger* Debugger() const noexcept { return m_debugger; }
+
+        // One entry into the VM from the engine (a pcall or a resume). The outermost starts the
+        // budget's clock; a call into script from inside one (a facade that dispatches script)
+        // runs on the outer call's clock.
+        class VmCall
+        {
+        public:
+            explicit VmCall(LuauScriptContext& context) noexcept : m_context(context)
+            {
+                if (m_context.m_vmDepth++ == 0)
+                {
+                    m_context.m_vmStartTicks = GetTicks();
+                }
+            }
+            ~VmCall() { --m_context.m_vmDepth; }
+            VmCall(const VmCall&) = delete;
+            VmCall& operator=(const VmCall&) = delete;
+
+        private:
+            LuauScriptContext& m_context;
+        };
+        // The running call has used its seconds (called from the VM's interrupt).
+        [[nodiscard]] bool OverTimeBudget() const noexcept;
+        [[nodiscard]] f64 CallBudgetSeconds() const noexcept;
+        // The heap allocator: every block the state takes, held to the budget's bytes.
+        static void* Allocate(void* userdata, void* block, usize oldSize, usize newSize);
 
         void ReportError(ScriptErrorKind kind, StringView module, StringView message);
         // The message a failed pcall/load left on top of the stack; pops it.
@@ -337,6 +364,10 @@ namespace foundation::script
         RefPtr<LuauScriptManager> m_manager;
         lua_State* m_state = nullptr;
         IScriptErrorHandler* m_errors = nullptr;
+        LuauDebugger* m_debugger = nullptr; // borrowed; the attached debugger's
+        u32 m_vmDepth = 0;                   // nested VM entries (VmCall)
+        u64 m_vmStartTicks = 0;              // when the outermost began
+        usize m_heapBytes = 0;               // what the state's blocks hold now
         Array<LuauScriptDelegate*> m_delegates; // borrowed; Detach()ed at close
         Array<lua_State*> m_freeThreads; // recyclable resumable threads (all registry-pinned)
     };
@@ -396,6 +427,8 @@ namespace foundation::script
         // unregisters on destruction. Defined after the context class.
         [[nodiscard]] UniquePtr<IScriptDebugger> CreateDebugger() override;
 
+        void SetBudget(const ScriptBudget& budget) override { m_budget = budget; }
+        [[nodiscard]] ScriptBudget Budget() const override { return m_budget; }
         void SetActiveDebugger(LuauDebugger* debugger) noexcept { m_debugger = debugger; }
         [[nodiscard]] LuauDebugger* ActiveDebugger() const noexcept { return m_debugger; }
         [[nodiscard]] Span<LuauScriptContext* const> Contexts() const noexcept
@@ -545,6 +578,7 @@ namespace foundation::script
         Array<const TypeInfo*> m_types;
         Array<LuauScriptContext*> m_contexts; // borrowed; contexts retain us
         LuauDebugger* m_debugger = nullptr;   // borrowed; the active step debugger (self-registers)
+        ScriptBudget m_budget;                // every call into this manager's contexts (SetBudget)
     };
 
     // =====================================================================
@@ -875,6 +909,7 @@ namespace foundation::script
             int status;
             {
                 ScriptCallScope scope(context);
+                const LuauScriptContext::VmCall call(*context);
                 status = lua_resume(thread, isCoroutine ? nullptr : context->State(), 0);
             }
             if (isCoroutine)
@@ -2279,6 +2314,7 @@ namespace foundation::script
         int status;
         {
             ScriptCallScope scope(entry.context);
+            const LuauScriptContext::VmCall call(*entry.context);
             status = lua_resume(entry.thread, nullptr, 0);
         }
         return ProcessCoroutineResume(entry, status);
@@ -2352,6 +2388,7 @@ namespace foundation::script
                 lua_State* state = entry.context->State();
                 lua_getref(state, entry.predicateRef);
                 bool ready = false;
+                const LuauScriptContext::VmCall call(*entry.context);
                 if (lua_pcall(state, 0, 1, 0) == LUA_OK)
                 {
                     ready = lua_toboolean(state, -1) != 0;
@@ -2511,10 +2548,32 @@ namespace foundation::script
     // =====================================================================
     // Context lifecycle and the IScriptContext surface.
     // =====================================================================
+    namespace
+    {
+        // The VM's safepoint callback (loop back edges, calls and returns): a call past its seconds
+        // is stopped with an error, which fails that call. Not from inside the collector (gc >= 0),
+        // where raising is not allowed.
+        void BudgetInterrupt(lua_State* state, int gc)
+        {
+            if (gc >= 0)
+            {
+                return;
+            }
+            const auto* context = static_cast<const LuauScriptContext*>(lua_callbacks(state)->userdata);
+            if (context != nullptr && context->OverTimeBudget())
+            {
+                lua_rawcheckstack(state, 1); // room for the message
+                luaL_error(state, "script call stopped: ran past its %.1f s budget", context->CallBudgetSeconds());
+            }
+        }
+    }
+
     LuauScriptContext::LuauScriptContext(RefPtr<LuauScriptManager> manager)
         : m_manager(Move(manager))
     {
-        m_state = luaL_newstate();
+        m_state = lua_newstate(&LuauScriptContext::Allocate, this);
+        lua_callbacks(m_state)->userdata = this; // the context, for the interrupt and the debugger
+        lua_callbacks(m_state)->interrupt = &BudgetInterrupt;
         lua_setuserdatadtor(m_state, kVariantTag, DestroyVariantUserdata);
         luaL_openlibs(m_state); // Luau's sandboxed stdlib (no io, os or loadstring)
         // newproxy makes a userdata of the script's own; the engine has no use for one, and its
@@ -2585,6 +2644,7 @@ namespace foundation::script
         }
 
         ScriptCallScope scope(this);
+        const VmCall call(*this);
         if (lua_pcall(m_state, 0, 0, 0) != LUA_OK)
         {
             ReportTopOfStack(ScriptErrorKind::Runtime, chunkName);
@@ -2678,6 +2738,7 @@ namespace foundation::script
         }
 
         ScriptCallScope scope(this);
+        const VmCall call(*this);
         if (lua_pcall(m_state, 0, 0, 0) != LUA_OK)
         {
             ReportTopOfStack(ScriptErrorKind::Runtime, u8"blob");
@@ -2712,28 +2773,62 @@ namespace foundation::script
         return isFunction;
     }
 
-    // The VM-global debugstep callback: routes to the active debugger stashed in the callbacks'
-    // userdata. Fires per Lua line while the running thread has singlestep armed.
+    // The VM-global debugstep callback: routes to the context's attached debugger (the callbacks'
+    // userdata is the context). Fires per Lua line while the running thread has singlestep armed.
     static void DebugStepThunk(lua_State* thread, lua_Debug* ar)
     {
-        if (auto* debugger = static_cast<LuauDebugger*>(lua_callbacks(thread)->userdata))
+        auto* context = static_cast<LuauScriptContext*>(lua_callbacks(thread)->userdata);
+        if (context != nullptr && context->Debugger() != nullptr)
         {
-            debugger->OnStep(thread, ar);
+            context->Debugger()->OnStep(thread, ar);
         }
     }
 
     void LuauScriptContext::InstallDebugHooks(LuauDebugger* debugger)
     {
-        lua_Callbacks* cb = lua_callbacks(m_state); // per global_State, shared across all threads
-        cb->userdata = debugger;
-        cb->debugstep = &DebugStepThunk;
+        m_debugger = debugger;
+        lua_callbacks(m_state)->debugstep = &DebugStepThunk; // per global_State, shared across all threads
     }
 
     void LuauScriptContext::RemoveDebugHooks()
     {
-        lua_Callbacks* cb = lua_callbacks(m_state);
-        cb->debugstep = nullptr;
-        cb->userdata = nullptr;
+        lua_callbacks(m_state)->debugstep = nullptr;
+        m_debugger = nullptr;
+    }
+
+    bool LuauScriptContext::OverTimeBudget() const noexcept
+    {
+        if (m_vmDepth == 0)
+        {
+            return false;
+        }
+        const f64 seconds = static_cast<f64>(GetTicks() - m_vmStartTicks) / static_cast<f64>(GetTickFrequency());
+        return seconds > CallBudgetSeconds();
+    }
+
+    f64 LuauScriptContext::CallBudgetSeconds() const noexcept { return m_manager->Budget().callSeconds; }
+
+    void* LuauScriptContext::Allocate(void* userdata, void* block, usize oldSize, usize newSize)
+    {
+        auto* context = static_cast<LuauScriptContext*>(userdata);
+        if (newSize == 0)
+        {
+            ::free(block);
+            context->m_heapBytes -= oldSize;
+            return nullptr;
+        }
+        // A block that grows past the budget is refused: the VM raises "not enough memory" in the
+        // call that asked, which fails that call. Shrinking always succeeds.
+        if (newSize > oldSize && context->m_heapBytes - oldSize + newSize > context->m_manager->Budget().heapBytes)
+        {
+            return nullptr;
+        }
+        void* grown = ::realloc(block, newSize);
+        if (grown != nullptr)
+        {
+            context->m_heapBytes = context->m_heapBytes - oldSize + newSize;
+        }
+        return grown;
     }
 
     void LuauScriptManager::TrackContext(LuauScriptContext* context)
@@ -2786,6 +2881,7 @@ namespace foundation::script
         int status;
         {
             ScriptCallScope scope(this);
+            const VmCall call(*this);
             status = lua_resume(thread, m_state, total - 1);
         }
         if (status == LUA_BREAK && debugger != nullptr)
@@ -2993,6 +3089,7 @@ namespace foundation::script
             m_context->PushVariant(state, arg);
         }
         ScriptCallScope scope(m_context);
+        const LuauScriptContext::VmCall call(*m_context);
         if (lua_pcall(state, static_cast<int>(args.Size()), 1, 0) != LUA_OK)
         {
             m_context->ReportTopOfStack(ScriptErrorKind::Runtime, u8"delegate");
