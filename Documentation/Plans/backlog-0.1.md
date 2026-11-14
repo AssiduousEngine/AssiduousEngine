@@ -331,14 +331,6 @@
   in the tree. Audit the six for which are odr-used by address across a library boundary, settle on
   one pattern, and say which in `Prelude.h`.
 
-- **Export pruning misses assets a scene hands its scripts** (user 2026-11-02, from the UAT
-  check): a behaviour's asset-valued property set in a scene (an override of asset kind, a guid)
-  is not followed by the reachability scan (`SceneReferenceScanner`), so a pruned export drops what
-  it names. Sky Hopper's Level 1 gives its Crab a walk clip and its Skull a model that way; a pruned
-  Linux export dropped both and the player logged "bind failed" for each. Follow the overrides in the
-  scan, with a test of a scene whose only reference to an asset is a behaviour's property. Apart
-  from it, by design: what a script loads by name (Sky Hopper's Levels 2 to 5, its sounds) needs
-  Always Export (`Systems/export-reachability.md`, the unbuilt script-load lint, Phase 4).
 - **A VG gradient's lookup texture uploaded once a frame, each upload waiting** (user 2026-11-02,
   from the UAT check): VGSandbox makes a new 256x1 lookup texture about once a frame (a new image
   instance each time), and `VGRenderer::GetOrCreateCachedTexture` uploads each through a transfer
