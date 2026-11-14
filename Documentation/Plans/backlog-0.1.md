@@ -132,9 +132,11 @@
      (`Data/Editor/editor.css:265`) on a node with children fades it through a VG layer
      (`Node.cppm`, `layered`), one render pass each: 8 a frame on Sky Hopper's Level 1 (the disabled
      toolbar buttons). Options: a disabled look by colour (`image-color`, text colour), or opacity
-     multiplied into the children when they do not overlap.
+     multiplied into the children when they do not overlap. Measured 2026-11-02 on PaperKid's Start
+     with a model in the import window (Debug, a frame about 21 ms): GUI.Layers 0.85 ms.
   2. **Draw calls break at every tree row.** 272 GUI draw commands a frame on Level 1, most of the GUI's
-     main-thread time in driver calls (`VGRenderer::DrawCommands`). A row draws its background, its icon
+     main-thread time in driver calls (`VGRenderer::DrawCommands`); GUI.Encode 5.0 ms of the 21 ms
+     frame item 1 measured (the 3D views about 10.7 ms, Editor.Pages 1.8 ms). A row draws its background, its icon
      (its own texture, Layer mode) and its text (the glyph atlas), and each change of texture or mode
      starts a new command. Options: the draw mode per vertex and the glyph atlas and an icon atlas bound
      together, or merging commands across non-overlapping draws. The largest of the items: the VG
@@ -153,10 +155,6 @@
      than in the old UI (routing, hover, layout order). Count frames from an injected event to the
      changed picture in both sandboxes. The editor's third swapchain image (4f7a8931b, the user's
      ruling) adds a frame while the editor keeps up with vsync, little at 26 fps.
-  5. ~~Unscoped time~~: done 2026-11-02 (0f9b7cab8 scopes the whole frame; the inspector's per-frame
-     relayout it found is fixed, 2192ddfc0). What a capture now shows on PaperKid's Start with a
-     model in the import window (Debug, about 21 ms): the 3D views about 10.7 ms, GUI.Encode
-     5.0 ms (item 2), Editor.Pages 1.8 ms, GUI.Layers 0.85 ms (item 1).
 
 - **Terrain and vegetation tools: fixes and a regression check** (user 2026-11-01):
   - Sculpting (and maybe the vegetation tool) still acts when the pointer is over UI: a press or
