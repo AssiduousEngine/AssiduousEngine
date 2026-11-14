@@ -146,7 +146,9 @@ export namespace foundation::core
             Variant v;
             v.m_vtable = ops;
             void* dst = v.AllocateStorage(ops->size, ops->align);
-            ops->copy(dst, src);
+            // Only a trivially copied type records its operations, so its bytes copy it, from an
+            // address of any alignment (a script engine's stack may hold it at four bytes).
+            std::memcpy(dst, src, ops->size);
             return v;
         }
 

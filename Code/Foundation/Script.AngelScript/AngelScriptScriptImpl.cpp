@@ -3406,16 +3406,51 @@ namespace foundation::script::angelscript
     }
 
     // The object a reflected member is called on, as a Variant: a box's value, or a script value's
-    // bytes viewed in place (held in `view`), so a setter or a method edits the value itself.
-    [[nodiscard]] inline core::Variant& SelfOf(asIScriptGeneric* gen, const core::TypeInfo* type, core::Variant& view)
+    // bytes viewed in place, so a setter or a method edits the value itself. AngelScript's stack
+    // keeps 4-byte slots, so a value whose type needs more (a Guid, a hit result) may sit where its
+    // type cannot be used in place: the member then works on an aligned copy, written back as
+    // this ends.
+    class SelfOf
     {
-        if (IsScriptValue(type))
+    public:
+        SelfOf(asIScriptGeneric* gen, const core::TypeInfo* type)
         {
-            view = InPlaceView(*type, gen->GetObject());
-            return view;
+            if (!IsScriptValue(type))
+            {
+                m_value = &static_cast<BoxedVariant*>(gen->GetObject())->value;
+                return;
+            }
+            void* at = gen->GetObject();
+            if (reinterpret_cast<core::uptr>(at) % type->align == 0)
+            {
+                m_held = InPlaceView(*type, at);
+            }
+            else
+            {
+                m_held = core::Variant::CopyOf(*type, at);
+                m_writeBack = at;
+                m_type = type;
+            }
+            m_value = &m_held;
         }
-        return static_cast<BoxedVariant*>(gen->GetObject())->value;
-    }
+        ~SelfOf()
+        {
+            if (m_writeBack != nullptr)
+            {
+                std::memcpy(m_writeBack, core::ToInstance(m_held).Pointer(), m_type->size);
+            }
+        }
+        SelfOf(const SelfOf&) = delete;
+        SelfOf& operator=(const SelfOf&) = delete;
+
+        [[nodiscard]] core::Variant& Value() noexcept { return *m_value; }
+
+    private:
+        core::Variant m_held;
+        core::Variant* m_value = nullptr;
+        void* m_writeBack = nullptr;
+        const core::TypeInfo* m_type = nullptr;
+    };
 
     // A script value made in place: its reflected constructor's result copied into the object's
     // bytes, or zeros for the default one when the type reflects none.
@@ -3489,8 +3524,8 @@ namespace foundation::script::angelscript
     void PropertyGetDispatch(asIScriptGeneric* gen)
     {
         const Binding* binding = static_cast<const Binding*>(gen->GetAuxiliary());
-        core::Variant view;
-        core::Variant& self = SelfOf(gen, binding->type, view);
+        SelfOf selfOf(gen, binding->type);
+        core::Variant& self = selfOf.Value();
         core::Instance instance = core::ToInstance(self);
         if (RefuseGone(instance))
         {
@@ -3504,8 +3539,8 @@ namespace foundation::script::angelscript
     void PropertySetDispatch(asIScriptGeneric* gen)
     {
         const Binding* binding = static_cast<const Binding*>(gen->GetAuxiliary());
-        core::Variant view;
-        core::Variant& self = SelfOf(gen, binding->type, view);
+        SelfOf selfOf(gen, binding->type);
+        core::Variant& self = selfOf.Value();
         core::Instance instance = core::ToInstance(self);
         const core::Variant value = binding->manager->ValueFromArg(gen, 0, binding->property->type);
         ReleaseHandleArgs(gen, binding->manager);
@@ -3570,8 +3605,8 @@ namespace foundation::script::angelscript
     void NestedGetDispatch(asIScriptGeneric* gen)
     {
         const Binding* binding = static_cast<const Binding*>(gen->GetAuxiliary());
-        core::Variant view;
-        core::Variant& self = SelfOf(gen, binding->type, view);
+        SelfOf selfOf(gen, binding->type);
+        core::Variant& self = selfOf.Value();
         core::Instance owner = core::ToInstance(self);
         void* addr =
             (owner.Pointer() != nullptr) ? binding->property->address(owner) : nullptr;
@@ -3603,8 +3638,8 @@ namespace foundation::script::angelscript
     void ContainerDispatch(asIScriptGeneric* gen)
     {
         const Binding* binding = static_cast<const Binding*>(gen->GetAuxiliary());
-        core::Variant view;
-        core::Variant& self = SelfOf(gen, binding->type, view);
+        SelfOf selfOf(gen, binding->type);
+        core::Variant& self = selfOf.Value();
         core::Instance owner = core::ToInstance(self);
         if (RefuseGone(owner))
         {
@@ -3712,8 +3747,8 @@ namespace foundation::script::angelscript
         }
         else
         {
-            core::Variant view;
-            core::Variant& self = SelfOf(gen, binding->type, view);
+            SelfOf selfOf(gen, binding->type);
+            core::Variant& self = selfOf.Value();
             const core::Instance instance = core::ToInstance(self);
             if (RefuseGone(instance))
             {
