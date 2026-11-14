@@ -180,6 +180,11 @@ function Probe:writeHeading()
     if ok then return 0 end
     return string.find(err, "read%-only") and 1 or 2
 end
+function Probe:writeFacingWrong()
+    local ok, err = pcall(function() self.c.facing = "west" end)
+    if ok then return "accepted" end
+    return err
+end
 )lua";
 
     // A reflected type with a Float3 property and a Float3 arg and return method, to exercise the native
@@ -1260,6 +1265,31 @@ TEST_CASE("script.luau: a read-only property reads, and an assignment raises ins
     // 1: the assignment raised an error naming the property read-only (0: silently accepted, 2: another error).
     CHECK(probe->Invoke(u8"writeHeading", Span<Variant>{}).Value().Get<f64>() == doctest::Approx(1.0));
     CHECK(probe->Invoke(u8"readHeading", Span<Variant>{}).Value().Get<f64>() == doctest::Approx(90.0));
+}
+
+TEST_CASE("script.luau: a value of the wrong type for a property says what the property takes")
+{
+    // Every refused write said "property is read-only", a wrong type included.
+    RttiRegisterEnum_Facing();
+
+    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    manager->RegisterType(TypeOf<Facing>());
+    manager->RegisterType(Compass::StaticType());
+    manager->FinalizeTypes();
+
+    RefPtr<IScriptContext> scriptContext = manager->CreateContext();
+    REQUIRE(scriptContext->Load(kEnumProbe, u8"luau.wrongtype").IsOk());
+    RefPtr<ScriptObject> probe = scriptContext->CreateInstance(u8"Probe", Span<Variant>{});
+    REQUIRE(probe.Get() != nullptr);
+
+    const Result<Variant> said = probe->Invoke(u8"writeFacingWrong", Span<Variant>{});
+    REQUIRE(said.HasValue());
+    const String* message = said.Value().TryGet<String>();
+    REQUIRE(message != nullptr);
+    MESSAGE("error: ", doctest::String(reinterpret_cast<const char*>(message->CStr())));
+    CHECK(message->AsView().Find(StringView(u8"property 'facing' takes Facing, not string")) != StringView::kNotFound);
+    CHECK(message->AsView().Find(StringView(u8"read-only")) == StringView::kNotFound);
+    CHECK(probe->Invoke(u8"readDefault", Span<Variant>{}).Value().Get<f64>() == doctest::Approx(0.0)); // still North
 }
 
 TEST_CASE("script.luau: backend conformance battery")

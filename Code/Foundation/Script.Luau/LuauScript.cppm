@@ -1892,11 +1892,25 @@ namespace foundation::script
                     set = Status{};
                 }
             }
-            if (!set.IsOk())
+            if (set.Code() == ErrorCode::NotSupported)
             {
                 // A read-only property refuses in Core; a script learns it the same
                 // way it learns a misspelled one: at the assignment, not silently.
                 lua_pushstring(state, "property is read-only");
+                lua_error(state);
+            }
+            if (!set.IsOk())
+            {
+                // The setter refused the value: name what the property takes and what it was given
+                // (a reflected object by its type, anything else by Luau's name for it).
+                const TypeInfo* given = value.Type();
+                const auto view = [](const char* text) { return StringView(reinterpret_cast<const utf8char*>(text)); };
+                const String message = Format(u8"property '{}' takes {}, not {}", view(key),
+                                              view(property->type != nullptr ? property->type->name : "a value"),
+                                              view(lua_type(state, 3) == LUA_TUSERDATA && given != nullptr
+                                                       ? given->name
+                                                       : luaL_typename(state, 3)));
+                lua_pushlstring(state, reinterpret_cast<const char*>(message.CStr()), message.Size());
                 lua_error(state);
             }
             return 0;

@@ -143,6 +143,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Rendering: a double-sided material (foliage cards, a sail, a flag) casts its shadow from both
   sides, and a material that culls front faces casts from its back; shadows always came from the
   front faces.
+- Scripting (Luau): assigning a value of the wrong type to an engine property says what the
+  property takes and what it was given (`property 'facing' takes Facing, not string`); it said
+  the property was read-only.
 - GUI: a grid item placed on a row line past the grid's rows widens the rows instead of hanging
   the layout (in a column flow) or writing past the grid's cells, and a grid line or span above
   1000 is taken as 1000 instead of allocating that many tracks.

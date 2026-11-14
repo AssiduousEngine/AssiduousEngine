@@ -353,12 +353,6 @@
   block's source and binds the profile. Mind that the handle resolves to `Effective()`, so in
   Profile mode a write lands in the shared profile. Then tell Sedulous (it copies the value fields
   and leaves its references untouched today).
-- **Luau's write error for a mistyped property says "read-only"** (user 2026-10-10): assigning a
-  value of the wrong type to a reflected property (a guid or a string to a `Ref` field, say)
-  fails in `SetProperty` as InvalidArgument, and Luau's `__newindex` reports every failure as
-  "property is read-only" (`LuauScript.cppm`, NewIndexThunk). Say what failed: the property takes
-  a value of type X, not Y; keep "read-only" for a property that has no setter.
-
 - **Players rebind their controls** (user 2026-10-12; found writing the input docs): a player's
   rebinding has a home, `InputBindingOverrides` in the user settings (`Foundation/Input/
   InputMap.cppm`), and only the InputActions sample applies and saves it (`ApplyBindingOverrides`);
