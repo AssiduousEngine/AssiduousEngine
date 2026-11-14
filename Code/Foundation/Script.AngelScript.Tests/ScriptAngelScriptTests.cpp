@@ -1577,6 +1577,17 @@ TEST_CASE("angelscript: CERTIFIED - the backend conformance battery")
                           u8"  gLast = a;\n"            // 5
                           u8"}\n";                      // 6
     dialect.debugSection = u8"debug.script";
+    dialect.debugCoroutineModule = u8"int gDone = 0;\n"                                      // 1
+                                   u8"class Runner {\n"                                      // 2
+                                   u8"  void Body() {\n"                                     // 3
+                                   u8"    wait(0.1f);\n"                                     // 4
+                                   u8"    int here = 1;\n"                                   // 5 <- breakpoint
+                                   u8"    gDone = here;\n"                                   // 6
+                                   u8"  }\n"                                                 // 7
+                                   u8"}\n"                                                   // 8
+                                   u8"Runner@ gRunner = Runner();\n"                         // 9
+                                   u8"void debugCoroutine() { startCoroutine(ScriptCoroutine(gRunner.Body)); }\n";
+    dialect.debugCoroutineBreakLine = 5;
     dialect.debugFunction = u8"debugRun";
     dialect.debugBreakLine = 4;
     dialect.debugLocalName = u8"tag";

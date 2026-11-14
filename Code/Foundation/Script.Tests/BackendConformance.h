@@ -329,6 +329,12 @@ namespace foundation::script::conformance
         // in scope whose captured display text equals `debugLocalValue`. The line above the break
         // must not be the last line (Step lands on a further line, then Continue completes).
         StringView debugModule;
+        // Optional (with the Debugger capability): a module with a zero-arg function
+        // `debugCoroutine()` that starts a coroutine which waits ~0.1s, then on line
+        // `debugCoroutineBreakLine` (1-based, in section "conformance.debugco") binds a local, and
+        // on the next line sets the module global `gDone` (initially 0) to 1.
+        StringView debugCoroutineModule;
+        i32 debugCoroutineBreakLine = 0;
         StringView debugSection;
         StringView debugFunction;
         StringView debugLocalName;
@@ -874,6 +880,47 @@ namespace foundation::script::conformance
                 CHECK(sink.last == ScriptDebuggerState::Stepped);
                 debugger->Continue();
                 CHECK(sink.last == ScriptDebuggerState::Terminated);
+                debugger->SetListener(nullptr);
+            }
+
+            // A breakpoint inside a coroutine's body hits when the scheduler resumes it; while
+            // paused the coroutine is held (the frames go on without it), and Continue finishes it.
+            if (!dialect.debugCoroutineModule.IsEmpty())
+            {
+                struct StateSink final : IScriptDebuggerListener
+                {
+                    ScriptDebuggerState last = ScriptDebuggerState::Running;
+                    void OnDebuggerStateChanged(ScriptDebuggerState state) override { last = state; }
+                } sink;
+                debugger->SetListener(&sink);
+                constexpr StringView kSection = u8"conformance.debugco";
+                const auto done = [](IScriptContext& context)
+                {
+                    bool numeric = false;
+                    return ScriptNumbers::Of(context.GetGlobal(u8"gDone"), numeric);
+                };
+                RefPtr<IScriptContext> coCtx = manager->CreateContext();
+                REQUIRE(coCtx->Load(dialect.debugCoroutineModule, kSection).IsOk());
+                debugger->SetBreakpoint(kSection, dialect.debugCoroutineBreakLine);
+                REQUIRE(coCtx->Call(u8"debugCoroutine", Span<Variant>{}).HasValue()); // now waiting
+                CHECK(sink.last != ScriptDebuggerState::Breakpoint);
+                for (int i = 0; i < 3; ++i)
+                {
+                    manager->AdvanceCoroutines(0.1);
+                }
+                CHECK(sink.last == ScriptDebuggerState::Breakpoint);
+                Array<ScriptStackFrame> frames = debugger->CaptureStackFrames();
+                REQUIRE_FALSE(frames.IsEmpty());
+                CHECK(frames[0].line == dialect.debugCoroutineBreakLine);
+                for (int i = 0; i < 3; ++i)
+                {
+                    manager->AdvanceCoroutines(0.1);
+                }
+                CHECK(done(*coCtx) == doctest::Approx(0.0)); // held: the scheduler did not run it on
+                debugger->Continue();
+                CHECK(done(*coCtx) == doctest::Approx(1.0));
+                CHECK(sink.last == ScriptDebuggerState::Terminated);
+                debugger->RemoveBreakpoint(kSection, dialect.debugCoroutineBreakLine);
                 debugger->SetListener(nullptr);
             }
         }

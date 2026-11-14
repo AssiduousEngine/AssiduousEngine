@@ -438,6 +438,8 @@ namespace foundation::script::angelscript
     // Reports a coroutine's fault (an exception, or a budget stop when `budgetStop`) to the script
     // context it started in, as a call's fault is reported. Defined after AngelScriptContext.
     void ReportCoroutineFault(IScriptContext* home, asIScriptContext* ctx, bool budgetStop);
+    // The debugger lets go of `ctx` if it holds it (a held coroutine cancelled under it).
+    void DebuggerForgetContext(AngelScriptDebugger& debugger, asIScriptContext* ctx);
 
     // `ctx`'s script call stack, innermost first: a paused context's (the debugger) or one that
     // stopped on an exception (a fault's report).
@@ -981,6 +983,8 @@ namespace foundation::script::angelscript
             core::f64 wait = 0.0;
             asIScriptObject* owner = nullptr;
             IScriptContext* home = nullptr;
+            bool held = false;    // paused at a breakpoint: the debugger has it until it runs it on
+            bool suspending = false; // `wait` asked for the suspend, which lands after the next line begins
         };
 
         /// `startCoroutine(fn)`: spins up a dedicated context for the coroutine function
@@ -1024,11 +1028,15 @@ namespace foundation::script::angelscript
             // Capture the home context: this initial run is already inside the caller's
             // ScriptCallScope, and a resume from AdvanceCoroutines pushes it again.
             m_coroutines.PushBack(Coroutine{co, 0.0, owner, CurrentScriptContext()});
-            ArmBudget(co); // its own context: armed for each run between its waits
+            ArmCoroutine(co, CurrentScriptContext()); // armed again for each run between its waits
             int result;
             {
                 const ExecuteClock clock(*this);
                 result = co->Execute();
+            }
+            if (result == asEXECUTION_SUSPENDED && HoldIfDebuggerPaused(co))
+            {
+                return;
             }
             ResolveCoroutineExecution(co, result);
         }
@@ -1047,6 +1055,7 @@ namespace foundation::script::angelscript
                 if (co.ctx == active)
                 {
                     co.wait = static_cast<core::f64>(seconds);
+                    co.suspending = true;
                     break;
                 }
             }
@@ -1057,7 +1066,10 @@ namespace foundation::script::angelscript
         {
             for (Coroutine& co : m_coroutines)
             {
-                co.wait -= deltaSeconds;
+                if (!co.held)
+                {
+                    co.wait -= deltaSeconds;
+                }
             }
             // Snapshot due contexts (stable pointers): a resumed coroutine may start more,
             // which are appended and not advanced this frame, and finding each by context again
@@ -1065,7 +1077,7 @@ namespace foundation::script::angelscript
             m_dueScratch.Clear();
             for (const Coroutine& co : m_coroutines)
             {
-                if (co.wait <= kDueEpsilon)
+                if (!co.held && co.wait <= kDueEpsilon) // a held one waits for the debugger
                 {
                     m_dueScratch.PushBack(co.ctx);
                 }
@@ -1080,11 +1092,18 @@ namespace foundation::script::angelscript
                 // Re-establish the home script context: the resume runs outside any script call
                 // (from the run-host tick), so the coroutine's facade calls resolve per-context
                 // services (scene.spawn, entity.send) instead of doing nothing on a null context.
-                ScriptCallScope scope(m_coroutines[static_cast<core::usize>(index)].home);
+                IScriptContext* home = m_coroutines[static_cast<core::usize>(index)].home;
+                ScriptCallScope scope(home);
+                ArmCoroutine(ctx, home); // a debugger attached since its last run sees this one
+                m_coroutines[static_cast<core::usize>(index)].suspending = false;
                 int result;
                 {
                     const ExecuteClock clock(*this);
                     result = ctx->Execute();
+                }
+                if (result == asEXECUTION_SUSPENDED && HoldIfDebuggerPaused(ctx))
+                {
+                    continue;
                 }
                 ResolveCoroutineExecution(ctx, result);
             }
@@ -2063,6 +2082,10 @@ namespace foundation::script::angelscript
         void DropCoroutineAt(core::usize index)
         {
             Coroutine& co = m_coroutines[index];
+            if (co.held && m_debugger != nullptr)
+            {
+                DebuggerForgetContext(*m_debugger, co.ctx); // the debugger must not keep it
+            }
             if (co.ctx != nullptr)
             {
                 (void)co.ctx->Abort();
@@ -2083,6 +2106,63 @@ namespace foundation::script::angelscript
             }
         }
 
+        // Arms a coroutine's context for its next run: the active debugger's line callback (which
+        // checks the budget too), else the budget's.
+        void ArmCoroutine(asIScriptContext* ctx, IScriptContext* home)
+        {
+            if (m_debugger != nullptr)
+            {
+                ArmDebugger(*m_debugger, ctx, home);
+            }
+            else
+            {
+                ArmBudget(ctx);
+            }
+        }
+        // After a suspended run: true when it was the debugger, at a breakpoint or a step, that
+        // suspended it; the coroutine is then held until the debugger runs it on.
+        [[nodiscard]] bool HoldIfDebuggerPaused(asIScriptContext* ctx)
+        {
+            if (m_debugger == nullptr || !AdoptDebuggerSuspension(*m_debugger, ctx))
+            {
+                return false;
+            }
+            if (const int index = FindCoroutine(ctx); index >= 0)
+            {
+                m_coroutines[static_cast<core::usize>(index)].held = true;
+            }
+            return true;
+        }
+
+    public:
+        [[nodiscard]] bool IsCoroutineContext(asIScriptContext* ctx) const { return FindCoroutine(ctx) >= 0; }
+        // Whether `ctx` is a coroutine whose `wait` is suspending it: AngelScript honours the
+        // suspend after the next line begins, which no breakpoint or step may stop on.
+        [[nodiscard]] bool IsWaitSuspending(asIScriptContext* ctx) const
+        {
+            const int index = FindCoroutine(ctx);
+            return index >= 0 && m_coroutines[static_cast<core::usize>(index)].suspending;
+        }
+        // The debugger ran a held coroutine on (Continue, a step) and it did not pause again: it
+        // waits again, or it ended and is reported and dropped, as from the scheduler.
+        void ReleaseHeldCoroutine(asIScriptContext* ctx, int result)
+        {
+            if (const int index = FindCoroutine(ctx); index >= 0)
+            {
+                m_coroutines[static_cast<core::usize>(index)].held = false;
+            }
+            ResolveCoroutineExecution(ctx, result);
+        }
+        // Drops the coroutine on `ctx` (the debugger holding it is going away).
+        void DropCoroutineContext(asIScriptContext* ctx)
+        {
+            if (const int index = FindCoroutine(ctx); index >= 0)
+            {
+                DropCoroutineAt(static_cast<core::usize>(index));
+            }
+        }
+
+    private:
         // After an Execute: keep it if it suspended (its next wait is already recorded);
         // drop it (finished or faulted) otherwise.
         void ResolveCoroutineExecution(asIScriptContext* ctx, int result)
@@ -4093,6 +4173,13 @@ namespace foundation::script::angelscript
 
         ~AngelScriptDebugger() override
         {
+            // A held coroutine is dropped with its coroutine (its context is not the pool's).
+            if (m_pausedContext != nullptr && m_manager != nullptr && m_manager->IsCoroutineContext(m_pausedContext))
+            {
+                asIScriptContext* ctx = m_pausedContext;
+                m_pausedContext = nullptr;
+                m_manager->DropCoroutineContext(ctx);
+            }
             // A held (paused) context is aborted and returned so the engine tears down cleanly.
             if (m_pausedContext != nullptr)
             {
@@ -4230,6 +4317,18 @@ namespace foundation::script::angelscript
         {
             m_owner = owner;
             (void)ctx->SetLineCallback(asFUNCTION(DebuggerLineCallback), this, asCALL_CDECL);
+        }
+
+        // Lets go of `ctx` if it is the held one (its coroutine was cancelled under the debugger).
+        void Forget(asIScriptContext* ctx)
+        {
+            if (m_pausedContext != ctx)
+            {
+                return;
+            }
+            m_pausedContext = nullptr;
+            m_paused = false;
+            FireState(ScriptDebuggerState::Terminated);
         }
 
         // True (and adopts the context) when this debugger's line callback suspended `ctx`.
@@ -4406,6 +4505,17 @@ namespace foundation::script::angelscript
                                                  : ScriptDebuggerState::Breakpoint);
                 return; // still holding the context, paused again
             }
+            if (m_manager != nullptr && m_manager->IsCoroutineContext(ctx))
+            {
+                // A coroutine's context is its own, not the pool's: back to the scheduler, which
+                // keeps it if it waits again, or reports and drops it if it ended.
+                m_manager->ReleaseHeldCoroutine(ctx, result);
+                if (result != asEXECUTION_SUSPENDED)
+                {
+                    FireState(ScriptDebuggerState::Terminated);
+                }
+                return;
+            }
             // Ran to completion (or faulted): release the context back to the pool.
             ctx->ClearLineCallback();
             if (m_manager != nullptr && m_manager->Engine() != nullptr)
@@ -4449,6 +4559,10 @@ namespace foundation::script::angelscript
         {
             return;
         }
+        if (debugger->Manager() != nullptr && debugger->Manager()->IsWaitSuspending(ctx))
+        {
+            return; // the line after a coroutine's `wait`: it runs when the wait is over
+        }
         debugger->OnLine(ctx);
     }
 
@@ -4478,6 +4592,11 @@ namespace foundation::script::angelscript
     bool AdoptDebuggerSuspension(AngelScriptDebugger& debugger, asIScriptContext* ctx)
     {
         return debugger.Adopt(ctx);
+    }
+
+    void DebuggerForgetContext(AngelScriptDebugger& debugger, asIScriptContext* ctx)
+    {
+        debugger.Forget(ctx);
     }
 
     core::UniquePtr<IScriptDebugger> AngelScriptManager::CreateDebugger()

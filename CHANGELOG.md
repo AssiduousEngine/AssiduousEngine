@@ -53,6 +53,7 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Editor: a breakpoint inside an AngelScript coroutine hits; it was passed over.
 - Scripting (AngelScript): a call needing more than 16 arguments is refused with an error; it was
   made with the arguments past 16 dropped.
 - Scripting: an AngelScript coroutine that fails is reported, and a cancelled one no longer

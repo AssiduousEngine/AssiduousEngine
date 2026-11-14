@@ -1363,6 +1363,15 @@ TEST_CASE("script.luau: backend conformance battery")
     dialect.debugBreakLine = 5;
     dialect.debugLocalName = u8"tag";
     dialect.debugLocalValue = u8"hit"; // Luau prints a string local's raw content (no quotes)
+    dialect.debugCoroutineModule = u8"gDone = 0\n"                     // 1
+                                   u8"function debugCoroutine()\n"     // 2
+                                   u8"    startCoroutine(function()\n" // 3
+                                   u8"        waitSeconds(0.1)\n"     // 4
+                                   u8"        local here = 1\n"       // 5 <- breakpoint
+                                   u8"        gDone = here\n"         // 6
+                                   u8"    end)\n"                     // 7
+                                   u8"end\n";                         // 8
+    dialect.debugCoroutineBreakLine = 5;
 
     conformance::RunScriptBackendConformance([]() { return CreateLuauScriptManager(DefaultAllocator()); },
                                              dialect);
