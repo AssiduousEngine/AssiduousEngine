@@ -162,6 +162,19 @@ namespace foundation::script::conformance
         builder.Constructor();
         builder.Nested<&Crate::items>("items");
     }
+    // The container element type, registered once for every check that binds a container.
+    struct CrateItems
+    {
+        static void RegisterOnce()
+        {
+            static bool once = [] {
+                RttiRegisterValue_CrateItem();
+                RegisterUniquePtrArrayType<CrateItem>();
+                return true;
+            }();
+            (void)once;
+        }
+    };
 
     // Inheritance contract fixtures: a derived type's handle reaches its base's reflected
     // properties and instance methods in every backend. Registered on demand.
@@ -198,6 +211,7 @@ namespace foundation::script::conformance
         RTTI_OBJECT(Lamp, Object)
     public:
         f64 level = 2.0;
+        Array<UniquePtr<CrateItem>> items; // a container member, as a Crate has
         void Bump() { level += 1.0; }
 
         struct Slot
@@ -241,6 +255,7 @@ namespace foundation::script::conformance
     {
         builder.Constructor();
         builder.Property<&Lamp::level>("level");
+        builder.Nested<&Lamp::items>("items");
         builder.Method<&Lamp::Bump>("bump");
         builder.Method<&Lamp::Take, Lamp>("take");
     }
@@ -290,10 +305,11 @@ namespace foundation::script::conformance
         // mutations through returned handles wrote through into the container.
         StringView containerModule;
         // Optional gone-handle module: a global `lamp` from `Lamp.take(0)` (the backend's static
-        // call syntax) and four zero-arg functions: `valid()` returning 1 when `lamp:isValid()`
-        // and 0 when not, `readLevel()` returning `lamp.level`, `writeLevel()` setting it to 7, and
-        // `bump()` calling `lamp:bump()`. Once the lamp is taken away, every one but `valid()` is
-        // the script's error, in every backend.
+        // call syntax) and five zero-arg functions: `valid()` returning 1 when `lamp:isValid()`
+        // and 0 when not, `readLevel()` returning `lamp.level`, `writeLevel()` setting it to 7,
+        // `bump()` calling `lamp:bump()`, and `countItems()` returning `lamp`'s `items_count()`.
+        // Once the lamp is taken away, every one but `valid()` is the script's error, in every
+        // backend.
         StringView goneModule;
         // Optional inheritance module: constructs a global `square` of the native Square type and
         // computes module globals IA = square.sides (4, the base's property), IB = square.twice()
@@ -638,12 +654,7 @@ namespace foundation::script::conformance
         // --- Container members (the write-through contract). ---
         if (!dialect.containerModule.IsEmpty())
         {
-            static bool crateOnce = [] {
-                RttiRegisterValue_CrateItem();
-                RegisterUniquePtrArrayType<CrateItem>();
-                return true;
-            }();
-            (void)crateOnce;
+            CrateItems::RegisterOnce();
             manager->RegisterType(TypeOf<CrateItem>());
             manager->RegisterType(Crate::StaticType()); // late registration, like DelegateSignal
             RefPtr<IScriptContext> cctx = manager->CreateContext();
@@ -675,6 +686,8 @@ namespace foundation::script::conformance
         {
             Lamp lamp;
             Lamp::Slots()[0].lamp = &lamp;
+            CrateItems::RegisterOnce();
+            manager->RegisterType(TypeOf<CrateItem>());
             manager->RegisterType(Lamp::StaticType()); // late registration, like DelegateSignal
             RefPtr<IScriptContext> gctx = manager->CreateContext();
             REQUIRE(gctx.Get() != nullptr);
@@ -691,13 +704,14 @@ namespace foundation::script::conformance
             };
             CHECK(number(u8"valid") == doctest::Approx(1.0));
             CHECK(number(u8"readLevel") == doctest::Approx(2.0));
+            CHECK(number(u8"countItems") == doctest::Approx(0.0));
             CHECK(gctx->Call(u8"writeLevel", none).HasValue());
             CHECK(gctx->Call(u8"bump", none).HasValue());
             CHECK(lamp.level == doctest::Approx(8.0)); // wrote through, then bumped
 
             Lamp::TakeAway(0);
             CHECK(number(u8"valid") == doctest::Approx(0.0));
-            const char8_t* const uses[] = {u8"readLevel", u8"writeLevel", u8"bump"};
+            const char8_t* const uses[] = {u8"readLevel", u8"writeLevel", u8"bump", u8"countItems"};
             for (const char8_t* use : uses)
             {
                 INFO(reinterpret_cast<const char*>(use));

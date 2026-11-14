@@ -1523,7 +1523,8 @@ TEST_CASE("angelscript: CERTIFIED - the backend conformance battery")
                          u8"double valid() { return lamp.isValid() ? 1 : 0; }\n"
                          u8"double readLevel() { return lamp.level; }\n"
                          u8"void writeLevel() { lamp.level = 7; }\n"
-                         u8"void bump() { lamp.bump(); }\n";
+                         u8"void bump() { lamp.bump(); }\n"
+                         u8"double countItems() { return lamp.items_count(); }\n";
     // Container contract: two adds through returned handles, zero-based at, move, removeAt.
     dialect.containerModule =
         u8"Crate@ crate = Crate();\n"

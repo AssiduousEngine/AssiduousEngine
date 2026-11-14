@@ -1708,10 +1708,16 @@ namespace foundation::script
                 lua_pushstring(state, "container op called without a bound self (use ':')");
                 lua_error(state);
             }
-            ScriptCallScope scope(context);
             Instance owner = ToInstance(*self);
-            if (owner.Pointer() == nullptr || property->type == nullptr ||
-                property->type->container == nullptr)
+            if (owner.Pointer() == nullptr)
+            {
+                // A gone owner's container is the script's error, as in AngelScript; raised before
+                // any C++ object with a destructor exists in this frame (lua_error skips them).
+                lua_pushstring(state, kObjectGoneMessage);
+                lua_error(state);
+            }
+            ScriptCallScope scope(context);
+            if (property->type == nullptr || property->type->container == nullptr)
             {
                 lua_pushnil(state);
                 return 1;

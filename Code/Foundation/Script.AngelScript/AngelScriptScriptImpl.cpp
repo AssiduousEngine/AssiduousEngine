@@ -2986,6 +2986,10 @@ namespace foundation::script::angelscript
         const Binding* binding = static_cast<const Binding*>(gen->GetAuxiliary());
         BoxedVariant* self = static_cast<BoxedVariant*>(gen->GetObject());
         core::Instance owner = core::ToInstance(self->value);
+        if (RefuseGone(owner))
+        {
+            return; // a gone owner's container: the script's error, never a read through null
+        }
         core::Instance container(binding->property->address(owner), binding->property->type);
         const core::ContainerInfo& ci = *binding->property->type->container;
         const core::usize size = core::ContainerSize(ci, container);
