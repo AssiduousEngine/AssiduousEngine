@@ -601,7 +601,7 @@ export namespace modelviewer
     class LibraryFile
     {
     public:
-        static constexpr StringView kFileName = u8"library.xml";
+        static constexpr ENGINE_EXPORT_DATA StringView kFileName = u8"library.xml"; // ModelViewer.Tests reads it
         static constexpr StringView kLockName = u8"library.lock";
 
         LibraryFile() = default;
