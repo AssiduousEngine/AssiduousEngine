@@ -1506,6 +1506,14 @@ TEST_CASE("angelscript: CERTIFIED - the backend conformance battery")
                              u8"  OC = over.combine(2, 3);\n"
                              u8"  OCT = over.combineText(\"x\", 7);\n"
                              u8"}\n";
+    dialect.widthsModule = u8"Widths@ widths = Widths();\n"
+                           u8"double WG = 0; double WO = 0;\n"
+                           u8"void main() {\n"
+                           u8"  widths.group = 200;\n"
+                           u8"  WG = widths.group;\n"
+                           u8"  WO = widths.offset(-300);\n"
+                           u8"}\n"
+                           u8"double compareNothing() { return widths.sameGroup(null); }\n";
     // Inheritance contract: the base's property and method through the derived handle.
     dialect.inheritModule = u8"Square@ square = Square();\n"
                             u8"double IA = 0; double IB = 0; double IC = 0;\n"

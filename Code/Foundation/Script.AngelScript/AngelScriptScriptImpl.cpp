@@ -190,105 +190,6 @@ namespace foundation::script::angelscript
         return std::string();
     }
 
-    // Numeric value of a Variant as double; `ok` false when it holds no number.
-    inline double NumericOf(const core::Variant& value, bool& ok) noexcept
-    {
-        ok = true;
-        if (const core::f64* d = value.TryGet<core::f64>())
-        {
-            return *d;
-        }
-        if (const core::f32* f = value.TryGet<core::f32>())
-        {
-            return static_cast<double>(*f);
-        }
-        if (const core::i32* i = value.TryGet<core::i32>())
-        {
-            return static_cast<double>(*i);
-        }
-        if (const core::i64* i = value.TryGet<core::i64>())
-        {
-            return static_cast<double>(*i);
-        }
-        if (const core::u32* u = value.TryGet<core::u32>())
-        {
-            return static_cast<double>(*u);
-        }
-        if (const core::u64* u = value.TryGet<core::u64>())
-        {
-            return static_cast<double>(*u);
-        }
-        if (const core::i16* i = value.TryGet<core::i16>())
-        {
-            return static_cast<double>(*i);
-        }
-        if (const core::u16* u = value.TryGet<core::u16>())
-        {
-            return static_cast<double>(*u);
-        }
-        if (const core::i8* i = value.TryGet<core::i8>())
-        {
-            return static_cast<double>(*i);
-        }
-        if (const core::u8* u = value.TryGet<core::u8>())
-        {
-            return static_cast<double>(*u);
-        }
-        if (const bool* b = value.TryGet<bool>())
-        {
-            return *b ? 1.0 : 0.0;
-        }
-        ok = false;
-        return 0.0;
-    }
-
-    // A number, coerced into a Variant of the reflected type a callee expects
-    // (default f64, the default marshalling currency).
-    inline core::Variant CoerceNumber(double d, const core::TypeInfo* expected)
-    {
-        using namespace core;
-        if (expected == &TypeOf<f32>())
-        {
-            return Variant::From<f32>(static_cast<f32>(d));
-        }
-        if (expected == &TypeOf<i32>())
-        {
-            return Variant::From<i32>(static_cast<i32>(d));
-        }
-        if (expected == &TypeOf<i64>())
-        {
-            return Variant::From<i64>(static_cast<i64>(d));
-        }
-        if (expected == &TypeOf<u32>())
-        {
-            return Variant::From<u32>(static_cast<u32>(d));
-        }
-        if (expected == &TypeOf<u64>())
-        {
-            return Variant::From<u64>(static_cast<u64>(d));
-        }
-        if (expected == &TypeOf<i16>())
-        {
-            return Variant::From<i16>(static_cast<i16>(d));
-        }
-        if (expected == &TypeOf<u16>())
-        {
-            return Variant::From<u16>(static_cast<u16>(d));
-        }
-        if (expected == &TypeOf<i8>())
-        {
-            return Variant::From<i8>(static_cast<i8>(d));
-        }
-        if (expected == &TypeOf<u8>())
-        {
-            return Variant::From<u8>(static_cast<u8>(d));
-        }
-        if (expected == &TypeOf<bool>())
-        {
-            return Variant::From<bool>(d != 0.0);
-        }
-        return Variant::From<f64>(d);
-    }
 
     // An already-typed 64-bit integer Variant (i64 or u64) coerced to the reflected type the callee
     // wants without passing through double, so values above 2^53 round-trip exactly (CoerceNumber
@@ -431,7 +332,7 @@ namespace foundation::script::angelscript
             return core::String(*b ? u8"true" : u8"false");
         }
         bool ok = false;
-        const double number = NumericOf(value, ok);
+        const double number = ScriptNumbers::Of(value, ok);
         if (ok)
         {
             return core::Format(u8"{}", number);
@@ -1191,20 +1092,20 @@ namespace foundation::script::angelscript
                 const bool b = *static_cast<const bool*>(addr);
                 return (expected == nullptr || expected == &core::TypeOf<bool>())
                            ? core::Variant::From<bool>(b)
-                           : CoerceNumber(b ? 1.0 : 0.0, expected);
+                           : ScriptNumbers::As(b ? 1.0 : 0.0, expected);
             }
             case asTYPEID_INT8:
-                return CoerceNumber(*static_cast<const core::i8*>(addr), expected);
+                return ScriptNumbers::As(*static_cast<const core::i8*>(addr), expected);
             case asTYPEID_UINT8:
-                return CoerceNumber(*static_cast<const core::u8*>(addr), expected);
+                return ScriptNumbers::As(*static_cast<const core::u8*>(addr), expected);
             case asTYPEID_INT16:
-                return CoerceNumber(*static_cast<const core::i16*>(addr), expected);
+                return ScriptNumbers::As(*static_cast<const core::i16*>(addr), expected);
             case asTYPEID_UINT16:
-                return CoerceNumber(*static_cast<const core::u16*>(addr), expected);
+                return ScriptNumbers::As(*static_cast<const core::u16*>(addr), expected);
             case asTYPEID_INT32:
-                return CoerceNumber(*static_cast<const core::i32*>(addr), expected);
+                return ScriptNumbers::As(*static_cast<const core::i32*>(addr), expected);
             case asTYPEID_UINT32:
-                return CoerceNumber(*static_cast<const core::u32*>(addr), expected);
+                return ScriptNumbers::As(*static_cast<const core::u32*>(addr), expected);
             case asTYPEID_INT64:
                 return CoerceInteger(core::Variant::From<core::i64>(*static_cast<const core::i64*>(addr)),
                                      expected);
@@ -1212,9 +1113,9 @@ namespace foundation::script::angelscript
                 return CoerceInteger(core::Variant::From<core::u64>(*static_cast<const core::u64*>(addr)),
                                      expected);
             case asTYPEID_FLOAT:
-                return CoerceNumber(*static_cast<const float*>(addr), expected);
+                return ScriptNumbers::As(*static_cast<const float*>(addr), expected);
             case asTYPEID_DOUBLE:
-                return CoerceNumber(*static_cast<const double*>(addr), expected);
+                return ScriptNumbers::As(*static_cast<const double*>(addr), expected);
             default:
                 break;
             }
@@ -1262,20 +1163,20 @@ namespace foundation::script::angelscript
                         const bool b = *static_cast<const bool*>(addr);
                         return (expected == nullptr || expected == &core::TypeOf<bool>())
                                    ? core::Variant::From<bool>(b)
-                                   : CoerceNumber(b ? 1.0 : 0.0, expected);
+                                   : ScriptNumbers::As(b ? 1.0 : 0.0, expected);
                     }
                     case asTYPEID_INT8:
-                        return CoerceNumber(*static_cast<const core::i8*>(addr), expected);
+                        return ScriptNumbers::As(*static_cast<const core::i8*>(addr), expected);
                     case asTYPEID_UINT8:
-                        return CoerceNumber(*static_cast<const core::u8*>(addr), expected);
+                        return ScriptNumbers::As(*static_cast<const core::u8*>(addr), expected);
                     case asTYPEID_INT16:
-                        return CoerceNumber(*static_cast<const core::i16*>(addr), expected);
+                        return ScriptNumbers::As(*static_cast<const core::i16*>(addr), expected);
                     case asTYPEID_UINT16:
-                        return CoerceNumber(*static_cast<const core::u16*>(addr), expected);
+                        return ScriptNumbers::As(*static_cast<const core::u16*>(addr), expected);
                     case asTYPEID_INT32:
-                        return CoerceNumber(*static_cast<const core::i32*>(addr), expected);
+                        return ScriptNumbers::As(*static_cast<const core::i32*>(addr), expected);
                     case asTYPEID_UINT32:
-                        return CoerceNumber(*static_cast<const core::u32*>(addr), expected);
+                        return ScriptNumbers::As(*static_cast<const core::u32*>(addr), expected);
                     case asTYPEID_INT64:
                         return CoerceInteger(
                             core::Variant::From<core::i64>(*static_cast<const core::i64*>(addr)),
@@ -1285,9 +1186,9 @@ namespace foundation::script::angelscript
                             core::Variant::From<core::u64>(*static_cast<const core::u64*>(addr)),
                             expected);
                     case asTYPEID_FLOAT:
-                        return CoerceNumber(*static_cast<const float*>(addr), expected);
+                        return ScriptNumbers::As(*static_cast<const float*>(addr), expected);
                     case asTYPEID_DOUBLE:
-                        return CoerceNumber(*static_cast<const double*>(addr), expected);
+                        return ScriptNumbers::As(*static_cast<const double*>(addr), expected);
                     default:
                         break; // string, enum or handle: fall through to the by-value paths
                     }
@@ -1301,20 +1202,20 @@ namespace foundation::script::angelscript
                 const bool b = gen->GetArgByte(index) != 0;
                 return (expected == nullptr || expected == &core::TypeOf<bool>())
                            ? core::Variant::From<bool>(b)
-                           : CoerceNumber(b ? 1.0 : 0.0, expected);
+                           : ScriptNumbers::As(b ? 1.0 : 0.0, expected);
             }
             case asTYPEID_INT8:
-                return CoerceNumber(static_cast<core::i8>(gen->GetArgByte(index)), expected);
+                return ScriptNumbers::As(static_cast<core::i8>(gen->GetArgByte(index)), expected);
             case asTYPEID_UINT8:
-                return CoerceNumber(gen->GetArgByte(index), expected);
+                return ScriptNumbers::As(gen->GetArgByte(index), expected);
             case asTYPEID_INT16:
-                return CoerceNumber(static_cast<core::i16>(gen->GetArgWord(index)), expected);
+                return ScriptNumbers::As(static_cast<core::i16>(gen->GetArgWord(index)), expected);
             case asTYPEID_UINT16:
-                return CoerceNumber(gen->GetArgWord(index), expected);
+                return ScriptNumbers::As(gen->GetArgWord(index), expected);
             case asTYPEID_INT32:
-                return CoerceNumber(static_cast<core::i32>(gen->GetArgDWord(index)), expected);
+                return ScriptNumbers::As(static_cast<core::i32>(gen->GetArgDWord(index)), expected);
             case asTYPEID_UINT32:
-                return CoerceNumber(gen->GetArgDWord(index), expected);
+                return ScriptNumbers::As(gen->GetArgDWord(index), expected);
             // 64-bit integers carry their exact type across (never via double) so values
             // above 2^53 survive; this is why CoerceInteger exists.
             case asTYPEID_INT64:
@@ -1325,9 +1226,9 @@ namespace foundation::script::angelscript
                 return CoerceInteger(core::Variant::From<core::u64>(gen->GetArgQWord(index)),
                                      expected);
             case asTYPEID_FLOAT:
-                return CoerceNumber(gen->GetArgFloat(index), expected);
+                return ScriptNumbers::As(gen->GetArgFloat(index), expected);
             case asTYPEID_DOUBLE:
-                return CoerceNumber(gen->GetArgDouble(index), expected);
+                return ScriptNumbers::As(gen->GetArgDouble(index), expected);
             default:
                 break;
             }
@@ -1484,7 +1385,7 @@ namespace foundation::script::angelscript
                 return;
             }
             bool ok = false;
-            const double number = NumericOf(value, ok);
+            const double number = ScriptNumbers::Of(value, ok);
             switch (typeId)
             {
             case asTYPEID_BOOL:
@@ -1620,7 +1521,7 @@ namespace foundation::script::angelscript
                                 const core::Variant& elem) const
         {
             bool ok = false;
-            const double num = NumericOf(elem, ok);
+            const double num = ScriptNumbers::Of(elem, ok);
             if (!ok)
             {
                 // A non-numeric element in a numeric array slot: 0 is written (below) so the
@@ -1752,7 +1653,7 @@ namespace foundation::script::angelscript
                 return false;
             }
             bool ok = false;
-            const double number = NumericOf(value, ok);
+            const double number = ScriptNumbers::Of(value, ok);
             switch (typeId)
             {
             case asTYPEID_BOOL:
@@ -1954,7 +1855,7 @@ namespace foundation::script::angelscript
                 (void)function->GetParam(arg, &typeId);
                 const core::Variant& value = args[i];
                 bool ok = false;
-                const double number = NumericOf(value, ok);
+                const double number = ScriptNumbers::Of(value, ok);
                 switch (typeId)
                 {
                 case asTYPEID_BOOL:
@@ -3694,7 +3595,7 @@ namespace foundation::script::angelscript
                 (void)function->GetParam(arg, &typeId);
                 const core::Variant& value = args[i];
                 bool ok = false;
-                const double number = NumericOf(value, ok);
+                const double number = ScriptNumbers::Of(value, ok);
                 switch (typeId)
                 {
                 case asTYPEID_BOOL:

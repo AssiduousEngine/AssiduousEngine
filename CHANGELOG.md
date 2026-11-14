@@ -53,6 +53,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Scripting (Luau): 8 and 16-bit integer properties, parameters and returns (a collider's
+  collision group) cross between script and engine; they did not.
 - Content: an asset's files are its own exactly. Deleting, renaming, moving or cloning `Rock`
   took the files of a `Rock.2` beside it (the name the editor gives a second `Rock`), and an export
   that pruned or stripped `Rock` dropped or packed `Rock.2`'s as well. A data stream's name may no

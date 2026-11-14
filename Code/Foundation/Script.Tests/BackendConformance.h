@@ -85,6 +85,42 @@ namespace foundation::script::conformance
             .OverloadedName("combineText");
     }
 
+    // Whether native code is called from inside a script call (CurrentScriptContext set): what a
+    // facade needs to reach its context's services, wherever the script runs (a waitUntil
+    // predicate included).
+    class CallScope : public Object
+    {
+        RTTI_OBJECT(CallScope, Object)
+    public:
+        [[nodiscard]] static f64 InCall() { return CurrentScriptContext() != nullptr ? 1.0 : 0.0; }
+    };
+
+    REFLECT_MEMBERS(CallScope, "rtti::script::conformance")
+    {
+        builder.Constructor(); // backends bind constructible types only
+        builder.Method<&CallScope::InCall>("inCall");
+    }
+
+    // Numbers of every width cross both ways: a u8 field (a collision group, say) and an i16
+    // parameter and return.
+    class Widths : public Object
+    {
+        RTTI_OBJECT(Widths, Object)
+    public:
+        u8 group = 0;
+        [[nodiscard]] i16 offset(i16 by) const { return static_cast<i16>(by - 1); }
+        // Takes another Widths by reference, so a call with nothing fails reflection's own invoke.
+        [[nodiscard]] f64 sameGroup(const Widths& other) const { return other.group == group ? 1.0 : 0.0; }
+    };
+
+    REFLECT_MEMBERS(Widths, "rtti::script::conformance")
+    {
+        builder.Constructor();
+        builder.Property<&Widths::group>("group");
+        builder.Method<&Widths::offset>("offset");
+        builder.Method<&Widths::sameGroup>("sameGroup");
+    }
+
     // Violates the contract: two methods on the same (name, arity, static) with no distinct
     // overloadedName. Only the pure collision check runs on it; it is never registered with a
     // manager, because FinalizeTypes would trap on it.
@@ -240,6 +276,12 @@ namespace foundation::script::conformance
         // the arity family), `OC = over.combine(2, 3)` (5), `OCT = over.combineText("x", 7)`
         // (7, the distinct-name overload), in the backend's own construct and method-call syntax.
         StringView overloadModule;
+        // Optional small-number module: constructs a global `widths` of the native Widths type,
+        // sets `widths.group = 200` (a u8), then computes module globals WG = widths.group (200)
+        // and WO = widths.offset(-300) (-301, an i16 parameter and return), and a zero-arg
+        // function `compareNothing()` calling `widths.sameGroup(null)` (nil in Lua): a native call
+        // that fails, which must be the script's error naming the method.
+        StringView widthsModule;
         // Optional container-member module: constructs a global `crate` of the native Crate type,
         // adds two items via `items_add` setting sizes 5 and 9 through the returned handles, then
         // computes module globals: KN = items_count() (2), KZ = items_at(0).size (5,
@@ -573,6 +615,17 @@ namespace foundation::script::conformance
             CHECK(octx->GetGlobal(u8"OP1").Get<f64>() == doctest::Approx(105.0)); // ping(5), arity 1
             CHECK(octx->GetGlobal(u8"OC").Get<f64>() == doctest::Approx(5.0));    // combine
             CHECK(octx->GetGlobal(u8"OCT").Get<f64>() == doctest::Approx(7.0));   // combineText
+        }
+
+        // --- Numbers of every width (a u8 field, an i16 parameter and return). ---
+        if (!dialect.widthsModule.IsEmpty())
+        {
+            manager->RegisterType(Widths::StaticType()); // late registration, like Overloads
+            RefPtr<IScriptContext> wctx = manager->CreateContext();
+            REQUIRE(wctx.Get() != nullptr);
+            REQUIRE(wctx->Load(dialect.widthsModule, u8"main").IsOk());
+            CHECK(wctx->GetGlobal(u8"WG").Get<f64>() == doctest::Approx(200.0));
+            CHECK(wctx->GetGlobal(u8"WO").Get<f64>() == doctest::Approx(-301.0));
         }
 
         // --- Container members (the write-through contract). ---

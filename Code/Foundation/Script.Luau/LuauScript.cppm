@@ -1123,29 +1123,12 @@ namespace foundation::script
             lua_pushboolean(state, *b ? 1 : 0);
             return;
         }
-        if (const f64* d = value.TryGet<f64>())
+        // Every numeric width (a bool is pushed above, as a boolean).
+        bool numeric = false;
+        const double number = ScriptNumbers::Of(value, numeric);
+        if (numeric)
         {
-            lua_pushnumber(state, *d);
-            return;
-        }
-        if (const f32* f = value.TryGet<f32>())
-        {
-            lua_pushnumber(state, static_cast<f64>(*f));
-            return;
-        }
-        if (const i32* i = value.TryGet<i32>())
-        {
-            lua_pushnumber(state, static_cast<f64>(*i));
-            return;
-        }
-        if (const i64* i = value.TryGet<i64>())
-        {
-            lua_pushnumber(state, static_cast<f64>(*i));
-            return;
-        }
-        if (const u32* u = value.TryGet<u32>())
-        {
-            lua_pushnumber(state, static_cast<f64>(*u));
+            lua_pushnumber(state, number);
             return;
         }
         if (const String* s = value.TryGet<String>())
@@ -1293,25 +1276,14 @@ namespace foundation::script
             {
                 return Variant::From<i64>(static_cast<i64>(n)); // enum: its underlying int
             }
-            if (expected == &TypeOf<f32>())
+            if (expected != &TypeOf<bool>()) // a bool parameter takes a Lua boolean, not a number
             {
-                return Variant::From<f32>(static_cast<f32>(n));
-            }
-            if (expected == &TypeOf<i32>())
-            {
-                return Variant::From<i32>(static_cast<i32>(n));
-            }
-            if (expected == &TypeOf<i64>())
-            {
-                return Variant::From<i64>(static_cast<i64>(n));
-            }
-            if (expected == &TypeOf<u32>())
-            {
-                return Variant::From<u32>(static_cast<u32>(n));
-            }
-            if (expected == &TypeOf<u64>())
-            {
-                return Variant::From<u64>(static_cast<u64>(n));
+                // Every numeric width, converted as the other backends convert it.
+                const Variant converted = ScriptNumbers::As(n, expected);
+                if (!converted.Is<f64>())
+                {
+                    return converted;
+                }
             }
             // f64 (or an unrecognised numeric) falls through to the ordinary conversion.
         }

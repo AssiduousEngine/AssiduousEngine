@@ -98,6 +98,14 @@ OC = over:combine(2, 3)
 OCT = over:combineText("x", 7)
 )lua";
 
+    constexpr StringView kWidths = u8R"lua(
+local widths = Widths.new()
+widths.group = 200
+WG = widths.group
+WO = widths:offset(-300)
+function compareNothing() return widths:sameGroup(nil) end
+)lua";
+
     // Debugger dialect: a zero-arg entry. `tag` binds on line 3, two lines before the breakpoint
     // (line 5), so it is reliably live at the pause: the Luau pause lands one bytecode instruction
     // early (luau_callhook advances savedpc), so a local bound on the line just above the break may
@@ -1303,6 +1311,7 @@ TEST_CASE("script.luau: backend conformance battery")
     dialect.coroutineClass = kCoroutine;
     dialect.delegateModule = kDelegate;
     dialect.overloadModule = kOverload;
+    dialect.widthsModule = kWidths;
     dialect.inheritModule = u8"square = Square.new()\n"
                             u8"IA = square.sides\n"
                             u8"IB = square:twice()\n"

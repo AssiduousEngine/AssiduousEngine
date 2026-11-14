@@ -21,4 +21,5 @@ target_sources(Script
             IScriptContext.cppm
             IScriptManager.cppm
             RegisterTypes.cppm
-            BackendRegistry.cppm)
+            BackendRegistry.cppm
+            ScriptNumbers.cppm)
