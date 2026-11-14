@@ -53,6 +53,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Editor: on an asset page without a page of its own, undoing back to the last save leaves it
+  saved, and Discard Changes works; the page stayed unsaved and Discard failed.
 - Editor: a breakpoint inside an AngelScript coroutine hits; it was passed over.
 - Scripting (AngelScript): a call needing more than 16 arguments is refused with an error; it was
   made with the arguments past 16 dropped.

@@ -645,8 +645,7 @@ namespace editor
         (void)Commands().Execute(UniquePtr<IEditorCommand>(
             Allocator().New<EditGenericCommand>(*this, key.AsView(), m_undoBaseline, after),
             Allocator()));
-        m_undoBaseline = Move(after);
-        MarkDirty();
+        m_undoBaseline = Move(after); // the step on the stack is the change: the history says it is unsaved
 
         // Re-scan: a conditional-branch shape change rebuilds the rows; a same-shape patch shows
         // the values again (the replay may have narrowed one, a u8 past 255).
@@ -719,7 +718,8 @@ namespace editor
         else
             m_rebuild = true;
         m_fields = Move(rescanned);
-        MarkDirty();
+        // No MarkDirty: only the undo step applies a blob, and the history tracks it, so undoing back
+        // to the save leaves the page clean (a mark would stick until the next save).
     }
 
     Status GenericAssetEditorPage::Save()

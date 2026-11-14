@@ -369,3 +369,26 @@ TEST_CASE("generic page: an asset that does not read says so in place of the row
     CHECK(page->Fields().IsEmpty());
     CHECK_FALSE(page->Save().IsOk());
 }
+
+TEST_CASE("generic page: undoing back to the save leaves the page clean, and Discard puts it back")
+{
+    // Each edit and each undo also marked the page dirty outside its history, a mark only a save
+    // cleared: undone to the save, the page still said it was unsaved, and Discard (seeing a change
+    // without a step, and a page that cannot reload) failed.
+    Bed bed;
+    UniquePtr<GenericAssetEditorPage> page = bed.Open(*bed.probe);
+    const usize index = FieldIndex(*page, u8"friction");
+    const f64 saved = page->Fields()[index].floatValue;
+    const String friction = PathOf(*page, u8"friction");
+    page->Edit(friction.AsView(), gui::Variant(0.25));
+    REQUIRE(page->IsDirty());
+    page->Commands().Undo();
+    CHECK_FALSE(page->IsDirty());
+    page->Commands().Redo();
+    CHECK(page->IsDirty()); // redone: unsaved again, by the history alone
+
+    REQUIRE(page->DiscardChanges());
+    CHECK_FALSE(page->IsDirty());
+    page->Refresh();
+    CHECK(page->Fields()[index].floatValue == doctest::Approx(saved));
+}
