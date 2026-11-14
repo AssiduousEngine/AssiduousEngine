@@ -2875,6 +2875,17 @@ namespace foundation::script::angelscript
         return true;
     }
 
+    // A reflected call that failed is the script's error, said where it happened (as Luau says
+    // it), never a default value standing in for the result.
+    void RaiseCallFailed(const core::MethodInfo& method)
+    {
+        if (asIScriptContext* active = asGetActiveContext())
+        {
+            const core::String message = core::Format(u8"'{}' failed", ViewOfAscii(method.name));
+            active->SetException(reinterpret_cast<const char*>(message.CStr()));
+        }
+    }
+
     // `isValid()` on every object handle: whether its object is still there (a value is always).
     // The one use of a gone handle that is not an error.
     void IsValidDispatch(asIScriptGeneric* gen)
@@ -3071,8 +3082,12 @@ namespace foundation::script::angelscript
             }
             result = core::InvokeMethod(method, instance, argSpan);
         }
-        binding->manager->SetGenericReturn(gen,
-                                           result.HasValue() ? result.Value() : core::Variant{});
+        if (!result.HasValue())
+        {
+            RaiseCallFailed(method);
+            return;
+        }
+        binding->manager->SetGenericReturn(gen, result.Value());
     }
 
     void OperatorDispatch(asIScriptGeneric* gen)
@@ -3092,12 +3107,14 @@ namespace foundation::script::angelscript
         }
         core::Result<core::Variant> result =
             core::InvokeStatic(method, core::Span<core::Variant>{args, binary ? 2u : 1u});
+        if (!result.HasValue())
+        {
+            RaiseCallFailed(method);
+            return;
+        }
         if (binding->kind == Binding::Kind::OperatorAssign)
         {
-            if (result.HasValue())
-            {
-                self->value = core::Move(result.Value());
-            }
+            self->value = core::Move(result.Value());
             gen->SetReturnAddress(self);
             return;
         }

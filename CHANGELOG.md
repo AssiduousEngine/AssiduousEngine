@@ -53,6 +53,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Scripting: a native call that fails raises an error naming the method; AngelScript went on with
+  a default value.
 - Scripting (Luau): 8 and 16-bit integer properties, parameters and returns (a collider's
   collision group) cross between script and engine; they did not.
 - Content: an asset's files are its own exactly. Deleting, renaming, moving or cloning `Rock`

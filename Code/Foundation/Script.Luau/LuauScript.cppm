@@ -1448,7 +1448,7 @@ namespace foundation::script
             }
             if (failed)
             {
-                lua_pushstring(state, "reflected method invocation failed");
+                lua_pushfstring(state, "'%s' failed", method.name);
                 lua_error(state);
             }
             return pushed ? 1 : 0;
@@ -1573,20 +1573,29 @@ namespace foundation::script
                 lua_pushstring(state, "no operator of this type takes that right operand");
                 lua_error(state);
             }
-            Variant args[2];
-            args[0] = *left;
-            if (!unary)
+            bool failed = false;
             {
-                args[1] = context->ToVariantForParam(state, 2, chosen->params[1].type());
+                // What owns memory lives in this block alone: lua_error below jumps out of the
+                // frame without running destructors.
+                Variant args[2];
+                args[0] = *left;
+                if (!unary)
+                {
+                    args[1] = context->ToVariantForParam(state, 2, chosen->params[1].type());
+                }
+                ScriptCallScope scope(context);
+                Result<Variant> result = InvokeStatic(*chosen, Span<Variant>{args, unary ? 1u : 2u});
+                failed = !result.HasValue();
+                if (!failed)
+                {
+                    context->PushVariant(state, result.Value());
+                }
             }
-            ScriptCallScope scope(context);
-            Result<Variant> result = InvokeStatic(*chosen, Span<Variant>{args, unary ? 1u : 2u});
-            if (!result.HasValue())
+            if (failed)
             {
-                lua_pushstring(state, "reflected operator invocation failed");
+                lua_pushfstring(state, "'%s' failed", chosen->name);
                 lua_error(state);
             }
-            context->PushVariant(state, result.Value());
             return 1;
         }
 

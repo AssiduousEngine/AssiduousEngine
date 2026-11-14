@@ -626,6 +626,13 @@ namespace foundation::script::conformance
             REQUIRE(wctx->Load(dialect.widthsModule, u8"main").IsOk());
             CHECK(wctx->GetGlobal(u8"WG").Get<f64>() == doctest::Approx(200.0));
             CHECK(wctx->GetGlobal(u8"WO").Get<f64>() == doctest::Approx(-301.0));
+            // A native call that fails is the script's error, never a default value.
+            CapturedErrors failures;
+            wctx->SetErrorHandler(&failures);
+            CHECK_FALSE(wctx->Call(u8"compareNothing", Span<Variant>{}).HasValue());
+            CHECK(failures.count == 1);
+            CHECK(failures.lastMessage.AsView().Find(StringView(u8"'sameGroup' failed")) != StringView::kNotFound);
+            wctx->SetErrorHandler(nullptr);
         }
 
         // --- Container members (the write-through contract). ---
