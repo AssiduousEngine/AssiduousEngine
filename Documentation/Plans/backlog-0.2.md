@@ -310,7 +310,7 @@ the counts (SSGI's resolve, composite, denoise and blur, about 20 ms) dominate.
 
 ## Stability: left over (2026-11-13)
 
-What the audit of 2026-11-11 raised that `Specs/stability.md` leaves out, to take up after it:
+What the audit of 2026-11-11 raised that `Archive/stability-history.md` leaves out, to take up after it:
 
 - **Autosave and crash recovery.** Atomic saves stop a crash from corrupting a file; nothing
   keeps unsaved work.

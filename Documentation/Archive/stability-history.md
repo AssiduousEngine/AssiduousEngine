@@ -1,5 +1,15 @@
 # Stability
 
+> ARCHIVED 2026-11-13, fully built on master; what it left out is in
+> Documentation/Plans/backlog-0.2.md ("Stability: left over"), and Android's CA roots are for the
+> `android` branch. Non-authoritative: the original spec, kept as the record of what was built and
+> why; the code and the tests are the truth. Each layer's write-up is in
+> Documentation/Plans/week-2026-10-24.md, under "Stability: ...".
+
+> Status: DONE 2026-11-13: S0 to S8 built, the lanes green (clang, gcc, clang-shared 204 of 204;
+> wasm builds; ASAN 204 of 204, its only reports in Code/ the AngelScript bridge's backlogged
+> misaligned reads).
+
 > STATUS: APPROVED 2026-11-13 (user: "write up the spec and work through it on master"). Sized L, in
 > phases S0 to S8, each green on the lanes before the next.
 > Origin: a read-only source audit of 2026-11-11 (eleven readers over the tree, nothing built or
