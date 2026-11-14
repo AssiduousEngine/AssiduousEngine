@@ -386,3 +386,38 @@ TEST_CASE("ttf.service: a family loaded from memory bakes its other sizes from t
     REQUIRE(big != nullptr);
     CHECK(big->font->PixelHeight() == doctest::Approx(30.0f));
 }
+
+// stb_truetype reads offsets from the file without checking them: a truncated or crafted font
+// read past its bytes. The table directory is now checked before it sees the data.
+TEST_CASE("ttf.font: a font whose tables do not fit its bytes is refused before it is read")
+{
+    const Result<Array<byte>> read = ReadFile(AssetPath("/Engine/Fonts/roboto/Roboto-Regular.ttf"));
+    REQUIRE(read.HasValue());
+    const auto bytesOf = [&](usize count)
+    {
+        Array<u8> out;
+        out.Resize(count);
+        MemCopy(out.Data(), read.Value().Data(), count);
+        return out;
+    };
+    {
+        TrueTypeFont whole;
+        CHECK(whole.Initialize(bytesOf(read.Value().Size()), 16.0f) == FontLoadResult::Success);
+    }
+    {
+        TrueTypeFont half; // the directory is there; the tables it names run past the end
+        CHECK(half.Initialize(bytesOf(read.Value().Size() / 2), 16.0f) == FontLoadResult::InvalidFormat);
+    }
+    {
+        TrueTypeFont headerOnly; // twelve bytes claiming the font's own table count
+        CHECK(headerOnly.Initialize(bytesOf(12), 16.0f) == FontLoadResult::InvalidFormat);
+    }
+    {
+        Array<u8> collection; // "ttcf", one font, at an offset far past the end
+        const u8 ttc[16] = {'t', 't', 'c', 'f', 0, 1, 0, 0, 0, 0, 0, 1, 0x7F, 0xFF, 0xFF, 0xFF};
+        collection.Resize(16);
+        MemCopy(collection.Data(), ttc, 16);
+        TrueTypeFont font;
+        CHECK(font.Initialize(Move(collection), 16.0f) == FontLoadResult::InvalidFormat);
+    }
+}

@@ -35,6 +35,44 @@ export namespace foundation::fonts
 
         // Initialize from font bytes (takes ownership of fontData). Returns
         // FontLoadResult::Success or a specific failure.
+        // Whether `data` holds an sfnt font (TrueType or OpenType, or the first font of a TTC
+        // collection) whose header and table directory fit, with every table inside the data;
+        // `fontOffset` is where that font starts. Offsets within the tables (glyph locations and the
+        // like) are stb_truetype's to read and are not checked here.
+        [[nodiscard]] static bool SfntDirectoryFits(Span<const u8> data, u32& fontOffset) noexcept
+        {
+            const auto be32 = [&](usize at) -> u32
+            {
+                return (static_cast<u32>(data[at]) << 24) | (static_cast<u32>(data[at + 1]) << 16) |
+                       (static_cast<u32>(data[at + 2]) << 8) | static_cast<u32>(data[at + 3]);
+            };
+            const usize size = data.Size();
+            if (size < 12)
+                return false;
+            fontOffset = 0;
+            if (data[0] == 't' && data[1] == 't' && data[2] == 'c' && data[3] == 'f')
+            {
+                if (size < 16 || be32(8) == 0) // a collection's count, then its first font's offset
+                    return false;
+                fontOffset = be32(12);
+            }
+            if (static_cast<u64>(fontOffset) + 12 > size)
+                return false;
+            const u32 tables = (static_cast<u32>(data[fontOffset + 4]) << 8) | data[fontOffset + 5];
+            const u64 directoryEnd = static_cast<u64>(fontOffset) + 12 + static_cast<u64>(tables) * 16;
+            if (tables == 0 || directoryEnd > size)
+                return false;
+            for (u32 t = 0; t < tables; ++t)
+            {
+                const usize record = fontOffset + 12 + static_cast<usize>(t) * 16;
+                const u64 tableOffset = be32(record + 8);
+                const u64 tableLength = be32(record + 12);
+                if (tableOffset + tableLength > size)
+                    return false;
+            }
+            return true;
+        }
+
         [[nodiscard]] FontLoadResult Initialize(Array<u8>&& fontData, f32 pixelHeight)
         {
             m_fontData = Move(fontData);
@@ -42,12 +80,13 @@ export namespace foundation::fonts
 
             const unsigned char* ptr = m_fontData.Data();
 
-            // For TTC collections, use the first font.
-            const int offset = stbtt_GetFontOffsetForIndex(ptr, 0);
-            if (offset < 0)
+            // stb_truetype trusts every offset in the file: the header, the table directory and each
+            // table's place must be inside the bytes before it reads any of them.
+            u32 offset = 0;
+            if (!SfntDirectoryFits(Span<const u8>(m_fontData.Data(), m_fontData.Size()), offset))
                 return FontLoadResult::InvalidFormat;
 
-            if (stbtt_InitFont(&m_fontInfo, ptr, offset) == 0)
+            if (stbtt_InitFont(&m_fontInfo, ptr, static_cast<int>(offset)) == 0)
                 return FontLoadResult::CorruptedData;
 
             m_scale = stbtt_ScaleForPixelHeight(&m_fontInfo, pixelHeight);
