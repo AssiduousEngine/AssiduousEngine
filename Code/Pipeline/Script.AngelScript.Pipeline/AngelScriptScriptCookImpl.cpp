@@ -593,11 +593,13 @@ namespace pipeline{
                 }
             }
 
-            // AngelScript bytecode is tied to the library version: fold it into the cook
-            // fingerprint so a vendor bump recooks every AngelScript pack (as the Luau cook does).
+            // AngelScript bytecode is tied to the library version and to how the engine binds its
+            // types: fold both into the cook fingerprint so either change recooks every AngelScript
+            // pack (as the Luau cook does for its bytecode version).
             [[nodiscard]] u32 CookVersion() const override
             {
-                return foundation::script::angelscript::AngelScriptBytecodeVersion();
+                return foundation::script::angelscript::AngelScriptBytecodeVersion() +
+                       foundation::script::angelscript::AngelScriptBindingVersion();
             }
 
             using IScriptLanguageCook::Cook; // and the overload that prefers the file's stem

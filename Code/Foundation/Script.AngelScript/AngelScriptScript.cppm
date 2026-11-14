@@ -65,6 +65,13 @@ export namespace foundation::script::angelscript
     /// Kept out of line so the SDK header stays in the implementation unit.
     [[nodiscard]] core::u32 AngelScriptBytecodeVersion() noexcept;
 
+    /// How this backend binds reflected types to AngelScript (a plain type as a value of its bytes,
+    /// its stored fields as members, everything else as a box). Cooked bytecode refers to that
+    /// shape, so a change to it is a new number here and the cook folds it into its version: a
+    /// project cooked by an engine that bound them otherwise recooks instead of loading bytecode
+    /// that no longer fits.
+    [[nodiscard]] constexpr core::u32 AngelScriptBindingVersion() noexcept { return 1; }
+
     /// A compiler message with what it most often means here appended (a handle to a plain type,
     /// written before those became values), or the message as it is. The runtime and the cook both
     /// report through it, so a script reads the same advice wherever it is compiled.

@@ -65,6 +65,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Scripting (AngelScript): a project cooked by an older engine recooks its scripts after an update
+  that changes how the engine binds its types; it loaded the old bytecode and the scripts failed
+  ("The bytecode is invalid").
 - Scripting (AngelScript): a handler a behaviour inherits from a base class in an included file is
   called; only handlers written in the class's own file were.
 - Scripting (AngelScript): a script that allocates past the heap budget (`ScriptBudget::heapBytes`)

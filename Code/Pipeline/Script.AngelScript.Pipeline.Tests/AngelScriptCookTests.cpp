@@ -490,12 +490,16 @@ TEST_CASE("as.cook: the PaperKid FollowCamera behavior cooks with an Entity targ
     CHECK(FindProp(out, u8"positionSmoothing") != nullptr);
 }
 
-TEST_CASE("as.cook: the fingerprint carries the AngelScript library version")
+TEST_CASE("as.cook: the fingerprint carries the AngelScript library version and the binding's")
 {
+    // Bytecode cooked before plain types became values loaded and failed ("The bytecode is
+    // invalid"): the fingerprint followed the library alone, so nothing recooked it.
     IScriptLanguageCook* cook = AngelScriptCook();
     REQUIRE(cook != nullptr);
     CHECK(foundation::script::angelscript::AngelScriptBytecodeVersion() != 0u);
-    CHECK(cook->CookVersion() == foundation::script::angelscript::AngelScriptBytecodeVersion());
+    CHECK(foundation::script::angelscript::AngelScriptBindingVersion() != 0u);
+    CHECK(cook->CookVersion() == foundation::script::angelscript::AngelScriptBytecodeVersion() +
+                                     foundation::script::angelscript::AngelScriptBindingVersion());
     CHECK(ScriptLanguageCookRegistry::Get().CombinedCookVersion() >=
           foundation::script::angelscript::AngelScriptBytecodeVersion());
 }
