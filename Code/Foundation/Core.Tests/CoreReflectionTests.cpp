@@ -654,3 +654,32 @@ TEST_CASE("reflection: TypeRegistry::Register is safe under concurrent first-tim
         CHECK(registry.FindById(infos[i].id) == &infos[i]);
     }
 }
+
+TEST_CASE("reflection: TypeRegistry::Generation moves when a type is added or removed, and only then")
+{
+    // What is built from the registered types (a script engine's API) is rebuilt when this moves; a
+    // count could not tell one type replaced by another.
+    static TypeInfo first = {};
+    first.id = 0x6E4E0001ull;
+    first.name = "GenerationFirst";
+    first.namespaceName = "rtti::tests";
+    static TypeInfo second = {};
+    second.id = 0x6E4E0002ull;
+    second.name = "GenerationSecond";
+    second.namespaceName = "rtti::tests";
+    TypeRegistry registry;
+    const u64 empty = registry.Generation();
+    registry.Register(first);
+    const u64 one = registry.Generation();
+    CHECK(one != empty);
+    registry.Register(first); // already there: nothing changes
+    CHECK(registry.Generation() == one);
+    registry.Unregister(first.id);
+    const u64 removed = registry.Generation();
+    CHECK(removed != one);
+    registry.Unregister(first.id); // not there: nothing changes
+    CHECK(registry.Generation() == removed);
+    registry.Register(second); // as many types as after the first insert, yet another generation
+    CHECK(registry.Generation() != one);
+    CHECK(registry.Generation() != removed);
+}

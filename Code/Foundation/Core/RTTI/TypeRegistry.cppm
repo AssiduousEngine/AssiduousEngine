@@ -18,6 +18,7 @@ import :string;
 import :string_hash;
 import :mutex;
 import :scoped_lock;
+import :atomic;
 
 export namespace foundation::core
 {
@@ -74,6 +75,7 @@ export namespace foundation::core
             }
             m_byId.InsertOrAssign(info.id, &info);
             m_all.PushBack(&info);
+            m_generation.fetch_add(1, MemoryOrder::Release);
             if (!(domain == kRuntimeTypeDomain))
             {
                 m_domains.InsertOrAssign(info.id, domain);
@@ -97,6 +99,7 @@ export namespace foundation::core
             }
             m_byId.Remove(id);
             m_domains.Remove(id);
+            m_generation.fetch_add(1, MemoryOrder::Release);
             for (usize i = 0; i < m_all.Size(); ++i)
             {
                 if (m_all[i]->id == id)
@@ -161,6 +164,10 @@ export namespace foundation::core
         }
 
         [[nodiscard]] usize Count() const noexcept { return m_all.Size(); }
+        /// Changes each time a type is added or removed (a count cannot tell a plugin's type
+        /// replaced by another): what is built from the registered types (a script engine's API)
+        /// is current while this has not moved.
+        [[nodiscard]] u64 Generation() const noexcept { return m_generation.load(MemoryOrder::Acquire); }
         [[nodiscard]] const Array<const TypeInfo*>& All() const noexcept { return m_all; }
 
     private:
@@ -172,6 +179,7 @@ export namespace foundation::core
         void* m_collisionContext = nullptr;
         Array<const TypeInfo*> m_all;
         HashMap<TypeId, TypeDomain> m_domains; // sparse: only non-Runtime entries
+        Atomic<u64> m_generation{0};
     };
 
     [[nodiscard]] TypeRegistry& GlobalTypeRegistry() noexcept
