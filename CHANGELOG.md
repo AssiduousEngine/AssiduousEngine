@@ -149,6 +149,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - GUI: a style sheet with `@media` nested more than 16 deep skips the deeper blocks with a warning
   instead of overflowing the stack, and a stray `}` is skipped with a warning; the rules after it
   were dropped.
+- GUI: a selector whose `:not()`, `:is()` or `:where()` nest more than 32 deep matches nothing
+  instead of overflowing the stack, and an `:nth-child()` number too large for 32 bits is invalid
+  instead of wrapping to a small one.
 - Rendering (Vulkan): a frame is presented only after it is drawn. The swapchain's wait and signal
   went to whichever submit came first after the acquire, and a profiler sync point or an offscreen
   pass could take them. `Queue::SubmitFrame` names the swapchain the frame renders; code that

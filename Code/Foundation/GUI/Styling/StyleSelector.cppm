@@ -194,6 +194,9 @@ export namespace foundation::gui
         i64 m_specificity = 0;
     };
 
+    /// How deep selector functions (:not, :is, :where and the rest) may nest inside one argument.
+    inline constexpr u32 kMaxSelectorNesting = 32;
+
     /// StyleSelector::kAncestorKeys, at namespace scope for another library to read (MSVC exports
     /// no class's static constexpr member from a shared library).
     inline constexpr u8 kStyleSelectorAncestorKeys = 4;
@@ -628,6 +631,8 @@ export namespace foundation::gui
                 {
                     if (s[k] < u8'0' || s[k] > u8'9')
                         return false;
+                    if (v > 100000000) // past any sibling count; one more digit would overflow i32
+                        return false;
                     v = v * 10 + static_cast<i32>(s[k] - u8'0');
                 }
                 out = negative ? -v : v;
@@ -1048,6 +1053,21 @@ export namespace foundation::gui
         {
             const auto selectors = [&](Array<StyleSelector>& into)
             {
+                // Each nested :not(), :is() or :where() is a recursive parse and match; past the
+                // limit the selector matches nothing.
+                u32 nesting = 0, deepest = 0;
+                for (const utf8char c : argument)
+                {
+                    if (c == u8'(')
+                        deepest = core::Max(deepest, ++nesting);
+                    else if (c == u8')' && nesting > 0)
+                        --nesting;
+                }
+                if (deepest > kMaxSelectorNesting)
+                {
+                    m_never = true;
+                    return;
+                }
                 for (const core::StringView part : StyleSelector::SplitList(argument))
                     into.PushBack(StyleSelector(part));
                 if (into.IsEmpty())

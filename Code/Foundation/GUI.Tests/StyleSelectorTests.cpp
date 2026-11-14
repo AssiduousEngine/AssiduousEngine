@@ -387,3 +387,27 @@ TEST_CASE("selector: a part's state counts as a pseudo-class of its own, beside 
     CHECK(Sel(u8"slider::thumb:hover").Specificity() == 1024 + 1 + 1);
     CHECK(Sel(u8"slider:hover::thumb:hover").Specificity() == 2 * 1024 + 1 + 1);
 }
+
+TEST_CASE("selector: an nth index past i32 is invalid, not wrapped")
+{
+    // 4294967297 wrapped to 1 and matched the first child.
+    Row row(u8"bl");
+    CHECK_FALSE(Sel(u8":nth-child(4294967297)").Select(row[0]));
+    CHECK_FALSE(Sel(u8":nth-child(4294967297n+1)").Select(row[0]));
+}
+
+TEST_CASE("selector: functions nested past the limit match nothing")
+{
+    // Each nested :not() was a recursive parse and match: deep nesting ran the stack out.
+    core::String deep;
+    for (core::u32 i = 0; i < 100000; ++i)
+        deep.Append(core::StringView(u8":not("));
+    deep.Append(core::StringView(u8"label"));
+    for (core::u32 i = 0; i < 100000; ++i)
+        deep.Append(core::StringView(u8")"));
+    Row row(u8"bl");
+    CHECK_FALSE(StyleSelector(deep.AsView()).Select(row[0]));
+    CHECK_FALSE(StyleSelector(deep.AsView()).Select(row[1]));
+    CHECK(Sel(u8":not(:not(:not(label)))").Select(row[0])); // shallow nesting still works
+    CHECK_FALSE(Sel(u8":not(:not(:not(label)))").Select(row[1]));
+}
