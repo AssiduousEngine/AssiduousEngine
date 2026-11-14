@@ -109,9 +109,7 @@
   - `editor_hover` does not raise the code editor's hover popups (a type name's API hover, a local's
     value while paused), so an agent cannot check them; the hover reaches the code editor's own
     hover path.
-- **Four small editor findings from the UAT check** (user 2026-11-02):
-  - The Export dialog's "Add Files..." button (`#export-add-files`) is drawn over the "Exports go
-    to <path>" text at its bottom left, cutting the path in two.
+- **Three small editor findings from the UAT check** (user 2026-11-02):
   - `pie_run` does not create its `screenshotDir`: a capture into a folder that is not there fails
     ("could not write ..."). Make the folder, as `editor_screenshot` does its own (check).
   - An Image asset's tile in the Assets panel shows a placeholder, not its picture.
