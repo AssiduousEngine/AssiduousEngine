@@ -1491,6 +1491,8 @@ TEST_CASE("angelscript: CERTIFIED - the backend conformance battery")
                            u8"}\n";
     dialect.compileBroken = u8"int = = = @#$";
     dialect.runtimeFault = u8"void main() { int zero = 0; int boom = 10 / zero; }\n";
+    dialect.nestedFault = u8"int inner() { int zero = 0; return 10 / zero; }\n"
+                          u8"int outer() { return inner() + 1; }\n";
     // Delegate: subscribe an AngelScript funcdef handle (value * 2) to DelegateSignal.
     dialect.delegateModule = u8"double dbl(double x) { return x * 2; }\n"
                              u8"DelegateSignal@ signal = DelegateSignal();\n"

@@ -435,6 +435,28 @@ namespace foundation::script::angelscript
     // Arm a debugger's line callback on a pooled executor before Execute (owner = the
     // IScriptContext scoped for that call, re-established when the debugger resumes it).
     void ArmDebugger(AngelScriptDebugger& debugger, asIScriptContext* ctx, IScriptContext* owner);
+    // Reports a coroutine's fault (an exception, or a budget stop when `budgetStop`) to the script
+    // context it started in, as a call's fault is reported. Defined after AngelScriptContext.
+    void ReportCoroutineFault(IScriptContext* home, asIScriptContext* ctx, bool budgetStop);
+
+    // `ctx`'s script call stack, innermost first: a paused context's (the debugger) or one that
+    // stopped on an exception (a fault's report).
+    [[nodiscard]] core::Array<ScriptStackFrame> StackOf(asIScriptContext* ctx)
+    {
+        core::Array<ScriptStackFrame> frames;
+        const asUINT size = ctx->GetCallstackSize();
+        for (asUINT level = 0; level < size; ++level)
+        {
+            ScriptStackFrame frame;
+            const char* section = nullptr;
+            frame.line = ctx->GetLineNumber(level, nullptr, &section);
+            frame.file = core::String(ViewOfAscii(section));
+            asIScriptFunction* function = ctx->GetFunction(level);
+            frame.function = core::String(ViewOfAscii(function != nullptr ? function->GetDeclaration() : "?"));
+            frames.PushBack(core::Move(frame));
+        }
+        return frames;
+    }
     // After Execute returned asEXECUTION_SUSPENDED: true when this debugger caused it (a breakpoint
     // or step on `ctx`), in which case it adopts the context (owns it until resume) and fires its
     // listener.
@@ -3720,10 +3742,11 @@ namespace foundation::script::angelscript
             const int line = executor->GetExceptionLineNumber(&column, &section);
             if (m_errorHandler != nullptr)
             {
-                const ScriptError error{ScriptErrorKind::Runtime, ViewOfAscii(section),
-                                        static_cast<core::i32>(line),
-                                        column > 0 ? static_cast<core::i32>(column) : -1,
-                                        ViewOfAscii(executor->GetExceptionString())};
+                const core::Array<ScriptStackFrame> frames = StackOf(executor);
+                ScriptError error{ScriptErrorKind::Runtime, ViewOfAscii(section), static_cast<core::i32>(line),
+                                  column > 0 ? static_cast<core::i32>(column) : -1,
+                                  ViewOfAscii(executor->GetExceptionString())};
+                error.stack = core::Span<const ScriptStackFrame>(frames.Data(), frames.Size());
                 m_errorHandler->OnError(error);
                 return;
             }
@@ -4049,24 +4072,7 @@ namespace foundation::script::angelscript
 
         [[nodiscard]] core::Array<ScriptStackFrame> CaptureStackFrames() override
         {
-            core::Array<ScriptStackFrame> frames;
-            if (m_pausedContext == nullptr)
-            {
-                return frames;
-            }
-            const asUINT size = m_pausedContext->GetCallstackSize();
-            for (asUINT level = 0; level < size; ++level) // level 0 = innermost
-            {
-                ScriptStackFrame frame;
-                const char* section = nullptr;
-                frame.line = m_pausedContext->GetLineNumber(level, nullptr, &section);
-                frame.file = core::String(ViewOfAscii(section));
-                asIScriptFunction* function = m_pausedContext->GetFunction(level);
-                frame.function = core::String(
-                    ViewOfAscii(function != nullptr ? function->GetDeclaration() : "?"));
-                frames.PushBack(core::Move(frame));
-            }
-            return frames;
+            return m_pausedContext != nullptr ? StackOf(m_pausedContext) : core::Array<ScriptStackFrame>{};
         }
 
         [[nodiscard]] core::Array<ScriptVariable> CaptureLocals(core::u32 depth) override

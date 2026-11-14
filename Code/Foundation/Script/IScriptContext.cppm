@@ -42,6 +42,9 @@ export namespace foundation::script
         core::i32 line;          // 1-based source line, or -1 if unknown
         core::i32 column;        // 1-based column on that line, or -1 if unknown
         core::StringView message;
+        // A runtime fault's script call stack where the backend has it, innermost first; empty
+        // for a compile error or when unknown.
+        core::Span<const ScriptStackFrame> stack = {};
     };
 
     // Host-provided sink for script errors (compile and runtime). Non-owning: the

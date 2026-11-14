@@ -303,9 +303,14 @@ namespace foundation::script
         // The heap allocator: every block the state takes, held to the budget's bytes.
         static void* Allocate(void* userdata, void* block, usize oldSize, usize newSize);
 
-        void ReportError(ScriptErrorKind kind, StringView module, StringView message);
+        // `stack` is the fault's script call stack (innermost first), empty when unknown; a call's
+        // fault, captured in RunCallable, rides along when none is passed.
+        void ReportError(ScriptErrorKind kind, StringView module, StringView message,
+                         Span<const ScriptStackFrame> stack = {});
         // The message a failed pcall/load left on top of the stack; pops it.
         void ReportTopOfStack(ScriptErrorKind kind, StringView module);
+        // `thread`'s script call stack, innermost first (a faulted or a paused thread).
+        static Array<ScriptStackFrame> StackOf(lua_State* thread);
 
         // luau_load already-compiled bytecode as chunk `=chunkName`, then run its top level.
         // Shared by source Load (after luau_compile), the per-class bytecode path in
@@ -364,6 +369,7 @@ namespace foundation::script
         RefPtr<LuauScriptManager> m_manager;
         lua_State* m_state = nullptr;
         IScriptErrorHandler* m_errors = nullptr;
+        Array<ScriptStackFrame> m_faultStack; // the last call's fault stack, for its report (RunCallable)
         LuauDebugger* m_debugger = nullptr; // borrowed; the attached debugger's
         u32 m_vmDepth = 0;                   // nested VM entries (VmCall)
         u64 m_vmStartTicks = 0;              // when the outermost began
@@ -653,27 +659,16 @@ namespace foundation::script
 
         [[nodiscard]] Array<ScriptStackFrame> CaptureStackFrames() override
         {
-            Array<ScriptStackFrame> frames;
             if (m_heldThread == nullptr)
             {
-                return frames;
+                return {};
             }
-            const int depth = lua_stackdepth(m_heldThread);
-            for (int level = 0; level < depth; ++level) // 0 = innermost
+            Array<ScriptStackFrame> frames = LuauScriptContext::StackOf(m_heldThread);
+            // Frame 0 is the pause point (the line about to run); lua_getinfo after the break
+            // reports the restored pc's line, off by one, so use the stored broken line there.
+            if (!frames.IsEmpty())
             {
-                lua_Debug info;
-                if (lua_getinfo(m_heldThread, level, "sln", &info) == 0)
-                {
-                    continue;
-                }
-                ScriptStackFrame frame;
-                // Frame 0 is the pause point (the line about to run); lua_getinfo after the break
-                // reports the restored pc's line, off by one, so use the stored broken line there.
-                frame.line = (level == 0) ? m_brokenLine : info.currentline;
-                frame.file = String(ViewOf(info.short_src));
-                frame.function =
-                    String((info.name != nullptr) ? ViewOf(info.name) : StringView(u8"?"));
-                frames.PushBack(Move(frame));
+                frames[0].line = m_brokenLine;
             }
             return frames;
         }
@@ -2293,7 +2288,9 @@ namespace foundation::script
         case ResumeDisposition::Faulted:
         {
             const char* message = lua_tostring(entry.thread, -1);
-            entry.context->ReportError(ScriptErrorKind::Runtime, u8"coroutine", ViewOf(message));
+            const Array<ScriptStackFrame> frames = LuauScriptContext::StackOf(entry.thread);
+            entry.context->ReportError(ScriptErrorKind::Runtime, u8"coroutine", ViewOf(message),
+                                       Span<const ScriptStackFrame>(frames.Data(), frames.Size()));
             return true;
         }
         case ResumeDisposition::Completed:
@@ -2600,8 +2597,15 @@ namespace foundation::script
     }
 
     void LuauScriptContext::ReportError(ScriptErrorKind kind, StringView module,
-                                        StringView message)
+                                        StringView message, Span<const ScriptStackFrame> stack)
     {
+        // A call's fault brings its stack from RunCallable; it is for this report only.
+        const Array<ScriptStackFrame> faultStack = Move(m_faultStack);
+        m_faultStack = Array<ScriptStackFrame>{};
+        if (stack.IsEmpty() && kind == ScriptErrorKind::Runtime)
+        {
+            stack = Span<const ScriptStackFrame>(faultStack.Data(), faultStack.Size());
+        }
         if (m_errors == nullptr)
         {
             String line(message);
@@ -2615,7 +2619,32 @@ namespace foundation::script
         error.line = ParseLuauErrorLine(message); // Luau puts "<chunk>:<line>:" in the message
         error.column = -1;
         error.message = message;
+        error.stack = stack;
         m_errors->OnError(error);
+    }
+
+    Array<ScriptStackFrame> LuauScriptContext::StackOf(lua_State* thread)
+    {
+        Array<ScriptStackFrame> frames;
+        const int depth = lua_stackdepth(thread);
+        for (int level = 0; level < depth; ++level) // 0 = innermost
+        {
+            lua_Debug info;
+            if (lua_getinfo(thread, level, "sln", &info) == 0)
+            {
+                continue;
+            }
+            if (info.what != nullptr && std::strcmp(info.what, "C") == 0)
+            {
+                continue; // a native function's frame (`error` itself): the stack is the script's
+            }
+            ScriptStackFrame frame;
+            frame.line = info.currentline;
+            frame.file = String(ViewOf(info.short_src));
+            frame.function = String((info.name != nullptr) ? ViewOf(info.name) : StringView(u8"?"));
+            frames.PushBack(Move(frame));
+        }
+        return frames;
     }
 
     void LuauScriptContext::ReportTopOfStack(ScriptErrorKind kind, StringView module)
@@ -2914,6 +2943,7 @@ namespace foundation::script
         }
         else
         {
+            m_faultStack = StackOf(thread); // the fault's frames, while the thread still has them
             if (lua_gettop(thread) >= 1)
             {
                 lua_xmove(thread, m_state, 1); // the error message, for ReportTopOfStack(m_state)

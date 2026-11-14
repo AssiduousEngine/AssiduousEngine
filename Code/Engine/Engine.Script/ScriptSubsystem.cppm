@@ -222,8 +222,13 @@ export namespace engine::script
             }
             else
             {
-                LOG_ERROR(u8"Script", u8"{} (line {}): {}", error.module, error.line,
-                                   error.message);
+                // The call stack below the message, innermost first, when the backend gave one.
+                String stack;
+                for (const ScriptStackFrame& frame : error.stack)
+                {
+                    stack.Append(Format(u8"\n  at {} ({}:{})", frame.function, frame.file, frame.line).AsView());
+                }
+                LOG_ERROR(u8"Script", u8"{} (line {}): {}{}", error.module, error.line, error.message, stack);
             }
             if (external != nullptr)
             {

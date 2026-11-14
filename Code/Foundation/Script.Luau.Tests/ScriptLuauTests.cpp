@@ -1308,6 +1308,7 @@ TEST_CASE("script.luau: backend conformance battery")
     dialect.counterClass = kCounter;
     dialect.compileBroken = kCompileBroken;
     dialect.runtimeFault = kRuntimeFault;
+    dialect.nestedFault = u8"function inner() error(\"nested fault\") end\nfunction outer() return inner() + 1 end\n";
     dialect.coroutineClass = kCoroutine;
     dialect.delegateModule = kDelegate;
     dialect.overloadModule = kOverload;

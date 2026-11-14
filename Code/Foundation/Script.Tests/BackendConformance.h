@@ -267,6 +267,8 @@ namespace foundation::script::conformance
     ///    `increment()` adding 1, zero-arg method `value()` returning the count.
     ///  - compileBroken: source that cannot compile.
     ///  - runtimeFault: source that compiles but faults at load/run time.
+    ///  - nestedFault: source that loads and runs clean, with module functions `outer()`, which
+    ///    calls `inner()`, which raises a runtime error. Its report must carry the call stack.
     ///  - coroutineClass (optional; certified only when the backend declares the
     ///    Coroutines capability): a class `Coro`, constructed with no args, with methods
     ///    `begin()` starting a coroutine that waits ~1.0s then sets progress to 1,
@@ -280,6 +282,7 @@ namespace foundation::script::conformance
         StringView counterClass;
         StringView compileBroken;
         StringView runtimeFault;
+        StringView nestedFault;
         StringView coroutineClass; // optional; see the Coroutines section below
         // Optional (certified only when the backend declares the Delegates capability):
         // source that creates a global `signal` of the native DelegateSignal type and
@@ -358,11 +361,17 @@ namespace foundation::script::conformance
         int count = 0;
         ScriptErrorKind lastKind = ScriptErrorKind::Compile;
         String lastMessage;
+        Array<ScriptStackFrame> lastStack;
         void OnError(const ScriptError& error) override
         {
             ++count;
             lastKind = error.kind;
             lastMessage = String(error.message);
+            lastStack.Clear();
+            for (const ScriptStackFrame& frame : error.stack)
+            {
+                lastStack.PushBack(frame);
+            }
         }
     };
 
@@ -426,6 +435,20 @@ namespace foundation::script::conformance
             CHECK_FALSE(errorContext->Load(dialect.runtimeFault, u8"conformance.fault").IsOk());
             CHECK(errors.count > afterCompile);
             CHECK(errors.lastKind == ScriptErrorKind::Runtime);
+
+            // A runtime fault's report carries the script call stack, innermost first.
+            RefPtr<IScriptContext> nested = manager->CreateContext();
+            CapturedErrors nestedErrors;
+            nested->SetErrorHandler(&nestedErrors);
+            REQUIRE(nested->Load(dialect.nestedFault, u8"conformance.nested").IsOk());
+            CHECK_FALSE(nested->Call(u8"outer", Span<Variant>{}).HasValue());
+            REQUIRE(nestedErrors.count == 1);
+            CHECK(nestedErrors.lastKind == ScriptErrorKind::Runtime);
+            REQUIRE(nestedErrors.lastStack.Size() >= 2u);
+            CHECK(nestedErrors.lastStack[0].function.AsView().Find(StringView(u8"inner")) != StringView::kNotFound);
+            CHECK(nestedErrors.lastStack[1].function.AsView().Find(StringView(u8"outer")) != StringView::kNotFound);
+            CHECK(nestedErrors.lastStack[0].line > 0);
+            nested->SetErrorHandler(nullptr);
         }
 
         // --- context isolation: a second context sees none of the first's state ---
