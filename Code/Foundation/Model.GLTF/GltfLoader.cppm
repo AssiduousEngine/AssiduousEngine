@@ -117,12 +117,14 @@ export namespace foundation::model::gltf
             if (loadResult != cgltf_result_success)
                 return ModelLoadResult::InvalidData;
 
-            // Validate (optional: some exporters produce spec-violating but loadable files).
+            // Validation is what holds every accessor and buffer view inside its buffer: the loaders
+            // below read through them unchecked, so a file that fails it would be read past its end.
             cgltf_result validateResult = cgltf_validate(m_data);
             if (validateResult != cgltf_result_success)
             {
-                fprintf(stderr, "  cgltf_validate warning: result=%d (continuing anyway)\n",
-                        static_cast<int>(validateResult));
+                fprintf(stderr, "  cgltf_validate failed: result=%d, path=%s\n",
+                        static_cast<int>(validateResult), narrowPath);
+                return ModelLoadResult::InvalidData;
             }
 
             // GLTF is always Y-up per specification.

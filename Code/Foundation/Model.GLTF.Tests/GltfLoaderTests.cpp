@@ -176,3 +176,39 @@ TEST_CASE("gltf: KHR_materials_transmission's factor is read; a material without
     CHECK(model.materials()[1]->transmission == 0.0f);
     std::remove(path);
 }
+
+// Validation is what keeps accessors inside their buffers. Its failure was logged and the load went
+// on, so a file whose accessor claimed more than its buffer holds was read past the buffer's end.
+TEST_CASE("gltf: a file that fails validation fails the load")
+{
+    // One float3 (12 bytes of zeros) in the buffer; the accessor claims `count` of them.
+    const auto file = [](int count)
+    {
+        char json[1024];
+        std::snprintf(json, sizeof(json), R"({
+  "asset": {"version": "2.0"},
+  "buffers": [{"byteLength": 12, "uri": "data:application/octet-stream;base64,AAAAAAAAAAAAAAAA"}],
+  "bufferViews": [{"buffer": 0, "byteLength": 12}],
+  "accessors": [{"bufferView": 0, "componentType": 5126, "count": %d, "type": "VEC3",
+                 "min": [0, 0, 0], "max": [0, 0, 0]}],
+  "meshes": [{"primitives": [{"attributes": {"POSITION": 0}}]}],
+  "nodes": [{"mesh": 0}],
+  "scenes": [{"nodes": [0]}]
+})", count);
+        return std::string(json);
+    };
+    const char* path = "scratch_gltf_invalid.gltf";
+    const auto load = [&](int count)
+    {
+        const std::string json = file(count);
+        REQUIRE(WriteFile(StringView(reinterpret_cast<const utf8char*>(path)),
+                          Span<const byte>(reinterpret_cast<const byte*>(json.data()), json.size()))
+                    .IsOk());
+        Model model;
+        gltf::GltfLoader loader;
+        return loader.load(StringView(reinterpret_cast<const utf8char*>(path)), model);
+    };
+    CHECK(load(1) == ModelLoadResult::Ok);
+    CHECK(load(1000) == ModelLoadResult::InvalidData); // 12000 bytes claimed from a buffer of 12
+    std::remove(path);
+}
