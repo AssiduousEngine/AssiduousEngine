@@ -98,7 +98,8 @@ namespace editor
         for (const pipeline::ScriptSourceDocument::CompileError& e : m_doc.Errors())
         {
             app::CodeProblem p;
-            p.severity = gui::CodeSeverity::Error;
+            p.severity = e.kind == foundation::script::ScriptErrorKind::Warning ? gui::CodeSeverity::Warning
+                                                                                 : gui::CodeSeverity::Error;
             p.message = e.message;
             p.file = e.module.IsEmpty() || e.module.AsView() == m_doc.FileName() ? String{} : e.module;
             p.line = e.line > 0 ? static_cast<u32>(e.line - 1) : 0;

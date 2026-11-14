@@ -1768,11 +1768,12 @@ namespace foundation::script::angelscript
             {
                 if (handler != nullptr)
                 {
-                    const ScriptError error{kind, core::StringView(message.section), message.row,
-                                            message.column, core::StringView(message.text)};
+                    const ScriptError error{message.warning ? ScriptErrorKind::Warning : kind,
+                                            core::StringView(message.section), message.row, message.column,
+                                            core::StringView(message.text)};
                     handler->OnError(error);
                 }
-                else
+                else if (!message.warning)
                 {
                     core::ConsoleWriteError(core::StringView(message.text));
                 }
@@ -2065,15 +2066,16 @@ namespace foundation::script::angelscript
             core::i32 row;
             core::i32 column;
             core::String text;
+            bool warning = false;
         };
 
         static void OnMessage(const asSMessageInfo* message, void* param)
         {
             AngelScriptManager* self = static_cast<AngelScriptManager*>(param);
-            if (message->type != asMSGTYPE_ERROR)
+            if (message->type == asMSGTYPE_INFORMATION)
             {
                 return;
-            } // warnings and info stay quiet
+            } // the compiler's notes ("compiling X") stay quiet; warnings are reported
             if (self->m_capturing)
             {
                 CapturedMessage captured;
@@ -2081,6 +2083,7 @@ namespace foundation::script::angelscript
                 captured.row = static_cast<core::i32>(message->row);
                 captured.column = message->col > 0 ? static_cast<core::i32>(message->col) : -1;
                 captured.text = core::String(ViewOfAscii(message->message));
+                captured.warning = message->type == asMSGTYPE_WARNING;
                 self->m_capturedMessages.PushBack(core::Move(captured));
                 return;
             }

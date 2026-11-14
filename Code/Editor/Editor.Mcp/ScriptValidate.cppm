@@ -27,6 +27,7 @@ export module editor.mcp:script_validate;
 import foundation.core;
 import foundation.json;
 import foundation.mcp;
+import foundation.script; // ScriptErrorKind: a warning apart from an error
 import foundation.script.resource;
 import script.pipeline;
 import pipeline.importer; // FileStemOf: the class named like the file
@@ -60,7 +61,8 @@ export namespace editor::mcp
         server.RegisterTool(
             u8"script_validate",
             u8"COMPILE-CHECK a script source against a backend without saving: the exact "
-            u8"compile the asset cook would run. Returns compile errors with line numbers, "
+            u8"compile the asset cook would run. Returns compile errors with line numbers, and the "
+            u8"compiler's warnings apart from them (`warnings`: compiled, but likely a mistake), "
             u8"and on success the harvested metadata (className, handlers, properties, "
             u8"usesCoroutines) - confirm the engine recognized what you wrote. Use as the "
             u8"validation loop while authoring scripts, BEFORE creating the asset. Limits: "
@@ -128,7 +130,9 @@ export namespace editor::mcp
                     }
                 }
 
+                // Warnings apart from errors: the script compiled, and they are worth a look.
                 JsonValue errors = JsonValue::MakeArray();
+                JsonValue warnings = JsonValue::MakeArray();
                 for (const pipeline::CookScriptErrorSink::Entry& e : sink.errors)
                 {
                     JsonValue entry = JsonValue::MakeObject();
@@ -136,12 +140,13 @@ export namespace editor::mcp
                                               e.module.IsEmpty() ? name : e.module));
                     entry.Set(u8"line", JsonValue::MakeNumber(static_cast<f64>(e.line)));
                     entry.Set(u8"message", JsonValue::MakeString(e.message));
-                    errors.Add(Move(entry));
+                    (e.kind == foundation::script::ScriptErrorKind::Warning ? warnings : errors).Add(Move(entry));
                 }
 
                 JsonValue out = JsonValue::MakeObject();
                 out.Set(u8"valid", JsonValue::MakeBool(ok));
                 out.Set(u8"errors", Move(errors));
+                out.Set(u8"warnings", Move(warnings));
                 if (!platform.IsEmpty())
                 {
                     // The plugins the platform lacks, whose types the check left out.

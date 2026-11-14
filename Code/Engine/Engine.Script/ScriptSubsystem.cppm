@@ -205,6 +205,15 @@ export namespace engine::script
 
         void OnError(const ScriptError& error) override
         {
+            if (error.kind == ScriptErrorKind::Warning)
+            {
+                LOG_WARNING(u8"Script", u8"{}:{}: {}", error.module, error.line, error.message);
+                if (external != nullptr)
+                {
+                    external->OnError(error);
+                }
+                return; // not the script's fault: `last` keeps the last error
+            }
             last = Format(u8"{} (line {}): {}", error.module, error.line, error.message);
             if (error.kind == ScriptErrorKind::Compile)
             {

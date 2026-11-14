@@ -335,7 +335,7 @@ namespace pipeline{
 
         void ForwardBuildMessage(const asSMessageInfo* message, void* param)
         {
-            if (message == nullptr || message->type != asMSGTYPE_ERROR)
+            if (message == nullptr || message->type == asMSGTYPE_INFORMATION)
             {
                 return;
             }
@@ -344,7 +344,8 @@ namespace pipeline{
             {
                 return;
             }
-            const ScriptError error{ScriptErrorKind::Compile, ViewOfCStr(message->section),
+            const ScriptErrorKind kind = message->type == asMSGTYPE_WARNING ? ScriptErrorKind::Warning : ScriptErrorKind::Compile;
+            const ScriptError error{kind, ViewOfCStr(message->section),
                                     static_cast<i32>(message->row),
                                     message->col > 0 ? static_cast<i32>(message->col) : -1,
                                     ViewOfCStr(message->message)};

@@ -1902,3 +1902,19 @@ TEST_CASE("angelscript: benchmark of the call path" * doctest::skip())
     foundation::script::benchmark::RunScriptBackendBenchmark(
         []() { return foundation::script::angelscript::CreateScriptManager(foundation::core::DefaultAllocator()); }, dialect);
 }
+
+TEST_CASE("angelscript: a compiler warning reaches the error handler as a warning, and the load succeeds")
+{
+    RefPtr<IScriptManager> manager = angelscript::CreateScriptManager(foundation::core::DefaultAllocator());
+    RefPtr<IScriptContext> scriptContext = manager->CreateContext();
+    struct Kinds final : IScriptErrorHandler
+    {
+        int warnings = 0, others = 0;
+        void OnError(const ScriptError& error) override { ++(error.kind == ScriptErrorKind::Warning ? warnings : others); }
+    } kinds;
+    scriptContext->SetErrorHandler(&kinds);
+    CHECK(scriptContext->Load(u8"int f() { int a = 1; { int a = 2; return a; } }\n", u8"shade").IsOk());
+    CHECK(kinds.warnings == 1);
+    CHECK(kinds.others == 0);
+    scriptContext->SetErrorHandler(nullptr);
+}

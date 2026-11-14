@@ -509,7 +509,8 @@ textures); the response's `pruning` counts what was kept and dropped.
 
 - `script_validate` is a COMPILE check (`checkLevel: "compile"`): a call the language cannot
   see through, a misspelled member on a handle say, compiles and fails at runtime. Cross
-  check against `script_api`. It plays the class its asset would: `className`, else the one named
+  check against `script_api`. The compiler's warnings come in `warnings`, apart from `errors`: the
+  script compiled (`valid` is true), but each is likely a mistake worth reading. It plays the class its asset would: `className`, else the one named
   like `name` (default "script"), else the only one; pass the file's `name` for a file of several
   classes, or it fails as the cook would. With `platform` (an open project needed), it also checks the source
   against what the project's plugins leave on that platform, as an export for it does: `valid`

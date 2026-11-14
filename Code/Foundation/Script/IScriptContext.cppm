@@ -30,6 +30,7 @@ export namespace foundation::script
     {
         Compile, // failed to compile source
         Runtime, // threw or aborted while running
+        Warning, // compiled, with something the compiler says is likely a mistake; not a failure
     };
 
     // A script error. The string views are valid only for the duration of the

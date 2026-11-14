@@ -53,6 +53,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Scripting (AngelScript): compiler warnings are shown, as warnings, in the script page's
+  problems, the log and `script_validate`; they were dropped.
 - Scripting: a container call on an object that is gone raises an error; AngelScript could crash
   and Luau returned nil.
 - Scripting: a native call that fails raises an error naming the method; AngelScript went on with

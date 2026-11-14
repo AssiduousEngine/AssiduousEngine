@@ -614,3 +614,17 @@ TEST_CASE("as.cook: checks share one manager, each script in a module of its own
     CHECK(third.errors.IsEmpty());
     CHECK(cook->CheckManagerBuildCount() == builds);
 }
+
+TEST_CASE("as.cook: a compiler warning is reported as a warning, and the check still passes")
+{
+    // The compiler's warnings were dropped: only its errors reached the problems list.
+    IScriptLanguageCook* cook = AngelScriptCook();
+    REQUIRE(cook != nullptr);
+    const char8_t* hiding = u8"class Shade { int f() { int a = 1; { int a = 2; return a; } } }\n";
+    String className;
+    CookScriptErrorSink sink;
+    CHECK(cook->Check(hiding, u8"Shade.as", u8"Shade", sink, className, Span<const TypeId>{}));
+    REQUIRE(sink.errors.Size() == 1u);
+    CHECK(sink.errors[0].kind == ScriptErrorKind::Warning);
+    CHECK(sink.errors[0].line == 1);
+}
