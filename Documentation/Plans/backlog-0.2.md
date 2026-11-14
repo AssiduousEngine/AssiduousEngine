@@ -483,6 +483,15 @@ What the audit of 2026-11-11 raised that `Specs/stability.md` leaves out, to tak
   `@import` works only for the GUI's own sheet; CRLF paste; `ScreenStack::Settle` iterates while
   handlers mutate; docking accepts NaN weights; `Viewport::Resize` waits idle per resize.
 
+**GUI, from the comparison with RmlUi (2026-11-13)**
+- The game path redraws its GUI every frame: nothing under `Engine.GUI` calls `NeedsFrame`, while
+  the editor skips idle frames; `PathCache` has no user outside its tests.
+- Style errors are not reported at run time, and text between markup tags is dropped without a
+  message.
+- Glyph atlases are baked once over a fixed codepoint range, with no glyphs on demand: the largest
+  functional gap.
+- Flex: three departures from the CSS algorithm, which RmlUi's freeze loop fixes (not re-read).
+
 **Editor**
 - External edits to an open script are overwritten silently (`CodeAssetPage.cppm:64-76`), and
   `AssetFormPage` never refreshes from outside.

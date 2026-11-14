@@ -233,6 +233,18 @@ Each item names its finding, where it is on master, the test that proves it, and
 - Fonts: the sfnt table directory checked before stb_truetype (`TrueTypeFont.cppm:38-51`).
   Fonts.TrueType.Tests.
 - XML: a nesting limit (`Xml/Document.cppm:412, 571`). Xml.Tests.
+- Style sheets (added 2026-11-13 from the GUI comparison, open at 6056a2f0e): with
+  `grid-auto-flow: column`, an item whose `grid-row` lies past the explicit rows loops for ever in
+  `PlaceGridItems` (`GUI/Layout/LayoutImpl.cpp:505-506, 538-539`), and with both lines given writes
+  out of bounds (`:493, :532`); grid line numbers have no upper bound (`StyleApplier.cppm:313-327`;
+  `grid-column: 100000000` allocates that many tracks); nested `@media` and `:not()`/`:is()` recurse
+  without a limit (`CSSParser.cppm:225`, `StyleSelector.cppm:1049-1052`); `:nth-*` parsing overflows
+  a signed integer (`StyleSelector.cppm:631`); `var()` expansion has a depth cap but no size cap
+  (`StyleValue.cppm:103-155`); a stray `}` drops the rest of the sheet (`CSSParser.cppm:253`).
+  GUI.Tests.
+- GUI events: the wheel path uses the hit node after routing without the pin PointerUp takes
+  (`EventDispatcher.cppm:501-505` against `:1689-1695`); reported for pointer down and move,
+  `Node::SendEvent` and `RunListeners` too (to re-read). GUI.Tests.
 - Not on master: TLS reads the Linux CA bundle paths on Android (`NetTlsImpl.cpp:53-73`), so every
   https and wss connection fails there. To fix on the `android` branch: read the system store,
   `/system/etc/security/cacerts`, and the user-added one.
