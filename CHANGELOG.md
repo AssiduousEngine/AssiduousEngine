@@ -62,6 +62,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Scripting (AngelScript): a script that allocates past the heap budget (`ScriptBudget::heapBytes`)
+  fails its call with "Out of memory", as a Luau script does; it took the machine's memory. For
+  AngelScript the cap is one for the whole process.
 - Editor: in a script page, Return, Backspace, Delete, the arrow keys and the code editor's other
   keys work; the page took typed text and Tab and nothing else.
 - Scripting: the garbage collectors no longer run a full collection every frame; each frame does a

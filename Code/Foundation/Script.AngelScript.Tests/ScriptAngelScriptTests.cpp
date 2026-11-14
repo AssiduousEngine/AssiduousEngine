@@ -2198,3 +2198,26 @@ TEST_CASE("angelscript: a frame's collector step stops at its time, and steps fi
     }
     CHECK(afterOne == 0u);
 }
+
+TEST_CASE("angelscript: a script that asks for more memory than the budget fails its call, and the context goes on")
+{
+    // AngelScript's memory was malloc's, without a cap: a script that grew without end took the
+    // machine's memory. The cap is the manager's heap budget (process-wide for AngelScript).
+    RefPtr<IScriptManager> manager = angelscript::CreateScriptManager(DefaultAllocator());
+    ScriptBudget budget;
+    budget.heapBytes = usize{64} << 20;
+    manager->SetBudget(budget);
+    RefPtr<IScriptContext> scriptContext = manager->CreateContext();
+    AsBudgetErrors errors;
+    scriptContext->SetErrorHandler(&errors);
+    REQUIRE(scriptContext
+                ->Load(u8"double grow() { array<double> a; a.resize(100000000); return a.length(); }\n"
+                       u8"double small() { array<double> a; a.resize(1000); return a.length(); }\n",
+                       u8"memory")
+                .IsOk());
+    CHECK_FALSE(scriptContext->Call(u8"grow", Span<Variant>{}).HasValue()); // 800 MB asked for
+    CHECK(errors.Any(u8"Out of memory"));
+    CHECK(scriptContext->Call(u8"small", Span<Variant>{}).Value().Get<f64>() == 1000.0); // the context goes on
+    scriptContext->SetErrorHandler(nullptr);
+    manager->SetBudget(ScriptBudget{}); // the cap is process-wide: leave it as the other tests expect
+}

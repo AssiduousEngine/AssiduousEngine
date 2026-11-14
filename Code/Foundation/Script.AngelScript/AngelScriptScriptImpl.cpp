@@ -31,6 +31,7 @@ module;
 #include <scriptarray/scriptarray.h>
 #include <scriptstdstring/scriptstdstring.h>
 
+#include <cstdlib> // std::malloc, std::free: AngelScript's memory
 #include <cstring> // a script value's bytes, copied in and out
 #include <new>
 #include <string>
@@ -422,6 +423,57 @@ namespace foundation::script::angelscript
         }
     }
 
+    // AngelScript's memory. The library takes one pair of functions for the whole process, so this
+    // is process-wide: every block carries its size in a header, the bytes held are counted, and a
+    // block that would take them past the cap is refused, so a script that allocates without end
+    // fails its call ("Out of memory") instead of taking the machine's memory. The cap is the heap
+    // budget (ScriptBudget::heapBytes) an AngelScript manager last set, one for every manager.
+    namespace memory
+    {
+        constexpr core::usize kHeader = 16; // keeps the block 16-aligned, as malloc's is
+        inline core::Atomic<core::usize> g_held{0};
+        inline core::Atomic<core::usize> g_cap{ScriptBudget{}.heapBytes};
+
+        inline void* Allocate(size_t size)
+        {
+            const core::usize held = g_held.fetch_add(size, core::MemoryOrder::Relaxed) + size;
+            if (held > g_cap.load(core::MemoryOrder::Relaxed))
+            {
+                g_held.fetch_sub(size, core::MemoryOrder::Relaxed);
+                return nullptr;
+            }
+            auto* block = static_cast<unsigned char*>(std::malloc(size + kHeader));
+            if (block == nullptr)
+            {
+                g_held.fetch_sub(size, core::MemoryOrder::Relaxed);
+                return nullptr;
+            }
+            std::memcpy(block, &size, sizeof(size));
+            return block + kHeader;
+        }
+
+        inline void Free(void* memory)
+        {
+            if (memory == nullptr)
+            {
+                return;
+            }
+            unsigned char* block = static_cast<unsigned char*>(memory) - kHeader;
+            size_t size = 0;
+            std::memcpy(&size, block, sizeof(size));
+            g_held.fetch_sub(size, core::MemoryOrder::Relaxed);
+            std::free(block);
+        }
+
+        // Installed once, before the first engine, since a block must be freed by the functions
+        // that made it.
+        inline void Install()
+        {
+            static const int installed = asSetGlobalMemoryFunctions(&Allocate, &Free);
+            (void)installed;
+        }
+    }
+
     class AngelScriptManager;
 
     // Auxiliary payload for every generic registration (AngelScript hands it back
@@ -557,6 +609,8 @@ namespace foundation::script::angelscript
             // (asCThreadManager::Unprepare 'threadManager' failed). One extra prepare keeps the
             // manager alive until process exit, the upstream idiom for multi-engine hosts. It is
             // never unprepared; the OS reclaims it at exit.
+            memory::Install(); // before anything of the library allocates
+            memory::g_cap.store(m_budget.heapBytes, core::MemoryOrder::Relaxed);
             static const int threadManagerPin = asPrepareMultithread();
             (void)threadManagerPin;
             m_engine = asCreateScriptEngine();
@@ -745,7 +799,11 @@ namespace foundation::script::angelscript
             return core::RefPtr<IScriptBlob>(blob.Get());
         }
 
-        void SetBudget(const ScriptBudget& budget) override { m_budget = budget; }
+        void SetBudget(const ScriptBudget& budget) override
+        {
+            m_budget = budget;
+            memory::g_cap.store(budget.heapBytes, core::MemoryOrder::Relaxed); // process-wide (see memory)
+        }
         [[nodiscard]] ScriptBudget Budget() const override { return m_budget; }
 
         // One Execute from the engine: the outermost starts the budget's clock; a call into script
