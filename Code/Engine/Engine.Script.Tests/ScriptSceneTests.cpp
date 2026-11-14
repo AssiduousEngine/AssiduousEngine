@@ -6083,3 +6083,56 @@ TEST_CASE("script.scene: a one-shot that ends calls the entity's behaviours' onA
     world.Play(20); // a quarter second has passed: it ended, and the next tick delivered it
     CHECK(world.scene->GetEntityName(pet) == StringView(u8"finished"));
 }
+
+TEST_CASE("script.scene: a class that fails to load fails no class after it, in either language")
+{
+    // Each new class rebuilt every known class into one module: a class that failed stayed in the
+    // list, so every class loaded after it failed with it.
+    struct Language
+    {
+        const char8_t* id;
+        const char8_t* good;
+        const char8_t* broken;
+        const char8_t* later;
+    };
+    const Language languages[] = {
+        {u8"angelscript", u8"class Good { Good() {} }\n", u8"class Broken { Broken() { this does not compile } }\n",
+         u8"class Later { Later() {} }\n"},
+        {u8"luau", u8"Good = {}\nGood.__index = Good\nfunction Good.new() return setmetatable({}, Good) end\n",
+         u8"Broken = {\n", u8"Later = {}\nLater.__index = Later\nfunction Later.new() return setmetatable({}, Later) end\n"},
+    };
+    for (const Language& language : languages)
+    {
+        INFO(reinterpret_cast<const char*>(language.id));
+        ScriptedScene bed;
+        RefPtr<ScriptClass> good = MakeClassLang(language.id, u8"Good", language.good, {});
+        RefPtr<ScriptClass> broken = MakeClassLang(language.id, u8"Broken", language.broken, {});
+        RefPtr<ScriptClass> later = MakeClassLang(language.id, u8"Later", language.later, {});
+        CHECK(bed.host.Instantiate(*good, Span<Variant>{}).Get() != nullptr);
+        CHECK(bed.host.Instantiate(*broken, Span<Variant>{}).Get() == nullptr);
+        CHECK(bed.host.Instantiate(*later, Span<Variant>{}).Get() != nullptr);
+    }
+}
+
+TEST_CASE("script.scene: a new class loads alone, never every known class again")
+{
+    // Each new class reloaded every class before it: N classes cost about N^2/2 loads, and a Luau
+    // class's top level ran again each time.
+    ScriptedScene bed;
+    RefPtr<ScriptClass> counted = MakeClassLang(
+        u8"luau", u8"Counted",
+        u8"Loads = (Loads or 0) + 1\nCounted = {}\nCounted.__index = Counted\n"
+        u8"function Counted.new() return setmetatable({}, Counted) end\n",
+        {});
+    REQUIRE(bed.host.Instantiate(*counted, Span<Variant>{}).Get() != nullptr);
+    for (int i = 0; i < 3; ++i)
+    {
+        const String name = Format(u8"Other{}", i);
+        const String source = Format(u8"{} = {{}}\n{}.__index = {}\nfunction {}.new() return setmetatable({{}}, {}) end\n",
+                                     name, name, name, name, name);
+        RefPtr<ScriptClass> other = MakeClassLang(u8"luau", name.AsView(), source.AsView(), {});
+        REQUIRE(bed.host.Instantiate(*other, Span<Variant>{}).Get() != nullptr);
+    }
+    bool numeric = false;
+    CHECK(ScriptNumbers::Of(bed.host.ScriptContext()->GetGlobal(u8"Loads"), numeric) == doctest::Approx(1.0));
+}

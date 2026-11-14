@@ -131,8 +131,6 @@ namespace engine::runtime
         m_runHost.SetGameScriptHold(true);
 
         const bool loaded = m_scriptContext->Load(source, name).IsOk();
-        m_runHost
-            .NoteExternalLoad(); // the game script loaded its own module (behaviors reload target)
         if (!loaded)
         {
             LOG_ERROR(u8"App", u8"game script '{}' failed to compile", name);

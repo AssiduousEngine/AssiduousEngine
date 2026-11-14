@@ -53,6 +53,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Scripting: a behaviour that fails to compile no longer stops every behaviour loaded after it, and
+  each behaviour loads once instead of again for every behaviour after it.
 - Scripting: changing an engine method's parameter or return type, or an enumeration's values,
   recooks the scripts; their stale bytecode failed to load.
 - Editor: on an asset page without a page of its own, undoing back to the last save leaves it

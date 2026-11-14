@@ -397,7 +397,6 @@ export namespace engine::script
             const ScriptRunHost* self = this;
             m_scriptContext->SetServiceResolver(
                 IScriptContext::ServiceResolver{[self](TypeId type) { return self->FindService(type); }});
-            m_moduleCurrent = false;
             EnsureDebugger(); // a debugger requested before the context existed attaches now
             LOG_DEBUG(u8"Script", u8"run script context created ({})", languageId);
             return m_scriptContext.Get();
@@ -434,10 +433,6 @@ export namespace engine::script
             return EnsureContext(backend->languageId.AsView());
         }
 
-        /// The game script (or any external caller) loaded its own module: the behaviors
-        /// module is no longer the context's instantiation target.
-        void NoteExternalLoad() noexcept { m_moduleCurrent = false; }
-
         /// Instantiate a behavior class instance (loads or reloads the behaviors module as
         /// needed). Null on failure (logged).
         [[nodiscard]] RefPtr<ScriptObject> Instantiate(ScriptClass& scriptClass, Span<Variant> args)
@@ -456,8 +451,12 @@ export namespace engine::script
             return instance;
         }
 
-        /// Compiles the class (with every other known behavior class) into the current
-        /// behaviors module generation. False on compile failure or language mismatch.
+        /// Loads the class into the run's context unless it is already there. Each class is
+        /// compiled and cooked alone, so it loads alone, in a module of its own: no class waits on
+        /// another, a class that fails to load is not kept (so it fails no class after it), and a
+        /// reloaded product (the same class name) loads beside its predecessor, whose live instances
+        /// keep running; each language finds a class in any module it loaded, newest first. False on
+        /// a load failure or a language mismatch.
         [[nodiscard]] bool EnsureClassLoaded(ScriptClass& scriptClass)
         {
             const StringView language = scriptClass.language.IsEmpty()
@@ -467,67 +466,40 @@ export namespace engine::script
             {
                 return false;
             }
-
-            bool present = false;
+            usize replaced = m_loadedClasses.Size();
             for (usize i = 0; i < m_loadedClasses.Size(); ++i)
             {
                 ScriptClass* loaded = m_loadedClasses[i].Get();
                 if (loaded == &scriptClass)
                 {
-                    present = true;
-                    break;
+                    return true;
                 }
-                // A reloaded product replaces its predecessor (same class name).
                 if (loaded->className.AsView() == scriptClass.className.AsView())
                 {
-                    m_loadedClasses[i] = RefPtr<ScriptClass>(&scriptClass);
-                    m_moduleCurrent = false;
-                    present = true;
+                    replaced = i;
                     break;
                 }
             }
-            if (!present)
-            {
-                m_loadedClasses.PushBack(RefPtr<ScriptClass>(&scriptClass));
-                m_moduleCurrent = false;
-            }
-            if (m_moduleCurrent)
-            {
-                return true;
-            }
-
-            // Rebuild: a fresh generation module, each class carrying its own section identity
-            // (sourceName). The structured LoadBehaviorModule preserves per-class sections so a
-            // debug-capable backend reports (sourceFile, sourceLine) from GetLineNumber and
-            // editor breakpoints line up. The language framing (any prelude or base a backend
-            // needs) stays the backend's job: the run host only supplies the ordered
-            // {sourceName, source} pairs, with no language syntax here.
-            m_classSourceScratch.Clear();
-            m_classSourceScratch.Reserve(m_loadedClasses.Size());
-            for (const RefPtr<ScriptClass>& loaded : m_loadedClasses)
-            {
-                // Carry the cooked bytecode too: a backend with a stable per-class bytecode (Luau)
-                // loads it instead of compiling the source (the player path, no compiler). Empty
-                // for source-only classes and backends without bytecode: they compile.
-                m_classSourceScratch.PushBack(BehaviorModuleClass{
-                    loaded->sourceName.AsView(), loaded->source.AsView(),
-                    Span<const byte>{loaded->bytecode.Data(), loaded->bytecode.Size()}});
-            }
+            // Carry the cooked bytecode too: a backend with per-class bytecode loads it instead of
+            // compiling the source (the player path, no compiler). The section is the class's
+            // sourceName, so breakpoints and errors key on the authored (file, line).
+            const BehaviorModuleClass entry{scriptClass.sourceName.AsView(), scriptClass.source.AsView(),
+                                            Span<const byte>{scriptClass.bytecode.Data(), scriptClass.bytecode.Size()}};
             ++m_generation;
             const String moduleName = Format(u8"behaviors#{}", m_generation);
-            if (!m_scriptContext
-                     ->LoadBehaviorModule(
-                         Span<const BehaviorModuleClass>{m_classSourceScratch.Data(),
-                                                         m_classSourceScratch.Size()},
-                         moduleName.AsView())
-                     .IsOk())
+            if (!m_scriptContext->LoadBehaviorModule(Span<const BehaviorModuleClass>{&entry, 1}, moduleName.AsView()).IsOk())
             {
-                LOG_ERROR(u8"Script",
-                                   u8"behaviors module failed to compile (class '{}' newly added)",
-                                   scriptClass.className);
+                LOG_ERROR(u8"Script", u8"behavior class '{}' failed to load", scriptClass.className);
                 return false;
             }
-            m_moduleCurrent = true;
+            if (replaced < m_loadedClasses.Size())
+            {
+                m_loadedClasses[replaced] = RefPtr<ScriptClass>(&scriptClass);
+            }
+            else
+            {
+                m_loadedClasses.PushBack(RefPtr<ScriptClass>(&scriptClass));
+            }
             return true;
         }
 
@@ -556,7 +528,6 @@ export namespace engine::script
             m_manager = nullptr;
             m_language = String{};
             m_loadedClasses.Clear();
-            m_moduleCurrent = false;
             m_warnedLanguageMismatch = false;
             LOG_DEBUG(u8"Script", u8"run script context torn down");
         }
@@ -609,14 +580,11 @@ export namespace engine::script
         ScriptRuntimeBinding m_binding;
         foundation::core::IAllocator* m_allocator;
         Function<void*(TypeId)> m_applicationServices; // SetApplicationServices
-        Array<RefPtr<ScriptClass>> m_loadedClasses; // the behaviors module's content
-        Array<BehaviorModuleClass>
-            m_classSourceScratch;              // reused per-rebuild {sourceName, source} list
+        Array<RefPtr<ScriptClass>> m_loadedClasses; // the classes loaded into the context, one each
         UniquePtr<IScriptDebugger> m_debugger; // the run's step debugger (opt-in)
         DebugPauseTracker m_debugTracker;      // the game-pause flag and external forward
         Function<void(IScriptDebugger&)> m_debuggerConfigurator;
-        u32 m_generation = 0;
-        bool m_moduleCurrent = false;
+        u32 m_generation = 0; // names each class's module
         bool m_warnedLanguageMismatch = false;
         bool m_debuggerRequested = false;
         bool m_gameScriptHold = false; // a game script is loaded into this host (teardown pin)
