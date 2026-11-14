@@ -325,3 +325,23 @@ TEST_CASE("xml.parse: a CRLF ends one line and a lone CR ends one too, for node 
     REQUIRE(d.Parse(u8"<root>\r\n  <a/>\r  </other>") == XmlResult::TagMismatch);
     CHECK(d.ErrorLine() == 3);
 }
+
+TEST_CASE("xml: a document nested past the limit is refused, not a stack overflow")
+{
+    // Each element was a native call with no limit: a file of nested elements ran out the stack
+    // of whatever parsed it (a scene, an asset, a project file).
+    const auto nested = [](u32 depth)
+    {
+        String text;
+        for (u32 i = 0; i < depth; ++i)
+            text += StringView(u8"<a>");
+        for (u32 i = 0; i < depth; ++i)
+            text += StringView(u8"</a>");
+        return text;
+    };
+    XmlDocument fits(foundation::core::DefaultAllocator());
+    CHECK(fits.Parse(nested(500).AsView()) == XmlResult::Ok);
+    XmlDocument deep(foundation::core::DefaultAllocator());
+    CHECK(deep.Parse(nested(200000).AsView()) == XmlResult::NestingTooDeep);
+    CHECK(Describe(XmlResult::NestingTooDeep) == StringView(u8"Elements are nested too deep"));
+}

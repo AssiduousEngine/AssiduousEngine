@@ -75,6 +75,7 @@ export namespace foundation::xml
             m_lineFrom = text.Data();
             m_lineEnd = text.Data() + text.Size();
             m_lineAt = 1;
+            m_depth = 0;
 
             StringView remaining = text;
             const XmlResult result = ParseDocument(remaining);
@@ -453,7 +454,13 @@ export namespace foundation::xml
             Advance(text, 1);
             parent->AppendChild(element);
 
+            if (m_depth >= kMaxNesting)
+            {
+                return XmlResult::NestingTooDeep;
+            }
+            ++m_depth;
             const XmlResult contentResult = ParseContent(text, element);
+            --m_depth;
             if (contentResult != XmlResult::Ok)
             {
                 return contentResult;
@@ -775,6 +782,11 @@ export namespace foundation::xml
         const utf8char* m_lineFrom = nullptr;
         const utf8char* m_lineEnd = nullptr;
         u32 m_lineAt = 1;
+        // Elements open around the one being parsed. Each level is a native call (ParseElement and
+        // ParseContent), so a document nested deeper than kMaxNesting is refused rather than run
+        // the stack out.
+        u32 m_depth = 0;
+        static constexpr u32 kMaxNesting = 512;
 
         // Whether the character at `c` ends a line: a `\n`, or a `\r` that a `\n` does not follow (a
         // CRLF ends one line, at its `\n`; a lone CR, as old Mac text has it, ends one too).

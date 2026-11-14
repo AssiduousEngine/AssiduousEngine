@@ -75,6 +75,7 @@ export namespace foundation::xml
         ContentBeforeRoot = 0x43425254, // 'CBRT'
         ContentAfterRoot = 0x43415254,  // 'CART'
         NoRootElement = 0x4E4F5254,     // 'NORT'
+        NestingTooDeep = 0x4E455354,    // 'NEST'
 
         // Encoding
         EncodingUnsupported = 0x454E5553, // 'ENUS'
@@ -167,6 +168,8 @@ export namespace foundation::xml
             return u8"Encoding is not supported";
         case XmlResult::EncodingInvalidUtf8:
             return u8"Invalid UTF-8 sequence";
+        case XmlResult::NestingTooDeep:
+            return u8"Elements are nested too deep";
         }
         return u8"Unknown error";
     }
