@@ -3,17 +3,17 @@
 // checkpoint fires once.
 class Checkpoint
 {
-    private Entity@ self;
+    private Entity self;
 
-    [null, "The thief"] Entity@ thief;
+    [null, "The thief"] Entity thief;
 
     private bool m_reached = false;
 
-    Checkpoint(Entity@ entity) { @self = entity; }
+    Checkpoint(Entity entity) { self = entity; }
 
-    void onTriggerEnter(Entity@ other)
+    void onTriggerEnter(Entity other)
     {
-        if (m_reached || thief is null || other is null || !other.isValid() || other.id() != thief.id())
+        if (m_reached || !thief.isValid() || !other.isValid() || other.id() != thief.id())
         {
             return;
         }

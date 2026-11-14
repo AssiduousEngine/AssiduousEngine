@@ -43,14 +43,14 @@ const int kNoteFull = 6;       // every seat is taken by a player, so you watch
 
 class Ball
 {
-    private Entity@ self;
+    private Entity self;
 
-    [null, "The player (seat 0)"] Entity@ player;
-    [null, "Bot 1 (seat 1)"] Entity@ bot1;
-    [null, "Bot 2 (seat 2)"] Entity@ bot2;
-    [null, "Bot 3 (seat 3)"] Entity@ bot3;
-    [null, "The crowd: a child per costume, in the costume order, its guests under it"] Entity@ crowd;
-    [null, "The places guests go: its children (where the tagged reappear)"] Entity@ spots;
+    [null, "The player (seat 0)"] Entity player;
+    [null, "Bot 1 (seat 1)"] Entity bot1;
+    [null, "Bot 2 (seat 2)"] Entity bot2;
+    [null, "Bot 3 (seat 3)"] Entity bot3;
+    [null, "The crowd: a child per costume, in the costume order, its guests under it"] Entity crowd;
+    [null, "The places guests go: its children (where the tagged reappear)"] Entity spots;
     [240.0, "Seconds in a round"] float roundSeconds;
     [1.6, "How near a tag reaches (m)"] float tagReach;
     [4.0, "Seconds a wrong tag shows the tagger"] float revealSeconds;
@@ -61,8 +61,8 @@ class Ball
     [20.0, "Shortest wait before a bot guesses (s)"] float guessMin;
     [45.0, "Longest wait before a bot guesses (s)"] float guessMax;
     [15.0, "A bot gives up walking up to someone after this (s)"] float approachGiveUp;
-    [null, "Where players' hunters go (guests make way for its children)"] Entity@ players;
-    ["asset:PrefabResource", "The hunter the host spawns for a joining player"] Guid@ hunterPrefab;
+    [null, "Where players' hunters go (guests make way for its children)"] Entity players;
+    ["asset:PrefabResource", "The hunter the host spawns for a joining player"] Guid hunterPrefab;
 
     [0.0, "Seconds left in the round", replicated] float timeLeft;
     [false, "The round is over", replicated] bool over;
@@ -84,13 +84,13 @@ class Ball
     [0, "Seat 3's target seat", replicated] int target3;
     [0, "Which seats' masks flare (a bit a seat)", replicated] int flaring;
 
-    private array<Entity@> m_hunters;
-    private array<Entity@> m_bots;     // each seat's bot, used while no player holds it (seat 0: the host's player)
+    private array<Entity> m_hunters;
+    private array<Entity> m_bots;     // each seat's bot, used while no player holds it (seat 0: the host's player)
     private array<int> m_dressed;      // the costume each seat's body currently shows (-1 for none yet)
-    private array<Entity@> m_known;    // players' hunters, collected as they announce themselves ("Hunter")
+    private array<Entity> m_known;    // players' hunters, collected as they announce themselves ("Hunter")
     private bool m_overTold = false;
-    private array<array<Entity@>> m_groups; // the guests in each costume
-    private array<Entity@> m_spots;
+    private array<array<Entity>> m_groups; // the guests in each costume
+    private array<Entity> m_spots;
     private array<int> m_costume;   // each hunter's costume
     private array<int> m_target;    // each hunter's target seat
     private array<float> m_reveal;  // seconds each hunter's mask keeps flaring
@@ -98,7 +98,7 @@ class Ball
     private array<float> m_speed;   // measured over the last half second
     private array<float> m_suspicion; // how suspicious each bot is of its target
     private array<float> m_guessIn;
-    private array<Entity@> m_chasing; // whom a bot is walking up to
+    private array<Entity> m_chasing; // whom a bot is walking up to
     private array<float> m_chaseFor;
     private array<float> m_orderIn; // time until a bot's approach order is refreshed
     private float m_sample = 0.0f;
@@ -106,10 +106,10 @@ class Ball
     private bool m_reachTold = false; // the "InReach" value last sent
     private bool m_nearTold = false;  // the "HunterNear" value last sent
     private int m_cue = 0;
-    private Entity@ m_best;         // during a tag's search, the nearest person in reach so far
+    private Entity m_best;         // during a tag's search, the nearest person in reach so far
     private float m_bestDistance = 0.0f;
 
-    Ball(Entity@ entity) { @self = entity; }
+    Ball(Entity entity) { self = entity; }
 
     void onStart()
     {
@@ -137,23 +137,23 @@ class Ball
         Net::onLeave(left);
         m_groups.resize(kCostumes);
         int k = 0;
-        Entity@ group = crowd !is null && crowd.isValid() ? crowd.firstChild() : null;
-        while (group !is null && group.isValid() && k < kCostumes)
+        Entity group = crowd.isValid() ? crowd.firstChild() : Entity();
+        while (group.isValid() && k < kCostumes)
         {
-            Entity@ guest = group.firstChild();
-            while (guest !is null && guest.isValid())
+            Entity guest = group.firstChild();
+            while (guest.isValid())
             {
                 m_groups[k].insertLast(guest);
-                @guest = guest.nextSibling();
+                guest = guest.nextSibling();
             }
             ++k;
-            @group = group.nextSibling();
+            group = group.nextSibling();
         }
-        Entity@ spot = spots !is null && spots.isValid() ? spots.firstChild() : null;
-        while (spot !is null && spot.isValid())
+        Entity spot = spots.isValid() ? spots.firstChild() : Entity();
+        while (spot.isValid())
         {
             m_spots.insertLast(spot);
-            @spot = spot.nextSibling();
+            spot = spot.nextSibling();
         }
         m_costume.resize(kHunters);
         m_target.resize(kHunters);
@@ -189,7 +189,7 @@ class Ball
             m_reveal[i] = 0.0f;
             m_suspicion[i] = 0.0f;
             m_guessIn[i] = Random::range(guessMin, guessMax);
-            @m_chasing[i] = null;
+            m_chasing[i] = Entity();
             m_lastPos[i] = m_hunters[i].worldPosition();
         }
         score0 = 0;
@@ -264,27 +264,27 @@ class Ball
     {
         for (int h = 0; h < kHunters; ++h)
         {
-            Entity@ body = m_bots[h];
+            Entity body = m_bots[h];
             int owner = ownerOf(h);
             if (owner > 0)
             {
-                @body = null;
+                body = Entity();
                 for (uint k = 0; k < m_known.length(); ++k)
                 {
                     NetworkComponent@ net = NetworkComponent::of(m_known[k]);
                     if (m_known[k].isValid() && net !is null && int(net.owner) == owner)
                     {
-                        @body = m_known[k];
+                        body = m_known[k];
                     }
                 }
-                if (body is null)
+                if (!body.isValid())
                 {
                     continue; // its hunter has not reached this peer yet
                 }
             }
-            if (!(body is m_hunters[h]))
+            if (body != m_hunters[h])
             {
-                @m_hunters[h] = body;
+                m_hunters[h] = body;
                 m_dressed[h] = -1;
             }
             if (m_dressed[h] != costumeOf(h))
@@ -295,7 +295,7 @@ class Ball
     }
 
     // A player's hunter announces itself (Player.as, on every peer) so the seats can find it.
-    void onHunter(Entity@ hunter)
+    void onHunter(Entity hunter)
     {
         m_known.insertLast(hunter);
     }
@@ -320,8 +320,8 @@ class Ball
         {
             return;
         }
-        Entity@ found = inReach(seat);
-        if (found !is null)
+        Entity found = inReach(seat);
+        if (found.isValid())
         {
             resolve(seat, found);
         }
@@ -351,12 +351,12 @@ class Ball
     // Whom a tag by `seat` would reach: the nearest person within tagReach in front of its hunter
     // (or right beside it), or null. Tags use it, and so does the HUD's Tag prompt, which shows
     // while it finds someone.
-    private Entity@ inReach(int seat)
+    private Entity inReach(int seat)
     {
-        Entity@ tagger = m_hunters[seat];
+        Entity tagger = m_hunters[seat];
         Float3 p = tagger.worldPosition();
         Float3 ahead = Quaternion::RotateVector(tagger.worldRotation(), Float3(0.0f, 0.0f, 1.0f));
-        @m_best = null;
+        m_best = Entity();
         m_bestDistance = tagReach;
         for (int c = 0; c < kCostumes; ++c)
         {
@@ -377,7 +377,7 @@ class Ball
 
     // Keeps `person` as m_best if they are in reach, in front (or right beside), and nearer than
     // the best so far.
-    private void consider(Entity@ person, Float3 p, Float3 ahead)
+    private void consider(Entity person, Float3 p, Float3 ahead)
     {
         Float3 q = person.worldPosition();
         float dx = q.x - p.x;
@@ -391,11 +391,11 @@ class Ball
         {
             return; // behind or well to the side
         }
-        @m_best = person;
+        m_best = person;
         m_bestDistance = distance;
     }
 
-    private void resolve(int seat, Entity@ tagged)
+    private void resolve(int seat, Entity tagged)
     {
         int victim = seatOf(tagged);
         if (victim == m_target[seat])
@@ -436,7 +436,7 @@ class Ball
     private void respawn(int seat)
     {
         // Respawn well away from whoever hunts it, in a costume it was not wearing.
-        Entity@ hunter = m_hunters[hunterOf(seat)];
+        Entity hunter = m_hunters[hunterOf(seat)];
         Float3 at = m_hunters[seat].worldPosition();
         for (int tries = 0; tries < 12 && m_spots.length() > 0; ++tries)
         {
@@ -467,15 +467,15 @@ class Ball
     {
         m_dressed[seat] = costume;
         int k = 0;
-        Entity@ child = m_hunters[seat].firstChild();
-        while (child !is null && child.isValid())
+        Entity child = m_hunters[seat].firstChild();
+        while (child.isValid())
         {
             if (InstanceMemberComponent::of(child) !is null)
             {
                 child.setActive(k == costume);
                 ++k;
             }
-            @child = child.nextSibling();
+            child = child.nextSibling();
         }
     }
 
@@ -537,7 +537,7 @@ class Ball
         int seat = seatOfPlayer(localPlayer());
         // Whether someone is in front of this peer's hunter to tag; the game shows the Tag prompt
         // while there is.
-        bool reach = !over && seat >= 0 && inReach(seat) !is null;
+        bool reach = !over && seat >= 0 && inReach(seat).isValid();
         if (reach != m_reachTold)
         {
             m_reachTold = reach;
@@ -586,12 +586,12 @@ class Ball
         m_pulse += d;
         for (int h = 0; h < kHunters && h < int(m_hunters.length()); ++h)
         {
-            if (m_hunters[h] is null || !m_hunters[h].isValid())
+            if (!m_hunters[h].isValid())
             {
                 continue;
             }
-            Entity@ flare = m_hunters[h].findChildByName("Flare");
-            if (flare !is null && flare.isValid())
+            Entity flare = m_hunters[h].findChildByName("Flare");
+            if (flare.isValid())
             {
                 LightComponent@ light = LightComponent::of(flare);
                 if (light !is null)
@@ -607,17 +607,17 @@ class Ball
     // Makes a flaring mask glow. In Mask.hlsl a tint alpha below 1 on the instance means glow,
     // while the cloth, drawn with the same tint, keeps its colour. Every look of the hunter is set,
     // so whichever one is shown glows.
-    private void glow(Entity@ hunter, bool on)
+    private void glow(Entity hunter, bool on)
     {
-        Entity@ child = hunter.firstChild();
-        while (child !is null && child.isValid())
+        Entity child = hunter.firstChild();
+        while (child.isValid())
         {
             InstanceMemberComponent@ look = InstanceMemberComponent::of(child);
             if (look !is null)
             {
                 look.tint = Color(1.0f, 1.0f, 1.0f, on ? 0.0f : 1.0f);
             }
-            @child = child.nextSibling();
+            child = child.nextSibling();
         }
     }
 
@@ -628,7 +628,7 @@ class Ball
     void onNetInput(int sender, double packed)
     {
         int seat = seatOfPlayer(sender);
-        if (Net::isClient() || seat < 0 || m_hunters[seat] is null)
+        if (Net::isClient() || seat < 0 || !m_hunters[seat].isValid())
         {
             return;
         }
@@ -675,12 +675,12 @@ class Ball
             }
             stopChase(h);
             Float3 at = m_bots[h].worldPosition();
-            Entity@ hunter = Net::spawnFor(player, hunterPrefab, at.x, at.y, at.z);
-            if (hunter is null || !hunter.isValid())
+            Entity hunter = Net::spawnFor(player, hunterPrefab, at.x, at.y, at.z);
+            if (!hunter.isValid())
             {
                 return;
             }
-            if (players !is null && players.isValid())
+            if (players.isValid())
             {
                 hunter.setParent(players, true); // guests make way for it
             }
@@ -705,13 +705,13 @@ class Ball
         {
             return;
         }
-        Entity@ hunter = m_hunters[seat];
+        Entity hunter = m_hunters[seat];
         setOwner(seat, -1);
-        @m_hunters[seat] = m_bots[seat];
+        m_hunters[seat] = m_bots[seat];
         m_dressed[seat] = -1;
         m_suspicion[seat] = 0.0f;
         m_guessIn[seat] = Random::range(guessMin, guessMax);
-        if (hunter !is null && hunter.isValid() && !(hunter is m_bots[seat]))
+        if (hunter.isValid() && hunter != m_bots[seat])
         {
             hunter.destroy();
         }
@@ -721,15 +721,15 @@ class Ball
     private void hunt(int b, float d)
     {
         int t = m_target[b];
-        Entity@ bot = m_hunters[b];
-        Entity@ target = m_hunters[t];
-        if (m_chasing[b] !is null)
+        Entity bot = m_hunters[b];
+        Entity target = m_hunters[t];
+        if (m_chasing[b].isValid())
         {
             m_chaseFor[b] += d;
             float distance = flat(bot.worldPosition(), m_chasing[b].worldPosition());
             if (distance <= tagReach)
             {
-                Entity@ tagged = m_chasing[b];
+                Entity tagged = m_chasing[b];
                 stopChase(b);
                 resolve(b, tagged);
                 return;
@@ -761,8 +761,8 @@ class Ball
         if (m_guessIn[b] <= 0.0f)
         {
             m_guessIn[b] = Random::range(guessMin, guessMax);
-            Entity@ guess = someoneDressedAs(m_costume[t], b);
-            if (guess !is null)
+            Entity guess = someoneDressedAs(m_costume[t], b);
+            if (guess.isValid())
             {
                 chase(b, guess);
             }
@@ -795,10 +795,10 @@ class Ball
     }
 
     // A guess: someone near the bot wearing the costume, guest or hunter, but not the bot itself.
-    private Entity@ someoneDressedAs(int costume, int b)
+    private Entity someoneDressedAs(int costume, int b)
     {
         Float3 p = m_hunters[b].worldPosition();
-        array<Entity@> near;
+        array<Entity> near;
         for (uint g = 0; g < m_groups[costume].length(); ++g)
         {
             if (flat(p, m_groups[costume][g].worldPosition()) < watchRange)
@@ -813,31 +813,31 @@ class Ball
                 near.insertLast(m_hunters[h]);
             }
         }
-        return near.length() > 0 ? near[Random::intRange(0, int(near.length()) - 1)] : null;
+        return near.length() > 0 ? near[Random::intRange(0, int(near.length()) - 1)] : Entity();
     }
 
-    private void chase(int b, Entity@ person)
+    private void chase(int b, Entity person)
     {
-        @m_chasing[b] = person;
+        m_chasing[b] = person;
         m_chaseFor[b] = 0.0f;
         m_orderIn[b] = 0.0f;
     }
 
     private void stopChase(int b)
     {
-        if (b <= 0 || m_chasing[b] is null)
+        if (b <= 0 || !m_chasing[b].isValid())
         {
             return;
         }
-        @m_chasing[b] = null;
+        m_chasing[b] = Entity();
         m_hunters[b].send("Resume", 0);
     }
 
     // The clip that the hunter's visible look plays.
     private int clipOf(int seat)
     {
-        Entity@ child = m_hunters[seat].firstChild();
-        while (child !is null && child.isValid())
+        Entity child = m_hunters[seat].firstChild();
+        while (child.isValid())
         {
             if (child.active())
             {
@@ -847,16 +847,16 @@ class Ball
                     return int(look.clip);
                 }
             }
-            @child = child.nextSibling();
+            child = child.nextSibling();
         }
         return 0;
     }
 
-    private int seatOf(Entity@ person)
+    private int seatOf(Entity person)
     {
         for (int h = 0; h < kHunters; ++h)
         {
-            if (m_hunters[h] is person)
+            if (m_hunters[h] == person)
             {
                 return h;
             }

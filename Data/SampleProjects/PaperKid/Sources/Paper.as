@@ -7,21 +7,21 @@ Guid kFxPuff = Guid("9f997649-9c7f-48ed-99c4-6465890a41e9");
 
 class Paper
 {
-    private Entity@ self;
+    private Entity self;
 
     [6.0, "Seconds before the paper is gone"] float lifetime;
 
     private float m_age = 0.0f;
     private bool m_landed = false;
 
-    Paper(Entity@ entity) { @self = entity; }
+    Paper(Entity entity) { self = entity; }
 
-    void onTriggerEnter(Entity@ other)
+    void onTriggerEnter(Entity other)
     {
         other.send("PaperArrived", 0);
     }
 
-    void onContactBegin(Entity@ other, Float3 point, Float3 normal, float speed)
+    void onContactBegin(Entity other, Float3 point, Float3 normal, float speed)
     {
         if (m_landed || speed < 2.0f)
         {

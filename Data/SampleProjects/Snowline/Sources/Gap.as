@@ -10,27 +10,27 @@
 
 class Gap
 {
-    private Entity@ self;
+    private Entity self;
 
     [0.0, "The course's heading at the lip (radians; 0 runs toward +Z)"] float heading;
     [13.5, "Past the lip, how far a landing is still in the crevasse (m)"] float short;
     [30.0, "How far either side of the course the crevasse spans (m)"] float reach;
 
-    private Entity@ m_rider;
+    private Entity m_rider;
     private float m_lastAlong = -1000.0f;
     private bool m_armed = false; // past the lip on this pass and not judged yet
     private bool m_flew = false;  // off the snow since the lip
 
-    Gap(Entity@ entity) { @self = entity; }
+    Gap(Entity entity) { self = entity; }
 
     void onStart()
     {
-        @m_rider = self.scene.find("Rider");
+        m_rider = self.scene.find("Rider");
     }
 
     void onUpdate(double dt)
     {
-        if (m_rider is null || !m_rider.isValid())
+        if (!m_rider.isValid())
         {
             return;
         }

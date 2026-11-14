@@ -9,26 +9,26 @@
 
 class Pedestrian
 {
-    private Entity@ self;
+    private Entity self;
 
     [1.6, "Walking speed until the Level sets one (m/s)"] float speed;
     [18.0, "Nearest the middle a walk may lead (m)"] float inner;
     [31.0, "Farthest from the middle a walk may lead (m)"] float outer;
-    ["asset:AnimationClip", "The figure's walk clip"] Guid@ walkClip;
+    ["asset:AnimationClip", "The figure's walk clip"] Guid walkClip;
     [1.3, "Metres the walk clip covers at speed 1"] float walkMetres;
 
     private bool m_walking = false;
-    private Entity@ m_figure;
+    private Entity m_figure;
     private float m_yaw = 0.0f; // radians; 0 faces +Z
 
-    Pedestrian(Entity@ entity) { @self = entity; }
+    Pedestrian(Entity entity) { self = entity; }
 
     void onStart()
     {
         NavAgentComponent::of(self).setSpeed(speed);
         pickTarget();
-        @m_figure = self.findChildByName("PedestrianModel");
-        if (m_figure !is null && m_figure.isValid() && walkClip !is null && !walkClip.IsNil())
+        m_figure = self.findChildByName("PedestrianModel");
+        if (m_figure.isValid() && !walkClip.IsNil())
         {
             SceneAnimation anim = self.scene.animation;
             anim.setClip(m_figure, walkClip);
@@ -70,7 +70,7 @@ class Pedestrian
             m_yaw += turn * ((ease < 1.0f) ? ease : 1.0f);
             self.setRotationEuler(0.0f, Math::RadiansToDegrees(m_yaw), 0.0f);
         }
-        if (m_figure !is null && m_figure.isValid())
+        if (m_figure.isValid())
         {
             SkeletalAnimationComponent::of(m_figure).speed = pace / walkMetres;
         }

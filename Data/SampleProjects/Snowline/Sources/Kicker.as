@@ -12,27 +12,27 @@
 
 class Kicker
 {
-    private Entity@ self;
+    private Entity self;
 
     [3.88, "From the origin up the ramp to the lip (m)"] float run;
     [1.4, "The lip's height above the origin (m)"] float lipHeight;
     [29.0, "The ramp's angle at the lip, against its own base (degrees)"] float lipAngle;
     [5.0, "The kicker's width (m)"] float width;
 
-    private Entity@ m_rider;
+    private Entity m_rider;
     private float m_lastAlong = -1000.0f;
     private float m_entrySpeed = -1.0f; // the rider's speed at the foot this pass; -1 for none
 
-    Kicker(Entity@ entity) { @self = entity; }
+    Kicker(Entity entity) { self = entity; }
 
     void onStart()
     {
-        @m_rider = self.scene.find("Rider");
+        m_rider = self.scene.find("Rider");
     }
 
     void onUpdate(double dt)
     {
-        if (m_rider is null || !m_rider.isValid())
+        if (!m_rider.isValid())
         {
             return;
         }

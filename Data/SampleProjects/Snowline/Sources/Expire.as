@@ -3,13 +3,13 @@
 // is spent.
 class Expire
 {
-    private Entity@ self;
+    private Entity self;
 
     [1.5, "How long the entity lasts (s)"] float life;
 
     private float m_age = 0.0f;
 
-    Expire(Entity@ entity) { @self = entity; }
+    Expire(Entity entity) { self = entity; }
 
     void onUpdate(double dt)
     {

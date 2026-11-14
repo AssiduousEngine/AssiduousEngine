@@ -12,8 +12,8 @@
 // The AngelScript editor-property convention (typed member field + [metadata]):
 //     class Mover {
 //         [4.0, "units per second"]  float   speed;    // Float,  default 4.0
-//         [null]                     Entity@ target;    // Entity, default null
-//         ["asset:AudioClip"]        Guid@   clip;      // Asset(AudioClip)
+//         [null]                     Entity  target;    // Entity, default none
+//         ["asset:AudioClip"]        Guid    clip;      // Asset(AudioClip)
 //     }
 // The field's declared type picks the ScriptPropertyType (float->Float, int->Int,
 // bool->Bool, string->String, Color->Color, Float3->Vec3, Entity->Entity); a Guid field
@@ -186,7 +186,7 @@ namespace pipeline{
         // ---- AngelScript field type -> ScriptPropertyType -------------------------
 
         // The declared field type, normalised: trailing `@`/spaces and a leading `const `
-        // stripped (so `Entity@`, `const Guid@` both reduce to `Entity`/`Guid`).
+        // stripped (so `const Guid` reduces to `Guid`).
         [[nodiscard]] StringView NormalizeTypeName(StringView decl) noexcept
         {
             StringView t = Trim(decl);
@@ -345,10 +345,11 @@ namespace pipeline{
                 return;
             }
             const ScriptErrorKind kind = message->type == asMSGTYPE_WARNING ? ScriptErrorKind::Warning : ScriptErrorKind::Compile;
+            const String text = foundation::script::angelscript::AngelScriptMessageText(ViewOfCStr(message->message));
             const ScriptError error{kind, ViewOfCStr(message->section),
                                     static_cast<i32>(message->row),
                                     message->col > 0 ? static_cast<i32>(message->col) : -1,
-                                    ViewOfCStr(message->message)};
+                                    text.AsView()};
             forward->sink->OnError(error);
         }
 
@@ -507,26 +508,6 @@ namespace pipeline{
                         Format(u8"property '{}' has unsupported type '{}' (valid: float, int, bool, "
                                u8"string, Color, Float3, Entity, or Guid tagged \"asset:<TypeName>\")",
                                desc.name, typeName));
-                    return false;
-                }
-                // A reflected/resource property (Color, Float3, Entity, or an asset:Guid) is a
-                // reference type in AngelScript (every reflected type is asOBJ_REF). Declared as a
-                // value member it cannot receive its value at runtime: AngelScript owns the member's
-                // lifecycle and lazily reconstructs it, discarding the applied value (see the
-                // AngelScript backend's WriteTypedAddress). So the cook requires a handle and names
-                // the fix; the runtime warning covers paths that are not cooked.
-                const bool reflectedRef = desc.type == ScriptPropertyType::Color ||
-                                          desc.type == ScriptPropertyType::Vec3 ||
-                                          desc.type == ScriptPropertyType::Entity ||
-                                          desc.type == ScriptPropertyType::Asset;
-                if (reflectedRef && (fieldTypeId & asTYPEID_OBJHANDLE) == 0)
-                {
-                    ReportCookProblem(
-                        sink, assetName,
-                        Format(u8"property '{}' must be a handle - declare it '{}@ {}' (a reflected or "
-                               u8"resource property is a reference type; a value member silently drops "
-                               u8"its value at runtime)",
-                               desc.name, typeName, desc.name));
                     return false;
                 }
                 ParseDefault(desc.type, firstToken, desc.defaultValue);

@@ -4,15 +4,15 @@
 // the player. After ringing it rests for `rest` seconds before it can ring again.
 class Alarm
 {
-    private Entity@ self;
+    private Entity self;
 
-    [null, "The thief"] Entity@ thief;
+    [null, "The thief"] Entity thief;
     [40.0, "How loud: a noise of loudness 1 is heard 14 m away"] float loudness;
     [8.0, "Seconds before it can ring again"] float rest;
 
     private float m_resting = 0.0f;
 
-    Alarm(Entity@ entity) { @self = entity; }
+    Alarm(Entity entity) { self = entity; }
 
     void onUpdate(double dt)
     {
@@ -24,7 +24,7 @@ class Alarm
 
     void onSpotted(int unused)
     {
-        if (m_resting > 0.0f || thief is null || !thief.isValid())
+        if (m_resting > 0.0f || !thief.isValid())
         {
             return;
         }

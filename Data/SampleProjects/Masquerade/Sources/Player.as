@@ -22,10 +22,10 @@ const int kDance = 3;
 
 class Player
 {
-    private Entity@ self;
+    private Entity self;
 
-    [null, "The camera whose facing makes forward"] Entity@ camera;
-    [null, "The crowd: its children's children are the guests it pushes past"] Entity@ crowd;
+    [null, "The camera whose facing makes forward"] Entity camera;
+    [null, "The crowd: its children's children are the guests it pushes past"] Entity crowd;
     [0.55, "Nearer than this to a guest (m) is pressing against it"] float pressDistance;
     [0.5, "Its pace while pressing against a guest (of the full)"] float pressPace;
     [1.0, "Walking speed (m/s): a guest's, the Walk clip's"] float walkSpeed;
@@ -44,26 +44,26 @@ class Player
     private float m_sendIn = 0.0f;
     private bool m_handedOver = false; // client: the agent is stopped so the host's transforms rule
 
-    Player(Entity@ entity) { @self = entity; }
+    Player(Entity entity) { self = entity; }
 
     void onStart()
     {
         // A hunter spawned for a joining player has no scene references set, so it finds what it
         // needs by name.
-        if (camera is null || !camera.isValid())
+        if (!camera.isValid())
         {
-            @camera = self.scene.find("Camera");
+            camera = self.scene.find("Camera");
         }
-        if (crowd is null || !crowd.isValid())
+        if (!crowd.isValid())
         {
-            @crowd = self.scene.find("Crowd");
+            crowd = self.scene.find("Crowd");
         }
-        Entity@ ball = self.scene.find("Ball");
-        if (ball !is null && ball.isValid())
+        Entity ball = self.scene.find("Ball");
+        if (ball.isValid())
         {
             ball.send("Hunter", self); // on every peer, so the seats can find it
         }
-        if (mine() && camera !is null && camera.isValid())
+        if (mine() && camera.isValid())
         {
             camera.send("Follow", self);
         }
@@ -99,8 +99,8 @@ class Player
         bool own = mine();
         if (own != m_ringShown)
         {
-            Entity@ ring = self.findChildByName("Ring");
-            if (ring !is null && ring.isValid())
+            Entity ring = self.findChildByName("Ring");
+            if (ring.isValid())
             {
                 DecalComponent@ decal = DecalComponent::of(ring);
                 if (decal !is null)
@@ -120,7 +120,7 @@ class Player
         {
             Float2 stick = Input::value2D("Move");
             float amount = Math::Sqrt(stick.x * stick.x + stick.y * stick.y);
-            if (amount >= 0.1f && camera !is null && camera.isValid())
+            if (amount >= 0.1f && camera.isValid())
             {
                 if (amount > 1.0f)
                 {
@@ -225,32 +225,32 @@ class Player
     // drawn.
     private void playClip()
     {
-        Entity@ child = self.firstChild();
-        while (child !is null && child.isValid())
+        Entity child = self.firstChild();
+        while (child.isValid())
         {
             InstanceMemberComponent@ look = InstanceMemberComponent::of(child);
             if (look !is null)
             {
                 look.clip = uint(activity);
             }
-            @child = child.nextSibling();
+            child = child.nextSibling();
         }
     }
 
     // Whether it is pressed against a guest: any member of the crowd within pressDistance.
     private bool pressing()
     {
-        if (crowd is null || !crowd.isValid())
+        if (!crowd.isValid())
         {
             return false;
         }
         Float3 p = self.worldPosition();
         float near = pressDistance * pressDistance;
-        Entity@ group = crowd.firstChild();
-        while (group !is null && group.isValid())
+        Entity group = crowd.firstChild();
+        while (group.isValid())
         {
-            Entity@ guest = group.firstChild();
-            while (guest !is null && guest.isValid())
+            Entity guest = group.firstChild();
+            while (guest.isValid())
             {
                 Float3 q = guest.worldPosition();
                 float dx = q.x - p.x;
@@ -259,9 +259,9 @@ class Player
                 {
                     return true;
                 }
-                @guest = guest.nextSibling();
+                guest = guest.nextSibling();
             }
-            @group = group.nextSibling();
+            group = group.nextSibling();
         }
         return false;
     }

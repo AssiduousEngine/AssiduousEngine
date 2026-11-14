@@ -9,34 +9,34 @@ const float kPi = 3.14159265f;
 
 class Thief
 {
-    private Entity@ self;
+    private Entity self;
 
-    [null, "The camera whose facing makes forward"] Entity@ camera;
+    [null, "The camera whose facing makes forward"] Entity camera;
     [1.0, "Sneaking speed (m/s): crouched, silent"] float sneakSpeed;
     [1.6, "Walking speed (m/s)"] float walkSpeed;
     [4.5, "Running speed (m/s): loud"] float runSpeed;
     [10.0, "How fast the body turns toward where it goes"] float turnRate;
-    ["asset:PrefabResource", "The pebble thrown (Prefabs/Pebble)"] Guid@ pebble;
+    ["asset:PrefabResource", "The pebble thrown (Prefabs/Pebble)"] Guid pebble;
     [7.0, "How fast a pebble leaves the hand (m/s)"] float throwSpeed;
     [0.8, "Seconds between throws"] float throwEvery;
 
     private float m_yaw = 0.0f;
-    private Entity@ m_figure;
+    private Entity m_figure;
     private Float3 m_checkpoint = Float3(0.0f, 0.0f, 0.0f); // where a catch sends the thief back
     private float m_sinceThrow = 99.0f;
 
 
-    Thief(Entity@ entity) { @self = entity; }
+    Thief(Entity entity) { self = entity; }
 
     // The model's skinned mesh, which carries the graph, at the path Thief (the instance) /
     // ThiefRig / Thief.
-    private Entity@ figure()
+    private Entity figure()
     {
-        if (m_figure is null || !m_figure.isValid())
+        if (!m_figure.isValid())
         {
-            Entity@ model = self.findChildByName("Thief");
-            Entity@ rig = (model !is null && model.isValid()) ? model.findChildByName("ThiefRig") : null;
-            @m_figure = (rig !is null && rig.isValid()) ? rig.findChildByName("Thief") : null;
+            Entity model = self.findChildByName("Thief");
+            Entity rig = (model.isValid()) ? model.findChildByName("ThiefRig") : Entity();
+            m_figure = (rig.isValid()) ? rig.findChildByName("Thief") : Entity();
         }
         return m_figure;
     }
@@ -55,7 +55,7 @@ class Thief
 
         Float2 stick = Input::value2D("Move");
         float amount = Math::Sqrt(stick.x * stick.x + stick.y * stick.y);
-        if (amount < 0.05f || camera is null || !camera.isValid())
+        if (amount < 0.05f || !camera.isValid())
         {
             body.move(0.0f, 0.0f);
             return;
@@ -121,15 +121,15 @@ class Thief
     // Throws a pebble from the hand, ahead and upward in the direction the thief faces.
     private void throwPebble()
     {
-        if (pebble is null)
+        if (pebble.IsNil())
         {
             return;
         }
         Float3 p = self.worldPosition();
         Float3 ahead = Float3(Math::Sin(m_yaw), 0.0f, Math::Cos(m_yaw)); // the model faces +Z
-        Entity@ stone = self.scene.prefabs.spawn(pebble, Float3(p.x + ahead.x * 0.4f, p.y + 0.5f,
+        Entity stone = self.scene.prefabs.spawn(pebble, Float3(p.x + ahead.x * 0.4f, p.y + 0.5f,
                                                                           p.z + ahead.z * 0.4f));
-        if (stone is null || !stone.isValid())
+        if (!stone.isValid())
         {
             return;
         }
@@ -144,8 +144,8 @@ class Thief
     // pressed against a wall stands rather than runs on the spot), and Crouched while sneaking.
     private void animate(CharacterComponent@ body, bool crouched)
     {
-        Entity@ fig = figure();
-        if (fig is null || !fig.isValid())
+        Entity fig = figure();
+        if (!fig.isValid())
         {
             return;
         }

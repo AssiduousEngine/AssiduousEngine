@@ -43,9 +43,9 @@ Guid kTreeHitSound = Guid("a3179659-c479-447f-af6b-74ea09672ca8"); // Audio/Tree
 
 class Board
 {
-    private Entity@ self;
+    private Entity self;
 
-    [null, "The course line (an entity with a spline)"] Entity@ course;
+    [null, "The course line (an entity with a spline)"] Entity course;
     [false, "Steer down the course line on its own (playtests)"] bool autopilot;
     [15.0, "How far down the course line the autopilot aims (m)"] float lookAhead;
     [0.0, "The stick the autopilot holds in the air, a spin (playtests: -1 to 1)"] float autopilotSpin;
@@ -70,7 +70,7 @@ class Board
     [2, "The physics collision group of the trees and rocks"] int treesGroup;
     [2.2, "How close a trunk passes for a near miss (m, from the rider's centre to its axis)"] float nearMissReach;
     [9.0, "Slowest speed a near miss counts at (m/s)"] float nearMissSpeed;
-    ["asset:PrefabResource", "The board's mark in the snow (Prefabs/TrackMark)"] Guid@ trackMark;
+    ["asset:PrefabResource", "The board's mark in the snow (Prefabs/TrackMark)"] Guid trackMark;
     [1.5, "Distance between the track's marks (m)"] float trackSpacing;
     [2.0, "Slowest speed that leaves a track (m/s)"] float trackSpeed;
     [0.45, "Carve (share of a full one) above which the board throws spray"] float sprayCarve;
@@ -87,7 +87,7 @@ class Board
     private Float3 m_lookAt = Float3(0.0f, 0.0f, 0.0f); // where the head looks (eased)
     private bool m_lookKnown = false;
     private bool m_airborne = false;
-    private Entity@ m_figure;     // the skinned mesh the graph drives
+    private Entity m_figure;     // the skinned mesh the graph drives
     private float m_sinceMark = 0.0f; // metres ridden since the last mark of the track
     private bool m_spraying = false;
     private int m_nextGate = 0;   // the next gate, which the rider looks at
@@ -104,7 +104,7 @@ class Board
     private Float3 m_lastTrunk = Float3(1.0e9f, 0.0f, 0.0f); // centre of the last trunk passed close
     private bool m_crashDue = false; // a crash reported to the board (a short gap), applied next update
 
-    Board(Entity@ entity) { @self = entity; }
+    Board(Entity entity) { self = entity; }
 
     void onStart()
     {
@@ -118,13 +118,13 @@ class Board
 
     // The skinned mesh that carries the graph: under the model's root, then its rig. It is found on
     // first use rather than at start, because the model's instance may not have its children yet.
-    private Entity@ figure()
+    private Entity figure()
     {
-        if (m_figure is null || !m_figure.isValid())
+        if (!m_figure.isValid())
         {
-            Entity@ model = self.findChildByName("RiderModel");
-            Entity@ rig = (model !is null && model.isValid()) ? model.findChildByName("RiderRig") : null;
-            @m_figure = (rig !is null && rig.isValid()) ? rig.findChildByName("RiderModel") : null;
+            Entity model = self.findChildByName("RiderModel");
+            Entity rig = (model.isValid()) ? model.findChildByName("RiderRig") : Entity();
+            m_figure = (rig.isValid()) ? rig.findChildByName("RiderModel") : Entity();
         }
         return m_figure;
     }
@@ -347,14 +347,14 @@ class Board
     // The autopilot's carve: toward a point down the course line, -1..1.
     private float autoSteer(Float3 v, Float3 at, float down)
     {
-        if (course is null || !course.isValid())
+        if (!course.isValid())
         {
             return 0.0f;
         }
-        SceneSplines@ splines = self.scene.splines;
+        SceneSplines splines = self.scene.splines;
         float length = splines.length(course);
         float aim = down + lookAhead;
-        SplineHit@ ahead = splines.sampleAtDistance(course, (aim < length) ? aim : length);
+        SplineHit ahead = splines.sampleAtDistance(course, (aim < length) ? aim : length);
         float flat = Math::Sqrt(v.x * v.x + v.z * v.z);
         float want = Math::Atan2(ahead.position.x - at.x, ahead.position.z - at.z);
         float have = (flat > 0.2f) ? Math::Atan2(v.x, v.z) : want;
@@ -382,12 +382,12 @@ class Board
         float dx = (flat > 0.5f) ? v.x / flat : Math::Sin(m_yaw);
         float dz = (flat > 0.5f) ? v.z / flat : Math::Cos(m_yaw);
         Float3 want = Float3(at.x + dx * gazeAhead, at.y + 0.3f, at.z + dz * gazeAhead);
-        Entity@ next = self.scene.find("Gate" + m_nextGate);
-        if (next is null || !next.isValid())
+        Entity next = self.scene.find("Gate" + m_nextGate);
+        if (!next.isValid())
         {
-            @next = self.scene.find("Finish");
+            next = self.scene.find("Finish");
         }
-        if (next !is null && next.isValid())
+        if (next.isValid())
         {
             Float3 p = next.worldPosition();
             float tx = p.x - at.x;
@@ -413,12 +413,12 @@ class Board
     // How far down the course line the rider is (m): the closest point's distance along it.
     private float travelled(Float3 at)
     {
-        if (course is null || !course.isValid())
+        if (!course.isValid())
         {
             return 0.0f;
         }
-        SplineHit@ here = self.scene.splines.closestPoint(course, at);
-        return (here !is null && here.valid) ? here.distance : 0.0f;
+        SplineHit here = self.scene.splines.closestPoint(course, at);
+        return (here.valid) ? here.distance : 0.0f;
     }
 
     // Leaves the board's track: a mark every `trackSpacing` metres on the snow, under the board,
@@ -426,7 +426,7 @@ class Board
     private void track(Float3 at, Float3 v, bool grounded, float d)
     {
         float speed = Math::Sqrt(v.x * v.x + v.z * v.z);
-        if (!grounded || speed < trackSpeed || trackMark is null || trackMark.IsNil())
+        if (!grounded || speed < trackSpeed || trackMark.IsNil())
         {
             m_sinceMark = trackSpacing; // so the first mark after touching down comes at once
             return;
@@ -438,8 +438,8 @@ class Board
         }
         m_sinceMark = 0.0f;
         // The character's position is its capsule's centre; the board is 0.9 m below it.
-        Entity@ mark = self.scene.prefabs.spawn(trackMark, Float3(at.x, at.y - 0.9f, at.z));
-        if (mark !is null && mark.isValid())
+        Entity mark = self.scene.prefabs.spawn(trackMark, Float3(at.x, at.y - 0.9f, at.z));
+        if (mark.isValid())
         {
             mark.setRotationEuler(0.0f, Math::RadiansToDegrees(Math::Atan2(v.x, v.z)), 0.0f);
         }
@@ -450,13 +450,13 @@ class Board
     // child).
     private void snow(Float3 v, float steer, bool grounded)
     {
-        SceneParticles@ particles = self.scene.particles;
+        SceneParticles particles = self.scene.particles;
         float speed = Math::Sqrt(v.x * v.x + v.z * v.z);
         bool spraying = grounded && Math::Abs(steer) > sprayCarve && speed > spraySpeed;
         if (spraying != m_spraying)
         {
-            Entity@ spray = self.findChildByName("Spray");
-            if (spray !is null && spray.isValid())
+            Entity spray = self.findChildByName("Spray");
+            if (spray.isValid())
             {
                 if (spraying)
                 {
@@ -471,8 +471,8 @@ class Board
         }
         if (grounded && m_airborne)
         {
-            Entity@ powder = self.findChildByName("Powder");
-            if (powder !is null && powder.isValid())
+            Entity powder = self.findChildByName("Powder");
+            if (powder.isValid())
             {
                 particles.restart(powder);
             }
@@ -483,8 +483,8 @@ class Board
     // `windSpeed`, and a little higher in pitch the faster it blows.
     private void wind(Float3 v)
     {
-        Entity@ source = self.findChildByName("Wind");
-        if (source is null || !source.isValid())
+        Entity source = self.findChildByName("Wind");
+        if (!source.isValid())
         {
             return;
         }
@@ -625,9 +625,9 @@ class Board
         {
             return;
         }
-        RayCastHit@ trunk = self.scene.physics.nearestOverlap(at.x, at.y, at.z, nearMissReach,
+        RayCastHit trunk = self.scene.physics.nearestOverlap(at.x, at.y, at.z, nearMissReach,
                                                                         1 << treesGroup);
-        if (trunk is null || !trunk.hit)
+        if (!trunk.hit)
         {
             return;
         }
@@ -690,8 +690,8 @@ class Board
     // Sets the graph's parameters; the lean eases toward the value from turnLean.
     private void animate(float steer, bool tuck, bool airborne, bool grab, float d)
     {
-        Entity@ figureNow = figure();
-        if (figureNow is null || !figureNow.isValid())
+        Entity figureNow = figure();
+        if (!figureNow.isValid())
         {
             return;
         }

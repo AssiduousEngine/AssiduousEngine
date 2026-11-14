@@ -21,12 +21,12 @@ const int kSearch = 3;
 
 class Guard
 {
-    private Entity@ self;
+    private Entity self;
 
-    [null, "The thief"] Entity@ thief;
-    [null, "The round: its children are the points walked in turn"] Entity@ route;
-    [null, "The lantern's spot light (a child): its cone and range are what he sees"] Entity@ lantern;
-    [null, "The meter over his head (a GUI billboard: a mark and a bar)"] Entity@ meter;
+    [null, "The thief"] Entity thief;
+    [null, "The round: its children are the points walked in turn"] Entity route;
+    [null, "The lantern's spot light (a child): its cone and range are what he sees"] Entity lantern;
+    [null, "The meter over his head (a GUI billboard: a mark and a bar)"] Entity meter;
     [1.2, "Walking speed (m/s): the Walk clip's"] float walkSpeed;
     [4.0, "Running speed (m/s): the Run clip's"] float runSpeed;
     [1.6, "Eye height (m)"] float eyeHeight;
@@ -42,17 +42,17 @@ class Guard
 
     private int m_state = kPatrol;
     private float awareness = 0.0f;
-    private Entity@ m_point;
+    private Entity m_point;
     private Float3 m_spot = Float3(0.0f, 0.0f, 0.0f);
     private float m_timer = 0.0f;
     private Float3 m_home = Float3(0.0f, 0.0f, 0.0f);
     private float m_yaw = 0.0f;
-    private Entity@ m_figure;
+    private Entity m_figure;
     private float m_calm = 0.0f; // time after a catch before he looks for the thief again
     private Float3 m_heard = Float3(0.0f, 0.0f, 0.0f); // the last noise he went to look at
     private float m_knockIn = 0.0f; // time until he next checks for a door in his way
 
-    Guard(Entity@ entity) { @self = entity; }
+    Guard(Entity entity) { self = entity; }
 
     void onStart()
     {
@@ -146,14 +146,14 @@ class Guard
         Float3 p = self.worldPosition();
         Float3 ahead = Float3(Math::Sin(m_yaw), 0.0f, Math::Cos(m_yaw)); // the model faces +Z
         uint mask = 0xFFFFFFFF & ~(uint(1) << uint(group));
-        RayCastHit@ hit = self.scene.physics.rayCast(Float3(p.x, p.y + 1.0f, p.z), ahead, 1.2f, mask);
-        if (hit is null || !hit.hit)
+        RayCastHit hit = self.scene.physics.rayCast(Float3(p.x, p.y + 1.0f, p.z), ahead, 1.2f, mask);
+        if (!hit.hit)
         {
             return;
         }
-        Entity@ thing = hit.entity();
-        Entity@ hinge = (thing !is null && thing.isValid()) ? thing.parent() : null;
-        if (hinge !is null && hinge.isValid())
+        Entity thing = hit.entity();
+        Entity hinge = (thing.isValid()) ? thing.parent() : Entity();
+        if (hinge.isValid())
         {
             hinge.send("Knock", p);
         }
@@ -163,7 +163,7 @@ class Guard
     // awareness under a "?", which becomes a "!" once he is chasing the thief.
     private void show()
     {
-        if (meter is null || !meter.isValid())
+        if (!meter.isValid())
         {
             return;
         }
@@ -221,7 +221,7 @@ class Guard
             awareness = 0.0f;
             return;
         }
-        if (thief !is null && thief.isValid() && lantern !is null && lantern.isValid())
+        if (thief.isValid() && lantern.isValid())
         {
             Float3 eye = self.worldPosition();
             eye = Float3(eye.x, eye.y + eyeHeight, eye.z);
@@ -235,9 +235,9 @@ class Guard
             uint mask = 0xFFFFFFFF & ~(uint(1) << uint(group));
             if (dist < cone.range && cosAngle >= Math::Cos(cone.outerAngle))
             {
-                RayCastHit@ hit = self.scene.physics.rayCast(eye, Float3(to.x / dist, to.y / dist, to.z / dist),
+                RayCastHit hit = self.scene.physics.rayCast(eye, Float3(to.x / dist, to.y / dist, to.z / dist),
                                                                        dist, mask);
-                if (hit is null || !hit.hit)
+                if (!hit.hit)
                 {
                     Float3 light = self.scene.render.lightAt(chest, mask);
                     float lum = 0.2126f * light.x + 0.7152f * light.y + 0.0722f * light.z;
@@ -248,7 +248,7 @@ class Guard
                 }
             }
         }
-        if (thief !is null && thief.isValid() && flatDistance(self.worldPosition(), thief.worldPosition()) <= touch)
+        if (thief.isValid() && flatDistance(self.worldPosition(), thief.worldPosition()) <= touch)
         {
             rate = 2.0f; // too close to miss
             m_spot = thief.worldPosition();
@@ -260,29 +260,29 @@ class Guard
     private void patrol()
     {
         m_state = kPatrol;
-        if (m_point is null || !m_point.isValid())
+        if (!m_point.isValid())
         {
-            @m_point = (route !is null && route.isValid()) ? route.firstChild() : null;
+            m_point = (route.isValid()) ? route.firstChild() : Entity();
         }
         go(m_point, walkSpeed);
     }
 
     private void next()
     {
-        if (m_point !is null && m_point.isValid())
+        if (m_point.isValid())
         {
-            @m_point = m_point.nextSibling();
+            m_point = m_point.nextSibling();
         }
-        if ((m_point is null || !m_point.isValid()) && route !is null && route.isValid())
+        if ((!m_point.isValid()) && route.isValid())
         {
-            @m_point = route.firstChild();
+            m_point = route.firstChild();
         }
         go(m_point, walkSpeed);
     }
 
-    private void go(Entity@ point, float speed)
+    private void go(Entity point, float speed)
     {
-        if (point is null || !point.isValid())
+        if (!point.isValid())
         {
             return;
         }
@@ -313,8 +313,8 @@ class Guard
         {
             face(Float3(p.x + vx, p.y, p.z + vz), d);
         }
-        Entity@ fig = figure();
-        if (fig !is null && fig.isValid())
+        Entity fig = figure();
+        if (fig.isValid())
         {
             SceneAnimation anim = self.scene.animation;
             anim.setFloat(fig, "Speed", speed);
@@ -343,13 +343,13 @@ class Guard
 
     // The model's skinned mesh, which carries the graph, at the path Guard (the instance) /
     // GuardRig / Guard.
-    private Entity@ figure()
+    private Entity figure()
     {
-        if (m_figure is null || !m_figure.isValid())
+        if (!m_figure.isValid())
         {
-            Entity@ model = self.findChildByName("Guard");
-            Entity@ rig = (model !is null && model.isValid()) ? model.findChildByName("GuardRig") : null;
-            @m_figure = (rig !is null && rig.isValid()) ? rig.findChildByName("Guard") : null;
+            Entity model = self.findChildByName("Guard");
+            Entity rig = (model.isValid()) ? model.findChildByName("GuardRig") : Entity();
+            m_figure = (rig.isValid()) ? rig.findChildByName("Guard") : Entity();
         }
         return m_figure;
     }

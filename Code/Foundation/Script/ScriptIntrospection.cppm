@@ -55,7 +55,7 @@ export namespace foundation::script
 
     /// One script-visible member of a bound type, spelled the way the backend presents
     /// it (the `signature` is language-formatted, e.g. AngelScript
-    /// `Float3@ Dot(const Float3&in, const Float3&in)`).
+    /// `float Dot(const Float3 &in, const Float3 &in)`).
     struct ScriptApiMember
     {
         core::String name;

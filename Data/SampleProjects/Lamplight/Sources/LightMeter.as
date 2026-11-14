@@ -6,7 +6,7 @@
 // The glow is seen by the camera but lights nothing, so the meter and the guards still read dark.
 class LightMeter
 {
-    private Entity@ self;
+    private Entity self;
 
     [0.4, "Where the light is read, above the thief's centre (m): the chest"] float chestHeight;
     [0.15, "The light (luminance) that fills half the meter"] float halfLight;
@@ -16,10 +16,10 @@ class LightMeter
     [7, "How many material slots the figure has"] int slots;
 
     private float m_shown = 0.0f;
-    private Entity@ m_figure;
+    private Entity m_figure;
     private float m_glow = -1.0f; // the glow value last set
 
-    LightMeter(Entity@ entity) { @self = entity; }
+    LightMeter(Entity entity) { self = entity; }
 
     // How lit the thief is, 0..1: luminance / (luminance + `halfLight`). The dark between the lamps
     // reads near empty, moonlight about half, and standing under a lamp near full.
@@ -62,12 +62,12 @@ class LightMeter
             return;
         }
         m_glow = g;
-        Entity@ fig = figure();
-        if (fig is null)
+        Entity fig = figure();
+        if (!fig.isValid())
         {
             return;
         }
-        SceneRender@ render = self.scene.render;
+        SceneRender render = self.scene.render;
         for (int slot = 0; slot < slots; ++slot)
         {
             render.setMaterialFloat4(fig, slot, "EmissiveColor", Float4(0.55f, 0.65f, 0.9f, g));
@@ -75,13 +75,13 @@ class LightMeter
     }
 
     // The figure's mesh in the model under the thief (Thief.as finds it the same way).
-    private Entity@ figure()
+    private Entity figure()
     {
-        if (m_figure is null || !m_figure.isValid())
+        if (!m_figure.isValid())
         {
-            Entity@ model = self.findChildByName("Thief");
-            Entity@ rig = (model !is null && model.isValid()) ? model.findChildByName("ThiefRig") : null;
-            @m_figure = (rig !is null && rig.isValid()) ? rig.findChildByName("Thief") : null;
+            Entity model = self.findChildByName("Thief");
+            Entity rig = (model.isValid()) ? model.findChildByName("ThiefRig") : Entity();
+            m_figure = (rig.isValid()) ? rig.findChildByName("Thief") : Entity();
         }
         return m_figure;
     }

@@ -2,7 +2,7 @@
 // enough to draw away a guard who hears it (Guard.as) to look. It disappears a while later.
 class Pebble
 {
-    private Entity@ self;
+    private Entity self;
 
     [1.0, "How loud its landing is (0..1)"] float loudness;
     [1.5, "Landing slower than this (m/s) is not a clack"] float hardLanding;
@@ -11,9 +11,9 @@ class Pebble
     private float m_age = 0.0f;
     private bool m_landed = false;
 
-    Pebble(Entity@ entity) { @self = entity; }
+    Pebble(Entity entity) { self = entity; }
 
-    void onContactBegin(Entity@ other, Float3 point, Float3 normal, float speed)
+    void onContactBegin(Entity other, Float3 point, Float3 normal, float speed)
     {
         if (m_landed || speed < hardLanding)
         {

@@ -24,7 +24,7 @@ float SmoothGlide(float t)
 
 class Gallery
 {
-    private Entity@ self;
+    private Entity self;
 
     [4.0, "Flying speed (m/s)"] float speed;
     [3.0, "How much faster with Fast held"] float fastFactor;
@@ -48,7 +48,7 @@ class Gallery
     private bool m_panelShown = true;
     private bool m_captioned = false;
 
-    Gallery(Entity@ entity) { @self = entity; }
+    Gallery(Entity entity) { self = entity; }
 
     void onStart()
     {
@@ -133,14 +133,14 @@ class Gallery
     private void showLesson(int n, string title, string summary, string file)
     {
         string id = (n < 10 ? "0" : "") + n;
-        Entity@ view = self.scene.find("View" + id);
-        Entity@ exhibit = self.scene.find("Lesson" + id);
+        Entity view = self.scene.find("View" + id);
+        Entity exhibit = self.scene.find("Lesson" + id);
         Label::of(gui::root().find("gallery-title")).text = n + ". " + title;
         Label::of(gui::root().find("gallery-about")).text = summary;
         Label::of(gui::root().find("gallery-file")).text = file;
         m_captioned = true;
         gui::root().find("gallery-caption").visible = m_panelShown;
-        if (view is null || !view.isValid() || exhibit is null || !exhibit.isValid())
+        if (!view.isValid() || !exhibit.isValid())
         {
             return;
         }

@@ -30,11 +30,11 @@ namespace
         u8"    [3]                        int     count;\n"
         u8"    [true]                     bool    active;\n"
         u8"    [\"hi\"]                     string  label;\n"
-        u8"    [(0.25, 0.5, 0.75, 1)]     Color@  tint;\n"
-        u8"    [(1, 2, 3)]                Float3@ offset;\n"
-        u8"    [null]                     Entity@ target;\n"
-        u8"    [\"asset:AudioClip\"]        Guid@   clip;\n"
-        u8"    Mover(Entity@ entity) {}\n"
+        u8"    [(0.25, 0.5, 0.75, 1)]     Color  tint;\n"
+        u8"    [(1, 2, 3)]                Float3 offset;\n"
+        u8"    [null]                     Entity target;\n"
+        u8"    [\"asset:AudioClip\"]        Guid   clip;\n"
+        u8"    Mover(Entity entity) {}\n"
         u8"    void onStart() {}\n"
         u8"    void onUpdate(double dt) {}\n"
         u8"    void onDestroy() {}\n"
@@ -113,8 +113,8 @@ TEST_CASE("script.pipeline: facade-using behaviors compile at cook (the cook VM 
 {
     CookBed bed(u8"as_facades");
     bed.WriteSource(u8"mover.as", u8"class Mover {\n"
-                                    u8"    Entity@ self;\n"
-                                    u8"    Mover(Entity@ entity) { @self = entity; }\n"
+                                    u8"    Entity self;\n"
+                                    u8"    Mover(Entity entity) { self = entity; }\n"
                                     u8"    void onUpdate(double dt) {\n"
                                     u8"        double t = Time::now();\n"
                                     u8"        float r = Random::value();\n"
@@ -241,8 +241,8 @@ TEST_CASE("script.pipeline: the New Asset starter template cooks with its declar
     CookBed bed(u8"as_starter");
     bed.WriteSource(u8"starter.as", u8"class NewBehavior {\n"
                                     u8"    [1.0, \"units per second\"] float speed;\n"
-                                    u8"    Entity@ self;\n"
-                                    u8"    NewBehavior(Entity@ entity) { @self = entity; }\n"
+                                    u8"    Entity self;\n"
+                                    u8"    NewBehavior(Entity entity) { self = entity; }\n"
                                     u8"    void onStart() {}\n"
                                     u8"    void onUpdate(double dt) {}\n"
                                     u8"    void onDestroy() {}\n"
@@ -341,7 +341,7 @@ TEST_CASE("script.pipeline: ScriptSourceDocument::Validate compiles without runn
                                      u8"class Mover\n"
                                      u8"{\n"
                                      u8"    [4.5] float speed;\n"
-                                     u8"    Mover(Entity@ entity) {}\n"
+                                     u8"    Mover(Entity entity) {}\n"
                                      u8"}\n";
     bed.WriteSource(u8"mover.as", kFaulting);
     ScriptSourceDocument doc;

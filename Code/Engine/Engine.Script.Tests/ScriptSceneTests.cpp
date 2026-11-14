@@ -330,10 +330,10 @@ TEST_CASE("script.scene: lifecycle - onStart once (deferred to the first simulat
     RefPtr<ScriptClass> mover =
         MakeClass(u8"Mover",
                   u8"class Mover {\n"
-                  u8"    private Entity@ self;\n"
+                  u8"    private Entity self;\n"
                   u8"    float speed;\n"
-                  u8"    Mover(Entity@ entity) {\n"
-                  u8"        @self = entity;\n"
+                  u8"    Mover(Entity entity) {\n"
+                  u8"        self = entity;\n"
                   u8"        speed = 2.0f;\n"
                   u8"        self.setName(\"constructed\");\n"
                   u8"    }\n"
@@ -371,8 +371,8 @@ TEST_CASE("script.scene: entity-active - starts-inactive never instantiates; act
     RefPtr<ScriptClass> mover =
         MakeClass(u8"Mover",
                   u8"class Mover {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Mover(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Mover(Entity entity) { self = entity; }\n"
                   u8"    void onStart() { self.setName(\"started\"); }\n"
                   u8"    void onUpdate(double dt) {\n"
                   u8"        Float3 p = self.position();\n"
@@ -409,8 +409,8 @@ TEST_CASE("script.scene: entity-active - deactivation freezes updates with NO li
     RefPtr<ScriptClass> mover =
         MakeClass(u8"Mover",
                   u8"class Mover {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Mover(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Mover(Entity entity) { self = entity; }\n"
                   u8"    void onStart() { self.setName(\"started\"); }\n"
                   u8"    void onUpdate(double dt) {\n"
                   u8"        Float3 p = self.position();\n"
@@ -444,8 +444,8 @@ TEST_CASE("script.scene: the entity facade exposes active/setActive/activeInHier
     RefPtr<ScriptClass> toggler =
         MakeClass(u8"Toggler",
                   u8"class Toggler {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Toggler(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Toggler(Entity entity) { self = entity; }\n"
                   u8"    void onStart() {\n"
                   u8"        if (self.active() && self.activeInHierarchy()) {\n"
                   u8"            self.setName(\"live\");\n"
@@ -632,10 +632,10 @@ TEST_CASE("script.scene: harvested defaults apply; hash-keyed overrides win")
     RefPtr<ScriptClass> mover =
         MakeClass(u8"Mover",
                   u8"class Mover {\n"
-                  u8"    private Entity@ self;\n"
+                  u8"    private Entity self;\n"
                   u8"    float speed;\n"
-                  u8"    Mover(Entity@ entity) {\n"
-                  u8"        @self = entity;\n"
+                  u8"    Mover(Entity entity) {\n"
+                  u8"        self = entity;\n"
                   u8"        speed = 0.0f;\n"
                   u8"    }\n"
                   u8"    void onUpdate(double dt) {\n"
@@ -668,8 +668,8 @@ TEST_CASE("script.scene: enable/disable edges dispatch onEnable/onDisable; disab
     RefPtr<ScriptClass> toggler =
         MakeClass(u8"Toggler",
                   u8"class Toggler {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Toggler(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Toggler(Entity entity) { self = entity; }\n"
                   u8"    void onEnable() { self.setName(self.name() + \"+on\"); }\n"
                   u8"    void onDisable() { self.setName(self.name() + \"+off\"); }\n"
                   u8"    void onUpdate(double dt) {\n"
@@ -706,8 +706,8 @@ TEST_CASE("script.scene: onDestroy fires on entity destroy AND on scene stop; st
         MakeClass(u8"Counter",
                   u8"double DestroyCount = 0;\n"
                   u8"class Counter {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Counter(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Counter(Entity entity) { self = entity; }\n"
                   u8"    void onUpdate(double dt) {}\n"
                   u8"    void onDestroy() { DestroyCount = DestroyCount + 1; }\n"
                   u8"}\n",
@@ -743,15 +743,15 @@ TEST_CASE("script.scene: a faulting behavior is disabled and logged; siblings ke
     ScriptedScene bed;
     RefPtr<ScriptClass> faulty = MakeClass(u8"Faulty",
                                            u8"class Faulty {\n"
-                                           u8"    private Entity@ self;\n"
-                                           u8"    Faulty(Entity@ entity) { @self = entity; }\n"
+                                           u8"    private Entity self;\n"
+                                           u8"    Faulty(Entity entity) { self = entity; }\n"
                                            u8"    void onUpdate(double dt) { int zero = 0; int boom = 10 / zero; }\n"
                                            u8"}\n",
                                            {u8"onUpdate"});
     RefPtr<ScriptClass> steady = MakeClass(u8"Steady",
                                            u8"class Steady {\n"
-                                           u8"    private Entity@ self;\n"
-                                           u8"    Steady(Entity@ entity) { @self = entity; }\n"
+                                           u8"    private Entity self;\n"
+                                           u8"    Steady(Entity entity) { self = entity; }\n"
                                            u8"    void onUpdate(double dt) {\n"
                                            u8"        Float3 p = self.position();\n"
                                            u8"        self.setPosition(p.x + 1.0f, p.y, p.z);\n"
@@ -783,11 +783,11 @@ TEST_CASE("script.scene: hot reload - product swap re-instantiates, re-applies "
 {
     ScriptedScene bed;
     const char8_t* moverV1 = u8"class Mover {\n"
-                             u8"    private Entity@ self;\n"
+                             u8"    private Entity self;\n"
                              u8"    private int ticks;\n"
                              u8"    float speed;\n"
-                             u8"    Mover(Entity@ entity) {\n"
-                             u8"        @self = entity;\n"
+                             u8"    Mover(Entity entity) {\n"
+                             u8"        self = entity;\n"
                              u8"        speed = 0.0f;\n"
                              u8"        ticks = 0;\n"
                              u8"    }\n"
@@ -800,10 +800,10 @@ TEST_CASE("script.scene: hot reload - product swap re-instantiates, re-applies "
                              u8"}\n";
     // v2: same convention, double the speed effect, so the reload is observable.
     const char8_t* moverV2 = u8"class Mover {\n"
-                             u8"    private Entity@ self;\n"
+                             u8"    private Entity self;\n"
                              u8"    float speed;\n"
-                             u8"    Mover(Entity@ entity) {\n"
-                             u8"        @self = entity;\n"
+                             u8"    Mover(Entity entity) {\n"
+                             u8"        self = entity;\n"
                              u8"        speed = 0.0f;\n"
                              u8"    }\n"
                              u8"    void onStart() { self.setName(self.name() + \"+restart\"); }\n"
@@ -845,14 +845,13 @@ TEST_CASE("script.scene: entity-typed properties resolve guids to live entity ha
     ScriptedScene bed;
     RefPtr<ScriptClass> chaser = MakeClass(u8"Chaser",
                                            u8"class Chaser {\n"
-                                           u8"    private Entity@ self;\n"
-                                           u8"    Entity@ target;\n"
-                                           u8"    Chaser(Entity@ entity) {\n"
-                                           u8"        @self = entity;\n"
-                                           u8"        @target = null;\n"
+                                           u8"    private Entity self;\n"
+                                           u8"    Entity target;\n"
+                                           u8"    Chaser(Entity entity) {\n"
+                                           u8"        self = entity;\n"
                                            u8"    }\n"
                                            u8"    void onUpdate(double dt) {\n"
-                                           u8"        if (target !is null) {\n"
+                                           u8"        if (target.isValid()) {\n"
                                            u8"            Float3 t = target.position();\n"
                                            u8"            self.setPosition(t.x, t.y, t.z);\n"
                                            u8"        }\n"
@@ -882,10 +881,10 @@ TEST_CASE("script.scene: Log/Time/Random facades are callable (service-bound per
     RefPtr<ScriptClass> user = MakeClass(
         u8"FacadeUser",
         u8"class FacadeUser {\n"
-        u8"    private Entity@ self;\n"
+        u8"    private Entity self;\n"
         u8"    private int ticks;\n"
-        u8"    FacadeUser(Entity@ entity) {\n"
-        u8"        @self = entity;\n"
+        u8"    FacadeUser(Entity entity) {\n"
+        u8"        self = entity;\n"
         u8"        ticks = 0;\n"
         u8"    }\n"
         u8"    void onUpdate(double dt) {\n"
@@ -1097,8 +1096,8 @@ TEST_CASE("script.scene: run-host teardown after stop releases the context; a la
     ScriptedScene bed;
     RefPtr<ScriptClass> noop = MakeClass(u8"Noop",
                                          u8"class Noop {\n"
-                                         u8"    private Entity@ self;\n"
-                                         u8"    Noop(Entity@ entity) { @self = entity; }\n"
+                                         u8"    private Entity self;\n"
+                                         u8"    Noop(Entity entity) { self = entity; }\n"
                                          u8"    void onUpdate(double dt) {}\n"
                                          u8"}\n",
                                          {u8"onUpdate"});
@@ -1133,8 +1132,8 @@ TEST_CASE("script.scene: a run host's Advance counts its scripts' clock, with a 
     ScriptedScene bed;
     RefPtr<ScriptClass> noop = MakeClass(u8"Noop",
                                          u8"class Noop {\n"
-                                         u8"    private Entity@ self;\n"
-                                         u8"    Noop(Entity@ entity) { @self = entity; }\n"
+                                         u8"    private Entity self;\n"
+                                         u8"    Noop(Entity entity) { self = entity; }\n"
                                          u8"    void onUpdate(double dt) {}\n"
                                          u8"}\n",
                                          {u8"onUpdate"});
@@ -1158,15 +1157,15 @@ TEST_CASE("script.scene: entity.send invokes on<Message>(arg) on every declaring
     RefPtr<ScriptClass> receiver =
         MakeClass(u8"Receiver",
                   u8"class Receiver {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Receiver(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Receiver(Entity entity) { self = entity; }\n"
                   u8"    void onPing(int amount) { self.setName(\"pinged:\" + amount); }\n"
                   u8"}\n",
                   {u8"onPing"});
     RefPtr<ScriptClass> sender = MakeClass(u8"Sender",
                                            u8"class Sender {\n"
-                                           u8"    private Entity@ self;\n"
-                                           u8"    Sender(Entity@ entity) { @self = entity; }\n"
+                                           u8"    private Entity self;\n"
+                                           u8"    Sender(Entity entity) { self = entity; }\n"
                                            u8"    void onStart() { self.send(\"ping\", 7); }\n"
                                            u8"}\n",
                                            {u8"onStart"});
@@ -1196,8 +1195,8 @@ TEST_CASE("script.scene: entity.send to a target with no matching handler is a s
     ScriptedScene bed;
     RefPtr<ScriptClass> sender = MakeClass(u8"LoneSender",
                                            u8"class LoneSender {\n"
-                                           u8"    private Entity@ self;\n"
-                                           u8"    LoneSender(Entity@ entity) { @self = entity; }\n"
+                                           u8"    private Entity self;\n"
+                                           u8"    LoneSender(Entity entity) { self = entity; }\n"
                                            u8"    void onStart() { self.send(\"noHandler\", 1); }\n"
                                            u8"}\n",
                                            {u8"onStart"});
@@ -1229,12 +1228,12 @@ TEST_CASE("script.scene: the Roll Call sample game - orbs EMIT OrbCollected, the
     RefPtr<ScriptClass> levelClass =
         MakeClass(u8"Level",
                   u8"class Level {\n"
-                  u8"    private Scene@ scene;\n"
+                  u8"    private Scene scene;\n"
                   u8"    private int total;\n"
                   u8"    private int collected;\n"
                   u8"    private bool won;\n"
-                  u8"    Level(Scene@ s) {\n"
-                  u8"        @scene = s;\n"
+                  u8"    Level(Scene s) {\n"
+                  u8"        scene = s;\n"
                   u8"        total = 2;\n"
                   u8"        collected = 0;\n"
                   u8"        won = false;\n"
@@ -1264,11 +1263,11 @@ TEST_CASE("script.scene: the Roll Call sample game - orbs EMIT OrbCollected, the
     RefPtr<ScriptClass> pickup =
         MakeClass(u8"Pickup",
                   u8"class Pickup {\n"
-                  u8"    private Entity@ self;\n"
+                  u8"    private Entity self;\n"
                   u8"    private float r;\n"
                   u8"    private bool taken;\n"
-                  u8"    Pickup(Entity@ entity) {\n"
-                  u8"        @self = entity;\n"
+                  u8"    Pickup(Entity entity) {\n"
+                  u8"        self = entity;\n"
                   u8"        r = 1.2f;\n"
                   u8"        taken = false;\n"
                   u8"    }\n"
@@ -1276,7 +1275,7 @@ TEST_CASE("script.scene: the Roll Call sample game - orbs EMIT OrbCollected, the
                   u8"        if (taken) {\n"
                   u8"            return;\n"
                   u8"        }\n"
-                  u8"        Entity@ player = self.scene.find(\"Player\");\n"
+                  u8"        Entity player = self.scene.find(\"Player\");\n"
                   u8"        if (!player.isValid()) {\n"
                   u8"            return;\n"
                   u8"        }\n"
@@ -1415,8 +1414,8 @@ TEST_CASE("script.scene: bus token teardown - a destroyed subscriber is never to
     RefPtr<ScriptClass> listener =
         MakeClass(u8"Listener",
                   u8"class Listener {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Listener(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Listener(Entity entity) { self = entity; }\n"
                   u8"    void onPing() { self.setName(\"heard\"); }\n"
                   u8"}\n",
                   {u8"onPing"}, {});
@@ -1440,8 +1439,8 @@ TEST_CASE("script.scene: updateInterval throttles onUpdate and delivers the accu
     RefPtr<ScriptClass> ticker = MakeClass(
         u8"Ticker",
         u8"class Ticker {\n"
-        u8"    private Entity@ self;\n"
-        u8"    Ticker(Entity@ entity) { @self = entity; }\n"
+        u8"    private Entity self;\n"
+        u8"    Ticker(Entity entity) { self = entity; }\n"
         u8"    void onUpdate(double dt) {\n"
         u8"        Float3 p = self.position();\n"
         u8"        self.setPosition(p.x + 1.0f, float(dt), p.z);\n" // x counts calls; y = last dt
@@ -1725,11 +1724,11 @@ TEST_CASE("script.scene: Scene.spawn reaches the scene's PrefabSpawnSystem and r
     RefPtr<ScriptClass> spawner =
         MakeClass(u8"Spawner",
                   u8"class Spawner {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Guid@ prefab;\n"
-                  u8"    Spawner(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Guid prefab;\n"
+                  u8"    Spawner(Entity entity) { self = entity; }\n"
                   u8"    void onStart() {\n"
-                  u8"        Entity@ e = self.scene.spawn(prefab, 3.0f, 4.0f, 5.0f);\n"
+                  u8"        Entity e = self.scene.spawn(prefab, 3.0f, 4.0f, 5.0f);\n"
                   u8"        e.setName(\"child\");\n"
                   u8"    }\n"
                   u8"}\n",
@@ -1797,14 +1796,14 @@ TEST_CASE("script.scene: Scene.find / Scene.findByPath resolve entities in the c
     RefPtr<ScriptClass> finder =
         MakeClass(u8"Finder",
                   u8"class Finder {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Finder(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Finder(Entity entity) { self = entity; }\n"
                   u8"    void onStart() {\n"
-                  u8"        Entity@ t = self.scene.find(\"Target\");\n"
+                  u8"        Entity t = self.scene.find(\"Target\");\n"
                   u8"        if (t.isValid()) { t.setName(\"found-by-name\"); }\n"
-                  u8"        Entity@ w = self.scene.findByPath(\"Player/Weapon\");\n"
+                  u8"        Entity w = self.scene.findByPath(\"Player/Weapon\");\n"
                   u8"        if (w.isValid()) { w.setName(\"found-by-path\"); }\n"
-                  u8"        Entity@ missing = self.scene.find(\"Nope\");\n"
+                  u8"        Entity missing = self.scene.find(\"Nope\");\n"
                   u8"        if (!missing.isValid()) { self.setName(\"miss-ok\"); }\n"
                   u8"    }\n"
                   u8"}\n",
@@ -1830,13 +1829,13 @@ TEST_CASE("script.scene: entity handles compare with == and !=")
     RefPtr<ScriptClass> comparer =
         MakeClass(u8"Comparer",
                   u8"class Comparer {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Comparer(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Comparer(Entity entity) { self = entity; }\n"
                   u8"    void onStart() {\n"
-                  u8"        Entity@ a = self.scene.find(\"Target\");\n"
-                  u8"        Entity@ b = self.scene.find(\"Target\");\n"
-                  u8"        Entity@ c = self.scene.find(\"Other\");\n"
-                  u8"        Entity@ me = self.scene.find(\"comparer\");\n"
+                  u8"        Entity a = self.scene.find(\"Target\");\n"
+                  u8"        Entity b = self.scene.find(\"Target\");\n"
+                  u8"        Entity c = self.scene.find(\"Other\");\n"
+                  u8"        Entity me = self.scene.find(\"comparer\");\n"
                   u8"        if (a == b && a != c && me == self) { a.setName(\"compared\"); }\n"
                   u8"    }\n"
                   u8"}\n",
@@ -1861,11 +1860,11 @@ TEST_CASE("script.scene: worldPosition is current inside onUpdate after a move")
     RefPtr<ScriptClass> mover =
         MakeClass(u8"Mover",
                   u8"class Mover {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Mover(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Mover(Entity entity) { self = entity; }\n"
                   u8"    void onUpdate(double dt) {\n"
-                  u8"        Entity@ p = self.scene.find(\"Parent\");\n"
-                  u8"        Entity@ c = self.scene.find(\"Child\");\n"
+                  u8"        Entity p = self.scene.find(\"Parent\");\n"
+                  u8"        Entity c = self.scene.find(\"Child\");\n"
                   u8"        p.setPosition(20.0f, 0.0f, 0.0f);\n"
                   u8"        Float3 w = c.worldPosition();\n"
                   u8"        if (w.x > 24.99f && w.x < 25.01f) { c.setName(\"fresh\"); }\n"
@@ -1900,11 +1899,11 @@ TEST_CASE("script.scene: worldRotation composes the ancestors' turns, worldScale
     RefPtr<ScriptClass> reader =
         MakeClass(u8"Reader",
                   u8"class Reader {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Reader(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Reader(Entity entity) { self = entity; }\n"
                   u8"    void onUpdate(double dt) {\n"
-                  u8"        Entity@ p = self.scene.find(\"Parent\");\n"
-                  u8"        Entity@ c = self.scene.find(\"Child\");\n"
+                  u8"        Entity p = self.scene.find(\"Parent\");\n"
+                  u8"        Entity c = self.scene.find(\"Child\");\n"
                   u8"        Float3 f = Float3(0.0f, 0.0f, -1.0f);\n"
                   u8"        Float3 world = Quaternion::RotateVector(c.worldRotation(), f);\n"
                   u8"        Float3 composed = Quaternion::RotateVector(p.rotation(), Quaternion::RotateVector(c.rotation(), f));\n"
@@ -1936,10 +1935,10 @@ TEST_CASE("script.scene: an AngelScript behavior runs the neutral lifecycle path
     RefPtr<ScriptClass> mover =
         MakeClassLang(u8"angelscript", u8"Mover",
                       u8"class Mover {\n"
-                      u8"    private Entity@ self;\n"
+                      u8"    private Entity self;\n"
                       u8"    private float x;\n"
                       u8"    private float speed;\n"
-                      u8"    Mover(Entity@ entity) { @self = entity; x = 0.0f; speed = 2.0f; }\n"
+                      u8"    Mover(Entity entity) { self = entity; x = 0.0f; speed = 2.0f; }\n"
                       u8"    void onStart() { self.setName(\"started\"); }\n"
                       u8"    void onUpdate(double dt) { x = x + speed * float(dt); "
                       u8"self.setPosition(x, 0.0f, 0.0f); }\n"
@@ -1972,9 +1971,9 @@ TEST_CASE("script.scene: a breakpoint in a behavior handler pauses the game and 
     RefPtr<ScriptClass> breaker =
         MakeClassLang(u8"angelscript", u8"Breaker",
                       u8"class Breaker {\n"                                           // 1
-                      u8"    private Entity@ self;\n"                                 // 2
+                      u8"    private Entity self;\n"                                 // 2
                       u8"    private float x;\n"                                      // 3
-                      u8"    Breaker(Entity@ entity) { @self = entity; x = 0.0f; }\n" // 4
+                      u8"    Breaker(Entity entity) { self = entity; x = 0.0f; }\n" // 4
                       u8"    void onUpdate(double dt) {\n"                            // 5
                       u8"        x = x + 1.0f;\n"                    // 6  <- breakpoint
                       u8"        self.setPosition(x, 0.0f, 0.0f);\n" // 7
@@ -2234,9 +2233,9 @@ TEST_CASE("script.scene: ANGELSCRIPT a behavior runs from cooked bytecode with n
 
     const StringView moverSource =
         u8"class Mover {\n"
-        u8"    private Entity@ self;\n"
+        u8"    private Entity self;\n"
         u8"    private float x;\n"
-        u8"    Mover(Entity@ entity) { @self = entity; x = 0.0f; }\n"
+        u8"    Mover(Entity entity) { self = entity; x = 0.0f; }\n"
         u8"    void onUpdate(double dt) {\n"
         u8"        x = x + 1.0f;\n"
         u8"        self.setPosition(x, 0.0f, 0.0f);\n"
@@ -2282,9 +2281,9 @@ TEST_CASE("script.scene: ANGELSCRIPT a breakpoint works on a behavior loaded fro
 
     const StringView breakerSource =
         u8"class Breaker {\n"                                           // 1
-        u8"    private Entity@ self;\n"                                 // 2
+        u8"    private Entity self;\n"                                 // 2
         u8"    private float x;\n"                                      // 3
-        u8"    Breaker(Entity@ entity) { @self = entity; x = 0.0f; }\n" // 4
+        u8"    Breaker(Entity entity) { self = entity; x = 0.0f; }\n" // 4
         u8"    void onUpdate(double dt) {\n"                            // 5
         u8"        x = x + 1.0f;\n"                    // 6  <- breakpoint
         u8"        self.setPosition(x, 0.0f, 0.0f);\n" // 7
@@ -2343,10 +2342,10 @@ TEST_CASE("script.scene: an AngelScript harvested float property applies (defaul
         return MakeClassLang(
             u8"angelscript", u8"Speeder",
             u8"class Speeder {\n"
-            u8"    private Entity@ self;\n"
+            u8"    private Entity self;\n"
             u8"    private float x;\n"
             u8"    float speed;\n" // harvested editor property (member field)
-            u8"    Speeder(Entity@ entity) { @self = entity; x = 0.0f; speed = 0.0f; }\n"
+            u8"    Speeder(Entity entity) { self = entity; x = 0.0f; speed = 0.0f; }\n"
             u8"    void onUpdate(double dt) { x = x + speed * float(dt); "
             u8"self.setPosition(x, 0.0f, 0.0f); }\n"
             u8"}\n",
@@ -2386,8 +2385,8 @@ TEST_CASE("script.scene: a coroutine wait(1.0) runs its body only after ~1s of t
     ScriptedScene bed;
     RefPtr<ScriptClass> waiter = MakeClass(u8"Waiter",
                                            u8"class Waiter {\n"
-                                           u8"    private Entity@ self;\n"
-                                           u8"    Waiter(Entity@ entity) { @self = entity; }\n"
+                                           u8"    private Entity self;\n"
+                                           u8"    Waiter(Entity entity) { self = entity; }\n"
                                            u8"    void onStart() { startCoroutine(ScriptCoroutine(this.body)); }\n"
                                            u8"    void body() {\n"
                                            u8"        wait(1.0f);\n"
@@ -2412,11 +2411,11 @@ TEST_CASE("script.scene: a coroutine waitUntil resumes when the predicate flips"
     ScriptedScene bed;
     RefPtr<ScriptClass> gater = MakeClass(u8"Gater",
                                           u8"class Gater {\n"
-                                          u8"    private Entity@ self;\n"
+                                          u8"    private Entity self;\n"
                                           u8"    private bool open;\n"
                                           u8"    private int ticks;\n"
-                                          u8"    Gater(Entity@ entity) {\n"
-                                          u8"        @self = entity;\n"
+                                          u8"    Gater(Entity entity) {\n"
+                                          u8"        self = entity;\n"
                                           u8"        open = false;\n"
                                           u8"        ticks = 0;\n"
                                           u8"    }\n"
@@ -2449,8 +2448,8 @@ TEST_CASE("script.scene: destroying a behavior cancels its pending coroutine (ne
     RefPtr<ScriptClass> ghost = MakeClass(u8"Ghost",
                                           u8"double GhostFired = 0;\n"
                                           u8"class Ghost {\n"
-                                          u8"    private Entity@ self;\n"
-                                          u8"    Ghost(Entity@ entity) { @self = entity; }\n"
+                                          u8"    private Entity self;\n"
+                                          u8"    Ghost(Entity entity) { self = entity; }\n"
                                           u8"    void onStart() { startCoroutine(ScriptCoroutine(this.body)); }\n"
                                           u8"    void body() {\n"
                                           u8"        wait(1.0f);\n"
@@ -2480,8 +2479,8 @@ TEST_CASE("script.scene: disabling a behavior cancels its pending coroutine (nev
     RefPtr<ScriptClass> ghost = MakeClass(u8"Sleeper",
                                           u8"double SleeperFired = 0;\n"
                                           u8"class Sleeper {\n"
-                                          u8"    private Entity@ self;\n"
-                                          u8"    Sleeper(Entity@ entity) { @self = entity; }\n"
+                                          u8"    private Entity self;\n"
+                                          u8"    Sleeper(Entity entity) { self = entity; }\n"
                                           u8"    void onStart() { startCoroutine(ScriptCoroutine(this.body)); }\n"
                                           u8"    void body() {\n"
                                           u8"        wait(1.0f);\n"
@@ -2617,9 +2616,9 @@ TEST_CASE("script.scene: a physics collision dispatches onContactBegin(other, po
     RefPtr<ScriptClass> bumper = MakeClass(
         u8"Bumper",
         u8"class Bumper {\n"
-        u8"    private Entity@ self;\n"
-        u8"    Bumper(Entity@ entity) { @self = entity; }\n"
-        u8"    void onContactBegin(Entity@ other, Float3@ point, Float3@ normal, float speed) {\n"
+        u8"    private Entity self;\n"
+        u8"    Bumper(Entity entity) { self = entity; }\n"
+        u8"    void onContactBegin(Entity other, Float3 point, Float3 normal, float speed) {\n"
         u8"        float len = normal.x*normal.x + normal.y*normal.y + normal.z*normal.z;\n"
         u8"        if (speed >= 0.0f && len > 0.5f) { self.setName(\"hit:\" + other.name()); }\n"
         u8"    }\n"
@@ -2645,9 +2644,9 @@ TEST_CASE("script.scene: RigidBodyComponent::addTo builds a body; removeFrom tak
     RefPtr<ScriptClass> builder = MakeClass(
         u8"Builder",
         u8"class Builder {\n"
-        u8"    private Entity@ self;\n"
+        u8"    private Entity self;\n"
         u8"    private int frame = 0;\n"
-        u8"    Builder(Entity@ entity) { @self = entity; }\n"
+        u8"    Builder(Entity entity) { self = entity; }\n"
         u8"    void onUpdate(double dt) {\n"
         u8"        frame++;\n"
         u8"        if (frame == 1) {\n"
@@ -2699,9 +2698,9 @@ TEST_CASE("script.scene: a physics trigger dispatches onTriggerEnter(other) to a
     RefPtr<ScriptClass> sensor =
         MakeClass(u8"Sensor",
                   u8"class Sensor {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Sensor(Entity@ entity) { @self = entity; }\n"
-                  u8"    void onTriggerEnter(Entity@ other) { self.setName(\"sensed:\" + other.name()); }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Sensor(Entity entity) { self = entity; }\n"
+                  u8"    void onTriggerEnter(Entity other) { self.setName(\"sensed:\" + other.name()); }\n"
                   u8"}\n",
                   {u8"onTriggerEnter"});
     world.Attach(volume, sensor);
@@ -2764,8 +2763,8 @@ TEST_CASE("script.scene: behaviors tick without error when no physics subsystem 
     scene::Scene* scene = sm.CreateScene(u8"no-physics");
     RefPtr<ScriptClass> mover = MakeClass(u8"Mover",
                                           u8"class Mover {\n"
-                                          u8"    private Entity@ self;\n"
-                                          u8"    Mover(Entity@ entity) { @self = entity; }\n"
+                                          u8"    private Entity self;\n"
+                                          u8"    Mover(Entity entity) { self = entity; }\n"
                                           u8"    void onUpdate(double dt) {\n"
                                           u8"        Float3 p = self.position();\n"
                                           u8"        self.setPosition(p.x + 1.0f, p.y, p.z);\n"
@@ -2839,8 +2838,8 @@ TEST_CASE("script.scene: a scene's behaviours run on its run's script host; a sc
     // A behaviour in the run's scene makes the run's context, not the default host's.
     RefPtr<ScriptClass> mover = MakeClass(u8"Mover",
                                           u8"class Mover {\n"
-                                          u8"    private Entity@ self;\n"
-                                          u8"    Mover(Entity@ entity) { @self = entity; }\n"
+                                          u8"    private Entity self;\n"
+                                          u8"    Mover(Entity entity) { self = entity; }\n"
                                           u8"    void onUpdate(double dt) {\n"
                                           u8"        Float3 p = self.position();\n"
                                           u8"        self.setPosition(p.x + 1.0f, p.y, p.z);\n"
@@ -2931,9 +2930,9 @@ TEST_CASE("script.scene: entity.scene.spawn works from onDestroy - a FORMER foot
     RefPtr<ScriptClass> dier =
         MakeClass(u8"Dier",
                   u8"class Dier {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Guid@ prefab;\n"
-                  u8"    Dier(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Guid prefab;\n"
+                  u8"    Dier(Entity entity) { self = entity; }\n"
                   u8"    void onDestroy() { self.scene.spawn(prefab, 1.0f, 2.0f, 3.0f); }\n"
                   u8"}\n",
                   {u8"onDestroy"});
@@ -2960,9 +2959,9 @@ TEST_CASE("script.scene: entity.scene.spawn works from a resumed coroutine - a F
     RefPtr<ScriptClass> spawner =
         MakeClass(u8"CoroSpawner",
                   u8"class CoroSpawner {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Guid@ prefab;\n"
-                  u8"    CoroSpawner(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Guid prefab;\n"
+                  u8"    CoroSpawner(Entity entity) { self = entity; }\n"
                   u8"    void onStart() { startCoroutine(ScriptCoroutine(this.body)); }\n"
                   u8"    void body() {\n"
                   u8"        wait(1.0f);\n"
@@ -2994,8 +2993,8 @@ TEST_CASE("script.scene: an AngelScript behavior spawns through self.scene() (bo
                   static_cast<unsigned long long>(prefabs.turret.high),
                   static_cast<unsigned long long>(prefabs.turret.low));
     String source(u8"class Spawner {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Spawner(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Spawner(Entity entity) { self = entity; }\n"
                   u8"    void onStart() { self.scene.spawn(");
     source.Append(StringView(reinterpret_cast<const utf8char*>(literal)));
     source.Append(u8", 1.0f, 0.0f, 0.0f); }\n}\n");
@@ -3026,11 +3025,11 @@ TEST_CASE("script.scene: a Level runs onStart/onUpdate/onStop through its bound 
     RefPtr<ScriptClass> levelClass =
         MakeClass(u8"Level",
                   u8"class Level {\n"
-                  u8"    private Scene@ scene;\n"
-                  u8"    Level(Scene@ s) { @scene = s; }\n"
+                  u8"    private Scene scene;\n"
+                  u8"    Level(Scene s) { scene = s; }\n"
                   u8"    void onStart() { scene.find(\"flag\").setName(\"started\"); }\n"
                   u8"    void onUpdate(double dt) {\n"
-                  u8"        Entity@ e = scene.find(\"ticker\");\n"
+                  u8"        Entity e = scene.find(\"ticker\");\n"
                   u8"        Float3 p = e.position();\n"
                   u8"        e.setPosition(p.x + 1.0f, 0.0f, 0.0f);\n"
                   u8"    }\n"
@@ -3072,9 +3071,9 @@ TEST_CASE("script.scene: a Level's harvested property default is applied before 
     RefPtr<ScriptClass> levelClass =
         MakeClass(u8"Level",
                   u8"class Level {\n"
-                  u8"    private Scene@ scene;\n"
+                  u8"    private Scene scene;\n"
                   u8"    float timeLimit;\n"
-                  u8"    Level(Scene@ s) { @scene = s; }\n"
+                  u8"    Level(Scene s) { scene = s; }\n"
                   u8"    void onStart() { scene.find(\"probe\").setPosition(timeLimit, 0.0f, 0.0f); }\n"
                   u8"}\n",
                   {u8"onStart"}, {FloatProperty(u8"timeLimit", 90.0)});
@@ -3095,9 +3094,9 @@ TEST_CASE("script.scene: a Level's hash-keyed property override wins over the ha
     RefPtr<ScriptClass> levelClass =
         MakeClass(u8"Level",
                   u8"class Level {\n"
-                  u8"    private Scene@ scene;\n"
+                  u8"    private Scene scene;\n"
                   u8"    float timeLimit;\n"
-                  u8"    Level(Scene@ s) { @scene = s; }\n"
+                  u8"    Level(Scene s) { scene = s; }\n"
                   u8"    void onStart() { scene.find(\"probe\").setPosition(timeLimit, 0.0f, 0.0f); }\n"
                   u8"}\n",
                   {u8"onStart"}, {FloatProperty(u8"timeLimit", 90.0)});
@@ -3160,10 +3159,10 @@ TEST_CASE("script.scene: a Level receives onFixedUpdate on the fixed lane")
     RefPtr<ScriptClass> levelClass =
         MakeClass(u8"Level",
                   u8"class Level {\n"
-                  u8"    private Scene@ scene;\n"
-                  u8"    Level(Scene@ s) { @scene = s; }\n"
+                  u8"    private Scene scene;\n"
+                  u8"    Level(Scene s) { scene = s; }\n"
                   u8"    void onFixedUpdate(double dt) {\n"
-                  u8"        Entity@ e = scene.find(\"f\");\n"
+                  u8"        Entity e = scene.find(\"f\");\n"
                   u8"        e.setPosition(e.position().x + 1.0f, 0.0f, 0.0f);\n"
                   u8"    }\n"
                   u8"}\n",
@@ -3191,8 +3190,8 @@ TEST_CASE("script.scene: a faulting Level handler disables THAT scene's level on
     RefPtr<ScriptClass> levelClass =
         MakeClass(u8"Level",
                   u8"class Level {\n"
-                  u8"    private Scene@ scene;\n"
-                  u8"    Level(Scene@ s) { @scene = s; }\n"
+                  u8"    private Scene scene;\n"
+                  u8"    Level(Scene s) { scene = s; }\n"
                   u8"    void onUpdate(double dt) {\n"
                   u8"        scene.find(\"t\").setName(\"ticked\");\n"
                   u8"        int zero = 0; int boom = 10 / zero;\n"
@@ -3217,10 +3216,10 @@ TEST_CASE("script.scene: two scenes sharing one Level class get INDEPENDENT obje
     RefPtr<ScriptClass> levelClass =
         MakeClass(u8"Level",
                   u8"class Level {\n"
-                  u8"    private Scene@ scene;\n"
-                  u8"    Level(Scene@ s) { @scene = s; }\n"
+                  u8"    private Scene scene;\n"
+                  u8"    Level(Scene s) { scene = s; }\n"
                   u8"    void onUpdate(double dt) {\n"
-                  u8"        Entity@ e = scene.find(\"ticker\");\n"
+                  u8"        Entity e = scene.find(\"ticker\");\n"
                   u8"        e.setPosition(e.position().x + 1.0f, 0.0f, 0.0f);\n"
                   u8"    }\n"
                   u8"}\n",
@@ -3257,8 +3256,8 @@ TEST_CASE("script.scene: an AngelScript Level runs the tier (2nd backend)")
     RefPtr<ScriptClass> levelClass = MakeClassLang(
         u8"angelscript", u8"Level",
         u8"class Level {\n"
-        u8"    private Scene@ scene;\n"
-        u8"    Level(Scene@ s) { @scene = s; }\n"
+        u8"    private Scene scene;\n"
+        u8"    Level(Scene s) { scene = s; }\n"
         u8"    void onStart() { scene.find(\"flag\").setName(\"started\"); }\n"
         u8"}\n",
         {u8"onStart"});
@@ -3306,8 +3305,8 @@ TEST_CASE("script.scene: OPTION 1 - Component.of(entity).field mutates the live 
 
     RefPtr<ScriptClass> setter = MakeClass(u8"Setter",
                                            u8"class Setter {\n"
-                                           u8"    private Entity@ self;\n"
-                                           u8"    Setter(Entity@ entity) { @self = entity; }\n"
+                                           u8"    private Entity self;\n"
+                                           u8"    Setter(Entity entity) { self = entity; }\n"
                                            u8"    void onStart() {\n"
                                            u8"        Gadget@ g = Gadget::of(self);\n"
                                            u8"        g.power = 5.0f;\n"
@@ -3339,8 +3338,8 @@ TEST_CASE("script.scene: OPTION 1 - Component::of(entity).field mutates the live
     RefPtr<ScriptClass> setter =
         MakeClassLang(u8"angelscript", u8"Setter",
                       u8"class Setter {\n"
-                      u8"    private Entity@ self;\n"
-                      u8"    Setter(Entity@ entity) { @self = entity; }\n"
+                      u8"    private Entity self;\n"
+                      u8"    Setter(Entity entity) { self = entity; }\n"
                       u8"    void onStart() {\n"
                       u8"        Gadget@ g = Gadget::of(self);\n"
                       u8"        g.power = 5.0f;\n"
@@ -3368,9 +3367,9 @@ TEST_CASE("script.scene: Component::addTo adds and hands back, removeFrom takes 
     RefPtr<ScriptClass> maker =
         MakeClassLang(u8"angelscript", u8"Maker",
                       u8"class Maker {\n"
-                      u8"    private Entity@ self;\n"
+                      u8"    private Entity self;\n"
                       u8"    private int frame = 0;\n"
-                      u8"    Maker(Entity@ entity) { @self = entity; }\n"
+                      u8"    Maker(Entity entity) { self = entity; }\n"
                       u8"    void onUpdate(double dt) {\n"
                       u8"        frame++;\n"
                       u8"        if (frame == 1) {\n"
@@ -3444,9 +3443,9 @@ TEST_CASE("script.scene: Component::of is null without the component, and a gone
     RefPtr<ScriptClass> probe =
         MakeClassLang(u8"angelscript", u8"Probe",
                       u8"class Probe {\n"
-                      u8"    private Entity@ self;\n"
+                      u8"    private Entity self;\n"
                       u8"    private Gadget@ g;\n"
-                      u8"    Probe(Entity@ entity) { @self = entity; }\n"
+                      u8"    Probe(Entity entity) { self = entity; }\n"
                       u8"    void onStart() {\n"
                       u8"        @g = Gadget::of(self);\n"
                       u8"        self.setName(g is null ? \"none\" : \"has\");\n"
@@ -3524,8 +3523,8 @@ TEST_CASE("script.scene: PathFollowComponent.of(entity) sets a follower's speed 
 
     RefPtr<ScriptClass> pacer = MakeClass(u8"Pacer",
                                           u8"class Pacer {\n"
-                                          u8"    private Entity@ self;\n"
-                                          u8"    Pacer(Entity@ entity) { @self = entity; }\n"
+                                          u8"    private Entity self;\n"
+                                          u8"    Pacer(Entity entity) { self = entity; }\n"
                                           u8"    void onStart() {\n"
                                           u8"        PathFollowComponent@ f = PathFollowComponent::of(self);\n"
                                           u8"        f.speed = 4.0f;\n"
@@ -3567,8 +3566,8 @@ TEST_CASE("script.scene: OPTION 1 - RigidBodyComponent.of(entity).friction mutat
 
     RefPtr<ScriptClass> setter = MakeClass(u8"Setter",
                                            u8"class Setter {\n"
-                                           u8"    private Entity@ self;\n"
-                                           u8"    Setter(Entity@ entity) { @self = entity; }\n"
+                                           u8"    private Entity self;\n"
+                                           u8"    Setter(Entity entity) { self = entity; }\n"
                                            u8"    void onStart() {\n"
                                            u8"        RigidBodyComponent@ b = RigidBodyComponent::of(self);\n"
                                            u8"        b.friction = 0.5f;\n"
@@ -3594,10 +3593,10 @@ TEST_CASE("script.scene: scene.physics reads + writes gravity on THIS scene's wo
     RefPtr<ScriptClass> driver =
         MakeClass(u8"Driver",
                   u8"class Driver {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Driver(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Driver(Entity entity) { self = entity; }\n"
                   u8"    void onStart() {\n"
-                  u8"        ScenePhysics@ p = self.scene.physics;\n"
+                  u8"        ScenePhysics p = self.scene.physics;\n"
                   u8"        p.setGravity(0.0f, -20.0f, 0.0f);\n"          // write this scene's world
                   u8"        self.setPosition(p.gravityY(), 0.0f, 0.0f);\n" // read it back: x = -20
                   u8"    }\n"
@@ -3623,10 +3622,10 @@ TEST_CASE("script.scene: scene.debugDraw is script-callable + null-safe without 
     RefPtr<ScriptClass> gizmo =
         MakeClass(u8"Gizmo",
                   u8"class Gizmo {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Gizmo(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Gizmo(Entity entity) { self = entity; }\n"
                   u8"    void onStart() {\n"
-                  u8"        DebugDraw@ d = self.scene.debugDraw;\n"
+                  u8"        DebugDraw d = self.scene.debugDraw;\n"
                   u8"        d.line(0.0f, 0.0f, 0.0f, 1.0f, 2.0f, 3.0f, 1.0f, 0.0f, 0.0f);\n"
                   u8"        d.sphere(1.0f, 1.0f, 1.0f, 0.5f, 0.0f, 1.0f, 0.0f);\n"
                   u8"        d.arrow(0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f);\n"
@@ -3665,10 +3664,10 @@ TEST_CASE("script.scene: scene.debugDraw appends to THIS scene's list on the rea
     RefPtr<ScriptClass> gizmo =
         MakeClass(u8"Gizmo",
                   u8"class Gizmo {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Gizmo(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Gizmo(Entity entity) { self = entity; }\n"
                   u8"    void onStart() {\n"
-                  u8"        DebugDraw@ d = self.scene.debugDraw;\n"
+                  u8"        DebugDraw d = self.scene.debugDraw;\n"
                   u8"        d.line(0.0f, 0.0f, 0.0f, 1.0f, 2.0f, 3.0f, 1.0f, 0.0f, 0.0f);\n"
                   u8"    }\n"
                   u8"}\n",
@@ -3706,10 +3705,10 @@ TEST_CASE("script.scene: scene.physics reads + writes gravity on THIS scene's wo
     RefPtr<ScriptClass> driver =
         MakeClassLang(u8"angelscript", u8"Driver",
                       u8"class Driver {\n"
-                      u8"    private Entity@ self;\n"
-                      u8"    Driver(Entity@ entity) { @self = entity; }\n"
+                      u8"    private Entity self;\n"
+                      u8"    Driver(Entity entity) { self = entity; }\n"
                       u8"    void onStart() {\n"
-                      u8"        ScenePhysics@ p = self.scene.physics;\n"
+                      u8"        ScenePhysics p = self.scene.physics;\n"
                       u8"        p.setGravity(0.0f, -20.0f, 0.0f);\n"
                       u8"        self.setPosition(p.gravityY(), 0.0f, 0.0f);\n"
                       u8"    }\n"
@@ -3737,8 +3736,8 @@ TEST_CASE("script.scene: CharacterComponent.of(entity).move/jump - per-entity co
 
     RefPtr<ScriptClass> driver = MakeClass(u8"Driver",
                                            u8"class Driver {\n"
-                                           u8"    private Entity@ self;\n"
-                                           u8"    Driver(Entity@ entity) { @self = entity; }\n"
+                                           u8"    private Entity self;\n"
+                                           u8"    Driver(Entity entity) { self = entity; }\n"
                                            u8"    void onStart() {\n"
                                            u8"        CharacterComponent@ c = CharacterComponent::of(self);\n"
                                            u8"        c.move(5.0f, 3.0f);\n"
@@ -3767,8 +3766,8 @@ TEST_CASE("script.scene: CharacterComponent.of(entity).move/jump - per-entity co
     RefPtr<ScriptClass> driver =
         MakeClassLang(u8"angelscript", u8"Driver",
                       u8"class Driver {\n"
-                      u8"    private Entity@ self;\n"
-                      u8"    Driver(Entity@ entity) { @self = entity; }\n"
+                      u8"    private Entity self;\n"
+                      u8"    Driver(Entity entity) { self = entity; }\n"
                       u8"    void onStart() {\n"
                       u8"        CharacterComponent@ c = CharacterComponent::of(self);\n"
                       u8"        c.move(5.0f, 3.0f);\n"
@@ -3802,8 +3801,8 @@ TEST_CASE("script.scene: CharacterComponent velocity, groundNormal and drive (An
     RefPtr<ScriptClass> board =
         MakeClassLang(u8"angelscript", u8"Board",
                       u8"class Board {\n"
-                      u8"    private Entity@ self;\n"
-                      u8"    Board(Entity@ entity) { @self = entity; }\n"
+                      u8"    private Entity self;\n"
+                      u8"    Board(Entity entity) { self = entity; }\n"
                       u8"    void onStart() {\n"
                       u8"        CharacterComponent@ c = CharacterComponent::of(self);\n"
                       u8"        Float3 v = c.velocity;\n"
@@ -3836,8 +3835,8 @@ TEST_CASE("script.scene: scene.physics.applyImpulse(entity, ...) - scriptable im
                                                 physics::MotionKind::Dynamic, Float3{0.5f, 0.5f, 0.5f});
     RefPtr<ScriptClass> pusher = MakeClass(u8"Pusher",
                                            u8"class Pusher {\n"
-                                           u8"    private Entity@ self;\n"
-                                           u8"    Pusher(Entity@ entity) { @self = entity; }\n"
+                                           u8"    private Entity self;\n"
+                                           u8"    Pusher(Entity entity) { self = entity; }\n"
                                            u8"    void onStart() {\n"
                                            u8"        self.scene.physics.applyImpulse(self, 0.0f, 5000.0f, 0.0f);\n"
                                            u8"    }\n"
@@ -3854,7 +3853,7 @@ TEST_CASE("script.scene: scene.physics.applyImpulse(entity, ...) - scriptable im
 }
 
 // The full overlap set reaches script as a native array. ScenePhysics.overlapSphere returns
-// Array<Entity>, which crosses as a real AngelScript `array<Entity@>`; a behaviour iterates it with
+// Array<Entity>, which crosses as a real AngelScript `array<Entity>`; a behaviour iterates it with
 // .length()/[] and acts on every hit, covering container-return marshalling end to end. The
 // scanner impulses each overlapped body upward; both dynamic targets end with positive Y velocity.
 TEST_CASE("script.scene: ScenePhysics.overlapSphere returns a native array - behavior acts on every hit")
@@ -3869,11 +3868,11 @@ TEST_CASE("script.scene: ScenePhysics.overlapSphere returns a native array - beh
     RefPtr<ScriptClass> sweep = MakeClass(
         u8"Scanner",
         u8"class Scanner {\n"
-        u8"    private Entity@ self;\n"
-        u8"    Scanner(Entity@ entity) { @self = entity; }\n"
+        u8"    private Entity self;\n"
+        u8"    Scanner(Entity entity) { self = entity; }\n"
         u8"    void onStart() {\n"
-        u8"        ScenePhysics@ p = self.scene.physics;\n"
-        u8"        array<Entity@>@ hits = p.overlapSphere(0.0f, 0.0f, 0.0f, 3.0f, -1);\n"
+        u8"        ScenePhysics p = self.scene.physics;\n"
+        u8"        array<Entity>@ hits = p.overlapSphere(0.0f, 0.0f, 0.0f, 3.0f, -1);\n"
         u8"        for (uint i = 0; i < hits.length(); i++) {\n"
         u8"            p.applyImpulse(hits[i], 0.0f, 5000.0f, 0.0f);\n"
         u8"        }\n"
@@ -3945,10 +3944,10 @@ TEST_CASE("script.scene: scene.events.emit reaches a sibling behavior AND the Le
     RefPtr<ScriptClass> emitter =
         MakeClass(u8"Emitter",
                   u8"class Emitter {\n"
-                  u8"    private Entity@ self;\n"
+                  u8"    private Entity self;\n"
                   u8"    private bool done;\n"
-                  u8"    Emitter(Entity@ entity) {\n"
-                  u8"        @self = entity;\n"
+                  u8"    Emitter(Entity entity) {\n"
+                  u8"        self = entity;\n"
                   u8"        done = false;\n"
                   u8"    }\n"
                   u8"    void onUpdate(double dt) {\n"
@@ -3962,16 +3961,16 @@ TEST_CASE("script.scene: scene.events.emit reaches a sibling behavior AND the Le
     RefPtr<ScriptClass> receiver =
         MakeClass(u8"Receiver",
                   u8"class Receiver {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Receiver(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Receiver(Entity entity) { self = entity; }\n"
                   u8"    void onOrbCollected(int n) { self.setName(\"got:\" + n); }\n"
                   u8"}\n",
                   {u8"onOrbCollected"});
     RefPtr<ScriptClass> levelClass =
         MakeClass(u8"Level",
                   u8"class Level {\n"
-                  u8"    private Scene@ scene;\n"
-                  u8"    Level(Scene@ s) { @scene = s; }\n"
+                  u8"    private Scene scene;\n"
+                  u8"    Level(Scene s) { scene = s; }\n"
                   u8"    void onOrbCollected(int n) { scene.find(\"levelmark\").setName(\"level:\" + n); }\n"
                   u8"}\n",
                   {u8"onOrbCollected"});
@@ -4002,9 +4001,9 @@ TEST_CASE("script.scene: scene.events.emit reaches a sibling behavior AND the Le
     RefPtr<ScriptClass> emitter = MakeClassLang(
         u8"angelscript", u8"Emitter",
         u8"class Emitter {\n"
-        u8"    private Entity@ self;\n"
+        u8"    private Entity self;\n"
         u8"    private bool done;\n"
-        u8"    Emitter(Entity@ entity) { @self = entity; done = false; }\n"
+        u8"    Emitter(Entity entity) { self = entity; done = false; }\n"
         u8"    void onUpdate(float dt) {\n"
         u8"        if (!done) { self.scene.events.emit(\"OrbCollected\", 5.0); done = true; }\n"
         u8"    }\n"
@@ -4013,16 +4012,16 @@ TEST_CASE("script.scene: scene.events.emit reaches a sibling behavior AND the Le
     RefPtr<ScriptClass> receiver = MakeClassLang(
         u8"angelscript", u8"Receiver",
         u8"class Receiver {\n"
-        u8"    private Entity@ self;\n"
-        u8"    Receiver(Entity@ entity) { @self = entity; }\n"
+        u8"    private Entity self;\n"
+        u8"    Receiver(Entity entity) { self = entity; }\n"
         u8"    void onOrbCollected(float n) { if (n > 4.5f) self.setName(\"got5\"); }\n"
         u8"}\n",
         {u8"onOrbCollected"});
     RefPtr<ScriptClass> levelClass = MakeClassLang(
         u8"angelscript", u8"Level",
         u8"class Level {\n"
-        u8"    private Scene@ scene;\n"
-        u8"    Level(Scene@ s) { @scene = s; }\n"
+        u8"    private Scene scene;\n"
+        u8"    Level(Scene s) { scene = s; }\n"
         u8"    void onOrbCollected(float n) { if (n > 4.5f) scene.find(\"levelmark\").setName(\"level5\"); }\n"
         u8"}\n",
         {u8"onOrbCollected"});
@@ -4103,18 +4102,18 @@ TEST_CASE("script.scene: a destroyed subscriber stops receiving bus events; the 
     RefPtr<ScriptClass> emitter =
         MakeClass(u8"Bumper",
                   u8"class Bumper {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Bumper(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Bumper(Entity entity) { self = entity; }\n"
                   u8"    void onUpdate(double dt) { self.scene.events.emit(\"Bump\", 1); }\n"
                   u8"}\n",
                   {u8"onUpdate"});
     RefPtr<ScriptClass> receiver =
         MakeClass(u8"Counter",
                   u8"class Counter {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Counter(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Counter(Entity entity) { self = entity; }\n"
                   u8"    void onBump(int n) {\n"
-                  u8"        Entity@ c = self.scene.find(\"counter\");\n"
+                  u8"        Entity c = self.scene.find(\"counter\");\n"
                   u8"        Float3 p = c.position();\n"
                   u8"        c.setPosition(p.x + float(n), 0.0f, 0.0f);\n"
                   u8"    }\n"
@@ -4156,16 +4155,16 @@ TEST_CASE("script.scene: scene.events.emit carries a reflected component handle 
     RefPtr<ScriptClass> producer =
         MakeClass(u8"Producer",
                   u8"class Producer {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Producer(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Producer(Entity entity) { self = entity; }\n"
                   u8"    void onStart() { self.scene.events.emit(\"Configured\", Gadget::of(self)); }\n"
                   u8"}\n",
                   {u8"onStart"});
     RefPtr<ScriptClass> consumer =
         MakeClass(u8"Consumer",
                   u8"class Consumer {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Consumer(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Consumer(Entity entity) { self = entity; }\n"
                   u8"    void onConfigured(Gadget@ g) { Gadget::of(self).power = g.power; }\n"
                   u8"}\n",
                   {u8"onConfigured"});
@@ -4192,8 +4191,8 @@ TEST_CASE("script.scene: an event's reflected value reaches a handler that takes
     RefPtr<ScriptClass> producer =
         MakeClass(u8"Producer",
                   u8"class Producer {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Producer(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Producer(Entity entity) { self = entity; }\n"
                   u8"    void onStart() { self.scene.events.emit(\"Spotted\", Float3(1.0f, 2.0f, 3.0f)); }\n"
                   u8"}\n",
                   {u8"onStart"});
@@ -4201,17 +4200,17 @@ TEST_CASE("script.scene: an event's reflected value reaches a handler that takes
     RefPtr<ScriptClass> byValue =
         MakeClass(u8"ByValue",
                   u8"class ByValue {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    ByValue(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    ByValue(Entity entity) { self = entity; }\n"
                   u8"    void onSpotted(Float3 at) { if (at.y == 2.0f && at.z == 3.0f) self.setName(\"seen\"); }\n"
                   u8"}\n",
                   {u8"onSpotted"});
     RefPtr<ScriptClass> byHandle =
         MakeClass(u8"ByHandle",
                   u8"class ByHandle {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    ByHandle(Entity@ entity) { @self = entity; }\n"
-                  u8"    void onSpotted(Float3@ at) { if (at !is null && at.x == 1.0f) self.setName(\"seen\"); }\n"
+                  u8"    private Entity self;\n"
+                  u8"    ByHandle(Entity entity) { self = entity; }\n"
+                  u8"    void onSpotted(Float3 at) { if (at.x == 1.0f) self.setName(\"seen\"); }\n"
                   u8"}\n",
                   {u8"onSpotted"});
 
@@ -4240,8 +4239,8 @@ TEST_CASE("script.scene: MeshComponent.of / LightComponent.of set live render pr
     RefPtr<ScriptClass> tweaker =
         MakeClass(u8"Tweaker",
                   u8"class Tweaker {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Tweaker(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Tweaker(Entity entity) { self = entity; }\n"
                   u8"    void onStart() {\n"
                   u8"        MeshComponent::of(self).visible = false;\n"
                   u8"        LightComponent@ light = LightComponent::of(self);\n"
@@ -4278,8 +4277,8 @@ TEST_CASE("script.scene: a behaviour sets its member's clip and its crowd's pose
     RefPtr<ScriptClass> dancer =
         MakeClass(u8"Dancer",
                   u8"class Dancer {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Dancer(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Dancer(Entity entity) { self = entity; }\n"
                   u8"    void onStart() {\n"
                   u8"        InstanceMemberComponent::of(self).clip = 3;\n"
                   u8"        InstancedMeshComponent::of(self).poseAssignment = PoseAssignment::Unison;\n"
@@ -4306,8 +4305,8 @@ TEST_CASE("script.scene: MeshComponent::of / LightComponent::of set live render 
     RefPtr<ScriptClass> tweaker = MakeClassLang(
         u8"angelscript", u8"Tweaker",
         u8"class Tweaker {\n"
-        u8"    private Entity@ self;\n"
-        u8"    Tweaker(Entity@ entity) { @self = entity; }\n"
+        u8"    private Entity self;\n"
+        u8"    Tweaker(Entity entity) { self = entity; }\n"
         u8"    void onStart() {\n"
         u8"        MeshComponent@ m = MeshComponent::of(self);\n"
         u8"        m.visible = false;\n"
@@ -4335,7 +4334,7 @@ TEST_CASE("script.scene: MeshComponent::of / LightComponent::of set live render 
 // A struct-valued property through a component's re-resolving handle (a light's colour): a whole
 // value assigned, a field of it written, a copy taken out (which stays apart from the light), and one
 // member assigned from another all reach the component, in each language.
-TEST_CASE("script.scene: a light's colour is written whole, field by field and from another light's (AngelScript)")
+TEST_CASE("script.scene: a light's colour is written whole and from another light's; a field is copied, changed and written back (AngelScript)")
 {
     foundation::script::angelscript::RegisterAngelScriptBackend();
     engine::render::RegisterRenderScriptFacade();
@@ -4344,13 +4343,15 @@ TEST_CASE("script.scene: a light's colour is written whole, field by field and f
     RefPtr<ScriptClass> painter = MakeClassLang(
         u8"angelscript", u8"Painter",
         u8"class Painter {\n"
-        u8"    private Entity@ self;\n"
-        u8"    Painter(Entity@ entity) { @self = entity; }\n"
+        u8"    private Entity self;\n"
+        u8"    Painter(Entity entity) { self = entity; }\n"
         u8"    void onStart() {\n"
         u8"        LightComponent@ l = LightComponent::of(self);\n"
         u8"        Color saved = l.color;\n"            // a copy of the authored colour
         u8"        l.color = Color(0.25f, 0.5f, 0.75f, 1.0f);\n"
-        u8"        l.color.r = 0.9f;\n"
+        u8"        Color c = l.color; c.r = 0.9f;\n"   // a field of a copy
+        u8"        if (l.color.r != 0.25f) self.setName(\"through\");\n"
+        u8"        l.color = c;\n"                      // written back whole
         u8"        if (saved.r != 1.0f) self.setName(\"aliased\");\n"
         u8"        LightComponent@ other = LightComponent::of(self.scene.find(\"other\"));\n"
         u8"        other.color = l.color;\n"           // one member from another
@@ -4374,7 +4375,7 @@ TEST_CASE("script.scene: a light's colour is written whole, field by field and f
     CHECK_FALSE(bed.components->Get(e)->behaviors[0].faulted);
 }
 
-TEST_CASE("script.scene: LUAU a light's colour is written whole, field by field and from another light's")
+TEST_CASE("script.scene: LUAU a light's colour is written whole and from another light's; a field write changes a copy")
 {
     engine::render::RegisterRenderScriptFacade();
     ScriptedScene bed;
@@ -4387,7 +4388,9 @@ TEST_CASE("script.scene: LUAU a light's colour is written whole, field by field 
         u8"function Painter:onStart()\n"
         u8"    local l = LightComponent.of(self.entity)\n"
         u8"    l.color = Color.new(0.25, 0.5, 0.75, 1.0)\n"
-        u8"    l.color.r = 0.9\n"
+        u8"    l.color.r = 0.1\n" // a field of a copy: the light keeps 0.25
+        u8"    if l.color.r ~= 0.25 then self.entity:setName(\"through\") end\n"
+        u8"    local c = l.color; c.r = 0.9; l.color = c\n"
         u8"    local other = LightComponent.of(self.entity.scene:find(\"other\"))\n"
         u8"    other.color = l.color\n"
         u8"end\n",
@@ -4399,6 +4402,7 @@ TEST_CASE("script.scene: LUAU a light's colour is written whole, field by field 
     bed.Start();
     bed.Frame();
     CHECK_FALSE(bed.components->Get(e)->behaviors[0].faulted);
+    CHECK(bed.scene.GetEntityName(e) == StringView(u8"e")); // the field write did not reach the light
     REQUIRE(lights->Get(e) != nullptr);
     CHECK(lights->Get(e)->color.r == doctest::Approx(0.9f));
     CHECK(lights->Get(e)->color.g == doctest::Approx(0.5f));
@@ -4424,12 +4428,12 @@ TEST_CASE("script.scene: SceneRender.setMesh / setMaterial swap a component's re
     RefPtr<ScriptClass> swapper =
         MakeClass(u8"Swapper",
                   u8"class Swapper {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Guid@ meshRes;\n"
-                  u8"    Guid@ matRes;\n"
-                  u8"    Swapper(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Guid meshRes;\n"
+                  u8"    Guid matRes;\n"
+                  u8"    Swapper(Entity entity) { self = entity; }\n"
                   u8"    void onStart() {\n"
-                  u8"        SceneRender@ r = self.scene.render;\n"
+                  u8"        SceneRender r = self.scene.render;\n"
                   u8"        bool swapped = r.setMesh(self, meshRes);\n"
                   u8"        r.setMaterial(self, matRes);\n"
                   u8"        bool slotted = r.setMaterial(self, matRes, 2);\n"
@@ -4516,10 +4520,10 @@ TEST_CASE("script.scene: SceneRender sets and clears a mesh's own material prope
     CheckMaterialPropertyScript(
         u8"angelscript", u8"Tinter",
         u8"class Tinter {\n"
-        u8"    private Entity@ self;\n"
-        u8"    Tinter(Entity@ entity) { @self = entity; }\n"
+        u8"    private Entity self;\n"
+        u8"    Tinter(Entity entity) { self = entity; }\n"
         u8"    void onStart() {\n"
-        u8"        SceneRender@ r = self.scene.render;\n"
+        u8"        SceneRender r = self.scene.render;\n"
         u8"        bool a = r.setMaterialFloat(self, 0, \"Roughness\", 0.5f);\n"
         u8"        bool b = r.setMaterialFloat(self, 0, \"Roughness\", 0.25f);\n"
         u8"        bool c = r.setMaterialFloat4(self, 1, \"EmissiveColor\", Float4(0.3f, 0.4f, 0.5f, 2.0f));\n"
@@ -4568,10 +4572,10 @@ TEST_CASE("script.scene: SceneRender.lightAt reads how lit a place is, with and 
     RefPtr<ScriptClass> meter =
         MakeClass(u8"Meter",
                   u8"class Meter {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Meter(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Meter(Entity entity) { self = entity; }\n"
                   u8"    void onStart() {\n"
-                  u8"        SceneRender@ r = self.scene.render;\n"
+                  u8"        SceneRender r = self.scene.render;\n"
                   u8"        Float3 lit = r.lightAt(Float3(0.0f, 0.0f, 0.0f));\n"
                   u8"        Float3 masked = r.lightAt(Float3(0.0f, 0.0f, 0.0f), 1);\n"
                   u8"        if (lit.x > 3.99f && lit.x < 4.01f && masked.y > 3.99f) {\n"
@@ -4596,10 +4600,10 @@ TEST_CASE("script.scene: SceneRender.setCameraTarget points a camera at a render
     RefPtr<ScriptClass> minimap =
         MakeClass(u8"Minimap",
                   u8"class Minimap {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Guid@ texture;\n"
+                  u8"    private Entity self;\n"
+                  u8"    Guid texture;\n"
                   u8"    int frames = 0;\n"
-                  u8"    Minimap(Entity@ entity) { @self = entity; }\n"
+                  u8"    Minimap(Entity entity) { self = entity; }\n"
                   u8"    void onStart() {\n"
                   u8"        if (self.scene.render.setCameraTarget(self, texture)) {\n"
                   u8"            self.setName(\"targeted\");\n"
@@ -4655,15 +4659,15 @@ TEST_CASE("script.scene: AudioSourceComponent.of props + scene.audio play/stop/p
     RefPtr<ScriptClass> tweaker =
         MakeClass(u8"AudioTweaker",
                   u8"class AudioTweaker {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Guid@ clipRes;\n"
-                  u8"    AudioTweaker(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Guid clipRes;\n"
+                  u8"    AudioTweaker(Entity entity) { self = entity; }\n"
                   u8"    void onStart() {\n"
                   u8"        AudioSourceComponent@ s = AudioSourceComponent::of(self);\n"
                   u8"        s.volume = 0.25f;\n"
                   u8"        s.pitch = 2.0f;\n"
                   u8"        s.loop = true;\n"
-                  u8"        SceneAudio@ a = self.scene.audio;\n"
+                  u8"        SceneAudio a = self.scene.audio;\n"
                   u8"        a.setClip(self, clipRes);\n"
                   u8"        a.play(self);\n"
                   u8"        a.pause(self, true);\n"
@@ -4711,8 +4715,8 @@ TEST_CASE("script.scene: AudioSourceComponent::of props + scene.audio play/stop/
     RefPtr<ScriptClass> tweaker = MakeClassLang(
         u8"angelscript", u8"AudioTweaker",
         u8"class AudioTweaker {\n"
-        u8"    private Entity@ self;\n"
-        u8"    AudioTweaker(Entity@ entity) { @self = entity; }\n"
+        u8"    private Entity self;\n"
+        u8"    AudioTweaker(Entity entity) { self = entity; }\n"
         u8"    void onStart() {\n"
         u8"        AudioSourceComponent@ s = AudioSourceComponent::of(self);\n"
         u8"        s.volume = 0.25f;\n"
@@ -4755,8 +4759,8 @@ TEST_CASE("script.scene: Guid constructs from its canonical string in AngelScrip
     RefPtr<ScriptClass> writer = MakeClassLang(
         u8"angelscript", u8"GuidWriter",
         u8"class GuidWriter {\n"
-        u8"    private Entity@ self;\n"
-        u8"    GuidWriter(Entity@ entity) { @self = entity; }\n"
+        u8"    private Entity self;\n"
+        u8"    GuidWriter(Entity entity) { self = entity; }\n"
         u8"    void onStart() {\n"
         u8"        Guid id = Guid(\"00000000-0000-cc33-0000-00000000dd44\");\n"
         u8"        if (Guid(\"not-a-guid\").IsNil() && !id.IsNil()) {\n"
@@ -4808,21 +4812,19 @@ TEST_CASE("script.scene: Guid.new constructs from its canonical string in Luau")
     CHECK(Near(bed.scene.GetLocalTransform(bed.scene.FindEntityByName(u8"Turret")).position.y, 2.0f));
 }
 
-// An asset (Guid) editor property applies to an AngelScript behaviour when declared as a handle
-// member (`Guid@ res;`), the idiomatic AngelScript spelling for a reference type. A plain value
-// member is owned by AngelScript's lifecycle and cannot take a native write; the runtime logs a
-// warning pointing the author to a handle (see WriteTypedAddress / SetMemberField).
-TEST_CASE("script.scene: an asset (Guid) editor property applies to an AngelScript handle member")
+// An asset (Guid) editor property applies to an AngelScript behaviour's Guid member: a Guid is a value,
+// written in place (see WriteTypedAddress / SetMemberField).
+TEST_CASE("script.scene: an asset (Guid) editor property applies to an AngelScript Guid member")
 {
     foundation::script::angelscript::RegisterAngelScriptBackend();
     ScriptedScene bed;
     RefPtr<ScriptClass> cls = MakeClassLang(
         u8"angelscript", u8"Holder",
         u8"class Holder {\n"
-        u8"    private Entity@ self;\n"
-        u8"    Guid@ res;\n" // a reflected or resource property is a handle member
-        u8"    Holder(Entity@ entity) { @self = entity; }\n"
-        u8"    void onStart() { if (res !is null && res.high == 0xEE55) self.setName(\"applied\"); }\n"
+        u8"    private Entity self;\n"
+        u8"    Guid res;\n"
+        u8"    Holder(Entity entity) { self = entity; }\n"
+        u8"    void onStart() { if (res.high == 0xEE55) self.setName(\"applied\"); }\n"
         u8"}\n",
         {u8"onStart"});
     ScriptPropertyDesc p;
@@ -4851,8 +4853,8 @@ TEST_CASE("script.scene: CameraComponent.of / SpriteComponent.of set live props"
     RefPtr<ScriptClass> tweaker =
         MakeClass(u8"ViewTweaker",
                   u8"class ViewTweaker {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    ViewTweaker(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    ViewTweaker(Entity entity) { self = entity; }\n"
                   u8"    void onStart() {\n"
                   u8"        CameraComponent@ cam = CameraComponent::of(self);\n"
                   u8"        cam.fovYRadians = 1.2f;\n"
@@ -4894,15 +4896,15 @@ TEST_CASE("script.scene: SkeletalAnimation/AnimationGraph .of + SceneAnimation o
     RefPtr<ScriptClass> tweaker =
         MakeClass(u8"AnimTweaker",
                   u8"class AnimTweaker {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Guid@ clipRes;\n"
-                  u8"    AnimTweaker(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Guid clipRes;\n"
+                  u8"    AnimTweaker(Entity entity) { self = entity; }\n"
                   u8"    void onStart() {\n"
                   u8"        SkeletalAnimationComponent@ a = SkeletalAnimationComponent::of(self);\n"
                   u8"        a.speed = 2.0f;\n"
                   u8"        a.autoPlay = false;\n"
                   u8"        AnimationGraphComponent::of(self).active = false;\n"
-                  u8"        SceneAnimation@ s = self.scene.animation;\n"
+                  u8"        SceneAnimation s = self.scene.animation;\n"
                   u8"        s.setClip(self, clipRes);\n"
                   u8"        s.play(self);\n"
                   u8"        s.stop(self);\n"
@@ -4951,8 +4953,8 @@ TEST_CASE("script.scene: SkeletalAnimation::of + SceneAnimation ops are bound (A
     RefPtr<ScriptClass> tweaker = MakeClassLang(
         u8"angelscript", u8"AnimTweaker",
         u8"class AnimTweaker {\n"
-        u8"    private Entity@ self;\n"
-        u8"    AnimTweaker(Entity@ entity) { @self = entity; }\n"
+        u8"    private Entity self;\n"
+        u8"    AnimTweaker(Entity entity) { self = entity; }\n"
         u8"    void onStart() {\n"
         u8"        SkeletalAnimationComponent@ a = SkeletalAnimationComponent::of(self);\n"
         u8"        a.speed = 2.0f;\n"
@@ -4997,8 +4999,8 @@ TEST_CASE("script.scene: scene.environment / scene.postProcess edit the scene's 
     RefPtr<ScriptClass> tweaker =
         MakeClass(u8"EnvTweaker",
                   u8"class EnvTweaker {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    EnvTweaker(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    EnvTweaker(Entity entity) { self = entity; }\n"
                   u8"    void onStart() {\n"
                   u8"        EnvironmentSettings@ env = self.scene.environment;\n"
                   u8"        env.ambientIntensity = 0.75f;\n"
@@ -5035,8 +5037,8 @@ TEST_CASE("script.scene: scene.environment / scene.postProcess edit the scene's 
     RefPtr<ScriptClass> tweaker = MakeClassLang(
         u8"angelscript", u8"EnvTweaker",
         u8"class EnvTweaker {\n"
-        u8"    private Entity@ self;\n"
-        u8"    EnvTweaker(Entity@ entity) { @self = entity; }\n"
+        u8"    private Entity self;\n"
+        u8"    EnvTweaker(Entity entity) { self = entity; }\n"
         u8"    void onStart() {\n"
         u8"        EnvironmentSettings@ env = self.scene.environment;\n"
         u8"        env.ambientIntensity = 0.75f;\n"
@@ -5071,14 +5073,14 @@ TEST_CASE("script.scene: ParticleEffectComponent.of + scene.particles ops are bo
     RefPtr<ScriptClass> tweaker =
         MakeClass(u8"FxTweaker",
                   u8"class FxTweaker {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Guid@ effectRes;\n"
-                  u8"    FxTweaker(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Guid effectRes;\n"
+                  u8"    FxTweaker(Entity entity) { self = entity; }\n"
                   u8"    void onStart() {\n"
                   u8"        ParticleEffectComponent@ c = ParticleEffectComponent::of(self);\n"
                   u8"        c.visible = false;\n"
                   u8"        c.lightIntensity = 8.0f;\n"
-                  u8"        SceneParticles@ p = self.scene.particles;\n"
+                  u8"        SceneParticles p = self.scene.particles;\n"
                   u8"        p.setEffect(self, effectRes);\n"
                   u8"        p.play(self);\n"
                   u8"        p.pause(self, true);\n"
@@ -5124,8 +5126,8 @@ TEST_CASE("script.scene: ParticleEffectComponent::of + scene.particles ops are b
     RefPtr<ScriptClass> tweaker = MakeClassLang(
         u8"angelscript", u8"FxTweaker",
         u8"class FxTweaker {\n"
-        u8"    private Entity@ self;\n"
-        u8"    FxTweaker(Entity@ entity) { @self = entity; }\n"
+        u8"    private Entity self;\n"
+        u8"    FxTweaker(Entity entity) { self = entity; }\n"
         u8"    void onStart() {\n"
         u8"        ParticleEffectComponent@ c = ParticleEffectComponent::of(self);\n"
         u8"        c.visible = false;\n"
@@ -5164,8 +5166,8 @@ TEST_CASE("script.scene: an enum component property reads/writes as an int")
     RefPtr<ScriptClass> tweaker =
         MakeClass(u8"EnumTest",
                   u8"class EnumTest {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    EnumTest(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    EnumTest(Entity entity) { self = entity; }\n"
                   u8"    void onStart() {\n"
                   u8"        LightComponent@ l = LightComponent::of(self);\n"
                   u8"        if (l.type == 0) { l.type = LightType(2); }\n" // Directional(0) -> Spot(2)
@@ -5194,8 +5196,8 @@ TEST_CASE("script.scene: an enum component property reads/writes as a native enu
     RefPtr<ScriptClass> tweaker = MakeClassLang(
         u8"angelscript", u8"EnumTest",
         u8"class EnumTest {\n"
-        u8"    private Entity@ self;\n"
-        u8"    EnumTest(Entity@ entity) { @self = entity; }\n"
+        u8"    private Entity self;\n"
+        u8"    EnumTest(Entity entity) { self = entity; }\n"
         u8"    void onStart() {\n"
         u8"        LightComponent@ l = LightComponent::of(self);\n"
         u8"        if (l.type == LightType::Directional) { l.type = LightType::Spot; }\n"
@@ -5227,8 +5229,8 @@ TEST_CASE("script.scene: NetworkComponent.of exposes replication authority - Ang
     RefPtr<ScriptClass> tweaker = MakeClassLang(
         u8"angelscript", u8"NetTweaker",
         u8"class NetTweaker {\n"
-        u8"    private Entity@ self;\n"
-        u8"    NetTweaker(Entity@ entity) { @self = entity; }\n"
+        u8"    private Entity self;\n"
+        u8"    NetTweaker(Entity entity) { self = entity; }\n"
         u8"    void onStart() {\n"
         u8"        NetworkComponent@ n = NetworkComponent::of(self);\n"
         u8"        if (n.authority == NetworkAuthority::Server) { self.setName(\"authoritative\"); }\n"
@@ -5257,8 +5259,8 @@ TEST_CASE("script.scene: a script that assigns NetworkComponent.authority never 
     RefPtr<ScriptClass> tweaker = MakeClassLang(
         u8"angelscript", u8"NetWriter",
         u8"class NetWriter {\n"
-        u8"    private Entity@ self;\n"
-        u8"    NetWriter(Entity@ entity) { @self = entity; }\n"
+        u8"    private Entity self;\n"
+        u8"    NetWriter(Entity entity) { self = entity; }\n"
         u8"    void onStart() {\n"
         u8"        self.setName(\"started\");\n"
         u8"        NetworkComponent::of(self).authority = NetworkAuthority::Client;\n"
@@ -5269,8 +5271,8 @@ TEST_CASE("script.scene: a script that assigns NetworkComponent.authority never 
     RefPtr<ScriptClass> renamer = MakeClassLang(
         u8"angelscript", u8"IdWriter",
         u8"class IdWriter {\n"
-        u8"    private Entity@ self;\n"
-        u8"    IdWriter(Entity@ entity) { @self = entity; }\n"
+        u8"    private Entity self;\n"
+        u8"    IdWriter(Entity entity) { self = entity; }\n"
         u8"    void onStart() {\n"
         u8"        self.setName(\"started\");\n"
         u8"        NetworkComponent@ n = NetworkComponent::of(self);\n"
@@ -5303,8 +5305,8 @@ TEST_CASE("script.scene: NetworkComponent.of authority crosses as an int")
     RefPtr<ScriptClass> tweaker =
         MakeClass(u8"NetTweaker",
                   u8"class NetTweaker {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    NetTweaker(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    NetTweaker(Entity entity) { self = entity; }\n"
                   u8"    void onStart() {\n"
                   u8"        NetworkComponent@ n = NetworkComponent::of(self);\n"
                   u8"        if (n.authority == 0) { self.setName(\"authoritative\"); }\n"
@@ -5371,11 +5373,11 @@ TEST_CASE("script.scene: an AngelScript behaviour walks, reorders and reparents 
     CheckEntityHierarchyScript(
         u8"angelscript", u8"Walker",
         u8"class Walker {\n"
-        u8"    private Entity@ self;\n"
-        u8"    Walker(Entity@ entity) { @self = entity; }\n"
+        u8"    private Entity self;\n"
+        u8"    Walker(Entity entity) { self = entity; }\n"
         u8"    void onStart() {\n"
-        u8"        Entity@ a = self.firstChild();\n"
-        u8"        Entity@ b = a.nextSibling();\n"
+        u8"        Entity a = self.firstChild();\n"
+        u8"        Entity b = a.nextSibling();\n"
         u8"        bool walked = !self.parent().isValid() && a.name() == \"a\" && b.name() == \"b\"\n"
         u8"            && !b.nextSibling().isValid() && self.findChildByName(\"b\").name() == \"b\"\n"
         u8"            && !self.id().IsNil() && self.scene.find(\"root\").id().high == self.id().high\n"
@@ -5456,16 +5458,16 @@ TEST_CASE("script.scene: ScenePrefabs spawns by asset id at a position, turned, 
     CheckScenePrefabsScript(
         u8"angelscript", u8"Spawner",
         u8"class Spawner {\n"
-        u8"    private Entity@ self;\n"
-        u8"    Spawner(Entity@ entity) { @self = entity; }\n"
+        u8"    private Entity self;\n"
+        u8"    Spawner(Entity entity) { self = entity; }\n"
         u8"    void onStart() {\n"
         u8"        Guid id = Guid(\"",
         u8"\");\n"
         u8"        ScenePrefabs prefabs = self.scene.prefabs;\n"
-        u8"        Entity@ atRoot = prefabs.spawn(id, Float3(5, 0, 0));\n"
+        u8"        Entity atRoot = prefabs.spawn(id, Float3(5, 0, 0));\n"
         u8"        self.setRotationEuler(0, 90, 0);\n"
-        u8"        Entity@ under = prefabs.spawn(id, Float3(0, 2, 0), self.rotation(), self);\n"
-        u8"        Entity@ none = prefabs.spawn(Guid(\"not-a-guid\"), Float3(0, 0, 0));\n"
+        u8"        Entity under = prefabs.spawn(id, Float3(0, 2, 0), self.rotation(), self);\n"
+        u8"        Entity none = prefabs.spawn(Guid(\"not-a-guid\"), Float3(0, 0, 0));\n"
         u8"        self.setRotationEuler(0, 0, 0);\n"
         u8"        if (atRoot.isValid() && under.isValid() && !none.isValid()\n"
         u8"            && !atRoot.parent().isValid() && under.parent().name() == \"holder\") {\n"
@@ -5543,12 +5545,12 @@ TEST_CASE("script.scene: SceneScripts gives the scene's script time, sends, emit
     CheckSceneScriptsScript(
         u8"angelscript",
         u8"class Boss {\n"
-        u8"    private Entity@ self;\n"
+        u8"    private Entity self;\n"
         u8"    private int frames = 0;\n"
-        u8"    Boss(Entity@ entity) { @self = entity; }\n"
+        u8"    Boss(Entity entity) { self = entity; }\n"
         u8"    void onStart() {\n"
         u8"        SceneScripts scripts = self.scene.scripts;\n"
-        u8"        Entity@ target = self.scene.find(\"target\");\n"
+        u8"        Entity target = self.scene.find(\"target\");\n"
         u8"        bool added = scripts.addBehavior(target, Guid(0xAB12, 0xCD34));\n"
         u8"        bool refused = !scripts.addBehavior(target, Guid(\"not-a-guid\"));\n"
         u8"        scripts.send(target, \"Ping\", 3);\n"
@@ -5564,8 +5566,8 @@ TEST_CASE("script.scene: SceneScripts gives the scene's script time, sends, emit
         u8"    }\n"
         u8"}\n",
         u8"class Receiver {\n"
-        u8"    private Entity@ self;\n"
-        u8"    Receiver(Entity@ entity) { @self = entity; }\n"
+        u8"    private Entity self;\n"
+        u8"    Receiver(Entity entity) { self = entity; }\n"
         u8"    void onPing(int value) { if (value == 3) { self.setName(\"pinged\"); } }\n"
         u8"    void onHello(int value) { if (value == 5) { self.scene.find(\"flagB\").setName(\"heard\"); } }\n"
         u8"}\n");
@@ -5636,16 +5638,16 @@ TEST_CASE("script.scene: a behaviour makes, ends and finds entities by id; Rando
     CheckSceneEntitiesScript(
         u8"angelscript",
         u8"class Maker {\n"
-        u8"    private Entity@ self;\n"
-        u8"    Maker(Entity@ entity) { @self = entity; }\n"
+        u8"    private Entity self;\n"
+        u8"    Maker(Entity entity) { self = entity; }\n"
         u8"    void onStart() {\n"
-        u8"        Scene@ scene = self.scene;\n"
+        u8"        Scene scene = self.scene;\n"
         u8"        uint count = scene.entityCount();\n"
-        u8"        Entity@ kept = scene.createEntity(\"kept\");\n"
-        u8"        Entity@ unnamed = scene.createEntity();\n"
-        u8"        Entity@ gone = scene.createEntity(\"gone\");\n"
+        u8"        Entity kept = scene.createEntity(\"kept\");\n"
+        u8"        Entity unnamed = scene.createEntity();\n"
+        u8"        Entity gone = scene.createEntity(\"gone\");\n"
         u8"        scene.destroyEntity(gone);\n"
-        u8"        Entity@ found = scene.findEntity(kept.id());\n"
+        u8"        Entity found = scene.findEntity(kept.id());\n"
         u8"        Random::seed(42);\n"
         u8"        float first = Random::value();\n"
         u8"        bool flag = Random::boolean();\n"
@@ -5725,20 +5727,20 @@ TEST_CASE("script.scene: ScenePhysics casts, overlaps, impulses and gravity by F
     CheckPhysicsFloat3Script(
         u8"angelscript", u8"Scanner",
         u8"class Scanner {\n"
-        u8"    private Entity@ self;\n"
-        u8"    Scanner(Entity@ entity) { @self = entity; }\n"
+        u8"    private Entity self;\n"
+        u8"    Scanner(Entity entity) { self = entity; }\n"
         u8"    void onStart() {\n"
-        u8"        ScenePhysics@ p = self.scene.physics;\n"
+        u8"        ScenePhysics p = self.scene.physics;\n"
         u8"        p.setGravity(Float3(0, -20, 0));\n"
-        u8"        RayCastHit@ down = p.rayCast(Float3(-1.5f, 10, 0), Float3(0, -1, 0), 20.0f);\n"
-        u8"        RayCastHit@ masked = p.rayCast(Float3(-1.5f, 10, 0), Float3(0, -1, 0), 20.0f, 0);\n"
-        u8"        RayCastHit@ near = p.nearestOverlap(Float3(1.4f, 0, 0), 1.0f);\n"
+        u8"        RayCastHit down = p.rayCast(Float3(-1.5f, 10, 0), Float3(0, -1, 0), 20.0f);\n"
+        u8"        RayCastHit masked = p.rayCast(Float3(-1.5f, 10, 0), Float3(0, -1, 0), 20.0f, 0);\n"
+        u8"        RayCastHit near = p.nearestOverlap(Float3(1.4f, 0, 0), 1.0f);\n"
         u8"        if (down.hit && down.entity().name() == \"left\" && down.material().high == 7 && !masked.hit\n"
         u8"            && near.hit && near.material().IsNil()\n"
         u8"            && near.entity().name() == \"right\" && p.gravity().y == -20.0f) {\n"
         u8"            self.setName(\"hit\");\n"
         u8"        }\n"
-        u8"        array<Entity@>@ hits = p.overlapSphere(Float3(0, 0, 0), 3.0f);\n"
+        u8"        array<Entity>@ hits = p.overlapSphere(Float3(0, 0, 0), 3.0f);\n"
         u8"        for (uint i = 0; i < hits.length(); i++) {\n"
         u8"            p.applyImpulse(hits[i], Float3(0, 5000, 0));\n"
         u8"        }\n"
@@ -5780,10 +5782,10 @@ TEST_CASE("script.scene: ScenePhysics drives an entity's character, as Sedulous'
     RefPtr<ScriptClass> driver =
         MakeClassLang(u8"angelscript", u8"Driver",
                       u8"class Driver {\n"
-                      u8"    private Entity@ self;\n"
-                      u8"    Driver(Entity@ entity) { @self = entity; }\n"
+                      u8"    private Entity self;\n"
+                      u8"    Driver(Entity entity) { self = entity; }\n"
                       u8"    void onStart() {\n"
-                      u8"        ScenePhysics@ p = self.scene.physics;\n"
+                      u8"        ScenePhysics p = self.scene.physics;\n"
                       u8"        p.moveCharacter(self, 5.0f, 3.0f);\n"
                       u8"        p.jumpCharacter(self, 6.0f);\n"
                       u8"        p.launchCharacter(self, 4.0f);\n"
@@ -5826,10 +5828,10 @@ TEST_CASE("script.scene: DebugDraw draws by Float3 and Color, over the scene wit
     RefPtr<ScriptClass> gizmo =
         MakeClass(u8"Gizmo",
                   u8"class Gizmo {\n"
-                  u8"    private Entity@ self;\n"
-                  u8"    Gizmo(Entity@ entity) { @self = entity; }\n"
+                  u8"    private Entity self;\n"
+                  u8"    Gizmo(Entity entity) { self = entity; }\n"
                   u8"    void onStart() {\n"
-                  u8"        DebugDraw@ d = self.scene.debugDraw;\n"
+                  u8"        DebugDraw d = self.scene.debugDraw;\n"
                   u8"        Color red = Color(1, 0, 0, 1);\n"
                   u8"        d.line(Float3(0, 0, 0), Float3(1, 2, 3), red);\n"
                   u8"        d.line(Float3(0, 0, 0), Float3(4, 5, 6), red, true);\n"
@@ -5963,15 +5965,15 @@ namespace
 TEST_CASE("script.scene: an AngelScript behaviour's replicated property reaches the client's instance")
 {
     ReplicateBehaviourState(u8"angelscript", u8"class Guest {\n"
-                                             u8"    private Entity@ self;\n"
+                                             u8"    private Entity self;\n"
                                              u8"    float activity; float chatty; float driver;\n"
-                                             u8"    Guest(Entity@ e) { @self = e; }\n"
+                                             u8"    Guest(Entity e) { self = e; }\n"
                                              u8"    void onUpdate(double dt) { if (driver > 0) activity = activity + 1; }\n"
                                              u8"}\n",
                             u8"class Other {\n"
-                                             u8"    private Entity@ self;\n"
+                                             u8"    private Entity self;\n"
                                              u8"    float activity;\n"
-                                             u8"    Other(Entity@ e) { @self = e; }\n"
+                                             u8"    Other(Entity e) { self = e; }\n"
                                              u8"    void onUpdate(double dt) {}\n"
                                              u8"}\n");
 }
@@ -6061,9 +6063,9 @@ TEST_CASE("script.scene: a one-shot that ends calls the entity's behaviours' onA
     animator.clip.SetDirect(stand);
     RefPtr<ScriptClass> watcher = MakeClass(u8"Watcher",
                                             u8"class Watcher {\n"
-                                            u8"    private Entity@ self;\n"
-                                            u8"    Watcher(Entity@ entity) { @self = entity; }\n"
-                                            u8"    void onAnimationFinished(Guid@ clip) {\n"
+                                            u8"    private Entity self;\n"
+                                            u8"    Watcher(Entity entity) { self = entity; }\n"
+                                            u8"    void onAnimationFinished(Guid clip) {\n"
                                             u8"        self.setName(clip.IsNil() ? \"finished:nil\" : \"finished\");\n"
                                             u8"    }\n"
                                             u8"}\n",

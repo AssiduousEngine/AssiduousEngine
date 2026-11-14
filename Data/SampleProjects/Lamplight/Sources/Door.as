@@ -9,9 +9,9 @@ const float kDoorPi = 3.14159265f;
 
 class Door
 {
-    private Entity@ self;
+    private Entity self;
 
-    [null, "The thief (it carries the hand's two-bone IK)"] Entity@ thief;
+    [null, "The thief (it carries the hand's two-bone IK)"] Entity thief;
     [true, "Locked at the start"] bool locked;
     [3.0, "Seconds of holding Interact to pick the lock"] float pickSeconds;
     [0.8, "How near the lock the thief must stand (m): within an arm's reach"] float reach;
@@ -27,7 +27,7 @@ class Door
     private bool m_picking = false;
     private bool m_prompting = false;
 
-    Door(Entity@ entity) { @self = entity; }
+    Door(Entity entity) { self = entity; }
 
     void onStart()
     {
@@ -36,7 +36,7 @@ class Door
 
     void onUpdate(double dt)
     {
-        if (thief is null || !thief.isValid())
+        if (!thief.isValid())
         {
             return;
         }

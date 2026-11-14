@@ -14,7 +14,7 @@
 
 class Pet
 {
-    private Entity@ self;
+    private Entity self;
 
     [-12.0, "Lawn's left edge (m)"] float xMin;
     [-6.0, "Lawn's right edge (m)"] float xMax;
@@ -22,27 +22,27 @@ class Pet
     [13.0, "Lawn's near edge (m)"] float zMax;
     [0.8, "Walking speed (m/s)"] float speed;
     [0.55, "Metres the walk clip covers at speed 1 (its root motion)"] float walkMetres;
-    ["asset:AnimationClip", "Walk (loops)"] Guid@ walkClip;
-    ["asset:AnimationClip", "Standing about (loops)"] Guid@ idleClip;
-    ["asset:AnimationClip", "Sitting down and up again"] Guid@ sitClip;
+    ["asset:AnimationClip", "Walk (loops)"] Guid walkClip;
+    ["asset:AnimationClip", "Standing about (loops)"] Guid idleClip;
+    ["asset:AnimationClip", "Sitting down and up again"] Guid sitClip;
     [4.0, "Sit clip's length (s)"] float sitSeconds;
-    ["asset:AnimationClip", "Lying down and up again"] Guid@ lieClip;
+    ["asset:AnimationClip", "Lying down and up again"] Guid lieClip;
     [5.0, "Lie clip's length (s)"] float lieSeconds;
-    ["asset:AnimationClip", "Its own thing (sniffing, grooming)"] Guid@ ownClip;
+    ["asset:AnimationClip", "Its own thing (sniffing, grooming)"] Guid ownClip;
     [3.0, "Own clip's length (s)"] float ownSeconds;
 
-    private Entity@ m_model;
+    private Entity m_model;
     private bool m_walking = false;
     private float m_toX = 0.0f;
     private float m_toZ = 0.0f;
     private float m_yaw = 0.0f; // radians; 0 faces +Z
     private float m_left = 0.0f; // seconds left of the current action where it stands
 
-    Pet(Entity@ entity) { @self = entity; }
+    Pet(Entity entity) { self = entity; }
 
     void onStart()
     {
-        @m_model = self.firstChild();
+        m_model = self.firstChild();
         m_yaw = Random::range(-3.14159f, 3.14159f);
         self.setRotationEuler(0.0f, Math::RadiansToDegrees(m_yaw), 0.0f);
         // Start in the middle of something, not all walking off at once.
@@ -130,20 +130,20 @@ class Pet
             playClip(idleClip);
             m_left = Random::range(2.0f, 5.0f);
         }
-        if (m_model !is null && m_model.isValid())
+        if (m_model.isValid())
         {
             SkeletalAnimationComponent::of(m_model).speed = 1.0f;
         }
     }
 
-    private bool hasClip(Guid@ clip)
+    private bool hasClip(Guid clip)
     {
-        return clip !is null && !clip.IsNil();
+        return !clip.IsNil();
     }
 
-    private void playClip(Guid@ clip)
+    private void playClip(Guid clip)
     {
-        if (m_model is null || !m_model.isValid() || !hasClip(clip))
+        if (!m_model.isValid() || !hasClip(clip))
         {
             return;
         }
@@ -154,7 +154,7 @@ class Pet
 
     private void setPace(float pace)
     {
-        if (m_model !is null && m_model.isValid())
+        if (m_model.isValid())
         {
             SkeletalAnimationComponent::of(m_model).speed = pace / walkMetres;
         }

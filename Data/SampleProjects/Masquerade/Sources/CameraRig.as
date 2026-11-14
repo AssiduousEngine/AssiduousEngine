@@ -8,9 +8,9 @@ const float kPi = 3.14159265f;
 
 class CameraRig
 {
-    private Entity@ self;
+    private Entity self;
 
-    [null, "The player to follow"] Entity@ target;
+    [null, "The player to follow"] Entity target;
     [6.5, "Distance back from the player, along the floor (m)"] float distance;
     [7.0, "Height above the player (m)"] float height;
     [0.8, "Aim this far above the player's feet (m)"] float lookHeight;
@@ -28,14 +28,14 @@ class CameraRig
     private bool m_title = false;   // circling the dais behind the title
     private float m_phase = 0.0f;   // position in the sweep (radians of the cycle)
 
-    CameraRig(Entity@ entity) { @self = entity; }
+    CameraRig(Entity entity) { self = entity; }
 
     // Follows another entity from now on (a client's own hunter, which appears after the scene
     // loads).
-    void onFollow(Entity@ who)
+    void onFollow(Entity who)
     {
-        @target = who;
-        if (target !is null && target.isValid())
+        target = who;
+        if (target.isValid())
         {
             m_focus = target.worldPosition();
         }
@@ -43,7 +43,7 @@ class CameraRig
 
     void onStart()
     {
-        if (target !is null && target.isValid())
+        if (target.isValid())
         {
             m_focus = target.worldPosition();
         }
@@ -57,7 +57,7 @@ class CameraRig
         if (dt < 0.0f)
         {
             m_title = false;
-            if (target !is null && target.isValid())
+            if (target.isValid())
             {
                 m_focus = target.worldPosition();
             }
@@ -65,8 +65,8 @@ class CameraRig
             place();
             return;
         }
-        Entity@ dais = self.scene.find("Dais");
-        if (dais is null)
+        Entity dais = self.scene.find("Dais");
+        if (!dais.isValid())
         {
             return;
         }
@@ -98,7 +98,7 @@ class CameraRig
         while (delta > kPi) delta -= 2.0f * kPi;
         while (delta < -kPi) delta += 2.0f * kPi;
         m_yaw += delta * Math::Clamp(swing * d, 0.0f, 1.0f);
-        if (target !is null && target.isValid())
+        if (target.isValid())
         {
             Float3 at = target.worldPosition();
             float k = Math::Clamp(follow * d, 0.0f, 1.0f);

@@ -37,7 +37,7 @@ Node@ hud(string id)
 
 class Level
 {
-    private Scene@ scene;
+    private Scene scene;
 
     [120.0, "Time limit (s)"] float timeLimit;
     [4, "Deliveries to clear the block"] int quota;
@@ -58,7 +58,7 @@ class Level
     private int m_lastTick = -1; // the whole second last ticked
     private bool m_dimmed = false; // whether the blink has the clock dimmed
 
-    Level(Scene@ s) { @scene = s; }
+    Level(Scene s) { scene = s; }
 
     void onStart()
     {

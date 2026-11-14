@@ -5,12 +5,12 @@
 // gravel is louder than boards, and grass is softer.
 class Footsteps
 {
-    private Entity@ self;
+    private Entity self;
 
-    ["asset:PhysicalMaterial", "Boards (Surfaces/Wood)"] Guid@ wood;
-    ["asset:PhysicalMaterial", "Flags (Surfaces/Stone)"] Guid@ stone;
-    ["asset:PhysicalMaterial", "Surfaces/Gravel"] Guid@ gravel;
-    ["asset:PhysicalMaterial", "Surfaces/Grass"] Guid@ grass;
+    ["asset:PhysicalMaterial", "Boards (Surfaces/Wood)"] Guid wood;
+    ["asset:PhysicalMaterial", "Flags (Surfaces/Stone)"] Guid stone;
+    ["asset:PhysicalMaterial", "Surfaces/Gravel"] Guid gravel;
+    ["asset:PhysicalMaterial", "Surfaces/Grass"] Guid grass;
     [0.6, "Metres a step, sneaking"] float sneakStride;
     [0.8, "Metres a step, walking"] float walkStride;
     [1.35, "Metres a step, running"] float runStride;
@@ -25,7 +25,7 @@ class Footsteps
     private int m_steps = 0;
     private int m_heard = 0; // steps whose sound started
 
-    Footsteps(Entity@ entity) { @self = entity; }
+    Footsteps(Entity entity) { self = entity; }
 
     void onUpdate(double dt)
     {
@@ -55,17 +55,17 @@ class Footsteps
     private void step(float noise)
     {
         Float3 at = self.worldPosition();
-        RayCastHit@ hit = self.scene.physics.rayCast(at, Float3(0.0f, -1.0f, 0.0f), footDrop + 0.3f);
-        if (hit is null || !hit.hit)
+        RayCastHit hit = self.scene.physics.rayCast(at, Float3(0.0f, -1.0f, 0.0f), footDrop + 0.3f);
+        if (!hit.hit)
         {
             return; // in the air
         }
-        Guid@ under = hit.material();
+        Guid under = hit.material();
         string surface = "Wood";
         float loudness = 1.0f;
-        if (stone !is null && under == stone) { surface = "Stone"; loudness = 0.9f; }
-        else if (gravel !is null && under == gravel) { surface = "Gravel"; loudness = 1.4f; }
-        else if (grass !is null && under == grass) { surface = "Grass"; loudness = 0.4f; }
+        if (!stone.IsNil() && under == stone) { surface = "Stone"; loudness = 0.9f; }
+        else if (!gravel.IsNil() && under == gravel) { surface = "Gravel"; loudness = 1.4f; }
+        else if (!grass.IsNil() && under == grass) { surface = "Grass"; loudness = 0.4f; }
         m_take = m_take % 3 + 1;
         m_surface = surface;
         m_steps++;

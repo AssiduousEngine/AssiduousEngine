@@ -6,10 +6,10 @@
 // behind it stays as dark as before.
 class CutawayWall
 {
-    private Entity@ self;
+    private Entity self;
 
-    [null, "The camera"] Entity@ camera;
-    [null, "The thief"] Entity@ thief;
+    [null, "The camera"] Entity camera;
+    [null, "The thief"] Entity thief;
     [0.0, "The piece's face direction (its normal), x"] float normalX;
     [1.0, "The piece's face direction (its normal), z"] float normalZ;
     [1.0, "Half the piece's length along its face (m)"] float halfLength;
@@ -19,11 +19,11 @@ class CutawayWall
 
     private float m_fade = 0.0f;
 
-    CutawayWall(Entity@ entity) { @self = entity; }
+    CutawayWall(Entity entity) { self = entity; }
 
     void onUpdate(double dt)
     {
-        if (camera is null || thief is null || !camera.isValid() || !thief.isValid())
+        if (!camera.isValid() || !thief.isValid() || !camera.isValid() || !thief.isValid())
         {
             return;
         }

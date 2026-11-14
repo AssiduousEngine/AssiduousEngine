@@ -8,23 +8,23 @@
 // centre stands 2.5 m above their origin).
 class Hazard
 {
-    private Entity@ self;
+    private Entity self;
 
     [1.1, "Touch reach across the ground, hazard to player (m)"] float radius;
     [2.6, "Touching while the player's centre is at most this far above the hazard's origin (m): its top plus the player's feet (0.95)"] float touchHeight;
 
-    private Entity@ m_player;
+    private Entity m_player;
 
-    Hazard(Entity@ entity) { @self = entity; }
+    Hazard(Entity entity) { self = entity; }
 
     void onStart()
     {
-        @m_player = self.scene.find("Player");
+        m_player = self.scene.find("Player");
     }
 
     void onUpdate(double dt)
     {
-        if (m_player is null || !m_player.isValid())
+        if (!m_player.isValid())
         {
             return;
         }

@@ -1847,9 +1847,10 @@ namespace foundation::script
                     lua_pushstring(state, kObjectGoneMessage); // a gone handle's read is an error, as in AngelScript
                     lua_error(state);
                 }
-                // A value struct (a Color) comes back as a handle over the member, so
-                // `light.color.r = 0.5` writes the light rather than a copy (PropertyHandle).
-                context->PushVariant(state, PropertyHandle(*property, *boxed));
+                // A script value (a Color) comes back as a copy, as in AngelScript, so
+                // `light.color.r = 0.5` changes the copy; any other member as a handle over it.
+                Variant member = PropertyHandle(*property, *boxed);
+                context->PushVariant(state, IsScriptValue(property->type) ? DetachedValue(member) : member);
                 return 1;
             }
             lua_pushnil(state);

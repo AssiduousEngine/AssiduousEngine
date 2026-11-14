@@ -39,6 +39,15 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- Scripting: the plain types (Float2, Float3, Float4, Color, Quaternion, Transform, Guid, AABB, Plane,
+  Rectangle, Entity, the scene's facades such as `scene.physics`, hit results) are values in scripts,
+  as a C# struct is. In AngelScript they are declared without `@` (`Entity self;`, `Color tint`),
+  an entity that names none answers `isValid()` false instead of being null, a property read is a
+  copy (`light.color.r = 0.5` is refused; copy, change and write back), and a value's own fields
+  are members (`p.x += 1`). Luau reads a plain property as a copy too. Math in scripts allocates
+  nothing (five allocations an operation before in AngelScript). A script still writing `Color@`
+  is refused with a message saying so; the sample games are migrated. Components are unchanged:
+  `LightComponent.of(e)` is the light itself.
 - Editor: its windows present with two swapchain images, as a game does, a frame less between
   input and the screen; they had three.
 - Rendering: the MSAA count and the antialiasing are the quality level's. The project's MSAA

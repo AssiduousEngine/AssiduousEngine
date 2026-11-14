@@ -13,12 +13,12 @@ const int kSampleSize = 4; // x, y, z, yaw
 
 class PlayerGhost
 {
-    private Entity@ self;
+    private Entity self;
 
     [10.0, "Samples recorded each second"] float sampleRate;
 
-    private Entity@ m_rider;
-    private Entity@ m_model;
+    private Entity m_rider;
+    private Entity m_model;
     private array<float> m_recording; // this run, recorded as it is ridden
     private array<float> m_ghost;     // the best run, played back
     private bool m_started = false;
@@ -26,12 +26,12 @@ class PlayerGhost
     private float m_time = 0.0f;
     private float m_nextSample = 0.0f;
 
-    PlayerGhost(Entity@ entity) { @self = entity; }
+    PlayerGhost(Entity entity) { self = entity; }
 
     void onStart()
     {
-        @m_rider = self.scene.find("Rider");
-        @m_model = self.firstChild();
+        m_rider = self.scene.find("Rider");
+        m_model = self.firstChild();
         m_ghost = Save::getFloats(key());
         show(m_ghost.length() >= kSampleSize * 2);
     }
@@ -68,7 +68,7 @@ class PlayerGhost
 
     void onUpdate(double dt)
     {
-        if (!m_started || m_rider is null || !m_rider.isValid())
+        if (!m_started || !m_rider.isValid())
         {
             return;
         }
@@ -125,7 +125,7 @@ class PlayerGhost
 
     private void show(bool visible)
     {
-        if (m_model !is null && m_model.isValid())
+        if (m_model.isValid())
         {
             m_model.setActive(visible);
         }

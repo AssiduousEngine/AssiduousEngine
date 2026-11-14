@@ -4,13 +4,13 @@
 // paper lands.
 class Fx
 {
-    private Entity@ self;
+    private Entity self;
 
     [4.0, "Seconds before the burst is gone"] float lifetime;
 
     private float m_age = 0.0f;
 
-    Fx(Entity@ entity) { @self = entity; }
+    Fx(Entity entity) { self = entity; }
 
     void onUpdate(double dt)
     {

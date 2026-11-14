@@ -13,13 +13,13 @@ Guid kFxSparkle = Guid("e362b75b-f227-4a33-b093-26e485cd3cd0");
 
 class Subscriber
 {
-    private Entity@ self;
+    private Entity self;
 
     [100, "Points for this delivery"] int value;
 
     private bool m_delivered = false;
 
-    Subscriber(Entity@ entity) { @self = entity; }
+    Subscriber(Entity entity) { self = entity; }
 
     void onPaperArrived(int unused)
     {
@@ -33,8 +33,8 @@ class Subscriber
         Input::rumble(0.1f, 0.45f, 0.1f); // a delivery's tap
         self.scene.prefabs.spawn(kFxSparkle, self.position() + Float3(0.0f, 0.3f, 0.0f));
         self.scene.events.emit("Delivered", value);
-        Entity@ marker = self.findChildByName("Marker");
-        if (marker !is null && marker.isValid())
+        Entity marker = self.findChildByName("Marker");
+        if (marker.isValid())
         {
             marker.setActive(false);
         }

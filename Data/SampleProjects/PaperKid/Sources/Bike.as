@@ -41,7 +41,7 @@ Guid kCrashSound = Guid("a677830b-3ddd-40af-8849-54aa97fc91b2");
 
 class Bike
 {
-    private Entity@ self;
+    private Entity self;
 
     [11.0, "Top forward speed (m/s)"] float maxSpeed;
     [3.5, "Top reverse speed (m/s)"] float reverseSpeed;
@@ -71,18 +71,18 @@ class Bike
     private Float3 m_target = Float3(0.0f, 0.0f, 0.0f);
     private float m_recovering = 0.0f; // seconds of weak controls left after a crash
     private float m_lean = 0.0f;       // degrees, eased toward the steering
-    private array<Entity@> m_dots;
-    private Entity@ m_ring;
+    private array<Entity> m_dots;
+    private Entity m_ring;
     private float m_clock = 0.0f;      // drives the dots' drift and the ring's spin
-    private Entity@ m_kid;             // the kid on his bike, the model whose clips play
+    private Entity m_kid;             // the kid on his bike, the model whose clips play
     private float m_throwing = 0.0f;   // seconds of the Throw clip left to play
 
-    Bike(Entity@ entity) { @self = entity; }
+    Bike(Entity entity) { self = entity; }
 
     void onStart()
     {
-        @m_kid = self.findChildByName("KidBike");
-        if (m_kid !is null && m_kid.isValid())
+        m_kid = self.findChildByName("KidBike");
+        if (m_kid.isValid())
         {
             SceneAnimation anim = self.scene.animation;
             anim.setClip(m_kid, kRideClip);
@@ -95,15 +95,15 @@ class Bike
         Float3 at = self.position();
         for (int i = 0; i < kAimDots; i++)
         {
-            Entity@ dot = self.scene.prefabs.spawn(kAimDot, at);
-            if (dot !is null && dot.isValid())
+            Entity dot = self.scene.prefabs.spawn(kAimDot, at);
+            if (dot.isValid())
             {
                 dot.setActive(false);
                 m_dots.insertLast(dot);
             }
         }
-        @m_ring = self.scene.prefabs.spawn(kTargetRing, at);
-        if (m_ring !is null && m_ring.isValid())
+        m_ring = self.scene.prefabs.spawn(kTargetRing, at);
+        if (m_ring.isValid())
         {
             m_ring.setActive(false);
         }
@@ -188,7 +188,7 @@ class Bike
     // at least at walking pace, so it is seen even from a standstill.
     private void animateKid(float d)
     {
-        if (m_kid is null || !m_kid.isValid())
+        if (!m_kid.isValid())
         {
             return;
         }
@@ -209,7 +209,7 @@ class Bike
 
     private void startThrowClip()
     {
-        if (m_kid is null || !m_kid.isValid())
+        if (!m_kid.isValid())
         {
             return;
         }
@@ -290,7 +290,7 @@ class Bike
         float aimX = f.x;
         float aimZ = f.z;
         m_hasTarget = false;
-        array<Entity@>@ zones = self.scene.physics.overlapSphere(pos.x, pos.y, pos.z, aimRange,
+        array<Entity>@ zones = self.scene.physics.overlapSphere(pos.x, pos.y, pos.z, aimRange,
                                                                           1 << zoneGroup);
         float best = aimRange * aimRange + 1.0f;
         for (uint i = 0; i < zones.length(); i++)
@@ -383,7 +383,7 @@ class Bike
             float size = 1.0f - 0.45f * (float(i) / float(m_dots.length()));
             m_dots[i].setScale(size, size, size);
         }
-        if (m_ring is null || !m_ring.isValid())
+        if (!m_ring.isValid())
         {
             return;
         }
@@ -400,7 +400,7 @@ class Bike
         {
             m_dots[i].setActive(false);
         }
-        if (m_ring !is null && m_ring.isValid())
+        if (m_ring.isValid())
         {
             m_ring.setActive(false);
         }
@@ -408,8 +408,8 @@ class Bike
 
     private bool throwPaper()
     {
-        Entity@ paper = self.scene.prefabs.spawn(kPaper, launchPoint());
-        if (paper is null || !paper.isValid())
+        Entity paper = self.scene.prefabs.spawn(kPaper, launchPoint());
+        if (!paper.isValid())
         {
             return false;
         }

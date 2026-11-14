@@ -12,24 +12,24 @@ Guid kGemChime = Guid("c47f1131-6df4-49ea-b2c7-6e3b3316a3ce");
 
 class Gem
 {
-    private Entity@ self;
+    private Entity self;
 
     [1.4, "Pickup reach from the rider's centre (m)"] float radius;
     [2.5, "Spin rate (rad/s)"] float spinSpeed;
     [0.15, "Bob height (m)"] float bobHeight;
     [1, "Gems this one counts for"] int value;
 
-    private Entity@ m_rider;
-    private Entity@ m_model;
+    private Entity m_rider;
+    private Entity m_model;
     private bool m_taken = false;
     private float m_time = 0.0f;
 
-    Gem(Entity@ entity) { @self = entity; }
+    Gem(Entity entity) { self = entity; }
 
     void onStart()
     {
-        @m_rider = self.scene.find("Rider");
-        @m_model = self.firstChild();
+        m_rider = self.scene.find("Rider");
+        m_model = self.firstChild();
         // Gems along the course bob out of step with each other.
         m_time = self.worldPosition().z * 0.37f;
         self.scene.events.emit("GemRegistered", value);
@@ -37,14 +37,14 @@ class Gem
 
     void onUpdate(double dt)
     {
-        if (m_taken || m_model is null || !m_model.isValid())
+        if (m_taken || !m_model.isValid())
         {
             return;
         }
         m_time += float(dt);
         m_model.setRotation(Quaternion::FromAxisAngle(Float3(0.0f, 1.0f, 0.0f), m_time * spinSpeed));
         m_model.setPosition(Float3(0.0f, Math::Sin(m_time * 2.2f) * bobHeight, 0.0f));
-        if (m_rider is null || !m_rider.isValid())
+        if (!m_rider.isValid())
         {
             return;
         }
@@ -64,7 +64,7 @@ class Gem
     void onRunRestart(int unused)
     {
         m_taken = false;
-        if (m_model !is null && m_model.isValid())
+        if (m_model.isValid())
         {
             m_model.setActive(true);
         }

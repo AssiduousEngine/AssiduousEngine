@@ -17,18 +17,18 @@ Node@ hud(string id)
 
 class MapMarkers
 {
-    private Entity@ self;
+    private Entity self;
 
-    [null, "The bike"] Entity@ bike;
+    [null, "The bike"] Entity bike;
     [84.0, "World metres the map spans (the camera's orthoHeight)"] float span;
     [200.0, "The map view's size in pixels"] float mapSize;
     [2, "The delivery zones' collision group"] int zoneGroup;
 
-    private array<Entity@> m_zones;
+    private array<Entity> m_zones;
     private array<int> m_waiting; // the state each dot shows: 1 waiting, 0 delivered, -1 not yet shown
     private bool m_found = false;
 
-    MapMarkers(Entity@ entity) { @self = entity; }
+    MapMarkers(Entity entity) { self = entity; }
 
     void onUpdate(double dt)
     {
@@ -45,15 +45,15 @@ class MapMarkers
             {
                 continue;
             }
-            Entity@ marker = m_zones[i].findChildByName("Marker");
-            int waiting = marker !is null && marker.isValid() && marker.active() ? 1 : 0;
+            Entity marker = m_zones[i].findChildByName("Marker");
+            int waiting = marker.isValid() && marker.active() ? 1 : 0;
             if (waiting != m_waiting[i]) // the style sheet's opacity 0 until placed, then full or dimmed
             {
                 m_waiting[i] = waiting;
                 dot.tween("opacity", waiting == 1 ? "1" : "0.3", 0.0f, "linear");
             }
         }
-        if (bike is null || !bike.isValid())
+        if (!bike.isValid())
         {
             return;
         }
@@ -74,7 +74,7 @@ class MapMarkers
     private void findZones()
     {
         Float3 c = self.position();
-        array<Entity@>@ zones = self.scene.physics.overlapSphere(c.x, 0.0f, c.z, span,
+        array<Entity>@ zones = self.scene.physics.overlapSphere(c.x, 0.0f, c.z, span,
                                                                           1 << zoneGroup);
         if (zones.length() == 0)
         {

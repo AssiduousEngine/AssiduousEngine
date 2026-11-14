@@ -4,22 +4,22 @@
 // and the light meter. It starts lit unless `lit` is off.
 class Lamp
 {
-    private Entity@ self;
+    private Entity self;
 
-    [null, "The thief"] Entity@ thief;
-    [null, "The lamp's light"] Entity@ light;
+    [null, "The thief"] Entity thief;
+    [null, "The lamp's light"] Entity light;
     [1.6, "How near the thief must stand to reach it (m)"] float reach;
     [true, "Lit at the start"] bool lit;
     [1, "The material slot of the flame"] int flameSlot;
     [2, "The material slot of the chimney"] int chimneySlot;
-    ["asset:Material", "The flame burning"] Guid@ flameLit;
-    ["asset:Material", "The flame out"] Guid@ flameOut;
-    ["asset:Material", "The chimney glowing"] Guid@ chimneyLit;
-    ["asset:Material", "The chimney dark"] Guid@ chimneyOut;
+    ["asset:Material", "The flame burning"] Guid flameLit;
+    ["asset:Material", "The flame out"] Guid flameOut;
+    ["asset:Material", "The chimney glowing"] Guid chimneyLit;
+    ["asset:Material", "The chimney dark"] Guid chimneyOut;
 
     private bool m_prompting = false;
 
-    Lamp(Entity@ entity) { @self = entity; }
+    Lamp(Entity entity) { self = entity; }
 
     void onStart()
     {
@@ -28,7 +28,7 @@ class Lamp
 
     void onUpdate(double dt)
     {
-        if (thief is null || !thief.isValid())
+        if (!thief.isValid())
         {
             return;
         }
@@ -47,7 +47,7 @@ class Lamp
 
     private void apply()
     {
-        if (light !is null && light.isValid())
+        if (light.isValid())
         {
             LightComponent::of(light).enabled = lit;
         }

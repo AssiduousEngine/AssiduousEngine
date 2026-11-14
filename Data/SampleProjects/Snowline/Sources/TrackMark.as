@@ -3,7 +3,7 @@
 // behind the rider stays only a few seconds long.
 class TrackMark
 {
-    private Entity@ self;
+    private Entity self;
 
     [6.0, "How long the mark lasts (s)"] float life;
     [2.0, "How long it takes to fade, at the end (s)"] float fade;
@@ -11,13 +11,13 @@ class TrackMark
     private float m_age = 0.0f;
     private float m_alpha = -1.0f; // the decal's authored alpha, read on the first update
 
-    TrackMark(Entity@ entity) { @self = entity; }
+    TrackMark(Entity entity) { self = entity; }
 
     void onUpdate(double dt)
     {
         m_age += float(dt);
-        Entity@ decal = self.firstChild();
-        if (decal !is null && decal.isValid())
+        Entity decal = self.firstChild();
+        if (decal.isValid())
         {
             DecalComponent@ mark = DecalComponent::of(decal);
             Color c = mark.color;

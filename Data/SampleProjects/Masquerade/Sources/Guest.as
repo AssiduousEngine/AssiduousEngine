@@ -26,10 +26,10 @@ const int kDanceCue = 2;
 
 class Guest
 {
-    private Entity@ self;
+    private Entity self;
 
-    [null, "The places guests wander to: its children"] Entity@ spots;
-    [null, "The players guests make way for: its children"] Entity@ players;
+    [null, "The places guests wander to: its children"] Entity spots;
+    [null, "The players guests make way for: its children"] Entity players;
     [1.3, "How near a player coming at a standing guest makes it step aside (m)"] float makeWayRange;
     [1.0, "Walking speed (m/s): the Walk clip's"] float walkSpeed;
     [2.0, "How far from a place a guest stands (m), so groups spread round it"] float spread;
@@ -49,7 +49,7 @@ class Guest
     private Float3 m_last = Float3(0.0f, 0.0f, 0.0f);   // where it was at the last progress check
     private float m_check = 0.0f;                       // time until the next progress check
     private float m_walked = 0.0f;                      // seconds spent walking there
-    private array<Entity@> m_spots;
+    private array<Entity> m_spots;
     private bool m_approaching = false; // a bot walking to someone it means to tag
     private bool m_handedOver = false;  // on a client: the agent is stopped so the host's transforms rule
     private bool m_aside = false;       // stepping out of a player's way
@@ -57,7 +57,7 @@ class Guest
     private int m_asideActivity = 0;    // the activity to go back to
     private float m_wayCheck = 0.0f;    // time until it next checks for an approaching player
 
-    Guest(Entity@ entity) { @self = entity; }
+    Guest(Entity entity) { self = entity; }
 
     void onStart()
     {
@@ -136,15 +136,15 @@ class Guest
             member.clip = clip;
             return;
         }
-        Entity@ child = self.firstChild();
-        while (child !is null && child.isValid())
+        Entity child = self.firstChild();
+        while (child.isValid())
         {
             InstanceMemberComponent@ look = InstanceMemberComponent::of(child);
             if (look !is null)
             {
                 look.clip = clip;
             }
-            @child = child.nextSibling();
+            child = child.nextSibling();
         }
     }
 
@@ -191,7 +191,7 @@ class Guest
             m_stay = stayMax;
             return;
         }
-        Entity@ place = (m_cue == kGather) ? nearest(m_spots) : pick(m_spots);
+        Entity place = (m_cue == kGather) ? nearest(m_spots) : pick(m_spots);
         float a = Random::range(-3.14159f, 3.14159f);
         float r = spread * Math::Sqrt(Random::range(0.1f, 1.0f));
         m_place = place.worldPosition();
@@ -230,7 +230,7 @@ class Guest
             }
             return true;
         }
-        if (m_going || m_approaching || players is null || !players.isValid())
+        if (m_going || m_approaching || !players.isValid())
         {
             return false;
         }
@@ -241,8 +241,8 @@ class Guest
         }
         m_wayCheck = 0.25f;
         Float3 p = self.worldPosition();
-        Entity@ player = players.firstChild();
-        while (player !is null && player.isValid())
+        Entity player = players.firstChild();
+        while (player.isValid())
         {
             Float3 q = player.worldPosition();
             float dx = p.x - q.x;
@@ -269,7 +269,7 @@ class Guest
                     return true;
                 }
             }
-            @player = player.nextSibling();
+            player = player.nextSibling();
         }
         return false;
     }
@@ -303,9 +303,9 @@ class Guest
 
     // The next place: usually the nearest of a few picked at random, so most walks are short and
     // the crowd drifts rather than crossing the ball all the time.
-    private Entity@ pick(array<Entity@>@ places)
+    private Entity pick(array<Entity>@ places)
     {
-        Entity@ best = places[Random::intRange(0, int(places.length()) - 1)];
+        Entity best = places[Random::intRange(0, int(places.length()) - 1)];
         if (Random::range(0.0f, 1.0f) >= nearChance)
         {
             return best;
@@ -314,28 +314,28 @@ class Guest
         float bestDistance = flatDistance(p, best.worldPosition());
         for (int k = 0; k < 3; ++k)
         {
-            Entity@ other = places[Random::intRange(0, int(places.length()) - 1)];
+            Entity other = places[Random::intRange(0, int(places.length()) - 1)];
             float distance = flatDistance(p, other.worldPosition());
             if (distance < bestDistance && distance > 1.0f) // not the place it is already at
             {
-                @best = other;
+                best = other;
                 bestDistance = distance;
             }
         }
         return best;
     }
 
-    private Entity@ nearest(array<Entity@>@ places)
+    private Entity nearest(array<Entity>@ places)
     {
         Float3 p = self.worldPosition();
-        Entity@ best = places[0];
+        Entity best = places[0];
         float bestDistance = flatDistance(p, best.worldPosition());
         for (uint k = 1; k < places.length(); ++k)
         {
             float distance = flatDistance(p, places[k].worldPosition());
             if (distance < bestDistance)
             {
-                @best = places[k];
+                best = places[k];
                 bestDistance = distance;
             }
         }
@@ -385,17 +385,17 @@ class Guest
     // The host decides; a client's guest plays what it is told. Offline counts as the host.
     private bool authority() { return !Net::isClient(); }
 
-    private void gatherChildren(Entity@ parent, array<Entity@>@ into)
+    private void gatherChildren(Entity parent, array<Entity>@ into)
     {
-        if (parent is null || !parent.isValid())
+        if (!parent.isValid())
         {
             return;
         }
-        Entity@ child = parent.firstChild();
-        while (child !is null && child.isValid())
+        Entity child = parent.firstChild();
+        while (child.isValid())
         {
             into.insertLast(child);
-            @child = child.nextSibling();
+            child = child.nextSibling();
         }
     }
 }

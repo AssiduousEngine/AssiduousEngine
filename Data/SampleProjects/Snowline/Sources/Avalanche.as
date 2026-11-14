@@ -16,9 +16,9 @@
 
 class Avalanche
 {
-    private Entity@ self;
+    private Entity self;
 
-    [null, "The course line (an entity with a spline)"] Entity@ course;
+    [null, "The course line (an entity with a spline)"] Entity course;
     [300.0, "How far down the line the rider sets it off (m)"] float release;
     [35.0, "How far behind the rider it breaks loose (m)"] float lead;
     [15.0, "Its speed as it breaks loose (m/s)"] float startSpeed;
@@ -29,7 +29,7 @@ class Avalanche
     [60.0, "The gap at which the rumble is faint (m)"] float hearFrom;
     [0.9, "The rumble's loudest volume"] float rumbleVolume;
 
-    private Entity@ m_rider;
+    private Entity m_rider;
     private bool m_released = false;
     private bool m_finished = false;
     private float m_speed = 0.0f;
@@ -37,26 +37,26 @@ class Avalanche
     private float m_padTimer = 0.0f;
     private float m_passing = -1.0f; // after a catch, how much longer it rolls on (s); -1 before a catch
 
-    Avalanche(Entity@ entity) { @self = entity; }
+    Avalanche(Entity entity) { self = entity; }
 
     void onStart()
     {
-        @m_rider = self.scene.find("Rider");
+        m_rider = self.scene.find("Rider");
         park();
     }
 
     void onUpdate(double dt)
     {
-        if (m_rider is null || !m_rider.isValid() || course is null || !course.isValid() || m_finished)
+        if (!m_rider.isValid() || !course.isValid() || m_finished)
         {
             return;
         }
         float d = float(dt);
-        SceneSplines@ splines = self.scene.splines;
+        SceneSplines splines = self.scene.splines;
         // The rider is a root entity, so position() holds this frame's pose; worldPosition() still
         // holds last frame's.
-        SplineHit@ here = splines.closestPoint(course, m_rider.position());
-        if (here is null || !here.valid)
+        SplineHit here = splines.closestPoint(course, m_rider.position());
+        if (!here.valid)
         {
             return;
         }
@@ -77,7 +77,7 @@ class Avalanche
             follow.distance = rider - lead;
             follow.playing = true;
             self.scene.particles.play(child("Front"));
-            Entity@ rumble = child("Rumble");
+            Entity rumble = child("Rumble");
             SceneAudio audio = self.scene.audio;
             audio.setVolume(rumble, 0.0f, 0.0f);
             audio.play(rumble);
@@ -160,19 +160,19 @@ class Avalanche
         {
             follow.speed = 0.0f;
         }
-        Entity@ front = child("Front");
-        if (front !is null && front.isValid())
+        Entity front = child("Front");
+        if (front.isValid())
         {
             self.scene.particles.stop(front);
         }
-        Entity@ rumble = child("Rumble");
-        if (rumble !is null && rumble.isValid())
+        Entity rumble = child("Rumble");
+        if (rumble.isValid())
         {
             self.scene.audio.setVolume(rumble, 0.0f, 1.0f);
         }
     }
 
-    private Entity@ child(string name)
+    private Entity child(string name)
     {
         return self.findChildByName(name);
     }

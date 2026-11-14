@@ -82,15 +82,15 @@ namespace
     // rather than moving at a normalized constant speed; either way it reads as a smooth approach.
     constexpr core::StringView kMoverSource =
         u8"class Mover {\n"
-        u8"    Entity@ self;\n"
+        u8"    Entity self;\n"
         u8"    float speed;\n"
-        u8"    Entity@ target;\n"
-        u8"    Mover(Entity@ entity) { @self = entity; speed = 2.0f; @target = null; }\n"
+        u8"    Entity target;\n"
+        u8"    Mover(Entity entity) { self = entity; speed = 2.0f; }\n"
         u8"    void onStart() { Log::info(\"Mover \" + self.name() + \" started\"); }\n"
         u8"    void onUpdate(double dt) {\n"
         u8"        float step = speed * float(dt);\n"
         u8"        Float3 p = self.position();\n"
-        u8"        if (target !is null) {\n"
+        u8"        if (target.isValid()) {\n"
         u8"            Float3 t = target.worldPosition();\n"
         u8"            self.setPosition(p.x + (t.x - p.x) * step, p.y, p.z + (t.z - p.z) * step);\n"
         u8"        } else {\n"
@@ -101,10 +101,10 @@ namespace
 
     constexpr core::StringView kSpinnerSource =
         u8"class Spinner {\n"
-        u8"    Entity@ self;\n"
+        u8"    Entity self;\n"
         u8"    float speed;\n"
         u8"    float angle;\n"
-        u8"    Spinner(Entity@ entity) { @self = entity; speed = 90.0f; angle = 0.0f; }\n"
+        u8"    Spinner(Entity entity) { self = entity; speed = 90.0f; angle = 0.0f; }\n"
         u8"    void onUpdate(double dt) {\n"
         u8"        angle = angle + speed * float(dt);\n"
         u8"        self.setRotationEuler(0.0f, angle, 0.0f);\n"

@@ -19,39 +19,39 @@ Guid kSquashSound = Guid("134e50c9-8003-4065-a81f-69cf5e0d9dc7");
 
 class Enemy
 {
-    private Entity@ self;
+    private Entity self;
 
     [3.0, "Patrol half-width along X (m)"] float patrolDistance;
     [2.0, "Walk speed (m/s)"] float speed;
     [1.1, "Touch reach across the ground, enemy to player (m)"] float radius;
     [1.8, "Touching while the player's centre is at most this far above the enemy's origin (m)"] float touchHeight;
     [1.0, "Falling at least this fast counts as coming down on the enemy (m/s)"] float stompSpeed;
-    ["asset:AnimationClip", "The model's walk clip; none keeps its idle"] Guid@ walkClip;
+    ["asset:AnimationClip", "The model's walk clip; none keeps its idle"] Guid walkClip;
     [0.0, "Hover: bob this far up and down as it patrols (m); 0 walks"] float hoverHeight;
     [2.0, "Hover bob rate (rad/s)"] float hoverSpeed;
     [false, "Patrol along Z (across the path) rather than X"] bool patrolAlongZ;
 
-    private Entity@ m_player;
+    private Entity m_player;
     private Float3 m_home = Float3(0.0f, 0.0f, 0.0f);
     private float m_offset = 0.0f;
     private float m_direction = 1.0f;
     private float m_lastPlayerY = 0.0f;
     private float m_time = 0.0f;
 
-    Enemy(Entity@ entity) { @self = entity; }
+    Enemy(Entity entity) { self = entity; }
 
     void onStart()
     {
-        @m_player = self.scene.find("Player");
+        m_player = self.scene.find("Player");
         m_home = self.position();
-        Entity@ model = self.firstChild();
-        if (model.isValid() && walkClip !is null && !walkClip.IsNil())
+        Entity model = self.firstChild();
+        if (model.isValid() && !walkClip.IsNil())
         {
             SceneAnimation animation = self.scene.animation;
             animation.setClip(model, walkClip);
             animation.play(model);
         }
-        if (m_player !is null && m_player.isValid())
+        if (m_player.isValid())
         {
             m_lastPlayerY = m_player.worldPosition().y;
         }
@@ -86,7 +86,7 @@ class Enemy
                                                        (m_direction > 0.0f) ? 1.5708f : -1.5708f));
         }
 
-        if (m_player is null || !m_player.isValid())
+        if (!m_player.isValid())
         {
             return;
         }

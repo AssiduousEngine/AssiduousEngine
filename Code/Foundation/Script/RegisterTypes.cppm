@@ -111,6 +111,16 @@ export namespace foundation::script
     // `name`, which never aliases.
     inline constexpr const char* kScriptNameAttribute = "scriptName";
 
+    /// Whether a reflected type crosses into script as a value of its own bytes, copied in and out
+    /// as a C# struct is (a Float3, a Color, the script Entity): copied by its bytes, nothing to run
+    /// to destroy it, and no identity declared (a component declares one, so it stays a handle to
+    /// the live component). Both backends ask this, so a script means the same in each.
+    [[nodiscard]] inline bool IsScriptValue(const core::TypeInfo* type) noexcept
+    {
+        return type != nullptr && type->trivialCopy && !type->hasIdentity && type->valueOps != nullptr &&
+               type->container == nullptr && type->enumeratorCount == 0;
+    }
+
     [[nodiscard]] inline const char* ScriptTypeName(const core::TypeInfo& type) noexcept
     {
         const core::Variant* alias = core::FindAttribute(type, kScriptNameAttribute);

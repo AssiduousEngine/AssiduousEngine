@@ -16,9 +16,9 @@ facades).
 ## The three script tiers
 
 - **Behavior** - attached to an entity through a ScriptComponent behavior slot. One class per
-  script; the engine constructs it with the entity handle. This is where most gameplay lives.
+  script; the engine constructs it with its entity. This is where most gameplay lives.
 - **Level** - the per-scene script (reserved class name `Level`), set in the scene's Scene
-  Script settings. One instance per scene, constructed with the scene handle. Use it for
+  Script settings. One instance per scene, constructed with its scene. Use it for
   scene-wide orchestration: spawning, win conditions, sequencing.
 - **Game** - the project's startup script (reserved class name `Game`), set in project
   settings. Runs for the whole game run, across scene loads.
@@ -45,10 +45,12 @@ Handlers dispatch **by presence** - implement only what you need:
 
 ## Entities
 
-Two entity handles name the same entity when `a == b` (the same scene, slot and generation). Ask
-that, not `a is b`: `is` asks whether they are the same handle object, and `scene.find`, `parent()`
-and the rest hand out a new one each call, so a found entity is never `is` one kept from before.
-The same holds for a `Guid`: compare with `==`.
+An entity is a value, as a `Float3` is: `Entity target;` holds one, `target = e` copies it, and
+two name the same entity when `a == b` (the same scene, slot and generation). An entity that names
+none (a lookup that found nothing, a field never set, one destroyed since) answers
+`isValid()` false; in AngelScript ask that (`if (!target.isValid())`), since a value is never
+null. In Luau a lookup that finds nothing returns `nil`. The same holds for a `Guid`: compare
+with `==`.
 
 ## The scene
 
@@ -71,8 +73,8 @@ What acts on a whole scene is a property of the scene: `scene.physics.rayCast(fr
 - `scene.environment`, `scene.postProcess` - the scene's live sky, fog and ambient, and its
   exposure, tonemapping, bloom and anti-aliasing.
 
-Each reads as a handle (`ScenePhysics@ physics = scene.physics;` keeps one). The `script_api` tool
-lists every member.
+Each is a value naming its scene (`ScenePhysics physics = scene.physics;` keeps one; once the scene
+is gone its calls do nothing). The `script_api` tool lists every member.
 
 ## Components
 
@@ -132,8 +134,8 @@ picked up.
   constructor to plain field initialization.
 - **AngelScript**: only member fields with `[default, "description"]` metadata are properties,
   e.g. `[3.0, "Spin rate"] float spinSpeed;`. Types: float, double, the int types, bool,
-  string, `Color@`, `Float3@`, `Entity@`, and `Guid@` tagged `"asset:<Type>"`, the type the
-  asset loads as (`["asset:PrefabResource", "What to spawn"] Guid@ prefab;`,
+  string, `Color`, `Float3`, `Entity`, and `Guid` tagged `"asset:<Type>"`, the type the
+  asset loads as (`["asset:PrefabResource", "What to spawn"] Guid prefab;`,
   `"asset:AnimationClip"`, `"asset:Material"`; the full name, `"asset:rtti::scene::PrefabResource"`,
   works too): the inspector picks the assets that make it.
   Fields without metadata are not.
@@ -223,8 +225,14 @@ Http.post("https://example.com/scores", "application/json", '{"score":9}',      
   one): every backend reads them, none assigns. AngelScript refuses the assignment at
   compile time, and Luau raises at the assignment. (The Luau declaration emitter marks them
   `read`, but nothing writes a `.d.luau` for a project yet: luau-analyze support is deferred.)
-- A struct-valued property (a light's `color`, a `Float3`) reads as a handle over the value where
-  it lives: `light.color = c` and `light.color.r = 0.5` both write the light, in both languages.
-  To keep a copy in AngelScript, declare a value (`Color saved = light.color;`); a handle
-  (`Color@ c = light.color;`) follows the light. In Luau every such read is a handle, so copy the
-  fields (`Color.new(c.r, c.g, c.b, c.a)`) to keep a value apart from its owner.
+- The plain types (`Float3`, `Color`, `Quaternion`, `Transform`, `Guid`, `Entity`, the scene's
+  facades and the rest) are values, as a C# struct is: a property read is a copy, so
+  `light.color = c` writes the light. To change one field, copy, change and write back
+  (`Color c = light.color; c.r = 0.5; light.color = c;`): AngelScript refuses
+  `light.color.r = 0.5` as C# does, and in Luau it changes only the copy. A value's own fields are
+  plain members (`p.x += 1`). In
+  AngelScript they are declared without `@` (`Color tint`; a `Color@` is refused, and the error
+  says why); in Luau a copy is a new value, but two variables holding one value share it, so
+  build a new one (`Color.new(...)`) rather than edit one another variable holds. A component is
+  not a value: `LightComponent.of(e)` is the light itself. An element of a component's list is
+  reached in place: `crate.items_at(0).size = 5` writes the element; a variable copies it.

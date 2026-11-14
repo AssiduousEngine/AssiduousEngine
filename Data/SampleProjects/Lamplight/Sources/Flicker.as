@@ -3,7 +3,7 @@
 // (a torch put out through Lamp.as) stays off.
 class Flicker
 {
-    private Entity@ self;
+    private Entity self;
 
     [0.18, "How far the intensity wanders, as a share of its own"] float amount;
     [1.0, "How fast it wanders"] float rate;
@@ -11,7 +11,7 @@ class Flicker
     private float m_base = 0.0f;
     private float m_time = 0.0f;
 
-    Flicker(Entity@ entity) { @self = entity; }
+    Flicker(Entity entity) { self = entity; }
 
     void onStart()
     {

@@ -78,8 +78,8 @@ TEST_CASE("as.cook: an AngelScript behavior compile-checks, scans its on<Upper>(
     ScriptClassSource out;
     const bool ok = cook->Cook(u8"class Bouncer\n"
                                u8"{\n"
-                               u8"    private Entity@ self;\n"
-                               u8"    Bouncer(Entity@ e) { @self = e; }\n"
+                               u8"    private Entity self;\n"
+                               u8"    Bouncer(Entity e) { self = e; }\n"
                                u8"    void onStart() {}\n"
                                u8"    void onUpdate(double dt) {}\n"
                                u8"    void onHeal(double amount) {}\n"
@@ -137,10 +137,10 @@ TEST_CASE("as.cook: harvests [metadata] member fields of every supported type in
                                u8"    [7, \"hit points\"]         int     hp;\n"
                                u8"    [true]                     bool    active;\n"
                                u8"    [\"hello\", \"greeting\"]     string  greeting;\n"
-                               u8"    [(1, 0.5, 0.25, 1), \"tint\"] Color@  tint;\n"
-                               u8"    [(0, 1, 0)]                Float3@ dir;\n"
-                               u8"    [null, \"the target\"]       Entity@ target;\n"
-                               u8"    [\"asset:AudioClip\", \"sfx\"] Guid@   clip;\n"
+                               u8"    [(1, 0.5, 0.25, 1), \"tint\"] Color  tint;\n"
+                               u8"    [(0, 1, 0)]                Float3 dir;\n"
+                               u8"    [null, \"the target\"]       Entity target;\n"
+                               u8"    [\"asset:AudioClip\", \"sfx\"] Guid   clip;\n"
                                u8"    float                      noMeta;\n"
                                u8"    void onUpdate(double dt) {}\n"
                                u8"}\n",
@@ -211,7 +211,7 @@ TEST_CASE("as.cook: a metadata'd field of an unsupported type FAILS the cook")
     CookScriptErrorSink sink;
     ScriptClassSource out;
     // A Guid without the asset:<TypeName> tag is not a resolvable property type.
-    CHECK_FALSE(cook->Cook(u8"class Bad { [42] Guid@ mystery; void onUpdate(double dt) {} }\n",
+    CHECK_FALSE(cook->Cook(u8"class Bad { [42] Guid mystery; void onUpdate(double dt) {} }\n",
                            u8"bad.as", sink, out));
     // The reason reaches the sink, so script_validate (and the asset cook) can say why.
     REQUIRE(sink.errors.Size() == 1u);
@@ -261,36 +261,33 @@ TEST_CASE("as.cook: a `replicated` word marks a property; a stray word or a repl
     {
         CookScriptErrorSink sink;
         ScriptClassSource out;
-        CHECK_FALSE(cook->Cook(u8"class Guest { [null, replicated] Entity@ partner; void onUpdate(double dt) {} }\n",
+        CHECK_FALSE(cook->Cook(u8"class Guest { [null, replicated] Entity partner; void onUpdate(double dt) {} }\n",
                                u8"Guest.as", sink, out));
         REQUIRE(sink.errors.Size() == 1u);
         CHECK(sink.errors[0].message.AsView().ContainsIgnoreCase(u8"cannot be replicated"));
     }
 }
 
-// A reflected/resource property is a reference type; declared as a value member it silently
-// drops its value at runtime, so the cook rejects it and names the fix ("declare it 'Guid@ mesh'").
-// The idiomatic handle form cooks fine.
-TEST_CASE("as.cook: a reflected/resource property declared as a VALUE member FAILS the cook")
+// A plain type (Guid, Color, Entity) is a value in script: its property is a value member. One still
+// declared as a handle is a script written before the change, and the error says so.
+TEST_CASE("as.cook: a plain property is a value member; one declared as a handle fails, naming the change")
 {
     IScriptLanguageCook* cook = AngelScriptCook();
     REQUIRE(cook != nullptr);
+    {
+        CookScriptErrorSink sink;
+        ScriptClassSource out;
+        CHECK(cook->Cook(u8"class Good { [\"asset:Mesh\"] Guid mesh; [(1,1,1,1)] Color tint; [null] Entity target;\n"
+                         u8"  void onUpdate(double dt){} }\n",
+                         u8"good.as", sink, out));
+        CHECK(out.properties.Size() == 3u);
+    }
     CookScriptErrorSink sink;
     ScriptClassSource out;
-    // asset:Mesh on a value Guid (no @): a reference type the runtime can't fill, so rejected.
-    CHECK_FALSE(cook->Cook(u8"class B1 { [\"asset:Mesh\"] Guid mesh; void onUpdate(double dt){} }\n",
-                           u8"b1.as", sink, out));
-    // A value Color / Entity member is equally rejected.
-    CHECK_FALSE(cook->Cook(u8"class B2 { [(1,1,1,1)] Color tint; void onUpdate(double dt){} }\n",
-                           u8"b2.as", sink, out));
-    CHECK_FALSE(cook->Cook(u8"class B3 { [null] Entity target; void onUpdate(double dt){} }\n",
-                           u8"b3.as", sink, out));
-    // Each refusal reached the sink with its fix.
-    REQUIRE(sink.errors.Size() == 3u);
-    CHECK(sink.errors[0].message.AsView().ContainsIgnoreCase(u8"declare it 'Guid@ mesh'"));
-    // The idiomatic handle form cooks clean.
-    CHECK(cook->Cook(u8"class Good { [\"asset:Mesh\"] Guid@ mesh; void onUpdate(double dt){} }\n",
-                     u8"good.as", sink, out));
+    CHECK_FALSE(cook->Cook(u8"class Old { [(1,1,1,1)] Color@ tint; void onUpdate(double dt){} }\n",
+                           u8"old.as", sink, out));
+    REQUIRE_FALSE(sink.errors.IsEmpty());
+    CHECK(sink.errors[0].message.AsView().ContainsIgnoreCase(u8"not 'Color@ tint'"));
 }
 
 TEST_CASE("as.cook: the starter template itself compiles clean")
@@ -390,7 +387,7 @@ TEST_CASE("as.cook: with the full engine surface registered, a Game using run:: 
 
 // The PaperKid driving-slice behaviors (Sources/Bike.as, Sources/FollowCamera.as) cook against the
 // full engine surface: Bike drives a CharacterComponent from the Input axis and the reflected
-// Quaternion/Math ops; FollowCamera targets another entity through an [null] Entity@ picker property
+// Quaternion/Math ops; FollowCamera targets another entity through an [null] Entity picker property
 // and aims with atan2/asin. Kept faithful to the sample scripts so a facade/spelling regression that
 // would break the game at live-validation is caught here at build time.
 TEST_CASE("as.cook: the PaperKid Bike behavior cooks with tunable properties")
@@ -404,7 +401,7 @@ TEST_CASE("as.cook: the PaperKid Bike behavior cooks with tunable properties")
     const bool ok = cook->Cook(
         u8"class Bike\n"
         u8"{\n"
-        u8"    private Entity@ self;\n"
+        u8"    private Entity self;\n"
         u8"    [9.0, \"Top forward speed (m/s)\"]           float maxSpeed;\n"
         u8"    [3.5, \"Top reverse speed (m/s)\"]           float reverseSpeed;\n"
         u8"    [14.0, \"Throttle ramp (m/s^2)\"]            float acceleration;\n"
@@ -414,7 +411,7 @@ TEST_CASE("as.cook: the PaperKid Bike behavior cooks with tunable properties")
         u8"    [0.25, \"Steering authority floor (0..1)\"]  float minSteerFraction;\n"
         u8"    private float m_heading = 0.0f;\n"
         u8"    private float m_speed = 0.0f;\n"
-        u8"    Bike(Entity@ entity) { @self = entity; }\n"
+        u8"    Bike(Entity entity) { self = entity; }\n"
         u8"    void onUpdate(double dt)\n"
         u8"    {\n"
         u8"        float d = float(dt);\n"
@@ -446,7 +443,7 @@ TEST_CASE("as.cook: the PaperKid Bike behavior cooks with tunable properties")
     CHECK(FindProp(out, u8"m_heading") == nullptr);
 }
 
-TEST_CASE("as.cook: the PaperKid FollowCamera behavior cooks with an Entity@ target picker")
+TEST_CASE("as.cook: the PaperKid FollowCamera behavior cooks with an Entity target picker")
 {
     engine::RegisterAllScriptFacades();
     IScriptLanguageCook* cook = AngelScriptCook();
@@ -457,17 +454,17 @@ TEST_CASE("as.cook: the PaperKid FollowCamera behavior cooks with an Entity@ tar
     const bool ok = cook->Cook(
         u8"class FollowCamera\n"
         u8"{\n"
-        u8"    private Entity@ self;\n"
-        u8"    [null, \"The entity to follow (the bike)\"] Entity@ target;\n"
+        u8"    private Entity self;\n"
+        u8"    [null, \"The entity to follow (the bike)\"] Entity target;\n"
         u8"    [7.0, \"Distance behind the target (m)\"]   float distance;\n"
         u8"    [3.5, \"Height above the target (m)\"]      float height;\n"
         u8"    [1.0, \"Aim this far above the target (m)\"] float lookHeight;\n"
         u8"    [4.0, \"Position spring rate\"]             float positionSmoothing;\n"
-        u8"    FollowCamera(Entity@ entity) { @self = entity; }\n"
+        u8"    FollowCamera(Entity entity) { self = entity; }\n"
         u8"    void onUpdate(double dt)\n"
         u8"    {\n"
         u8"        float d = float(dt);\n"
-        u8"        if (d <= 0.0f || target is null || !target.isValid()) { return; }\n"
+        u8"        if (d <= 0.0f || !target.isValid()) { return; }\n"
         u8"        Float3 targetPos = target.worldPosition();\n"
         u8"        Float3 camPos = self.position();\n"
         u8"        Float3 desired = Float3(targetPos.x, targetPos.y + height, targetPos.z - distance);\n"

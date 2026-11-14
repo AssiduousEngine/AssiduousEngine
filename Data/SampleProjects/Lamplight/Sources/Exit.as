@@ -2,15 +2,15 @@
 // game script (Lamplight.as) ends the level if he carries the target, or tells him to find it.
 class Exit
 {
-    private Entity@ self;
+    private Entity self;
 
-    [null, "The thief"] Entity@ thief;
+    [null, "The thief"] Entity thief;
 
-    Exit(Entity@ entity) { @self = entity; }
+    Exit(Entity entity) { self = entity; }
 
-    void onTriggerEnter(Entity@ other)
+    void onTriggerEnter(Entity other)
     {
-        if (thief is null || other is null || !other.isValid() || other.id() != thief.id())
+        if (!thief.isValid() || !other.isValid() || other.id() != thief.id())
         {
             return;
         }

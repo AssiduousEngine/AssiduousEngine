@@ -3,9 +3,9 @@
 // direction along the ground from the rider back to the camera already points the right way.
 class FollowCamera
 {
-    private Entity@ self;
+    private Entity self;
 
-    [null, "The entity to follow (the rider)"] Entity@ target;
+    [null, "The entity to follow (the rider)"] Entity target;
     [8.0, "Distance behind the target (m)"] float distance;
     [3.4, "Height above the target (m)"] float height;
     [1.2, "Aim this far above the target (m)"] float lookHeight;
@@ -20,7 +20,7 @@ class FollowCamera
     private float m_shake = 0.0f;
     private bool m_reseat = false; // a new run began, so seat behind the rider again on the next update
 
-    FollowCamera(Entity@ entity) { @self = entity; }
+    FollowCamera(Entity entity) { self = entity; }
 
     void onStart()
     {
@@ -40,7 +40,7 @@ class FollowCamera
     // left it.
     private void seatBehind()
     {
-        if (target is null || !target.isValid())
+        if (!target.isValid())
         {
             return;
         }
@@ -60,7 +60,7 @@ class FollowCamera
     void onUpdate(double dt)
     {
         float d = float(dt);
-        if (d <= 0.0f || target is null || !target.isValid())
+        if (d <= 0.0f || !target.isValid())
         {
             return;
         }

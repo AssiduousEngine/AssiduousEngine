@@ -3,9 +3,9 @@
 // direction along the ground from the bike back to the camera already points the right way.
 class FollowCamera
 {
-    private Entity@ self;
+    private Entity self;
 
-    [null, "The entity to follow (the bike)"] Entity@ target;
+    [null, "The entity to follow (the bike)"] Entity target;
     [8.0, "Distance behind the target (m)"] float distance;
     [3.4, "Height above the target (m)"] float height;
     [1.2, "Aim this far above the target (m)"] float lookHeight;
@@ -18,11 +18,11 @@ class FollowCamera
     private Float3 m_base = Float3(0.0f, 0.0f, 0.0f);
     private float m_shake = 0.0f;
 
-    FollowCamera(Entity@ entity) { @self = entity; }
+    FollowCamera(Entity entity) { self = entity; }
 
     void onStart()
     {
-        if (target is null || !target.isValid())
+        if (!target.isValid())
         {
             return;
         }
@@ -43,7 +43,7 @@ class FollowCamera
     void onUpdate(double dt)
     {
         float d = float(dt);
-        if (d <= 0.0f || target is null || !target.isValid())
+        if (d <= 0.0f || !target.isValid())
         {
             return;
         }

@@ -6,23 +6,23 @@
 
 class Finish
 {
-    private Entity@ self;
+    private Entity self;
 
     [0.0, "The course's heading at the finish (radians; 0 runs toward +Z)"] float heading;
     [50.0, "A gold medal's time, penalties included (s)"] float gold;
     [56.0, "A silver medal's time (s)"] float silver;
     [64.0, "A bronze medal's time (s)"] float bronze;
 
-    private Entity@ m_rider;
+    private Entity m_rider;
     private bool m_crossed = false;
     private bool m_seen = false;
     private float m_lastAlong = 0.0f;
 
-    Finish(Entity@ entity) { @self = entity; }
+    Finish(Entity entity) { self = entity; }
 
     void onStart()
     {
-        @m_rider = self.scene.find("Rider");
+        m_rider = self.scene.find("Rider");
         self.scene.events.emit("MedalGold", int(gold * 100.0f + 0.5f));
         self.scene.events.emit("MedalSilver", int(silver * 100.0f + 0.5f));
         self.scene.events.emit("MedalBronze", int(bronze * 100.0f + 0.5f));
@@ -30,7 +30,7 @@ class Finish
 
     void onUpdate(double dt)
     {
-        if (m_crossed || m_rider is null || !m_rider.isValid())
+        if (m_crossed || !m_rider.isValid())
         {
             return;
         }

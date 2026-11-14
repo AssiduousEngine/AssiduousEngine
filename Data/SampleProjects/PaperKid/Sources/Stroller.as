@@ -8,20 +8,20 @@
 
 class Stroller
 {
-    private Entity@ self;
+    private Entity self;
 
     [-30.0, "Where each crossing starts (m along X)"] float xFrom;
     [30.0, "Where each crossing ends (m along X)"] float xTo;
     [1.4, "Speed (m/s)"] float speed;
     [6.0, "Longest pause between crossings (s)"] float pause;
-    ["asset:AnimationClip", "The model's walk clip, if it walks"] Guid@ walkClip;
+    ["asset:AnimationClip", "The model's walk clip, if it walks"] Guid walkClip;
     [1.3, "Metres the walk clip covers at speed 1"] float walkMetres;
 
     private float m_x = 0.0f;
     private float m_wait = 0.0f;
-    private Entity@ m_model;
+    private Entity m_model;
 
-    Stroller(Entity@ entity) { @self = entity; }
+    Stroller(Entity entity) { self = entity; }
 
     void onStart()
     {
@@ -30,8 +30,8 @@ class Stroller
         float heading = (xTo > xFrom) ? 90.0f : -90.0f;
         self.setRotationEuler(0.0f, heading, 0.0f);
         place();
-        @m_model = self.firstChild();
-        if (m_model !is null && m_model.isValid() && walkClip !is null && !walkClip.IsNil())
+        m_model = self.firstChild();
+        if (m_model.isValid() && !walkClip.IsNil())
         {
             SceneAnimation anim = self.scene.animation;
             anim.setClip(m_model, walkClip);

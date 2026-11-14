@@ -173,9 +173,9 @@ TEST_CASE("engine-gui-script: AngelScript reaches a canvas's, a billboard's and 
     scripts->SetErrorHandler(&errors);
     scripts->SetServiceResolver(script::IScriptContext::ServiceResolver{
         [&bed](TypeId type) { return bed.context.FindService(type); }});
-    const Status loaded = scripts->Load(StringView(u8"Node@ canvas(Entity@ e) { return GuiCanvasComponent::of(e).root(); }\n"
-                                                   u8"Node@ board(Entity@ e) { return GuiBillboardComponent::of(e).root(); }\n"
-                                                   u8"Node@ panel(Entity@ e) { return GuiWorldPanelComponent::of(e).root(); }\n"),
+    const Status loaded = scripts->Load(StringView(u8"Node@ canvas(Entity e) { return GuiCanvasComponent::of(e).root(); }\n"
+                                                   u8"Node@ board(Entity e) { return GuiBillboardComponent::of(e).root(); }\n"
+                                                   u8"Node@ panel(Entity e) { return GuiWorldPanelComponent::of(e).root(); }\n"),
                                         u8"main");
     INFO(doctest::String(reinterpret_cast<const char*>(errors.last.CStr())));
     CHECK(loaded.IsOk());

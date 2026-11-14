@@ -15,7 +15,7 @@ Guid kDanceMusic = Guid("b4c895e7-ec44-4f83-86c2-4af3dc963fb8");
 
 class Orchestra
 {
-    private Entity@ self;
+    private Entity self;
 
     [40.0, "Seconds of strolling"] float strollSeconds;
     [20.0, "Seconds of gathering to talk"] float gatherSeconds;
@@ -26,7 +26,7 @@ class Orchestra
     private int m_told = -1;
     private int m_step = 0;
 
-    Orchestra(Entity@ entity) { @self = entity; }
+    Orchestra(Entity entity) { self = entity; }
 
     void onStart()
     {

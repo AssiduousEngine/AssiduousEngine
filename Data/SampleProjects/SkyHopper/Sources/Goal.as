@@ -4,23 +4,23 @@ Guid kConfetti = Guid("b9828141-6700-49dd-bb97-1947a7ce2d82");
 
 class Goal
 {
-    private Entity@ self;
+    private Entity self;
 
     [1.8, "Reach from the flag's base to the player's centre (m)"] float radius;
 
-    private Entity@ m_player;
+    private Entity m_player;
     private bool m_reached = false;
 
-    Goal(Entity@ entity) { @self = entity; }
+    Goal(Entity entity) { self = entity; }
 
     void onStart()
     {
-        @m_player = self.scene.find("Player");
+        m_player = self.scene.find("Player");
     }
 
     void onUpdate(double dt)
     {
-        if (m_reached || m_player is null || !m_player.isValid())
+        if (m_reached || !m_player.isValid())
         {
             return;
         }

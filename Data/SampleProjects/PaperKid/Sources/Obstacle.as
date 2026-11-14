@@ -3,19 +3,19 @@
 // can be hit again, so one bump counts as one crash.
 class Obstacle
 {
-    private Entity@ self;
+    private Entity self;
 
     [1.0, "Reach from this entity's origin to the bike's centre (m)"] float radius;
     [2.0, "Seconds before this obstacle can be hit again"] float cooldown;
 
-    private Entity@ m_bike;
+    private Entity m_bike;
     private float m_wait = 0.0f;
 
-    Obstacle(Entity@ entity) { @self = entity; }
+    Obstacle(Entity entity) { self = entity; }
 
     void onStart()
     {
-        @m_bike = self.scene.find("Bike");
+        m_bike = self.scene.find("Bike");
     }
 
     void onUpdate(double dt)
@@ -25,7 +25,7 @@ class Obstacle
             m_wait -= float(dt);
             return;
         }
-        if (m_bike is null || !m_bike.isValid())
+        if (!m_bike.isValid())
         {
             return;
         }

@@ -455,7 +455,7 @@ TEST_CASE("angelscript: a facade Array<T> return crosses as a native array<T> (n
                                     u8"  Bag b;\n"
                                     u8"  array<int>@ ns = b.numbers();\n"
                                     u8"  N = ns.length() + ns[0] + ns[1] + ns[2];\n" // 3 + 60 = 63
-                                    u8"  array<Room@>@ rs = b.rooms();\n"
+                                    u8"  array<Room>@ rs = b.rooms();\n"
                                     u8"  R = rs.length() + rs[0].size + rs[1].size;\n" // 2 + 7 = 9
                                     u8"  E = b.empty().length();\n"                    // 0
                                     u8"  array<string>@ ss = b.names();\n"
@@ -495,25 +495,29 @@ TEST_CASE("angelscript: a script array crosses into a facade Array<T> parameter"
     CHECK(scriptContext->GetGlobal(u8"D").Get<f64>() == doctest::Approx(6.0)); // the script's own array unchanged
 }
 
-TEST_CASE("angelscript: a nested-value member is a borrow handle edited in place (unit 2b)")
+TEST_CASE("angelscript: a nested plain member reads as a copy and is written whole")
 {
+    // A plain struct is a value in script, as a C# struct is: reading the member copies it.
     RefPtr<IScriptManager> manager = angelscript::CreateScriptManager(foundation::core::DefaultAllocator());
     RegisterHouse(*manager);
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
 
-    const Status status = scriptContext->Load(u8"double S;\n"
+    const Status status = scriptContext->Load(u8"double S; double T;\n"
                                     u8"void main() {\n"
                                     u8"  House h;\n"
-                                    u8"  Room@ r = h.room;\n" // borrow over the House's Room subobject
+                                    u8"  Room r = h.room;\n" // a copy of the House's Room
                                     u8"  r.size = 7;\n"
-                                    u8"  S = h.room.size;\n" // re-fetched borrow sees the write
+                                    u8"  S = h.room.size;\n" // the house's own is untouched
+                                    u8"  h.room = r;\n"      // written whole
+                                    u8"  T = h.room.size;\n"
                                     u8"}\n",
                                     u8"main");
     REQUIRE(status.IsOk());
-    CHECK(scriptContext->GetGlobal(u8"S").Get<f64>() == 7.0);
+    CHECK(scriptContext->GetGlobal(u8"S").Get<f64>() == 0.0);
+    CHECK(scriptContext->GetGlobal(u8"T").Get<f64>() == 7.0);
 }
 
-TEST_CASE("angelscript: a value property is written whole or field by field; a copy out of it stays apart")
+TEST_CASE("angelscript: a value property is written whole; a field write through it is refused; a copy out of it stays apart")
 {
     RefPtr<IScriptManager> manager = angelscript::CreateScriptManager(foundation::core::DefaultAllocator());
     RegisterHouse(*manager);
@@ -524,31 +528,34 @@ TEST_CASE("angelscript: a value property is written whole or field by field; a c
                                     u8"  Room fresh; fresh.size = 4;\n"
                                     u8"  h.spare = fresh;\n"        // a plain value property, whole
                                     u8"  A = h.spare.size;\n"
-                                    u8"  h.spare.size = 9;\n"       // a field of it
                                     u8"  B = h.spare.size;\n"
                                     u8"  Room saved = h.spare;\n"   // a copy, not a view
-                                    u8"  h.spare.size = 1;\n"
+                                    u8"  fresh.size = 1; h.spare = fresh;\n"
                                     u8"  C = saved.size;\n"
                                     u8"  h.room = fresh;\n"         // a nested member, whole
                                     u8"  D = h.room.size;\n"
                                     u8"  House g;\n"
-                                    u8"  g.spare.size = 6;\n"
+                                    u8"  fresh.size = 6; g.spare = fresh;\n"
                                     u8"  h.spare = g.spare;\n"      // one member from another
                                     u8"  E = h.spare.size;\n"
-                                    u8"  g.spare.size = 2;\n"
+                                    u8"  fresh.size = 2; g.spare = fresh;\n"
                                     u8"  F = h.spare.size;\n"       // still its own
                                     u8"}\n",
                                     u8"main");
     REQUIRE(status.IsOk());
     CHECK(scriptContext->GetGlobal(u8"A").Get<f64>() == 4.0);
-    CHECK(scriptContext->GetGlobal(u8"B").Get<f64>() == 9.0);
-    CHECK(scriptContext->GetGlobal(u8"C").Get<f64>() == 9.0);
-    CHECK(scriptContext->GetGlobal(u8"D").Get<f64>() == 4.0);
+    CHECK(scriptContext->GetGlobal(u8"B").Get<f64>() == 4.0);
+    CHECK(scriptContext->GetGlobal(u8"C").Get<f64>() == 4.0);
+    CHECK(scriptContext->GetGlobal(u8"D").Get<f64>() == 1.0);
     CHECK(scriptContext->GetGlobal(u8"E").Get<f64>() == 6.0);
     CHECK(scriptContext->GetGlobal(u8"F").Get<f64>() == 6.0);
+
+    // A field written through a property read would change a temporary, so it is refused, as C#
+    // refuses it: copy, change, write back.
+    CHECK_FALSE(scriptContext->Load(u8"void main() { House h; h.spare.size = 9; }\n", u8"field").IsOk());
 }
 
-TEST_CASE("angelscript: a UniquePtr (non-Object) container element is a borrow handle (unit 2b)")
+TEST_CASE("angelscript: a plain container element is reached in place by reference; a variable copies it")
 {
     RefPtr<IScriptManager> manager = angelscript::CreateScriptManager(foundation::core::DefaultAllocator());
     RegisterHouse(*manager);
@@ -557,9 +564,10 @@ TEST_CASE("angelscript: a UniquePtr (non-Object) container element is a borrow h
     const Status status = scriptContext->Load(u8"double C; double Z;\n"
                                     u8"void main() {\n"
                                     u8"  Shelf s;\n"
-                                    u8"  Room@ room = s.rooms_add();\n" // default-constructs and borrows
-                                    u8"  room.size = 42;\n"
+                                    u8"  s.rooms_add().size = 42;\n" // default-constructs, written in place
                                     u8"  C = s.rooms_count();\n"
+                                    u8"  Room copy = s.rooms_at(0);\n" // a variable copies the element
+                                    u8"  copy.size = 1;\n"
                                     u8"  Z = s.rooms_at(0).size;\n"
                                     u8"}\n",
                                     u8"main");
@@ -715,8 +723,8 @@ TEST_CASE("angelscript: Guids compare with == and !=")
     CHECK(scriptContext->GetGlobal(u8"NilSame").Get<bool>());
 }
 
-// A reflected-type field reads back whether it is a plain member (the object itself) or a handle,
-// and so does a plain global, so a playtest can probe a game script's Guid field.
+// A plain reflected-type field reads back as its value, and so does a plain global, so a playtest
+// can probe a game script's Guid field.
 TEST_CASE("angelscript: plain reflected-type members and globals read back as their values")
 {
     RegisterCoreTypes();
@@ -728,8 +736,8 @@ TEST_CASE("angelscript: plain reflected-type members and globals read back as th
                       u8"class Holder {\n"
                       u8"  Guid track;\n"
                       u8"  Float3 where;\n"
-                      u8"  Guid@ held;\n"
-                      u8"  Holder() { track = kTrack; where = Float3(1, 2, 3); @held = Guid(\"0758e8d2-c6cd-47a7-bce6-9728a9501018\"); }\n"
+                      u8"  Guid held;\n"
+                      u8"  Holder() { track = kTrack; where = Float3(1, 2, 3); held = Guid(\"0758e8d2-c6cd-47a7-bce6-9728a9501018\"); }\n"
                       u8"}\n",
                       u8"main")
                 .IsOk());
@@ -1083,7 +1091,7 @@ TEST_CASE("angelscript: reflected value types are usable from script (construct 
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
 
     // Construct a reflected Float3, read and write its properties.
-    const Status status = scriptContext->Load(u8"Float3@ v = Float3(1, 2, 3);\n"
+    const Status status = scriptContext->Load(u8"Float3 v = Float3(1, 2, 3);\n"
                                     u8"double X = 0;\n"
                                     u8"double Z = 0;\n"
                                     u8"double X2 = 0;\n"
@@ -1109,8 +1117,8 @@ TEST_CASE("angelscript: call reflected methods (static, instance, struct return,
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
 
     // Static method (namespace emission): Float3::Dot(a, b) with object args.
-    REQUIRE(scriptContext->Load(u8"Float3@ a = Float3(1, 2, 3);\n"
-                      u8"Float3@ b = Float3(4, 5, 6);\n"
+    REQUIRE(scriptContext->Load(u8"Float3 a = Float3(1, 2, 3);\n"
+                      u8"Float3 b = Float3(4, 5, 6);\n"
                       u8"double D = 0;\n"
                       u8"void main() { D = Float3::Dot(a, b); }\n",
                       u8"main")
@@ -1118,10 +1126,10 @@ TEST_CASE("angelscript: call reflected methods (static, instance, struct return,
     CHECK(scriptContext->GetGlobal(u8"D").Get<f64>() == 32.0);
 
     // Instance method returning a struct (Float4.XYZ() returns a Float3), then read it.
-    REQUIRE(scriptContext->Load(u8"Float4@ v4 = Float4(7, 8, 9, 10);\n"
+    REQUIRE(scriptContext->Load(u8"Float4 v4 = Float4(7, 8, 9, 10);\n"
                       u8"double XX = 0;\n"
                       u8"double ZZ = 0;\n"
-                      u8"void main() { Float3@ xyz = v4.XYZ(); XX = xyz.x; ZZ = xyz.z; }\n",
+                      u8"void main() { Float3 xyz = v4.XYZ(); XX = xyz.x; ZZ = xyz.z; }\n",
                       u8"main")
                 .IsOk());
     CHECK(scriptContext->GetGlobal(u8"XX").Get<f64>() == 7.0);
@@ -1129,7 +1137,7 @@ TEST_CASE("angelscript: call reflected methods (static, instance, struct return,
 
     // Instance method taking an object arg, returning bool; constructed from
     // object args too (AABB(Float3, Float3)).
-    REQUIRE(scriptContext->Load(u8"AABB@ box = AABB(Float3(0, 0, 0), Float3(10, 10, 10));\n"
+    REQUIRE(scriptContext->Load(u8"AABB box = AABB(Float3(0, 0, 0), Float3(10, 10, 10));\n"
                       u8"bool inside = false;\n"
                       u8"bool outside = true;\n"
                       u8"void main() {\n"
@@ -1151,13 +1159,13 @@ TEST_CASE("angelscript: same-arity type overloads carry distinct script names (o
 
     // Same-arity type overloads carry distinct script names (overloadedName): Mul
     // (Float3, Float3) componentwise and MulScalar (Float3, float) scale, both bound.
-    REQUIRE(scriptContext->Load(u8"Float3@ p = Float3(2, 3, 4);\n"
+    REQUIRE(scriptContext->Load(u8"Float3 p = Float3(2, 3, 4);\n"
                       u8"double CX = 0;\n"
                       u8"double CZ = 0;\n"
                       u8"double SX = 0;\n"
                       u8"void main() {\n"
-                      u8"  Float3@ comp = Float3::Mul(p, Float3(1, 2, 3));\n" // -> (2, 6, 12)
-                      u8"  Float3@ scaled = Float3::MulScalar(p, 2.0f);\n"     // -> (4, 6, 8)
+                      u8"  Float3 comp = Float3::Mul(p, Float3(1, 2, 3));\n" // -> (2, 6, 12)
+                      u8"  Float3 scaled = Float3::MulScalar(p, 2.0f);\n"     // -> (4, 6, 8)
                       u8"  CX = comp.x;\n"
                       u8"  CZ = comp.z;\n"
                       u8"  SX = scaled.x;\n"
@@ -1184,11 +1192,11 @@ TEST_CASE("angelscript: reflected math ops (Math statics, Float3/Quaternion vect
                       u8"  R = Math::Sqrt(16.0f);\n"                                // -> 4
                       u8"  K = Math::Clamp(5.0f, 0.0f, 1.0f) + Math::Min(2.0f, -3.0f) * 10.0f +\n"
                       u8"      Math::Max(2.0f, -3.0f) * 100.0f;\n"                      // -> 1 - 30 + 200
-                      u8"  Float3@ c = Float3::Cross(Float3(1, 0, 0), Float3(0, 1, 0));\n" // -> +Z
+                      u8"  Float3 c = Float3::Cross(Float3(1, 0, 0), Float3(0, 1, 0));\n" // -> +Z
                       u8"  CZ = c.z;\n"
                       // 90 degrees about +Y rotates +Z to +X.
-                      u8"  Quaternion@ q = Quaternion::FromAxisAngle(Float3(0, 1, 0), 1.5707963f);\n"
-                      u8"  Float3@ rv = Quaternion::RotateVector(q, Float3(0, 0, 1));\n"
+                      u8"  Quaternion q = Quaternion::FromAxisAngle(Float3(0, 1, 0), 1.5707963f);\n"
+                      u8"  Float3 rv = Quaternion::RotateVector(q, Float3(0, 0, 1));\n"
                       u8"  RX = rv.x;\n"
                       u8"}\n",
                       u8"main")
@@ -1300,7 +1308,7 @@ TEST_CASE("angelscript: a default-constructed reflected type")
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
 
     // Guid has a default ctor and (u64, u64); its props surface as doubles.
-    REQUIRE(scriptContext->Load(u8"Guid@ g = Guid(7, 42);\n"
+    REQUIRE(scriptContext->Load(u8"Guid g = Guid(7, 42);\n"
                       u8"double Hi = 0;\n"
                       u8"double Lo = 0;\n"
                       u8"void main() { Hi = double(g.high); Lo = double(g.low); }\n",
@@ -1534,8 +1542,8 @@ TEST_CASE("angelscript: CERTIFIED - the backend conformance battery")
         u8"Crate@ crate = Crate();\n"
         u8"double KN = 0; double KZ = 0; double KM = 0; double KR = 0; double KL = 0;\n"
         u8"void main() {\n"
-        u8"  CrateItem@ a = crate.items_add(); a.size = 5;\n"
-        u8"  CrateItem@ b = crate.items_add(); b.size = 9;\n"
+        u8"  crate.items_add().size = 5;\n" // an element is reached in place, through a reference
+        u8"  crate.items_add().size = 9;\n"
         u8"  KN = crate.items_count();\n"
         u8"  KZ = crate.items_at(0).size;\n"
         u8"  crate.items_move(1, 0);\n"
@@ -1901,7 +1909,7 @@ TEST_CASE("angelscript: benchmark of the call path" * doctest::skip())
 {
     foundation::script::benchmark::Dialect dialect;
     dialect.languageId = u8"angelscript";
-    dialect.benchClass = u8"class Holder { Float3@ at; Holder@ self; }\n"
+    dialect.benchClass = u8"class Holder { Float3 at; Holder@ self; }\n"
                          u8"class Bench {\n"
                          u8"  double total = 0;\n"
                          u8"  void tick(double dt) { total += dt; }\n"
@@ -1919,7 +1927,7 @@ TEST_CASE("angelscript: benchmark of the call path" * doctest::skip())
                          u8"  void Sleeper() { wait(1000.0f); }\n"
                          u8"  void spawn(int n) { for (int i = 0; i < n; i++) startCoroutine(ScriptCoroutine(this.Sleeper)); }\n"
                          u8"  void churn(int n) {\n"
-                         u8"    for (int i = 0; i < n; i++) { Holder h; @h.self = h; @h.at = Float3(1, 2, 3); }\n"
+                         u8"    for (int i = 0; i < n; i++) { Holder h; @h.self = h; h.at = Float3(1, 2, 3); }\n"
                          u8"  }\n"
                          u8"}\n";
     foundation::script::benchmark::RunScriptBackendBenchmark(

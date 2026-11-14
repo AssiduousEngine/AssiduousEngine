@@ -35,7 +35,7 @@ Guid kFallSound = Guid("b002f30b-91a4-42a5-9ee7-34755d09b468");
 
 class PlayerController
 {
-    private Entity@ self;
+    private Entity self;
 
     [7.0, "Top run speed (m/s)"] float moveSpeed;
     [40.0, "Ground acceleration (m/s^2)"] float acceleration;
@@ -59,7 +59,7 @@ class PlayerController
     private float m_sinceJumpPressed = 1000.0f;
     private int m_anim = -1; // 0 idle, 1 run, 2 jump
     private Float3 m_spawn = Float3(0.0f, 0.0f, 0.0f);
-    private Entity@ m_model;
+    private Entity m_model;
     private int m_deaths = 0;
     /// Seconds left of the grace after a respawn, while a hazard still touching cannot hurt.
     private float m_invulnerable = 0.0f;
@@ -77,15 +77,15 @@ class PlayerController
     private bool m_safeChecked = false;
     /// The facing the player had on the safe ground, which a respawn gives back.
     private float m_spawnYaw = 0.0f;
-    private Entity@ m_camera;
+    private Entity m_camera;
 
-    PlayerController(Entity@ entity) { @self = entity; }
+    PlayerController(Entity entity) { self = entity; }
 
     void onStart()
     {
         m_spawn = self.worldPosition();
-        @m_model = self.firstChild();
-        @m_camera = self.scene.find("Camera");
+        m_model = self.firstChild();
+        m_camera = self.scene.find("Camera");
         playAnim(0);
     }
 
@@ -261,7 +261,7 @@ class PlayerController
 
     private void showModel(bool shown)
     {
-        if (m_model !is null && m_model.isValid() && m_model.active() != shown)
+        if (m_model.isValid() && m_model.active() != shown)
         {
             m_model.setActive(shown);
         }
@@ -301,9 +301,9 @@ class PlayerController
     // as ground.
     private bool groundAt(float x, float z, float feet)
     {
-        RayCastHit@ hit = self.scene.physics.rayCast(Float3(x, feet + 0.6f, z),
+        RayCastHit hit = self.scene.physics.rayCast(Float3(x, feet + 0.6f, z),
                                                                  Float3(0.0f, -1.0f, 0.0f), 1.2f);
-        return hit !is null && hit.hit && Math::Abs(hit.position.y - feet) < 0.08f;
+        return hit.hit && Math::Abs(hit.position.y - feet) < 0.08f;
     }
 
     private void dust()
@@ -313,7 +313,7 @@ class PlayerController
 
     private void shake(float strength)
     {
-        if (m_camera !is null && m_camera.isValid())
+        if (m_camera.isValid())
         {
             m_camera.send("Shake", strength);
         }
@@ -321,7 +321,7 @@ class PlayerController
 
     private void playAnim(int which)
     {
-        if (which == m_anim || m_model is null || !m_model.isValid())
+        if (which == m_anim || !m_model.isValid())
         {
             return;
         }

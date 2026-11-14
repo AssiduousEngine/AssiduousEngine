@@ -25,11 +25,13 @@
 module;
 #include "Core/Prelude.h"
 #include "Core/Log/Log.h"
+#include "Core/Debug/Assert.h"
 
 #include <angelscript.h>
 #include <scriptarray/scriptarray.h>
 #include <scriptstdstring/scriptstdstring.h>
 
+#include <cstring> // a script value's bytes, copied in and out
 #include <new>
 #include <string>
 
@@ -374,6 +376,52 @@ namespace foundation::script::angelscript
         }
     }
 
+    // A script value (IsScriptValue: a Float3, a Color, the script Entity) is held in AngelScript as
+    // its own bytes, asOBJ_VALUE | asOBJ_POD; every other reflected type crosses as a box (asOBJ_REF).
+
+    // A view of a script value's bytes as a Variant (a method's `self`), so a setter or a method
+    // edits the value in place. The context is the address.
+    struct InPlaceAt
+    {
+        void* address;
+    };
+    inline void* ResolveInPlace(const core::Variant& view)
+    {
+        InPlaceAt at;
+        std::memcpy(&at, view.ResolveContext(), sizeof(at));
+        return at.address;
+    }
+    [[nodiscard]] inline core::Variant InPlaceView(const core::TypeInfo& type, void* address)
+    {
+        return core::Variant::Resolving(&type, &ResolveInPlace, InPlaceAt{address});
+    }
+
+    // The address of the `type` value `value` holds, or of zeros when it holds none of that type:
+    // what a script value argument is copied from. Valid while `value` is.
+    inline void* ValueBytesOf(const core::TypeInfo& type, core::Variant& value)
+    {
+        alignas(16) static const unsigned char kZeros[256] = {};
+        DIAGNOSTIC_ASSERT(type.size <= sizeof(kZeros));
+        void* at = (value.Type() != nullptr && value.Type()->id == type.id) ? core::ToInstance(value).Pointer() : nullptr;
+        return at != nullptr ? at : const_cast<unsigned char*>(kZeros);
+    }
+
+    // The bytes of the `type` value `value` holds (owned, a view, or a handle over a member) written
+    // at `at`; zeros when it holds no value of that type.
+    inline void WriteValueBytes(const core::TypeInfo& type, void* at, const core::Variant& value)
+    {
+        core::Variant holder = value; // ToInstance needs a mutable lvalue
+        const core::Instance from = core::ToInstance(holder);
+        if (from.Pointer() != nullptr && holder.Type() != nullptr && holder.Type()->id == type.id)
+        {
+            std::memcpy(at, from.Pointer(), type.size);
+        }
+        else
+        {
+            std::memset(at, 0, type.size);
+        }
+    }
+
     class AngelScriptManager;
 
     // Auxiliary payload for every generic registration (AngelScript hands it back
@@ -383,6 +431,9 @@ namespace foundation::script::angelscript
         enum class Kind
         {
             Constructor,
+            // A script value's constructor (asBEHAVE_CONSTRUCT): made in place, at the object's
+            // address. `constructor` is null for the default one, which zero-fills.
+            ValueConstructor,
             PropertyGet,
             PropertySet,
             Method,
@@ -414,6 +465,7 @@ namespace foundation::script::angelscript
     };
 
     void FactoryDispatch(asIScriptGeneric* gen);
+    void ValueConstructDispatch(asIScriptGeneric* gen); // a script value made in place
     void ContainerDispatch(asIScriptGeneric* gen); // container-member ops (count/at/add/removeAt/move)
     void NestedGetDispatch(asIScriptGeneric* gen); // nested-value member getter, returns a borrow handle
     void AssignDispatch(asIScriptGeneric* gen); // value assignment (T& opAssign(const T&in))
@@ -863,6 +915,20 @@ namespace foundation::script::angelscript
         // could not express (and therefore did not register) is omitted, so the surface
         // matches what BindType actually bound, which is what the reflection diff needs to
         // catch a type that silently failed to bind.
+        // Whether `bound` has a member `name` registered as a real field (RegisterObjectProperty).
+        [[nodiscard]] static bool HasObjectProperty(const asITypeInfo& bound, const char* name)
+        {
+            for (asUINT i = 0; i < bound.GetPropertyCount(); ++i)
+            {
+                const char* candidate = nullptr;
+                if (bound.GetProperty(i, &candidate) >= 0 && candidate != nullptr && NameEq(candidate, name))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         [[nodiscard]] core::Array<ScriptApiType> DescribeBoundApi() const override
         {
             core::Array<ScriptApiType> result;
@@ -889,7 +955,9 @@ namespace foundation::script::angelscript
                     core::String getter;
                     AppendAscii(getter, "get_");
                     AppendAscii(getter, property.name);
-                    if (bound->GetMethodByName(CStr(getter)) == nullptr)
+                    // A script value's stored field is a real member (BindValueField), not an accessor.
+                    const bool field = HasObjectProperty(*bound, property.name);
+                    if (!field && bound->GetMethodByName(CStr(getter)) == nullptr)
                     {
                         continue;
                     }
@@ -898,7 +966,7 @@ namespace foundation::script::angelscript
                     AppendAscii(setter, property.name);
                     ScriptApiMember member;
                     member.name = core::String(ViewOfAscii(property.name));
-                    member.readOnly = bound->GetMethodByName(CStr(setter)) == nullptr;
+                    member.readOnly = !field && bound->GetMethodByName(CStr(setter)) == nullptr;
                     core::String signature(ViewOfAscii(scriptName));
                     AppendAscii(signature, ".");
                     AppendAscii(signature, property.name);
@@ -1263,6 +1331,10 @@ namespace foundation::script::angelscript
             {
                 return core::Variant::From<core::String>(StringFromStd(*static_cast<const std::string*>(addr)));
             }
+            if (const core::TypeInfo* valueType = TypeInfoForTypeId(typeId); IsScriptValue(valueType))
+            {
+                return core::Variant::CopyOf(*valueType, addr); // a script value: its bytes are at addr
+            }
             if ((typeId & asTYPEID_OBJHANDLE) != 0 && TypeInfoForTypeId(typeId) != nullptr)
             {
                 const BoxedVariant* box = *static_cast<const BoxedVariant* const*>(addr);
@@ -1377,6 +1449,14 @@ namespace foundation::script::angelscript
                 const std::string* s = static_cast<const std::string*>(gen->GetArgAddress(index));
                 return (s != nullptr) ? core::Variant::From<core::String>(StringFromStd(*s))
                                       : core::Variant{};
+            }
+            // A script value (`const Float3 &in`, or one passed to a `?&in` sink): a copy of its bytes.
+            if (const core::TypeInfo* valueType = TypeInfoForTypeId(typeId); IsScriptValue(valueType))
+            {
+                const void* at = ArgIsInReference(gen, index)
+                                     ? *static_cast<const void* const*>(gen->GetAddressOfArg(index))
+                                     : gen->GetArgObject(index);
+                return core::Variant::CopyOf(*valueType, at);
             }
             // A native enum argument: read its int32 value and carry it as an i64. Enums cross as
             // their underlying int, and the property setter or enum-arg path casts it to the enum.
@@ -1575,6 +1655,11 @@ namespace foundation::script::angelscript
                 new (gen->GetAddressOfReturnLocation()) std::string(StdFromVariantString(value));
                 return;
             }
+            if (const core::TypeInfo* valueType = TypeInfoForTypeId(typeId); IsScriptValue(valueType))
+            {
+                WriteValueBytes(*valueType, gen->GetAddressOfReturnLocation(), value); // returned by value
+                return;
+            }
             if ((typeId & asTYPEID_OBJHANDLE) != 0)
             {
                 // A facade returning an engine Array<T> arrives as a container Variant: render it as a
@@ -1645,6 +1730,10 @@ namespace foundation::script::angelscript
                     // A value-object `string` element: SetValue assign-copies from a source std::string.
                     std::string tmp = StdFromVariantString(elem);
                     arr->SetValue(static_cast<asUINT>(i), &tmp);
+                }
+                else if (const core::TypeInfo* valueType = TypeInfoForTypeId(subId); IsScriptValue(valueType))
+                {
+                    WriteValueBytes(*valueType, arr->At(static_cast<asUINT>(i)), elem); // held inline
                 }
                 else
                 {
@@ -1769,6 +1858,10 @@ namespace foundation::script::angelscript
                 return core::Variant::From<core::String>(
                     StringFromStd(*static_cast<const std::string*>(address)));
             }
+            if (const core::TypeInfo* valueType = TypeInfoForTypeId(typeId); IsScriptValue(valueType))
+            {
+                return core::Variant::CopyOf(*valueType, address); // a script value member: its bytes
+            }
             if ((typeId & asTYPEID_OBJHANDLE) != 0 && TypeInfoForTypeId(typeId) != nullptr)
             {
                 const BoxedVariant* box = *static_cast<const BoxedVariant* const*>(address);
@@ -1880,6 +1973,16 @@ namespace foundation::script::angelscript
             // member (`Type m`, OBJHANDLE clear) is owned by AngelScript, which lazily (re)constructs
             // it, so a native slot write does not survive to the first script access; we reject it
             // and the caller tells the author to use a handle (see SetMemberField).
+            // A script value member (`Color tint`): its bytes, written in place.
+            if (const core::TypeInfo* valueType = TypeInfoForTypeId(typeId); IsScriptValue(valueType))
+            {
+                if (value.Type() == nullptr || value.Type()->id != valueType->id)
+                {
+                    return false;
+                }
+                WriteValueBytes(*valueType, address, value);
+                return true;
+            }
             if ((typeId & asTYPEID_OBJHANDLE) != 0 && TypeInfoForTypeId(typeId) != nullptr)
             {
                 BoxedVariant** slot = static_cast<BoxedVariant**>(address);
@@ -2035,8 +2138,14 @@ namespace foundation::script::angelscript
                     (void)executor->SetArgObject(arg, &stringTemps[i]);
                     continue;
                 }
-                // A reflected value, to a handle parameter (`Float3@ at`) or a by-value one
-                // (`Float3 at`: AngelScript copies the box in).
+                // A script value parameter: AngelScript copies the bytes in (an empty value as zeros).
+                if (const core::TypeInfo* valueType = TypeInfoForTypeId(typeId); IsScriptValue(valueType))
+                {
+                    (void)executor->SetArgObject(arg, ValueBytesOf(*valueType, args[i]));
+                    continue;
+                }
+                // A reflected value, to a handle parameter (`Gadget@ at`) or a by-value one
+                // (AngelScript copies the box in).
                 if (const core::TypeInfo* reflected = TypeInfoForTypeId(typeId);
                     reflected != nullptr && reflected->enumeratorCount == 0 && !IsFuncdefTypeId(typeId) &&
                     !value.IsEmpty())
@@ -2308,7 +2417,7 @@ namespace foundation::script::angelscript
                 captured.section = core::String(ViewOfAscii(message->section));
                 captured.row = static_cast<core::i32>(message->row);
                 captured.column = message->col > 0 ? static_cast<core::i32>(message->col) : -1;
-                captured.text = core::String(ViewOfAscii(message->message));
+                captured.text = AngelScriptMessageText(ViewOfAscii(message->message));
                 captured.warning = message->type == asMSGTYPE_WARNING;
                 self->m_capturedMessages.PushBack(core::Move(captured));
                 return;
@@ -2382,7 +2491,7 @@ namespace foundation::script::angelscript
                 return true;
             }
             // A reflected container (Array<T>): the native array. The element reuses its own spelling
-            // (`Entity@`, `int`, `string` and so on). A return is `array<Elem>@` (a facade returning a
+            // (`Entity`, `Node@`, `int`, `string` and so on). A return is `array<Elem>@` (a facade returning a
             // set); a parameter is `const array<Elem> &in` (a script handing a facade a list, read
             // into an Array<Variant> by ValueFromArg).
             if (core::IsContainer(*type))
@@ -2407,6 +2516,20 @@ namespace foundation::script::angelscript
             if (!IsDeclared(type))
             {
                 return false;
+            }
+            // A script value: by value where it is returned or held, by reference where it is passed.
+            if (IsScriptValue(type))
+            {
+                if (isParam)
+                {
+                    AppendAscii(out, "const ");
+                }
+                AppendAscii(out, ScriptTypeName(*type));
+                if (isParam)
+                {
+                    AppendAscii(out, " &in");
+                }
+                return true;
             }
             AppendAscii(out, ScriptTypeName(*type)); // the alias (Type@ params, returns, members)
             AppendAscii(out, "@");
@@ -2441,7 +2564,13 @@ namespace foundation::script::angelscript
             {
                 return;
             }
-            const int typeId = m_engine->RegisterObjectType(scriptName, 0, asOBJ_REF);
+            // A script value is its own bytes (generic calls only, so the application flags only
+            // say it is a class); everything else is a box.
+            const asDWORD valueFlags = asOBJ_VALUE | asOBJ_POD | asOBJ_APP_CLASS |
+                                       (type.align >= 8 ? asOBJ_APP_CLASS_ALIGN8 : 0);
+            const int typeId = IsScriptValue(&type)
+                                   ? m_engine->RegisterObjectType(scriptName, static_cast<int>(type.size), valueFlags)
+                                   : m_engine->RegisterObjectType(scriptName, 0, asOBJ_REF);
             if (typeId < 0)
             {
                 LOG_DEBUG(u8"Script",
@@ -2530,6 +2659,12 @@ namespace foundation::script::angelscript
             const bool polymorphic = core::IsPolymorphicContainer(ci);
             core::String elemDecl;
             const bool elemSpellable = AppendDeclType(elemDecl, ci.elementType, /*isParam*/ false);
+            if (elemSpellable && IsScriptValue(ci.elementType))
+            {
+                // A script value element is reached in place, through a reference, as an element of a
+                // C# array is: `crate.items_at(0).size = 5` writes the element; a variable copies it.
+                AppendAscii(elemDecl, "&");
+            }
 
             auto reg = [&](const core::String& decl, Binding::Kind kind)
             {
@@ -2657,7 +2792,71 @@ namespace foundation::script::angelscript
             // Bind all members under the script-facing name (the scriptName alias when set). It has to
             // match the name DeclareType registered the object type under, or AngelScript cannot find it.
             const char* name = ScriptTypeName(type);
+            const bool scriptValue = IsScriptValue(&type);
+            core::Array<core::String> used; // exact-declaration dedupe
 
+            if (scriptValue)
+            {
+                BindValueConstructors(name, type, used);
+            }
+            else
+            {
+                BindBoxBehaviours(name, type, used);
+            }
+
+            // Properties become virtual property accessors (`v.x`, `v.x = 9`), the type's own and its
+            // bases' (a Button's `text` and its Node's `width`), as Luau's dispatch walks the chain.
+            BindProperties(name, type);
+            BindMethods(name, type, used, scriptValue);
+        }
+
+        // A script value's constructors, each made in place (asBEHAVE_CONSTRUCT), and a default one
+        // that zero-fills when the type reflects none without parameters. Its bytes copy it, so it
+        // has no reference count and no opAssign.
+        void BindValueConstructors(const char* name, const core::TypeInfo& type, core::Array<core::String>& used)
+        {
+            bool hasDefault = false;
+            for (core::usize i = 0; i < core::ConstructorCount(type); ++i)
+            {
+                const core::ConstructorInfo& constructor = core::ConstructorAt(type, i);
+                if (!FitsCall(name, "constructor", constructor.paramCount))
+                {
+                    continue;
+                }
+                core::String decl;
+                AppendAscii(decl, "void f(");
+                if (!AppendParams(decl, constructor.params, constructor.paramCount))
+                {
+                    continue;
+                }
+                AppendAscii(decl, ")");
+                if (IsUsed(used, decl))
+                {
+                    continue;
+                }
+                Binding* binding = MakeBinding(Binding{Binding::Kind::ValueConstructor, this, &type,
+                                                       &constructor, nullptr, nullptr});
+                if (m_engine->RegisterObjectBehaviour(name, asBEHAVE_CONSTRUCT, CStr(decl),
+                                                      asFUNCTION(ValueConstructDispatch), asCALL_GENERIC,
+                                                      binding) >= 0)
+                {
+                    hasDefault = hasDefault || constructor.paramCount == 0;
+                    used.PushBack(core::Move(decl));
+                }
+            }
+            if (!hasDefault)
+            {
+                Binding* binding =
+                    MakeBinding(Binding{Binding::Kind::ValueConstructor, this, &type, nullptr, nullptr, nullptr});
+                (void)m_engine->RegisterObjectBehaviour(name, asBEHAVE_CONSTRUCT, "void f()",
+                                                        asFUNCTION(ValueConstructDispatch), asCALL_GENERIC, binding);
+            }
+        }
+
+        // A box's reference count, its value assignment and its factories (one per reflected
+        // constructor).
+        void BindBoxBehaviours(const char* name, const core::TypeInfo& type, core::Array<core::String>& used)
+        {
             (void)m_engine->RegisterObjectBehaviour(name, asBEHAVE_ADDREF, "void f()",
                                                     asFUNCTION(AddRefDispatch), asCALL_GENERIC);
             (void)m_engine->RegisterObjectBehaviour(name, asBEHAVE_RELEASE, "void f()",
@@ -2674,8 +2873,6 @@ namespace foundation::script::angelscript
                 (void)m_engine->RegisterObjectMethod(name, CStr(decl), asFUNCTION(AssignDispatch),
                                                      asCALL_GENERIC);
             }
-
-            core::Array<core::String> used; // exact-declaration dedupe
 
             // Factories: one per reflected constructor (`builder.Constructor()` is
             // the contract's constructibility requirement).
@@ -2707,9 +2904,50 @@ namespace foundation::script::angelscript
                     used.PushBack(core::Move(decl));
                 }
             }
+        }
 
-            // Properties become virtual property accessors (`v.x`, `v.x = 9`), the type's own and its
-            // bases' (a Button's `text` and its Node's `width`), as Luau's dispatch walks the chain.
+        // A field of a script value (Float3's `x`) registered at its byte offset, as a real member: a
+        // read or a write is the script touching the bytes, with no call, and `p.x += 1` works, which
+        // AngelScript refuses through an accessor on a value. Only a stored field (its address is
+        // known) of a number, a bool or another script value, and not a read-only one.
+        bool BindValueField(const char* name, const core::TypeInfo& type, const core::PropertyInfo& property)
+        {
+            if (!IsScriptValue(&type) || property.address == nullptr || property.type == nullptr)
+            {
+                return false;
+            }
+            const bool readOnly = (static_cast<core::u32>(property.flags) &
+                                   static_cast<core::u32>(core::PropertyFlags::ReadOnly)) != 0;
+            // An enum keeps its accessor: AngelScript's enums are 32 bits, a C++ enum field may be fewer.
+            const bool fieldType = (PrimitiveDeclName(property.type) != nullptr && property.type != &core::TypeOf<core::String>()) ||
+                                   IsScriptValue(property.type);
+            if (readOnly || !fieldType)
+            {
+                return false;
+            }
+            alignas(16) unsigned char probe[512] = {};
+            if (type.size > sizeof(probe))
+            {
+                return false;
+            }
+            void* at = property.address(core::Instance(probe, &type));
+            const std::ptrdiff_t offset = static_cast<unsigned char*>(at) - probe;
+            if (at == nullptr || offset < 0 || static_cast<core::usize>(offset) + property.type->size > type.size)
+            {
+                return false;
+            }
+            core::String decl;
+            if (!AppendDeclType(decl, property.type, /*isParam*/ false))
+            {
+                return false;
+            }
+            AppendAscii(decl, " ");
+            AppendAscii(decl, property.name);
+            return m_engine->RegisterObjectProperty(name, CStr(decl), static_cast<int>(offset)) >= 0;
+        }
+
+        void BindProperties(const char* name, const core::TypeInfo& type)
+        {
             for (const core::PropertyInfo* inherited : ChainProperties(type))
             {
                 const core::PropertyInfo& property = *inherited;
@@ -2717,7 +2955,13 @@ namespace foundation::script::angelscript
                 {
                     continue;
                 }
-                if (core::IsNested(property))
+                if (BindValueField(name, type, property))
+                {
+                    continue;
+                }
+                // A nested member of a script value's type reads and writes as a copy, as any property
+                // of that type does.
+                if (core::IsNested(property) && !IsScriptValue(property.type))
                 {
                     // A container member binds as owner methods (count/at/add/removeAt/move); a plain
                     // nested value member binds as a getter returning a borrow handle (edited in place).
@@ -2764,7 +3008,11 @@ namespace foundation::script::angelscript
                         name, CStr(decl), asFUNCTION(PropertySetDispatch), asCALL_GENERIC, binding);
                 }
             }
+        }
 
+        void BindMethods(const char* name, const core::TypeInfo& type, core::Array<core::String>& used,
+                         bool scriptValue)
+        {
             // Methods. AngelScript overloads by full signature, so every reflected
             // overload registers distinctly (no arity collapsing).
             // Statics become global functions in a namespace named after the class,
@@ -2829,7 +3077,8 @@ namespace foundation::script::angelscript
                 }
                 RegisterOperator(name, type, method, used);
             }
-            // Every handle answers isValid(), unless the type reflects its own.
+            // Every handle answers isValid(), unless the type reflects its own; a value always is.
+            if (!scriptValue)
             {
                 core::String decl;
                 AppendAscii(decl, "bool isValid()");
@@ -3098,6 +3347,52 @@ namespace foundation::script::angelscript
         ReleaseBox(static_cast<BoxedVariant*>(gen->GetObject()));
     }
 
+    // The object a reflected member is called on, as a Variant: a box's value, or a script value's
+    // bytes viewed in place (held in `view`), so a setter or a method edits the value itself.
+    [[nodiscard]] inline core::Variant& SelfOf(asIScriptGeneric* gen, const core::TypeInfo* type, core::Variant& view)
+    {
+        if (IsScriptValue(type))
+        {
+            view = InPlaceView(*type, gen->GetObject());
+            return view;
+        }
+        return static_cast<BoxedVariant*>(gen->GetObject())->value;
+    }
+
+    // A script value made in place: its reflected constructor's result copied into the object's
+    // bytes, or zeros for the default one when the type reflects none.
+    void ValueConstructDispatch(asIScriptGeneric* gen)
+    {
+        const Binding* binding = static_cast<const Binding*>(gen->GetAuxiliary());
+        void* self = gen->GetObject();
+        if (binding->constructor == nullptr)
+        {
+            std::memset(self, 0, binding->type->size);
+            return;
+        }
+        const int argc = static_cast<int>(gen->GetArgCount());
+        core::Variant args[kMaxArgs];
+        for (int i = 0; i < argc && i < kMaxArgs; ++i)
+        {
+            const core::ParamInfo& param = binding->constructor->params[i];
+            args[i] = binding->manager->ValueFromArg(gen, static_cast<asUINT>(i),
+                                                     param.type != nullptr ? param.type() : nullptr);
+        }
+        ReleaseHandleArgs(gen, binding->manager);
+        core::Result<core::Variant> made =
+            binding->constructor->invoke(core::Span<core::Variant>{args, static_cast<core::usize>(argc)});
+        if (!made.HasValue())
+        {
+            std::memset(self, 0, binding->type->size);
+            if (asIScriptContext* active = asGetActiveContext())
+            {
+                active->SetException("reflected constructor failed");
+            }
+            return;
+        }
+        WriteValueBytes(*binding->type, self, made.Value());
+    }
+
     // A handle whose object is gone (an element destroyed, a component removed from its entity
     // after the script took the handle) resolves to nothing: the access is the script's error, said
     // where it happens, never a write through null. Luau says the same.
@@ -3136,29 +3431,39 @@ namespace foundation::script::angelscript
     void PropertyGetDispatch(asIScriptGeneric* gen)
     {
         const Binding* binding = static_cast<const Binding*>(gen->GetAuxiliary());
-        BoxedVariant* self = static_cast<BoxedVariant*>(gen->GetObject());
-        core::Instance instance = core::ToInstance(self->value);
+        core::Variant view;
+        core::Variant& self = SelfOf(gen, binding->type, view);
+        core::Instance instance = core::ToInstance(self);
         if (RefuseGone(instance))
         {
             return;
         }
-        // A value struct (a Color) comes back as a handle over the member, so `light.color = c` and
-        // `light.color.r = 0.5` write the light rather than a copy (core::PropertyHandle).
-        binding->manager->SetGenericReturn(gen, core::PropertyHandle(*binding->property, self->value));
+        // A handle over the member (core::PropertyHandle): a script value's bytes are copied out of
+        // it, so `light.color.r = 0.5` changes a copy, as with a C# struct; a box keeps the handle.
+        binding->manager->SetGenericReturn(gen, core::PropertyHandle(*binding->property, self));
     }
 
     void PropertySetDispatch(asIScriptGeneric* gen)
     {
         const Binding* binding = static_cast<const Binding*>(gen->GetAuxiliary());
-        BoxedVariant* self = static_cast<BoxedVariant*>(gen->GetObject());
-        core::Instance instance = core::ToInstance(self->value);
+        core::Variant view;
+        core::Variant& self = SelfOf(gen, binding->type, view);
+        core::Instance instance = core::ToInstance(self);
         const core::Variant value = binding->manager->ValueFromArg(gen, 0, binding->property->type);
         ReleaseHandleArgs(gen, binding->manager);
         if (RefuseGone(instance))
         {
             return;
         }
-        (void)core::SetProperty(*binding->property, instance, value);
+        if (!core::SetProperty(*binding->property, instance, value) && IsScriptValue(binding->property->type) &&
+            binding->property->address != nullptr)
+        {
+            // A nested member (no setter): its bytes written in place.
+            if (void* at = binding->property->address(instance))
+            {
+                WriteValueBytes(*binding->property->type, at, value);
+            }
+        }
     }
 
     // Resolve a polymorphic container's add-by-name to a concrete derived type: match the name
@@ -3207,14 +3512,31 @@ namespace foundation::script::angelscript
     void NestedGetDispatch(asIScriptGeneric* gen)
     {
         const Binding* binding = static_cast<const Binding*>(gen->GetAuxiliary());
-        BoxedVariant* self = static_cast<BoxedVariant*>(gen->GetObject());
-        core::Instance owner = core::ToInstance(self->value);
+        core::Variant view;
+        core::Variant& self = SelfOf(gen, binding->type, view);
+        core::Instance owner = core::ToInstance(self);
         void* addr =
             (owner.Pointer() != nullptr) ? binding->property->address(owner) : nullptr;
         binding->manager->SetGenericReturn(
             gen, addr != nullptr
-                     ? core::Variant::Borrow(addr, binding->property->type, self->value)
+                     ? core::Variant::Borrow(addr, binding->property->type, self)
                      : core::Variant{});
+    }
+
+    // A reference to a script value element, edited in place; one out of range is the script's error.
+    void ReturnElementReference(asIScriptGeneric* gen, const core::ContainerInfo& ci,
+                                const core::Instance& container, core::usize index)
+    {
+        void* at = index < core::ContainerSize(ci, container) ? core::ContainerAddressAt(ci, container, index).Pointer()
+                                                              : nullptr;
+        if (at == nullptr)
+        {
+            if (asIScriptContext* active = asGetActiveContext())
+            {
+                active->SetException("index out of range");
+            }
+        }
+        gen->SetReturnAddress(at);
     }
 
     // One dispatcher for every container op; the Binding::Kind selects which. The owner is `self`,
@@ -3223,8 +3545,9 @@ namespace foundation::script::angelscript
     void ContainerDispatch(asIScriptGeneric* gen)
     {
         const Binding* binding = static_cast<const Binding*>(gen->GetAuxiliary());
-        BoxedVariant* self = static_cast<BoxedVariant*>(gen->GetObject());
-        core::Instance owner = core::ToInstance(self->value);
+        core::Variant view;
+        core::Variant& self = SelfOf(gen, binding->type, view);
+        core::Instance owner = core::ToInstance(self);
         if (RefuseGone(owner))
         {
             return; // a gone owner's container: the script's error, never a read through null
@@ -3240,8 +3563,13 @@ namespace foundation::script::angelscript
         case Binding::Kind::ContainerAt:
         {
             const core::usize idx = static_cast<core::usize>(gen->GetArgDWord(0));
+            if (IsScriptValue(ci.elementType))
+            {
+                ReturnElementReference(gen, ci, container, idx < size ? idx : size);
+                break;
+            }
             binding->manager->SetGenericReturn(
-                gen, idx < size ? ContainerElementVariant(ci, container, idx, self->value)
+                gen, idx < size ? ContainerElementVariant(ci, container, idx, self)
                                 : core::Variant{});
             break;
         }
@@ -3266,12 +3594,22 @@ namespace foundation::script::angelscript
             }
             else if (core::ContainerEmplaceDefault(ci, container, size).Pointer() == nullptr)
             {
+                if (IsScriptValue(ci.elementType))
+                {
+                    ReturnElementReference(gen, ci, container, size + 1); // past the end: refused
+                    break;
+                }
                 binding->manager->SetGenericReturn(gen, core::Variant{});
+                break;
+            }
+            if (IsScriptValue(ci.elementType))
+            {
+                ReturnElementReference(gen, ci, container, size);
                 break;
             }
             binding->manager->SetGenericReturn(gen,
                                                ContainerElementVariant(ci, container, size,
-                                                                       self->value));
+                                                                       self));
             break;
         }
         case Binding::Kind::ContainerRemoveAt:
@@ -3316,8 +3654,9 @@ namespace foundation::script::angelscript
         }
         else
         {
-            BoxedVariant* self = static_cast<BoxedVariant*>(gen->GetObject());
-            const core::Instance instance = core::ToInstance(self->value);
+            core::Variant view;
+            core::Variant& self = SelfOf(gen, binding->type, view);
+            const core::Instance instance = core::ToInstance(self);
             if (RefuseGone(instance))
             {
                 return;
@@ -3336,9 +3675,11 @@ namespace foundation::script::angelscript
     {
         const Binding* binding = static_cast<const Binding*>(gen->GetAuxiliary());
         const core::MethodInfo& method = *binding->method;
-        BoxedVariant* self = static_cast<BoxedVariant*>(gen->GetObject());
+        const bool scriptValue = IsScriptValue(binding->type);
         core::Variant args[2];
-        args[0] = self->value; // the left operand
+        // The left operand: a copy of a script value's bytes, or a box's value.
+        args[0] = scriptValue ? core::Variant::CopyOf(*binding->type, gen->GetObject())
+                              : static_cast<BoxedVariant*>(gen->GetObject())->value;
         const bool binary = gen->GetArgCount() == 1;
         if (binary)
         {
@@ -3356,8 +3697,15 @@ namespace foundation::script::angelscript
         }
         if (binding->kind == Binding::Kind::OperatorAssign)
         {
-            self->value = core::Move(result.Value());
-            gen->SetReturnAddress(self);
+            if (scriptValue)
+            {
+                WriteValueBytes(*binding->type, gen->GetObject(), result.Value());
+            }
+            else
+            {
+                static_cast<BoxedVariant*>(gen->GetObject())->value = core::Move(result.Value());
+            }
+            gen->SetReturnAddress(gen->GetObject());
             return;
         }
         binding->manager->SetGenericReturn(gen,
@@ -3970,6 +4318,12 @@ namespace foundation::script::angelscript
                     (void)executor->SetArgObject(arg, &stringTemps[i]);
                     continue;
                 }
+                // A script value parameter: its bytes copied in (BindArgsInto's rule).
+                if (const core::TypeInfo* valueType = m_manager->TypeInfoForTypeId(typeId); IsScriptValue(valueType))
+                {
+                    (void)executor->SetArgObject(arg, ValueBytesOf(*valueType, args[i]));
+                    continue;
+                }
                 // A reflected value, to a handle parameter or a by-value one (BindArgsInto's rule).
                 if (const core::TypeInfo* reflected = m_manager->TypeInfoForTypeId(typeId);
                     reflected != nullptr && reflected->enumeratorCount == 0 &&
@@ -4192,24 +4546,7 @@ namespace foundation::script::angelscript
                     continue;
                 }
                 const int typeId = m_instance->GetPropertyTypeId(i);
-                if (m_owner->Manager().WriteTypedAddress(
-                        typeId, m_instance->GetAddressOfProperty(i), value))
-                {
-                    return true;
-                }
-                // A reflected or resource property (asset:X, or any reflected value) declared as a
-                // plain value member cannot be set from native (AngelScript owns its lifecycle).
-                // Tell the author to use a handle, the idiomatic AngelScript spelling for a
-                // reference type, which does take the value.
-                if ((typeId & asTYPEID_MASK_OBJECT) != 0 && (typeId & asTYPEID_OBJHANDLE) == 0)
-                {
-                    LOG_WARNING(
-                        u8"Script",
-                        u8"AngelScript property '{}' is a value member; declare it as a handle "
-                        u8"('Type@ {}') to receive a reflected/resource value",
-                        memberName, memberName);
-                }
-                return false;
+                return m_owner->Manager().WriteTypedAddress(typeId, m_instance->GetAddressOfProperty(i), value);
             }
             return false;
         }
@@ -4975,6 +5312,19 @@ namespace foundation::script::angelscript
     core::StringView AngelScriptCoroutineModulePrelude() noexcept
     {
         return ViewOfAscii(kCoroutinePreludeSection);
+    }
+
+    core::String AngelScriptMessageText(core::StringView message)
+    {
+        core::String text(message);
+        if (message == core::StringView(u8"Object handle is not supported for this type"))
+        {
+            // Most often a script written before the plain types became values.
+            text.Append(core::StringView(u8" (Float3, Color, Guid, Entity, Scene and the other plain types are "
+                                         u8"values: write 'Color tint', not 'Color@ tint', and 'tint = c', "
+                                         u8"not '@tint = c')"));
+        }
+        return text;
     }
 
     core::u32 AngelScriptBytecodeVersion() noexcept

@@ -4,7 +4,7 @@
 // The Level sets the speed ("TrafficSpeed").
 class Vehicle
 {
-    private Entity@ self;
+    private Entity self;
 
     [1, "1 laps clockwise (seen from above), -1 anticlockwise"] int direction;
     [6.0, "Driving speed until the Level sets one (m/s)"] float speed;
@@ -12,7 +12,7 @@ class Vehicle
     private int m_corner = 0;
     private float lane = 22.0f;
 
-    Vehicle(Entity@ entity) { @self = entity; }
+    Vehicle(Entity entity) { self = entity; }
 
     void onStart()
     {

@@ -13,7 +13,7 @@
 
 class Gate
 {
-    private Entity@ self;
+    private Entity self;
 
     [0, "This gate's place down the course (0 = the first)"] int index;
     [4.0, "Half the gap between the poles (m)"] float halfWidth;
@@ -26,12 +26,12 @@ class Gate
     [0.15, "Its damping (N m s per radian)"] float flagDamping;
     [0.3, "From a flag's hinge to its centre (m; Tools/gates.py FLAG_REACH)"] float flagReach;
 
-    private Entity@ m_rider;
+    private Entity m_rider;
     private bool m_crossed = false;
     private bool m_seen = false;
     private float m_lastAlong = 0.0f;
-    private Entity@ m_flagLeft;
-    private Entity@ m_flagRight;
+    private Entity m_flagLeft;
+    private Entity m_flagRight;
     private bool m_brushingLeft = false;
     private bool m_brushingRight = false;
     // Each flag at rest, in the gate's frame: the direction its panel points, and its angle last
@@ -41,17 +41,17 @@ class Gate
     private float m_angleLeft = 0.0f;
     private float m_angleRight = 0.0f;
 
-    Gate(Entity@ entity) { @self = entity; }
+    Gate(Entity entity) { self = entity; }
 
     void onStart()
     {
-        @m_rider = self.scene.find("Rider");
+        m_rider = self.scene.find("Rider");
         self.scene.events.emit("GateRegistered", index);
-        Entity@ gate = self.firstChild(); // the GateRed or GateBlue prefab's root
-        if (gate !is null && gate.isValid())
+        Entity gate = self.firstChild(); // the GateRed or GateBlue prefab's root
+        if (gate.isValid())
         {
-            @m_flagLeft = gate.findChildByName("FlagL");
-            @m_flagRight = gate.findChildByName("FlagR");
+            m_flagLeft = gate.findChildByName("FlagL");
+            m_flagRight = gate.findChildByName("FlagR");
             m_restLeft = outward(m_flagLeft);
             m_restRight = outward(m_flagRight);
         }
@@ -59,7 +59,7 @@ class Gate
 
     void onUpdate(double dt)
     {
-        if (m_rider is null || !m_rider.isValid())
+        if (!m_rider.isValid())
         {
             return;
         }
@@ -96,11 +96,11 @@ class Gate
     // Swings `flag` along the rider's motion as the rider comes within its reach, once per pass.
     // `outward` is the rider's distance across the gate toward the flag's side. Returns whether the
     // rider is in reach.
-    private bool brush(Entity@ flag, bool wasInReach, float along, float outward)
+    private bool brush(Entity flag, bool wasInReach, float along, float outward)
     {
         float fromPole = outward - halfWidth;
         bool inReach = along > -brushAlong && along < brushAlong && fromPole > -brushIn && fromPole < brushOut;
-        if (inReach && !wasInReach && flag !is null && flag.isValid())
+        if (inReach && !wasInReach && flag.isValid())
         {
             Float3 v = CharacterComponent::of(m_rider).velocity;
             self.scene.physics.applyImpulse(flag, Float3(v.x * brushPush, 0.0f, v.z * brushPush));
@@ -110,9 +110,9 @@ class Gate
 
     // The direction a flag's panel points out from its hinge (its local +X), flattened, in the
     // gate's frame.
-    private Float3 outward(Entity@ flag)
+    private Float3 outward(Entity flag)
     {
-        if (flag is null || !flag.isValid())
+        if (!flag.isValid())
         {
             return Float3(1.0f, 0.0f, 0.0f);
         }
@@ -124,9 +124,9 @@ class Gate
     // Pushes a flag back toward its rest angle about its upright hinge, as a damped spring: a push
     // at its centre along its swing of (spring * angle + damping * turn rate) / reach. Returns the
     // current angle, for the next frame's turn rate.
-    private float springBack(Entity@ flag, Float3 rest, float lastAngle, float dt)
+    private float springBack(Entity flag, Float3 rest, float lastAngle, float dt)
     {
-        if (flag is null || !flag.isValid())
+        if (!flag.isValid())
         {
             return 0.0f;
         }

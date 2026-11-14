@@ -65,6 +65,11 @@ export namespace foundation::script::angelscript
     /// Kept out of line so the SDK header stays in the implementation unit.
     [[nodiscard]] core::u32 AngelScriptBytecodeVersion() noexcept;
 
+    /// A compiler message with what it most often means here appended (a handle to a plain type,
+    /// written before those became values), or the message as it is. The runtime and the cook both
+    /// report through it, so a script reads the same advice wherever it is compiled.
+    [[nodiscard]] core::String AngelScriptMessageText(core::StringView message);
+
     /// Wrap an already-built module's bytecode into a serializable IScriptBlob (SaveByteCode into
     /// the same blob type CompileToBlob and LoadBlob use). The AngelScript cook builds through
     /// CScriptBuilder (to strip `[metadata]`), so it has to save the module it already built

@@ -3,9 +3,9 @@
 // so the game script (Lamplight.as) knows the thief may now leave by the exit.
 class Loot
 {
-    private Entity@ self;
+    private Entity self;
 
-    [null, "The thief"] Entity@ thief;
+    [null, "The thief"] Entity thief;
     [10, "What it is worth"] int value;
     [false, "The level's target: carried to the exit, it ends the level"] bool target;
     [0.9, "How near the thief takes it (m)"] float reach;
@@ -13,13 +13,13 @@ class Loot
 
     private float m_turn = 0.0f;
 
-    Loot(Entity@ entity) { @self = entity; }
+    Loot(Entity entity) { self = entity; }
 
     void onUpdate(double dt)
     {
         m_turn += spin * 360.0f * float(dt);
         self.setRotationEuler(0.0f, m_turn, 0.0f);
-        if (thief is null || !thief.isValid())
+        if (!thief.isValid())
         {
             return;
         }

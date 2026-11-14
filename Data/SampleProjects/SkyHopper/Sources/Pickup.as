@@ -11,7 +11,7 @@ Guid kTakenSound = Guid("6d963695-67f8-4b7f-9cf4-d234f8034116");
 
 class Pickup
 {
-    private Entity@ self;
+    private Entity self;
 
     ["LifeCollected", "The event announcing it was taken"] string takenEvent;
     [1, "The event's value"] int value;
@@ -20,15 +20,15 @@ class Pickup
     [0.25, "Bob height (m)"] float bobHeight;
     [1.3, "The chime's pitch"] float chimePitch;
 
-    private Entity@ m_player;
+    private Entity m_player;
     private Float3 m_home = Float3(0.0f, 0.0f, 0.0f);
     private float m_time = 0.0f;
 
-    Pickup(Entity@ entity) { @self = entity; }
+    Pickup(Entity entity) { self = entity; }
 
     void onStart()
     {
-        @m_player = self.scene.find("Player");
+        m_player = self.scene.find("Player");
         m_home = self.position();
     }
 
@@ -37,7 +37,7 @@ class Pickup
         m_time += float(dt);
         self.setRotation(Quaternion::FromAxisAngle(Float3(0.0f, 1.0f, 0.0f), m_time * spinSpeed));
         self.setPosition(Float3(m_home.x, m_home.y + Math::Sin(m_time * 2.0f) * bobHeight, m_home.z));
-        if (m_player !is null && m_player.isValid()
+        if (m_player.isValid()
             && (Float3::Distance(m_player.worldPosition(), self.worldPosition()) < radius))
         {
             self.scene.events.emit(takenEvent, value);

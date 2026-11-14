@@ -5,9 +5,9 @@ const float kPi = 3.14159265f;
 
 class CameraRig
 {
-    private Entity@ self;
+    private Entity self;
 
-    [null, "The thief to follow"] Entity@ target;
+    [null, "The thief to follow"] Entity target;
     [6.5, "Distance back from the thief, along the floor (m)"] float distance;
     [7.0, "Height above the thief (m)"] float height;
     [0.8, "Aim this far above the thief's feet (m)"] float lookHeight;
@@ -18,11 +18,11 @@ class CameraRig
     private float m_yaw = 0.0f;   // current angle of the swing (radians)
     private Float3 m_focus = Float3(0.0f, 0.0f, 0.0f);
 
-    CameraRig(Entity@ entity) { @self = entity; }
+    CameraRig(Entity entity) { self = entity; }
 
     void onStart()
     {
-        if (target !is null && target.isValid())
+        if (target.isValid())
         {
             m_focus = target.worldPosition();
         }
@@ -45,7 +45,7 @@ class CameraRig
         while (delta > kPi) delta -= 2.0f * kPi;
         while (delta < -kPi) delta += 2.0f * kPi;
         m_yaw += delta * Math::Clamp(swing * d, 0.0f, 1.0f);
-        if (target !is null && target.isValid())
+        if (target.isValid())
         {
             Float3 at = target.worldPosition();
             float k = Math::Clamp(follow * d, 0.0f, 1.0f);

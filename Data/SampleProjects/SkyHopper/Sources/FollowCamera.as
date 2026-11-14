@@ -3,9 +3,9 @@
 // relative: forward is always away from the camera.
 class FollowCamera
 {
-    private Entity@ self;
+    private Entity self;
 
-    [null, "The entity to follow (the player)"] Entity@ target;
+    [null, "The entity to follow (the player)"] Entity target;
     [11.0, "Distance behind the target (m)"] float distance;
     [6.0, "Height above the target (m)"] float height;
     [1.0, "Aim this far above the target (m)"] float lookHeight;
@@ -17,7 +17,7 @@ class FollowCamera
     /// The camera position the follow computes, before any shake.
     private Float3 m_followPos = Float3(0.0f, 0.0f, 0.0f);
 
-    FollowCamera(Entity@ entity) { @self = entity; }
+    FollowCamera(Entity entity) { self = entity; }
 
     // Something jolted the view, such as a hit or a landing from high up. Strength in metres.
     void onShake(float strength)
@@ -30,7 +30,7 @@ class FollowCamera
 
     void onStart()
     {
-        if (target !is null && target.isValid())
+        if (target.isValid())
         {
             Float3 at = target.worldPosition();
             Float3 start = Float3(at.x, at.y + height, at.z + distance);
@@ -43,7 +43,7 @@ class FollowCamera
     void onUpdate(double delta)
     {
         float dt = float(delta);
-        if (dt <= 0.0f || target is null || !target.isValid())
+        if (dt <= 0.0f || !target.isValid())
         {
             return;
         }

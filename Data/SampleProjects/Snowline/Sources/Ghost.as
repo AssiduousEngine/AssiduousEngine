@@ -11,7 +11,7 @@
 
 class Ghost
 {
-    private Entity@ self;
+    private Entity self;
 
     [0, "Which medal (0 gold, 1 silver, 2 bronze)"] int medal;
     [0.0, "How far down the course line the finish is (m)"] float finishDistance;
@@ -20,13 +20,13 @@ class Ghost
     private float m_seconds = 0.0f; // the medal's time
     private float m_time = 0.0f;    // run time
     private bool m_started = false; // whether the rider has set off
-    private Entity@ m_model;
+    private Entity m_model;
 
-    Ghost(Entity@ entity) { @self = entity; }
+    Ghost(Entity entity) { self = entity; }
 
     void onStart()
     {
-        @m_model = self.firstChild();
+        m_model = self.firstChild();
     }
 
     void onMedalGold(int hundredths) { take(0, hundredths); }
@@ -72,16 +72,16 @@ class Ghost
     // above or below the snow. The model sits on the snow found under the line, not on the line.
     private void settle()
     {
-        if (m_model is null || !m_model.isValid())
+        if (!m_model.isValid())
         {
             return;
         }
         // A root entity, so position() holds this frame's pose; worldPosition() still holds last
         // frame's.
         Float3 at = self.position();
-        RayCastHit@ hit = self.scene.physics.rayCast(Float3(at.x, at.y + 4.0f, at.z),
+        RayCastHit hit = self.scene.physics.rayCast(Float3(at.x, at.y + 4.0f, at.z),
                                                                 Float3(0.0f, -1.0f, 0.0f), 10.0f, 1);
-        float y = (hit !is null && hit.hit) ? hit.position.y - at.y : 0.0f;
+        float y = (hit.hit) ? hit.position.y - at.y : 0.0f;
         m_model.setPosition(Float3(0.0f, y, 0.0f));
     }
 }
