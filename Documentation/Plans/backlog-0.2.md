@@ -326,8 +326,180 @@ What the audit of 2026-11-11 raised that `Specs/stability.md` leaves out, to tak
   ModelPreview, Render, Texture, Physics, Camera, Image and Shaders; Tools.Editor's Main.cpp;
   Android and web export packaging; GUI.Hosting's Offscreen and PassRenderer; GUI.Inspector; most
   per-domain resource factories; Mcp.Reflection and Mcp.Script; Engine.Project; Code/Samples.
-- **The audit's lower findings** not in the spec (its per-area digests): a second read once the
-  spec is done, keeping what still holds.
+- **The audit's findings the spec did not take**, listed below by area (2026-11-13). Each is one
+  reader's trace from the audit, at the line numbers of the audited commit, and none is
+  re-checked against master: re-read each in source before acting on it. The spec took 61
+  findings; everything else is here. Two more, found since by search, are marked (2026-11-13).
+
+### What the stability spec left out, by area
+
+**Animation and simulation**
+- Clip events reach nothing: `AnimationPlayer::SetEventHandler` (`Animation/AnimationPlayer.cppm:132`)
+  has no caller outside `Animation.Tests`, while the editor authors events (audit priority 35).
+- A body leaving a trigger never raises `onTriggerExit`; contacts are lost on sleep; Begin and End
+  per sub-shape (`Physics/PhysicsWorldImpl.cpp:459-513`, `Engine.Script/ScriptSubsystem.cppm:1812-1827`).
+- glTF CUBICSPLINE keys read as element k, not 3k+1; the runtime has no tangents
+  (`Model.GLTF/GltfLoader.cppm:1062-1116`).
+- A navmesh of more than 256 tiles bakes and never loads (poly ref bits; `Navigation/NavigationImpl.cpp:775-781`).
+- Animation graph triggers consumed every Update; no transition is evaluated mid-blend
+  (`Animation/AnimationGraph.cppm:1067-1070, 1190-1193`).
+- A failed navigation `SetTarget` is swallowed and the agent waits for ever
+  (`Engine.Navigation/NavigationSubsystem.cppm:183-188`).
+- Characters are invisible to raycasts, overlaps and each other (`PhysicsWorldImpl.cpp:1057-1088`).
+- A dynamic body cannot be teleported; runtime body edits are ignored; primitive shapes ignore the
+  entity's scale (`Engine.Physics/PhysicsSubsystem.cppm:397-444, 960-999`).
+- Physics budgets (4096 bodies and the rest) fail silently, vegetation trunks use them up, and each
+  scene world makes its own thread pool.
+- Vegetation's version restarts after a cache reset, leaving stale GPU instances; terrain scale
+  reaches rendering but not collision; a hole's rim draws with no collision.
+- Particles: LOD truncation kills low-rate emitters (`ParticleEffect.cppm:407-410`); the first step
+  inherits velocity from the origin; `isPlaying` never ends for a one-shot; the primary camera
+  sorts every view; the particle pipeline cache never stores its shader version
+  (`ParticleRenderer.cppm:552-562`); a float to u32 cast is UB (`ParticleEffect.cppm:937`).
+- Audio: a stolen looping autoplay never restarts; 2D stealing takes the first slot; no
+  device-change handling; reverb parameters raced; on the web, streamed audio may stall (miniaudio
+  NO_THREADING needs `process_next_job`, never called; suspected).
+- Lows: blend trees allocate per Evaluate; a zero navigation cell size divides by zero; a spline seam.
+
+**Scene, input and runs**
+- `MarkDirty` cascades up and dirties the whole root tree (`Scene/SceneImpl.cpp:876-899`).
+- Actions are sampled after scenes read them: a frame late, fixed-lane edges dropped or doubled
+  (`Runtime.Client/ApplicationHost.cppm:152, 183, 187`; `ActionRuntime.cppm:539`); sub-frame taps
+  lost (`:684`); every action reads pressed before the first Update.
+- The web shell has no blur handler: keys and buttons stick (`Shell.Web/WebInput.cppm:410-426`).
+- SDL3: removing a gamepad renumbers the others (`SDL3ShellImpl.cpp:1021-1033`); the file dialog's
+  callback runs on zenity's worker thread (`:1148-1165`).
+- The run's bus is not cleared at stop, and `SceneManager::Clear` does not stop scenes (suspected;
+  `Run/RunImpl.cpp:85-99`); `DestroyScene` does not dedupe; `SceneManager` hardcodes `maxSteps` 4.
+- Design: two fixed-step accumulators; two unconnected time scales; subsystems shut down before
+  scenes; `SceneManager` has no destructor; plugin-added subsystems are not removed in reverse on
+  unload; `UpdateTransforms` scans every slot.
+- The scene's `AsyncUpdate` phase is documented "parallel per-system" (`Scene/Phase.cppm:29`) and
+  runs as the same sequential loop as every phase (`Scene::RunPhase`). (2026-11-13)
+
+**Scripting and plugins**
+- `EnsureClassLoaded` reloads every class for each new one: Luau re-runs top levels, AngelScript
+  builds N^2/2 modules, and one failed class poisons the later ones
+  (`Engine.Script/ScriptSubsystem.cppm:447`).
+- Luau lacks i8, u8, i16 and u16 marshalling, so `collisionGroup` and `priority` are unusable from
+  Luau (`LuauScript.cppm:1036-1130`).
+- Luau's `waitUntil` predicate runs without a `ScriptCallScope`, so facades in it do nothing.
+- Plugin parts carry no ABI or build stamp (`Runtime/PluginLoader.cppm:70-88`).
+- The script surface hash omits parameter and return types and enum values: stale bytecode
+  (`Script.Pipeline/ScriptAssetImpl.cpp:31-66`).
+- AngelScript `ContainerDispatch` does not refuse a gone object, and a failed invoke silently
+  returns a default; Luau's `lua_error` longjmp skips C++ destructors.
+
+**Networking**
+- Replication's relevance hook `StateReplication::SetRelevance` (`Net.Replication/Replication.cppm:281`)
+  has no caller outside its tests: every entity goes to every peer. (2026-11-13)
+- The WebSocket gateway listens on port+1 on every interface (`NetworkControllerImpl.cpp:30-34`),
+  and feeds the HTTP parser a byte at a time with a quadratic rescan (`HttpImpl.cpp:287-305`).
+- Late join: authored entities destroyed before the join stay as ghosts
+  (`ReplicationImpl.cpp:1019-1025`); a scene change mid-session does not reset replication's maps
+  (suspected).
+- Lows: WebSocket frame buffer compaction; `SO_REUSEADDR` on UDP; the 32-bit authored id hash has
+  no collision check; an unresolved host returns true; 1xx treated as final; CRLF injection in a
+  client URL or header; DNS blocks outside the timeout; WebSocket masking seeded from ticks.
+
+**Rendering and RHI**
+- More than 8 views alias the per-view slots in the post passes (`TonemapPassImpl.cpp:100, 265`);
+  probe capture can exhaust a view ring in a small scene; a camera can target any texture.
+- More than 256 lights in one view are dropped by order (the per-view cap that remains).
+- TAA and AO ignore a view's sub-rectangle; cluster index buffers take about 50 MB per view and
+  frame slot at 1080p; light and camera fields are not validated; `PrepareDirtyInstances` is never
+  called; an engine `.hlsli` change does not invalidate project shaders; the cube fallback is 2D;
+  IBL rebakes whole on any sun change; the set-0 bind group is rebuilt every frame; the cascade
+  fit clips tall casters; the prepass and forward can pick different LODs.
+- A DDS file's mip count is unbounded (`Image.DDS/DdsImpl.cpp:255`).
+- DX12: fixed view heaps (4096 SRV, 256 RTV, 64 DSV) with the null handle unchecked
+  (`DxDevice.cppm:93-96`, `DxDescriptorHeap.cppm:44-60`); a buffer barrier takes `StateBefore` from
+  the caller, untracked (`DxCommandEncoder.cppm:188-209`); a u32 overflow at base + ~0u (`:278-281`);
+  a 2048-entry sampler heap with no dedupe; a swapchain resize drops the tearing flag.
+- Vulkan: an upload does not update the tracked layout and barriers from TOP_OF_PIPE, and
+  `SubmitAsync` is unchecked (`VkTransferBatch.cppm:287-329`); descriptor pool flags mixed, every
+  full pool walked (`VkDescriptorPoolManager.cppm:45-83`); a submit with a null fence drops its
+  command buffers; results unchecked.
+- Render graph: the deletion ring's slots differ from frames in flight (latent); a resource's
+  generation is always 1; `CullPasses` overlaps without totals.
+- Design: no deferred destruction in the RHI; no error channel (Submit returns void); one
+  allocation per resource; uploads wait for the queue; no persisted pipeline cache; RHI.Validation
+  is shallow; RHI.DX12 has no tests.
+
+**Data, content and cook**
+- A Reload while an async decode is in flight lets the stale decode replace the fresh product
+  (`Resource/ResourceModule.cppm:1091-1108, 929-940`); nothing is ever unloaded.
+- The player opens every envelope at startup, copies whole entries and searches the TOC linearly
+  (`VFS.Pak/PakModule.cppm:66-103, 232-243`).
+- `Instance::ReadObject` mutates its source unsynchronised while cook builders share instances
+  (`ContentModuleImpl.cpp:270-289`).
+- Cook cleanliness: the content hash memo keys on size and whole-second mtime
+  (`CookDriverImpl.cpp:468-489`); a recipe lacks the product's data version (`:510-602`);
+  `Tools.Cook` exits with the failure count, so 256 failures exit 0 (`:262-276`).
+- XML: an array count is trusted; whitespace-only strings are lost.
+- Duplicate guids are accepted silently; `.stage-scenes` stays stale after a failed export.
+- glTF import: a vertex buffer sized from the first POSITION and filled from the last; only skin 0
+  imported; tangents never generated; reimport identity is name and type.
+- Design: identity by file name; one data version per type with no migration; the pak build holds
+  content twice in memory, with no compression or checksums.
+
+**Core**
+- `BufferedStream::Write` always reports its bytes and drops flush errors (`IO/Stream.cppm:311-335, 399-408`).
+- Linux `FileRead` and `FileWrite` make one syscall, so files of 2 GiB or more fail; Windows casts
+  to DWORD (`LinuxSystem.cpp:425-435`).
+- `TypeRegistry`: writers lock, readers do not (`RTTI/TypeRegistry.cppm:57, 93, 133-164`).
+- `RunProcess` keeps the first 64 KiB of output, drops arguments past 62, has no timeout
+  (`LinuxSystem.cpp:231-345`).
+- `BinarySerializer` reads raw bytes into bool and enum, a `Reserve(count)` amplifies, a Float4x4
+  count can desync (`Serialization/BinarySerializer.cppm:81, 225`).
+- Lows: `FileOpen` without `O_CLOEXEC`; UTF-8 accepts overlong forms and surrogates; the JobSystem
+  destructor does not drain; `PathParent("/file")` is empty; a recursive delete follows symlinks
+  (`ListDirectory`); reflection `getAt` unchecked; `BoundedArray` has one TypeId; `NextInt`
+  overflows; environment values past 1023 bytes are truncated; `RefCounted`'s converting move does
+  not check for a virtual destructor.
+
+**GUI, VG and fonts**
+- A percent-sized node on the scroll axis stops the relayout walk (`GUI/Layout/LayoutImpl.cpp:36-42, 1174-1194`).
+- A child index goes stale when changed under a `visibility: hidden` ancestor (`Node.cppm:2131-2143, 2977-3025`).
+- Line breaking happens only at U+0020, so CJK text never wraps (`GUI/Text/TextLayout.cppm:1362-1388`).
+- A cross-root drag leaves the drop target dangling (`EventDispatcher.cppm:2224-2277`); PointerDown
+  and PointerMove use an unpinned hit (suspected).
+- VG and SVG: `viewBox` ignored when width and height are given; `fill-rule` never parsed (EvenOdd
+  default); round and bevel joins render as miter (`VG/Tessellation.cppm:950-994`); uncapped
+  segment counts; `1e999` parses to infinity.
+- `TrueTypeFontService` retries a failed bake on every `GetFont` and never evicts.
+- `Engine.GUI`'s `PumpInput` holds the root and bridge across handlers that destroy the scene
+  (`GuiSubsystemImpl.cpp:1590-1640`; suspected).
+- Code editor: a read-only editor is changed by Undo, Redo, Move and Duplicate lines
+  (`GUI.Code/CodeEditor.cppm:2368-2376, 2839-2902`); overlapping multi-caret edits corrupt text
+  (`:1601-1644`); line operations are O(N*M), Replace All stops at 100000 silently, and soft wrap
+  reshapes the whole document per keystroke.
+- `GraphView`'s "Add transition" by mouse is cancelled by its own release (`GUI.Toolkit/GraphView.cppm:2184-2204`).
+- `DockSpace` never updates a kept entry's kind, so it rebuilds on every `ShowLayout` (`DockSpace.cppm:821-826`).
+- `PropertyEditors` narrow integers unchecked, 300 into a u8 is 44 (`PropertyEditors.cppm:144-149`).
+- `CurveView` loops for ever drawing the grid over a zero range (`CurveView.cppm:112-119, 881-896`).
+- Lows: `ItemView` row insertion and `RemoveAllChildren` are O(n^2); overflow-wrap reshapes the
+  remainder; each undo step copies the text; `NumberField`'s evaluator recursion is unbounded;
+  `@import` works only for the GUI's own sheet; CRLF paste; `ScreenStack::Settle` iterates while
+  handlers mutate; docking accepts NaN weights; `Viewport::Resize` waits idle per resize.
+
+**Editor**
+- External edits to an open script are overwritten silently (`CodeAssetPage.cppm:64-76`), and
+  `AssetFormPage` never refreshes from outside.
+- `PrefabFlows` revert and apply bypass the command stack and leave the page clean.
+- Inspector groups coalesce (add X, add Y is one undo); the merge path skips `TruncateRedo`
+  (`CommandImpl.cpp:34-46`); undo is unbounded.
+- An external reload during Simulate (unguarded).
+- The gizmo, Delete and Duplicate act on the primary selection only; the scale clamp kills negative
+  scale (`GizmoImpl.cpp:176-198`).
+- The hierarchy rebuilds whole per revision, with linear prefab scans.
+- A name clash is case-sensitive.
+- Design: Simulate runs in the edit scene behind a snapshot; Play uses the saved scene, not
+  unsaved edits.
+
+**Not on master**
+- Android's TLS reads the Linux CA bundle paths, so every https and wss connection fails there
+  (`NetTlsImpl.cpp:53-74`): to fix on the `android` branch.
 
 ## Reduced module interfaces on Android: memcpy through one core wrapper (user 2026-11-12)
 
