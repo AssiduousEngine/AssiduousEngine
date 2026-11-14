@@ -4053,19 +4053,7 @@ namespace foundation::script::angelscript
                 return core::Err(core::ErrorCode::NotFound);
             }
 
-            const core::String methodName(method);
-            asIScriptFunction* target = nullptr;
-            for (asUINT i = 0; i < type->GetMethodCount(); ++i)
-            {
-                asIScriptFunction* candidate = type->GetMethodByIndex(i);
-                const char* candidateName = candidate->GetName();
-                if (candidateName != nullptr && NameEq(candidateName, CStr(methodName)) &&
-                    candidate->GetParamCount() == args.Size())
-                {
-                    target = candidate;
-                    break;
-                }
-            }
+            asIScriptFunction* target = FindMethod(type, method, args.Size());
             if (target == nullptr)
             {
                 return core::Err(core::ErrorCode::NotFound);
@@ -4090,6 +4078,40 @@ namespace foundation::script::angelscript
         }
 
     private:
+        // A class's methods are fixed once compiled, so each one this object is asked for is found
+        // once (a behaviour's handlers run every frame) and called through the remembered function.
+        struct KnownMethod
+        {
+            core::String name;
+            core::usize argCount = 0;
+            asIScriptFunction* function = nullptr; // null: the class has no such method
+        };
+
+        [[nodiscard]] asIScriptFunction* FindMethod(asITypeInfo* type, core::StringView method, core::usize argCount)
+        {
+            for (const KnownMethod& known : m_knownMethods)
+            {
+                if (known.argCount == argCount && known.name.AsView() == method)
+                {
+                    return known.function;
+                }
+            }
+            const core::String methodName(method);
+            asIScriptFunction* found = nullptr;
+            for (asUINT i = 0; i < type->GetMethodCount() && found == nullptr; ++i)
+            {
+                asIScriptFunction* candidate = type->GetMethodByIndex(i);
+                const char* candidateName = candidate->GetName();
+                if (candidateName != nullptr && NameEq(candidateName, CStr(methodName)) &&
+                    candidate->GetParamCount() == argCount)
+                {
+                    found = candidate;
+                }
+            }
+            m_knownMethods.PushBack(KnownMethod{methodName, argCount, found});
+            return found;
+        }
+
         // Writes the instance member field named `fieldName` from `value` (the harvested
         // editor-property apply path). Marshals through the manager's typed-address writer,
         // so scalar, string and reflected-handle members all take the value uniformly. False
@@ -4130,6 +4152,7 @@ namespace foundation::script::angelscript
 
         core::RefPtr<AngelScriptContext> m_owner;
         asIScriptObject* m_instance;
+        core::Array<KnownMethod> m_knownMethods; // see FindMethod
     };
 
     // A script function or closure held as a native callback. Holds the manager (keeps the

@@ -1789,3 +1789,21 @@ TEST_CASE("script.luau: a replaced class's table is collected once no instance h
     manager->CollectGarbage();
     CHECK(scriptContext->Call(u8"oldClassGone", Span<Variant>{}).Value().Get<bool>());
 }
+
+TEST_CASE("script.luau: a method an instance assigns itself is the one the next call runs")
+{
+    // A Lua state machine swaps its own handler (`self.onUpdate = walking`); a call looks the
+    // method up each time, so the swap takes effect at once.
+    RefPtr<IScriptContext> scriptContext = CreateLuauScriptManager(DefaultAllocator())->CreateContext();
+    REQUIRE(scriptContext
+                ->Load(u8"Walker = {}\nWalker.__index = Walker\n"
+                       u8"function Walker.new() return setmetatable({}, Walker) end\n"
+                       u8"local function walking(self) return 2 end\n"
+                       u8"function Walker:onUpdate() self.onUpdate = walking return 1 end\n",
+                       u8"walker")
+                .IsOk());
+    RefPtr<ScriptObject> walker = scriptContext->CreateInstance(u8"Walker", Span<Variant>{});
+    REQUIRE(static_cast<bool>(walker));
+    CHECK(walker->Invoke(u8"onUpdate", Span<Variant>{}).Value().Get<f64>() == 1.0);
+    CHECK(walker->Invoke(u8"onUpdate", Span<Variant>{}).Value().Get<f64>() == 2.0);
+}

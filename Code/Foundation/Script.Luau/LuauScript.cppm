@@ -3065,8 +3065,11 @@ namespace foundation::script
             return Variant{};
         }
 
+        // Looked up on every call, never remembered: a script may assign a method to the instance
+        // at runtime (`self.onUpdate = walking`). The name goes in from the view, with no copy.
         lua_getref(state, m_tableRef);
-        lua_getfield(state, -1, CStr(method, storage)); // honors the class metatable chain
+        lua_pushlstring(state, reinterpret_cast<const char*>(method.Data()), method.Size());
+        lua_gettable(state, -2); // honors the class metatable chain
         if (!lua_isfunction(state, -1))
         {
             lua_pop(state, 2);

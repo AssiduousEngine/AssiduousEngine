@@ -2142,3 +2142,20 @@ TEST_CASE("angelscript: a replaced class's module with no instance goes at once;
     RefPtr<ScriptObject> other = scriptContext->CreateInstance(u8"Other", Span<Variant>{});
     CHECK(static_cast<bool>(other));
 }
+
+TEST_CASE("angelscript: an object finds each method once and keeps calling the right overload")
+{
+    RefPtr<IScriptContext> scriptContext = angelscript::CreateScriptManager(DefaultAllocator())->CreateContext();
+    REQUIRE(scriptContext
+                ->Load(u8"class Pick { double f() { return 1; } double f(double v) { return v + 2; } }\n", u8"pick")
+                .IsOk());
+    RefPtr<ScriptObject> pick = scriptContext->CreateInstance(u8"Pick", Span<Variant>{});
+    REQUIRE(static_cast<bool>(pick));
+    Variant five[] = {Variant::From<f64>(5.0)};
+    for (int round = 0; round < 2; ++round) // the second round runs from what the first found
+    {
+        CHECK(pick->Invoke(u8"f", Span<Variant>{}).Value().Get<f64>() == 1.0);
+        CHECK(pick->Invoke(u8"f", Span<Variant>{five, 1}).Value().Get<f64>() == 7.0);
+        CHECK(pick->Invoke(u8"missing", Span<Variant>{}).Error() == ErrorCode::NotFound);
+    }
+}
