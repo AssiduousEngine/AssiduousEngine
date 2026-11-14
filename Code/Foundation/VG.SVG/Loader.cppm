@@ -39,7 +39,7 @@ export namespace foundation::vg::svg
                 return Err(ErrorCode::InvalidArgument);
 
             HashMap<String, String> svgAttrs;
-            ParseAttributes(svgContent, pos, svgAttrs);
+            (void)ParseAttributes(svgContent, pos, svgAttrs);
             const PaintStyle rootPaint = Cascade(PaintStyle{}, svgAttrs);
 
             if (const String* wStr = svgAttrs.Find(String(u8"width")))
@@ -66,8 +66,8 @@ export namespace foundation::vg::svg
                 }
             }
 
-            if (!ParseChildren(svgContent, pos, doc.elements, doc, rootPaint).IsOk())
-                return Err(ErrorCode::InvalidArgument);
+            if (const Status parsed = ParseChildren(svgContent, pos, doc.elements, doc, rootPaint); !parsed.IsOk())
+                return Err(parsed.Code()); // OutOfRange: nested past the limit
 
             return doc;
         }
@@ -138,9 +138,17 @@ export namespace foundation::vg::svg
             return style;
         }
 
+        // Groups nest no deeper than this: each level is a native call, and a file of nested groups
+        // would otherwise run the stack out. Past it the load fails (OutOfRange).
+        static constexpr u32 kMaxNesting = 128;
+
         static Status ParseChildren(StringView content, usize& pos, Array<SVGElement>& elements,
-                                    SVGDocument& doc, const PaintStyle& inherited)
+                                    SVGDocument& doc, const PaintStyle& inherited, u32 depth = 0)
         {
+            if (depth > kMaxNesting)
+            {
+                return ErrorCode::OutOfRange;
+            }
             while (pos < content.Size())
             {
                 SkipWhitespace(content, pos);
@@ -157,7 +165,12 @@ export namespace foundation::vg::svg
                 }
 
                 const usize savedPos = pos;
-                if (!TryParseElement(content, pos, elements, doc, inherited).IsOk())
+                const Status parsed = TryParseElement(content, pos, elements, doc, inherited, depth);
+                if (parsed.Code() == ErrorCode::OutOfRange)
+                {
+                    return parsed; // too deep: the whole load fails, never skipped and read on
+                }
+                if (!parsed.IsOk())
                 {
                     pos = savedPos;
                     SkipTag(content, pos);
@@ -167,7 +180,7 @@ export namespace foundation::vg::svg
         }
 
         static Status TryParseElement(StringView content, usize& pos, Array<SVGElement>& elements,
-                                      SVGDocument& doc, const PaintStyle& inherited)
+                                      SVGDocument& doc, const PaintStyle& inherited, u32 depth)
         {
             if (pos >= content.Size() || content[pos] != u8'<')
                 return ErrorCode::InvalidArgument;
@@ -182,13 +195,7 @@ export namespace foundation::vg::svg
             const String tagName(content.SubStr(tagStart, pos - tagStart));
 
             HashMap<String, String> attrs;
-            ParseAttributes(content, pos, attrs);
-
-            const bool isSelfClosing =
-                (pos > 0 && pos <= content.Size() && content[pos - 1] == u8'/');
-
-            if (pos < content.Size() && content[pos] == u8'>')
-                ++pos;
+            const bool isSelfClosing = ParseAttributes(content, pos, attrs);
             const PaintStyle paint = Cascade(inherited, attrs);
 
             using detail::EqualsIgnoreCase;
@@ -290,8 +297,12 @@ export namespace foundation::vg::svg
             {
                 element.type = SVGElementType::Group;
                 if (!isSelfClosing)
-                    ParseChildren(content, pos, element.children, doc, paint);
-                SkipClosingTag(content, pos, u8"g");
+                {
+                    if (const Status nested = ParseChildren(content, pos, element.children, doc, paint, depth + 1);
+                        nested.Code() == ErrorCode::OutOfRange)
+                        return nested;
+                    SkipClosingTag(content, pos, u8"g");
+                }
             }
             else if (EqualsIgnoreCase(tag, u8"defs"))
             {
@@ -301,9 +312,11 @@ export namespace foundation::vg::svg
                 if (!isSelfClosing)
                 {
                     Array<SVGElement> discarded;
-                    ParseChildren(content, pos, discarded, doc, PaintStyle{});
+                    if (const Status nested = ParseChildren(content, pos, discarded, doc, PaintStyle{}, depth + 1);
+                        nested.Code() == ErrorCode::OutOfRange)
+                        return nested;
+                    SkipClosingTag(content, pos, u8"defs");
                 }
-                SkipClosingTag(content, pos, u8"defs");
             }
             else if (EqualsIgnoreCase(tag, u8"linearGradient") ||
                      EqualsIgnoreCase(tag, u8"radialGradient"))
@@ -451,9 +464,8 @@ export namespace foundation::vg::svg
                     continue;
                 }
                 HashMap<String, String> stopAttrs;
-                ParseAttributes(content, pos, stopAttrs);
-                if (pos < content.Size() && content[pos] == u8'>')
-                    ++pos;
+                (void)ParseAttributes(content, pos, stopAttrs); // past the stop's '>' or '/>'
+
 
                 f32 offset = 0.0f;
                 if (const String* o = stopAttrs.Find(String(u8"offset")))
@@ -569,7 +581,9 @@ export namespace foundation::vg::svg
             return false;
         }
 
-        static void ParseAttributes(StringView content, usize& pos, HashMap<String, String>& attrs)
+        // Reads a tag's attributes and its end ('>' or '/>'), leaving `pos` past it. True when the tag
+        // closed itself ('/>'): the caller cannot tell from the text before `pos`, which is the '>'.
+        static bool ParseAttributes(StringView content, usize& pos, HashMap<String, String>& attrs)
         {
             while (pos < content.Size())
             {
@@ -582,10 +596,11 @@ export namespace foundation::vg::svg
                         ++pos;
                         if (pos < content.Size() && content[pos] == u8'>')
                             ++pos;
+                        return true;
                     }
-                    else if (pos < content.Size() && content[pos] == u8'>')
+                    if (pos < content.Size() && content[pos] == u8'>')
                         ++pos;
-                    break;
+                    return false;
                 }
 
                 const usize nameStart = pos;
@@ -613,6 +628,7 @@ export namespace foundation::vg::svg
                     }
                 }
             }
+            return false;
         }
 
         // Step over a comment, CDATA or processing instruction as one unit when `pos` sits on

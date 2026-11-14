@@ -505,6 +505,7 @@ export namespace foundation::vg::svg
                 SkipWhitespaceAndCommas(pathData, pos);
                 if (pos >= pathData.Size())
                     break;
+                const usize commandStart = pos;
 
                 utf8char cmd = pathData[pos];
                 bool isRelative = cmd >= u8'a' && cmd <= u8'z';
@@ -515,7 +516,11 @@ export namespace foundation::vg::svg
                 }
                 else if (detail::IsDigitOrSign(cmd))
                 {
-                    // Implicit repeat of last command (post-MoveTo becomes LineTo).
+                    // Implicit repeat of last command (post-MoveTo becomes LineTo). ClosePath takes no
+                    // numbers, so a number after it (or before any command) is an error: repeating
+                    // Z would read nothing and never move on.
+                    if (lastCommand == 0 || lastCommand == u8'Z' || lastCommand == u8'z')
+                        return ErrorCode::InvalidArgument;
                     if (lastCommand == u8'M')
                         cmd = u8'L';
                     else if (lastCommand == u8'm')
@@ -687,6 +692,8 @@ export namespace foundation::vg::svg
                 }
 
                 lastCommand = cmd;
+                if (pos == commandStart)
+                    return ErrorCode::InvalidArgument; // a command that read nothing would repeat for ever
             }
 
             return ErrorCode::Ok;

@@ -250,3 +250,46 @@ TEST_CASE("svg.loader: a shape with no paint of its own keeps SVG's defaults")
     CHECK(shape.strokeCap == VGLineCap::Butt);
     CHECK(shape.strokeJoin == VGLineJoin::Miter);
 }
+
+TEST_CASE("svg.loader: a self-closing element ends at its own tag; its siblings stay siblings")
+{
+    // The loader looked for '/' before the tag's end after it had read past "/>", so it never saw
+    // one: `<rect .../>` was taken as open, and what came after it as its children.
+    const StringView svg = u8"<svg width=\"64\" height=\"64\">"
+                           u8"  <g/>"
+                           u8"  <rect x=\"0\" y=\"0\" width=\"4\" height=\"4\"/>"
+                           u8"  <rect x=\"8\" y=\"8\" width=\"4\" height=\"4\"/>"
+                           u8"  <g><rect x=\"1\" y=\"1\" width=\"2\" height=\"2\"/></g>"
+                           u8"</svg>";
+    const Result<SVGDocument> r = SVGLoader::Load(svg);
+    REQUIRE(r.HasValue());
+    const SVGDocument& doc = r.Value();
+    REQUIRE(doc.elements.Size() == 4u);
+    CHECK(doc.elements[0].type == SVGElementType::Group);
+    CHECK(doc.elements[0].children.IsEmpty());
+    CHECK(doc.elements[1].type == SVGElementType::Rectangle);
+    CHECK(doc.elements[2].type == SVGElementType::Rectangle);
+    REQUIRE(doc.elements[3].IsGroup());
+    CHECK(doc.elements[3].children.Size() == 1u);
+}
+
+TEST_CASE("svg.loader: groups nested past the limit fail the load instead of the stack")
+{
+    // Each nested group was a native call with no limit: a file of nested groups overflowed the
+    // stack of whatever loaded it.
+    const auto nested = [](u32 depth)
+    {
+        String svg(u8"<svg width=\"8\" height=\"8\">");
+        for (u32 i = 0; i < depth; ++i)
+            svg += StringView(u8"<g>");
+        svg += StringView(u8"<rect width=\"1\" height=\"1\"/>");
+        for (u32 i = 0; i < depth; ++i)
+            svg += StringView(u8"</g>");
+        svg += StringView(u8"</svg>");
+        return svg;
+    };
+    CHECK(SVGLoader::Load(nested(100).AsView()).HasValue());
+    const Result<SVGDocument> deep = SVGLoader::Load(nested(2000).AsView());
+    REQUIRE_FALSE(deep.HasValue());
+    CHECK(deep.Error() == ErrorCode::OutOfRange);
+}

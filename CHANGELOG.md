@@ -143,6 +143,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Rendering: a double-sided material (foliage cards, a sail, a flag) casts its shadow from both
   sides, and a material that culls front faces casts from its back; shadows always came from the
   front faces.
+- SVG: a path with a number after `Z` is an error instead of hanging the load; a self-closing
+  element (`<rect .../>`, `<g/>`) no longer swallows the elements after it as its children; groups
+  nested more than 128 deep fail the load instead of overflowing the stack.
 - Scripting (AngelScript): calls run under the same time budget, and recursion that never ends
   fails its call at 20000 nested calls. Global variable initializers run when the game loads
   the script, under the budget, and no longer during the cook: a faulting initializer fails the

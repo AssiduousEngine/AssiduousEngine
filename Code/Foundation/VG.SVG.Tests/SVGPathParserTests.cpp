@@ -147,3 +147,17 @@ TEST_CASE("svg.path: arc flags are single digits that may run together with what
     CHECK(end.y == doctest::Approx(10.0f));
 }
 
+
+TEST_CASE("svg.path: a number after Z is an error, never a loop")
+{
+    // A number after ClosePath repeated Z, which reads nothing: the parser never moved on, and a
+    // path like this hung whatever loaded it.
+    PathBuilder builder;
+    CHECK_FALSE(SVGPathParser::Parse(u8"M 0 0 L 10 0 Z 5", builder).IsOk());
+    PathBuilder lower;
+    CHECK_FALSE(SVGPathParser::Parse(u8"M 0 0 L 10 0 z 5 5", lower).IsOk());
+    PathBuilder leading;
+    CHECK_FALSE(SVGPathParser::Parse(u8"5 5", leading).IsOk()); // a number before any command
+    PathBuilder twice;
+    CHECK(SVGPathParser::Parse(u8"M 0 0 L 10 0 Z M 1 1 L 2 2 Z", twice).IsOk()); // closes and goes on
+}
