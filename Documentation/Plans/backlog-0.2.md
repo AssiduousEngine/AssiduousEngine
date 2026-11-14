@@ -358,8 +358,6 @@ What `Specs/scripting.md` leaves out, from the same review of the AngelScript in
   accumulator checked every tick (`Engine.Script/ScriptSubsystem.cppm`).
 - **Interned string literals**, and enum scoping required in scripts.
 - **Up and down casts generated from the type hierarchy.**
-- **Tracked `#include`** with line remapping and the included file as a cook dependency (the spec
-  refuses `#include` at cook instead).
 - **Shipping**: the compiler and debug information stripped from shipped builds, the source left out
   of packs, and loaded bytecode validated against hostile input.
 

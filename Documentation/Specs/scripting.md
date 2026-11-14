@@ -29,8 +29,14 @@ shipped builds, validating hostile bytecode. Those go to `backlog-0.2.md` under 
    (`Color tint`), no longer as a handle; the cook's rule flips, and the samples' scripts migrate.
 2. **One reflection fact decides it**, not a list of type names: `TypeInfo` gains a flag set when
    the type is built, from the type's own traits.
-3. **`#include` is refused at cook** with an error naming the line, as the runtime already
-   refuses it. Tracked includes are a feature for later, not a fix.
+3. **`#include` is supported and tracked** (user, 2026-11-14; this replaced "refused at cook",
+   whose premise was wrong: the cook compiles includes into the bytecode, so cooked scripts run
+   them, and the flagship's scripts use them). An include resolves relative to the file that
+   includes it, as a path in the project's sources, never outside them; the included files are
+   the script's cook dependencies, so editing one recooks its includers; each is its own section,
+   so an error or a breakpoint in it names that file and its line; and the record carries the
+   included sources, so a class compiled from source includes them as a cooked one does. Luau has
+   no include directive, so this is AngelScript's alone.
 4. **The garbage collectors step each frame within a time budget** and run a full cycle only where
    a pause is expected (a scene loaded or unloaded, a run stopped). Both languages.
 5. **Every phase that claims a cost is measured** before and after in `build/clang-reldbg`, on a
@@ -59,8 +65,10 @@ shipped builds, validating hostile bytecode. Those go to `backlog-0.2.md` under 
 - Exception reports carry file, line and message, no call stack, although the debugger walks one
   (`:4132-4137`). AngelScript's compiler warnings are dropped (`:2172-2175`).
 - Calls marshal at most 16 arguments (`kMaxArgs`, `:446`); the rest are dropped with a warning.
-- The runtime adds raw script sections (`:718`, `:809`) and so refuses `#include`; the cook's
-  `CScriptBuilder` has no include callback and reads an included file from disk.
+- The runtime adds raw script sections (`:718`, `:809`), so a class compiled from source refuses
+  `#include`; the cook's `CScriptBuilder` has no include callback, so it reads an included file
+  from disk relative to the process, compiles it into the bytecode (a cooked script runs it), and
+  never declares it: editing an included file does not recook. The flagship's scripts include.
 - The script surface hash covers method names, parameter counts and enumerator names, not
   parameter or return types or enumerator values (`ScriptAssetImpl.cpp:104-139`), so a signature
   change of the same arity leaves stale bytecode that fails at load.
@@ -100,7 +108,9 @@ shipped builds, validating hostile bytecode. Those go to `backlog-0.2.md` under 
   what both languages must do alike.
 
 **C2: the cook and the runtime agree.**
-- `#include` is a cook error (Decided 3).
+- `#include` is tracked (Decided 3): one resolution rule in `Script.Pipeline`, the builder declares
+  the included files as dependencies, the cook and the editor's check read them through a reader
+  their caller gives, and the runtime's source path adds the recorded includes as sections.
 - The surface hash covers parameter and return types and enumerator values; a signature change
   recooks.
 - Handlers come from the compiled class, not from scanning source text (recheck first).
