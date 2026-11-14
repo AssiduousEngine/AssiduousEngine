@@ -123,17 +123,40 @@ namespace pipeline{
                 h = text(h, type->properties[i].name);
                 h = number(h, type->properties[i].type != nullptr ? type->properties[i].type->id : 0);
             }
+            // A type's id, or 0 for none (void, an unresolved parameter).
+            const auto typeId = [](const TypeInfo* (*get)()) -> u64
+            {
+                const TypeInfo* t = get != nullptr ? get() : nullptr;
+                return t != nullptr ? t->id : 0;
+            };
             for (u32 i = 0; i < type->methodCount; ++i)
             {
-                h = text(h, type->methods[i].name);
-                h = number(h, (static_cast<u64>(type->methods[i].paramCount) << 2) |
-                                  (type->methods[i].isStatic ? 2u : 0u) | (type->methods[i].isConst ? 1u : 0u));
+                const MethodInfo& method = type->methods[i];
+                h = text(h, method.name);
+                h = number(h, (static_cast<u64>(method.paramCount) << 2) | (method.isStatic ? 2u : 0u) |
+                                  (method.isConst ? 1u : 0u));
+                // The signature, not only its arity: bytecode binds the declaration it compiled
+                // against, so a parameter or return type changed at the same count must recook.
+                h = number(h, typeId(method.returnType));
+                for (u32 p = 0; p < method.paramCount; ++p)
+                {
+                    h = number(h, typeId(method.params[p].type));
+                }
             }
             for (u32 i = 0; i < type->enumeratorCount; ++i)
             {
                 h = text(h, type->enumerators[i].name);
+                h = number(h, static_cast<u64>(type->enumerators[i].value)); // a constant compiled in
             }
             h = number(h, type->constructorCount);
+            for (u32 i = 0; i < type->constructorCount; ++i)
+            {
+                const ConstructorInfo& constructor = type->constructors[i];
+                for (u32 p = 0; p < constructor.paramCount; ++p)
+                {
+                    h = number(h, typeId(constructor.params[p].type));
+                }
+            }
             sum += HashInteger(h); // a sum: the registration order does not matter
         }
         return sum;

@@ -10,6 +10,7 @@
 #include <doctest/doctest.h>
 
 #include "Core/Prelude.h"
+#include "Core/Reflection/Reflect.h"
 
 import foundation.core;
 import pipeline.core;
@@ -153,4 +154,69 @@ TEST_CASE("script.pipeline: the script surface hash follows the runtime types, i
 
     other.Unregister(source.id);
     CHECK(ScriptSurfaceHash(other) == alone);
+}
+
+namespace
+{
+    // A type whose one method's signature the surface hash must see whole.
+    class SignatureProbe : public Object
+    {
+        RTTI_OBJECT(SignatureProbe, Object)
+    public:
+        [[nodiscard]] f64 Take(f64 value) const { return value; }
+    };
+}
+
+REFLECT_MEMBERS(SignatureProbe, "rtti::script::pipelinetest")
+{
+    builder.Constructor();
+    builder.Method<&SignatureProbe::Take>("take");
+}
+
+TEST_CASE("script.pipeline: the script surface hash follows a signature's types and an enumerator's value")
+{
+    // The hash covered a method's name and parameter count: a parameter or return type changed at
+    // the same count, or an enumerator's value, kept the hash, and the stale bytecode failed at load.
+    const TypeInfo& probe = SignatureProbe::StaticType();
+    REQUIRE(probe.methodCount == 1u);
+    REQUIRE(probe.methods[0].paramCount == 1u);
+    TypeRegistry original;
+    original.Register(probe);
+    const u64 before = ScriptSurfaceHash(original);
+
+    // The same type, its method taking an i32: same name, same count.
+    MethodInfo takesInt = probe.methods[0];
+    ParamInfo intParam = takesInt.params[0];
+    intParam.type = []() -> const TypeInfo* { return &TypeOf<i32>(); };
+    takesInt.params = &intParam;
+    TypeInfo changedParam = probe;
+    changedParam.methods = &takesInt;
+    TypeRegistry withParam;
+    withParam.Register(changedParam);
+    CHECK(ScriptSurfaceHash(withParam) != before);
+
+    // Its method returning an i32 instead.
+    MethodInfo returnsInt = probe.methods[0];
+    returnsInt.returnType = []() -> const TypeInfo* { return &TypeOf<i32>(); };
+    TypeInfo changedReturn = probe;
+    changedReturn.methods = &returnsInt;
+    TypeRegistry withReturn;
+    withReturn.Register(changedReturn);
+    CHECK(ScriptSurfaceHash(withReturn) != before);
+
+    // An enumerator with another value under the same name.
+    static const EnumValue one[] = {{"A", 1}};
+    static const EnumValue two[] = {{"A", 2}};
+    TypeInfo first = probe;
+    first.methods = nullptr;
+    first.methodCount = 0;
+    first.enumerators = one;
+    first.enumeratorCount = 1;
+    TypeInfo second = first;
+    second.enumerators = two;
+    TypeRegistry firstRegistry;
+    firstRegistry.Register(first);
+    TypeRegistry secondRegistry;
+    secondRegistry.Register(second);
+    CHECK(ScriptSurfaceHash(firstRegistry) != ScriptSurfaceHash(secondRegistry));
 }
