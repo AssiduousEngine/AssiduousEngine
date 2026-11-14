@@ -3348,7 +3348,42 @@ namespace foundation::script::angelscript
 
         void SetErrorHandler(IScriptErrorHandler* handler) override { m_errorHandler = handler; }
 
-        core::Status Load(core::StringView source, core::StringView chunkName) override
+        // Adds `source` as the section `name`, its `#include` lines blanked: the compiler has no
+        // preprocessor, and the files they name come as sections of their own (the cook resolved
+        // and recorded them). Blanking keeps every other line where it was, for errors and
+        // breakpoints.
+        static void AddSourceSection(asIScriptModule* module, core::StringView name, core::StringView source)
+        {
+            std::string text(reinterpret_cast<const char*>(source.Data()), source.Size());
+            core::usize lineStart = 0;
+            for (core::usize i = 0; i <= text.size(); ++i)
+            {
+                if (i == text.size() || text[i] == '\n')
+                {
+                    core::usize first = lineStart;
+                    while (first < i && (text[first] == ' ' || text[first] == '\t'))
+                    {
+                        ++first;
+                    }
+                    if (text.compare(first, 8, "#include") == 0)
+                    {
+                        for (core::usize k = first; k < i; ++k)
+                        {
+                            if (text[k] != '\r')
+                            {
+                                text[k] = ' ';
+                            }
+                        }
+                    }
+                    lineStart = i + 1;
+                }
+            }
+            const core::String section(name);
+            (void)module->AddScriptSection(CStr(section), text.data(), text.size());
+        }
+
+        core::Status Load(core::StringView source, core::StringView chunkName,
+                          core::Span<const ScriptSection> includes = {}) override
         {
             asIScriptEngine* engine = m_manager->Engine();
             core::String moduleName = m_namePrefix;
@@ -3360,9 +3395,11 @@ namespace foundation::script::angelscript
                 return core::Status{core::ErrorCode::Internal};
             }
 
-            const core::String section(chunkName);
-            (void)module->AddScriptSection(
-                CStr(section), reinterpret_cast<const char*>(source.Data()), source.Size());
+            AddSourceSection(module, chunkName, source);
+            for (const ScriptSection& included : includes)
+            {
+                AddSourceSection(module, included.name, included.source);
+            }
             // The in-script `waitUntil` helper, in its own section so it never shifts the
             // user source's error line numbers (the funcdefs and `wait` are engine-global).
             (void)module->AddScriptSection("__coroutine_support", kCoroutinePreludeSection);
@@ -3506,15 +3543,17 @@ namespace foundation::script::angelscript
                 return core::Status{core::ErrorCode::Internal};
             }
 
-            // One section per class, named by its sourceName (the editor's breakpoint key).
-            // A class with no sourceName falls back to the module name: it still compiles, but
-            // its breakpoints will not line up. The cook always stamps sourceName.
+            // One section per class, named by its sourceName (the editor's breakpoint key), and one
+            // per file it includes, named by its path. A class with no sourceName falls back to the
+            // module name: it still compiles, but its breakpoints will not line up. The cook always
+            // stamps sourceName.
             for (const BehaviorModuleClass& entry : sourceOnly)
             {
-                const core::String section(entry.name.IsEmpty() ? moduleName : entry.name);
-                (void)module->AddScriptSection(CStr(section),
-                                               reinterpret_cast<const char*>(entry.source.Data()),
-                                               entry.source.Size());
+                AddSourceSection(module, entry.name.IsEmpty() ? moduleName : entry.name, entry.source);
+                for (const ScriptSection& included : entry.includes)
+                {
+                    AddSourceSection(module, included.name, included.source);
+                }
             }
             // The in-script `waitUntil` helper, in its own section (line numbers unaffected).
             (void)module->AddScriptSection("__coroutine_support", kCoroutinePreludeSection);

@@ -484,6 +484,7 @@ export namespace engine::script
             // compiling the source (the player path, no compiler). The section is the class's
             // sourceName, so breakpoints and errors key on the authored (file, line).
             const BehaviorModuleClass entry{scriptClass.sourceName.AsView(), scriptClass.source.AsView(),
+                                            {},
                                             Span<const byte>{scriptClass.bytecode.Data(), scriptClass.bytecode.Size()}};
             ++m_generation;
             const String moduleName = Format(u8"behaviors#{}", m_generation);

@@ -78,10 +78,21 @@ export namespace foundation::script
     // identity (ScriptClass::sourceName, for example "Mover.as"): a debug-capable backend makes
     // it the class's own script section, so GetLineNumber reports (sourceFile, sourceLine)
     // and an editor breakpoint keyed on the file lines up. `source` is the class body.
+    // A file a script includes (AngelScript's `#include`): its path in the project's sources,
+    // which names its section (so an error or a breakpoint in it keys on that file), and its text.
+    struct ScriptSection
+    {
+        core::StringView name;
+        core::StringView source;
+    };
+
     struct BehaviorModuleClass
     {
         core::StringView name;   // the source-file section identity (may be empty)
         core::StringView source; // the class source text
+        // The files `source` includes, as the cook recorded them (each already resolved); a backend
+        // with an include directive compiles them beside `source` when it compiles from source.
+        core::Span<const ScriptSection> includes = {};
         // Optional precompiled bytecode for this class (ScriptClass::bytecode). When present and
         // the backend has a stable per-class bytecode (ScriptCapabilities::Bytecode), the backend
         // loads it instead of compiling `source`, which is how the player runs without a compiler.
@@ -96,9 +107,11 @@ export namespace foundation::script
         // report errors to the console.
         virtual void SetErrorHandler(IScriptErrorHandler* handler) = 0;
 
-        // Compile and run a chunk of script source. NotSupported if the backend
+        // Compile and run a chunk of script source, with the files it includes (the cook's record
+        // of them; a backend with no include directive ignores them). NotSupported if the backend
         // has no compiler (e.g. it only loads precompiled blobs).
-        virtual core::Status Load(core::StringView source, core::StringView chunkName) = 0;
+        virtual core::Status Load(core::StringView source, core::StringView chunkName,
+                                  core::Span<const ScriptSection> includes = {}) = 0;
 
         // Load the run's behavior module from its per-class sources, preserving each class's
         // section identity. The run host owns the generation bookkeeping and passes

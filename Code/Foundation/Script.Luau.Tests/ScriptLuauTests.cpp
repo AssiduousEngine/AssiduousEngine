@@ -715,8 +715,8 @@ TEST_CASE("script.luau: LoadBehaviorModule loads each class as its OWN chunk (pe
     // (not concatenated), the error keys on "Bad.luau" (that class's sourceName) at its own line,
     // the (file, line) identity an editor breakpoint needs, not a merged module.
     const BehaviorModuleClass classes[] = {
-        {u8"Good.luau", u8"Good = {}\nfunction Good.new() return setmetatable({}, Good) end\n", {}},
-        {u8"Bad.luau", u8"Bad = {}\nlocal c = = =\n", {}},
+        {u8"Good.luau", u8"Good = {}\nfunction Good.new() return setmetatable({}, Good) end\n", {}, {}},
+        {u8"Bad.luau", u8"Bad = {}\nlocal c = = =\n", {}, {}},
     };
     const Status status =
         scriptContext->LoadBehaviorModule(Span<const BehaviorModuleClass>{classes, 2}, u8"behaviors#1");
@@ -1112,7 +1112,7 @@ TEST_CASE("script.luau: LoadBehaviorModule consumes cooked bytecode with NO sour
     // Player: no source at all; the class must load and run from bytecode alone (no luau_compile).
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     const BehaviorModuleClass classes[] = {
-        {u8"Widget.luau", StringView{}, Span<const byte>{bytecode.Data(), bytecode.Size()}},
+        {u8"Widget.luau", StringView{}, {}, Span<const byte>{bytecode.Data(), bytecode.Size()}},
     };
     REQUIRE(
         scriptContext->LoadBehaviorModule(Span<const BehaviorModuleClass>{classes, 1}, u8"behaviors#1")
@@ -1154,7 +1154,7 @@ TEST_CASE("script.luau: cooked bytecode stays debuggable - breakpoint + local ca
     debugger->SetBreakpoint(u8"Widget.luau", 4);
 
     const BehaviorModuleClass classes[] = {
-        {u8"Widget.luau", StringView{}, Span<const byte>{bytecode.Data(), bytecode.Size()}},
+        {u8"Widget.luau", StringView{}, {}, Span<const byte>{bytecode.Data(), bytecode.Size()}},
     };
     REQUIRE(
         scriptContext->LoadBehaviorModule(Span<const BehaviorModuleClass>{classes, 1}, u8"behaviors#1")

@@ -256,7 +256,8 @@ namespace foundation::script
         ~LuauScriptContext() override;
 
         void SetErrorHandler(IScriptErrorHandler* handler) override { m_errors = handler; }
-        Status Load(StringView source, StringView chunkName) override;
+        // Luau has no include directive: `includes` is always empty for it.
+        Status Load(StringView source, StringView chunkName, Span<const ScriptSection> includes = {}) override;
         Status LoadBlob(IScriptBlob& blob) override;
         Status LoadBehaviorModule(Span<const BehaviorModuleClass> classes,
                                   StringView moduleName) override;
@@ -2706,8 +2707,9 @@ namespace foundation::script
         return LoadCompiledChunk(raw.Data(), raw.Size(), chunkName);
     }
 
-    Status LuauScriptContext::Load(StringView source, StringView chunkName)
+    Status LuauScriptContext::Load(StringView source, StringView chunkName, Span<const ScriptSection> includes)
     {
+        (void)includes; // no include directive in Luau
         // debugLevel 2 keeps local and upvalue names, which the step debugger needs to inspect
         // locals; optimizationLevel 1 keeps the bytecode debuggable (no inlining). The cook compiles
         // with the same options (LuauScriptManager::CompileToBlob), so a stored blob is

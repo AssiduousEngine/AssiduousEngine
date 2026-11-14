@@ -1444,7 +1444,7 @@ TEST_CASE("angelscript: LoadBehaviorModule reports each class's sourceName as it
         u8"    x = x + 1;\n"       // 5  <- breakpoint (keyed on the source file)
         u8"  }\n"                  // 6
         u8"}\n";                   // 7
-    const BehaviorModuleClass classes[] = {{u8"Mover.as", moverSource, {}}};
+    const BehaviorModuleClass classes[] = {{u8"Mover.as", moverSource, {}, {}}};
     REQUIRE(scriptContext->LoadBehaviorModule(Span<const BehaviorModuleClass>{classes, 1}, u8"behaviors#1")
                 .IsOk());
 
@@ -1998,4 +1998,79 @@ TEST_CASE("angelscript: past 16 parameters a call is refused, never made with ar
     CHECK_FALSE(scriptContext->Call(u8"many", Span<Variant>{args, 17}).HasValue());
     CHECK(said.message.AsView().Find(StringView(u8"a call carries at most 16")) != StringView::kNotFound);
     scriptContext->SetErrorHandler(nullptr);
+}
+
+// A class compiled from source gets its includes as the cook recorded them, each a section named
+// by its path; the source's own #include lines are left out, keeping its other lines where they
+// were. The runtime refused any source with an #include line.
+TEST_CASE("angelscript: Load compiles the recorded includes beside the source, each its own section")
+{
+    RefPtr<IScriptContext> scriptContext = angelscript::CreateScriptManager(DefaultAllocator())->CreateContext();
+    struct Errors final : IScriptErrorHandler
+    {
+        String module;
+        i32 line = -1;
+        void OnError(const ScriptError& error) override
+        {
+            module = String(error.module);
+            line = error.line;
+        }
+    } errors;
+    scriptContext->SetErrorHandler(&errors);
+
+    const ScriptSection numbers[] = {{u8"Shared/Numbers.as", u8"double twice(double v) { return v * 2; }\n"}};
+    REQUIRE(scriptContext
+                ->Load(u8"#include \"../Shared/Numbers.as\"\ndouble answer() { return twice(21); }\n", u8"Game/Boot.as",
+                       Span<const ScriptSection>{numbers, 1})
+                .IsOk());
+    CHECK(scriptContext->Call(u8"answer", Span<Variant>{}).Value().Get<f64>() == 42.0);
+
+    // A runtime fault inside the included file is said in that file, at its line.
+    const ScriptSection faulty[] = {{u8"Shared/Divide.as", u8"int one() { return 1; }\nint divide(int v) { int z = 0; return v / z; }\n"}};
+    REQUIRE(scriptContext
+                ->Load(u8"#include \"../Shared/Divide.as\"\nint run() { return divide(4); }\n", u8"Game/Run.as",
+                       Span<const ScriptSection>{faulty, 1})
+                .IsOk());
+    CHECK_FALSE(scriptContext->Call(u8"run", Span<Variant>{}).HasValue());
+    CHECK(errors.module == u8"Shared/Divide.as");
+    CHECK(errors.line == 2);
+    scriptContext->SetErrorHandler(nullptr);
+}
+
+TEST_CASE("angelscript: a behaviour class's includes load with it, and a breakpoint in one names that file")
+{
+    RefPtr<IScriptManager> manager = angelscript::CreateScriptManager(DefaultAllocator());
+    UniquePtr<IScriptDebugger> debugger = manager->CreateDebugger();
+    REQUIRE(debugger.Get() != nullptr);
+    RefPtr<IScriptContext> scriptContext = manager->CreateContext();
+
+    const ScriptSection steps[] = {{u8"Shared/Steps.as",
+                                    u8"double step(double x)\n" // 1
+                                    u8"{\n"                     // 2
+                                    u8"    return x + 1;\n"     // 3 <- breakpoint
+                                    u8"}\n"}};
+    const BehaviorModuleClass classes[] = {
+        {u8"Mover.as",
+         u8"#include \"Shared/Steps.as\"\nclass Mover { double x = 0; void tick() { x = step(x); } }\n",
+         Span<const ScriptSection>{steps, 1}, {}},
+    };
+    REQUIRE(scriptContext->LoadBehaviorModule(Span<const BehaviorModuleClass>{classes, 1}, u8"behaviors#1").IsOk());
+
+    struct Sink final : IScriptDebuggerListener
+    {
+        ScriptDebuggerState last = ScriptDebuggerState::Running;
+        void OnDebuggerStateChanged(ScriptDebuggerState state) override { last = state; }
+    } sink;
+    debugger->SetListener(&sink);
+    debugger->SetBreakpoint(u8"Shared/Steps.as", 3);
+    RefPtr<ScriptObject> mover = scriptContext->CreateInstance(u8"Mover", Span<Variant>{});
+    REQUIRE(static_cast<bool>(mover));
+    (void)mover->Invoke(u8"tick", Span<Variant>{});
+    CHECK(sink.last == ScriptDebuggerState::Breakpoint);
+    Array<ScriptStackFrame> frames = debugger->CaptureStackFrames();
+    REQUIRE_FALSE(frames.IsEmpty());
+    CHECK(StringView(frames[0].file) == u8"Shared/Steps.as");
+    CHECK(frames[0].line == 3);
+    debugger->Continue();
+    debugger->SetListener(nullptr);
 }
