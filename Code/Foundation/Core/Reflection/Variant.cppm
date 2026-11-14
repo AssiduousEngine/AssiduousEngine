@@ -133,6 +133,23 @@ export namespace foundation::core
             }
         }
 
+        // An owned copy of the value of `type` at `src`, made through the operations its reflection
+        // recorded (TypeInfo::valueOps), for a caller that knows the type only at run time (a script
+        // value's bytes). Empty when `type` has none (an Object type, an unreflected one).
+        [[nodiscard]] static Variant CopyOf(const TypeInfo& type, const void* src)
+        {
+            const auto* ops = static_cast<const detail::VariantVTable*>(type.valueOps);
+            if (ops == nullptr || src == nullptr)
+            {
+                return Variant{};
+            }
+            Variant v;
+            v.m_vtable = ops;
+            void* dst = v.AllocateStorage(ops->size, ops->align);
+            ops->copy(dst, src);
+            return v;
+        }
+
         // Wrap an object (owning). Reports the object's dynamic type.
         [[nodiscard]] static Variant FromObject(const RefPtr<Object>& object)
         {

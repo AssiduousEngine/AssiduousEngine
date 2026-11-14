@@ -105,6 +105,11 @@ export namespace foundation::core
         // refers to that thing and never copies it, whatever its bytes. Declared by the type's
         // reflection (TypeBuilder::HasIdentity); a trivial copy without it is a plain value.
         bool hasIdentity = false;
+        // The Variant operations (copy, move, destroy) of a trivially copied value of this type,
+        // recorded by its reflection, so a value can be copied out of an address knowing only its
+        // TypeInfo (Variant::CopyOf). Opaque here: the Variant's own table. Null for any other type
+        // and a type without reflection.
+        const void* valueOps = nullptr;
     };
 
     /// `type` keeps a legacy reader for data stored under `oldest` up to its current version.

@@ -698,6 +698,11 @@ export namespace foundation::core
         {
             return Variant{};
         }
+        Variant copied = Variant::CopyOf(*value.Type(), at.Pointer());
+        if (!copied.IsEmpty())
+        {
+            return copied;
+        }
         Result<Variant> made = Construct(*value.Type(), Span<Variant>{});
         if (made.HasValue() && made.Value().CopyValueFrom(at.Pointer()))
         {
@@ -2205,6 +2210,13 @@ export namespace foundation::core
             m_data.info.minReadDataVersion = m_minReadDataVersion;
             m_data.info.readsLegacyData = m_readsLegacyData;
             m_data.info.hasIdentity = m_hasIdentity;
+            // A trivial copy only: a type that merely declares a copy constructor (a container of
+            // UniquePtr) cannot always instantiate one.
+            if constexpr (std::is_trivially_copyable_v<T> && std::is_trivially_destructible_v<T> &&
+                          !std::is_base_of_v<Object, T>)
+            {
+                m_data.info.valueOps = &detail::kVariantVTable<T>; // Variant::CopyOf
+            }
             // Wire per-property attribute spans (the inner Array buffers survive TypeData's
             // move; only the outer array's control block moves).
             while (m_data.propertyAttributes.Size() < m_data.properties.Size())

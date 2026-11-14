@@ -1670,3 +1670,23 @@ TEST_CASE("rtti: a type records whether its bytes copy it, and declares identity
     CHECK(TypeOf<LiveSlot>().trivialCopy);
     CHECK(TypeOf<LiveSlot>().hasIdentity);
 }
+
+TEST_CASE("rtti: a reflected value is copied out of an address knowing only its type")
+{
+    // A script value's bytes reach native code with only their TypeInfo; a type without a reflected
+    // default constructor could not be copied out at all.
+    const Float3 position{1.0f, 2.0f, 3.0f};
+    Variant copied = Variant::CopyOf(TypeOf<Float3>(), &position);
+    REQUIRE(copied.TryGet<Float3>() != nullptr);
+    CHECK(copied.Get<Float3>() == position);
+
+    RttiRegisterValue_LiveSlot();
+    const LiveSlot slot{7};
+    REQUIRE(TypeOf<LiveSlot>().constructorCount == 0u);
+    Variant slotCopy = Variant::CopyOf(TypeOf<LiveSlot>(), &slot);
+    REQUIRE(slotCopy.TryGet<LiveSlot>() != nullptr);
+    CHECK(slotCopy.Get<LiveSlot>().index == 7);
+
+    // An Object type has no value to copy.
+    CHECK(Variant::CopyOf(TypeOf<Object>(), &slot).IsEmpty());
+}
