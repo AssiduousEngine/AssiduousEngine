@@ -345,6 +345,8 @@ namespace foundation::script::angelscript
     // below). Facade methods take flat scalar args and can exceed 8 (DebugDraw.line takes 6
     // coordinates and 3 color components); a call over the cap loses its trailing args.
     inline constexpr int kMaxArgs = 16;
+    // Idle contexts the pool keeps: one per nesting level a frame reaches is plenty.
+    inline constexpr core::usize kMaxPooledContexts = 8;
 
     // Every reflected instance held by script: a refcounted box around a Variant.
     struct BoxedVariant
@@ -528,6 +530,10 @@ namespace foundation::script::angelscript
             RegisterScriptArray(m_engine, true);
             RegisterCoroutineSurface();
             RegisterDelegateSurface();
+            // A call takes a context and gives it back; without these the library makes and frees
+            // one per call.
+            (void)m_engine->SetContextCallbacks(&AngelScriptManager::RequestPooledContext,
+                                                &AngelScriptManager::ReturnPooledContext, this);
         }
 
         ~AngelScriptManager() override
@@ -535,6 +541,11 @@ namespace foundation::script::angelscript
             // Coroutine contexts belong to the engine, so drop them (and their owner refs)
             // before the engine is torn down.
             DropAllCoroutines();
+            for (asIScriptContext* pooled : m_contextPool)
+            {
+                pooled->Release();
+            }
+            m_contextPool.Clear();
             if (m_engine != nullptr)
             {
                 m_engine->ShutDownAndRelease();
@@ -687,6 +698,40 @@ namespace foundation::script::angelscript
         private:
             AngelScriptManager& m_manager;
         };
+        // The context pool behind RequestContext and ReturnContext. A returned context is kept only
+        // when it unprepares (it is not still running, as a nested call's caller is), cleared of
+        // its line callback and any budget stop, and while the pool is under its cap.
+        static asIScriptContext* RequestPooledContext(asIScriptEngine* engine, void* param)
+        {
+            auto* self = static_cast<AngelScriptManager*>(param);
+            if (!self->m_contextPool.IsEmpty())
+            {
+                asIScriptContext* ctx = self->m_contextPool.Back();
+                self->m_contextPool.PopBack();
+                return ctx;
+            }
+            return engine->CreateContext();
+        }
+        static void ReturnPooledContext(asIScriptEngine*, asIScriptContext* ctx, void* param)
+        {
+            if (ctx == nullptr)
+            {
+                return;
+            }
+            auto* self = static_cast<AngelScriptManager*>(param);
+            if (self->m_budgetStopped == ctx)
+            {
+                self->m_budgetStopped = nullptr;
+            }
+            ctx->ClearLineCallback();
+            if (self->m_contextPool.Size() >= kMaxPooledContexts || ctx->Unprepare() < 0)
+            {
+                ctx->Release();
+                return;
+            }
+            self->m_contextPool.PushBack(ctx);
+        }
+
         // Puts the budget's line callback on `ctx` (a debugger's, armed instead, checks it too).
         void ArmBudget(asIScriptContext* ctx)
         {
@@ -2921,6 +2966,7 @@ namespace foundation::script::angelscript
         core::Array<asIScriptContext*> m_dueScratch; // reused per-frame due snapshot
         AngelScriptDebugger* m_debugger = nullptr; // borrowed; the active debugger (self-registers)
         asIScriptContext* m_budgetStopped = nullptr; // the context the budget last aborted (TakeBudgetStop)
+        core::Array<asIScriptContext*> m_contextPool; // idle contexts, see RequestPooledContext
     };
 
     // ---- generic dispatchers (run during script execution; the surrounding
