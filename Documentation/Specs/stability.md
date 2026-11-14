@@ -42,9 +42,11 @@ under "Stability: left over".
    keeps), so Ctrl+S keeps working; Discard during Simulate stops Simulate first.
 6. **A fixed budget that overflows grows next frame or says so once**; nothing is dropped
    silently.
-7. **Script budgets**: the cook and `script_validate` run a script's top level under a small
-   instruction and time budget and fail on it; a running game gets a generous one that reports
-   and aborts the call, not the process.
+7. **Script budgets**: a running game's calls into script run under a generous budget that
+   reports and aborts the call, not the process. The cook and `script_validate` stay
+   compile-only (`Check` never runs a script, by design: it checks code as it is typed), so a top
+   level that never ends is stopped when the game loads it, its error naming the script.
+   (Revised 2026-11-13: running top levels at cook and validation was dropped.)
 
 ## What exists (checked 2026-11-13)
 

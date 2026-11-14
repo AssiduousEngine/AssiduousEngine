@@ -935,8 +935,8 @@ TEST_CASE("angelscript: a runtime error is reported")
 
 TEST_CASE("angelscript: a runtime fault in a GLOBAL INITIALIZER is a Runtime error")
 {
-    // Build both compiles and runs global initializers; the backend classifies a
-    // failed init as Runtime (not Compile) by Build's return code.
+    // Load runs the global initializers after the Build (InitGlobals); a failed one is a
+    // Runtime error, not a Compile one.
     RefPtr<IScriptContext> scriptContext = angelscript::CreateScriptManager(foundation::core::DefaultAllocator())->CreateContext();
     CapturingErrors errors;
     scriptContext->SetErrorHandler(&errors);
@@ -1774,4 +1774,91 @@ TEST_CASE("angelscript: many engine lifecycles in one process (the cook pattern)
         REQUIRE(scriptContext.Get() != nullptr);
         CHECK(scriptContext->Load(u8"void main() { }", u8"cook_cycle").IsOk());
     }
+}
+
+namespace
+{
+    struct AsBudgetErrors final : IScriptErrorHandler
+    {
+        Array<String> messages;
+        void OnError(const ScriptError& error) override { messages.PushBack(String(error.message)); }
+        [[nodiscard]] bool Any(StringView needle) const
+        {
+            for (const String& m : messages)
+                if (m.AsView().Find(needle) != StringView::kNotFound)
+                    return true;
+            return false;
+        }
+    };
+}
+
+TEST_CASE("angelscript: a call past its time budget is stopped, and the context goes on")
+{
+    // A script loop that never ended hung the game.
+    RefPtr<IScriptManager> manager = angelscript::CreateScriptManager(foundation::core::DefaultAllocator());
+    ScriptBudget budget;
+    budget.callSeconds = 0.5;
+    manager->SetBudget(budget);
+    RefPtr<IScriptContext> scriptContext = manager->CreateContext();
+    AsBudgetErrors errors;
+    scriptContext->SetErrorHandler(&errors);
+    REQUIRE(scriptContext->Load(u8"class Probe {\n"
+                                u8"  void forever() { int i = 0; while (true) { i++; } }\n"
+                                u8"  int deep(int n) { return deep(n + 1) + 1; }\n"
+                                u8"  double fine() { return 7; }\n"
+                                u8"}\n",
+                                u8"budget")
+                .IsOk());
+    RefPtr<ScriptObject> probe = scriptContext->CreateInstance(u8"Probe", Span<Variant>{});
+    REQUIRE(static_cast<bool>(probe));
+
+    const Stopwatch clock = Stopwatch::StartNew();
+    CHECK_FALSE(probe->Invoke(u8"forever", Span<Variant>{}).HasValue());
+    const f64 took = clock.Elapsed().AsSeconds();
+    MESSAGE("stopped after ", took, " s");
+    CHECK(took >= 0.5);
+    CHECK(took < 2.0);
+    CHECK(errors.Any(u8"budget"));
+    CHECK(probe->Invoke(u8"fine", Span<Variant>{}).Value().Get<f64>() == 7.0); // the context goes on
+
+    // Recursion that never ends fails its call at the stack limit instead of taking memory. The time
+    // budget is raised first: a sanitizer build is slow enough to reach it before the limit.
+    budget.callSeconds = 60.0;
+    manager->SetBudget(budget);
+    Variant zero[] = {Variant::From(0)};
+    const Stopwatch deepClock = Stopwatch::StartNew();
+    CHECK_FALSE(probe->Invoke(u8"deep", Span<Variant>{zero, 1}).HasValue());
+    MESSAGE("stack limit reached after ", deepClock.Elapsed().AsSeconds(), " s");
+    CHECK(errors.Any(u8"Stack overflow"));
+    CHECK(probe->Invoke(u8"fine", Span<Variant>{}).Value().Get<f64>() == 7.0);
+}
+
+TEST_CASE("angelscript: a global initializer runs at load under the budget, never in a compile")
+{
+    // Build ran the global initializers on the engine's own context: one that never returned hung
+    // the load, and the cook's compile ran them too.
+    RefPtr<IScriptManager> manager = angelscript::CreateScriptManager(foundation::core::DefaultAllocator());
+    ScriptBudget budget;
+    budget.callSeconds = 0.5;
+    manager->SetBudget(budget);
+    const StringView looping = u8"int forever() { while (true) {} return 1; }\nint x = forever();\n";
+
+    // The cook's compile and a check build it without running a line of it.
+    const Stopwatch compileClock = Stopwatch::StartNew();
+    CHECK(manager->CompileToBlob(looping, u8"globals").HasValue());
+    AsBudgetErrors none;
+    CHECK(manager->Check(looping, u8"globals", none));
+    CHECK(compileClock.Elapsed().AsSeconds() < 0.4);
+
+    // A load runs the initializer, and stops it at the budget.
+    RefPtr<IScriptContext> scriptContext = manager->CreateContext();
+    AsBudgetErrors errors;
+    scriptContext->SetErrorHandler(&errors);
+    CHECK_FALSE(scriptContext->Load(looping, u8"globals").IsOk());
+    CHECK(errors.Any(u8"budget"));
+
+    // An initializer that returns still sets its global.
+    RefPtr<IScriptContext> fine = manager->CreateContext();
+    REQUIRE(fine->Load(u8"int seven() { return 7; }\nint x = seven();\ndouble read() { return x; }\n", u8"globals.ok").IsOk());
+    CHECK(fine->Call(u8"read", Span<Variant>{}).Value().Get<f64>() == 7.0);
 }

@@ -529,6 +529,8 @@ namespace foundation::script::angelscript
     // debugger back as `param` (AngelScript's SetLineCallback contract).
     class AngelScriptDebugger;
     void DebuggerLineCallback(asIScriptContext* ctx, void* param);
+    // The budget's line callback on a context no debugger is armed on (param: the manager).
+    void BudgetLineCallback(asIScriptContext* ctx, void* param);
     // Arm a debugger's line callback on a pooled executor before Execute (owner = the
     // IScriptContext scoped for that call, re-established when the debugger resumes it).
     void ArmDebugger(AngelScriptDebugger& debugger, asIScriptContext* ctx, IScriptContext* owner);
@@ -580,6 +582,15 @@ namespace foundation::script::angelscript
             m_engine = asCreateScriptEngine();
             m_engine->SetMessageCallback(asFUNCTION(&AngelScriptManager::OnMessage), this,
                                          asCALL_CDECL);
+            // Global initializers run at load on a context the budget covers (InitGlobals), not
+            // inside Build, where nothing stops one that never ends; so a Build (the cook's, a
+            // check's) compiles without running script.
+            (void)m_engine->SetEngineProperty(asEP_INIT_GLOBAL_VARS_AFTER_BUILD, 0);
+            // Recursion that never ends fails its call ("Stack overflow") instead of growing the
+            // script's stacks until memory runs out: the call depth (Luau's own limit, 20000) and
+            // the data stack the frames' locals take.
+            (void)m_engine->SetEngineProperty(asEP_MAX_CALL_STACK_SIZE, kMaxScriptCallDepth);
+            (void)m_engine->SetEngineProperty(asEP_MAX_STACK_SIZE, kMaxScriptStackBytes);
             RegisterStdString(m_engine);
             // RegisterStdString already registers the number-concat operators
             // (string opAdd(int64/double/bool/...)), so `"Score: " + n` works. The formatInt and
@@ -730,7 +741,54 @@ namespace foundation::script::angelscript
 
         void SetBudget(const ScriptBudget& budget) override { m_budget = budget; }
         [[nodiscard]] ScriptBudget Budget() const override { return m_budget; }
-        ScriptBudget m_budget;
+
+        // One Execute from the engine: the outermost starts the budget's clock; a call into script
+        // from inside one (a facade that dispatches script) runs on the outer call's clock.
+        class ExecuteClock
+        {
+        public:
+            explicit ExecuteClock(AngelScriptManager& manager) noexcept : m_manager(manager)
+            {
+                if (m_manager.m_executeDepth++ == 0)
+                {
+                    m_manager.m_executeStartTicks = core::GetTicks();
+                    m_manager.m_linesSinceCheck = 0;
+                }
+            }
+            ~ExecuteClock() { --m_manager.m_executeDepth; }
+            ExecuteClock(const ExecuteClock&) = delete;
+            ExecuteClock& operator=(const ExecuteClock&) = delete;
+
+        private:
+            AngelScriptManager& m_manager;
+        };
+        // Puts the budget's line callback on `ctx` (a debugger's, armed instead, checks it too).
+        void ArmBudget(asIScriptContext* ctx)
+        {
+            (void)ctx->SetLineCallback(asFUNCTION(BudgetLineCallback), this, asCALL_CDECL);
+        }
+        // Aborts `ctx` when the running call has used its seconds; true then. The clock is read
+        // every kLinesPerCheck lines: one read a script line would cost more than the lines.
+        bool StopIfOverBudget(asIScriptContext* ctx) noexcept
+        {
+            if (m_executeDepth == 0 || ++m_linesSinceCheck < kLinesPerCheck)
+            {
+                return false;
+            }
+            m_linesSinceCheck = 0;
+            const core::f64 seconds = static_cast<core::f64>(core::GetTicks() - m_executeStartTicks) /
+                                      static_cast<core::f64>(core::GetTickFrequency());
+            if (seconds <= m_budget.callSeconds)
+            {
+                return false;
+            }
+            (void)ctx->Abort();
+            return true;
+        }
+        [[nodiscard]] core::String BudgetStopMessage() const
+        {
+            return core::Format(u8"script call stopped: ran past its {} s budget", m_budget.callSeconds);
+        }
 
         // Compile without running (see IScriptManager::Check). Build would run the global
         // initializers right after compiling, so the engine's init-after-build is off for the
@@ -907,7 +965,17 @@ namespace foundation::script::angelscript
             std::string stringTemps[kMaxArgs];
             BoxedVariant* boxTemps[kMaxArgs] = {};
             BindArgsInto(executor, func, args, stringTemps, boxTemps);
-            const int result = executor->Execute();
+            ArmBudget(executor);
+            int result;
+            {
+                const ExecuteClock clock(*this);
+                result = executor->Execute();
+            }
+            executor->ClearLineCallback();
+            if (result == asEXECUTION_ABORTED)
+            {
+                core::ConsoleWriteError(BudgetStopMessage().AsView());
+            }
             for (BoxedVariant* box : boxTemps)
             {
                 ReleaseBox(box);
@@ -997,7 +1065,12 @@ namespace foundation::script::angelscript
             // Capture the home context: this initial run is already inside the caller's
             // ScriptCallScope, and a resume from AdvanceCoroutines pushes it again.
             m_coroutines.PushBack(Coroutine{co, 0.0, owner, CurrentScriptContext()});
-            const int result = co->Execute();
+            ArmBudget(co); // its own context: armed for each run between its waits
+            int result;
+            {
+                const ExecuteClock clock(*this);
+                result = co->Execute();
+            }
             ResolveCoroutineExecution(co, result);
         }
 
@@ -1049,7 +1122,11 @@ namespace foundation::script::angelscript
                 // (from the run-host tick), so the coroutine's facade calls resolve per-context
                 // services (scene.spawn, entity.send) instead of doing nothing on a null context.
                 ScriptCallScope scope(m_coroutines[static_cast<core::usize>(index)].home);
-                const int result = ctx->Execute();
+                int result;
+                {
+                    const ExecuteClock clock(*this);
+                    result = ctx->Execute();
+                }
                 ResolveCoroutineExecution(ctx, result);
             }
         }
@@ -2055,6 +2132,10 @@ namespace foundation::script::angelscript
             {
                 return;
             }
+            if (result == asEXECUTION_ABORTED)
+            {
+                core::ConsoleWriteError(BudgetStopMessage().AsView());
+            }
             const int index = FindCoroutine(ctx);
             if (index >= 0)
             {
@@ -2063,6 +2144,13 @@ namespace foundation::script::angelscript
         }
 
         static constexpr core::f64 kDueEpsilon = 1e-4;
+        static constexpr core::u32 kLinesPerCheck = 256;            // script lines between clock reads
+        static constexpr asPWORD kMaxScriptStackBytes = 1u << 20;   // one script call's data stack
+        static constexpr asPWORD kMaxScriptCallDepth = 20000;      // nested script calls
+        ScriptBudget m_budget;
+        core::u32 m_executeDepth = 0;     // nested Executes (ExecuteClock)
+        core::u64 m_executeStartTicks = 0; // when the outermost began
+        core::u32 m_linesSinceCheck = 0;
 
         struct RegisteredType
         {
@@ -3213,14 +3301,19 @@ namespace foundation::script::angelscript
                 ScriptCallScope scope(this);
                 result = module->Build();
             }
-            const bool initFailed = (result == asINIT_GLOBAL_VARS_FAILED);
-            m_manager->EndMessageCapture(m_errorHandler, initFailed ? ScriptErrorKind::Runtime
-                                                                    : ScriptErrorKind::Compile);
+            m_manager->EndMessageCapture(m_errorHandler, ScriptErrorKind::Compile);
             if (result < 0)
             {
                 module->Discard();
-                return core::Status{initFailed ? core::ErrorCode::Internal
-                                               : core::ErrorCode::InvalidArgument};
+                return core::Status{core::ErrorCode::InvalidArgument};
+            }
+            m_manager->BeginMessageCapture();
+            const int initialized = InitGlobals(module);
+            m_manager->EndMessageCapture(m_errorHandler, ScriptErrorKind::Runtime);
+            if (initialized < 0)
+            {
+                module->Discard();
+                return core::Status{core::ErrorCode::Internal};
             }
 
             m_ownedModules.PushBack(module);
@@ -3242,8 +3335,8 @@ namespace foundation::script::angelscript
         }
 
         // Load a precompiled bytecode blob (the player path: LoadByteCode, never Build). Same
-        // module lifecycle and main() entry convention as Load; AngelScript restores global vars
-        // during LoadByteCode. The engine must carry the same reflected registration the blob was
+        // module lifecycle and main() entry convention as Load; the global vars are initialized
+        // after LoadByteCode (InitGlobals), as after a Build. The engine must carry the same reflected registration the blob was
         // saved against (the shared global registry ensures it) or LoadByteCode rejects it.
         core::Status LoadBlob(IScriptBlob& blob) override
         {
@@ -3276,6 +3369,14 @@ namespace foundation::script::angelscript
             {
                 module->Discard();
                 return core::Status{core::ErrorCode::InvalidArgument};
+            }
+            m_manager->BeginMessageCapture();
+            const int initialized = InitGlobals(module);
+            m_manager->EndMessageCapture(m_errorHandler, ScriptErrorKind::Runtime);
+            if (initialized < 0)
+            {
+                module->Discard();
+                return core::Status{core::ErrorCode::Internal};
             }
             m_ownedModules.PushBack(module);
             m_module = module;
@@ -3350,14 +3451,19 @@ namespace foundation::script::angelscript
                 ScriptCallScope scope(this);
                 result = module->Build();
             }
-            const bool initFailed = (result == asINIT_GLOBAL_VARS_FAILED);
-            m_manager->EndMessageCapture(m_errorHandler, initFailed ? ScriptErrorKind::Runtime
-                                                                    : ScriptErrorKind::Compile);
+            m_manager->EndMessageCapture(m_errorHandler, ScriptErrorKind::Compile);
             if (result < 0)
             {
                 module->Discard();
-                return core::Status{initFailed ? core::ErrorCode::Internal
-                                               : core::ErrorCode::InvalidArgument};
+                return core::Status{core::ErrorCode::InvalidArgument};
+            }
+            m_manager->BeginMessageCapture();
+            const int initialized = InitGlobals(module);
+            m_manager->EndMessageCapture(m_errorHandler, ScriptErrorKind::Runtime);
+            if (initialized < 0)
+            {
+                module->Discard();
+                return core::Status{core::ErrorCode::Internal};
             }
 
             m_ownedModules.PushBack(module);
@@ -3477,12 +3583,17 @@ namespace foundation::script::angelscript
             AngelScriptDebugger* debugger = m_manager->ActiveDebugger();
             if (debugger != nullptr)
             {
-                ArmDebugger(*debugger, executor, this);
+                ArmDebugger(*debugger, executor, this); // its line callback checks the budget too
+            }
+            else
+            {
+                m_manager->ArmBudget(executor);
             }
 
             int result;
             {
                 ScriptCallScope scope(this);
+                const AngelScriptManager::ExecuteClock clock(*m_manager);
                 result = executor->Execute();
             }
 
@@ -3519,11 +3630,12 @@ namespace foundation::script::angelscript
             {
                 ReportException(executor);
             }
-            // Never return a context to the pool carrying a stale line callback.
-            if (debugger != nullptr)
+            else if (result == asEXECUTION_ABORTED)
             {
-                executor->ClearLineCallback();
+                ReportBudgetStop();
             }
+            // Never return a context to the pool carrying a stale line callback.
+            executor->ClearLineCallback();
             engine->ReturnContext(executor);
             return outcome;
         }
@@ -3636,6 +3748,44 @@ namespace foundation::script::angelscript
                     continue;
                 }
             }
+        }
+
+        void ReportBudgetStop()
+        {
+            const core::String message = m_manager->BudgetStopMessage();
+            if (m_errorHandler != nullptr)
+            {
+                m_errorHandler->OnError(ScriptError{ScriptErrorKind::Runtime, {}, -1, -1, message.AsView()});
+                return;
+            }
+            core::ConsoleWriteError(message.AsView());
+        }
+
+        // Runs `module`'s global initializers on a context the budget covers (the engine does not
+        // run them in Build). Negative when one failed or ran past the budget; the engine's own
+        // messages say which (the caller captures them), and a budget stop is said here.
+        int InitGlobals(asIScriptModule* module)
+        {
+            asIScriptEngine* engine = m_manager->Engine();
+            asIScriptContext* ctx = engine->RequestContext();
+            if (ctx == nullptr)
+            {
+                return asERROR;
+            }
+            m_manager->ArmBudget(ctx);
+            int result;
+            {
+                ScriptCallScope scope(this);
+                const AngelScriptManager::ExecuteClock clock(*m_manager);
+                result = module->ResetGlobalVars(ctx);
+            }
+            if (result < 0 && ctx->GetState() == asEXECUTION_ABORTED)
+            {
+                ReportBudgetStop();
+            }
+            ctx->ClearLineCallback();
+            engine->ReturnContext(ctx);
+            return result;
         }
 
         void ReportException(asIScriptContext* executor)
@@ -3908,6 +4058,7 @@ namespace foundation::script::angelscript
     class AngelScriptDebugger final : public IScriptDebugger
     {
     public:
+        [[nodiscard]] AngelScriptManager* Manager() const noexcept { return m_manager; }
         explicit AngelScriptDebugger(AngelScriptManager* manager) noexcept : m_manager(manager)
         {
             if (m_manager != nullptr)
@@ -4238,6 +4389,7 @@ namespace foundation::script::angelscript
             int result;
             {
                 ScriptCallScope scope(m_owner);
+                const AngelScriptManager::ExecuteClock clock(*m_manager);
                 result = ctx->Execute();
             }
             if (result == asEXECUTION_SUSPENDED && m_pausedContext == ctx)
@@ -4284,7 +4436,18 @@ namespace foundation::script::angelscript
 
     void DebuggerLineCallback(asIScriptContext* ctx, void* param)
     {
-        static_cast<AngelScriptDebugger*>(param)->OnLine(ctx);
+        auto* debugger = static_cast<AngelScriptDebugger*>(param);
+        // A context has one line callback: the debugger's stands in for the budget's.
+        if (debugger->Manager() != nullptr && debugger->Manager()->StopIfOverBudget(ctx))
+        {
+            return;
+        }
+        debugger->OnLine(ctx);
+    }
+
+    void BudgetLineCallback(asIScriptContext* ctx, void* param)
+    {
+        (void)static_cast<AngelScriptManager*>(param)->StopIfOverBudget(ctx);
     }
 
     void ArmDebugger(AngelScriptDebugger& debugger, asIScriptContext* ctx, IScriptContext* owner)
@@ -4371,11 +4534,14 @@ namespace foundation::script::angelscript
         std::string stringTemps[kMaxArgs];
         BoxedVariant* boxTemps[kMaxArgs] = {};
         BindArgs(executor, factory, args, stringTemps, boxTemps);
+        m_manager->ArmBudget(executor); // a constructor can loop as well as a method
         int result;
         {
             ScriptCallScope scope(this);
+            const AngelScriptManager::ExecuteClock clock(*m_manager);
             result = executor->Execute();
         }
+        executor->ClearLineCallback();
         for (BoxedVariant* box : boxTemps)
         {
             ReleaseBox(box);
@@ -4392,6 +4558,10 @@ namespace foundation::script::angelscript
         else if (result == asEXECUTION_EXCEPTION)
         {
             ReportException(executor);
+        }
+        else if (result == asEXECUTION_ABORTED)
+        {
+            ReportBudgetStop();
         }
         engine->ReturnContext(executor);
         if (instance == nullptr)

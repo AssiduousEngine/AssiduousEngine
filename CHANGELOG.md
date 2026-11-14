@@ -143,6 +143,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Rendering: a double-sided material (foliage cards, a sail, a flag) casts its shadow from both
   sides, and a material that culls front faces casts from its back; shadows always came from the
   front faces.
+- Scripting (AngelScript): calls run under the same time budget, and recursion that never ends
+  fails its call at 20000 nested calls. Global variable initializers run when the game loads
+  the script, under the budget, and no longer during the cook: a faulting initializer fails the
+  load, not the cook.
 - Scripting (Luau): a call into script that runs longer than its budget (5 s by default) or
   allocates past it (512 MB) is stopped with an error that fails that call, not the game; a script
   loop that never ended used to hang it. `IScriptManager::SetBudget` sets both.

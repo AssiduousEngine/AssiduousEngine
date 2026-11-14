@@ -326,10 +326,11 @@ TEST_CASE("script.pipeline: a class name from an asset name, and the starter tha
 }
 
 TEST_CASE("script.pipeline: ScriptSourceDocument::Validate compiles without running - a global "
-          "initializer that faults passes the check, and an error carries its column")
+          "initializer that faults passes the check and the cook, and an error carries its column")
 {
     CookBed bed(u8"as_validate_check");
-    // Cook builds with the initializers run, so this one fails at cook; the check never runs it.
+    // Neither the check nor the cook runs script: the initializer's fault is the game's to meet
+    // when it loads the script, under the call budget.
     constexpr StringView kFaulting = u8"int Zero() { return 0; }\n"
                                      u8"int boom = 10 / Zero();\n"
                                      u8"class Mover\n"
@@ -345,7 +346,7 @@ TEST_CASE("script.pipeline: ScriptSourceDocument::Validate compiles without runn
     CHECK(doc.ClassName() == u8"Mover");
     CHECK(doc.Errors().Size() == 0u);
     content::Instance* product = nullptr;
-    CHECK_FALSE(bed.Cook(u8"mover.as", u8"angelscript", product).IsOk());
+    CHECK(bed.Cook(u8"mover.as", u8"angelscript", product).IsOk());
 
     doc.SetSource(u8"class Mover\n"
                   u8"{\n"

@@ -47,7 +47,9 @@ export namespace foundation::script
     /// What one call into script may use before it is stopped with an error, which fails that
     /// call and not the game: seconds of running (a loop that never ends) and bytes a context's
     /// heap may hold (one that allocates without end). Time a coroutine waits between resumes, or
-    /// a call spends stopped at a breakpoint, is not running.
+    /// a call spends stopped at a breakpoint, is not running. The heap bytes hold a Luau context's
+    /// heap; AngelScript allocates through process-wide functions, so it has no context heap to
+    /// hold, and holds a call's recursion to a depth and a stack size instead.
     struct ScriptBudget
     {
         core::f64 callSeconds = 5.0;
