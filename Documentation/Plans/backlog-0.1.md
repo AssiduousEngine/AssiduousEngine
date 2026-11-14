@@ -8,16 +8,6 @@
 
 ## Editor
 
-- **The code editor has no context menu** (user 2026-11-10): a right click in a script, shader or
-  GUI page's code does nothing. `gui::CodeEditor` (`GUI.Code/CodeEditor.cppm:202`) is a plain
-  `UIWidget` with no `OnContextMenu`, where a text field (`TextEditBase.cppm:483-521`) builds a
-  Cut, Copy, Paste, ... menu of its edit commands and opens it at the pointer. Wanted: the same
-  edit commands for the code editor, with their shortcuts shown, plus its own commands (Undo and
-  Redo, Select All, and Toggle Comment, which exists as `code.toggle-comment` on Ctrl+/); the page
-  may add its own items (a script page's Toggle Breakpoint on the line). A right click moves the
-  caret there unless it lands inside the selection, as editors do. (There is no Go to Definition
-  or Find References in the code editor to offer.)
-
 - **A script page takes most of a second to open** (user 2026-11-10, a release build). Measured
   the same day in the RelWithDebInfo editor on a copy of Sky Hopper: Coin, Enemy, FollowCamera
   and PlayerController opened in 759, 869, 833 and 825 ms (the editor's own "page ... opened in"

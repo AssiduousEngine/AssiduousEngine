@@ -581,6 +581,10 @@ export namespace foundation::gui
         /// Sets the callback for a click in the gutter's marker column, given the line (a host toggles
         /// a breakpoint there).
         void SetOnGutterClick(core::Function<void(u32 line)> callback) { m_onGutterClick = core::Move(callback); }
+        /// Adds the host's items to the context menu, after the editor's own, each time it opens:
+        /// `line` is the 0-based line the right click landed on.
+        void SetOnContextMenu(core::Function<void(Menu& menu, u32 line)> callback) { m_onContextMenu = core::Move(callback); }
+        [[nodiscard]] Menu* GetContextMenu() const noexcept { return m_contextMenu.Get(); }
 
         /// Sets the diagnostics, replacing all of them; a host passes its whole set each time it has
         /// one. They keep their places through edits until the next set.
@@ -884,6 +888,78 @@ export namespace foundation::gui
             Invalidate();
         }
         void OnMouseDown(const MouseEvent& event) override;
+        // A right click opens the editor's menu (undo and redo, the clipboard's commands, select all,
+        // toggle comment, each showing its keys), then the host's items. It moves the caret to the
+        // click unless the click lands inside a selection.
+        // Defined in the class: gcc 15 writes an unreadable module for an out-of-class inline
+        // definition that instantiates a template (MakeRef<Menu>).
+        void OnContextMenu(const MouseEvent& event) override
+        {
+            if (!IsTreeEnabled())
+                return;
+            event.Handled = true;
+            CloseCompletion();
+            RequestFocus();
+            const CodePosition at = PositionAt(ConvertToNodeSpace(event.Position));
+            bool insideSelection = false;
+            for (const CodeSelection& s : m_selections)
+            {
+                const CodeRange range = s.Range();
+                insideSelection = insideSelection || (!s.IsEmpty() && range.Start <= at && at <= range.End);
+            }
+            if (!insideSelection)
+            {
+                m_doc->BreakMerge();
+                const CodeSelection one{at, at};
+                SetSelections(core::Span<const CodeSelection>(&one, 1));
+            }
+
+            if (!m_contextMenu)
+            {
+                m_contextMenu = core::MakeRef<Menu>(MemoryAllocator());
+                m_contextMenu->SetAutoWidth(true);
+            }
+            Menu& menu = *m_contextMenu;
+            menu.ClearItems();
+            SceneRoot* scene = GetSceneRoot();
+            const Array<KeyContextLayer> contexts = scene != nullptr ? scene->KeyContextsAt(this) : Array<KeyContextLayer>{};
+            // Each label is translated where the GUI's tables have its key, otherwise English, and shows
+            // the keys bound to its command in the editor's own contexts.
+            const auto add = [&](const char8_t* label, const char8_t* key, core::StringView command, bool enabled,
+                                 core::Function<void()> run)
+            {
+                MenuItem* item = menu.AddItem(core::StringView(label), core::Move(run));
+                (void)item->BindTranslation(core::StringView(u8"text"), core::StringView(key), {}, {}, {}, core::StringView(label));
+                item->SetEnabled(enabled);
+                if (scene != nullptr)
+                    item->SetShortcut(scene->GetContext().GetKeymap().ShortcutText(command, contexts.AsSpan()).AsView());
+            };
+            const auto edit = [this](TextEditCommand command) { return [this, command]() { (void)Run(command); }; };
+            IClipboard* clipboard = Clipboard();
+            const bool hasText = m_doc->LineCount() > 1 || !m_doc->LineText(0).IsEmpty();
+            add(u8"Undo", u8"gui.undo", TextEditCommandName(TextEditCommand::Undo), !m_readOnly && m_doc->CanUndo(),
+                edit(TextEditCommand::Undo));
+            add(u8"Redo", u8"gui.redo", TextEditCommandName(TextEditCommand::Redo), !m_readOnly && m_doc->CanRedo(),
+                edit(TextEditCommand::Redo));
+            menu.AddSeparator();
+            // With no selection, Cut and Copy take the caret's line, so they need only text.
+            add(u8"Cut", u8"gui.cut", TextEditCommandName(TextEditCommand::Cut), !m_readOnly && hasText, edit(TextEditCommand::Cut));
+            add(u8"Copy", u8"gui.copy", TextEditCommandName(TextEditCommand::Copy), hasText, edit(TextEditCommand::Copy));
+            add(u8"Paste", u8"gui.paste", TextEditCommandName(TextEditCommand::Paste),
+                !m_readOnly && clipboard != nullptr && clipboard->HasText(), edit(TextEditCommand::Paste));
+            menu.AddSeparator();
+            add(u8"Select all", u8"gui.select-all", TextEditCommandName(TextEditCommand::SelectAll), hasText,
+                edit(TextEditCommand::SelectAll));
+            add(u8"Toggle comment", u8"gui.toggle-comment", core::StringView(kCodeToggleComment),
+                !m_readOnly && m_language != nullptr, [this]() { ToggleComment(); });
+            if (m_onContextMenu)
+            {
+                menu.AddSeparator();
+                m_onContextMenu(menu, at.Line);
+            }
+            Node* root = GetRootNode();
+            menu.Open(*this, root != nullptr ? root->ConvertToNodeSpace(event.Position) : event.Position);
+        }
         void OnMouseMove(const MouseEvent& event) override;
         void OnMouseLeave(const MouseEvent& event) override
         {
@@ -2001,6 +2077,8 @@ export namespace foundation::gui
         u32 m_lastMarker = 0;
         core::Array<Diagnostic> m_diagnostics;
         core::Function<void(u32)> m_onGutterClick;
+        core::Function<void(Menu&, u32)> m_onContextMenu;
+        core::RefPtr<Menu> m_contextMenu; // made on the first right click, filled again on each
         core::String m_hoverTip; // the diagnostics under the pointer, then the service's hover text
         ICodeLanguageService* m_service = nullptr;
         core::RefPtr<CodeCompletionList> m_completion; // a child popup while the list is open

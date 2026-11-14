@@ -432,3 +432,89 @@ TEST_CASE("code editor: an element markup places")
     CHECK(editor->GetTabSize() == 2u);
     CHECK(editor->IsReadOnly());
 }
+
+namespace
+{
+    MenuItem* ItemNamed(Menu& menu, core::StringView text)
+    {
+        for (usize i = 0; i < menu.ChildCount(); ++i)
+            if (MenuItem* item = core::Cast<MenuItem>(menu.GetChildAt(i)); item != nullptr && item->GetText() == text)
+                return item;
+        return nullptr;
+    }
+    void RightClick(Bed& bed, core::Float2 at)
+    {
+        bed.D().InjectMouseMove(at);
+        bed.D().InjectMouseDown(at, MouseButton::Right);
+        bed.D().InjectMouseUp(at, MouseButton::Right);
+    }
+}
+
+TEST_CASE("code editor: a right click opens its edit menu, with each command's keys, at the click")
+{
+    // A right click in the code did nothing.
+    Bed bed(u8"int a;\nint b;");
+    bed.editor->SetCaret(At(0, 0));
+    RightClick(bed, bed.Over(At(1, 2)));
+    Menu* menu = bed.editor->GetContextMenu();
+    REQUIRE(menu != nullptr);
+    CHECK(menu->IsOpen());
+    CHECK(bed.Caret() == At(1, 2)); // outside any selection: the caret moves to the click
+
+    MenuItem* undo = ItemNamed(*menu, SV(u8"Undo"));
+    MenuItem* copy = ItemNamed(*menu, SV(u8"Copy"));
+    MenuItem* paste = ItemNamed(*menu, SV(u8"Paste"));
+    MenuItem* comment = ItemNamed(*menu, SV(u8"Toggle comment"));
+    REQUIRE(undo != nullptr);
+    REQUIRE(copy != nullptr);
+    REQUIRE(paste != nullptr);
+    REQUIRE(comment != nullptr);
+    REQUIRE(ItemNamed(*menu, SV(u8"Redo")) != nullptr);
+    REQUIRE(ItemNamed(*menu, SV(u8"Cut")) != nullptr);
+    REQUIRE(ItemNamed(*menu, SV(u8"Select all")) != nullptr);
+    CHECK_FALSE(undo->IsEnabled());   // nothing edited yet
+    CHECK(copy->IsEnabled());         // with no selection, the caret's line
+    CHECK_FALSE(paste->IsEnabled());  // the clipboard is empty
+    CHECK_FALSE(comment->IsEnabled()); // no language, so no comment syntax
+    CHECK(copy->GetShortcut().Size() != 0);
+
+    (void)copy->HandleActivate();
+    CHECK(bed.clipboard.GetText() == core::String(u8"int b;\n"));
+}
+
+TEST_CASE("code editor: a right click inside the selection keeps it")
+{
+    Bed bed(u8"int alpha;");
+    const CodeSelection word{At(0, 4), At(0, 9)};
+    bed.editor->SetSelections(core::Span<const CodeSelection>(&word, 1));
+    RightClick(bed, bed.Over(At(0, 6)));
+    REQUIRE(bed.editor->GetContextMenu() != nullptr);
+    CHECK(bed.editor->GetPrimary() == word);
+    MenuItem* cut = ItemNamed(*bed.editor->GetContextMenu(), SV(u8"Cut"));
+    REQUIRE(cut != nullptr);
+    (void)cut->HandleActivate();
+    CHECK(bed.Text() == core::String(u8"int ;"));
+    CHECK(bed.clipboard.GetText() == core::String(u8"alpha"));
+}
+
+TEST_CASE("code editor: the host adds its items to the context menu for the clicked line")
+{
+    Bed bed(u8"a\nb\nc");
+    core::u32 toggled = 99;
+    bed.editor->SetOnContextMenu([&toggled](Menu& menu, core::u32 line)
+                                 { (void)menu.AddItem(SV(u8"Toggle breakpoint"), [&toggled, line]() { toggled = line; }); });
+    RightClick(bed, bed.Over(At(2, 0)));
+    REQUIRE(bed.editor->GetContextMenu() != nullptr);
+    MenuItem* item = ItemNamed(*bed.editor->GetContextMenu(), SV(u8"Toggle breakpoint"));
+    REQUIRE(item != nullptr);
+    (void)item->HandleActivate();
+    CHECK(toggled == 2u);
+    // Opened again, the host's item is there once.
+    RightClick(bed, bed.Over(At(1, 0)));
+    usize count = 0;
+    Menu& menu = *bed.editor->GetContextMenu();
+    for (usize i = 0; i < menu.ChildCount(); ++i)
+        if (MenuItem* row = core::Cast<MenuItem>(menu.GetChildAt(i)); row != nullptr && row->GetText() == SV(u8"Toggle breakpoint"))
+            ++count;
+    CHECK(count == 1u);
+}

@@ -9,6 +9,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Added
 
+- Editor: a right click in a script, shader or GUI page's code opens a menu of its edit
+  commands (Undo, Redo, Cut, Copy, Paste, Select all, Toggle comment), each with its keys; a
+  script page adds Toggle breakpoint for the line. The click moves the caret unless it lands in
+  the selection.
 - Rendering: quality levels. A Render Quality asset is one level a game offers: its label, the
   scene pass's MSAA count and antialiasing, a tier (Off to High) for shadows, AO, SSR, SSGI and
   bloom, a cap on the shadow reach and the environment's resolution. The project lists its levels

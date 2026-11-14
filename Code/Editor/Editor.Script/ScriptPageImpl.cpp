@@ -50,6 +50,8 @@ namespace editor
                 if (breakpoint.file.AsView() == m_doc.FileName() && breakpoint.line >= 1)
                     m_breakpoints.PushBack(code->AddMarker(static_cast<u32>(breakpoint.line - 1), u8"breakpoint"));
             code->SetOnGutterClick([self](u32 line) { self->ToggleBreakpoint(line); });
+            code->SetOnContextMenu([self](gui::Menu& menu, u32 line)
+                                   { (void)menu.AddItem(StringView(u8"Toggle breakpoint"), [self, line]() { self->ToggleBreakpoint(line); }); });
         }
 
         // The API browser: find its parts while it is still in the page, then take it out of the
