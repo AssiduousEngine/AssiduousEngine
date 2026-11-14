@@ -1873,45 +1873,56 @@ namespace foundation::script
                 lua_pushstring(state, "no such reflected property");
                 lua_error(state);
             }
-            ScriptCallScope scope(context);
-            Instance instance = ToInstance(*boxed);
-            if (instance.Pointer() == nullptr)
+            // The write, in a scope of its own: an error leaves its message on the stack and is raised
+            // after the scope's C++ objects (the value, the message) are destroyed, since raising
+            // unwinds past them.
+            const bool failed = [&]() -> bool
             {
-                lua_pushstring(state, kObjectGoneMessage); // never a write into nothing
-                lua_error(state);
-            }
-            // Honour the property type (an enum is a number carried as i64).
-            Variant value = context->ToVariantForParam(state, 3, property->type);
-            Status set = SetProperty(*property, instance, value);
-            if (!set.IsOk() && set.Code() != ErrorCode::NotSupported)
-            {
-                // A value struct from another member (one light's colour to another's): copied into
-                // this one's member in place.
-                Variant member = PropertyHandle(*property, *boxed);
-                if (member.IsMember() && AssignValue(member, value))
+                ScriptCallScope scope(context);
+                Instance instance = ToInstance(*boxed);
+                if (instance.Pointer() == nullptr)
                 {
-                    set = Status{};
+                    lua_pushstring(state, kObjectGoneMessage); // never a write into nothing
+                    return true;
                 }
-            }
-            if (set.Code() == ErrorCode::NotSupported)
+                // Honour the property type (an enum is a number carried as i64).
+                Variant value = context->ToVariantForParam(state, 3, property->type);
+                Status set = SetProperty(*property, instance, value);
+                if (!set.IsOk() && set.Code() != ErrorCode::NotSupported)
+                {
+                    // A value struct from another member (one light's colour to another's): copied into
+                    // this one's member in place.
+                    Variant member = PropertyHandle(*property, *boxed);
+                    if (member.IsMember() && AssignValue(member, value))
+                    {
+                        set = Status{};
+                    }
+                }
+                if (set.Code() == ErrorCode::NotSupported)
+                {
+                    // A read-only property refuses in Core; a script learns it the same
+                    // way it learns a misspelled one: at the assignment, not silently.
+                    lua_pushstring(state, "property is read-only");
+                    return true;
+                }
+                if (!set.IsOk())
+                {
+                    // The setter refused the value: name what the property takes and what it was given
+                    // (a reflected object by its type, anything else by Luau's name for it).
+                    const TypeInfo* given = value.Type();
+                    const auto view = [](const char* text) { return StringView(reinterpret_cast<const utf8char*>(text)); };
+                    const String message = Format(u8"property '{}' takes {}, not {}", view(key),
+                                                  view(property->type != nullptr ? property->type->name : "a value"),
+                                                  view(lua_type(state, 3) == LUA_TUSERDATA && given != nullptr
+                                                           ? given->name
+                                                           : luaL_typename(state, 3)));
+                    lua_pushlstring(state, reinterpret_cast<const char*>(message.CStr()), message.Size());
+                    return true;
+                }
+                return false;
+            }();
+            if (failed)
             {
-                // A read-only property refuses in Core; a script learns it the same
-                // way it learns a misspelled one: at the assignment, not silently.
-                lua_pushstring(state, "property is read-only");
-                lua_error(state);
-            }
-            if (!set.IsOk())
-            {
-                // The setter refused the value: name what the property takes and what it was given
-                // (a reflected object by its type, anything else by Luau's name for it).
-                const TypeInfo* given = value.Type();
-                const auto view = [](const char* text) { return StringView(reinterpret_cast<const utf8char*>(text)); };
-                const String message = Format(u8"property '{}' takes {}, not {}", view(key),
-                                              view(property->type != nullptr ? property->type->name : "a value"),
-                                              view(lua_type(state, 3) == LUA_TUSERDATA && given != nullptr
-                                                       ? given->name
-                                                       : luaL_typename(state, 3)));
-                lua_pushlstring(state, reinterpret_cast<const char*>(message.CStr()), message.Size());
                 lua_error(state);
             }
             return 0;
