@@ -597,6 +597,46 @@ export namespace pipeline{
     /// only place a language's specifics live on the cook side; the neutral builder
     /// resolves one by languageId and delegates. Implemented per language in its own
     /// library (script.<lang>.pipeline), registered via ScriptLanguageCookRegistry.
+    /// A script manager for `languageId` with the engine's API registered: the core types, the
+    /// facades and every reflected type but `hidden`, as the runtime registers them, so a script
+    /// checks and cooks exactly as it runs. Null (logged, naming `forWhat`) when no backend is
+    /// registered for the language.
+    [[nodiscard]] RefPtr<foundation::script::IScriptManager> MakeCheckManager(IAllocator& allocator, StringView languageId,
+                                                                              StringView forWhat, Span<const TypeId> hidden);
+
+    /// The script manager a language's checks share. Registering the API is nearly all of a
+    /// check's time (about half a second), compiling a few milliseconds, so it is made once, on
+    /// first use, and again only when the registered types change (TypeRegistry::Generation: a
+    /// plugin loaded or unloaded). Its lock serialises the checks, which an agent's tool may run
+    /// from another thread. Each cook owns one.
+    class CachedCheckManager
+    {
+    public:
+        CachedCheckManager(IAllocator& allocator, StringView languageId) : m_allocator(&allocator), m_language(languageId, allocator) {}
+
+        /// Runs `check` on the manager, under the lock. False when none could be made.
+        [[nodiscard]] bool Run(const Function<bool(foundation::script::IScriptManager&)>& check);
+        /// Makes the manager now if it is missing or out of date (for a worker, ahead of the first check).
+        void Prepare();
+        /// The engine's API, described for completion and the API browser.
+        [[nodiscard]] Array<foundation::script::ScriptApiType> DescribeApi();
+        /// How many times the manager has been made.
+        [[nodiscard]] u32 BuildCount() const noexcept { return m_buildCount; }
+
+    private:
+        // The manager, made again if the registered types changed since; the caller holds m_lock.
+        [[nodiscard]] foundation::script::IScriptManager* Current();
+
+        IAllocator* m_allocator; // the manager's
+        String m_language;
+        Mutex m_lock;
+        RefPtr<foundation::script::IScriptManager> m_manager;
+        u64 m_generation = 0;
+        u32 m_buildCount = 0;
+        Array<foundation::script::ScriptApiType> m_api;
+        u64 m_apiGeneration = ~u64(0);
+    };
+
     class IScriptLanguageCook
     {
     public:
@@ -639,6 +679,18 @@ export namespace pipeline{
         [[nodiscard]] virtual bool Check(StringView source, StringView assetName, StringView preferredClass,
                                          CookScriptErrorSink& sink, String& className,
                                          Span<const TypeId> hidden) = 0;
+
+        /// Builds what Check uses before the first check needs it, so a project's first script
+        /// page does not wait for it. Callable from a worker thread.
+        virtual void PrepareCheck() = 0;
+
+        /// The API a script checked here can use (every registered type), described for
+        /// completion and the API browser.
+        [[nodiscard]] virtual Array<foundation::script::ScriptApiType> DescribeApi() = 0;
+
+        /// How many times Check has made the manager it keeps for checks: once, and again
+        /// each time the registered types change. 0 for a language whose every check builds its own.
+        [[nodiscard]] virtual u32 CheckManagerBuildCount() const = 0;
     };
 
     /// The cook registry (shaped like ScriptBackendRegistry): a language library registers its
@@ -678,6 +730,19 @@ export namespace pipeline{
                 }
             }
             return nullptr;
+        }
+
+        /// Has every cook build what its checks use (PrepareCheck), so the first check of each
+        /// language does not wait for it. For a worker thread, while no cook is registered.
+        void PrepareChecks()
+        {
+            for (Entry& entry : m_cooks)
+            {
+                if (entry.cook.Get() != nullptr)
+                {
+                    entry.cook->PrepareCheck();
+                }
+            }
         }
 
         /// Sum of every registered cook's CookVersion(), folded into the ScriptClassAssetBuilder

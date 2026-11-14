@@ -592,3 +592,25 @@ TEST_CASE("as.cook: host-cooked bytecode loads without a type it does not use, a
     CHECK(LoadCookedWithout(usesRun, Span<const TypeId>{}).IsOk());
     CHECK_FALSE(LoadCookedWithout(usesRun, Span<const TypeId>(hidden, 1)).IsOk());
 }
+
+TEST_CASE("as.cook: checks share one manager, each script in a module of its own")
+{
+    // Every check registered the engine's whole API into a new manager: about half a second, for a
+    // compile of a few milliseconds.
+    IScriptLanguageCook* cook = AngelScriptCook();
+    REQUIRE(cook != nullptr);
+    String className;
+    CookScriptErrorSink first;
+    REQUIRE(cook->Check(u8"class Alpha { int x; }\n", u8"Alpha.as", u8"Alpha", first, className, Span<const TypeId>{}));
+    const u32 builds = cook->CheckManagerBuildCount();
+    CHECK(builds >= 1u);
+
+    // The next checks make no manager, and see nothing of the scripts checked before them.
+    CookScriptErrorSink second;
+    CHECK_FALSE(cook->Check(u8"class Beta { Alpha@ a; }\n", u8"Beta.as", u8"Beta", second, className, Span<const TypeId>{}));
+    CHECK_FALSE(second.errors.IsEmpty());
+    CookScriptErrorSink third;
+    CHECK(cook->Check(u8"class Alpha { float y; }\n", u8"Alpha.as", u8"Alpha", third, className, Span<const TypeId>{}));
+    CHECK(third.errors.IsEmpty());
+    CHECK(cook->CheckManagerBuildCount() == builds);
+}

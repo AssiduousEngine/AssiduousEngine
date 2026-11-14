@@ -4,7 +4,9 @@
 util_add_engine_library(Script.Pipeline ALIAS Pipeline::Script)
 target_link_libraries(Script.Pipeline PUBLIC
     Foundation::Core Pipeline::Core Pipeline::Importer Foundation::Content
-    Foundation::Script Foundation::Script.Resource Foundation::Policy)
+    Foundation::Script Foundation::Script.Resource Foundation::Policy
+    Foundation::Script.Facades) # the facades' types, in a check's API
+target_link_libraries(Script.Pipeline PRIVATE Foundation::Profiler)
 target_sources(Script.Pipeline
     PRIVATE
         ScriptCreatorsImpl.cpp # File > New, asset_create

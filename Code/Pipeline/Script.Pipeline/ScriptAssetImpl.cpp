@@ -10,12 +10,16 @@
 module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
+#include "Core/Log/Log.h"
+#include "Profiler/Profiler.h" // PROFILE_SCOPE: the API registration a check waits on
 
 #include <cstring>
 
 module script.pipeline;
 
 import foundation.core;
+import foundation.profiler;
+import foundation.script.facades; // RegisterScriptFacadeReflection
 import pipeline.core;
 
 using namespace foundation::core;
@@ -26,6 +30,75 @@ namespace pipeline{
     {
         static ScriptLanguageCookRegistry instance;
         return instance;
+    }
+
+    RefPtr<IScriptManager> MakeCheckManager(IAllocator& allocator, StringView languageId, StringView forWhat,
+                                            Span<const TypeId> hidden)
+    {
+        RefPtr<IScriptManager> manager;
+        {
+            PROFILE_SCOPE("Script.Cook.MakeManager");
+            manager = CreateScriptManagerForLanguage(languageId, allocator);
+        }
+        if (manager.Get() == nullptr)
+        {
+            LOG_ERROR(u8"Script", u8"'{}': no {} backend registered", forWhat, languageId);
+            return manager;
+        }
+        PROFILE_SCOPE("Script.Cook.RegisterApi");
+        RegisterCoreTypes();
+        RegisterScriptFacadeReflection();
+        RegisterReflectedTypes(*manager, GlobalTypeRegistry(), hidden);
+        return manager;
+    }
+
+    IScriptManager* CachedCheckManager::Current()
+    {
+        // The registrars are idempotent; called first so the generation read after them is the
+        // one the manager is made from.
+        RegisterCoreTypes();
+        RegisterScriptFacadeReflection();
+        const u64 generation = GlobalTypeRegistry().Generation();
+        if (m_manager.Get() != nullptr && generation == m_generation)
+        {
+            return m_manager.Get();
+        }
+        m_manager = MakeCheckManager(*m_allocator, m_language.AsView(), u8"check manager", Span<const TypeId>{});
+        m_generation = generation; // read before registering: a type added meanwhile rebuilds next time
+        if (m_manager.Get() != nullptr)
+        {
+            ++m_buildCount;
+        }
+        return m_manager.Get();
+    }
+
+    bool CachedCheckManager::Run(const Function<bool(IScriptManager&)>& check)
+    {
+        ScopedLock lock(m_lock);
+        IScriptManager* manager = Current();
+        return manager != nullptr && check(*manager);
+    }
+
+    void CachedCheckManager::Prepare()
+    {
+        ScopedLock lock(m_lock);
+        (void)Current();
+    }
+
+    Array<ScriptApiType> CachedCheckManager::DescribeApi()
+    {
+        ScopedLock lock(m_lock);
+        IScriptManager* manager = Current();
+        if (manager == nullptr)
+        {
+            return {};
+        }
+        if (m_apiGeneration != m_generation)
+        {
+            m_api = manager->DescribeBoundApi();
+            m_apiGeneration = m_generation;
+        }
+        return m_api;
     }
 
     u64 ScriptSurfaceHash(const TypeRegistry& registry)

@@ -508,11 +508,32 @@ namespace pipeline{
                                      Span<const TypeId> hidden) override
             {
                 ScriptClassSource out;
-                const bool ok = CookOnThisThread(source, assetName, preferredClass, sink, out, true, hidden);
+                bool ok = false;
+                if (hidden.IsEmpty())
+                {
+                    // Every registered type: the cached check manager, the script in a module of its own,
+                    // discarded after.
+                    ok = m_checkManager.Run([&](IScriptManager& manager)
+                                     { return BuildOn(manager, source, assetName, preferredClass, sink, out, true); });
+                }
+                else
+                {
+                    ok = CookOnThisThread(source, assetName, preferredClass, sink, out, true, hidden);
+                }
                 asThreadCleanup(); // as in Cook
                 className = Move(out.className);
                 return ok;
             }
+
+            void PrepareCheck() override
+            {
+                m_checkManager.Prepare();
+                asThreadCleanup(); // a worker's thread-local data, as after a cook
+            }
+
+            [[nodiscard]] Array<ScriptApiType> DescribeApi() override { return m_checkManager.DescribeApi(); }
+
+            [[nodiscard]] u32 CheckManagerBuildCount() const override { return m_checkManager.BuildCount(); }
 
             // `checkOnly` stops after the build (Check): no harvest, no bytecode, and the build
             // leaves the global initializers unrun. The engine registers every type but `hidden`, so
@@ -521,34 +542,22 @@ namespace pipeline{
                                                 CookScriptErrorSink& sink, ScriptClassSource& out,
                                                 bool checkOnly, Span<const TypeId> hidden)
             {
+                RefPtr<IScriptManager> manager = MakeCheckManager(DefaultAllocator(), u8"angelscript", assetName, hidden);
+                return manager.Get() != nullptr && BuildOn(*manager, source, assetName, preferredClass, sink, out, checkOnly);
+            }
+
+            // Builds `source` into a module of its own on `manager`'s engine, discarded when done,
+            // then (unless `checkOnly`) harvests its properties and saves its bytecode into `out`.
+            [[nodiscard]] static bool BuildOn(IScriptManager& manager, StringView source, StringView assetName,
+                                              StringView preferredClass, CookScriptErrorSink& sink,
+                                              ScriptClassSource& out, bool checkOnly)
+            {
                 out.language = String(u8"angelscript");
                 out.sourceName = String(assetName); // the source file identity (breakpoint key)
                 out.source = String(source);
 
-                RefPtr<IScriptManager> manager;
-                {
-                    PROFILE_SCOPE("Script.Cook.MakeEngine");
-                    manager = CreateScriptManagerForLanguage(u8"angelscript", DefaultAllocator());
-                }
-                if (manager.Get() == nullptr)
-                {
-                    LOG_ERROR(u8"Script",
-                                       u8"'{}': no AngelScript backend registered - cook failed",
-                                       assetName);
-                    return false;
-                }
-                // Same "main"-module surface the runtime registers (core and facades), so a
-                // facade-using behavior compiles at cook exactly as at runtime; FinalizeTypes
-                // emits every reflected type into the engine CScriptBuilder builds against.
-                {
-                    PROFILE_SCOPE("Script.Cook.RegisterApi");
-                    RegisterCoreTypes();
-                    RegisterScriptFacadeReflection();
-                    RegisterReflectedTypes(*manager, GlobalTypeRegistry(), hidden);
-                }
-
                 asIScriptEngine* engine = static_cast<asIScriptEngine*>(
-                    foundation::script::angelscript::AngelScriptEngineHandle(*manager));
+                    foundation::script::angelscript::AngelScriptEngineHandle(manager));
                 if (engine == nullptr)
                 {
                     return false;
@@ -559,11 +568,25 @@ namespace pipeline{
                 // per-field lookup below. Errors route into the cook sink for the report.
                 CookMessageForward forward{&sink};
                 engine->SetMessageCallback(asFUNCTION(ForwardBuildMessage), &forward, asCALL_CDECL);
-
                 CScriptBuilder builder;
+                // On every return: the engine forgets the callback (its `forward` is about to go)
+                // and the module, so a cached manager keeps nothing of one script for the next.
+                struct Leave
+                {
+                    asIScriptEngine* engine;
+                    CScriptBuilder& builder;
+                    ~Leave()
+                    {
+                        if (asIScriptModule* module = builder.GetModule())
+                        {
+                            module->Discard();
+                        }
+                        engine->ClearMessageCallback();
+                    }
+                } leave{engine, builder};
+
                 if (builder.StartNewModule(engine, "AsCookHarvest") < 0)
                 {
-                    engine->ClearMessageCallback();
                     return false;
                 }
                 const String section(assetName);
@@ -593,7 +616,6 @@ namespace pipeline{
                     {
                         ReportScriptCookErrors(assetName, sink);
                     }
-                    engine->ClearMessageCallback();
                     return false;
                 }
 
@@ -603,12 +625,10 @@ namespace pipeline{
                 if (!problem.IsEmpty())
                 {
                     ReportCookProblem(sink, assetName, problem);
-                    engine->ClearMessageCallback();
                     return false;
                 }
                 if (checkOnly)
                 {
-                    engine->ClearMessageCallback();
                     return true;
                 }
                 out.handlers = ScanScriptHandlers(source);
@@ -644,9 +664,11 @@ namespace pipeline{
                     }
                 }
 
-                engine->ClearMessageCallback();
                 return ok;
             }
+
+        private:
+            CachedCheckManager m_checkManager{DefaultAllocator(), u8"angelscript"};
         };
     }
 

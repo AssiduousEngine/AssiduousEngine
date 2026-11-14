@@ -258,29 +258,15 @@ namespace pipeline{
         class LuauScriptCook final : public IScriptLanguageCook
         {
         private:
-            // The cook VM, from the registry by language, carrying the same global surface the
-            // runtime registers (core math and the behavior facades) so top-level facade references
-            // compile identically. Idempotent. Null (logged) when the backend is absent.
+            // The cook VM: a manager with the runtime's surface (core math, the facades, every
+            // reflected type but `hidden`), so top-level facade references compile identically.
             [[nodiscard]] static RefPtr<IScriptManager> CreateCookManager(StringView assetName,
                                                                            Span<const TypeId> hidden)
             {
-                RefPtr<IScriptManager> manager;
-                {
-                    PROFILE_SCOPE("Script.Cook.MakeEngine");
-                    manager = CreateScriptManagerForLanguage(u8"luau", DefaultAllocator());
-                }
-                if (manager.Get() == nullptr)
-                {
-                    LOG_ERROR(u8"Script", u8"'{}': no Luau backend registered - cook failed",
-                                       assetName);
-                    return manager;
-                }
-                PROFILE_SCOPE("Script.Cook.RegisterApi");
-                RegisterCoreTypes();
-                RegisterScriptFacadeReflection();
-                RegisterReflectedTypes(*manager, GlobalTypeRegistry(), hidden);
-                return manager;
+                return MakeCheckManager(DefaultAllocator(), u8"luau", assetName, hidden);
             }
+
+            CachedCheckManager m_checkManager{DefaultAllocator(), u8"luau"};
 
         public:
             [[nodiscard]] String NewAssetTemplate(ScriptTier tier,
@@ -324,13 +310,31 @@ namespace pipeline{
                                      CookScriptErrorSink& sink, String& className,
                                      Span<const TypeId> hidden) override
             {
-                RefPtr<IScriptManager> manager = CreateCookManager(assetName, hidden);
-                if (manager.Get() == nullptr || !manager->Check(source, assetName, sink))
+                // Every registered type: the cached check manager (a Luau check compiles and loads into a
+                // throwaway state, so nothing of one script stays for the next).
+                const auto compile = [&](IScriptManager& manager)
                 {
-                    return false;
+                    PROFILE_SCOPE("Script.Cook.Compile");
+                    return manager.Check(source, assetName, sink);
+                };
+                bool compiled = false;
+                if (hidden.IsEmpty())
+                {
+                    compiled = m_checkManager.Run(compile);
                 }
-                return ChooseClass(source, assetName, preferredClass, sink, className);
+                else
+                {
+                    RefPtr<IScriptManager> manager = CreateCookManager(assetName, hidden);
+                    compiled = manager.Get() != nullptr && compile(*manager);
+                }
+                return compiled && ChooseClass(source, assetName, preferredClass, sink, className);
             }
+
+            void PrepareCheck() override { m_checkManager.Prepare(); }
+
+            [[nodiscard]] Array<ScriptApiType> DescribeApi() override { return m_checkManager.DescribeApi(); }
+
+            [[nodiscard]] u32 CheckManagerBuildCount() const override { return m_checkManager.BuildCount(); }
 
             using IScriptLanguageCook::Cook; // and the overload that prefers the file's stem
 

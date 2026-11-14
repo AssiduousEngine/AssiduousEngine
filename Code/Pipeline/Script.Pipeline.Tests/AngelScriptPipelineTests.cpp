@@ -186,6 +186,9 @@ TEST_CASE("script.pipeline: B3 - the neutral builder resolves a per-language COO
         {
             return true;
         }
+        void PrepareCheck() override {}
+        [[nodiscard]] Array<ScriptApiType> DescribeApi() override { return {}; }
+        [[nodiscard]] u32 CheckManagerBuildCount() const override { return 0; }
     };
     ScriptLanguageCookRegistry::Get().Register(
         String(u8"faketest"),

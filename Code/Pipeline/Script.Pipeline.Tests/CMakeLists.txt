@@ -13,7 +13,7 @@ if(OPTION_ENABLE_LUAU)
     list(APPEND _script_pipeline_backend_libs ${SCRIPTLIB_LUAU_PIPELINE} ${SCRIPTLIB_LUAU})
 endif()
 add_executable(Script.Pipeline.Tests TestsMain.cpp ScriptPipelineTests.cpp
-    ${_script_pipeline_backend_tests} ScriptReflectionTests.cpp)
+    ${_script_pipeline_backend_tests} ScriptReflectionTests.cpp CachedCheckManagerTests.cpp)
 target_link_libraries(Script.Pipeline.Tests PRIVATE
     Pipeline::Script Foundation::Script.Resource Foundation::Script
     Foundation::Script.Facades ${_script_pipeline_backend_libs}
