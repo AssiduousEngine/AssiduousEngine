@@ -420,3 +420,33 @@ TEST_CASE("dispatch: a centred popup sits in the root's middle by its size, agai
     CHECK(at().y == doctest::Approx(220.0f));
     d->ClosePopup(*popup);
 }
+
+TEST_CASE("dispatch: a handler that removes its node leaves it alive until the dispatch returns")
+{
+    // A node owned only by its parent was freed inside its own handler, and the dispatch went on
+    // reading it.
+    auto root = MakeScene(core::Float2{200.0f, 200.0f});
+    EventDispatcher* d = root->GetEventDispatcher();
+    const auto added = [&]
+    {
+        auto child = MakePanel(core::Float2{10.0f, 10.0f}, core::Float2{50.0f, 50.0f});
+        root->AddChild(child.Get());
+        return child.Get(); // the parent's reference is the only one
+    };
+    int removed = 0;
+    const auto removeSelf = [&](const Event& e)
+    {
+        ++removed;
+        e.Target->RemoveFromParent();
+    };
+
+    added()->AddEventListener(EventType::MouseWheel, removeSelf);
+    d->InjectMouseWheel(core::Float2{20.0f, 20.0f}, core::Float2{0.0f, -1.0f});
+    added()->AddEventListener(EventType::MouseDown, removeSelf);
+    d->InjectMouseDown(core::Float2{20.0f, 20.0f}, MouseButton::Left);
+    d->InjectMouseUp(core::Float2{20.0f, 20.0f}, MouseButton::Left);
+    added()->AddEventListener(EventType::MouseMove, removeSelf);
+    d->InjectMouseMove(core::Float2{21.0f, 21.0f});
+    CHECK(removed == 3);
+    CHECK(root->ChildCount() == 0u);
+}

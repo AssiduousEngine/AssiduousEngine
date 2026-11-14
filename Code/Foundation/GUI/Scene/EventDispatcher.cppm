@@ -495,6 +495,9 @@ export namespace foundation::gui
             // ancestor, so a list of cards scrolls even when some cards are disabled.
             while (hit != nullptr && !hit->IsTreeEnabled())
                 hit = hit->GetParent();
+            // Pinned for the rest of the call, as PointerUp pins its nodes: a handler may remove it,
+            // and IsPointerTaken reads it after the route.
+            const core::RefPtr<Node> hitPin{hit};
             bool used = false;
             if (hit != nullptr)
             {
@@ -1587,10 +1590,14 @@ export namespace foundation::gui
                 if (TryDrag(position, modifiers, pointer))
                     return true;
             Node* hit = HitTest(position);
+            // Pinned for the rest of the call: the hover changes and the route run handlers that may
+            // remove either node, and both are read after them.
+            const core::RefPtr<Node> hitPin{hit};
             UpdateHoverPath(hit, position);
             // The captured node (explicitly, or the pressed one while a button is held) keeps the
             // moves, so a drag goes on when the pointer leaves it; otherwise the hovered node.
             Node* target = PointerTarget(hit);
+            const core::RefPtr<Node> targetPin{target};
             bool used = false;
             if (target != nullptr && target->IsTreeEnabled())
             {
@@ -1619,6 +1626,9 @@ export namespace foundation::gui
             m_dragTried = button != MouseButton::Left; // only a left press (a finger's) drags
             m_touchDragArmed = false;
             Node* hit = HitTest(position);
+            // Pinned for the rest of the call: the hover changes, popup closes, focus change and the
+            // route all run handlers that may remove it, and it is read after each.
+            const core::RefPtr<Node> hitPin{hit};
             UpdateHoverPath(hit, position);
             // Any press hides a tooltip. A press also closes the auto popups above the one it lands
             // in. A press that lands in no popup and closes some is consumed with the rest of its

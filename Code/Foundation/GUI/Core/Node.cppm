@@ -2694,6 +2694,7 @@ export namespace foundation::gui
         /// focus, change).
         void SendEvent(const Event& event)
         {
+            const core::RefPtr<Node> self = PinWhileLive(); // a listener may drop the last reference
             DispatchScope scope(*this);
             for (usize i = 0; i < m_listeners.Size(); ++i)
                 if (!m_listeners[i].Removed && m_listeners[i].Type == event.Type)
@@ -2845,10 +2846,18 @@ export namespace foundation::gui
         // index, because a listener may add another.
         void RunListeners(const Event& event, bool capture)
         {
+            const core::RefPtr<Node> self = PinWhileLive(); // a listener may drop the last reference
             DispatchScope scope(*this);
             for (usize i = 0; i < m_listeners.Size(); ++i)
                 if (!m_listeners[i].Removed && m_listeners[i].Type == event.Type && m_listeners[i].Capture == capture)
                     m_listeners[i].Callback(event);
+        }
+        // A reference held while this node's listeners run, so one that removes the node (dropping
+        // its last owner) leaves it alive until they return. None for a node not made by MakeRef,
+        // or already being destroyed (its count at zero: a pin would free it twice).
+        [[nodiscard]] core::RefPtr<Node> PinWhileLive() noexcept
+        {
+            return IsCounted() && RefCount() > 0 ? core::RefPtr<Node>(this) : core::RefPtr<Node>{};
         }
         // While listeners or handlers run, their lists stay fixed: a removed entry is marked and an
         // added entry waits, and both settle when the outermost run returns. Otherwise a script's
