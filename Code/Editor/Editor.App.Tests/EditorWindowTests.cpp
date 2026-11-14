@@ -170,3 +170,26 @@ TEST_CASE("editor window: its windows present with vsync and two images, as a ga
     CHECK(desc.presentMode == foundation::rhi::PresentMode::Fifo);
     CHECK(desc.bufferCount == foundation::graphics::RenderWindowDesc{}.bufferCount);
 }
+
+TEST_CASE("editor window: the code editor's keys are bound, so Return breaks a line in a script page")
+{
+    // The editor never bound them: a script page took typed text and Tab, and Return, Backspace and
+    // the arrows did nothing.
+    namespace gui = foundation::gui;
+    gui::Keymap keymap;
+    editor::app::BindEditorWidgetKeys(keymap);
+    gui::KeyContextLayer codeEditor;
+    codeEditor.Declare(StringView(u8"codeeditor"));
+    const gui::KeyContextLayer stack[] = {codeEditor};
+    const char8_t* const keys[] = {u8"enter", u8"backspace", u8"left", u8"delete"};
+    const gui::TextEditCommand commands[] = {gui::TextEditCommand::InsertNewline, gui::TextEditCommand::DeleteBackward,
+                                             gui::TextEditCommand::MoveLeft, gui::TextEditCommand::DeleteForward};
+    for (usize i = 0; i < 4; ++i)
+    {
+        const Optional<gui::Keystroke> stroke = gui::ParseKeystroke(StringView(keys[i]));
+        REQUIRE(stroke.HasValue());
+        String command;
+        CHECK(keymap.MatchWhole(Span<const gui::Keystroke>(&stroke.Value(), 1), Span<const gui::KeyContextLayer>(stack, 1), command));
+        CHECK(command.AsView() == StringView(gui::TextEditCommandName(commands[i])));
+    }
+}

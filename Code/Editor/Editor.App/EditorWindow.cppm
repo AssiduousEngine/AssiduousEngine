@@ -114,6 +114,14 @@ export namespace editor::app
         ui.uiScale = look.uiScale;
     }
 
+    /// The keys the satellite libraries' widgets need, which a host binds once for its GUI (as it
+    /// adds their sheets): the code editor's Return, Backspace, arrows and the rest are bound in its
+    /// own key context, so without these a script page took typing and nothing else.
+    inline void BindEditorWidgetKeys(gui::Keymap& keymap)
+    {
+        gui::BindCodeEditorKeys(keymap);
+    }
+
     /// How every editor window presents: vsync with two swapchain images, as a game does. A third
     /// image would hide a compositor late returning one, at a frame more of latency.
     [[nodiscard]] inline foundation::graphics::RenderWindowDesc EditorRenderWindowDesc() noexcept
@@ -193,6 +201,7 @@ export namespace editor::app
             gui::StyleManager& styles = m_host->Styles();
             styles.SetResourceProvider(m_resources.Get());
             m_host->Context().SetResourceProvider(m_resources.Get());
+            BindEditorWidgetKeys(m_host->Context().GetKeymap());
             EditorWindow* self = this;
             styles.SetFontFaceLoader([self](StringView face, StringView source) { return self->LoadFontFace(face, source); });
             const String theme = Format(u8"{}\n{}\n{}\n{}\n{}", gui::DefaultThemeCSS(), gui::DockingSheetCSS(), gui::ToolkitSheetCSS(),

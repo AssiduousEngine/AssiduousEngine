@@ -53,6 +53,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Editor: in a script page, Return, Backspace, Delete, the arrow keys and the code editor's other
+  keys work; the page took typed text and Tab and nothing else.
 - Scripting: the garbage collectors no longer run a full collection every frame; each frame does a
   step of at most half a millisecond (`ScriptBudget::collectSeconds`), and a full collection waits
   for a scene to stop or unload. A frame with garbage to free took the whole collection's time.
