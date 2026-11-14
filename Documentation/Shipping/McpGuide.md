@@ -515,7 +515,10 @@ textures); the response's `pruning` counts what was kept and dropped.
   classes, or it fails as the cook would. With `platform` (an open project needed), it also checks the source
   against what the project's plugins leave on that platform, as an export for it does: `valid`
   false with the errors, and `absentPlugins` naming the plugins the platform lacks. In Luau that
-  is any global naming one of their types, guarded or not.
+  is any global naming one of their types, guarded or not. An AngelScript `#include "..."`
+  resolves against the folder of `name`, a path in the project's sources (an open project
+  needed), and an error in an included file names that file; an include that leaves the sources
+  or names no file is an error on its line.
 - `shader_validate` compiles every variant, the cook's check; an error under one flag says so
   (`(under ALPHA_TEST)`). An error in an engine include names that file, not yours.
 - `scene_validate` warnings mean component records of a type the engine does not know, or

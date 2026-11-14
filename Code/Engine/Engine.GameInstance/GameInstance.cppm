@@ -395,17 +395,25 @@ export namespace engine::runtime
         /// As above, plus the Game class's declared handler names (from the cooked ScriptClass) so
         /// the Game tier's on<Event> inbox can subscribe to the run bus. A caller with no handler
         /// list (raw-source tests) gets a Game with no inbox.
+        /// `includes` are the files the source includes (the cook's record of them).
         bool StartScript(core::StringView source, core::StringView name,
-                         core::Span<const core::String> gameHandlers);
+                         core::Span<const core::String> gameHandlers,
+                         core::Span<const foundation::script::ScriptSection> includes = {});
 
         /// The cooked `Game` class: its source, its file identity and its declared handlers, so its
         /// on<Event> inbox hears the run bus. Every host that starts a cooked game (the player, the
         /// editor's Game tab) starts it this way.
         bool StartScript(const foundation::script::ScriptClass& scriptClass)
         {
+            core::Array<foundation::script::ScriptSection> includes; // the files its source includes
+            for (const foundation::script::ScriptIncludedSource& included : scriptClass.includes)
+            {
+                includes.PushBack(foundation::script::ScriptSection{included.path.AsView(), included.source.AsView()});
+            }
             return StartScript(scriptClass.source.AsView(), scriptClass.sourceName.AsView(),
                                core::Span<const core::String>(scriptClass.handlers.Data(),
-                                                              scriptClass.handlers.Size()));
+                                                              scriptClass.handlers.Size()),
+                               core::Span<const foundation::script::ScriptSection>(includes.Data(), includes.Size()));
         }
 
         /// exit() the `Game` and release the game-script hold (idempotent; the update-fault path

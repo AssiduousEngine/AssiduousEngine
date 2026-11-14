@@ -53,6 +53,11 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Scripting (AngelScript): `#include` works as one path rule everywhere: it resolves against the
+  including file, inside the project's sources; editing an included file recooks the scripts that
+  include it; an error or a breakpoint in one names that file; and a class compiled from source
+  (the editor's run) includes them as the cooked one does. The cook read includes relative to the
+  process and never declared them, and a class compiled from source failed on its `#include`.
 - Scripting: a behaviour that fails to compile no longer stops every behaviour loaded after it, and
   each behaviour loads once instead of again for every behaviour after it.
 - Scripting: changing an engine method's parameter or return type, or an enumeration's values,

@@ -113,7 +113,8 @@ namespace engine::runtime
     }
 
     bool GameInstance::StartScript(core::StringView source, core::StringView name,
-                                   core::Span<const core::String> gameHandlers)
+                                   core::Span<const core::String> gameHandlers,
+                                   core::Span<const script::ScriptSection> includes)
     {
         StopScript();
         m_scriptFault = core::String{};
@@ -130,7 +131,7 @@ namespace engine::runtime
         m_scriptContext = core::RefPtr<script::IScriptContext>(scriptContext);
         m_runHost.SetGameScriptHold(true);
 
-        const bool loaded = m_scriptContext->Load(source, name).IsOk();
+        const bool loaded = m_scriptContext->Load(source, name, includes).IsOk();
         if (!loaded)
         {
             LOG_ERROR(u8"App", u8"game script '{}' failed to compile", name);

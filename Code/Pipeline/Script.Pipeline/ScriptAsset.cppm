@@ -32,6 +32,7 @@ export module script.pipeline;
 
 import foundation.core;
 import pipeline.core;
+import foundation.vfs; // SourcePath: an included file declared as a cook input
 import pipeline.importer;
 import foundation.content;
 import foundation.script;
@@ -643,6 +644,45 @@ export namespace pipeline{
         u64 m_apiGeneration = ~u64(0);
     };
 
+    /// Where a script's `#include "<include>"` points: relative to the folder of `from` (the file
+    /// that includes it, a path in the project's sources), with "." and ".." resolved. False for an
+    /// absolute path, a drive or scheme, or one that would leave the sources.
+    [[nodiscard]] bool ResolveScriptInclude(StringView from, StringView include, String& out);
+
+    /// Reads the files a script includes, through whatever its caller reads the project's sources
+    /// with (the cook's mount, the editor's project). `path` is resolved (ResolveScriptInclude).
+    class IScriptIncludeReader
+    {
+    public:
+        virtual ~IScriptIncludeReader() = default;
+        [[nodiscard]] virtual bool Read(StringView path, String& out) = 0;
+    };
+
+    /// Included files read from a folder on disk: a project's sources root (the editor's check,
+    /// an agent's validation), where the cook's builder reads through its mount instead.
+    class FolderIncludeReader final : public IScriptIncludeReader
+    {
+    public:
+        explicit FolderIncludeReader(StringView root) : m_root(root) {}
+        [[nodiscard]] bool Read(StringView path, String& out) override
+        {
+            if (m_root.IsEmpty())
+            {
+                return false;
+            }
+            Result<Array<byte>> bytes = ReadFile(PathJoin(m_root.AsView(), path).AsView());
+            if (!bytes.HasValue())
+            {
+                return false;
+            }
+            out = String(StringView(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size()));
+            return true;
+        }
+
+    private:
+        String m_root;
+    };
+
     class IScriptLanguageCook
     {
     public:
@@ -665,8 +705,11 @@ export namespace pipeline{
         /// `preferredClass` (PreferredScriptClass of the asset); several classes and none so
         /// named fails the cook. On failure the builder does not write, so the last good cooked
         /// record survives (live instances keep running the old class).
+        /// The files a language includes are read through `includes` (null: none can be read, so a
+        /// script that includes fails), and recorded in `out.includes`.
         [[nodiscard]] virtual bool Cook(StringView source, StringView assetName, StringView preferredClass,
-                                        CookScriptErrorSink& sink, ScriptClassSource& out) = 0;
+                                        CookScriptErrorSink& sink, ScriptClassSource& out,
+                                        IScriptIncludeReader* includes = nullptr) = 0;
 
         /// Cook with the class named like `assetName`'s stem preferred: a source with no asset
         /// behind it (a test, a check of text).
@@ -684,7 +727,11 @@ export namespace pipeline{
         /// platform it ships to. Returns whether it compiled.
         [[nodiscard]] virtual bool Check(StringView source, StringView assetName, StringView preferredClass,
                                          CookScriptErrorSink& sink, String& className,
-                                         Span<const TypeId> hidden) = 0;
+                                         Span<const TypeId> hidden, IScriptIncludeReader* includes = nullptr) = 0;
+
+        /// The paths `source`'s include directives name, as written, in order (none for a language
+        /// without one): the builder resolves them into the files a cook depends on.
+        virtual void ListIncludes(StringView source, Array<String>& out) const = 0;
 
         /// Builds what Check uses before the first check needs it, so a project's first script
         /// page does not wait for it. Callable from a worker thread.
@@ -802,13 +849,62 @@ export namespace pipeline{
             // Base cook-logic version (2: the cooked record gained a bytecode field; 3: each
             // property a replicated flag; 4: the record carries data version 1, so the reader
             // refuses one from before the flag; 5: the class is the asset's choice, never a guess
-            // among several), plus every language cook's compiler version, so a Luau (or other
+            // among several; 6: the record carries the included files), plus every language cook's
+            // compiler version, so a Luau (or other
             // bytecode) vendor bump recooks every script pack automatically.
-            return 5 + ScriptLanguageCookRegistry::Get().CombinedCookVersion();
+            return 6 + ScriptLanguageCookRegistry::Get().CombinedCookVersion();
         }
 
         // The script surface the products compile against and their bytecode binds to.
         [[nodiscard]] u64 EnvironmentHash() const override { return ScriptSurfaceHash(GlobalTypeRegistry()); }
+
+        // Every file the script includes, and every file those include: each is a cook input, so
+        // editing an included file recooks the scripts that include it.
+        void ScanDependencies(const pipeline::Asset& asset, pipeline::AssetBuildContext& ctx,
+                              pipeline::AssetDependencies& out) override
+        {
+            const ScriptClassAsset& scriptAsset = static_cast<const ScriptClassAsset&>(asset);
+            IScriptLanguageCook* cook = ScriptLanguageCookRegistry::Get().FindByLanguage(LanguageOf(scriptAsset));
+            if (cook == nullptr)
+            {
+                return; // Build says so
+            }
+            Array<String> pending;
+            pending.PushBack(String(scriptAsset.fileName.View()));
+            Array<String> seen;
+            while (!pending.IsEmpty())
+            {
+                const String file = Move(pending.Back());
+                pending.PopBack();
+                String text;
+                if (!ReadSourceText(ctx, file.AsView(), text).IsOk())
+                {
+                    continue; // the cook reports a file it cannot read
+                }
+                Array<String> named;
+                cook->ListIncludes(text.AsView(), named);
+                for (const String& include : named)
+                {
+                    String resolved;
+                    if (!ResolveScriptInclude(file.AsView(), include.AsView(), resolved))
+                    {
+                        continue; // the cook reports a path that leaves the sources
+                    }
+                    bool known = false;
+                    for (const String& s : seen)
+                    {
+                        known = known || s.AsView() == resolved.AsView();
+                    }
+                    if (known)
+                    {
+                        continue;
+                    }
+                    seen.PushBack(resolved);
+                    out.files.PushBack(foundation::vfs::SourcePath(resolved.AsView()));
+                    pending.PushBack(Move(resolved));
+                }
+            }
+        }
 
         [[nodiscard]] Status Build(const pipeline::Asset& asset,
                                    pipeline::AssetBuildContext& ctx) override
@@ -828,9 +924,7 @@ export namespace pipeline{
                 return read;
             }
 
-            const StringView language = scriptAsset.language.IsEmpty()
-                                            ? StringView(u8"angelscript")
-                                            : scriptAsset.language.AsView();
+            const StringView language = LanguageOf(scriptAsset);
 
             // The cook comes from the registry, by language, never a named cook type.
             // No cook is a configuration error, surfaced as a cook error.
@@ -845,8 +939,9 @@ export namespace pipeline{
 
             ScriptClassSource cooked;
             CookScriptErrorSink sink;
+            MountIncludes includes{&ctx};
             if (!cook->Cook(source.AsView(), scriptAsset.fileName.View(), PreferredScriptClass(scriptAsset).AsView(), sink,
-                            cooked))
+                            cooked, &includes))
             {
                 return Status{ErrorCode::InvalidArgument};
             }
@@ -861,6 +956,20 @@ export namespace pipeline{
             }
             return ctx.output->WriteObject(cooked);
         }
+
+    private:
+        [[nodiscard]] static StringView LanguageOf(const ScriptClassAsset& scriptAsset)
+        {
+            return scriptAsset.language.IsEmpty() ? StringView(u8"angelscript") : scriptAsset.language.AsView();
+        }
+
+        // Included files, read from the cook's sources mount.
+        struct MountIncludes final : IScriptIncludeReader
+        {
+            explicit MountIncludes(const pipeline::AssetBuildContext* buildContext) : ctx(buildContext) {}
+            [[nodiscard]] bool Read(StringView path, String& out) override { return ReadSourceText(*ctx, path, out).IsOk(); }
+            const pipeline::AssetBuildContext* ctx;
+        };
     };
 
     // OS-file importer (editor drag-drop): accepts any extension a registered script
@@ -1040,8 +1149,9 @@ export namespace pipeline{
             }
             CookScriptErrorSink sink;
             String className;
+            FolderIncludeReader includes(m_sourcesRoot.AsView()); // the files it includes, from the project
             const bool ok = cook->Check(m_source.AsView(), m_fileName.AsView(), m_preferredClass.AsView(), sink, className,
-                                        Span<const TypeId>{});
+                                        Span<const TypeId>{}, &includes);
             for (const CookScriptErrorSink::Entry& entry : sink.errors)
             {
                 CompileError e;

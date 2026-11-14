@@ -114,7 +114,10 @@ export namespace editor::mcp
                 const String source = args.Get(u8"source").AsString();
                 pipeline::CookScriptErrorSink sink;
                 foundation::script::ScriptClassSource harvested;
-                bool ok = cook->Cook(source.AsView(), name.AsView(), preferred.AsView(), sink, harvested);
+                // The files it includes, from the open project's sources (`name` is its path there).
+                pipeline::FolderIncludeReader includes(session.project != nullptr ? session.project->SourcesRoot().AsView()
+                                                                                 : StringView{});
+                bool ok = cook->Cook(source.AsView(), name.AsView(), preferred.AsView(), sink, harvested, &includes);
                 // Then against the platform's surface, when one is asked for and lacks plugins.
                 String absent;
                 if (ok && !platform.IsEmpty() && session.plugins != nullptr)
@@ -126,7 +129,7 @@ export namespace editor::mcp
                     {
                         String className;
                         ok = cook->Check(source.AsView(), name.AsView(), preferred.AsView(), sink, className,
-                                         Span<const TypeId>(hidden.Data(), hidden.Size()));
+                                         Span<const TypeId>(hidden.Data(), hidden.Size()), &includes);
                     }
                 }
 

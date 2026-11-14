@@ -352,6 +352,108 @@ namespace pipeline{
             forward->sink->OnError(error);
         }
 
+        // The builder's include callback: an `#include` resolves against the file that includes it
+        // (its section name, a path in the project's sources) through the shared rule, is read
+        // through the caller's reader, and becomes a section named by its path, so an error or a
+        // breakpoint in it keys on that file; each file is recorded once for the cooked record.
+        // One that cannot be resolved or read stops the build, and is said on its line.
+        struct IncludeContext
+        {
+            IScriptIncludeReader* reader = nullptr;
+            Array<ScriptIncludedSource>* recorded = nullptr;
+            String failedFrom;    // the including file of the one that failed
+            String failedInclude; // as written
+            bool outside = false; // it would leave the project's sources
+        };
+        int ResolveInclude(const char* include, const char* from, CScriptBuilder* builder, void* param)
+        {
+            auto* context = static_cast<IncludeContext*>(param);
+            const StringView written = ViewOfCStr(include);
+            String resolved;
+            const bool inside = ResolveScriptInclude(ViewOfCStr(from), written, resolved);
+            String text;
+            if (!inside || context->reader == nullptr || !context->reader->Read(resolved.AsView(), text))
+            {
+                context->failedFrom = String(ViewOfCStr(from));
+                context->failedInclude = String(written);
+                context->outside = !inside;
+                return -1;
+            }
+            for (const ScriptIncludedSource& known : *context->recorded)
+            {
+                if (known.path.AsView() == resolved.AsView())
+                {
+                    return 0; // included already (the builder skips a section it has too)
+                }
+            }
+            ScriptIncludedSource included;
+            included.path = resolved;
+            included.source = text;
+            context->recorded->PushBack(Move(included));
+            return builder->AddSectionFromMemory(reinterpret_cast<const char*>(resolved.CStr()),
+                                                 reinterpret_cast<const char*>(text.CStr()),
+                                                 static_cast<unsigned>(text.Size())) < 0
+                       ? -1
+                       : 0;
+        }
+
+        // The `#include "..."` lines of `source`, each path as written, in order.
+        void ScanIncludes(StringView source, Array<String>& out)
+        {
+            usize start = 0;
+            for (usize i = 0; i <= source.Size(); ++i)
+            {
+                if (i != source.Size() && source[i] != u8'\n')
+                {
+                    continue;
+                }
+                StringView line = source.SubStr(start, i - start);
+                start = i + 1;
+                usize k = 0;
+                while (k < line.Size() && (line[k] == u8' ' || line[k] == u8'\t'))
+                {
+                    ++k;
+                }
+                line = line.SubStr(k, line.Size() - k);
+                if (!line.StartsWith(StringView(u8"#include")))
+                {
+                    continue;
+                }
+                const usize open = line.Find(StringView(u8"\""));
+                if (open == StringView::kNotFound)
+                {
+                    continue;
+                }
+                const StringView rest = line.SubStr(open + 1, line.Size() - open - 1);
+                const usize close = rest.Find(StringView(u8"\""));
+                if (close != StringView::kNotFound)
+                {
+                    out.PushBack(String(rest.SubStr(0, close)));
+                }
+            }
+        }
+
+        // The 1-based line of the `#include` naming `written` in `source`, or -1.
+        [[nodiscard]] i32 IncludeLine(StringView source, StringView written)
+        {
+            i32 line = 1;
+            usize start = 0;
+            for (usize i = 0; i <= source.Size(); ++i)
+            {
+                if (i == source.Size() || source[i] == u8'\n')
+                {
+                    const StringView text = source.SubStr(start, i - start);
+                    if (text.Find(StringView(u8"#include")) != StringView::kNotFound && text.Find(written) != StringView::kNotFound)
+                    {
+                        return line;
+                    }
+                    ++line;
+                    start = i + 1;
+                }
+            }
+            return -1;
+        }
+
         // Walks the behavior class's member fields and appends one ScriptPropertyDesc per
         // field with metadata. Returns false (a cook error, reported to `sink`) when a metadata'd
         // field has an unsupported type. Fields without metadata are simply not properties.
@@ -493,9 +595,10 @@ namespace pipeline{
             using IScriptLanguageCook::Cook; // and the overload that prefers the file's stem
 
             [[nodiscard]] bool Cook(StringView source, StringView assetName, StringView preferredClass,
-                                    CookScriptErrorSink& sink, ScriptClassSource& out) override
+                                    CookScriptErrorSink& sink, ScriptClassSource& out,
+                                    IScriptIncludeReader* includes = nullptr) override
             {
-                const bool ok = CookOnThisThread(source, assetName, preferredClass, sink, out, false, Span<const TypeId>{});
+                const bool ok = CookOnThisThread(source, assetName, preferredClass, sink, out, false, Span<const TypeId>{}, includes);
                 // AngelScript keeps per-thread local data (active-context stack, type-name
                 // scratch) that only asThreadCleanup releases. Cooks run on job workers that
                 // never exit through AngelScript's own teardown, so release it here, after
@@ -506,7 +609,7 @@ namespace pipeline{
 
             [[nodiscard]] bool Check(StringView source, StringView assetName, StringView preferredClass,
                                      CookScriptErrorSink& sink, String& className,
-                                     Span<const TypeId> hidden) override
+                                     Span<const TypeId> hidden, IScriptIncludeReader* includes = nullptr) override
             {
                 ScriptClassSource out;
                 bool ok = false;
@@ -515,11 +618,11 @@ namespace pipeline{
                     // Every registered type: the cached check manager, the script in a module of its own,
                     // discarded after.
                     ok = m_checkManager.Run([&](IScriptManager& manager)
-                                     { return BuildOn(manager, source, assetName, preferredClass, sink, out, true); });
+                                     { return BuildOn(manager, source, assetName, preferredClass, sink, out, true, includes); });
                 }
                 else
                 {
-                    ok = CookOnThisThread(source, assetName, preferredClass, sink, out, true, hidden);
+                    ok = CookOnThisThread(source, assetName, preferredClass, sink, out, true, hidden, includes);
                 }
                 asThreadCleanup(); // as in Cook
                 className = Move(out.className);
@@ -536,22 +639,27 @@ namespace pipeline{
 
             [[nodiscard]] u32 CheckManagerBuildCount() const override { return m_checkManager.BuildCount(); }
 
+            void ListIncludes(StringView source, Array<String>& out) const override { ScanIncludes(source, out); }
+
             // `checkOnly` stops after the build (Check): no harvest, no bytecode, and the build
             // leaves the global initializers unrun. The engine registers every type but `hidden`, so
             // a use of one is a compile error.
             [[nodiscard]] bool CookOnThisThread(StringView source, StringView assetName, StringView preferredClass,
                                                 CookScriptErrorSink& sink, ScriptClassSource& out,
-                                                bool checkOnly, Span<const TypeId> hidden)
+                                                bool checkOnly, Span<const TypeId> hidden,
+                                                IScriptIncludeReader* includes = nullptr)
             {
                 RefPtr<IScriptManager> manager = MakeCheckManager(DefaultAllocator(), u8"angelscript", assetName, hidden);
-                return manager.Get() != nullptr && BuildOn(*manager, source, assetName, preferredClass, sink, out, checkOnly);
+                return manager.Get() != nullptr &&
+                       BuildOn(*manager, source, assetName, preferredClass, sink, out, checkOnly, includes);
             }
 
             // Builds `source` into a module of its own on `manager`'s engine, discarded when done,
             // then (unless `checkOnly`) harvests its properties and saves its bytecode into `out`.
             [[nodiscard]] static bool BuildOn(IScriptManager& manager, StringView source, StringView assetName,
                                               StringView preferredClass, CookScriptErrorSink& sink,
-                                              ScriptClassSource& out, bool checkOnly)
+                                              ScriptClassSource& out, bool checkOnly,
+                                              IScriptIncludeReader* includes = nullptr)
             {
                 out.language = String(u8"angelscript");
                 out.sourceName = String(assetName); // the source file identity (breakpoint key)
@@ -590,10 +698,39 @@ namespace pipeline{
                 {
                     return false;
                 }
+                IncludeContext includeContext;
+                includeContext.reader = includes;
+                includeContext.recorded = &out.includes;
+                builder.SetIncludeCallback(&ResolveInclude, &includeContext);
                 const String section(assetName);
-                (void)builder.AddSectionFromMemory(reinterpret_cast<const char*>(section.CStr()),
-                                                   reinterpret_cast<const char*>(source.Data()),
-                                                   static_cast<unsigned>(source.Size()));
+                if (builder.AddSectionFromMemory(reinterpret_cast<const char*>(section.CStr()),
+                                                 reinterpret_cast<const char*>(source.Data()),
+                                                 static_cast<unsigned>(source.Size())) < 0 &&
+                    !includeContext.failedInclude.IsEmpty())
+                {
+                    // Said on the #include's own line, in the file that has it.
+                    const StringView failedFrom = includeContext.failedFrom.AsView();
+                    StringView fromSource = source;
+                    for (const ScriptIncludedSource& known : out.includes)
+                    {
+                        if (known.path.AsView() == failedFrom)
+                        {
+                            fromSource = known.source.AsView();
+                        }
+                    }
+                    const String message =
+                        includeContext.outside
+                            ? Format(u8"#include \"{}\" leaves the project's sources", includeContext.failedInclude)
+                            : Format(u8"#include \"{}\": no such file in the project's sources", includeContext.failedInclude);
+                    sink.OnError(ScriptError{ScriptErrorKind::Compile, failedFrom,
+                                             IncludeLine(fromSource, includeContext.failedInclude.AsView()), -1,
+                                             message.AsView()});
+                    if (!checkOnly)
+                    {
+                        ReportScriptCookErrors(assetName, sink);
+                    }
+                    return false;
+                }
                 // The same coroutine support section the runtime adds per module, so a
                 // coroutine-using behavior compiles here exactly as it runs.
                 const StringView coroutinePrelude =

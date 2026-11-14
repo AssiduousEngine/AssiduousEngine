@@ -32,6 +32,57 @@ namespace pipeline{
         return instance;
     }
 
+    bool ResolveScriptInclude(StringView from, StringView include, String& out)
+    {
+        if (include.IsEmpty() || PathIsAbsolute(include) || include.Find(StringView(u8":")) != StringView::kNotFound)
+        {
+            return false;
+        }
+        Array<StringView> parts;
+        // Appends `path`'s components, "." skipped and ".." taking one back; false past the root.
+        const auto append = [&parts](StringView path)
+        {
+            usize start = 0;
+            for (usize i = 0; i <= path.Size(); ++i)
+            {
+                if (i == path.Size() || path[i] == u8'/' || path[i] == u8'\\')
+                {
+                    const StringView part = path.SubStr(start, i - start);
+                    start = i + 1;
+                    if (part.IsEmpty() || part == StringView(u8"."))
+                    {
+                        continue;
+                    }
+                    if (part == StringView(u8".."))
+                    {
+                        if (parts.IsEmpty())
+                        {
+                            return false;
+                        }
+                        parts.PopBack();
+                        continue;
+                    }
+                    parts.PushBack(part);
+                }
+            }
+            return true;
+        };
+        if (!append(PathParent(from)) || !append(include) || parts.IsEmpty())
+        {
+            return false;
+        }
+        out = String{};
+        for (usize i = 0; i < parts.Size(); ++i)
+        {
+            if (i > 0)
+            {
+                out.PushBack(u8'/');
+            }
+            out.Append(parts[i]);
+        }
+        return true;
+    }
+
     RefPtr<IScriptManager> MakeCheckManager(IAllocator& allocator, StringView languageId, StringView forWhat,
                                             Span<const TypeId> hidden)
     {

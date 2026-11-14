@@ -175,18 +175,20 @@ TEST_CASE("script.pipeline: B3 - the neutral builder resolves a per-language COO
         }
         using IScriptLanguageCook::Cook;
         [[nodiscard]] bool Cook(StringView source, StringView, StringView, CookScriptErrorSink&,
-                                ScriptClassSource& out) override
+                                ScriptClassSource& out, IScriptIncludeReader* = nullptr) override
         {
             ++cooked;
             out.language = String(u8"faketest");
             out.source = String(source);
             return true;
         }
-        [[nodiscard]] bool Check(StringView, StringView, StringView, CookScriptErrorSink&, String&, Span<const TypeId>) override
+        [[nodiscard]] bool Check(StringView, StringView, StringView, CookScriptErrorSink&, String&, Span<const TypeId>,
+                                 IScriptIncludeReader* = nullptr) override
         {
             return true;
         }
         void PrepareCheck() override {}
+        void ListIncludes(StringView, Array<String>&) const override {}
         [[nodiscard]] Array<ScriptApiType> DescribeApi() override { return {}; }
         [[nodiscard]] u32 CheckManagerBuildCount() const override { return 0; }
     };
@@ -514,4 +516,100 @@ TEST_CASE("script.pipeline: a version 0 script asset reads with no class recorde
     CHECK(saved.Contains(u8"name=\"className\""));
     CHECK(saved.Contains(u8"<u32 name=\"version\">1</u32>"));
     CookBed::RemoveTree(root.AsView());
+}
+
+TEST_CASE("script.pipeline: an included file is a cook input and travels in the record, the record runs from source")
+{
+    // The builder read an #include from disk relative to the process and never declared it, so
+    // editing an included file did not recook, and a class compiled from source could not load.
+    CookBed bed(u8"as_include");
+    REQUIRE(CreateDirectory(PathJoin(bed.srcDir.AsView(), u8"Game").AsView()));
+    REQUIRE(CreateDirectory(PathJoin(bed.srcDir.AsView(), u8"Shared").AsView()));
+    bed.WriteSource(u8"Shared/Numbers.as", u8"int twice(int v) { return v * 2; }\n");
+    bed.WriteSource(u8"Game/Rules.as", u8"#include \"../Shared/Numbers.as\"\nint four() { return twice(2); }\n");
+    bed.WriteSource(u8"Game/Boot.as",
+                    u8"#include \"Rules.as\"\n#include \"../Shared/Numbers.as\"\n"
+                    u8"class Boot { int answer() { return four() + twice(17); } }\n");
+
+    ScriptClassAsset asset;
+    asset.fileName = foundation::vfs::SourcePath(u8"Game/Boot.as");
+    asset.language = String(u8"angelscript");
+    ScriptClassAssetBuilder builder;
+    pipeline::AssetBuildContext ctx{DefaultAllocator()};
+    ctx.sources = bed.sources.Get();
+    pipeline::AssetDependencies deps;
+    builder.ScanDependencies(asset, ctx, deps);
+    REQUIRE(deps.files.Size() == 2u); // each file once, nested includes too
+    CHECK(deps.files[0].View() == u8"Game/Rules.as");
+    CHECK(deps.files[1].View() == u8"Shared/Numbers.as");
+
+    content::Instance* instance = nullptr;
+    REQUIRE(bed.Cook(u8"Game/Boot.as", u8"angelscript", instance).IsOk());
+    ScriptClassFactory factory(DefaultAllocator());
+    foundation::resource::ResourceManager manager(DefaultAllocator(), *bed.outputDb);
+    manager.AddFactory(&factory);
+    foundation::resource::Proxy<ScriptClass> product = manager.Bind<ScriptClass>(instance->Id());
+    REQUIRE(product);
+    REQUIRE(product->includes.Size() == 2u);
+    CHECK(product->includes[0].path == u8"Game/Rules.as");
+    CHECK(product->includes[1].path == u8"Shared/Numbers.as");
+    CHECK(product->includes[1].source == u8"int twice(int v) { return v * 2; }\n");
+
+    // A fresh VM compiles the class from its source and the recorded includes, as the editor does.
+    RefPtr<IScriptManager> vm = foundation::script::angelscript::CreateScriptManager(DefaultAllocator());
+    RegisterReflectedTypes(*vm);
+    RefPtr<IScriptContext> scriptContext = vm->CreateContext();
+    Array<ScriptSection> sections;
+    for (const ScriptIncludedSource& included : product->includes)
+    {
+        sections.PushBack(ScriptSection{included.path.AsView(), included.source.AsView()});
+    }
+    REQUIRE(scriptContext->Load(product->source.AsView(), product->sourceName.AsView(),
+                                Span<const ScriptSection>{sections.Data(), sections.Size()})
+                .IsOk());
+}
+
+TEST_CASE("script.pipeline: an include that leaves the sources or names no file fails the cook on its line")
+{
+    CookBed bed(u8"as_include_bad");
+    bed.WriteSource(u8"Out.as", u8"class Out {}\n#include \"../Elsewhere.as\"\n");
+    bed.WriteSource(u8"Gone.as", u8"class Gone {}\n\n#include \"Missing.as\"\n");
+    IScriptLanguageCook* cook = ScriptLanguageCookRegistry::Get().FindByLanguage(u8"angelscript");
+    REQUIRE(cook != nullptr);
+    FolderIncludeReader reader(bed.srcDir.AsView());
+    String className;
+
+    CookScriptErrorSink outside;
+    CHECK_FALSE(cook->Check(u8"class Out {}\n#include \"../Elsewhere.as\"\n", u8"Out.as", u8"Out", outside, className,
+                            Span<const TypeId>{}, &reader));
+    REQUIRE_FALSE(outside.errors.IsEmpty());
+    CHECK(outside.errors[0].module == u8"Out.as");
+    CHECK(outside.errors[0].line == 2);
+    CHECK(outside.errors[0].message.AsView().ContainsIgnoreCase(u8"leaves the project's sources"));
+
+    CookScriptErrorSink missing;
+    CHECK_FALSE(cook->Check(u8"class Gone {}\n\n#include \"Missing.as\"\n", u8"Gone.as", u8"Gone", missing, className,
+                            Span<const TypeId>{}, &reader));
+    REQUIRE_FALSE(missing.errors.IsEmpty());
+    CHECK(missing.errors[0].line == 3);
+    CHECK(missing.errors[0].message.AsView().ContainsIgnoreCase(u8"no such file"));
+}
+
+TEST_CASE("script.pipeline: an error inside an included file names that file and its line")
+{
+    CookBed bed(u8"as_include_error");
+    bed.WriteSource(u8"Lib.as", u8"int ok() { return 1; }\nint broken() { return nope; }\n");
+    IScriptLanguageCook* cook = ScriptLanguageCookRegistry::Get().FindByLanguage(u8"angelscript");
+    REQUIRE(cook != nullptr);
+    FolderIncludeReader reader(bed.srcDir.AsView());
+    String className;
+    CookScriptErrorSink sink;
+    CHECK_FALSE(cook->Check(u8"#include \"Lib.as\"\nclass User { int f() { return ok(); } }\n", u8"User.as", u8"User",
+                            sink, className, Span<const TypeId>{}, &reader));
+    bool named = false;
+    for (const CookScriptErrorSink::Entry& e : sink.errors)
+    {
+        named = named || (e.kind == ScriptErrorKind::Compile && e.module == u8"Lib.as" && e.line == 2);
+    }
+    CHECK(named);
 }

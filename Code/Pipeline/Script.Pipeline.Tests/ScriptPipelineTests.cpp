@@ -220,3 +220,20 @@ TEST_CASE("script.pipeline: the script surface hash follows a signature's types 
     secondRegistry.Register(second);
     CHECK(ScriptSurfaceHash(firstRegistry) != ScriptSurfaceHash(secondRegistry));
 }
+
+TEST_CASE("script.pipeline: an include resolves against the file that has it, never outside the sources")
+{
+    String out;
+    CHECK(ResolveScriptInclude(u8"Game/Boot.as", u8"Rules.as", out));
+    CHECK(out == u8"Game/Rules.as");
+    CHECK(ResolveScriptInclude(u8"Game/Boot.as", u8"../Shared/Numbers.as", out));
+    CHECK(out == u8"Shared/Numbers.as");
+    CHECK(ResolveScriptInclude(u8"Boot.as", u8"./Lib\\Steps.as", out));
+    CHECK(out == u8"Lib/Steps.as");
+    CHECK(ResolveScriptInclude(u8"Game/Deep/A.as", u8"../../B.as", out));
+    CHECK(out == u8"B.as");
+    CHECK_FALSE(ResolveScriptInclude(u8"Boot.as", u8"../Outside.as", out));
+    CHECK_FALSE(ResolveScriptInclude(u8"Game/Boot.as", u8"../../Outside.as", out));
+    CHECK_FALSE(ResolveScriptInclude(u8"Boot.as", u8"/etc/passwd", out));
+    CHECK_FALSE(ResolveScriptInclude(u8"Boot.as", u8"C:/Windows/x.as", out));
+}

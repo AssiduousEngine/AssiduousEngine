@@ -224,6 +224,21 @@ export namespace foundation::script
         foundation::core::Serialize(ar, "replicated", d.replicated);
     }
 
+    // A file the script includes (AngelScript's `#include`), as the cook resolved and read it: its
+    // path in the project's sources and its text, so a script compiled from source (the game
+    // script) includes it as the cooked bytecode did.
+    struct ScriptIncludedSource
+    {
+        String path;
+        String source;
+    };
+
+    inline void Serialize(ISerializer& ar, ScriptIncludedSource& included)
+    {
+        foundation::core::Serialize(ar, "path", included.path);
+        foundation::core::Serialize(ar, "source", included.source);
+    }
+
     // ---- the cooked record ----
 
     class ScriptClassSource : public ISerializable
@@ -235,6 +250,7 @@ export namespace foundation::script
         String sourceName; // the source file identity ("Mover.as"): the AngelScript section
                            // name and the editor's breakpoint key; the cook stamps the asset fileName
         String source;     // full script source text (kept for dev-mode hot reload)
+        Array<ScriptIncludedSource> includes; // every file `source` includes, each once
         // Compiled bytecode for the pack (the player loads this, it has no compiler), when the
         // language has a stable bytecode (ScriptCapabilities::Bytecode) and it cooked; empty
         // for source-only backends or a cook that produced none. Version-locked:
@@ -251,6 +267,7 @@ export namespace foundation::script
             foundation::core::Serialize(ar, "className", className);
             foundation::core::Serialize(ar, "sourceName", sourceName);
             foundation::core::Serialize(ar, "source", source);
+            foundation::core::Serialize(ar, "includes", includes);
             foundation::core::Serialize(ar, "bytecode", bytecode);
             foundation::core::Serialize(ar, "properties", properties);
             foundation::core::Serialize(ar, "handlers", handlers);
@@ -269,6 +286,7 @@ export namespace foundation::script
         String sourceName; // the source file identity: the AngelScript section name a
                            // breakpoint keys on (== EditorContext::ScriptBreakpoint.file)
         String source;
+        Array<ScriptIncludedSource> includes; // every file `source` includes, each once (the cook's record)
         Array<byte> bytecode;        // compiled bytecode (empty = source-only); see ScriptClassSource
         Array<ScriptPropertyDesc> properties;
         Array<String> handlers;
@@ -344,6 +362,7 @@ export namespace foundation::script
             product->className = source->className;
             product->sourceName = source->sourceName;
             product->source = source->source;
+            product->includes = source->includes;
             product->bytecode = source->bytecode;
             product->properties = source->properties;
             product->handlers = source->handlers;
@@ -359,10 +378,10 @@ export namespace foundation::script
     // Registers the cooked record and product types (content-DB construction by type name).
     inline void RegisterScriptResource()
     {
-        // Data version 1: each property's replicated flag. A record cooked before it is in
-        // another layout; the strict reader refuses it and the script recooks. No REFLECT block
-        // owns this type, so the version is patched on the TypeInfo.
-        const_cast<TypeInfo&>(ScriptClassSource::StaticType()).dataVersion = 1;
+        // Data version 1: each property's replicated flag; 2: the included files. A record cooked
+        // before is in another layout; the strict reader refuses it and the script recooks. No
+        // REFLECT block owns this type, so the version is patched on the TypeInfo.
+        const_cast<TypeInfo&>(ScriptClassSource::StaticType()).dataVersion = 2;
         GlobalTypeRegistry().Register(ScriptClassSource::StaticType());
         RegisterSerializable<ScriptClassSource>();
         GlobalTypeRegistry().Register(ScriptClass::StaticType());

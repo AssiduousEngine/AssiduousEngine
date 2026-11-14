@@ -483,8 +483,13 @@ export namespace engine::script
             // Carry the cooked bytecode too: a backend with per-class bytecode loads it instead of
             // compiling the source (the player path, no compiler). The section is the class's
             // sourceName, so breakpoints and errors key on the authored (file, line).
+            Array<ScriptSection> includes; // the files its source includes, for a compile from source
+            for (const ScriptIncludedSource& included : scriptClass.includes)
+            {
+                includes.PushBack(ScriptSection{included.path.AsView(), included.source.AsView()});
+            }
             const BehaviorModuleClass entry{scriptClass.sourceName.AsView(), scriptClass.source.AsView(),
-                                            {},
+                                            Span<const ScriptSection>{includes.Data(), includes.Size()},
                                             Span<const byte>{scriptClass.bytecode.Data(), scriptClass.bytecode.Size()}};
             ++m_generation;
             const String moduleName = Format(u8"behaviors#{}", m_generation);

@@ -308,8 +308,9 @@ namespace pipeline{
             // manager's Check also refuses a global naming a type it was not given (a hidden one).
             [[nodiscard]] bool Check(StringView source, StringView assetName, StringView preferredClass,
                                      CookScriptErrorSink& sink, String& className,
-                                     Span<const TypeId> hidden) override
+                                     Span<const TypeId> hidden, IScriptIncludeReader* includes = nullptr) override
             {
+                (void)includes; // Luau has no include directive
                 // Every registered type: the cached check manager (a Luau check compiles and loads into a
                 // throwaway state, so nothing of one script stays for the next).
                 const auto compile = [&](IScriptManager& manager)
@@ -332,6 +333,9 @@ namespace pipeline{
 
             void PrepareCheck() override { m_checkManager.Prepare(); }
 
+            // Luau has no include directive.
+            void ListIncludes(StringView, Array<String>&) const override {}
+
             [[nodiscard]] Array<ScriptApiType> DescribeApi() override { return m_checkManager.DescribeApi(); }
 
             [[nodiscard]] u32 CheckManagerBuildCount() const override { return m_checkManager.BuildCount(); }
@@ -339,8 +343,10 @@ namespace pipeline{
             using IScriptLanguageCook::Cook; // and the overload that prefers the file's stem
 
             [[nodiscard]] bool Cook(StringView source, StringView assetName, StringView preferredClass,
-                                    CookScriptErrorSink& sink, ScriptClassSource& out) override
+                                    CookScriptErrorSink& sink, ScriptClassSource& out,
+                                    IScriptIncludeReader* includes = nullptr) override
             {
+                (void)includes; // Luau has no include directive
                 out.language = String(u8"luau");
                 out.sourceName = String(assetName); // the source file identity (breakpoint key)
                 out.source = String(source);
