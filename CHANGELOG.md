@@ -146,6 +146,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - GUI: a grid item placed on a row line past the grid's rows widens the rows instead of hanging
   the layout (in a column flow) or writing past the grid's cells, and a grid line or span above
   1000 is taken as 1000 instead of allocating that many tracks.
+- GUI: a style sheet with `@media` nested more than 16 deep skips the deeper blocks with a warning
+  instead of overflowing the stack, and a stray `}` is skipped with a warning; the rules after it
+  were dropped.
 - Rendering (Vulkan): a frame is presented only after it is drawn. The swapchain's wait and signal
   went to whichever submit came first after the acquire, and a profiler sync point or an offscreen
   pass could take them. `Queue::SubmitFrame` names the swapchain the frame renders; code that

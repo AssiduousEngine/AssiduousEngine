@@ -152,3 +152,31 @@ TEST_CASE("css-parser: a quoted string and parentheses keep their semicolons, br
     REQUIRE(d.Size() == 2u);
     CHECK(d[1].Value.AsView() == SV(u8"black"));
 }
+
+TEST_CASE("css-parser: a stray closing brace is skipped and the rules after it read")
+{
+    // The parse stopped at the stray brace, dropping every rule after it.
+    core::Array<GuiDiagnostic> said;
+    const StyleSheet sheet = CSSParser::Parse(SV(u8".a { color: red; } } .b { color: blue; }"), {}, &said);
+    REQUIRE(sheet.RuleCount() == 2u);
+    CHECK(sheet.Rules()[1].SelectorText() == SV(u8".b"));
+    CHECK(said.Size() == 1u);
+}
+
+TEST_CASE("css-parser: @media nested past the limit is skipped, not recursed into")
+{
+    // Each level was a native call: a sheet of deeply nested @media ran the stack out.
+    constexpr core::u32 kDepth = 100000;
+    core::String css;
+    for (core::u32 i = 0; i < kDepth; ++i)
+        css.Append(SV(u8"@media (min-width: 1px) { "));
+    css.Append(SV(u8".deep { color: red; }"));
+    for (core::u32 i = 0; i < kDepth; ++i)
+        css.Append(SV(u8" }"));
+    css.Append(SV(u8" @media (min-width: 1px) { @media (min-width: 2px) { .shallow { color: blue; } } }"));
+    core::Array<GuiDiagnostic> said;
+    const StyleSheet sheet = CSSParser::Parse(css.AsView(), {}, &said);
+    REQUIRE(sheet.RuleCount() == 1u); // the shallow rule; the deep one is past the limit
+    CHECK(sheet.Rules()[0].SelectorText() == SV(u8".shallow"));
+    CHECK(said.Size() == 1u);
+}

@@ -156,8 +156,12 @@ export namespace foundation::gui
             }
         };
 
+        // Each @media level is a native call; deeper blocks are skipped with a warning.
+        static constexpr u32 kMaxMediaNesting = 16;
+
         // Parses a run of rules (and nested @media blocks), attaching `media` to each rule.
-        static void ParseBlock(StyleSheet& sheet, const Source& source, core::StringView src, const MediaQuery& media)
+        static void ParseBlock(StyleSheet& sheet, const Source& source, core::StringView src, const MediaQuery& media,
+                               u32 mediaDepth = 0)
         {
             const usize n = src.Size();
             usize i = 0;
@@ -218,12 +222,16 @@ export namespace foundation::gui
                     if (i < n)
                         ++i; // consume '}'
 
-                    if (IsMedia(prelude))
+                    if (IsMedia(prelude) && mediaDepth >= kMaxMediaNesting)
+                    {
+                        source.Skipped(prelude, core::Format(u8"@media nested more than {} deep", kMaxMediaNesting));
+                    }
+                    else if (IsMedia(prelude))
                     {
                         const core::StringView condition =
                             Trim(prelude.SubStr(6, prelude.Size() - 6));
-                        ParseBlock(sheet, source, inner,
-                                   MediaQuery{condition}); // an inner @media replaces the outer one
+                        ParseBlock(sheet, source, inner, MediaQuery{condition},
+                                   mediaDepth + 1); // an inner @media replaces the outer one
                     }
                     else if (IsKeyframes(prelude))
                     {
@@ -250,7 +258,10 @@ export namespace foundation::gui
                 {
                     const core::StringView stray = Trim(src.SubStr(selStart, i - selStart));
                     source.Skipped(src.SubStr(selStart, i - selStart), core::Format(u8"text with no rule block: {}", stray));
-                    break;
+                    if (i >= n)
+                        break;
+                    ++i; // a stray '}': skipped with what came before it, and the rules after it read
+                    continue;
                 }
                 const core::StringView selectorList = src.SubStr(selStart, i - selStart);
                 ++i; // consume '{'
