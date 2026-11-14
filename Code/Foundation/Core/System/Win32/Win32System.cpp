@@ -543,6 +543,33 @@ namespace foundation::core::sys
 
     bool FileMove(const char* from, const char* to) noexcept
     {
+        // MoveFileEx refuses to replace a file another handle has open, even one opened with
+        // FILE_SHARE_DELETE, so a save over a file a reader held failed. A rename with POSIX
+        // semantics (Windows 10 1809 and later, NTFS) replaces it, and the reader keeps the file
+        // it opened. Where that is not supported (an older system, a FAT volume) or the name does
+        // not fit the buffer, MoveFileEx.
+        constexpr int kMaxName = 4096; // wide characters, the terminator included
+        alignas(FILE_RENAME_INFO) unsigned char buffer[sizeof(FILE_RENAME_INFO) + kMaxName * sizeof(WCHAR)];
+        auto* info = reinterpret_cast<FILE_RENAME_INFO*>(buffer);
+        // The other calls here take paths in the ANSI code page (the ...A functions), so this does.
+        const int toLength = MultiByteToWideChar(CP_ACP, 0, to, -1, info->FileName, kMaxName);
+        if (toLength > 0)
+        {
+            HANDLE source = CreateFileA(from, DELETE | SYNCHRONIZE,
+                                        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                                        OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+            if (source != INVALID_HANDLE_VALUE)
+            {
+                info->Flags = FILE_RENAME_FLAG_REPLACE_IF_EXISTS | FILE_RENAME_FLAG_POSIX_SEMANTICS;
+                info->RootDirectory = nullptr;
+                info->FileNameLength = static_cast<DWORD>(toLength - 1) * sizeof(WCHAR); // no terminator
+                const DWORD size = static_cast<DWORD>(sizeof(FILE_RENAME_INFO)) + info->FileNameLength;
+                const BOOL renamed = SetFileInformationByHandle(source, FileRenameInfoEx, info, size);
+                CloseHandle(source);
+                if (renamed != 0)
+                    return true;
+            }
+        }
         return MoveFileExA(from, to, MOVEFILE_REPLACE_EXISTING) != 0;
     }
 
