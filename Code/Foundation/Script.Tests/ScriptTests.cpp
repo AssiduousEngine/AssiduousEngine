@@ -28,7 +28,7 @@ namespace
     {
     public:
         void SetErrorHandler(IScriptErrorHandler*) override {}
-        Status Load(StringView, StringView) override { return Status{ErrorCode::NotSupported}; }
+        Status Load(StringView, StringView, Span<const ScriptSection>) override { return Status{ErrorCode::NotSupported}; }
         void SetGlobal(StringView name, const Variant& value) override
         {
             m_globals.InsertOrAssign(String(name), value);

@@ -237,7 +237,7 @@ TEST_CASE("script.resource: the property type table reads both ways")
 TEST_CASE("script.resource: cooked record -> factory -> runtime product, angelscript label "
           "(metadata parse, hash lookups, handler set)")
 {
-    DriveFactoryRoundTrip(u8"angelscript", u8"Mover.as", u8"class Mover {\n Mover(Entity@ e) {}\n}\n");
+    DriveFactoryRoundTrip(u8"angelscript", u8"Mover.as", u8"class Mover {\n Mover(Entity e) {}\n}\n");
 }
 
 TEST_CASE("script.resource: cooked record -> factory -> runtime product, luau label "
@@ -249,35 +249,39 @@ TEST_CASE("script.resource: cooked record -> factory -> runtime product, luau la
         u8"function Mover.new(entity) return setmetatable({}, Mover) end\n");
 }
 
-// A record cooked before each property carried its replicated flag is in another layout. Read as
-// this one it would misread its counts; the data version refuses it, and the script recooks.
-TEST_CASE("script.resource: a record cooked before the replicated flag is refused")
+// A record cooked before each property carried its replicated flag (data version 0), or before it
+// carried its included files (version 1), is in another layout. Read as this one it would misread
+// its counts; the data version refuses it, and the script recooks.
+TEST_CASE("script.resource: a record cooked before the replicated flag or the included files is refused")
 {
     RegisterScriptResource();
     TypeInfo& type = const_cast<TypeInfo&>(ScriptClassSource::StaticType());
-    CHECK(type.dataVersion == 1u);
+    const u32 current = type.dataVersion;
+    CHECK(current == 2u);
 
-    const StringView dir = u8"scratch_scriptres_stale";
-    RemoveDbTree(dir);
-    foundation::vfs::NativeFileSystem mount(dir, DefaultAllocator());
-    content::ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
-    ScriptClassSource cooked;
-    cooked.language = String(u8"angelscript");
-    cooked.className = String(u8"Mover");
-    ScriptPropertyDesc speed;
-    speed.name = String(u8"speed");
-    cooked.properties.PushBack(Move(speed));
-    auto* instance = db.RootGroup()->CreateInstance(u8"cooked", ScriptClassSource::StaticType());
-    REQUIRE(instance != nullptr);
-    type.dataVersion = 0; // as the cook before the flag stamped it
-    REQUIRE(instance->WriteObject(cooked).IsOk());
-    type.dataVersion = 1;
+    for (u32 stale = 0; stale < current; ++stale)
+    {
+        const StringView dir = u8"scratch_scriptres_stale";
+        RemoveDbTree(dir);
+        foundation::vfs::NativeFileSystem mount(dir, DefaultAllocator());
+        content::ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
+        ScriptClassSource cooked;
+        cooked.language = String(u8"angelscript");
+        cooked.className = String(u8"Mover");
+        ScriptPropertyDesc speed;
+        speed.name = String(u8"speed");
+        cooked.properties.PushBack(Move(speed));
+        auto* instance = db.RootGroup()->CreateInstance(u8"cooked", ScriptClassSource::StaticType());
+        REQUIRE(instance != nullptr);
+        type.dataVersion = stale; // as the cook of that version stamped it
+        REQUIRE(instance->WriteObject(cooked).IsOk());
+        type.dataVersion = current;
 
-    ScriptClassFactory factory(DefaultAllocator());
-    foundation::resource::ResourceManager manager(DefaultAllocator(), db);
-    manager.AddFactory(&factory);
-    foundation::resource::Proxy<ScriptClass> product = manager.Bind<ScriptClass>(instance->Id());
-    CHECK_FALSE(product);
-
-    RemoveDbTree(dir);
+        ScriptClassFactory factory(DefaultAllocator());
+        foundation::resource::ResourceManager manager(DefaultAllocator(), db);
+        manager.AddFactory(&factory);
+        foundation::resource::Proxy<ScriptClass> product = manager.Bind<ScriptClass>(instance->Id());
+        CHECK_FALSE(product);
+        RemoveDbTree(dir);
+    }
 }
