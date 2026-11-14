@@ -79,9 +79,10 @@ shipped builds, validating hostile bytecode. Those go to `backlog-0.2.md` under 
 **C0: a benchmark.**
 - A benchmark case in each backend's suite, skipped unless asked for, run from
   `build/clang-reldbg`: a behaviour's handler called N times; a script doing Float3 and Color
-  arithmetic in a loop; a hundred coroutines waiting; a frame's collection with a thousand live
-  objects. It prints per-call and per-frame times and the allocation count (the tracking
-  allocator). The baseline goes in the weekly.
+  arithmetic in a loop; a hundred coroutines waiting; a frame's collection, idle and with a
+  thousand objects of garbage. It prints per-call and per-frame times; the baseline goes in the
+  weekly. Allocation counts join in C3, once boxes come from the manager's allocator, which a
+  test can wrap in a tracking allocator (`DefaultAllocator()` keeps no counts).
 
 **C1: every fault reported, with where.**
 - A coroutine that faults is reported like any call's fault, and an abort says why (budget,

@@ -1685,3 +1685,36 @@ TEST_CASE("script.luau: a call that allocates past the heap budget fails, and th
     manager->CollectGarbage();
     CHECK(probe->Invoke(u8"fine", Span<Variant>{}).Value().Get<f64>() == doctest::Approx(7.0));
 }
+
+#include "Script.Tests/BackendBenchmark.h"
+
+TEST_CASE("script.luau: benchmark of the call path" * doctest::skip())
+{
+    foundation::script::benchmark::Dialect dialect;
+    dialect.languageId = u8"luau";
+    dialect.benchClass = u8R"lua(
+Bench = {}
+Bench.__index = Bench
+function Bench.new() return setmetatable({ total = 0 }, Bench) end
+function Bench:tick(dt) self.total = self.total + dt end
+function Bench:math(n)
+    local a = Float3.new(1, 2, 3)
+    local b = Float3.new(0.5, 0.25, 0.125)
+    local sum = 0
+    for i = 1, n do
+        local d = a + b * 2
+        local c = Color.new(d.x, d.y, d.z, 1)
+        sum = sum + Float3.Dot(d, a) + c.r
+    end
+    return sum
+end
+function Bench:spawn(n)
+    for i = 1, n do startCoroutine(function() waitSeconds(1000) end, self) end
+end
+function Bench:churn(n)
+    for i = 1, n do local h = {}; h.self = h; h.at = Float3.new(1, 2, 3) end
+end
+)lua";
+    foundation::script::benchmark::RunScriptBackendBenchmark(
+        []() { return CreateLuauScriptManager(DefaultAllocator()); }, dialect);
+}
