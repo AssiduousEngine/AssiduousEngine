@@ -2159,3 +2159,34 @@ TEST_CASE("angelscript: an object finds each method once and keeps calling the r
         CHECK(pick->Invoke(u8"missing", Span<Variant>{}).Error() == ErrorCode::NotFound);
     }
 }
+
+TEST_CASE("angelscript: a frame's collector step stops at its time, and steps finish the cycle")
+{
+    // Every frame ran a full collection, however much garbage there was.
+    RefPtr<IScriptManager> manager = angelscript::CreateScriptManager(DefaultAllocator());
+    RefPtr<IScriptContext> scriptContext = manager->CreateContext();
+    REQUIRE(scriptContext
+                ->Load(u8"class Node { Node@ next; }\n"
+                       u8"void churn(double n) { for (double i = 0; i < n; i++) { Node a; Node b; @a.next = b; @b.next = a; } }\n",
+                       u8"churn")
+                .IsOk());
+    manager->CollectGarbage();
+    Variant count[] = {Variant::From<f64>(2000.0)};
+    REQUIRE(scriptContext->Call(u8"churn", Span<Variant>{count, 1}).HasValue());
+    asIScriptEngine* engine = static_cast<asIScriptEngine*>(angelscript::AngelScriptEngineHandle(*manager));
+    asUINT held = 0;
+    engine->GetGCStatistics(&held);
+    REQUIRE(held >= 2000u);
+
+    manager->StepGarbage(0.0); // one step: a little of the work, never all of it
+    asUINT afterOne = 0;
+    engine->GetGCStatistics(&afterOne);
+    CHECK(afterOne > 0u);
+
+    for (int frame = 0; frame < 1000 && afterOne > 0u; ++frame)
+    {
+        manager->StepGarbage(0.01);
+        engine->GetGCStatistics(&afterOne);
+    }
+    CHECK(afterOne == 0u);
+}

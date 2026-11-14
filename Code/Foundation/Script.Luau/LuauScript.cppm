@@ -422,6 +422,23 @@ namespace foundation::script
             }
         }
 
+        // Steps of a cycle the collector is in, until it ends or the time is used. A paused
+        // collector (its heap under the threshold allocation sets) is left paused: a step would
+        // start a cycle Luau's own pacing has not asked for.
+        void StepGarbage(f64 seconds) override
+        {
+            const u64 start = GetTicks();
+            const u64 limit = static_cast<u64>(seconds * static_cast<f64>(GetTickFrequency()));
+            for (LuauScriptContext* context : m_contexts)
+            {
+                lua_State* state = context->State();
+                while (lua_gc(state, LUA_GCISPAUSED, 0) == 0 && lua_gc(state, LUA_GCSTEP, 0) == 0 &&
+                       GetTicks() - start < limit)
+                {
+                }
+            }
+        }
+
         [[nodiscard]] ScriptCapabilities Capabilities() const override
         {
             return ScriptCapabilities::Coroutines | ScriptCapabilities::Delegates |

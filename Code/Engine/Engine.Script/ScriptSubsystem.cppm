@@ -353,6 +353,15 @@ export namespace engine::script
             m_binding.deltaSeconds = deltaSeconds;
             if (m_manager.Get() != nullptr)
             {
+                m_manager->StepGarbage(m_manager->Budget().collectSeconds);
+            }
+        }
+
+        /// A full collection, where a pause is expected (a scene stopped or unloaded).
+        void CollectAllGarbage()
+        {
+            if (m_manager.Get() != nullptr)
+            {
                 m_manager->CollectGarbage();
             }
         }
@@ -1756,11 +1765,27 @@ export namespace engine::script
         /// no live behavior instances in those scenes. Per-host, so an
         /// instance's host and the editor's host tear down independently. Called by the scene-stop
         /// observer, OnSceneDestroyed, and a GameInstance on its own host.
+        /// A host that stays collects in full instead: a scene stopped or went, so the frame is
+        /// one where a pause is expected, and what it left is garbage now.
         void MaybeTeardownRunHost(ScriptRunHost& host)
         {
-            if (!host.IsActive() || host.HasGameScriptHold())
+            if (!host.IsActive())
             {
                 return;
+            }
+            if (RunHostPinned(host))
+            {
+                host.CollectAllGarbage();
+                return;
+            }
+            host.Teardown();
+        }
+
+        [[nodiscard]] bool RunHostPinned(ScriptRunHost& host) const
+        {
+            if (host.HasGameScriptHold())
+            {
+                return true;
             }
             for (const SceneEntry& entry : m_systems)
             {
@@ -1774,14 +1799,14 @@ export namespace engine::script
                 } // only scenes bound to this host
                 if (entry.system->Started() && entry.scene->SimulationEnabled())
                 {
-                    return;
+                    return true;
                 }
                 if (entry.system->InstanceCount() > 0)
                 {
-                    return;
+                    return true;
                 }
             }
-            host.Teardown();
+            return false;
         }
 
         // ---- contact events (neutral ingress) ----

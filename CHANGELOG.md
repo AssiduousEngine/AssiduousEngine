@@ -53,6 +53,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Scripting: the garbage collectors no longer run a full collection every frame; each frame does a
+  step of at most half a millisecond (`ScriptBudget::collectSeconds`), and a full collection waits
+  for a scene to stop or unload. A frame with garbage to free took the whole collection's time.
 - Scripting (AngelScript): reloading a behaviour frees the replaced version's compiled code once no
   instance, coroutine or delegate of it is left; every version stayed loaded until the run stopped.
 - Scripting (AngelScript): `#include` works as one path rule everywhere: it resolves against the

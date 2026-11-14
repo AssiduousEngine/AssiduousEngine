@@ -617,11 +617,28 @@ namespace foundation::script::angelscript
 
         void CollectGarbage() override
         {
-            // AngelScript's GC is incremental; one full pass keeps the battery's
-            // "callable any time" promise while staying frame-budget friendly.
             if (m_engine != nullptr)
             {
                 m_engine->GarbageCollect(asGC_FULL_CYCLE);
+            }
+        }
+
+        // Steps of the incremental collector, about one per object it tracks (a pass over them),
+        // or fewer when the time is used; the next frame goes on from there. Its incremental mode
+        // never says a cycle ended, so the pass is what bounds a frame: nothing tracked, no work.
+        void StepGarbage(core::f64 seconds) override
+        {
+            if (m_engine == nullptr)
+            {
+                return;
+            }
+            asUINT tracked = 0;
+            m_engine->GetGCStatistics(&tracked);
+            const core::u64 start = core::GetTicks();
+            const core::u64 limit = static_cast<core::u64>(seconds * static_cast<core::f64>(core::GetTickFrequency()));
+            for (asUINT step = 0; step < tracked && core::GetTicks() - start < limit; ++step)
+            {
+                (void)m_engine->GarbageCollect(asGC_ONE_STEP | asGC_DETECT_GARBAGE | asGC_DESTROY_GARBAGE);
             }
         }
 

@@ -54,6 +54,9 @@ export namespace foundation::script
     {
         core::f64 callSeconds = 5.0;
         core::usize heapBytes = core::usize{512} << 20;
+        /// The most a frame's step of the garbage collector takes (StepGarbage); a full collection
+        /// waits for a pause (a scene stopped or unloaded).
+        core::f64 collectSeconds = 0.0005;
     };
 
     class IScriptManager : public core::Object
@@ -87,9 +90,13 @@ export namespace foundation::script
         virtual void SetBudget(const ScriptBudget& budget) = 0;
         [[nodiscard]] virtual ScriptBudget Budget() const = 0;
 
-        // Single-step garbage collection, for backends that need it kept small in
-        // real-time loops. Default: no-op.
+        /// A full collection: everything unreachable is freed before it returns. For where a pause
+        /// is expected (a scene unloaded, a run stopped) and for tests. Default: no-op.
         virtual void CollectGarbage() {}
+
+        /// A frame's share of the collector's work, taking about `seconds` at most: the run calls
+        /// it every frame, so garbage is freed over frames instead of in one pause. Default: no-op.
+        virtual void StepGarbage(core::f64 seconds) { (void)seconds; }
 
         /// Resume every coroutine whose wait has elapsed, accumulating `deltaSeconds`;
         /// drop the ones that complete or fault. The scheduler lives host-side inside

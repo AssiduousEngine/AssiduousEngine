@@ -98,12 +98,29 @@ namespace foundation::script::benchmark
                 manager->CollectGarbage();
             }
             detail::Report(language, "collect-idle", idle.Elapsed().AsSeconds() * 1e6 / kFrames, "us/frame");
+            const Stopwatch step = Stopwatch::StartNew();
+            for (u32 i = 0; i < kFrames; ++i)
+            {
+                manager->StepGarbage(manager->Budget().collectSeconds);
+            }
+            detail::Report(language, "step-idle", step.Elapsed().AsSeconds() * 1e6 / kFrames, "us/frame");
 
             Variant n[] = {Variant::From<i32>(1000)};
             REQUIRE(bench->Invoke(u8"churn", Span<Variant>{n, 1}).HasValue());
             const Stopwatch garbage = Stopwatch::StartNew();
             manager->CollectGarbage();
             detail::Report(language, "collect-1000-cycles", garbage.Elapsed().AsSeconds() * 1e6, "us");
+            // The same garbage freed by frame steps: the longest frame is what a player feels.
+            REQUIRE(bench->Invoke(u8"churn", Span<Variant>{n, 1}).HasValue());
+            f64 longest = 0.0;
+            for (u32 i = 0; i < kFrames; ++i)
+            {
+                const Stopwatch frame = Stopwatch::StartNew();
+                manager->StepGarbage(manager->Budget().collectSeconds);
+                const f64 took = frame.Elapsed().AsSeconds() * 1e6;
+                longest = took > longest ? took : longest;
+            }
+            detail::Report(language, "step-1000-cycles-longest-frame", longest, "us");
         }
     }
 }
