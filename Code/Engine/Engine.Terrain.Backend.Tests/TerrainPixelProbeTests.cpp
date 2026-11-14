@@ -489,11 +489,13 @@ namespace
     {
         bool valid = false;
         f64 leftGround = 0, rightGround = 0, total = 0; // luma over the flat ground bands
+        Array<f64> middleRow;                           // luma across the image's middle row
     };
 
     // Renders the ridge top-down under a low +X sun, optionally with a CSM ShadowSystem, and measures
     // the luma of the flat ground on each side of the ridge (excluding the bright ridge stripe).
-    ShadowProbe RenderShadowProbe(rhi::Device& device, bool shadowsEnabled)
+    ShadowProbe RenderShadowProbe(rhi::Device& device, bool shadowsEnabled, u32 cascadeResolution = 0,
+                                  Float3 toLight = Float3{0.9f, 0.42f, 0.0f})
     {
         ShadowProbe probe;
         shaders::ShaderSystemHost host{DefaultAllocator()};
@@ -513,6 +515,8 @@ namespace
             {
                 shadows = MakeUnique<ShadowSystem>(DefaultAllocator(), device, /*framesInFlight*/ 2);
                 REQUIRE(shadows->Initialize().IsOk());
+                if (cascadeResolution != 0)
+                    shadows->SetResolutions(cascadeResolution, 512);
             }
             RenderFrame frame(DefaultAllocator(), device, registry, /*framesInFlight*/ 2, /*clusters*/ nullptr,
                               /*tonemap*/ nullptr, shadows.Get());
@@ -528,8 +532,7 @@ namespace
             REQUIRE(heightView != nullptr);
 
             // Sun low from +X: the direction to the light; the travel direction is its negation.
-            const Float3 toLight = Normalized(Float3{0.9f, 0.42f, 0.0f});
-            const Float3 travel = toLight * -1.0f;
+            const Float3 travel = Normalized(toLight) * -1.0f;
 
             static const f32 thresholds[] = {1.0f, 0.25f, 0.08f, 0.03f, 0.012f, 0.005f, 0.002f};
             ExtractedScene scene{DefaultAllocator()};
@@ -627,6 +630,8 @@ namespace
                 {
                     const f64 luma = static_cast<f64>(img.Luma(x, y));
                     probe.total += luma;
+                    if (y == kSize / 2)
+                        probe.middleRow.PushBack(luma);
                     const f32 fx = static_cast<f32>(x) / kSize;
                     if (fx > 0.12f && fx < 0.38f)
                     {
@@ -1800,3 +1805,53 @@ TEST_CASE("terrain holes probe: a cut at the dome's centre shows the clear colou
     }
 }
 
+
+namespace
+{
+    // How many pixels of a row, between `from` and `to`, lie between its darkest and brightest
+    // levels there: the width of the shadow's soft edge.
+    u32 SoftEdgeWidth(const Array<f64>& row, usize from, usize to)
+    {
+        f64 low = row[from], high = row[from];
+        for (usize x = from; x < to; ++x)
+        {
+            low = Min(low, row[x]);
+            high = Max(high, row[x]);
+        }
+        const f64 margin = (high - low) * 0.05; // both sides are flat, so a small margin is enough
+        u32 width = 0;
+        for (usize x = from; x < to; ++x)
+            if (row[x] > low + margin && row[x] < high - margin)
+                ++width;
+        return width;
+    }
+}
+
+TEST_CASE("terrain probe: the shadow filter is spaced for the cascade's own resolution")
+{
+    // The terrain's 3x3 filter stepped 1/1024 whatever the cascade's size, so at a quality level
+    // with smaller cascades its taps fell within one texel: its shadow edges were as hard as at
+    // 1024, and harder than the meshes'.
+    rhi::Backend* vulkan = nullptr;
+    rhi::Device* device = MakeVulkan(vulkan);
+    if (device == nullptr)
+    {
+        MESSAGE("Vulkan unavailable - terrain shadow filter probe skipped");
+        if (vulkan != nullptr) { vulkan->Destroy(); }
+        return;
+    }
+    // A higher sun, so the ridge's shadow ends on the ground, right of the ridge in the image.
+    const Float3 toLight{0.9f, 1.2f, 0.0f};
+    const ShadowProbe fine = RenderShadowProbe(*device, true, 1024, toLight);
+    const ShadowProbe coarse = RenderShadowProbe(*device, true, 512, toLight);
+    REQUIRE(fine.valid);
+    REQUIRE(coarse.valid);
+    const usize from = kSize * 55 / 100, to = kSize * 90 / 100; // clear of the ridge and the far edge
+    const u32 fineWidth = SoftEdgeWidth(fine.middleRow, from, to);
+    const u32 coarseWidth = SoftEdgeWidth(coarse.middleRow, from, to);
+    MESSAGE("soft edge at 1024: ", fineWidth, " px, at 512: ", coarseWidth, " px");
+    CHECK(fineWidth >= 1u);
+    CHECK(coarseWidth >= fineWidth + 2u); // texels twice as wide, so the edge about twice as wide
+    device->Destroy();
+    vulkan->Destroy();
+}
