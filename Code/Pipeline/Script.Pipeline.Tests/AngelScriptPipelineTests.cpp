@@ -613,3 +613,37 @@ TEST_CASE("script.pipeline: an error inside an included file names that file and
     }
     CHECK(named);
 }
+
+TEST_CASE("script.pipeline: a class's handlers come from the compiled class, a base in an included file's too")
+{
+    // The handlers were scanned from the class's own text: an inherited handler from an included
+    // base class was missed, and a call to an on<Upper> function was taken for one.
+    CookBed bed(u8"as_handlers");
+    bed.WriteSource(u8"Base.as", u8"class Base { void onHeal(double amount) {} }\n");
+    IScriptLanguageCook* cook = ScriptLanguageCookRegistry::Get().FindByLanguage(u8"angelscript");
+    REQUIRE(cook != nullptr);
+    FolderIncludeReader reader(bed.srcDir.AsView());
+    CookScriptErrorSink sink;
+    ScriptClassSource out;
+    REQUIRE(cook->Cook(u8"#include \"Base.as\"\n"
+                       u8"void onPing(int n) {}\n"
+                       u8"class Mover : Base {\n"
+                       u8"  void onStart() { onPing(1); }\n"
+                       u8"}\n",
+                       u8"Mover.as", u8"Mover", sink, out, &reader));
+    const auto has = [&](StringView name)
+    {
+        for (const String& handler : out.handlers)
+        {
+            if (handler.AsView() == name)
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+    CHECK(has(u8"onStart"));
+    CHECK(has(u8"onHeal"));       // inherited from the included base
+    CHECK_FALSE(has(u8"onPing")); // a free function the class calls, not one of its handlers
+    CHECK(out.handlers.Size() == 2u);
+}

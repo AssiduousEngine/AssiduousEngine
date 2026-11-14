@@ -62,6 +62,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Scripting (AngelScript): a handler a behaviour inherits from a base class in an included file is
+  called; only handlers written in the class's own file were.
 - Scripting (AngelScript): a script that allocates past the heap budget (`ScriptBudget::heapBytes`)
   fails its call with "Out of memory", as a Luau script does; it took the machine's memory. For
   AngelScript the cap is one for the whole process.

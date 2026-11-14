@@ -353,6 +353,33 @@ namespace pipeline{
             forward->sink->OnError(error);
         }
 
+        // The handlers of a compiled class: its methods named on<Upper> (onStart, onHit, a message's
+        // onHeal), inherited ones included, each name once.
+        [[nodiscard]] Array<String> ClassHandlers(asITypeInfo& type)
+        {
+            Array<String> handlers;
+            for (asUINT i = 0; i < type.GetMethodCount(); ++i)
+            {
+                const asIScriptFunction* method = type.GetMethodByIndex(i);
+                const char* name = method != nullptr ? method->GetName() : nullptr;
+                if (name == nullptr || name[0] != 'o' || name[1] != 'n' || name[2] < 'A' || name[2] > 'Z')
+                {
+                    continue;
+                }
+                const StringView view = ViewOfCStr(name);
+                bool known = false;
+                for (const String& handler : handlers)
+                {
+                    known = known || handler.AsView() == view;
+                }
+                if (!known)
+                {
+                    handlers.PushBack(String(view));
+                }
+            }
+            return handlers;
+        }
+
         // The builder's include callback: an `#include` resolves against the file that includes it
         // (its section name, a path in the project's sources) through the shared rule, is read
         // through the caller's reader, and becomes a section named by its path, so an error or a
@@ -750,7 +777,14 @@ namespace pipeline{
                 {
                     return true;
                 }
-                out.handlers = ScanScriptHandlers(source);
+                // The class's handlers come from the class as compiled: its methods and its bases' (a
+                // base class in an included file), never a call to an on<Upper> method elsewhere in
+                // the text. A module without a class has none to read, so its text is scanned.
+                asITypeInfo* compiled = out.className.IsEmpty()
+                                            ? nullptr
+                                            : builder.GetModule()->GetTypeInfoByName(
+                                                  reinterpret_cast<const char*>(out.className.CStr()));
+                out.handlers = compiled != nullptr ? ClassHandlers(*compiled) : ScanScriptHandlers(source);
                 out.usesCoroutines = ScriptReferencesCoroutineStart(source);
 
                 bool ok = true;
