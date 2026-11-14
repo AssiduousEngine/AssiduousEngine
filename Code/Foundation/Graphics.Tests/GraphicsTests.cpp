@@ -13,6 +13,8 @@ import foundation.core;
 import foundation.profiler;
 import foundation.graphics;
 import foundation.graphics.null;
+import foundation.rhi;
+import foundation.rhi.null; // NullSwapChain's fault hooks
 import foundation.shell;
 import foundation.shell.null;
 
@@ -299,4 +301,65 @@ TEST_CASE("graphics: a pre-rotated window's frame says its turn and the window's
     CHECK(plain.width == plain.windowWidth);
     plainResult.Value()->EndFrame(plain);
     gd->AdvanceFrame();
+}
+
+namespace
+{
+    // One frame begun and ended; whether it rendered.
+    bool RenderOne(GraphicsDevice& gd, RenderWindow& rw)
+    {
+        FrameContext f = rw.BeginFrame();
+        const bool valid = f.valid;
+        rw.EndFrame(f);
+        gd.AdvanceFrame();
+        return valid;
+    }
+}
+
+TEST_CASE("graphics: a swapchain out of date at the same size is made again, not left blank")
+{
+    // Only a size change rebuilt the swapchain: one out of date at the window's size (a surface
+    // lost, a display change) failed every acquire, and the window stayed blank for good.
+    NullShell shell;
+    auto created = CreateNullGraphicsDevice(2);
+    REQUIRE(created.HasValue());
+    UniquePtr<GraphicsDevice>& gd = created.Value();
+    auto rwResult = gd->CreateRenderWindow(*shell.MainWindow(), RenderWindowDesc{});
+    REQUIRE(rwResult.HasValue());
+    RenderWindow& rw = *rwResult.Value();
+    auto* swap = static_cast<foundation::rhi::null::NullSwapChain*>(rw.Swap());
+    REQUIRE(RenderOne(*gd, rw));
+    const u32 before = swap->resizes;
+
+    swap->nextAcquire = ErrorCode::OutOfDate;
+    CHECK_FALSE(RenderOne(*gd, rw)); // this frame is lost
+    CHECK(RenderOne(*gd, rw));       // the next makes it again, at the same size, and renders
+    CHECK(swap->resizes == before + 1);
+
+    swap->nextPresent = ErrorCode::OutOfDate; // said by the present instead
+    CHECK(RenderOne(*gd, rw));
+    CHECK(RenderOne(*gd, rw));
+    CHECK(swap->resizes == before + 2);
+}
+
+TEST_CASE("graphics: a rebuild that fails keeps the old swapchain and is tried again")
+{
+    // SyncSize ignored Resize's status and took the new size as done: a failed rebuild was never
+    // tried again, and the window went on at a size its swapchain did not have.
+    NullShell shell;
+    auto created = CreateNullGraphicsDevice(2);
+    REQUIRE(created.HasValue());
+    UniquePtr<GraphicsDevice>& gd = created.Value();
+    auto rwResult = gd->CreateRenderWindow(*shell.MainWindow(), RenderWindowDesc{});
+    REQUIRE(rwResult.HasValue());
+    RenderWindow& rw = *rwResult.Value();
+    auto* swap = static_cast<foundation::rhi::null::NullSwapChain*>(rw.Swap());
+    const u32 oldWidth = swap->Width();
+
+    static_cast<NullWindow*>(shell.MainWindow())->Resize(1600, 900);
+    swap->nextResize = ErrorCode::Unknown;
+    CHECK_FALSE(rw.SyncSize());          // failed: no resize happened
+    CHECK(swap->Width() == oldWidth);    // the old chain stands
+    CHECK(RenderOne(*gd, rw));           // the next frame tries again, succeeds, and renders
+    CHECK(swap->Width() == 1600u);
 }

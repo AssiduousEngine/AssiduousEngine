@@ -1072,8 +1072,11 @@ export namespace foundation::rhi::vk
             VkSurfaceCapabilitiesKHR caps{};
             if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physDevice, m_surface, &caps) == VK_SUCCESS &&
                 caps.currentTransform != m_transform && !Resize(m_askedWidth, m_askedHeight).IsOk())
-                return ErrorCode::Unknown;
+                return ErrorCode::OutOfDate;
         }
+        // A chain whose rebuild failed after the old one went has no images to give.
+        if (m_swapchain == VK_NULL_HANDLE || m_frameIndex >= m_acquireSems.Size() || m_presentSems.IsEmpty())
+            return ErrorCode::OutOfDate;
         VkSemaphore acquireSem = m_acquireSems[m_frameIndex];
         u32 imgIdx = 0;
         VkResult vr = vkAcquireNextImageKHR(m_device, m_swapchain, ~0ull, acquireSem,
@@ -1083,14 +1086,14 @@ export namespace foundation::rhi::vk
         {
             // Turned past what the images can be presented as: made again for the surface as it is
             // now, then acquired once more.
-            if (!Resize(m_askedWidth, m_askedHeight).IsOk())
-                return ErrorCode::Unknown;
+            if (!Resize(m_askedWidth, m_askedHeight).IsOk() || m_acquireSems.IsEmpty())
+                return ErrorCode::OutOfDate;
             acquireSem = m_acquireSems[m_frameIndex];
             vr = vkAcquireNextImageKHR(m_device, m_swapchain, ~0ull, acquireSem, VK_NULL_HANDLE, &imgIdx);
             m_currentImageIndex = imgIdx;
         }
         if (vr == VK_ERROR_OUT_OF_DATE_KHR)
-            return ErrorCode::Unknown;
+            return ErrorCode::OutOfDate; // the caller makes it again, at the same size if need be
         if (vr != VK_SUCCESS && vr != VK_SUBOPTIMAL_KHR)
             return ErrorCode::Unknown;
         VkSemaphore presentSem = m_presentSems[m_currentImageIndex];
@@ -1116,7 +1119,9 @@ export namespace foundation::rhi::vk
         if (vr == VK_ERROR_OUT_OF_DATE_KHR || vr == VK_SUBOPTIMAL_KHR)
         {
             m_checkTransform = m_preRotate; // the surface may have turned: the next acquire looks
-            return ErrorCode::Unknown;
+            // Suboptimal still presented; only out-of-date needs the chain made again (a surface
+            // that keeps answering suboptimal must not be rebuilt every frame).
+            return vr == VK_ERROR_OUT_OF_DATE_KHR ? ErrorCode::OutOfDate : ErrorCode::Ok;
         }
         return vr == VK_SUCCESS ? ErrorCode::Ok : ErrorCode::Unknown;
     }

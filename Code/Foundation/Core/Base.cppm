@@ -227,6 +227,7 @@ export namespace foundation::core
         AlreadyExists,
         Internal,
         Cancelled, ///< told to stop through its CancelToken, and stopped
+        OutOfDate, ///< no longer matches what it serves (a swapchain its surface outgrew): make it again
     };
 
     class Status

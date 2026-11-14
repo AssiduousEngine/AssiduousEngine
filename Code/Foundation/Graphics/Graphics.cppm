@@ -304,6 +304,7 @@ export namespace foundation::graphics
         RenderWindowDesc m_desc;                // what the swapchain is made as, again after Suspend
         rhi::Surface* m_surface;                // owned
         rhi::SwapChain* m_swapChain;            // owned
+        bool m_rebuild = false;                 // out of date, or its rebuild failed: make it again
         core::Array<rhi::CommandPool*> m_pools; // owned, one per frame-in-flight
         core::Array<rhi::Fence*> m_fences;      // owned, one per frame-in-flight
         core::Array<core::u64> m_fenceValues;
@@ -591,14 +592,19 @@ export namespace foundation::graphics
         {
             return false;
         }
-        if (nw == m_width && nh == m_height)
+        if (nw == m_width && nh == m_height && !m_rebuild)
+        {
+            return false;
+        }
+        m_device->Raw()->WaitIdle();
+        // A rebuild that fails keeps the old chain (and its size); it is tried again next frame.
+        m_rebuild = !m_swapChain->Resize(nw, nh).IsOk();
+        if (m_rebuild)
         {
             return false;
         }
         m_width = nw;
         m_height = nh;
-        m_device->Raw()->WaitIdle();
-        m_swapChain->Resize(nw, nh);
         return true;
     }
 
@@ -643,10 +649,22 @@ export namespace foundation::graphics
             m_fences[fi]->Wait(m_fenceValues[fi], ~0ull);
         }
 
+        // Out of date at the same size (a surface lost, a display change) is told apart from a size
+        // change, which SyncSize sees: the chain is made again before the next frame.
+        if (m_rebuild)
+        {
+            (void)SyncSize();
+            if (m_rebuild)
+            {
+                return FrameContext{};
+            }
+        }
         {
             PROFILE_SCOPE("Render.Acquire.Image");
-            if (!m_swapChain->AcquireNextImage().IsOk())
+            const core::Status acquired = m_swapChain->AcquireNextImage();
+            if (!acquired.IsOk())
             {
+                m_rebuild = acquired.Code() == core::ErrorCode::OutOfDate;
                 return FrameContext{};
             }
         }
@@ -703,7 +721,10 @@ export namespace foundation::graphics
         m_device->GfxQueue()->Submit(core::Span<rhi::CommandBuffer* const>(cbs, 1), m_fences[fi],
                                      m_fenceValues[fi]);
 
-        m_swapChain->Present(m_device->GfxQueue());
+        if (m_swapChain->Present(m_device->GfxQueue()).Code() == core::ErrorCode::OutOfDate)
+        {
+            m_rebuild = true; // made again before the next acquire
+        }
         m_pools[fi]->DestroyEncoder(frame.encoder);
         frame.encoder = nullptr;
     }

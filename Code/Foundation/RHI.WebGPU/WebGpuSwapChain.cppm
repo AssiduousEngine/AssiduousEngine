@@ -158,7 +158,11 @@ export namespace foundation::rhi::webgpu
                 {
                     m_api->wgpuTextureRelease(surfaceTexture.texture);
                 }
-                return ErrorCode::Unknown; // lost/outdated: the host resizes and retries
+                // Outdated or lost: configured again by the host, at the same size if that is
+                // unchanged (only a size change used to reconfigure, so the window stayed blank).
+                const bool outOfDate = surfaceTexture.status == WGPUSurfaceGetCurrentTextureStatus_Outdated ||
+                                       surfaceTexture.status == WGPUSurfaceGetCurrentTextureStatus_Lost;
+                return outOfDate ? ErrorCode::OutOfDate : ErrorCode::Unknown;
             }
 
             // Size the frame from the texture we got, not the size we configured: on the

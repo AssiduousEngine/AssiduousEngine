@@ -5,7 +5,7 @@ add_executable(Graphics.Tests
     GraphicsTests.cpp)
 
 target_link_libraries(Graphics.Tests PRIVATE
-    Foundation::Graphics Foundation::Graphics.Null Foundation::Shell.Null doctest::doctest)
+    Foundation::Graphics Foundation::Graphics.Null Foundation::RHI.Null Foundation::Shell.Null doctest::doctest)
 
 target_compile_definitions(Graphics.Tests PRIVATE
     DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)

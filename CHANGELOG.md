@@ -143,6 +143,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Rendering: a double-sided material (foliage cards, a sail, a flag) casts its shadow from both
   sides, and a material that culls front faces casts from its back; shadows always came from the
   front faces.
+- Rendering: a window whose swapchain goes out of date without changing size (a surface lost, a
+  display change) is made again instead of staying blank, and a failed rebuild keeps the old
+  swapchain and is retried, where before the next frame read freed semaphores.
 - XML: a document nested more than 512 elements deep is refused (`NestingTooDeep`) instead of
   overflowing the stack of whatever read it.
 - Fonts: a truncated or damaged font file is refused instead of read past its end (a crafted one

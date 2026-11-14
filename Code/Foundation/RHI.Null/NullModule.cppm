@@ -324,8 +324,18 @@ export namespace foundation::rhi::null
         u32 Height() const override { return m_height; }
         u32 BufferCount() const override { return m_count; }
         u32 CurrentImageIndex() const override { return m_imgIdx; }
+        // Faults for tests, each taken once: what the next acquire, present or resize answers.
+        Status nextAcquire = ErrorCode::Ok;
+        Status nextPresent = ErrorCode::Ok;
+        Status nextResize = ErrorCode::Ok;
+        u32 resizes = 0; // Resize calls, failed ones included
+
         Status AcquireNextImage() override
         {
+            const Status fault = nextAcquire;
+            nextAcquire = ErrorCode::Ok;
+            if (!fault.IsOk())
+                return fault;
             m_imgIdx = (m_imgIdx + 1) % m_count;
             return ErrorCode::Ok;
         }
@@ -337,9 +347,19 @@ export namespace foundation::rhi::null
         {
             return m_alternate != TextureFormat::Undefined ? &alternateView : nullptr;
         }
-        Status Present(Queue*) override { return ErrorCode::Ok; }
+        Status Present(Queue*) override
+        {
+            const Status fault = nextPresent;
+            nextPresent = ErrorCode::Ok;
+            return fault;
+        }
         Status Resize(u32 w, u32 h) override
         {
+            ++resizes;
+            const Status fault = nextResize;
+            nextResize = ErrorCode::Ok;
+            if (!fault.IsOk())
+                return fault;
             const bool swaps = TurnSwapsSides(m_rotation);
             m_width = swaps ? h : w;
             m_height = swaps ? w : h;

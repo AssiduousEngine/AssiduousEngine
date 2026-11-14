@@ -430,10 +430,16 @@ export namespace foundation::rhi::vk
             ci.flags |= VK_SWAPCHAIN_CREATE_MUTABLE_FORMAT_BIT_KHR;
         }
 
-        if (vkCreateSwapchainKHR(m_device, &ci, nullptr, &m_swapchain) != VK_SUCCESS)
+        // The new chain first; only once it exists do the old one, its images and its semaphores
+        // go. A failure before here leaves the old chain whole (Resize puts its settings back).
+        VkSwapchainKHR created = VK_NULL_HANDLE;
+        if (vkCreateSwapchainKHR(m_device, &ci, nullptr, &created) != VK_SUCCESS)
             return ErrorCode::Unknown;
+        cleanupImages();
+        destroySyncObjects();
         if (old != VK_NULL_HANDLE)
             vkDestroySwapchainKHR(m_device, old, nullptr);
+        m_swapchain = created;
 
         if (retrieveImages(surfFmt.format) != ErrorCode::Ok)
             return ErrorCode::Unknown;
@@ -610,9 +616,31 @@ export namespace foundation::rhi::vk
     inline Status VkSwapChainImpl::Resize(u32 w, u32 h)
     {
         vkDeviceWaitIdle(m_device);
-        cleanupImages();
-        destroySyncObjects();
-        return CreateSwapChain(w, h, m_requestedFormat, m_bufferCount, m_swapchain);
+        // Made before the old one goes (CreateSwapChain): a rebuild that fails leaves the old chain
+        // working, its settings put back. Destroying first left empty semaphore arrays that the
+        // next acquire indexed.
+        const VkSwapchainKHR before = m_swapchain;
+        const u32 width = m_width, height = m_height, count = m_bufferCount, askedW = m_askedWidth,
+                  askedH = m_askedHeight;
+        const TextureFormat format = m_format, alternate = m_alternate;
+        const ContentRotation rotation = m_rotation;
+        const VkSurfaceTransformFlagBitsKHR transform = m_transform;
+        const bool checkTransform = m_checkTransform;
+        const Status made = CreateSwapChain(w, h, m_requestedFormat, m_bufferCount, m_swapchain);
+        if (!made.IsOk() && m_swapchain == before)
+        {
+            m_width = width;
+            m_height = height;
+            m_bufferCount = count;
+            m_askedWidth = askedW;
+            m_askedHeight = askedH;
+            m_format = format;
+            m_alternate = alternate;
+            m_rotation = rotation;
+            m_transform = transform;
+            m_checkTransform = checkTransform;
+        }
+        return made;
     }
 
     inline void VkSwapChainImpl::cleanup()
