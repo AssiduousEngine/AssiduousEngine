@@ -693,9 +693,12 @@ export namespace foundation::script
     ///     builder.Apply(&foundation::script::ComponentMethods<T>);
     /// The type must also be registered (GlobalTypeRegistry), seeded as an emission root and given
     /// an extra facade name, as `of` always needed.
+    /// A component lives in its scene, so its type declares identity: a script holds the live
+    /// component through a handle, never a copy of its bytes.
     template <typename T>
     void ComponentMethods(TypeBuilder<T>& builder)
     {
+        builder.HasIdentity();
         builder.template Method<&ComponentOf<T>, T>("of");
         builder.template Method<&ComponentAddTo<T>, T>("addTo");
         builder.template Method<&ComponentRemoveFrom<T>>("removeFrom");

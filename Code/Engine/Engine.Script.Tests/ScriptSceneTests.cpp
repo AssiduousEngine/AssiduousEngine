@@ -6136,3 +6136,12 @@ TEST_CASE("script.scene: a new class loads alone, never every known class again"
     bool numeric = false;
     CHECK(ScriptNumbers::Of(bed.host.ScriptContext()->GetGlobal(u8"Loads"), numeric) == doctest::Approx(1.0));
 }
+
+TEST_CASE("script.scene: a component's script methods declare its identity, so scripts hold it, never a copy")
+{
+    // A component is plain bytes, so by its traits alone it would cross into script as a copy, and
+    // `Gadget.of(e).power = 2` would change the copy, not the component.
+    EnsureGadgetRegistered();
+    CHECK(TypeOf<Gadget>().trivialCopy);
+    CHECK(TypeOf<Gadget>().hasIdentity);
+}

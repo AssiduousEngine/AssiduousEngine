@@ -9,6 +9,7 @@
 
 module;
 #include "Core/Prelude.h"
+#include <type_traits> // trivialCopy, from the type's own traits
 
 export module foundation.core:type_info;
 
@@ -97,6 +98,13 @@ export namespace foundation::core
         // and generic tooling reads and writes that instead of the value. The ops come from
         // ReferenceTraits<T> when the type's TypeInfo is made; null for every other type.
         const ReferenceOps* reference = nullptr;
+        // Copying its bytes copies it and nothing need run to destroy it (std's trivially copyable
+        // and trivially destructible), from the type's own traits when its TypeInfo is made.
+        bool trivialCopy = false;
+        // A value of it stands for one live thing elsewhere (a component in its scene), so a holder
+        // refers to that thing and never copies it, whatever its bytes. Declared by the type's
+        // reflection (TypeBuilder::HasIdentity); a trivial copy without it is a plain value.
+        bool hasIdentity = false;
     };
 
     /// `type` keeps a legacy reader for data stored under `oldest` up to its current version.
@@ -141,6 +149,7 @@ export namespace foundation::core
             ComputeTypeId(namespaceName, name), name, namespaceName, static_cast<u32>(sizeof(T)),
             static_cast<u32>(alignof(T)),       base};
         info.dataVersion = dataVersion;
+        info.trivialCopy = std::is_trivially_copyable_v<T> && std::is_trivially_destructible_v<T>;
         if constexpr (ReferenceTraits<T>::isReference)
         {
             info.reference = &ReferenceTraits<T>::Ops();

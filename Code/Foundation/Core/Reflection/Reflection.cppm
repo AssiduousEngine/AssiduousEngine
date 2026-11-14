@@ -1903,6 +1903,14 @@ export namespace foundation::core
             return *this;
         }
 
+        /// A value of this type stands for one live thing elsewhere: holders refer to it, never
+        /// copy it (TypeInfo::hasIdentity).
+        TypeBuilder& HasIdentity()
+        {
+            m_hasIdentity = true;
+            return *this;
+        }
+
         /// Runs `part` on this builder: a piece of reflection many types share, kept in one place
         /// (a component's script methods: foundation::script::ComponentMethods<T>).
         TypeBuilder& Apply(void (*part)(TypeBuilder&))
@@ -2196,6 +2204,7 @@ export namespace foundation::core
             m_data.info.creator = m_creator;
             m_data.info.minReadDataVersion = m_minReadDataVersion;
             m_data.info.readsLegacyData = m_readsLegacyData;
+            m_data.info.hasIdentity = m_hasIdentity;
             // Wire per-property attribute spans (the inner Array buffers survive TypeData's
             // move; only the outer array's control block moves).
             while (m_data.propertyAttributes.Size() < m_data.properties.Size())
@@ -2245,6 +2254,7 @@ export namespace foundation::core
         u32 m_dataVersion = 0;
         u32 m_minReadDataVersion = 0;
         bool m_readsLegacyData = false;
+        bool m_hasIdentity = false;
         TypeData m_data;
         const CreatorInfo* m_creator = nullptr;
     };

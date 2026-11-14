@@ -161,6 +161,19 @@ REFLECT_VALUE(UniqueLeaf, "rtti::test")
     builder.Property<&UniqueLeaf::value>("value");
 }
 
+namespace
+{
+    // Plain bytes that stand for one live thing elsewhere: its reflection declares identity.
+    struct LiveSlot
+    {
+        int index = 0;
+    };
+}
+REFLECT_VALUE(LiveSlot, "rtti::test")
+{
+    builder.HasIdentity().Property<&LiveSlot::index>("index");
+}
+
 // --- RTTI ------------------------------------------------------------------
 
 TEST_CASE("rtti: stable type identity")
@@ -1640,4 +1653,20 @@ TEST_CASE("rtti: a creator makes an Object from an owner's allocator; a type wit
     CHECK(made->GetType() == &Signboard::StaticType());
     CHECK(&made->MemoryAllocator() == &DefaultAllocator());
     CHECK_FALSE(CreateObject(Animal::StaticType(), DefaultAllocator()));
+}
+
+void RttiRegisterValue_LiveSlot(); // emitted by REFLECT_VALUE above
+
+TEST_CASE("rtti: a type records whether its bytes copy it, and declares identity itself")
+{
+    RttiRegisterValue_LiveSlot();
+    // A plain value: its bytes copy it, and it has no identity.
+    CHECK(TypeOf<Float3>().trivialCopy);
+    CHECK_FALSE(TypeOf<Float3>().hasIdentity);
+    CHECK(TypeOf<BoundedThing>().trivialCopy);
+    // Not a trivial copy: a member owns memory.
+    CHECK_FALSE(TypeOf<UniqueLeaf>().trivialCopy);
+    // Plain bytes, but its reflection says a value stands for one live thing.
+    CHECK(TypeOf<LiveSlot>().trivialCopy);
+    CHECK(TypeOf<LiveSlot>().hasIdentity);
 }
