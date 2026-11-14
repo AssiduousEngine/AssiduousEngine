@@ -10,6 +10,7 @@
 module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
+#include "Core/Debug/Assert.h"
 #include <type_traits>
 
 module foundation.scene;
@@ -38,9 +39,65 @@ namespace foundation::scene
         return CreateEntityInternal(id, name);
     }
 
+    SceneTable& SceneTable::Get() noexcept
+    {
+        static SceneTable table; // one for the process, never destroyed before a scene that frees in it
+        return table;
+    }
+
+    SceneTable::Slot SceneTable::Take(Scene* scene) noexcept
+    {
+        ScopedLock lock(m_lock);
+        u32 index = m_freeHead;
+        if (index != kNoFree)
+        {
+            m_freeHead = m_entries[index].nextFree;
+        }
+        else if (m_used < kCapacity)
+        {
+            index = m_used++;
+        }
+        else
+        {
+            DIAGNOSTIC_ASSERT(false && "more scenes alive at once than SceneTable::kCapacity");
+            return Slot{}; // the scene works; what holds it past a call reads it gone
+        }
+        Entry& entry = m_entries[index];
+        entry.scene.store(scene, MemoryOrder::Release);
+        ++m_live;
+        return Slot{index, entry.generation.load(MemoryOrder::Relaxed)};
+    }
+
+    void SceneTable::Free(Slot slot) noexcept
+    {
+        if (slot.generation == 0 || slot.index >= kCapacity)
+        {
+            return;
+        }
+        ScopedLock lock(m_lock);
+        Entry& entry = m_entries[slot.index];
+        if (entry.generation.load(MemoryOrder::Relaxed) != slot.generation)
+        {
+            return;
+        }
+        u32 next = slot.generation + 1;
+        entry.generation.store(next == 0 ? 1 : next, MemoryOrder::Release); // stale names read null first
+        entry.scene.store(nullptr, MemoryOrder::Release);
+        entry.nextFree = m_freeHead;
+        m_freeHead = slot.index;
+        --m_live;
+    }
+
+    u32 SceneTable::LiveCount() const noexcept
+    {
+        ScopedLock lock(m_lock);
+        return m_live;
+    }
+
     Scene::~Scene()
     {
-        m_life->m_scene = nullptr; // what scripts hold reads gone from here
+        SceneTable::Get().Free(m_tableSlot); // what scripts hold reads gone from here
+        m_life->m_scene = nullptr;           // and a re-resolving handle anchored on it
         if (m_run != nullptr)
         {
             m_run->Mutations().Cancel(this); // its queued destroys go with it

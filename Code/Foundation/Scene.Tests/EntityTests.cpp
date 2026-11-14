@@ -5,6 +5,7 @@
 // detection, the mapping between persistent Guids and handles, active/name state.
 #include <doctest/doctest.h>
 #include "Core/Prelude.h"
+#include <type_traits>
 
 import foundation.core;
 import foundation.scene;
@@ -408,4 +409,28 @@ TEST_CASE("Scene: two scenes mint different entity ids, unless seeded alike")
     const EntityHandle y = seededTwo.CreateEntity(u8"y");
     CHECK(seededOne.GetEntityId(x) == seededTwo.GetEntityId(y));
     CHECK(seededOne.GetEntityId(seededOne.CreateEntity(u8"x2")) == seededTwo.GetEntityId(seededTwo.CreateEntity(u8"y2")));
+}
+
+TEST_CASE("scene: a weak scene reference is plain bytes, reads null once its scene goes, and a reused slot does not answer it")
+{
+    // It held a counted pointer, so a script's entity, which holds one, could not be a plain value.
+    static_assert(std::is_trivially_copyable_v<WeakSceneRef> && std::is_trivially_destructible_v<WeakSceneRef>);
+    const u32 before = SceneTable::Get().LiveCount();
+    WeakSceneRef gone;
+    {
+        Scene first(DefaultAllocator(), u8"first");
+        gone = WeakSceneRef(&first);
+        CHECK(gone.Get() == &first);
+        const WeakSceneRef copy = gone;
+        CHECK(copy.Get() == &first);
+        CHECK(SceneTable::Get().LiveCount() == before + 1);
+    }
+    CHECK(gone.Get() == nullptr);
+    CHECK(SceneTable::Get().LiveCount() == before);
+
+    Scene second(DefaultAllocator(), u8"second"); // most likely takes the freed slot
+    CHECK(gone.Get() == nullptr);
+    CHECK(WeakSceneRef(&second).Get() == &second);
+    CHECK(WeakSceneRef(nullptr).Get() == nullptr);
+    CHECK(WeakSceneRef().Get() == nullptr);
 }

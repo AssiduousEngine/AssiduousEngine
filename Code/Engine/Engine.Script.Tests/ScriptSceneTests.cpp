@@ -6145,3 +6145,12 @@ TEST_CASE("script.scene: a component's script methods declare its identity, so s
     CHECK(TypeOf<Gadget>().trivialCopy);
     CHECK(TypeOf<Gadget>().hasIdentity);
 }
+
+TEST_CASE("script.scene: the script Entity and the scene facades are plain bytes without identity")
+{
+    // They held the scene through a counted pointer, so a script copy of one could not be plain.
+    CHECK(TypeOf<foundation::script::Entity>().trivialCopy);
+    CHECK_FALSE(TypeOf<foundation::script::Entity>().hasIdentity);
+    CHECK(TypeOf<foundation::script::Scene>().trivialCopy);
+    CHECK(TypeOf<foundation::script::SceneEvents>().trivialCopy);
+}

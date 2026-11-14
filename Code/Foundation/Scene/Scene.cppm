@@ -36,8 +36,55 @@ export namespace foundation::scene
 {
     class Scene;
 
-    /// Whether a scene still exists, shared by everything that holds on to it past a call: the
-    /// scene clears it as it is destroyed. WeakSceneRef reads it.
+    /// The process's table of live scenes. A scene takes a slot as it is made and frees it as it
+    /// goes; a WeakSceneRef names the slot and the generation it found there, so it reads null once
+    /// that scene is gone, whatever holds the slot since. A fixed array, so a read takes no lock
+    /// and nothing in it moves; taking and freeing lock, since scenes are made on cook workers too.
+    class SceneTable
+    {
+    public:
+        /// A place in the table. Generation 0 names no scene, so a zeroed one is empty.
+        struct Slot
+        {
+            u32 index = 0;
+            u32 generation = 0;
+        };
+        static constexpr u32 kCapacity = 4096; // scenes alive at once
+
+        [[nodiscard]] static SceneTable& Get() noexcept;
+
+        [[nodiscard]] Slot Take(Scene* scene) noexcept;
+        void Free(Slot slot) noexcept;
+        [[nodiscard]] Scene* Find(Slot slot) const noexcept
+        {
+            if (slot.generation == 0 || slot.index >= kCapacity)
+            {
+                return nullptr;
+            }
+            const Entry& entry = m_entries[slot.index];
+            return entry.generation.load(MemoryOrder::Acquire) == slot.generation
+                       ? entry.scene.load(MemoryOrder::Acquire)
+                       : nullptr;
+        }
+        [[nodiscard]] u32 LiveCount() const noexcept;
+
+    private:
+        static constexpr u32 kNoFree = 0xFFFFFFFFu;
+        struct Entry
+        {
+            Atomic<Scene*> scene{nullptr};
+            Atomic<u32> generation{1};
+            u32 nextFree = kNoFree;
+        };
+        Entry m_entries[kCapacity];
+        mutable Mutex m_lock;
+        u32 m_used = 0;         // entries ever taken; the ones past it are fresh
+        u32 m_freeHead = kNoFree;
+        u32 m_live = 0;
+    };
+
+    /// Whether a scene still exists, for a re-resolving handle over its state (a component's,
+    /// anchored on it): the scene clears it as it is destroyed.
     class SceneLife final : public RefCounted
     {
     public:
@@ -55,7 +102,8 @@ export namespace foundation::scene
         // The allocator (required; the owner decides, and SceneManager threads its own) is
         // the per-scene authority every scene system builds on (Allocator() below).
         explicit Scene(IAllocator& allocator, StringView name = {})
-            : m_allocator(&allocator), m_name(name, allocator), m_life(MakeRef<SceneLife>(allocator, this))
+            : m_allocator(&allocator), m_name(name, allocator), m_life(MakeRef<SceneLife>(allocator, this)),
+              m_tableSlot(SceneTable::Get().Take(this))
         {
         }
 
@@ -79,8 +127,10 @@ export namespace foundation::scene
         // tells the renderer a view now shows another scene, so a pass that eases from last
         // frame (auto exposure) starts over instead of carrying the old scene's state in.
         [[nodiscard]] u64 Serial() const noexcept { return m_serial; }
-        /// Whether this scene still exists, for a handle that outlives a call (WeakSceneRef).
+        /// Whether this scene still exists, for a re-resolving handle anchored on it.
         [[nodiscard]] const RefPtr<SceneLife>& Life() const noexcept { return m_life; }
+        /// Its place in the table of live scenes, which a WeakSceneRef names.
+        [[nodiscard]] SceneTable::Slot TableSlot() const noexcept { return m_tableSlot; }
 
         [[nodiscard]] u32 EntityCount() const noexcept { return m_aliveCount; }
 
@@ -631,6 +681,7 @@ export namespace foundation::scene
         String m_name;
         u64 m_serial = NextSerial(); // see Serial()
         RefPtr<SceneLife> m_life;    // cleared as the scene goes (see Life())
+        SceneTable::Slot m_tableSlot; // freed as the scene goes (see TableSlot())
         Array<EntitySlot> m_entities;        // entity pool (index = slot)
         Array<TransformData> m_transforms;   // parallel transform pool (same index)
         Array<u32> m_freeList;               // free slot indices for reuse
@@ -734,26 +785,27 @@ export namespace foundation::scene
 
 
     /// A scene held past a call (a script's handle: an entity, the scene, its domains), read
-    /// through the scene's life each time: null once the scene is destroyed, so a handle kept
-    /// across a level load does nothing rather than reach freed memory. Converts to and from
-    /// Scene*, so it is used as the pointer was.
+    /// through the table of live scenes each time: null once the scene is destroyed, so a handle
+    /// kept across a level load does nothing rather than reach freed memory. Plain bytes (a slot
+    /// and a generation), so what holds one copies as a value. Converts to and from Scene*, so it
+    /// is used as the pointer was.
     class WeakSceneRef
     {
     public:
         WeakSceneRef() noexcept = default;
-        WeakSceneRef(Scene* scene) // NOLINT(google-explicit-constructor): it stands where a Scene* did
-            : m_life(scene != nullptr ? scene->Life() : RefPtr<SceneLife>{})
+        WeakSceneRef(Scene* scene) noexcept // NOLINT(google-explicit-constructor): it stands where a Scene* did
+            : m_slot(scene != nullptr ? scene->TableSlot() : SceneTable::Slot{})
         {
         }
         WeakSceneRef(std::nullptr_t) noexcept {} // NOLINT(google-explicit-constructor)
 
-        [[nodiscard]] Scene* Get() const noexcept { return m_life ? m_life->Get() : nullptr; }
+        [[nodiscard]] Scene* Get() const noexcept { return SceneTable::Get().Find(m_slot); }
         operator Scene*() const noexcept { return Get(); } // NOLINT(google-explicit-constructor)
         Scene* operator->() const noexcept { return Get(); }
         Scene& operator*() const noexcept { return *Get(); }
 
     private:
-        RefPtr<SceneLife> m_life;
+        SceneTable::Slot m_slot;
     };
 
     /// The scene a re-resolving handle over its state was anchored to (Variant::Resolving with the
