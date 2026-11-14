@@ -13,10 +13,10 @@ import foundation.core;
 import foundation.script;
 import foundation.gui.code;
 #ifdef OPTION_HAS_ANGELSCRIPT
-import foundation.script.angelscript;
+import script.angelscript.pipeline;
 #endif
 #ifdef OPTION_HAS_LUAU
-import foundation.script.luau;
+import script.luau.pipeline;
 #endif
 import editor.script;
 
@@ -94,7 +94,7 @@ namespace
 #ifdef OPTION_HAS_ANGELSCRIPT
 TEST_CASE("script language service: the bound API's completion and hover (angelscript)")
 {
-    foundation::script::angelscript::RegisterAngelScriptBackend();
+    pipeline::RegisterAngelScriptScriptCook(); // and its backend
     CheckBoundApi(u8"angelscript");
 }
 #endif // OPTION_HAS_ANGELSCRIPT
@@ -102,7 +102,7 @@ TEST_CASE("script language service: the bound API's completion and hover (angels
 #ifdef OPTION_HAS_LUAU
 TEST_CASE("script language service: the bound API's completion and hover (luau)")
 {
-    foundation::script::RegisterLuauScriptBackend();
+    pipeline::RegisterLuauScriptCook(); // and its backend
     CheckBoundApi(u8"luau");
 }
 #endif // OPTION_HAS_LUAU

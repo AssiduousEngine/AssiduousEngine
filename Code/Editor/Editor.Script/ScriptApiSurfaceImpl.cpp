@@ -16,6 +16,7 @@ module editor.script;
 import foundation.core;
 import foundation.script;
 import foundation.script.facades;
+import script.pipeline;
 
 using namespace foundation::core;
 namespace core = foundation::core;
@@ -30,18 +31,14 @@ namespace editor
         {
             return m_types;
         }
-        m_built = true; // one attempt; a language without a backend stays empty
+        m_built = true; // one attempt; a language without a cook stays empty
 
-        core::RegisterCoreTypes();
-        foundation::script::RegisterScriptFacadeReflection();
-        RefPtr<script::IScriptManager> manager =
-            script::CreateScriptManagerForLanguage(m_language.AsView(), editor::EditorRootAllocator());
-        if (manager.Get() == nullptr)
+        // The language's cook describes the API its check compiles against, from the engine it
+        // keeps for checking: building one here as well cost as much again as a check.
+        if (pipeline::IScriptLanguageCook* cook = pipeline::ScriptLanguageCookRegistry::Get().FindByLanguage(m_language.AsView()))
         {
-            return m_types;
+            m_types = cook->DescribeApi();
         }
-        foundation::script::RegisterReflectedTypes(*manager);
-        m_types = manager->DescribeBoundApi();
         return m_types;
     }
 }

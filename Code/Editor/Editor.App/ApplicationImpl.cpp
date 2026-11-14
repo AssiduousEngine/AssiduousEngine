@@ -22,6 +22,7 @@ import foundation.resource;
 import foundation.settings;
 import foundation.gui; // MessageBox (About)
 import pipeline.core;
+import script.pipeline; // ScriptLanguageCookRegistry: the script checks prepared at project open
 import engine.defaultapp;
 import engine.input; // the embedded runtime's scene-input policy
 import engine.gui;
@@ -143,6 +144,15 @@ namespace editor::app
             self->m_creation.SetProject(&project);
             if (self->m_mcp)
                 (void)self->m_mcp->Start(project); // the agent surface over this project, if enabled
+            // The script checks' engines, built now on a worker: registering the engine's API in
+            // one takes about half a second, which the first script page opened would wait for.
+            (void)self->m_context.Tasks().Submit(
+                u8"Prepare script checks", [](TaskContext&) -> Status
+                {
+                    pipeline::ScriptLanguageCookRegistry::Get().PrepareChecks();
+                    return Status{};
+                },
+                {}, self->m_context.LightLane());
         };
         services.closing = [self]()
         {

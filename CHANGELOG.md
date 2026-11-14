@@ -147,6 +147,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Rendering: a double-sided material (foliage cards, a sail, a flag) casts its shadow from both
   sides, and a material that culls front faces casts from its back; shadows always came from the
   front faces.
+- Editor: a script page opens at once and checks an edit without a pause; each check made and
+  registered a new script engine, about half a second, before compiling for a few milliseconds.
 - Scripting (Luau): assigning a value of the wrong type to an engine property says what the
   property takes and what it was given (`property 'facing' takes Facing, not string`); it said
   the property was read-only.

@@ -8,32 +8,15 @@
 
 ## Editor
 
-- **A script page takes most of a second to open** (user 2026-11-10, a release build). Measured
-  the same day in the RelWithDebInfo editor on a copy of Sky Hopper: Coin, Enemy, FollowCamera
-  and PlayerController opened in 759, 869, 833 and 825 ms (the editor's own "page ... opened in"
-  log), and a profile shows one 653 ms frame in `Editor.Pumps` for one open; a scene page opens in
-  62 ms. The cause, from the code: the page checks its script as it opens (`CodeAssetPage::OpenCode`
-  calls `CheckNow`, on the main thread), and the check (`ScriptSourceDocument::Validate`, the
-  AngelScript cook's `Check`) makes a new script manager and engine and registers every reflected
-  type and facade into it (`CookOnThisThread`: `CreateScriptManagerForLanguage`,
-  `RegisterReflectedTypes`) before compiling a few hundred lines; the cook logged a script built
-  in 1.3 to 1.7 s the same way. Not measured: how the time splits between making the engine,
-  registering the API and compiling (the profiler has no scopes inside the check). The same
-  check runs again 0.6 s after each edit stops (`kCheckDelay`), so typing hitches too, and the
-  API browser's surface (`ScriptApiSurface::Types`) builds a third engine the first time it is
-  read. Wanted: register the API once per language and reuse it for every check (a module per
-  check, discarded after), and run the check off the main thread so the page opens at once and
-  its problems arrive when it finishes; one cached surface for completion and the browser. Add
-  profiler scopes around making the engine, registering and compiling first, to see which
-  matters. Related: the `script_validate` stall below is the same compile.
-
 - **Two main-thread stalls in the editor** (measured 2026-11-08 on the flagship's 2000-asset
   project, while finding the import hang; the user put them here): `script_validate` compiles on
   the main thread, about 1.9 s for a level script with its includes; and at startup each texture's
   finalize takes about 385 ms on the main thread ("finalize of Texture ... took 385 ms on the main
   thread" in the log), nineteen in a row, over 7 s. Neither alone passed the desktop's
   not-responding threshold, but together with other work they can. Move the compile to a worker,
-  and find what in a texture's finalize costs that much (a Debug build; measure in reldbg too).
+  and find what in a texture's finalize costs that much (a Debug build; measure in reldbg too). A script page's checks share a cached script
+  manager since 2026-11-14 (1491514ae); `script_validate` runs a full cook, which still makes its
+  own, so its stall is unchanged.
 
 - **The waveform shows a limited master as a solid block** (user 2026-11-05, from the website's
   screenshots): `BuildWaveformPeaks` keeps each of the clip page's 256 buckets' largest absolute
