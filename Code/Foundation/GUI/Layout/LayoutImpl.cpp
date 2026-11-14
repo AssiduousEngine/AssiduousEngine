@@ -480,12 +480,18 @@ namespace foundation::gui
             const bool byRow = s.AutoFlow == GridAutoFlow::Row;
             columns = core::Max(1, static_cast<i32>(templateColumns.Size()));
             rows = core::Max(0, static_cast<i32>(s.Rows.Size()));
+            // Explicit lines widen their axis, and a span widens the flow's cross axis. A row line
+            // past the explicit rows has to widen them too, or no free place is ever found.
             for (const GridItem& item : items)
             {
                 if (item.column > 0)
                     columns = core::Max(columns, item.column + item.columnSpan - 1);
+                if (item.row > 0)
+                    rows = core::Max(rows, item.row + item.rowSpan - 1);
                 if (byRow)
                     columns = core::Max(columns, item.columnSpan);
+                else
+                    rows = core::Max(rows, item.rowSpan);
             }
             Array<bool> taken; // rows x columns (byRow) or columns x rows
             const i32 across = byRow ? columns : core::Max(1, rows);

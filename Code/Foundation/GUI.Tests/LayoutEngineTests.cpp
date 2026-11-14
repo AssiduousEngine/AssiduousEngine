@@ -1159,3 +1159,46 @@ TEST_CASE("layout: a scroller in a column has no automatic minimum on the axis i
     CHECK(list->GetScrollRange().y == doctest::Approx(200.0f * 20.0f - 200.0f));
     list->SetModel(nullptr); // the model was made after the bed, so it dies before the bed's tree
 }
+
+TEST_CASE("layout-engine: a grid item on a row line past the explicit rows widens them")
+{
+    // In a column flow a row line past the explicit rows never fitted, and the search for a free
+    // place never ended; with a column line too, the item was written past the cells.
+    Bed bed;
+    auto grid = core::MakeRef<Panel>(core::DefaultAllocator());
+    grid->AddClass(SV(u8"cards"));
+    bed.root->AddChild(grid.Get());
+    auto low = core::MakeRef<Panel>(core::DefaultAllocator());
+    low->AddClass(SV(u8"low"));
+    grid->AddChild(low.Get());
+    auto corner = core::MakeRef<Panel>(core::DefaultAllocator());
+    corner->AddClass(SV(u8"corner"));
+    grid->AddChild(corner.Get());
+    StyleManager styles(CSSParser::Parse(SV(
+        u8".cards { display: grid; grid-auto-flow: column; grid-template-rows: 40px 40px; grid-auto-rows: 40px;"
+        u8" grid-template-columns: 50px 50px; gap: 0; padding: 0; }"
+        u8".low { grid-row: 5; } .corner { grid-row: 4; grid-column: 2; }")));
+    styles.ApplyTree(*bed.root.Get());
+    bed.Layout();
+    CHECK(low->GetPosition().y == doctest::Approx(160.0f));
+    CHECK(corner->GetPosition().x == doctest::Approx(50.0f));
+    CHECK(corner->GetPosition().y == doctest::Approx(120.0f));
+}
+
+TEST_CASE("layout-engine: a grid line or span past the limit is clamped")
+{
+    // Each line is a track: span 100000000 allocated a grid that size.
+    Bed bed;
+    auto grid = core::MakeRef<Panel>(core::DefaultAllocator());
+    grid->AddClass(SV(u8"cards"));
+    bed.root->AddChild(grid.Get());
+    auto wide = core::MakeRef<Panel>(core::DefaultAllocator());
+    wide->AddClass(SV(u8"wide"));
+    grid->AddChild(wide.Get());
+    StyleManager styles(CSSParser::Parse(SV(
+        u8".cards { display: grid; } .wide { grid-column: span 100000000; grid-row: 2000000000; }")));
+    styles.ApplyTree(*bed.root.Get());
+    CHECK(wide->GetLayoutStyle().Column.Span == 1000);
+    CHECK(wide->GetLayoutStyle().Row.Start == 1000);
+    bed.Layout();
+}

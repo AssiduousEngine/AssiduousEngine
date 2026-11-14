@@ -143,6 +143,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Rendering: a double-sided material (foliage cards, a sail, a flag) casts its shadow from both
   sides, and a material that culls front faces casts from its back; shadows always came from the
   front faces.
+- GUI: a grid item placed on a row line past the grid's rows widens the rows instead of hanging
+  the layout (in a column flow) or writing past the grid's cells, and a grid line or span above
+  1000 is taken as 1000 instead of allocating that many tracks.
 - Rendering (Vulkan): a frame is presented only after it is drawn. The swapchain's wait and signal
   went to whichever submit came first after the acquire, and a profiler sync point or an offscreen
   pass could take them. `Queue::SubmitFrame` names the swapchain the frame renders; code that

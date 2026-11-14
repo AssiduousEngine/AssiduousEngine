@@ -303,6 +303,9 @@ export namespace foundation::gui
                     return false;
             return true;
         }
+        // Grid lines and spans clamp here (Chrome limits its implicit grid the same way): each
+        // line is a track the layout allocates.
+        inline constexpr i32 kMaxGridLine = 1000;
         // grid-column / grid-row: `2`, `1 / 3`, `span 2`, `2 / span 3`, `auto`.
         [[nodiscard]] inline Optional<GridPlacement> ParseGridPlacement(core::StringView text)
         {
@@ -314,7 +317,7 @@ export namespace foundation::gui
                 t = Trim(t);
                 if (t.Size() > 5 && t.SubStr(0, 5) == core::StringView(u8"span "))
                     if (const Optional<f32> n = ParseLength(Trim(t.SubStr(5, t.Size() - 5))); n.HasValue() && n.Value() >= 1.0f)
-                        return static_cast<i32>(n.Value());
+                        return static_cast<i32>(core::Min(n.Value(), static_cast<f32>(kMaxGridLine)));
                 return {};
             };
             const auto lineOf = [](core::StringView t) -> Optional<i32>
@@ -323,7 +326,7 @@ export namespace foundation::gui
                 if (t == core::StringView(u8"auto"))
                     return 0;
                 if (const Optional<f32> n = ParseLength(t); n.HasValue() && n.Value() >= 1.0f)
-                    return static_cast<i32>(n.Value());
+                    return static_cast<i32>(core::Min(n.Value(), static_cast<f32>(kMaxGridLine)));
                 return {};
             };
             GridPlacement out;
