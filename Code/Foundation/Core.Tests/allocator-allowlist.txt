@@ -69,7 +69,6 @@ Code/Foundation/Runtime.Client/AppMain.h
 Code/Foundation/Runtime.Desktop/DesktopRunner.cppm
 Code/Foundation/Runtime.Web/WebRunner.cppm
 Code/Foundation/Scene.Resource/SceneResource.cppm
-Code/Foundation/Script.AngelScript/AngelScriptScriptImpl.cpp
 Code/Foundation/Shaders/Compiler.cppm
 Code/Foundation/Shell.Null/NullShell.cppm
 Code/Foundation/Shell.Web/WebWindowManager.cppm

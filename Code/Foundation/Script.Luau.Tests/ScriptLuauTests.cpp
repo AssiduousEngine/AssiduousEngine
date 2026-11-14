@@ -1758,7 +1758,7 @@ function Bench:churn(n)
 end
 )lua";
     foundation::script::benchmark::RunScriptBackendBenchmark(
-        []() { return CreateLuauScriptManager(DefaultAllocator()); }, dialect);
+        [](IAllocator& allocator) { return CreateLuauScriptManager(allocator); }, dialect);
 }
 
 // A reload loads a class beside its predecessor; in Luau the newer class table takes the global,

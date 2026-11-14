@@ -41,10 +41,14 @@ namespace foundation::script::benchmark
         }
     }
 
-    inline void RunScriptBackendBenchmark(const Function<RefPtr<IScriptManager>()>& factory, const Dialect& dialect)
+    /// `factory` makes the manager over the allocator it is given: the runner counts what goes
+    /// through it, so a measure says how many allocations it made as well as its time.
+    inline void RunScriptBackendBenchmark(const Function<RefPtr<IScriptManager>(IAllocator&)>& factory,
+                                          const Dialect& dialect)
     {
         RegisterCoreTypes();
-        RefPtr<IScriptManager> manager = factory();
+        TrackingAllocator counted(DefaultAllocator());
+        RefPtr<IScriptManager> manager = factory(counted);
         REQUIRE(manager.Get() != nullptr);
         RegisterReflectedTypes(*manager);
         RefPtr<IScriptContext> scriptContext = manager->CreateContext();
@@ -58,21 +62,27 @@ namespace foundation::script::benchmark
         {
             constexpr u32 kCalls = 100000;
             Variant dt[] = {Variant::From<f64>(0.016)};
+            const u64 allocations = counted.TotalAllocations();
             const Stopwatch clock = Stopwatch::StartNew();
             for (u32 i = 0; i < kCalls; ++i)
             {
                 REQUIRE(bench->Invoke(u8"tick", Span<Variant>{dt, 1}).HasValue());
             }
             detail::Report(language, "handler-call", clock.Elapsed().AsSeconds() * 1e9 / kCalls, "ns/call");
+            detail::Report(language, "handler-call-allocations",
+                           static_cast<f64>(counted.TotalAllocations() - allocations) / kCalls, "per call");
         }
 
         // Math: Float3 arithmetic and a Color, in a script loop.
         {
             constexpr i32 kIterations = 100000;
             Variant n[] = {Variant::From<i32>(kIterations)};
+            const u64 allocations = counted.TotalAllocations();
             const Stopwatch clock = Stopwatch::StartNew();
             REQUIRE(bench->Invoke(u8"math", Span<Variant>{n, 1}).HasValue());
             detail::Report(language, "math-iteration", clock.Elapsed().AsSeconds() * 1e9 / kIterations, "ns/iteration");
+            detail::Report(language, "math-iteration-allocations",
+                           static_cast<f64>(counted.TotalAllocations() - allocations) / kIterations, "per iteration");
         }
 
         // Waiting coroutines: what a frame's scheduler pays for them.

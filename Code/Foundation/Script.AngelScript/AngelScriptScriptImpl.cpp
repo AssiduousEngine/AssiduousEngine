@@ -353,15 +353,16 @@ namespace foundation::script::angelscript
     {
         core::Variant value;
         core::i32 refCount = 1;
+        core::IAllocator* allocator = nullptr; // the manager's, which frees it
     };
 
-    // Boxes cross the AngelScript engine through captureless generic-call thunks, so no owner
-    // is reachable at release; the box allocation is process-scoped, like the reflection
-    // thunk ABI.
-    inline BoxedVariant* NewBox(core::Variant value)
+    // Boxes cross the AngelScript engine through captureless generic-call thunks, so no owner is
+    // reachable at release: each box carries the allocator of the manager that made it.
+    inline BoxedVariant* NewBox(core::IAllocator& allocator, core::Variant value)
     {
-        BoxedVariant* box = core::DefaultAllocator().New<BoxedVariant>();
+        BoxedVariant* box = allocator.New<BoxedVariant>();
         box->value = core::Move(value);
+        box->allocator = &allocator;
         return box;
     }
 
@@ -369,7 +370,7 @@ namespace foundation::script::angelscript
     {
         if (box != nullptr && --box->refCount == 0)
         {
-            core::DefaultAllocator().Delete(box);
+            box->allocator->Delete(box);
         }
     }
 
@@ -1588,7 +1589,7 @@ namespace foundation::script::angelscript
                     return;
                 }
                 BoxedVariant* box = (!value.IsEmpty() && TypeInfoForTypeId(typeId) != nullptr)
-                                        ? NewBox(value)
+                                        ? NewBox(MemoryAllocator(), value)
                                         : nullptr;
                 *static_cast<void**>(gen->GetAddressOfReturnLocation()) = box;
             }
@@ -1635,7 +1636,7 @@ namespace foundation::script::angelscript
                 core::Variant elem = ci.getAt(inst, i);
                 if ((subId & asTYPEID_OBJHANDLE) != 0)
                 {
-                    BoxedVariant* box = elem.IsEmpty() ? nullptr : NewBox(core::Move(elem));
+                    BoxedVariant* box = elem.IsEmpty() ? nullptr : NewBox(MemoryAllocator(), core::Move(elem));
                     arr->SetValue(static_cast<asUINT>(i), &box); // AddRefs (skips a null handle)
                     ReleaseBox(box);                             // drop our ref; array owns it now
                 }
@@ -1883,7 +1884,7 @@ namespace foundation::script::angelscript
             {
                 BoxedVariant** slot = static_cast<BoxedVariant**>(address);
                 ReleaseBox(*slot);
-                *slot = value.IsEmpty() ? nullptr : NewBox(value);
+                *slot = value.IsEmpty() ? nullptr : NewBox(MemoryAllocator(), value);
                 return true;
             }
             return false;
@@ -2040,7 +2041,7 @@ namespace foundation::script::angelscript
                     reflected != nullptr && reflected->enumeratorCount == 0 && !IsFuncdefTypeId(typeId) &&
                     !value.IsEmpty())
                 {
-                    boxTemps[i] = NewBox(value);
+                    boxTemps[i] = NewBox(MemoryAllocator(), value);
                     (void)executor->SetArgObject(arg, boxTemps[i]);
                     continue;
                 }
@@ -3053,7 +3054,7 @@ namespace foundation::script::angelscript
             return;
         }
         *static_cast<void**>(gen->GetAddressOfReturnLocation()) =
-            NewBox(core::Move(created.Value()));
+            NewBox(binding->manager->MemoryAllocator(), core::Move(created.Value()));
     }
 
     // Value assignment (T& opAssign(const T&in other)): every reflected type is an asOBJ_REF box, so
@@ -3975,7 +3976,7 @@ namespace foundation::script::angelscript
                     !m_manager->IsFuncdefTypeId(typeId) && !value.IsEmpty())
                 {
                     boxTemps[i] =
-                        NewBox(value); // SetArgObject AddRefs; ours released after Execute
+                        NewBox(m_manager->MemoryAllocator(), value); // SetArgObject AddRefs; ours released after Execute
                     (void)executor->SetArgObject(arg, boxTemps[i]);
                     continue;
                 }

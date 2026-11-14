@@ -1923,7 +1923,7 @@ TEST_CASE("angelscript: benchmark of the call path" * doctest::skip())
                          u8"  }\n"
                          u8"}\n";
     foundation::script::benchmark::RunScriptBackendBenchmark(
-        []() { return foundation::script::angelscript::CreateScriptManager(foundation::core::DefaultAllocator()); }, dialect);
+        [](IAllocator& allocator) { return foundation::script::angelscript::CreateScriptManager(allocator); }, dialect);
 }
 
 TEST_CASE("angelscript: a compiler warning reaches the error handler as a warning, and the load succeeds")
