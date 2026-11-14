@@ -11,6 +11,23 @@ surface output) that GENERATE a surface shader, fed through the same cook (varia
 points, bytecode packs), on the NodeGraph UI and the AnimationGraphPage pattern. It builds on
 0.1's surface shaders (`Archive/custom-shaders-history.md`): a graph is a surface function written for you.
 
+## Download the export templates from the editor (user 2026-11-10; moved from 0.1)
+
+Today a user exporting for another platform downloads `DeploymentTemplate-<version>-<platform>` from
+the GitHub release by hand, unpacks it and installs it with the Templates dialog's Install from
+Folder; the Export dialog only says "No template for <platform> here". Wanted: the Templates dialog
+lists the templates this editor's release publishes and downloads one into the templates root, and
+the Export dialog's missing-template line offers the download, with progress and cancel, as the
+project manager's Samples tab downloads the samples. The same shape as the samples: the release
+publishes a catalog (`templates.json`, each archive's size and SHA-256, beside `samples.json`, by a
+step in `release.yml` like `pack-samples.py`), the editor reads it from its own release
+(`EngineReleaseDownloadUrl`), checks each download against it, and a build between releases says
+none are published. The archive: the editor unpacks zip only (`foundation.zip`) and the Linux and
+web templates ship as `.tar.gz`, so the release publishes a zip of each of them as well (user ruling
+2026-11-10), the `.tar.gz` staying for people downloading by hand, and the catalog names the zips.
+Decide: whether the host's own template, which the editor already has, stays the one listed as
+installed.
+
 ## An orthographic view that sees behind its eye: revisit (user 2026-10-13; after 0.1)
 
 For 0.1 an orthographic editor view draws from one view height behind its eye (`EditorCamera::

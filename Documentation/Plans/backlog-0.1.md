@@ -8,22 +8,6 @@
 
 ## Editor
 
-- **Download the export templates from the editor** (user 2026-11-10): today a user exporting
-  for another platform downloads `DeploymentTemplate-<version>-<platform>` from the GitHub release
-  by hand, unpacks it and installs it with the Templates dialog's Install from Folder; the Export
-  dialog only says "No template for <platform> here". Wanted: the Templates dialog lists the
-  templates this editor's release publishes and downloads one into the templates root, and the
-  Export dialog's missing-template line offers the download, with progress and cancel, as the
-  project manager's Samples tab downloads the samples. The same shape as the samples: the
-  release publishes a catalog (`templates.json`, each archive's size and SHA-256, beside
-  `samples.json`, by a step in `release.yml` like `pack-samples.py`), the editor reads it from its
-  own release (`EngineReleaseDownloadUrl`), checks each download against it, and a build between
-  releases says none are published. The archive: the editor unpacks zip only (`foundation.zip`)
-  and the Linux and web templates ship as `.tar.gz`, so the release publishes a zip of each of them
-  as well (user ruling 2026-11-10), the `.tar.gz` staying for people downloading by hand, and the
-  catalog names the zips. Decide: whether the host's own template, which the editor already has,
-  stays the one listed as installed.
-
 - **The code editor has no context menu** (user 2026-11-10): a right click in a script, shader or
   GUI page's code does nothing. `gui::CodeEditor` (`GUI.Code/CodeEditor.cppm:202`) is a plain
   `UIWidget` with no `OnContextMenu`, where a text field (`TextEditBase.cppm:483-521`) builds a
