@@ -538,3 +538,93 @@ TEST_CASE("websocket: hybrid socket - UDP and WS peers arrive as distinct datagr
     }
     CHECK(udpGot);
 }
+
+namespace
+{
+    // The gateway's events of `kind`, drained; `client` gets the last one's id.
+    int CountGatewayEvents(net::WebSocketServerGateway& gateway, net::WsGatewayEventKind kind, u32* client = nullptr)
+    {
+        int count = 0;
+        net::WsGatewayEvent event;
+        while (gateway.Poll(event))
+        {
+            if (event.kind == kind)
+            {
+                ++count;
+                if (client != nullptr)
+                    *client = event.client;
+            }
+        }
+        return count;
+    }
+    void PumpFor(net::WebSocketServerGateway& gateway, int milliseconds)
+    {
+        for (int i = 0; i < milliseconds; ++i)
+        {
+            gateway.Pump();
+            SleepMilliseconds(1);
+        }
+    }
+}
+
+TEST_CASE("websocket: a connection that never upgrades is closed at the handshake deadline")
+{
+    // A connection that sent nothing held one of the gateway's 64 slots for as long as it stayed open.
+    net::WebSocketServerGateway gateway(DefaultAllocator(), 0);
+    REQUIRE(gateway.IsOpen());
+    gateway.SetDeadlines(/*handshake*/ 0.2, /*idle*/ 30.0);
+    net::TcpSocket silent = net::TcpSocket::Connect(u8"127.0.0.1", gateway.BoundPort());
+    REQUIRE(silent.IsOpen());
+    PumpFor(gateway, 50);
+    CHECK(gateway.ClientCount() == 1u);
+    PumpFor(gateway, 400);
+    CHECK(gateway.ClientCount() == 0u);
+}
+
+TEST_CASE("websocket: an upgraded client that goes quiet is closed at the idle deadline, and said")
+{
+    net::WebSocketServerGateway gateway(DefaultAllocator(), 0);
+    REQUIRE(gateway.IsOpen());
+    gateway.SetDeadlines(/*handshake*/ 10.0, /*idle*/ 0.2);
+    WsTestClient browser;
+    REQUIRE(browser.ConnectAndUpgrade(gateway, gateway.BoundPort()));
+    CHECK(CountGatewayEvents(gateway, net::WsGatewayEventKind::Connected) == 1);
+    PumpFor(gateway, 400); // the client sends nothing
+    CHECK(gateway.ClientCount() == 0u);
+    CHECK(CountGatewayEvents(gateway, net::WsGatewayEventKind::Disconnected) == 1);
+}
+
+TEST_CASE("websocket: a client whose sends fail is reported Disconnected")
+{
+    // A failed send marked the client dead and dropped it without the Disconnected event, so its
+    // owner kept a peer that was gone.
+    net::WebSocketServerGateway gateway(DefaultAllocator(), 0);
+    REQUIRE(gateway.IsOpen());
+    WsTestClient browser;
+    REQUIRE(browser.ConnectAndUpgrade(gateway, gateway.BoundPort()));
+    u32 id = 0;
+    REQUIRE(CountGatewayEvents(gateway, net::WsGatewayEventKind::Connected, &id) == 1);
+    Array<byte> chunk;
+    chunk.Resize(1u << 20);
+    for (int i = 0; i < 40 && gateway.ClientCount() > 0; ++i) // the browser reads none of it
+    {
+        gateway.SendBinary(id, chunk.AsSpan());
+        gateway.Pump();
+    }
+    CHECK(gateway.ClientCount() == 0u);
+    CHECK(CountGatewayEvents(gateway, net::WsGatewayEventKind::Disconnected) == 1);
+}
+
+TEST_CASE("websocket: the hybrid socket closes the client of a remote the transport let go")
+{
+    net::WebSocketHybridSocket hybrid(DefaultAllocator(), 0, 0);
+    REQUIRE(hybrid.IsOpen());
+    WsTestClient browser;
+    REQUIRE(browser.ConnectAndUpgrade(hybrid.Gateway(), hybrid.WebSocketBoundPort()));
+    u32 id = 0;
+    REQUIRE(CountGatewayEvents(hybrid.Gateway(), net::WsGatewayEventKind::Connected, &id) == 1);
+    REQUIRE(hybrid.Gateway().ClientCount() == 1u);
+    hybrid.CloseRemote(net::MakeWebSocketEndpoint(id));
+    PumpFor(hybrid.Gateway(), 20);
+    CHECK(hybrid.Gateway().ClientCount() == 0u);
+}

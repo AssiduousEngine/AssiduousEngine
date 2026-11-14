@@ -399,16 +399,16 @@ export namespace foundation::net
         // the others' places in the list move.
         void RemoveDisconnected()
         {
-            bool removed = false;
+            Array<DatagramEndpoint> ended;
             for (usize i = m_connections.Size(); i > 0; --i)
             {
                 if (m_connections[i - 1].state == ConnectionState::Disconnected)
                 {
+                    ended.PushBack(m_connections[i - 1].remote);
                     m_connections.RemoveAt(i - 1);
-                    removed = true;
                 }
             }
-            if (!removed)
+            if (ended.IsEmpty())
             {
                 return;
             }
@@ -418,6 +418,15 @@ export namespace foundation::net
             {
                 m_byRemote.InsertOrAssign(m_connections[i].remote.value, i);
                 m_byPeer.InsertOrAssign(m_connections[i].peer, i);
+            }
+            // The socket lets go of an address no session uses any more (a WebSocket client's
+            // connection); one a new session took over stays open.
+            for (const DatagramEndpoint& remote : ended)
+            {
+                if (!m_byRemote.Contains(remote.value))
+                {
+                    m_socket->CloseRemote(remote);
+                }
             }
         }
         // The live connections by peer and by remote, through the lookups: a received packet and a

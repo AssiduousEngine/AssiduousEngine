@@ -143,6 +143,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Rendering: a double-sided material (foliage cards, a sail, a flag) casts its shadow from both
   sides, and a material that culls front faces casts from its back; shadows always came from the
   front faces.
+- Networking: the WebSocket gateway closes a connection that has not upgraded within 10 s or an
+  upgraded one silent for 30 s, closes a browser's connection when the game drops that player,
+  and reports every client it loses.
 - Networking: an HTTP, WebSocket or TLS connection whose peer stops reading is closed once 8 MB
   waits unsent, instead of the sender buffering without limit.
 - Networking: a length in a packet is checked against what the packet holds before anything is

@@ -1152,3 +1152,50 @@ TEST_CASE("reliable: a fragmented message over maxMessageBytes is not reassemble
     CHECK(received == 1);
     CHECK(size == 3000u);
 }
+
+namespace
+{
+    // Records the remotes the transport closes.
+    class CloseRecorder final : public net::IDatagramSocket
+    {
+    public:
+        explicit CloseRecorder(net::IDatagramSocket& inner) : m_inner(inner) {}
+        void Send(const net::DatagramEndpoint& to, Span<const byte> data) override { m_inner.Send(to, data); }
+        [[nodiscard]] bool Receive(net::DatagramEndpoint& from, Array<byte>& out) override { return m_inner.Receive(from, out); }
+        [[nodiscard]] net::DatagramEndpoint LocalEndpoint() const override { return m_inner.LocalEndpoint(); }
+        void CloseRemote(const net::DatagramEndpoint& remote) override { closed.PushBack(remote); }
+        Array<net::DatagramEndpoint> closed;
+
+    private:
+        net::IDatagramSocket& m_inner;
+    };
+}
+
+TEST_CASE("reliable: a connection that ends tells its socket the remote is done")
+{
+    // The transport dropped a peer and its socket never heard: a WebSocket client behind it kept
+    // its gateway slot until the browser closed the TCP connection.
+    net::SimDatagramNetwork network(DefaultAllocator(), net::SimConditions{});
+    net::IDatagramSocket* cs = network.CreateSocket();
+    net::IDatagramSocket* ssRaw = network.CreateSocket();
+    CloseRecorder ss(*ssRaw);
+    net::ReliableTransport client(*cs);
+    net::ReliableTransport server(ss);
+    server.SetAccepting(true);
+    const net::PeerId sp = client.Connect(ssRaw->LocalEndpoint());
+    const auto step = [&]
+    {
+        network.Advance(10.0f);
+        client.Update(10.0f);
+        server.Update(10.0f);
+    };
+    for (int i = 0; i < 10; ++i)
+        step();
+    REQUIRE(AnyKind(server, net::NetEventKind::Connected));
+    CHECK(ss.closed.IsEmpty());
+    client.Disconnect(sp);
+    for (int i = 0; i < 10; ++i)
+        step();
+    REQUIRE(ss.closed.Size() == 1u);
+    CHECK(ss.closed[0] == cs->LocalEndpoint());
+}

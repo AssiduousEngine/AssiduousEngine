@@ -177,6 +177,13 @@ export namespace foundation::net
         void SendBinary(u32 client, Span<const byte> data);
         void DisconnectClient(u32 client);
 
+        /// How long a connection may take to finish its upgrade, and how long an upgraded client
+        /// may send nothing, before it is closed: a connection that never upgrades, or goes
+        /// quiet, would otherwise hold one of the gateway's slots for good.
+        void SetDeadlines(f64 handshakeSeconds, f64 idleSeconds) noexcept;
+        static constexpr f64 kHandshakeSeconds = 10.0;
+        static constexpr f64 kIdleSeconds = 30.0;
+
         [[nodiscard]] usize ClientCount() const noexcept;
 
     private:
@@ -316,6 +323,15 @@ export namespace foundation::net
         [[nodiscard]] DatagramEndpoint LocalEndpoint() const override
         {
             return m_udp.LocalEndpoint();
+        }
+
+        // The transport dropped the peer at a WebSocket address: its client is closed.
+        void CloseRemote(const DatagramEndpoint& remote) override
+        {
+            if (IsWebSocketEndpoint(remote))
+            {
+                m_gateway.DisconnectClient(WebSocketEndpointClient(remote));
+            }
         }
 
         [[nodiscard]] WebSocketServerGateway& Gateway() noexcept { return m_gateway; }

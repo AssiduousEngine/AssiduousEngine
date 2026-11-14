@@ -442,6 +442,8 @@ namespace foundation::net
             UniquePtr<http::HttpMessageParser> handshake; // until upgraded
             WebSocketFrameParser frames;                  // after
             bool dead = false;
+            Stopwatch sinceAccept = Stopwatch::StartNew(); // the handshake deadline
+            Stopwatch sinceHeard = Stopwatch::StartNew();  // the idle deadline (restarts on each read)
         };
 
         Impl(IAllocator& alloc, u16 port) : allocator(&alloc), listener(port) {}
@@ -457,6 +459,23 @@ namespace foundation::net
         usize eventHead = 0;
         u32 nextClientId = 1;
         static constexpr usize kMaxClients = 64;
+        f64 handshakeSeconds = WebSocketServerGateway::kHandshakeSeconds;
+        f64 idleSeconds = WebSocketServerGateway::kIdleSeconds;
+
+        // Every way a client ends goes through here: it is closed once, and an upgraded one's
+        // owner hears Disconnected once (a send that failed marked it dead and said nothing).
+        void Drop(Client& client)
+        {
+            if (client.dead)
+            {
+                return;
+            }
+            client.dead = true;
+            if (client.upgraded)
+            {
+                PushEvent(WsGatewayEventKind::Disconnected, client.id);
+            }
+        }
 
         void PushEvent(WsGatewayEventKind kind, u32 id, Array<byte> payload = {})
         {
@@ -472,7 +491,7 @@ namespace foundation::net
         {
             if (client.stream->Send(bytes) < 0)
             {
-                client.dead = true;
+                Drop(client);
             }
         }
 
@@ -482,13 +501,14 @@ namespace foundation::net
             // read below before a closed stream counts.
             const bool alive = client.stream->Pump();
             ReadClient(client);
-            if (!alive && !client.dead)
+            if (!alive)
             {
-                client.dead = true;
-                if (client.upgraded)
-                {
-                    PushEvent(WsGatewayEventKind::Disconnected, client.id);
-                }
+                Drop(client);
+            }
+            else if (!client.upgraded ? client.sinceAccept.Elapsed().AsSeconds() > handshakeSeconds
+                                      : client.sinceHeard.Elapsed().AsSeconds() > idleSeconds)
+            {
+                Drop(client); // never upgraded in time, or went quiet
             }
         }
 
@@ -500,17 +520,14 @@ namespace foundation::net
                 const i64 got = client.stream->Receive(Span<byte>{chunk, sizeof(chunk)});
                 if (got < 0)
                 {
-                    client.dead = true;
-                    if (client.upgraded)
-                    {
-                        PushEvent(WsGatewayEventKind::Disconnected, client.id);
-                    }
+                    Drop(client);
                     return;
                 }
                 if (got == 0)
                 {
                     break; // would-block: nothing more this pump
                 }
+                client.sinceHeard.Restart();
                 usize offset = 0;
                 if (!client.upgraded)
                 {
@@ -527,7 +544,7 @@ namespace foundation::net
                             const u8 first = static_cast<u8>(chunk[offset]);
                             if (first < 'A' || first > 'Z')
                             {
-                                client.dead = true;
+                                Drop(client);
                                 return;
                             }
                             client.started = true;
@@ -540,7 +557,7 @@ namespace foundation::net
                             const Array<byte> reject = BuildWebSocketRejectResponse();
                             SendRaw(client,
                                     Span<const byte>{reject.Data(), reject.Size()});
-                            client.dead = true;
+                            Drop(client);
                             return;
                         }
                         if (state == http::HttpParseState::Complete)
@@ -551,7 +568,7 @@ namespace foundation::net
                                 const Array<byte> reject = BuildWebSocketRejectResponse();
                                 SendRaw(client,
                                         Span<const byte>{reject.Data(), reject.Size()});
-                                client.dead = true;
+                                Drop(client);
                                 return;
                             }
                             const Array<byte> ok = BuildWebSocketUpgradeResponse(key.AsView());
@@ -571,8 +588,7 @@ namespace foundation::net
                     Span<const byte>{chunk + offset, static_cast<usize>(got) - offset});
                 if (client.frames.Failed())
                 {
-                    client.dead = true;
-                    PushEvent(WsGatewayEventKind::Disconnected, client.id);
+                    Drop(client);
                     return;
                 }
                 WsFrame frame;
@@ -601,13 +617,11 @@ namespace foundation::net
                         Array<byte> close;
                         EncodeWebSocketFrame(WsOpcode::Close, {}, false, 0, close);
                         SendRaw(client, Span<const byte>{close.Data(), close.Size()});
-                        client.dead = true;
-                        PushEvent(WsGatewayEventKind::Disconnected, client.id);
+                        Drop(client);
                         return;
                     }
                     default:
-                        client.dead = true; // Text/Continuation: not this wire's protocol
-                        PushEvent(WsGatewayEventKind::Disconnected, client.id);
+                        Drop(client); // Text/Continuation: not this wire's protocol
                         return;
                     }
                 }
@@ -701,6 +715,12 @@ namespace foundation::net
         }
     }
 
+    void WebSocketServerGateway::SetDeadlines(f64 handshakeSeconds, f64 idleSeconds) noexcept
+    {
+        m_impl->handshakeSeconds = handshakeSeconds;
+        m_impl->idleSeconds = idleSeconds;
+    }
+
     bool WebSocketServerGateway::Poll(WsGatewayEvent& out)
     {
         Impl& impl = *m_impl;
@@ -740,7 +760,7 @@ namespace foundation::net
                 Array<byte> close;
                 EncodeWebSocketFrame(WsOpcode::Close, {}, false, 0, close);
                 m_impl->SendRaw(client, Span<const byte>{close.Data(), close.Size()});
-                client.dead = true;
+                client.dead = true; // closed by its owner, who needs no Disconnected for it
                 return;
             }
         }

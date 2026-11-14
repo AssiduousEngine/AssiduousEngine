@@ -48,6 +48,10 @@ export namespace foundation::net
         // Dequeue one received datagram; false when none. Sets `from` to the sender.
         [[nodiscard]] virtual bool Receive(DatagramEndpoint& from, Array<byte>& out) = 0;
         [[nodiscard]] virtual DatagramEndpoint LocalEndpoint() const = 0;
+        // The transport is done with `remote` (its connection ended and no other uses the
+        // address). A socket that holds a connection per remote, as the WebSocket gateway holds a
+        // client, closes it; a UDP socket holds nothing per remote.
+        virtual void CloseRemote(const DatagramEndpoint& remote) { (void)remote; }
     };
 
     class SimDatagramNetwork;
