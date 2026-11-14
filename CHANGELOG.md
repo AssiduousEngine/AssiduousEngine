@@ -39,6 +39,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- Editor: its windows present with two swapchain images, as a game does, a frame less between
+  input and the screen; they had three.
 - Rendering: the MSAA count and the antialiasing are the quality level's. The project's MSAA
   setting and a scene's or post profile's antialiasing mode are gone; a project saved before opens
   with one level, Default, at its MSAA count. The antialiasing is not carried over: an older scene

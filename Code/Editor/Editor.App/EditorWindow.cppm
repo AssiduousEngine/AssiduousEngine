@@ -114,15 +114,13 @@ export namespace editor::app
         ui.uiScale = look.uiScale;
     }
 
-    /// How every editor window presents: vsync with a third swapchain image, so a compositor that
-    /// is late returning an image costs nothing (with two images, such a delay holds the frame for
-    /// whole refreshes). The frame of latency this adds does not matter in an editor. A game keeps
-    /// the default.
+    /// How every editor window presents: vsync with two swapchain images, as a game does. A third
+    /// image would hide a compositor late returning one, at a frame more of latency.
     [[nodiscard]] inline foundation::graphics::RenderWindowDesc EditorRenderWindowDesc() noexcept
     {
         foundation::graphics::RenderWindowDesc desc;
         desc.presentMode = foundation::rhi::PresentMode::Fifo;
-        desc.bufferCount = 3;
+        desc.bufferCount = 2;
         return desc;
     }
 

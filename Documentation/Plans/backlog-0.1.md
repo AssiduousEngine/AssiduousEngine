@@ -126,8 +126,8 @@
      The old editor did the same; skipping entities with nothing to draw would save it.
   4. **Input to screen, in frames.** Not measured: whether input reaches the screen later in the GUI
      than in the old UI (routing, hover, layout order). Count frames from an injected event to the
-     changed picture in both sandboxes. The editor's third swapchain image (4f7a8931b, the user's
-     ruling) adds a frame while the editor keeps up with vsync, little at 26 fps.
+     changed picture in both sandboxes. The editor presents with two swapchain images again since
+     2026-11-14 (it had a third from 4f7a8931b, a frame more while it kept up with vsync).
 
 - **Terrain and vegetation tools: fixes and a regression check** (user 2026-11-01):
   - Sculpting (and maybe the vegetation tool) still acts when the pointer is over UI: a press or
