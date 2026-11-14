@@ -11,6 +11,7 @@ target_link_libraries(Script.AngelScript.Pipeline
         Foundation::Script Foundation::Script.Resource Foundation::Script.Facades
         Pipeline::Script Foundation::Script.AngelScript Foundation::Policy
     PRIVATE
+        Foundation::Profiler
         ThirdParty::AngelScript)
 target_sources(Script.AngelScript.Pipeline
     PRIVATE

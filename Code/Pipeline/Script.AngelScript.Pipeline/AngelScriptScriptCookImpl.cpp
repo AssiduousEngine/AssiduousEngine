@@ -26,6 +26,7 @@
 module;
 #include "Core/Prelude.h"
 #include "Core/Log/Log.h"
+#include "Profiler/Profiler.h" // PROFILE_SCOPE: a check's stages
 
 #include <angelscript.h>
 #include <scriptbuilder/scriptbuilder.h>
@@ -37,6 +38,7 @@ module;
 module script.angelscript.pipeline;
 
 import foundation.core;
+import foundation.profiler;
 import pipeline.importer;
 import foundation.script;
 import foundation.script.resource;
@@ -523,8 +525,11 @@ namespace pipeline{
                 out.sourceName = String(assetName); // the source file identity (breakpoint key)
                 out.source = String(source);
 
-                RefPtr<IScriptManager> manager =
-                    CreateScriptManagerForLanguage(u8"angelscript", DefaultAllocator());
+                RefPtr<IScriptManager> manager;
+                {
+                    PROFILE_SCOPE("Script.Cook.MakeEngine");
+                    manager = CreateScriptManagerForLanguage(u8"angelscript", DefaultAllocator());
+                }
                 if (manager.Get() == nullptr)
                 {
                     LOG_ERROR(u8"Script",
@@ -535,9 +540,12 @@ namespace pipeline{
                 // Same "main"-module surface the runtime registers (core and facades), so a
                 // facade-using behavior compiles at cook exactly as at runtime; FinalizeTypes
                 // emits every reflected type into the engine CScriptBuilder builds against.
-                RegisterCoreTypes();
-                RegisterScriptFacadeReflection();
-                RegisterReflectedTypes(*manager, GlobalTypeRegistry(), hidden);
+                {
+                    PROFILE_SCOPE("Script.Cook.RegisterApi");
+                    RegisterCoreTypes();
+                    RegisterScriptFacadeReflection();
+                    RegisterReflectedTypes(*manager, GlobalTypeRegistry(), hidden);
+                }
 
                 asIScriptEngine* engine = static_cast<asIScriptEngine*>(
                     foundation::script::angelscript::AngelScriptEngineHandle(*manager));
@@ -574,7 +582,11 @@ namespace pipeline{
                 {
                     (void)engine->SetEngineProperty(asEP_INIT_GLOBAL_VARS_AFTER_BUILD, 0);
                 }
-                const int built = builder.BuildModule();
+                int built = 0;
+                {
+                    PROFILE_SCOPE("Script.Cook.Compile");
+                    built = builder.BuildModule();
+                }
                 if (built < 0)
                 {
                     if (!checkOnly) // a check's errors go to its caller, not the log

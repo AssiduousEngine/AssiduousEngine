@@ -7,6 +7,7 @@ target_link_libraries(Script.Luau.Pipeline PUBLIC
     Foundation::Core Pipeline::Core Foundation::Content
     Foundation::Script Foundation::Script.Resource Foundation::Script.Facades
     Pipeline::Script Foundation::Script.Luau Foundation::Policy)
+target_link_libraries(Script.Luau.Pipeline PRIVATE Foundation::Profiler)
 target_sources(Script.Luau.Pipeline
     PRIVATE
         LuauScriptCookImpl.cpp

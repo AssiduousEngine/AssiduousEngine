@@ -12,10 +12,12 @@
 module;
 #include "Core/Prelude.h"
 #include "Core/Log/Log.h"
+#include "Profiler/Profiler.h" // PROFILE_SCOPE: a check's stages
 
 module script.luau.pipeline;
 
 import foundation.core;
+import foundation.profiler;
 import pipeline.importer; // FileStemOf
 import foundation.script;
 import foundation.script.resource;
@@ -262,14 +264,18 @@ namespace pipeline{
             [[nodiscard]] static RefPtr<IScriptManager> CreateCookManager(StringView assetName,
                                                                            Span<const TypeId> hidden)
             {
-                RefPtr<IScriptManager> manager =
-                    CreateScriptManagerForLanguage(u8"luau", DefaultAllocator());
+                RefPtr<IScriptManager> manager;
+                {
+                    PROFILE_SCOPE("Script.Cook.MakeEngine");
+                    manager = CreateScriptManagerForLanguage(u8"luau", DefaultAllocator());
+                }
                 if (manager.Get() == nullptr)
                 {
                     LOG_ERROR(u8"Script", u8"'{}': no Luau backend registered - cook failed",
                                        assetName);
                     return manager;
                 }
+                PROFILE_SCOPE("Script.Cook.RegisterApi");
                 RegisterCoreTypes();
                 RegisterScriptFacadeReflection();
                 RegisterReflectedTypes(*manager, GlobalTypeRegistry(), hidden);
@@ -350,7 +356,12 @@ namespace pipeline{
                 // Compile check: Load the raw source. Luau classes are plain global tables and
                 // facades are globals, so no behavior-module framing is needed; unknown
                 // globals compile fine. Running it defines `<Class>`.
-                if (!scriptContext->Load(source, assetName).IsOk())
+                bool loaded = false;
+                {
+                    PROFILE_SCOPE("Script.Cook.Compile");
+                    loaded = scriptContext->Load(source, assetName).IsOk();
+                }
+                if (!loaded)
                 {
                     ReportScriptCookErrors(assetName, sink);
                     return false;

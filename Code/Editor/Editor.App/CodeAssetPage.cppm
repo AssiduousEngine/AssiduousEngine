@@ -21,10 +21,12 @@
 module;
 #include "Core/Prelude.h"
 #include "Core/Log/Log.h"
+#include "Profiler/Profiler.h" // PROFILE_SCOPE: the page's check
 
 export module editor.app:code_asset_page;
 
 import foundation.core;
+import foundation.profiler;
 import foundation.content;
 import foundation.runtime.client;
 import foundation.gui;
@@ -173,6 +175,7 @@ export namespace editor::app
         /// Checks the code now with the page's check, showing the problems in the list and on their lines.
         void CheckNow()
         {
+            PROFILE_SCOPE("Editor.CodeCheck");
             m_checkIn = 0.0f;
             m_problemsFound = m_read ? CheckCode(Text().AsView()) : Array<CodeProblem>{};
             if (!m_read)
