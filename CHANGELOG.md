@@ -143,6 +143,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Rendering: a double-sided material (foliage cards, a sail, a flag) casts its shadow from both
   sides, and a material that culls front faces casts from its back; shadows always came from the
   front faces.
+- HTTP: a redirect to another origin no longer carries the request's Authorization,
+  Proxy-Authorization or Cookie headers.
 - Networking: the WebSocket gateway closes a connection that has not upgraded within 10 s or an
   upgraded one silent for 30 s, closes a browser's connection when the game drops that player,
   and reports every client it loses.

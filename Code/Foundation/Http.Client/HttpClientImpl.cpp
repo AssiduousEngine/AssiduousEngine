@@ -366,6 +366,7 @@ namespace foundation::http
                 String url = request.url;
                 String method = request.method;
                 Array<byte> body = request.body;
+                Array<HttpHeader> headers = request.headers;
                 for (u32 hop = 0;; ++hop)
                 {
                     HttpUrl at;
@@ -409,7 +410,7 @@ namespace foundation::http
                         if (!piece.piece.IsEmpty())
                             Post(Move(piece));
                     };
-                    if (!Exchange(at, method.AsView(), request.headers, body.AsSpan(), request, clock, parser, response.error, stream))
+                    if (!Exchange(at, method.AsView(), headers, body.AsSpan(), request, clock, parser, response.error, stream))
                         return response;
                     stream(parser); // the last of it
                     const u16 status = static_cast<u16>(parser.Status());
@@ -428,6 +429,20 @@ namespace foundation::http
                         {
                             response.error = Format(u8"an https request was redirected to http ({}): refused", next.AsView());
                             return response;
+                        }
+                        // The caller's credentials are for the origin it asked: a redirect to another
+                        // (scheme, host or port) does not carry them, as browsers do not.
+                        const bool sameOrigin = nextAt.secure == at.secure && nextAt.port == at.port &&
+                                                EqualsIgnoreCase(nextAt.host.AsView(), at.host.AsView());
+                        if (!sameOrigin)
+                        {
+                            for (usize i = headers.Size(); i > 0; --i)
+                            {
+                                const StringView name = headers[i - 1].name.AsView();
+                                if (EqualsIgnoreCase(name, u8"Authorization") || EqualsIgnoreCase(name, u8"Proxy-Authorization") ||
+                                    EqualsIgnoreCase(name, u8"Cookie"))
+                                    headers.RemoveAt(i - 1);
+                            }
                         }
                         // 303, and 301/302 after a POST (as browsers do): the next request is a GET.
                         if (status == 303 || ((status == 301 || status == 302) && EqualsIgnoreCase(method.AsView(), u8"POST")))

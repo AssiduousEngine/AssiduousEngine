@@ -525,4 +525,60 @@ TEST_CASE("http client: a real https site with the system's roots (ENGINE_HTTP_L
     CHECK(r.status == 200);
     CHECK(r.BodyText().ContainsIgnoreCase(u8"<html"));
 }
+
+TEST_CASE("http client: a redirect to another origin does not carry the caller's credentials")
+{
+    // Every hop resent the caller's headers: a redirect anywhere took its Authorization and
+    // Cookie with it.
+    HttpServer first(DefaultAllocator());
+    HttpServer second(DefaultAllocator());
+    REQUIRE(first.Start(HttpServerConfig{}));
+    REQUIRE(second.Start(HttpServerConfig{}));
+    const u16 firstPort = first.BoundPort();
+    const u16 secondPort = second.BoundPort();
+    const auto creds = [](const HttpRequest& request)
+    {
+        return HttpResponse::Text(200, u8"text/plain",
+                                  Format(u8"auth=[{}] cookie=[{}] proxy=[{}]", request.Header(u8"Authorization"),
+                                         request.Header(u8"Cookie"), request.Header(u8"Proxy-Authorization"))
+                                      .AsView());
+    };
+    first.SetHandler(
+        [&](const HttpRequest& request) -> Optional<HttpResponse>
+        {
+            const StringView target = request.target.AsView();
+            if (target == StringView(u8"/away") || target == StringView(u8"/here"))
+            {
+                HttpResponse r = HttpResponse::Text(302, u8"text/plain", u8"");
+                const String location = target == StringView(u8"/away") ? Url(secondPort, u8"/creds") : String(u8"/creds");
+                r.headers.PushBack(HttpHeader{String(u8"Location"), location});
+                return r;
+            }
+            return creds(request);
+        });
+    second.SetHandler([&](const HttpRequest& request) -> Optional<HttpResponse> { return creds(request); });
+    UniquePtr<IHttpClient> client = CreateNativeHttpClient(DefaultAllocator(), nullptr);
+    const Function<void()> serve = [&]()
+    {
+        (void)first.Pump();
+        (void)second.Pump();
+    };
+    const auto withCredentials = [&](StringView path)
+    {
+        HttpClientRequest request = HttpClientRequest::Get(Url(firstPort, path).AsView());
+        request.headers.PushBack(HttpHeader{String(u8"Authorization"), String(u8"Bearer secret")});
+        request.headers.PushBack(HttpHeader{String(u8"Cookie"), String(u8"session=1")});
+        request.headers.PushBack(HttpHeader{String(u8"Proxy-Authorization"), String(u8"Basic x")});
+        request.headers.PushBack(HttpHeader{String(u8"X-Other"), String(u8"kept")});
+        return request;
+    };
+
+    const HttpClientResponse away = Fetch(*client, withCredentials(u8"/away"), serve);
+    REQUIRE(away.status == 200);
+    CHECK(away.BodyText() == StringView(u8"auth=[] cookie=[] proxy=[]")); // another port: another origin
+    const HttpClientResponse here = Fetch(*client, withCredentials(u8"/here"), serve);
+    REQUIRE(here.status == 200);
+    CHECK(here.BodyText() == StringView(u8"auth=[Bearer secret] cookie=[session=1] proxy=[Basic x]")); // the same origin keeps them
+}
+
 #endif // !PLATFORM_WEB (a browser build has the fetch client: Http.Client.WebCheck, by hand)
