@@ -557,9 +557,12 @@ namespace
         }
         return count;
     }
+    // Pumps for `milliseconds` of wall time: a count of 1 ms sleeps is not that, since a sleep on
+    // Windows lasts a scheduler tick (about 15 ms).
     void PumpFor(net::WebSocketServerGateway& gateway, int milliseconds)
     {
-        for (int i = 0; i < milliseconds; ++i)
+        const Stopwatch clock = Stopwatch::StartNew();
+        while (clock.Elapsed().AsSeconds() * 1000.0 < static_cast<f64>(milliseconds))
         {
             gateway.Pump();
             SleepMilliseconds(1);
