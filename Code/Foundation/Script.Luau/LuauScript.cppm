@@ -2386,16 +2386,23 @@ namespace foundation::script
                 lua_State* state = entry.context->State();
                 lua_getref(state, entry.predicateRef);
                 bool ready = false;
-                const LuauScriptContext::VmCall call(*entry.context);
-                if (lua_pcall(state, 0, 1, 0) == LUA_OK)
+                int status;
+                {
+                    // A facade the predicate calls reaches its context through the reflected call's
+                    // own ScriptCallScope (InvokeReflected), as from any script code.
+                    const LuauScriptContext::VmCall call(*entry.context);
+                    status = lua_pcall(state, 0, 1, 0);
+                }
+                if (status == LUA_OK)
                 {
                     ready = lua_toboolean(state, -1) != 0;
                     lua_pop(state, 1);
                 }
                 else
                 {
-                    lua_pop(state, 1);
-                    drop = true; // faulting predicate cancels the coroutine
+                    // A predicate that faults cancels its coroutine, reported as its fault.
+                    entry.context->ReportTopOfStack(ScriptErrorKind::Runtime, u8"coroutine");
+                    drop = true;
                 }
                 if (!drop && ready)
                 {

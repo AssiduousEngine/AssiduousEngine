@@ -53,6 +53,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Scripting: an AngelScript coroutine that fails is reported, and a cancelled one no longer
+  reports a budget stop; a Luau `waitUntil` predicate that fails is reported.
 - Scripting: a runtime error's report includes the script call stack.
 - Scripting (AngelScript): compiler warnings are shown, as warnings, in the script page's
   problems, the log and `script_validate`; they were dropped.

@@ -274,7 +274,12 @@ namespace foundation::script::conformance
     ///    `begin()` starting a coroutine that waits ~1.0s then sets progress to 1,
     ///    `beginUntil()` starting a coroutine that waitUntil-s a predicate then sets
     ///    progress to 1, `flip()` making that predicate true, and `progress()` returning
-    ///    0 (pending) or 1 (done). The coroutine belongs to the `Coro` instance.
+    ///    0 (pending) or 1 (done), `beginFault()` starting a coroutine that waits ~0.2s
+    ///    then raises a runtime error, `beginScoped()` starting one that waitUntil-s a predicate
+    ///    true when `flip()` has been called and `CallScope.inCall()` is 1, then sets progress
+    ///    to 1 (false at first, so the scheduler is what evaluates it true), and
+    ///    `beginBadPredicate()` starting one that waitUntil-s a predicate raising a runtime
+    ///    error. The coroutine belongs to the `Coro` instance.
     struct Dialect
     {
         StringView languageId;
@@ -485,6 +490,7 @@ namespace foundation::script::conformance
         if (HasScriptCapability(manager->Capabilities(), ScriptCapabilities::Coroutines) &&
             !dialect.coroutineClass.IsEmpty())
         {
+            manager->RegisterType(CallScope::StaticType()); // late registration, like DelegateSignal
             const auto progressOf = [](const RefPtr<ScriptObject>& coro) -> f64
             {
                 auto p = coro->Invoke(u8"progress", Span<Variant>{});
@@ -550,6 +556,68 @@ namespace foundation::script::conformance
                     manager->AdvanceCoroutines(0.1);
                 } // 2s must not run
                 CHECK(progressOf(coro) == doctest::Approx(0.0)); // cancelled: never completes
+            }
+
+            // (4) A coroutine that faults is reported to its context, as a call's fault is: once,
+            // as a runtime error, when it faults (not before), and the scheduler goes on.
+            {
+                RefPtr<IScriptContext> coroutineContext = manager->CreateContext();
+                CapturedErrors faults;
+                coroutineContext->SetErrorHandler(&faults);
+                CHECK(coroutineContext->Load(dialect.coroutineClass, u8"conformance.coroutine").IsOk());
+                RefPtr<ScriptObject> coro = coroutineContext->CreateInstance(u8"Coro", Span<Variant>{});
+                REQUIRE(coro.Get() != nullptr);
+                REQUIRE(coro->Invoke(u8"beginFault", Span<Variant>{}).HasValue());
+                manager->AdvanceCoroutines(0.1); // 0.1s: still waiting
+                CHECK(faults.count == 0);
+                for (int i = 0; i < 3; ++i)
+                {
+                    manager->AdvanceCoroutines(0.1);
+                } // past 0.2s: it ran and faulted
+                CHECK(faults.count == 1);
+                CHECK(faults.lastKind == ScriptErrorKind::Runtime);
+                for (int i = 0; i < 3; ++i)
+                {
+                    manager->AdvanceCoroutines(0.1);
+                } // dropped: no second report
+                CHECK(faults.count == 1);
+                coroutineContext->SetErrorHandler(nullptr);
+            }
+
+            // (5) Native code a waitUntil predicate calls (a facade) reaches the script's context,
+            // also when the scheduler, not the coroutine, evaluates it.
+            {
+                RefPtr<IScriptContext> coroutineContext = manager->CreateContext();
+                CHECK(coroutineContext->Load(dialect.coroutineClass, u8"conformance.coroutine").IsOk());
+                RefPtr<ScriptObject> coro = coroutineContext->CreateInstance(u8"Coro", Span<Variant>{});
+                REQUIRE(coro.Get() != nullptr);
+                REQUIRE(coro->Invoke(u8"beginScoped", Span<Variant>{}).HasValue());
+                manager->AdvanceCoroutines(0.1);
+                CHECK(progressOf(coro) == doctest::Approx(0.0)); // not flipped yet
+                REQUIRE(coro->Invoke(u8"flip", Span<Variant>{}).HasValue());
+                for (int i = 0; i < 3; ++i)
+                {
+                    manager->AdvanceCoroutines(0.1);
+                }
+                CHECK(progressOf(coro) == doctest::Approx(1.0)); // the scheduler's evaluation saw its call
+            }
+
+            // (6) A predicate that faults is reported, as the coroutine's own fault is.
+            {
+                RefPtr<IScriptContext> coroutineContext = manager->CreateContext();
+                CapturedErrors faults;
+                coroutineContext->SetErrorHandler(&faults);
+                CHECK(coroutineContext->Load(dialect.coroutineClass, u8"conformance.coroutine").IsOk());
+                RefPtr<ScriptObject> coro = coroutineContext->CreateInstance(u8"Coro", Span<Variant>{});
+                REQUIRE(coro.Get() != nullptr);
+                REQUIRE(coro->Invoke(u8"beginBadPredicate", Span<Variant>{}).HasValue());
+                for (int i = 0; i < 3; ++i)
+                {
+                    manager->AdvanceCoroutines(0.1);
+                }
+                CHECK(faults.count == 1);
+                CHECK(faults.lastKind == ScriptErrorKind::Runtime);
+                coroutineContext->SetErrorHandler(nullptr);
             }
         }
 

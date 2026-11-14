@@ -1558,6 +1558,14 @@ TEST_CASE("angelscript: CERTIFIED - the backend conformance battery")
         u8"  void RunUntil() { Coroutine::waitUntil(CoroutinePredicate(this.GateOpen)); p = 1; }\n"
         u8"  void begin() { startCoroutine(ScriptCoroutine(this.RunWait)); }\n"
         u8"  void beginUntil() { startCoroutine(ScriptCoroutine(this.RunUntil)); }\n"
+        u8"  void RunFault() { wait(0.2f); int zero = 0; p = 1 / zero; }\n"
+        u8"  void beginFault() { startCoroutine(ScriptCoroutine(this.RunFault)); }\n"
+        u8"  bool InScope() { return gate && CallScope::inCall() == 1; }\n"
+        u8"  void RunScoped() { Coroutine::waitUntil(CoroutinePredicate(this.InScope)); p = 1; }\n"
+        u8"  void beginScoped() { startCoroutine(ScriptCoroutine(this.RunScoped)); }\n"
+        u8"  bool Faulting() { int zero = 0; return 1 / zero == 1; }\n"
+        u8"  void RunBad() { Coroutine::waitUntil(CoroutinePredicate(this.Faulting)); p = 1; }\n"
+        u8"  void beginBadPredicate() { startCoroutine(ScriptCoroutine(this.RunBad)); }\n"
         u8"}\n";
     // Debugger: a zero-arg entry. Line 1 `gLast`, line 2 the signature, line 3 sets `tag`,
     // line 4 (the breakpoint) has `tag == "hit"` in scope; a step lands on line 5, and

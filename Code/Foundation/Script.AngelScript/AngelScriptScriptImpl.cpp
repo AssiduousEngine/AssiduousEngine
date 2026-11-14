@@ -705,8 +705,20 @@ namespace foundation::script::angelscript
             {
                 return false;
             }
+            m_budgetStopped = ctx;
             (void)ctx->Abort();
             return true;
+        }
+        // Whether `ctx` ended aborted because the budget stopped it (not cancelled, say); asking
+        // forgets it.
+        [[nodiscard]] bool TakeBudgetStop(asIScriptContext* ctx) noexcept
+        {
+            const bool stopped = m_budgetStopped == ctx;
+            if (stopped)
+            {
+                m_budgetStopped = nullptr;
+            }
+            return stopped;
         }
         [[nodiscard]] core::String BudgetStopMessage() const
         {
@@ -895,7 +907,7 @@ namespace foundation::script::angelscript
                 result = executor->Execute();
             }
             executor->ClearLineCallback();
-            if (result == asEXECUTION_ABORTED)
+            if (result == asEXECUTION_ABORTED && TakeBudgetStop(executor))
             {
                 core::ConsoleWriteError(BudgetStopMessage().AsView());
             }
@@ -2056,11 +2068,15 @@ namespace foundation::script::angelscript
             {
                 return;
             }
-            if (result == asEXECUTION_ABORTED)
-            {
-                core::ConsoleWriteError(BudgetStopMessage().AsView());
-            }
             const int index = FindCoroutine(ctx);
+            IScriptContext* home = index >= 0 ? m_coroutines[static_cast<core::usize>(index)].home : nullptr;
+            // A fault is said where the coroutine started; one cancelled (aborted, not by the
+            // budget) ends quietly, as cancelling it was asked for.
+            const bool budgetStop = result == asEXECUTION_ABORTED && TakeBudgetStop(ctx);
+            if (result == asEXECUTION_EXCEPTION || budgetStop)
+            {
+                ReportCoroutineFault(home, ctx, budgetStop);
+            }
             if (index >= 0)
             {
                 DropCoroutineAt(static_cast<core::usize>(index));
@@ -2771,6 +2787,7 @@ namespace foundation::script::angelscript
         core::Array<Coroutine> m_coroutines;
         core::Array<asIScriptContext*> m_dueScratch; // reused per-frame due snapshot
         AngelScriptDebugger* m_debugger = nullptr; // borrowed; the active debugger (self-registers)
+        asIScriptContext* m_budgetStopped = nullptr; // the context the budget last aborted (TakeBudgetStop)
     };
 
     // ---- generic dispatchers (run during script execution; the surrounding
@@ -3577,7 +3594,7 @@ namespace foundation::script::angelscript
             {
                 ReportException(executor);
             }
-            else if (result == asEXECUTION_ABORTED)
+            else if (result == asEXECUTION_ABORTED && m_manager->TakeBudgetStop(executor))
             {
                 ReportBudgetStop();
             }
@@ -3588,6 +3605,20 @@ namespace foundation::script::angelscript
         }
 
         [[nodiscard]] AngelScriptManager& Manager() noexcept { return *m_manager; }
+
+        // A coroutine started in this context faulted (`ctx` holds its exception) or ran past the
+        // budget: reported as a call's fault is.
+        void ReportCoroutineFault(asIScriptContext* ctx, bool budgetStop)
+        {
+            if (budgetStop)
+            {
+                ReportBudgetStop();
+            }
+            else
+            {
+                ReportException(ctx);
+            }
+        }
 
     private:
         [[nodiscard]] asIScriptFunction* FindFunction(core::StringView name, int argc) const
@@ -3726,7 +3757,7 @@ namespace foundation::script::angelscript
                 const AngelScriptManager::ExecuteClock clock(*m_manager);
                 result = module->ResetGlobalVars(ctx);
             }
-            if (result < 0 && ctx->GetState() == asEXECUTION_ABORTED)
+            if (result < 0 && ctx->GetState() == asEXECUTION_ABORTED && m_manager->TakeBudgetStop(ctx))
             {
                 ReportBudgetStop();
             }
@@ -4381,6 +4412,19 @@ namespace foundation::script::angelscript
         (void)static_cast<AngelScriptManager*>(param)->StopIfOverBudget(ctx);
     }
 
+    void ReportCoroutineFault(IScriptContext* home, asIScriptContext* ctx, bool budgetStop)
+    {
+        // A coroutine's home is a context of this backend: it started inside one of its calls.
+        if (auto* context = static_cast<AngelScriptContext*>(home))
+        {
+            context->ReportCoroutineFault(ctx, budgetStop);
+            return;
+        }
+        // Started outside any script call: nowhere to say it but the console.
+        core::ConsoleWriteError(budgetStop ? core::StringView(u8"coroutine stopped: ran past its budget")
+                                           : ViewOfAscii(ctx->GetExceptionString()));
+    }
+
     void ArmDebugger(AngelScriptDebugger& debugger, asIScriptContext* ctx, IScriptContext* owner)
     {
         debugger.ArmOn(ctx, owner);
@@ -4490,7 +4534,7 @@ namespace foundation::script::angelscript
         {
             ReportException(executor);
         }
-        else if (result == asEXECUTION_ABORTED)
+        else if (result == asEXECUTION_ABORTED && m_manager->TakeBudgetStop(executor))
         {
             ReportBudgetStop();
         }

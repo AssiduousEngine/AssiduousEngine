@@ -75,6 +75,28 @@ function Coro:beginUntil()
         this.p = 1
     end, self)
 end
+function Coro:beginFault()
+    startCoroutine(function()
+        waitSeconds(0.2)
+        error("coroutine fault")
+    end, self)
+end
+function Coro:beginScoped()
+    local this = self
+    startCoroutine(function()
+        waitUntil(function()
+            return this.flag and CallScope.inCall() == 1
+        end)
+        this.p = 1
+    end, self)
+end
+function Coro:beginBadPredicate()
+    startCoroutine(function()
+        waitUntil(function()
+            error("predicate fault")
+        end)
+    end, self)
+end
 function Coro:flip()
     self.flag = true
 end
