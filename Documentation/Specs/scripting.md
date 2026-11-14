@@ -20,16 +20,27 @@ shipped builds, validating hostile bytecode. Those go to `backlog-0.2.md` under 
 
 ## Decided (by this spec; change on review)
 
-1. **Math types are values in script** (user, 2026-11-14). A reflected type that is trivially
-   copyable and trivially destructible (Float2, Float3, Float4, Color, Quaternion, Transform,
-   Float4x4, Float3x3, Guid) crosses into script by value: AngelScript holds it inline
-   (`asOBJ_VALUE | asOBJ_POD`, its real size), and a property read returns a copy, so
-   `light.color.r = 1` changes a temporary, as with a C# struct. Luau gets the same semantics, so
-   a script means the same in both. A script property of such a type is declared by value
+1. **Plain types are values in script** (user, 2026-11-14). A reflected type that is trivially
+   copyable and trivially destructible (Float2, Float3, Float4, Color, Quaternion, Transform, Guid,
+   AABB, Plane, Rectangle, the curve keys, a hit result) crosses into script by value: AngelScript
+   holds it inline (`asOBJ_VALUE | asOBJ_POD`, its real size), and a property read returns a copy,
+   so `light.color.r = 1` changes a temporary, as with a C# struct. Luau gets the same semantics,
+   so a script means the same in both. A script property of such a type is declared by value
    (`Color tint`), no longer as a handle; the cook's rule flips, and the samples' scripts migrate.
-2. **One reflection fact decides it**, not a list of type names: `TypeInfo` gains a flag set when
-   the type is built, from the type's own traits.
-3. **`#include` is supported and tracked** (user, 2026-11-14; this replaced "refused at cook",
+2. **Values are implicit; identity is declared** (user, 2026-11-14; this replaced "a flag from the
+   traits alone", which also made components values). `TypeInfo` records the type's traits when
+   it is built (copied by its bytes, nothing to run to destroy it), and a type whose value stands
+   for one live thing elsewhere declares it in its own reflection, `builder.HasIdentity()`
+   (`TypeInfo::hasIdentity`); such a type stays a handle. Reflection knows nothing of scripts or
+   components: `ComponentMethods<T>`, which every scriptable component applies, declares it, so
+   `LightComponent.of(e).intensity = 2` still changes the light. No list of type names.
+3. **The script `Entity` is a value** (user, 2026-11-14). It is the scripts' facade over an
+   entity, not the scene's entity, and it reached its scene through a counted reference
+   (`WeakSceneRef`), which made it not plain. It holds the scene as a slot and generation in a
+   weak table of scenes instead, as Sedulous does, so it is plain and a value: `Entity@` becomes
+   `Entity`, a lookup that finds nothing returns an entity that is not valid instead of null
+   (`if (!e.isValid())`), and a script property is `Entity target`.
+4. **`#include` is supported and tracked** (user, 2026-11-14; this replaced "refused at cook",
    whose premise was wrong: the cook compiles includes into the bytecode, so cooked scripts run
    them, and the flagship's scripts use them). An include resolves relative to the file that
    includes it, as a path in the project's sources, never outside them; the included files are
@@ -37,11 +48,11 @@ shipped builds, validating hostile bytecode. Those go to `backlog-0.2.md` under 
    so an error or a breakpoint in it names that file and its line; and the record carries the
    included sources, so a class compiled from source includes them as a cooked one does. Luau has
    no include directive, so this is AngelScript's alone.
-4. **The garbage collectors step each frame within a time budget** and run a full cycle only where
+5. **The garbage collectors step each frame within a time budget** and run a full cycle only where
    a pause is expected (a scene loaded or unloaded, a run stopped). Both languages.
-5. **Every phase that claims a cost is measured** before and after in `build/clang-reldbg`, on a
+6. **Every phase that claims a cost is measured** before and after in `build/clang-reldbg`, on a
    benchmark kept in the repository, and the numbers go in the weekly.
-6. **What both languages share lives once**, in `Foundation/Script` or `Script.Pipeline`, as the
+7. **What both languages share lives once**, in `Foundation/Script` or `Script.Pipeline`, as the
    check manager does (`MakeCheckManager`, `CachedCheckManager`).
 
 ## What exists (checked 2026-11-14 at d470797aa)
@@ -108,7 +119,7 @@ shipped builds, validating hostile bytecode. Those go to `backlog-0.2.md` under 
   what both languages must do alike.
 
 **C2: the cook and the runtime agree.**
-- `#include` is tracked (Decided 3): one resolution rule in `Script.Pipeline`, the builder declares
+- `#include` is tracked (Decided 4): one resolution rule in `Script.Pipeline`, the builder declares
   the included files as dependencies, the cook and the editor's check read them through a reader
   their caller gives, and the runtime's source path adds the recorded includes as sections.
 - The surface hash covers parameter and return types and enumerator values; a signature change
@@ -123,16 +134,19 @@ shipped builds, validating hostile bytecode. Those go to `backlog-0.2.md` under 
 - Each class's handler functions are resolved once, when its module loads, and called through
   the cached pointer; Luau caches its function references the same way.
 - A context pool through `SetContextCallbacks`, so a call reuses a context.
-- The collectors step within a budget per frame (Decided 4).
+- The collectors step within a budget per frame (Decided 5).
 - Boxes come from the manager's allocator; a coroutine's wait finds its record without a scan.
 - Measured against C0.
 
-**C4: math as values** (Decided 1, 2).
-- The `TypeInfo` flag; AngelScript registers such types as values with their size, fields at
-  their offsets, constructors and operators through generic thunks that copy bytes in and out.
+**C4: plain types as values** (Decided 1, 2, 3).
+- `TypeInfo` records the traits and `hasIdentity`; `ComponentMethods<T>` declares identity.
+- The script `Entity` holds its scene through a weak table of scenes, and is plain.
+- AngelScript registers a plain type without identity as a value with its size, fields at their
+  offsets, constructors and operators through generic thunks that copy bytes in and out.
 - Luau gives the same copy semantics.
-- The cook's handle rule flips to by-value for these types; the samples' scripts migrate, and a
-  script still declaring `Color@` gets an error naming the change.
+- The cook's handle rule flips to by-value for these types; the samples' scripts migrate
+  (`Color@`, `Entity@`, null checks on entities), and a script still declaring `Color@` gets an
+  error naming the change.
 - Measured against C0: the arithmetic loop allocates nothing for Float3, Float4, Color and
   Quaternion (a `Variant` holds them inline); Transform and the matrices are measured and said.
 - Tests: the backends' suites, Integration's script flows, and every sample cooking and running
