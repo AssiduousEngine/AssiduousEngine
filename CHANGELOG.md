@@ -159,6 +159,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   end, and a node's own listeners keep it alive while they run.
 - GUI: a widget made at the address of a destroyed one styled outside any GUI starts with its own
   style; it took the old widget's cached style and transitioned from it.
+- VG: drawing past the 128 layers a batch holds logs a warning, once; those layers drew as plain
+  opacity, losing their blend, blur and filters, without a word.
 - Rendering (Vulkan): a frame is presented only after it is drawn. The swapchain's wait and signal
   went to whichever submit came first after the acquire, and a profiler sync point or an offscreen
   pass could take them. `Queue::SubmitFrame` names the swapchain the frame renders; code that

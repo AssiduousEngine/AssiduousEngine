@@ -1747,3 +1747,34 @@ TEST_CASE("vg.context: a premultiplied picture drawn at its own size lands on th
         sawAsked = sawAsked || (v.position.x == doctest::Approx(5.5f) && v.position.y == doctest::Approx(3.25f));
     CHECK(sawAsked);
 }
+
+namespace
+{
+    struct VgWarningSink final : ILogSink
+    {
+        u32 count = 0;
+        void Write(LogLevel level, StringView category, StringView) noexcept override
+        {
+            if (level == LogLevel::Warning && category == StringView(u8"VG"))
+                ++count;
+        }
+    };
+}
+
+TEST_CASE("vg.context: layers past the cap fall back to opacity, logged once")
+{
+    // Past the cap a layer silently lost its blend, blur and filters.
+    VGContext ctx;
+    ctx.SetLayers(true);
+    VgWarningSink sink;
+    GlobalLogger().AddSink(&sink);
+    for (i32 i = 0; i < VGContext::MaxLayers + 3; ++i)
+    {
+        ctx.PushLayer(0.5f);
+        ctx.FillPath(Square(0, 0, 5, 5), Color::Red, FillRule::NonZero, false);
+        ctx.PopLayer();
+    }
+    GlobalLogger().RemoveSink(&sink);
+    CHECK(ctx.GetBatch().layers.Size() == static_cast<usize>(VGContext::MaxLayers));
+    CHECK(sink.count == 1u);
+}

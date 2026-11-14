@@ -10,6 +10,7 @@
 
 module;
 #include "Core/Prelude.h"
+#include "Core/Log/Log.h"
 
 export module foundation.vg:context;
 
@@ -442,7 +443,7 @@ export namespace foundation::vg
         void PushLayer(f32 opacity, VGBlendMode blendMode = VGBlendMode::Normal, f32 blur = 0.0f,
                        f32 saturation = 1.0f, f32 brightness = 1.0f)
         {
-            if (!m_layersEnabled || m_batch.layers.Size() >= static_cast<usize>(MaxLayers))
+            if (!m_layersEnabled || !HasLayerRoom())
             {
                 PushOpacity(opacity);
                 m_layerStack.PushBack(LayerSave{}); // layer -1: PopLayer pops the opacity
@@ -525,7 +526,7 @@ export namespace foundation::vg
         /// shape shows. Without layers, past MaxLayers, or inside a clip path, nothing is drawn.
         void DrawBackdropBlur(Rectangle rect, CornerRadii radii, f32 sigma)
         {
-            if (!m_layersEnabled || m_batch.layers.Size() >= static_cast<usize>(MaxLayers) || !m_clipPaths.IsEmpty() ||
+            if (!m_layersEnabled || !HasLayerRoom() || !m_clipPaths.IsEmpty() ||
                 sigma <= 0.0f || rect.width <= 0.0f || rect.height <= 0.0f)
             {
                 return;
@@ -575,6 +576,19 @@ export namespace foundation::vg
         }
 
     private:
+        // Whether the batch can take another layer; the first time it cannot is logged.
+        [[nodiscard]] bool HasLayerRoom()
+        {
+            if (m_batch.layers.Size() < static_cast<usize>(MaxLayers))
+                return true;
+            if (!m_layerCapLogged)
+            {
+                LOG_WARNING(u8"VG", u8"layers full ({} per batch), drawing past them without their effects", MaxLayers);
+                m_layerCapLogged = true;
+            }
+            return false;
+        }
+
         // A layer's composite in the current target: a device quad over its bounds, `alpha` its
         // opacity, sampling its target (the renderer maps positions to texels). `clipped`: the
         // current clips apply (a pushed layer's); else none (drawing moved aside keeps its own).
@@ -2700,6 +2714,7 @@ export namespace foundation::vg
         bool m_perPixelGradients = false; // radial and conic use dedicated per-pixel shaders when set
         bool m_analyticBoxes = false;
         bool m_layersEnabled = false;
+        bool m_layerCapLogged = false; // the first batch past MaxLayers is logged (once)
         bool m_stencilFills = false; // host opt-in: stencil-then-cover for complex fills
         i32 m_currentTextureIndex = 0;
         i32 m_commandStartIndex = 0;
