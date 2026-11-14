@@ -1521,3 +1521,61 @@ TEST_CASE("script.luau: a coroutine that starts coroutines and cancels its own o
     CHECK(field(u8"ran") == doctest::Approx(0.0)); // cancelled with their owner before they began
     CHECK(field(u8"after") == doctest::Approx(0.0)); // the running one was cancelled too
 }
+
+// A reflected method, container op or property dispatcher taken off one type's object and called
+// on another's ran on the other's object as if it were the first type; and Luau's newproxy made
+// userdata the engine read as its own boxes. Both reached engine code with a wrong object.
+TEST_CASE("script.luau: a bound method or property refuses a self of another type, and newproxy is gone")
+{
+    RttiRegisterEnum_Facing();
+    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    manager->RegisterType(TypeOf<Facing>());
+    manager->RegisterType(Compass::StaticType());
+    manager->RegisterType(Canceller::StaticType());
+    manager->RegisterType(TypeOf<LuauRoom>());
+    manager->RegisterType(LuauShelf::StaticType());
+    manager->FinalizeTypes();
+    RefPtr<IScriptContext> scriptContext = manager->CreateContext();
+    REQUIRE(scriptContext->Load(u8R"lua(
+Probe = {}
+Probe.__index = Probe
+function Probe.new() return setmetatable({}, Probe) end
+function Probe:noProxy() return newproxy == nil end
+function Probe:sameType()
+    local c = Compass.new()
+    return c:opposite(Facing.North) == Facing.South
+end
+function Probe:crossMethod()
+    local c = Compass.new()
+    local k = Canceller.new()
+    local ok, err = pcall(c.opposite, k, Facing.North)
+    return (not ok) and string.find(tostring(err), "another type") ~= nil
+end
+function Probe:crossContainer()
+    local s = LuauShelf.new()
+    local c = Compass.new()
+    local ok = pcall(s.rooms_count, c)
+    return not ok
+end
+function Probe:crossIndex()
+    local c = Compass.new()
+    local k = Canceller.new()
+    local index = getmetatable(c).__index
+    return type(index) == "function" and index(k, "heading") == nil
+end
+)lua",
+                                u8"luau.self")
+                .IsOk());
+    RefPtr<ScriptObject> probe = scriptContext->CreateInstance(u8"Probe", Span<Variant>{});
+    REQUIRE(probe.Get() != nullptr);
+    const auto check = [&](StringView method)
+    {
+        Result<Variant> r = probe->Invoke(method, Span<Variant>{});
+        return r.HasValue() && r.Value().TryGet<bool>() != nullptr && r.Value().Get<bool>();
+    };
+    CHECK(check(u8"noProxy"));
+    CHECK(check(u8"sameType"));
+    CHECK(check(u8"crossMethod"));
+    CHECK(check(u8"crossContainer"));
+    CHECK(check(u8"crossIndex"));
+}

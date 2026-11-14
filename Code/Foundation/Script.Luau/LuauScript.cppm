@@ -39,6 +39,10 @@ namespace foundation::script
 
     namespace
     {
+        // The tag on every engine box (a userdata holding a Variant); the destructor registered
+        // for it runs ~Variant. Tag 0 is what an untagged userdata has.
+        constexpr int kVariantTag = 1;
+
         [[nodiscard]] const char* CStr(StringView view, String& storage)
         {
             storage = String(view);
@@ -1003,8 +1007,8 @@ namespace foundation::script
                 break;
             case LUA_TUSERDATA:
             {
-                // Every userdata in this backend is a Variant box (lua_newuserdatadtor and ~Variant).
-                Variant* boxed = static_cast<Variant*>(lua_touserdata(thread, index));
+                // The engine's userdata are Variant boxes, tagged kVariantTag; any other is opaque.
+                Variant* boxed = static_cast<Variant*>(lua_touserdatatagged(thread, index, kVariantTag));
                 if (boxed != nullptr && boxed->Type() != nullptr)
                 {
                     DescribeVariant(variable, *boxed);
@@ -1049,18 +1053,26 @@ namespace foundation::script
     // =====================================================================
     namespace
     {
-        // Full userdata payload: an in-place Variant (value or object mode). The
-        // userdata destructor (lua_newuserdatadtor) runs ~Variant, which releases any
-        // RefPtr the object mode holds, with no __gc plumbing.
-        void DestroyVariantUserdata(void* payload) { static_cast<Variant*>(payload)->~Variant(); }
+        // Full userdata payload: an in-place Variant (value or object mode). The tag's
+        // destructor (lua_setuserdatadtor at the state's creation) runs ~Variant, which releases
+        // any RefPtr the object mode holds, with no __gc plumbing.
+        void DestroyVariantUserdata(lua_State*, void* payload) { static_cast<Variant*>(payload)->~Variant(); }
 
+        // The engine's box at `index`, or null for anything else. Only a userdata carrying
+        // kVariantTag is one: a script's own userdata (Luau's newproxy, removed, made them) read
+        // as a box would have been a Variant made of whatever bytes it held.
         [[nodiscard]] Variant* VariantAt(lua_State* state, int index)
         {
-            if (lua_type(state, index) != LUA_TUSERDATA)
-            {
-                return nullptr;
-            }
-            return static_cast<Variant*>(lua_touserdata(state, index));
+            return static_cast<Variant*>(lua_touserdatatagged(state, index, kVariantTag));
+        }
+
+        // The box at `index` when it is a `type` (or derives from it): the self of a method or
+        // property bound on `type`. A method taken off one object and called on another
+        // (`local f = a.m; f(b)`) would otherwise run on b's object as if it were a's type.
+        [[nodiscard]] Variant* SelfOf(lua_State* state, int index, const TypeInfo* type)
+        {
+            Variant* boxed = VariantAt(state, index);
+            return boxed != nullptr && IsDerivedFrom(boxed->Type(), type) ? boxed : nullptr;
         }
     }
 
@@ -1145,7 +1157,7 @@ namespace foundation::script
         }
         // Everything else (objects, reflected values) travels as a boxed Variant with the
         // dynamic type's dispatch metatable, so script sees properties and methods directly.
-        void* payload = lua_newuserdatadtor(state, sizeof(Variant), DestroyVariantUserdata);
+        void* payload = lua_newuserdatatagged(state, sizeof(Variant), kVariantTag);
         new (payload) Variant(value);
         const TypeInfo* type = value.Type();
         if (type != nullptr)
@@ -1367,7 +1379,8 @@ namespace foundation::script
         // Marshal self (for instance methods) and args off the Lua stack and invoke `method`, pushing
         // its result. Shared by MethodThunk (one captured method) and ArityMethodThunk (resolved by
         // argc). Returns the Lua result count.
-        int InvokeReflected(lua_State* state, LuauScriptContext* context, const MethodInfo& method)
+        int InvokeReflected(lua_State* state, LuauScriptContext* context, const MethodInfo& method,
+                            const TypeInfo* selfType)
         {
             const int argCount = lua_gettop(state);
             // The bound self is dispatched by pointer into its userdata box (like the property
@@ -1378,10 +1391,12 @@ namespace foundation::script
             int firstArg = 1;
             if (!method.isStatic)
             {
-                boxedSelf = VariantAt(state, 1);
+                boxedSelf = SelfOf(state, 1, selfType);
                 if (boxedSelf == nullptr)
                 {
-                    lua_pushstring(state, "method called without a bound self (use ':')");
+                    lua_pushstring(state, VariantAt(state, 1) != nullptr
+                                              ? "method called on a value of another type"
+                                              : "method called without a bound self (use ':')");
                     lua_error(state);
                 }
                 firstArg = 2;
@@ -1574,7 +1589,8 @@ namespace foundation::script
                 lua_tolightuserdata(state, lua_upvalueindex(1)));
             auto* context = static_cast<LuauScriptContext*>(
                 lua_tolightuserdata(state, lua_upvalueindex(2)));
-            return InvokeReflected(state, context, *method);
+            auto* type = static_cast<const TypeInfo*>(lua_tolightuserdata(state, lua_upvalueindex(3)));
+            return InvokeReflected(state, context, *method, type);
         }
 
         // Arity-family dispatch: resolve the family member whose paramCount matches the call's
@@ -1597,7 +1613,7 @@ namespace foundation::script
                 lua_pushstring(state, "no overload of this method takes that many arguments");
                 lua_error(state);
             }
-            return InvokeReflected(state, context, *method);
+            return InvokeReflected(state, context, *method, type);
         }
 
         // Resolve a polymorphic container's add-by-name to a concrete derived type: match the
@@ -1668,8 +1684,9 @@ namespace foundation::script
                 lua_tolightuserdata(state, lua_upvalueindex(2)));
             const ContainerOp op =
                 static_cast<ContainerOp>(lua_tointeger(state, lua_upvalueindex(3)));
+            auto* type = static_cast<const TypeInfo*>(lua_tolightuserdata(state, lua_upvalueindex(4)));
 
-            Variant* self = VariantAt(state, 1);
+            Variant* self = SelfOf(state, 1, type);
             if (self == nullptr)
             {
                 lua_pushstring(state, "container op called without a bound self (use ':')");
@@ -1769,7 +1786,7 @@ namespace foundation::script
             lua_pop(state, 1);
 
             const char* key = lua_tostring(state, 2);
-            Variant* boxed = VariantAt(state, 1);
+            Variant* boxed = SelfOf(state, 1, type);
             if (key == nullptr || boxed == nullptr)
             {
                 lua_pushnil(state);
@@ -1812,7 +1829,7 @@ namespace foundation::script
                 lua_tolightuserdata(state, lua_upvalueindex(DispatchUpvalues::kContext)));
 
             const char* key = lua_tostring(state, 2);
-            Variant* boxed = VariantAt(state, 1);
+            Variant* boxed = SelfOf(state, 1, type);
             const PropertyInfo* property =
                 (key != nullptr) ? FindPropertyInChain(type, key) : nullptr;
             if (boxed == nullptr || property == nullptr)
@@ -1930,7 +1947,8 @@ namespace foundation::script
                 {
                     lua_pushlightuserdata(state, const_cast<MethodInfo*>(&method));
                     lua_pushlightuserdata(state, this);
-                    lua_pushcclosure(state, MethodThunk, "reflected_method", 2);
+                    lua_pushlightuserdata(state, const_cast<TypeInfo*>(&type)); // what self must be
+                    lua_pushcclosure(state, MethodThunk, "reflected_method", 3);
                 }
                 lua_rawset(state, -3);
             }
@@ -1994,7 +2012,8 @@ namespace foundation::script
                     lua_pushlightuserdata(state, const_cast<PropertyInfo*>(&property));
                     lua_pushlightuserdata(state, this);
                     lua_pushinteger(state, static_cast<int>(entry.op));
-                    lua_pushcclosure(state, ContainerOpThunk, "reflected_container_op", 3);
+                    lua_pushlightuserdata(state, const_cast<TypeInfo*>(&type)); // what self must be
+                    lua_pushcclosure(state, ContainerOpThunk, "reflected_container_op", 4);
                     lua_rawset(state, -3);
                 }
             }
@@ -2083,7 +2102,8 @@ namespace foundation::script
                 {
                     lua_pushlightuserdata(state, const_cast<MethodInfo*>(&method));
                     lua_pushlightuserdata(state, this);
-                    lua_pushcclosure(state, MethodThunk, "reflected_static", 2);
+                    lua_pushlightuserdata(state, const_cast<TypeInfo*>(&type));
+                    lua_pushcclosure(state, MethodThunk, "reflected_static", 3);
                 }
                 lua_rawset(state, -3);
             }
@@ -2495,7 +2515,12 @@ namespace foundation::script
         : m_manager(Move(manager))
     {
         m_state = luaL_newstate();
+        lua_setuserdatadtor(m_state, kVariantTag, DestroyVariantUserdata);
         luaL_openlibs(m_state); // Luau's sandboxed stdlib (no io, os or loadstring)
+        // newproxy makes a userdata of the script's own; the engine has no use for one, and its
+        // only value to a script was handing an engine call something that is not a box.
+        lua_pushnil(m_state);
+        lua_setglobal(m_state, "newproxy");
         InstallCoroutineApi();
         EmitRegisteredTypes();
         m_manager->TrackContext(this);
