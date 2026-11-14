@@ -152,6 +152,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - GUI: a selector whose `:not()`, `:is()` or `:where()` nest more than 32 deep matches nothing
   instead of overflowing the stack, and an `:nth-child()` number too large for 32 bits is invalid
   instead of wrapping to a small one.
+- GUI: a declaration whose `var()` references expand past 64 KB is left out, as a cycle is;
+  variables that each name the one before twice expanded a short sheet to megabytes.
 - Rendering (Vulkan): a frame is presented only after it is drawn. The swapchain's wait and signal
   went to whichever submit came first after the acquire, and a profiler sync point or an offscreen
   pass could take them. `Queue::SubmitFrame` names the swapchain the frame renders; code that

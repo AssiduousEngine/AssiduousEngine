@@ -96,6 +96,10 @@ export namespace foundation::gui
     /// is itself substituted. Returns false when a reference has no value and no fallback, or
     /// when references nest deep enough to mean a cycle. The declaration is then invalid, as in
     /// CSS.
+    /// The largest a substituted value may grow. Variables that each reference the next twice
+    /// double per level, so the depth limit alone let a short sheet expand to megabytes.
+    inline constexpr usize kMaxSubstitutedBytes = 64u << 10;
+
     [[nodiscard]] inline bool SubstituteVariables(core::StringView value,
                                                   const core::Function<Optional<core::String>(core::StringView)>& lookup,
                                                   core::String& out, i32 depth = 0)
@@ -110,6 +114,8 @@ export namespace foundation::gui
                                (i == 0 || !IsIdentChar(value[i - 1]));
             if (!atVar)
             {
+                if (out.Size() >= kMaxSubstitutedBytes)
+                    return false;
                 out.PushBack(value[i]);
                 ++i;
                 continue;
@@ -149,6 +155,8 @@ export namespace foundation::gui
             {
                 return false;
             }
+            if (out.Size() + resolved.Size() > kMaxSubstitutedBytes)
+                return false; // the declaration is invalid, as for a cycle
             out.Append(resolved.AsView());
             i = close + 1;
         }

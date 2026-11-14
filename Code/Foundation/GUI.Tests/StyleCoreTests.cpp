@@ -172,3 +172,17 @@ TEST_CASE("style-core: the style manager gives each widget its ancestors' custom
     REQUIRE(card->GetBox().Shadows.Size() == 1u);
     CHECK(card->GetBox().Shadows[0].ShadowColor.g == doctest::Approx(1.0f));
 }
+
+TEST_CASE("style-core: a var() that expands past the size cap leaves its declaration out")
+{
+    // Each variable naming the one before twice doubles per level: within the depth limit a short
+    // sheet expanded to megabytes.
+    core::String css(SV(u8"box { --a0: xxxxxxxx; "));
+    for (int i = 1; i <= 13; ++i)
+        css.Append(core::Format(u8"--a{}: var(--a{}) var(--a{}); ", i, i - 1, i - 1).AsView());
+    css.Append(SV(u8"font-family: var(--a13); }"));
+    auto w = Widget(u8"box");
+    CHECK_FALSE(CSSParser::Parse(css.AsView()).Resolve(*w.Get()).Has(SV(u8"font-family"))); // 73 KB, past 64 KB
+    const StyleSheet small = CSSParser::Parse(SV(u8"box { --a0: serif; --a1: var(--a0) var(--a0); font-family: var(--a1); }"));
+    CHECK(small.Resolve(*w.Get()).Has(SV(u8"font-family")));
+}
