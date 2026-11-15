@@ -325,6 +325,45 @@ TEST_CASE("orientation: WebGPU matches Vulkan at every stage, cube on top, plane
 // particle rings. Pinned through the buffer's upload counter: an untouched ring never uploads, a
 // written ring uploads exactly its window once per frame, and an unchanged re-write is skipped by
 // the ranged compare.
+TEST_CASE("rings: MakeRoom grows a ring nothing has written this frame, and only then")
+{
+    rhi::Backend* webgpu = nullptr;
+    (void)rhi::webgpu::CreateBackend(rhi::webgpu::WebGpuBackendDesc{}, webgpu, DefaultAllocator());
+    rhi::Device* device = webgpu != nullptr ? testsupport::MakeTestDevice(webgpu) : nullptr;
+    if (device == nullptr)
+    {
+        MESSAGE("WebGPU unavailable - ring growth probe skipped");
+        if (webgpu != nullptr)
+        {
+            webgpu->Destroy();
+        }
+        return;
+    }
+    {
+        // Sized for 13 a frame, as a renderer's ring starts out; the frame then needs 746.
+        DynamicUniformRing ring(*device, 2, 64, rhi::BufferUsage::Vertex | rhi::BufferUsage::CopyDst,
+                                u8"probe.grow");
+        REQUIRE(ring.Reserve(13));
+        ring.BeginFrame(1);
+        CHECK(ring.MakeRoom(10));       // fits as it is
+        CHECK(ring.SlotsPerFrame() == 13u);
+        CHECK(ring.MakeRoom(746));      // grows: nothing written yet
+        CHECK(ring.SlotsPerFrame() >= 746u);
+        DynamicUniformRing::Range r = ring.AllocateRange(746);
+        REQUIRE(r.ok);
+        // The second frame region's first slot: the region moved with the growth.
+        CHECK(r.slotIndex == ring.SlotsPerFrame());
+        MemSet(r.ptr, 0x5a, 746 * 64);
+        // Written now: no growth mid-frame, the need waits for the next frame.
+        CHECK_FALSE(ring.MakeRoom(ring.SlotsPerFrame()));
+        ring.EndFrame();
+        CHECK(!device->IsLost());
+    }
+    device->WaitIdle();
+    device->Destroy();
+    webgpu->Destroy();
+}
+
 TEST_CASE("rings: an untouched DynamicUniformRing never flushes; a used one flushes its window")
 {
     rhi::Backend* webgpu = nullptr;

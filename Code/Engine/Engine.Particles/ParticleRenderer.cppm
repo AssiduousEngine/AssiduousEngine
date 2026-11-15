@@ -244,8 +244,8 @@ export namespace engine::particles
             // frame (the cursor only resets at EndFrame). So size by the sum of instances across
             // all systems in a frame (m_maxInstancesSeen, accumulated in Resolve, finalized in
             // FinishFrame), not the largest single system, or later systems in the sorted draw list
-            // fail to allocate and vanish. Rounded up in 8k chunks; it ramps for one frame during
-            // growth, then holds (the ring cannot grow mid-frame).
+            // fail to allocate and vanish. Rounded up in 8k chunks. A frame that needs more than
+            // this grows the ring before its first write (Resolve's MakeRoom).
             const u32 chunk = 8192u;
             const u32 want = Max(maxDraws, ((m_maxInstancesSeen + chunk - 1u) / chunk) * chunk);
             m_instanceRing.Reserve(want == 0 ? 1u : want);
@@ -315,6 +315,28 @@ export namespace engine::particles
             if (depthBg == nullptr)
             {
                 return;
+            }
+
+            // Room for this view's instances and trail vertices before the first write: the rings
+            // are sized from earlier frames, so the frame a scene first shows (or grows) its
+            // particles would otherwise lose them while the rings catch up. Only a ring nothing
+            // has written this frame can grow (a second view's need waits for the next frame).
+            {
+                u32 instances = 0;
+                u32 trailVerts = 0;
+                for (const render::DrawItem& item : items)
+                {
+                    const auto* b = static_cast<const ParticleRenderDataBase*>(item.data);
+                    if (b->particleKind == 1)
+                        trailVerts += Min(static_cast<const ParticleTrailRenderData*>(b)->vertexCount, kTrailMaxIndices);
+                    else
+                        instances += static_cast<const ParticleBillboardRenderData*>(b)->count;
+                }
+                const u32 chunk = 8192u;
+                if (instances > 0)
+                    (void)m_instanceRing.MakeRoom(((instances + chunk - 1u) / chunk) * chunk);
+                if (trailVerts > 0)
+                    (void)m_trailRing.MakeRoom(((trailVerts + chunk - 1u) / chunk) * chunk);
             }
 
             // Walk the items; dispatch each by kind (both ride the particle rendererId). Trails draw one at

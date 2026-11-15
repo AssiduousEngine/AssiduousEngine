@@ -432,7 +432,8 @@ export namespace foundation::render
         // in a scene that uses none of the skinning, terrain, sprite or particle rings.
         void BeginFrame(u32 frameIndex)
         {
-            m_frameBase = static_cast<u32>(frameIndex % m_framesInFlight) * m_slotsPerFrame;
+            m_frameSlot = static_cast<u32>(frameIndex % m_framesInFlight);
+            m_frameBase = m_frameSlot * m_slotsPerFrame;
             m_cursor = 0;
             m_mapped = nullptr;
             m_inFrame = true;
@@ -483,6 +484,24 @@ export namespace foundation::render
         }
 
         [[nodiscard]] Range Allocate() { return AllocateRange(1); }
+
+        // Room for `count` more slots this frame: true when this frame's region has them, after
+        // growing every region to `count` (Reserve) when nothing has been written this frame yet.
+        // An owner that knows a frame's need before its first write asks here, so the frame that
+        // first needs more is drawn whole rather than dropped while the ring catches up.
+        [[nodiscard]] bool MakeRoom(u32 count)
+        {
+            if (m_buffer != nullptr && m_cursor + count <= m_slotsPerFrame)
+            {
+                return true;
+            }
+            if (!m_inFrame || m_cursor != 0 || m_mapped != nullptr || !Reserve(count))
+            {
+                return false;
+            }
+            m_frameBase = m_frameSlot * m_slotsPerFrame;
+            return true;
+        }
 
         // End a frame: flush exactly the slots this frame wrote (a no-op on a coherent
         // mapping; the emulated one uploads that window and nothing else), then unmap.
@@ -539,6 +558,7 @@ export namespace foundation::render
         u32 m_framesInFlight;
         u64 m_slotSize;
         u32 m_slotsPerFrame = 0;
+        u32 m_frameSlot = 0; // this frame's region (frameIndex % framesInFlight)
         u32 m_frameBase = 0;
         u32 m_cursor = 0;
         u32 m_generation = 0;
