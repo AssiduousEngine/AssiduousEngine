@@ -1,7 +1,7 @@
 # GUI - foundation.gui, the retained-mode GUI
 
 > Status: CURRENT
-> Verified: 2026-10-23 (the move out of Experimental)
+> Verified: 2026-11-15 @ c18ee48f5
 > Track: [[gui-port]]
 
 `foundation.gui` is a retained-mode GUI built on the engine's own stack (VG for drawing, Fonts for
@@ -24,10 +24,16 @@ the editor are on it, and Engine.UI is gone (Archive/engine-ui-removal-history.m
   documents and sheets). Each has a `.Tests` suite beside it; `GUI.Fuzz.Tests` fuzzes the parsers.
 - `Code/Pipeline/GUI.Pipeline` (`gui.pipeline`): `.xml` documents and `.css` sheets as validated,
   linked-source assets.
-- `Code/Engine/Engine.GUI` (`engine.gui`): the engine's GUI (screen and scene tiers, components,
-  the resource provider by guid, the overlays, the script surface); `Code/Editor/Editor.GUI`: the
-  editor's pages for the assets.
-- `Code/Samples/GUISandbox`: the sandbox, a page per area, and the game menu showcase;
+- `Code/Engine/Engine.GUI` (`engine.gui`): the engine's GUI (`GuiSubsystem`: screen and scene
+  tiers, the components `gui.Canvas`, `gui.Billboard` and `gui.WorldPanel`, the resource provider
+  by guid (`GuiResourceProvider`), the overlays, the script surface). With run screens on (the
+  editor), each run has a screen tier of its own, the `gui` root of that run's scripts. The
+  subsystem tells the action layer what input the GUI took (`SetConsumptionMask`), draws the
+  touch controls (`GuiTouchGuide`), and reports a back button nothing used (`BackUnhandled`) for
+  the host to hand to the platform. The player keeps the screens inside the window's safe area
+  (`IWindow::SafeArea`). `Code/Editor/Editor.GUI`: the editor's pages for the assets.
+- `Code/Samples/GUISandbox`: the sandbox, a page per area, and the game menu showcase
+  (`Data/Samples/UI/showcase`);
   `Code/Integration/Integration.GuiScript`: the script backends driving all of it.
 
 ## The design record
@@ -36,4 +42,5 @@ The design and its rulings are in the specs, in order: `Archive/vg-and-gui-lab-h
 `Archive/gui-lab-evolution-history.md`, `Archive/gui-lab-evolution-2-history.md` and `Archive/gui-lab-evolution-3-history.md`
 (section E: the engine's GUI, the move out of Experimental and what follows). They name the code
 by its paths and modules at the time (`Code/Experimental`, `experimental.gui`). The early eepp
-analysis is in `Documentation/Archive/gui-port-design-history.md`.
+analysis is in `Documentation/Archive/gui-port-design-history.md`; the move of the sample games
+onto it is in `Archive/sample-gui-ports-history.md`.

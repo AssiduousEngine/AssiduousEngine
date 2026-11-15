@@ -3,6 +3,7 @@
 > Status: SHIPPED 2026-09-15. Replaces every compile-time path (`BUILTIN_*`, `SAMPLE_*_DIR`,
 > `TEST_*` defines), every `"Shaders"`-beside-the-exe fallback, and the per-app font path
 > presets. There is exactly one mechanism; the Beef port (Sedulous) ports this one.
+> Verified: 2026-11-15 @ c18ee48f5
 
 ## The layout
 
@@ -12,24 +13,28 @@ executable needs at runtime that is not a project asset lives under it, at fixed
     Data/.dataroot                         the marker (foundation.vfs kDataRootMarker)
     Data/Engine/Shaders/*.hlsl, *.hlsli    the engine shader corpus (dev: compiled on demand)
     Data/Engine/Shaders/shaders.dpak       the cooked pack (dist/web: no compiler)
+    Data/Engine/Shaders/.pack-first        an editor dist's marker: start from the pack, sources beside it
     Data/Engine/Fonts/roboto               the GUI's built-in default font
     Data/Editor/...                        the editor's pages, sheets, icons, fonts (Fonts) and code
                                            languages (Code)
     Data/Branding                          the engine's logo, splash and window icons
     Data/Templates                         what a new project starts with (its sky)
+    Data/ModelViewer                       the model viewer's pages, sheet and icons
     Data/Samples/...                       the code samples' content, by kind (Models, Environment,
-                                           Audio, Images, Shaders, UI, Fonts)
+                                           Audio, Images, Shaders, UI, Fonts, RHI)
     Data/Tests/...                         test fixtures and the files only tests read
     Data/SampleProjects/<Project>          the sample games (projects, opened like any other)
     Data/Output/<Sample>                   per-sample cooked-output databases (written, not shipped)
 
 The folders say who reads them (Archive/data-layout-history.md): an editor distribution copies Engine,
-Editor (less its design mock), Branding and Templates whole; an exported game stages only its
-shader pack; Samples, Tests, SampleProjects and Output ship nowhere.
+Editor (less its design mock), Branding and Templates whole (`scripts/build-editor-dist.sh`), the
+model viewer's distribution ModelViewer; an exported desktop or web game stages only its shader pack,
+and an Android app the pack and the rest of `Engine` (its fonts); Samples, Tests, SampleProjects and
+Output ship nowhere.
 
 The source tree's `Data/` IS a data root. A shipped dist stages one beside the player (see below).
 The paths under it are spelled in exactly one place each: `foundation.shaders.system` exports
-`kShaderFolder` / `kShaderPackFile` / `kShaderPackPath` ("Engine/Shaders/shaders.dpak"); the GUI's
+`kShaderFolder` ("Engine/Shaders") / `kShaderPackFile` / `kShaderPackPath` ("Engine/Shaders/shaders.dpak"); the GUI's
 default font is the one constant in `GuiSubsystem::OnInit` (`kDefaultFont`).
 
 ## Discovery (`foundation.vfs`, `DataRoot.cppm`)
@@ -56,16 +61,18 @@ below it knows where the root is - only what it reads relative to it:
   `DataRoot()` / `DataFileSystem()`, and hands the mount to `RenderSubsystem`, `GuiSubsystem`
   (constructor arguments). Missing root: error + `host.RequestExit(1)`; the mount still points at
   `<exeDir>/Data` so every miss on the way out names the place a dist would need. The
-  application host now honors an exit requested during `Configure`/`OnStartup` (it used to be
-  overwritten when `Start` completed).
+  application host honors an exit requested during `Configure`/`OnStartup`. A host whose engine
+  data is not a folder hands the mount itself to `SetDataFileSystem` instead, and no root is
+  resolved (`DataRoot()` stays empty): the Android player mounts its APK's `assets/Data` in place.
 - `Tools.Editor` main: `ResolveDataRoot(argc, argv)` or exit 1; `EditorAppConfig::dataRoot`
-  feeds the editor's own mount (the `UIHost`'s VG shaders), the fonts, the baseline assets seeded
-  into new projects, the embedded runtime (`SetDataRoot`, no re-walk), and the export.
+  feeds the editor's window (its GUI's files and fonts under `Editor/`), the baseline assets seeded
+  into new projects (the default font, the `Templates/` sky), the embedded runtime (`SetDataRoot`,
+  no re-walk), the export and the MCP host.
 - `Tools.Export` / `Tools.Mcp`: `ResolveDataRoot(argc, argv)` for the export's shader cook
   (`ExportOne` / `ExportAll` take `dataRoot`; `RegisterProjectExportTool` too).
 - `SampleApp::Run` (RHI samples): resolves from argv, exposes `DataRoot()` / `DataFileSystem()`
   / `DataPath(relative)`. `DefaultApplication` samples use the base class's; bare `IApplication`
-  samples (`UISandbox`, `InputActions`, no argv) call `FindDataRoot()` themselves.
+  samples (`GUISandbox`, `InputActions`, no argv) call `FindDataRoot()` themselves.
 - Tests: `FindDataRoot()` from the test binary (under `Bin/`) finds the repo's `Data/`;
   `foundation.rhi.testsupport` exports `DataRoot()` / `DataFileSystem()` / `DataPath()` for the
   GPU probe tests; other tests keep a two-line static fixture.
@@ -73,11 +80,13 @@ below it knows where the root is - only what it reads relative to it:
 Consumers take `vfs::IFileSystem&` (the data mount), never a path:
 
 - `ShaderSystemHost::Initialize(device, dataFileSystem, policy)`: dev mode when a compiler
-  exists and `Shaders/` holds stage sources (`.hlsl`/`.hlsli` - a `FileShaderSourceProvider`
+  exists and `Engine/Shaders/` holds stage sources (`.hlsl`/`.hlsli` - a `FileShaderSourceProvider`
   over the mount, hot reload through the mount's change source), else the cooked
-  `Shaders/shaders.dpak` read through the mount. The folder alone is not "sources": a dist
-  stages only the pack under it, and an editor dist ships DXC too (2026-09-21 fix). No
-  executable-dir or cwd probing for the pack any more.
+  `Engine/Shaders/shaders.dpak` read through the mount. The folder alone is not "sources": a dist
+  stages only the pack under it, and an editor dist ships DXC too. An editor dist, which ships both,
+  marks itself with `Engine/Shaders/.pack-first` (or `OPTION_USE_SHADER_PACK` asks) to start from
+  the pack, its sources still resolving a project's custom shaders' includes. No executable-dir or
+  cwd probing for the pack.
 - `FileShaderSourceProvider::Initialize(fileSystem, folder)` is also the compiler's
   `IShaderIncludeResolver`: `#include`s resolve through the same mount (a custom DXC include
   handler in `foundation.shaders`; `CompileOptions::includeResolver` replaces the native `-I`
@@ -86,18 +95,21 @@ Consumers take `vfs::IFileSystem&` (the data mount), never a path:
 - `GuiSubsystem`: the built-in default font read from
   `Engine/Fonts/roboto/Roboto-Regular.ttf` (bytes -> `LoadFontFromMemory`); a dist without it
   logs once and relies on the project's cooked default font, as before.
-- `ImguiSubsystem(device, framesInFlight, dataFileSystem)`, `UIHost(..., dataFileSystem)`.
+- `ImguiSubsystem(device, framesInFlight, dataFileSystem)` (the Imgui plugin).
 
 ## Shipped layouts
 
-- Desktop dist (`StageShaderPack` in `Editor.Core` export): `<out>/Engine.Player`, sidecars,
+- Desktop dist (`StageShaderPack` in `Editor.Project`'s export): `<out>/Engine.Player`, sidecars,
   `Content.pak`, `player.xml`, `Data/.dataroot`, `Data/Engine/Shaders/shaders.dpak` (cooked from
-  `<dataRoot>/Shaders` for the preset's platform). `FindDataRoot()` from the player's directory
+  `<dataRoot>/Engine/Shaders` for the preset's platform). `FindDataRoot()` from the player's directory
   finds `<out>/Data`.
 - Web dist: the same tree in the serving folder. `WebMain` fetches `Data/.dataroot` and
   `Data/Engine/Shaders/shaders.dpak` into MEMFS (after `player.xml` / the content pak), so the walk
   from `/` finds `/Data`. The sample web builds (`WebScene`, `TerrainPlayground`) preload the
-  repo's `Data/.dataroot` + the cooked pack at the same paths.
+  repo's `Data/.dataroot`, the cooked pack and the built-in font at the same paths.
+- Android app: the data tree is `assets/Data` inside the APK (the dist's `.dataroot` and shader
+  pack, plus `Engine/Fonts`), and `AndroidMain` hands the player a zip mount over it
+  (`SetDataFileSystem`), read in place with no discovery walk.
 
 ## Rules
 

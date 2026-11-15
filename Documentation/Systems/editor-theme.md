@@ -1,7 +1,7 @@
 # The editor's theme: the token reference
 
 > Status: CURRENT
-> Verified: 2026-10-28
+> Verified: 2026-11-15 @ c18ee48f5
 
 The editor's look is written in one place: its sheet, `Data/Editor/editor.css`, over
 `Data/Editor/tokens.css` and one of the density sheets (`Data/Editor/density-*.css`). Every rule in
@@ -15,7 +15,10 @@ page does not name, so the two stay in step.
 
 ## How the sheet is put together
 
-The editor builds its sheet in this order, so a later part wins over an earlier one:
+Beneath it, as the user-agent sheet, are the GUI's own sheets: the widgets' default theme, then
+the docking, toolkit, code editor and profiler libraries' sheets, all reading the layer 3 tokens.
+The editor builds its own sheet (`EditorWindow::SheetFor`) in this order, so a later part wins
+over an earlier one:
 
 1. `editor.css`, which imports `tokens.css` (which imports the Compact density).
 2. The chosen density's sheet (Preferences > Density: Compact, Default or Comfortable).
@@ -24,6 +27,9 @@ The editor builds its sheet in this order, so a later part wins over an earlier 
 
 The scheme (Preferences > Theme: Dark or Light) and less motion (Preferences > Motion: Reduce
 motion) go through the GUI's media queries, `prefers-color-scheme` and `prefers-reduced-motion`.
+Preferences > UI scale (0.5 to 2) scales the whole interface through the GUI host, not through a
+token. The editor also applies the sheet again when one of its own files under `Data/Editor`
+changes on disk.
 
 ## Overriding the theme
 

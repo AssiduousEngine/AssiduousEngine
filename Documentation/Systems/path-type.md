@@ -1,35 +1,45 @@
 # Source Path type
 
 > Status: CURRENT
-> Verified: 2026-08-12 @ 89516efc
+> Verified: 2026-11-15 @ c18ee48f5
 > Track: [[path-type-plan]]
 
 `SourcePath` is a mount-relative logical path value type for source references in asset data - normalized,
-relative, forward-slash, wire-compatible with the `String` it replaced. The type (P1) and its adoption
-as the single asset path reference (P2) shipped; the generic inspector picker (P3) and the check-assets
-lint (P4) are not built.
+relative, forward-slash, wire-compatible with the `String` it replaced. The type, its adoption as the
+single asset path reference, and its row on the reflected asset pages shipped; the check-assets lint
+is not built.
 
 ## `SourcePath` (`foundation.vfs`)
 
-`foundation.vfs`'s `SourcePath` (`VFS/SourcePath.cppm`; the vfs owns the mount concept). Not a general
-OS path - no volumes, no macros, no absolute form. One guarantee: whatever you construct it from, the
-stored form is forward-slash, relative, and dot-segment-free. Construction from a `StringView` normalizes
-`\` -> `/`, collapses duplicate slashes and `./`, and REJECTS (empty + logged) absolute paths, `..`
-escapes, and volume/scheme prefixes. Accessors: `View()`, `Extension()` (lowercased, no dot),
-`FileName()`, `Stem()`, `Directory()`. `==`/`<` are case-SENSITIVE everywhere (one rule, all platforms).
-Serialization writes/reads the stored string - the SAME wire shape as `String`, so existing
-`.xasset`/`.rasset` data loads unchanged with no version bump, and Windows-authored backslash paths
-silently heal on load (the bug this exists to kill).
+`foundation.vfs`'s `SourcePath` (`VFS/SourcePath.cppm`, the `:source_path` partition; the vfs owns the
+mount concept). Not a general OS path - no volumes, no macros, no absolute form. One guarantee:
+whatever you construct it from, the stored form is forward-slash, relative, and dot-segment-free.
+Construction from a `StringView` normalizes `\` -> `/`, collapses duplicate slashes and `./`, and
+turns absolute paths, `..` escapes and volume/scheme prefixes into the EMPTY path (a missing
+reference, never a wrong one); `SourcePath::Normalize` is the same contract standalone, for
+importers producing paths. Accessors: `View()`, `IsEmpty()`, `Extension()` (lowercased, no dot),
+`FileName()`, `Stem()`, `Directory()`. `==`/`<` are case-SENSITIVE everywhere (one rule, all
+platforms). Serialization writes/reads the stored string - the SAME wire shape as `String`, so
+existing `.xasset`/`.rasset` data loads unchanged with no version bump, and Windows-authored
+backslash paths silently heal on load (the bug this exists to kill). It is reflected as a value
+type (`REFLECT_VALUE`, `VFSReflectionImpl.cpp`) whose surface is its read accessors, since the
+stored string is private.
 
 ## Adoption
 
 `Asset::fileName` (the editor asset base, `Pipeline.Core/Asset.cppm`) IS a `SourcePath`, inherited by
 every asset type (font/image/texture/mesh/animation/material/physics/audio/script/shader/UI/inputmap/
-particle...). Builders read it through the VFS sources mount (mount-based resolution, not CWD-based).
-Editor pages that pick a source file use `PathPickerDialog` (`Editor.App`) - the AssetPickerDialog's
-sibling for SOURCE files, a modal picker over the sources mount with an extension filter, producing
-mount-relative paths by construction (so the absolute-path hole a generic OS browse would have cannot
-happen). The Font/Texture/Script/Audio pages wire it directly.
+particle...) and reflected on the base as "Source File". Builders read it through the VFS sources
+mount (`AssetBuildContext::sources`: mount-based resolution, not CWD-based), and a build's extra
+dependency files are `SourcePath`s too.
+
+On the reflected asset pages (`AssetObjectPage`, `Editor.App`) a `SourcePath` field is recognized by
+its type hint and shown by `SourcePathEditor`: the path as the asset names it, read-only (a typo would
+cook a dangling reference). A page that declares the extensions its source may have
+(`SourceExtensions()`, today the font page) also gets a Browse button, which opens the path picker
+(`PathPicker`, `Editor.App/PathPickerDialog.cppm`) over the project's sources root filtered by those
+extensions, producing root-relative paths by construction (so the absolute-path hole a generic OS
+browse would have cannot happen).
 
 ## Deliberate non-goals
 
@@ -40,11 +50,10 @@ comparison anywhere.
 
 ## Deferred
 
-- **P3 - generic inspector integration.** The reflected asset inspector does NOT yet recognize a
-  `SourcePath`-typed field and auto-render a read-only value + Browse row; editor pages hand-wire
-  `PathPickerDialog` today. This rides the reflection track (field attributes want reflection metadata,
-  e.g. `extensions=.ttf,.otf`).
-- **P4 - check-assets lint.** A "Check Assets" editor action / cook-time warning (every Asset-derived
+- **Extensions from reflection metadata.** The allowed extensions come from the page
+  (`SourceExtensions()`), not from a field attribute (e.g. `extensions=.ttf,.otf`), so a page without
+  an override shows the path with no Browse.
+- **Check-assets lint.** A "Check Assets" editor action / cook-time warning (every Asset-derived
   instance's `fileName` + dependency files present in the sources mount) is not built.
 
 ---

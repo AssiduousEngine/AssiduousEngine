@@ -1,7 +1,7 @@
 # Shaders, Materials & Hot Reload
 
 > Status: CURRENT
-> Verified: 2026-08-12 @ fd25f6de
+> Verified: 2026-11-15 @ c18ee48f5
 > Track: [[renderer-direction]] / [[shaders-track]]
 
 Edit an `.hlsl` shading body, a material asset, or a texture on disk and see it next frame - without
@@ -36,18 +36,24 @@ downstream is resource->resource propagation.
   depth and pick programs a material on it uses.
 - **`foundation.materials`** - the data-driven material core: `PipelineConfig`, `MaterialBuilder`,
   `MaterialInstance`, the bind-group-inferring `MaterialSystem`.
-- **`foundation.materials.pipelinecache`** - the PSO cache (the lone render-side standalone piece).
+- **`foundation.materials.pipelinecache`** - the PSO cache, `PipelineStateCache` (the lone
+  render-side standalone piece).
 - **`foundation.materials.resource`** - `MaterialResource` (`MaterialSource` -> `MaterialFactory` ->
-  `Material`), which Binds its `ShaderResource` by id and so records the material->shader edge.
+  `Material`), which Binds its `ShaderResource` by id and so records the material->shader edge. A
+  material also carries one effect group per effect its shader's vertex stage declares (the `Wind`
+  group today, `MaterialSource` data version 4), laid out from the shader system's effect tables
+  (`shaders.md`, Effect blocks).
 - **`materials.pipeline`** - the material asset cook.
 
 ## The two reload paths (the crux)
 
 A PSO bakes in shader-variant x material-render-state x vertex-layout x pass-RT-signature - render-state
 and RT are not shader properties, so the PSO cannot live in `ShaderResource`. The renderer owns a
-version-stamped cache keyed `(shaderId, featureFlags, renderState, vertexLayout, rtSignature)`; on fetch,
-if `entry.version == shader.Version()` it returns, else it rebuilds from the current modules and
-defer-destroys the old. Two INDEPENDENT paths meet at the per-frame draw:
+version-stamped cache keyed by the whole `PipelineConfig` (shader name, flags, vertex layout, render
+state, target formats) plus the pipeline layout; on fetch (`GetPipeline`), if the entry's built
+version equals the `ShaderSystem`'s current version of that shader it returns, else it rebuilds from
+the current modules and retires the old (`TickRetired` frees it once the frames in flight have
+passed). A failed build is kept, not retried every draw, until the shader's version changes. Two INDEPENDENT paths meet at the per-frame draw:
 
 | Path | Trigger | Rebuilds | Material's role |
 |---|---|---|---|

@@ -1,13 +1,16 @@
 # Skinning Benchmark & Baseline
 
 > Status: CURRENT
-> Verified: 2026-08-12 @ 7e4ebae7
+> Verified: 2026-11-15 @ c18ee48f5
 >
 > Since 2026-10-29 (shader-blocks-cleanup phase 3) the per-instance stream called `DataOffsets`
 > below is `drawOffsets` in the forward and depth passes (`render::GpuDrawOffsets`: instance index,
 > bone base, last frame's bone base, fade) and `pickOffsets` in the pick pass
 > (`render::GpuPickDrawOffsets`: instance index, bone base, entity generation, entity index + 1).
 > Track: [[skinning-baseline]] / [[instanced-mesh]]
+
+The numbers below are the measurements as taken; the code has moved on since (see the notes in
+Running and the header above).
 
 `Code/Samples/AnimStressTest` is the skeletal-animation throughput benchmark - a port of
 Sedulous's `EngineAnimationSandbox`. It spawns a grid of the Quaternius `Char` humanoid; every
@@ -21,22 +24,25 @@ Flax/Sedulous persistent-shared-bone-buffer + instanced-skinning rewrite.
 
 ```
 # Debug (validation ON - correctness, not throughput)
-cmake --build build/clang --target AnimStressTest
-./build/clang/Code/Samples/AnimStressTest/AnimStressTest
+cmake --build build/clang -j4 --target AnimStressTest
+./Bin/Debug/Linux64-Clang/AnimStressTest
 
 # Release (RelWithDebInfo, validation OFF - true perf)
-cmake --build build/relwithdebinfo --target AnimStressTest
-./build/relwithdebinfo/Code/Samples/AnimStressTest/AnimStressTest
+cmake --build build/clang-reldbg -j4 --target AnimStressTest
+./Bin/RelWithDebInfo/Linux64-Clang/AnimStressTest
 ```
 
-Controls: **Space** = +25 characters, **Backspace** = −25 (camera auto-reframes to keep the whole
-grid in view), **WASD/QE + RMB** fly, **P** = profiler dump (CPU scope tree incl. `Anim.Drive`, plus
-GPU pass timings), **Esc** = exit. vsync is OFF (`PresentMode::Immediate`) so the frame time is real
-CPU+GPU work, not the display refresh.
+Controls: **Space** = +25 characters (`kBatchSize`), **Backspace** = -25 (camera auto-reframes to keep
+the whole grid in view), **WASD/QE + RMB** fly, **H** = toggle the HUD, **I** = toggle sharing instance
+data between the depth prepass and the forward pass (an A/B), **P** = profiler dump (CPU scope tree,
+plus GPU pass timings), **Esc** = exit. vsync is OFF (`PresentMode::Immediate`) so the frame time is
+real CPU+GPU work, not the display refresh. The per-character animation cost the tables below call
+`Anim.Drive` (a scope the sample used to open) is now the engine's `Animation.Skeletal` scope.
 
 `kAutoRamp` (a `static constexpr bool` in `main.cpp`, **false** by default) is a measurement aid: flip
-it to `true` for a headless run that ramps the character count until FPS ≤ 50, prints the threshold,
-and exits. The backend prints `[Vulkan] validation layers: ENABLED/DISABLED` at startup so a perf run
+it to `true` for a headless run that ramps the character count until FPS <= 50, prints the threshold,
+and exits. `kAutoProfile` (also false by default) holds 1,000 characters, dumps the CPU and GPU
+profiler breakdown and exits. The backend prints `[Vulkan] validation layers: ENABLED/DISABLED` at startup so a perf run
 can confirm validation is off.
 
 ## BEFORE baseline - current non-instanced skinning (captured 2026-06-29)
@@ -130,8 +136,8 @@ point-cube shadows cost ~0.1 ms. The real GPU cost is the **4-cascade CSM**, whi
 character's depth four times (a char-scaled cost). So beyond the CPU frontiers, fewer cascades / tighter
 per-cascade caster culling is the GPU lever - not lighting.
 
-Prev-frame bone matrices are stored + flowed (`DataOffsets.z`) but not yet consumed by a velocity
-target; when a motion-vector pass lands it's a shader-only change.
+Prev-frame bone matrices are stored + flowed (`DataOffsets.z`, now `drawOffsets.z`, the previous
+bone base) and the forward pass consumes them for skinned motion vectors.
 
 ## Limitations this benchmark exposed
 

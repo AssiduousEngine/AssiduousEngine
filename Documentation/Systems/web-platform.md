@@ -1,7 +1,7 @@
 # Web platform - Emscripten + WebGPU
 
 > Status: CURRENT
-> Verified: 2026-08-12 @ 12114827
+> Verified: 2026-11-15 @ c18ee48f5
 > Track: [[web-platform-track]]
 
 The engine runs in the browser on WebGPU: a WebGPU RHI backend, an Emscripten web runner, single-
@@ -33,9 +33,17 @@ subset, WebGPU texture-format conventions, no bind group past set 3 = WebGPU's 4
 
 `foundation.rhi.webgpu` (the backend), `foundation.runtime.web` (the web runner), `foundation.shell.web`
 (the web shell), and the Web player entry (`Engine.Player/WebMain.cpp`). Web export ships the wasm + js +
-html shell + `Content.pak` + the WGSL `Data/Engine/Shaders/shaders.dpak` (+ `Data/.dataroot`) through the
-standard export path (the "Web" export template - see `Documentation/Systems/export.md`); the web
-player fetches the `Data/` tree into MEMFS so the one data-root discovery finds it at `/Data`.
+html shell + `serve.py` + two content paks + `player.xml` + the WGSL `Data/Engine/Shaders/shaders.dpak`
+(+ `Data/.dataroot`) through the standard export path (the "Web" export template - see
+`Documentation/Systems/export.md`); the web player fetches the `Data/` tree into MEMFS so the one
+data-root discovery finds it at `/Data`. The paks are `Content-bc.pak` (desktop browsers) and
+`Content-astc.pak` (mobile browsers), cooked for the `web-bc` and `web-astc` targets; at startup the
+player asks the adapter which compressed-texture family it reads and fetches that pak as
+`Content.pak` (a dist with a single `Content.pak` still loads). Two templates are built
+(`scripts/build-export-templates.sh web`): `web-release` from the `wasm-shipping` preset (the
+smallest, no profiler; the one each release publishes) and `web-profile` from `wasm-release`, with the
+profiler and its overlay compiled in (`?profile-overlay` in the page's address shows the overlay from
+the start; F3 toggles it).
 
 ## Saves and settings
 
@@ -53,10 +61,16 @@ export) serves the folder; `python3 serve.py 8443 --https` serves it over HTTPS 
 certificate, so a phone or another computer on the network can open it by address after accepting
 the certificate once. Plain HTTP from another machine loads the page without WebGPU.
 
+## Networking
+
+A browser cannot open UDP, so a web game joins over WebSocket: `foundation.net.websocket`'s client
+socket is the browser's WebSocket in a web build, and a desktop host accepts browser peers beside its
+UDP ones through `WebSocketHybridSocket` (`ws://`, or `wss://` with a TLS backend and certificate).
+Both are `IDatagramSocket`s, so the session, reliability and replication layers run unchanged. A web
+build joins and does not host (`NetworkManager::CanHost`, `Net.canHost` to scripts, is false there).
+
 ## Deferred (none block a playing game)
 
 - **wasm pthreads + SharedArrayBuffer** opt-in (hosting-header-gated).
-- **Networking on web**: no UDP in the browser - a WebSocket (later WebRTC) transport behind the
-  existing `INetTransport` seam; desktop keeps reliable-UDP.
+- **Hosting from a browser.**
 - **Script-debugger remote transport, native file dialogs, Memory64.**
-- **`GenerateMipmaps` / `ResolveTexture`** RHI ops (Blit is copy-when-extents/formats-match today).

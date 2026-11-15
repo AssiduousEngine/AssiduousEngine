@@ -1,7 +1,7 @@
 # Asset pipeline
 
 > Status: CURRENT
-> Verified: 2026-08-12 @ 9c9046f8
+> Verified: 2026-11-15 @ c18ee48f5
 > Track: [[editor-track]]
 
 Deterministic, incremental asset cooking on a typed content DB. Source assets (import settings
@@ -14,8 +14,10 @@ goes through the VFS - never the raw filesystem.
 A project opens two `ContentDatabase`s over VFS mounts:
 - **Source DB** (`Content/`, XML `.xasset`): a typed primary `Asset` object (external `fileName`
   + import settings) + named binary streams, GUID identity, a `Group` tree of `Instance`s.
-- **Cooked DB** (`Cooked/`, binary `.rasset`): the cooked runtime products.
-- `.cache/` holds the pipeline DB + thumbnails.
+- **Cooked DB** (`Cooked/`, binary `.rasset`): the cooked runtime products for the host target.
+  An export for another target cooks a sibling DB per target (`Cooked-web-bc/`, `Cooked-web-astc/`,
+  `Cooked-android/`; see Cook targets below).
+- `.cache/` holds the pipeline DB (`cook.db`, and `<target>/cook.db` per target DB) + thumbnails.
 
 `Instance` = one typed object in a `Group`; import settings persist AS the typed Asset (so a
 reimport is deterministic).
@@ -51,29 +53,45 @@ corruption/missing = full rescan (never wrong output, only wasted work).
 
     class IAssetBuilder {
         virtual const TypeInfo* AssetType() const = 0;
+        virtual const TypeInfo* ProductType() const = 0;              // stamped on the product
         virtual u32 Version() const;                                  // bump on cook-logic change
+        virtual BuildVariance Variance() const;                       // PlatformInvariant (default) or PlatformVariant
+        virtual u64 EnvironmentHash() const;                          // what it compiles against (a script cook's surface)
         virtual void ScanDependencies(const Asset&, AssetBuildContext&, AssetDependencies&);
         virtual Status Build(const Asset&, AssetBuildContext&) = 0;
     };
-    // AssetDependencies { files; reads; references; }
-    class BuilderRegistry { Register(...); Find(assetType); };  // type -> builder, modules self-describe
+    // AssetDependencies { files; sourceStreams; reads; references; }
+    class BuilderRegistry { Register(...) -> key; Unregister(key); Find(assetType); };  // type -> builder
 
 One product per source instance. Multi-product is the importer FAN-OUT pattern (a model importer
 creates many real source instances at import - the DB shows the true graph, no hidden synthesized
 outputs). Builders are GPU-free (cooked data is raw pixels/verts) so the headless CLI can run
 them. The builder set + all type/product/importer registration is assembled at ONE composition
-root, [[pipeline-registration]].
+root, [[pipeline-registration]]; a plugin's Pipeline part adds its own builders and importers to a
+host's registries (`PipelineRegistries`), and they are unregistered by key when it unloads.
 
 ## Cook driver (`pipeline.cook`)
 
-`CookDriver`: `Plan(scope) -> CookPlan` (dirty list + order, inspectable for UI), `Execute(plan,
-progress)`, plus `CookAll` / `CookInstance(guid)`. Read-deps induce a topological order;
-independent assets cook in PARALLEL on the JobSystem (a generation counter drops a job a re-edit
-superseded). A failed build keeps the last good product + marks the record failed (listed in the
-Console; rebuild retries); products are written to a temp instance and swapped (never
-half-written). An **orphan sweep** in Plan deletes cooked products whose source is gone or whose
-type lost its builder, so `Cooked/` never accumulates garbage. Builder `Version()` is manual (the
-known failure mode; Build > Rebuild All is the one-click hammer).
+`CookDriver` (`pipeline.cook`): `Plan(force) -> CookPlan` (dirty list + order, inspectable for UI),
+`PlanFor(roots, force)` (the roots plus their read and reference closure, no orphan sweep: one group
+or asset at a time, and export pruning's closure), and `Execute(plan, progress)`, which the editor
+splits into `PrepareProducts` (main thread: sweep orphans, create product instances, snapshot the
+source pointers, since the DBs are not thread-safe) and `ExecuteBuilds` (worker-safe, builds only).
+Read-deps induce a topological order; independent assets in one dependency level cook in PARALLEL on
+the JobSystem. A failed build keeps the last good product + marks the record failed (listed in the
+Console; rebuild retries; a failed record never counts as clean). An **orphan sweep** in Plan deletes
+cooked products whose source is gone or whose type lost its builder, so `Cooked/` never accumulates
+garbage. Builder `Version()` is manual (the known failure mode; Build > Rebuild All is the one-click
+hammer).
+
+**Cook targets.** A `CookTarget` (`pipeline.core`) is a capability profile: `host` (BC, the editor's
+always-warm target), `web-bc`, `web-astc` and `android` (ASTC), resolved by `CookTargetFor(id)` on
+capability, never platform. `CookDriver::SetTarget` hands it to every build
+(`AssetBuildContext::target`) and salts the recipe of `PlatformVariant` builders (textures), so the
+same source cooks to a distinct product per target. `CookForTarget` cooks a target DB with
+copy-forward: an invariant product whose recipe matches the host record is copied from the host
+`Cooked/` rather than recooked. Both `Tools.Cook --target <id>` and the export's per-platform variants
+(`export.md`) drive it.
 
 ## VFS integration (`foundation.vfs`)
 
@@ -101,22 +119,28 @@ The bridge from cooked products to live scenes:
 
 ## Surfaces
 
-- **CLI** (`Code/Tools/Cook`): the same `CookDriver`, headless (no shell/GPU), console progress,
-  exit code = failures.
+- **CLI** (`Code/Tools/Tools.Cook`): the same `CookDriver`, headless (no shell/GPU), console
+  progress, exit code = failures. `--rebuild`, `--dry-run` (print the plan), `--target <id>` (also
+  cook `Cooked-<id>/`), `--data-root <dir>`.
 - **Editor** (`EditorCookService`, `editor.project`): background-thread cook (one at a time,
   progress -> status bar + Console), per-instance cook badges (Cooked / Missing / Failed /
-  NoBuilder), a Build menu (Cook All / Rebuild All), an app-owned `ResourceManager` over the
-  cooked DB + `ResolveSceneResources` on scene open, and inspector resource-ref picker rows
-  (exact `Ref<T>` TypeInfo match, undoable). Import: `IShell::DrainDroppedFiles` (SDL3 drop
-  events) -> `ImporterRegistry` (by extension) -> copy into `Sources/` + a typed Asset (e.g.
-  `TextureFileImporter` for png/jpg/tga/bmp/hdr/dds).
+  NoBuilder), a Build menu (Cook All / Rebuild All, and Cook This Asset / Rebuild This Asset /
+  Reimport... for the open page), a per-project `ResourceManager` over the cooked DB (owned by the
+  `EditorSession`) + `ResolveSceneResources` on scene open, and resource-ref picker rows
+  (`ResourceRefEditor`, exact `Ref<T>` TypeInfo match, undoable). Besides `Sources/`, the service
+  watches `Content/` (a `ContentWatcher`): a record changed outside the editor is taken into the
+  source DB and recooked. Import: a file dropped on the window (`IShell::DrainDroppedFiles`) or
+  chosen with Import... opens the import window (`ImportDialog` over an `AssetImport` session) ->
+  `ImporterRegistry` (by extension; a chooser when several importers claim one) -> copy into
+  `Sources/` + a typed Asset (e.g. `TextureFileImporter` for png/jpg/jpeg/tga/bmp/hdr/dds).
 - **What a texture cook costs** (2026-09-23, measured through the MCP `asset_cook` tool on
   the RTHomes1 4k JPEGs): decode ~0.2 s, mips ~0.1 s, BC7 ~0.8 s, write ~0 - about 1.2 s for
   one 4k texture alone, 7 s for six together on 16 cores; it was 84 s and 506 s. Four things
   made the difference and each is a rule now: the block encoder fans its block rows out over
   the cook's job system (`AssetBuildContext::jobs`, `EncodeBlockCompressed(..., jobs)`,
   byte-identical to the inline loop) and so does the mip filter; the vendored encoders
-  (bc7enc, astcenc) and stb build at -O2 in EVERY configuration (a Debug editor cooks too);
+  (bc7enc, astcenc) and stb build at -O2 in EVERY configuration on Clang and GCC (a Debug editor
+  cooks too);
   Default compression is bc7enc's uber 0 (its own default; the mid level cost ~4x for a
   fraction of a dB) and Quality is uber 4; and `Array::Resize` grows geometrically with a
   block relocation for trivially copyable elements (the 85 MB mip chain used to reallocate
@@ -142,16 +166,21 @@ The bridge from cooked products to live scenes:
   The glTF loader prefers the `MSFT_texture_dds` image over a texture's PNG `source` and maps
   `KHR_materials_pbrSpecularGlossiness` (diffuse -> base colour, 1 - glossiness -> roughness).
   Cubemap / array / volume DDS: not yet (the cook refuses with NotSupported).
-- **Asset browser** (`AssetsView`): source-DB-backed - a `Group` tree + a filtered instance
-  grid/list with cook badges and a context menu (New / Import File / Cook / Rebuild / Rename /
-  Delete / New Group); double-click opens a page (scene) or a properties popup; instances carry a
-  Guid+type drag payload for the pickers and scene drop-to-spawn.
+- **Asset browser** (`AssetsView`, the Assets panel): source-DB-backed - a `Group` tree + the
+  group's subgroups and assets as tiles or a list, with cook badges, favourites, Always Export marks,
+  a search (by name or guid start, through the group's subtree) and a type filter, and context menus
+  (Open, Rename, Duplicate, Copy Path / GUID, Always Export, New Group..., Import..., ...); Enter or a
+  double click opens an asset's page or enters a group; a dragged selection carries its assets
+  (`AssetDrag`) to slots and scenes.
+- **Thumbnails** (`ThumbnailService`, `editor.core`): per-type generators run on the editor task
+  pool's light lane and cache to `.cache/thumbs/<guid>-<recipeHash>.png` (a stale hash is a filename
+  mismatch); the scene domain's GPU generators (mesh, material, prefab, scene, particle effect) render
+  through the preview stage.
 
 ## Deferred
 
-GPU thumbnails (offscreen render -> `.cache/thumbs/<guid>.png` keyed by recipe hash, budgeted async
-readback) and cooked per-target platform variants (one cooked DB per target - the recipe hash
-already has a platform-salt seam) are not built. See the week-2026-09-05 absorbed backlog.
+Cubemap and array DDS sources (the cook refuses them, above), an ETC2 cook target, and a platform
+event backend for the native change source (inotify / ReadDirectoryChangesW behind the same `Poll`).
 
 ---
 

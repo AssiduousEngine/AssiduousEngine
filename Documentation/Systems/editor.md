@@ -1,62 +1,116 @@
 # Editor Infrastructure
 
 > Status: CURRENT
-> Verified: 2026-08-12 @ e9c4f8d6
+> Verified: 2026-11-15 @ c18ee48f5
 > Track: [[editor-track]]
 
-The editor is built out well past the phased plan below. Shipped: the shell (`editor.app`) +
-`editor.core` (headless logic), scene pages rendering live scenes through the real renderer, per-page
-hierarchy (rename, drag-reparent, sibling reorder, world-preserving reparent), Guid-based entity
-commands with full-subtree undo, CPU-ray viewport picking, the reflection inspector (`SceneInspectorView`
-+ `SceneEditContext` merging commands, Add/Remove component from reflected managers), gizmos
-(`TransformGizmo` + `GizmoController` + component gizmos, one-undo-per-drag, W/E/R/X with camera-fly
-gating), and phase 6 - the asset browser (`AssetsView`) + the cooker (`EditorCookService`). On top of
-that: the project manager (`project-and-settings.md`), a broad set of bespoke per-asset editor pages
-(scene, mesh, skeleton, animation-clip, animation-graph, material, texture, image, particle-effect,
-collision-shape, audio-clip/sound-cue/bus-layout, input-map, UI-document, script, game), the generic
-`AssetFormPage` fallback (`editor.generic`), and background jobs (`editor-jobs.md`).
+The editor is an application on the engine's own GUI (`foundation.gui`, with `foundation.gui.docking`,
+`.toolkit`, `.hosting`, `.viewport` and `.code`); the old Engine.UI and ImGui-based editor UI are gone.
+Its libraries live under `Code/Editor/`, in layers:
 
-The design record below (the architecture, the three-editor survey, the phased plan) describes the
-system that was delivered; it is preserved for the "why".
+- **`editor.project`** (Editor.Project): the headless project half. The open project (`EditorProject`),
+  the cook service (`EditorCookService`), the Content/ watcher (`ContentWatcher`), export, the log
+  buffer (`EditorLogBuffer`), the project registry and manager, and the root allocator. Hosts
+  without an editor (Tools.Mcp, the cook and export tools) build on it.
+- **`editor.core`** (Editor.Core): `EditorContext` and its registries, `EditorCommandStack` +
+  `IEditorCommand`, the selection, `EditorPage`, the actions, the thumbnail service, the editor's
+  settings, and the task pool with its build and light lanes (`editor-jobs.md`). It re-exports
+  `editor.project`.
+- **`editor.app`** (Editor.App): the shell. `EditorApplication` keeps the lifecycle; `EditorWindow`
+  opens the GUI on the main window (the frame `Data/Editor/Shell.xml`: menu bar, `frame-dock`,
+  status bar) with the editor's sheet (`editor-theme.md`); `EditorSession` holds the open project;
+  `EditorDock` and `EditorPages` are the dock and its pages; plus the Assets and Console panels,
+  the menus, shortcuts and command palette built from the actions, Preferences, the project
+  manager, export, the MCP host, and the code pages' base (`CodeAssetPage`).
+- **Per-domain editor libraries** (`editor.scene`, `editor.play`, `editor.script`, `editor.shaders`,
+  `editor.gui`, `editor.materials`, `editor.animation`, ...), each with a `Register<Domain>Editor`
+  entry point that the executable (`Code/Tools/Tools.Editor/Main.cpp`) calls. The core and app
+  never link them.
+
+What is built on that:
+
+- **Actions** (`EditorActionRegistry`, `Context().Actions()`): one declaration per user command,
+  and every surface is built from the registry: the menu bar (`ActionMenuBar`, from each action's
+  menu path), the keys (`ActionShortcuts`), a page's bar (`PageActionBar`), the command palette
+  (`CommandPalette`), Preferences > Shortcuts, and the MCP action tools. An action takes no
+  arguments; it runs over a subject page, the active page for the menu, a chord, the palette and
+  MCP, and its own page for a page's bar. Actions are registered in the composition roots (the
+  application, and each domain's `Register<Domain>Editor`).
+- **Pages**: each open asset is a `UIEditorPage` (an `EditorPage` with a GUI node, built from its
+  markup `Data/Editor/<Page>.xml`) with its own command stack, docked as a tab in the page area.
+  There are pages for scenes and prefabs, meshes, skeletons, animation clips and graphs, materials,
+  textures, images, fonts, heightfields, terrains, vegetation masks, particle effects, collision
+  shapes, audio clips, sound cues and bus layouts, input maps, settings profiles, scripts, shaders
+  and GUI documents and sheets, with `GenericAssetEditorPage` (`editor.generic`, a form from
+  `Data/Editor/AssetForm.xml`) as the fallback. The code pages (script, shader, GUI) share
+  `CodeAssetPage` over the GUI's code editor (`code-editor.md`).
+- **The scene page** (`SceneEditorPage`, `Data/Editor/Scene.xml`): its own live scene, the hierarchy
+  (`SceneHierarchyView`), the inspector (`SceneInspectorView`, on the GUI's property grid), the
+  viewport (`SceneViewport`: a GUI `Viewport`, the `EditorCamera`, GPU picking), the HUD over it
+  (`SceneHud`: the view's chips, the stats, the view gizmo, the tool's status and panel), the bar
+  (`SceneBar`), the gizmos and the viewport tools. **Simulate** (`SceneSimulation`) runs the page's
+  scene in place: the page's scene belongs to a run of its own (`SimulationRun`), each Simulate is a
+  session of it started from a snapshot with the page's history locked, and Stop restores the
+  snapshot into the same scene.
+- **Play in editor**: the Game tab (`GameEditorPage`, `editor.play`) runs the project as the player
+  does, a fresh run of the default scene on a GUI `Viewport`, with the script debugger beside it
+  (`script-debugger.md`). Several Game tabs may run at once.
+- **Shared panels** (`EditorDock`): Project (`welcome`, the open project's home or the welcome),
+  Assets (`AssetsView`), Console (`LogView`), MCP (`McpPanel`, the agents' calls) and the Profiler
+  (`ProfilerPanel`). A floating panel opens in an OS window of its own where the GUI host can open
+  one.
+- **The MCP host** (`EditorMcpHost`): with `--mcp`, `--mcp-port <n>` or Preferences > MCP, the editor
+  serves its open project over localhost HTTP behind a token: the engine's tools (`editor.mcp`), the
+  editor's own (pages, layout, actions, windows, input such as `editor_click` and
+  `editor_screenshot`, the profiler) and what domains contribute
+  (`EditorContext::RegisterMcpToolContribution`). `Documentation/Shipping/McpGuide.md` is the manual.
+- **The project's plugins**: the project's native code is a plugin package under `Plugins/<Name>/`,
+  built from the editor and loaded by its plugin host.
+
+The design record below (the architecture, the three-editor survey, the phased plan) is how the
+editor was designed on 2026-07-11, preserved for the "why". Where the build differs, the section
+says what is there now.
 
 **Inspiration:** Traktor (gold standard - source-db + pipeline + per-type editors), Lumix (fast
 iteration - StudioApp + plugins, command-mediated live-world editing), Sedulous (our lineage - keep the
 skeleton, fix the two known weaknesses: dead plugin layer, shallow undo coverage).
 
 **North star:** a modular, data-driven editor leaning on the engine's strengths (full runtime
-reflection, the Asset->cook->Resource triad, content DB, debug-draw, `foundation.ui`) - Sedulous's
+reflection, the Asset->cook->Resource triad, content DB, debug-draw, the engine's GUI) - Sedulous's
 skeleton + Lumix's mutation discipline + Traktor's asset pipeline.
 
 ---
 
 ## 1. What the engine already has (build on, don't rebuild)
 
-- **`foundation.editor`** - the asset-cook *authoring base*: `Asset` (source object referencing an
- external file + import settings) / `IAssetBuilder` / `DefaultAssetBuilder`, `AssetBuildContext`
- (assetRoot + output `Instance` + db for cross-refs). The source→product cook seam.
+- **`pipeline.core`** (`Code/Pipeline/Pipeline.Core`) - the asset-cook *authoring base*: `Asset`
+ (source object referencing an external file + import settings) / `IAssetBuilder` /
+ `DefaultAssetBuilder`, `AssetBuildContext` (the sources mount + output `Instance` + db for
+ cross-refs). The source→product cook seam.
 - **Content DB** (`foundation.content`) - GUID identity, Group tree, `Instance` =
  `ReadObject/WriteObject` (primary `ISerializable`) + named data streams. **Pluggable
- `SerializerFactory`** (2026-07-11): `XmlSerializerFactory` (readable/diffable **source** DB) vs
- `BinarySerializerFactory` (**cooked** DB) - the Traktor source-db/output-db split, already built.
+ `SerializerFactory`** (2026-07-11): `XmlSerializerFactory()` (readable/diffable **source** DB) vs
+ `BinarySerializerFactory()` (**cooked** DB) - the Traktor source-db/output-db split, already built.
 - **Scene serialization - DONE** (memory said "pending"; it isn't): `foundation.scene.resource` has
  bidirectional `SerializeScene` (entities by GUID, parent links + component owners relinked on
  load, components serialized by their typed managers, routed by stable string type id) +
- `SceneDocument` primary; `foundation.scene.editor` has `SaveScene(scene, instance)`. The design
+ `SceneDocument` primary, and its `SaveScene(scene, instance)` mirror. The design
  comment is explicit: *"for scenes the cooked file IS the authored form"* - scenes serialize the
  **live world**. Big input to §5a.
 - **Full runtime reflection** - `PropertyInfo` (name/type/flags + Variant `get`/`set`),
  base-chain `FindProperty`, methods, enum reflection, `Variant`/`Instance`. Flags today:
  `ReadOnly` only - an attribute channel (range/color/resource-ref/category) is a small add (§3.5).
-- **UI framework + workbench layer - proven in UISandbox:** `foundation.ui` + toolkit
- `DockManager`/`DockablePanel` (persistence IDs + dock-layout save/restore tests),
- `foundation.ui.application::RuntimeDockableWindowHost` (floating panels = real borderless OS windows,
- drag-follow Tick). (Its `foundation.ui.viewport::ViewportView` is deleted; the GUI's
- `foundation.gui.viewport::Viewport` does the same job.)
+- **UI framework + workbench layer:** designed on `foundation.ui` and its toolkit `DockManager`; the
+ editor now runs on the engine's GUI: `foundation.gui`, `foundation.gui.docking` (a dock controller
+ whose layout is saved and restored by panel id, floating panels in OS windows of their own),
+ `foundation.gui.toolkit` (property grid, tool bar, graph, curve and timeline views),
+ `foundation.gui.hosting` (`GuiHost`) and `foundation.gui.viewport::Viewport` (content drawn into
+ a target of its own, with a gated input surface).
 - **Debug-draw** (per-scene + global gizmos + text) - gizmo rendering foundation.
 - **Renderer + scene/ECS + animation + particles** - viewport content done. Resource manager with
  dependency tracking + transitive reload (hot-reload seam).
 - **Runtime** - `IApplication`/`IApplicationHost`, multi-window, input routing (`InputRouter`/
- `InputSurface`), UIHost.
+ `InputSurface`, `viewport-input.md`), the GUI host.
 
 ## 2. Scope (from the roadmap → Track: Editor)
 
@@ -72,32 +126,38 @@ skeleton + Lumix's mutation discipline + Traktor's asset pipeline.
 
 One-line formula: **Sedulous's EditorContext + registries + per-type pages, Lumix's
 everything-is-a-command mutation discipline, Traktor's source/cooked-db asset cook (already
-built), on foundation.ui docking with ViewportView-hosted scenes.**
+built), on foundation.ui docking with ViewportView-hosted scenes.** (Built on the engine's GUI
+instead: GUI.Docking, and scenes in a GUI `Viewport`.)
 
 ### 3.1 Module layout (fixes Sedulous's god-class + dead-plugin weaknesses structurally)
 
-- **`foundation.editor`** (exists) - Asset/IAssetBuilder cook base. Unchanged.
-- **`editor.core`** (new) - **headless** editor domain, no UI imports, fully
- doctest-able: `EditorContext` (service locator), all registries, `EditorCommandStack` +
- `IEditorCommand`, selection model, project model, page abstraction (`IEditorPage` sans widgets).
- This is Sedulous's `Editor.Core` split, kept because it made their editor testable and ours has
- a tests-required rule.
-- **`editor.app`** (new) - the UI shell on foundation.ui: EditorApplication (runtime
- `IApplication`), MenuBar/StatusBar/DockManager chrome, concrete panels (hierarchy, inspector,
- asset browser, console) and page hosting, layout persistence.
-- **`foundation.<sys>.editor`** (per-subsystem, some exist: `foundation.scene.editor`) - each engine
- module's editor support: pages, inspectors, gizmo renderers, importers/builders. Exposes one
- `RegisterEditor(EditorContext&)` entry point.
-- **Editor executable** (new app target) - the *assembly*: links the `foundation.<sys>.editor`
- modules it ships and calls each `RegisterEditor`. **The editor core/app never link engine
- subsystem editor modules OR engine subsystems** - this is the fix for Sedulous's "editor
- statically depends on every engine module" problem. (Traktor's `findAllOf` RTTI auto-discovery
- is elegant but needs enumerable RTTI + DLL plugins; the statically-assembled app is Lumix's
- `LUMIX_STUDIO_ENTRY` pattern and costs one file.)
+As built (see the top of this page for each library's contents):
+
+- **`pipeline.core`** - Asset/IAssetBuilder cook base, with the per-domain pipelines beside it
+ (`Code/Pipeline/`).
+- **`editor.project`** + **`editor.core`** - the **headless** editor domain, no UI widgets, fully
+ doctest-able: `editor.project` the project, cook, export and log buffer (shared with the hosts
+ that have no editor), `editor.core` `EditorContext` (service locator), the registries,
+ `EditorCommandStack` + `IEditorCommand`, the selection model, the actions and the page
+ abstraction (`EditorPage` sans widgets). This is Sedulous's `Editor.Core` split, kept because it
+ made their editor testable and ours has a tests-required rule.
+- **`editor.app`** - the UI shell on the GUI: `EditorApplication` (runtime `IApplication`), the
+ window and its frame (menu bar, dock, status bar), the shared panels (Project, Assets, Console,
+ MCP, Profiler) and page hosting, layout persistence.
+- **`editor.<domain>`** (`Code/Editor/Editor.<Domain>/`: scene, play, script, shaders, gui,
+ materials, terrain, ...) - each domain's editor support: pages, inspector extras, gizmo
+ renderers, viewport tools, thumbnails, import previews, actions, MCP tools. Each exposes one
+ `Register<Domain>Editor(EditorContext&, ...)` entry point.
+- **Editor executable** (`Tools.Editor`) - the *assembly*: links the editor libraries it ships
+ and calls each `Register<Domain>Editor` from its `registerEditors` hook. **The editor core/app
+ never link the domain editor libraries OR engine subsystems** - this is the fix for Sedulous's
+ "editor statically depends on every engine module" problem. (Traktor's `findAllOf` RTTI
+ auto-discovery is elegant but needs enumerable RTTI + DLL plugins; the statically-assembled app
+ is Lumix's `LUMIX_STUDIO_ENTRY` pattern and costs one file.)
 - **Engine access from the shell is INTERFACE-only** (decided 2026-07-11, after the multi-scene
  render fix): the app drives scene rendering through `render::ISceneRenderer`, extracted into
- the light **`foundation.render.api`** module (core+rhi+scene deps only; `foundation.render`
- re-exports it, `RenderSubsystem` implements it - Sedulous's Abstractions-assembly split). The
+ the light **`foundation.render.api`** module (`engine.render`'s `RenderSubsystem` implements it -
+ Sedulous's Abstractions-assembly split). The
  exe injects the pointer (`app.SetSceneRenderer(...)`) from `registerEditors` (which receives
  the `EditorApplication&`), and registers engine subsystems via the `configureEngine` hook. The
  frame shape is Sedulous's: ONE `BeginRendering`/`EndRendering` per frame around ALL pages'
@@ -108,81 +168,98 @@ built), on foundation.ui docking with ViewportView-hosted scenes.**
 
 ### 3.2 Shell
 
-`EditorApplication : runtime::IApplication`, exactly the UISandbox wiring: UIHost + main-window
-RootView holding a vertical stack of **MenuBar / DockManager (center) / StatusBar**;
-`RuntimeDockableWindowHost` assigned so panels float as real OS windows; `Tick()` per frame for
-drag-follow. Panels are `DockablePanel`s with persistence IDs; layout + open-pages persistence to
-the project's editor settings (dock persistence already tested in the toolkit). The editor embeds
-the engine like any game app (scene/render subsystems on the runtime context) - one live engine
-instance serves scene pages and preview.
+`EditorApplication : runtime::IApplication` keeps the lifecycle; `EditorWindow` opens a `GuiHost`
+on the main window with the frame `Data/Editor/Shell.xml` (`menubar` / `frame-dock` / `statusbar`)
+and the editor's sheet. `EditorDock` is a GUI.Docking controller in `frame-dock`; a floating panel
+opens in an OS window of its own through the host's window opener (else over the main window).
+Panels have ids (`welcome`, `assets`, `console`, `mcp`, `profiler`, and a page's asset guid or
+`game-page`), which the saved layout and the MCP layout tools use; the layout, the open pages and
+the favourites persist in the project's `Editor/editor.project.settings.xml` (`Layout.cppm`). The
+editor embeds the engine like any game app (scene/render subsystems on the runtime context) - one
+live engine instance serves scene pages, previews and the Game tab.
 
-**Global panels are Assets + Console ONLY** (Sedulous's split, and forced by multi-scene §3.6):
-the dock CENTER is the document area where each open page docks as a closable tab; everything
-scene-scoped - viewport, hierarchy, inspector - lives INSIDE the scene page, built from
-standalone reusable views (fixing Sedulous's hierarchy/inspector-hardwired-in-the-page-builder
-weakness without breaking its per-page model). Closing a TOOL panel (one with a persistence id:
-Assets, Console) hides it - the dock keeps it registered, so View > Reset Layout and a layout
-restore re-dock the same object and the shell's borrowed pointers stay valid (2026-09-23: a
-closed Assets panel used to be destroyed, and Reset Layout then read its Parent out of freed
-memory). Closing a PAGE panel (no persistence id) destroys it with its content.
+**Shared panels are few** (Sedulous's split, and forced by multi-scene §3.6): the page area is
+where each open page docks as a closable tab; everything scene-scoped - viewport, hierarchy,
+inspector - lives INSIDE the scene page, built from standalone reusable views (fixing Sedulous's
+hierarchy/inspector-hardwired-in-the-page-builder weakness without breaking its per-page model).
+The shared panels are Project, Assets, Console, MCP and the Profiler (absent from the default
+layout until shown). View > Reset Layout adopts the default layout again. Closing a page with
+unsaved changes asks first (Save, Discard, Cancel), and the close runs at the next frame, never
+inside the event that asked for it.
 
 ### 3.3 EditorContext + registries (extensibility spine)
 
 `EditorContext` = the central service object handed to every page/panel/plugin (Sedulous keep):
-project, source + cooked content DBs, selection, page manager, active-page command routing, dialog
-service, status sink, and the registries:
+the project, the resources over its cooked DB, the per-project and per-user editor settings, the
+open pages and the active one, the global asset selection and favourites, the task pool, the
+notices and status, the script breakpoints, and the registries. As built:
 
 | Registry | Keyed by | Produces |
 |---|---|---|
-| `IEditorPageFactory` | asset type (nearest-type match) | document page (dock tab) |
-| `IEditorPanelFactory` | id | global tool panel |
-| `IAssetImporter` | source extension | source `Asset` instance(s) from external files |
-| `IAssetCreator` | - (menu) | new source instances (File→New / context Create) |
-| `IAssetBuilder` (exists) | asset type | cooked product (shared with offline cooker) |
-| `IThumbnailGenerator` | extension/type | asset-browser tiles |
-| `IGizmoRenderer` | component type | per-component viewport gizmos |
-| `IPropertyEditor` | property/object type | inspector widget overrides |
+| `EditorPageRegistry` (`IEditorPageFactory`) | asset type (nearest-type match) | document page (dock tab) |
+| `EditorActionRegistry` | action id | every command surface (menus, keys, bars, palette, MCP) |
+| `pipeline::ImporterRegistry` | source extension | source `Asset` instance(s) from external files |
+| `pipeline::AssetCreatorRegistry` | - (menu) | new source instances (File > New) |
+| `ImportPreviewRegistry` (`IImportPreviewFactory`) | asset type | the import window's preview |
+| `IAssetBuilder` | asset type | cooked product (shared with the offline cooker) |
+| `IThumbnailGenerator` / `ISceneThumbnailGenerator` (the thumbnail service) | asset type | asset-browser tiles |
+| `IGizmoRenderer` (`editor.scene`) | component type | per-component viewport gizmos |
+| `InspectorExtrasRegistry` (`editor.scene`) | component or settings type | notices, actions and sections under an inspector header |
+| `IViewportToolProvider` (`editor.viewporttools`) / `IViewportToolPanelProvider` (`editor.app`) | tool id | viewport tools and their panels |
+
+Domains also contribute Preferences fields (`RegisterEditorSettingsContribution`) and MCP tools
+(`RegisterMcpToolContribution`). The designed `IEditorPanelFactory` and `IPropertyEditor` were not
+built: the shared panels are the dock's own, and a property's editor is chosen by its reflected hint
+in the GUI toolkit's property grid.
 
 ### 3.4 Documents: pages + per-page command stacks
 
-- `IEditorPage` per open asset, hosted as a dock tab: id, title, dirty, **own
- `EditorCommandStack`**, Save, revert-on-close. Factory dispatch by primary-object type.
-- `IEditorCommand { Execute() -> bool; Undo(); TypeId(); Merge(prev) -> bool }` + command
- **groups** (Begin/End, unwound atomically) + **merge** (same-type top-of-stack, so a slider
+- `EditorPage` per open asset (the UI side is `UIEditorPage`), hosted as a dock tab: id, title,
+ dirty, **own `EditorCommandStack`**, Save, Discard. Factory dispatch by primary-object type.
+- `IEditorCommand { Execute() -> bool; Undo(); TypeId(); MergeInto(previous) -> bool }` + command
+ **groups** (`BeginGroup`/`EndGroup`, unwound atomically; `LockGroup` stops the next same-type
+ group coalescing) + **merge** (same-type top-of-stack, so a slider
  drag is one entry; failed `Execute` → command dropped, not pushed) - Lumix semantics verbatim,
  they're the best-engineered of the three.
 - **RULE (the fix for Sedulous's shallow coverage): every mutation is a command.** Property sets,
  rename, reparent, add/remove component, entity create/destroy, asset edits. Inspector and gizmos
  call typed methods on the edit context which construct commands; nothing mutates directly.
- Undo/redo disabled across the play-in-editor boundary (play-mode commands popped on stop).
-- **Generic snapshot fallback:** `SnapshotCommand` for `ISerializable` asset objects - serialize
- roundtrip = Traktor's `DeepClone` history state - so simple asset editors get correct undo for
- free without hand-written commands.
+ While a scene page simulates, its command stack is locked (`SetLocked`), so runtime changes
+ never enter the history.
+- **Generic snapshot fallback:** a serialize roundtrip of an `ISerializable` asset object as the
+ history state (Traktor's `DeepClone`), so simple asset editors get correct undo for free. (Not
+ built as a `SnapshotCommand` type; asset pages write their own commands, and the code pages make
+ each step of the code's document a command on the page's stack.)
 
 ### 3.5 Inspector
 
-- **Reflection-first property grid:** enumerate `PropertyInfo` over the base chain; Variant
- editors per type (numbers/bool/String/vectors/quaternion-as-euler/Color/enums via
- EnumReflection); multi-select writes to all targets. Edits go through `SetPropertyCommand`
- (merge on same property+targets).
-- **Attribute channel (small reflection add):** range/slider, color, resource-ref (+ expected
- resource type), category, hidden, read-only (exists). Lumix's `IAttribute` list per property is
- the model; ours hangs off `PropertyInfo`.
-- **Serializer-driven fallback (Traktor's trick):** for `ISerializable` types without reflected
- properties, an `InspectSerializer : ISerializer` builds the grid from the object's own
- `Serialize()` traversal (our uniform `Serialize(ar, "name", v)` API makes this cheap), and an
- `ApplySerializer` writes edits back. One `Serialize()` impl ⇒ save + inspector + snapshot-undo.
-- **Overrides:** `IPropertyEditor` per property type; per-component custom sections after the
- reflected pass (how terrain tools / bake buttons appear, per Lumix).
-- **Lists of structs (2026-09-21):** a reflected container property whose element is a value type
- with properties (`Array<VegetationLayer>`) gets, after its `ContainerListEditor` row, one expander
- per slot ("Layers 1: Grass" - the element's own `name` String property titles it, else the type
- label) holding the element's leaf rows: every editor the component rows use, the `Ref<>` and
- `EntityRef` pickers included. Rows and commands address the element through a
- `ComponentPropertyPath` (container property name + slot index) that `SceneEditContext::
- ResolvePropertyOwner` re-derives on every read and write (pools move), so a slot field is set,
- merged and undone exactly like a component field; a removed or reordered slot rebuilds the grid
- through the list's content-diff refresher. Nested containers inside an element wait for a need.
+As built, the inspector (`SceneInspectorView`) is the GUI toolkit's `PropertyGrid` over a
+property source; for a component that is `ReflectedSource` (`foundation.gui.toolkit`):
+
+- **Reflection-first property grid:** `PropertyInfo` over the base chain; values for bool, the
+ integers, floats and String, enums as a choice (or flags), Color and HDR colours, Float2/Float3/
+ Float4 as groups, a Quaternion as Euler degrees, nested structs as groups. Several selected
+ entities are edited at once, and a row whose value differs shows as mixed. Each edit is one undo
+ step on the page's stack (a component edit records each entity's value before and after; the
+ transform and Active go through the edit context's commands).
+- **Attribute channel:** reflected attributes choose the row's editor and its look: `displayName`,
+ range, `color` / `hdrColor` / `noAlpha`, `flags`, `referenceType`, category, read-only, and a
+ type's hint names the editor the application registered for it (an asset reference slot, an
+ `EntityRef` slot, a curve, a gradient).
+- **Serializer-driven fallback (Traktor's trick):** designed as an `InspectSerializer` building
+ the grid from an object's own `Serialize()` traversal; not built, since every inspected type is
+ reflected.
+- **Extras:** what a section shows beside its reflected rows (a notice such as a rigid body with no
+ collider, a Bake action, a script component's behaviours) comes from `InspectorExtrasRegistry`, asked
+ of the section's type. A component's header carries copy, paste, reset, revert to prefab and
+ remove; Add Component picks from the types the selection lacks, by category. With the scene's
+ row selected, the grid shows the scene's settings blocks and their profiles.
+- **Lists:** `Array<T>` and `BoundedArray` are lists with their elements by index, added, removed
+ and moved through reflection (`Array<RefPtr<Base>>` adds by derived type), and a value-type
+ element's fields nest under it, with every editor the component rows use. Commands address an
+ element through a `ComponentPropertyPath` (container property name + slot index) that
+ `SceneEditContext::ResolvePropertyOwner` re-derives on every read and write (pools move), so a
+ slot field is set, merged and undone exactly like a component field.
 
 ### 3.6 Scene editing, selection, picking, gizmos
 
@@ -194,9 +271,12 @@ service, status sink, and the registries:
  gizmo state) must NOT creep in - we take its command semantics, not its singletons.
 - **Scene pages edit the LIVE Scene** (§5a decided): a `SceneEditContext` (one per page) mediates
  all mutations via commands (Lumix `WorldEditor` role); save = existing `SaveScene`;
- **play-in-editor** = serialize snapshot to memory → engine runs the same live scene → destroy +
- reload snapshot on stop, selection preserved, play-mode commands discarded (Lumix mechanism,
- Sedulous `SceneSnapshot` agrees).
+ **Simulate** (designed as play-in-editor) = `SceneSnapshot::Capture` → the engine runs the same
+ live scene, the page's history locked → Stop restores the snapshot into the same scene, so
+ borrowed scene pointers stay valid and the guid-keyed selection resolves again (Lumix mechanism,
+ Sedulous `SceneSnapshot` agrees). The page's scene belongs to a run of its own (`SimulationRun`),
+ each Simulate a session of it. Play, a fresh run of the project as the player runs it, is the
+ Game tab's.
 - **Selection**: editor-level sets - per-scene-page entity selection (element 0 = gizmo pivot) +
  global asset selection; change events drive inspector/hierarchy/gizmos.
 - **Picking (GPU, 2026-09-21)**: a click asks the renderer for the surface under the pointer
@@ -231,43 +311,57 @@ service, status sink, and the registries:
  curve can be built from nothing, or after deleting down), Delete/X removes to a two-point floor,
  the selected point shows its tangent handles (drag promotes Auto->Smooth, Shift breaks the pair).
  One undo step per gesture. Points are entity-local; the transform places the curve.
-- **Viewport**: `ViewportView` per scene page + `EditorCamera` (fly controller on the gated
- `InputSurface`, hover-gated); the page's `OnRender` renders the scene via `foundation.render` into
- the viewport RT (the thin-slice/UISandbox wiring, with the real renderer).
-
-- **Scene toolbar shape (2026-09-24):** `[Translate][Rotate][Scale] | [World] | [Overlays v]
-  [Post v][Debug v] | <tool palette> ... [Play][Pause][Stop]`. Overlays is one checkable dropdown
-  for the editor's own debug draws - Grid, Entity markers (off by default since 2026-10-11: every
-  entity's origin cross is clutter; the selection keeps its own), LOD overlay, Colliders - and the FPS
-  readout (top-right; half-second windows of the page's update dt), all per-scene persisted
-  in `SceneViewPref` - which also carries the editor camera (position / yaw / pitch / orbit
-  distance) and the entity selection a closing page saves and a reopening one restores (ids no
-  longer in the scene are dropped). The section is data version 4 with a v3 legacy reader: a
-  keyed reader FAILS a whole section on a missing key, so keys added to a settings section
-  always ride a version bump and a gate on `ar.Version()`; Post (per-view effect overrides) and Debug (render
-  target views) stay their own dropdowns. The palette groups tools by `IViewportTool::Category()`
-  (`GroupViewportTools`, first-appearance order = registration order): a category with two or
-  more tools is ONE `ToolbarMenuButton` labelled by it, reading the active tool ("Terrain:
-  Sculpt", highlighted) while one is on; a lone tool (Spline) stays a toggle. A domain that
-  registers brushes gives them a category and takes one slot however many it adds.
+- **Viewport** (`SceneViewport`): a GUI `Viewport` per scene page + `EditorCamera` (flown on the
+ viewport's gated input: the mouse while it is hovered or holds a press, the keyboard only while
+ it has the focus). The real renderer draws the scene into it through a camera override, in the
+ app's one renderer bracket before the GUI's frame; a hidden viewport (a tab not in front) renders
+ nothing.
+- **The bar and the HUD:** the bar (`SceneBar`) is Save, Undo, Redo; Select (Q), Translate (W),
+ Rotate (E) and Scale (R) as one choice; the space (X over the view); Snap (every drag snaps
+ while it is on, its increments in its menu); Vertex Snap; the viewport tools; Simulate, Pause and
+ Stop with the state named beside them; Frame; and the property animation panel's toggle. Each
+ button is an action over the page (`PageActionBar`). The view's own controls are the HUD's
+ (`SceneHud`) chips at the top start: the projection (perspective, orthographic, the six axis
+ views), the shading (Lit, Unlit, debug terms, effects, MSAA) and the overlays (the grid and its
+ plane, entity markers, colliders, the LOD tint, the stats), each drawn in the accent while it is
+ off its default. The top end holds the stats and the view gizmo (`ViewGizmo`: a knob looks along
+ its axis, the centre switches the projection); the bottom start the zoom readout and the active
+ tool's status. The page keeps all of it per scene in `SceneViewPref` (the overlays, the camera,
+ the selection, the splits and the tool panel's place); its section is data version 4 with a
+ version 3 legacy reader: a keyed reader FAILS a whole section on a missing key, so keys added to
+ a settings section always ride a version bump and a gate on `ar.Version()`.
+- **Viewport tools** (`SceneTools`): each tool is an action, `scene.tool.<id>`, so the menu bar,
+ the palette, a chord and MCP reach it. The bar shows them grouped by `IViewportTool::Category()`
+ (`GroupViewportTools`, first-appearance order = registration order): a category with two or more
+ tools is ONE menu button with its first tool's icon, a lone tool (Spline) a toggle. The active
+ tool's panel (an `IViewportToolPanelProvider`'s) sits in the HUD under the chips, in a frame with
+ the tool's name, a fold and a close (Esc returns to Select); it can be dragged anywhere in the
+ viewport, and its place is kept per scene.
 - **Viewport tool refusals are said, not swallowed (2026-09-22):** every `IViewportTool` has an
  `IsAvailable()` predicate (a terrain brush needs a terrain) and now an `UnavailableReason()`;
- when the toolbar toggle's activation is refused, the scene page notifies the reason as a
- warning (the log + the toast) and the toggle snaps back. A brush that has nothing to work on
+ the tool's action is disabled with that reason, and an activation that is refused notifies it as
+ a warning (the log + the toast). A brush that has nothing to work on
  says what the scene lacks, never plays dead.
 
 ### 3.7 Asset pipeline + browser
 
 - **Source DB (XML factory)** = Traktor's source database; **cooked DB (binary factory)** =
  output database. Source `Asset` instances (external file + import settings) → `IAssetBuilder` →
- cooked instance. All exists; what's missing is the **cooker driver**: builder registry +
+ cooked instance. The **cooker driver** (`Code/Pipeline/Pipeline.Cook`): builder registry +
  asset-type routing + **incremental** (hash of source object + source file + builder version,
- Traktor's pipeline-db pattern simplified) + dependency-ordered build. Built as a library used by
- BOTH the CLI cooker tool and the editor's background build (Sedulous has no cooker - import IS
+ Traktor's pipeline-db pattern simplified) + dependency-ordered build. A library used by BOTH the
+ CLI cooker (`Tools.Cook`) and the editor's background cook (`EditorCookService`) (Sedulous has no cooker - import IS
  the bake - but the engine already committed to the cook seam; keep it).
-- **Asset browser panel** over the source DB group tree: left mount/group tree + right content
- grid with thumbnails; import (file drop / dialog → `IAssetImporter` creates `Asset` instances),
- create (`IAssetCreator`), open (page-factory dispatch), build, show-in-explorer.
+- **Asset browser panel** (`AssetsView`, `Data/Editor/Assets.xml`) over the source DB group tree:
+ the group tree on the left, the group's subgroups and assets on the right as tiles or a list with
+ thumbnails, each with its type's glyph (tinted by category), its cook badge and a favourite star;
+ a search over the group and those under it, by name or the start of a guid; a type filter.
+ Import (file drop / the import window → the `pipeline::ImporterRegistry` creates `Asset`
+ instances, with a preview from the `ImportPreviewRegistry`), create (File > New, the
+ `AssetCreatorRegistry`), open (page-factory dispatch), reveal, and drag to a slot.
+- **Outside changes**: `ContentWatcher` sweeps the project's Content/ for records a pull or
+ another tool changed, added or deleted, brings the source database in line, and the open pages
+ are told (they reload, or warn when they hold unsaved edits).
 - **Hot reload**: after a cook, poke the resource manager (dependency tracking + transitive reload
  exist). Guard rapid recompiles with a per-path generation counter (Lumix lesson); GPU-side
  safety already covered by the bind-group version rule.
@@ -284,16 +378,17 @@ MyGame/ ← project root = what you "open"
  existing XML serializer (ISerializable; no bespoke format).
  Content/ ← SOURCE content DB (XmlSerializerFactory) - authored, committed
  Sources/ ← raw import sources (.fbx/.png/.wav) referenced relatively by
- Asset::fileName (= AssetBuildContext.assetRoot) - committed
+ Asset::fileName (= AssetBuildContext.sources) - committed
  Cooked/ ← cooked DB (BinarySerializerFactory) - generated, GITIGNORED;
  delete = clean rebuild; play-in-editor/runtime load from here
  Editor/ ← per-user editor state (dock layout, open pages, camera) - 
  GITIGNORED (Traktor shared-vs-user settings split)
  .cache/ ← thumbnails + incremental-cook hash db - GITIGNORED
+ Plugins/ ← the project's native code, one plugin package per folder (as built)
 ```
 
-Opening a project: load `Project.xml` → mount the subdirs (+ read-only `engine://` for
-engine-shipped assets) → open the two `ContentDatabase`s (source=XML, cooked=binary) → restore
+Opening a project (`EditorProject::Open`, from `EditorSession`): load `Project.xml` → mount the
+subdirs → open the two `ContentDatabase`s (source=XML, cooked=binary) → restore
 per-user layout/open pages. `ContentDatabase(mount, factory, extension)` maps 1:1 onto this.
 Packaging/ship cooks can target an external output dir via a cooker flag later.
 
@@ -318,16 +413,19 @@ filter toggles, 1000-entry cap, auto-scroll, level colors).
 
 **The engine does it with ONE object instead of three**, because core already has a global `Logger`
 with pluggable `ILogSink`s that the whole engine logs through (`LOG_*`):
-- **`EditorLogBuffer : ILogSink`** (`editor.core`, headless) - thread-safe BOUNDED ring
+- **`EditorLogBuffer : ILogSink`** (`editor.project`, headless; the MCP hosts' `log_read` and the
+ cook and export tools use it too) - thread-safe BOUNDED ring
  of full-fidelity entries `{level, category, message, sequence}` (heap strings - core's
  `RingLogSink` truncates messages to 192 chars, useless for build errors/paths). Registered on
  `GlobalLogger()` first thing in `main`, so early startup logs are captured (Sedulous's goal,
  without its unbounded growth - the cap + monotonic sequences let the UI report "N dropped").
  Consumers poll `CollectSince(sequence, out)` per frame on the main thread.
-- **`LogView`** (`editor.app`) - Sedulous's LogView shape on foundation.ui: level-colored
- rows, per-level filter toggles + Clear, entry cap, auto-scroll, plus CATEGORY display (core
- logs carry categories; Sedulous had none). Lives in the Console panel;
- `EditorApplication::OnUpdate` drains buffer → view once per frame.
+- **`LogView`** (`editor.app`, `Data/Editor/Console.xml`) - the Console panel on the GUI: a chip
+ per level (Debug, Info, Warnings, Errors) with its count, toggling whether its lines show; a
+ search; Clear; the lines on a virtualised list with their time and `[Category] message` in
+ their level's colour (core logs carry categories; Sedulous had none); the newest line followed
+ until the user scrolls up; selection and Copy; an entry cap. The application drains the buffer
+ into it once per frame.
 - Console/stdout output stays the core console sink's job (added alongside in `main`) - the
  editor never replaces the logger, it just adds sinks. Engine-wide capture is free.
 
@@ -343,6 +441,8 @@ with pluggable `ILogSink`s that the whole engine logs through (`LOG_*`):
 
 **Already decided:**
 - UI toolkit = **foundation.ui** (user, 2026-07-10) - docking via toolkit DockManager/DockablePanel.
+ Superseded: the editor was rebuilt on the engine's GUI (`foundation.gui`, GUI.Docking) and
+ merged on 2026-10-28; `foundation.ui` is gone.
 - Editor architecture = §3 (context + registries + pages; statically-assembled plugin modules).
 - Undo = **per-page IEditorCommand stack with merge + groups** + serialize-snapshot fallback for
  asset objects. (UI `UndoStack` stays a text-editing detail inside controls, not the editor stack.)
@@ -389,7 +489,7 @@ job system's workers, but when the first texture of a material settled, the relo
 material (the recorded dependency edge) ran in the caller's SYNC mode: its other, still pending
 textures were block-completed, and a sync bind of a pending id finalized EVERYTHING decoded so
 far - nested, so the outermost finalize held the UI thread for 8 s (measured with the new
-`finalize of <type> <id> took N ms` line: 148 finalizes past 50 ms, the tail climbing from 0.5 s
+`finalize of <type> <id> took N ms on the main thread` line: 148 finalizes past 50 ms, the tail climbing from 0.5 s
 to 8 s as the stack unwound). Now the dependents' reload runs with async binds on (pending
 slots stay skipped and each settle reloads again), and a sync upgrade of a pending id finalizes
 that id alone; the rest keep their FIFO turn in `Pump`. The console reports each burst once:
@@ -488,6 +588,9 @@ UI-thread cost of a large source scene (parse on a worker, or a binary source fo
 
 ## 7. Phased build plan (§5a=live, §5b=bootstrap - both confirmed 2026-07-11)
 
+Every phase below is built; the plan is kept as the record of the order. Prefabs are in
+`prefabs.md`; play in editor became the scene page's Simulate and the Game tab.
+
 1. **Shell** - `editor.core` (EditorContext, registries, `EditorCommandStack` +
  `IEditorCommand` + merge/groups, selection model, `EditorPage` abstraction; doctests for all
  of it) + `editor.app` + editor executable: main window, MenuBar/StatusBar,
@@ -561,8 +664,9 @@ guide (faint start-reference line + solid current line + degree readout via Draw
 drags show a full-length span line (depth-tested solid + faint overlay through geometry); mode +
 space shown as viewport screen text.
 
-**Input & commands:** keys W/E/R = translate/rotate/scale, X = world/local toggle (gated: viewport
-hovered, RMB up so fly-camera WASD wins while flying). Drag session = BeginGroup("gizmo_drag") ->
+**Input & commands:** keys Q/W/E/R = select/translate/rotate/scale, X = world/local toggle, V held
+= vertex snap (gated: viewport hovered, RMB up so fly-camera WASD wins while flying); the same
+modes are the scene actions on the bar and the Scene > Gizmo menu. Drag session = BeginGroup("gizmo_drag") ->
 per-frame SceneEditContext::SetLocalTransform (merges inside the group into one command) ->
 EndGroup + LockGroup on release. The group markers stop cross-gesture merging (a drag can never
 merge with a prior inspector scrub) and the lock stops consecutive drags coalescing: exactly one
@@ -583,21 +687,25 @@ already anchor unselected entities).
 ## 9. Headless flags (Tools.Editor)
 
 `Tools.Editor [<projectDir>] [--project <dir>] [--exit-after <s>] [--rebuild-after <s>]
-[--seed] [--seed-primitives] [--data-root <dir>] [--vulkan|--webgpu|--dx12]`. A bare directory
-scaffolds a fresh project (the manager's New Project flow seeds starter content; a CLI scaffold
-does not, unless `--seed` = font/sky/three primitives, or `--seed-primitives` = the same plus
-every primitive creator). `--seed-primitives` + `--exit-after` is the headless way to regenerate
-primitive meshes at the current source version (paperkid.md, upgrade recipe).
+[--mcp] [--mcp-port <n>] [--seed] [--seed-primitives] [--data-root <dir>] [--version]
+[--vulkan|--webgpu|--dx12|--null-gpu] [--gpu-validation|--no-gpu-validation]`. Without a project
+the editor starts on the project manager. A bare directory scaffolds a fresh project (the
+manager's New Project flow seeds starter content; a CLI scaffold does not, unless `--seed` =
+font/sky/three primitives, or `--seed-primitives` = the same plus every primitive creator).
+`--seed-primitives` + `--exit-after` is the headless way to regenerate primitive meshes at the
+current source version (paperkid.md, upgrade recipe). `--mcp` serves the open project over MCP for
+this run (`--mcp-port` picks the port; the persistent setting is Preferences > MCP). GPU validation
+defaults to on in Debug and off in RelWithDebInfo and Release.
 
 `--screenshot <png> [--screenshot-after <s>]` (2026-09-20) writes the MAIN window's backbuffer, UI
 included, as a PNG once that many seconds have run - the same `ScreenshotCapture` the runtime's
-`--screenshot` uses, recorded after the UI host's draw. With `--screenshot-exit` (2026-10-11, the
+`--screenshot` uses, recorded after the GUI host's draw. With `--screenshot-exit` (2026-10-11, the
 player's flag) the editor shuts down cleanly once the file is written or the capture failed, so it
 is a headless proof of what the editor drew: `Tools.Editor <project> --seed --screenshot shot.png
 --screenshot-after 6 --screenshot-exit`. Without it the editor keeps running (or quits at
-`--exit-after`). Ported from the Beef side, which also found that a viewport laid out before its
-device arrived kept its placeholder forever (fixed: `ViewportView::Initialize` makes the targets
-for a view that already has a size).
+`--exit-after`). A viewport laid out before its device arrived makes its targets once the device
+is there (the GUI `Viewport` sizes its targets as it is placed whenever it is not ready yet).
+With the editor running, `editor_screenshot` over MCP captures a window without quitting.
 
 `--release-files <url or folder>` (2026-11-01) points the project manager's Samples tab at this
 version's release files somewhere other than GitHub's release: a base URL, or a folder that

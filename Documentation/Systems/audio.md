@@ -1,13 +1,13 @@
 # Audio
 
 > Status: CURRENT
-> Verified: 2026-08-12 @ 51b22d7f
+> Verified: 2026-11-15 @ c18ee48f5
 > Track: [[audio-subsystem]]
 
 miniaudio-backed audio in the value-pool component style: clips + sound cues as cooked assets,
 a data-driven bus mixer with effect chains, real 3D spatialization (attenuation / pan / doppler /
 distance low-pass), listener-driven reverb zones, and an AngelScript/Luau facade. Shipped end to end
-(P1-P3) and user-verified on speakers. miniaudio types never leak above `foundation.audio`; there is
+and user-verified on speakers. miniaudio types never leak above `foundation.audio`; there is
 no second-backend abstraction seam - what IS abstracted is a Null/headless mode (see below).
 
 ## Modules
@@ -23,7 +23,7 @@ no second-backend abstraction seam - what IS abstracted is a Null/headless mode 
 - **`engine.audio`** (`Code/Engine/Engine.Audio`) - `AudioSubsystem` + the components + scene
   integration + the `Audio` script facade + `AudioUserSettings`.
 - **`editor.audio`** (`Code/Editor/Editor.Audio`) - `AudioClipPage`, `SoundCuePage` (real-resolution
-  audition), `BusLayoutPage`.
+  audition), `BusLayoutPage`, the sound file preview and the clip thumbnail generator.
 
 ## Bus mixer (data)
 
@@ -76,19 +76,23 @@ per-voice reverb sends route through a splitter to a wet-only second per-scene F
   voice onto new values and keep them for its next play (a wind rising with speed).
 - **`AudioListenerComponent`** - first active wins; falls back to the active camera transform.
 - **Manager tick** (`ScenePhase::PostTransform`) resolves dirty refs, syncs position/forward/velocity,
-  autoplays on simulation start, reaps finished one-shots; scene pause pauses that scene's voices
-  (a per-scene group under the bus).
+  autoplays on simulation start, reaps finished one-shots. A scene's voices (a per-scene group under
+  the bus) pause, fading, while its simulation is off or no time passes in it (a game paused with
+  `run.setTimeScale(0)`), and resume with time. A removed or destroyed source's voice stops at once
+  (the scene's `AudioSceneSystem` is the manager's `IAudioReleaser`).
 - **Runs** - everything one running game plays (a `GameInstance`: the player's, each Game tab's) is
   a run group above its scenes' groups, keyed by the run (`Scene::Run`, the script binding's
-  `CurrentRun`). A run has its own music slot and its own bus gains; the subsystem ends a run
-  (`EndRun`: a short fade, then freed), pauses it with the host (`SetRunPaused`), and hears only the
-  focused run (`SetFocusedRun`; `SetHearAllRuns` for every instance), muting the rest while they keep
-  running. Only heard runs' scenes feed the listeners.
-- **`Audio` facade** (registered via the reflection facade path; AngelScript + Luau), as Sedulous's:
+  `CurrentRun`). A run has its own music slot and its own bus gains. The subsystem listens to the
+  run manager: a run's stop or destruction fades its group out and frees it, the run's pause pauses
+  it, and only the focused run is heard (`OnFocusChanged`; `SetHearAllRuns` for every instance),
+  muting the rest while they keep running. Only heard runs' scenes feed the listeners.
+- **Background** - when the app goes to the background (a phone) the subsystem suspends the
+  engine's output, every voice kept where it is, and resumes it when the app comes back.
+- **`Audio` facade** (registered via the reflection facade path; AngelScript + Luau):
   `playOneShot(clip[, bus, volume, pitch])` / `playOneShot3D(clip, position)` / `playCue(cue[, bus])`
   / `playCue3D(cue, position)` / `playMusic(clip[, crossFadeSeconds, volume])` by ASSET ID, each
   returning the `VoiceHandle` (`isValid()` false when nothing played), and `setBusVolume` /
-  `busVolume` by `AudioBus`. Ours beside them, named apart (a same-arity overload cannot share a
+  `busVolume` by `AudioBus`. Beside them, named apart (a same-arity overload cannot share a
   name): `playOneShotPath` / `playOneShot3DPath` / `playCuePath` / `playMusicPath` by CONTENT PATH,
   `setNamedBusVolume` / `namedBusVolume` by bus name (a layout's custom buses too), `setBusMuted` /
   `busMuted` / `stopMusic`, and control of a PLAYING voice (what a play returned, or the run's
@@ -100,6 +104,8 @@ per-voice reverb sends route through a splitter to a wet-only second per-scene F
   into the run (its Stop ends it) and the bus volumes and mutes are the run's own, a layout's custom
   named buses included (a game's sliders never move the editor's buses or another instance's). Master/bus volumes persist via
   `AudioUserSettings` (`<userdata>/<project>.user.settings.xml`).
+- **`scene.audio`** - the scene's audio as a property of the scene (`SceneAudio`): `play` /
+  `stop` / `pause` / `isPlaying` / `setVolume` / `setPitch` / `setClip`, keyed by entity.
 
 ## Deferred
 
@@ -109,6 +115,6 @@ Grain banks (Traktor's compositional sound-graph) and their incremental growth p
 
 ---
 
-Design rationale (the reference survey - Sedulous / Godot / Traktor / Lumix - the no-abstraction-
+Design rationale (the reference survey - Godot / Traktor / Lumix and others - the no-abstraction-
 theater + Null-mode calls, the open questions and how they resolved) is in
 `Documentation/Archive/audio-design-history.md`.

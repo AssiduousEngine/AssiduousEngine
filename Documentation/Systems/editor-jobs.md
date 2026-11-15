@@ -1,14 +1,15 @@
 # Editor background work: the editor's task pool and its lanes
 
 > Status: CURRENT
-> Verified: 2026-11-02
+> Verified: 2026-11-15 @ c18ee48f5
 > Track: [[editor-track]]
 
 The editor's long work runs on one `TaskPool` (`Code/Foundation/Core/Threading/TaskPool.cppm`, the task
 layer of `Documentation/Archive/task-layer-history.md`), owned by the `EditorContext` (`Context().Tasks()`) and
 pumped once a frame by the application, which runs the completions and sends the tasks' log lines to the
 status bar. It is THE structural way editor code gets work off the UI thread. The context makes two lanes
-on it; the pool's shared lane runs the rest side by side.
+on it (`CreateLane("Build")` and `CreateLane("Light")`); the pool's shared lane runs the rest side by
+side, such as the import window's file previews (an image's, a sound's or a model's read).
 
 Submitting: `Context().Tasks().Submit(name, work, done, lane)`. `work` is `Status(TaskContext&)` and runs
 on a worker; `done(Status)` runs on the MAIN thread in the pool's Pump, never for a cancelled task. The
@@ -21,14 +22,15 @@ and writes, the project operations the MCP tools run, the native build):
 - One at a time, in the order submitted: the editor build lock, so a cook, an export or an import never
   races the databases.
 - `Tasks().IsLaneBusy(BuildLane())` while one runs or waits, folded into the cook service's
-  `ExternalMutationLock`, so database mutations and new cooks hold off until the lane is idle.
+  `ExternalMutationLock` (wired in `EditorSession`), so database mutations and new cooks hold off until the lane is idle.
 - Progress through `TaskContext` (`SetFraction`, `SetStep(label, index, count)`, `Log`), which the status
   bar reads from `Tasks().RunningIn(BuildLane())`.
 
 ## Light lane - `Context().LightLane()`
 
 For short CPU-only side work whose results feed the UI (thumbnails and their files, the font page's
-preview bake):
+preview bake, and the script checks' engines, prepared as a project opens so the first script page
+does not wait for them):
 - One at a time, as it always ran, so no generator or bake runs beside another; never behind the build
   lane, and outside the cook's lock (a preview must never hold the build).
 

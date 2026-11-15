@@ -1,30 +1,39 @@
 # Renderer
 
 > Status: CURRENT
-> Verified: 2026-08-12 @ f3be260f
+> Verified: 2026-11-15 @ c18ee48f5
 > Track: [[renderer-design]] / [[renderer-roadmap-status]]
 
 The renderer is built and shipping. The full plan landed: the extraction/view core, resource +
 submission rebuild, RenderGraph passes (depth prepass + forward MRT), clustered lighting + PBR, CSM
 shadows (cascades + spot + point + caching), IBL + sky, the post stack (TAA/GTAO/bloom/tonemap/FXAA),
 skinning, reflection probes, decals, debug draw, sprites, multi-view/multi-scene, SSR, and view-frustum
-culling. This document is the design record of what was built - the body below reads in its authoring
-tense but describes the DELIVERED system.
+culling. Since then: SSGI, scene-pass MSAA, auto-exposure and color grading, GPU picking, orthographic
+cameras, cameras that render into textures, render profiles and quality levels (§13.1), and a
+pre-rotated present for Android. This document is the design record of what was built - the body
+below reads in its authoring tense but describes the DELIVERED system; where the build departed from
+the plan, an "As built" note says so.
 
 ## Modules
 
 - **`foundation.render`** (`Code/Foundation/Render`) - the scene-AGNOSTIC renderer core (the `:data`
  render-data contract, `MeshRenderer`, the pass implementations); knows nothing about scenes.
-- **`foundation.render.api`** - the render API/data layer shared across the boundary.
-- **`engine.render`** (`Code/Engine/Engine.Render`) - `RenderSubsystem`, the Context-level driver that
- connects scenes to the core (implements `ISceneRenderer`: `Begin` / `RenderScene` xN / `End`).
+- **`foundation.render.api`** (`Code/Foundation/Render.Api`) - the light scene-rendering interface
+ (`ISceneRenderer`, `ViewCamera`, `CameraOverride`, `ViewPostOverride`, `SceneSize`, the screen
+ overlay view), importing only core, rhi and scene, so tools drive scene rendering without linking the
+ renderer. `foundation.render` re-exports it.
+- **`engine.render`** (`Code/Engine/Engine.Render`) - `RenderSubsystem`, the application-level driver
+ that connects scenes to the core (implements `ISceneRenderer`: `BeginRendering` / `RenderScene` xN /
+ `EndRendering`), plus the render components, extraction, and the render profiles and quality levels.
 
 Load-bearing dependencies: `foundation.rhi` (explicit - bind groups + PSOs + dynamic rendering +
-barriers), `foundation.rendergraph` (automatic barrier solving, transient aliasing, topo-sort + culling),
+barriers; backends Vulkan, WebGPU, DX12 and Null), `foundation.rendergraph` (automatic barrier solving,
+transient aliasing, topo-sort + culling),
 `foundation.materials` (data-driven; `MaterialSystem` infers set-2 bind-group layouts; the PSO cache with
 version-poll hot reload - see `shaders-materials-hot-reload.md`), `foundation.shaders(.system)`,
-`foundation.geometry` (GPU-ready mesh streams), and `foundation.scene` (entities/transforms/components +
-`SceneModule` install + `ISceneObserver` lifecycle - [[scene-composition]]).
+`foundation.geometry` (GPU-ready mesh streams), `foundation.lod` (mesh LOD selection), and, for
+`engine.render`, `foundation.scene` (entities/transforms/components + `SceneModule` install +
+`ISceneObserver` lifecycle - [[scene-composition]]).
 
 Future optimization + extension work (the CPU->GPU-bound parity work - parallel command recording +
 draw-list sort, shadow instance reuse - the GPU-driven/indirect path, and the spatial acceleration
@@ -113,45 +122,52 @@ idioms close to verbatim. "Rebuild" = take the idea, write a modern implementati
 
 ## 4. Architecture & module layout
 
-Two libraries, one-way dependency, mirroring the slice but grown:
+Two libraries, one-way dependency, mirroring the slice but grown. As built (the partitions of
+`RenderModule.cppm` and `SubsystemModule.cppm`):
 
 ```
 foundation.render (SCENE-AGNOSTIC renderer core)
- :data - RenderData base + RenderCategory + ExtractedScene (per-scene snapshot)
- :views - RenderView (the isolation boundary) + RenderViewPool + view-list assembly
- :extract_ctx - RenderContext, FrameArena, per-worker arenas, double-buffer
- :resources - GpuResourceManager (mesh/texture pools, bone pool), PerFrameResources (ring UBOs)
- :pipeline - PassList (the pass-list TEMPLATE applied per view) + PipelinePass + Renderer
- (per-category drawer) registry + the per-frame Frame (one RenderGraph, all views)
- :passes - DepthPrepass, ForwardOpaque, ForwardTransparent, Sky, Decal, Post, Overlay
- :lighting - ClusterSystem (per-view grids), LightBuffer
- :shadows - ShadowSystem, ShadowAtlas, CSM matrices, ShadowScheduler
- :ibl - IBLSystem (prefilter/irradiance/BRDF LUT), ProbeSystem
- :post - TAA, SSAO, Bloom, FXAA, Tonemap
- :skinning - BoneMatrixPool, SkinnedVertexPool
- deps: foundation.rhi, foundation.rendergraph, foundation.materials(+pso), foundation.shaders(.system),
- foundation.geometry, foundation.core
+ :data - RenderData base + RenderCategory + CategoryRegistry + ExtractedScene (per-scene
+ snapshot) + DrawItem sort keys + the radix sort + ViewPostConfig
+ :views - RenderView (the isolation boundary) + ViewSettings + RenderViewPool
+ :extract_ctx - RenderContext: the per-worker FrameArenas extraction allocates from
+ :resources - GpuRetireQueue (frames-in-flight deferred destroy), GpuBufferPool,
+ DynamicUniformRing (ring UBOs / instance storage), ViewUniformRing
+ :pipeline - Renderer (per-category drawer) + RendererRegistry + ForwardPass + the per-frame
+ RenderFrame (one RenderGraph, all views)
+ :gpu_mesh - GpuMeshCache (mesh upload cache)
+ :mesh_renderer, :sprite_renderer - the built-in drawers
+ :cluster_system - ClusterSystem (per-view grids)
+ :shadows - ShadowSystem (cascades + the local-light atlas)
+ :ibl - IBLSystem (prefilter/irradiance/BRDF LUT), :probes - ReflectionProbeSystem
+ :sky, :decal_pass, :ao, :ssr, :ssgi, :taa, :bloom, :exposure, :tonemap, :fxaa,
+ :msaa_resolve, :picking, :debug_blit, :bind_group_cache, :debug_font/:debug_draw/:debug_pass
+ deps: foundation.rhi, foundation.rendergraph, foundation.materials(+pipeline cache),
+ foundation.shaders(.system), foundation.geometry, foundation.lod, foundation.core
 
 engine.render (SCENE-COUPLED integration)
- :components - MeshComponent, CameraComponent, LightComponent, ReflectionProbeComponent + managers
- :scene_system - RenderSceneSystem (per-scene SceneSystem; the parallel to Sedulous's
- RenderSceneModule): holds the scene's ONE Environment (skybox, IBL source,
- ambient, fog) + per-scene render config; coordinates the providers
- :extract - providers: turn ComponentManagers + RenderSceneSystem → RenderData pushed in
+ :components - MeshComponent, InstancedMeshComponent, CameraComponent, LightComponent,
+ InstanceMemberComponent, SpriteComponent, DecalComponent, ReflectionProbeComponent + managers; the one-per-scene
+ EnvironmentSystem and PostProcessSystem; the quality level types
+ :profiles - Environment Profile, Post Process Profile and Render Quality records + factories
+ :extract - extractors: turn the components + the scene systems → RenderData in the snapshot
+ :scene_renderer - re-exports ISceneRenderer from foundation.render.api
  :subsystem - RenderSubsystem (runtime::Subsystem + scene::ISceneObserver): owns the renderer,
- injects the managers + the RenderSceneSystem, registers Renderers + Passes,
+ contributes the managers + scene systems through the composition, registers Renderers,
  drives extract→render
  deps: foundation.render, foundation.scene, foundation.runtime, foundation.materials, foundation.geometry
 
  Source-of-truth split: things that are MANY-per-scene are components (mesh, camera, light,
- reflection probe); things that are ONE-per-scene live on the RenderSceneSystem (environment
- / sky / IBL / ambient / fog). If multi-environment-per-scene ever becomes real it promotes to
- a component, but 1-per-scene is the norm.
+ reflection probe); things that are ONE-per-scene live on scene systems (EnvironmentSystem:
+ sky / IBL / ambient / shadow reach; PostProcessSystem: the post stack). If
+ multi-environment-per-scene ever becomes real it promotes to a component, but 1-per-scene is
+ the norm.
 ```
 
-Other renderable subsystems (a future `foundation.particles`, the existing `foundation.vg` for UI)
-depend on `foundation.render` only for the extension points (`RenderData`/`RenderCategory`/
-`Renderer`/`PipelinePass`) - never on the scene. They register with the `RenderSubsystem`.
+Other renderable subsystems (`Engine.Terrain`, `Engine.Particles`, `Engine.Vegetation`) depend on `foundation.render` only for the extension points (`RenderData`/
+`RenderCategory`/`Renderer`/`IRenderDataProvider`). They register with the `RenderSubsystem`:
+`RegisterRenderer` returns the renderer id their `RenderData` carries, and `RegisterProvider(scene,
+provider)` adds a per-scene extractor that writes into the snapshot after the built-in ones.
 
 ---
 
@@ -161,13 +177,18 @@ The contract between "the world" and "the GPU". Ported model, rebuilt frame-leve
 
 - **`RenderData`** - base for a unit of renderable work, allocated from a per-frame
  **frame arena** (bump allocator), trivially destructible, valid one frame. Subclasses:
- `MeshRenderData`, `LightRenderData`, `DecalRenderData`, `SpriteRenderData`,
- (later) `ParticleRenderData`. Carries a `RenderCategory` + a precomputed 64-bit sort key.
+ `MeshRenderData` (and `MultiMeshRenderData`, an instanced set), `SpriteRenderData`, and outside
+ the core `TerrainRenderData` (Engine.Terrain) and `ParticleRenderDataBase` (Engine.Particles).
+ Lights, decals and reflection probes are plain records on the snapshot, not `RenderData`.
+ Carries a `RenderCategory`, a `rendererId` (which registered `Renderer` draws it, so several
+ renderers can share a category), a `RenderDataKind`, world center + radius (sort and cull), a
+ batch key, `castShadows` and the pick `entityId`. As built, the 64-bit sort key is not on the
+ shared `RenderData` (it depends on the camera): each view computes it into its own `DrawItem`.
 - **`RenderCategory`** - a `u16` tag (Opaque, Masked, Transparent, Sky, Decal, Light,
- ReflectionProbe, GUI, Particle, …). The dispatch key.
+ ReflectionProbe, GUI, Particle, WorldUI). The dispatch key.
 - **Providers** (`engine.render`) read ComponentManagers and write `RenderData`
- into the frame's `ExtractedRenderData`. The renderer core defines the boundary
- (`IRenderDataProvider`-equivalent) and never sees a component.
+ into the scene's `ExtractedScene`. The renderer core defines the boundary
+ (`IRenderDataProvider`) and never sees a component.
 - **Sort** - LSD **radix sort** over `{u64 key, RenderData*}` pairs, O(N), keys computed
  *inline during extraction* (material/PSO id in the high bits for opaque state-change
  minimization; view-space depth in the low bits, front-to-back opaque / back-to-front
@@ -187,6 +208,13 @@ Extraction is parallel *within and across* providers and scenes via the job syst
 arenas, single-threaded merge - Sedulous does the within-provider part well; we extend it
 across providers, scenes, and shadow views).
 
+As built: extraction is NOT double-buffered. `RenderScene` extracts a scene the first time a frame
+sees it, synchronously, into a per-frame pooled `ExtractedScene` (`RenderSubsystem::AcquireScene`);
+the mesh extraction runs in parallel over the job system's per-worker arenas
+(`RenderContext::BeginFrame(slotCount)`, serial for a small scene or without a job system), the other extractors and the registered providers run
+after it on the calling thread. The overlap of extraction with the previous frame's submit is not
+built.
+
 ---
 
 ## 6. Extensibility: categories + Renderers + Passes (the particles model)
@@ -198,36 +226,36 @@ renderable type adds four pluggable pieces:
 1. a **`RenderData` subclass** tagged with a `RenderCategory` (arena-allocated);
 2. an **extractor** that fills it during extraction;
 3. a **`Renderer`** (per-category drawer) registered with the `RenderSubsystem`
- (`GetSupportedCategories() → [Particle]`, records the draws for its category);
+ (`SupportedCategories()`, then `Resolve` / `ResolveDepthOnly` / `ResolvePickIds` turn its
+ sorted draw items into draws for the camera, depth and pick passes);
 4. optionally a **`PipelinePass`** added to the pipeline to schedule it in the graph.
 
 The core `Pipeline` sorts `RenderData` by category and dispatches each to its registered
 `Renderer`. Meshes, sprites, decals, particles, and world-space UI all extend the renderer
 identically, from outside. **This is the keeper architecture regardless of how much shading
-code we port.** Our current flat `ExtractedView`/`Renderable` is the slice's simplification;
-it gets replaced by `ExtractedRenderData` + categories.
+code we port.** The slice's flat `ExtractedView`/`Renderable` is gone, replaced by
+`ExtractedScene` + categories.
 
-### 6.1 Category definition: closed constants now, open registry later
+As built: dispatch is by the item's `rendererId` within the pass its category's `PassAffinity`
+picks (Opaque, Blended, PostTonemap, None), so the terrain renderer rides Opaque and particles ride
+Transparent beside the mesh renderer. There is no `PipelinePass` registration: the frame's pass
+chain is fixed in `RenderFrame` (§9), and a renderer contributes draws to it.
 
-`RenderCategory` is a `u16`, but the **set of categories is currently closed** - a static
-list of named constants (`RenderCategories::Opaque … Particle`, `Count`-sized), ported
-verbatim from Sedulous's `RenderCategories` static class. Sorting is likewise a central
-`GetSortFunc`-style switch on the value. Adding a category means editing the core list + the
-sort switch; a plugin **cannot** introduce one. This is deliberate for now: it's simpler, and
-the ported passes + `Count`-sized arrays already assume a compile-time-constant, dense set.
+### 6.1 Category definition: an open registry
 
-The open alternative is **ezEngine's model**: categories are *registered* at runtime - 
-`RegisterCategory(name, sortKeyFunc) → Category` into a global table, looked up by hashed
-name, with the **sort function stored per-category** (no central switch). Built-ins are just
-pre-registered entries; plugins add their own without touching core. The cost is indirection:
-the category value is no longer a compile-time constant (no `switch`, no static array sizing
-by `Count`, name-hash lookups).
+The plan started from a **closed** set (a static list of named constants ported from Sedulous's
+`RenderCategories` static class, sorted by a central switch), with **ezEngine's model** (categories
+registered at runtime, the sort stored per category) as the move to make once an extension needed a
+category of its own.
 
-**Decision: keep the closed model** until a third-party renderer needs to introduce a
-category without editing core. That's the trigger to migrate to the registry; the four
-pluggable pieces above (RenderData/extractor/Renderer/Pass) already point that direction, so
-the move is additive - replace the constant block + sort switch with a registry, leave the
-extension points unchanged.
+As built, the registry is in: `CategoryRegistry` (`:data`), one process-wide instance
+(`Categories()`, defined out of line so every shared library sees the same ids). Each category has a
+name, a `SortMode` (FrontToBack / BackToFront, packed into the sort key) and a `PassAffinity` (which
+forward pass emits it). The ten built-ins are pre-registered at their well-known ids
+(`kBuiltinCategoryCount` 10), so the `RenderCategories::` constants stay valid; `Register(name, sort,
+affinity)` is idempotent by name and hands an extension the next id, up to `kMaxCategories` (64).
+Registration happens at init; the reads during draw-list build are lock-free. Today's external
+renderers (terrain, particles) use the built-in categories.
 
 ---
 
@@ -264,6 +292,14 @@ The rebuilt submission half (Sedulous's weakest area).
 - **No per-frame `WaitIdle`** on the hot path (only resize/shutdown). The slice already
  learned this (depth transition + shutdown WaitIdle).
 
+As built: the `JobSystem` (`foundation.core`) is the work-stealing pool described above (per-worker
+deques, `ParallelFor`, counter dependencies, a waiting caller runs jobs). The forward passes record
+through render bundles: `ForwardPass` resolves a view's draws single-threaded (PSO build, mesh upload,
+ring allocation), then above `kParallelEmitThreshold` (256) resolved draws splits them into chunks,
+each recorded into its own bundle on a worker with its own per-frame command pool; below it, one
+bundle on the calling thread. Retired GPU objects go through `GpuRetireQueue` (`:resources`), freed
+once every frame in flight that could reference them has passed.
+
 ---
 
 ## 8. GPU resource layer
@@ -283,6 +319,16 @@ Port Sedulous's patterns (the best part of it), on our RHI:
  possible; avoid Sedulous's per-frame full frame-bind-group recreation.
 - **Stable batch identity** - batches keyed by *stable IDs* (mesh resource id, material id),
  NOT pointer casts. Kills Sedulous's pointer-reuse hazard + the retry loop outright.
+
+As built: the rings are `DynamicUniformRing` (one buffer split into a region per frame in flight,
+serving per-view and per-object dynamic-offset uniforms, per-instance storage and the instance
+offsets stream) and `ViewUniformRing`; the mesh renderer sizes its view, shadow-view, object,
+instance, offsets, light, local-shadow and bone rings each frame for every pass that re-emits draws
+(the camera passes, each cascade and atlas tile, probe faces, picks), and logs once when a fixed
+budget runs out. Bones are a per-frame ring the mesh renderer fills for every scene's skeletons, not
+a separate skinned-vertex pool (skinning is in the vertex shader). `GpuMeshCache` (`:gpu_mesh`) uploads
+a mesh once, follows its rebuilds and frees what is gone. `BindGroupCache` keeps a pass's bind group
+only while every input it was built from (views, buffers and their generations) is the same.
 
 ---
 
@@ -354,7 +400,8 @@ each other. This is the explicit replacement for Sedulous's `Pipeline`/`ShadowPi
 
 **`RenderView`** (first-class data, pooled per frame from a `RenderViewPool`):
 - `camera` (view+proj+frustum), `target` (an offscreen render target, or a backbuffer region),
- `scene` (→ the `ExtractedScene` it draws), `settings` (post config, layer mask, clear, viewport).
+ `scene` (→ the `ExtractedScene` it draws), `settings` (`ViewSettings`: post config, debug view,
+ clear, viewport, scene size, the viewport and history keys, the frustum-cull switch).
 - per-view **transient** state, allocated from pools/rings *keyed by the view*, never shared:
  the culled+sorted draw list, the view-uniform ring slot (camera matrices), the **cluster grid**
  (clusters are view-space - per-view by construction), the shadow allocations, and the view's
@@ -393,6 +440,22 @@ MRT layout (color0 HDR, color1 packed normals, color2 motion vectors) follows Se
 SSAO/TAA). The graph owns the HDR/depth/normal/motion targets as transients with proper barriers
  - **no hand-rolled ping-pong** (the manual SceneDepth state tracking is exactly the seam we let
 the graph own). Shadow/probe captures are pass-groups in the *same* graph, not separate frames.
+
+As built, `RenderFrame` (`:pipeline`) declares, per view with tonemapping on:
+```
+ClusterBuild → [shadow cascades + local atlas tiles] → [one probe's six capture faces] →
+DepthPrepass → ForwardOpaque (MRT: HDR, normal, velocity, material, albedo; MSAA at the view's
+count) → Sky → [MSAA resolve to 1x] → Decals → SSGI → SSR → AO (GTAO or SSAO) applied →
+TAA → ForwardTransparent → Bloom → Exposure → Tonemap (+ grading) → WorldUI → FXAA →
+[debug blit] → scene overlays → debug draw
+```
+Five MRT targets (22 bytes a sample, under WebGPU's 32): HDR, view-space normal and motion
+(`RG16Float`), roughness + metallic (`RG8Unorm`, read by SSR) and albedo (`RGBA8Unorm`, tinting the
+SSGI bounce). Under MSAA the whole post chain and the transparent pass run on the 1x resolve;
+WebGPU offers only 1x and 4x, so a 2x request falls to 1x there. Transparent composites after TAA
+(never accumulated or jittered), and FXAA runs only when TAA is off. A view without tonemapping
+draws the forward and transparent straight into its LDR target. A pick pass joins a view only when
+a pick is pending (§9.x).
 
 **View sources, assembled per frame:**
 - *Primary views* = `CameraComponent`s across all active scenes (each camera names its target)
@@ -457,10 +520,10 @@ Which entity is under a pixel (or inside a rect) of a view, answered by the GPU 
   the one `EntityTag` layout (index low, generation high); `engine::render::PackEntity` and the
   terrain extract write it.
 - **Rings.** `Renderer::SetPickPasses(n)` before `PrepareFrame` sizes the object/instance/offset
-  rings for the extra re-emits, and the shadow-view ring for `n * (1 + kMaxPickMultiMeshSets)`
-  extra slots; that ring's bind range is the PickView size (80) so WebGPU's declared-size check
-  passes for both layouts.
-- **Shaders.** `pick_ids.vs/ps` (variants SKINNED INSTANCED ALPHA_TEST / ALPHA_TEST),
+  rings for the extra re-emits, and the shadow-view ring for `n` extra slots (one per pick pass,
+  as a shadow pass takes one); `GpuPickView` and `GpuShadowView` are both 96 bytes and the ring
+  binds the larger of the two, so WebGPU's declared-size check passes for both layouts.
+- **Shaders.** `pick_ids.vs/ps` (variants SKINNED INSTANCED ALPHA_TEST WIND / ALPHA_TEST),
   `terrain_pick.vs/ps`; in the cooked pack.
 - **Proof.** `Render.Tests` (tag, clamp, crop, decode, the request state machine on the Null
   device), `Render.Backend.Tests` PickProbe (near over far by index and generation, three
@@ -491,8 +554,11 @@ MultiMesh path - no renderer of their own. Spec: `Documentation/Archive/terrain-
   castShadows, maxInstancesPerChunk, visible. A new procedural layer defaults to Mask (it grows
   nothing until the component's mask has paint on its plane; the 2026-09-22 "no unasked-for
   scatter" ruling kept); a new prop layer holds nothing. The inspector edits each layer in its
-  own expander under its list (editor.md 3.5). Wire: data version 3 (2026-10-05: a material
-  per slot; a version-2 layer's one optional `material` reads as the list's one entry), with a
+  own expander under its list (editor.md 3.5). Each layer also carries a collision
+  (`collisionRadius`, `collisionHeight`, `collisionGroup`: an upright trunk per instance in that
+  physics group; radius 0, the default, is scenery only). Wire: data version 4 (the collision;
+  version 3 of 2026-10-05 gave a material per slot, and a version-2 layer's one optional
+  `material` reads as the list's one entry), with a
   legacy reader for the one-list version 1 (`TypeBuilder::ReadsDataVersionsFrom(1)`: `placement` 3 = Scattered
   becomes a prop layer, the rest procedural; the retired enumerator's value is not reused). The
   manager keys its caches and chunk seeds by SLOT (the list index, the prop list flagged in the
@@ -603,7 +669,7 @@ MultiMesh path - no renderer of their own. Spec: `Documentation/Archive/terrain-
   2026-10-29; before, it rode `IblParams.zw`, `ShadowWind.x` and `PickView.WindTime`).
   `Render.Backend.Tests` WindProbe: a segmented card's tips shift between two frame times while
   its root rows stay, and a still material renders byte-identical; Vulkan + WebGPU.
-- **Props (P2, 2026-09-22).** A layer with Scattered placement draws its authored
+- **Props (2026-09-22).** A prop layer draws its authored
   `instances` (terrain-local matrices on the layer, serialized with it) through the same
   per-chunk sets: each instance maps to one chunk by its XZ, and a content hash of the array
   re-buckets the layer on any change (a stroke, an undo). The Paint Props brush (Editor/
@@ -668,6 +734,20 @@ forward light loop, but design the data path for *many many lights* from the sta
  Sedulous's full re-render-every-frame). This is the biggest perf win available.
 - Filtering: start with PCF (port), seam in PCSS/contact-hardening later.
 
+As built: `ClusterSystem` builds each view's grid in one compute pass (`cluster_build.cs`: 16-pixel
+tiles, 24 logarithmic depth slices, a view-space AABB per froxel), assigning every directional light
+and each point or spot light whose range sphere meets the box, up to a fixed 64 per cluster
+(`MAX_PER_CLUSTER`, each cluster's range reserved at `index * 64`), from a per-view budget of 256
+lights; each scene's lights are uploaded once a frame. The compacted index list and the two-phase
+coarse cull are not built. `ShadowSystem` renders the sun into 4 cascades (a depth array, a layer per
+view's cascade; 1024 each, 768 at a Medium and 512 at a Low shadows tier) and spot and point lights
+into a depth atlas of 4x4 tiles (512 each, 256 at Low: a spot takes one tile, a point six) with two
+layers: a realtime one redrawn every frame and a static one
+(`ShadowUpdateMode::Static` on the light) redrawn only where a caster moves, appears or goes. Local
+tiles go to the lights nearest the view (`kMaxLocalShadowTiles` 16). A light carries its own depth
+bias, normal bias and strength; the scene's environment sets the sun's shadow reach, which a quality
+level may cap. Sampling is PCF.
+
 ---
 
 ## 12. IBL, probes, post, skinning
@@ -690,6 +770,13 @@ forward light loop, but design the data path for *many many lights* from the sta
 - **Skinning** - port the GPU-skinning + pooled-bone design (incl. prev-frame bones for motion
  vectors). `foundation.geometry`'s `SkinnedMesh` (static stream + parallel skin stream) feeds it.
 
+As built: `IBLSystem` keeps one context per scene and bakes it when its sky changes (not again each
+startup frame); the prefiltered environment is 256 per face, 128 at a quality level whose environment
+resolution is Low. The probes are their own system (`reflection-probes.md`). The post stack also has
+SSGI (one diffuse bounce, temporal), auto-exposure and a grading LUT; how a scene authors it is in
+`post-processing-config.md`. A skinned mesh culls by its pose's bounds, and crowds draw skinned
+through `MultiMeshRenderData` from a shared pool of pose palettes.
+
 ---
 
 ## 13. Phasing (each milestone shippable + tested on Null RHI, verified on Vulkan via Sandbox)
@@ -699,8 +786,8 @@ one item explicitly deferred - the spatial acceleration structure - moved to
 [renderer-improvements-history.md](../Archive/renderer-improvements-history.md); culling is still linear scans today.
 View-frustum culling is ON by default since 2026-09-24 (`RenderSubsystem` / `RenderFrame`
 `m_viewCulling`; it shipped off and only the samples ever switched it on, so the editor and the
-player drew everything). Per view, `ViewPostOverride::disableCulling` (the editor's Post menu:
-"No frustum culling (draw everything)") clears `ViewSettings::frustumCull` for an A/B; the frame
+player drew everything). Per view, `ViewPostOverride::disableCulling` (the scene viewport's
+Shading chip: Effects > Frustum Culling) clears `ViewSettings::frustumCull` for an A/B; the frame
 gates by both. Occlusion culling does not exist (backlog: Hi-Z from the depth prepass).
 
 0. **(done)** Thin slice: extraction boundary + forward draw of a cube.
@@ -728,6 +815,41 @@ gates by both. Occlusion culling does not exist (backlog: Hi-Z from the depth pr
 9. **Extension proof**: a second renderable subsystem (sprites or particles) plugging in with no
  core change.
 
+### 13.1 Built since the plan
+
+- **Cameras.** A `CameraComponent` is perspective or orthographic (`projection`, `orthoHeight`;
+  every effect runs under both, §8.1), and may render into a texture asset (`target`, redrawn every
+  `targetInterval` frames) instead of the screen. `RenderScene` takes a `SceneSize`: a view can draw
+  at a size of its own, scaled (or cropped) into its viewport, and presented turned.
+- **Meshes.** Per-view LOD selection from projected coverage (`lodBias`, `forceLod`), a dithered
+  per-mesh fade (`MeshComponent::fade`), a material per submesh slot drawn as its own material in
+  every pass, depth passes that cull as the material does, and a mesh's own material properties
+  (§10). Instanced sets (`InstancedMeshComponent`, `instanced-mesh.md`) carry a material per slot,
+  a tint per member, and skinned crowds.
+- **Debug views.** `ViewDebugView` overwrites a view with one render-graph texture (the Shading
+  chip's Render Textures) or, through `ViewDebugSemantic`, has the forward shader output one term
+  (albedo, normal, roughness, metallic, cascades, cluster heat, overbright) through a uniform
+  branch, never a cooked variant.
+- **Render profiles.** A scene's environment and post settings take their values from the scene or
+  from a shared Environment Profile or Post Process Profile asset (`SettingsSource`).
+- **Quality levels.** A Render Quality asset (`RenderQualityLevel`) is one level a project offers:
+  a label, the MSAA count and antialiasing, an Off to High tier for shadows, AO, SSR, SSGI and
+  bloom, a shadow reach cap and the environment's resolution. `RenderSubsystem::SetQuality` (or
+  `SetViewportQuality` for one viewport) applies it: an Off tier turns its effect off whatever a
+  scene asks, the other tiers set sample and step counts and texture sizes, and no tier turns an
+  effect on. Sample games offer Low, Medium and High; scripts switch through `RenderQuality`. The
+  tier table is in `post-processing-config.md`.
+- **Pre-rotated present (Android).** On a display that presents turned (a phone held away from its
+  natural orientation), the player asks for a pre-rotated window (`RenderWindowDesc::preRotate`):
+  the Vulkan swapchain (`VkSwapChain`) takes the surface's current transform as its `preTransform`
+  and reports it as `PreRotation`, and the frame carries the turn (`FrameContext::preRotation`,
+  with the window's own size). The scene draws through its fit with the present copy turning its
+  sampling, and screen overlays lay out in the window and draw turned onto the target
+  (`ScreenOverlayView::preRotation`, `WindowToTarget`), so the display does no turning. A game's
+  declared orientation turns a mismatched window the same way, and the window's safe area
+  (`ScreenOverlayView::safeArea`) keeps the frame and its screens clear of a phone's bars and
+  cutout. On a desktop nothing turns.
+
 ---
 
 ## 14. Decisions (resolved) + remaining open question
@@ -745,8 +867,9 @@ gates by both. Occlusion culling does not exist (backlog: Hi-Z from the depth pr
 5. **Lighting scale** - RESOLVED: **many many lights** - storage-buffer light data, compacted
  per-cluster index lists, two-phase GPU light culling (not O(clusters × allLights)). (See §11.)
 6. **Transparency** - RESOLVED: sorted forward-blended v1; OIT later.
-7. **Environment** - RESOLVED: **NOT a component** - it is one-per-scene, so it lives on the
- per-scene **RenderSceneSystem** (the Sedulous `RenderSceneModule` parallel). Many-per-scene
+7. **Environment** - RESOLVED: **NOT a component** - it is one-per-scene, so it lives on a
+ per-scene scene system (the Sedulous `RenderSceneModule` parallel); as built, `EnvironmentSystem`,
+ with the post stack on its sibling `PostProcessSystem`. Many-per-scene
  render inputs stay components: `MeshComponent`, `CameraComponent`, `LightComponent`,
  `ReflectionProbeComponent`. (See §4.)
 
@@ -782,6 +905,11 @@ WebGPU-mappable subset from day one:
  are fine but keep allocations bounded and avoid pointer-size assumptions.
 
 These are cheap to honor while building native and ruinous to retrofit - hence design-now.
+
+As built: the web build runs on WebGPU (the engine's shaders cooked to WGSL in the shader pack), and
+the probe tests (`Render.Backend.Tests`) run on Vulkan, WebGPU and the cooked WGSL path. Android
+(`PLATFORM_ANDROID`) runs the Vulkan backend on a `VK_KHR_android_surface` surface, with the
+pre-rotated present of §13.1; its export builds a native player.
 
 ## 15. Bottom line
 

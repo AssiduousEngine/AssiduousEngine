@@ -1,13 +1,13 @@
 # Script debugger
 
 > Status: CURRENT
-> Verified: 2026-08-11 @ 9c9046f8
+> Verified: 2026-11-15 @ c18ee48f5
 > Track: [[script-debugger-track]] / [[luau-backend-track]]
 
 Source-level step debuggers for gameplay scripts: breakpoints, step into/over, call stack,
 locals, and lazy object expansion, driven from the editor with the game paused. Shipped +
-battery-certified for **AngelScript** and **Luau**. Wren has none (no VM debug API). Part of
-the [[Systems/scripting]] subsystem.
+battery-certified for **AngelScript** and **Luau**, the two backends. Part of the
+[[Systems/scripting]] subsystem.
 
 ## The constraint (and the mechanism it forces)
 
@@ -26,8 +26,8 @@ Continue resumes it. No worker thread, no transport needed in-process.
   backend declares `ScriptCapabilities::Debugger`.
 - `IScriptDebuggerListener::OnDebuggerStateChanged(ScriptDebuggerState)` -
   `Running` / `Breakpoint` / `Stepped` / `Terminated`.
-- Snapshot types `ScriptStackFrame{file,line,function}` and `ScriptVariable{name,typeName,
-  value,objectRef}` are wire-symmetric (they serialize) - so the editor UI is written once
+- Snapshot types `ScriptStackFrame{file,function,line}`, `ScriptVariable{name,typeName,
+  value,objectRef}` and `ScriptValueObject{ref,text}` are wire-symmetric (they serialize) - so the editor UI is written once
   against the contract and would drive a remote debugger unchanged.
 - The **conformance battery** (`Script.Tests/BackendConformance.h`) has a live debugger
   section: set a breakpoint, drive execution, assert it stops (state Breakpoint), capture the
@@ -46,10 +46,12 @@ One gameplay context per run (the [[Systems/scripting]] rule).
 
 - **AngelScript** (`AngelScriptDebugger`): a line callback calls `ctx->Suspend()` on a
   breakpoint/step line; execution unwinds as `asEXECUTION_SUSPENDED`; the debugger ADOPTS the
-  suspended context (distinguished structurally from a coroutine suspend - coroutines suspend
-  their own contexts, only the pooled executor is the debugger's), and Continue re-`Execute`s
-  it. Introspection via `GetCallstack`/`GetVar*` + reflected-property expand.
-- **Luau** (`LuauDebugger`, Fable P6): handlers run on POOLED resumable lua threads (always
+  suspended context (distinguished structurally from a coroutine suspend), and Continue
+  re-`Execute`s it. A coroutine's context is armed before each run too, so a breakpoint inside a
+  coroutine hits; the debugger holds it while paused and hands it back to the scheduler, not the
+  context pool, when it runs on. Introspection via `GetCallstack`/`GetVar*` + reflected-property
+  expand.
+- **Luau** (`LuauDebugger`): handlers run on POOLED resumable lua threads (always
   `lua_resume`, never `lua_pcall`); `lua_singlestep` is armed only while a debugger is
   attached; a debugstep callback `lua_break`s the thread on a (short_src,line) breakpoint or
   step; the run host holds the broken thread and re-resumes on Continue. One shared resume
@@ -57,34 +59,37 @@ One gameplay context per run (the [[Systems/scripting]] rule).
   the pause lands one bytecode instruction early (luau_callhook advances savedpc, so a local
   bound on the line JUST above a break may not be live yet), and a break cannot cross a C-call
   boundary (deferred to the next safe line).
-- **Wren**: no debugger (Wren exposes no debug API).
 
 **Bytecode-loaded classes stay debuggable**: the cook keeps debug info + the sourceName
 section, so breakpoints line up whether a class runs from source or from consumed bytecode.
 
 ## Capture
 
-Stack frames key on (file, line) - the section IS the source file (per-class chunks/sections),
-so an editor breakpoint keyed on the file matches. Locals report name + display value; reflected
+Stack frames key on (file, line) - the section IS the source file (per-class chunks/sections,
+and each `#include`d file its own section named by its path), so an editor breakpoint keyed on
+the file matches. A runtime fault's `ScriptError` carries the same captured frames. Locals report name + display value; reflected
 value types (e.g. Float3) render field-wise; a reflected object exposes an `objectRef` the UI
 expands lazily via `CaptureObject`.
 
 ## Editor UI
 
-- **Breakpoint gutter** in the script page (`EditorContext` owns the breakpoint store).
-- **DebuggerPanel** (call-stack list + locals tree + break/continue/step toolbar), consuming
-  the contract only (remote-ready).
+- **Breakpoint gutter** in the script page (`EditorContext` owns the breakpoint store,
+  `ScriptBreakpoint`; a Game run applies them to its debugger).
+- **DebuggerPanel** (`Editor.Play`'s `GamePage`: call-stack list + locals tree + Continue / Step
+  Into / Step Over / Break icon buttons), consuming the contract only (remote-ready). It sits
+  beside the game in a split, opened by the Game tab's Debugger toggle (off by default); a
+  breakpoint or step that pauses the run opens it.
 - **Execution line**: the current break line is marked + scrolled to (`ScriptExecutionPoint`
   plumbed EditorContext <- GamePage -> ScriptPage).
-- **Hover values**: hovering a local while paused shows "value : Type"
-  (`HoverValueProvider`, resolved via `CaptureLocals(0)`).
+- **Hover values**: while a run is paused in the script, hovering a name in the script page shows
+  its value (the page's `ScriptLanguageService`, from the page's probe of the paused run).
 - The game page freezes simulation on break and clears it on Continue.
 
 ## Deferred
 
 Profiler (inclusive/exclusive per-function), remote transport (debug a player/device over a
-connection - serves web + Android; needs a minimal net layer), and breadth (multi-session
-multiplexing, step-out, conditional breakpoints, watch expressions, a Wren debugger) are NOT
-built. The approved design for the profiler + remote transport is in
-`Documentation/Plans/script-debugger-remote.md`; the deferred list is in
-`Documentation/Backlog/scripting-followups.md`.
+connection - serves web + Android), and breadth (multi-session multiplexing, step-out,
+conditional breakpoints, watch expressions) are NOT built (`IScriptProfiler` and
+`ScriptCapabilities::Profiler` exist in the contract; no backend implements them). The approved
+design for the profiler + remote transport is in `Documentation/Plans/script-debugger-remote.md`;
+the deferred list is in `Documentation/Archive/scripting-followups-history.md`.

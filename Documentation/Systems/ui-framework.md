@@ -3,8 +3,8 @@
 > Status: DEPRECATED (2026-10-28): moved to `Code/Deprecated/UI` with its UISandbox; nothing
 > outside that folder links it, and it builds only with `-DOPTION_BUILD_DEPRECATED=ON`. The engine, the editor and the games are on foundation.gui
 > (`Systems/gui-port.md`).
-> Verified: 2026-08-16 @ 993d57d2
-> Track: ui-core-audit.md (Backlog) / Archive/ui-box-model-history.md / Archive/ui-theme-migration-history.md
+> Verified: 2026-11-15 @ c18ee48f5
+> Track: Archive/ui-core-audit-history.md / Archive/ui-box-model-history.md / Archive/ui-theme-migration-history.md
 
 The retained-mode UI framework itself - box model, focus, styling/theming, and the frame
 pipeline. Ported from Sedulous.UI and then taken "good to great" by the 2026-08 core audit
@@ -21,8 +21,8 @@ game tier that once did is in `Archive/game-ui-history.md`); this doc covers the
   canvases, the code editor.
 - **`foundation.ui.runtime`** - `UIHost`: window attachment, per-frame Update/Draw, the
   damage gate, theme-icon baking, DPI/UI-scale.
-- Sibling libs: `.shell` (input bridge), `.application`,
-  `.vfs`. (The cooked documents and themes, `.resource` and `ui.pipeline`, went with the game
+- Sibling libs (`Code/Deprecated/UI/UI.Shell`, `UI.Application`, `UI.VFS`): `.shell` (input
+  bridge), `.application`, `.vfs`. (The cooked documents and themes, `.resource` and `ui.pipeline`, went with the game
   tier: games use foundation.gui.)
 
 ## Box model (border-box; Archive/ui-box-model-history.md)
@@ -93,8 +93,9 @@ palette on the View rule of every sheet (toasts, code-editor gutter markers).
   labels, toolbar button labels). Children of unregistered types resolve via an ancestor
   (`Cast<Toolbar>(Parent)->ResolveStyleFloat(...)`) or stay code-defaulted.
 - A `.sss` selector for an UNREGISTERED type silently matches nothing -
-  `UITypeRegistry::RegisterBuiltins` (core) and `RegisterToolkitTypes()` (16 types,
-  tripwire `kToolkitStyleTypeCount`) must cover every styled type;
+  `UITypeRegistry::RegisterBuiltins` (core) and `RegisterToolkitTypes()` (18 types; no
+  hand-kept count: `ToolkitThemeSheetTests` asserts no rule of either fragment names an unknown
+  type) must cover every styled type;
   `StyleSheetLoader::Load` self-registers builtins (P1 finding - hosts that skipped
   startup registration used to get silently null selectors).
 - `svg(name)` resolves through `ThemeIconSet` (10 shared baked glyphs + tinted-variant
@@ -113,7 +114,7 @@ the consistency pass deliberately re-authored the sheets.
   `ActiveCount() > 0 || WantsTextInput()`), drag adorner, ListView long-press
   self-chain, ViewportView live-3D self-chain; resize/DPI is structural auto-damage.
   Escape hatch `SetDamageGatingEnabled(false)` + `FramesDrawn/FramesSkipped` counters.
-  The game `UISubsystem` path is ungated.
+  (The game tier's `UISubsystem`, which was ungated, was deleted with Engine.UI.)
 - **P1a caches** (all value-keyed - NEVER font pointers): Label shaped-text (measure +
   draw), ComboBox max-item width, TabView title widths; ListView's rebind branch is
   gone.

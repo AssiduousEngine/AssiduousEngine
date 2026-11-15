@@ -1,7 +1,7 @@
 # Export Templates
 
 > Status: CURRENT
-> Verified: 2026-08-12 @ b5d0418b
+> Verified: 2026-11-15 @ c18ee48f5
 > Track: [[settings-and-export-track]]
 
 An export template is a portable, prebuilt RUNTIME bundle for one `(platform, config)`: a player
@@ -23,13 +23,18 @@ three configs is wasted disk when most projects ship Release only). Product stan
 first-class so "release template" and "debug template" are both expressible, but the product defaults to
 and optimizes for RELEASE - Debug/RelWithDebInfo are opt-in dev/power-user variants.
 
-The PUBLISHED desktop templates (the release downloads for Linux and Windows) are the exception since
-2026-10-10: they are RelWithDebInfo, built from the same tree as the editor download, so a release
-builds the engine once and a crash in a game shipped on them can be resolved. The player is optimised
-all the same; its debug info is split off before packaging (the Linux template's player is stripped,
-the Windows PDB never enters the template) into a `-symbols` archive published beside the template.
-Their ids say so (`assiduousengine-linux64-relwithdebinfo-<version>`), and a preset asking for Release
-finds them by the platform fallback below.
+Each release publishes five templates beside the editor downloads (`.github/workflows/release.yml`):
+Linux, Windows, Web, Steam Deck and Android. The Linux, Windows and Android ones are the exception to
+the Release default: they are RelWithDebInfo (the static `clang-reldbg`, `msvc-reldbg` and
+`android-arm64-reldbg` presets; a player links its plugins statically), so a crash in a game shipped
+on them can be resolved. The player is optimised all the same; its debug info is split off before
+packaging (the Linux and Android players are stripped, the Windows PDB never enters the template)
+into a `-symbols` archive published beside the template. Their ids say so
+(`assiduousengine-linux64-relwithdebinfo-<version>`), and a preset asking for Release finds them by the
+platform fallback below. The Web template is Release (the `wasm-shipping` preset). The Steam Deck
+template is the Linux player built Release in an Ubuntu 22.04 container for the Deck's older glibc
+(`scripts/build-steamdeck.sh`), with an id of its own (`assiduousengine-steamdeck-release-<version>`)
+and the `handheld` icon, so it sits beside the desktop Linux template and a preset picks it by id.
 
 The host implicit template inherits the running tool's config (develop the editor in Debug -> the
 zero-setup host template is a Debug player), so shipping requires an explicit Release template; the
@@ -60,21 +65,27 @@ packages, `ENGINE_GAME_PLAYER`), and it stages each enabled plugin's deploy file
 (see `Documentation/Specs/plugins.md`, Decision 6). Symbols do not justify a
 separate template; they are an optional group on Debug/RelWithDebInfo templates, and export defaults to
 NOT staging them into the shipped dist (ship stripped, retain symbols beside the template for
-symbolication). If the player runtime-compiles shaders, its compiler (e.g. `dxcompiler`) is just another
-required runtime-lib.
+symbolication). The player renders from the cooked shader pack, so it carries no shader compiler: the
+player build lists none, and an export leaves out any DXC library a template still lists.
 
 ## Create / Import / Resolve
 
-- **Create** - `CreateTemplate(configDir, destRoot, mode)` synthesizes the descriptor from a build dir
+- **Create** - `CreateTemplate(configDir, destRoot, mode, ..., identity)` synthesizes the descriptor from a build dir
   (`SynthesizeHostTemplate` reads platform + `runtime-libs`), stamps config/compiler/engineVersion,
   copies the player + sidecars (`FileCopyPreserving`, keeps +x), writes the icon (`icon.svg`: a
   built-in one by name, `--icon handheld` for the Steam Deck build, or a given `.svg`; else the
   platform's built-in icon: windows, linux, web, phone for Android, desktop for any other) and
-  `template.xml`. The platform is the build directory's (`Bin/<Config>/<Platform>-<Compiler>`), so a
+  `template.xml`; `TemplateIdentity` (the CLI's `--id`, `--name`, `--notes`, `--icon`) replaces the
+  canonical id, name and notes, so a second bundle for one platform sits beside the first, and
+  installing an id replaces its bundle whole. A missing sidecar refuses the template, and each plugin
+  the player links is copied with its Plugin.xml and deploy files. The platform is the build directory's (`Bin/<Config>/<Platform>-<Compiler>`), so a
   host packages another platform's build: an Android build gives an "Android64" template whose player
   is the library the app loads (`libEngine.Player.so`) and whose sidecars are the app's Gradle project
   (`android/`, with SDL's Java glue in `android/sdl-java/`), which the Android build stages beside
-  the library; `scripts/build-export-templates.sh android` makes it. Two modes:
+  the library; `scripts/build-export-templates.sh android` makes it (through the NDK at
+  `ANDROID_NDK_HOME`; exporting with it needs the Android SDK and a JDK, making it does not).
+  `scripts/build-export-templates.sh linux` makes the Linux template and
+  `scripts/build-export-templates.ps1` the Windows one. Two modes:
   install into the templates root (usable immediately) or export to a folder (for zip + distribution).
   A Web build synthesizes a "Web" template (the player is the `.html`, sidecars from the manifest, and
   export stages page + sidecars + `Content.pak` + `player.xml` + the WGSL `Data/Engine/Shaders/shaders.dpak`
@@ -84,6 +95,8 @@ required runtime-lib.
   capture and its overlay compiled in, the overlay off by default; given its own id since both
   builds land in `Bin/Release/`), to profile a game in a browser.
 - **Import** - `ImportTemplate` (validate `template.xml` -> recursive copy under `<id>`).
+- **Remove** - `RemoveTemplate` deletes an installed bundle (the editor's Export Templates window;
+  the synthesized host template cannot be removed).
 - **Resolve** - as above.
 
 ## Baseline engine content (shipped)
@@ -91,7 +104,7 @@ required runtime-lib.
 The shaders-out-of-C++ track shipped, so the player boots against a COOKED shader pack, not baked-in
 HLSL: engine shaders are `.hlsl` source cooked by `foundation.shaders`' `ShaderPackCooker`, and export
 stages `Data/Engine/Shaders/shaders.dpak` (+ `Data/.dataroot`) beside the player for the preset's platform
-(`StageShaderPack`, cooked from the resolved data root's `Shaders/`) so the dist renders with no external
+(`StageShaderPack`, cooked from the resolved data root's `Engine/Shaders/`) so the dist renders with no external
 dependency (Web stages the WGSL variant) - the same `Data/` layout every executable discovers
 (`Documentation/Systems/data-root.md`). This baseline runtime content is
 produced by EXPORT per platform rather than carried inside the template bundle - so the template stays
@@ -102,7 +115,8 @@ player needs to boot are similarly minimal today.
 
 - **`capabilities`** manifest field (compiled-in RHI backends so a preset can require one) - forward-
   looking, not built.
-- **Downloadable templates** (fetch a versioned archive; same install path as import) - future.
+- **Downloadable templates** in the tools (fetch a versioned archive; same install path as import) -
+  future. Today a release's archives are downloaded by hand and installed with Import.
 - **Baseline content INSIDE the template** vs produced by export. Today the shader pack is export-
   produced per platform; folding a prebuilt baseline pak into the template bundle is an option only if
   a real need appears (open, low priority).

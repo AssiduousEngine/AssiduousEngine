@@ -1,12 +1,15 @@
 # Instanced Mesh (MultiMesh) Primitive
 
 > Status: CURRENT
-> Verified: 2026-08-12 @ 7e4ebae7
+> Verified: 2026-11-15 @ c18ee48f5
 >
 > Since 2026-10-29 (shader-blocks-cleanup phase 3) the per-instance stream called `DataOffsets`
 > below is `drawOffsets` in the forward and depth passes (`render::GpuDrawOffsets`: instance index,
 > bone base, last frame's bone base, fade) and `pickOffsets` in the pick pass
 > (`render::GpuPickDrawOffsets`: instance index, bone base, entity generation, entity index + 1).
+> Other names below are the design's: the per-instance `InstanceData` is `render::GpuInstance`
+> (`world`, `prevWorld`, `tint`; 144 B), the set's `gpuSetId` is `MultiMeshRenderData::key`, and the
+> skinning companion `InstancedSkinning` is `InstancedSkinningComponent`.
 > Track: [[instanced-mesh]] / [[renderer-instancing]]
 
 IMPLEMENTED - static (SS1-6) AND skinned crowds (SS7) shipped.
@@ -14,12 +17,35 @@ Static: `InstancedMeshComponent` (`engine.render`) + a persistent per-set instan
 DataOffsets ramp; the whole grid draws as one instanced set across depth/forward/all CSM cascades with
 no per-frame fill. A/B in RenderStressTest with **M** - 120k spheres shadows-off went 47->60 fps
 (CPU-bound -> GPU-bound), render CPU 20ms->1.3ms.
-Skinned (SS7): `InstancedSkinning` companion (`engine.animation`) computes M SHARED pose
-palettes/frame (phase-bucketed, instance i uses pose i%M) → shared bone pool → per-set DataOffsets
+Skinned (SS7): `InstancedSkinningComponent` companion (`engine.animation`) computes M SHARED pose
+palettes/frame (each of its clips sampled at `poseCount` phases; the set's `PoseAssignment` picks an
+instance's pose: Hashed by default, Sequential (i%M), Explicit or Unison) → shared bone pool → per-set DataOffsets
 (bone bases) → skinned MultiMesh draw. Per-bone motion blur (ping-pong prev pool → `DataOffsets.z`).
 AnimatedCrowd sample: **2350 chars @60fps shadows-on / ~5000 shadows-off**, GPU-bound, CPU ~2ms
 (vs ~1683 CPU-bound per-entity). Both InstanceData + offsets buffers are N-buffered (frames-in-flight
 hazard-free, static OR per-frame-dynamic). Validated clean under the Vulkan validation layer.
+
+Since it shipped, the primitive has gained:
+
+- **Entity-relative instances.** `instances` are relative to the owning entity: instance i draws at
+  `instances[i] * entityWorld`, so moving the entity moves the set (extraction composes and caches
+  the world array, re-uploading only when the authored set or the entity's world changed).
+- **Per-submesh materials.** `materials` is indexed by `SubMesh::materialIndex`, as `MeshComponent`'s
+  (slot 0 doubles as the whole-mesh material).
+- **Several clips in one pool.** An `InstancedSkinningComponent` holds a clip list (each clip on its
+  own clock) and feeds its `targets` (a multi-part character has one per skinned mesh); a set's
+  `instanceClips` picks each instance's block of poses, the pose policy the phase in it.
+- **Members.** `InstanceMemberComponent` draws an entity as one instance of another entity's
+  instanced mesh, at its own world transform, on its own clip and tint, so whatever moves the entity
+  (navigation, physics, replication, a script, the gizmo) moves the instance. Extraction adds the
+  members after the authored instances each frame; nothing of theirs is saved into the set.
+- **Distance fade.** `MultiMeshRenderData::fadeStart`/`fadeEnd` fade instances per instance in the
+  vertex shaders by camera distance and rank (the set's `InstanceSet` block, `instance_fade.hlsli`);
+  a faded set uploads its whole list once (`uploadCount`) and draws a prefix that moves with the
+  camera. Vegetation layers use it to hide the seam between chunks.
+- **Picking.** The pick pass draws a set with `pickOffsets`, and the set picks as its entity.
+- **Particles.** Mesh-mode particle systems draw through the same `MultiMeshRenderData` path
+  (`particles.md`).
 
 Relationship to Flax's "batch skinned meshes into one draw" (global bone buffer + per-instance bone
 range): that = the EXISTING per-entity skinned instancing (m_boneDevice + DataOffsets.y + ResolveInstanced
@@ -117,18 +143,27 @@ outlives the frame."
 A new component manager alongside `MeshComponentManager`, following the same value-pool
 pattern ([[scene-ecs-port]]):
 
+As designed (the shipped component, in `engine.render`'s `RenderComponents.cppm`, follows it with a
+`version` change counter in place of dirty regions; see below):
+
 ```
 InstancedMeshComponent {
  RefPtr<StaticMesh> mesh // shared by every instance
  Array<Ref<Material>> materials // one per submesh slot, as MeshComponent's (slot 0 the whole mesh)
  Array<Mat4> instances // CPU source of truth (or compact TRS to halve size)
  Array<Color> tints // optional per-instance tint (else one shared)
- DirtyRegions dirty // block bitset (à la Godot MULTIMESH_DIRTY_REGION_SIZE)
+ DirtyRegions dirty // block bitset (a la Godot MULTIMESH_DIRTY_REGION_SIZE)
  u32 count, capacity
  AABB localBounds // merged bounds of all instances; recomputed only on change
  u32 gpuSetId = 0 // opaque handle into the renderer's persistent buffer pool
 }
 ```
+
+Shipped: `Ref<StaticMesh> mesh`, `materials`, `Array<Float4x4> instances`, `color` (the shared tint),
+`tints`, `visible`, the skinning inputs (`posePool`, `poseCount`, `boneCount`, `poseAssignment`,
+`poseIndices`, `instanceClips`) and a `version` every mutator bumps; the merged bounds are cached
+against it. The renderer keys the set's buffer by `MultiMeshRenderData::key` (the set's scene and
+entity), so the component holds no GPU handle.
 
 API mirrors Godot's MultiMesh, and crucially keeps the scene **renderer-agnostic** (Scene-
 is-data; `gpuSetId` is opaque, the renderer owns the GPU memory):
@@ -137,6 +172,9 @@ is-data; `gpuSetId` is opaque, the renderer owns the GPU memory):
 - `SetInstanceTint(i, c)` - same.
 - `SetBuffer(Span<Mat4>)` - bulk set + a single dirty flush (fast path for static content).
 - `Reserve(n) / SetCount(n)` - grow/shrink; a resize triggers a full re-upload + AABB rebuild.
+
+Shipped as `SetInstance(i, m)`, `SetInstances(Span<const Float4x4>)` (one version bump), `Add(m)`,
+`Reserve(n)`, `Clear()` and `Count()`; tints are set through `tints` before `SetInstances`.
 
 A fully static set is written once and never dirties again → after the first frame its
 per-frame CPU cost is nil. Moving individual instances marks regions; only those upload.
@@ -151,6 +189,9 @@ allocation from a shared arena), owned by the `MeshRenderer`, keyed by `gpuSetId
 
 - **Allocate/grow** on first extract or a `SetCount` resize; upload all `InstanceData`.
 - **Per frame**, apply only the dirty regions (a small `WriteBuffer`), or nothing if static.
+ (Shipped without dirty regions: the buffer holds one region per frame in flight, and a frame
+ rewrites its own region only when that region is behind the set's version, so a static set writes
+ once per region and never again.)
 - A persistent **`DataOffsets` ramp** `[0,1,…,N-1]` built once (still needed - we avoid
  `SV_InstanceID` - but static now).
 
@@ -178,7 +219,7 @@ no per-instance copy:
 
 ```
 MultiMeshRenderData : MeshRenderData {
- u32 gpuSetId
+ u64 key // shipped name for gpuSetId
  u32 instanceCount
  // worldCenter/worldRadius (base fields) = the MERGED AABB as a sphere -> single-AABB cull
 }
@@ -298,12 +339,12 @@ are optimizations, now tracked in **[renderer-improvements-history.md](../Archiv
 ## 11. Relationship to other engines
 
 Flax describes "storing skeleton bones in a global shared GPU buffer and batching the same skinned
-meshes into a single draw call" — that is exactly Draconic's **existing per-entity skinned
+meshes into a single draw call": that is exactly Draconic's **existing per-entity skinned
 instancing** (shared bone pool + per-instance bone range via `DataOffsets.y` + `ResolveInstanced`
 batching), where every character animates independently (**O(N)** unique poses).
 
 `InstancedSkinning` is the step *beyond* that for crowds: **O(M) shared poses + O(1) scene**. The
-trade is explicit — Flax keeps 5,000 fully-independent actors at O(N) animation; Draconic's crowd
+trade is explicit: Flax keeps 5,000 fully-independent actors at O(N) animation; Draconic's crowd
 shares M poses at O(M) to reach far higher counts. You pick per-entity for a few dozen distinct
 characters and `InstancedSkinning` for thousands of same-clip agents. (Godot's `MultiMesh` is the
 static analogue; it has no per-instance skeleton, so its crowds need the technique below.)
@@ -315,32 +356,32 @@ static analogue; it has no per-instance skeleton, so its crowds need the techniq
 The classic technique for *massive* crowds (100k+) is **Vertex Animation Textures (VAT)**: bake each
 frame of the animation into a texture (a texel holds a vertex's position or offset at that frame),
 and in the vertex shader sample the texture at `(vertexID, phase)` to get the deformed vertex. There
-are no bones and no skinning matrices at render time — per-vertex is one or two texture fetches, and
+are no bones and no skinning matrices at render time: per-vertex is one or two texture fetches, and
 per-instance is just a phase offset.
 
-VAT and the shared pose pool solve the *same* problem — collapse a crowd to one draw with
-per-instance addressing — but sit at opposite ends of a trade-off:
+VAT and the shared pose pool solve the *same* problem (collapse a crowd to one draw with
+per-instance addressing) but sit at opposite ends of a trade-off:
 
 | | Shared pose pool (Draconic) | Vertex Animation Textures |
 |---|---|---|
-| Animation compute | **O(M) on the CPU** (M palettes/frame) | **O(0)** — fully baked, GPU-only |
-| Per-vertex GPU | 4-bone matrix blend | 1–2 texture fetches (cheaper) |
+| Animation compute | **O(M) on the CPU** (M palettes/frame) | **O(0)**: fully baked, GPU-only |
+| Per-vertex GPU | 4-bone matrix blend | 1 or 2 texture fetches (cheaper) |
 | Per-instance data | bone base (`i % M`) | a phase / frame offset |
 | Memory | M × boneCount matrices (~100 KB) | verts × frames × channels (often large) |
-| Runtime skeleton | **yes** — any clip, blends, IK, bone sockets | **no** — animation is baked |
+| Runtime skeleton | **yes**: any clip, blends, IK, bone sockets | **no**: animation is baked |
 | Blend / mix clips | pose lerp at runtime | multiple VATs + blend, or pre-baked |
 | Authoring | none (uses the rig directly) | an offline bake per clip |
 
 The shared pose pool is deliberately the **middle ground**: it gets VAT-like **CPU scaling** (O(M),
-not O(N)) while keeping a **live skeleton**. That matters — a pooled crowd character can still blend
+not O(N)) while keeping a **live skeleton**. That matters: a pooled crowd character can still blend
 clips, run IK, or hold a weapon socketed to a bone, none of which a baked VAT supports without extra
-machinery. The price is the per-vertex bone blend (a GPU cost) instead of a texture fetch — and
+machinery. The price is the per-vertex bone blend (a GPU cost) instead of a texture fetch, and
 since the crowd is already GPU-bound, that is a deliberate *"spend GPU to keep flexibility"* choice.
 
-**When would VAT win?** At the extreme end — 100k+ (or high-poly) characters where the per-vertex
+**When would VAT win?** At the extreme end: 100k+ (or high-poly) characters where the per-vertex
 cost dominates and the crowd genuinely needs no runtime flexibility (identical baked loops). Because
 Draconic already addresses instances by a per-instance base + phase, a VAT-style path drops into the
-*same* instanced draw (bake to a texture, sample instead of blending bones) — so it's a future
+*same* instanced draw (bake to a texture, sample instead of blending bones), so it's a future
 option for that regime, not a fork. In short: the pose pool covers "thousands of flexible agents"
 without giving up the skeleton; VAT is the escape hatch for "hundreds of thousands of baked ones."
 
