@@ -161,6 +161,18 @@ export namespace foundation::xml
                 {
                     FailRead(ErrorCode::Internal, u8"no count on the array");
                 }
+                // Every element an array writes is at least one child element, so a count past
+                // them is a file's claim, not its contents (a reader reserves that many first).
+                u64 children = 0;
+                for (XmlNode* c = element->FirstChild(); c != nullptr; c = c->NextSibling())
+                {
+                    children += c->NodeType() == XmlNodeType::Element ? 1u : 0u;
+                }
+                if (parsed > children)
+                {
+                    FailRead(ErrorCode::InvalidArgument, u8"an array's count is more than its elements");
+                    parsed = 0;
+                }
                 count = static_cast<u32>(parsed);
                 PushRead(element);
             }

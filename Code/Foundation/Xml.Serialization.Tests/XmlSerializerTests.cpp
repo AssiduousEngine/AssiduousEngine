@@ -131,6 +131,35 @@ TEST_CASE("xml.serialize: dynamic array round-trip")
     CHECK(nums[2] == 30);
 }
 
+TEST_CASE("xml.serialize: an array's count past its elements is refused, not reserved")
+{
+    String out;
+    {
+        XmlSerializer w(foundation::core::DefaultAllocator());
+        Array<i32> nums;
+        nums.PushBack(10);
+        nums.PushBack(20);
+        Serialize(w, "nums", nums);
+        w.GetOutput(out);
+    }
+    // A file that claims four billion elements over the two it has: a reader reserved them all.
+    String claimed;
+    const StringView text = out.AsView();
+    const usize at = text.Find(u8"count=\"2\"");
+    REQUIRE(at != StringView::kNotFound);
+    claimed += text.SubStr(0, at);
+    claimed += u8"count=\"4000000000\"";
+    claimed += text.SubStr(at + 9, text.Size() - at - 9);
+
+    XmlDocument doc(foundation::core::DefaultAllocator());
+    REQUIRE(doc.Parse(claimed.AsView()) == XmlResult::Ok);
+    XmlSerializer r(doc);
+    Array<i32> nums;
+    Serialize(r, "nums", nums);
+    CHECK_FALSE(r.IsOk());
+    CHECK(nums.Size() == 0u);
+}
+
 TEST_CASE("xml.serialize: array of objects round-trip")
 {
     String out;
