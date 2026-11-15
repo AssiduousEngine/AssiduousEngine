@@ -50,7 +50,9 @@ export namespace foundation::shaders
         virtual void CollectIncludeNames(core::Array<core::String>& out) = 0;
 
         /// Appends names whose source changed since the last poll (dev file watch);
-        /// returns true if any did. Called once per frame; implementations throttle.
+        /// returns true if any did. A changed include is appended too, by its file name
+        /// (ending in ".hlsli"), so shaders from elsewhere that include it are rebuilt as well.
+        /// Called once per frame; implementations throttle.
         virtual bool PollChanges(core::Array<core::String>& outChangedNames) = 0;
     };
 
@@ -116,6 +118,20 @@ export namespace foundation::shaders
                 m_declaredMasks.Remove(key); // explicit registration overrides a provider fetch
             }
             ForgetFailures(ShaderNameHash(name));
+            // A registered source cannot be fetched again, so a change to what it includes (an
+            // engine library file) recompiles its variants from the text kept here.
+            if (hlsl.Contains(core::StringView(u8"#include")))
+            {
+                bool known = false;
+                for (const core::String& n : m_includingRegistered)
+                {
+                    known = known || n.AsView() == name;
+                }
+                if (!known)
+                {
+                    m_includingRegistered.PushBack(core::String(name));
+                }
+            }
         }
 
         // The source provider (borrowed; may be null; see IShaderSourceProvider).
@@ -155,17 +171,35 @@ export namespace foundation::shaders
             {
                 return 0;
             }
+            core::usize reloaded = 0;
+            bool includeChanged = false;
             for (const core::String& name : changed)
             {
+                if (name.AsView().EndsWith(core::StringView(u8".hlsli")))
+                {
+                    includeChanged = true;
+                    continue;
+                }
                 RemoveSource(name.AsView()); // refetched lazily on next GetVariant
                 InvalidateShader(name.AsView());
+                ++reloaded;
+            }
+            if (includeChanged)
+            {
+                // The provider's own shaders are named above; a registered shader that includes
+                // anything may include the changed file, and keeps its text.
+                for (const core::String& name : m_includingRegistered)
+                {
+                    InvalidateShader(name.AsView());
+                    ++reloaded;
+                }
             }
             // A registered shader (a project's) may include a changed library file; the provider
             // cannot say which, so every remembered failure gets another compile.
             m_failedVariants.Clear();
             // An include may have changed an effect block; read them again on the next ask.
             m_effectsScanned = false;
-            return changed.Size();
+            return reloaded;
         }
 
         // Whether a source is registered (or was fetched and cached) for `name`'s `stage`.
@@ -633,6 +667,7 @@ export namespace foundation::shaders
         IShaderSourceProvider* m_provider = nullptr;      // borrowed (may be null)
         const CookedShaderPack* m_pack = nullptr;         // dist mode: cooked blobs (borrowed)
         core::HashMap<core::u64, Source> m_sources;       // (name,stage) -> HLSL and entry
+        core::Array<core::String> m_includingRegistered; // registered shaders that #include
         // Declared variant mask per provider-fetched (corpus) source: the dev half of the
         // canonicalization contract. Explicitly registered sources have no entry (raw flags).
         core::HashMap<core::u64, ShaderFlags> m_declaredMasks;

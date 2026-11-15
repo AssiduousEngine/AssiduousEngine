@@ -237,14 +237,25 @@ TEST_CASE("shader system: PumpReloads picks up file edits and .hlsli edits")
         CHECK(provider.FetchSource(u8"hot", ShaderStage::Fragment, fetched, entryPoint));
         CHECK(fetched.AsView() == StringView(reinterpret_cast<const char8_t*>(kGreenPS)));
 
-        // Edit a .hlsli: includers are unknown, so every served shader reloads.
+        // Edit a .hlsli: includers are unknown, so every served shader reloads, and so does the
+        // registered shader that includes.
         WriteText(root, u8"reload_common.hlsli",
                   "// v2 - bigger than before\n#define COMMON_RED 1\n");
-        CHECK(SpinReloads(ss) == 2);
+        CHECK(SpinReloads(ss) == 3);
         CHECK(ss.Version(u8"hot") == 2);
         CHECK(ss.Version(u8"cold") == 1);
+        CHECK(ss.Version(u8"user") == 1);
         // ... and a remembered failure gets another compile: the registered shader that needed
         // the fixed library file now compiles.
+        rhi::ShaderModule* const before = ss.GetVariant(u8"user", ShaderStage::Fragment, ShaderFlags::None);
+        CHECK(before != nullptr);
+
+        // A compiled registered shader is rebuilt too, not kept from before the edit: its
+        // variant was cached, and only the provider's own shaders were dropped.
+        WriteText(root, u8"reload_common.hlsli",
+                  "// v3 - bigger than both before it\n#define COMMON_RED 0.5\n");
+        CHECK(SpinReloads(ss) == 3);
+        CHECK(ss.Version(u8"user") == 2);
         CHECK(ss.GetVariant(u8"user", ShaderStage::Fragment, ShaderFlags::None) != nullptr);
     }
     compiler->Destroy();

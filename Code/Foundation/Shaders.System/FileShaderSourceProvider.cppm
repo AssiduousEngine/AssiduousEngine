@@ -172,7 +172,10 @@ export namespace foundation::shaders
             {
                 if (EndsWith(file.AsView(), u8".hlsli"))
                 {
-                    // Includers are unknown; reload everything this provider serves.
+                    // Includers are unknown; reload everything this provider serves, and name the
+                    // file so the shader system rebuilds the registered shaders that include.
+                    any = true;
+                    AppendUnique(outChangedNames, file.AsView());
                     for (const Entry& entry : m_entries)
                     {
                         any = true;
