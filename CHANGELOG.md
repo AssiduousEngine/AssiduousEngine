@@ -33,6 +33,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   game and its sound ran; the cook writes such numbers with an exponent.
 - Rendering: the first frame a scene shows its particles draws them; it drew none and logged a
   full particle ring.
+- Tools.Cook exits 1 when any cook fails; it exited with the failure count, which a shell reads
+  modulo 256, so 256 failures read as success.
 - Web: a game with a render size of its own (Sky Hopper, PaperKid) takes taps on phones and
   tablets. Its buttons answered a mouse but not a finger, since the browser shell, unlike the
   native ones, did not give the finger to the mouse; a quick tap or click within one frame also
