@@ -1168,21 +1168,31 @@ export namespace foundation::gui
                 return true;
             case Shape::Integer:
             {
+                // Clamped to the field's type: typed or pasted past its range, a value takes the
+                // nearest it can hold (300 into a u8 is 255), never the low bits (it was 44).
                 const i64 v = value.AsInt();
+                const auto put = [&]<typename T>()
+                {
+                    constexpr i64 bits = static_cast<i64>(sizeof(T)) * 8;
+                    constexpr bool isSigned = static_cast<T>(-1) < static_cast<T>(0);
+                    constexpr i64 low = isSigned ? -(i64{1} << (bits - 1)) : 0;
+                    constexpr i64 high = isSigned ? (i64{1} << (bits - 1)) - 1 : (i64{1} << bits) - 1;
+                    *static_cast<T*>(address) = static_cast<T>(v < low ? low : v > high ? high : v);
+                };
                 if (is.template operator()<i8>())
-                    *static_cast<i8*>(address) = static_cast<i8>(v);
+                    put.template operator()<i8>();
                 else if (is.template operator()<u8>())
-                    *static_cast<u8*>(address) = static_cast<u8>(v);
+                    put.template operator()<u8>();
                 else if (is.template operator()<i16>())
-                    *static_cast<i16*>(address) = static_cast<i16>(v);
+                    put.template operator()<i16>();
                 else if (is.template operator()<u16>())
-                    *static_cast<u16*>(address) = static_cast<u16>(v);
+                    put.template operator()<u16>();
                 else if (is.template operator()<i32>())
-                    *static_cast<i32*>(address) = static_cast<i32>(v);
+                    put.template operator()<i32>();
                 else if (is.template operator()<u32>())
-                    *static_cast<u32*>(address) = static_cast<u32>(v);
+                    put.template operator()<u32>();
                 else if (is.template operator()<u64>())
-                    *static_cast<u64*>(address) = static_cast<u64>(v);
+                    *static_cast<u64*>(address) = static_cast<u64>(v < 0 ? 0 : v);
                 else
                     *static_cast<i64*>(address) = v;
                 return true;

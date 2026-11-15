@@ -556,6 +556,19 @@ TEST_CASE("reflected source: values read and written through addresses and sette
     CHECK(bed.a->id == 101);
 }
 
+TEST_CASE("reflected source: an integer past its field's range is clamped, not cut to its low bits")
+{
+    Bed bed;
+    bed.Commit(u8"priority", Variant(i64{300})); // a u8: the low bits were 44
+    CHECK(bed.a->priority == 255);
+    bed.Commit(u8"priority", Variant(i64{-5}));
+    CHECK(bed.a->priority == 0);
+    bed.Commit(u8"bounces", Variant(i64{5000000000})); // an i32
+    CHECK(bed.a->bounces == 2147483647);
+    bed.Commit(u8"bounces", Variant(i64{-5000000000}));
+    CHECK(bed.a->bounces == static_cast<i32>(0x80000000u));
+}
+
 TEST_CASE("reflected source: several objects mixed, a preview on each, and a commit told as one change Restore reads back")
 {
     Bed bed(true);
