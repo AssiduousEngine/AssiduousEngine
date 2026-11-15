@@ -199,6 +199,22 @@ export namespace foundation::rhi::vk
         VkSurfaceTransformFlagBitsKHR m_transform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
         u32 m_askedWidth = 0, m_askedHeight = 0;
         bool m_checkTransform = false;
+        // A failure is said the first time it comes, not every frame it repeats; a good acquire
+        // starts the count again.
+        bool m_reportedFailure = false;
+
+    public:
+        void reportFailure(const char* what, VkResult result)
+        {
+            if (!m_reportedFailure)
+            {
+                LogErrorf("[RHI] Vulkan swapchain: %s failed (VkResult %d)", what, static_cast<int>(result));
+                m_reportedFailure = true;
+            }
+        }
+        void clearFailure() noexcept { m_reportedFailure = false; }
+
+    private:
     };
 
     // The clockwise turn a surface transform asks of the picture drawn for it; a mirrored one is not
@@ -433,8 +449,11 @@ export namespace foundation::rhi::vk
         // The new chain first; only once it exists do the old one, its images and its semaphores
         // go. A failure before here leaves the old chain whole (Resize puts its settings back).
         VkSwapchainKHR created = VK_NULL_HANDLE;
-        if (vkCreateSwapchainKHR(m_device, &ci, nullptr, &created) != VK_SUCCESS)
+        if (const VkResult vr = vkCreateSwapchainKHR(m_device, &ci, nullptr, &created); vr != VK_SUCCESS)
+        {
+            reportFailure("vkCreateSwapchainKHR", vr);
             return ErrorCode::Unknown;
+        }
         cleanupImages();
         destroySyncObjects();
         if (old != VK_NULL_HANDLE)

@@ -945,12 +945,18 @@ export namespace foundation::rhi::vk
         /// Latch device loss. Vulkan has no polling query (unlike DX12's
         /// GetDeviceRemovedReason), so queue submit/present/wait sites report
         /// VK_ERROR_DEVICE_LOST here. Sticky by contract.
-        void markLost() { m_lost = true; }
+        // Loss is sticky and silent otherwise (the window just stops drawing): said once, here.
+        void markLost()
+        {
+            if (!m_lost)
+                LogError("[RHI] the Vulkan device was lost; rendering stops until the device is made again");
+            m_lost = true;
+        }
 
         void WaitIdle() override
         {
             if (vkDeviceWaitIdle(m_device) == VK_ERROR_DEVICE_LOST)
-                m_lost = true;
+                markLost();
         }
         void Destroy() override
         {
@@ -1074,7 +1080,13 @@ export namespace foundation::rhi::vk
         if (vr == VK_ERROR_OUT_OF_DATE_KHR)
             return ErrorCode::OutOfDate; // the caller makes it again, at the same size if need be
         if (vr != VK_SUCCESS && vr != VK_SUBOPTIMAL_KHR)
+        {
+            if (vr == VK_ERROR_DEVICE_LOST && m_owner != nullptr)
+                m_owner->markLost();
+            reportFailure("vkAcquireNextImageKHR", vr);
             return ErrorCode::Unknown;
+        }
+        clearFailure();
         return ErrorCode::Ok; // the frame's SubmitFrame waits on this image's acquire
     }
 
@@ -1100,7 +1112,12 @@ export namespace foundation::rhi::vk
             // that keeps answering suboptimal must not be rebuilt every frame).
             return vr == VK_ERROR_OUT_OF_DATE_KHR ? ErrorCode::OutOfDate : ErrorCode::Ok;
         }
-        return vr == VK_SUCCESS ? ErrorCode::Ok : ErrorCode::Unknown;
+        if (vr != VK_SUCCESS)
+        {
+            reportFailure("vkQueuePresentKHR", vr);
+            return ErrorCode::Unknown;
+        }
+        return ErrorCode::Ok;
     }
 
     bool VkQueueImpl::CalibrateTimestamps(u64& gpuTimestamp, u64& cpuTicks)
