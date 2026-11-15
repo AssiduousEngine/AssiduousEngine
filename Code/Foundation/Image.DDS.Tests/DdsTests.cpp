@@ -174,6 +174,22 @@ TEST_CASE("dds: a legacy DXT1 file parses as BC1 with no colour-space fact and d
     CHECK(p.a == 255);
 }
 
+TEST_CASE("dds: a header claiming more mips than its image has levels is refused at once")
+{
+    // A 1x1 image has one level; 0xFFFFFFFF levels walked the size loop that many times and
+    // shifted the width past its bits.
+    Array<u8> file = LegacyHeader(1, 1, 0xFFFFFFFFu, 0x4u, FourCC("DXT1"), 0, 0, 0, 0, 0);
+    Bc1Block(file, 0xF800);
+    DdsImage dds;
+    CHECK(LoadDds(Span<const u8>(file.Data(), file.Size()), dds).Code() == ErrorCode::InvalidArgument);
+    // One more level than an 8x4 image has (8, 4, 2, 1: four), with the bytes a fifth would take
+    // (BC1: 2 blocks, then 1 for each smaller level), so only the count can refuse it.
+    Array<u8> five = LegacyHeader(8, 4, 5, 0x4u, FourCC("DXT1"), 0, 0, 0, 0, 0);
+    for (int block = 0; block < 6; ++block)
+        Bc1Block(five, 0xF800);
+    CHECK(LoadDds(Span<const u8>(five.Data(), five.Size()), dds).Code() == ErrorCode::InvalidArgument);
+}
+
 TEST_CASE("dds: the legacy FourCC table covers DXT3/DXT5/ATI1/ATI2 and the BC4/BC5 spellings")
 {
     struct Row

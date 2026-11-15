@@ -22,6 +22,7 @@ namespace foundation::image::dds
         constexpr u32 kHeaderSize = 124;
         constexpr u32 kPixelFormatSize = 32;
         constexpr u32 kDx10HeaderSize = 20;
+        constexpr u32 kMaxArrayLayers = 2048; // D3D11 and later, and every Vulkan device the engine targets
         constexpr usize kFileHeaderBytes = 4 + kHeaderSize;
 
         // DDS_HEADER.dwFlags
@@ -295,6 +296,18 @@ namespace foundation::image::dds
                 (caps2 & kCaps2CubemapAllFaces) != kCaps2CubemapAllFaces)
             {
                 return ErrorCode::NotSupported; // a partial cubemap has no fixed layout
+            }
+            // The header's counts are a file's word: a mip chain longer than the image has levels
+            // (whose size shifts past the width's bits), or more layers than a GPU takes (whose
+            // count times six wraps), is not a texture to read.
+            u32 levels = 1;
+            for (u32 side = width > height ? width : height; side > 1; side >>= 1)
+            {
+                ++levels;
+            }
+            if (header.mipLevels > levels || arraySize > kMaxArrayLayers)
+            {
+                return ErrorCode::InvalidArgument;
             }
             header.cubemap = cube;
             header.arrayLayers = cube ? arraySize * 6u : arraySize;
