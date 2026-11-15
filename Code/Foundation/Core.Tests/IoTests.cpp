@@ -392,6 +392,61 @@ TEST_CASE("io: BufferedStream write then read round-trip (small buffer)")
     }
 }
 
+namespace
+{
+    // A stream that takes only `room` bytes in all, as a full disk does.
+    struct ShortStream final : IStream
+    {
+        u64 room = 0;
+        u64 taken = 0;
+        [[nodiscard]] u64 Read(void*, u64) override { return 0; }
+        [[nodiscard]] u64 Write(const void*, u64 bytes) override
+        {
+            const u64 n = bytes < room - taken ? bytes : room - taken;
+            taken += n;
+            return n;
+        }
+        [[nodiscard]] i64 Seek(i64, SeekOrigin) override { return static_cast<i64>(taken); }
+        [[nodiscard]] i64 Tell() const override { return static_cast<i64>(taken); }
+        [[nodiscard]] i64 Size() const override { return static_cast<i64>(taken); }
+        [[nodiscard]] bool IsValid() const override { return true; }
+    };
+}
+
+TEST_CASE("io: BufferedStream says so when the stream under it takes less than it is given")
+{
+    // A write that fills the buffer flushes it: a short flush fails that write.
+    {
+        ShortStream full;
+        full.room = 4;
+        BufferedStream buffered(full, 8);
+        u8 bytes[16] = {};
+        CHECK(buffered.Write(bytes, 16) < 16u);
+        CHECK(buffered.Failed());
+        CHECK_FALSE(buffered.Flush());
+    }
+    // A short final flush is reported by Flush, and the writes before it were accepted.
+    {
+        ShortStream full;
+        full.room = 2;
+        BufferedStream buffered(full, 64);
+        u8 bytes[5] = {};
+        CHECK(buffered.Write(bytes, 5) == 5u); // still in the buffer
+        CHECK_FALSE(buffered.Flush());
+        CHECK(buffered.Failed());
+    }
+    // A stream with room is never reported.
+    {
+        ShortStream roomy;
+        roomy.room = 1000;
+        BufferedStream buffered(roomy, 8);
+        u8 bytes[100] = {};
+        CHECK(buffered.Write(bytes, 100) == 100u);
+        CHECK(buffered.Flush());
+        CHECK(roomy.taken == 100u);
+    }
+}
+
 TEST_CASE("io: BufferedStream read refills across the buffer boundary")
 {
     MemoryStream backing;

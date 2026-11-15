@@ -310,8 +310,12 @@ export namespace foundation::core
 
         [[nodiscard]] bool IsValid() const override { return m_stream->IsValid(); }
 
-        // Flushes any pending writes to the underlying stream.
-        void Flush() { FlushWrites(); }
+        // Flushes any pending writes to the underlying stream. False when the stream took less
+        // than it was given, now or on an earlier flush (a full disk, a closed file): the bytes
+        // past what it took are lost.
+        bool Flush() { return FlushWrites() && !m_failed; }
+        // Whether a write to the underlying stream has fallen short since this stream was made.
+        [[nodiscard]] bool Failed() const noexcept { return m_failed; }
 
         [[nodiscard]] u64 Write(const void* source, u64 bytes) override
         {
@@ -333,10 +337,16 @@ export namespace foundation::core
                 remaining -= chunk;
                 if (m_pos == m_buffer.Size())
                 {
-                    FlushWrites();
+                    if (!FlushWrites())
+                    {
+                        return 0; // the stream refused what was buffered: this write is not all there
+                    }
+                    // A flush ends the write mode; the rest of this write is still a write (or the
+                    // next flush, seeing no write pending, would drop it).
+                    m_mode = Mode::Write;
                 }
             }
-            return bytes;
+            return m_failed ? 0 : bytes;
         }
 
         [[nodiscard]] u64 Read(void* destination, u64 bytes) override
@@ -401,15 +411,20 @@ export namespace foundation::core
             Write
         };
 
-        void FlushWrites()
+        // False when the underlying stream took less than the buffered bytes (remembered in
+        // m_failed, so a caller that checks only at the end still hears of it).
+        bool FlushWrites()
         {
+            bool written = true;
             if (m_mode == Mode::Write && m_pos > 0)
             {
-                (void)m_stream->Write(m_buffer.Data(), m_pos);
+                written = m_stream->Write(m_buffer.Data(), m_pos) == m_pos;
+                m_failed = m_failed || !written;
             }
             m_pos = 0;
             m_len = 0;
             m_mode = Mode::None;
+            return written;
         }
 
         void SyncForSeek()
@@ -435,6 +450,7 @@ export namespace foundation::core
         Array<byte> m_buffer;
         usize m_pos = 0; // write: bytes pending; read: cursor into buffer
         usize m_len = 0; // read: valid bytes prefetched
+        bool m_failed = false; // the underlying stream took less than a flush gave it
         Mode m_mode = Mode::None;
     };
 }
