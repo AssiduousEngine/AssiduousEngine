@@ -292,9 +292,7 @@ namespace foundation::render
             m_captureFacePasses + m_pickPasses);
         // Pick passes take a shadow-view slot each, as shadow passes do.
         const u32 shadowViewCap = kMaxShadowPasses + m_pickPasses;
-        // The view ring: one slot per pass view.
-        if (!m_viewRing.Reserve(maxDraws) ||
-            !m_shadowViewRing.Reserve(shadowViewCap) ||
+        if (!m_shadowViewRing.Reserve(shadowViewCap) ||
             !m_objectRing.Reserve(drawCap) || !m_instanceRing.Reserve(drawCap) ||
             !m_offsetsRing.Reserve(drawCap) || !m_lightRing.Reserve(Max(kMaxLights, m_sceneLights)) ||
             !m_localShadowRing.Reserve(kMaxLocalShadows) || !m_boneRing.Reserve(m_boneSlotsWanted))
@@ -315,7 +313,12 @@ namespace foundation::render
         }
         m_frameIndex =
             frameIndex; // frames-in-flight slot for the per-set skinned MultiMesh offsets buffer
-        m_viewRing.BeginFrame(frameIndex);
+        // The view ring holds the views the last frame drew, and a probe's faces when one captures
+        // this frame: a face missing its slot would bake an empty probe.
+        if (!m_viewRing.BeginFrame(frameIndex, m_captureFacePasses))
+        {
+            return;
+        }
         m_shadowViewRing.BeginFrame(frameIndex);
         m_objectRing.BeginFrame(frameIndex);
         m_instanceRing.BeginFrame(frameIndex);
@@ -1107,11 +1110,6 @@ namespace foundation::render
                                                ctx.cluster.lightIndices, ctx.cluster.version);
         }
 
-        const DynamicUniformRing::Range view = m_viewRing.Allocate();
-        if (!view.ok)
-        {
-            return;
-        }
         GpuView vd{};
         vd.viewProj = ctx.viewProj;
         vd.prevViewProj = ctx.prevViewProj; // motion vectors (camera)
@@ -1183,8 +1181,12 @@ namespace foundation::render
             vd.clusterLogBias = ctx.cluster.logBias;
         }
         m_passView = vd; // a faded instanced set copies this with its window (ResolveMultiMesh)
-        *static_cast<GpuView*>(view.ptr) = vd;
-        const u32 viewOffset = view.byteOffset;
+        // Every run of a pass, and every pass of a view, writes the same block: one slot for all.
+        u32 viewOffset = 0;
+        if (!m_viewRing.SlotFor(&vd, sizeof(vd), viewOffset))
+        {
+            return;
+        }
 
         const bool allowInstancing = (items[0].data->category != RenderCategories::Transparent);
 

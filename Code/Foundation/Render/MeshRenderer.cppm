@@ -212,8 +212,7 @@ export namespace foundation::render
             : m_allocator(&allocator), m_device(&device), m_shaders(&shaderSystem), m_psoCache(&psoCache),
               m_materials(&materialSystem), m_meshes(device, framesInFlight),
               m_framesInFlight(framesInFlight < 1 ? 1 : framesInFlight),
-              m_viewRing(device, framesInFlight, kViewDataSlot,
-                         rhi::BufferUsage::Uniform | rhi::BufferUsage::CopyDst, u8"mesh.view"),
+              m_viewRing(device, framesInFlight, kViewDataSlot, kMinViewSlots, u8"mesh.view"),
               m_shadowViewRing(device, framesInFlight, kViewSlot,
                                rhi::BufferUsage::Uniform | rhi::BufferUsage::CopyDst,
                                u8"mesh.shadowView"),
@@ -465,6 +464,7 @@ export namespace foundation::render
         static constexpr u64 kViewSlot = 256; // dynamic UBO offset alignment (object, shadow view)
         static constexpr u64 kViewDataSlot =
             1024;                              // view UBO slot (GpuView is 656 bytes)
+        static constexpr u32 kMinViewSlots = 8; // the view ring's start; it grows to the frame's views
         static constexpr u32 kMaxLights = 256; // per-view light budget (clustered)
         // shadow-view UBO slots per frame: one per shadow pass and category run. Cascades (up to
         // kMaxShadowViews*kCount) and local-shadow atlas tiles (up to kMaxLocalShadows), each times a few
@@ -501,6 +501,7 @@ export namespace foundation::render
         /// Light slots the ring holds per frame, and those this frame's uploads took (tests pin them).
         [[nodiscard]] u32 LightSlotsPerFrame() const noexcept { return m_lightRing.SlotsPerFrame(); }
         [[nodiscard]] u32 LightSlotsUsed() const noexcept { return m_lightRing.FrameAllocatedSlots(); }
+        [[nodiscard]] u32 ViewSlotsUsed() const noexcept { return m_viewRing.FrameSlots(); }
     private:
 
         void ResolveSingle(const RenderRecordContext& ctx, u32 viewOffset,
@@ -711,7 +712,7 @@ export namespace foundation::render
         HashMap<u64, OverrideInstance> m_overrideInstances{*m_allocator}; // by (entity, slot)
         u64 m_frameSerial = 0;
 
-        DynamicUniformRing m_viewRing;
+        ViewUniformRing m_viewRing; // one slot per distinct view block a frame
         DynamicUniformRing m_shadowViewRing;
         GpuView m_passView{}; // the pass's view block, copied per faded instanced set with its window
         DynamicUniformRing m_objectRing;

@@ -444,6 +444,64 @@ TEST_CASE("SpriteRenderer draws every run of a view, however many the view resol
     h.device.DestroyTexture(texture);
 }
 
+TEST_CASE("MeshRenderer: a probe's faces each get a view slot, and a view's runs share one")
+{
+    // The view ring was sized by the frame's draws and took a slot per renderer run: one mesh and
+    // a probe capturing its six faces asked for seven slots of a ring holding one, so the faces
+    // past the first drew nothing and the probe baked empty.
+    RenderHarness h;
+    if (!h.Init(64, 64))
+    {
+        return;
+    }
+    shaders::ShaderSystem shaderSystem(*h.compiler, h.device);
+    WireEngineShaders(shaderSystem);
+    materials::PipelineStateCache psoCache(shaderSystem, h.device);
+    materials::MaterialSystem materialSystem;
+    REQUIRE(materialSystem.Initialize(h.device).IsOk());
+    MeshRenderer meshRenderer(DefaultAllocator(), h.device, shaderSystem, psoCache, materialSystem,
+                              /*framesInFlight*/ 2);
+    REQUIRE(meshRenderer.Initialize().IsOk());
+
+    RefPtr<geometry::StaticMesh> cube = geometry::Primitives::Cube(DefaultAllocator(), 1.0f);
+    RefPtr<materials::Material> material = materials::MaterialBuilder(u8"lit").Shader(u8"forward").Build();
+    MeshRenderData rd{};
+    rd.worldRadius = 1.0f;
+    rd.mesh = cube.Get();
+    rd.material = material.Get();
+    rd.rendererId = meshRenderer.RendererId();
+    rd.category = RenderCategories::Opaque;
+    const DrawItem item{0, &rd};
+
+    // A first frame of one view teaches the ring one view.
+    meshRenderer.SetCaptureFacePasses(0);
+    meshRenderer.PrepareFrame(1, 0);
+    RenderRecordContext ctx{};
+    Array<ResolvedDraw> out;
+    meshRenderer.Resolve(ctx, Span<const DrawItem>{&item, 1}, out);
+    meshRenderer.FinishFrame();
+    REQUIRE(out.Size() == 1u);
+
+    // The capture frame: the main view, three runs of it, then six faces, each its own camera.
+    constexpr u32 kFaces = 6;
+    meshRenderer.SetCaptureFacePasses(kFaces);
+    meshRenderer.PrepareFrame(1, 1);
+    out.Clear();
+    for (u32 run = 0; run < 3; ++run)
+    {
+        meshRenderer.Resolve(ctx, Span<const DrawItem>{&item, 1}, out);
+    }
+    for (u32 face = 0; face < kFaces; ++face)
+    {
+        RenderRecordContext faceCtx{};
+        faceCtx.viewProj = Float4x4::Translation(Float3{static_cast<f32>(face + 1), 0, 0});
+        meshRenderer.Resolve(faceCtx, Span<const DrawItem>{&item, 1}, out);
+    }
+    CHECK(meshRenderer.ViewSlotsUsed() == 1u + kFaces);
+    meshRenderer.FinishFrame();
+    CHECK(out.Size() == 3u + kFaces); // every face drew
+}
+
 TEST_CASE("RenderData::kind says what an item is; the caster list never downcasts by renderer id")
 {
     // The stamp: the base is Generic, MeshRenderData and everything derived from it is Mesh.

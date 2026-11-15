@@ -586,10 +586,12 @@ export namespace foundation::render
 
         void SetRetireQueue(GpuRetireQueue* retire) noexcept { m_ring.SetRetireQueue(retire); }
 
-        /// Starts a frame: the ring holds every view the last frame asked for.
-        bool BeginFrame(u32 frameIndex)
+        /// Starts a frame: the ring holds every view the last frame asked for, and `extraViews`
+        /// more the caller knows this frame adds (views that cannot miss a frame).
+        bool BeginFrame(u32 frameIndex, u32 extraViews = 0)
         {
-            if (!m_ring.Reserve(m_wanted))
+            m_reserved = m_wanted + extraViews;
+            if (!m_ring.Reserve(m_reserved))
             {
                 return false;
             }
@@ -613,12 +615,12 @@ export namespace foundation::render
                 }
             }
             ++m_asked;
-            if (m_asked > m_wanted)
+            if (m_asked > m_reserved)
             {
                 if (!m_overflowLogged)
                 {
                     LOG_WARNING(u8"Render", u8"{}: {} views this frame, ring holds {}, growing next frame",
-                                StringView(m_label), m_asked, m_wanted);
+                                StringView(m_label), m_asked, m_reserved);
                     m_overflowLogged = true;
                 }
                 m_wanted = m_asked;
@@ -654,7 +656,8 @@ export namespace foundation::render
         DynamicUniformRing m_ring;
         const char8_t* m_label;
         u64 m_slotSize;
-        u32 m_wanted;     // slots the next BeginFrame reserves
+        u32 m_wanted;       // slots the next BeginFrame reserves, before the caller's extra
+        u32 m_reserved = 0; // slots this frame holds
         u32 m_asked = 0;  // distinct views asked for this frame
         bool m_overflowLogged = false;
         Array<Written> m_written;
