@@ -42,6 +42,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   crashes.
 - Games: a screen handler that pops screens while the stack settles no longer reads freed
   screens.
+- Rendering: a frame that draws more than eight views (cameras, render textures, editor
+  previews) draws each with its own inputs. The ninth view shared the first's tone map, FXAA,
+  sky and debug slots, its TAA, SSR, SSGI and exposure history, and its clustered lights, so one
+  view could show another's image or ghost with its history.
 - Web: a game with a render size of its own (Sky Hopper, PaperKid) takes taps on phones and
   tablets. Its buttons answered a mouse but not a finger, since the browser shell, unlike the
   native ones, did not give the finger to the mouse; a quick tap or click within one frame also

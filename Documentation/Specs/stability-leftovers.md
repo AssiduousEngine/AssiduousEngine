@@ -92,7 +92,9 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
 - **More than 8 views alias the post passes' per-view slots.** `TonemapPassImpl.cpp:100`
   (`viewIndex % 8`), and FXAA, exposure, debug blit, debug draw and sky; a shared slot destroys a
   bind group recorded earlier that frame. Test: 9 views in one frame, view 0's group alive after
-  view 8 records. Fix: slots grow with the frame's views.
+  view 8 records. Fix: slots grow with the frame's views. Built 2026-11-15, wider than listed: the frame's
+  history slots (TAA, SSR, SSGI, exposure, previous camera) and the cluster build (which skipped
+  views past the eighth) had the same cap; all grow now.
 - **Probe capture can exhaust the mesh view ring.** `MeshRendererImpl.cpp:296` reserves by draws,
   not passes; each `Resolve` takes a slot (:1112). Test: 1 mesh and 1 probe capturing, the forward
   allocates. Fix: reserve passes (views x 6 faces for captures).
