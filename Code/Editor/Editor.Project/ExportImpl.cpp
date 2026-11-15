@@ -619,8 +619,16 @@ namespace editor
         {
             return Status{ErrorCode::NotSupported};
         }
+        // The staging folder is this export's alone: what an export that failed left in it would be
+        // packed with these scenes, so it starts empty, and it goes on every way out of here.
         const String stagingDir = PathJoin(outDir, u8".stage-scenes");
+        detail::RemoveTreeRecursive(stagingDir.AsView());
         (void)CreateDirectory(stagingDir.AsView());
+        struct StagingCleanup
+        {
+            StringView dir;
+            ~StagingCleanup() { detail::RemoveTreeRecursive(dir); }
+        } stagingCleanup{stagingDir.AsView()};
         foundation::vfs::NativeFileSystem stagingMount(stagingDir.AsView(), editor::EditorRootAllocator());
         Array<String> droppedScenes; // for the pruning report
         HashMap<String, u8> strippedShaders; // cooked products replaced by a staged, stripped copy
@@ -818,8 +826,7 @@ namespace editor
             }
         }
 
-        detail::RemoveTreeRecursive(stagingDir.AsView());
-        return Status{};
+        return Status{}; // the staging folder goes with stagingCleanup
     }
 
     Status ExportProject(EditorProject& project, StringView outDir, BuilderRegistry& builders,

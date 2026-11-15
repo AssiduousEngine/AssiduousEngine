@@ -297,6 +297,10 @@ TEST_CASE("export: project -> dist pak -> player-style load-back (versioned form
             CHECK(bytes.Value()[0] != static_cast<byte>(u8'<')); // binary, not the XML source
             sceneStreams.InsertOrAssign(sceneId, Move(bytes.Value()));
         }
+        // A scene file left in the staging folder by an export that failed: it was packed too.
+        REQUIRE(CreateDirectories(PathJoin(distDir, u8".stage-scenes").AsView()));
+        const byte stale[1] = {byte{1}};
+        REQUIRE(WriteFile(PathJoin(distDir, u8".stage-scenes/Stale.asset").AsView(), Span<const byte>{stale, 1}).IsOk());
         editor::ExportStats stats;
         REQUIRE(editor::ExportProject(*project, distDir, registry, false, &stats, {}, &sceneStreams)
                     .IsOk());
@@ -322,6 +326,8 @@ TEST_CASE("export: project -> dist pak -> player-style load-back (versioned form
 
     foundation::vfs::PakFileSystem pak(PathJoin(distDir, project::kDistContentPak).AsView());
     REQUIRE(pak.IsValid());
+    CHECK_FALSE(pak.Exists(u8"Stale.asset")); // staging starts empty: only this export's scenes ship
+    CHECK_FALSE(DirectoryExists(PathJoin(distDir, u8".stage-scenes").AsView()));
     foundation::content::ContentDatabase db(foundation::core::DefaultAllocator(), pak, BinarySerializerFactory(),
                                           project::kCookedAssetExtension);
 
