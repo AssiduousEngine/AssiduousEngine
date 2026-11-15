@@ -75,6 +75,9 @@ export namespace foundation::materials
         // draws so they don't clobber the opaque G-buffer they blend over (they still bind all targets to
         // match the render pass, but with the aux write masks disabled).
         bool writeAuxTargets = true;
+        // Clamp depth instead of clipping at the near and far planes, where the device can (a
+        // shadow map: a caster between the light and the fitted volume still casts).
+        bool depthClamp = false;
 
         // Content hash: name bytes folded with the POD state. Used as the PSO-cache key.
         [[nodiscard]] u64 HashCode() const noexcept
@@ -105,6 +108,7 @@ export namespace foundation::materials
             mix(sampleCount);
             mix(depthOnly ? 1u : 0u);
             mix(writeAuxTargets ? 1u : 0u);
+            mix(depthClamp ? 1u : 0u);
             return h;
         }
 
@@ -119,7 +123,8 @@ export namespace foundation::materials
                   depthCompare == o.depthCompare && depthFormat == o.depthFormat &&
                   depthBias == o.depthBias && depthBiasSlopeScale == o.depthBiasSlopeScale &&
                   colorTargetCount == o.colorTargetCount && sampleCount == o.sampleCount &&
-                  depthOnly == o.depthOnly && writeAuxTargets == o.writeAuxTargets))
+                  depthOnly == o.depthOnly && writeAuxTargets == o.writeAuxTargets &&
+                  depthClamp == o.depthClamp))
             {
                 return false;
             }

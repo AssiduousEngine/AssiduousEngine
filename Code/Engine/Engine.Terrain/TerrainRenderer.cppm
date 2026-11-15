@@ -1511,6 +1511,9 @@ export namespace engine::terrain
             }
 
             rhi::RenderPipelineDesc pd{};
+            // A shadow pass clamps depth where the device can: terrain rising toward the light past
+            // the cascade's near plane still casts (the mesh renderer's casters do the same).
+            pd.primitive.depthClipEnabled = !(biased && m_device->features.depthClamp);
             pd.layout = holes ? m_holeDepthPipelineLayout : m_depthPipelineLayout; // 3 sets (no material)
             pd.vertex.shader = rhi::StageOf(vs, rhi::ShaderStage::Vertex);
             pd.vertex.buffers = Span<const rhi::VertexBufferLayout>{&vbl, 1};

@@ -281,6 +281,9 @@ export namespace foundation::materials
             desc.primitive.frontFace = config.frontFace;
             desc.primitive.cullMode = CullFor(config.cullMode);
             desc.primitive.fillMode = config.fillMode;
+            // Asked for and supported: without the device feature the flag is invalid, and the
+            // pass clips as before.
+            desc.primitive.depthClipEnabled = !(config.depthClamp && m_device->features.depthClamp);
 
             // --- depth/stencil ---
             if (config.depthMode != DepthMode::Disabled)

@@ -182,3 +182,56 @@ TEST_CASE("pso cache: configs apart in any field are apart; a failed build waits
     cache.Clear();
     device.DestroyPipelineLayout(layout);
 }
+
+namespace
+{
+    // The Null device, remembering whether the last pipeline it built clips depth.
+    class ClipRecordingDevice final : public rhi::null::NullDevice
+    {
+    public:
+        using rhi::null::NullDevice::NullDevice;
+        bool lastDepthClip = true;
+        Status CreateRenderPipeline(const rhi::RenderPipelineDesc& desc, rhi::RenderPipeline*& out) override
+        {
+            lastDepthClip = desc.primitive.depthClipEnabled;
+            return rhi::null::NullDevice::CreateRenderPipeline(desc, out);
+        }
+    };
+}
+
+TEST_CASE("pso cache: a depth-clamp config clamps where the device can, and clips where it cannot")
+{
+    ClipRecordingDevice device{DefaultAllocator()};
+    shaders::CookedShaderPack pack;
+    AddPlaceholder(pack, u8"shadow", shaders::ShaderStage::Vertex);
+    shaders::ShaderSystem shaderSystem(device);
+    shaderSystem.SetCookedPack(&pack);
+    rhi::PipelineLayout* layout = nullptr;
+    REQUIRE(device.CreatePipelineLayout(rhi::PipelineLayoutDesc{}, layout).IsOk());
+
+    PipelineConfig clipped = PipelineConfig::ForOpaqueMesh(u8"shadow");
+    clipped.depthOnly = true;
+    clipped.vertexLayout = VertexLayoutType::PositionOnly;
+    PipelineConfig clamped = clipped;
+    clamped.depthClamp = true;
+    CHECK_FALSE(clamped == clipped); // a config of its own
+    CHECK(clamped.HashCode() != clipped.HashCode());
+
+    {
+        device.features.depthClamp = true;
+        PipelineStateCache cache(shaderSystem, device);
+        REQUIRE(cache.GetPipeline(clamped, layout) != nullptr);
+        CHECK_FALSE(device.lastDepthClip);
+        REQUIRE(cache.GetPipeline(clipped, layout) != nullptr);
+        CHECK(device.lastDepthClip);
+        cache.Clear();
+    }
+    {
+        device.features.depthClamp = false; // asking for it without the feature is invalid
+        PipelineStateCache cache(shaderSystem, device);
+        REQUIRE(cache.GetPipeline(clamped, layout) != nullptr);
+        CHECK(device.lastDepthClip);
+        cache.Clear();
+    }
+    device.DestroyPipelineLayout(layout);
+}

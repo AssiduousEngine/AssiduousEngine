@@ -2141,6 +2141,10 @@ namespace foundation::render
         {
             c.depthBias = static_cast<i16>(rhi::depth::BiasAwayFromViewer(50));
             c.depthBiasSlopeScale = rhi::depth::SlopeBiasAwayFromViewer(1.5f);
+            // The cascade fit bounds the receivers the camera sees; a tall caster toward the light
+            // reaches past its near plane and was clipped away, its shadow with it. Clamped, it
+            // lands on the near plane and still occludes everything behind it.
+            c.depthClamp = true;
         }
         return c;
     }
