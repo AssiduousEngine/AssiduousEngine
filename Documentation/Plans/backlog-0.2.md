@@ -496,3 +496,32 @@ asset browser union them; GUID stability across packs (a pack's assets keep thei
 resolve after mounting). Decide: mount persistence (in project settings), conflict handling (same
 guid in two packs), whether external mounts are read-only, and product/cook handling for mounted
 sources. Relates to the `data://` discovery work + [[vfs-and-resource-stack]].
+
+## Web: Firefox refuses our render bundles in read-only depth passes (user 2026-11-15)
+
+Sky Hopper on the web draws wrong in Firefox (160, Windows) alone, with `Render bundle has
+incompatible read-only flags: bundle has flags depth = false and stencil = true, while the pass has
+flags depth = true and stencil = true` on every submit. Chrome, Opera, Safari and desktop WebGPU
+(wgpu-native 29) are fine.
+
+- **Firefox's bug, not ours.** A ten-line WebGPU page (a bundle created with `depthReadOnly: true`,
+  executed in a depth-read-only pass, which the spec allows) fails the same way in Firefox 160 and
+  passes in Opera. Firefox's `Device::CreateRenderBundleEncoder` (`dom/webgpu/Device.cpp`) copies a
+  bundle descriptor's format, sample count, label and color formats, never `depthReadOnly` or
+  `stencilReadOnly`, which stay false while `gfx/wgpu_bindings/src/client.rs` hands them to wgpu.
+  Its conformance expectations mark the render-bundle cases of
+  `attachment_compatibility:render_pass_or_bundle_and_pipeline,depth_stencil_read_only_write_state`
+  as `expected: FAIL` (`implementation-status: backlog`); no Bugzilla bug was found for it
+  (component Core :: Graphics: WebGPU, searched 2026-11-15). Filing one is worth it.
+- **What hits it:** the transparent and world UI passes hold the scene depth read-only and execute
+  bundles recorded read-only (`PipelineImpl.cpp`, `bd.depthReadOnly`); the opaque pass writes depth
+  and is unaffected.
+- **Fix when taken:** on WebGPU those two passes record their draws straight into the pass
+  (`EmitDraw` takes the shared `RenderCommandEncoder`), chosen by a device capability the WebGPU
+  backend clears, so no bundle reaches a read-only pass; Vulkan and DX12 keep bundles. Making the
+  passes' depth writable instead is out: the transparent pass samples the opaque depth for soft
+  particles.
+- **Built, uncommitted:** a check in the WebGPU backend that names a bundle that may write an aspect
+  its pass holds read-only (`LOG_ERROR`, once per encoder), with its test in RHI.WebGPU.Tests;
+  native wgpu does not validate this, so it would catch a real mismatch of our own. It stayed silent
+  in Firefox, which showed our flags right.
