@@ -111,6 +111,7 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   and intensity, and a spot's inner cone.
 - **Render graph culling compares subresources without their counts.** `RenderGraph.cppm:763`.
   Test: a reader of mip 2 (count 0, all) keeps a writer of mip 2. Fix: pass the real ranges.
+  Built 2026-11-15.
 - **DX12: a full descriptor heap hands out a null handle that is written.** `DxDevice.cppm:93-96`,
   `DxDescriptorHeap.cppm:59`, callers in `DxTextureView.cppm` and `DxSampler.cppm`. Test: 4097 SRV
   views give an error status. Fix: check, report; grow or page the heaps.
@@ -125,12 +126,13 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   the tracked state.
 - **Vulkan: an upload leaves the tracked layout stale, waits from TOP_OF_PIPE, and ignores the
   submit's result.** `VkTransferBatch.cppm:296-330, 113`. Test: after `WriteTexture`, the tracked
-  layout is shader-read. Fix: set the tracked layout; real stages; check the result.
+  layout is shader-read. Fix: set the tracked layout; real stages; check the result. Built
+  2026-11-15.
 - **Vulkan: a submit with a null fence drops its command buffers** (and a frame's acquire
   semaphore). `VkDevice.cppm:1155`. Test: `Submit(cbs, nullptr, 0)` runs them. Fix: submit
-  without a fence.
+  without a fence. Built 2026-11-15.
 - **Vulkan: descriptor pools of both kinds share a list.** `VkDescriptorPoolManager.cppm:45-61`.
-  Fix: one list per flag set.
+  Fix: one list per flag set. Built 2026-11-15.
 - **More than 256 lights in a view are cut in extraction order.** `ClusterSystemImpl.cpp:164-168`,
   `MeshRendererImpl.cpp:1064`. Test: 257 lights, only the last bright, the pixel is lit. Fix: rank
   by contribution to the view before cutting.
@@ -138,12 +140,13 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   AO matches a half-width view. Fix: pass the viewport as SSR's call does.
 - **The cascade fit clips tall casters.** `ShadowSystem.cppm:126-130`, no depth clamp. Test: a
   caster 4x the radius toward the light appears in the cascade. Fix: depth clamp (or pancaking)
-  for shadow pipelines.
+  for shadow pipelines. Built 2026-11-15 (depth clamp, mesh and terrain casters).
 - **IBL rebakes whole on any sun change, even for HDR skies.** `IBLSystemImpl.cpp:165-170`. Test:
   an HDR sky's sun moves, the IBL generation holds. Fix: only a procedural sky depends on the sun;
-  a threshold.
+  a threshold. Built 2026-11-15 (procedural and analytic skies; half a degree).
 - **An engine `.hlsli` change does not rebuild project shaders.** `FileShaderSourceProvider.cppm:173-181`.
-  Fix: track includes per registered source.
+  Fix: track includes per registered source. Built 2026-11-15: a registered source that
+  includes anything rebuilds on any include change (its text is kept).
 - **Cluster index buffers take about 50 MB per view and frame slot at 1080p.**
   `ClusterSystemImpl.cpp:255`. Fix: a compact list with offsets.
 

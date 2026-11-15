@@ -53,6 +53,11 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   is skipped with a warning instead of failing the frame. A camera with a near plane of 0, a far
   plane below its near one or a field of view of 0, and a spot light whose inner cone is wider
   than its outer one, draw clamped to sensible values instead of breaking the view.
+- Rendering: a tall object reaching toward the sun past a shadow cascade casts its shadow
+  instead of losing it. Moving the sun no longer rebakes the lighting of an HDR, cubemap or
+  coloured sky, and a slowly moving sun rebakes a procedural sky every half degree, not every
+  frame. On Vulkan, a texture updated after first use keeps its new contents.
+- Editor: editing an engine shader include rebuilds the project's own shaders that include it.
 - Web: a game with a render size of its own (Sky Hopper, PaperKid) takes taps on phones and
   tablets. Its buttons answered a mouse but not a finger, since the browser shell, unlike the
   native ones, did not give the finger to the mouse; a quick tap or click within one frame also
