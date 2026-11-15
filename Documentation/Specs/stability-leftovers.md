@@ -97,9 +97,12 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   views past the eighth) had the same cap; all grow now.
 - **Probe capture can exhaust the mesh view ring.** `MeshRendererImpl.cpp:296` reserves by draws,
   not passes; each `Resolve` takes a slot (:1112). Test: 1 mesh and 1 probe capturing, the forward
-  allocates. Fix: reserve passes (views x 6 faces for captures).
+  allocates. Fix: reserve passes (views x 6 faces for captures). Built 2026-11-15: the ring is a
+  `ViewUniformRing` (one slot per distinct view block, as the sprite renderer's) plus the
+  frame's capture faces.
 - **An unbound material TextureCube gets the 2D white view.** `MaterialSystem.cppm:609` against a
-  cube layout (:136). Test: such a material's bind group validates. Fix: a cube fallback.
+  cube layout (:136). Test: such a material's bind group validates. Fix: a cube fallback. Built
+  2026-11-15: a 1x1 white cube.
 - **A camera may target any texture.** `ExtractImpl.cpp:557-569`. Test: a Sampled-only target is
   refused with a warning. Fix: check RenderTarget usage and a color format.
 - **Light and camera fields are not validated.** `RenderComponents.cppm:296-299`,

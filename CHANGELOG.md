@@ -46,6 +46,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   previews) draws each with its own inputs. The ninth view shared the first's tone map, FXAA,
   sky and debug slots, its TAA, SSR, SSGI and exposure history, and its clustered lights, so one
   view could show another's image or ghost with its history.
+- Rendering: a reflection probe captured in a scene with few meshes bakes them on every face;
+  past the first face they drew nothing. A material with an unset cube texture slot gets a white
+  cube instead of a flat texture its layout refuses.
 - Web: a game with a render size of its own (Sky Hopper, PaperKid) takes taps on phones and
   tablets. Its buttons answered a mouse but not a finger, since the browser shell, unlike the
   native ones, did not give the finger to the mouse; a quick tap or click within one frame also
