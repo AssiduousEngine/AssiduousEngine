@@ -110,7 +110,12 @@ export namespace foundation::rhi::vk
             si.signalSemaphoreCount = 1;
             si.pSignalSemaphores = &sem;
 
-            vkQueueSubmit(m_queue, 1, &si, VK_NULL_HANDLE);
+            if (vkQueueSubmit(m_queue, 1, &si, VK_NULL_HANDLE) != VK_SUCCESS)
+            {
+                // Nothing was queued: the fence will never reach the value, so nothing waits on it.
+                cleanupCmdPool();
+                return ErrorCode::Unknown;
+            }
             m_asyncFence = vkFence;
             m_asyncValue = signalValue;
             return ErrorCode::Ok;
@@ -291,16 +296,23 @@ export namespace foundation::rhi::vk
                     continue;
                 auto aspect = getAspectMask(dst->desc.format);
 
+                // From the layout the image is tracked in, not UNDEFINED: a copy into part of a
+                // subresource keeps the rest, and an image the GPU has used waits for that use.
+                const VkImageLayout oldLayout = dst->getSubresourceLayout(c.mipLevel, c.arrayLayer);
+                const bool fresh = oldLayout == VK_IMAGE_LAYOUT_UNDEFINED;
                 VkImageMemoryBarrier pre{};
                 pre.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+                pre.srcAccessMask = fresh ? VkAccessFlags{0} : VkAccessFlags{VK_ACCESS_MEMORY_WRITE_BIT};
                 pre.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-                pre.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+                pre.oldLayout = oldLayout;
                 pre.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
                 pre.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
                 pre.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
                 pre.image = dst->handle();
                 pre.subresourceRange = {aspect, c.mipLevel, 1, c.arrayLayer, 1};
-                vkCmdPipelineBarrier(cb, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                vkCmdPipelineBarrier(cb,
+                                     fresh ? VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT
+                                           : VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                                      VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1,
                                      &pre);
 
@@ -323,9 +335,15 @@ export namespace foundation::rhi::vk
                 post.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
                 post.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
                 post.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                // Any stage may read it next (a vertex or compute shader as well as a fragment
+                // one), and the batch may run on a family without graphics stages: ALL_COMMANDS
+                // is valid on every family.
                 vkCmdPipelineBarrier(cb, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0,
-                                     nullptr, 1, &post);
+                                     VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr,
+                                     1, &post);
+                // The encoder's barriers start from the tracked layout: it is shader-read now.
+                dst->setSubresourceLayout(c.mipLevel, 1, c.arrayLayer, 1,
+                                          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
             }
 
             vkEndCommandBuffer(cb);

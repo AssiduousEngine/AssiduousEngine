@@ -140,3 +140,52 @@ TEST_CASE("vk.queues: a requested compute queue is granted exactly when the adap
     device->Destroy();
     backend->Destroy();
 }
+
+TEST_CASE("vk.upload: a texture written through a transfer batch is tracked as shader-read")
+{
+    // The batch moved the image to SHADER_READ_ONLY on the GPU but left its tracked layout
+    // UNDEFINED, so the encoder's next barrier on it started from UNDEFINED and discarded the upload.
+    Backend* backend = nullptr;
+    Device* device = MakeDeviceWithComputeQueue(backend);
+    if (device == nullptr)
+    {
+        MESSAGE("no Vulkan adapter - skipped");
+        return;
+    }
+    TextureDesc td{};
+    td.format = TextureFormat::RGBA8Unorm;
+    td.width = 2;
+    td.height = 2;
+    td.arrayLayerCount = 2;
+    td.usage = TextureUsage::Sampled | TextureUsage::CopyDst;
+    td.label = u8"vk.upload";
+    Texture* texture = nullptr;
+    REQUIRE(device->CreateTexture(td, texture).IsOk());
+    auto* vkTexture = static_cast<vk::VkTextureImpl*>(texture);
+    CHECK(vkTexture->getSubresourceLayout(0, 0) == VK_IMAGE_LAYOUT_UNDEFINED);
+
+    Queue* queue = device->GetQueue(QueueType::Graphics);
+    REQUIRE(queue != nullptr);
+    TransferBatch* batch = nullptr;
+    REQUIRE(queue->CreateTransferBatch(batch).IsOk());
+    const u8 pixels[16] = {};
+    TextureDataLayout layout{};
+    layout.bytesPerRow = 8;
+    layout.rowsPerImage = 2;
+    batch->WriteTexture(texture, Span<const u8>{pixels, 16}, layout, Extent3D{2, 2, 1}, 0, 1);
+    REQUIRE(batch->Submit().IsOk());
+    CHECK(vkTexture->getSubresourceLayout(0, 1) == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    CHECK(vkTexture->getSubresourceLayout(0, 0) == VK_IMAGE_LAYOUT_UNDEFINED); // not written
+
+    // Writing it again starts from the tracked layout and leaves it shader-read.
+    batch->Reset();
+    batch->WriteTexture(texture, Span<const u8>{pixels, 16}, layout, Extent3D{2, 2, 1}, 0, 0);
+    REQUIRE(batch->Submit().IsOk());
+    CHECK(vkTexture->getSubresourceLayout(0, 0) == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    CHECK(vkTexture->currentLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL); // collapsed
+
+    queue->DestroyTransferBatch(batch);
+    device->DestroyTexture(texture);
+    device->Destroy();
+    backend->Destroy();
+}
