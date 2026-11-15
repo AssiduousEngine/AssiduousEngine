@@ -111,8 +111,14 @@ export namespace foundation::gui
         /// Sets the values shown from the view's bottom to its top.
         void SetValueRange(f32 low, f32 high)
         {
-            if (high - low < 1e-6f)
-                high = low + 1e-6f;
+            if (!core::IsFinite(low) || !core::IsFinite(high))
+                return; // a NaN or infinite range has no grid to draw: the view keeps its own
+            // The least span, relative to the values' size: a fixed 1e-6 is lost in f32 at 16 and
+            // above (1000 + 1e-6 is 1000), which left a zero range and a grid step of zero.
+            const f32 size = core::Max(core::Abs(low), core::Abs(high));
+            const f32 least = core::Max(1e-6f, size * 1e-5f);
+            if (high - low < least)
+                high = low + least;
             m_valueLow = low;
             m_valueHigh = high;
             Invalidate();
@@ -893,7 +899,12 @@ export namespace foundation::gui
                     break;
                 }
         }
-        for (i64 i = static_cast<i64>(core::Ceil(m_valueLow / valueStep)); static_cast<f32>(i) * valueStep <= m_valueHigh; ++i)
+        // A line per step, at most one a pixel: a step too small for the values' f32 precision (or
+        // not finite) would otherwise never reach the top.
+        const i64 maxLines = static_cast<i64>(box.height) + 2;
+        const bool stepUsable = core::IsFinite(valueStep) && valueStep > 0.0f;
+        for (i64 i = static_cast<i64>(core::Ceil(m_valueLow / valueStep)), drawn = 0;
+             stepUsable && drawn < maxLines && static_cast<f32>(i) * valueStep <= m_valueHigh; ++i, ++drawn)
         {
             const f32 value = static_cast<f32>(i) * valueStep;
             const f32 y = KeyPoint(0.0f, value).y;

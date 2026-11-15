@@ -169,6 +169,22 @@ TEST_CASE("CurveView: keys and the curve between them are where the axis and the
     CHECK(bed.view->HitTest(Bed::At(0.8f, 0.75f)).What == CurveHit::Kind::None);
 }
 
+TEST_CASE("CurveView: a value range of no span keeps a span its values can tell apart, and ignores NaN")
+{
+    // A zero range at 1000 took the fixed least span, 1e-6, which f32 loses at 1000: the grid's
+    // step was then zero and its loop never ended.
+    Bed bed;
+    bed.view->SetValueRange(1000.0f, 1000.0f);
+    CHECK(bed.view->ValueHigh() > bed.view->ValueLow());
+    bed.view->SetValueRange(-50000.0f, -50000.0f);
+    CHECK(bed.view->ValueHigh() > bed.view->ValueLow());
+    const f32 low = bed.view->ValueLow();
+    const f32 high = bed.view->ValueHigh();
+    bed.view->SetValueRange(core::Sqrt(-1.0f), 1.0f); // NaN keeps the range the view had
+    CHECK(bed.view->ValueLow() == low);
+    CHECK(bed.view->ValueHigh() == high);
+}
+
 TEST_CASE("CurveView: a click selects a key, Shift adds one, a click on nothing clears, a box selects")
 {
     Bed bed;
