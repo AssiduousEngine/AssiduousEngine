@@ -57,6 +57,7 @@ export namespace foundation::shell
         [[nodiscard]] NativeWindow Native() const noexcept override
         {
             NativeWindow native;
+            native.system = m_system;
             native.window = m_surfaceGone ? nullptr : const_cast<NullWindow*>(this);
             return native;
         }
@@ -93,6 +94,8 @@ export namespace foundation::shell
         }
         void SetMinimized(bool m) noexcept { m_minimized = m; }
         void SetSurfaceGone(bool gone) noexcept { m_surfaceGone = gone; }
+        // The window system it reports (a test standing in for a phone's window).
+        void SetWindowSystem(WindowSystem system) noexcept { m_system = system; }
         // What a test says the system covers, as a phone's bars do: the safe area left, in pixels.
         void SetSafeArea(core::Rectangle area) noexcept
         {
@@ -118,6 +121,7 @@ export namespace foundation::shell
         bool m_open = true;
         bool m_minimized = false;
         bool m_surfaceGone = false;
+        WindowSystem m_system = WindowSystem::Unknown;
         bool m_hasSafeArea = false;
         core::Rectangle m_safeArea{0.0f, 0.0f, 0.0f, 0.0f};
         bool m_textInputActive = false;

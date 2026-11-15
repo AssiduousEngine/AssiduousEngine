@@ -363,3 +363,29 @@ TEST_CASE("graphics: a rebuild that fails keeps the old swapchain and is tried a
     CHECK(RenderOne(*gd, rw));           // the next frame tries again, succeeds, and renders
     CHECK(swap->Width() == 1600u);
 }
+
+TEST_CASE("graphics: a phone's window without its surface yet gets a render window that starts suspended")
+{
+    // A fullscreen switch at startup cycles an Android window's surface; a render window made in
+    // that gap failed (or, before SDL cleared the stale pointer, crashed making the surface).
+    NullShell shell;
+    auto created = CreateNullGraphicsDevice();
+    REQUIRE(created.HasValue());
+    UniquePtr<GraphicsDevice>& gd = created.Value();
+    auto* window = static_cast<NullWindow*>(shell.MainWindow());
+    window->SetWindowSystem(WindowSystem::Android);
+    window->SetSurfaceGone(true);
+
+    auto rwResult = gd->CreateRenderWindow(*window, RenderWindowDesc{});
+    REQUIRE(rwResult.HasValue());
+    UniquePtr<RenderWindow>& rw = rwResult.Value();
+    CHECK(rw->IsSuspended());
+    FrameContext none = rw->BeginFrame();
+    CHECK_FALSE(none.valid); // still no surface: the frame is skipped
+
+    window->SetSurfaceGone(false); // the platform gives the surface
+    FrameContext frame = rw->BeginFrame();
+    CHECK(frame.valid);
+    CHECK_FALSE(rw->IsSuspended());
+    rw->EndFrame(frame);
+}

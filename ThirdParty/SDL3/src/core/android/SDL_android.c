@@ -1338,6 +1338,10 @@ retry:
             ANativeWindow_release(data->native_window);
             data->native_window = NULL;
         }
+        // AssiduousEngine: the property named the released window until the next
+        // onNativeSurfaceCreated; a Vulkan surface made in that gap crashed in
+        // vkCreateAndroidSurfaceKHR. Clear it with the window it names.
+        SDL_SetPointerProperty(SDL_GetWindowProperties(Android_Window), SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, NULL);
 
         // GL Context handling is done in the event loop because this function is run from the Java thread
     }

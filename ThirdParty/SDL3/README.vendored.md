@@ -25,3 +25,12 @@ own). A re-vendor must apply the same prune so diffs stay reviewable.
 
 `-DENGINE_SYSTEM_SDL=ON` links a system SDL3 via find_package instead (distro
 packaging); empty ENGINE_SDL_TARGET means no SDL and the desktop shell is skipped.
+
+## Local changes
+
+Marked `AssiduousEngine:` in the source; a re-vendor must carry them forward.
+
+- `src/core/android/SDL_android.c`, `onNativeSurfaceDestroyed`: clears
+  `SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER` as it releases the native window. Upstream leaves the
+  property naming the released window until the next `onNativeSurfaceCreated`, and a Vulkan
+  surface made in that gap (a fullscreen switch cycles the surface at startup) crashed.

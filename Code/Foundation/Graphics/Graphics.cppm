@@ -468,7 +468,12 @@ export namespace foundation::graphics
         {
             rhi::Surface* surface = nullptr;
             rhi::SwapChain* swapChain = nullptr;
-            if (!MakePresentation(window, desc, surface, swapChain))
+            // A phone's window can be without its surface when the render window is made (a
+            // fullscreen switch at startup cycles it): the render window starts suspended, and its
+            // first frame with a surface makes the swapchain.
+            const NativeWindow native = window.Native();
+            const bool awaitingSurface = native.system == WindowSystem::Android && native.window == nullptr;
+            if (!awaitingSurface && !MakePresentation(window, desc, surface, swapChain))
             {
                 return core::Err(core::ErrorCode::Unknown);
             }
@@ -494,8 +499,14 @@ export namespace foundation::graphics
                     {
                         m_device->DestroyCommandPool(pool);
                     }
-                    m_device->DestroySwapChain(swapChain);
-                    m_device->DestroySurface(surface);
+                    if (swapChain != nullptr)
+                    {
+                        m_device->DestroySwapChain(swapChain);
+                    }
+                    if (surface != nullptr)
+                    {
+                        m_device->DestroySurface(surface);
+                    }
                     return core::Err(core::ErrorCode::Unknown);
                 }
                 pools.PushBack(pool);
