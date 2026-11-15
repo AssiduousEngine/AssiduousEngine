@@ -414,18 +414,27 @@ export namespace foundation::materials
             {
                 return Status{ErrorCode::Unknown};
             }
+            if (!CreateTexture1x1(Color32{255, 255, 255, 255}, m_whiteCubeTex, m_whiteCubeView,
+                                  /*cube*/ true))
+            {
+                return Status{ErrorCode::Unknown};
+            }
             return Status{};
         }
 
-        bool CreateTexture1x1(Color32 color, rhi::Texture*& outTex, rhi::TextureView*& outView)
+        // A 1x1 texture of one colour; `cube` makes it six layers seen as a cube.
+        bool CreateTexture1x1(Color32 color, rhi::Texture*& outTex, rhi::TextureView*& outView,
+                              bool cube = false)
         {
+            const u32 layers = cube ? 6u : 1u;
             rhi::TextureDesc td{};
             td.dimension = rhi::TextureDimension::Texture2D;
             td.format = rhi::TextureFormat::RGBA8Unorm;
             td.width = 1;
             td.height = 1;
+            td.arrayLayerCount = layers;
             td.usage = rhi::TextureUsage::Sampled | rhi::TextureUsage::CopyDst;
-            td.label = u8"1x1";
+            td.label = cube ? u8"1x1.cube" : u8"1x1";
             if (!m_device->CreateTexture(td, outTex).IsOk())
             {
                 return false;
@@ -438,14 +447,20 @@ export namespace foundation::materials
                 rhi::TextureDataLayout layout{};
                 layout.bytesPerRow = 4;
                 layout.rowsPerImage = 1;
-                tb->WriteTexture(outTex, Span<const u8>{pixel, 4}, layout, rhi::Extent3D{1, 1, 1});
+                for (u32 layer = 0; layer < layers; ++layer)
+                {
+                    tb->WriteTexture(outTex, Span<const u8>{pixel, 4}, layout, rhi::Extent3D{1, 1, 1},
+                                     0, layer);
+                }
                 (void)tb->Submit();
                 m_queue->DestroyTransferBatch(tb);
             }
 
             rhi::TextureViewDesc vd{};
             vd.format = rhi::TextureFormat::RGBA8Unorm;
-            vd.dimension = rhi::TextureViewDimension::Texture2D;
+            vd.dimension = cube ? rhi::TextureViewDimension::TextureCube
+                                : rhi::TextureViewDimension::Texture2D;
+            vd.arrayLayerCount = layers;
             return m_device->CreateTextureView(outTex, vd, outView).IsOk();
         }
 
@@ -606,7 +621,10 @@ export namespace foundation::materials
                         // glTF defines factor x texture with the texture white when absent, so a glow
                         // authored as a colour alone shows, and a material that does not glow has a
                         // black EmissiveColor.
-                        view = Contains(p.name, u8"ormal") ? m_normalView : m_whiteView;
+                        // A cube slot takes a white cube: its layout wants a cube view.
+                        view = p.type == MaterialPropertyType::TextureCube ? m_whiteCubeView
+                               : Contains(p.name, u8"ormal")               ? m_normalView
+                                                                          : m_whiteView;
                     }
                     if (view != nullptr)
                     {
@@ -781,6 +799,14 @@ export namespace foundation::materials
             {
                 m_device->DestroyTexture(m_blackTex);
             }
+            if (m_whiteCubeView)
+            {
+                m_device->DestroyTextureView(m_whiteCubeView);
+            }
+            if (m_whiteCubeTex)
+            {
+                m_device->DestroyTexture(m_whiteCubeTex);
+            }
             if (m_defaultSampler)
             {
                 m_device->DestroySampler(m_defaultSampler);
@@ -809,6 +835,8 @@ export namespace foundation::materials
         rhi::TextureView* m_normalView = nullptr;
         rhi::Texture* m_blackTex = nullptr;
         rhi::TextureView* m_blackView = nullptr;
+        rhi::Texture* m_whiteCubeTex = nullptr;
+        rhi::TextureView* m_whiteCubeView = nullptr;
 
         HashMap<u64, rhi::BindGroupLayout*> m_layoutCache;
         HashMap<u64, rhi::Sampler*> m_samplerCache;

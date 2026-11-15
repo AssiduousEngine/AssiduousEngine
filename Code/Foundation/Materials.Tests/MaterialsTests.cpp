@@ -555,3 +555,30 @@ TEST_CASE("material clone: a copy with its own uid and everything else the same;
     const f32* rough = reinterpret_cast<const f32*>(mat->DefaultUniformData().Data() + mat->FindProperty(u8"roughness")->offset);
     CHECK(*rough == doctest::Approx(0.5f));
 }
+
+TEST_CASE("material system: an unbound cube slot binds a cube, an unbound 2D slot a 2D texture")
+{
+    // The layout declares a cube view for a TextureCube property, and the unbound fallback was the
+    // 2D white texture: a bind group no backend accepts.
+    RecordingDevice device{DefaultAllocator()};
+    MaterialSystem system;
+    REQUIRE(system.Initialize(device).IsOk());
+    RefPtr<Material> mat = MaterialBuilder(u8"sky")
+                               .Shader(u8"forward")
+                               .Texture(u8"AlbedoMap")
+                               .TextureCube(u8"EnvMap")
+                               .Sampler(u8"MainSampler")
+                               .Build();
+    REQUIRE(mat);
+    MaterialInstance inst(mat.Get());
+    REQUIRE(system.PrepareInstance(inst) != nullptr);
+    REQUIRE(device.groupEntries.Size() == 3u); // t0, t1, s0 (no uniforms)
+    const rhi::TextureView* albedo = device.groupEntries[0].textureView;
+    const rhi::TextureView* env = device.groupEntries[1].textureView;
+    REQUIRE(albedo != nullptr);
+    REQUIRE(env != nullptr);
+    CHECK(albedo->desc.dimension == rhi::TextureViewDimension::Texture2D);
+    CHECK(env->desc.dimension == rhi::TextureViewDimension::TextureCube);
+    CHECK(env->desc.arrayLayerCount == 6u);
+    CHECK(env->texture->desc.arrayLayerCount == 6u);
+}
