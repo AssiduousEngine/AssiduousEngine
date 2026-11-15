@@ -58,6 +58,11 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   coloured sky, and a slowly moving sun rebakes a procedural sky every half degree, not every
   frame. On Vulkan, a texture updated after first use keeps its new contents.
 - Editor: editing an engine shader include rebuilds the project's own shaders that include it.
+- Rendering: in a scene with more than 256 lights, the lights near the camera and the brightest
+  are the ones drawn; before, the ones extracted last were dropped wherever they were.
+- Android: a game that opens fullscreen no longer crashes at startup when the phone recreates its
+  window surface. A lost graphics device or a failing swapchain is now logged instead of the
+  picture silently stopping.
 - Web: a game with a render size of its own (Sky Hopper, PaperKid) takes taps on phones and
   tablets. Its buttons answered a mouse but not a finger, since the browser shell, unlike the
   native ones, did not give the finger to the mouse; a quick tap or click within one frame also

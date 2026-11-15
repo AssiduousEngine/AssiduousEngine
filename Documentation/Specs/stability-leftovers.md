@@ -135,7 +135,8 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   Fix: one list per flag set. Built 2026-11-15.
 - **More than 256 lights in a view are cut in extraction order.** `ClusterSystemImpl.cpp:164-168`,
   `MeshRendererImpl.cpp:1064`. Test: 257 lights, only the last bright, the pixel is lit. Fix: rank
-  by contribution to the view before cutting.
+  by contribution to the view before cutting. Built 2026-11-15: `ExtractedScene::RankLights` past
+  `kMaxLightsPerView`, from the view origin.
 - **TAA and AO ignore a view's sub-rectangle.** `PipelineImpl.cpp:2226, 2247`. Test: split-screen
   AO matches a half-width view. Fix: pass the viewport as SSR's call does.
 - **The cascade fit clips tall casters.** `ShadowSystem.cppm:126-130`, no depth clamp. Test: a
