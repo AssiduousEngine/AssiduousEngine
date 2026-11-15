@@ -145,9 +145,15 @@ export namespace foundation::net
     };
 
     /// The system's trusted roots: the distribution's bundle on Linux and SteamOS (the first of
-    /// the usual paths that exists), the ROOT store on Windows; empty where none is found (a web
-    /// build, a box without a bundle). `where` says what was read, or where it looked.
+    /// the usual paths that exists), the ROOT store on Windows, the system's certificate folder on
+    /// Android; empty where none is found (a web build, a box without a bundle). `where` says what
+    /// was read, or where it looked.
     [[nodiscard]] TlsRoots LoadSystemRoots(String* where = nullptr);
+
+    /// The certificates in `folder`, a PEM file each (Android keeps its roots so), joined into one
+    /// bundle; text around a certificate is kept, as a PEM reader skips it. Empty when the folder
+    /// is missing or holds none. `count` is given the number of files read.
+    [[nodiscard]] String ReadCertificateFolder(StringView folder, usize* count = nullptr);
 
     /// A connection's plaintext, over whatever carries it: Pump moves the bytes (and the
     /// connect and the handshake on), then Send and Receive work as a TcpSocket's do.

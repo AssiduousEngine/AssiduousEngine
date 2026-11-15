@@ -50,6 +50,26 @@ namespace foundation::net
         // A browser checks certificates itself; a web build has no TLS backend.
         if (where != nullptr)
             *where = String(u8"none: the browser does TLS");
+#elif PLATFORM_ANDROID
+        // Android keeps its roots as a folder of certificates: since Android 14 in the module the
+        // system updates for security, before that in the system image. Certificates a user added
+        // are left out, as Android leaves them out for an app unless it asks for them.
+        static constexpr StringView kFolders[] = {
+            u8"/apex/com.android.conscrypt/cacerts",
+            u8"/system/etc/security/cacerts",
+        };
+        for (StringView folder : kFolders)
+        {
+            usize count = 0;
+            roots.pem = ReadCertificateFolder(folder, &count);
+            if (roots.pem.IsEmpty())
+                continue;
+            if (where != nullptr)
+                *where = Format(u8"{} ({} certificates)", folder, count);
+            return roots;
+        }
+        if (where != nullptr)
+            *where = String(u8"no certificates in /apex/com.android.conscrypt/cacerts or /system/etc/security/cacerts");
 #else
         // The bundle a distribution keeps (Debian/Ubuntu/SteamOS/Arch, Fedora/RHEL, openSUSE,
         // Alpine), the first that exists.
@@ -74,6 +94,33 @@ namespace foundation::net
             *where = String(u8"no bundle at /etc/ssl/certs/ca-certificates.crt or the other usual paths");
 #endif
         return roots;
+    }
+
+    String ReadCertificateFolder(StringView folder, usize* count)
+    {
+        Array<String> names;
+        (void)ListDirectory(
+            folder,
+            [](void* ctx, StringView name, bool isDirectory)
+            {
+                if (!isDirectory)
+                    static_cast<Array<String>*>(ctx)->PushBack(String(name));
+            },
+            &names);
+        String bundle;
+        usize read = 0;
+        for (const String& name : names)
+        {
+            Result<Array<byte>> bytes = ReadFile(PathJoin(folder, name.AsView()).AsView());
+            if (!bytes.HasValue() || bytes.Value().IsEmpty())
+                continue;
+            bundle += StringView(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size());
+            bundle += u8"\n";
+            ++read;
+        }
+        if (count != nullptr)
+            *count = read;
+        return bundle;
     }
 
     namespace

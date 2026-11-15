@@ -242,6 +242,42 @@ TEST_CASE("tls: a configuration that cannot work fails at once, saying why")
     CHECK(rootless->Failure().ContainsIgnoreCase(u8"no trusted roots"));
 }
 
+TEST_CASE("tls: a folder of certificates, a file each with text around it, is one bundle of roots")
+{
+    // As Android keeps its roots: a file per certificate, its description before the PEM.
+    const TlsCertificate first = Certificate(u8"localhost");
+    const TlsCertificate second = Certificate(u8"localhost");
+    const String folder(u8"tls-certificate-folder");
+    REQUIRE(RemoveDirectoryRecursive(folder.AsView()));
+    REQUIRE(CreateDirectories(folder.AsView()));
+    const auto write = [&](StringView name, const TlsCertificate& cert)
+    {
+        String text(u8"Certificate:\n    Data:\n        Version: 3 (0x2)\nSHA1 Fingerprint=00:11\n");
+        text += cert.certificatePem.AsView();
+        REQUIRE(WriteFile(PathJoin(folder.AsView(), name).AsView(), Bytes(text.AsView())).IsOk());
+    };
+    write(u8"1a2b3c4d.0", first);
+    write(u8"5e6f7a8b.0", second);
+    REQUIRE(CreateDirectories(PathJoin(folder.AsView(), u8"nested").AsView())); // not a certificate
+
+    usize count = 0;
+    const String bundle = ReadCertificateFolder(folder.AsView(), &count);
+    CHECK(count == 2);
+    const TlsCertificate* served[] = {&first, &second};
+    for (const TlsCertificate* cert : served)
+    {
+        TlsClientConfig config;
+        config.serverName = String(u8"localhost");
+        config.trust = TlsTrust::FromPem(bundle.AsView());
+        Pair pair(*cert, config);
+        INFO(reinterpret_cast<const char*>(String(pair.client->Failure()).CStr()));
+        CHECK(pair.client->State() == TlsState::Open);
+    }
+
+    CHECK(ReadCertificateFolder(u8"tls-no-such-folder").IsEmpty());
+    (void)RemoveDirectoryRecursive(folder.AsView());
+}
+
 TEST_CASE("tls: the system's roots, where the box has them")
 {
     String where;

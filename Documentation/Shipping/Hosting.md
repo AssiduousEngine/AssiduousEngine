@@ -7,13 +7,13 @@ How players reach a game that hosts, and how to let browser players in from an h
 A game hosts when its script calls `Net.startServer(port)` (or `Net.startDedicatedServer(port)`).
 The host then listens on two ports:
 
-- `port`, over UDP: desktop and Steam Deck players.
+- `port`, over UDP: desktop, Steam Deck and Android players.
 - `port + 1`, a WebSocket gateway: browser players, who have no UDP. Plain `ws://`.
 
 A joining script calls `Net.connect(address, port)` with the host's game port. The address
 decides how it joins:
 
-| Address | Desktop / Deck | Browser |
+| Address | Desktop / Deck / Android | Browser |
 |---|---|---|
 | `192.168.1.20`, `play.example.com` | UDP to `port` | `ws://` to `port + 1`, or `wss://` when the page itself is https |
 | `ws://play.example.com` | WebSocket to `port + 1` | the same |

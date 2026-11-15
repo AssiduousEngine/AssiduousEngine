@@ -15,7 +15,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   Android template's Gradle project, so the exporting machine needs the Android SDK and a JDK 17
   (the editor's Preferences > Export name their folders, else `ANDROID_HOME` and `JAVA_HOME`).
   The Android template is published with each release, beside the desktop, web and Steam Deck
-  ones (`scripts/build-export-templates.sh android` makes it locally).
+  ones (`scripts/build-export-templates.sh android` makes it locally). A game's networking works
+  on the phone, and its https and wss connections check servers against Android's own trusted
+  certificates.
 
 ## 0.1.0-beta.4 - 2026-11-14
 
