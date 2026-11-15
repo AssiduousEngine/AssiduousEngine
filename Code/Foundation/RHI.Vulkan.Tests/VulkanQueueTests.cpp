@@ -189,3 +189,63 @@ TEST_CASE("vk.upload: a texture written through a transfer batch is tracked as s
     device->Destroy();
     backend->Destroy();
 }
+
+TEST_CASE("vk.submit: a fenced submit given no fence still runs its command buffers")
+{
+    // The fenced overload returned early on a null fence: the commands never ran, and in a frame
+    // submit the acquire semaphore was never waited on.
+    Backend* backend = nullptr;
+    Device* device = MakeDeviceWithComputeQueue(backend);
+    if (device == nullptr)
+    {
+        MESSAGE("no Vulkan adapter - skipped");
+        return;
+    }
+    BufferDesc bd{};
+    bd.size = 16;
+    bd.memory = MemoryLocation::CpuToGpu;
+    bd.usage = BufferUsage::CopySrc;
+    bd.label = u8"vk.submit.src";
+    Buffer* src = nullptr;
+    REQUIRE(device->CreateBuffer(bd, src).IsOk());
+    bd.memory = MemoryLocation::GpuToCpu;
+    bd.usage = BufferUsage::CopyDst;
+    bd.label = u8"vk.submit.dst";
+    Buffer* dst = nullptr;
+    REQUIRE(device->CreateBuffer(bd, dst).IsOk());
+    void* srcBytes = src->Map();
+    REQUIRE(srcBytes != nullptr);
+    for (u32 i = 0; i < 16; ++i)
+    {
+        static_cast<u8*>(srcBytes)[i] = static_cast<u8>(i + 1);
+    }
+    src->Unmap();
+    void* dstBytes = dst->Map();
+    REQUIRE(dstBytes != nullptr);
+    MemSet(dstBytes, 0, 16);
+    dst->Unmap();
+
+    CommandPool* pool = nullptr;
+    REQUIRE(device->CreateCommandPool(QueueType::Graphics, pool).IsOk());
+    CommandEncoder* enc = nullptr;
+    REQUIRE(pool->CreateEncoder(enc).IsOk());
+    enc->CopyBufferToBuffer(src, 0, dst, 0, 16);
+    CommandBuffer* cb = enc->Finish();
+    REQUIRE(cb != nullptr);
+    CommandBuffer* const cbs[] = {cb};
+    device->GetQueue(QueueType::Graphics)->Submit(Span<CommandBuffer* const>{cbs, 1}, nullptr, 0);
+    device->WaitIdle();
+
+    dstBytes = dst->Map();
+    REQUIRE(dstBytes != nullptr);
+    CHECK(static_cast<const u8*>(dstBytes)[0] == 1u);
+    CHECK(static_cast<const u8*>(dstBytes)[15] == 16u);
+    dst->Unmap();
+
+    pool->DestroyEncoder(enc);
+    device->DestroyCommandPool(pool);
+    device->DestroyBuffer(src);
+    device->DestroyBuffer(dst);
+    device->Destroy();
+    backend->Destroy();
+}

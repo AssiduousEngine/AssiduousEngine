@@ -1153,10 +1153,9 @@ export namespace foundation::rhi::vk
     {
         if (cmdBufs.Size() == 0)
             return;
-        // A fenced submit without a fence is a contract violation (the validation layer reports it;
-        // the plain overload is the fire-and-forget path).
-        if (signalFence == nullptr)
-            return;
+        // A null fence submits without the timeline signal: dropping the submit lost the command
+        // buffers, and in a frame the acquire semaphore was never waited on, so the next acquire
+        // with it failed.
         Array<VkCommandBuffer> bufs(cmdBufs.Size());
         for (usize i = 0; i < cmdBufs.Size(); ++i)
             bufs[i] = static_cast<VkCommandBufferImpl*>(cmdBufs[i])->handle();
@@ -1193,9 +1192,14 @@ export namespace foundation::rhi::vk
         si.pWaitSemaphores = waitSems.Data();
         si.pWaitDstStageMask = waitStages.Data();
 
-        VkSemaphore signalSems[2] = {static_cast<VkFenceImpl*>(signalFence)->handle(), VK_NULL_HANDLE};
-        u64 signalValues[2] = {signalValue, 0};
-        u32 signalCount = 1;
+        VkSemaphore signalSems[2] = {VK_NULL_HANDLE, VK_NULL_HANDLE};
+        u64 signalValues[2] = {0, 0};
+        u32 signalCount = 0;
+        if (signalFence != nullptr)
+        {
+            signalSems[signalCount] = static_cast<VkFenceImpl*>(signalFence)->handle();
+            signalValues[signalCount++] = signalValue;
+        }
         if (frame && presentSem != VK_NULL_HANDLE)
         {
             signalValues[signalCount] = 0;
