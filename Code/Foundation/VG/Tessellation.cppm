@@ -26,6 +26,18 @@ using namespace foundation::core;
 
 export namespace foundation::vg
 {
+    /// The segments a round join or cap is drawn with, from the count its size asks for: at least
+    /// `least`, at most 128 (a smooth arc at any size on screen). Unbounded, a stroke of a huge
+    /// width (hostile SVG, a runaway value) asked for millions, and a non-finite size cast to an
+    /// integer is undefined.
+    [[nodiscard]] inline i32 ArcSegments(f32 wanted, i32 least) noexcept
+    {
+        constexpr f32 kMost = 128.0f;
+        if (!(wanted < kMost)) // also NaN
+            return static_cast<i32>(kMost);
+        return Max(least, static_cast<i32>(wanted));
+    }
+
     /// Triangulates polygons using the ear-clipping algorithm.
     class Triangulator
     {
@@ -1037,8 +1049,7 @@ export namespace foundation::vg
                         endAngle -= kTwoPi;
                 }
 
-                const i32 segments =
-                    Max(3, static_cast<i32>(Abs(endAngle - startAngle) * halfWidth * 0.5f));
+                const i32 segments = ArcSegments(Abs(endAngle - startAngle) * halfWidth * 0.5f, 3);
                 const f32 angleStep = (endAngle - startAngle) / static_cast<f32>(segments);
 
                 const u32 baseIdx = static_cast<u32>(vertices.Size());
@@ -1079,7 +1090,7 @@ export namespace foundation::vg
             }
             else if (capType == VGLineCap::Round)
             {
-                const i32 segments = Max(4, static_cast<i32>(outerHalf * 0.5f));
+                const i32 segments = ArcSegments(outerHalf * 0.5f, 4);
                 for (i32 i = 0; i <= segments; ++i)
                 {
                     const f32 angle = kPi * static_cast<f32>(i) / static_cast<f32>(segments);

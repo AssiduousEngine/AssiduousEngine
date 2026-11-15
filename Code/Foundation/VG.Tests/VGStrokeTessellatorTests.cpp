@@ -61,6 +61,26 @@ TEST_CASE("stroketess: round cap adds more vertices")
     CHECK(vertsRound.Size() > vertsButt.Size());
 }
 
+TEST_CASE("stroketess: a huge stroke's round caps and joins have a bounded vertex count")
+{
+    // A width of 1e7 asked for millions of segments per arc (hostile content, a runaway value).
+    Float2 points[3] = {{0, 0}, {10, 0}, {10, 10}};
+    Array<VGVertex> vertices;
+    Array<u32> indices;
+    StrokeTessellator::Tessellate(Span<const Float2>(points, 3), false,
+                                  StrokeStyle(1.0e7f, VGLineCap::Round, VGLineJoin::Round),
+                                  Span<const f32>{}, false, Color::White, vertices, indices);
+    CHECK(vertices.Size() > 0u);
+    CHECK(vertices.Size() < 2000u);
+    // A non-finite width draws nothing past the bound either.
+    Array<VGVertex> nanVerts;
+    Array<u32> nanIdx;
+    StrokeTessellator::Tessellate(Span<const Float2>(points, 3), false,
+                                  StrokeStyle(Sqrt(-1.0f), VGLineCap::Round, VGLineJoin::Round),
+                                  Span<const f32>{}, false, Color::White, nanVerts, nanIdx);
+    CHECK(nanVerts.Size() < 2000u);
+}
+
 TEST_CASE("stroketess: polyline multiple segments")
 {
     Float2 points[4] = {{0, 0}, {10, 0}, {10, 10}, {0, 10}};
