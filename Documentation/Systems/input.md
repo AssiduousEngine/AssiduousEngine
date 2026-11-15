@@ -88,7 +88,7 @@ construction.
 ## Touch + portability
 
 Touch bindings shipped (TouchButton regions + a floating TouchStick), demonstrated on the Steam Deck
-in the InputActions sample. SDL scancodes are physical (layout-independent matching; localized labels
+in the InputActions sample and played on an Android phone in Sky Hopper. SDL scancodes are physical (layout-independent matching; localized labels
 via keycode translation). WASM delivers the same events; the runtime tolerates device counts changing
 any frame (hotplug + Gamepad-API gesture activation).
 

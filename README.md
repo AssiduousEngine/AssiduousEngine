@@ -50,8 +50,8 @@ enables AI agents to build entire games, from initial project setup to fully pla
   and a page per asset type.
 - **Asset pipeline:** importers for glTF, FBX, OBJ, images, audio and fonts; cooks per asset
   type; BC7 and ASTC texture compression.
-- **Export** to the desktop player, the web (WebAssembly with WebGPU) and the Steam Deck, from
-  per-target presets and player templates. Headless tools can run all of it from the command
+- **Export** to the desktop player, the web (WebAssembly with WebGPU), the Steam Deck and Android
+  (an APK or an App Bundle), from per-target presets and player templates. Headless tools can run all of it from the command
   line.
 - **Agent tooling:** an MCP host (`Tools.Mcp`) exposes the engine's reflection, the script API
   and project operations (import, cook, scene validation, export, health checks). The editor
@@ -63,8 +63,8 @@ enables AI agents to build entire games, from initial project setup to fully pla
 
 ## Download
 
-The editor for Windows and Linux, the players games export against (Windows, Linux and web) and
-the sample games are on the [releases page](https://github.com/AssiduousEngine/AssiduousEngine/releases).
+The editor for Windows and Linux, the players games export against (Windows, Linux, web, Steam
+Deck and Android) and the sample games are on the [releases page](https://github.com/AssiduousEngine/AssiduousEngine/releases).
 Unpack the editor anywhere and run `Tools.Editor`; its project manager downloads the samples.
 
 ## Building
@@ -158,6 +158,10 @@ turns.
 - **Web:** games export to the browser as WebAssembly with WebGPU.
 - **Steam Deck:** games export through a Deck player template, built in a container by
   `scripts/build-steamdeck.sh`.
+- **Android:** games export to an app for arm64 phones on Android 13 and up, rendering through
+  Vulkan: an APK to install or an App Bundle for Google Play. The player reads the game in place
+  from the app and follows the phone's lifecycle, rotation, Back button and touch. Exporting needs
+  the Android SDK and a JDK 17; [BUILDING.md](Documentation/BUILDING.md) covers building for it.
 
 ## Community
 

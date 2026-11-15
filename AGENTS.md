@@ -101,3 +101,12 @@ assets.
 SteamOS) and installs it as the `assiduousengine-steamdeck-release-<version>` export template. It
 needs podman or docker, mounts the live tree (do not edit it while the build runs), and
 nothing else building beside it.
+
+## Android
+
+The `android-arm64` presets build through the NDK (`ANDROID_NDK_HOME`); recipes are in
+[Documentation/BUILDING.md](Documentation/BUILDING.md). The suites run on a phone over adb
+(`scripts/android-tests.sh`), and `scripts/android-app.sh` builds, installs and starts a
+development app with a sample game in it. Input, rotation and how a game looks on the phone are
+the user's to check on the device. `__linux__` is defined on Android too: test
+`PLATFORM_ANDROID` first.

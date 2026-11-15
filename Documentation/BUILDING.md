@@ -40,6 +40,10 @@
 - A Vulkan 1.3 (or, on Windows, D3D12) capable GPU to run anything that draws.
 - For web builds, emsdk 6.0.5 with the project's response file patch applied; see
   [Guides/emscripten-windows.md](Guides/emscripten-windows.md).
+- For Android builds, the Android NDK r30 (`30.0.16248370`) named by `ANDROID_NDK_HOME`; to
+  package an app, the Android SDK (`ANDROID_HOME`, with `platforms;android-36` and
+  `build-tools;37.0.0`) and a JDK 17. The first Gradle build downloads Gradle and the Android
+  plugin.
 
 ## Presets
 
@@ -60,6 +64,7 @@ ctest --preset clang                  # the unit and integration tests
 | `clang-release` / `gcc-release` / `msvc-release` | Release |
 | `clang-shipping` / `gcc-shipping` / `msvc-shipping` | Shipping (no asserts, stripped) |
 | `wasm` / `wasm-release` / `wasm-shipping` | Emscripten wasm32: Debug, Release with the profiler, Shipping |
+| `android-arm64` / `android-arm64-reldbg` | Android arm64 through the NDK: Debug, and RelWithDebInfo (the export template, timing on a phone) |
 
 ## Notes
 
@@ -70,6 +75,13 @@ ctest --preset clang                  # the unit and integration tests
   a re-configure.
 - The web build (`--preset wasm`) needs the emsdk environment sourced first and the project's
   emsdk patch applied. New shaders must translate to WGSL (through naga) to run on the web.
+- **Android** builds on a Linux host, with no tools (the editor and the cookers run on the
+  desktop). `scripts/android-app.sh Engine.Player --game Data/SampleProjects/SkyHopper --install`
+  builds the player, packs a game into a development app and installs it on a phone attached
+  over adb (`--run` starts it; `CONFIG=RelWithDebInfo` builds from `android-arm64-reldbg`). The
+  suites run on the phone with `scripts/android-tests.sh`, which pushes them and their data over
+  adb; ctest does not run them on the host. `scripts/build-export-templates.sh android` makes the
+  Android export template.
 - Sanitizer trees: configure with `-DBUILDSYSTEM_OUTPUT_SUFFIX=-ASAN` so output lands in
   `...-ASAN/` and never overwrites the regular `Bin/` tree.
 

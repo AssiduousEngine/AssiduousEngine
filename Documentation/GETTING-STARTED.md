@@ -23,6 +23,8 @@ A C++23 game engine plus a full editor, in one repository. Defining traits:
   (AngelScript, Luau) behind one backend-neutral registry.
 - **Web is a shipping target.** The same game exports to the browser
   (Emscripten + WebGPU), with per-target cooked asset variants.
+- **So is Android.** The player runs natively on arm64 phones through Vulkan,
+  and a game exports to an APK or an App Bundle.
 
 Read next: [BUILDING.md](BUILDING.md) (requirements and build commands), and
 `Documentation/Plans/backlog-0.1.md` (what is queued for the 0.1 release).
