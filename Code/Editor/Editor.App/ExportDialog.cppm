@@ -67,6 +67,10 @@ export namespace editor::app
         String outputRoot;
     };
 
+    /// The hint a preset field that names a file carries (a namespace constant, so a test across
+    /// the shared library boundary can name it).
+    inline constexpr StringView kExportPathHint = u8"exportPath";
+
     /// A preset field that names a file: its path, typed or picked with Browse. The dialog decides
     /// how Browse picks (the editor's picker for a file of the project's, the system's dialog for one
     /// kept outside it), given the row's path.
@@ -74,7 +78,7 @@ export namespace editor::app
     {
         RTTI_OBJECT(ExportPathEditor, gui::PropertyEditor)
     public:
-        static constexpr StringView kHint = u8"exportPath";
+        static constexpr StringView kHint = kExportPathHint;
 
         explicit ExportPathEditor(Function<void(StringView row)> browse) : m_browse(foundation::core::Move(browse))
         {

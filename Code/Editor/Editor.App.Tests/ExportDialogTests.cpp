@@ -364,8 +364,8 @@ TEST_CASE("export dialog: an Android preset's icon and keystore are browsed for"
     UniquePtr<app::ExportDialog> dialog = f.Open();
     dialog->Select(2);
     REQUIRE(dialog->Rows()->FindInfo(u8"androidIcon") != nullptr);
-    CHECK(dialog->Rows()->FindInfo(u8"androidIcon")->Hint == String(app::ExportPathEditor::kHint));
-    CHECK(dialog->Rows()->FindInfo(u8"androidKeystore")->Hint == String(app::ExportPathEditor::kHint));
+    CHECK(dialog->Rows()->FindInfo(u8"androidIcon")->Hint == String(app::kExportPathHint));
+    CHECK(dialog->Rows()->FindInfo(u8"androidKeystore")->Hint == String(app::kExportPathHint));
 
     dialog->Browse(u8"androidIcon");
     REQUIRE(f.picks.Size() == 1u);
