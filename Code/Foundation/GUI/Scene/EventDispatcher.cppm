@@ -1026,7 +1026,7 @@ export namespace foundation::gui
             {
                 m_dragOver = this;
                 m_dragOutside = true;
-                if (m_dropTarget != nullptr && m_dropTarget->GetRootNode() == gone.m_root)
+                if (m_dropTarget && m_dropTarget->GetRootNode() == gone.m_root)
                     m_dropTarget = nullptr; // the target's tree goes with the root, so it is not told
             }
             if (m_dragLayerIn == &gone)
@@ -1034,7 +1034,7 @@ export namespace foundation::gui
         }
         [[nodiscard]] const DragPayload& GetDragPayload() const noexcept { return m_dragPayload; }
         [[nodiscard]] Node* GetDragSource() const noexcept { return m_dragSource; }
-        [[nodiscard]] Node* GetDropTarget() const noexcept { return m_dropTarget; }
+        [[nodiscard]] Node* GetDropTarget() const noexcept { return m_dropTarget.Get(); }
         /// The effect a drop would have now, and the target's reason (or the reason for a refusal).
         [[nodiscard]] DropEffect GetDropEffect() const noexcept { return m_dropEffect; }
         [[nodiscard]] core::StringView GetDropReason() const noexcept { return m_dropReason.AsView(); }
@@ -1080,7 +1080,7 @@ export namespace foundation::gui
             m_dragSource = nullptr;
             m_dragModifiers = 0;
             QueryDrop(position);
-            const bool taken = m_dropTarget != nullptr && m_dropEffect != DropEffect::None;
+            const bool taken = m_dropTarget && m_dropEffect != DropEffect::None;
             Drop();
             if (!taken && m_onFileDrop)
                 return m_onFileDrop(paths, RootPoint(position));
@@ -1544,7 +1544,7 @@ export namespace foundation::gui
                 SetFocusNode(nullptr);
             if (IsInSubtree(m_pendingFocus, &removed))
                 m_pendingFocus = nullptr;
-            if (IsInSubtree(m_dropTarget, &removed))
+            if (IsInSubtree(m_dropTarget.Get(), &removed))
                 m_dropTarget = nullptr;
             if (IsInSubtree(m_dragSource, &removed))
             {
@@ -2310,23 +2310,22 @@ export namespace foundation::gui
                 e.Place = query.Place;
                 return e;
             };
-            if (target != m_dropTarget)
+            if (target != m_dropTarget.Get())
             {
-                if (Node* left = m_dropTarget)
+                if (const core::RefPtr<Node> left = core::Move(m_dropTarget))
                 {
-                    m_dropTarget = nullptr;
                     left->SetDropTargetState(false);
-                    left->HandleDragEvent(event(EventType::DragLeave, left));
+                    left->HandleDragEvent(event(EventType::DragLeave, left.Get()));
                 }
-                m_dropTarget = target;
+                m_dropTarget = core::RefPtr<Node>(target);
                 if (target != nullptr)
                 {
                     target->SetDropTargetState(true);
                     target->HandleDragEvent(event(EventType::DragEnter, target));
                 }
             }
-            if (m_dropTarget != nullptr)
-                m_dropTarget->HandleDragEvent(event(EventType::DragOver, m_dropTarget));
+            if (const core::RefPtr<Node> over = m_dropTarget)
+                over->HandleDragEvent(event(EventType::DragOver, over.Get()));
             m_dropEffect = target != nullptr ? query.Effect : DropEffect::None;
             m_dropPlace = query.Place;
             ShowDropState(query.Reason.AsView(), query.Refused, rootAt);
@@ -2377,7 +2376,7 @@ export namespace foundation::gui
 
         void Drop()
         {
-            Node* target = m_dropTarget;
+            Node* target = m_dropTarget.Get();
             const DropEffect effect = m_dropEffect;
             if (target == nullptr || effect == DropEffect::None)
             {
@@ -2402,13 +2401,12 @@ export namespace foundation::gui
             m_dragActive = false;
             const core::RefPtr<Node> source{m_dragSource};
             const DragPayload payload = core::Move(m_dragPayload);
-            if (Node* left = m_dropTarget)
+            if (const core::RefPtr<Node> left = core::Move(m_dropTarget))
             {
-                m_dropTarget = nullptr;
                 left->SetDropTargetState(false);
                 if (target == nullptr)
                 {
-                    DragEvent leave(EventType::DragLeave, left, payload);
+                    DragEvent leave(EventType::DragLeave, left.Get(), payload);
                     leave.Position = DragRootPoint();
                     left->HandleDragEvent(leave);
                 }
@@ -2454,7 +2452,7 @@ export namespace foundation::gui
             bool moved = false;
             for (Node* n = hit; n != nullptr && !moved; n = n->GetParent())
             {
-                if (!n->IsScrollContainer() || !IsInSubtree(m_dropTarget, n))
+                if (!n->IsScrollContainer() || !IsInSubtree(m_dropTarget.Get(), n))
                     continue;
                 const core::Float2 p = n->ConvertToNodeSpace(m_mousePos);
                 const core::Float2 size = n->GetSize();
@@ -3063,7 +3061,10 @@ export namespace foundation::gui
         f32 m_dragRest = 0.0f;
         bool m_dragRestOpened = false;
         Node* m_dragSource = nullptr;                // non-owning
-        Node* m_dropTarget = nullptr;                // non-owning current target
+        // The current target, held: a drag that crosses into another root's window may hover a
+        // node that root removes, which this dispatcher is not told of (only the node's own root's
+        // dispatcher is), so a raw pointer here outlived its node.
+        core::RefPtr<Node> m_dropTarget;
         DragPayload m_dragPayload;
         core::Float2 m_mousePos{0.0f, 0.0f};
         Observable m_focusChanged;   // notified when focus moves

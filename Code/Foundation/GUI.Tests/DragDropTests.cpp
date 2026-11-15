@@ -1001,6 +1001,33 @@ TEST_CASE("dnd: across roots of one GUI, a drag goes on over another root; let g
     s.root->GetContext().SetRootPlaces(nullptr);
 }
 
+TEST_CASE("dnd: the target in another root removed under a drag is let go of, not used after it is gone")
+{
+    // Only the node's own root's dispatcher hears of a removal: the dragging root's dispatcher
+    // kept a raw pointer to the target and touched it on the next move (ASAN: use after free).
+    Scene s;
+    core::RefPtr<SceneRoot> other = core::MakeRef<SceneRoot>(core::DefaultAllocator(), s.root->GetContextRef());
+    other->SetSize(core::Float2{300.0f, 300.0f});
+    core::RefPtr<Panel> far = Box(*other, 50.0f, 20.0f, 100.0f, 100.0f);
+    far->SetDropTypes(core::String(u8"card"));
+    (void)other->UpdateLayout();
+    TwoPlaces places;
+    places.first = &s.D();
+    places.second = other->GetEventDispatcher();
+    s.root->GetContext().SetRootPlaces(&places);
+
+    s.DragTo(core::Float2{600.0f, 50.0f});
+    REQUIRE(s.D().GetDropTarget() == far.Get());
+    other->RemoveChild(far.Get()); // the other root takes it away
+    far.Reset();                   // and its last owner lets it go
+    (void)other->UpdateLayout();
+    s.D().InjectMouseMove(core::Float2{610.0f, 60.0f}); // the drag goes on over where it was
+    s.D().InjectMouseUp(core::Float2{610.0f, 60.0f}, MouseButton::Left);
+    REQUIRE(s.ends == 1);
+    CHECK(s.ended.Target == nullptr); // nothing took it
+    s.root->GetContext().SetRootPlaces(nullptr);
+}
+
 TEST_CASE("dnd: where no host tells the roots' places, a drag let go past its root's edge ends outside, nowhere said")
 {
     Scene s;
