@@ -1654,6 +1654,74 @@ TEST_CASE("script.scene: LUAU hot reload - product swap re-instantiates + re-app
     CHECK(bed.components->Get(e)->behaviors[0].boundClass == v2.Get());
 }
 
+namespace
+{
+    // The script host's warnings, to show a property applied without one.
+    struct ScriptWarnings : ILogSink
+    {
+        Array<String> messages;
+        void Write(LogLevel level, StringView category, StringView message) noexcept override
+        {
+            if (level == LogLevel::Warning && category == u8"Script")
+                messages.PushBack(String(message));
+        }
+    };
+}
+
+TEST_CASE("script.scene: an unset entity property is an invalid Entity in both languages, applied without a warning")
+{
+    foundation::script::angelscript::RegisterAngelScriptBackend();
+    // AngelScript: the member is a value, so the unset entity must arrive as one.
+    {
+        ScriptedScene bed;
+        RefPtr<ScriptClass> watcher = MakeClassLang(
+            u8"angelscript", u8"Watcher",
+            u8"class Watcher {\n"
+            u8"    private Entity self;\n"
+            u8"    Entity target;\n"
+            u8"    Watcher(Entity entity) { self = entity; }\n"
+            u8"    void onUpdate(double dt) { self.setName(target.isValid() ? \"valid\" : \"invalid\"); }\n"
+            u8"}\n",
+            {u8"onUpdate"}, {EntityProperty(u8"target")});
+        const scene::EntityHandle e = bed.AddScripted(watcher, u8"watcher");
+        ScriptWarnings warnings;
+        GlobalLogger().AddSink(&warnings);
+        bed.Start();
+        bed.Frame();
+        GlobalLogger().RemoveSink(&warnings);
+        CHECK(bed.scene.GetEntityName(e) == StringView(u8"invalid"));
+        for (const String& message : warnings.messages)
+            CHECK_MESSAGE(!message.AsView().Contains(u8"has no setter"), reinterpret_cast<const char*>(message.CStr()));
+    }
+    // Luau: an Entity too, not nil, which says isValid() false; so is a lookup that finds nothing.
+    {
+        ScriptedScene bed;
+        RefPtr<ScriptClass> watcher = MakeClassLang(
+            u8"luau", u8"Watcher",
+            u8"Watcher = {}\n"
+            u8"Watcher.__index = Watcher\n"
+            u8"function Watcher.new(entity) return setmetatable({ entity = entity }, Watcher) end\n"
+            u8"function Watcher:onUpdate(dt)\n"
+            u8"    local missing = self.entity.scene:find(\"no such entity\")\n"
+            u8"    if self.target == nil or missing == nil then self.entity:setName(\"nil\")\n"
+            u8"    elseif self.target:isValid() or missing:isValid() then self.entity:setName(\"valid\")\n"
+            u8"    else self.entity:setName(\"invalid\") end\n"
+            u8"end\n",
+            {u8"onUpdate"}, {EntityProperty(u8"target")});
+        const scene::EntityHandle e = bed.AddScripted(watcher, u8"watcher");
+        {
+            // A guid that names no entity in the scene reads the same as an unset one.
+            ScriptPropertyValue gone;
+            gone.kind = ScriptPropertyType::Entity;
+            gone.guid = Guid{0x7a7a, 0x7b7b};
+            bed.components->Get(e)->behaviors[0].SetOverride(ScriptPropertyNameHash(u8"target"), gone);
+        }
+        bed.Start();
+        bed.Frame();
+        CHECK(bed.scene.GetEntityName(e) == StringView(u8"invalid"));
+    }
+}
+
 TEST_CASE("script.scene: LUAU entity-typed property resolves a guid to a live entity handle")
 {
     ScriptedScene bed;
@@ -1663,7 +1731,7 @@ TEST_CASE("script.scene: LUAU entity-typed property resolves a guid to a live en
         u8"Chaser.__index = Chaser\n"
         u8"function Chaser.new(entity) return setmetatable({ entity = entity, target = nil }, Chaser) end\n"
         u8"function Chaser:onUpdate(dt)\n"
-        u8"    if self.target ~= nil then\n"
+        u8"    if self.target:isValid() then\n"
         u8"        local t = self.target:position()\n"
         u8"        self.entity:setPosition(t.x, t.y, t.z)\n"
         u8"    end\n"

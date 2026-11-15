@@ -47,10 +47,12 @@ Handlers dispatch **by presence** - implement only what you need:
 
 An entity is a value, as a `Float3` is: `Entity target;` holds one, `target = e` copies it, and
 two name the same entity when `a == b` (the same scene, slot and generation). An entity that names
-none (a lookup that found nothing, a field never set, one destroyed since) answers
-`isValid()` false; in AngelScript ask that (`if (!target.isValid())`), since a value is never
-null. In Luau a lookup that finds nothing returns `nil`. The same holds for a `Guid`: compare
-with `==`.
+none (a lookup that found nothing, a property never set, one destroyed since) answers
+`isValid()` false. Ask that in both languages (`if (!target.isValid())`, `if not
+target:isValid() then`): an entity is never null, and in Luau never `nil`, so a Luau `if target
+then` passes for one that names nothing. Components and GUI nodes are handles, not values: a
+component that is not there is `null` in AngelScript and `nil` in Luau. The same holds for a
+`Guid`: compare with `==`.
 
 ## The scene
 

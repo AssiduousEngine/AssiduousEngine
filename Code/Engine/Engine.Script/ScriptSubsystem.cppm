@@ -630,14 +630,16 @@ export namespace engine::script
             return Variant::From<Float3>(value.vector);
         case ScriptPropertyType::Entity:
         {
+            // An entity that names none (unset, or not in this scene) is an invalid Entity in
+            // either language, as a lookup that finds nothing is: a value, never nil or null.
             if (value.guid.IsNil() || scene == nullptr)
             {
-                return Variant{};
+                return Variant::From(Entity{});
             }
             const scene::EntityHandle target = scene->FindEntity(value.guid);
             if (!target.IsAssigned())
             {
-                return Variant{};
+                return Variant::From(Entity{});
             }
             Entity handle;
             handle.scene = scene;

@@ -19,6 +19,13 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   on the phone, and its https and wss connections check servers against Android's own trusted
   certificates.
 
+### Changed
+
+- Scripting: an entity property never set (or naming an entity not in the scene) is an Entity
+  whose `isValid()` is false in both languages, as a lookup that finds nothing already was; in
+  Luau it was `nil`. Ask `isValid()` in Luau too: an entity is never `nil`. An AngelScript class
+  with such a property no longer logs that it has no setter for it.
+
 ### Fixed
 
 - Web: games draw in Safari and in every browser on iPhone and iPad. Their shaders wrote a very
