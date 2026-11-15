@@ -93,6 +93,7 @@ namespace foundation::render
     rendergraph::RGHandle AoPass::DeclareAo(rendergraph::RenderGraph& graph,
                                             rendergraph::RGHandle depth,
                                             rendergraph::RGHandle normal, u32 w, u32 h,
+                                            i32 vx, i32 vy, u32 vw, u32 vh,
                                             const Float4x4& invProj, const Float4x4& proj,
                                             f32 radius, f32 intensity, u32 frameIndex, AoMode mode,
                                             const AoBudget& budget, i32 debugMode)
@@ -129,6 +130,10 @@ namespace foundation::render
         }
         Tick(frameIndex);
         const Float2 texel{1.0f / static_cast<f32>(w), 1.0f / static_cast<f32>(h)};
+        // The view's rectangle in full-texture uv: the projection maps it, not the whole texture.
+        const f32 fw = static_cast<f32>(w), fh = static_cast<f32>(h);
+        const Float2 vpMin{static_cast<f32>(vx) / fw, static_cast<f32>(vy) / fh};
+        const Float2 vpSize{static_cast<f32>(vw == 0 ? w : vw) / fw, static_cast<f32>(vh == 0 ? h : vh) / fh};
         const rendergraph::RGHandle aoRaw =
             graph.CreateTransient(u8"ao.raw", rendergraph::RGTextureDesc(kAoFormat, w, h));
         const rendergraph::RGHandle aoTmp =
@@ -151,6 +156,8 @@ namespace foundation::render
             gp.orthographic = projection::IsOrthographic(proj) ? 1 : 0;
             gp.slices = static_cast<i32>(Clamp(budget.gtaoSlices, 1u, 8u));
             gp.steps = static_cast<i32>(Clamp(budget.gtaoSteps, 1u, 16u));
+            gp.vpMin = vpMin;
+            gp.vpSize = vpSize;
             push = PushBuf::From(gp);
             pipeline = m_gtaoPipeline;
         }
@@ -169,6 +176,8 @@ namespace foundation::render
             sp.bias = 0.05f;
             sp.sampleCount = static_cast<i32>(Clamp(budget.ssaoSamples, 1u, 16u)); // the kernel's size
             sp.debugMode = debugMode;
+            sp.vpMin = vpMin;
+            sp.vpSize = vpSize;
             push = PushBuf::From(sp);
             pipeline = m_ssaoPipeline;
         }
@@ -205,8 +214,8 @@ namespace foundation::render
         {
             return aoRaw;
         }
-        DeclareBlur(graph, aoRaw, depth, aoTmp, w, h, texel, Float2{1.0f, 0.0f});
-        DeclareBlur(graph, aoTmp, depth, aoOut, w, h, texel, Float2{0.0f, 1.0f});
+        DeclareBlur(graph, aoRaw, depth, aoTmp, w, h, texel, Float2{1.0f, 0.0f}, vpMin, vpSize);
+        DeclareBlur(graph, aoTmp, depth, aoOut, w, h, texel, Float2{0.0f, 1.0f}, vpMin, vpSize);
         return aoOut;
     }
 
@@ -275,11 +284,13 @@ namespace foundation::render
 
     void AoPass::DeclareBlur(rendergraph::RenderGraph& graph, rendergraph::RGHandle ao,
                              rendergraph::RGHandle depth, rendergraph::RGHandle out, u32 w, u32 h,
-                             Float2 texel, Float2 dir)
+                             Float2 texel, Float2 dir, Float2 vpMin, Float2 vpSize)
     {
         GpuAoBlurPush bp{};
         bp.dir = dir;
         bp.texelSize = texel;
+        bp.vpMin = vpMin;
+        bp.vpSize = vpSize;
         graph.AddRenderPass(
             u8"ao.blur",
             [this, &graph, ao, depth, out, w, h, bp](rendergraph::PassBuilder& b)

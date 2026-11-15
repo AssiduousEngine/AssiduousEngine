@@ -55,6 +55,13 @@ namespace
         // (a floor seen from low above it) instead of the small rotated cube: the flat-surface
         // AO probe. Thin, so the camera at z=6 is never inside it (a cube's back faces cull away).
         bool obliquePlane = false;
+        // Draw the view into the right half of the target only (one side of a split screen), with
+        // a projection for that half's aspect.
+        bool rightHalf = false;
+        // A target half as wide (the half's view drawn alone, to compare a split side against).
+        bool halfWidthTarget = false;
+        // A box sunk into the oblique slab: the crease around it is what AO darkens.
+        bool sunkBox = false;
     };
 
     // Render a flat-lit rotated cube on black through the full RenderFrame chain (forward +
@@ -120,14 +127,28 @@ namespace
             cube->mesh = cubeMesh.Get();
             cube->material = cubeMat.Get();
             cube->category = RenderCategories::Opaque;
+            if (cfg.sunkBox)
+            {
+                MeshRenderData* box = scene.Add<MeshRenderData>();
+                box->world = Float4x4::RotationY(0.5f) * Float4x4::RotationX(0.35f) *
+                             Float4x4::Translation(Float3{0.0f, 0.0f, -8.0f});
+                box->worldCenter = Float3{0.0f, 0.0f, -8.0f};
+                box->worldRadius = 2.0f;
+                box->mesh = cubeMesh.Get();
+                box->material = cubeMat.Get();
+                box->category = RenderCategories::Opaque;
+            }
 
             ViewCamera camera;
             camera.view = Float4x4::LookAtRH(Float3{0, 0, 6}, Float3{0, 0, 0}, Float3{0, 1, 0});
-            camera.projection = Float4x4::PerspectiveFovRH(1.0472f, 1.0f, 0.1f, 100.0f);
+            camera.projection =
+                Float4x4::PerspectiveFovRH(1.0472f, (cfg.rightHalf || cfg.halfWidthTarget) ? 0.5f : 1.0f,
+                                           0.1f, 100.0f);
+            const u32 targetWidth = cfg.halfWidthTarget ? kSize / 2 : kSize;
 
             rhi::TextureDesc td{};
             td.format = rhi::TextureFormat::RGBA8Unorm;
-            td.width = kSize;
+            td.width = targetWidth;
             td.height = kSize;
             td.usage = rhi::TextureUsage::RenderTarget | rhi::TextureUsage::CopySrc;
             td.label = u8"msaa.probe.target";
@@ -156,6 +177,13 @@ namespace
             settings.post.aoMode = cfg.aoMode;
             settings.post.needsMotion = cfg.taa || cfg.ssr; // TAA and (temporal) SSR read motion vectors
             settings.post.msaaSamples = static_cast<u8>(cfg.samples);
+            if (cfg.rightHalf)
+            {
+                settings.viewportX = kSize / 2;
+                settings.viewportY = 0;
+                settings.viewportWidth = kSize / 2;
+                settings.viewportHeight = kSize;
+            }
 
             // TAA warms its history over a few frames on a static camera; others need only one.
             const u32 frames = cfg.taa ? 8u : 2u;
@@ -167,7 +195,7 @@ namespace
                     (i == 0) ? rhi::ResourceState::Undefined : rhi::ResourceState::CopySrc;
                 frame.Begin(*encoder, i % 2);
                 frame.AddView(scene, camera, settings, targetView, rhi::TextureFormat::RGBA8Unorm,
-                              kSize, kSize);
+                              targetWidth, kSize);
                 frame.End();
                 rhi::CommandBuffer* commandBuffer = encoder->Finish();
                 REQUIRE(commandBuffer != nullptr);
@@ -178,7 +206,7 @@ namespace
             }
 
             // Target is left in CopySrc; the shared substrate does the copy and map.
-            out = testsupport::Readback(device, target, kSize, kSize);
+            out = testsupport::Readback(device, target, targetWidth, kSize);
 
             device.WaitIdle();
             device.DestroyFence(fence);
@@ -335,6 +363,50 @@ namespace
         }
     }
 
+    // One side of a split screen: a box sunk into the oblique slab, drawn in the right half of the
+    // target, must take the same AO as the same view drawn alone into a target that size. AO mapped
+    // the whole texture's uv through the view's projection, so the half's surfaces reconstructed at
+    // the wrong place and the crease's occlusion moved and stretched.
+    void ProbeSplitAo(rhi::Device& device, const char* backendName)
+    {
+        const struct
+        {
+            const char* name;
+            u32 mode;
+        } modes[] = {{"gtao", 1u}, {"ssao", 2u}};
+        for (const auto& m : modes)
+        {
+            const testsupport::CapturedImage split = RenderMsaa(
+                device, MsaaConfig{.aoMode = m.mode, .obliquePlane = true, .rightHalf = true, .sunkBox = true});
+            const testsupport::CapturedImage alone = RenderMsaa(
+                device, MsaaConfig{.aoMode = m.mode, .obliquePlane = true, .halfWidthTarget = true, .sunkBox = true});
+            const testsupport::CapturedImage noAo = RenderMsaa(
+                device, MsaaConfig{.obliquePlane = true, .halfWidthTarget = true, .sunkBox = true});
+            REQUIRE(split.valid);
+            REQUIRE(alone.valid);
+            REQUIRE(noAo.valid);
+            u64 diff = 0, darkened = 0;
+            u32 n = 0;
+            for (u32 y = 4; y + 4 < kSize; ++y)
+            {
+                for (u32 x = 4; x + 4 < kSize / 2; ++x)
+                {
+                    const u32 a = split.Luma(kSize / 2 + x, y), b = alone.Luma(x, y), c = noAo.Luma(x, y);
+                    diff += a > b ? a - b : b - a;
+                    darkened += c > b ? c - b : 0;
+                    ++n;
+                }
+            }
+            const f64 meanDiff = static_cast<f64>(diff) / n, meanDark = static_cast<f64>(darkened) / n;
+            std::printf("[ao-split] %-8s %-5s split vs alone %.2f, AO darkening %.2f\n", backendName, m.name,
+                        meanDiff, meanDark);
+            INFO(backendName, " ", m.name, ": split vs alone mean luma difference ", meanDiff,
+                 ", the AO's own darkening ", meanDark);
+            CHECK(meanDark > 1.0);              // the crease is occluded: there is AO to compare
+            CHECK(meanDiff < meanDark * 0.15);  // and the split side takes the same AO
+        }
+    }
+
     void ForEachBackend(void (*probe)(rhi::Device&, const char*))
     {
         rhi::Backend* vulkan = nullptr;
@@ -414,5 +486,10 @@ TEST_CASE("msaa: composes with the post-effect stack (TAA/FXAA/AO/SSR) at 4x")
 TEST_CASE("ao: a flat surface at a grazing angle is not self-occluded by SSAO or GTAO")
 {
     ForEachBackend(&ProbeFlatSurfaceAo);
+}
+
+TEST_CASE("ao: one side of a split screen takes the AO its view takes drawn alone")
+{
+    ForEachBackend(&ProbeSplitAo);
 }
 

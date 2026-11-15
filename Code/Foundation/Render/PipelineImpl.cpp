@@ -2227,7 +2227,8 @@ namespace foundation::render
                     if (m_ao != nullptr && aoActive)
                     {
                         aoH = m_ao->DeclareAo(m_graph, postDepth, postNormal, v->Width(), v->Height(),
-                                              Inverse(v->Camera().projection),
+                                              v->ViewportX(), v->ViewportY(), v->ViewportWidth(),
+                                              v->ViewportHeight(), Inverse(v->Camera().projection),
                                               v->Camera().projection, post.aoRadius,
                                               post.aoIntensity, m_frameIndex, aoMode,
                                               AoBudget{post.ssaoSamples, post.gtaoSlices, post.gtaoSteps},
@@ -2249,7 +2250,8 @@ namespace foundation::render
                     {
                         sceneColor = m_taa->DeclareTaa(
                             m_graph, litHdr, postVelocity, postDepth, historySlot, v->Width(),
-                            v->Height(), post.taaBlend, post.taaGamma, m_taaMotionScale,
+                            v->Height(), v->ViewportX(), v->ViewportY(), v->ViewportWidth(),
+                            v->ViewportHeight(), post.taaBlend, post.taaGamma, m_taaMotionScale,
                             v->Camera().NearZ(), v->Camera().FarZ(),
                             v->Camera().IsOrthographic());
                     }

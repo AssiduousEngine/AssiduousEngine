@@ -49,9 +49,14 @@ export namespace foundation::render
         f32 nearPlane = 0.1f;
         f32 farPlane = 1000.0f;
         i32 orthographic = 0; // 1: linear depth (taa.ps.hlsl's disocclusion test)
-        i32 pad0 = 0, pad1 = 0, pad2 = 0;
+        i32 pad0 = 0;
+        // The view's sub-rectangle in full-texture uv (split screen): motion vectors are in its local
+        // uv, and the neighbourhood and history taps stay inside it.
+        Float2 vpMin{0.0f, 0.0f};
+        Float2 vpSize{1.0f, 1.0f};
+        i32 pad1 = 0, pad2 = 0;
     };
-    static_assert(sizeof(GpuTaaPush) == 48, "push TaaPush layout drift");
+    static_assert(sizeof(GpuTaaPush) == 64, "push TaaPush layout drift");
 
     // Owns the TAA resolve pipeline and the per-view color-history ping-pong. One per renderer.
     class TaaPass
@@ -82,8 +87,8 @@ export namespace foundation::render
         [[nodiscard]] rendergraph::RGHandle
         DeclareTaa(rendergraph::RenderGraph& graph, rendergraph::RGHandle current,
                    rendergraph::RGHandle motion, rendergraph::RGHandle depth, u32 viewIndex, u32 w,
-                   u32 h, f32 blendFactor, f32 varianceGamma, f32 motionScale, f32 nearPlane,
-                   f32 farPlane, bool orthographic);
+                   u32 h, i32 vx, i32 vy, u32 vw, u32 vh, f32 blendFactor, f32 varianceGamma,
+                   f32 motionScale, f32 nearPlane, f32 farPlane, bool orthographic);
 
         /// Forget history slot `slot`'s accumulated state (the frame handed the slot to another
         /// view, RenderFrame::HistorySlotFor): its next frame starts fresh instead of blending in

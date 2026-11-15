@@ -106,9 +106,10 @@ namespace
 
     // Render kFrames with the camera stepping `step` along +X a frame (TAA on or off) and read back
     // the last kKept. `skinnedStep`: the camera stays and the bars, one skinned mesh, slide that far
-    // along -X a frame by their bone.
+    // along -X a frame by their bone. `leftHalf`: the view fills only the target's left half, one side
+    // of a split screen, with a projection for that half.
     Array<testsupport::CapturedImage> RenderSlide(rhi::Device& device, f32 step, bool taaOn, SideView side = {},
-                                                  f32 skinnedStep = 0.0f, bool twin = false)
+                                                  f32 skinnedStep = 0.0f, bool twin = false, bool leftHalf = false)
     {
         Array<testsupport::CapturedImage> kept;
         shaders::ShaderSystemHost host{DefaultAllocator()};
@@ -224,6 +225,11 @@ namespace
             settings.post.taaEnabled = taaOn;
             settings.post.needsMotion = taaOn;
             settings.historyKey = side.keyed ? 1u : 0u;
+            if (leftHalf)
+            {
+                settings.viewportWidth = kSize / 2;
+                settings.viewportHeight = kSize;
+            }
             ViewSettings sideSettings;
             sideSettings.clear = rhi::ClearColor::Black();
             sideSettings.targetTexture = sideTarget;
@@ -245,7 +251,7 @@ namespace
                 ViewCamera camera;
                 camera.position = eye;
                 camera.view = Float4x4::LookAtRH(eye, eye + Float3{0, 0, -1}, Float3{0, 1, 0});
-                camera.projection = Float4x4::PerspectiveFovRH(kFov, 1.0f, 0.1f, 100.0f);
+                camera.projection = Float4x4::PerspectiveFovRH(kFov, leftHalf ? 0.5f : 1.0f, 0.1f, 100.0f);
 
                 rhi::CommandEncoder* encoder = nullptr;
                 REQUIRE(pool->CreateEncoder(encoder).IsOk());
@@ -286,8 +292,8 @@ namespace
 
     // How far the resolved image strays from moving with the scene: the mean difference between
     // each frame and the one before shifted `shift` pixels left (the scene's motion), over the
-    // interior columns.
-    f32 MeanStray(const Array<testsupport::CapturedImage>& frames, u32 shift)
+    // interior columns (those before `xEnd`).
+    f32 MeanStray(const Array<testsupport::CapturedImage>& frames, u32 shift, u32 xEnd = kSize)
     {
         f64 sum = 0.0;
         u32 n = 0;
@@ -295,7 +301,7 @@ namespace
         {
             for (u32 y = 8; y + 8 < kSize; ++y)
             {
-                for (u32 x = 8; x + 8 < kSize; ++x)
+                for (u32 x = 8; x + 8 < xEnd; ++x)
                 {
                     const u8* now = frames[f].At(x, y);
                     const u8* before = frames[f - 1].At(x + shift, y);
@@ -327,6 +333,21 @@ namespace
         // Under a camera moving one pixel a frame, the resolved image moves with the scene nearly as
         // steadily as under a still camera (resampling the history at sub-pixel positions costs a
         // little). Dropping history by motion measured in UV would let the jitter show through.
+        CHECK(moving < still * 2.5f);
+    }
+
+    // The same slide in the left half of the target. The motion vectors are in the view's own uv:
+    // read as the whole texture's, the history came from twice as far and the image smeared.
+    void ProbeTaaSlideSplit(rhi::Device& device, const char* backend)
+    {
+        CAPTURE(backend);
+        const Array<testsupport::CapturedImage> stillTaa = RenderSlide(device, 0.0f, true, {}, 0.0f, false, true);
+        const Array<testsupport::CapturedImage> movingTaa = RenderSlide(device, PixelStep(), true, {}, 0.0f, false, true);
+        REQUIRE(stillTaa.Size() == kKept);
+        REQUIRE(movingTaa.Size() == kKept);
+        const f32 still = MeanStray(stillTaa, 0, kSize / 2);
+        const f32 moving = MeanStray(movingTaa, 1, kSize / 2);
+        MESSAGE(doctest::String(backend) << ": split frame-to-frame stray, TAA still " << still << ", TAA moving " << moving);
         CHECK(moving < still * 2.5f);
     }
 
@@ -405,6 +426,11 @@ namespace
 TEST_CASE("taa: under a camera moving a pixel a frame, the resolved image moves with the scene")
 {
     ForEachBackend(&ProbeTaaSlide);
+}
+
+TEST_CASE("taa: in one half of a split screen, the resolved image moves with the scene as well")
+{
+    ForEachBackend(&ProbeTaaSlideSplit);
 }
 
 TEST_CASE("taa: a view drawn before the main one on alternate frames leaves the main view's history alone")

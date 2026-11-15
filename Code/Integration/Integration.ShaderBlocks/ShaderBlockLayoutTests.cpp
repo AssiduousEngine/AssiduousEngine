@@ -395,11 +395,15 @@ namespace
         FIELD(render::GpuGtaoPush, orthographic, "Orthographic"),
         FIELD(render::GpuGtaoPush, slices, "Slices"),
         FIELD(render::GpuGtaoPush, steps, "Steps"),
+        FIELD(render::GpuGtaoPush, vpMin, "VpMin"),
+        FIELD(render::GpuGtaoPush, vpSize, "VpSize"),
     };
     const FieldRow kSsaoPush[] = {
         FIELD(render::GpuSsaoPush, invProj, "InvProj"),
         FIELD(render::GpuSsaoPush, texelSize, "TexelSize"),
         FIELD(render::GpuSsaoPush, jitter, "Jitter"),
+        FIELD(render::GpuSsaoPush, vpMin, "VpMin"),
+        FIELD(render::GpuSsaoPush, vpSize, "VpSize"),
         FIELD(render::GpuSsaoPush, projXX, "ProjXX"),
         FIELD(render::GpuSsaoPush, projYY, "ProjYY"),
         FIELD(render::GpuSsaoPush, radius, "Radius"),
@@ -408,11 +412,12 @@ namespace
         FIELD(render::GpuSsaoPush, sampleCount, "SampleCount"),
         FIELD(render::GpuSsaoPush, debugMode, "DebugMode"),
         FIELD(render::GpuSsaoPush, orthographic, "Orthographic"),
-        FIELD(render::GpuSsaoPush, pad, "_pad"),
     };
     const FieldRow kAoBlurPush[] = {
         FIELD(render::GpuAoBlurPush, dir, "Dir"),
         FIELD(render::GpuAoBlurPush, texelSize, "TexelSize"),
+        FIELD(render::GpuAoBlurPush, vpMin, "VpMin"),
+        FIELD(render::GpuAoBlurPush, vpSize, "VpSize"),
         FIELD(render::GpuAoBlurPush, depthSigma, "DepthSigma"),
         FIELD(render::GpuAoBlurPush, p0, "_pad0"),
         FIELD(render::GpuAoBlurPush, p1, "_pad1"),
@@ -443,6 +448,8 @@ namespace
         FIELD(render::GpuTaaPush, farPlane, "FarPlane"),
         FIELD(render::GpuTaaPush, orthographic, "Orthographic"),
         FIELD(render::GpuTaaPush, pad0, "_pad0"),
+        FIELD(render::GpuTaaPush, vpMin, "VpMin"),
+        FIELD(render::GpuTaaPush, vpSize, "VpSize"),
         FIELD(render::GpuTaaPush, pad1, "_pad1"),
         FIELD(render::GpuTaaPush, pad2, "_pad2"),
     };

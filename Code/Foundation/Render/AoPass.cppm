@@ -46,8 +46,10 @@ export namespace foundation::render
         i32 orthographic = 0; // 1: view rays are parallel, no divide by depth
         i32 slices = 3;       // horizon slices (the view's budget)
         i32 steps = 6;        // march steps per slice direction
+        Float2 vpMin{0.0f, 0.0f};  // the view's sub-rectangle in full-texture uv (split screen)
+        Float2 vpSize{1.0f, 1.0f};
     };
-    static_assert(sizeof(GpuGtaoPush) == 104, "push GtaoPush layout drift");
+    static_assert(sizeof(GpuGtaoPush) == 120, "push GtaoPush layout drift");
 
     // What AO may cost in one view (a quality level's tier): SSAO's kernel samples (1 to 16, the
     // kernel's size), GTAO's slices and steps. The defaults are the full budgets.
@@ -62,6 +64,8 @@ export namespace foundation::render
         Float4x4 invProj{};
         Float2 texelSize{};
         Float2 jitter{};
+        Float2 vpMin{0.0f, 0.0f};  // the view's sub-rectangle in full-texture uv (split screen)
+        Float2 vpSize{1.0f, 1.0f};
         f32 projXX = 1.0f;
         f32 projYY = 1.0f;
         f32 radius = 0.5f;
@@ -70,17 +74,18 @@ export namespace foundation::render
         i32 sampleCount = 16;
         i32 debugMode = 0;
         i32 orthographic = 0; // 1: view rays are parallel, no divide by depth
-        i32 pad = 0;
     };
-    static_assert(sizeof(GpuSsaoPush) == 116, "push SsaoPush layout drift");
+    static_assert(sizeof(GpuSsaoPush) == 128, "push SsaoPush layout drift");
     struct GpuAoBlurPush
     {
         Float2 dir{};
         Float2 texelSize{};
+        Float2 vpMin{0.0f, 0.0f}; // taps stay inside the view's sub-rectangle
+        Float2 vpSize{1.0f, 1.0f};
         f32 depthSigma = 120.0f;
         f32 p0 = 0, p1 = 0, p2 = 0;
     };
-    static_assert(sizeof(GpuAoBlurPush) == 32, "push BlurPush layout drift");
+    static_assert(sizeof(GpuAoBlurPush) == 48, "push BlurPush layout drift");
     struct GpuAoApplyPush
     {
         f32 strength = 1.0f;
@@ -118,10 +123,12 @@ export namespace foundation::render
 
         // Declare AO for one view; returns the blurred AO handle, or invalid if the mode is Off. invProj is
         // the inverse camera projection and proj the camera projection (GTAO uses proj(1,1); SSAO uses
-        // proj(0,0) and proj(1,1)).
+        // proj(0,0) and proj(1,1)). (vx, vy, vw, vh) is the view's rectangle of the w x h targets: the
+        // projection covers that rectangle, not the whole texture (split screen).
         [[nodiscard]] rendergraph::RGHandle DeclareAo(rendergraph::RenderGraph& graph,
                                                       rendergraph::RGHandle depth,
                                                       rendergraph::RGHandle normal, u32 w, u32 h,
+                                                      i32 vx, i32 vy, u32 vw, u32 vh,
                                                       const Float4x4& invProj, const Float4x4& proj,
                                                       f32 radius, f32 intensity, u32 frameIndex,
                                                       AoMode mode, const AoBudget& budget,
@@ -163,7 +170,7 @@ export namespace foundation::render
 
         void DeclareBlur(rendergraph::RenderGraph& graph, rendergraph::RGHandle ao,
                          rendergraph::RGHandle depth, rendergraph::RGHandle out, u32 w, u32 h,
-                         Float2 texel, Float2 dir);
+                         Float2 texel, Float2 dir, Float2 vpMin, Float2 vpSize);
 
         rhi::RenderPipeline* MakePipeline(StringView name, rhi::PipelineLayout* layout,
                                           rhi::TextureFormat fmt = kAoFormat);

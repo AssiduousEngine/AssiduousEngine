@@ -101,7 +101,8 @@ namespace foundation::render
                                               rendergraph::RGHandle current,
                                               rendergraph::RGHandle motion,
                                               rendergraph::RGHandle depth, u32 viewIndex, u32 w,
-                                              u32 h, f32 blendFactor, f32 varianceGamma,
+                                              u32 h, i32 vx, i32 vy, u32 vw, u32 vh,
+                                              f32 blendFactor, f32 varianceGamma,
                                               f32 motionScale, f32 nearPlane, f32 farPlane,
                                               bool orthographic)
     {
@@ -155,6 +156,9 @@ namespace foundation::render
         push.nearPlane = nearPlane;
         push.farPlane = (farPlane > nearPlane) ? farPlane : 1000.0f;
         push.orthographic = orthographic ? 1 : 0;
+        const f32 fw = static_cast<f32>(w), fh = static_cast<f32>(h);
+        push.vpMin = Float2{static_cast<f32>(vx) / fw, static_cast<f32>(vy) / fh};
+        push.vpSize = Float2{static_cast<f32>(vw == 0 ? w : vw) / fw, static_cast<f32>(vh == 0 ? h : vh) / fh};
 
         rhi::TextureView* histPrevView = hist.view[prev];
         graph.AddRenderPass(
