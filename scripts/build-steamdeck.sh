@@ -19,6 +19,10 @@
 #   Env:    JOBS=N        build parallelism (default 4)
 #           RT=podman     force a container runtime (default: first of podman, docker found)
 #           TEMPLATE=0    skip the export template
+#           TEMPLATE_OUT=dir  write the export template into dir instead of installing it (a release
+#                         packs it from there)
+#           CXX_COMPILER=, C_COMPILER=  the host compilers for the shader cooker (default: the clang
+#                         preset's); a CI runner's stock Clang is too old for the modules build
 #           SHADERPACK=   the host's Tools.ShaderPack (default: built from this tree in build/clang); the
 #                         container cannot run DXC (glibc 2.38), so the pack is cooked here
 set -euo pipefail
@@ -56,7 +60,12 @@ echo "== building image $IMAGE (first run installs Clang 21 + GCC 14; SDL3 is ve
 SHADERPACK="${SHADERPACK:-}"
 if [[ -z "$SHADERPACK" ]]; then
     echo "== building the host Tools.ShaderPack (the clang preset) =="
-    [[ -f build/clang/CMakeCache.txt ]] || cmake --preset clang
+    if [[ ! -f build/clang/CMakeCache.txt ]]; then
+        COMPILERS=()
+        [[ -n "${CXX_COMPILER:-}" ]] && COMPILERS+=(-DCMAKE_CXX_COMPILER="$CXX_COMPILER")
+        [[ -n "${C_COMPILER:-}" ]] && COMPILERS+=(-DCMAKE_C_COMPILER="$C_COMPILER")
+        cmake --preset clang "${COMPILERS[@]}"
+    fi
     cmake --build build/clang --target Tools.ShaderPack -j"$JOBS"
     SHADERPACK="Bin/Debug/Linux64-Clang/Tools.ShaderPack"
 fi
@@ -92,7 +101,12 @@ if [[ "${TEMPLATE:-1}" != "0" ]]; then
     [[ -n "$VERSION" && -n "$PREFIX" ]] || { echo "!! no project VERSION or ENGINE_ID (the template id prefix) in CMakeLists.txt" >&2; exit 1; }
     echo
     echo "== export template: Steam Deck $VERSION =="
-    "$BIN/Tools.Export" --template create "$BIN" --install \
+    DESTINATION=(--install)
+    if [[ -n "${TEMPLATE_OUT:-}" ]]; then
+        mkdir -p "$TEMPLATE_OUT"
+        DESTINATION=(--out "$TEMPLATE_OUT")
+    fi
+    "$BIN/Tools.Export" --template create "$BIN" "${DESTINATION[@]}" \
         --id "$PREFIX-steamdeck-release-$VERSION" \
         --name "Steam Deck Release $VERSION" \
         --icon handheld \
