@@ -131,6 +131,36 @@ TEST_CASE("screens: a pop refocuses the screen under it where its focus was; a c
     CHECK(log.Heard[1] == SV(u8"screenrevealed"));
 }
 
+TEST_CASE("screens: a hidden screen's handler that pops screens leaves the stack settled, not walked past its end")
+{
+    // Settle walked the stack by index while a screenhidden handler popped three screens out
+    // from under it: the next index was past the stack's end.
+    Bed bed;
+    auto a = bed.MakeScreen(u8"a");
+    auto b = bed.MakeScreen(u8"b");
+    auto c = bed.MakeScreen(u8"c");
+    auto d = bed.MakeScreen(u8"d");
+    d->SetCovers(true);
+    (void)bed.stack->Push(*a);
+    (void)bed.stack->Push(*b);
+    (void)bed.stack->Push(*c);
+    bool popped = false;
+    (void)c->AddNamedListener(SV(u8"screenhidden"), [&](const Event&)
+                              {
+                                  if (popped)
+                                      return;
+                                  popped = true;
+                                  (void)bed.stack->Pop(); // d
+                                  (void)bed.stack->Pop(); // c
+                                  (void)bed.stack->Pop(); // b
+                              });
+    (void)bed.stack->Push(*d);
+    CHECK(popped);
+    CHECK(bed.stack->Top() == a.Get());
+    CHECK(a->IsVisible());
+    CHECK_FALSE(a->IsCovered());
+}
+
 TEST_CASE("screens: a HUD that does not block leaves the game screen under it live")
 {
     Bed bed;

@@ -241,15 +241,30 @@ export namespace foundation::gui
             bool blocked = false;
             bool covered = false;
             bool paused = false;
-            for (usize i = m_screens.Size(); i-- > 0;)
+            // A screen's handlers may push or pop screens (each of which settles the stack again):
+            // walk a pinned copy, and stop once the stack is not the one being walked, since the
+            // settle the change made has already placed every screen.
+            const Array<RefPtr<Screen>> walked = m_screens;
+            const auto unchanged = [&]
             {
-                Screen& screen = *m_screens[i];
+                if (walked.Size() != m_screens.Size())
+                    return false;
+                for (usize k = 0; k < walked.Size(); ++k)
+                    if (walked[k] != m_screens[k])
+                        return false;
+                return true;
+            };
+            for (usize i = walked.Size(); i-- > 0;)
+            {
+                Screen& screen = *walked[i];
                 screen.SetInert(blocked);
                 if (covered != screen.m_covered)
                 {
                     screen.m_covered = covered;
                     screen.SetVisible(!covered);
                     screen.SendNamedEvent(covered ? core::StringView(u8"screenhidden") : core::StringView(u8"screenrevealed"));
+                    if (!unchanged())
+                        return;
                 }
                 blocked = blocked || screen.m_blocks;
                 covered = covered || screen.m_covers;
