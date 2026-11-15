@@ -41,8 +41,10 @@ export namespace foundation::rhi::vk
                 varCountInfo.pDescriptorCounts = &variableCount;
             }
 
-            // Try existing pools.
-            for (auto pool : m_pools)
+            // Try existing pools of the same kind: an update-after-bind layout must come from an
+            // update-after-bind pool, and a plain set has no place in one (their sizes are 64x).
+            Array<VkDescriptorPool>& pools = m_pools[updateAfterBind ? 1 : 0];
+            for (auto pool : pools)
             {
                 VkDescriptorSet set = VK_NULL_HANDLE;
                 VkDescriptorSetAllocateInfo ai{};
@@ -65,7 +67,7 @@ export namespace foundation::rhi::vk
             if (createPool(updateAfterBind) != ErrorCode::Ok)
                 return ErrorCode::Unknown;
 
-            auto pool = m_pools.Back();
+            auto pool = pools.Back();
             VkDescriptorSet set = VK_NULL_HANDLE;
             VkDescriptorSetAllocateInfo ai{};
             ai.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -92,9 +94,18 @@ export namespace foundation::rhi::vk
 
         void Destroy()
         {
-            for (auto pool : m_pools)
-                vkDestroyDescriptorPool(m_device, pool, nullptr);
-            m_pools.Clear();
+            for (Array<VkDescriptorPool>& pools : m_pools)
+            {
+                for (auto pool : pools)
+                    vkDestroyDescriptorPool(m_device, pool, nullptr);
+                pools.Clear();
+            }
+        }
+
+        /// How many pools of one kind exist (tests).
+        [[nodiscard]] usize poolCount(bool updateAfterBind) const noexcept
+        {
+            return m_pools[updateAfterBind ? 1 : 0].Size();
         }
 
     private:
@@ -129,12 +140,12 @@ export namespace foundation::rhi::vk
             VkDescriptorPool pool = VK_NULL_HANDLE;
             if (vkCreateDescriptorPool(m_device, &ci, nullptr, &pool) != VK_SUCCESS)
                 return ErrorCode::Unknown;
-            m_pools.PushBack(pool);
+            m_pools[updateAfterBind ? 1 : 0].PushBack(pool);
             return ErrorCode::Ok;
         }
 
         VkDevice m_device;
-        Array<VkDescriptorPool> m_pools;
+        Array<VkDescriptorPool> m_pools[2]; // plain, update-after-bind
         u32 m_maxSetsPerPool;
         bool m_accelStructEnabled;
         VkDescriptorSet m_lastAllocatedSet = VK_NULL_HANDLE;

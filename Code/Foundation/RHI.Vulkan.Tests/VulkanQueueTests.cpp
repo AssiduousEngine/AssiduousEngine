@@ -249,3 +249,36 @@ TEST_CASE("vk.submit: a fenced submit given no fence still runs its command buff
     device->Destroy();
     backend->Destroy();
 }
+
+TEST_CASE("vk.descriptors: plain and update-after-bind sets come from pools of their own kind")
+{
+    // One list held both kinds: an update-after-bind set could land in a plain pool (invalid),
+    // and plain sets filled the update-after-bind pools.
+    Backend* backend = nullptr;
+    Device* device = MakeDeviceWithComputeQueue(backend);
+    if (device == nullptr)
+    {
+        MESSAGE("no Vulkan adapter - skipped");
+        return;
+    }
+    const VkDevice vkDevice = static_cast<vk::VkDeviceImpl*>(device)->handle();
+    VkDescriptorSetLayoutCreateInfo lci{};
+    lci.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    VkDescriptorSetLayout empty = VK_NULL_HANDLE;
+    REQUIRE(vkCreateDescriptorSetLayout(vkDevice, &lci, nullptr, &empty) == VK_SUCCESS);
+    {
+        vk::VkDescriptorPoolManager pools(vkDevice, 4);
+        VkDescriptorPool plain = VK_NULL_HANDLE;
+        REQUIRE(pools.allocate(empty, plain).IsOk());
+        CHECK(pools.poolCount(false) == 1u);
+        CHECK(pools.poolCount(true) == 0u);
+        VkDescriptorPool afterBind = VK_NULL_HANDLE;
+        REQUIRE(pools.allocate(empty, afterBind, /*updateAfterBind*/ true).IsOk());
+        CHECK(pools.poolCount(true) == 1u);
+        CHECK(afterBind != plain);
+        pools.Destroy();
+    }
+    vkDestroyDescriptorSetLayout(vkDevice, empty, nullptr);
+    device->Destroy();
+    backend->Destroy();
+}
