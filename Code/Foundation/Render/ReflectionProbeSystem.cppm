@@ -3,12 +3,12 @@
 
 /// Foundation::Render - the `:probes` partition.
 ///
-/// Reflection probes: local, parallax-corrected, cluster-assigned cubemap reflections.
-/// This system owns the per-probe GPU resources and drives capture, prefilter and froxel assignment:
+/// Reflection probes: local, parallax-corrected cubemap reflections, each fragment blending the view's
+/// probes whose boxes hold it. This system owns the per-probe GPU resources and drives capture and prefilter:
 ///   - captured cube array (RGBA16F, [maxProbes×6] layers)   : the raw 6-face scene capture per probe.
 ///   - prefiltered specular cube array (RGBA16F, mip chain)  : GGX split-sum per probe, sampled by the
 ///                                                             forward (set 0, t8) with parallax.
-///   - probe-metadata StructuredBuffer (GpuProbe[])          : center, box, blend, slice; sampled per froxel.
+///   - probe-metadata StructuredBuffer (GpuProbe[])          : center, box, blend, slice; read per fragment.
 ///
 /// A stable map from ProbeKey (the probe's scene and entity) to slot keeps a probe's array slice across frames, so only
 /// dirty probes re-capture (static caching). This system allocates the resources and the slot
@@ -35,7 +35,7 @@ namespace rhi = foundation::rhi;
 export namespace foundation::render
 {
 
-    // GPU-side probe record (set-0 t9 StructuredBuffer), 64 bytes. Packed so the forward can, per froxel,
+    // GPU-side probe record (set-0 t9 StructuredBuffer), 64 bytes. Packed so the forward can, per fragment,
     // pick the probe, box-project the reflection ray, and index its cube-array slice.
     // As lighting.hlsli declares it; Integration.ShaderBlocks checks the two agree.
     struct GpuProbe

@@ -11,8 +11,8 @@
 //   --dry-run        print the plan (dirty set and orphans) without cooking
 //   --target <id>    also cook a per-target DB under Cooked-<id>/ beside the host DB. Cooks the
 //                    host first, then carries platform-invariant products forward and recooks only
-//                    variant products (textures: BC or ASTC) for the target. "web-astc" is the
-//                    ASTC mobile-web target; everything else is BC desktop. "host" is the default.
+//                    variant products (textures: BC or ASTC) for the target. "web-astc" (mobile
+//                    web) and "android" are the ASTC targets; everything else is BC desktop. "host" is the default.
 // The exit code is the number of failed cooks (0 on success).
 
 #include <cstdio>

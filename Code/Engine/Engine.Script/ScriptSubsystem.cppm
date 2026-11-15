@@ -260,11 +260,10 @@ export namespace engine::script
         bool m_paused = false;
     };
 
-    /// Owns the run's manager and context and the behaviors module loaded into it. Class
-    /// sources are concatenated into one generation-versioned module ("behaviors#N"):
-    /// the contract's CreateInstance resolves against the last loaded module, and a
-    /// fresh module name per generation gives hot reload clean semantics (live
-    /// instances of old generations keep running).
+    /// Owns the run's manager and context and the behavior modules loaded into it. Each class
+    /// loads into a module of its own, named by generation ("behaviors#N"): a fresh name per
+    /// load gives hot reload clean semantics (live instances of the replaced class keep
+    /// running on its old module until they end).
     /// Plain class (no runtime deps) so headless tests drive it directly.
     class ScriptRunHost
     {
