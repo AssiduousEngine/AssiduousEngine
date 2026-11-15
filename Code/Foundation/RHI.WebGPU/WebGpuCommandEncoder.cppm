@@ -81,6 +81,7 @@ export namespace foundation::rhi::webgpu
 
             WGPURenderPassDepthStencilAttachment depth =
                 WGPU_RENDER_PASS_DEPTH_STENCIL_ATTACHMENT_INIT;
+            bool passHasStencil = false; // whether the depth-stencil attachment has a stencil aspect
             if (passDesc.depthStencilAttachment.HasValue())
             {
                 const DepthStencilAttachment& attachment =
@@ -112,6 +113,7 @@ export namespace foundation::rhi::webgpu
                     dsFormat = attachment.view->texture->desc.format;
                 }
                 const bool hasStencil = HasStencil(dsFormat);
+                passHasStencil = hasStencil;
                 if (hasStencil)
                 {
                     if (attachment.stencilReadOnly)
@@ -157,7 +159,16 @@ export namespace foundation::rhi::webgpu
                 width = Max(sized->texture->desc.width >> sized->desc.baseMipLevel, 1u);
                 height = Max(sized->texture->desc.height >> sized->desc.baseMipLevel, 1u);
             }
-            m_renderPass.Begin(*m_api, m_device, pass, width, height);
+            bool depthReadOnly = false;
+            bool stencilReadOnly = false;
+            if (passDesc.depthStencilAttachment.HasValue())
+            {
+                const DepthStencilAttachment& attachment = passDesc.depthStencilAttachment.Value();
+                depthReadOnly = attachment.depthReadOnly;
+                stencilReadOnly = attachment.stencilReadOnly && passHasStencil;
+            }
+            m_renderPass.Begin(*m_api, m_device, pass, width, height, depthReadOnly, stencilReadOnly,
+                               passDesc.label);
             m_renderPass.counters = m_counters;
             if (m_counters)
                 m_counters->RenderPass();

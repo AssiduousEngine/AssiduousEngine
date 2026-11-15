@@ -12,6 +12,7 @@
 module;
 #include "Core/Prelude.h"
 #include "WebGpuIncludes.h"
+#include "Core/Log/Log.h"
 
 export module foundation.rhi.webgpu:render_pass_encoder;
 
@@ -35,13 +36,19 @@ export namespace foundation::rhi::webgpu
 
         // `width` x `height`: the pass's render area (its attachments' size), which scissors are
         // clipped to.
+        // `depthReadOnly` and `stencilReadOnly`: the aspects the pass's depth-stencil attachment
+        // holds read-only (false for an aspect it has not), which a bundle it executes must leave
+        // unwritten too; `label` names the pass when one does not.
         void Begin(const WebGpuApi& api, WGPUDevice device, WGPURenderPassEncoder encoder, u32 width,
-                   u32 height)
+                   u32 height, bool depthReadOnly, bool stencilReadOnly, StringView label)
         {
             m_api = &api;
             m_encoder = encoder;
             m_width = width;
             m_height = height;
+            m_depthReadOnly = depthReadOnly;
+            m_stencilReadOnly = stencilReadOnly;
+            m_label = String(label);
             m_pushConstants.Begin(api, device);
         }
 
@@ -182,7 +189,19 @@ export namespace foundation::rhi::webgpu
                     m_api->wgpuRenderPassEncoderExecuteBundles(m_encoder, count, handles);
                     count = 0;
                 }
-                handles[count++] = static_cast<WebGpuRenderBundle*>(bundle)->Handle();
+                const auto* recorded = static_cast<WebGpuRenderBundle*>(bundle);
+                // A browser's WebGPU refuses a bundle that may write an aspect this pass holds
+                // read-only, failing the whole submit; native wgpu lets it through, so say it here,
+                // naming both, once.
+                if (!m_mismatchLogged && ((m_depthReadOnly && !recorded->depthReadOnly) ||
+                                          (m_stencilReadOnly && !recorded->stencilReadOnly)))
+                {
+                    LOG_ERROR(u8"RHI", u8"render bundle '{}' may write {} that pass '{}' holds read-only",
+                              recorded->label, m_depthReadOnly && !recorded->depthReadOnly ? u8"depth" : u8"stencil",
+                              m_label);
+                    m_mismatchLogged = true;
+                }
+                handles[count++] = recorded->Handle();
                 if (counters) // a bundle's recorded work, each time it runs
                     static_cast<WebGpuRenderBundle*>(bundle)->counts.AddTo(*counters);
             }
@@ -237,6 +256,10 @@ export namespace foundation::rhi::webgpu
         WGPURenderPassEncoder m_encoder = nullptr;
         u32 m_width = 0;  // the render area (scissors are clipped to it)
         u32 m_height = 0;
+        bool m_depthReadOnly = false;
+        bool m_stencilReadOnly = false;
+        String m_label;
+        bool m_mismatchLogged = false; // a bundle that does not fit is said once per encoder
         PushConstantEmulator m_pushConstants;
     };
 }

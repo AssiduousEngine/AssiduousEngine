@@ -48,6 +48,11 @@ export namespace foundation::rhi::webgpu
         [[nodiscard]] WGPURenderBundle Handle() const { return m_bundle; }
 
         RecordedCounts counts; // what it recorded, counted each time it is executed
+        // The aspects it leaves unwritten, and its label: a pass that executes it checks them
+        // (WebGPU refuses a bundle that may write an aspect the pass holds read-only).
+        bool depthReadOnly = false;
+        bool stencilReadOnly = false;
+        String label;
 
     private:
         const WebGpuApi* m_api = nullptr;
@@ -62,6 +67,9 @@ export namespace foundation::rhi::webgpu
         {
             m_api = &api;
             m_allocator = &allocator;
+            m_depthReadOnly = bundleDesc.depthReadOnly;
+            m_stencilReadOnly = bundleDesc.stencilReadOnly;
+            m_label = String(bundleDesc.label);
 
             WGPUTextureFormat colorFormats[MaxColorAttachments] = {};
             for (u32 i = 0; i < bundleDesc.colorFormatCount; ++i)
@@ -177,6 +185,9 @@ export namespace foundation::rhi::webgpu
             auto* bundle = m_allocator->New<WebGpuRenderBundle>();
             bundle->Adopt(*m_api, handle);
             bundle->counts = m_recorded;
+            bundle->depthReadOnly = m_depthReadOnly;
+            bundle->stencilReadOnly = m_stencilReadOnly;
+            bundle->label = m_label;
             m_bundles.PushBack(bundle); // owned until the encoder wrapper dies
             return bundle;
         }
@@ -194,6 +205,9 @@ export namespace foundation::rhi::webgpu
         }
 
     private:
+        bool m_depthReadOnly = false; // the bundle's, copied to it at Finish
+        bool m_stencilReadOnly = false;
+        String m_label;
         RecordedCounts m_recorded;
 
         /// Upload and bind any pending emulated push-constant block before a bundle draw. The

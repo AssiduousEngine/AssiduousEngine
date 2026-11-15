@@ -1547,6 +1547,87 @@ TEST_CASE("rhi.webgpu: sky-shaped draw - z=1.0 vs cleared depth, read-only pass,
     backend->Destroy();
 }
 
+namespace
+{
+    // The backend's errors, to show a bundle that does not fit its pass is named.
+    struct RhiErrors : ILogSink
+    {
+        Array<String> messages;
+        void Write(LogLevel level, StringView category, StringView message) noexcept override
+        {
+            if (level == LogLevel::Error && category == u8"RHI")
+                messages.PushBack(String(message));
+        }
+    };
+}
+
+TEST_CASE("rhi.webgpu: a bundle that may write depth, run in a pass that holds depth read-only, is named")
+{
+    // A browser's WebGPU refuses it and fails the submit; native wgpu lets it through, so the
+    // backend says which bundle and which pass.
+    Backend* backend = TryCreateBackend();
+    if (backend == nullptr)
+    {
+        return;
+    }
+    Device* device = nullptr;
+    REQUIRE(backend->EnumerateAdapters()[0]->CreateDevice(DeviceDesc{}, device).IsOk());
+    TextureDesc depthDesc = TextureDesc::DepthBuffer(TextureFormat::Depth32Float, 4, 4);
+    depthDesc.usage = TextureUsage::DepthStencil | TextureUsage::Sampled; // read-only needs Sampled
+    Texture* depthTexture = nullptr;
+    REQUIRE(device->CreateTexture(depthDesc, depthTexture).IsOk());
+    TextureViewDesc depthViewDesc;
+    depthViewDesc.format = TextureFormat::Depth32Float;
+    TextureView* depthView = nullptr;
+    REQUIRE(device->CreateTextureView(depthTexture, depthViewDesc, depthView).IsOk());
+    CommandPool* pool = nullptr;
+    REQUIRE(device->CreateCommandPool(QueueType::Graphics, pool).IsOk());
+
+    const auto run = [&](bool bundleDepthReadOnly, StringView bundleLabel)
+    {
+        CommandEncoder* encoder = nullptr;
+        REQUIRE(pool->CreateEncoder(encoder).IsOk());
+        RenderBundleDesc bundleDesc;
+        bundleDesc.depthStencilFormat = TextureFormat::Depth32Float;
+        bundleDesc.depthReadOnly = bundleDepthReadOnly;
+        bundleDesc.width = 4;
+        bundleDesc.height = 4;
+        bundleDesc.label = bundleLabel;
+        RenderBundleEncoder* bundleEncoder = encoder->CreateRenderBundleEncoder(bundleDesc);
+        REQUIRE(bundleEncoder != nullptr);
+        RenderBundle* bundle = bundleEncoder->Finish();
+        RenderPassDesc pass;
+        pass.label = u8"overlay";
+        DepthStencilAttachment depth;
+        depth.view = depthView;
+        depth.depthReadOnly = true;
+        pass.depthStencilAttachment = depth;
+        RenderPassEncoder* passEncoder = encoder->BeginRenderPass(pass);
+        RenderBundle* bundles[] = {bundle};
+        passEncoder->ExecuteBundles(Span<RenderBundle* const>(bundles, 1));
+        passEncoder->End();
+    };
+
+    RhiErrors errors;
+    GlobalLogger().AddSink(&errors);
+    run(true, u8"reader");
+    const usize afterMatching = errors.messages.Size();
+    run(false, u8"writer");
+    GlobalLogger().RemoveSink(&errors);
+
+    CHECK(afterMatching == 0u); // a read-only bundle fits a read-only pass
+    REQUIRE(errors.messages.Size() == 1u);
+    CHECK(errors.messages[0].AsView().Contains(u8"'writer'"));
+    CHECK(errors.messages[0].AsView().Contains(u8"depth"));
+    CHECK(errors.messages[0].AsView().Contains(u8"'overlay'"));
+
+    device->DestroyCommandPool(pool);
+    device->DestroyTextureView(depthView);
+    device->DestroyTexture(depthTexture);
+    device->Destroy();
+    backend->Destroy();
+}
+
 TEST_CASE("rhi.webgpu: push-constant UNIFORM FALLBACK - forced on desktop, verified on GPU")
 {
     // Browsers (Dawn/emdawnwebgpu) have no immediates, so push constants there are emulated as
