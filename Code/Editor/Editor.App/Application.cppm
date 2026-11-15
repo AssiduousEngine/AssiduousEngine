@@ -262,6 +262,9 @@ export namespace editor::app
         u32 m_focusListener = 0; // the window's focus listener's token (0: none): Content/ looked at on a return
         editor::ThumbnailService m_thumbnailService;               // per-project state
         foundation::settings::Settings m_editorSettings{editor::EditorRootAllocator()}; // per-user (<userdata>/editor.settings.xml)
+        // ANDROID_HOME and JAVA_HOME as the editor was started with them, which Preferences' SDK and JDK
+        // folders stand in for while set (ApplyExportToolEnvironment).
+        editor::ExportToolEnvironment m_inheritedTools = editor::ExportToolEnvironment::Current();
         editor::ProjectManagerController m_projectManager{m_editorSettings}; // the registry of projects
 
         // The parts, in the order they start; they stop in reverse.

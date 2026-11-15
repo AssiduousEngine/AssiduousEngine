@@ -12,6 +12,9 @@ module;
 #include "Core/Log/Log.h"
 #include <cstdint>
 #include <SDL3/SDL.h>
+#if defined(__ANDROID__)
+#include <jni.h> // the activity's moveTaskToBack (PassBackToPlatform)
+#endif
 #define SDL_MAIN_HANDLED
 #include <SDL3/SDL_main.h>
 
@@ -84,6 +87,11 @@ namespace foundation::shell
         {
             flags |= SDL_WINDOW_HIDDEN;
         }
+#if defined(__ANDROID__)
+        // A phone's window is the screen, whatever the settings ask: fullscreen, which SDL's activity
+        // makes immersive (the status and navigation bars hidden until the user swipes them back).
+        flags |= SDL_WINDOW_FULLSCREEN;
+#endif
         if (settings.softwareSurface)
         {
             return flags; // drawn through SDL's window surface: no Vulkan surface on it
@@ -107,6 +115,11 @@ namespace foundation::shell
         // reads the hint as it starts).
         if (settings.drawsTextComposition)
             SDL_SetHint(SDL_HINT_IME_IMPLEMENTED_UI, "composition");
+#if defined(__ANDROID__)
+        // The back button comes to the app as a key (KeyCode::Back), where by default Android's
+        // activity takes it; what the game does not handle goes back to it (PassBackToPlatform).
+        SDL_SetHint(SDL_HINT_ANDROID_TRAP_BACK_BUTTON, "1");
+#endif
         if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD))
         {
             m_running = false;
@@ -145,6 +158,33 @@ namespace foundation::shell
             SDL_RemoveEventWatch(&SDL3Shell::OnWatchedEvent, this);
             SDL_Quit();
         }
+    }
+
+    void SDL3Shell::PassBackToPlatform()
+    {
+#if defined(__ANDROID__)
+        // The app goes to the background, kept as it is (Activity.moveTaskToBack). The activity's
+        // default back (SDL_SendAndroidBackButton) does that only for an app opened from the
+        // launcher, and ends the activity otherwise.
+        JNIEnv* env = static_cast<JNIEnv*>(SDL_GetAndroidJNIEnv());
+        jobject activity = static_cast<jobject>(SDL_GetAndroidActivity());
+        if (env == nullptr || activity == nullptr)
+        {
+            return;
+        }
+        jclass type = env->GetObjectClass(activity);
+        jmethodID moveTaskToBack = env->GetMethodID(type, "moveTaskToBack", "(Z)Z");
+        if (moveTaskToBack != nullptr)
+        {
+            (void)env->CallBooleanMethod(activity, moveTaskToBack, JNI_TRUE);
+        }
+        if (env->ExceptionCheck())
+        {
+            env->ExceptionClear();
+        }
+        env->DeleteLocalRef(type);
+        env->DeleteLocalRef(activity);
+#endif
     }
 
     bool SDL3Shell::OnWatchedEvent(void* shellPtr, SDL_Event* event)
@@ -262,6 +302,12 @@ namespace foundation::shell
         native.system = WindowSystem::Cocoa;
         native.window =
             SDL_GetPointerProperty(props, SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, nullptr);
+#elif defined(__ANDROID__)
+        // The activity's surface. It goes away when the app goes to the background and a new one
+        // comes back with it (the render window makes its surface again then).
+        native.system = WindowSystem::Android;
+        native.window =
+            SDL_GetPointerProperty(props, SDL_PROP_WINDOW_ANDROID_WINDOW_POINTER, nullptr);
 #else
         const char* driver = SDL_GetCurrentVideoDriver();
         if (driver != nullptr && SDL_strcmp(driver, "wayland") == 0)

@@ -1,4 +1,4 @@
-add_executable(Sample029_ResolveTexture Main.cpp)
+util_add_sample_app(Sample029_ResolveTexture Main.cpp)
 target_link_libraries(Sample029_ResolveTexture PRIVATE Samples::Framework Foundation::Core Foundation::Policy)
 target_compile_options(Sample029_ResolveTexture PRIVATE
     "$<$<CXX_COMPILER_ID:Clang,GNU>:-Wno-error=unused-parameter;-Wno-error=unused-variable;-Wno-error=missing-field-initializers;-Wno-error=misleading-indentation>")

@@ -6,6 +6,19 @@ function(util_copy_sdl3_dll target)
     util_copy_runtime_deps(${target}) # SDL3 is vendored static; no DLL to stage
 endfunction()
 
+# An RHI sample's program: an executable, or on Android a shared library the app's activity loads
+# (SDL's Java glue calls its SDL_main; scripts/android-app.sh packs it as libmain.so). The sample's
+# own `int main(int argc, char** argv)` becomes that SDL_main there, through AndroidSampleMain.h.
+function(util_add_sample_app target)
+    if(ANDROID)
+        add_library(${target} SHARED ${ARGN})
+        target_compile_options(${target} PRIVATE
+            "SHELL:-include ${CMAKE_SOURCE_DIR}/Code/Samples/Framework/AndroidSampleMain.h")
+    else()
+        add_executable(${target} ${ARGN})
+    endif()
+endfunction()
+
 # NetEcho - console proof of foundation.net (no graphics); builds and runs anywhere.
 add_subdirectory(NetEcho)
 

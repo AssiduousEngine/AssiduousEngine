@@ -218,7 +218,7 @@ namespace
         Array<PluginDependency> dependsOn{};
         Array<String> provides{};
         Array<PluginPartKind> parts{};
-        Array<String> platforms{}; // empty: Linux64, Win64 and Web
+        Array<String> platforms{}; // empty: every platform (Linux64, Win64, Web, Android64)
     };
 
     [[nodiscard]] Array<byte> ManifestXml(ManifestSpec spec)
@@ -236,7 +236,8 @@ namespace
         }
         if (spec.platforms.IsEmpty())
         {
-            for (StringView platform : {StringView(u8"Linux64"), StringView(u8"Win64"), StringView(u8"Web")})
+            for (StringView platform :
+                 {StringView(u8"Linux64"), StringView(u8"Win64"), StringView(u8"Web"), StringView(u8"Android64")})
             {
                 spec.platforms.PushBack(String(platform));
             }
@@ -379,9 +380,16 @@ namespace
         return refusal != nullptr && refusal->reason.AsView().Contains(reason);
     }
 
-    [[nodiscard]] StringView PartLibraryPath()
+    // On Android the part's file name: the suite runs on the phone beside it, from a scratch folder,
+    // so it is found beside the executable (scripts/android-tests.sh pushes it there).
+    [[nodiscard]] String PartLibraryPath()
     {
-        return StringView{reinterpret_cast<const utf8char*>(TEST_PLUGIN_PART_PATH)};
+        const StringView path{reinterpret_cast<const utf8char*>(TEST_PLUGIN_PART_PATH)};
+#if PLATFORM_ANDROID
+        return PathJoin(GetExecutableDirectory().AsView(), path);
+#else
+        return String(path);
+#endif
     }
 }
 
@@ -573,7 +581,7 @@ TEST_CASE("plugin host: a development package's part loads from its shared libra
         manifest->engineVersion = String(u8"0.1");
         manifest->parts.PushBack(PluginManifestPart{String(u8"Engine")});
         manifest->platforms.PushBack(PluginPlatform{String(GetHostPlatformName())});
-        const PluginLibrary libraries[] = {{PluginPartKind::Engine, String(PartLibraryPath())}};
+        const PluginLibrary libraries[] = {{PluginPartKind::Engine, PartLibraryPath()}};
         host.AddShared(Move(manifest), Span<const PluginLibrary>(libraries, 1));
         const StringView enabled[] = {u8"shared_probe"};
         const PluginLoadReport report = LoadIds(host, Span<const StringView>(enabled, 1));
@@ -581,7 +589,7 @@ TEST_CASE("plugin host: a development package's part loads from its shared libra
         REQUIRE(report.loaded.Size() == 1u);
 
         // The library's part counts its loads through a C symbol it exports.
-        DynamicLibrary probe{PartLibraryPath()};
+        DynamicLibrary probe{PartLibraryPath().AsView()};
         REQUIRE(probe.IsLoaded());
         const auto loads = probe.GetSymbol<int (*)()>(u8"TestPluginPartLoads");
         REQUIRE(loads != nullptr);

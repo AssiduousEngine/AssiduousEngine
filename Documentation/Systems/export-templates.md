@@ -69,7 +69,12 @@ required runtime-lib.
   (`SynthesizeHostTemplate` reads platform + `runtime-libs`), stamps config/compiler/engineVersion,
   copies the player + sidecars (`FileCopyPreserving`, keeps +x), writes the icon (`icon.svg`: a
   built-in one by name, `--icon handheld` for the Steam Deck build, or a given `.svg`; else the
-  platform's built-in desktop, windows, linux or web icon) and `template.xml`. Two modes:
+  platform's built-in icon: windows, linux, web, phone for Android, desktop for any other) and
+  `template.xml`. The platform is the build directory's (`Bin/<Config>/<Platform>-<Compiler>`), so a
+  host packages another platform's build: an Android build gives an "Android64" template whose player
+  is the library the app loads (`libEngine.Player.so`) and whose sidecars are the app's Gradle project
+  (`android/`, with SDL's Java glue in `android/sdl-java/`), which the Android build stages beside
+  the library; `scripts/build-export-templates.sh android` makes it. Two modes:
   install into the templates root (usable immediately) or export to a folder (for zip + distribution).
   A Web build synthesizes a "Web" template (the player is the `.html`, sidecars from the manifest, and
   export stages page + sidecars + `Content.pak` + `player.xml` + the WGSL `Data/Engine/Shaders/shaders.dpak`

@@ -19,10 +19,16 @@ using namespace foundation::core;
 #if !PLATFORM_WEB
 
 // The plugin path is injected as a narrow build-system literal; the library API
-// is UTF-8, so wrap it in a StringView directly.
-static StringView PluginPath()
+// is UTF-8, so wrap it in a StringView directly. On Android it is the file's name: the suite runs
+// on the phone beside it, from a scratch folder, so it is found beside the executable.
+static String PluginPath()
 {
-    return StringView{reinterpret_cast<const utf8char*>(TEST_PLUGIN_PATH)};
+    const StringView path{reinterpret_cast<const utf8char*>(TEST_PLUGIN_PATH)};
+#if PLATFORM_ANDROID
+    return PathJoin(GetExecutableDirectory().AsView(), path);
+#else
+    return String(path);
+#endif
 }
 
 // --- Library ---------------------------------------------------------------
@@ -32,7 +38,7 @@ TEST_CASE("library: load a real plugin, resolve and call symbols, unload")
     DynamicLibrary lib;
     CHECK_FALSE(lib.IsLoaded());
 
-    REQUIRE(lib.Load(PluginPath()).IsOk());
+    REQUIRE(lib.Load(PluginPath().AsView()).IsOk());
     CHECK(lib.IsLoaded());
 
     using AddFn = int (*)(int, int);
@@ -66,7 +72,7 @@ TEST_CASE("library: loading a missing file fails cleanly")
 TEST_CASE("library: move transfers ownership")
 {
     DynamicLibrary a;
-    REQUIRE(a.Load(PluginPath()).IsOk());
+    REQUIRE(a.Load(PluginPath().AsView()).IsOk());
 
     DynamicLibrary b = Move(a);
     CHECK_FALSE(a.IsLoaded());

@@ -50,9 +50,16 @@ add_dependencies(Core.Tests TestPlugin)
 
 # DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN is set in TestsMain.cpp only (not here),
 # so the other TUs don't each emit a main.
+# On Android the suite runs on the phone, pushed beside the plugin (scripts/android-tests.sh), so it
+# loads it from its own folder (the test joins this name to it) rather than this machine's build tree.
+if(ANDROID)
+    set(_test_plugin_path "$<TARGET_FILE_NAME:TestPlugin>")
+else()
+    set(_test_plugin_path "$<TARGET_FILE:TestPlugin>")
+endif()
 target_compile_definitions(Core.Tests PRIVATE
     DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
-    TEST_PLUGIN_PATH="$<TARGET_FILE:TestPlugin>")
+    TEST_PLUGIN_PATH="${_test_plugin_path}")
 
 # doctest 2.4.11 includes <ciso646>, which emits a deprecation #warning under
 # C++23. It is third-party noise, so only that warning stops being an error for this target;

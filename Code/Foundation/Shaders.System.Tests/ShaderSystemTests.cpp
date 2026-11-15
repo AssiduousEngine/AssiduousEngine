@@ -293,7 +293,9 @@ TEST_CASE("shader system: dev mode canonicalizes corpus requests like the cooked
     compiler->Destroy();
 }
 
-TEST_CASE("shader system host: dev-first policy - a pack in the data root does not silently win")
+// Dev mode compiles with DXC, which Android does not have: its shaders always come from the pack.
+TEST_CASE("shader system host: dev-first policy - a pack in the data root does not silently win" *
+          doctest::skip(PLATFORM_ANDROID != 0))
 {
     namespace vfs = foundation::vfs;
     rhi::null::NullDevice device{DefaultAllocator()};

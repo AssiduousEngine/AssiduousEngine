@@ -7,6 +7,16 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ## Unreleased
 
+### Added
+
+- Export: a game exports to Android, as an APK to install or an App Bundle for Google Play. An
+  Android preset gives the app's id, version, name, icon and release keystore (its password asked
+  for at export, or read from `ANDROID_KEYSTORE_PASSWORD`); the export builds the app with the
+  Android template's Gradle project, so the exporting machine needs the Android SDK and a JDK 17
+  (the editor's Preferences > Export name their folders, else `ANDROID_HOME` and `JAVA_HOME`).
+  The Android template is published with each release, beside the desktop, web and Steam Deck
+  ones (`scripts/build-export-templates.sh android` makes it locally).
+
 ## 0.1.0-beta.4 - 2026-11-14
 
 ### Added

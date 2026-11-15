@@ -54,6 +54,8 @@ export namespace editor::app
             const Array<editor::EditorContext::EditorSettingsContribution>* contributions = nullptr;
             /// Called when the MCP section was saved, so the host follows it for the open project.
             Function<void()> mcpChanged;
+            /// Called when the export section was saved, so the Android SDK and JDK it names apply.
+            Function<void()> exportChanged;
             /// Asks for a folder with the system's dialog, starting at `from`; `chosen` gets it, or
             /// nothing when the user cancels.
             Function<void(StringView from, Function<void(StringView)> chosen)> pickFolder;
@@ -216,7 +218,7 @@ export namespace editor::app
             if (auto* add = Find<gui::Button>(u8"pref-preview-add"))
                 add->SetOnClick([self]() { self->AddPreview(u8"Custom", 1920, 1080); });
             // The export tab's folders: Browse fills its field with the folder picked.
-            const StringView folders[] = {u8"pref-templates-root"};
+            const StringView folders[] = {u8"pref-templates-root", u8"pref-android-sdk", u8"pref-java-home"};
             for (const StringView field : folders)
                 if (auto* browse = Find<gui::Button>(Format(u8"{}-browse", field).AsView()))
                 {
@@ -275,6 +277,17 @@ export namespace editor::app
                 root->SetText(exportSettings != nullptr ? exportSettings->templatesRoot.AsView() : StringView{});
                 root->SetPlaceholder(editor::DefaultTemplatesRoot().AsView());
             }
+            const editor::EditorExportSettings* exportSettings = user->Find<editor::EditorExportSettings>();
+            if (auto* sdk = Find<gui::TextField>(u8"pref-android-sdk"))
+            {
+                sdk->SetText(exportSettings != nullptr ? exportSettings->androidSdk.AsView() : StringView{});
+                sdk->SetPlaceholder(u8"$ANDROID_HOME");
+            }
+            if (auto* jdk = Find<gui::TextField>(u8"pref-java-home"))
+            {
+                jdk->SetText(exportSettings != nullptr ? exportSettings->javaHome.AsView() : StringView{});
+                jdk->SetPlaceholder(u8"$JAVA_HOME, else java on the PATH");
+            }
             const editor::EditorMcpSettings* mcp = user->Find<editor::EditorMcpSettings>();
             if (auto* enabled = Find<gui::CheckBox>(u8"pref-mcp-enabled"))
                 enabled->SetChecked(mcp != nullptr && mcp->enabled);
@@ -298,6 +311,17 @@ export namespace editor::app
             {
                 user.Section<editor::EditorExportSettings>().templatesRoot = String(root->GetText());
                 user.MarkChanged<editor::EditorExportSettings>();
+            }
+            auto* sdk = Find<gui::TextField>(u8"pref-android-sdk");
+            auto* jdk = Find<gui::TextField>(u8"pref-java-home");
+            if (sdk != nullptr && jdk != nullptr)
+            {
+                editor::EditorExportSettings& exportSettings = user.Section<editor::EditorExportSettings>();
+                exportSettings.androidSdk = String(Trim(sdk->GetText()));
+                exportSettings.javaHome = String(Trim(jdk->GetText()));
+                user.MarkChanged<editor::EditorExportSettings>();
+                if (m_services.exportChanged)
+                    m_services.exportChanged();
             }
             auto* enabled = Find<gui::CheckBox>(u8"pref-mcp-enabled");
             auto* port = Find<gui::TextField>(u8"pref-mcp-port");

@@ -129,8 +129,15 @@ else()
     # Its interface names the mounts a host may give (PlayerMounts), so its users see those modules.
     target_link_libraries(Engine.Player.Main PUBLIC Foundation::Core Foundation::VFS Foundation::VFS.Pak)
 
-    add_executable(Engine.Player Main.cpp)
-    target_link_libraries(Engine.Player PRIVATE Engine.Player.Main Foundation::Policy)
+    # On Android the player is the library the app's activity loads (SDL's Java glue calls its
+    # SDL_main), and it reads the game and the engine's data from the app's APK.
+    if(ANDROID)
+        add_library(Engine.Player SHARED AndroidMain.cpp)
+        target_link_libraries(Engine.Player PRIVATE Engine.Player.Main Foundation::VFS.Zip Foundation::Policy)
+    else()
+        add_executable(Engine.Player Main.cpp)
+        target_link_libraries(Engine.Player PRIVATE Engine.Player.Main Foundation::Policy)
+    endif()
     util_link_plugins(Engine.Player ROLE player PLUGINS ${UTIL_HOST_PLUGINS}) # what a project may enable
 
     # The project's player, when a project's packages are added to this build (ENGINE_PROJECT_PLUGINS,
@@ -159,8 +166,24 @@ else()
     # also keep a template from ever running on an older system, the Steam Deck's).
     # The third-party notices ride along the same way (cmake/ThirdPartyNotices.cmake), so every
     # template and export carries them.
-    util_copy_runtime_deps(Engine.Player EXTRA ${BUILDSYSTEM_WGPU_LIB} ${BUILDSYSTEM_NOTICES_FILE})
-    if(UNIX AND NOT APPLE)
+    # On Android the player's companions are the app's Gradle project and SDL's Java glue, staged
+    # beside the library (cmake/StageAndroidProject.cmake) and listed in its runtime-libs, so an
+    # Android export template carries the app it builds.
+    if(ANDROID)
+        add_custom_command(TARGET Engine.Player POST_BUILD
+            COMMAND ${CMAKE_COMMAND}
+                -DPROJECT_DIR=${CMAKE_CURRENT_SOURCE_DIR}/Android
+                -DSDL_JAVA_DIR=${CMAKE_SOURCE_DIR}/ThirdParty/SDL3/android-project/app/src/main/java
+                -DNOTICES=${BUILDSYSTEM_NOTICES_FILE}
+                -DOUT_DIR=$<TARGET_FILE_DIR:Engine.Player>
+                -DPLAYER=${BUILTIN_PLAYER_BASENAME}
+                -P ${CMAKE_SOURCE_DIR}/cmake/StageAndroidProject.cmake
+            VERBATIM
+            COMMENT "Staging the Android app's Gradle project beside Engine.Player")
+    else()
+        util_copy_runtime_deps(Engine.Player EXTRA ${BUILDSYSTEM_WGPU_LIB} ${BUILDSYSTEM_NOTICES_FILE})
+    endif()
+    if(UNIX AND NOT APPLE AND NOT ANDROID)
         set_property(TARGET Engine.Player APPEND PROPERTY BUILD_RPATH "$ORIGIN")
         set_property(TARGET Engine.Player PROPERTY INSTALL_RPATH "$ORIGIN")
     endif()

@@ -19,6 +19,7 @@ export module editor.project:template_icons;
 
 import foundation.core;
 import foundation.vfs;
+import :export_preset; // the export platforms and their icons
 
 using namespace foundation::core;
 namespace vfs = foundation::vfs;
@@ -103,22 +104,12 @@ export namespace editor
         return {};
     }
 
-    /// The built-in icon a template for `platform` gets when its maker names none.
+    /// The built-in icon a template for `platform` gets when its maker names none: the export
+    /// platform's, or the plain desktop for a platform not among them.
     [[nodiscard]] inline StringView DefaultTemplateIconName(StringView platform) noexcept
     {
-        if (platform == u8"Win64")
-        {
-            return u8"windows";
-        }
-        if (platform == u8"Linux64")
-        {
-            return u8"linux";
-        }
-        if (platform == u8"Web")
-        {
-            return u8"web";
-        }
-        return u8"desktop";
+        const ExportPlatform* known = FindExportPlatform(platform);
+        return known != nullptr ? known->icon : StringView(u8"desktop");
     }
 
     /// A text file's whole contents, or empty when it cannot be read: a template's icon.

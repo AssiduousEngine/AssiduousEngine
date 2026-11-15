@@ -252,6 +252,55 @@ TEST_CASE("export dialog: a preset starts at the project's default or one of its
     CHECK(f.presets.At(0).qualityLevelId.IsNil()); // back to the project's default
 }
 
+// An Android preset's app (its id, version, name, icon, package and keystore) has a section of its
+// own, shown for an Android preset alone; Android is a platform to pick with no template installed.
+TEST_CASE("export dialog: an Android preset's app rows, shown for it alone")
+{
+    Fixture f;
+    UniquePtr<app::ExportDialog> dialog = f.Open();
+    REQUIRE(dialog->SelectedIndex() == 0);
+    gui::PropertyBag* rows = dialog->Rows();
+    REQUIRE(rows->FindInfo(u8"androidApplicationId") != nullptr);
+    CHECK(rows->FindInfo(u8"androidApplicationId")->Category == String(u8"Android"));
+    CHECK_FALSE(rows->FindInfo(u8"androidApplicationId")->Visible); // a Linux preset
+
+    // Android64 is offered though no template here has it.
+    const gui::PropertyInfo* platform = rows->FindInfo(u8"platform");
+    REQUIRE(platform != nullptr);
+    i64 android = -1;
+    for (const gui::PropertyChoice& choice : platform->Choices)
+        android = choice.Name == String(u8"Android64") ? choice.Value : android;
+    REQUIRE(android >= 0);
+    Edit(*dialog, u8"platform", gui::Variant(android));
+    CHECK(f.presets.At(0).platform == StringView(u8"Android64"));
+    rows = dialog->Rows();
+    const StringView androidRows[] = {u8"androidApplicationId", u8"androidVersionCode", u8"androidVersionName", u8"androidLabel",
+                                      u8"androidIcon",          u8"androidPackage",     u8"androidKeystore",    u8"androidKeyAlias"};
+    for (const StringView path : androidRows)
+    {
+        CAPTURE(path);
+        REQUIRE(rows->FindInfo(path) != nullptr);
+        CHECK(rows->FindInfo(path)->Visible);
+    }
+
+    Edit(*dialog, u8"androidApplicationId", gui::Variant(StringView(u8"com.studio.game")));
+    Edit(*dialog, u8"androidVersionCode", gui::Variant(i64{4}));
+    Edit(*dialog, u8"androidPackage", gui::Variant(static_cast<i64>(AndroidPackage::Bundle)));
+    Edit(*dialog, u8"androidKeystore", gui::Variant(StringView(u8"keys/release.jks")));
+    CHECK(f.presets.At(0).androidApplicationId == StringView(u8"com.studio.game"));
+    CHECK(f.presets.At(0).androidVersionCode == 4u);
+    CHECK(f.presets.At(0).androidPackage == AndroidPackage::Bundle);
+    CHECK(f.presets.At(0).androidKeystore == StringView(u8"keys/release.jks"));
+
+    // The Web preset hides them; this one shows its values again.
+    dialog->Select(1);
+    CHECK_FALSE(dialog->Rows()->FindInfo(u8"androidApplicationId")->Visible);
+    dialog->Select(0);
+    CHECK(dialog->Rows()->FindInfo(u8"androidApplicationId")->Visible);
+    CHECK(dialog->Rows()->GetValue(u8"androidApplicationId", 0).AsString() == StringView(u8"com.studio.game"));
+    CHECK(dialog->Rows()->GetValue(u8"androidVersionCode", 0).AsInt() == 4);
+}
+
 // Extra files are the project's: Add Files lists its own files (not the folders the editor, a cook
 // or an export writes) and adds the one picked by its project-relative path; From Disk takes a
 // file inside the project the same way and refuses one outside it.
@@ -291,6 +340,48 @@ TEST_CASE("export dialog: extra files come from the project, named relative to i
     CHECK(f.presets.At(0).additionalFiles[1] == StringView(u8"CREDITS.md"));
     REQUIRE(f.notices.Size() == 1u);
     CHECK(f.notices[0].AsView().StartsWith(u8"/elsewhere/licence.txt is outside the project"));
+    (void)RemoveDirectoryRecursive(f.project.AsView());
+}
+
+// An Android preset's icon and keystore are paths with Browse: the icon from the project's PNGs
+// with the editor's picker, the keystore with the system's dialog (kept outside the project as a
+// rule), named relative to the project when it is inside it.
+TEST_CASE("export dialog: an Android preset's icon and keystore are browsed for")
+{
+    Fixture f;
+    (void)RemoveDirectoryRecursive(f.project.AsView());
+    const StringView files[] = {u8"Branding/AppIcon.png", u8"Branding/notes.txt", u8"Cooked/Icon.png", u8"keys/release.jks"};
+    for (const StringView file : files)
+    {
+        const String full = PathJoin(f.project.AsView(), file);
+        REQUIRE(CreateDirectories(PathParent(full.AsView())));
+        REQUIRE(WriteFile(full.AsView(), Span<const byte>{}).IsOk());
+    }
+    ExportPreset phone;
+    phone.name = String(u8"Phone");
+    phone.platform = String(u8"Android64");
+    (void)f.presets.Add(phone);
+    UniquePtr<app::ExportDialog> dialog = f.Open();
+    dialog->Select(2);
+    REQUIRE(dialog->Rows()->FindInfo(u8"androidIcon") != nullptr);
+    CHECK(dialog->Rows()->FindInfo(u8"androidIcon")->Hint == String(app::kExportPathHint));
+    CHECK(dialog->Rows()->FindInfo(u8"androidKeystore")->Hint == String(app::kExportPathHint));
+
+    dialog->Browse(u8"androidIcon");
+    REQUIRE(f.picks.Size() == 1u);
+    REQUIRE(f.picks[0].Items.Size() == 1u); // the project's PNGs, not a cook's
+    CHECK(f.picks[0].Items[0].Key == StringView(u8"Branding/AppIcon.png"));
+    f.picks[0].OnPicked(u8"Branding/AppIcon.png");
+    CHECK(f.presets.At(2).androidIcon == StringView(u8"Branding/AppIcon.png"));
+
+    f.fromDisk.PushBack(PathJoin(f.project.AsView(), u8"keys/release.jks"));
+    dialog->Browse(u8"androidKeystore");
+    CHECK(f.presets.At(2).androidKeystore == StringView(u8"keys/release.jks"));
+    f.fromDisk.Clear();
+    f.fromDisk.PushBack(String(u8"/home/me/keys/upload.jks"));
+    dialog->Browse(u8"androidKeystore");
+    CHECK(f.presets.At(2).androidKeystore == StringView(u8"/home/me/keys/upload.jks"));
+    CHECK(f.notices.IsEmpty()); // a keystore outside the project is no refusal
     (void)RemoveDirectoryRecursive(f.project.AsView());
 }
 

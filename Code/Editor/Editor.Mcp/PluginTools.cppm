@@ -181,14 +181,15 @@ export namespace editor::mcp
 
         server.RegisterTool(
             u8"plugin_enable",
-            u8"Enable a plugin in the open project, or change an enabled one's `path` or `platforms`; "
-            u8"its settings are kept. `id` is the plugin's manifest id. `path` locates a project-local "
-            u8"package (a folder with its Plugin.xml, relative to the project; \"\" for the engine's). "
-            u8"`platforms` lists the platforms it is enabled on (Linux64, Win64, Web), [] for every one "
-            u8"its manifest supports. Refused when the id is not a plugin id, when the package at `path` "
-            u8"is not this plugin's, or when a platform named is one its manifest does not support. A "
-            u8"host loads the project's plugins when it opens the project, so the change takes effect "
-            u8"there. Returns the list as plugin_list does.",
+            Format(u8"Enable a plugin in the open project, or change an enabled one's `path` or `platforms`; "
+                   u8"its settings are kept. `id` is the plugin's manifest id. `path` locates a project-local "
+                   u8"package (a folder with its Plugin.xml, relative to the project; \"\" for the engine's). "
+                   u8"`platforms` lists the platforms it is enabled on ({}), [] for every one "
+                   u8"its manifest supports. Refused when the id is not a plugin id, when the package at `path` "
+                   u8"is not this plugin's, or when a platform named is one its manifest does not support. A "
+                   u8"host loads the project's plugins when it opens the project, so the change takes effect "
+                   u8"there. Returns the list as plugin_list does.",
+                   editor::ExportPlatformList()),
             SchemaBuilder()
                 .Str(u8"id", u8"the plugin's manifest id", true)
                 .Str(u8"path", u8"a project-local package, relative to the project (\"\" for the engine's)")
@@ -229,7 +230,7 @@ export namespace editor::mcp
                     {
                         if (!platforms.At(static_cast<usize>(i)).IsString())
                         {
-                            return Err(String(u8"`platforms` takes platform names (Linux64, Win64, Web)"));
+                            return Err(Format(u8"`platforms` takes platform names ({})", editor::ExportPlatformList()));
                         }
                         const String platform = platforms.At(static_cast<usize>(i)).AsString();
                         bool listed = false;

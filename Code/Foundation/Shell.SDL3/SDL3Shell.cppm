@@ -48,6 +48,8 @@ export namespace foundation::shell
             return u8"Wayland";
         case WindowSystem::Cocoa:
             return u8"Cocoa";
+        case WindowSystem::Android:
+            return u8"Android";
         default:
             return u8"Unknown";
         }
@@ -424,6 +426,9 @@ export namespace foundation::shell
         void RequestExit() override { m_running = false; }
 
         [[nodiscard]] bool InBackground() const noexcept override { return m_inBackground; }
+        // Android: the app goes to the background (Activity.moveTaskToBack). Nothing on a desktop,
+        // which has no back of its own.
+        void PassBackToPlatform() override;
 
         void SetClipboardText(core::StringView text) override;
 

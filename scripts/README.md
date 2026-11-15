@@ -16,10 +16,10 @@ distribution builds (`clang-reldbg`, `msvc-reldbg`), so a release builds the eng
 player is optimised, and its debug info goes to a `<platform>-release-symbols` folder beside the
 template (the Linux player is stripped before packaging; the Windows PDB never enters the template).
 
-### Linux + Web (from a Linux host)
+### Linux, Web and Android (from a Linux host)
 
 ```sh
-scripts/build-export-templates.sh [linux|web|all]     # default: all
+scripts/build-export-templates.sh [linux|web|android|all]     # default: all
 #   JOBS=N     build parallelism (default 4; higher OOMs the engine build)
 #   OUT=<dir>  write each platform's bundle under <dir>/<platform>/ (to zip); unset = --install locally
 ```
@@ -30,6 +30,11 @@ scripts/build-export-templates.sh [linux|web|all]     # default: all
   `~/emsdk/emsdk_env.sh`) and the SAME native exporter synthesizes a `Web` template from the
   `.html`/`.js`/`.wasm` bundle. The wasm build dir must be emscripten-configured first (the script
   prints the one-time `emcmake cmake ...` line if it is missing).
+- **Android** builds `Engine.Player` through the `android-arm64-reldbg` preset (the NDK at
+  `ANDROID_NDK_HOME`; `Bin/RelWithDebInfo/Android64-Clang`): the player is the library the app
+  loads (`libEngine.Player.so`, stripped, its debug info in `android64-release-symbols`), and the
+  app's Gradle project, which the build stages beside it, rides in the template. Exporting with it
+  needs the Android SDK and a JDK 17; making it does not.
 
 ### Windows (on a Windows agent)
 
@@ -117,3 +122,32 @@ size. `release.yml`'s `samples` job runs it on a tag and attaches the files; the
 version reads `samples.json` from its release. Run it from the repository root in a checkout: only
 tracked files go in. A sample joins the tab by an entry in `Samples.json` (its folder, its name,
 one line on what it is, its picture from `Documentation/Images`).
+
+## android-tests.sh - the test suites on an Android phone
+
+```sh
+cmake --preset android-arm64 && cmake --build build/android-arm64 -j4
+scripts/android-tests.sh [Suite ...]
+```
+
+Runs the Android build's test suites on a phone attached over USB (with USB debugging on): each
+suite is pushed to `/data/local/tmp/engine-tests` and run there over `adb shell`, beside the
+libraries the suites load and the `Data/` folders they read (`Engine`, `Tests`, `Samples`,
+`Editor`). With no names it runs every `*.Tests` in `Bin/Debug/Android64-Clang`. `SERIAL` picks a
+phone when several are attached, `ARGS` passes doctest's options to each suite, `DATA=0` skips the
+data push. A suite that reads this checkout's `Code/` or this build tree's own files skips those
+cases on Android; the desktop lanes run them.
+
+## android-app.sh - an Android app around one of the engine's programs
+
+```sh
+scripts/android-app.sh Sample001_Triangle --install --run
+```
+
+Builds `<Target>` in the Android tree (`build/android-arm64`), stages it as `libmain.so` with the
+data it reads under `build/android-app/<Target>/` (for the RHI samples, their shaders cooked on the
+host by `Tools.ShaderPack --entries`), and builds the APK from `Code/Engine/Engine.Player/Android`
+with its Gradle wrapper. `--install` puts it on the attached phone, `--run` also starts it and
+follows its log. Needs `ANDROID_HOME`, `ANDROID_NDK_HOME`, a JDK 17 and, the first time, the
+network (the wrapper fetches Gradle, and Gradle the Android plugin). `NO_BUILD=1` packages what is
+already built.

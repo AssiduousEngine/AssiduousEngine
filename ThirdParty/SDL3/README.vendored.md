@@ -14,9 +14,12 @@ SDK was replaced. SDL still dlopens X11/Wayland/PipeWire/ALSA at runtime
 ## Prune set (what was removed from the upstream release tarball)
 
 Kept: `src/ include/ cmake/ build-scripts/ wayland-protocols/ CMakeLists.txt
-LICENSE.txt INSTALL.md WhatsNew.txt`.
-Removed: tests, examples, docs, IDE project files (VisualC/Xcode/android-project).
-A re-vendor must apply the same prune so diffs stay reviewable.
+LICENSE.txt INSTALL.md WhatsNew.txt`, and from `android-project/` only its Java glue,
+`android-project/app/src/main/java/org/libsdl/app/*.java` (SDLActivity and the classes it uses,
+which an Android app's Gradle project compiles beside its own activity).
+Removed: tests, examples, docs, IDE project files (VisualC/Xcode), and the rest of
+`android-project/` (its Gradle files, manifest and resources; the engine's Android project has its
+own). A re-vendor must apply the same prune so diffs stay reviewable.
 
 ## Escape hatch
 

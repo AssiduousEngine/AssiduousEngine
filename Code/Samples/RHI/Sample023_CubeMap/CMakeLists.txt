@@ -1,4 +1,4 @@
-add_executable(Sample023_CubeMap Main.cpp)
+util_add_sample_app(Sample023_CubeMap Main.cpp)
 target_link_libraries(Sample023_CubeMap PRIVATE Samples::Framework Foundation::Core Foundation::Policy)
 target_compile_options(Sample023_CubeMap PRIVATE
     "$<$<CXX_COMPILER_ID:Clang,GNU>:-Wno-error=unused-parameter;-Wno-error=unused-variable;-Wno-error=missing-field-initializers;-Wno-error=misleading-indentation>")

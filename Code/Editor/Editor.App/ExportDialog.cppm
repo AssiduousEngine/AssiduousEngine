@@ -10,7 +10,8 @@
 // none. Its settings are on the property grid, as Project Settings' are, with a section per
 // category (General: its name, template, platform, config, player and output folder; Content: the
 // extra files as a list, symbols, pruning, shader source; Display: its own render size, window and
-// orientation, each shown only when the preset overrides it). A template picked by name decides
+// orientation, each shown only when the preset overrides it; Android: the app's id, version, name,
+// icon, package and keystore, shown only for an Android preset). A template picked by name decides
 // the platform and config. Edits apply as they are made and are saved when the selection moves,
 // an export starts, or the dialog closes. Export runs the selected preset and Export All every
 // one; Export Templates opens that window over this one, and the card follows what it changed.
@@ -66,6 +67,72 @@ export namespace editor::app
         String outputRoot;
     };
 
+    /// The hint a preset field that names a file carries (a namespace constant, so a test across
+    /// the shared library boundary can name it).
+    inline constexpr StringView kExportPathHint = u8"exportPath";
+
+    /// A preset field that names a file: its path, typed or picked with Browse. The dialog decides
+    /// how Browse picks (the editor's picker for a file of the project's, the system's dialog for one
+    /// kept outside it), given the row's path.
+    class ExportPathEditor final : public gui::PropertyEditor
+    {
+        RTTI_OBJECT(ExportPathEditor, gui::PropertyEditor)
+    public:
+        static constexpr StringView kHint = kExportPathHint;
+
+        explicit ExportPathEditor(Function<void(StringView row)> browse) : m_browse(foundation::core::Move(browse))
+        {
+            AddClass(u8"export-path");
+            EditLayoutStyle([](gui::LayoutStyle& s)
+            {
+                s.Direction = gui::FlexDirection::Row;
+                s.AlignItems = gui::Align::Center;
+                s.ColumnGap = 6.0f;
+            });
+            m_field = MakeRef<gui::TextField>(MemoryAllocator());
+            m_field->EditLayoutStyle([](gui::LayoutStyle& s)
+            {
+                s.Grow = 1.0f;
+                s.Shrink = 1.0f;
+                s.MinWidth = gui::LayoutLength::Px(0.0f);
+            });
+            ExportPathEditor* self = this;
+            m_field->SetOnTextChanged([self](StringView text) { self->ApplyEdit(gui::PropertyWrite{gui::Variant(text)}); });
+            AddChild(m_field.Get());
+            m_button = MakeRef<gui::Button>(MemoryAllocator());
+            m_button->SetText(u8"Browse...");
+            m_button->SetOnClick([self]()
+                                 {
+                                     if (self->m_browse)
+                                         self->m_browse(self->GetPath());
+                                 });
+            AddChild(m_button.Get());
+        }
+        [[nodiscard]] bool IsTyping() const override { return m_field->IsFocused(); }
+        [[nodiscard]] gui::TextField* Field() const noexcept { return m_field.Get(); }
+        [[nodiscard]] gui::Button* BrowseButton() const noexcept { return m_button.Get(); }
+
+    protected:
+        void OnBind(const gui::PropertyInfo&, const gui::PropertyValue& value) override
+        {
+            m_field->SetText(value.Value.AsString());
+            m_field->SetReadOnly(IsReadOnly());
+            m_button->SetEnabled(!IsReadOnly());
+        }
+        void OnTextStyleChange() override
+        {
+            ShareTextStyle(*m_field);
+            ShareTextStyle(*m_button);
+        }
+
+    private:
+        Function<void(StringView row)> m_browse;
+        RefPtr<gui::TextField> m_field;
+        RefPtr<gui::Button> m_button;
+    };
+
+    RTTI_DEFINE_OBJECT(ExportPathEditor, "rtti::editor::editor::app")
+
     /// ExportDialog::kPath, at namespace scope for another library to read (MSVC exports no class's
     /// static constexpr member from a shared library).
     inline constexpr const char8_t* kExportDialogPath = u8"Editor/Export.xml";
@@ -104,6 +171,12 @@ export namespace editor::app
                                                });
             }
             m_grid = Find<gui::PropertyGrid>(u8"export-grid");
+            if (m_grid != nullptr)
+            {
+                ExportDialog* owner = this;
+                m_grid->GetEditors().RegisterHint(ExportPathEditor::kHint, [owner](IAllocator& allocator) -> RefPtr<gui::PropertyEditor>
+                                                  { return MakeRef<ExportPathEditor>(allocator, [owner](StringView row) { owner->Browse(row); }); });
+            }
             m_export = Find<gui::Button>(u8"export-run");
             m_duplicate = Find<gui::Button>(u8"export-duplicate");
             m_remove = Find<gui::Button>(u8"export-remove");
@@ -331,6 +404,45 @@ export namespace editor::app
                 return {};
             return String(path.SubStr(root.Size() + 1, path.Size() - root.Size() - 1));
         }
+        /// Browse on a path row: the app icon from the project's PNGs with the editor's picker; the
+        /// keystore with the system's dialog, as it is kept outside the project as a rule (named
+        /// relative to the project when it is inside it).
+        void Browse(StringView row)
+        {
+            const i32 index = SelectedIndex();
+            if (index < 0)
+                return;
+            ExportDialog* self = this;
+            const String path(row);
+            const auto set = [self, index, path](StringView value)
+            {
+                if (self->SelectedIndex() != index || !self->m_bag)
+                    return;
+                self->m_bag->BeginEdit(path.AsView());
+                self->m_bag->CommitEdit(path.AsView(), gui::PropertyWrite{gui::Variant(value)});
+            };
+            if (row == StringView(u8"androidIcon"))
+            {
+                if (!m_seams.pick || m_seams.projectRoot.IsEmpty())
+                    return;
+                const String png[] = {String(u8".png")};
+                const auto generated = [](StringView folder) { return engine::project::IsProjectOutputFolder(folder); };
+                PickerRequest request = PathPicker::Request(m_allocator, m_seams.projectRoot.AsView(), Span<const String>(png, 1u),
+                                                            m_presets->At(static_cast<usize>(index)).androidIcon.AsView(), generated);
+                request.OnPicked = [set](StringView picked) { set(picked); };
+                m_seams.pick(Move(request));
+            }
+            else if (m_seams.pickFiles)
+            {
+                m_seams.pickFiles([self, set](Array<String> paths)
+                                  {
+                                      if (paths.IsEmpty())
+                                          return;
+                                      const String relative = self->ProjectRelative(paths[0].AsView());
+                                      set(relative.IsEmpty() ? paths[0].AsView() : relative.AsView());
+                                  });
+            }
+        }
         void AddExtraFiles(i32 index, Span<const String> files)
         {
             if (SelectedIndex() != index || files.IsEmpty())
@@ -362,6 +474,7 @@ export namespace editor::app
         static constexpr StringView kGeneral = u8"General";
         static constexpr StringView kContent = u8"Content";
         static constexpr StringView kDisplay = u8"Display";
+        static constexpr StringView kAndroid = u8"Android";
 
         // The presets as the list's model.
         class Model final : public gui::IModel
@@ -392,6 +505,12 @@ export namespace editor::app
         {
             return *FindProperty(engine::project::ProjectSettings::StaticType(), property)->type;
         }
+        /// The enum type of one of ExportPreset's own properties.
+        [[nodiscard]] static const TypeInfo& PresetEnum(const char* property)
+        {
+            editor::RegisterExportPresetReflection();
+            return *FindProperty(TypeOf<editor::ExportPreset>(), property)->type;
+        }
         [[nodiscard]] RefPtr<gui::Drawable> IconFor(const editor::ExportTemplate& tmpl)
         {
             String key(tmpl.id.AsView());
@@ -419,8 +538,8 @@ export namespace editor::app
         }
 
         // The values a choice offers: the preset's own, the fallback (the host's platform,
-        // Release), then those of the templates found here; a platform with no template stays
-        // selectable.
+        // Release), then those of the templates found here and, for the platform, every one a game
+        // exports to; a platform with no template stays selectable.
         void FillChoices(gui::PropertyInfo& row, Array<String>& values, StringView current, StringView fallback, bool platforms) const
         {
             values.Clear();
@@ -437,6 +556,9 @@ export namespace editor::app
             add(fallback);
             for (usize i = 0; i < m_registry.Count(); ++i)
                 add(platforms ? m_registry.At(i)->platform.AsView() : m_registry.At(i)->EffectiveConfig());
+            if (platforms)
+                for (const editor::ExportPlatform& platform : editor::kExportPlatforms)
+                    add(platform.tag);
             for (usize i = 0; i < values.Size(); ++i)
                 row.Choices.PushBack(gui::PropertyChoice{values[i], static_cast<i64>(i)});
         }
@@ -554,6 +676,31 @@ export namespace editor::app
             quality.Choices.PushBack(gui::PropertyChoice{String(u8"The project's default"), 0});
             for (usize i = 0; i < m_qualityLevels.Size(); ++i)
                 quality.Choices.PushBack(gui::PropertyChoice{m_qualityLevels[i].name, static_cast<i64>(i) + 1});
+
+            Row(u8"androidApplicationId", gui::PropertyKind::String, gui::Variant(preset.androidApplicationId.AsView()),
+                u8"Application id", kAndroid, u8"The app's own name on the phone and in a store, as com.studio.game.");
+            gui::PropertyInfo& code = Row(u8"androidVersionCode", gui::PropertyKind::Integer,
+                                          gui::Variant(static_cast<i64>(preset.androidVersionCode)), u8"Version code", kAndroid,
+                                          u8"The version a phone and a store compare: raise it for each release.");
+            code.HasRange = true;
+            code.Min = 1.0;
+            code.Max = 2100000000.0;
+            code.Step = 1.0;
+            Row(u8"androidVersionName", gui::PropertyKind::String, gui::Variant(preset.androidVersionName.AsView()),
+                u8"Version name", kAndroid, u8"The version a person reads.");
+            Row(u8"androidLabel", gui::PropertyKind::String, gui::Variant(preset.androidLabel.AsView()), u8"App name", kAndroid,
+                u8"The name under its icon. Empty: the project's.");
+            Row(u8"androidIcon", gui::PropertyKind::String, gui::Variant(preset.androidIcon.AsView()), u8"App icon", kAndroid,
+                u8"A square PNG in the project, 512 pixels or more. Empty: the platform's.")
+                .Hint = String(ExportPathEditor::kHint);
+            EnumRow(u8"androidPackage", PresetEnum("androidPackage"), static_cast<i64>(preset.androidPackage), u8"Package", kAndroid);
+            Row(u8"androidKeystore", gui::PropertyKind::String, gui::Variant(preset.androidKeystore.AsView()), u8"Keystore", kAndroid,
+                u8"The release keystore: kept outside the project as a rule, so it is not shared with it; relative to the project "
+                u8"when inside it. Empty: the debug key, for testing. Its password is asked for at export, or read from "
+                u8"ANDROID_KEYSTORE_PASSWORD.")
+                .Hint = String(ExportPathEditor::kHint);
+            Row(u8"androidKeyAlias", gui::PropertyKind::String, gui::Variant(preset.androidKeyAlias.AsView()), u8"Key alias", kAndroid,
+                u8"The key in the keystore that signs.");
             ShowOverrides(preset);
             ExportDialog* self = this;
             m_bag->SetOnCommit([self](const gui::PropertyBag::Commit&) { self->Store(); });
@@ -592,6 +739,11 @@ export namespace editor::app
             for (StringView path : {StringView(u8"windowWidth"), StringView(u8"windowHeight"), StringView(u8"windowMode"), StringView(u8"windowResizable")})
                 show(path, preset.overridesWindow);
             show(u8"orientation", preset.overridesOrientation);
+            // A field of one platform's (the Android app's) shows for a preset of that platform.
+            editor::RegisterExportPresetReflection();
+            for (const PropertyInfo& property : Properties(TypeOf<editor::ExportPreset>()))
+                if (const String* only = engine::project::SettingAttribute(property, editor::kPresetPlatformAttribute))
+                    show(StringView(reinterpret_cast<const utf8char*>(property.name)), *only == preset.platform);
             m_bag->PropertiesChanged();
         }
         // Stores the rows into the selected preset, then updates what shows it.
@@ -650,6 +802,14 @@ export namespace editor::app
             preset.qualityLevelId = level > 0 && static_cast<usize>(level) <= m_qualityLevels.Size()
                                         ? m_qualityLevels[static_cast<usize>(level) - 1].id
                                         : Guid{};
+            preset.androidApplicationId = text(u8"androidApplicationId");
+            preset.androidVersionCode = Max<u32>(1u, number(u8"androidVersionCode"));
+            preset.androidVersionName = text(u8"androidVersionName");
+            preset.androidLabel = text(u8"androidLabel");
+            preset.androidIcon = text(u8"androidIcon");
+            preset.androidPackage = static_cast<editor::AndroidPackage>(choice(u8"androidPackage"));
+            preset.androidKeystore = text(u8"androidKeystore");
+            preset.androidKeyAlias = text(u8"androidKeyAlias");
             m_presets->Update(static_cast<usize>(index), preset);
             m_dirty = true;
             m_model.Changed(index);

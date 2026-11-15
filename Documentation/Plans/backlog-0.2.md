@@ -448,6 +448,41 @@ up again:
 Open when the work starts: AngelScript's native calling convention on arm64 Android, SDL3's Java
 activity in the Gradle project, and reading content from the APK's assets through the VFS.
 
+## Android: Run on device from the editor (user 2026-11-11)
+
+The Android export stops at the file: the editor writes the APK to `Dist/` and the user installs it
+(`adb install`, or the APK copied to the phone). A Run on device step beside Export, as other
+engines' Build and Run: after the export, find adb (`$ANDROID_HOME/platform-tools/adb`), list the
+devices it sees (a picker when more than one is attached, USB or wireless), `adb install -r` the
+APK, start it (`adb shell am start -n <application id>/com.assiduousengine.player.GameActivity`),
+and stream the game's logcat lines (`Engine`, `SDL`, `AndroidRuntime`) into the editor's Console.
+What it needs is in place: the APK's path, the preset's application id, `RunProcess`, the SDK
+folder (Preferences or `ANDROID_HOME`). Backlogged by the user at A4's export.
+
+## Android: the brief squish when the phone is first turned (user 2026-11-11)
+
+With pre-rotation (master e9aa18fe8 and the layers before it), turning the Pixel 6 shows a squished
+picture for a moment on the first turn of a run (Debug build); later turns look right. The
+swapchain log shows two rebuilds about a frame apart on every turn: Android reports the window's
+new size a frame before the surface's new turn, so the first rebuild takes the old turn and the
+next present's "suboptimal" makes the second. What was tried on 2026-11-11 and taken back out:
+
+- Waiting for the new turn before rebuilding (no draw, up to 250 ms): worse, a squish on every
+  turn. The surface did not report the new turn until a swapchain of the new size existed, so the
+  wait ran out and drew the stale turn anyway.
+- Rebuilding at once at the new size but drawing nothing until the new turn came (one frame
+  later): no frame was drawn with a stale turn, yet the squish showed on many turns. The likely
+  cause (not proven): until the app presents at the new size, the system shows its last frame
+  stretched into the window's new shape, so anything that delays that first frame lengthens the
+  squish, even skipping a wrong one.
+- `ROTATION_ANIMATION_SEAMLESS` on the activity's window: worse, every turn squished and flashed
+  the wrong size.
+
+To investigate: whether it is the first turned frame's cost in Debug (pipelines made on first use
+for the turned present copy): time it in a RelWithDebInfo build first; if it stays, look at making
+the turned frame's work ahead of the first turn, and at how other engines handle Android's rotation
+with pre-rotation (the system's rotation animation, `ROTATION_ANIMATION_JUMPCUT`).
+
 ## Seeded: mountable content directories (user 2026-08-29)
 
 Origin: reviewing Sedulous's VFS while building the editor's `data://` discovery+mount. Sedulous lets

@@ -533,7 +533,7 @@ TEST_CASE("export: a preset describes its fields through reflection")
         CHECK(engine::project::SettingAttribute(property, engine::project::kSettingLabelAttribute) != nullptr);
         ++labelled;
     }
-    CHECK(labelled == 22u);
+    CHECK(labelled == 30u);
     const PropertyInfo* files = FindProperty(type, "additionalFiles");
     REQUIRE(files != nullptr);
     CHECK(IsContainer(*files->type));
@@ -544,6 +544,19 @@ TEST_CASE("export: a preset describes its fields through reflection")
     REQUIRE(fit != nullptr);
     CHECK(EnumeratorCount(*fit->type) == 4u);
     CHECK(FindAttribute(*FindProperty(type, "windowWidth"), u8"range") != nullptr);
+    // The Android app's fields are an Android64 preset's alone; the others are every platform's.
+    for (const char* field : {"androidApplicationId", "androidVersionCode", "androidVersionName", "androidLabel",
+                              "androidIcon", "androidPackage", "androidKeystore", "androidKeyAlias"})
+    {
+        CAPTURE(field);
+        const PropertyInfo* property = FindProperty(type, field);
+        REQUIRE(property != nullptr);
+        const String* only = engine::project::SettingAttribute(*property, editor::kPresetPlatformAttribute);
+        REQUIRE(only != nullptr);
+        CHECK(*only == u8"Android64");
+    }
+    CHECK(engine::project::SettingAttribute(*FindProperty(type, "name"), editor::kPresetPlatformAttribute) == nullptr);
+    CHECK(EnumeratorCount(*FindProperty(type, "androidPackage")->type) == 3u);
 
     // Reading a field through it reads the preset.
     editor::ExportPreset preset;
@@ -551,6 +564,18 @@ TEST_CASE("export: a preset describes its fields through reflection")
     const PropertyInfo* platform = FindProperty(type, "platform");
     REQUIRE(platform != nullptr);
     CHECK(*static_cast<const String*>(platform->address(Instance(&preset, &type))) == StringView(u8"Linux64"));
+}
+
+TEST_CASE("export: an Android application id is two or more parts of letters, digits and '_'")
+{
+    CHECK(editor::CheckAndroidApplicationId(u8"com.studio.game").IsEmpty());
+    CHECK(editor::CheckAndroidApplicationId(u8"org.my_studio.Game2").IsEmpty());
+    CHECK_FALSE(editor::CheckAndroidApplicationId(u8"").IsEmpty());
+    CHECK_FALSE(editor::CheckAndroidApplicationId(u8"game").IsEmpty());          // one part
+    CHECK_FALSE(editor::CheckAndroidApplicationId(u8"com..game").IsEmpty());     // an empty part
+    CHECK_FALSE(editor::CheckAndroidApplicationId(u8"com.studio.").IsEmpty());   // a trailing dot
+    CHECK_FALSE(editor::CheckAndroidApplicationId(u8"com.2studio").IsEmpty());   // a part's first is a digit
+    CHECK_FALSE(editor::CheckAndroidApplicationId(u8"com.my-studio").IsEmpty()); // '-'
 }
 
 TEST_CASE("export: preset set round-trips through export_presets.xml")
@@ -592,15 +617,30 @@ TEST_CASE("export: preset set round-trips through export_presets.xml")
     b.outputSubdir = String(u8"Win64");
     b.additionalFiles.PushBack(String(u8"icon.ico"));
     b.additionalFiles.PushBack(String(u8"config.xml"));
+    editor::ExportPreset c;
+    c.name = String(u8"Android");
+    c.platform = String(u8"Android64");
+    c.androidApplicationId = String(u8"com.studio.game");
+    c.androidVersionCode = 12;
+    c.androidVersionName = String(u8"1.2");
+    c.androidLabel = String(u8"The Game");
+    c.androidIcon = String(u8"Branding/icon.png");
+    c.androidPackage = editor::AndroidPackage::Both;
+    c.androidKeystore = String(u8"/keys/release.jks");
+    c.androidKeyAlias = String(u8"upload");
     out.presets.PushBack(Move(a));
     out.presets.PushBack(Move(b));
+    out.presets.PushBack(Move(c));
     REQUIRE(editor::SaveExportPresets(*root.AsWritable(), out).IsOk());
 
     // Load back and check every field survived, including the additionalFiles array and lookup.
     editor::ExportPresetSet loaded;
     REQUIRE(editor::LoadExportPresets(root, loaded).IsOk());
-    REQUIRE(loaded.presets.Size() == 2u);
+    REQUIRE(loaded.presets.Size() == 3u);
     CHECK(loaded.presets[0].name == u8"Linux Desktop");
+    CHECK(loaded.presets[0].androidVersionCode == 1u); // the Android fields' defaults
+    CHECK(loaded.presets[0].androidVersionName == u8"1.0");
+    CHECK(loaded.presets[0].androidPackage == editor::AndroidPackage::Apk);
     CHECK(loaded.presets[0].templateId.IsEmpty());
     CHECK(loaded.presets[0].playerName.IsEmpty());
 
@@ -620,6 +660,16 @@ TEST_CASE("export: preset set round-trips through export_presets.xml")
     CHECK(win->additionalFiles[0] == u8"icon.ico");
     CHECK(win->additionalFiles[1] == u8"config.xml");
     CHECK(loaded.Find(u8"nope") == nullptr);
+    const editor::ExportPreset* android = loaded.Find(u8"Android");
+    REQUIRE(android != nullptr);
+    CHECK(android->androidApplicationId == u8"com.studio.game");
+    CHECK(android->androidVersionCode == 12u);
+    CHECK(android->androidVersionName == u8"1.2");
+    CHECK(android->androidLabel == u8"The Game");
+    CHECK(android->androidIcon == u8"Branding/icon.png");
+    CHECK(android->androidPackage == editor::AndroidPackage::Both);
+    CHECK(android->androidKeystore == u8"/keys/release.jks");
+    CHECK(android->androidKeyAlias == u8"upload");
 
     NukeTree(dir.AsView());
 }
@@ -972,6 +1022,337 @@ TEST_CASE("export: ExportOne with contentOnly stages the content and the shader 
     NukeTree(projectDir.AsView());
     NukeTree(outRoot.AsView());
 }
+
+namespace
+{
+    // An environment variable set for a scope and put back after it.
+    struct ScopedVariable
+    {
+        String name;
+        Optional<String> was;
+        ScopedVariable(StringView variable, StringView value)
+            : name(variable), was(GetEnvironmentVariable(variable))
+        {
+            (void)SetEnvironmentVariable(variable, value);
+        }
+        ~ScopedVariable() { (void)SetEnvironmentVariable(name.AsView(), was.HasValue() ? was->AsView() : StringView{}); }
+    };
+
+    // An Android template on disk: the player library, the notices and a Gradle project whose
+    // wrapper (`gradlew`, the given script) stands in for Gradle.
+    void FakeAndroidTemplate(editor::ExportTemplate& tmpl, StringView dir, StringView config, StringView gradlew)
+    {
+        NukeTree(dir);
+        REQUIRE(CreateDirectories(PathJoin(dir, u8"android/app").AsView()));
+        foundation::vfs::NativeFileSystem fs(dir, DefaultAllocator());
+        SaveText(fs, u8"libEngine.Player.so", u8"ELF");
+        SaveText(fs, u8"THIRD-PARTY-NOTICES.txt", u8"notices");
+        SaveText(fs, u8"android/settings.gradle", u8"// settings");
+        SaveText(fs, u8"android/app/build.gradle", u8"// app");
+        SaveText(fs, u8"android/gradlew", gradlew);
+        tmpl.id = String(u8"android-test");
+        tmpl.platform = String(u8"Android64");
+        tmpl.config = String(config);
+        tmpl.playerBinary = String(u8"libEngine.Player.so");
+        tmpl.directory = String(dir);
+        for (StringView sidecar : {StringView(u8"THIRD-PARTY-NOTICES.txt"), StringView(u8"android/settings.gradle"),
+                                   StringView(u8"android/app/build.gradle"), StringView(u8"android/gradlew")})
+        {
+            tmpl.sidecars.PushBack(String(sidecar));
+        }
+        REQUIRE(editor::SaveTemplateManifest(*fs.AsWritable(), tmpl).IsOk());
+    }
+
+    // A registry of the templates under `root` (each in a folder of its own), and no host one that
+    // matters (`root` again as the host's folder, which holds no player).
+    void ReadTemplates(editor::TemplateRegistry& registry, StringView root)
+    {
+        foundation::vfs::NativeFileSystem rootFs(root, DefaultAllocator());
+        registry.Refresh(root, &rootFs, root, &rootFs);
+    }
+}
+
+TEST_CASE("export: an Android preset is checked before anything cooks")
+{
+    const String projectDir = TempDir(u8"scratch_android_check_proj");
+    NukeTree(projectDir.AsView());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"AndroidCheck").IsOk());
+    UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
+    REQUIRE(static_cast<bool>(project));
+    foundation::vfs::NativeFileSystem fs(projectDir.AsView(), DefaultAllocator());
+    const String sdk = TempDir(u8"scratch_android_check_sdk");
+    REQUIRE(CreateDirectories(sdk.AsView()));
+    ScopedVariable home(u8"ANDROID_HOME", sdk.AsView());
+    ScopedVariable password(u8"ANDROID_KEYSTORE_PASSWORD", u8"");
+
+    editor::ExportPreset preset;
+    preset.name = String(u8"Android");
+    preset.platform = String(u8"Android64");
+    CHECK(editor::CheckAndroidExport(*project, preset, nullptr).AsView().Contains(u8"application id"));
+    preset.androidApplicationId = String(u8"com.studio.game");
+    CHECK(editor::CheckAndroidExport(*project, preset, nullptr).IsEmpty());
+
+    preset.androidIcon = String(u8"icon.jpg");
+    CHECK(editor::CheckAndroidExport(*project, preset, nullptr).AsView().Contains(u8"not a PNG"));
+    preset.androidIcon = String(u8"icon.png");
+    CHECK(editor::CheckAndroidExport(*project, preset, nullptr).AsView().Contains(u8"not in the project"));
+    SaveText(fs, u8"icon.png", u8"png");
+    CHECK(editor::CheckAndroidExport(*project, preset, nullptr).IsEmpty());
+
+    // A keystore: there, with its key's alias, and its password in the environment.
+    preset.androidKeystore = String(u8"release.jks");
+    CHECK(editor::CheckAndroidExport(*project, preset, nullptr).AsView().Contains(u8"is not there"));
+    SaveText(fs, u8"release.jks", u8"keys");
+    CHECK(editor::CheckAndroidExport(*project, preset, nullptr).AsView().Contains(u8"alias"));
+    preset.androidKeyAlias = String(u8"upload");
+    CHECK(editor::CheckAndroidExport(*project, preset, nullptr).AsView().Contains(u8"ANDROID_KEYSTORE_PASSWORD"));
+    {
+        ScopedVariable given(u8"ANDROID_KEYSTORE_PASSWORD", u8"secret");
+        CHECK(editor::CheckAndroidExport(*project, preset, nullptr).IsEmpty());
+    }
+    preset.androidKeystore.Clear();
+
+    // The SDK Gradle needs.
+    {
+        ScopedVariable none(u8"ANDROID_HOME", PathJoin(sdk.AsView(), u8"missing").AsView());
+        CHECK(editor::CheckAndroidExport(*project, preset, nullptr).AsView().Contains(u8"ANDROID_HOME"));
+    }
+
+    // A template carrying no app project.
+    editor::ExportTemplate bare;
+    bare.id = String(u8"bare");
+    bare.sidecars.PushBack(String(u8"THIRD-PARTY-NOTICES.txt"));
+    CHECK(editor::CheckAndroidExport(*project, preset, &bare).AsView().Contains(u8"no Android app project"));
+
+    // ExportOne refuses such a preset before it cooks: no Cooked-android appears.
+    const String templates = TempDir(u8"scratch_android_check_templates");
+    NukeTree(templates.AsView());
+    editor::ExportTemplate tmpl;
+    FakeAndroidTemplate(tmpl, PathJoin(templates.AsView(), u8"android-test").AsView(), u8"Release", u8"#!/bin/sh\n");
+    editor::TemplateRegistry registry;
+    ReadTemplates(registry, templates.AsView());
+    preset.templateId = String(u8"android-test");
+    preset.androidApplicationId = String(u8"game");
+    pipeline::BuilderRegistry builders{DefaultAllocator()};
+    editor::ExportResult result;
+    CHECK_FALSE(editor::ExportOne(*project, preset, registry, builders, TempDir(u8"scratch_android_check_out").AsView(),
+                                  TestDataRoot(), false, &result)
+                    .IsOk());
+    CHECK(result.refusal.AsView().Contains(u8"application id"));
+    CHECK_FALSE(DirectoryExists(PathJoin(projectDir.AsView(), u8"Cooked-android").AsView()));
+
+    NukeTree(projectDir.AsView());
+    NukeTree(sdk.AsView());
+    NukeTree(templates.AsView());
+}
+
+TEST_CASE("export: an Android app is staged for Gradle and given the preset's values")
+{
+    const String projectDir = TempDir(u8"scratch_android_stage_proj");
+    const String templateDir = TempDir(u8"scratch_android_stage_template");
+    const String contentDir = TempDir(u8"scratch_android_stage_content");
+    const String dataRoot = TempDir(u8"scratch_android_stage_data");
+    NukeTree(projectDir.AsView());
+    NukeTree(contentDir.AsView());
+    NukeTree(dataRoot.AsView());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Stage Test").IsOk());
+    UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
+    REQUIRE(static_cast<bool>(project));
+    foundation::vfs::NativeFileSystem projectFs(projectDir.AsView(), DefaultAllocator());
+    SaveText(projectFs, u8"Branding/icon.png", u8"png");
+
+    editor::ExportTemplate tmpl;
+    FakeAndroidTemplate(tmpl, templateDir.AsView(), u8"RelWithDebInfo", u8"#!/bin/sh\n");
+    REQUIRE(CreateDirectories(PathJoin(contentDir.AsView(), u8"Data/Engine/Shaders").AsView()));
+    foundation::vfs::NativeFileSystem contentFs(contentDir.AsView(), DefaultAllocator());
+    SaveText(contentFs, u8"Content.pak", u8"pak");
+    SaveText(contentFs, u8"player.xml", u8"<root/>");
+    SaveText(contentFs, u8"export-report.txt", u8"report");
+    SaveText(contentFs, u8"Data/Engine/Shaders/shaders.dpak", u8"dpak");
+    REQUIRE(CreateDirectories(PathJoin(dataRoot.AsView(), u8"Engine/Fonts").AsView()));
+    REQUIRE(CreateDirectories(PathJoin(dataRoot.AsView(), u8"Engine/Shaders").AsView()));
+    foundation::vfs::NativeFileSystem dataFs(dataRoot.AsView(), DefaultAllocator());
+    SaveText(dataFs, u8"Engine/Fonts/face.ttf", u8"ttf");
+    SaveText(dataFs, u8"Engine/Shaders/source.hlsl", u8"hlsl");
+
+    editor::ExportPreset preset;
+    preset.name = String(u8"Phone");
+    preset.platform = String(u8"Android64");
+    preset.androidApplicationId = String(u8"com.studio.stage");
+    preset.androidVersionCode = 7;
+    preset.androidVersionName = String(u8"2.1");
+    preset.androidIcon = String(u8"Branding/icon.png");
+    preset.overridesOrientation = true;
+    preset.orientation = ScreenOrientation::Landscape;
+    const String work = editor::AndroidWorkDir(*project, preset);
+    CHECK(work.AsView().EndsWith(u8".cache/android/Phone"));
+    REQUIRE(editor::StageAndroidApp(*project, preset, tmpl, contentDir.AsView(), dataRoot.AsView(), work.AsView()).IsOk());
+
+    foundation::vfs::NativeFileSystem workFs(work.AsView(), DefaultAllocator());
+    CHECK(workFs.Exists(u8"project/settings.gradle"));
+    CHECK(workFs.Exists(u8"project/app/build.gradle"));
+    CHECK(workFs.Exists(u8"project/gradlew"));
+    CHECK(workFs.Exists(u8"staged/jniLibs/arm64-v8a/libmain.so"));
+    CHECK(workFs.Exists(u8"staged/assets/Game/Content.pak"));
+    CHECK(workFs.Exists(u8"staged/assets/Game/player.xml"));
+    CHECK_FALSE(workFs.Exists(u8"staged/assets/Game/export-report.txt"));
+    CHECK_FALSE(workFs.Exists(u8"staged/assets/Game/Data"));
+    CHECK(workFs.Exists(u8"staged/assets/Data/Engine/Shaders/shaders.dpak"));
+    CHECK(workFs.Exists(u8"staged/assets/Data/Engine/Fonts/face.ttf"));
+    CHECK_FALSE(workFs.Exists(u8"staged/assets/Data/Engine/Shaders/source.hlsl")); // the pack stands in for them
+    CHECK(workFs.Exists(u8"staged/assets/THIRD-PARTY-NOTICES.txt"));
+    CHECK(workFs.Exists(u8"staged/res/mipmap-xxxhdpi/ic_launcher.png"));
+
+    // Gradle's arguments: the preset's values, and a release APK from a release template.
+    const auto has = [](const Array<String>& args, StringView arg)
+    {
+        for (const String& a : args)
+        {
+            if (a.AsView() == arg)
+            {
+                return true;
+            }
+        }
+        return false;
+    };
+    Array<String> args = editor::AndroidGradleArguments(*project, preset, tmpl, work.AsView());
+    CHECK(has(args, u8"-PengineApplicationId=com.studio.stage"));
+    CHECK(has(args, u8"-PengineVersionCode=7"));
+    CHECK(has(args, u8"-PengineVersionName=2.1"));
+    CHECK(has(args, u8"-PengineLabel=Stage Test")); // the project's name when the preset gives none
+    CHECK(has(args, u8"-PengineOrientation=userLandscape"));
+    CHECK(has(args, u8"assembleRelease"));
+    CHECK_FALSE(has(args, u8"bundleRelease"));
+    CHECK_FALSE(has(args, u8"-PengineKeyAlias="));
+    preset.androidPackage = editor::AndroidPackage::Both;
+    preset.androidLabel = String(u8"Stage");
+    preset.androidKeystore = String(u8"keys/release.jks");
+    preset.androidKeyAlias = String(u8"upload");
+    preset.overridesOrientation = false;
+    args = editor::AndroidGradleArguments(*project, preset, tmpl, work.AsView());
+    CHECK(has(args, u8"assembleRelease"));
+    CHECK(has(args, u8"bundleRelease"));
+    CHECK(has(args, u8"-PengineLabel=Stage"));
+    CHECK(has(args, u8"-PengineOrientation=fullUser")); // the project's: any
+    CHECK(has(args, Format(u8"-PengineKeystore={}", PathJoin(projectDir.AsView(), u8"keys/release.jks")).AsView()));
+    CHECK(has(args, u8"-PengineKeyAlias=upload"));
+    preset.androidPackage = editor::AndroidPackage::Bundle;
+    editor::ExportTemplate debugTemplate;
+    FakeAndroidTemplate(debugTemplate, templateDir.AsView(), u8"Debug", u8"#!/bin/sh\n");
+    args = editor::AndroidGradleArguments(*project, preset, debugTemplate, work.AsView());
+    CHECK(has(args, u8"bundleDebug"));
+    CHECK_FALSE(has(args, u8"assembleDebug"));
+
+    // A second staging replaces what the first staged.
+    preset.androidIcon.Clear();
+    REQUIRE(editor::StageAndroidApp(*project, preset, tmpl, contentDir.AsView(), dataRoot.AsView(), work.AsView()).IsOk());
+    CHECK_FALSE(workFs.Exists(u8"staged/res/mipmap-xxxhdpi/ic_launcher.png"));
+
+    NukeTree(projectDir.AsView());
+    NukeTree(templateDir.AsView());
+    NukeTree(contentDir.AsView());
+    NukeTree(dataRoot.AsView());
+}
+
+TEST_CASE("export: an Android app's paths reach Gradle absolute, from a project opened by a relative path")
+{
+    // Gradle reads a relative path against its own project folder, so the staged folder and the
+    // keystore would be looked for under it.
+    const String dir(u8"scratch_android_relative_proj");
+    NukeTree(dir.AsView());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), dir.AsView(), u8"Relative").IsOk());
+    UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), dir.AsView());
+    REQUIRE(static_cast<bool>(project));
+    editor::ExportPreset preset;
+    preset.name = String(u8"Phone");
+    preset.platform = String(u8"Android64");
+    preset.androidKeystore = String(u8"release.jks");
+    preset.androidKeyAlias = String(u8"upload");
+    const String work = editor::AndroidWorkDir(*project, preset);
+    CHECK(PathIsAbsolute(work.AsView()));
+    editor::ExportTemplate tmpl;
+    tmpl.config = String(u8"Release");
+    const String cwd = GetCurrentDirectory();
+    for (const String& arg : editor::AndroidGradleArguments(*project, preset, tmpl, work.AsView()))
+    {
+        if (arg.AsView().StartsWith(u8"-PengineStaged=") || arg.AsView().StartsWith(u8"-PengineKeystore="))
+        {
+            CAPTURE(arg);
+            CHECK(arg.AsView().Contains(cwd.AsView()));
+        }
+    }
+    NukeTree(dir.AsView());
+}
+
+#if PLATFORM_LINUX
+TEST_CASE("export: an Android preset exports its app through the template's Gradle wrapper")
+{
+    // The whole export with a stand-in for Gradle: a wrapper that makes the APK where Gradle puts
+    // it and writes down the arguments it had.
+    const String projectDir = TempDir(u8"scratch_android_export_proj");
+    const String templateDir = TempDir(u8"scratch_android_export_template");
+    const String outRoot = TempDir(u8"scratch_android_export_out");
+    const String sdk = TempDir(u8"scratch_android_export_sdk");
+    NukeTree(projectDir.AsView());
+    NukeTree(outRoot.AsView());
+    REQUIRE(CreateDirectories(sdk.AsView()));
+    ScopedVariable home(u8"ANDROID_HOME", sdk.AsView());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"Sky Test").IsOk());
+    UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
+    REQUIRE(static_cast<bool>(project));
+    REQUIRE(project->SaveSettings().IsOk());
+
+    NukeTree(templateDir.AsView());
+    const String bundle = PathJoin(templateDir.AsView(), u8"android-test");
+    editor::ExportTemplate tmpl;
+    FakeAndroidTemplate(
+        tmpl, bundle.AsView(), u8"RelWithDebInfo",
+        u8"#!/bin/sh\n"
+        u8"for a in \"$@\"; do case \"$a\" in -PengineStaged=*) staged=\"${a#-PengineStaged=}\";; esac; done\n"
+        u8"mkdir -p \"$staged/gradle/app/outputs/apk/release\"\n"
+        u8"echo apk > \"$staged/gradle/app/outputs/apk/release/app-release.apk\"\n"
+        u8"printf '%s\\n' \"$@\" > \"$staged/gradle-arguments.txt\"\n");
+    const String gradlew = PathJoin(bundle.AsView(), u8"android/gradlew");
+    const StringView chmodArgs[] = {u8"+x", gradlew.AsView()};
+    REQUIRE(RunProcess(u8"/bin/chmod", Span<const StringView>(chmodArgs, 2)).Ok());
+    editor::TemplateRegistry registry;
+    ReadTemplates(registry, templateDir.AsView());
+    REQUIRE(registry.FindById(u8"android-test") != nullptr);
+
+    editor::ExportPreset preset;
+    preset.name = String(u8"Phone");
+    preset.platform = String(u8"Android64");
+    preset.outputSubdir = String(u8"android");
+    preset.templateId = String(u8"android-test");
+    preset.androidApplicationId = String(u8"com.studio.sky");
+    pipeline::BuilderRegistry builders{DefaultAllocator()};
+    editor::ExportResult result;
+    REQUIRE(editor::ExportOne(*project, preset, registry, builders, outRoot.AsView(), TestDataRoot(), false, &result)
+                .IsOk());
+
+    // The dist is the app; the game went inside it.
+    foundation::vfs::NativeFileSystem distFs(result.outputDir.AsView(), DefaultAllocator());
+    CHECK(distFs.Exists(u8"Sky-Test.apk"));
+    CHECK_FALSE(distFs.Exists(u8"Content.pak"));
+    CHECK_FALSE(distFs.Exists(u8"libEngine.Player.so"));
+    const String work = editor::AndroidWorkDir(*project, preset);
+    foundation::vfs::NativeFileSystem workFs(work.AsView(), DefaultAllocator());
+    CHECK(workFs.Exists(u8"staged/assets/Game/Content.pak"));
+    CHECK(workFs.Exists(u8"staged/assets/Game/player.xml"));
+    CHECK(workFs.Exists(u8"staged/assets/Data/Engine/Shaders/shaders.dpak"));
+    const Result<Array<byte>> said = ReadFile(PathJoin(work.AsView(), u8"staged/gradle-arguments.txt").AsView());
+    REQUIRE(said.HasValue());
+    const StringView arguments(reinterpret_cast<const utf8char*>(said.Value().Data()), said.Value().Size());
+    CHECK(arguments.Contains(u8"-PengineApplicationId=com.studio.sky"));
+    CHECK(arguments.Contains(u8"assembleRelease"));
+    CHECK(arguments.Contains(u8"--no-daemon"));
+
+    NukeTree(projectDir.AsView());
+    NukeTree(templateDir.AsView());
+    NukeTree(outRoot.AsView());
+    NukeTree(sdk.AsView());
+}
+#endif
 
 // A project's custom shader ships as bytecode: the export cooks both its stages, every declared
 // variant under its entry point, into the dist's shader pack beside the engine's, so a
@@ -2393,6 +2774,59 @@ TEST_CASE("export: template create recognizes a WEB build dir (player page + web
     NukeTree(dest.AsView());
 }
 
+TEST_CASE("export: template create recognizes an ANDROID build dir (the app's library + its Gradle project)")
+{
+    // An Android build dir (Bin/<Config>/Android64-<Compiler>) holds the player as the library the
+    // app loads and the app's Gradle project beside it, listed in the runtime-libs. The template
+    // takes its platform from the directory, whatever host packages it, and carries the project's
+    // files in their folders.
+    const String bin = TempDir(u8"scratch_android_template_src");
+    const String dir = PathJoin(bin.AsView(), u8"RelWithDebInfo/Android64-Clang");
+    const String dest = TempDir(u8"scratch_android_template_out");
+    NukeTree(bin.AsView());
+    NukeTree(dest.AsView());
+    REQUIRE(CreateDirectories(PathJoin(dir.AsView(), u8"android/app").AsView()));
+    foundation::vfs::NativeFileSystem root(dir.AsView(), foundation::core::DefaultAllocator());
+
+    SaveText(root, u8"libEngine.Player.so", u8"\x7f" u8"ELF");
+    SaveText(root, u8"THIRD-PARTY-NOTICES.txt", u8"notices");
+    SaveText(root, u8"android/settings.gradle", u8"// settings");
+    SaveText(root, u8"android/app/build.gradle", u8"// app");
+    SaveText(root, u8"Engine.Player.runtime-libs",
+             u8"THIRD-PARTY-NOTICES.txt\nandroid/settings.gradle\nandroid/app/build.gradle\n");
+
+    String id, outDir;
+    REQUIRE(editor::CreateTemplate(dir.AsView(), dest.AsView(), editor::TemplateOutput::ExportFolder, &id, &outDir)
+                .IsOk());
+
+    foundation::vfs::NativeFileSystem out(outDir.AsView(), foundation::core::DefaultAllocator());
+    editor::ExportTemplate created;
+    REQUIRE(editor::LoadTemplateManifest(out, created).IsOk());
+    CHECK(created.platform == u8"Android64");
+    CHECK(created.config == u8"RelWithDebInfo");
+    CHECK(created.compiler == u8"Clang");
+    CHECK(created.playerBinary == u8"libEngine.Player.so");
+    CHECK(id.AsView().Contains(u8"-android64-relwithdebinfo-"));
+    REQUIRE(created.sidecars.Size() == 3u);
+    CHECK(out.Exists(u8"libEngine.Player.so"));
+    CHECK(out.Exists(u8"THIRD-PARTY-NOTICES.txt"));
+    CHECK(out.Exists(u8"android/settings.gradle"));
+    CHECK(out.Exists(u8"android/app/build.gradle"));
+    // Its icon is the phone's.
+    created.directory = outDir;
+    CHECK(editor::TemplateIconSvg(created, foundation::core::DefaultAllocator()) ==
+          editor::BuiltInTemplateIconSvg(u8"phone"));
+
+    // A file each platform's build makes of the player.
+    CHECK(editor::ExportPlayerFile(u8"Android64", u8"Engine.Player") == u8"libEngine.Player.so");
+    CHECK(editor::ExportPlayerFile(u8"Win64", u8"Engine.Player") == u8"Engine.Player.exe");
+    CHECK(editor::ExportPlayerFile(u8"Linux64", u8"Engine.Player") == u8"Engine.Player");
+    CHECK(editor::ExportPlayerFile(u8"Mac64", u8"Engine.Player") == u8"Engine.Player");
+
+    NukeTree(bin.AsView());
+    NukeTree(dest.AsView());
+}
+
 TEST_CASE("export: a Web preset stages the browser player + a WGSL shader pack")
 {
     // The full web export pipeline: a preset for platform Web resolves to the imported Web
@@ -2707,6 +3141,12 @@ TEST_CASE("export: Add Native Code scaffolds the game's package with the parts a
                 .IsOk());
     CHECK(manifest.id == u8"myscaffold7");
     CHECK(manifest.name == u8"My Scaffold 7!");
+    // A new package supports every platform a game exports to, Android among them.
+    for (const editor::ExportPlatform& platform : editor::kExportPlatforms)
+    {
+        CHECK(manifest.FindPlatform(platform.tag) != nullptr);
+    }
+    CHECK(manifest.FindPlatform(u8"Android64") != nullptr);
     String why;
     CHECK(foundation::runtime::CheckPluginManifest(manifest, engine::project::kEngineVersionString, why));
     CHECK(fs.Exists(u8"Plugins/MyScaffold7/MyScaffold7.Engine/CMakeLists.txt"));
@@ -2785,6 +3225,12 @@ TEST_CASE("export: a created template carries its icon, the platform's unless on
         editor::BuiltInTemplateIconSvg(editor::DefaultTemplateIconName(GetHostPlatformName()));
     REQUIRE_FALSE(platformIcon.IsEmpty());
     CHECK(bundledIcon() == platformIcon);
+
+    // Each export platform's own icon; a platform not among them gets the plain desktop.
+    CHECK(editor::DefaultTemplateIconName(u8"Android64") == u8"phone");
+    CHECK(editor::DefaultTemplateIconName(u8"Web") == u8"web");
+    CHECK(editor::DefaultTemplateIconName(u8"Mac64") == u8"desktop");
+    CHECK(editor::ExportPlatformList() == u8"Linux64, Win64, Web, Android64");
 
     // A built-in one by name: the Deck build's handheld.
     editor::TemplateIdentity handheld;
@@ -3369,4 +3815,27 @@ TEST_CASE("export: importing a template whose id is a path is refused")
     CHECK_FALSE(DirectoryExists(PathJoin(rootDir.AsView(), u8"../escaped").AsView()));
     NukeTree(src.AsView());
     NukeTree(rootDir.AsView());
+}
+
+TEST_CASE("export: the editor's Android SDK and JDK stand in for the environment's while set")
+{
+    const editor::ExportToolEnvironment was = editor::ExportToolEnvironment::Current();
+    editor::ExportToolEnvironment started;
+    started.androidHome = String(u8"/started/sdk");
+    editor::EditorExportSettings settings;
+    settings.androidSdk = String(u8"/chosen/sdk");
+    settings.javaHome = String(u8"/chosen/jdk");
+    editor::ApplyExportToolEnvironment(settings, started);
+    CHECK(*GetEnvironmentVariable(editor::kAndroidHomeVariable) == StringView(u8"/chosen/sdk"));
+    CHECK(*GetEnvironmentVariable(editor::kJavaHomeVariable) == StringView(u8"/chosen/jdk"));
+    // Cleared, what the process started with comes back; none started, none.
+    settings.androidSdk.Clear();
+    settings.javaHome.Clear();
+    editor::ApplyExportToolEnvironment(settings, started);
+    CHECK(*GetEnvironmentVariable(editor::kAndroidHomeVariable) == StringView(u8"/started/sdk"));
+    const Optional<String> jdk = GetEnvironmentVariable(editor::kJavaHomeVariable);
+    CHECK((!jdk.HasValue() || jdk->IsEmpty()));
+    // Put back as the test found them.
+    editor::EditorExportSettings none;
+    editor::ApplyExportToolEnvironment(none, was);
 }

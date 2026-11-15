@@ -45,7 +45,8 @@ export namespace foundation::rhi
         Win32,
         X11,
         Wayland,
-        Cocoa
+        Cocoa,
+        Android
     };
 
     /// RHI backend entry point (Vulkan, DX12, etc.).

@@ -94,6 +94,8 @@ TEST_CASE("system: the host platform tag is the one export and plugin manifests 
     CHECK(GetHostPlatformName() == StringView(u8"Web"));
 #elif defined(_WIN32)
     CHECK(GetHostPlatformName() == StringView(u8"Win64"));
+#elif defined(__ANDROID__)
+    CHECK(GetHostPlatformName() == StringView(u8"Android64"));
 #else
     CHECK(GetHostPlatformName() == StringView(u8"Linux64"));
 #endif

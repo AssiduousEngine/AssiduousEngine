@@ -62,6 +62,7 @@ namespace
         Array<editor::EditorContext::EditorSettingsContribution> contributions;
         bool snapping = true; // a contributed setting
         int mcpChanged = 0;
+        int exportChanged = 0;
         String folderFrom; // where the folder dialog was asked to start
         Array<String> warnings;
         Array<EditorLook> shown;
@@ -99,6 +100,7 @@ namespace
             contributions.PushBack(Move(navigation));
             services.contributions = &contributions;
             services.mcpChanged = [self]() { ++self->mcpChanged; };
+            services.exportChanged = [self]() { ++self->exportChanged; };
             services.pickFolder = [self](StringView from, Function<void(StringView)> chosen)
             {
                 self->folderFrom = String(from);
@@ -252,7 +254,7 @@ TEST_CASE("preferences: Shortcuts lists every action; an edit is staged and appl
     CHECK(bed.actions.Shortcut(u8"file.save") == editor::EditorShortcut::Of(u8"ctrl-s"));
 }
 
-TEST_CASE("preferences: the other tabs - axis views, templates, the MCP host (a bad port kept), preview sizes, a contributed category")
+TEST_CASE("preferences: the other tabs - axis views, templates, the Android SDK and JDK, the MCP host (a bad port kept), preview sizes, a contributed category")
 {
     Bed bed;
     bed.store.Section<editor::EditorMcpSettings>().port = 7500;
@@ -305,6 +307,22 @@ TEST_CASE("preferences: the other tabs - axis views, templates, the MCP host (a 
     CHECK(FindId<gui::Button>(window, u8"pref-templates-root-browse")->HandleActivate());
     CHECK(bed.folderFrom == String(u8"/srv/templates"));
     CHECK(root->GetText() == StringView(u8"/picked/folder"));
+    // The Android SDK and JDK an export runs: empty, the environment's.
+    auto* sdk = FindId<gui::TextField>(window, u8"pref-android-sdk");
+    auto* jdk = FindId<gui::TextField>(window, u8"pref-java-home");
+    REQUIRE(sdk != nullptr);
+    REQUIRE(jdk != nullptr);
+    CHECK(sdk->GetText().IsEmpty());
+    // Browse fills a field from the system's folder dialog, which starts at the folder it names.
+    jdk->SetText(u8"/usr/lib/jvm");
+    REQUIRE(FindId<gui::Button>(window, u8"pref-java-home-browse") != nullptr);
+    CHECK(FindId<gui::Button>(window, u8"pref-java-home-browse")->HandleActivate());
+    CHECK(bed.folderFrom == String(u8"/usr/lib/jvm"));
+    CHECK(jdk->GetText() == StringView(u8"/picked/folder"));
+    CHECK(FindId<gui::Button>(window, u8"pref-android-sdk-browse")->HandleActivate());
+    CHECK(bed.folderFrom.IsEmpty()); // an empty field's placeholder names a variable, not a folder
+    sdk->SetText(u8" /opt/android-sdk ");
+    jdk->SetText(u8"/opt/jdk-17");
 
     CHECK(ortho->HandleActivate());
     root->SetText(u8"/opt/templates");
@@ -313,6 +331,9 @@ TEST_CASE("preferences: the other tabs - axis views, templates, the MCP host (a 
     CHECK(bed.dialog->Save());
     CHECK_FALSE(bed.store.Find<editor::EditorUiSettings>()->autoOrthographic);
     CHECK(bed.store.Find<editor::EditorExportSettings>()->templatesRoot == String(u8"/opt/templates"));
+    CHECK(bed.store.Find<editor::EditorExportSettings>()->androidSdk == String(u8"/opt/android-sdk")); // trimmed
+    CHECK(bed.store.Find<editor::EditorExportSettings>()->javaHome == String(u8"/opt/jdk-17"));
+    CHECK(bed.exportChanged == 1);
     const editor::EditorMcpSettings& mcp = *bed.store.Find<editor::EditorMcpSettings>();
     CHECK(mcp.enabled);
     CHECK(mcp.port == 7500u); // kept

@@ -1038,6 +1038,11 @@ TEST_CASE("integration.mcp: export_presets and export_preset_set")
         WriteText(PathJoin(binDir.AsView(), GetExecutableName(u8"Engine.Player").AsView()).AsView(),
                   u8"#!player\n");
         REQUIRE(editor::CreateTemplate(binDir.AsView(), templatesRoot.AsView(), editor::TemplateOutput::Install).IsOk());
+        // And an Android one, its player the library the app loads.
+        const String androidDir = PathJoin(binBase.AsView(), u8"Bin/Release/Android64-Clang");
+        REQUIRE(CreateDirectories(androidDir.AsView()));
+        WriteText(PathJoin(androidDir.AsView(), u8"libEngine.Player.so").AsView(), u8"ELF\n");
+        REQUIRE(editor::CreateTemplate(androidDir.AsView(), templatesRoot.AsView(), editor::TemplateOutput::Install).IsOk());
     }
 #ifdef _WIN32
     _putenv_s("ENV_TEMPLATES_DIR", reinterpret_cast<const char*>(templatesRoot.CStr()));
@@ -1170,6 +1175,34 @@ TEST_CASE("integration.mcp: export_presets and export_preset_set")
         JsonValue set = FfCall(server, u8"export_preset_set",
                                FfStr(FfStr(JsonValue::MakeObject(), u8"name", u8"Deck"), u8"qualityLevelId", low.AsView()));
         CHECK(set.Get(u8"presets").At(1).Get(u8"qualityLevelId").Get(u8"guid").AsString() == low.AsView());
+    }
+
+    // An Android preset has its app's fields, which no other preset shows or takes.
+    {
+        JsonValue arguments = FfStr(FfStr(JsonValue::MakeObject(), u8"name", u8"Phone"), u8"platform", u8"Android64");
+        arguments.Set(u8"androidApplicationId", JsonValue::MakeString(String(u8"com.studio.presets")));
+        arguments.Set(u8"androidVersionCode", JsonValue::MakeNumber(3));
+        arguments.Set(u8"androidPackage", JsonValue::MakeString(String(u8"Both")));
+        JsonValue set = FfCall(server, u8"export_preset_set", Move(arguments));
+        REQUIRE(set.Get(u8"presets").Count() == 3);
+        const JsonValue phone = set.Get(u8"presets").At(2);
+        CHECK(phone.Get(u8"platform").AsString() == StringView(u8"Android64"));
+        CHECK(phone.Get(u8"androidApplicationId").AsString() == StringView(u8"com.studio.presets"));
+        CHECK(phone.Get(u8"androidVersionCode").AsNumber() == 3.0);
+        CHECK(phone.Get(u8"androidPackage").AsString() == StringView(u8"Both"));
+        CHECK_FALSE(phone.Get(u8"template").IsNull());
+        CHECK_FALSE(set.Get(u8"presets").At(1).Has(u8"androidApplicationId")); // the Deck's are not shown
+    }
+    CHECK(refused(FfStr(FfStr(JsonValue::MakeObject(), u8"name", u8"Deck"), u8"androidLabel", u8"Deck"))
+              .AsView()
+              .StartsWith(u8"`androidLabel` is an Android64 preset's alone"));
+    CHECK(refused(FfStr(FfStr(JsonValue::MakeObject(), u8"name", u8"Phone"), u8"androidApplicationId", u8"presets"))
+              .AsView()
+              .StartsWith(u8"`androidApplicationId`: 'presets' is not an application id"));
+    {
+        JsonValue remove = FfStr(JsonValue::MakeObject(), u8"name", u8"Phone");
+        remove.Set(u8"remove", JsonValue::MakeBool(true));
+        CHECK(FfCall(server, u8"export_preset_set", Move(remove)).Get(u8"presets").Count() == 2);
     }
 
     // Removal.

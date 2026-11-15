@@ -212,11 +212,13 @@ export namespace editor
         return out;
     }
 
-    // Parses a ".../Bin/<Config>/<Platform>-<Compiler>" build directory into its config and compiler
-    // tags: the last path component is "<Platform>-<Compiler>" (the compiler is the suffix after
-    // the final '-'), and the component one level up is "<Config>". Fields are left untouched when
-    // a segment is absent (a directory outside Bin), so the caller's defaults survive.
-    inline void DeriveConfigAndCompiler(StringView dir, String& outConfig, String& outCompiler)
+    // Parses a ".../Bin/<Config>/<Platform>-<Compiler>" build directory into its config, compiler
+    // and platform tags: the last path component is "<Platform>-<Compiler>" (the platform is the
+    // part before the first '-', the compiler the suffix after the final '-'), and the component
+    // one level up is "<Config>". Fields are left untouched when a segment is absent (a directory
+    // outside Bin), so the caller's defaults survive.
+    inline void DeriveConfigAndCompiler(StringView dir, String& outConfig, String& outCompiler,
+                                        String* outPlatform = nullptr)
     {
         StringView p = dir;
         const auto isSep = [](utf8char c) { return c == utf8char('/') || c == utf8char('\\'); };
@@ -254,6 +256,15 @@ export namespace editor
         if (dash < leaf.Size())
         {
             outCompiler = String(leaf.SubStr(dash + 1, leaf.Size() - dash - 1));
+            if (outPlatform != nullptr)
+            {
+                usize first = 0;
+                while (leaf[first] != utf8char('-'))
+                {
+                    ++first;
+                }
+                *outPlatform = String(leaf.SubStr(0, first));
+            }
         }
 
         // The config is the parent directory's last component.
@@ -483,10 +494,19 @@ export namespace editor
             }
         }
 
-        // The config and compiler come from the Bin/<Config>/<Platform>-<Compiler> directory being
-        // packaged, not from the running tool, so a Debug editor can still create a Release template.
-        String parsedConfig, parsedCompiler;
-        DeriveConfigAndCompiler(configDir, parsedConfig, parsedCompiler);
+        // The config, compiler and platform come from the Bin/<Config>/<Platform>-<Compiler>
+        // directory being packaged, not from the running tool, so a Debug editor can still create a
+        // Release template, and a host can package a build for another platform (Android's, whose
+        // player is the library its app loads). A web build's directory names the compiler
+        // (Emscripten-*), so the page above has already settled its platform.
+        String parsedConfig, parsedCompiler, parsedPlatform;
+        DeriveConfigAndCompiler(configDir, parsedConfig, parsedCompiler, &parsedPlatform);
+        if (FindExportPlatform(parsedPlatform.AsView()) != nullptr && !(tmpl.platform.AsView() == u8"Web") &&
+            !(parsedPlatform == tmpl.platform))
+        {
+            tmpl.platform = parsedPlatform;
+            tmpl.playerBinary = ExportPlayerFile(parsedPlatform.AsView(), kPlayerBaseName);
+        }
         if (!parsedConfig.IsEmpty())
         {
             tmpl.config = parsedConfig;
@@ -569,8 +589,10 @@ export namespace editor
         }
         for (const String& sidecar : tmpl.sidecars)
         {
-            if (!FileCopyPreserving(PathJoin(configDir, sidecar.AsView()).AsView(),
-                                    PathJoin(bundleDir.AsView(), sidecar.AsView()).AsView()))
+            // A sidecar may sit in a folder of its own (an Android app's Gradle project).
+            const String target = PathJoin(bundleDir.AsView(), sidecar.AsView());
+            if (!CreateDirectories(PathParent(target.AsView())) ||
+                !FileCopyPreserving(PathJoin(configDir, sidecar.AsView()).AsView(), target.AsView()))
             {
                 return Status{ErrorCode::Internal};
             }

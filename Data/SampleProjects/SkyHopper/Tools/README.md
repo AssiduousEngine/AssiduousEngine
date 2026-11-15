@@ -20,6 +20,9 @@ scripts drive them; none of this is game content.
   src="{guid}">`. It checks each with `gui_validate`, imports them into UI, makes the sheet the
   project's GUI sheet and cooks. A re-import keeps their ids, which `Sources/PlatformerGame.as`
   pushes the screens by.
+- `appicon.py`: the app icon, `Branding/AppIcon.png` (512 pixels: the HUD's star on a cloud in
+  the game's sky), which the Android preset's `androidIcon` names. It draws an SVG and renders it
+  with librsvg through ctypes.
 - `ik.py`: the hero's inverse kinematics in every level: foot IK (the rig's detached feet met by
   the shins, the pelvis Body) and an aim of the head (Neck, Head) on the Player, which drive the
   Character model's animator below it. PlayerController turns the feet off in the air; Coin.as

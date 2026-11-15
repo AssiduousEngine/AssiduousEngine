@@ -19,7 +19,7 @@ add_dependencies(Runtime.Tests Runtime.TestPluginPart)
 
 target_compile_definitions(Runtime.Tests PRIVATE
     DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
-    TEST_PLUGIN_PART_PATH="$<TARGET_FILE:Runtime.TestPluginPart>"
+    TEST_PLUGIN_PART_PATH="$<IF:$<BOOL:${ANDROID}>,$<TARGET_FILE_NAME:Runtime.TestPluginPart>,$<TARGET_FILE:Runtime.TestPluginPart>>"
     PLUGIN_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
     PLUGIN_MANIFESTS_READ="${UTIL_PLUGIN_MANIFESTS_READ}"
     PLUGIN_ROLES_FILE="${UTIL_PLUGIN_ROLES_FILE}")

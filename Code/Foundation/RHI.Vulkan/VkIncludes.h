@@ -17,6 +17,10 @@
 #include <windows.h>
 #endif
 
+#if defined(__ANDROID__) && !defined(VK_USE_PLATFORM_ANDROID_KHR)
+#define VK_USE_PLATFORM_ANDROID_KHR // VkAndroidSurfaceCreateInfoKHR, over the activity's ANativeWindow
+#endif
+
 #include <vulkan/vulkan.h>
 
 // After both includes, so it holds even if vulkan_win32.h (or anything added later) pulls

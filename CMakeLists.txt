@@ -110,6 +110,8 @@ if(WIN32)
     set(_dr_plat "Win64")
 elseif(APPLE)
     set(_dr_plat "Mac64")
+elseif(ANDROID)
+    set(_dr_plat "Android64")   # arm64-v8a only
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(_dr_plat "Linux64")
 else()
@@ -185,6 +187,11 @@ option(OPTION_WARNINGS_AS_ERRORS "Treat warnings as errors" ON)
 # A web (Emscripten) build ships a game, not the authoring toolchain: force the tooling group off
 # up front, before the policy defines below capture it. The GUI (foundation.gui) stays, since a web
 # game has the engine's GUI (Engine.GUI) as a desktop one does.
+if(ANDROID)
+    # An Android build ships a game as the web's does: no authoring tools (they run on the desktop,
+    # which also cooks the shaders and content an Android app carries).
+    set(OPTION_BUILD_TOOLS OFF)
+endif()
 if(EMSCRIPTEN)
     set(OPTION_BUILD_TOOLS OFF)
     # OPTION_PLUGIN_IMGUI stays available on web: Dear ImGui and imgui.engine compile for
@@ -239,10 +246,14 @@ if(OPTION_BUILD_TESTS)
     enable_testing()
 endif()
 
-# The checkout as the test suites see it (TEST_SOURCE_DIR): where they read Data/ fixtures from. A
-# suite built for a device runs from where its data is pushed there, so this is the one place that
-# says so.
-set(BUILDSYSTEM_TEST_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
+# The checkout as the test suites see it (TEST_SOURCE_DIR): where they read Data/ fixtures from.
+# An Android suite runs on the phone (scripts/android-tests.sh), which pushes the Data/ folders the
+# suites read to the folder it runs them from; a suite reading Code/ (the tripwires) skips there.
+if(ANDROID)
+    set(BUILDSYSTEM_TEST_SOURCE_DIR "/data/local/tmp/engine-tests")
+else()
+    set(BUILDSYSTEM_TEST_SOURCE_DIR "${CMAKE_SOURCE_DIR}")
+endif()
 
 # --- Engine-wide compile policy ----------------------------------------------
 # Exceptions and C++ RTTI are disabled engine-wide.
@@ -250,6 +261,14 @@ add_library(policy INTERFACE)
 add_library(Foundation::Policy ALIAS policy)
 
 target_compile_features(policy INTERFACE cxx_std_23)
+
+# The NDK's Threads target carries -pthread as a compile option, and Clang records it in every
+# module it builds: a target that imports Core's modules without it (the player's stub, a generated
+# plugin registry) fails the module's configuration check. Every target takes it through the policy.
+if(ANDROID)
+    find_package(Threads REQUIRED)
+    target_link_libraries(policy INTERFACE Threads::Threads)
+endif()
 
 # Shipping flavor (Core/Prelude.h requires exactly one of DEBUG, RELEASE and SHIPPING): an
 # optimized build with asserts compiled out and stripped binaries, the config for dists and size
@@ -429,7 +448,8 @@ endif()
 if(WIN32)
     add_subdirectory(Code/Foundation/RHI.DX12)
 endif()
-if(EMSCRIPTEN OR TARGET ThirdParty::WgpuHeaders)
+# Android renders through Vulkan only: wgpu-native ships no Android build here.
+if(EMSCRIPTEN OR (TARGET ThirdParty::WgpuHeaders AND NOT ANDROID))
     add_subdirectory(Code/Foundation/RHI.WebGPU)
 else()
     message(STATUS "Skipping Foundation::RHI.WebGPU (no wgpu headers)")
@@ -898,7 +918,11 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Foundation/Shaders.Resource.Tests          Foundation::Shaders.Resource)
     util_test_suite(Code/Foundation/Shaders.System.Tests            Foundation::Shaders.System)
     util_test_suite(Code/Foundation/Shaders.Tests                   Foundation::Shaders)
-    util_test_suite(Code/Foundation/Shell.SDL3.Tests                Foundation::Shell.SDL3)
+    # The SDL shell opens a real window, which on Android only an app's activity can give it; a
+    # suite run from adb's shell has none (the Android shell is checked in an app instead).
+    if(NOT ANDROID)
+        util_test_suite(Code/Foundation/Shell.SDL3.Tests            Foundation::Shell.SDL3)
+    endif()
     util_test_suite(Code/Foundation/Shell.Null.Tests                Foundation::Shell.Null)
     util_test_suite(Code/Foundation/Texture.Resource.Tests          Foundation::Texture.Resource)
     util_test_suite(Code/Foundation/Fonts.Resource.Tests            Foundation::Fonts.Resource)

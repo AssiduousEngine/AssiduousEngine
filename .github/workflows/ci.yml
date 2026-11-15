@@ -2,7 +2,7 @@ name: CI
 
 # Build + test on every master push / PR: Linux clang Debug, Linux clang Debug with
 # SHARED engine libraries (the .so lane), Linux gcc Debug (the house battery is BOTH
-# compilers), and Windows MSVC Debug (D3D12 + WebGPU coverage).
+# compilers), Windows MSVC Debug (D3D12 + WebGPU coverage), and an Android build (no device).
 # The two "Release distribution" jobs build the editor dist and its platform's export template on
 # every master push too, kept as artifacts for a day: a rehearsal of release.yml (which runs on a
 # version tag, adds the Web template and the samples, and publishes the GitHub Release), so a
@@ -465,6 +465,56 @@ jobs:
       # WARP); ones with no software path skip themselves. --timeout bounds any hang.
       - name: Test
         run: ctest --preset clang --output-on-failure --timeout 300 --no-tests=error
+
+  # Android builds through the NDK's own Clang (the android-arm64 preset), with no device to run
+  # the suites on: a change that breaks the Android build shows here rather than at a release.
+  # The suites run on a phone with scripts/android-tests.sh.
+  android:
+    name: Android / arm64 / Debug (build only)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: '4'
+      ANDROID_NDK_VERSION: '30.0.16248370'
+    steps:
+      - uses: actions/checkout@v7
+
+      # The runner's Android SDK stays: its sdkmanager installs the NDK below.
+      - name: Free up disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup \
+                      /opt/hostedtoolcache/CodeQL /usr/share/swift /usr/local/share/powershell
+          sudo apt-get clean
+          df -h /
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build
+          cmake --version
+
+      - name: Install the NDK
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;$ANDROID_NDK_VERSION" > /dev/null
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION" >> "$GITHUB_ENV"
+          "$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64/bin/clang++" --version
+
+      - name: Add swap headroom
+        run: |
+          sudo swapoff -a || true
+          sudo rm -f /swapfile /mnt/swapfile
+          sudo fallocate -l 12G /mnt/swapfile
+          sudo chmod 600 /mnt/swapfile
+          sudo mkswap /mnt/swapfile
+          sudo swapon /mnt/swapfile
+          free -h
+
+      - name: Configure
+        run: cmake --preset android-arm64
+
+      - name: Build
+        run: cmake --build --preset android-arm64
 
   linux-release:
     name: Linux / Release distribution
