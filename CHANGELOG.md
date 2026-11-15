@@ -63,6 +63,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Android: a game that opens fullscreen no longer crashes at startup when the phone recreates its
   window surface. A lost graphics device or a failing swapchain is now logged instead of the
   picture silently stopping.
+- Rendering: in a split screen, ambient occlusion and TAA work on each side as they do on a
+  full screen; one side's occlusion was misplaced and a moving camera smeared under TAA.
 - Web: a game with a render size of its own (Sky Hopper, PaperKid) takes taps on phones and
   tablets. Its buttons answered a mouse but not a finger, since the browser shell, unlike the
   native ones, did not give the finger to the mouse; a quick tap or click within one frame also

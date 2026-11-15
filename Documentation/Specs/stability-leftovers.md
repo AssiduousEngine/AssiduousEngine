@@ -138,7 +138,7 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   by contribution to the view before cutting. Built 2026-11-15: `ExtractedScene::RankLights` past
   `kMaxLightsPerView`, from the view origin.
 - **TAA and AO ignore a view's sub-rectangle.** `PipelineImpl.cpp:2226, 2247`. Test: split-screen
-  AO matches a half-width view. Fix: pass the viewport as SSR's call does.
+  AO matches a half-width view. Fix: pass the viewport as SSR's call does. Built 2026-11-15.
 - **The cascade fit clips tall casters.** `ShadowSystem.cppm:126-130`, no depth clamp. Test: a
   caster 4x the radius toward the light appears in the cascade. Fix: depth clamp (or pancaking)
   for shadow pipelines. Built 2026-11-15 (depth clamp, mesh and terrain casters).
