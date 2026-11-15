@@ -478,6 +478,9 @@ next present's "suboptimal" makes the second. What was tried on 2026-11-11 and t
 - `ROTATION_ANIMATION_SEAMLESS` on the activity's window: worse, every turn squished and flashed
   the wrong size.
 
+Seen again on 2026-11-15 (Debug, master 793aa189a, with the SDL surface-gap fix): still there, and
+the user saw it on Sedulous's Sky Hopper too, so it is not one engine's difference.
+
 To investigate: whether it is the first turned frame's cost in Debug (pipelines made on first use
 for the turned present copy): time it in a RelWithDebInfo build first; if it stays, look at making
 the turned frame's work ahead of the first turn, and at how other engines handle Android's rotation
