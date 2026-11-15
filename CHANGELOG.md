@@ -19,6 +19,12 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   on the phone, and its https and wss connections check servers against Android's own trusted
   certificates.
 
+### Fixed
+
+- Web: games draw in Safari and in every browser on iPhone and iPad. Their shaders wrote a very
+  large number in full digits, which WebKit's WebGPU refused, so the screen stayed black while the
+  game and its sound ran; the cook writes such numbers with an exponent.
+
 ## 0.1.0-beta.4 - 2026-11-14
 
 ### Added

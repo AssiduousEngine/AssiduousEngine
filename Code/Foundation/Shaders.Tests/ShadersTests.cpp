@@ -789,6 +789,48 @@ TEST_CASE("shaders: one file's VSMain and PSMain keep their names in SPIR-V, DXI
     compiler->Destroy();
 }
 
+TEST_CASE("wgsl cook: a float literal of more than nine whole digits is written with an exponent")
+{
+    CHECK(ShortenLongFloatLiterals(u8"vec3<f32>(1000000000000000000000000000000f, -1000000000000000000000000000000f)") ==
+          String(u8"vec3<f32>(1e30f, -1e30f)"));
+    CHECK(ShortenLongFloatLiterals(u8"x = 123450000000f;") == String(u8"x = 1.2345e11f;"));
+    CHECK(ShortenLongFloatLiterals(u8"x = 3402823500000000000000000000000000000000f;") == String(u8"x = 3.4028235e39f;"));
+    // Left alone: nine digits or fewer, a fraction, an exponent, an integer, a name.
+    const StringView kept = u8"a = 100000000f + 1.5f + 1e30f + 10000000000000u + 1000000000000i + _e1000000000000f;";
+    CHECK(ShortenLongFloatLiterals(kept) == String(kept));
+}
+
+TEST_CASE("wgsl cook: a large constant cooks to WGSL with no float literal longer than nine digits")
+{
+    Compiler* compiler = MakeCompiler();
+    if (compiler == nullptr)
+    {
+        MESSAGE("DXC runtime unavailable; skipping");
+        return;
+    }
+    (void)CreateDirectory(u8".test-scratch");
+    WgslTranslator translator(*compiler, u8".test-scratch");
+    if (!translator.HasNaga())
+    {
+        MESSAGE("naga not vendored for this host; skipping");
+        compiler->Destroy();
+        return;
+    }
+    // As the cluster build and the forward pass write a bound: 1e30.
+    constexpr const char* kLargeConstantPs =
+        "cbuffer C : register(b0, space0) { float4 Value; };\n"
+        "float4 main() : SV_Target0 {\n"
+        "    float3 low = min(float3(1e30, 1e30, 1e30), Value.xyz);\n"
+        "    return float4(low, Value.w < 1e30 ? 1.0 : 0.0);\n"
+        "}\n";
+    const WgslCookResult r = translator.Translate(Hlsl(kLargeConstantPs), ShaderStage::Fragment, u8"main");
+    INFO(reinterpret_cast<const char*>(r.error.CStr()));
+    REQUIRE(r.success);
+    CHECK(!Contains(r.wgsl.AsView(), u8"0000000000f"));
+    CHECK(Contains(r.wgsl.AsView(), u8"1e30f"));
+    compiler->Destroy();
+}
+
 TEST_CASE("wgsl cook: tint rejects a WGSL uniformity violation")
 {
     Compiler* compiler = MakeCompiler();

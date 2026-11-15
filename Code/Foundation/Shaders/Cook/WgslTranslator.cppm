@@ -49,6 +49,56 @@ export namespace foundation::shaders
         String error; // the tool diagnostic (DXC / naga / tint), on failure
     };
 
+    // naga writes a float literal in full decimal digits ("1000000000000000000000000000000f" for
+    // 1e30), and WebKit's WGSL parser (Safari's WebGPU, and every browser on iOS) refuses one that
+    // long, so the shader fails to compile there and the game draws nothing. A literal whose
+    // whole-number part has more than nine digits (and no fraction or exponent of its own) is
+    // written with an exponent and one digit before the point instead: the same value, since naga
+    // writes the shortest digits that read back as the same f32. Everything else is left as it is.
+    [[nodiscard]] inline String ShortenLongFloatLiterals(StringView wgsl)
+    {
+        const auto isDigit = [](utf8char c) { return c >= u8'0' && c <= u8'9'; };
+        const auto isWord = [&](utf8char c)
+        { return isDigit(c) || (c >= u8'a' && c <= u8'z') || (c >= u8'A' && c <= u8'Z') || c == u8'_' || c == u8'.'; };
+        String out;
+        usize i = 0;
+        while (i < wgsl.Size())
+        {
+            const bool starts = isDigit(wgsl[i]) && (i == 0 || !isWord(wgsl[i - 1]));
+            if (!starts)
+            {
+                out.PushBack(wgsl[i]);
+                ++i;
+                continue;
+            }
+            usize end = i;
+            while (end < wgsl.Size() && isDigit(wgsl[end]))
+                ++end;
+            const usize digits = end - i;
+            const bool floatSuffix = end < wgsl.Size() && wgsl[end] == u8'f' &&
+                                     (end + 1 == wgsl.Size() || !isWord(wgsl[end + 1]));
+            if (digits <= 9 || !floatSuffix || wgsl[i] == u8'0')
+            {
+                out.Append(wgsl.SubStr(i, end - i));
+                i = end;
+                continue;
+            }
+            // The significant digits (trailing zeros dropped) and the power of ten of the first.
+            usize significant = digits;
+            while (significant > 1 && wgsl[i + significant - 1] == u8'0')
+                --significant;
+            out.PushBack(wgsl[i]);
+            if (significant > 1)
+            {
+                out.PushBack(u8'.');
+                out.Append(wgsl.SubStr(i + 1, significant - 1));
+            }
+            AppendFormat(out, u8"e{}f", digits - 1);
+            i = end + 1;
+        }
+        return out;
+    }
+
     // Translates HLSL shader stages to WGSL at cook time. Borrows a DXC Compiler (the SPIR-V front
     // end) and writes intermediates into `scratchDir` (must exist and be writable). naga and tint
     // default to the vendored binaries; a host with no vendored binary for its platform leaves the
@@ -178,7 +228,15 @@ export namespace foundation::shaders
                 return result;
             }
             const Array<byte>& wb = wgslBytes.Value();
-            result.wgsl = String(StringView(reinterpret_cast<const char8_t*>(wb.Data()), wb.Size()));
+            result.wgsl = ShortenLongFloatLiterals(StringView(reinterpret_cast<const char8_t*>(wb.Data()), wb.Size()));
+            // tint validates what ships.
+            if (!WriteFile(wgslPath.AsView(), Span<const byte>(reinterpret_cast<const byte*>(result.wgsl.Data()), result.wgsl.Size())).IsOk())
+            {
+                result.failedStage = WgslCookStage::Translate;
+                result.error = String(u8"could not write the WGSL back to the scratch dir");
+                Cleanup(spvPath, wgslPath);
+                return result;
+            }
 
             // 3. tint: validate the WGSL against the Chrome/Dawn frontend (uniformity and the
             // rest). When validation is requested but no tint is vendored for this host, fail

@@ -177,7 +177,9 @@ asset and recooks.
 (naga) -> WGSL, at cook time on the dev/CI host only. naga was chosen over tint by a spike over the full
 corpus. `--keep-coordinate-space` is load-bearing (the WebGPU clip-space unification - see
 [[web-render-fixes-and-flip]]); tint validates the WGSL it writes unless turned off
-(`SetValidateWithTint`). Export stages the WGSL pack for the Web platform, SPIR-V and DXIL for
+(`SetValidateWithTint`). Between the two, `ShortenLongFloatLiterals` writes a float literal of more than
+nine whole digits with an exponent (naga writes `1e30` as 31 digits, which WebKit's WGSL parser
+refuses, so Safari and every iOS browser drew nothing). Export stages the WGSL pack for the Web platform, SPIR-V and DXIL for
 Windows, and SPIR-V for the other desktops and Android (see `Documentation/Systems/export.md`).
 
 ## Hot reload
