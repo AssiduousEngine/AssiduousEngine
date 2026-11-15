@@ -13,6 +13,7 @@
 
 module;
 #include "Core/Prelude.h"
+#include "Core/Log/Log.h"
 
 module engine.render;
 
@@ -532,7 +533,7 @@ namespace engine::render
                     out.projection =
                         MakeCameraProjection(cam, aspect > 0.0f ? aspect : cam.aspect);
                     out.position = TransformPoint(Float3{0, 0, 0}, world);
-                    out.farZ = cam.farZ;
+                    out.farZ = ClipPlanesOf(cam).farZ;
                     if (outClear != nullptr)
                     {
                         *outClear = ToLinear(cam.clearColor);
@@ -540,6 +541,19 @@ namespace engine::render
                 });
         }
         return found;
+    }
+
+    namespace
+    {
+        // A camera draws into its target as a colour attachment: an imported image (sampled only) or
+        // a depth texture is refused, as every backend would refuse the pass.
+        [[nodiscard]] bool CanRenderInto(const rhi::Texture& texture) noexcept
+        {
+            return (texture.desc.usage & rhi::TextureUsage::RenderTarget) ==
+                       rhi::TextureUsage::RenderTarget &&
+                   !rhi::IsDepthFormat(texture.desc.format);
+        }
+        bool s_unrenderableTargetLogged = false; // the first refusal is logged
     }
 
     void CollectTargetCameras(scene::Scene& scene, u64 frameNumber,
@@ -560,6 +574,16 @@ namespace engine::render
                 {
                     return;
                 }
+                if (!CanRenderInto(*target->GpuTexture()))
+                {
+                    if (!s_unrenderableTargetLogged)
+                    {
+                        LOG_WARNING(u8"Render", u8"camera '{}': its target is not a render texture, not drawn",
+                                    scene.GetEntityName(e));
+                        s_unrenderableTargetLogged = true;
+                    }
+                    return;
+                }
                 if (frameNumber % Max<u32>(cam.targetInterval, 1u) != 0)
                 {
                     return; // the texture keeps the image it last drew
@@ -572,7 +596,7 @@ namespace engine::render
                     cam, static_cast<f32>(target->Width()) /
                              static_cast<f32>(Max(target->Height(), 1u)));
                 view.camera.camera.position = TransformPoint(Float3{0, 0, 0}, world);
-                view.camera.camera.farZ = cam.farZ;
+                view.camera.camera.farZ = ClipPlanesOf(cam).farZ;
                 view.camera.clearColor = ToLinear(cam.clearColor);
                 out.PushBack(view);
             });
@@ -584,14 +608,17 @@ namespace engine::render
         g.positionWS = TransformPoint(Float3{0, 0, 0}, world);
         // Forward is -Z (row 2 negated) in world space (row-major, row-vector convention).
         g.directionWS = Normalized(Float3{-world.m[2][0], -world.m[2][1], -world.m[2][2]});
-        g.range = lc.range;
+        // Authored values are not trusted: a negative range, a negative intensity or an inner cone
+        // wider than the outer one shade nonsense (the spot falloff divides by inner - outer).
+        g.range = Max(lc.range, 0.0f);
         const Color lightColor = ToLinear(lc.color);
         g.color = Float3{lightColor.r, lightColor.g, lightColor.b};
-        g.intensity = lc.intensity;
+        g.intensity = Max(lc.intensity, 0.0f);
         g.type = static_cast<f32>(static_cast<u32>(lc.type));
         g.shadowStrength = lc.shadowStrength;
-        g.innerCos = Cos(lc.innerAngle);
-        g.outerCos = Cos(lc.outerAngle);
+        const f32 outer = Clamp(lc.outerAngle, 0.0f, kPi * 0.5f);
+        g.innerCos = Cos(Clamp(lc.innerAngle, 0.0f, outer));
+        g.outerCos = Cos(outer);
         return g;
     }
 

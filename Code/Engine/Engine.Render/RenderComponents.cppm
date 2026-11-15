@@ -289,14 +289,43 @@ export namespace engine::render
     // The projection matrix of `camera` at `aspect` (width over height). The one place a camera's
     // fields become a matrix: the renderer's camera pick and the editor's camera preview both
     // build through it, so the preview frames what the game draws.
+    // The camera's clip planes as drawn: a perspective near plane in front of the eye, and a far
+    // plane past the near one. Authored values are not trusted (an inspector or a script can set
+    // nearZ 0 or farZ below nearZ), and either would make the projection divide by zero.
+    struct CameraClipPlanes
+    {
+        f32 nearZ = 0.1f;
+        f32 farZ = 1000.0f;
+    };
+    [[nodiscard]] inline CameraClipPlanes ClipPlanesOf(const CameraComponent& camera) noexcept
+    {
+        constexpr f32 kMinNear = 1.0e-3f;
+        constexpr f32 kMinDepth = 1.0e-3f;
+        CameraClipPlanes planes;
+        planes.nearZ = IsFinite(camera.nearZ) ? camera.nearZ : 0.1f;
+        if (camera.projection != CameraProjection::Orthographic)
+        {
+            planes.nearZ = Max(planes.nearZ, kMinNear);
+        }
+        planes.farZ = IsFinite(camera.farZ) ? camera.farZ : planes.nearZ + 1000.0f;
+        planes.farZ = Max(planes.farZ, planes.nearZ + kMinDepth);
+        return planes;
+    }
+
     [[nodiscard]] inline Float4x4 MakeCameraProjection(const CameraComponent& camera, f32 aspect)
     {
+        const CameraClipPlanes planes = ClipPlanesOf(camera);
+        const f32 safeAspect = (IsFinite(aspect) && aspect > 0.0f) ? aspect : 1.0f;
         if (camera.projection == CameraProjection::Orthographic)
         {
-            const f32 height = Max(camera.orthoHeight, 1.0e-4f);
-            return Float4x4::OrthographicRH(height * aspect, height, camera.nearZ, camera.farZ);
+            const f32 height = IsFinite(camera.orthoHeight) ? Max(camera.orthoHeight, 1.0e-4f) : 10.0f;
+            return Float4x4::OrthographicRH(height * safeAspect, height, planes.nearZ, planes.farZ);
         }
-        return Float4x4::PerspectiveFovRH(camera.fovYRadians, aspect, camera.nearZ, camera.farZ);
+        // A field of view inside (0, pi): 0 and pi have no finite tangent.
+        constexpr f32 kMinFov = 1.0e-3f;
+        const f32 fov = IsFinite(camera.fovYRadians) ? Clamp(camera.fovYRadians, kMinFov, kPi - kMinFov)
+                                                     : 1.04719755f;
+        return Float4x4::PerspectiveFovRH(fov, safeAspect, planes.nearZ, planes.farZ);
     }
 
     // A light on an entity. Directional uses the entity's forward (-Z); Point and Spot use its world

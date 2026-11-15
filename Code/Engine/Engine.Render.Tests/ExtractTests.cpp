@@ -1559,6 +1559,51 @@ TEST_CASE("light: the shadow controls round-trip with the scene (v1)")
     CHECK(TypeOf<LightComponent>().dataVersion == 1u);
 }
 
+TEST_CASE("camera and light: authored values that cannot be drawn are clamped at extraction")
+{
+    // nearZ 0, farZ below nearZ, a field of view of 0 or a zero aspect each made the projection
+    // divide by zero, and every pixel of the view NaN.
+    const auto finite = [](const Float4x4& m)
+    {
+        for (usize r = 0; r < 4; ++r)
+        {
+            for (usize c = 0; c < 4; ++c)
+            {
+                if (!IsFinite(m(r, c)))
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    };
+    CameraComponent cam;
+    cam.nearZ = 0.0f;
+    CHECK(finite(MakeCameraProjection(cam, 1.5f)));
+    cam.nearZ = 5.0f;
+    cam.farZ = 1.0f;
+    CHECK(finite(MakeCameraProjection(cam, 1.5f)));
+    CHECK(ClipPlanesOf(cam).farZ > ClipPlanesOf(cam).nearZ);
+    cam.fovYRadians = 0.0f;
+    CHECK(finite(MakeCameraProjection(cam, 0.0f)));
+    cam.projection = CameraProjection::Orthographic;
+    cam.nearZ = 2.0f;
+    cam.farZ = 2.0f;
+    CHECK(finite(MakeCameraProjection(cam, 1.5f)));
+
+    // A spot whose inner cone is wider than its outer one, with a negative range and intensity.
+    LightComponent spot;
+    spot.type = LightType::Spot;
+    spot.innerAngle = 0.9f;
+    spot.outerAngle = 0.3f;
+    spot.range = -4.0f;
+    spot.intensity = -2.0f;
+    const GpuLight g = MakeGpuLight(spot, Float4x4::Identity());
+    CHECK(g.innerCos >= g.outerCos);
+    CHECK(g.range >= 0.0f);
+    CHECK(g.intensity >= 0.0f);
+}
+
 TEST_CASE("camera: MakeCameraProjection builds a perspective or an orthographic matrix")
 {
     CameraComponent cam;
@@ -1728,6 +1773,33 @@ TEST_CASE("extract: target cameras render at their texture's aspect, active and 
 
     // A target whose texture is gone (a failed load) is skipped, not drawn into.
     monitorCam.target = RefPtr<foundation::texture::Texture>{};
+    CollectTargetCameras(scene, 6, views);
+    CHECK(views.IsEmpty());
+
+    // An imported image (sampled, not a render target) and a depth texture are refused.
+    rhi::Texture* image = nullptr;
+    rhi::TextureDesc imageDesc{};
+    imageDesc.format = rhi::TextureFormat::RGBA8UnormSrgb;
+    imageDesc.width = 64;
+    imageDesc.height = 64;
+    imageDesc.usage = rhi::TextureUsage::Sampled | rhi::TextureUsage::CopyDst;
+    REQUIRE(device.CreateTexture(imageDesc, image).IsOk());
+    rhi::TextureView* imageView = nullptr;
+    REQUIRE(device.CreateTextureView(image, rhi::TextureViewDesc{}, imageView).IsOk());
+    RefPtr<foundation::texture::Texture> imported = MakeRef<foundation::texture::Texture>(DefaultAllocator());
+    imported->Adopt(&device, image, imageView, nullptr, 64, 64, rhi::TextureFormat::RGBA8UnormSrgb);
+    monitorCam.target = imported;
+    CollectTargetCameras(scene, 6, views);
+    CHECK(views.IsEmpty());
+
+    rhi::Texture* depth = nullptr;
+    rhi::TextureDesc depthDesc = rhi::TextureDesc::RenderTarget(rhi::TextureFormat::Depth32Float, 64, 64);
+    REQUIRE(device.CreateTexture(depthDesc, depth).IsOk());
+    rhi::TextureView* depthView = nullptr;
+    REQUIRE(device.CreateTextureView(depth, rhi::TextureViewDesc{}, depthView).IsOk());
+    RefPtr<foundation::texture::Texture> depthTarget = MakeRef<foundation::texture::Texture>(DefaultAllocator());
+    depthTarget->Adopt(&device, depth, depthView, nullptr, 64, 64, rhi::TextureFormat::Depth32Float);
+    monitorCam.target = depthTarget;
     CollectTargetCameras(scene, 6, views);
     CHECK(views.IsEmpty());
 }
