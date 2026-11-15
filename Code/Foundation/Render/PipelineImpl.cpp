@@ -1465,7 +1465,7 @@ namespace foundation::render
             }
             if (m_clusters != nullptr)
             {
-                m_clusters->PrepareFrame(m_frameIndex);
+                m_clusters->PrepareFrame(m_frameIndex, static_cast<u32>(m_views.ActiveCount()));
             } // size the cluster build's per-frame buffers
             m_pass.BeginFrame(m_frameIndex); // reset per-worker pools once (before any view)
         }

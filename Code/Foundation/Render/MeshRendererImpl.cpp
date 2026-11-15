@@ -1103,9 +1103,7 @@ namespace foundation::render
         {
             // Per-(view, frame) slot: two views in one frame have different cluster buffers and
             // must not share a bind group, or it would be rebuilt and free a set still in flight.
-            const u32 clusterSlot =
-                ctx.viewIndex * m_framesInFlight + (ctx.frameIndex % m_framesInFlight);
-            clusterBG = EnsureClusterBindGroup(clusterSlot, ctx.cluster.offsets,
+            clusterBG = EnsureClusterBindGroup(ctx.viewIndex, ctx.frameIndex, ctx.cluster.offsets,
                                                ctx.cluster.lightIndices, ctx.cluster.version);
         }
 
@@ -2945,22 +2943,23 @@ namespace foundation::render
         return Status{};
     }
 
-    rhi::BindGroup* MeshRenderer::EnsureClusterBindGroup(u32 slot, rhi::Buffer* offsets,
-                                                         rhi::Buffer* indices, u32 version)
+    rhi::BindGroup* MeshRenderer::EnsureClusterBindGroup(u32 viewIndex, u32 frameIndex,
+                                                         rhi::Buffer* offsets, rhi::Buffer* indices,
+                                                         u32 version)
     {
-        if (slot >= kMaxClusterSlots || offsets == nullptr || indices == nullptr)
+        if (offsets == nullptr || indices == nullptr)
         {
             return m_dummyClusterBG;
         }
-        if (m_clusterBGs[slot] != nullptr && m_clusterBGOffsets[slot] == offsets &&
-            m_clusterBGVersion[slot] == version)
+        ClusterSlot& slot = m_clusterSlots.At(viewIndex, frameIndex);
+        if (slot.group != nullptr && slot.offsets == offsets && slot.version == version)
         {
-            return m_clusterBGs[slot];
+            return slot.group;
         }
-        if (m_clusterBGs[slot] != nullptr)
+        if (slot.group != nullptr)
         {
-            m_device->DestroyBindGroup(m_clusterBGs[slot]);
-            m_clusterBGs[slot] = nullptr;
+            m_device->DestroyBindGroup(slot.group);
+            slot.group = nullptr;
         }
         rhi::BindGroupEntry entries[] = {
             rhi::BindGroupEntry::BufferEntry(offsets, 0, offsets->desc.size),
@@ -2969,14 +2968,14 @@ namespace foundation::render
         rhi::BindGroupDesc bgd{};
         bgd.layout = m_clusterLayout;
         bgd.entries = Span<const rhi::BindGroupEntry>{entries, 2};
-        if (!m_device->CreateBindGroup(bgd, m_clusterBGs[slot]).IsOk())
+        if (!m_device->CreateBindGroup(bgd, slot.group).IsOk())
         {
-            m_clusterBGs[slot] = nullptr;
+            slot.group = nullptr;
             return m_dummyClusterBG;
         }
-        m_clusterBGOffsets[slot] = offsets;
-        m_clusterBGVersion[slot] = version;
-        return m_clusterBGs[slot];
+        slot.offsets = offsets;
+        slot.version = version;
+        return slot.group;
     }
 
     void MeshRenderer::Shutdown()
@@ -3143,14 +3142,14 @@ namespace foundation::render
             m_device->DestroyBuffer(m_pickRampBuffer);
             m_pickRampBuffer = nullptr;
         }
-        for (u32 i = 0; i < kMaxClusterSlots; ++i)
+        for (ClusterSlot& slot : m_clusterSlots.All())
         {
-            if (m_clusterBGs[i] != nullptr)
+            if (slot.group != nullptr)
             {
-                m_device->DestroyBindGroup(m_clusterBGs[i]);
-                m_clusterBGs[i] = nullptr;
+                m_device->DestroyBindGroup(slot.group);
             }
         }
+        m_clusterSlots.Clear();
         if (m_dummyClusterBG)
         {
             m_device->DestroyBindGroup(m_dummyClusterBG);

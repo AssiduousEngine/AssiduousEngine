@@ -24,6 +24,7 @@ import foundation.shaders.system;
 import :data;
 import :views;
 import :resources;
+import :bind_group_cache; // ViewSlots
 
 using namespace foundation::core;
 namespace rendergraph = foundation::rendergraph;
@@ -85,6 +86,7 @@ export namespace foundation::render
               m_lightRing(device, m_framesInFlight, sizeof(GpuLight),
                           rhi::BufferUsage::StorageRead | rhi::BufferUsage::CopyDst, u8"cluster.lights")
         {
+            m_slots.SetFramesInFlight(m_framesInFlight);
         }
 
         ~ClusterSystem() { Shutdown(); }
@@ -94,8 +96,9 @@ export namespace foundation::render
         // Build the compute pipeline and its layout. Returns non-Ok if the shader or pipeline fails.
         Status Initialize();
 
-        // Size the params ring for this frame and select its region. Call once per frame before any view.
-        void PrepareFrame(u32 frameIndex);
+        // Size the params and light rings for `viewCount` views this frame and select their
+        // region. Call once per frame before any view.
+        void PrepareFrame(u32 frameIndex, u32 viewCount);
 
         // Declare this view's cluster build compute pass into the graph (ordered before the forward
         // pass that reads the cluster buffers). Returns the binding the forward pass consumes, or an
@@ -120,16 +123,30 @@ export namespace foundation::render
         static constexpr u32 kMaxLights = 256; // per-view light budget (matches the forward's)
         static constexpr u64 kParamsSlot =
             256; // dynamic UBO offset alignment (>= sizeof(GpuClusterBuildParams))
-        static constexpr u32 kMaxViewsPerFrame = 8;
 
-        // (Re)create one (view, frame) slot's cluster buffers when its cluster count grows. Lazy: only
-        // the slots actually used by rendered views are allocated.
-        bool EnsureBuffers(u32 bufferSlot, u32 totalClusters);
+        // One (view, frame-in-flight) slot's cluster buffers and the bind group over them. Two views
+        // in one frame must not share buffers, or the second view's build overwrites the first's.
+        struct Slot
+        {
+            rhi::Buffer* offsets = nullptr; // cluster (offset, count)
+            rhi::Buffer* indices = nullptr; // flat light-index list
+            u64 offsetsBytes = 0;           // size of the slot's buffers (views can differ)
+            u64 indicesBytes = 0;
+            u32 bufferVersion = 0; // incremented on realloc; consumers invalidate cached bind groups
+            rhi::BindGroup* bindGroup = nullptr;
+            u32 bgParamsGen = 0;
+            u32 bgLightGen = 0;
+            rhi::Buffer* bgOffsets = nullptr;
+        };
+
+        // (Re)create one slot's cluster buffers when its cluster count grows. Lazy: only the slots
+        // actually used by rendered views are allocated.
+        bool EnsureBuffers(Slot& slot, u32 totalClusters);
 
         // (Re)build the bind group for a (view, frame) slot. There is one bind group per slot, each over
         // its own buffers, so a slot's group is stable across frames and is never freed while the previous
         // frame's command buffer that referenced it is still in flight.
-        bool EnsureBindGroup(u32 bufferSlot, rhi::Buffer* offsets, rhi::Buffer* indices);
+        bool EnsureBindGroup(Slot& slot);
 
         void Shutdown();
 
@@ -142,28 +159,12 @@ export namespace foundation::render
         rhi::ComputePipeline* m_pipeline = nullptr;
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
 
-        static constexpr u32 kMaxFramesInFlight = 8;
-        // Cluster buffers are owned per (view, frame-in-flight) slot: two views in one frame must not
-        // share a buffer, or the second view's build overwrites the first's. Slots are allocated lazily
-        // (the indices buffer is large), so unused view slots cost only a null pointer.
-        static constexpr u32 kMaxBufferSlots = kMaxViewsPerFrame * kMaxFramesInFlight;
-
         DynamicUniformRing m_paramsRing;
         DynamicUniformRing
             m_lightRing; // ClusterSystem's own light copy (built before the forward pass uploads its own)
-        rhi::Buffer* m_offsets[kMaxBufferSlots] = {}; // per-(view,frame) cluster (offset,count)
-        rhi::Buffer* m_indices[kMaxBufferSlots] = {}; // per-(view,frame) flat light-index list
-        u64 m_offsetsBytes[kMaxBufferSlots] = {}; // size of each slot's buffers (views can differ)
-        u64 m_indicesBytes[kMaxBufferSlots] = {};
-        u32 m_bufferVersion[kMaxBufferSlots] =
-            {}; // incremented on realloc; consumers invalidate cached bind groups
-
-        // One bind group per (view, frame) slot (each over its own buffers), so a slot's group is never
-        // freed while still referenced by an in-flight frame.
-        rhi::BindGroup* m_bindGroups[kMaxBufferSlots] = {};
-        u32 m_bgParamsGen[kMaxBufferSlots] = {};
-        u32 m_bgLightGen[kMaxBufferSlots] = {};
-        rhi::Buffer* m_bgOffsets[kMaxBufferSlots] = {};
+        // Per (view, frame in flight), grown to the most views one frame draws; a slot's group is
+        // never freed while an in-flight frame still references it.
+        ViewSlots<Slot> m_slots;
         bool m_ready = false;
     };
 

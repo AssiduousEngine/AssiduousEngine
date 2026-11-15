@@ -80,7 +80,7 @@ namespace foundation::render
         return Status{};
     }
 
-    void ClusterSystem::PrepareFrame(u32 frameIndex)
+    void ClusterSystem::PrepareFrame(u32 frameIndex, u32 viewCount)
     {
         // Hot reload: rebuild the compute pipeline when the shader changed (the GPU is
         // idle on reload).
@@ -107,8 +107,8 @@ namespace foundation::render
             }
             m_pipelineShaderVersion = shaderVersion;
         }
-        m_ready = m_paramsRing.Reserve(kMaxViewsPerFrame) &&
-                  m_lightRing.Reserve(kMaxLights * kMaxViewsPerFrame);
+        const u32 views = viewCount == 0 ? 1u : viewCount;
+        m_ready = m_paramsRing.Reserve(views) && m_lightRing.Reserve(kMaxLights * views);
         if (m_ready)
         {
             m_paramsRing.BeginFrame(frameIndex);
@@ -125,11 +125,6 @@ namespace foundation::render
         {
             return binding;
         }
-        if (viewIndex >= kMaxViewsPerFrame)
-        {
-            return binding;
-        } // beyond budget: fall back to all lights
-
         // The grid covers the viewport (not the full target) in viewport-local screen space; the forward
         // pass subtracts the viewport offset from SV_Position before tiling.
         const u32 gridX = (view.ViewportWidth() + kTileSize - 1) / kTileSize;
@@ -141,8 +136,8 @@ namespace foundation::render
         }
 
         // Own buffers per (view, frame-in-flight): two views in one frame must not share a slot.
-        const u32 bufferSlot = viewIndex * m_framesInFlight + (frameIndex % m_framesInFlight);
-        if (!EnsureBuffers(bufferSlot, totalClusters))
+        Slot& slot = m_slots.At(viewIndex, frameIndex);
+        if (!EnsureBuffers(slot, totalClusters))
         {
             return binding;
         }
@@ -200,16 +195,16 @@ namespace foundation::render
         bp->invProjection = Inverse(view.Camera().projection);
         bp->orthographic = projection::IsOrthographic(view.Camera().projection) ? 1u : 0u;
 
-        rhi::Buffer* offsets = m_offsets[bufferSlot];
-        rhi::Buffer* indices = m_indices[bufferSlot];
-        if (!EnsureBindGroup(bufferSlot, offsets, indices))
+        rhi::Buffer* offsets = slot.offsets;
+        rhi::Buffer* indices = slot.indices;
+        if (!EnsureBindGroup(slot))
         {
             return binding;
         }
 
         const u32 paramsOffset = pr.byteOffset;
         const u32 groups = (totalClusters + 63u) / 64u;
-        rhi::BindGroup* bg = m_bindGroups[bufferSlot];
+        rhi::BindGroup* bg = slot.bindGroup;
         rhi::ComputePipeline* pipeline = m_pipeline;
 
         const rendergraph::RGHandle offsetsH = graph.ImportBuffer(u8"cluster.offsets", offsets);
@@ -232,7 +227,7 @@ namespace foundation::render
 
         binding.offsets = offsets;
         binding.lightIndices = indices;
-        binding.version = m_bufferVersion[bufferSlot];
+        binding.version = slot.bufferVersion;
         binding.offsetsHandle = offsetsH;
         binding.indicesHandle = indicesH;
         binding.gridX = gridX;
@@ -248,13 +243,13 @@ namespace foundation::render
         return binding;
     }
 
-    bool ClusterSystem::EnsureBuffers(u32 bufferSlot, u32 totalClusters)
+    bool ClusterSystem::EnsureBuffers(Slot& slot, u32 totalClusters)
     {
         const u64 offsetsBytes =
             static_cast<u64>(totalClusters) * sizeof(u32) * 2; // uint2 per cluster
         const u64 indicesBytes =
             static_cast<u64>(totalClusters) * kMaxPerCluster * sizeof(u32); // flat index list
-        if (m_offsets[bufferSlot] != nullptr && offsetsBytes <= m_offsetsBytes[bufferSlot])
+        if (slot.offsets != nullptr && offsetsBytes <= slot.offsetsBytes)
         {
             return true;
         }
@@ -263,43 +258,43 @@ namespace foundation::render
         // group over them, so retire them through the queue when one is wired (on web a
         // mid-frame WaitIdle pumps the event loop, expires the canvas texture and drops
         // the whole frame's submit); otherwise drain (standalone and test use).
-        const bool replacing = m_offsets[bufferSlot] != nullptr || m_indices[bufferSlot] != nullptr;
+        const bool replacing = slot.offsets != nullptr || slot.indices != nullptr;
         if (replacing && m_retire == nullptr)
         {
             m_device->WaitIdle();
         }
-        if (m_offsets[bufferSlot] != nullptr)
+        if (slot.offsets != nullptr)
         {
             if (m_retire != nullptr)
             {
-                m_retire->Retire(m_offsets[bufferSlot]);
+                m_retire->Retire(slot.offsets);
             }
             else
             {
-                m_device->DestroyBuffer(m_offsets[bufferSlot]);
+                m_device->DestroyBuffer(slot.offsets);
             }
-            m_offsets[bufferSlot] = nullptr;
+            slot.offsets = nullptr;
         }
-        if (m_indices[bufferSlot] != nullptr)
+        if (slot.indices != nullptr)
         {
             if (m_retire != nullptr)
             {
-                m_retire->Retire(m_indices[bufferSlot]);
+                m_retire->Retire(slot.indices);
             }
             else
             {
-                m_device->DestroyBuffer(m_indices[bufferSlot]);
+                m_device->DestroyBuffer(slot.indices);
             }
-            m_indices[bufferSlot] = nullptr;
+            slot.indices = nullptr;
         }
         rhi::BufferDesc obd{};
         obd.size = offsetsBytes;
         obd.usage = rhi::BufferUsage::Storage;
         obd.memory = rhi::MemoryLocation::GpuOnly;
         obd.label = u8"cluster.offsets";
-        if (!m_device->CreateBuffer(obd, m_offsets[bufferSlot]).IsOk())
+        if (!m_device->CreateBuffer(obd, slot.offsets).IsOk())
         {
-            m_offsets[bufferSlot] = nullptr;
+            slot.offsets = nullptr;
             return false;
         }
         rhi::BufferDesc ibd{};
@@ -307,47 +302,48 @@ namespace foundation::render
         ibd.usage = rhi::BufferUsage::Storage;
         ibd.memory = rhi::MemoryLocation::GpuOnly;
         ibd.label = u8"cluster.indices";
-        if (!m_device->CreateBuffer(ibd, m_indices[bufferSlot]).IsOk())
+        if (!m_device->CreateBuffer(ibd, slot.indices).IsOk())
         {
-            m_indices[bufferSlot] = nullptr;
+            slot.indices = nullptr;
             return false;
         }
-        m_offsetsBytes[bufferSlot] = offsetsBytes;
-        m_indicesBytes[bufferSlot] = indicesBytes;
-        ++m_bufferVersion
-            [bufferSlot]; // signal consumers to rebuild cached bind groups (the address may be reused)
+        slot.offsetsBytes = offsetsBytes;
+        slot.indicesBytes = indicesBytes;
+        ++slot.bufferVersion; // signal consumers to rebuild cached bind groups (the address may be reused)
         // The slot's bind group referenced the old buffers; retire or drop it with them.
-        if (m_bindGroups[bufferSlot] != nullptr)
+        if (slot.bindGroup != nullptr)
         {
             if (m_retire != nullptr)
             {
-                m_retire->Retire(m_bindGroups[bufferSlot]);
+                m_retire->Retire(slot.bindGroup);
             }
             else
             {
-                m_device->DestroyBindGroup(m_bindGroups[bufferSlot]);
+                m_device->DestroyBindGroup(slot.bindGroup);
             }
-            m_bindGroups[bufferSlot] = nullptr;
+            slot.bindGroup = nullptr;
         }
-        m_bgOffsets[bufferSlot] = nullptr;
+        slot.bgOffsets = nullptr;
         return true;
     }
 
-    bool ClusterSystem::EnsureBindGroup(u32 bufferSlot, rhi::Buffer* offsets, rhi::Buffer* indices)
+    bool ClusterSystem::EnsureBindGroup(Slot& slot)
     {
+        rhi::Buffer* offsets = slot.offsets;
+        rhi::Buffer* indices = slot.indices;
         rhi::Buffer* lights = m_lightRing.Buffer();
-        const bool stable = m_bindGroups[bufferSlot] != nullptr &&
-                            m_bgParamsGen[bufferSlot] == m_paramsRing.Generation() &&
-                            m_bgLightGen[bufferSlot] == m_lightRing.Generation() &&
-                            m_bgOffsets[bufferSlot] == offsets;
+        const bool stable = slot.bindGroup != nullptr &&
+                            slot.bgParamsGen == m_paramsRing.Generation() &&
+                            slot.bgLightGen == m_lightRing.Generation() &&
+                            slot.bgOffsets == offsets;
         if (stable)
         {
             return true;
         }
-        if (m_bindGroups[bufferSlot] != nullptr)
+        if (slot.bindGroup != nullptr)
         {
-            m_device->DestroyBindGroup(m_bindGroups[bufferSlot]);
-            m_bindGroups[bufferSlot] = nullptr;
+            m_device->DestroyBindGroup(slot.bindGroup);
+            slot.bindGroup = nullptr;
         }
         rhi::Buffer* params = m_paramsRing.Buffer();
         if (params == nullptr || lights == nullptr || offsets == nullptr || indices == nullptr)
@@ -357,43 +353,41 @@ namespace foundation::render
         rhi::BindGroupEntry entries[] = {
             rhi::BindGroupEntry::BufferEntry(params, 0, sizeof(GpuClusterBuildParams)),
             rhi::BindGroupEntry::BufferEntry(lights, 0, m_lightRing.ByteCapacity()),
-            rhi::BindGroupEntry::BufferEntry(offsets, 0, m_offsetsBytes[bufferSlot]),
-            rhi::BindGroupEntry::BufferEntry(indices, 0, m_indicesBytes[bufferSlot]),
+            rhi::BindGroupEntry::BufferEntry(offsets, 0, slot.offsetsBytes),
+            rhi::BindGroupEntry::BufferEntry(indices, 0, slot.indicesBytes),
         };
         rhi::BindGroupDesc bgd{};
         bgd.layout = m_layout;
         bgd.entries = Span<const rhi::BindGroupEntry>{entries, 4};
-        if (!m_device->CreateBindGroup(bgd, m_bindGroups[bufferSlot]).IsOk())
+        if (!m_device->CreateBindGroup(bgd, slot.bindGroup).IsOk())
         {
-            m_bindGroups[bufferSlot] = nullptr;
+            slot.bindGroup = nullptr;
             return false;
         }
-        m_bgParamsGen[bufferSlot] = m_paramsRing.Generation();
-        m_bgLightGen[bufferSlot] = m_lightRing.Generation();
-        m_bgOffsets[bufferSlot] = offsets;
+        slot.bgParamsGen = m_paramsRing.Generation();
+        slot.bgLightGen = m_lightRing.Generation();
+        slot.bgOffsets = offsets;
         return true;
     }
 
     void ClusterSystem::Shutdown()
     {
-        for (u32 i = 0; i < kMaxBufferSlots; ++i)
+        for (Slot& slot : m_slots.All())
         {
-            if (m_bindGroups[i] != nullptr)
+            if (slot.bindGroup != nullptr)
             {
-                m_device->DestroyBindGroup(m_bindGroups[i]);
-                m_bindGroups[i] = nullptr;
+                m_device->DestroyBindGroup(slot.bindGroup);
             }
-            if (m_offsets[i] != nullptr)
+            if (slot.offsets != nullptr)
             {
-                m_device->DestroyBuffer(m_offsets[i]);
-                m_offsets[i] = nullptr;
+                m_device->DestroyBuffer(slot.offsets);
             }
-            if (m_indices[i] != nullptr)
+            if (slot.indices != nullptr)
             {
-                m_device->DestroyBuffer(m_indices[i]);
-                m_indices[i] = nullptr;
+                m_device->DestroyBuffer(slot.indices);
             }
         }
+        m_slots.Clear();
         if (m_pipeline != nullptr)
         {
             m_device->DestroyComputePipeline(m_pipeline);

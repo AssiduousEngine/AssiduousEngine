@@ -34,6 +34,7 @@ import :views;
 import :pipeline;
 import :cluster_system;
 import :resources;
+import :bind_group_cache; // ViewSlots
 import :gpu_mesh;
 
 using namespace foundation::core;
@@ -232,6 +233,7 @@ export namespace foundation::render
                          rhi::BufferUsage::CopySrc,
                          u8"mesh.bones.staging")
         {
+            m_clusterSlots.SetFramesInFlight(m_framesInFlight);
         }
 
         ~MeshRenderer() override { Shutdown(); }
@@ -658,13 +660,13 @@ export namespace foundation::render
         // unavailable. The shader's ClusterGridX==0 path never reads them, but set 3 must be bound.
         Status CreateDummyClusters();
 
-        // The set-3 bind group for a frame-in-flight slot, over the ClusterSystem's per-frame cluster
-        // buffers. One per slot (the buffers alternate per frame) so a slot's group is stable.
+        // The set-3 bind group for a (view, frame in flight) slot, over the ClusterSystem's cluster
+        // buffers for it. One per slot (the buffers alternate per frame) so a slot's group is stable.
         // Rebuild when the cluster buffers' version changes (the ClusterSystem bumps it on realloc).
         // Pointer identity is not a safe "unchanged" test: a freed rhi::Buffer* address can be reused by
         // the new allocation, and a stale bind group would point at a destroyed VkBuffer.
-        rhi::BindGroup* EnsureClusterBindGroup(u32 slot, rhi::Buffer* offsets, rhi::Buffer* indices,
-                                               u32 version);
+        rhi::BindGroup* EnsureClusterBindGroup(u32 viewIndex, u32 frameIndex, rhi::Buffer* offsets,
+                                               rhi::Buffer* indices, u32 version);
 
         void Shutdown();
 
@@ -932,15 +934,16 @@ export namespace foundation::render
 
         // set 3 (clustered light lists). A dummy bound when clustering is off; otherwise one bind group
         // per (view, frame-in-flight) slot over the ClusterSystem's per-view cluster buffers.
-        static constexpr u32 kMaxFramesInFlight = 8;
-        static constexpr u32 kMaxViewsPerFrame = 8;
-        static constexpr u32 kMaxClusterSlots = kMaxViewsPerFrame * kMaxFramesInFlight;
         rhi::Buffer* m_dummyClusterOffsets = nullptr;
         rhi::Buffer* m_dummyClusterIndices = nullptr;
         rhi::BindGroup* m_dummyClusterBG = nullptr;
-        rhi::BindGroup* m_clusterBGs[kMaxClusterSlots] = {};
-        rhi::Buffer* m_clusterBGOffsets[kMaxClusterSlots] = {};
-        u32 m_clusterBGVersion[kMaxClusterSlots] = {};
+        struct ClusterSlot
+        {
+            rhi::BindGroup* group = nullptr;
+            rhi::Buffer* offsets = nullptr;
+            u32 version = 0;
+        };
+        ViewSlots<ClusterSlot> m_clusterSlots; // grown to the most views one frame draws
 
         bool m_ready = false;
     };
