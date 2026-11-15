@@ -62,6 +62,22 @@ TEST_CASE("number: expressions are read as arithmetic, or not at all")
     CHECK_FALSE(EvaluateExpression(core::StringView(u8"")).HasValue());
 }
 
+TEST_CASE("number: an expression nested past any reasonable depth is refused, not a stack overflow")
+{
+    core::String deep;
+    for (int i = 0; i < 1000000; ++i)
+        deep.PushBack(u8'(');
+    deep += u8"1";
+    CHECK_FALSE(EvaluateExpression(deep.AsView()).HasValue());
+    core::String signs;
+    for (int i = 0; i < 1000000; ++i)
+        signs.PushBack(u8'-');
+    signs += u8"1";
+    CHECK_FALSE(EvaluateExpression(signs.AsView()).HasValue());
+    // Nesting a person would type still evaluates.
+    CHECK(EvaluateExpression(core::StringView(u8"((((((((((2))))))))))*-(-3)")).Value() == doctest::Approx(6.0));
+}
+
 TEST_CASE("number: written with the step's decimals between its prefix and suffix")
 {
     Bed b;

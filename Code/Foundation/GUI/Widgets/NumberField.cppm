@@ -59,6 +59,10 @@ export namespace foundation::gui
             core::StringView s;
             usize i = 0;
             bool ok = true;
+            // Signs and parentheses nest by recursion: past this depth the text is refused, rather
+            // than a field's typed text (or a paste) overflowing the stack.
+            static constexpr u32 kMaxDepth = 64;
+            u32 depth = 0;
             void Skip()
             {
                 while (i < s.Size() && (s[i] == u8' ' || s[i] == u8'\t'))
@@ -67,16 +71,25 @@ export namespace foundation::gui
             f64 Primary()
             {
                 Skip();
+                if (depth >= kMaxDepth)
+                {
+                    ok = false;
+                    return 0.0;
+                }
                 if (i < s.Size() && (s[i] == u8'-' || s[i] == u8'+'))
                 {
                     const bool negative = s[i++] == u8'-';
+                    ++depth;
                     const f64 v = Primary();
+                    --depth;
                     return negative ? -v : v;
                 }
                 if (i < s.Size() && s[i] == u8'(')
                 {
                     ++i;
+                    ++depth;
                     const f64 v = Sum();
+                    --depth;
                     Skip();
                     if (i < s.Size() && s[i] == u8')')
                         ++i;
