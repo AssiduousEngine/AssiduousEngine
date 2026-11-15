@@ -50,6 +50,24 @@ TEST_CASE("random: ranges are respected")
     }
 }
 
+TEST_CASE("random: NextInt over a range wider than i32 can subtract, the whole range included")
+{
+    constexpr i32 kMin = static_cast<i32>(0x80000000u);
+    constexpr i32 kMax = 0x7fffffff;
+    Random rng(7u);
+    for (int i = 0; i < 1000; ++i)
+    {
+        (void)rng.NextInt(kMin, kMax); // max - min overflowed, and the range was 0: % 0
+        const i32 wide = rng.NextInt(-2000000000, 2000000000);
+        CHECK(wide >= -2000000000);
+        CHECK(wide <= 2000000000);
+        const i32 low = rng.NextInt(kMin, kMin + 3);
+        CHECK(low >= kMin);
+        CHECK(low <= kMin + 3);
+        CHECK(rng.NextInt(5, 5) == 5);
+    }
+}
+
 TEST_CASE("random: FromSystemEntropy gives each generator its own sequence")
 {
     Random a = Random::FromSystemEntropy();

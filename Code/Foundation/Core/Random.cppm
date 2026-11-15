@@ -76,8 +76,11 @@ export namespace foundation::core
         // Uniform integer in [min, max] inclusive.
         [[nodiscard]] i32 NextInt(i32 min, i32 max) noexcept
         {
-            const u32 range = static_cast<u32>(max - min) + 1u;
-            return min + static_cast<i32>(NextU32() % range);
+            // In unsigned arithmetic: max - min overflows i32 for a wide range, and the whole i32
+            // range is 2^32 values, one more than a u32 holds (any u32 is then in range).
+            const u32 span = static_cast<u32>(max) - static_cast<u32>(min);
+            const u32 offset = span == ~0u ? NextU32() : NextU32() % (span + 1u);
+            return static_cast<i32>(static_cast<u32>(min) + offset);
         }
 
         [[nodiscard]] bool NextBool() noexcept { return (NextU32() & 1u) != 0u; }
