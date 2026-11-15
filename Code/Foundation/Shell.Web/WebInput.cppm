@@ -565,9 +565,53 @@ export namespace foundation::shell
                 e.x = x;
                 e.y = y;
                 m_events.PushBack(e);
+                CopyFingerToMouse(r.touchId, r.touchPhase, px, py);
                 break;
             }
             }
+        }
+
+        // The first finger down is the mouse too, its left button held while it is: as SDL copies a
+        // finger to the mouse, so a GUI that takes the pointer from the mouse (a screen fitted to its
+        // own resolution) is tapped on the web as on a phone's native app. Its events come after the
+        // finger's, and a GUI that also reads the fingers knows them for the copy and drops them.
+        void CopyFingerToMouse(core::u64 finger, core::u8 phase, core::f32 px, core::f32 py)
+        {
+            if (phase == 0 && !m_mouseFingerDown)
+            {
+                m_mouseFinger = finger;
+                m_mouseFingerDown = true;
+            }
+            else if (!m_mouseFingerDown || finger != m_mouseFinger)
+            {
+                return;
+            }
+            const core::f32 dx = px - m_mouse.X();
+            const core::f32 dy = py - m_mouse.Y();
+            m_mouse.OnMotion(px, py, dx, dy);
+            InputEvent move;
+            move.kind = InputEventKind::MouseMove;
+            move.window = m_mainWindow;
+            move.x = px;
+            move.y = py;
+            move.dx = dx;
+            move.dy = dy;
+            m_events.PushBack(move);
+            if (phase == 1)
+            {
+                return;
+            }
+            const bool down = phase == 0;
+            if (!down)
+            {
+                m_mouseFingerDown = false;
+            }
+            m_mouse.OnButton(static_cast<core::u32>(MouseButton::Left), down);
+            InputEvent button;
+            button.kind = down ? InputEventKind::MouseButtonDown : InputEventKind::MouseButtonUp;
+            button.window = m_mainWindow;
+            button.button = MouseButton::Left;
+            m_events.PushBack(button);
         }
 
         // Poll the browser Gamepad API (poll-based, unlike the event-driven devices). Rebuilds the
@@ -723,6 +767,8 @@ export namespace foundation::shell
         WebKeyboard m_keyboard;
         WebMouse m_mouse;
         WebTouch m_touch;
+        core::u64 m_mouseFinger = 0;     // the finger the mouse copies (CopyFingerToMouse)
+        bool m_mouseFingerDown = false;
         WebGamepad m_slots[kMaxGamepads];            // one per browser gamepad index (stable state)
         core::Array<WebGamepad*> m_connectedPads;    // compact list of currently-connected pads
         core::f32 m_pointerScaleX = 1.0f; // CSS to backing pixels (see RefreshPointerScale)
