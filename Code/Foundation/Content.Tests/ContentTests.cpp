@@ -1016,6 +1016,42 @@ TEST_CASE("content: MoveInstance moves the envelope and its sidecars to another 
 // A record knows the file its object was made from: a self-describing envelope's header carries it,
 // so the scan learns it with the type and asking reads no payload; an envelope written before the
 // header carried it is read once on asking; a binary envelope keeps its layout and reads on asking.
+TEST_CASE("content: one instance read by several threads at once, as a cook's builders do")
+{
+    // Each read rewrote the instance's cached source name: two at once wrote one String together
+    // (heap corruption, caught by the sanitizer lanes). A read that finds it known writes nothing.
+    GlobalTypeRegistry().Register(SourcedRecord::StaticType());
+    RegisterSerializable<SourcedRecord>();
+    const StringView dir = u8"scratch_content_parallel";
+    (void)RemoveDirectoryRecursive(dir);
+    NativeFileSystem mount(dir, DefaultAllocator());
+    {
+        ContentDatabase db(DefaultAllocator(), mount, MakeXmlFactory(), u8".xasset");
+        SourcedRecord record;
+        record.file = String(u8"Art/shared.png");
+        foundation::content::Instance* art = db.RootGroup()->CreateInstance(u8"skeleton", SourcedRecord::StaticType());
+        REQUIRE(art != nullptr);
+        REQUIRE(art->WriteObject(record).IsOk());
+    }
+    ContentDatabase db(DefaultAllocator(), mount, MakeXmlFactory(), u8".xasset");
+    foundation::content::Instance* art = db.RootGroup()->GetInstance(u8"skeleton");
+    REQUIRE(art != nullptr);
+    Atomic<u32> failed{0};
+    Array<UniquePtr<Thread>> threads;
+    for (int t = 0; t < 8; ++t)
+        threads.PushBack(MakeUnique<Thread>(DefaultAllocator(), [&]
+                                            {
+                                                for (int i = 0; i < 200; ++i)
+                                                    if (art->ReadObject().Get() == nullptr)
+                                                        failed.fetch_add(1);
+                                            }));
+    for (UniquePtr<Thread>& thread : threads)
+        thread->Join();
+    CHECK(failed.load() == 0u);
+    CHECK(art->SourceName() == StringView(u8"Art/shared.png"));
+    (void)RemoveDirectoryRecursive(dir);
+}
+
 TEST_CASE("content: a record's source file comes from its envelope header, without reading the payload")
 {
     GlobalTypeRegistry().Register(SourcedRecord::StaticType());

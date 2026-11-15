@@ -380,9 +380,16 @@ namespace foundation::content
         {
             return RefPtr<ISerializable>{};
         }
-        // The object names its source as it stands on disk: keep it, whatever the header said.
-        m_source = String(object.Value()->SourceName());
-        m_sourceKnown = true;
+        // The object names its source as it stands on disk: keep it, whatever the header said. Most
+        // reads find the name already known and change nothing, so parallel reads write nothing;
+        // a changed name is recorded under the lock.
+        const StringView named = object.Value()->SourceName();
+        ScopedLock<SpinLock> lock(m_sourceLock);
+        if (!m_sourceKnown || m_source.AsView() != named)
+        {
+            m_source = String(named);
+            m_sourceKnown = true;
+        }
         return Move(object.Value());
     }
 
@@ -393,6 +400,7 @@ namespace foundation::content
             // An envelope written before its header named the source: read once, then kept
             // (ReadObject records it, or an unreadable one names none).
             (void)ReadObject();
+            ScopedLock<SpinLock> lock(m_sourceLock);
             m_sourceKnown = true;
         }
         return m_source.AsView();

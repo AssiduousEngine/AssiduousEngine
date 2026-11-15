@@ -149,6 +149,9 @@ export namespace foundation::content
         String m_typeName;
         mutable String m_source;           // SourceName, once known
         mutable bool m_sourceKnown = false; // from the header or a write; else read once on asking
+        // Reads of one instance run in parallel (a cook's builders share a skeleton or a material):
+        // a read that learns a different source name records it under this, and only then.
+        mutable SpinLock m_sourceLock;
     };
 
     // =======================================================================
