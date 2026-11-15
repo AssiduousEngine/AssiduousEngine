@@ -13,7 +13,7 @@
 //                    host first, then carries platform-invariant products forward and recooks only
 //                    variant products (textures: BC or ASTC) for the target. "web-astc" (mobile
 //                    web) and "android" are the ASTC targets; everything else is BC desktop. "host" is the default.
-// The exit code is the number of failed cooks (0 on success).
+// The exit code is 1 when any cook failed (the count is printed), 0 on success.
 
 #include <cstdio>
 #include <cstring>
@@ -187,5 +187,7 @@ int main(int argc, char** argv)
     }
 
     GlobalLogger().RemoveSink(&consoleSink);
-    return static_cast<int>(totalFailed);
+    // A process's exit status keeps its low 8 bits, so the failure count itself would read 256
+    // failures as success: any failure exits 1, and the count is printed above.
+    return totalFailed > 0 ? 1 : 0;
 }
