@@ -756,15 +756,12 @@ export namespace foundation::rendergraph
                             }
                             Array<RGResourceAccess> candidateOutputs;
                             candidate->GetOutputs(candidateOutputs);
-                            for (const RGResourceAccess& output : candidateOutputs)
+                            // The resource's own mip and layer counts: a range's count of 0 means
+                            // "to the end", which the default of one mip read as nothing past mip 0.
+                            if (AnyOverlap(candidateOutputs, input))
                             {
-                                if (output.handle == input.handle &&
-                                    (input.subresource.IsAll() || output.subresource.IsAll() ||
-                                     input.subresource.Overlaps(output.subresource)))
-                                {
-                                    candidate->isCulled = false;
-                                    changed = true;
-                                }
+                                candidate->isCulled = false;
+                                changed = true;
                             }
                         }
                     }

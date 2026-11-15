@@ -101,3 +101,28 @@ TEST_CASE("rg.cull: imported with final state prevents culling")
     REQUIRE(graph.Compile().IsOk());
     CHECK(graph.CulledPassCount() == 0u);
 }
+
+TEST_CASE("rg.cull: a reader of mip 2 to the end keeps the writer of mip 2")
+{
+    // Culling read a count of 0 ("to the end") against one mip, so a read from mip 2 onward met no
+    // writer past mip 0 and the pass that wrote mip 2 was culled.
+    RenderGraph graph(DefaultAllocator(), nullptr);
+    graph.BeginFrame(0);
+    RGTextureDesc desc(rhi::TextureFormat::RGBA16Float, 64, 64);
+    desc.mipLevelCount = 4;
+    const RGHandle pyramid = graph.CreateTransient(u8"Pyramid", desc);
+    const RGHandle out = graph.CreateTransient(u8"Out", RGTextureDesc(rhi::TextureFormat::RGBA8Unorm));
+
+    graph.AddComputePass(u8"WriteMip2",
+                         [&](PassBuilder& b) { b.WriteStorage(pyramid, RGSubresourceRange{2, 1, 0, 1}); });
+    graph.AddRenderPass(u8"ReadFromMip2",
+                        [&](PassBuilder& b)
+                        {
+                            b.ReadTexture(pyramid, RGSubresourceRange{2, 0, 0, 1});
+                            b.SetColorTarget(0, out, rhi::LoadOp::Clear, rhi::StoreOp::Store);
+                            b.NeverCull();
+                        });
+
+    REQUIRE(graph.Compile().IsOk());
+    CHECK(graph.CulledPassCount() == 0u);
+}
