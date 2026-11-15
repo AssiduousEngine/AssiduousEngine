@@ -613,6 +613,21 @@ namespace foundation::core::sys
                (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
     }
 
+    bool IsSymbolicLink(const char* path) noexcept
+    {
+        const DWORD attributes = GetFileAttributesA(path);
+        return attributes != INVALID_FILE_ATTRIBUTES &&
+               (attributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+    }
+
+    bool CreateSymbolicLink(const char* target, const char* link, bool directory) noexcept
+    {
+        DWORD flags = SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE;
+        if (directory)
+            flags |= SYMBOLIC_LINK_FLAG_DIRECTORY;
+        return CreateSymbolicLinkA(link, target, flags) != 0;
+    }
+
     bool CreateDirectory(const char* path) noexcept
     {
         if (CreateDirectoryA(path, nullptr))

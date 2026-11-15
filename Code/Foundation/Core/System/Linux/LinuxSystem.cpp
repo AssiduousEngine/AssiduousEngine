@@ -614,6 +614,17 @@ namespace foundation::core::sys
         return stat(path, &st) == 0 && S_ISDIR(st.st_mode);
     }
 
+    bool IsSymbolicLink(const char* path) noexcept
+    {
+        struct stat st{};
+        return lstat(path, &st) == 0 && S_ISLNK(st.st_mode);
+    }
+
+    bool CreateSymbolicLink(const char* target, const char* link, bool /*directory*/) noexcept
+    {
+        return symlink(target, link) == 0;
+    }
+
     bool CreateDirectory(const char* path) noexcept
     {
         if (mkdir(path, 0755) == 0)
@@ -649,7 +660,9 @@ namespace foundation::core::sys
             else if (entry->d_type == DT_UNKNOWN) // some filesystems don't fill d_type
             {
                 struct stat st{};
-                if (fstatat(dirfd(dir), name, &st, 0) == 0)
+                // Not following a link: a link to a directory is not a directory to walk into
+                // (as DT_LNK already reports it where d_type is filled).
+                if (fstatat(dirfd(dir), name, &st, AT_SYMLINK_NOFOLLOW) == 0)
                 {
                     isDir = S_ISDIR(st.st_mode);
                 }

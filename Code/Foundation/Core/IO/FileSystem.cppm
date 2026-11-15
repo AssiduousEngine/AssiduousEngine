@@ -176,6 +176,12 @@ export namespace foundation::core
     // Returns true when the directory is gone afterwards (a missing dir counts as gone).
     inline bool RemoveDirectoryRecursive(StringView path) // NOLINT(misc-no-recursion)
     {
+        // A link is removed, never walked: walking it would delete what it points to, which may
+        // lie outside the tree being removed. (A directory link on Windows goes by RemoveDirectory.)
+        if (IsSymbolicLink(path))
+        {
+            return FileDelete(path) || RemoveDirectory(path);
+        }
         if (!DirectoryExists(path))
         {
             return true;

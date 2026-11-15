@@ -256,6 +256,17 @@ export namespace foundation::core
     {
         return sys::DirectoryExists(detail::NullTerminated(path).CStr());
     }
+    // Whether `path` itself is a symbolic link (on Windows, a reparse point), whatever it points to.
+    [[nodiscard]] inline bool IsSymbolicLink(StringView path) noexcept
+    {
+        return sys::IsSymbolicLink(detail::NullTerminated(path).CStr());
+    }
+    // Makes `link` point to `target`; `directory` when the target is one (Windows needs to know).
+    inline bool CreateSymbolicLink(StringView target, StringView link, bool directory) noexcept
+    {
+        return sys::CreateSymbolicLink(detail::NullTerminated(target).CStr(), detail::NullTerminated(link).CStr(),
+                                       directory);
+    }
     inline bool CreateDirectory(StringView path) noexcept
     {
         return sys::CreateDirectory(detail::NullTerminated(path).CStr());

@@ -175,6 +175,12 @@ namespace foundation::core::sys
     bool FileStat(const char* path, unsigned long long& outSize,
                   long long& outModifiedTime) noexcept;
     bool DirectoryExists(const char* path) noexcept;
+    // Whether `path` itself is a symbolic link (on Windows, any reparse point: a symlink or a
+    // junction), not what it points to.
+    bool IsSymbolicLink(const char* path) noexcept;
+    // Makes `link` a symbolic link to `target` (a directory's when `directory`). False when the
+    // platform refuses (Windows without developer mode or the privilege).
+    bool CreateSymbolicLink(const char* target, const char* link, bool directory) noexcept;
     bool CreateDirectory(const char* path) noexcept; // true if created or already exists
     bool RemoveDirectory(const char* path) noexcept;
 

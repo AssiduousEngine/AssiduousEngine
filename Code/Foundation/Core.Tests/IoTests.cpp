@@ -716,6 +716,38 @@ TEST_CASE("io: RemoveDirectoryRecursive deletes a populated tree (rmdir alone ca
     CHECK(RemoveDirectoryRecursive(u8"scratch_rmr_scratch"));
 }
 
+TEST_CASE("io: RemoveDirectoryRecursive removes a link, never what it points to")
+{
+    // A folder outside the tree, reached through a link inside it and through a link as the root.
+    (void)RemoveDirectoryRecursive(u8"scratch_rml_outside");
+    (void)RemoveDirectoryRecursive(u8"scratch_rml_tree");
+    (void)RemoveDirectoryRecursive(u8"scratch_rml_root");
+    REQUIRE(CreateDirectories(u8"scratch_rml_outside"));
+    const byte payload[1] = {byte{7}};
+    REQUIRE(WriteFile(u8"scratch_rml_outside/keep.bin", Span<const byte>{payload, 1}).IsOk());
+    REQUIRE(CreateDirectories(u8"scratch_rml_tree"));
+    const String outside = PathJoin(GetCurrentDirectory().AsView(), u8"scratch_rml_outside");
+    if (!CreateSymbolicLink(outside.AsView(), u8"scratch_rml_tree/inside", true) ||
+        !CreateSymbolicLink(outside.AsView(), u8"scratch_rml_root", true))
+    {
+        MESSAGE("this platform refuses symbolic links here; skipped");
+        (void)RemoveDirectoryRecursive(u8"scratch_rml_tree");
+        (void)RemoveDirectoryRecursive(u8"scratch_rml_outside");
+        return;
+    }
+    CHECK(IsSymbolicLink(u8"scratch_rml_root"));
+    CHECK_FALSE(IsSymbolicLink(u8"scratch_rml_outside"));
+
+    CHECK(RemoveDirectoryRecursive(u8"scratch_rml_tree")); // a link inside the tree
+    CHECK_FALSE(DirectoryExists(u8"scratch_rml_tree"));
+    CHECK(FileExists(u8"scratch_rml_outside/keep.bin"));
+
+    CHECK(RemoveDirectoryRecursive(u8"scratch_rml_root")); // the root itself a link
+    CHECK_FALSE(IsSymbolicLink(u8"scratch_rml_root"));
+    CHECK(FileExists(u8"scratch_rml_outside/keep.bin"));
+    CHECK(RemoveDirectoryRecursive(u8"scratch_rml_outside"));
+}
+
 TEST_CASE("io: binary arrays of scalars move as one block, byte-identical to the per-element layout")
 {
     // The bulk path (ISerializer::BulkScalarArrays) must write exactly what N Scalar calls wrote
