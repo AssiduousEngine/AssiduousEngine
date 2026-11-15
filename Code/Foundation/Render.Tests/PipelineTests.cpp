@@ -1328,7 +1328,35 @@ TEST_CASE("IBLSystem: per-scene contexts; env rebuilds when a scene's sky-textur
         CHECK(prefilterPasses(graph) == 0u);
     }
     CHECK(ctxA->Generation() == genA);
+
+    // The sun moves. The HDR sky carries its own sun and never bakes for it; the procedural one
+    // bakes once the sun has turned past the threshold, not for a sliver of a degree.
+    {
+        const Float3 nudged = Normalized(Float3{0.001f, -1.0f, 0.0f}); // about 0.06 degrees
+        foundation::rendergraph::RenderGraph graph(DefaultAllocator(), &h.device);
+        ibl.BeginFrame(graph);
+        (void)ibl.Prepare(&sceneA, procedural, nudged, graph);
+        (void)ibl.Prepare(&sceneB, hdr, nudged, graph);
+        CHECK(prefilterPasses(graph) == 0u);
+        CHECK(ctxA->SunDir().x == nudged.x); // the live direction follows regardless
+    }
+    {
+        const Float3 turned = Normalized(Float3{0.5f, -1.0f, 0.0f});
+        foundation::rendergraph::RenderGraph graph(DefaultAllocator(), &h.device);
+        ibl.BeginFrame(graph);
+        (void)ibl.Prepare(&sceneA, procedural, turned, graph);
+        (void)ibl.Prepare(&sceneB, hdr, turned, graph);
+        CHECK(prefilterPasses(graph) == kBake); // the procedural sky alone
+    }
+    {
+        foundation::rendergraph::RenderGraph graph(DefaultAllocator(), &h.device);
+        ibl.BeginFrame(graph);
+        (void)ibl.Prepare(&sceneA, procedural, sun, graph);
+        (void)ibl.Prepare(&sceneB, hdr, sun, graph);
+        CHECK(prefilterPasses(graph) == kBake); // back again: the procedural sky bakes once more
+    }
     CHECK(ctxB->Generation() == genB);
+    const u64 genAfterSun = ctxA->Generation();
 
     // Scene B's sky-texture product changes (pick or hot-reload; keyed by uid, never the pointer):
     // only B rebuilds.
@@ -1340,7 +1368,7 @@ TEST_CASE("IBLSystem: per-scene contexts; env rebuilds when a scene's sky-textur
         (void)ibl.Prepare(&sceneB, hdr, sun, graph);
         CHECK(prefilterPasses(graph) == kBake); // B alone bakes again
     }
-    CHECK(ctxA->Generation() == genA);
+    CHECK(ctxA->Generation() == genAfterSun);
     CHECK(ctxB->Generation() > genB);
 
     // Another environment resolution (a quality level's): each context remakes its prefiltered cube

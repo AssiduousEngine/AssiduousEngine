@@ -162,11 +162,20 @@ namespace foundation::render
         {
             ctx->m_dirty = true;
         }
-        if (sunDir.x != ctx->m_sunDir.x || sunDir.y != ctx->m_sunDir.y ||
-            sunDir.z != ctx->m_sunDir.z)
+        // Only the procedural and analytic skies draw the sun into the environment; a coloured or
+        // textured one bakes the same whatever the sun does. And a sun that moves a little each
+        // frame (a day cycle) bakes again once it has moved past kSunRebakeCos, not every frame:
+        // a bake is a whole prefilter chain. The live direction is kept either way (the probe
+        // capture's sky reads it).
+        ctx->m_sunDir = sunDir;
+        const bool sunBaked = sky.mode == SkyMode::Procedural || sky.mode == SkyMode::Analytic;
+        if (sunBaked && Dot(Normalized(sunDir), Normalized(ctx->m_bakedSunDir)) < kSunRebakeCos)
         {
-            ctx->m_sunDir = sunDir;
             ctx->m_dirty = true;
+        }
+        if (ctx->m_dirty)
+        {
+            ctx->m_bakedSunDir = sunDir;
         }
         // A programmatic pixel source changed (SetEquirect, SetCubemap): textured modes re-bake.
         if (ctx->m_sourceStamp != m_sourceStamp &&

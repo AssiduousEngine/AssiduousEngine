@@ -77,6 +77,9 @@ export namespace foundation::render
         static constexpr u32 kEnvResolution = 256;
         static constexpr u32 kEnvMips = 5; // env mip pyramid (256..16) for prefilter PDF sampling
         static constexpr u32 kPrefilterMips = 5; // roughness = mip / (kPrefilterMips - 1)
+        // A sun-drawn sky bakes again once the sun has turned more than about half a degree
+        // (cos 0.5 degrees) from the direction it was baked with.
+        static constexpr f32 kSunRebakeCos = 0.99996f;
         static constexpr u32 kBrdfResolution = 256;
         static constexpr u32 kShCoeffCount = 9;
         // A context unused for this many frames is evicted (its scene's page closed). Long enough
@@ -155,7 +158,8 @@ export namespace foundation::render
             rendergraph::RGHandle m_envH = {};
 
             SkySnapshot m_sky{};
-            Float3 m_sunDir = Float3{0.0f, -1.0f, 0.0f};
+            Float3 m_sunDir = Float3{0.0f, -1.0f, 0.0f};      // the sun now
+            Float3 m_bakedSunDir = Float3{0.0f, -1.0f, 0.0f}; // the sun the products were baked with
             bool m_dirty = true;
             u64 m_generation = 0;
             u64 m_sourceStamp = 0; // programmatic SetEquirect/SetCubemap change tick
