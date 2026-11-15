@@ -1,5 +1,15 @@
 # Android: a native player and its export
 
+> ARCHIVED 2026-11-15, fully built on the `android` branch (the engine's share of it on master);
+> what it left out is in Documentation/Plans/backlog-0.2.md (Run on device, the first turn's
+> squish, reduced module interfaces on Android) and the `TODO(export)` for a game's native
+> packages. Non-authoritative: the original spec, kept as the record of what was built and why;
+> the code and the tests are the truth. Each phase's write-up is in
+> Documentation/Plans/week-2026-10-24.md.
+
+> Status: DONE: A0 to A5 accepted on the Pixel 6; A5's measurements taken 2026-11-12 (the weekly's
+> "Render quality: the samples' levels, measured on the phone").
+
 > STATUS: PROPOSED 2026-11-10, on branch `android`. Sized L, phases A0 to A5, green after each.
 > A0 to A3 built 2026-11-10, A4 built 2026-11-11 (see the week-2026-10-24 entries).
 > Origin: the 0.2 backlog's "Android: a native player and its export" (user 2026-10-11), started
@@ -209,7 +219,7 @@ Not goals: the editor, on-device MCP or play-in-editor on Android; 32-bit or x86
   screens and its screenshot with the window; Dear ImGui draws as a screen overlay, turned the same
   way. Input needed no turning: the pointer stays in the window's space, where the screens lay
   out. What A2 saw held: Android reports the window's new size a frame before the surface's new
-  turn, so a turn rebuilds twice. Left: the measurements.
+  turn, so a turn rebuilds twice. The measurements were taken on 2026-11-12, every sample game at its Low, Medium and High levels in the RelWithDebInfo development app, and are in the weekly ("Render quality: the samples' levels, measured on the phone"); the cheaper effects they called for are in `backlog-0.2.md`.
 
 ## Gotchas
 
