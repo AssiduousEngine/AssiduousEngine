@@ -49,6 +49,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Rendering: a reflection probe captured in a scene with few meshes bakes them on every face;
   past the first face they drew nothing. A material with an unset cube texture slot gets a white
   cube instead of a flat texture its layout refuses.
+- Rendering: a camera whose target is not a render texture (an imported image, a depth texture)
+  is skipped with a warning instead of failing the frame. A camera with a near plane of 0, a far
+  plane below its near one or a field of view of 0, and a spot light whose inner cone is wider
+  than its outer one, draw clamped to sensible values instead of breaking the view.
 - Web: a game with a render size of its own (Sky Hopper, PaperKid) takes taps on phones and
   tablets. Its buttons answered a mouse but not a finger, since the browser shell, unlike the
   native ones, did not give the finger to the mouse; a quick tap or click within one frame also

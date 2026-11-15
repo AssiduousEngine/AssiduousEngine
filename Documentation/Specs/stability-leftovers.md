@@ -104,10 +104,11 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   cube layout (:136). Test: such a material's bind group validates. Fix: a cube fallback. Built
   2026-11-15: a 1x1 white cube.
 - **A camera may target any texture.** `ExtractImpl.cpp:557-569`. Test: a Sampled-only target is
-  refused with a warning. Fix: check RenderTarget usage and a color format.
+  refused with a warning. Fix: check RenderTarget usage and a color format. Built 2026-11-15.
 - **Light and camera fields are not validated.** `RenderComponents.cppm:296-299`,
   `ExtractImpl.cpp:581-595`. Test: nearZ 0 and farZ < nearZ give a finite projection. Fix: clamp at
-  extraction.
+  extraction. Built 2026-11-15, with the field of view, aspect, orthographic planes, light range
+  and intensity, and a spot's inner cone.
 - **Render graph culling compares subresources without their counts.** `RenderGraph.cppm:763`.
   Test: a reader of mip 2 (count 0, all) keeps a writer of mip 2. Fix: pass the real ranges.
 - **DX12: a full descriptor heap hands out a null handle that is written.** `DxDevice.cppm:93-96`,
