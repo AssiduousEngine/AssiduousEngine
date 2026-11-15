@@ -670,10 +670,12 @@ export namespace foundation::render
         // The history slot a view keeps its between-frame state in (previous camera and jitter, the
         // TAA, SSR, SSGI and exposure histories), from its ViewSettings::historyKey (0 means the
         // view's place in this frame's list, `viewIndex`). The same key gets the same slot every
-        // frame, wherever the view falls in the list; a key new to the frame takes a free slot or
-        // the one seen longest ago, and `fresh` says so (its state is the last owner's: reset it).
-        static constexpr u32 kHistorySlots = 8; // the passes' per-view history arrays
+        // frame, wherever the view falls in the list; a key new to the frame takes a free slot, the
+        // stale one seen longest ago or a new one, and `fresh` says so (reused state is the last
+        // owner's: reset it).
         [[nodiscard]] u32 HistorySlotFor(u64 historyKey, u32 viewIndex, bool& fresh) noexcept;
+        // Frames a history slot goes unseen before a newcomer may take it.
+        static constexpr u32 kHistoryStaleFrames = 60;
         // Scene-pass MSAA first-sample resolve (borrowed pass); null means no MSAA support. Used only when
         // a view's post.msaaSamples > 1, to resolve the MSAA depth and aux to 1x for the post consumers.
         void SetMsaaResolve(MsaaResolvePass* pass) noexcept { m_msaaResolve = pass; }
@@ -866,7 +868,7 @@ export namespace foundation::render
             u32 lastFrame = 0; // m_noiseFrame when a view last took it
             bool used = false;
         };
-        HistorySlot m_historySlots[kHistorySlots];
+        Array<HistorySlot> m_historySlots; // grows to the most views one frame draws
         Array<ResolvedDraw>
             m_prepassResolved; // reused depth-draw buffer for the camera depth prepass
         Array<ResolvedDraw> m_shadowResolved; // reused depth-draw buffer for the shadow pass

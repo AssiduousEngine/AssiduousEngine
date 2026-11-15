@@ -19,6 +19,7 @@ import foundation.rhi;
 import foundation.rendergraph;
 import foundation.shaders;
 import foundation.shaders.system;
+import :bind_group_cache; // ViewSlots
 
 using namespace foundation::core;
 namespace rendergraph = foundation::rendergraph;
@@ -45,9 +46,6 @@ export namespace foundation::render
     class ExposurePass
     {
     public:
-        static constexpr u32 kMaxViews = 8;
-        static constexpr u32 kMaxFramesInFlight = 8;
-        static constexpr u32 kMaxSlots = kMaxViews * kMaxFramesInFlight;
         static constexpr rhi::TextureFormat kFormat = rhi::TextureFormat::R16Float;
 
         ExposurePass(rhi::Device& device, shaders::ShaderSystem& shaders,
@@ -55,6 +53,7 @@ export namespace foundation::render
             : m_device(&device), m_shaders(&shaders),
               m_framesInFlight(framesInFlight < 1 ? 1 : framesInFlight)
         {
+            m_bindGroups.SetFramesInFlight(m_framesInFlight);
         }
         ~ExposurePass() { Shutdown(); }
         ExposurePass(const ExposurePass&) = delete;
@@ -122,7 +121,7 @@ export namespace foundation::render
             {
                 return out;
             }
-            ViewState& state = m_views[viewIndex % kMaxViews];
+            ViewState& state = StateFor(viewIndex);
             if (!EnsureState(state))
             {
                 return out;
@@ -159,12 +158,10 @@ export namespace foundation::render
             // set the previous frame's in-flight command buffer still references
             // (VUID-vkFreeDescriptorSets-00309). With frameIndex folded in, a slot is
             // rewritten only framesInFlight frames later, after its command buffer completed.
-            const u32 slot =
-                (viewIndex % kMaxViews) * m_framesInFlight + (frameIndex % m_framesInFlight);
             graph.AddRenderPass(
                 u8"exposure.measure",
-                [this, &graph, hdr, prevH, curH, prevView, pipeline, push,
-                 slot](rendergraph::PassBuilder& b)
+                [this, &graph, hdr, prevH, curH, prevView, pipeline, push, viewIndex,
+                 frameIndex](rendergraph::PassBuilder& b)
                 {
                     b.SetColorTarget(0, curH, rhi::LoadOp::Clear, rhi::StoreOp::Store,
                                      rhi::ClearColor::Black());
@@ -173,11 +170,11 @@ export namespace foundation::render
                     b.SetViewport(0, 0, 1, 1);
                     b.NeverCull();
                     b.SetExecute(
-                        [this, &graph, hdr, prevView, pipeline, push,
-                         slot](rhi::RenderPassEncoder& rp)
+                        [this, &graph, hdr, prevView, pipeline, push, viewIndex,
+                         frameIndex](rhi::RenderPassEncoder& rp)
                         {
                             rhi::BindGroup* bg =
-                                EnsureBindGroup(slot, graph.GetTextureView(hdr), prevView,
+                                EnsureBindGroup(viewIndex, frameIndex, graph.GetTextureView(hdr), prevView,
                                                 graph.GetTextureGeneration(hdr));
                             if (bg == nullptr)
                             {
@@ -203,7 +200,7 @@ export namespace foundation::render
         /// frame, or the first frame of another scene) instead of easing from the last frame.
         [[nodiscard]] bool Snapped(u32 viewIndex) const noexcept
         {
-            return m_views[viewIndex % kMaxViews].snapped;
+            return viewIndex < m_views.Size() && m_views[viewIndex].snapped;
         }
 
         /// Forget history slot `slot`'s accumulated state (the frame handed the slot to another
@@ -211,7 +208,7 @@ export namespace foundation::render
         /// what the slot's previous view saw.
         void InvalidateHistory(u32 slot) noexcept
         {
-            if (slot < kMaxViews)
+            if (slot < m_views.Size())
             {
                 m_views[slot].valid = false;
             }
@@ -230,6 +227,15 @@ export namespace foundation::render
             u64 sceneSerial = 0;   // the scene the history belongs to (ExtractedScene::SceneSerial)
             u64 generation = 0;
         };
+
+        // History slot `slot`'s state, the list grown to hold it: a frame has as many history
+        // slots as views (RenderFrame::HistorySlotFor), however many that is.
+        ViewState& StateFor(u32 slot)
+        {
+            if (slot >= m_views.Size())
+                m_views.Resize(static_cast<usize>(slot) + 1);
+            return m_views[slot];
+        }
 
         bool EnsureState(ViewState& state)
         {
@@ -327,14 +333,14 @@ export namespace foundation::render
             return m_pipeline;
         }
 
-        rhi::BindGroup* EnsureBindGroup(u32 slot, rhi::TextureView* hdrView,
+        rhi::BindGroup* EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureView* hdrView,
                                         rhi::TextureView* prevView, u64 generation)
         {
-            if (slot >= kMaxSlots || hdrView == nullptr || prevView == nullptr)
+            if (hdrView == nullptr || prevView == nullptr)
             {
                 return nullptr;
             }
-            Entry& entry = m_bindGroups[slot];
+            Entry& entry = m_bindGroups.At(viewIndex, frameIndex);
             if (entry.bg != nullptr && entry.hdr == hdrView && entry.prev == prevView &&
                 entry.gen == generation)
             {
@@ -366,7 +372,7 @@ export namespace foundation::render
 
         void Shutdown()
         {
-            for (Entry& entry : m_bindGroups)
+            for (Entry& entry : m_bindGroups.All())
             {
                 if (entry.bg != nullptr)
                 {
@@ -416,8 +422,8 @@ export namespace foundation::render
         rhi::RenderPipeline* m_pipeline = nullptr;
         u64 m_pipelineShaderVersion = 0;
         rhi::Sampler* m_sampler = nullptr;
-        ViewState m_views[kMaxViews];
-        Entry m_bindGroups[kMaxSlots];
+        Array<ViewState> m_views;   // per history slot
+        ViewSlots<Entry> m_bindGroups; // per (history slot, frame in flight)
     };
 
 } // namespace foundation::render

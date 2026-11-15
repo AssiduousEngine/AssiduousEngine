@@ -105,7 +105,7 @@ namespace foundation::render
                                               f32 motionScale, f32 nearPlane, f32 farPlane,
                                               bool orthographic)
     {
-        if (viewIndex >= kMaxViews || w == 0 || h == 0)
+        if (w == 0 || h == 0)
         {
             return current;
         }
@@ -123,6 +123,10 @@ namespace foundation::render
         if (m_pipeline == nullptr)
         {
             return current;
+        }
+        if (viewIndex >= m_views.Size())
+        {
+            m_views.Resize(static_cast<usize>(viewIndex) + 1); // one per history slot, however many
         }
         ViewHistory& hist = m_views[viewIndex];
         if (!EnsureHistory(hist, w, h))
@@ -320,10 +324,11 @@ namespace foundation::render
     void TaaPass::Shutdown()
     {
         m_bindGroups.Release([this](rhi::BindGroup* bg) { m_device->DestroyBindGroup(bg); });
-        for (u32 v = 0; v < kMaxViews; ++v)
+        for (ViewHistory& hist : m_views)
         {
-            DestroyHistory(m_views[v]);
+            DestroyHistory(hist);
         }
+        m_views.Clear();
         if (m_pipeline != nullptr)
         {
             m_device->DestroyRenderPipeline(m_pipeline);

@@ -134,7 +134,7 @@ export namespace foundation::render
         /// what the slot's previous view saw.
         void InvalidateHistory(u32 slot) noexcept
         {
-            if (slot < kMaxViews)
+            if (slot < m_views.Size())
             {
                 m_views[slot].valid = false;
             }
@@ -143,7 +143,6 @@ export namespace foundation::render
     private:
         static constexpr rhi::TextureFormat kHdrFormat =
             rhi::TextureFormat::RGBA16Float; // matches the scene HDR
-        static constexpr u32 kMaxViews = 8;
         struct ViewHistory
         {
             rhi::Texture* tex[2] = {};
@@ -207,7 +206,7 @@ export namespace foundation::render
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
         rhi::Sampler* m_sampler = nullptr;                // point: depth and reconstruction
         rhi::Sampler* m_linearSampler = nullptr;          // linear: glossy color gather
-        ViewHistory m_views[kMaxViews];
+        Array<ViewHistory> m_views; // per history slot (RenderFrame::HistorySlotFor)
         HashMap<rhi::TextureView*, Entry> m_bindGroups;
         BindGroupCache<3> m_resolveBindGroups;
         Array<Retired> m_retired;

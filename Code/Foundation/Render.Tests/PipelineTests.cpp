@@ -1942,13 +1942,13 @@ TEST_CASE("render: a view keeps its history slot by its key, wherever it falls i
     CHECK_FALSE(fresh);
     frame.End();
 
-    // Every slot taken: a new key takes the one seen longest ago (the side view's), never one in
-    // use this frame, and is told it is fresh.
-    for (u32 f = 0; f < RenderFrame::kHistorySlots; ++f)
+    // Every slot taken: a new key takes the one gone stale longest ago (the side view's), never
+    // one in use, and is told it is fresh.
+    for (u32 f = 0; f <= RenderFrame::kHistoryStaleFrames; ++f)
     {
         frame.Begin(*h.encoder, f % 2);
         (void)frame.HistorySlotFor(1001, 0, fresh);
-        for (u64 k = 0; k < RenderFrame::kHistorySlots - 2; ++k)
+        for (u64 k = 0; k < 6; ++k)
         {
             (void)frame.HistorySlotFor(5000 + k, static_cast<u32>(k + 1), fresh);
         }
@@ -1959,6 +1959,31 @@ TEST_CASE("render: a view keeps its history slot by its key, wherever it falls i
     const u32 newcomer = frame.HistorySlotFor(9009, 1, fresh);
     CHECK(fresh);
     CHECK(newcomer == side);
+    frame.End();
+
+    // More views in one frame than ever before: each takes a slot of its own, none shared.
+    constexpr u32 kMany = 20;
+    frame.Begin(*h.encoder, 1);
+    u32 slots[kMany] = {};
+    for (u32 v = 0; v < kMany; ++v)
+    {
+        slots[v] = frame.HistorySlotFor(7000 + v, v, fresh);
+        CHECK(fresh);
+    }
+    frame.End();
+    for (u32 a = 0; a < kMany; ++a)
+    {
+        for (u32 b = a + 1; b < kMany; ++b)
+        {
+            CHECK(slots[a] != slots[b]);
+        }
+    }
+    frame.Begin(*h.encoder, 0);
+    for (u32 v = 0; v < kMany; ++v)
+    {
+        CHECK(frame.HistorySlotFor(7000 + v, v, fresh) == slots[v]);
+        CHECK_FALSE(fresh);
+    }
     frame.End();
 }
 

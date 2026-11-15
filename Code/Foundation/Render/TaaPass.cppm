@@ -58,7 +58,6 @@ export namespace foundation::render
     {
     public:
         static constexpr rhi::TextureFormat kHistoryFormat = rhi::TextureFormat::RGBA16Float;
-        static constexpr u32 kMaxViews = 8;
 
         TaaPass(rhi::Device& device, shaders::ShaderSystem& shaders) noexcept
             : m_device(&device), m_shaders(&shaders)
@@ -91,7 +90,7 @@ export namespace foundation::render
         /// what the slot's previous view saw.
         void InvalidateHistory(u32 slot) noexcept
         {
-            if (slot < kMaxViews)
+            if (slot < m_views.Size())
             {
                 m_views[slot].valid = false;
             }
@@ -131,7 +130,7 @@ export namespace foundation::render
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
         rhi::Sampler* m_pointSampler = nullptr;
         rhi::Sampler* m_linearSampler = nullptr;
-        ViewHistory m_views[kMaxViews];
+        Array<ViewHistory> m_views; // per history slot (RenderFrame::HistorySlotFor)
         BindGroupCache<3> m_bindGroups;
     };
 

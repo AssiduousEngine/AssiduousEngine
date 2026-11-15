@@ -328,7 +328,7 @@ namespace foundation::render
                           const Float4x4& invProj, const Float4x4& proj, const Params& p,
                           u32 viewIndex, u32 frameIndex)
     {
-        if (w == 0 || h == 0 || viewIndex >= kMaxViews)
+        if (w == 0 || h == 0)
         {
             return hdr;
         }
@@ -514,6 +514,10 @@ namespace foundation::render
         declareBlur(u8"ssgi.blur", gi, filtered, 1.0f);
 
         // --- Resolve: reproject, variance-clip and accumulate, then add into the HDR ---
+        if (viewIndex >= m_views.Size())
+        {
+            m_views.Resize(static_cast<usize>(viewIndex) + 1); // one per history slot, however many
+        }
         ViewHistory& hist = m_views[viewIndex];
         if (!EnsureHistory(hist, w, h))
         {
@@ -961,10 +965,11 @@ namespace foundation::render
             m_device->DestroyBindGroup(r.bg);
         }
         m_retired.Clear();
-        for (u32 v = 0; v < kMaxViews; ++v)
+        for (ViewHistory& hist : m_views)
         {
-            DestroyHistory(m_views[v]);
+            DestroyHistory(hist);
         }
+        m_views.Clear();
         if (m_pipeline != nullptr)
         {
             m_device->DestroyRenderPipeline(m_pipeline);

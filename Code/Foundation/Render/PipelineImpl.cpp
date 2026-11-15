@@ -586,7 +586,8 @@ namespace foundation::render
         // An unkeyed view is known by its place in the list (tests, samples): a key
         // of its own that no real key (a hash) is expected to meet.
         const u64 key = (historyKey != 0) ? historyKey : (0xFFFF'FFFF'0000'0000ull | viewIndex);
-        for (u32 s = 0; s < kHistorySlots; ++s)
+        const u32 count = static_cast<u32>(m_historySlots.Size());
+        for (u32 s = 0; s < count; ++s)
         {
             if (m_historySlots[s].used && m_historySlots[s].key == key)
             {
@@ -594,10 +595,12 @@ namespace foundation::render
                 return s;
             }
         }
-        // New to the slots: a free one, else the one seen longest ago (never one taken this frame).
-        u32 pick = kHistorySlots;
-        u32 oldestAge = 0;
-        for (u32 s = 0; s < kHistorySlots; ++s)
+        // New to the slots: a free one, else the one seen longest ago once it has gone stale,
+        // else a new one. A view drawn only now and then keeps its history between draws, and
+        // every view a frame draws has a slot of its own.
+        u32 pick = count;
+        u32 oldestAge = kHistoryStaleFrames;
+        for (u32 s = 0; s < count; ++s)
         {
             if (!m_historySlots[s].used)
             {
@@ -605,15 +608,15 @@ namespace foundation::render
                 break;
             }
             const u32 age = m_noiseFrame - m_historySlots[s].lastFrame;
-            if (age > 0 && age >= oldestAge)
+            if (age > oldestAge)
             {
                 oldestAge = age;
                 pick = s;
             }
         }
-        if (pick == kHistorySlots)
+        if (pick == count)
         {
-            pick = viewIndex % kHistorySlots; // more views this frame than slots: share by index
+            m_historySlots.Resize(static_cast<usize>(count) + 1);
         }
         m_historySlots[pick] = HistorySlot{key, m_noiseFrame, true};
         fresh = true;
