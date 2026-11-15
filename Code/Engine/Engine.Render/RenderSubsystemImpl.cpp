@@ -496,6 +496,7 @@ namespace engine::render
                     sp.provider->ExtractRenderData(*snapshot);
                 }
             }
+            snapshot->RankLights(); // past the view's budget, the least of them are the ones cut
             if (m_probeSystem.Get() != nullptr)
             { // map probes to persistent array slots
                 m_probeSystem->Assign(snapshot, snapshot->ReflectionProbes());

@@ -638,6 +638,9 @@ export namespace foundation::render
     // (cube faces). Extraction sets each caster's shadowIndex to its base tile (0-based, into the
     // GpuLocalShadow buffer) and caps total tiles here; the ShadowSystem's atlas must hold this many.
     inline constexpr u32 kMaxLocalShadowTiles = 16;
+    // Lights one view shades (the forward's and the cluster build's budget); a scene with more has
+    // them ranked (ExtractedScene::RankLights) and the rest cut.
+    inline constexpr u32 kMaxLightsPerView = 256;
     // Frame-global cap on GpuLocalShadow entries (all scenes concatenated). The renderer's
     // local-shadow ring is sized to this; the pipeline writes degenerate entries instead of exceeding it.
     inline constexpr u32 kMaxLocalShadowEntries = 64;
@@ -963,6 +966,12 @@ export namespace foundation::render
 
         // Add a light to the snapshot (shading input, not a drawable).
         void AddLight(const GpuLight& light) { m_lights.PushBack(light); }
+        // With more lights than a view shades (kMaxLightsPerView), order them by what each brings
+        // to the view, so the cut drops the least: directional lights first, then the rest by
+        // intensity over distance from the view origin, measured against the light's reach. Called
+        // once the lights are extracted; the order is otherwise extraction order. Each light
+        // carries its own shadowIndex, so nothing else refers to its place in the list.
+        void RankLights();
 
         // Register a spot or point light as a shadow caster (the ShadowSystem builds its atlas tile and matrix
         // at frame time). `lightIndex` must equal the light's position in the list (the index AddLight

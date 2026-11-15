@@ -120,7 +120,7 @@ export namespace foundation::render
         static constexpr u32 kSliceCount = 24;
         static constexpr u32 kMaxPerCluster =
             64; // per-cluster light cap (matches MAX_PER_CLUSTER in the kernel)
-        static constexpr u32 kMaxLights = 256; // per-view light budget (matches the forward's)
+        static constexpr u32 kMaxLights = kMaxLightsPerView; // per-view light budget
         static constexpr u64 kParamsSlot =
             256; // dynamic UBO offset alignment (>= sizeof(GpuClusterBuildParams))
 

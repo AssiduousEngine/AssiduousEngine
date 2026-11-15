@@ -465,7 +465,7 @@ export namespace foundation::render
         static constexpr u64 kViewDataSlot =
             1024;                              // view UBO slot (GpuView is 656 bytes)
         static constexpr u32 kMinViewSlots = 8; // the view ring's start; it grows to the frame's views
-        static constexpr u32 kMaxLights = 256; // per-view light budget (clustered)
+        static constexpr u32 kMaxLights = kMaxLightsPerView; // per-view light budget
         // shadow-view UBO slots per frame: one per shadow pass and category run. Cascades (up to
         // kMaxShadowViews*kCount) and local-shadow atlas tiles (up to kMaxLocalShadows), each times a few
         // categories. Sized with headroom, since a slot is tiny (256B).

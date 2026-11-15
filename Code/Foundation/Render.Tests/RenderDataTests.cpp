@@ -576,3 +576,57 @@ TEST_CASE("ShadowReach: a view drawn from behind its eye reaches as far past the
     CHECK(ShadowReach(cam, 120.0f) == doctest::Approx(160.0f));
     CHECK(ShadowReach(cam, 5000.0f) == doctest::Approx(1040.0f)); // never past the far plane
 }
+
+TEST_CASE("ExtractedScene: past the per-view budget, the lights that matter to the view are kept")
+{
+    // The forward and the cluster build shade the first kMaxLightsPerView lights in extraction
+    // order: with one more, a bright light beside the camera extracted last was the one cut.
+    ExtractedScene scene{DefaultAllocator()};
+    scene.SetViewOrigin(Float3{0, 0, 0});
+    for (u32 i = 0; i < kMaxLightsPerView; ++i)
+    {
+        GpuLight dim;
+        dim.type = 1.0f; // point
+        dim.positionWS = Float3{500.0f + static_cast<f32>(i), 0, 0};
+        dim.range = 5.0f;
+        dim.intensity = 0.5f;
+        scene.AddLight(dim);
+    }
+    GpuLight sun;
+    sun.type = 0.0f;
+    sun.intensity = 0.1f;
+    scene.AddLight(sun);
+    GpuLight lamp;
+    lamp.type = 2.0f; // spot, beside the view
+    lamp.positionWS = Float3{1, 2, 0};
+    lamp.range = 10.0f;
+    lamp.intensity = 20.0f;
+    lamp.shadowIndex = 3.0f;
+    scene.AddLight(lamp);
+    REQUIRE(scene.Lights().Size() == kMaxLightsPerView + 2);
+
+    scene.RankLights();
+    const Span<const GpuLight> lights = scene.Lights();
+    REQUIRE(lights.Size() == kMaxLightsPerView + 2); // ranked, not cut: the views cut
+    CHECK(lights[0].type == 0.0f);                    // the sun first
+    CHECK(lights[1].type == 2.0f);                    // then the lamp, with its own shadow index
+    CHECK(lights[1].shadowIndex == 3.0f);
+    // The dim ones keep their extraction order among themselves (the sort is stable).
+    CHECK(lights[2].positionWS.x == 500.0f);
+    CHECK(lights[kMaxLightsPerView + 1].positionWS.x == 500.0f + static_cast<f32>(kMaxLightsPerView - 1));
+}
+
+TEST_CASE("ExtractedScene: within the budget, lights keep extraction order")
+{
+    ExtractedScene scene{DefaultAllocator()};
+    scene.SetViewOrigin(Float3{0, 0, 0});
+    GpuLight far;
+    far.type = 1.0f;
+    far.positionWS = Float3{100, 0, 0};
+    GpuLight near = far;
+    near.positionWS = Float3{1, 0, 0};
+    scene.AddLight(far);
+    scene.AddLight(near);
+    scene.RankLights();
+    CHECK(scene.Lights()[0].positionWS.x == 100.0f);
+}

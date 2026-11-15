@@ -171,4 +171,36 @@ namespace foundation::render
     {
         return Span<const GpuLight>{m_lights.Data(), m_lights.Size()};
     }
+
+    void ExtractedScene::RankLights()
+    {
+        if (m_lights.Size() <= kMaxLightsPerView)
+        {
+            return; // every light is shaded: keep extraction order
+        }
+        const Float3 origin = m_hasViewOrigin ? m_viewOrigin : Float3{0, 0, 0};
+        const bool fromOrigin = m_hasViewOrigin;
+        // What a light brings to the view: its strongest channel times its intensity, over the
+        // distance to the view against its reach (a light whose reach covers the view counts in
+        // full, one far off falls with the square of its distance).
+        const auto contribution = [&](const GpuLight& light) noexcept
+        {
+            if (light.type == 0.0f)
+            {
+                return 3.4e38f; // directional: lights everything
+            }
+            const f32 strength =
+                Max(light.intensity, 0.0f) * Max(Max(light.color.x, light.color.y), light.color.z);
+            const f32 reach = Max(light.range, 1.0e-3f);
+            if (!fromOrigin)
+            {
+                return strength * reach * reach;
+            }
+            const Float3 d = light.positionWS - origin;
+            const f32 distanceSq = Dot(d, d);
+            return strength * reach * reach / (reach * reach + distanceSq);
+        };
+        m_lights.Sort([&](const GpuLight& a, const GpuLight& b)
+                      { return contribution(a) > contribution(b); });
+    }
 }
