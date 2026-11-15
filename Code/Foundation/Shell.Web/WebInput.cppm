@@ -6,10 +6,10 @@
 // The web shell's input devices, wired to the browser through Emscripten's HTML5 API. Keyboard
 // (window), mouse move, button and wheel (canvas) and touch start, move and end (canvas) are
 // event-driven: the callbacks fire asynchronously between animation frames, so they enqueue raw
-// events. WebInputManager::Update() (called once per frame from the shell's ProcessEvents) drains
-// the queue after snapshotting the previous frame's state, which keeps IsKeyPressed/Released
-// ("went down/up this frame") correct, the same model the SDL3 shell uses (BeginFrame,
-// then apply the frame's events). Gamepads are poll-based (the browser Gamepad API): Update()
+// events. WebInputManager::Update() (called once per frame from the shell's ProcessEvents) begins
+// the frame and drains the queue: each key and button is a ButtonLatch, so IsKeyPressed/Released
+// ("went down/up this frame") hold the frame's edges, both of them for a press and release that
+// share a frame, the same model the SDL3 shell uses. Gamepads are poll-based (the browser Gamepad API): Update()
 // samples every connected pad each frame.
 
 module;
@@ -126,24 +126,18 @@ export namespace foundation::shell
     class WebKeyboard final : public IKeyboard
     {
     public:
-        [[nodiscard]] bool IsKeyDown(KeyCode k) const override { return m_current[Index(k)]; }
-        [[nodiscard]] bool IsKeyPressed(KeyCode k) const override
-        {
-            return m_current[Index(k)] && !m_previous[Index(k)];
-        }
-        [[nodiscard]] bool IsKeyReleased(KeyCode k) const override
-        {
-            return !m_current[Index(k)] && m_previous[Index(k)];
-        }
+        [[nodiscard]] bool IsKeyDown(KeyCode k) const override { return m_keys[Index(k)].Down; }
+        [[nodiscard]] bool IsKeyPressed(KeyCode k) const override { return m_keys[Index(k)].Pressed; }
+        [[nodiscard]] bool IsKeyReleased(KeyCode k) const override { return m_keys[Index(k)].Released; }
         [[nodiscard]] KeyModifiers Modifiers() const override { return m_mods; }
 
-        void SetKey(KeyCode k, bool down) { m_current[Index(k)] = down; }
+        void SetKey(KeyCode k, bool down) { m_keys[Index(k)].Set(down); }
         void SetModifiers(KeyModifiers m) { m_mods = m; }
         void BeginFrame()
         {
-            for (core::u32 i = 0; i < kCount; ++i)
+            for (ButtonLatch& key : m_keys)
             {
-                m_previous[i] = m_current[i];
+                key.BeginFrame();
             }
         }
 
@@ -154,8 +148,7 @@ export namespace foundation::shell
             const core::u32 i = static_cast<core::u32>(k);
             return i < kCount ? i : 0;
         }
-        bool m_current[kCount] = {};
-        bool m_previous[kCount] = {};
+        ButtonLatch m_keys[kCount] = {};
         KeyModifiers m_mods = KeyModifiers::None;
     };
 
@@ -170,15 +163,9 @@ export namespace foundation::shell
         [[nodiscard]] core::f32 DeltaY() const override { return m_dy; }
         [[nodiscard]] core::f32 ScrollX() const override { return m_sx; }
         [[nodiscard]] core::f32 ScrollY() const override { return m_sy; }
-        [[nodiscard]] bool IsButtonDown(MouseButton b) const override { return m_current[Index(b)]; }
-        [[nodiscard]] bool IsButtonPressed(MouseButton b) const override
-        {
-            return m_current[Index(b)] && !m_previous[Index(b)];
-        }
-        [[nodiscard]] bool IsButtonReleased(MouseButton b) const override
-        {
-            return !m_current[Index(b)] && m_previous[Index(b)];
-        }
+        [[nodiscard]] bool IsButtonDown(MouseButton b) const override { return m_buttons[Index(b)].Down; }
+        [[nodiscard]] bool IsButtonPressed(MouseButton b) const override { return m_buttons[Index(b)].Pressed; }
+        [[nodiscard]] bool IsButtonReleased(MouseButton b) const override { return m_buttons[Index(b)].Released; }
         [[nodiscard]] bool RelativeMode() const override { return m_relative; }
         void SetRelativeMode(bool enabled) override { m_relative = enabled; } // no pointer lock: only recorded
         [[nodiscard]] bool CursorVisible() const override { return m_cursorVisible; }
@@ -197,7 +184,7 @@ export namespace foundation::shell
         {
             if (button < kCount)
             {
-                m_current[button] = down;
+                m_buttons[button].Set(down);
             }
         }
         void OnWheel(core::f32 sx, core::f32 sy)
@@ -207,9 +194,9 @@ export namespace foundation::shell
         }
         void BeginFrame()
         {
-            for (core::u32 i = 0; i < kCount; ++i)
+            for (ButtonLatch& button : m_buttons)
             {
-                m_previous[i] = m_current[i];
+                button.BeginFrame();
             }
             m_dx = m_dy = m_sx = m_sy = 0.0f;
         }
@@ -222,8 +209,7 @@ export namespace foundation::shell
             return i < kCount ? i : 0;
         }
         core::f32 m_x = 0, m_y = 0, m_dx = 0, m_dy = 0, m_sx = 0, m_sy = 0;
-        bool m_current[kCount] = {};
-        bool m_previous[kCount] = {};
+        ButtonLatch m_buttons[kCount] = {};
         bool m_relative = false;
         bool m_cursorVisible = true;
     };

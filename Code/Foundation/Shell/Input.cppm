@@ -21,6 +21,26 @@ namespace core = foundation::core;
 
 export namespace foundation::shell
 {
+    // One button's state and the edges since the frame began. Pressed and released are the edges
+    // the frame's events brought, latched until the next frame: a press and its release arriving in
+    // one frame (a quick click or tap while a frame takes long) read as both, never as neither, as
+    // the state at the frame's ends alone would. Every shell's keys and buttons keep them so.
+    struct ButtonLatch
+    {
+        bool Down = false;
+        bool Pressed = false;
+        bool Released = false;
+        void Set(bool down) noexcept
+        {
+            if (down && !Down)
+                Pressed = true;
+            else if (!down && Down)
+                Released = true;
+            Down = down;
+        }
+        void BeginFrame() noexcept { Pressed = Released = false; }
+    };
+
     class IKeyboard
     {
     public:

@@ -167,27 +167,8 @@ export namespace foundation::shell
     };
 
     // -----------------------------------------------------------------------
-    // Input devices: state fed by the SDL3 event pump. Pressed and released are the edges the
-    // frame's events brought, latched until the next frame: a press and its release arriving in
-    // one frame (a quick click while a frame takes long) read as both, never as neither, as the
-    // state at the frame's ends alone would.
+    // Input devices: state fed by the SDL3 event pump, each key and button a ButtonLatch.
     // -----------------------------------------------------------------------
-    // One button's state and the edges since the frame began.
-    struct ButtonLatch
-    {
-        bool Down = false;
-        bool Pressed = false;
-        bool Released = false;
-        void Set(bool down) noexcept
-        {
-            if (down && !Down)
-                Pressed = true;
-            else if (!down && Down)
-                Released = true;
-            Down = down;
-        }
-        void BeginFrame() noexcept { Pressed = Released = false; }
-    };
     inline constexpr core::u32 kKeyCount = static_cast<core::u32>(KeyCode::Count);
     inline constexpr core::u32 kMouseButtonCount = static_cast<core::u32>(MouseButton::Count);
     inline constexpr core::u32 kGamepadButtonCount = static_cast<core::u32>(GamepadButton::Count);
