@@ -330,6 +330,49 @@ TEST_CASE("code editor: its keys come through the keymap; typed text goes in; re
     CHECK(bed.Text() == core::String(u8"abc"));
 }
 
+TEST_CASE("code editor: a caret another caret's edit swallowed ends where that edit left it")
+{
+    // From 5 a word deleted backward takes "abcde", carrying the caret at 3 to 0, where its own
+    // delete has nothing to take: it kept its place from before the edit, a caret at 3 in "fgh".
+    Bed bed(u8"abcdefgh");
+    const CodeSelection two[] = {CodeSelection{At(0, 3), At(0, 3)}, CodeSelection{At(0, 5), At(0, 5)}};
+    bed.editor->SetSelections(two);
+    REQUIRE(bed.Run(TextEditCommand::DeleteWordBackward));
+    CHECK(bed.Text() == core::String(u8"fgh"));
+    CHECK(bed.editor->GetSelections().Size() == 1u);
+    CHECK(bed.Caret() == At(0, 0));
+    // Carets that do not overlap still each make their edit.
+    Bed apart(u8"ab cd ef");
+    const CodeSelection three[] = {CodeSelection{At(0, 2), At(0, 2)}, CodeSelection{At(0, 5), At(0, 5)},
+                                   CodeSelection{At(0, 8), At(0, 8)}};
+    apart.editor->SetSelections(three);
+    REQUIRE(apart.Run(TextEditCommand::DeleteBackward));
+    CHECK(apart.Text() == core::String(u8"a c e"));
+}
+
+TEST_CASE("code editor: read only, undo, redo and the line commands change nothing")
+{
+    Bed bed(u8"one\ntwo\nthree");
+    bed.editor->SetCaret(At(0, 3));
+    bed.editor->Type(SV(u8"!"));
+    REQUIRE(bed.Text() == core::String(u8"one!\ntwo\nthree"));
+    bed.editor->SetReadOnly(true);
+    bed.editor->SetCaret(At(1, 0));
+    const core::String before = bed.Text();
+    CHECK_FALSE(bed.Run(TextEditCommand::Undo));
+    CHECK(bed.Text() == before);
+    const char8_t* const commands[] = {kCodeMoveLinesUp, kCodeMoveLinesDown, kCodeDuplicateLinesUp, kCodeDuplicateLinesDown,
+                                       kCodeDeleteLines, kCodeIndentLines, kCodeOutdentLines};
+    for (const char8_t* command : commands)
+    {
+        (void)bed.root->RunCommand(SV(command));
+        CHECK_MESSAGE(bed.Text() == before, reinterpret_cast<const char*>(command));
+    }
+    bed.editor->SetReadOnly(false);
+    REQUIRE(bed.Run(TextEditCommand::Undo)); // writable again, the edit undoes
+    CHECK(bed.Text() == core::String(u8"one\ntwo\nthree"));
+}
+
 TEST_CASE("code editor: two editors over one document see each other's edits")
 {
     Bed bed(u8"shared");

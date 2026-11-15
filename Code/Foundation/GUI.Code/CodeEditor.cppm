@@ -1689,13 +1689,22 @@ export namespace foundation::gui
                 CodeRange replaced;
                 core::String text;
                 u32 back = 0; // the caret goes this many bytes before the end of the inserted text
+                // A selection that makes no edit keeps where it is now: the document's change
+                // listener has carried it through the edits already made (one reaching back over it,
+                // a word deleted backward, moved it), and its copy from before them is stale.
                 if constexpr (requires { edit(m_selections[i], replaced, text, back); })
                 {
                     if (!edit(m_selections[i], replaced, text, back))
+                    {
+                        after[i] = m_selections[i];
                         continue;
+                    }
                 }
                 else if (!edit(m_selections[i], replaced, text))
+                {
+                    after[i] = m_selections[i];
                     continue;
+                }
                 const CodeRange put = m_doc->Replace(replaced, text.AsView(), kind);
                 // Place the caret `back` bytes before the end of the inserted text, counting across line
                 // breaks.
@@ -2446,6 +2455,8 @@ export namespace foundation::gui
         case C::Undo:
         case C::Redo:
         {
+            if (m_readOnly)
+                return false; // undoing is editing the text: a read-only editor shows, never changes
             core::Array<CodeSelection> selections(MemoryAllocator());
             const bool done = command == C::Undo ? doc.Undo(selections) : doc.Redo(selections);
             if (done)
@@ -2916,6 +2927,8 @@ export namespace foundation::gui
 
     inline void CodeEditor::MoveLines(bool up)
     {
+        if (m_readOnly)
+            return; // edits the document directly, not through ApplyPlanned's read-only check
         core::Array<u32> firsts(MemoryAllocator()), lasts(MemoryAllocator());
         LineBlocks(firsts, lasts);
         if (firsts.IsEmpty() || (up && firsts[0] == 0) || (!up && lasts.Back() + 1 >= m_doc->LineCount()))
@@ -2951,6 +2964,8 @@ export namespace foundation::gui
 
     inline void CodeEditor::DuplicateLines(bool up)
     {
+        if (m_readOnly)
+            return; // edits the document directly, not through ApplyPlanned's read-only check
         core::Array<u32> firsts(MemoryAllocator()), lasts(MemoryAllocator());
         LineBlocks(firsts, lasts);
         const core::Array<CodeSelection> before = m_selections;
