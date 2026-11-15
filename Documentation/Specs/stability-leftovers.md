@@ -41,9 +41,10 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   move. Fix: the cluster tells every dispatcher of a subtree removed; a drag's target is pinned.
 - **`ScreenStack::Settle` loops while handlers pop screens.** `ScreenStack.cppm:244-252`. Test
   (ASAN): a `screenhidden` handler that pops two screens. Fix: settle over a pinned snapshot.
-- **Overlapping multi-caret edits corrupt text.** `CodeEditor.cppm:1678` (`EditEach`). Test:
-  "abcdefgh", carets at 3 and 5, DeleteWordBackward gives "fgh". Fix: clip each range against the
-  ranges before it and merge overlaps before applying.
+- **Overlapping multi-caret edits corrupt text.** `CodeEditor.cppm:1678` (`EditEach`). Built
+  2026-11-15, corrected: the text was not corrupted (the document's listener carries each caret
+  through the edits already made, so a swallowed caret's own edit finds nothing to do), but that
+  caret kept its place from before the edit, a stale caret in the text after it.
 - **A read-only code editor changes on Undo, Redo, Move and Duplicate lines.** `CodeEditor.cppm:2446,
   2917, 2952`. Test: read-only, `code.move-lines-up`, text unchanged. Fix: the edit commands check
   `m_readOnly` in one place.
@@ -81,8 +82,10 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   Fix: unsigned range arithmetic.
 - **`Engine.GUI`'s `PumpInput` uses the root and bridge after handlers run** (suspected).
   `GuiSubsystemImpl.cpp:1584-1635`; `Run::Stop` removes the tier synchronously
-  (`RunImpl.cpp:92`). Test (ASAN): a key handler that calls `run.Stop()`. Fix: pin both for the
-  pump. Confirm reachability first.
+  (`RunImpl.cpp:92`). Checked 2026-11-15: not reachable. A script ends a run only through
+  `run.requestExit`, which both hosts defer (the player's `ApplicationHost::RequestExit`, the Game
+  tab's `m_exitRequested`), and a scene load waits for the safe point; nothing a GUI handler calls
+  stops a run synchronously. Left in the backlog, to pin both if that changes.
 
 ### T1: the renderer and the RHI
 

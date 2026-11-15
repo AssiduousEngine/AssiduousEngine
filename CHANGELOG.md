@@ -35,6 +35,13 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   full particle ring.
 - Tools.Cook exits 1 when any cook fails; it exited with the failure count, which a shell reads
   modulo 256, so 256 failures read as success.
+- Editor: a read-only code page no longer changes on Undo, Redo, Move lines or Duplicate lines;
+  the curve editor no longer hangs on a flat curve at a large value; a value past a narrow integer
+  field's range is clamped (300 into a u8 was 44); an export no longer packs scenes a failed
+  export left behind; a drag between windows over a node the other window removes no longer
+  crashes.
+- Games: a screen handler that pops screens while the stack settles no longer reads freed
+  screens.
 - Web: a game with a render size of its own (Sky Hopper, PaperKid) takes taps on phones and
   tablets. Its buttons answered a mouse but not a finger, since the browser shell, unlike the
   native ones, did not give the finger to the mouse; a quick tap or click within one frame also
