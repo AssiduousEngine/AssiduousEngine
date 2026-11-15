@@ -20,6 +20,7 @@ import foundation.rhi;
 import foundation.rendergraph;
 import foundation.shaders;
 import foundation.shaders.system;
+import :bind_group_cache; // ViewSlots
 import :data;        // kGVelocityFormat (sky writes camera-motion velocity for TAA)
 
 using namespace foundation::core;
@@ -63,6 +64,7 @@ export namespace foundation::render
         SkyPass(rhi::Device& device, shaders::ShaderSystem& shaders, u32 framesInFlight) noexcept
             : m_device(&device), m_shaders(&shaders), m_fif(framesInFlight < 1 ? 1 : framesInFlight)
         {
+            m_slots.SetFramesInFlight(m_fif);
         }
         ~SkyPass() { Shutdown(); }
         SkyPass(const SkyPass&) = delete;
@@ -85,15 +87,12 @@ export namespace foundation::render
                         rendergraph::RGSubresourceRange colorSub = {});
 
     private:
-        static constexpr u32 kMaxFIF = 4;
-        static constexpr u32 kMaxViews = 16; // main views 0..9, probe-capture faces 10..15
-        static constexpr u32 kMaxSlots = kMaxViews * kMaxFIF;
         rhi::RenderPipeline* EnsurePipeline(rhi::TextureFormat colorFmt,
                                             rhi::TextureFormat depthFmt, u32 samples);
 
         // Env identity is (view pointer, context uid): the uid catches pointer reuse after an IBL
         // context eviction.
-        rhi::BindGroup* EnsureBindGroup(u32 slot, rhi::TextureView* envView, u64 envUid,
+        rhi::BindGroup* EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureView* envView, u64 envUid,
                                         const GpuSky& u);
 
         void Shutdown();
@@ -127,7 +126,7 @@ export namespace foundation::render
         Array<RetiredPipe> m_retiredPipes;
         u32 m_lastRetireFrame = 0xFFFFFFFFu;
         rhi::Sampler* m_sampler = nullptr;
-        Slot m_slots[kMaxSlots] = {};
+        ViewSlots<Slot> m_slots; // per (view, frame in flight), however many views a frame has
     };
 
 } // namespace foundation::render

@@ -88,6 +88,7 @@ export namespace foundation::render
             : m_device(&device), m_shaders(&shaders),
               m_framesInFlight(framesInFlight < 1 ? 1 : framesInFlight)
         {
+            m_slots.SetFramesInFlight(m_framesInFlight);
         }
 
         ~TonemapPass() { Shutdown(); }
@@ -116,10 +117,6 @@ export namespace foundation::render
 
     private:
         static constexpr rhi::TextureFormat kHdrFormat = rhi::TextureFormat::RGBA16Float;
-        static constexpr u32 kMaxFramesInFlight = 8;
-        static constexpr u32 kMaxViews = 8;
-        // Two uses per view a frame: the scene's tone map, and a scaled view's present copy.
-        static constexpr u32 kMaxSlots = kMaxViews * kMaxFramesInFlight * 2;
 
         // Build the fullscreen pipeline for `fmt` (rebuilt if the LDR target format changes; usually one).
         rhi::RenderPipeline* EnsurePipeline(rhi::TextureFormat fmt);
@@ -131,7 +128,14 @@ export namespace foundation::render
         // on last frame's value, and the group would keep the other exposure texture, showing a
         // stale exposure every other frame.
         using BindInputs = BindGroupInputs<5>;
-        rhi::BindGroup* EnsureBindGroup(u32 slot, const BindInputs& inputs);
+        struct Slot
+        {
+            rhi::BindGroup* group = nullptr;
+            BindInputs inputs; // what the group was built from
+        };
+        // `use` is 0 for the scene's tone map and 1 for a scaled view's present copy: each view has
+        // both in a frame, so they key apart (view * 2 + use).
+        rhi::BindGroup* EnsureBindGroup(u32 viewUse, u32 frameIndex, const BindInputs& inputs);
 
         void Shutdown();
 
@@ -155,8 +159,7 @@ export namespace foundation::render
         PipelineEntry m_pipelines[kMaxPipelineFormats] = {};
 
         rhi::Sampler* m_sampler = nullptr; // linear-clamp, for the bloom composite
-        rhi::BindGroup* m_bindGroups[kMaxSlots] = {};
-        BindInputs m_bgInputs[kMaxSlots] = {}; // what each slot's group was built from
+        ViewSlots<Slot> m_slots; // per (view and use, frame in flight), however many views a frame has
     };
 
 } // namespace foundation::render

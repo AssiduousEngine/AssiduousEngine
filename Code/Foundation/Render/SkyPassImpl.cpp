@@ -101,7 +101,6 @@ namespace foundation::render
         {
             return;
         }
-        const u32 slot = (viewIndex % kMaxViews) * m_fif + (frameIndex % m_fif);
         const u64 uid = envUid;
         GpuSky u{};
         u.invViewProj = invViewProj;
@@ -121,7 +120,7 @@ namespace foundation::render
 
         graph.AddRenderPass(
             u8"sky",
-            [this, color, velocity, depth, envH, envView, pipeline, slot, uid, u, vpX, vpY, vpW,
+            [this, color, velocity, depth, envH, envView, pipeline, viewIndex, frameIndex, uid, u, vpX, vpY, vpW,
              vpH, colorSub](rendergraph::PassBuilder& b)
             {
                 b.SetColorTarget(0, color, rhi::LoadOp::Load, rhi::StoreOp::Store,
@@ -133,9 +132,9 @@ namespace foundation::render
                 b.SetViewport(vpX, vpY, vpW, vpH);
                 b.NeverCull();
                 b.SetExecute(
-                    [this, envView, pipeline, slot, uid, u](rhi::RenderPassEncoder& rp)
+                    [this, envView, pipeline, viewIndex, frameIndex, uid, u](rhi::RenderPassEncoder& rp)
                     {
-                        rhi::BindGroup* bg = EnsureBindGroup(slot, envView, uid, u);
+                        rhi::BindGroup* bg = EnsureBindGroup(viewIndex, frameIndex, envView, uid, u);
                         if (bg == nullptr)
                         {
                             return;
@@ -212,14 +211,10 @@ namespace foundation::render
         return m_pipeline;
     }
 
-    rhi::BindGroup* SkyPass::EnsureBindGroup(u32 slot, rhi::TextureView* envView, u64 envUid,
-                                             const GpuSky& u)
+    rhi::BindGroup* SkyPass::EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureView* envView,
+                                             u64 envUid, const GpuSky& u)
     {
-        if (slot >= kMaxSlots)
-        {
-            return nullptr;
-        }
-        Slot& s = m_slots[slot];
+        Slot& s = m_slots.At(viewIndex, frameIndex);
         if (s.ubo == nullptr)
         {
             rhi::BufferDesc bd{};
@@ -266,17 +261,17 @@ namespace foundation::render
 
     void SkyPass::Shutdown()
     {
-        for (u32 i = 0; i < kMaxSlots; ++i)
+        for (Slot& slot : m_slots.All())
         {
-            if (m_slots[i].bindGroup)
+            if (slot.bindGroup)
             {
-                m_device->DestroyBindGroup(m_slots[i].bindGroup);
-                m_slots[i].bindGroup = nullptr;
+                m_device->DestroyBindGroup(slot.bindGroup);
+                slot.bindGroup = nullptr;
             }
-            if (m_slots[i].ubo)
+            if (slot.ubo)
             {
-                m_device->DestroyBuffer(m_slots[i].ubo);
-                m_slots[i].ubo = nullptr;
+                m_device->DestroyBuffer(slot.ubo);
+                slot.ubo = nullptr;
             }
         }
         if (m_pipeline)

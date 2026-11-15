@@ -22,6 +22,7 @@ import foundation.shaders;
 import foundation.shaders.system;
 import :debug_font;
 import :debug_draw;
+import :bind_group_cache; // ViewSlots
 
 using namespace foundation::core;
 namespace rendergraph = foundation::rendergraph;
@@ -63,6 +64,7 @@ export namespace foundation::render
             : m_device(&device), m_shaders(&shaders),
               m_framesInFlight(framesInFlight < 1 ? 1 : framesInFlight)
         {
+            m_slots.SetFramesInFlight(m_framesInFlight);
         }
         ~DebugDrawPass() { Shutdown(); }
         DebugDrawPass(const DebugDrawPass&) = delete;
@@ -91,8 +93,6 @@ export namespace foundation::render
                            i32 vpY, u32 vpW, u32 vpH, u32 frameIndex, u32 viewIndex);
 
     private:
-        static constexpr u32 kMaxViews = 8;
-        static constexpr u32 kMaxSlots = kMaxViews * 8;
 
         struct Pipelines
         {
@@ -118,8 +118,8 @@ export namespace foundation::render
         static void EmitQuad(Array<debug::DebugTextVertex>& out, f32 x, f32 y, f32 w, f32 h, f32 u0,
                              f32 v0, f32 u1, f32 v1, u32 col);
 
-        rhi::Buffer* UploadGeom(u32 slot, const Array<debug::DebugVertex>& verts);
-        rhi::Buffer* UploadScreen(u32 slot, const Array<debug::DebugTextVertex>& verts);
+        rhi::Buffer* UploadGeom(u32 viewIndex, u32 frameIndex, const Array<debug::DebugVertex>& verts);
+        rhi::Buffer* UploadScreen(u32 viewIndex, u32 frameIndex, const Array<debug::DebugTextVertex>& verts);
         bool EnsureBuffer(rhi::Buffer*& buf, u64& cap, u64 bytes);
 
         Pipelines* EnsurePipelines(rhi::TextureFormat colorFmt, rhi::TextureFormat depthFmt);
@@ -157,10 +157,16 @@ export namespace foundation::render
         rhi::RenderPipeline* m_screenPipe = nullptr;
         rhi::TextureFormat m_screenFmt = rhi::TextureFormat::Undefined;
         u64 m_screenShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
-        rhi::Buffer* m_geomBuf[kMaxSlots] = {};
-        u64 m_geomCap[kMaxSlots] = {};
-        rhi::Buffer* m_screenBuf[kMaxSlots] = {};
-        u64 m_screenCap[kMaxSlots] = {};
+        // Per (view, frame in flight), however many views a frame has: its geometry and its
+        // screen text, each a buffer grown to fit.
+        struct Slot
+        {
+            rhi::Buffer* geom = nullptr;
+            u64 geomCap = 0;
+            rhi::Buffer* screen = nullptr;
+            u64 screenCap = 0;
+        };
+        ViewSlots<Slot> m_slots;
     };
 
 } // namespace foundation::render

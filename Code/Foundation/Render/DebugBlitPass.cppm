@@ -23,6 +23,7 @@ import foundation.rendergraph;
 import foundation.render.api;
 import foundation.shaders;
 import foundation.shaders.system;
+import :bind_group_cache; // ViewSlots
 
 using namespace foundation::core;
 namespace rendergraph = foundation::rendergraph;
@@ -54,6 +55,7 @@ export namespace foundation::render
             : m_device(&device), m_shaders(&shaders),
               m_framesInFlight(framesInFlight < 1 ? 1 : framesInFlight)
         {
+            m_slots.SetFramesInFlight(m_framesInFlight);
         }
         ~DebugBlitPass() { Shutdown(); }
         DebugBlitPass(const DebugBlitPass&) = delete;
@@ -102,8 +104,6 @@ export namespace foundation::render
             {
                 return;
             }
-            const u32 slot =
-                (viewIndex % kMaxViews) * m_framesInFlight + (frameIndex % m_framesInFlight);
 
             GpuDebugBlitPush push{};
             push.uvScaleX = 1.0f;
@@ -124,7 +124,7 @@ export namespace foundation::render
 
             graph.AddRenderPass(
                 u8"debug.blit",
-                [this, &graph, src, ldr, vpX, vpY, vpW, vpH, pipeline, slot, push,
+                [this, &graph, src, ldr, vpX, vpY, vpW, vpH, pipeline, viewIndex, frameIndex, push,
                  srcIsDepth](rendergraph::PassBuilder& b)
                 {
                     b.SetColorTarget(0, ldr, rhi::LoadOp::Load, rhi::StoreOp::Store);
@@ -132,7 +132,7 @@ export namespace foundation::render
                     b.SetViewport(vpX, vpY, vpW, vpH);
                     b.NeverCull();
                     b.SetExecute(
-                        [this, &graph, src, pipeline, slot, push,
+                        [this, &graph, src, pipeline, viewIndex, frameIndex, push,
                          srcIsDepth](rhi::RenderPassEncoder& rp)
                         {
                             rhi::TextureView* view = srcIsDepth ? graph.GetDepthOnlyTextureView(src)
@@ -142,7 +142,7 @@ export namespace foundation::render
                                 view = graph.GetTextureView(src);
                             }
                             rhi::BindGroup* bg =
-                                EnsureBindGroup(slot, view, graph.GetTextureGeneration(src));
+                                EnsureBindGroup(viewIndex, frameIndex, view, graph.GetTextureGeneration(src));
                             if (bg == nullptr)
                             {
                                 return;
@@ -157,9 +157,6 @@ export namespace foundation::render
         }
 
     private:
-        static constexpr u32 kMaxViews = 8;
-        static constexpr u32 kMaxFramesInFlight = 8;
-        static constexpr u32 kMaxSlots = kMaxViews * kMaxFramesInFlight;
         static constexpr usize kMaxPipelineFormats = 4;
         struct PipelineEntry
         {
@@ -234,44 +231,45 @@ export namespace foundation::render
             return entry->pipeline;
         }
 
-        rhi::BindGroup* EnsureBindGroup(u32 slot, rhi::TextureView* srcView, u64 generation)
+        rhi::BindGroup* EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureView* srcView, u64 generation)
         {
-            if (slot >= kMaxSlots || srcView == nullptr)
+            if (srcView == nullptr)
             {
                 return nullptr;
             }
-            if (m_bindGroups[slot] != nullptr && m_bgViews[slot] == srcView &&
-                m_bgGen[slot] == generation)
+            Slot& slot = m_slots.At(viewIndex, frameIndex);
+            if (slot.group != nullptr && slot.view == srcView &&
+                slot.generation == generation)
             {
-                return m_bindGroups[slot];
+                return slot.group;
             }
-            if (m_bindGroups[slot] != nullptr)
+            if (slot.group != nullptr)
             {
-                m_device->DestroyBindGroup(m_bindGroups[slot]);
-                m_bindGroups[slot] = nullptr;
+                m_device->DestroyBindGroup(slot.group);
+                slot.group = nullptr;
             }
             rhi::BindGroupEntry entries[] = {rhi::BindGroupEntry::TextureEntry(srcView)};
             rhi::BindGroupDesc bgd{};
             bgd.layout = m_layout;
             bgd.entries = Span<const rhi::BindGroupEntry>{entries, 1};
-            if (!m_device->CreateBindGroup(bgd, m_bindGroups[slot]).IsOk())
+            if (!m_device->CreateBindGroup(bgd, slot.group).IsOk())
             {
-                m_bindGroups[slot] = nullptr;
+                slot.group = nullptr;
                 return nullptr;
             }
-            m_bgViews[slot] = srcView;
-            m_bgGen[slot] = generation;
-            return m_bindGroups[slot];
+            slot.view = srcView;
+            slot.generation = generation;
+            return slot.group;
         }
 
         void Shutdown()
         {
-            for (u32 i = 0; i < kMaxSlots; ++i)
+            for (Slot& slot : m_slots.All())
             {
-                if (m_bindGroups[i] != nullptr)
+                if (slot.group != nullptr)
                 {
-                    m_device->DestroyBindGroup(m_bindGroups[i]);
-                    m_bindGroups[i] = nullptr;
+                    m_device->DestroyBindGroup(slot.group);
+                    slot.group = nullptr;
                 }
             }
             for (PipelineEntry& entry : m_pipelines)
@@ -300,9 +298,15 @@ export namespace foundation::render
         rhi::BindGroupLayout* m_layout = nullptr;
         rhi::PipelineLayout* m_pipelineLayout = nullptr;
         PipelineEntry m_pipelines[kMaxPipelineFormats] = {};
-        rhi::BindGroup* m_bindGroups[kMaxSlots] = {};
-        rhi::TextureView* m_bgViews[kMaxSlots] = {};
-        u64 m_bgGen[kMaxSlots] = {};
+        // Per (view, frame in flight), however many views a frame has: one bind group and the source
+        // view and generation it was built from.
+        struct Slot
+        {
+            rhi::BindGroup* group = nullptr;
+            rhi::TextureView* view = nullptr;
+            u64 generation = 0;
+        };
+        ViewSlots<Slot> m_slots;
     };
 
 } // namespace foundation::render

@@ -1774,9 +1774,9 @@ namespace foundation::render
                             capVel, capMaterial, capAlbedo, faceVP, Float2{0, 0}, Float2{0, 0},
                             ClusterBinding{}, capShadow, capIbl, rhi::LoadOp::Clear, sub);
                         // Sky into the same face, after the forward (loads the captured depth).
-                        // Distinct sky uniform slot per capture face (2..7), so the capture never shares SkyPass's
-                        // per-view slot with a main view (0, 1) or with another face; otherwise the last recorder
-                        // wins the shared slot and the captured sky reads a main view's camera.
+                        // The capture's own view indices (the forward's, above): never a main view's, so the
+                        // capture never shares SkyPass's per-view slot with one, or with another face; otherwise
+                        // the last recorder wins the shared slot and the captured sky reads a main view's camera.
                         m_sky->DeclareSky(m_graph, capturedH, capVel, capDepth, capCtx->EnvHandle(),
                                           capCtx->EnvView(), ReflectionProbeSystem::kCubeFormat,
                                           m_pass.DepthFormat(), Inverse(faceVP), faceVP,
@@ -1784,7 +1784,7 @@ namespace foundation::render
                                           capCtx->SkyBackgroundIntensity(), capCtx->SunDir(),
                                           capCtx->SunAngularSize(), Float3{1.0f, 0.98f, 0.92f},
                                           sunInt, 0, 0, res, res, m_frameIndex,
-                                          /*viewIndex*/ 10u + face, capCtx->Uid(),
+                                          /*viewIndex*/ kCaptureViewIndexBase + face, capCtx->Uid(),
                                           /*samples*/ 1u, sub); // probe capture is single-sample
                     }
                     // Blit captured into prefiltered mip 0 (a flip that corrects the RH-LookAt mirror) so the

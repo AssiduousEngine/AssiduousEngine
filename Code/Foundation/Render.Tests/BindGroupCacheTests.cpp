@@ -111,3 +111,30 @@ TEST_CASE("bind group cache: the bound buffer and its generation are inputs too"
     CHECK(cache.Find(history, regenerated, stale) == nullptr);
     CHECK(stale == Group(1));
 }
+
+TEST_CASE("view slots: every view a frame draws has slots of its own, however many views")
+{
+    // A pass keeps one bind group per (view, frame in flight). A fixed table shared a slot between
+    // view 0 and view 8, so a ninth view rebuilt the first view's group under it every frame.
+    ViewSlots<int> slots;
+    slots.SetFramesInFlight(2);
+    constexpr u32 kViews = 20;
+    for (u32 v = 0; v < kViews; ++v)
+    {
+        for (u32 f = 0; f < 2; ++f)
+        {
+            slots.At(v, f) = static_cast<int>(v * 2 + f + 1);
+        }
+    }
+    CHECK(slots.Views() == kViews);
+    for (u32 v = 0; v < kViews; ++v)
+    {
+        for (u32 f = 0; f < 2; ++f)
+        {
+            CHECK(slots.At(v, f) == static_cast<int>(v * 2 + f + 1));
+        }
+    }
+    // The device's frame index wraps to the frames in flight.
+    CHECK(slots.At(3, 4) == slots.At(3, 0));
+    CHECK(slots.All().Size() == kViews * 2);
+}

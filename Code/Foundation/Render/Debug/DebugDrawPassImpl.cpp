@@ -145,9 +145,7 @@ namespace foundation::render
             return;
         }
 
-        const u32 slot =
-            (viewIndex % kMaxViews) * m_framesInFlight + (frameIndex % m_framesInFlight);
-        rhi::Buffer* vb = total > 0 ? UploadGeom(slot, verts) : nullptr;
+        rhi::Buffer* vb = total > 0 ? UploadGeom(viewIndex, frameIndex, verts) : nullptr;
         if (total > 0 && vb == nullptr)
         {
             return;
@@ -246,9 +244,7 @@ namespace foundation::render
             return;
         }
 
-        const u32 slot =
-            (viewIndex % kMaxViews) * m_framesInFlight + (frameIndex % m_framesInFlight);
-        rhi::Buffer* vb = UploadScreen(slot, verts);
+        rhi::Buffer* vb = UploadScreen(viewIndex, frameIndex, verts);
         if (vb == nullptr)
         {
             return;
@@ -402,42 +398,36 @@ namespace foundation::render
         out.PushBack(bl);
     }
 
-    rhi::Buffer* DebugDrawPass::UploadGeom(u32 slot, const Array<debug::DebugVertex>& verts)
+    rhi::Buffer* DebugDrawPass::UploadGeom(u32 viewIndex, u32 frameIndex, const Array<debug::DebugVertex>& verts)
     {
-        if (slot >= kMaxSlots)
-        {
-            return nullptr;
-        }
+        Slot& slot = m_slots.At(viewIndex, frameIndex);
         const u64 bytes = verts.Size() * sizeof(debug::DebugVertex);
-        if (!EnsureBuffer(m_geomBuf[slot], m_geomCap[slot], bytes))
+        if (!EnsureBuffer(slot.geom, slot.geomCap, bytes))
         {
             return nullptr;
         }
-        if (void* p = m_geomBuf[slot]->Map())
+        if (void* p = slot.geom->Map())
         {
             MemCopy(p, verts.Data(), bytes);
-            m_geomBuf[slot]->Unmap();
+            slot.geom->Unmap();
         }
-        return m_geomBuf[slot];
+        return slot.geom;
     }
 
-    rhi::Buffer* DebugDrawPass::UploadScreen(u32 slot, const Array<debug::DebugTextVertex>& verts)
+    rhi::Buffer* DebugDrawPass::UploadScreen(u32 viewIndex, u32 frameIndex, const Array<debug::DebugTextVertex>& verts)
     {
-        if (slot >= kMaxSlots)
-        {
-            return nullptr;
-        }
+        Slot& slot = m_slots.At(viewIndex, frameIndex);
         const u64 bytes = verts.Size() * sizeof(debug::DebugTextVertex);
-        if (!EnsureBuffer(m_screenBuf[slot], m_screenCap[slot], bytes))
+        if (!EnsureBuffer(slot.screen, slot.screenCap, bytes))
         {
             return nullptr;
         }
-        if (void* p = m_screenBuf[slot]->Map())
+        if (void* p = slot.screen->Map())
         {
             MemCopy(p, verts.Data(), bytes);
-            m_screenBuf[slot]->Unmap();
+            slot.screen->Unmap();
         }
-        return m_screenBuf[slot];
+        return slot.screen;
     }
 
     bool DebugDrawPass::EnsureBuffer(rhi::Buffer*& buf, u64& cap, u64 bytes)
@@ -746,17 +736,17 @@ namespace foundation::render
 
     void DebugDrawPass::Shutdown()
     {
-        for (u32 i = 0; i < kMaxSlots; ++i)
+        for (Slot& slot : m_slots.All())
         {
-            if (m_geomBuf[i] != nullptr)
+            if (slot.geom != nullptr)
             {
-                m_device->DestroyBuffer(m_geomBuf[i]);
-                m_geomBuf[i] = nullptr;
+                m_device->DestroyBuffer(slot.geom);
+                slot.geom = nullptr;
             }
-            if (m_screenBuf[i] != nullptr)
+            if (slot.screen != nullptr)
             {
-                m_device->DestroyBuffer(m_screenBuf[i]);
-                m_screenBuf[i] = nullptr;
+                m_device->DestroyBuffer(slot.screen);
+                slot.screen = nullptr;
             }
         }
         DestroyAllGeomPipelines();

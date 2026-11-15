@@ -79,6 +79,40 @@ export namespace foundation::render
         device.DestroyBindGroup(group);
     }
 
+    // A pass's per-view state, one entry for each (view, frame in flight): a frame's views each get
+    // their own, however many a frame has (split screen, render-texture cameras, probe faces), and
+    // the table grows when a frame has more than it has seen. A fixed table indexed modulo its size
+    // gave two views one entry, and the second destroyed a bind group the first's commands, recorded
+    // earlier in the frame, still used.
+    template <typename T>
+    class ViewSlots
+    {
+    public:
+        ViewSlots() = default; // on the engine's allocator, as BindGroupCache's map is
+        explicit ViewSlots(IAllocator& allocator) : m_entries(allocator) {}
+
+        // How many frames are in flight (each view has that many entries). Set before first use.
+        void SetFramesInFlight(u32 frames) noexcept { m_frames = frames == 0 ? 1u : frames; }
+
+        // `view`'s entry for frame `frame`, the table grown to hold the view.
+        [[nodiscard]] T& At(u32 view, u32 frame)
+        {
+            const usize index = static_cast<usize>(view) * m_frames + (frame % m_frames);
+            if (index >= m_entries.Size())
+                m_entries.Resize((static_cast<usize>(view) + 1) * m_frames);
+            return m_entries[index];
+        }
+        // How many views the table holds now.
+        [[nodiscard]] u32 Views() const noexcept { return static_cast<u32>(m_entries.Size() / m_frames); }
+        // Every entry, for the owner to release what each holds.
+        [[nodiscard]] Span<T> All() noexcept { return m_entries.AsSpan(); }
+        void Clear() { m_entries.Clear(); }
+
+    private:
+        Array<T> m_entries;
+        u32 m_frames = 1;
+    };
+
     // Bind groups keyed by the view that selects one (a history texture, an input that is stable
     // per size), each remembering the inputs it was built from.
     template <usize N>

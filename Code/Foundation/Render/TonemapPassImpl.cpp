@@ -97,8 +97,7 @@ namespace foundation::render
         // The present copy has slots of its own: the tone map's group for this view is still
         // referenced by commands recorded earlier in the frame.
         const u32 use = copyOnly ? 1u : 0u;
-        const u32 slot = ((use * kMaxViews) + (viewIndex % kMaxViews)) * m_framesInFlight +
-                         (frameIndex % m_framesInFlight);
+        const u32 viewUse = viewIndex * 2u + use; // looked up again at execute, when the table is final
         // The scene input is mirrored on Y-flip backends unless the TAA resolve un-mirrored
         // it upstream; tonemap compensates then (see tonemap.ps.hlsl FlipSceneY).
         const bool flipSceneY = sceneYFlipped && m_device->NeedsClipSpaceYFlip();
@@ -138,7 +137,7 @@ namespace foundation::render
         const u64 lutUid = gradeOn ? grading.uid : 0;
         graph.AddRenderPass(
             u8"tonemap",
-            [this, &graph, hdr, bloom, ao, ldr, load, clear, vpX, vpY, vpW, vpH, pipeline, slot,
+            [this, &graph, hdr, bloom, ao, ldr, load, clear, vpX, vpY, vpW, vpH, pipeline, viewUse, frameIndex,
              push, autoView, autoGen, autoHandle, lutView, lutUid](rendergraph::PassBuilder& b)
             {
                 b.SetColorTarget(0, ldr, load, rhi::StoreOp::Store, clear);
@@ -152,7 +151,7 @@ namespace foundation::render
                 b.SetViewport(vpX, vpY, vpW, vpH);
                 b.NeverCull();
                 b.SetExecute(
-                    [this, &graph, hdr, bloom, ao, pipeline, slot, push, autoView, autoGen,
+                    [this, &graph, hdr, bloom, ao, pipeline, viewUse, frameIndex, push, autoView, autoGen,
                      lutView, lutUid](rhi::RenderPassEncoder& rp)
                     {
                         rhi::TextureView* hdrView = graph.GetTextureView(hdr);
@@ -166,7 +165,7 @@ namespace foundation::render
                                    autoView != nullptr ? autoGen : hdrGen);
                         inputs.Set(4, lutView != nullptr ? lutView : hdrView,
                                    lutView != nullptr ? lutUid : hdrGen);
-                        rhi::BindGroup* bg = EnsureBindGroup(slot, inputs);
+                        rhi::BindGroup* bg = EnsureBindGroup(viewUse, frameIndex, inputs);
                         if (bg == nullptr)
                         {
                             return;
@@ -252,20 +251,21 @@ namespace foundation::render
         return entry->pipeline;
     }
 
-    rhi::BindGroup* TonemapPass::EnsureBindGroup(u32 slot, const BindInputs& inputs)
+    rhi::BindGroup* TonemapPass::EnsureBindGroup(u32 viewUse, u32 frameIndex, const BindInputs& inputs)
     {
-        if (slot >= kMaxSlots || !inputs.Complete())
+        if (!inputs.Complete())
         {
             return nullptr;
         }
-        if (m_bindGroups[slot] != nullptr && m_bgInputs[slot] == inputs)
+        Slot& slot = m_slots.At(viewUse, frameIndex);
+        if (slot.group != nullptr && slot.inputs == inputs)
         {
-            return m_bindGroups[slot];
+            return slot.group;
         }
-        if (m_bindGroups[slot] != nullptr)
+        if (slot.group != nullptr)
         {
-            m_device->DestroyBindGroup(m_bindGroups[slot]);
-            m_bindGroups[slot] = nullptr;
+            m_device->DestroyBindGroup(slot.group);
+            slot.group = nullptr;
         }
         rhi::BindGroupEntry entries[] = {
             rhi::BindGroupEntry::TextureEntry(inputs.views[0]),
@@ -278,23 +278,23 @@ namespace foundation::render
         rhi::BindGroupDesc bgd{};
         bgd.layout = m_layout;
         bgd.entries = Span<const rhi::BindGroupEntry>{entries, 6};
-        if (!m_device->CreateBindGroup(bgd, m_bindGroups[slot]).IsOk())
+        if (!m_device->CreateBindGroup(bgd, slot.group).IsOk())
         {
-            m_bindGroups[slot] = nullptr;
+            slot.group = nullptr;
             return nullptr;
         }
-        m_bgInputs[slot] = inputs;
-        return m_bindGroups[slot];
+        slot.inputs = inputs;
+        return slot.group;
     }
 
     void TonemapPass::Shutdown()
     {
-        for (u32 i = 0; i < kMaxSlots; ++i)
+        for (Slot& slot : m_slots.All())
         {
-            if (m_bindGroups[i] != nullptr)
+            if (slot.group != nullptr)
             {
-                m_device->DestroyBindGroup(m_bindGroups[i]);
-                m_bindGroups[i] = nullptr;
+                m_device->DestroyBindGroup(slot.group);
+                slot.group = nullptr;
             }
         }
         for (PipelineEntry& entry : m_pipelines)
