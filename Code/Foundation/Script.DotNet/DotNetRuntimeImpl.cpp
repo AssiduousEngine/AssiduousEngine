@@ -69,10 +69,12 @@ namespace foundation::script::dotnet
         m_getField = reinterpret_cast<decltype(m_getField)>(find(u8"GetField"));
         m_release = reinterpret_cast<decltype(m_release)>(find(u8"Release"));
         m_describeClass = reinterpret_cast<decltype(m_describeClass)>(find(u8"DescribeClass"));
+        m_describeAssembly = reinterpret_cast<decltype(m_describeAssembly)>(find(u8"DescribeAssembly"));
         m_lastError = reinterpret_cast<decltype(m_lastError)>(find(u8"LastError"));
         auto* invoke = reinterpret_cast<decltype(m_invoke)>(find(u8"Invoke"));
         if (initialize == nullptr || m_loadAssembly == nullptr || m_createInstance == nullptr || m_getField == nullptr ||
-            m_release == nullptr || m_describeClass == nullptr || m_lastError == nullptr || invoke == nullptr)
+            m_release == nullptr || m_describeClass == nullptr || m_describeAssembly == nullptr || m_lastError == nullptr ||
+            invoke == nullptr)
             return Fail(m_host.Failure());
         if (const i32 rc = initialize(&EngineFunctions(allocator)); rc != 0)
             return FailManaged(rc);
@@ -142,6 +144,17 @@ namespace foundation::script::dotnet
         if (const i32 rc = m_describeClass(className.Data(), SizeOf(className), values.Data(), static_cast<i32>(values.Size()), &text,
                                            &length);
             rc != 0)
+            return Err(FailManaged(rc).Code());
+        return String(StringView(text, static_cast<usize>(length)));
+    }
+
+    Result<String> DotNetRuntime::DescribeAssembly(Span<const byte> image)
+    {
+        if (!IsStarted())
+            return Err(Fail(u8"the runtime is not started").Code());
+        const utf8char* text = nullptr;
+        i32 length = 0;
+        if (const i32 rc = m_describeAssembly(image.Data(), static_cast<i32>(image.Size()), &text, &length); rc != 0)
             return Err(FailManaged(rc).Code());
         return String(StringView(text, static_cast<usize>(length)));
     }
