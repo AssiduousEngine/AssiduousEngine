@@ -3232,16 +3232,29 @@ export namespace foundation::gui
         bool any = false;
         for (const CodeSelection& s : m_selections)
             any = any || !s.IsEmpty();
+        // With no selection each caret takes its whole line, once: a caret on a line an earlier caret
+        // took does nothing. Decided before any edit, which moves the carets (two on one line cut that
+        // line and then the one after it, the first caret having moved onto it).
+        core::Array<bool> repeat(MemoryAllocator());
+        repeat.Resize(m_selections.Size());
+        for (usize i = 0; i < m_selections.Size(); ++i)
+        {
+            repeat[i] = false;
+            for (usize j = 0; !any && j < i; ++j)
+                repeat[i] = repeat[i] || m_selections[j].Head.Line == m_selections[i].Head.Line;
+        }
         core::String text;
         for (usize i = 0; i < m_selections.Size(); ++i)
         {
             const CodeSelection& s = m_selections[i];
-            if (any && s.IsEmpty())
+            if ((any && s.IsEmpty()) || repeat[i])
                 continue;
-            if (!text.IsEmpty())
-                text.Append(core::StringView(u8"\n"));
             if (any)
+            {
+                if (!text.IsEmpty())
+                    text.Append(core::StringView(u8"\n"));
                 text.Append(m_doc->TextIn(s.Range()).AsView());
+            }
             else // no selection: the caret's whole line, with its line feed
             {
                 text.Append(m_doc->LineText(s.Head.Line));
@@ -3252,8 +3265,12 @@ export namespace foundation::gui
             clipboard->SetText(text.AsView());
         if (!cut || m_readOnly)
             return;
+        usize index = m_selections.Size();
         EditEach(CodeEditKind::Other, [&](const CodeSelection& s, CodeRange& replaced, core::String&)
         {
+            --index; // EditEach goes from the last selection
+            if (repeat[index])
+                return false;
             if (any)
                 replaced = s.Range();
             else if (s.Head.Line + 1 < m_doc->LineCount())

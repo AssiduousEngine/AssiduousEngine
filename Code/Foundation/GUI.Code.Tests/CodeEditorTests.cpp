@@ -574,3 +574,15 @@ TEST_CASE("code editor: lines pasted one to a caret from a CR LF clipboard carry
     CHECK(bed.editor->GetDocument().LineText(0) == SV(u8"xone"));
     CHECK(bed.editor->GetDocument().LineText(1) == SV(u8"ytwo"));
 }
+
+TEST_CASE("code editor: two carets on one line cut that line once, and no other")
+{
+    // With no selection each caret cut its whole line, and two carets on one line both did: the
+    // second cut removed the line, the first caret moved to the next line, and that went too.
+    Bed bed(u8"one\ntwo\nthree");
+    bed.editor->SetCaret(At(0, 1));
+    bed.editor->AddCaret(At(0, 2));
+    bed.Run(TextEditCommand::Cut);
+    CHECK(bed.Text() == core::String(u8"two\nthree"));
+    CHECK(bed.clipboard.GetText() == core::String(u8"one\n"));
+}
