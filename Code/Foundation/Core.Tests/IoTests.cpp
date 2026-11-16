@@ -984,3 +984,26 @@ TEST_CASE("io: PathNormalizeLexically and PathIsInside")
     CHECK_FALSE(PathIsInside(u8"/proj/../etc/passwd", u8"/proj"));
     CHECK(PathIsInside(u8"/anything", u8"/"));
 }
+
+TEST_CASE("serialization: a misread count does not reserve that many large elements")
+{
+    // The count is bounded by the bytes left, an element taking at least one, but the reserve took
+    // count times the element's size: 200,000 bytes left let a count of 200,000 matrices ask for
+    // 12.8 MB before the first element failed to read.
+    constexpr u32 kCount = 200000;
+    MemoryStream stream;
+    {
+        BinaryWriter writer(stream);
+        writer.Write(kCount);
+        Array<byte> filler;
+        filler.Resize(kCount);
+        writer.WriteBytes(filler.Data(), filler.Size());
+    }
+    CHECK(stream.Seek(0, SeekOrigin::Begin) == 0);
+    TrackingAllocator tracking(DefaultAllocator());
+    BinarySerializer loader(stream, SerializeMode::Read);
+    Array<Float4x4> matrices(tracking);
+    Serialize(loader, matrices);
+    CHECK_FALSE(loader.IsOk()); // 200,000 bytes do not hold 200,000 matrices
+    CHECK(tracking.PeakBytes() < u64{kCount} * sizeof(Float4x4) / 4);
+}

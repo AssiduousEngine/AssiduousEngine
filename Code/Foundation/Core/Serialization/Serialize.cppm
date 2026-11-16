@@ -230,7 +230,11 @@ export namespace foundation::core
         if (ar.Mode() == SerializeMode::Read)
         {
             array.Clear();
-            array.Reserve(count);
+            // The reader bounds the count by the bytes left (an element is at least one), but an
+            // element may be far bigger than a byte: reserved whole, a misread count asked for
+            // that many times the stream. Up front at most this many; a real array grows past it.
+            constexpr u32 kReserveAtMost = 4096;
+            array.Reserve(count < kReserveAtMost ? count : kReserveAtMost);
             for (u32 i = 0; i < count; ++i)
             {
                 T element{};
