@@ -56,10 +56,17 @@ public static unsafe class Runtime
 
     const int kValueCapacity = 256;
 
+    // -1: it failed (a C# exception, a value with no form); -2: what was asked for is not there.
     static int Fail(string why)
     {
         t_error = why;
         return -1;
+    }
+
+    static int Missing(string why)
+    {
+        t_error = why;
+        return -2;
     }
 
     static string Utf8(byte* text, int length) => length > 0 ? Encoding.UTF8.GetString(text, length) : "";
@@ -126,7 +133,7 @@ public static unsafe class Runtime
             string className = Utf8(name, nameLength);
             *instance = 0;
             if (!s_classes.TryGetValue(className, out Type? type))
-                return Fail($"no C# class named {className} in the game's assembly");
+                return Missing($"no C# class named {className} in the game's assembly");
             foreach (ConstructorInfo constructor in type.GetConstructors())
             {
                 ParameterInfo[] parameters = constructor.GetParameters();
@@ -136,7 +143,7 @@ public static unsafe class Runtime
                 *instance = GCHandle.ToIntPtr(GCHandle.Alloc(made!));
                 return 0;
             }
-            return Fail($"{className} has no public constructor of {count} parameters");
+            return Missing($"{className} has no public constructor of {count} parameters");
         }
         catch (TargetInvocationException e) when (e.InnerException != null)
         {
@@ -173,11 +180,11 @@ public static unsafe class Runtime
                     property.SetValue(target, FromEngine(args[0], property.PropertyType));
                     return 0;
                 }
-                return Fail($"{type.Name} has no public field {fieldName}");
+                return Missing($"{type.Name} has no public field {fieldName}");
             }
             MethodInfo? method = FindMethod(type, member, count);
             if (method == null)
-                return Fail($"{type.Name} has no public method {member} of {count} parameters");
+                return Missing($"{type.Name} has no public method {member} of {count} parameters");
             object? returned = method.Invoke(target, Arguments(method.GetParameters(), args, count));
             if (method.ReturnType != typeof(void))
                 ToEngine(returned, result);
@@ -213,7 +220,7 @@ public static unsafe class Runtime
                 ToEngine(property.GetValue(target), result);
                 return 0;
             }
-            return Fail($"{type.Name} has no public field {member}");
+            return Missing($"{type.Name} has no public field {member}");
         }
         catch (Exception e)
         {
@@ -240,13 +247,13 @@ public static unsafe class Runtime
         {
             string className = Utf8(name, nameLength);
             if (!s_classes.TryGetValue(className, out Type? type))
-                return Fail($"no C# class named {className} in the game's assembly");
+                return Missing($"no C# class named {className} in the game's assembly");
             object? instance = null;
             foreach (ConstructorInfo constructor in type.GetConstructors())
                 if (constructor.GetParameters().Length == count)
                     instance = constructor.Invoke(Arguments(constructor.GetParameters(), args, count));
             if (instance == null)
-                return Fail($"{className} has no public constructor of {count} parameters");
+                return Missing($"{className} has no public constructor of {count} parameters");
             var lines = new StringBuilder();
             foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance))
                 if (method.DeclaringType != typeof(object) && !method.IsSpecialName)

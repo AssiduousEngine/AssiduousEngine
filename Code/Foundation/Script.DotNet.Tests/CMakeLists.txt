@@ -33,7 +33,7 @@ add_custom_command(
     COMMENT "Building the C# test game assembly")
 add_custom_target(Script.DotNet.TestGame DEPENDS ${TESTGAME_OUT}/TestGame.dll)
 
-add_executable(Script.DotNet.Tests TestsMain.cpp DotNetHostTests.cpp DotNetBridgeTests.cpp DotNetBindingsTests.cpp DotNetRuntimeTests.cpp)
+add_executable(Script.DotNet.Tests TestsMain.cpp DotNetHostTests.cpp DotNetBridgeTests.cpp DotNetBindingsTests.cpp DotNetRuntimeTests.cpp DotNetScriptTests.cpp)
 add_dependencies(Script.DotNet.Tests Script.DotNet.Probe Script.DotNet.TestGame)
 target_link_libraries(Script.DotNet.Tests PRIVATE Foundation::Script.DotNet Foundation::Script.Facades doctest::doctest)
 target_compile_definitions(Script.DotNet.Tests PRIVATE

@@ -14,7 +14,9 @@ target_sources(Script.DotNet
             DotNetBridge.cppm
             DotNetBindings.cppm
             DotNetRuntime.cppm
+            DotNetScript.cppm
     PRIVATE
         DotNetBridgeImpl.cpp
         DotNetBindingsImpl.cpp
-        DotNetRuntimeImpl.cpp)
+        DotNetRuntimeImpl.cpp
+        DotNetScriptImpl.cpp)
