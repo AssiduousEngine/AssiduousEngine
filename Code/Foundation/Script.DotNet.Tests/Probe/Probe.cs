@@ -36,13 +36,31 @@ public static unsafe class Entry
 // the engine's reflected method through the bridge.
 public static unsafe class UsesBindings
 {
+    // An exception must not leave an [UnmanagedCallersOnly] method (the runtime ends the process):
+    // anything the calls throw comes back as -5.
     [UnmanagedCallersOnly]
     public static int Run(Engine.EngineFunctions* engine)
     {
+        try
+        {
+            return RunChecked(engine);
+        }
+        catch (System.Exception e)
+        {
+            System.Console.Error.WriteLine($"C# threw: {e.Message}");
+            return -5;
+        }
+    }
+
+    static int RunChecked(Engine.EngineFunctions* engine)
+    {
         if (!Engine.Bridge.Initialize(engine))
             return -1; // a table built for another layout
-        if (!Engine.Layouts.Check())
+        if (Engine.Layouts.FirstMismatch() is string mismatch)
+        {
+            System.Console.Error.WriteLine($"layout differs: {mismatch}");
             return -2; // a struct's layout differs from the engine's
+        }
         var a = new Engine.Float3 { x = 1, y = 2, z = 3 };
         var b = new Engine.Float3 { x = 4, y = 5, z = 6 };
         float dot = Engine.Float3.Dot(a, b);
@@ -56,6 +74,10 @@ public static unsafe class UsesBindings
             System.Console.Error.WriteLine($"Lerp failed: {e.Message}");
             return -3;
         }
+        // A facade called from C#: Random's static range, through the generated bindings.
+        float r = Engine.Random.range(1.0f, 2.0f);
+        if (r < 1.0f || r > 2.0f)
+            return -4;
         // 32 and (-3, 6, -3), encoded so the host can check all four.
         return (int)dot * 1000 + (int)(cross.x + 10) * 100 + (int)(cross.y) * 10 + (int)(cross.z + 10);
     }

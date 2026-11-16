@@ -35,7 +35,7 @@ namespace
 TEST_CASE("dotnet bridge: reflected methods and properties called through the table, values as bytes")
 {
     RegisterCoreTypes();
-    const DotNetEngineFunctions& engine = EngineFunctions();
+    const DotNetEngineFunctions& engine = EngineFunctions(DefaultAllocator());
     CHECK(engine.size == sizeof(DotNetEngineFunctions));
     const TypeInfo* float3 = engine.typeById(TypeOf<Float3>().id);
     REQUIRE(float3 == &GlobalTypeRegistry().Canonical(TypeOf<Float3>()));

@@ -21,6 +21,8 @@ namespace foundation::script::dotnet
         // until the thread's next call into the bridge).
         thread_local String t_error;
         thread_local String t_text;
+        // What handles are made from: the host's allocator, given with the table.
+        IAllocator* s_allocator = nullptr;
 
         i32 Fail(ErrorCode code, StringView why)
         {
@@ -33,11 +35,8 @@ namespace foundation::script::dotnet
         {
             if (self == nullptr || self->kind == DotNetValueKind::Empty)
                 return Instance{};
-            if (self->kind == DotNetValueKind::Object)
-            {
-                auto* object = static_cast<Object*>(self->data);
-                return object != nullptr ? Instance(object, object->GetType()) : Instance{};
-            }
+            if (self->kind == DotNetValueKind::Handle)
+                return self->data != nullptr ? ToInstance(*static_cast<Variant*>(self->data)) : Instance{};
             return Instance(self->data, self->type);
         }
 
@@ -136,16 +135,28 @@ namespace foundation::script::dotnet
             return 0;
         }
 
-        void AddRefOf(void* object)
+        i32 ConstructOf(const TypeInfo* type, const DotNetValue* args, u32 count, DotNetValue* result)
         {
-            if (object != nullptr)
-                static_cast<Object*>(object)->AddRef();
+            t_error.Clear();
+            if (type == nullptr || result == nullptr)
+                return Fail(ErrorCode::InvalidArgument, u8"no type");
+            Array<Variant> values;
+            for (u32 i = 0; i < count; ++i)
+                values.PushBack(ToVariant(args[i]));
+            Result<Variant> made = Construct(*type, Span<Variant>{values.Data(), values.Size()});
+            if (!made.HasValue())
+                return Fail(made.Error(), Format(u8"{} has no constructor of {} arguments",
+                                                 StringView(reinterpret_cast<const utf8char*>(type->name)), count).AsView());
+            const Status written = FromVariant(made.Value(), *result);
+            return written.IsOk() ? 0 : -static_cast<i32>(written.Code());
         }
 
-        void ReleaseOf(void* object)
+        u32 TypeSizeOf(const TypeInfo* type) { return type != nullptr ? type->size : 0u; }
+
+        void ReleaseHandle(void* handle)
         {
-            if (object != nullptr)
-                static_cast<Object*>(object)->Release();
+            if (handle != nullptr)
+                s_allocator->Delete(static_cast<Variant*>(handle));
         }
 
         const utf8char* LastError(u64* length)
@@ -169,9 +180,8 @@ namespace foundation::script::dotnet
         case DotNetValueKind::Text:
             return Variant::From<String>(
                 String(StringView(static_cast<const utf8char*>(value.data), static_cast<usize>(value.size))));
-        case DotNetValueKind::Object:
-            return value.data != nullptr ? Variant::FromObject(RefPtr<Object>(static_cast<Object*>(value.data)))
-                                         : Variant{};
+        case DotNetValueKind::Handle:
+            return value.data != nullptr ? *static_cast<const Variant*>(value.data) : Variant{};
         case DotNetValueKind::Empty:
             break;
         }
@@ -186,14 +196,6 @@ namespace foundation::script::dotnet
             out.type = nullptr;
             return Status{};
         }
-        if (variant.IsObject())
-        {
-            Object* object = variant.AsObject();
-            out.kind = DotNetValueKind::Object;
-            out.type = object != nullptr ? object->GetType() : nullptr;
-            out.data = object;
-            return Status{};
-        }
         if (const String* text = variant.TryGet<String>())
         {
             t_text = *text;
@@ -204,10 +206,16 @@ namespace foundation::script::dotnet
             return Status{};
         }
         const TypeInfo* type = variant.Type();
-        if (type == nullptr || !type->trivialCopy)
+        // A plain value (copied by its bytes, no identity, owned outright) crosses as bytes;
+        // everything else (an object, a component handle, a borrow) as a handle.
+        const bool plain = type != nullptr && type->trivialCopy && !type->hasIdentity && !variant.IsObject() && !variant.IsMember();
+        if (!plain)
         {
-            t_error = String(u8"the value has no form C# can take");
-            return Status{ErrorCode::NotSupported};
+            out.kind = DotNetValueKind::Handle;
+            out.type = type;
+            out.data = s_allocator->New<Variant>(variant);
+            out.size = 0;
+            return Status{};
         }
         if (out.data == nullptr || out.size < type->size)
         {
@@ -222,8 +230,10 @@ namespace foundation::script::dotnet
         return Status{};
     }
 
-    const DotNetEngineFunctions& EngineFunctions() noexcept
+    const DotNetEngineFunctions& EngineFunctions(IAllocator& allocator) noexcept
     {
+        if (s_allocator == nullptr)
+            s_allocator = &allocator;
         static const DotNetEngineFunctions functions = []
         {
             DotNetEngineFunctions f;
@@ -233,8 +243,9 @@ namespace foundation::script::dotnet
             f.invoke = &Invoke;
             f.getProperty = &GetPropertyOf;
             f.setProperty = &SetPropertyOf;
-            f.addRef = &AddRefOf;
-            f.release = &ReleaseOf;
+            f.construct = &ConstructOf;
+            f.typeSize = &TypeSizeOf;
+            f.releaseHandle = &ReleaseHandle;
             f.lastError = &LastError;
             return f;
         }();

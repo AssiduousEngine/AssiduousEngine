@@ -9,6 +9,7 @@
 
 import foundation.core;
 import foundation.script.dotnet;
+import foundation.script.facades; // Random, which the probe calls
 
 using namespace foundation::core;
 using namespace foundation::script::dotnet;
@@ -31,12 +32,13 @@ TEST_CASE("dotnet bindings: value types are found and written with their measure
     CHECK(source.AsView().Contains(u8"[FieldOffset(4)] public float y;"));
     CHECK(source.AsView().Contains(u8"public static float Dot("));
     CHECK(source.AsView().Contains(u8"public static Float3 Cross(Float3 a, Float3 b)"));
-    CHECK(source.AsView().Contains(u8"ok &= sizeof(Float3) == 12;"));
+    CHECK(source.AsView().Contains(u8"if (Float3.EngineType != 0 && sizeof(Float3) != Bridge.TypeSize(Float3.EngineType)) return \"Float3 size\";"));
 }
 
 TEST_CASE("dotnet bindings: C# calls Float3's reflected methods through the generated bindings")
 {
     RegisterCoreTypes();
+    foundation::script::RegisterScriptFacadeReflection();
     DotNetHost host;
     const Status started = host.Start(ProbePath(u8"Probe.runtimeconfig.json").AsView());
     INFO(std::string(reinterpret_cast<const char*>(host.Failure().Data()), host.Failure().Size()));
@@ -47,9 +49,9 @@ TEST_CASE("dotnet bindings: C# calls Float3's reflected methods through the gene
     REQUIRE(run != nullptr);
     // 32000 for Dot (32), then Cross (-3, 6, -3) as 700 + 60 + 7. -1: the table's layout refused;
     // -2: a struct's layout differs; -3: a call failed.
-    const int got = run(&EngineFunctions());
+    const int got = run(&EngineFunctions(DefaultAllocator()));
     u64 length = 0;
-    const utf8char* why = EngineFunctions().lastError(&length);
+    const utf8char* why = EngineFunctions(DefaultAllocator()).lastError(&length);
     INFO(std::string(reinterpret_cast<const char*>(why), static_cast<usize>(length)));
     CHECK(got == 32767);
 }

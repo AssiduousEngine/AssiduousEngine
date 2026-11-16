@@ -4,7 +4,7 @@
 # linked into the player). Experimental: OPTION_ENABLE_DOTNET, off by default.
 
 util_add_engine_library(Script.DotNet ALIAS Foundation::Script.DotNet)
-target_link_libraries(Script.DotNet PUBLIC Foundation::Core)
+target_link_libraries(Script.DotNet PUBLIC Foundation::Core Foundation::Script)
 
 target_sources(Script.DotNet
     PUBLIC
