@@ -65,6 +65,15 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   picture silently stopping.
 - Rendering: in a split screen, ambient occlusion and TAA work on each side as they do on a
   full screen; one side's occlusion was misplaced and a moving camera smeared under TAA.
+- Physics: characters are solid to the world. Rays, sweeps and overlaps find them, dynamic bodies
+  collide with them and two characters no longer walk through each other. A ray or sweep that
+  starts inside a body now passes out of it instead of hitting it at distance 0, and `rayCast` and
+  `sphereCast` take an entity to pass over. A script that casts a ray at a character (a guard's
+  line of sight to the player) now hits the character itself.
+- Physics: a body falling out of a trigger raises `onTriggerExit`; a body that comes to rest on
+  another keeps its contact instead of ending it as it falls asleep; a compound body touching
+  with two of its parts begins one contact.
+- Navigation: a navmesh of more than 256 tiles loads; it failed silently before.
 - Web: a game with a render size of its own (Sky Hopper, PaperKid) takes taps on phones and
   tablets. Its buttons answered a mouse but not a finger, since the browser shell, unlike the
   native ones, did not give the finger to the mouse; a quick tap or click within one frame also

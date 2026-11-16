@@ -154,13 +154,16 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
 ### T2: physics, navigation and animation
 
 - **A navmesh of more than 256 tiles never loads.** `NavigationImpl.cpp:775-776`. Test: bake a
-  17x17 grid, it loads. Fix: `DT_POLYREF64`, or tile and poly bits sized to the bake.
+  17x17 grid, it loads. Fix: `DT_POLYREF64`, or tile and poly bits sized to the bake. Built
+  2026-11-15 (`DT_POLYREF64`).
 - **Trigger exit, sleep and sub-shape contacts.** `PhysicsWorldImpl.cpp:459-487`; the bridge
   `ScriptPhysicsContactBridge.cpp:38-45`. Tests: a body through a sensor raises onTriggerExit; a box
   settling raises no onContactEnd; a two-child compound raises one Begin. Fix: kind from the sensor
-  flag; ignore removal of sleeping pairs; count per body pair.
+  flag; ignore removal of sleeping pairs; count per body pair. Built 2026-11-15.
 - **Characters are invisible to raycasts, overlaps and each other.** `PhysicsWorldImpl.cpp:1082-1094`.
   Test: a raycast at a character hits. Fix: an inner body and character-vs-character collision.
+  Built 2026-11-15, with the user's ruling: a ray or sweep that starts inside a body passes out
+  of it (as Godot and Unity do), and rayCast and sphereCast take an entity to pass over.
 - **A dynamic body cannot be teleported, runtime edits are ignored, primitives ignore scale.**
   `PhysicsWorldImpl.cpp:877`, `PhysicsSubsystem.cppm:739-769`, `PhysicsSubsystemImpl.cpp:222-240`.
   Tests: a moved transform moves the body; a changed shape rebuilds it; a box scaled x2 is hit at 2x.
