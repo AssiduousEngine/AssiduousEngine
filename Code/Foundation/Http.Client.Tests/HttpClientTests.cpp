@@ -583,6 +583,7 @@ TEST_CASE("http client: a redirect to another origin does not carry the caller's
 
 #endif // !PLATFORM_WEB (a browser build has the fetch client: Http.Client.WebCheck, by hand)
 
+#if !PLATFORM_WEB // the native clients; a browser's fetch refuses such a header itself
 TEST_CASE("http client: a line break in a header, the method or the URL is refused before anything is sent")
 {
     // Header values went onto the wire as given, so one carrying CR LF wrote a header (or a whole
@@ -608,3 +609,4 @@ TEST_CASE("http client: a line break in a header, the method or the URL is refus
     REQUIRE_FALSE(fetched.HasValue());
     CHECK(fetched.Error().AsView().ContainsIgnoreCase(u8"line break"));
 }
+#endif // !PLATFORM_WEB
