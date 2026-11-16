@@ -1947,25 +1947,36 @@ namespace foundation::script
                     break;
                 }
             }
-            Array<Variant> args;
-            for (int i = 1; i <= argCount; ++i)
+            // The call, in a scope of its own: an error is raised after the arguments and the call
+            // scope are destroyed, since raising unwinds past them (they leaked on every failed
+            // construction).
+            const bool failed = [&]() -> bool
             {
-                const u32 paramIndex = static_cast<u32>(i - 1);
-                const TypeInfo* expected =
-                    (ctor != nullptr && paramIndex < ctor->paramCount &&
-                     ctor->params[paramIndex].type != nullptr)
-                        ? ctor->params[paramIndex].type()
-                        : nullptr;
-                args.PushBack(context->ToVariantForParam(state, i, expected));
-            }
-            ScriptCallScope scope(context);
-            Result<Variant> constructed = Construct(*type, Span<Variant>{args.Data(), args.Size()});
-            if (!constructed.HasValue())
+                Array<Variant> args;
+                for (int i = 1; i <= argCount; ++i)
+                {
+                    const u32 paramIndex = static_cast<u32>(i - 1);
+                    const TypeInfo* expected =
+                        (ctor != nullptr && paramIndex < ctor->paramCount &&
+                         ctor->params[paramIndex].type != nullptr)
+                            ? ctor->params[paramIndex].type()
+                            : nullptr;
+                    args.PushBack(context->ToVariantForParam(state, i, expected));
+                }
+                ScriptCallScope scope(context);
+                Result<Variant> constructed = Construct(*type, Span<Variant>{args.Data(), args.Size()});
+                if (!constructed.HasValue())
+                {
+                    lua_pushstring(state, "no matching reflected constructor");
+                    return true;
+                }
+                context->PushVariant(state, constructed.Value());
+                return false;
+            }();
+            if (failed)
             {
-                lua_pushstring(state, "no matching reflected constructor");
                 lua_error(state);
             }
-            context->PushVariant(state, constructed.Value());
             return 1;
         }
     }

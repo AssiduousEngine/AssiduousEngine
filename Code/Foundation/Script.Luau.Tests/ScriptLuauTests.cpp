@@ -1807,3 +1807,33 @@ TEST_CASE("script.luau: a method an instance assigns itself is the one the next 
     CHECK(walker->Invoke(u8"onUpdate", Span<Variant>{}).Value().Get<f64>() == 1.0);
     CHECK(walker->Invoke(u8"onUpdate", Span<Variant>{}).Value().Get<f64>() == 2.0);
 }
+
+TEST_CASE("script.luau: a constructor that matches none fails without leaking its arguments")
+{
+    // The refusal was raised with the arguments and the call scope alive: raising unwinds past
+    // C++ destructors, so every failed construction leaked them (the leak checker sees it).
+    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    manager->RegisterType(Compass::StaticType());
+    manager->FinalizeTypes();
+    RefPtr<IScriptContext> scriptContext = manager->CreateContext();
+    REQUIRE(scriptContext->Load(u8R"lua(
+Probe = {}
+Probe.__index = Probe
+function Probe.new() return setmetatable({}, Probe) end
+function Probe:refused()
+    local refusals = 0
+    for i = 1, 100 do
+        local ok, err = pcall(Compass.new, 1, 2, 3, 4, 5, 6, 7, 8, 9)
+        if not ok and string.find(tostring(err), "no matching reflected constructor") then refusals += 1 end
+    end
+    return refusals
+end
+)lua",
+                                u8"luau.ctorfail")
+                .IsOk());
+    RefPtr<ScriptObject> probe = scriptContext->CreateInstance(u8"Probe", Span<Variant>{});
+    REQUIRE(probe.Get() != nullptr);
+    Result<Variant> r = probe->Invoke(u8"refused", Span<Variant>{});
+    REQUIRE(r.HasValue());
+    CHECK(r.Value().Get<f64>() == doctest::Approx(100.0));
+}
