@@ -35,6 +35,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- A navigation zone with a zero (or non-number) Cell Size or Cell Height is no longer baked into
+  nonsense; the bake says what to fix, and the inspector keeps both above zero.
 - glTF and FBX models without authored tangents get them generated, so their normal maps shade
   right; a model imported before keeps its old tangents until it is imported again.
 - Windows: a server whose client left no longer stops reading the frame's other datagrams (the

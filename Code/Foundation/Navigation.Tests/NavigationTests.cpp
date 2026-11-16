@@ -748,3 +748,25 @@ TEST_CASE("tiled bake: bounds clip the grid to the region; geometry reaching pas
     Array<byte> none;
     CHECK_FALSE(NavigationMeshBuilder::BuildTiled(vspan, ispan, params, none).IsOk());
 }
+
+TEST_CASE("navigation: a bake with a zero or non-number cell size is refused, not divided by")
+{
+    // The tile grid divided by the cell size with nothing checking it: zero gave an infinite
+    // tile count, and a NaN one a grid of nonsense.
+    Array<Float3> verts;
+    Array<u32> indices;
+    AddGround(verts, indices, -10, 10, -10, 10);
+    const Span<const Float3> vspan{verts.Data(), verts.Size()};
+    const Span<const u32> ispan{indices.Data(), indices.Size()};
+    Array<byte> out;
+    NavigationBakeParams zero;
+    zero.cellSize = 0.0f;
+    CHECK(NavigationMeshBuilder::Build(vspan, ispan, zero, out).Code() == ErrorCode::InvalidArgument);
+    NavigationBakeParams flat;
+    flat.cellHeight = 0.0f;
+    CHECK(NavigationMeshBuilder::Build(vspan, ispan, flat, out).Code() == ErrorCode::InvalidArgument);
+    NavigationBakeParams nan;
+    nan.cellSize = Sqrt(-1.0f);
+    CHECK_FALSE(AreBakeParamsUsable(nan));
+    CHECK(NavigationMeshBuilder::Build(vspan, ispan, nan, out).Code() == ErrorCode::InvalidArgument);
+}

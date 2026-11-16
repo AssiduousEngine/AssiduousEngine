@@ -137,6 +137,11 @@ namespace editor::navigation
             return String(u8"Navigation baked into the zone's asset; the scene is unchanged. Cook to "
                           u8"apply.");
         }
+        if (result.unusableCells)
+        {
+            return String(u8"The zone's Cell Size and Cell Height must be positive numbers, so the zone "
+                          u8"keeps its last bake.");
+        }
         if (result.triangleCount == 0)
         {
             // Nothing was collected: no static geometry touched the zone box (centered on the
@@ -168,6 +173,11 @@ namespace editor::navigation
         engine::navigation::NavMeshZoneComponent* zone = zones->Get(zoneEntity);
         if (zone == nullptr)
         {
+            return result;
+        }
+        if (!nav::AreBakeParamsUsable(ParamsFor(*zone, parallelBake)))
+        {
+            result.unusableCells = true;
             return result;
         }
 
@@ -228,6 +238,10 @@ namespace editor::navigation
         if (zone == nullptr)
         {
             return result;
+        }
+        if (!nav::AreBakeParamsUsable(ParamsFor(*zone, parallelBake)))
+        {
+            return result; // nothing rebaked; a full bake says why
         }
 
         // The existing blob's grid anchors the patch; with no tiled blob it falls back to a full

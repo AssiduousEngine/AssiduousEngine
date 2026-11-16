@@ -474,3 +474,29 @@ TEST_CASE("editor.navigation: a ground plane wider than the zone bakes to the zo
     CHECK(PathAcross(blob, Float3{-15, 0, -15}, Float3{15, 0, 15}));
     RemoveTree(u8"scratch_navbake_plane_db");
 }
+
+TEST_CASE("editor.navigation: a zone whose cell size is zero is not baked, and the bake says why")
+{
+    pipeline::RegisterNavigationZoneAsset();
+    RemoveTree(u8"scratch_navbake_zero_db");
+    foundation::vfs::NativeFileSystem mount(u8"scratch_navbake_zero_db", foundation::core::DefaultAllocator());
+    content::ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
+    auto* assetInstance = db.RootGroup()->CreateInstance(u8"zone", pipeline::NavigationZoneAsset::StaticType());
+    REQUIRE(assetInstance != nullptr);
+
+    scene::Scene sceneObj(DefaultAllocator(), u8"bake_zero");
+    engine::navigation::AddNavigationSceneManagers(sceneObj);
+    sceneObj.AddSystem<engine::physics::RigidBodyComponentManager>();
+    (void)AddBody(sceneObj, u8"ground", Float3{0, 0, 0}, Float3{10, 0.5f, 10}, foundation::physics::MotionKind::Static);
+    const scene::EntityHandle zoneEntity = sceneObj.CreateEntity(u8"zone");
+    engine::navigation::NavMeshZoneComponent& zone =
+        sceneObj.GetSystem<engine::navigation::NavMeshZoneComponentManager>()->Add(zoneEntity);
+    zone.extents = Float3{15, 10, 15};
+    zone.cellSize = 0.0f;
+    sceneObj.UpdateTransforms();
+    const editor::navigation::BakeResult result = editor::navigation::BakeNavigationZone(sceneObj, zoneEntity, *assetInstance);
+    CHECK_FALSE(result.baked);
+    CHECK(result.unusableCells);
+    CHECK(editor::navigation::DescribeBake(result).AsView().Contains(u8"Cell Size"));
+    RemoveTree(u8"scratch_navbake_zero_db");
+}

@@ -190,7 +190,9 @@ namespace engine::navigation
             .ReadsDataVersionsFrom(1)
             .Property<&NavMeshZoneComponent::extents>("extents")
             .Property<&NavMeshZoneComponent::cellSize>("cellSize")
+            .PropAttribute("range", Float4{0.01f, 10.0f, 0.01f, 0.0f}) // a zero cell divides by zero
             .Property<&NavMeshZoneComponent::cellHeight>("cellHeight")
+            .PropAttribute("range", Float4{0.01f, 10.0f, 0.01f, 0.0f})
             .Property<&NavMeshZoneComponent::agentRadius>("agentRadius")
             .Property<&NavMeshZoneComponent::agentHeight>("agentHeight")
             .Property<&NavMeshZoneComponent::agentMaxClimb>("agentMaxClimb")

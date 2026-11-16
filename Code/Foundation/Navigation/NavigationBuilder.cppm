@@ -44,6 +44,14 @@ export namespace foundation::navigation
         AABB bounds = AABB::Empty();
     };
 
+    // Whether a bake can run with `params`: the voxel sizes are positive numbers (a zero cell size
+    // divided by zero, and a NaN one gave a grid of nonsense) and a tile has cells.
+    [[nodiscard]] inline bool AreBakeParamsUsable(const NavigationBakeParams& params) noexcept
+    {
+        return params.cellSize > 0.0f && IsFinite(params.cellSize) && params.cellHeight > 0.0f &&
+               IsFinite(params.cellHeight) && params.tileCells > 0;
+    }
+
     // A tiled blob's grid, for partial rebakes (ReadTiledBlobGrid / BuildTileInGrid).
     struct NavigationTileGridDesc
     {

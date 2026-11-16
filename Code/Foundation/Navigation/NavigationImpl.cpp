@@ -81,7 +81,7 @@ namespace foundation::navigation
         [[nodiscard]] bool ComputeTileGrid(Span<const Float3> vertices,
                                            const NavigationBakeParams& params, TileGrid& out)
         {
-            if (vertices.IsEmpty() || params.tileCells == 0)
+            if (vertices.IsEmpty() || !AreBakeParamsUsable(params))
             {
                 return false;
             }

@@ -70,6 +70,7 @@ export namespace editor::navigation
     {
         bool baked = false;      // a navmesh was produced and written
         usize triangleCount = 0; // input triangles collected
+        bool unusableCells = false; // the zone's cell size or height is not a positive number
     };
 
     // Bake the zone owned by `zoneEntity` and write the result into `targetAsset` (the zone's
