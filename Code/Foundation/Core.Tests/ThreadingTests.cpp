@@ -577,3 +577,23 @@ TEST_CASE("threading: a worker of one pool submitting to another is any other th
     CHECK(wrongForeignSlot.load() == 0u);
     CHECK(slotsOutOfRange.load() == 0u);
 }
+
+TEST_CASE("threading: JobSystem runs every job submitted before it is destroyed")
+{
+    // The destructor promises a drain, but a worker whose last look for work came up empty
+    // returned on the stop without looking again: a job submitted in between was never run. The
+    // window is small, so the shutdown is repeated.
+    for (int round = 0; round < 200; ++round)
+    {
+        Atomic<i32> ran{0};
+        {
+            JobSystem jobs(DefaultAllocator(), 2);
+            SleepMilliseconds(round % 3); // workers asleep, or still looking
+            for (int i = 0; i < 4; ++i)
+            {
+                jobs.Submit([&ran]() { ran.fetch_add(1); });
+            }
+        } // destroyed at once: no WaitForAll
+        REQUIRE(ran.load() == 4);
+    }
+}

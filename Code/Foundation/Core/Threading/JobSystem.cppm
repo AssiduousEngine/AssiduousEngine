@@ -445,7 +445,10 @@ export namespace foundation::core
                 // No work found: sleep until notified or stopped (re-check under the lock
                 // to close the lost-wakeup window; Schedule fences on m_idleMutex).
                 ScopedLock lock(m_idleMutex);
-                if (m_stop)
+                // Stopping, and nothing left: a job scheduled between the failed run above and
+                // the stop is still run (returning on the stop alone left it, the destructor
+                // promising a drain).
+                if (m_stop && !HasAnyWork())
                 {
                     return;
                 }
