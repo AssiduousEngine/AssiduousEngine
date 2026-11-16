@@ -2785,3 +2785,26 @@ TEST_CASE("render: a view draws at its viewport's level, else the global one, ov
     CHECK(overridden.msaaSamples == 2u);
     CHECK_FALSE(overridden.taaEnabled); // the panel's own TAA setting (off)
 }
+
+TEST_CASE("extract: a light with a field that is not a number is left out, the others kept")
+{
+    // A NaN intensity, colour or position (from a NaN transform) went into the light buffer as
+    // it was, and from there into every pixel the light reached.
+    scene::Scene scene(DefaultAllocator(), u8"nan-lights");
+    auto* lights = scene.AddSystem<LightComponentManager>();
+    const f32 nan = Sqrt(-1.0f);
+    scene::EntityHandle good = scene.CreateEntity(u8"good");
+    lights->Add(good).type = LightType::Point;
+    scene::EntityHandle badIntensity = scene.CreateEntity(u8"intensity");
+    LightComponent& a = lights->Add(badIntensity);
+    a.type = LightType::Point;
+    a.intensity = nan;
+    scene::EntityHandle badPlace = scene.CreateEntity(u8"place");
+    lights->Add(badPlace).type = LightType::Point;
+    scene.SetLocalPosition(badPlace, Float3{nan, 0.0f, 0.0f});
+    scene.UpdateTransforms();
+
+    ExtractedScene out{DefaultAllocator()};
+    ExtractLightsInto(scene, out);
+    CHECK(out.Lights().Size() == 1u);
+}

@@ -718,6 +718,20 @@ namespace engine::render
         };
     }
 
+    namespace
+    {
+        bool IsFinite3(Float3 v) noexcept { return IsFinite(v.x) && IsFinite(v.y) && IsFinite(v.z); }
+
+        // Whether every field a shader reads of `g` is a number: one NaN (an intensity, a position
+        // from a NaN transform) reaches every pixel the light touches, and through the clustered
+        // and shadow passes the whole frame.
+        bool IsLightFinite(const GpuLight& g) noexcept
+        {
+            return IsFinite3(g.positionWS) && IsFinite(g.range) && IsFinite3(g.color) && IsFinite(g.intensity) &&
+                   IsFinite3(g.directionWS) && IsFinite(g.innerCos) && IsFinite(g.outerCos);
+        }
+    }
+
     void ExtractLightsInto(scene::Scene& scene, ExtractedScene& out)
     {
         auto* lights = scene.GetSystem<LightComponentManager>();
@@ -736,6 +750,10 @@ namespace engine::render
                     return;
                 }
                 GpuLight g = MakeGpuLight(lc, scene.GetWorldMatrix(e));
+                if (!IsLightFinite(g))
+                {
+                    return; // draws nothing rather than NaN-ing the frame
+                }
                 if (!haveShadow && lc.castsShadows && lc.type == LightType::Directional)
                 {
                     haveShadow = true;
