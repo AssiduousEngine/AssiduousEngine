@@ -463,7 +463,7 @@ namespace foundation::script::dotnet
                               u8"using System.Runtime.CompilerServices;\n"
                               u8"using System.Runtime.InteropServices;\n\n"
                               u8"namespace Engine;\n\n"));
-        out.Append(StringView(u8"internal static class Types\n{\n"
+        out.Append(StringView(u8"public static partial class Types\n{\n"
                               u8"    static readonly System.Collections.Generic.Dictionary<ulong, nint> s_found = new();\n"
                               u8"    public static nint Get(ulong id)\n    {\n"
                               u8"        if (!s_found.TryGetValue(id, out nint type))\n"
@@ -535,6 +535,31 @@ namespace foundation::script::dotnet
                 break;
             }
         }
+        // The C# type of each value an engine id names, the wrapper of each class's handle, and the
+        // scalars' ids: what the runtime converts a value crossing into C# code it did not
+        // generate (a behaviour's fields and handlers) with.
+        out.Append(StringView(u8"public static partial class Types\n{\n"
+                              u8"    public static readonly (ulong Id, System.Type Type)[] Values =\n    {\n"));
+        for (const Bound& b : surface.types)
+            if (b.shape == Shape::Struct || b.shape == Shape::Opaque)
+                AppendFormat(out, u8"        (0x{}ul, typeof({})),\n", HexOf(b.type->id), b.name);
+        out.Append(StringView(u8"    };\n\n    public static EngineObject? Wrap(ulong id, DotNetValue handle) => id switch\n    {\n"));
+        for (const Bound& b : surface.types)
+            if (b.shape == Shape::Class)
+                AppendFormat(out, u8"        0x{}ul => new {}(handle),\n", HexOf(b.type->id), b.name);
+        out.Append(StringView(u8"        _ => null,\n    };\n\n"));
+        struct ScalarId
+        {
+            StringView name;
+            u64 id;
+        };
+        const ScalarId scalarIds[] = {{u8"F32", TypeOf<f32>().id}, {u8"F64", TypeOf<f64>().id}, {u8"I8", TypeOf<i8>().id},
+                                      {u8"U8", TypeOf<u8>().id},   {u8"I16", TypeOf<i16>().id}, {u8"U16", TypeOf<u16>().id},
+                                      {u8"I32", TypeOf<i32>().id}, {u8"U32", TypeOf<u32>().id}, {u8"I64", TypeOf<i64>().id},
+                                      {u8"U64", TypeOf<u64>().id}, {u8"Bool", TypeOf<bool>().id}, {u8"Text", TypeOf<String>().id}};
+        for (const ScalarId& scalar : scalarIds)
+            AppendFormat(out, u8"    public const ulong {}Id = 0x{}ul;\n", scalar.name, HexOf(scalar.id));
+        out.Append(StringView(u8"}\n\n"));
         // The layouts C# was built with, against the engine's: the first that differs, or null. A
         // type the running engine has not registered (a host without that domain) is not checked:
         // nothing of it can cross.

@@ -2,10 +2,12 @@
 // Copyright (c) 2026-Present Robert Campbell
 
 // Foundation::Script.DotNet - C# scripting: the .NET host (:host), the bridge C# calls the engine
-// through (:bridge), and the generated C# bindings (:bindings).
+// through (:bridge), the generated C# bindings (:bindings), and the engine's managed runtime that
+// runs a game's C# behaviours (:runtime).
 
 export module foundation.script.dotnet;
 
 export import :host;
 export import :bridge;
 export import :bindings;
+export import :runtime;

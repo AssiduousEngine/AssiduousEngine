@@ -64,6 +64,8 @@ export namespace foundation::script::dotnet
         u32 (*typeSize)(const TypeInfo* type) = nullptr;
         /// Gives back a handle a result handed over.
         void (*releaseHandle)(void* handle) = nullptr;
+        /// The id of `type` (what the generated tables key on).
+        u64 (*typeIdOf)(const TypeInfo* type) = nullptr;
         /// The reason the calling thread's last failed call failed, UTF-8, valid until its next call.
         const utf8char* (*lastError)(u64* length) = nullptr;
     };
@@ -74,6 +76,9 @@ export namespace foundation::script::dotnet
     /// A DotNetValue's value as a Variant (empty when it cannot be one: a type with no recorded
     /// value operations).
     [[nodiscard]] Variant ToVariant(const DotNetValue& value);
+    /// `variant` lent to C# for one call: a plain value's bytes and text in place (valid while
+    /// `variant` is), anything else as a handle C# then owns.
+    [[nodiscard]] DotNetValue LendValue(const Variant& variant);
     /// `variant` into `out`: a plain value's bytes into out.data when they fit out.size (else
     /// OutOfRange), text into the thread's buffer, anything else as a handle the caller owns.
     [[nodiscard]] Status FromVariant(const Variant& variant, DotNetValue& out);

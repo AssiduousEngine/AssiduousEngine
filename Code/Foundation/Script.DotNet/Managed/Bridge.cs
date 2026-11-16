@@ -46,6 +46,7 @@ public unsafe struct EngineFunctions
     public delegate* unmanaged<nint, DotNetValue*, uint, DotNetValue*, int> Construct;
     public delegate* unmanaged<nint, uint> TypeSize;
     public delegate* unmanaged<void*, void> ReleaseHandle;
+    public delegate* unmanaged<nint, ulong> TypeIdOf;
     public delegate* unmanaged<ulong*, byte*> LastError;
 }
 
@@ -90,7 +91,7 @@ public unsafe struct TextArg : IDisposable
     {
         text ??= "";
         m_length = System.Text.Encoding.UTF8.GetByteCount(text);
-        m_bytes = (byte*)System.Runtime.InteropServices.NativeMemory.Alloc((nuint)Math.Max(m_length, 1));
+        m_bytes = (byte*)System.Runtime.InteropServices.NativeMemory.Alloc((nuint)System.Math.Max(m_length, 1));
         fixed (char* chars = text)
             System.Text.Encoding.UTF8.GetBytes(chars, text.Length, m_bytes, m_length);
     }
@@ -123,12 +124,13 @@ public static unsafe class Bridge
     public static nint MethodAt(nint type, uint index) => s_engine.MethodAt(type, index);
     public static nint PropertyAt(nint type, uint index) => s_engine.PropertyAt(type, index);
     public static uint TypeSize(nint type) => s_engine.TypeSize(type);
+    public static ulong TypeIdOf(nint type) => s_engine.TypeIdOf(type);
 
     public static void ReleaseHandle(nint handle) => s_engine.ReleaseHandle((void*)handle);
     internal static void QueueRelease(nint handle) => s_released.Enqueue(handle);
 
     // What the collector let go of, given back on this (the engine's) thread.
-    static void ReleaseQueued()
+    public static void ReleaseQueuedHandles()
     {
         while (s_released.TryDequeue(out nint handle))
             s_engine.ReleaseHandle((void*)handle);
@@ -136,21 +138,21 @@ public static unsafe class Bridge
 
     public static void Construct(nint type, DotNetValue* args, uint count, DotNetValue* result)
     {
-        ReleaseQueued();
+        ReleaseQueuedHandles();
         if (s_engine.Construct(type, args, count, result) < 0)
             throw new EngineException(LastError());
     }
 
     public static void GetProperty(nint property, DotNetValue* self, DotNetValue* result)
     {
-        ReleaseQueued();
+        ReleaseQueuedHandles();
         if (s_engine.GetProperty(property, self, result) < 0)
             throw new EngineException(LastError());
     }
 
     public static void SetProperty(nint property, DotNetValue* self, DotNetValue* value)
     {
-        ReleaseQueued();
+        ReleaseQueuedHandles();
         if (s_engine.SetProperty(property, self, value) < 0)
             throw new EngineException(LastError());
     }
@@ -162,7 +164,7 @@ public static unsafe class Bridge
     /// <summary>Calls a method; throws EngineException with the engine's reason on failure.</summary>
     public static void Invoke(nint method, DotNetValue* self, DotNetValue* args, uint count, DotNetValue* result)
     {
-        ReleaseQueued();
+        ReleaseQueuedHandles();
         if (s_engine.Invoke(method, self, args, count, result) < 0)
             throw new EngineException(LastError());
     }

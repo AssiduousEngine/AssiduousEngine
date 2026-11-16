@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The engine's managed runtime: the bridge, the bindings generated from the engine's
+       reflection (passed in as EngineBindings), and the entry points the engine runs a game's
+       behaviours through. A game's assembly references it. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Engine.Runtime</AssemblyName>
+    <RootNamespace>Engine</RootNamespace>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Bridge.cs" />
+    <Compile Include="Runtime.cs" />
+    <Compile Include="$(EngineBindings)" />
+  </ItemGroup>
+</Project>

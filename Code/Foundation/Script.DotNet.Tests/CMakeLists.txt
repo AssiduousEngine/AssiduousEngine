@@ -20,12 +20,27 @@ add_custom_command(
     COMMENT "Building the C# probe assembly")
 add_custom_target(Script.DotNet.Probe DEPENDS ${PROBE_OUT}/Probe.dll)
 
-add_executable(Script.DotNet.Tests TestsMain.cpp DotNetHostTests.cpp DotNetBridgeTests.cpp DotNetBindingsTests.cpp)
-add_dependencies(Script.DotNet.Tests Script.DotNet.Probe)
+# A game's assembly over the engine's managed runtime (built by Tools.DotNetBindings into DotNet/).
+set(TESTGAME_OUT ${CMAKE_CURRENT_BINARY_DIR}/TestGame)
+set(RUNTIME_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/DotNet)
+add_custom_command(
+    OUTPUT ${TESTGAME_OUT}/TestGame.dll
+    COMMAND ${DOTNET_EXECUTABLE} build ${CMAKE_CURRENT_SOURCE_DIR}/TestGame/TestGame.csproj -c Debug -o ${TESTGAME_OUT}
+            -p:BaseIntermediateOutputPath=${CMAKE_CURRENT_BINARY_DIR}/TestGameObj/
+            -p:EngineRuntime=${RUNTIME_DIR}/Engine.Runtime.dll -nologo -v:q
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/TestGame/Mover.cs ${CMAKE_CURRENT_SOURCE_DIR}/TestGame/TestGame.csproj
+            ${RUNTIME_DIR}/Engine.Runtime.dll DotNet.Runtime
+    COMMENT "Building the C# test game assembly")
+add_custom_target(Script.DotNet.TestGame DEPENDS ${TESTGAME_OUT}/TestGame.dll)
+
+add_executable(Script.DotNet.Tests TestsMain.cpp DotNetHostTests.cpp DotNetBridgeTests.cpp DotNetBindingsTests.cpp DotNetRuntimeTests.cpp)
+add_dependencies(Script.DotNet.Tests Script.DotNet.Probe Script.DotNet.TestGame)
 target_link_libraries(Script.DotNet.Tests PRIVATE Foundation::Script.DotNet Foundation::Script.Facades doctest::doctest)
 target_compile_definitions(Script.DotNet.Tests PRIVATE
     DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
-    PROBE_DIR="${PROBE_OUT}")
+    PROBE_DIR="${PROBE_OUT}"
+    TESTGAME_DIR="${TESTGAME_OUT}"
+    RUNTIME_DIR="${RUNTIME_DIR}")
 target_compile_options(Script.DotNet.Tests PRIVATE
     "$<$<CXX_COMPILER_ID:Clang>:-Wno-error=#warnings;-Wno-error=c2y-extensions>"
     "$<$<CXX_COMPILER_ID:GNU>:-Wno-error=cpp>")
