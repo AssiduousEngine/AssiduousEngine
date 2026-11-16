@@ -205,6 +205,27 @@ export namespace foundation::animation
 
     // ---- blend trees ---------------------------------------------------------------------------
 
+    // The blend trees' working poses and weights, kept per thread: a tree is evaluated for every
+    // animator using its graph, on whichever worker runs it, and allocated these on every
+    // evaluation. Entries are clips, never trees, so a thread's evaluation never reuses its own
+    // scratch mid-blend. (Static members, not namespace-scope inlines: GCC's module partitions.)
+    struct BlendScratch
+    {
+        [[nodiscard]] static Array<BoneTransform>& Poses(u32 which, usize count)
+        {
+            thread_local Array<BoneTransform> poses[2];
+            Array<BoneTransform>& out = poses[which];
+            out.Resize(count); // grows to the largest skeleton, then stays
+            return out;
+        }
+        [[nodiscard]] static Array<f32>& Weights(usize count)
+        {
+            thread_local Array<f32> weights;
+            weights.Resize(count);
+            return weights;
+        }
+    };
+
     struct BlendTree1DEntry
     {
         f32 threshold = 0.0f;
@@ -291,10 +312,8 @@ export namespace foundation::animation
             const f32 blend =
                 (range > 0.0f) ? (parameter - m_entries[lowIdx].threshold) / range : 0.0f;
             const usize n = static_cast<usize>(skeleton.BoneCount());
-            Array<BoneTransform> a;
-            a.Resize(n);
-            Array<BoneTransform> b;
-            b.Resize(n);
+            Array<BoneTransform>& a = BlendScratch::Poses(0, n);
+            Array<BoneTransform>& b = BlendScratch::Poses(1, n);
             SampleClip(*clipA, skeleton, normalizedTime * clipA->duration,
                        Span<BoneTransform>{a.Data(), n});
             SampleClip(*clipB, skeleton, normalizedTime * clipB->duration,
@@ -432,8 +451,7 @@ export namespace foundation::animation
             }
 
             const Float2 paramPos{parameterX, parameterY};
-            Array<f32> weights;
-            weights.Resize(m_entries.Size());
+            Array<f32>& weights = BlendScratch::Weights(m_entries.Size());
             f32 totalWeight = 0.0f;
             for (usize i = 0; i < m_entries.Size(); ++i)
             {
@@ -455,8 +473,7 @@ export namespace foundation::animation
             }
 
             const usize n = static_cast<usize>(skeleton.BoneCount());
-            Array<BoneTransform> temp;
-            temp.Resize(n);
+            Array<BoneTransform>& temp = BlendScratch::Poses(0, n);
             bool firstSample = true;
             for (usize i = 0; i < m_entries.Size(); ++i)
             {
