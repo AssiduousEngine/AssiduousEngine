@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- D0 of Documentation/Specs/dotnet-scripting.md: the game's C# as a static library of LLVM
+       bitcode (NativeAOT-LLVM), linked into a program built with the engine's own Emscripten. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NativeAotLlvmVersion Condition="'$(NativeAotLlvmVersion)' == ''">10.0.0-rc.1.26357.1</NativeAotLlvmVersion>
+
+    <OutputType>Library</OutputType>
+    <NativeLib>Static</NativeLib>
+    <PublishTrimmed>true</PublishTrimmed>
+    <SelfContained>true</SelfContained>
+    <MSBuildEnableWorkloadResolver>false</MSBuildEnableWorkloadResolver>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <InvariantTimezone>true</InvariantTimezone>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <OptimizationPreference>Size</OptimizationPreference>
+    <EventSourceSupport>false</EventSourceSupport>
+    <DebuggerSupport>false</DebuggerSupport>
+    <DebugType>none</DebugType>
+    <WasmEnableExceptionHandling>false</WasmEnableExceptionHandling>
+    <IlcLlvmExceptionHandlingModel>emulated</IlcLlvmExceptionHandlingModel>
+
+    <RestoreAdditionalProjectSources>$(RestoreAdditionalProjectSources);https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet-experimental/nuget/v3/index.json</RestoreAdditionalProjectSources>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.DotNet.ILCompiler.LLVM" Version="$(NativeAotLlvmVersion)" />
+    <PackageReference Include="runtime.$(NETCoreSdkPortableRuntimeIdentifier).Microsoft.DotNet.ILCompiler.LLVM" Version="$(NativeAotLlvmVersion)" />
+  </ItemGroup>
+
+  <!-- What the C++ link needs: the compiled bitcode and the runtime libraries beside it. -->
+  <Target Name="WriteLinkInputs" AfterTargets="LinkNativeLlvm" Condition="'$(LinkInputsFile)' != ''">
+    <ItemGroup>
+      <_LinkInput Include="$(NativeBinary)" />
+      <_LinkInput Include="@(NativeLibrary)" />
+      <_LinkInput Include="$(IlcSdkPath)libStackTraceIpCanary.o" Condition="Exists('$(IlcSdkPath)libStackTraceIpCanary.o')" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(LinkInputsFile)" Lines="@(_LinkInput->'%(FullPath)')" Overwrite="true" />
+  </Target>
+  <!-- A static library makes no page, but publish copies the .js and .wasm it expects: empty ones. -->
+  <Target Name="StubPageFiles" BeforeTargets="CopyNativeBinary">
+    <Touch Files="$(NativeOutputPath)$(TargetName).js;$(NativeOutputPath)$(TargetName).wasm" AlwaysCreate="true" />
+  </Target>
+</Project>
