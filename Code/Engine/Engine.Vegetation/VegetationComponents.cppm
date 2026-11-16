@@ -384,7 +384,7 @@ export namespace engine::vegetation
         struct ChunkSet
         {
             u64 key = 0;           // ChunkSeed: the renderer's persistent-buffer key
-            u32 version = 0;       // bumps per rebuild (the renderer re-uploads on change)
+            u32 version = 0;       // a fresh value per rebuild (the renderer re-uploads on change)
             bool built = false;
             bool dirty = true;     // needs a (re)scatter before it can draw
             Array<Float4x4> world; // composed instances (terrain-local x entity world)
@@ -453,6 +453,10 @@ export namespace engine::vegetation
         u32 m_buildBudget = kDefaultBuildBudget;
         u64 m_builds = 0;
         HashMap<u64, LayerCache> m_caches; // key = CacheKey(entity, slot)
+        // Every set's versions come from here, never from the set: a cache reset rebuilds its sets
+        // at 0, and a set counting from 0 again matched what the renderer (which keys sets by
+        // chunk) had uploaded, so a rescatter after the reset was never drawn.
+        u32 m_nextVersion = 0;
         Array<heightfield::HeightfieldRegion> m_pendingRegions;
     };
 

@@ -1401,3 +1401,36 @@ TEST_CASE("engine.vegetation: a solid layer whose mesh is still resolving is not
     f.Layer().mesh = f.mesh.Get(); // it resolved
     CHECK(!Capsules(f).IsEmpty());
 }
+
+TEST_CASE("engine.vegetation: a layer reset and regrown gives every chunk a version it never had")
+{
+    // A reset rebuilt the chunk sets with their version back at 0, so the regrown set came out at
+    // the version its first growth had. The renderer keys sets by chunk and keeps what it
+    // uploaded, so it saw no change and kept drawing the old scatter.
+    Fixture f(/*withSplat*/ false);
+    f.mgr->SetBuildBudget(100);
+    render::ExtractedScene snapshot{DefaultAllocator()};
+    Array<const render::MultiMeshRenderData*> sets = f.Extract(snapshot, nullptr);
+    REQUIRE(sets.Size() == 4u);
+    Array<u64> keys;
+    Array<u32> versions;
+    for (const render::MultiMeshRenderData* s : sets)
+    {
+        keys.PushBack(s->key);
+        versions.PushBack(s->version);
+    }
+
+    f.Layer().density = 0.5f; // a scatter parameter: the layer resets and regrows
+    sets = f.Extract(snapshot, nullptr);
+    REQUIRE(sets.Size() == 4u);
+    for (const render::MultiMeshRenderData* s : sets)
+    {
+        for (usize i = 0; i < keys.Size(); ++i)
+        {
+            if (keys[i] == s->key)
+            {
+                CHECK(s->version != versions[i]);
+            }
+        }
+    }
+}

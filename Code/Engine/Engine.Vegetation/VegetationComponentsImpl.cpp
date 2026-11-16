@@ -352,7 +352,7 @@ namespace engine::vegetation
         }
         set.worldCenter = world.Center();
         set.worldRadius = Length(world.Extents());
-        ++set.version; // the renderer re-uploads the set's buffer on a version change
+        set.version = ++m_nextVersion; // the renderer re-uploads the set's buffer on a version change
     }
 
     void TerrainVegetationComponentManager::BuildSet(LayerCache& cache, u32 chunkIndex,
