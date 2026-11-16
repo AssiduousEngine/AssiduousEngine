@@ -248,6 +248,38 @@ TEST_CASE("http: parser - responses with no body (204, 304, 1xx, a HEAD's) compl
     CHECK(capped.TooLarge());
 }
 
+TEST_CASE("http: parser - an interim 1xx response is passed over for the one after it; 101 is final")
+{
+    // A 1xx response completed the parse at its head, so a server's 100 Continue or 103 Early
+    // Hints was taken as the answer and the real response was never read.
+    const StringView wire = u8"HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 103 Early Hints\r\nLink: </a>\r\n\r\n"
+                            u8"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok";
+    HttpMessageParser whole(HttpMessageParser::Mode::Response);
+    CHECK(whole.Push(Bytes(wire)) == HttpParseState::Complete);
+    CHECK(whole.Status() == 200);
+    CHECK(whole.Headers().Size() == 1u); // the final response's own
+    CHECK(whole.Consumed() == wire.Size());
+
+    HttpMessageParser split(HttpMessageParser::Mode::Response); // a byte at a time
+    HttpParseState state = HttpParseState::NeedMore;
+    for (usize i = 0; i < wire.Size() && state == HttpParseState::NeedMore; ++i)
+    {
+        state = split.Push(Bytes(wire.SubStr(i, 1)));
+    }
+    CHECK(state == HttpParseState::Complete);
+    CHECK(split.Status() == 200);
+
+    HttpMessageParser head(HttpMessageParser::Mode::Response); // a HEAD's answer stays bodiless
+    head.SetNoBody();
+    CHECK(head.Push(Bytes(u8"HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 200 OK\r\nContent-Length: 9\r\n\r\n")) ==
+          HttpParseState::Complete);
+    CHECK(head.Status() == 200);
+
+    HttpMessageParser upgrade(HttpMessageParser::Mode::Response);
+    CHECK(upgrade.Push(Bytes(u8"HTTP/1.1 101 Switching Protocols\r\n\r\n")) == HttpParseState::Complete);
+    CHECK(upgrade.Status() == 101);
+}
+
 TEST_CASE("http: loopback - one-shot request/response, 404, and bad request")
 {
     HttpServer server(DefaultAllocator());

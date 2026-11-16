@@ -127,7 +127,7 @@ export namespace foundation::http
         /// frames after the upgrade's head), which the parser does not keep.
         [[nodiscard]] usize Consumed() const noexcept { return m_consumed; }
         /// Response mode: the request was a HEAD, so the response has headers alone.
-        void SetNoBody() noexcept { m_noBody = true; }
+        void SetNoBody() noexcept { m_noBody = m_headRequest = true; }
         /// Response mode: the peer closed, so a close-delimited body is complete.
         [[nodiscard]] HttpParseState OnPeerClosed();
         [[nodiscard]] HttpParseState State() const noexcept { return m_state; }
@@ -170,6 +170,7 @@ export namespace foundation::http
         bool m_headParsed = false;
         bool m_bodyUntilClose = false;
         bool m_noBody = false;
+        bool m_headRequest = false; // SetNoBody: kept across an interim (1xx) response
         bool m_chunked = false;
         bool m_tooLarge = false;
         enum class Chunk : u8

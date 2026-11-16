@@ -322,6 +322,23 @@ namespace foundation::http
                 m_state = HttpParseState::Failed;
                 return m_state;
             }
+            // An interim response (100 Continue, 103 Early Hints) comes before the real one, which
+            // follows it on the same connection: it is passed over, not taken as the answer. 101 is
+            // final: what follows it is another protocol's.
+            if (m_mode == Mode::Response && m_status >= 100 && m_status < 200 && m_status != 101)
+            {
+                m_status = 0;
+                m_headers.Clear();
+                m_noBody = m_headRequest;
+                m_bodyUntilClose = false;
+                m_bodyExpected = 0;
+                m_buffer.Clear();
+                m_scanFrom = 0;
+                const usize used = bytes.Size() - extra;
+                const HttpParseState next = Push(Span<const byte>{spill.Data(), spill.Size()});
+                m_consumed += used;
+                return next;
+            }
             m_headParsed = true;
             m_buffer.Clear();
             if (m_noBody)
