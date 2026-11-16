@@ -1625,3 +1625,34 @@ TEST_CASE("audio.engine: among 2D voices of one priority, the oldest is taken, n
     }
     CHECK(engine.HasFreeVoice());
 }
+
+TEST_CASE("audio: reverb parameters set between blocks take effect on the next block")
+{
+    // The parameters were plain floats the game thread wrote while the audio thread read them (a
+    // data race; only a thread sanitizer shows it). They are atomics read once per block: a block
+    // processed after SetParams uses the new values.
+    FreeverbState reverb;
+    reverb.Initialize(48000);
+    AudioReverbParams dryOnly;
+    dryOnly.wet = 0.0f;
+    dryOnly.dry = 1.0f;
+    reverb.SetParams(dryOnly);
+    f32 in[16];
+    for (u32 i = 0; i < 16; ++i)
+        in[i] = 0.25f * static_cast<f32>(i % 4) - 0.3f;
+    f32 out[16] = {};
+    reverb.ProcessStereo(in, out, 8);
+    for (u32 i = 0; i < 16; ++i)
+        CHECK(out[i] == doctest::Approx(in[i]));
+    AudioReverbParams wetOnly;
+    wetOnly.wet = 1.0f;
+    wetOnly.dry = 0.0f;
+    reverb.SetParams(wetOnly);
+    CHECK(reverb.Wet() == doctest::Approx(1.0f));
+    CHECK(reverb.Dry() == doctest::Approx(0.0f));
+    reverb.ProcessStereo(in, out, 8);
+    bool changed = false;
+    for (u32 i = 0; i < 16; ++i)
+        changed = changed || Abs(out[i] - in[i]) > 1.0e-3f;
+    CHECK(changed); // no dry path: what comes out is the tail
+}

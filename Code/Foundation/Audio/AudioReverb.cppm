@@ -74,16 +74,20 @@ export namespace foundation::audio
 
         [[nodiscard]] bool IsInitialized() const noexcept { return m_initialized; }
 
+        // Set from the game thread while the audio thread processes: each value is atomic, and the
+        // processing loads them once per block (plain floats written under a running callback
+        // were a data race).
         void SetParams(const AudioReverbParams& params) noexcept
         {
-            m_feedback = 0.7f + Clamp(params.roomSize, 0.0f, 1.0f) * 0.28f;
-            m_damp = Clamp(params.damping, 0.0f, 1.0f) * 0.4f;
-            m_wet = Clamp(params.wet, 0.0f, 1.0f);
-            m_dry = params.dry < 0.0f ? 1.0f - m_wet : Clamp(params.dry, 0.0f, 1.0f);
+            const f32 wet = Clamp(params.wet, 0.0f, 1.0f);
+            m_feedback.store(0.7f + Clamp(params.roomSize, 0.0f, 1.0f) * 0.28f, MemoryOrder::Relaxed);
+            m_damp.store(Clamp(params.damping, 0.0f, 1.0f) * 0.4f, MemoryOrder::Relaxed);
+            m_wet.store(wet, MemoryOrder::Relaxed);
+            m_dry.store(params.dry < 0.0f ? 1.0f - wet : Clamp(params.dry, 0.0f, 1.0f), MemoryOrder::Relaxed);
         }
 
-        [[nodiscard]] f32 Wet() const noexcept { return m_wet; }
-        [[nodiscard]] f32 Dry() const noexcept { return m_dry; }
+        [[nodiscard]] f32 Wet() const noexcept { return m_wet.load(MemoryOrder::Relaxed); }
+        [[nodiscard]] f32 Dry() const noexcept { return m_dry.load(MemoryOrder::Relaxed); }
 
         /// Interleaved-stereo in-place processing: out = in * dry + tail * wet (dry
         /// defaults to 1 - wet, the classic insert mix; 0 = wet-only send node).
@@ -91,6 +95,10 @@ export namespace foundation::audio
         void ProcessStereo(const f32* input, f32* output, u32 frameCount)
         {
             constexpr f32 kFixedGain = 0.015f; // canonical freeverb input gain
+            const f32 dry = m_dry.load(MemoryOrder::Relaxed);
+            const f32 wet = m_wet.load(MemoryOrder::Relaxed);
+            const f32 damp = m_damp.load(MemoryOrder::Relaxed);
+            const f32 feedback = m_feedback.load(MemoryOrder::Relaxed);
             for (u32 frame = 0; frame < frameCount; ++frame)
             {
                 const f32 inL = input[frame * 2 + 0];
@@ -100,16 +108,16 @@ export namespace foundation::audio
                 f32 outR = 0.0f;
                 for (u32 i = 0; i < kCombCount; ++i)
                 {
-                    outL += CombProcess(m_comb[0][i], feed);
-                    outR += CombProcess(m_comb[1][i], feed);
+                    outL += CombProcess(m_comb[0][i], feed, damp, feedback);
+                    outR += CombProcess(m_comb[1][i], feed, damp, feedback);
                 }
                 for (u32 i = 0; i < kAllpassCount; ++i)
                 {
                     outL = AllpassProcess(m_allpass[0][i], outL);
                     outR = AllpassProcess(m_allpass[1][i], outR);
                 }
-                output[frame * 2 + 0] = inL * m_dry + outL * m_wet * 3.0f;
-                output[frame * 2 + 1] = inR * m_dry + outR * m_wet * 3.0f;
+                output[frame * 2 + 0] = inL * dry + outL * wet * 3.0f;
+                output[frame * 2 + 1] = inR * dry + outR * wet * 3.0f;
             }
         }
 
@@ -134,11 +142,11 @@ export namespace foundation::audio
             return (value > -1.0e-18f && value < 1.0e-18f) ? 0.0f : value;
         }
 
-        f32 CombProcess(Comb& comb, f32 input) noexcept
+        f32 CombProcess(Comb& comb, f32 input, f32 damp, f32 feedback) noexcept
         {
             const f32 output = comb.buffer[comb.cursor];
-            comb.filterStore = Undenormal(output * (1.0f - m_damp) + comb.filterStore * m_damp);
-            comb.buffer[comb.cursor] = Undenormal(input + comb.filterStore * m_feedback);
+            comb.filterStore = Undenormal(output * (1.0f - damp) + comb.filterStore * damp);
+            comb.buffer[comb.cursor] = Undenormal(input + comb.filterStore * feedback);
             if (++comb.cursor >= comb.buffer.Size())
             {
                 comb.cursor = 0;
@@ -160,10 +168,10 @@ export namespace foundation::audio
 
         Comb m_comb[2][kCombCount];
         Allpass m_allpass[2][kAllpassCount];
-        f32 m_feedback = 0.84f;
-        f32 m_damp = 0.2f;
-        f32 m_wet = 0.4f;
-        f32 m_dry = 0.6f; // tracks 1 - wet unless params.dry pins it (send mode)
+        Atomic<f32> m_feedback{0.84f};
+        Atomic<f32> m_damp{0.2f};
+        Atomic<f32> m_wet{0.4f};
+        Atomic<f32> m_dry{0.6f}; // tracks 1 - wet unless params.dry pins it (send mode)
         bool m_initialized = false;
     };
 }
