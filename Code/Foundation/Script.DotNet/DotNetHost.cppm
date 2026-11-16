@@ -14,7 +14,7 @@
 module;
 #include "Core/Prelude.h"
 
-export module foundation.script.dotnet;
+export module foundation.script.dotnet:host;
 
 import foundation.core;
 

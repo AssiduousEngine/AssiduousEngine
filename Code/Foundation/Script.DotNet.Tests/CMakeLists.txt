@@ -10,7 +10,7 @@ add_custom_command(
     COMMENT "Building the C# probe assembly")
 add_custom_target(Script.DotNet.Probe DEPENDS ${PROBE_OUT}/Probe.dll)
 
-add_executable(Script.DotNet.Tests TestsMain.cpp DotNetHostTests.cpp)
+add_executable(Script.DotNet.Tests TestsMain.cpp DotNetHostTests.cpp DotNetBridgeTests.cpp)
 add_dependencies(Script.DotNet.Tests Script.DotNet.Probe)
 target_link_libraries(Script.DotNet.Tests PRIVATE Foundation::Script.DotNet doctest::doctest)
 target_compile_definitions(Script.DotNet.Tests PRIVATE

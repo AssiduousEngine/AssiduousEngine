@@ -9,4 +9,8 @@ target_link_libraries(Script.DotNet PUBLIC Foundation::Core)
 target_sources(Script.DotNet
     PUBLIC
         FILE_SET dotnet_modules TYPE CXX_MODULES FILES
-            DotNetHost.cppm)
+            DotNetModule.cppm
+            DotNetHost.cppm
+            DotNetBridge.cppm
+    PRIVATE
+        DotNetBridgeImpl.cpp)
