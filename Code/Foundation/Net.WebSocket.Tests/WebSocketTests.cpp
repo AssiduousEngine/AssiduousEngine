@@ -674,3 +674,35 @@ TEST_CASE("websocket: gateway - a frame sent in the same segment as the upgrade 
     REQUIRE(message.Size() == hello.Size());
     CHECK(MemCompare(message.Data(), hello.Data(), hello.Size()) == 0);
 }
+
+TEST_CASE("websocket: the frame parser keeps only what is not parsed yet, however the reads split")
+{
+    // The buffer was emptied only when a read ended exactly on a frame's end, so a peer whose reads
+    // always ended mid-frame grew it by every frame it ever sent.
+    net::WebSocketFrameParser parser(/*serverSide=*/true);
+    const Array<byte> payload = BytesOf(u8"0123456789");
+    Array<byte> frame;
+    net::EncodeWebSocketFrame(net::WsOpcode::Binary, Span<const byte>{payload.Data(), payload.Size()}, true,
+                              0xA1B2C3D4u, frame);
+    const usize half = frame.Size() / 2;
+    parser.Push(Span<const byte>{frame.Data(), half}); // the first read ends mid-frame
+    // Each read: the rest of one frame and the start of the next, so none ends on a frame's end.
+    Array<byte> read;
+    read.Resize(frame.Size());
+    MemCopy(read.Data(), frame.Data() + half, frame.Size() - half);
+    MemCopy(read.Data() + (frame.Size() - half), frame.Data(), half);
+    usize frames = 0;
+    for (int i = 0; i < 1000; ++i)
+    {
+        parser.Push(Span<const byte>{read.Data(), read.Size()});
+        net::WsFrame out;
+        while (parser.Next(out))
+        {
+            ++frames;
+        }
+    }
+    CHECK(frames == 1000u);
+    CHECK_FALSE(parser.Failed());
+    CHECK(parser.HeldBytes() == half);
+    CHECK(parser.BufferBytes() <= 2 * frame.Size());
+}

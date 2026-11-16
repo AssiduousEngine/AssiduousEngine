@@ -227,9 +227,23 @@ namespace foundation::net
         {
             return;
         }
-        for (byte b : bytes)
+        // What the last parse used goes first. The buffer was emptied only when a read ended on a
+        // frame's end, so a peer whose reads always end mid-frame grew it by every frame it sent.
+        if (m_head > 0)
         {
-            m_buffer.PushBack(b);
+            const usize left = m_buffer.Size() - m_head;
+            if (left > 0)
+            {
+                MemMove(m_buffer.Data(), m_buffer.Data() + m_head, left);
+            }
+            m_buffer.Resize(left);
+            m_head = 0;
+        }
+        const usize at = m_buffer.Size();
+        m_buffer.Resize(at + bytes.Size());
+        if (!bytes.IsEmpty())
+        {
+            MemCopy(m_buffer.Data() + at, bytes.Data(), bytes.Size());
         }
         Parse();
     }

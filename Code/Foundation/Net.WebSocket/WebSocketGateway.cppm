@@ -95,6 +95,10 @@ export namespace foundation::net
         void Push(Span<const byte> bytes);
         [[nodiscard]] bool Next(WsFrame& out);
         [[nodiscard]] bool Failed() const noexcept { return m_failed; }
+        /// The bytes it holds: what the last parse left (a frame not all arrived) and nothing else.
+        [[nodiscard]] usize HeldBytes() const noexcept { return m_buffer.Size() - m_head; }
+        /// The buffer's size, frames already parsed included until the next Push drops them.
+        [[nodiscard]] usize BufferBytes() const noexcept { return m_buffer.Size(); }
 
     private:
         void Parse();
