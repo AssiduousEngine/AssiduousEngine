@@ -65,6 +65,9 @@ import script.angelscript.pipeline;
 import foundation.script.luau;
 import script.luau.pipeline;
 #endif
+#ifdef OPTION_HAS_DOTNET
+import script.dotnet.pipeline;
+#endif
 import foundation.script.resource;
 import script.pipeline;
 import scene.pipeline;
@@ -195,6 +198,11 @@ namespace pipeline
         AddBuilder<AudioBusLayoutAssetBuilder>(registry);
         AddBuilder<SoundCueAssetBuilder>(registry);
         AddBuilder<ScriptAssemblyAssetBuilder>(registry);
+#ifdef OPTION_HAS_DOTNET
+        // C#'s cooks (the class cook and the project build) and its backend; made from the builders'
+        // allocator, as the project build starts the managed runtime to describe what it built.
+        RegisterDotNetScriptCook(registry.Allocator());
+#endif
         AddBuilder<ScriptClassAssetBuilder>(registry);
         AddBuilder<NativeBehaviorAssetBuilder>(registry);
     }

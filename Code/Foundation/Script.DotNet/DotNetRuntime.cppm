@@ -52,6 +52,10 @@ export namespace foundation::script::dotnet
         /// `args` to read its defaults from.
         [[nodiscard]] Result<String> DescribeClass(StringView className, Span<const Variant> args);
 
+        /// Every public class of an assembly image, for the cook ("class NAME" before each class's
+        /// lines, see Runtime.cs), without keeping the image loaded.
+        [[nodiscard]] Result<String> DescribeAssembly(Span<const byte> image);
+
         /// Why the last call failed: the host's reason, or the managed one. A failed call's error is
         /// NotFound when what it asked for is not there (a class, a method, a field).
         [[nodiscard]] StringView Failure() const noexcept { return m_failure.AsView(); }
@@ -69,6 +73,7 @@ export namespace foundation::script::dotnet
         i32 (*m_getField)(isize, const utf8char*, i32, DotNetValue*) = nullptr;
         void (*m_release)(isize) = nullptr;
         i32 (*m_describeClass)(const utf8char*, i32, DotNetValue*, i32, const utf8char**, i32*) = nullptr;
+        i32 (*m_describeAssembly)(const byte*, i32, const utf8char**, i32*) = nullptr;
         const utf8char* (*m_lastError)(i32*) = nullptr;
     };
 }

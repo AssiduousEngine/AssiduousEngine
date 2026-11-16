@@ -238,10 +238,8 @@ public static unsafe class Runtime
             GCHandle.FromIntPtr(instance).Free();
     }
 
-    /// <summary>What the class `name` offers the engine, one line each: "method NAME" for each of
-    /// its public methods, "field NAME KIND DEFAULT" for each public field of an inspector kind (the
-    /// default read from an instance constructed with `count` arguments), then "tooltip NAME TEXT"
-    /// and "replicated NAME". Valid until the thread's next call.</summary>
+    /// <summary>What the class `name` offers the engine (see DescribeType), an instance made with
+    /// `args` to read its defaults from. Valid until the thread's next call.</summary>
     [UnmanagedCallersOnly]
     public static int DescribeClass(byte* name, int nameLength, DotNetValue* args, int count, byte** text, int* length)
     {
@@ -257,21 +255,7 @@ public static unsafe class Runtime
             if (instance == null)
                 return Missing($"{className} has no public constructor of {count} parameters");
             var lines = new StringBuilder();
-            foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance))
-                if (method.DeclaringType != typeof(object) && !method.IsSpecialName)
-                    lines.Append("method ").Append(method.Name).Append('\n');
-            foreach (FieldInfo field in type.GetFields(BindingFlags.Public | BindingFlags.Instance))
-            {
-                string? kind = KindOf(field.FieldType);
-                if (kind == null)
-                    continue;
-                lines.Append("field ").Append(field.Name).Append(' ').Append(kind).Append(' ')
-                     .Append(DefaultText(field.GetValue(instance))).Append('\n');
-                if (field.GetCustomAttribute<TooltipAttribute>() is TooltipAttribute tooltip)
-                    lines.Append("tooltip ").Append(field.Name).Append(' ').Append(OneLine(tooltip.Text)).Append('\n');
-                if (field.GetCustomAttribute<ReplicatedAttribute>() != null)
-                    lines.Append("replicated ").Append(field.Name).Append('\n');
-            }
+            DescribeType(type, instance, lines);
             SetText(lines.ToString(), out *text, out *length);
             return 0;
         }
@@ -282,6 +266,85 @@ public static unsafe class Runtime
         catch (Exception e)
         {
             return Fail(Describe(e));
+        }
+    }
+
+    /// <summary>Every public class of an assembly image, for the cook: "class NAME", then its lines
+    /// (see DescribeType), its defaults read from an instance made by its public constructor of
+    /// fewest parameters, each given its type's default (an invalid Entity, a null object). A
+    /// constructor that throws leaves the class's fields without defaults and adds "warning TEXT".
+    /// The image loads into a context of its own, unloaded after. Valid until the thread's next call.</summary>
+    [UnmanagedCallersOnly]
+    public static int DescribeAssembly(byte* image, int length, byte** text, int* textLength)
+    {
+        var context = new GameContext();
+        try
+        {
+            using var stream = new System.IO.UnmanagedMemoryStream(image, length);
+            Assembly assembly = context.LoadFromStream(stream);
+            var lines = new StringBuilder();
+            foreach (Type type in assembly.GetTypes())
+            {
+                if (!type.IsClass || type.IsAbstract || !type.IsPublic)
+                    continue;
+                lines.Append("class ").Append(type.Name).Append('\n');
+                object? instance = null;
+                ConstructorInfo? simplest = null;
+                foreach (ConstructorInfo constructor in type.GetConstructors())
+                    if (simplest == null || constructor.GetParameters().Length < simplest.GetParameters().Length)
+                        simplest = constructor;
+                if (simplest != null)
+                {
+                    try
+                    {
+                        ParameterInfo[] parameters = simplest.GetParameters();
+                        var values = new object?[parameters.Length];
+                        for (int i = 0; i < parameters.Length; ++i)
+                            values[i] = parameters[i].ParameterType.IsValueType ? Activator.CreateInstance(parameters[i].ParameterType) : null;
+                        instance = simplest.Invoke(values);
+                    }
+                    catch (Exception e)
+                    {
+                        Exception cause = e is TargetInvocationException { InnerException: not null } ? e.InnerException! : e;
+                        lines.Append("warning ").Append(OneLine($"{type.Name}'s constructor threw at cook ({cause.Message}): its fields have no defaults")).Append('\n');
+                    }
+                }
+                DescribeType(type, instance, lines);
+            }
+            SetText(lines.ToString(), out *text, out *textLength);
+            return 0;
+        }
+        catch (Exception e)
+        {
+            return Fail(e is ReflectionTypeLoadException load && load.LoaderExceptions.Length > 0 && load.LoaderExceptions[0] != null
+                            ? load.LoaderExceptions[0]!.Message
+                            : Describe(e));
+        }
+        finally
+        {
+            context.Unload();
+        }
+    }
+
+    // A class's lines: "method NAME" for each of its public methods, "field NAME KIND DEFAULT" for
+    // each public field of an inspector kind (its default from `instance`, empty without one),
+    // then "tooltip NAME TEXT" and "replicated NAME".
+    static void DescribeType(Type type, object? instance, StringBuilder lines)
+    {
+        foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance))
+            if (method.DeclaringType != typeof(object) && !method.IsSpecialName)
+                lines.Append("method ").Append(method.Name).Append('\n');
+        foreach (FieldInfo field in type.GetFields(BindingFlags.Public | BindingFlags.Instance))
+        {
+            string? kind = KindOf(field.FieldType);
+            if (kind == null)
+                continue;
+            lines.Append("field ").Append(field.Name).Append(' ').Append(kind).Append(' ')
+                 .Append(instance != null ? DefaultText(field.GetValue(instance)) : "").Append('\n');
+            if (field.GetCustomAttribute<TooltipAttribute>() is TooltipAttribute tooltip)
+                lines.Append("tooltip ").Append(field.Name).Append(' ').Append(OneLine(tooltip.Text)).Append('\n');
+            if (field.GetCustomAttribute<ReplicatedAttribute>() != null)
+                lines.Append("replicated ").Append(field.Name).Append('\n');
         }
     }
 
