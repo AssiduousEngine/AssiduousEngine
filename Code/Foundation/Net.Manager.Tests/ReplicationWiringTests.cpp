@@ -363,3 +363,12 @@ TEST_CASE("net manager: another replicated scene forgets the last one's ids")
     CHECK_FALSE(server.Replication().FindEntity(oldId).IsAssigned());
     CHECK(server.Replication().NetworkedCount() == 0u);
 }
+
+TEST_CASE("net manager: joining a name that does not resolve fails at once")
+{
+    // The join went ahead with an empty endpoint, so it read as started and the caller waited out
+    // the connect timeout for a server that was never asked.
+    CHECK_FALSE(static_cast<bool>(
+        net::NetworkManager::JoinServer(DefaultAllocator(), u8"no-such-host.invalid", 7777)));
+    CHECK(static_cast<bool>(net::NetworkManager::JoinServer(DefaultAllocator(), u8"127.0.0.1", 7777)));
+}

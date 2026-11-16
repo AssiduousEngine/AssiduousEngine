@@ -155,6 +155,14 @@ namespace foundation::net
             webSocket.trust = static_cast<TlsTrust&&>(trust);
             return JoinWebSocket(allocator, webSocket, config);
         }
+        // A host that does not resolve is no server to join: the session would send its connect to
+        // an empty endpoint, and the caller would wait out a timeout for a join that never began.
+        const DatagramEndpoint server = ResolveEndpoint(host, port);
+        if (!server.IsValid())
+        {
+            LOG_ERROR(u8"Net", u8"cannot join '{}': the name does not resolve to an address", host);
+            return {};
+        }
         UniquePtr<UdpSocket> socket =
             MakeUnique<UdpSocket>(allocator, u16{0}); // ephemeral
         if (!socket->IsOpen())
@@ -163,7 +171,7 @@ namespace foundation::net
         }
         UniquePtr<NetworkManager> manager = MakeUnique<NetworkManager>(
             allocator, static_cast<UniquePtr<UdpSocket>&&>(socket), config);
-        manager->ConnectTo(ResolveEndpoint(host, port));
+        manager->ConnectTo(server);
         return manager;
 #endif
     }
