@@ -220,6 +220,9 @@ export namespace engine::runtime
         // presetting the database or manager.
         void OnStartup(IApplicationHost& host) override;
 
+        /// Leaving play: the runs' scenes go while the subsystems they live in are alive (the host
+        /// shuts the subsystems down next, and calls OnShutdown after that).
+        void OnExit(IApplicationHost& host) override;
         void OnShutdown(IApplicationHost&) override;
 
         // Going to the background, each run writes what its game saved: the platform may end the
@@ -369,6 +372,8 @@ export namespace engine::runtime
         IApplicationHost* m_host = nullptr;
         // Every running game: the primary (a stable member) and any extras (stable UniquePtr
         // addresses, required because the SceneSubsystem borrows each SceneManager's pointer).
+        // Every run's networking, scenes and scripts stopped and gone (leaving play).
+        void TearDownRuns();
         template <typename Fn>
         void ForEachInstance(Fn&& fn)
         {

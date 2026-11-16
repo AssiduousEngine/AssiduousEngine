@@ -136,6 +136,10 @@ export namespace foundation::messaging
             Settle();
         }
 
+        // Drop the events posted and not yet delivered, keeping the subscribers (a run's stop: what
+        // its session posted must not reach the next session's handlers).
+        void DropPending() noexcept { m_queue.Clear(); }
+
         // Drop all subscribers and pending events (scope teardown). From a handler during Drain,
         // every subscription stops hearing at once and leaves when no handler runs.
         void Clear()

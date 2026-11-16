@@ -275,3 +275,19 @@ TEST_CASE("defaultapp: CreatePluginHost offers the app's services; another repla
     CHECK(g_pluginProbe.unloads == 2);
     CHECK(app.Plugins() == nullptr);
 }
+
+
+TEST_CASE("defaultapp: leaving play takes the runs' scenes while the subsystems are alive")
+{
+    // The player's host shuts the subsystems down before it calls OnShutdown, where the scenes
+    // went: their teardown reached physics, audio and the rest after those had shut down.
+    StubHost host;
+    engine::runtime::DefaultApplication app;
+    app.Configure(host);
+    host.Subsystems().Startup();
+    REQUIRE(app.Instance().Scenes().CreateScene(u8"level") != nullptr);
+    app.OnExit(host); // the host calls this before it shuts the subsystems down
+    CHECK(app.Instance().Scenes().SceneCount() == 0u);
+    host.Subsystems().Shutdown();
+    app.OnShutdown(host);
+}

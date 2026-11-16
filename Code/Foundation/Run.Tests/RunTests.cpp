@@ -285,3 +285,22 @@ TEST_CASE("run: its bus is drained with its mutations deferred, flushed after")
     CHECK_FALSE(ranInside); // ran, after the handler returned
     CHECK_FALSE(run.Mutations().IsDeferring());
 }
+
+TEST_CASE("run: what a session posted and nobody drained does not reach the next session")
+{
+    // The bus kept its queue through Stop, so the next Start's first drain delivered events about
+    // the game that had ended.
+    TestRun run(u8"run");
+    int heard = 0;
+    (void)run.Events().Subscribe(StringHash(u8"over"), [&](const Variant&) { ++heard; });
+    run.Start();
+    run.Events().Publish(StringHash(u8"over"), Variant{});
+    run.Stop();
+    run.Start();
+    run.Events().Drain();
+    CHECK(heard == 0);
+    run.Events().Publish(StringHash(u8"over"), Variant{}); // the subscriber still hears this session
+    run.Events().Drain();
+    CHECK(heard == 1);
+    run.Stop();
+}

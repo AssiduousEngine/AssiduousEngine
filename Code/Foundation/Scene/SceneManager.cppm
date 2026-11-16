@@ -213,9 +213,10 @@ export namespace foundation::scene
                     m_updating = true;
                     for (Scene* s : m_active)
                     {
-                        if (time.fixedStep > 0.0f && s->FixedTimeStep() != time.fixedStep)
+                        if (time.fixedStep > 0.0f &&
+                            (s->FixedTimeStep() != time.fixedStep || s->MaxFixedSteps() != time.maxFixedSteps))
                         {
-                            s->SetFixedTiming(time.fixedStep, 4);
+                            s->SetFixedTiming(time.fixedStep, time.maxFixedSteps);
                         }
                         (void)s->AdvanceTime(time.ContextDt() * m_timeScale * s->TimeScale());
                     }
@@ -244,6 +245,9 @@ export namespace foundation::scene
         {
             for (usize i = m_scenes.Size(); i-- > 0;)
             {
+                // Stopped first, as DestroyScene does: the stop hooks unhook a scene's systems
+                // from what outlives it (a run's event bus, a level's onStop).
+                m_scenes[i]->Stop();
                 NotifyDestroyed(*m_scenes[i]);
             }
             m_active.Clear();

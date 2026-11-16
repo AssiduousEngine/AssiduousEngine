@@ -261,3 +261,40 @@ TEST_CASE("scene-manager: a scene destroyed from its own fixed step or a run han
     run.DrainEvents();
     CHECK(manager.SceneCount() == 0u);
 }
+
+namespace
+{
+    class StopCounter final : public SceneSystem
+    {
+    public:
+        int* stops = nullptr;
+        void OnSceneStopped() override { ++*stops; }
+    };
+}
+
+TEST_CASE("scene-manager: Clear stops every running scene before it goes")
+{
+    // Clear freed its scenes without stopping them, so their systems' stop hooks (what unhooks them
+    // from a run's bus) never ran.
+    int stops = 0;
+    SceneManager manager(DefaultAllocator());
+    const StringView names[] = {StringView(u8"a"), StringView(u8"b")};
+    for (StringView name : names)
+    {
+        Scene* scene = manager.CreateScene(name);
+        scene->AddSystem<StopCounter>()->stops = &stops;
+        scene->Start();
+    }
+    manager.Clear();
+    CHECK(stops == 2);
+    CHECK(manager.SceneCount() == 0);
+}
+
+TEST_CASE("scene-manager: a frame's catch-up cap is the app's, not a fixed 4")
+{
+    SceneManager manager(DefaultAllocator());
+    Scene* scene = manager.CreateScene(u8"steps");
+    manager.BeginFrame(FrameTime(1.0f, 1.0f, 1.0f, 1.0f, 1.0f / 60.0f, 8)); // a second behind
+    CHECK(scene->MaxFixedSteps() == 8u);
+    manager.Clear();
+}

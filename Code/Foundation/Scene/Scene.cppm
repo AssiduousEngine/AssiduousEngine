@@ -576,6 +576,7 @@ export namespace foundation::scene
 
         /// Fixed-lane configuration (step seconds and spiral-of-death clamp).
         void SetFixedTiming(f32 step, u32 maxSteps) noexcept;
+        [[nodiscard]] u32 MaxFixedSteps() const noexcept { return m_stepper.maxSteps; }
         [[nodiscard]] f32 FixedTimeStep() const noexcept { return m_stepper.step; }
         /// Interpolation weight for fixed-rate consumers (physics pose smoothing);
         /// published by AdvanceTime after its steps.

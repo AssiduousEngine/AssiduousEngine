@@ -132,6 +132,9 @@ export namespace foundation::runtime
         virtual void OnEnterBackground(IApplicationHost& host) { (void)host; }
         virtual void OnEnterForeground(IApplicationHost& host) { (void)host; }
         virtual void OnExit(IApplicationHost& host) { (void)host; }     // leave play
-        virtual void OnShutdown(IApplicationHost& host) { (void)host; } // before SubsystemManager.Shutdown
+        // Before SubsystemManager.Shutdown in an embedding host (the editor's runtime); after it in
+        // the player's host, which calls OnExit before it. What lives in the subsystems (scenes)
+        // goes in OnExit too, so it goes before them in both.
+        virtual void OnShutdown(IApplicationHost& host) { (void)host; }
     };
 }

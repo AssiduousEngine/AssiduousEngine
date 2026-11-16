@@ -147,6 +147,10 @@ export namespace foundation::runtime
         // its own and keeps no alpha.
         void SetFixedTimeStep(core::f32 step) noexcept { m_fixedStep = step; }
         [[nodiscard]] core::f32 FixedTimeStep() const noexcept { return m_fixedStep; }
+        // The most fixed steps a frame runs to catch up (the app's maxFixedStepsPerFrame); the
+        // time past them is dropped.
+        void SetMaxFixedSteps(core::u32 steps) noexcept { m_maxFixedSteps = steps; }
+        [[nodiscard]] core::u32 MaxFixedSteps() const noexcept { return m_maxFixedSteps; }
 
         void BeginFrame(core::f32 dt)
         {
@@ -310,6 +314,7 @@ export namespace foundation::runtime
         foundation::run::IRunManager* m_runs = nullptr; // SetRunManager; borrowed
         core::HashMap<core::TypeId, void*> m_services;  // RegisterService; borrowed
         core::f32 m_fixedStep = 1.0f / 60.0f;
+        core::u32 m_maxFixedSteps = 4;
         core::f32 m_timeScale = 1.0f;
         bool m_disposed = false;
     };

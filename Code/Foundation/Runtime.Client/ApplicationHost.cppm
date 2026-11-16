@@ -162,6 +162,7 @@ export namespace foundation::runtime
                 // the default app does not use it (networking's pump runs in
                 // NetworkSubsystem::PostUpdate).
                 m_subsystems.SetFixedTimeStep(m_settings.fixedTimeStep);
+                m_subsystems.SetMaxFixedSteps(m_settings.maxFixedStepsPerFrame);
                 m_stepper.step = m_settings.fixedTimeStep;
                 m_stepper.maxSteps = m_settings.maxFixedStepsPerFrame;
                 const core::u32 fixedSteps = m_stepper.Advance(scaledDelta);

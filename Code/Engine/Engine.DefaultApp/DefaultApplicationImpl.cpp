@@ -723,22 +723,8 @@ namespace engine::runtime
         }
     }
 
-    void DefaultApplication::OnShutdown(IApplicationHost& host)
+    void DefaultApplication::TearDownRuns()
     {
-        // The plugins first, after the subsystems have stopped and before anything they added to
-        // goes: the reverse of their load, which came between Configure and the start.
-        DestroyPluginHost();
-        // The subsystems have shut down (and stopped listening): nothing reaches the runs through
-        // the subsystem manager after this. The runs themselves go with the app.
-        host.Subsystems().SetRunManager(nullptr);
-        if (m_profilerOverlay.Get() != nullptr)
-        {
-            m_profilerOverlay->Hide(); // off the GUI's overlay layer while the GUI is alive
-        }
-        m_scenes->UnregisterObserver(this); // the observer is this app; scenes may still compose below
-        // Destroy the run's scenes while the aware subsystems are still alive (they get
-        // OnSceneDestroyed). The editor's GamePage already cleared them per Stop; this covers the
-        // player and any leftover. Do it first, before subsystem teardown, for every instance.
         ForEachInstance(
             [](GameInstance& gi)
             {
@@ -746,6 +732,32 @@ namespace engine::runtime
                 gi.Scenes().Clear();
                 gi.RunHost().Teardown();
             });
+    }
+
+    void DefaultApplication::OnExit(IApplicationHost& host)
+    {
+        (void)host;
+        // The player's host calls this before it shuts the subsystems down and OnShutdown after,
+        // so the scenes go here, while physics, audio and the rest they live in still hear it.
+        TearDownRuns();
+    }
+
+    void DefaultApplication::OnShutdown(IApplicationHost& host)
+    {
+        // The plugins first, before anything they added to goes: the reverse of their load, which
+        // came between Configure and the start.
+        DestroyPluginHost();
+        // Nothing reaches the runs through the subsystem manager after this. The runs themselves go
+        // with the app.
+        host.Subsystems().SetRunManager(nullptr);
+        if (m_profilerOverlay.Get() != nullptr)
+        {
+            m_profilerOverlay->Hide(); // off the GUI's overlay layer while the GUI is alive
+        }
+        m_scenes->UnregisterObserver(this); // the observer is this app; scenes may still compose below
+        // The runs' scenes: gone already in the player (OnExit). The editor calls this before it
+        // shuts its runtime's subsystems down and never calls OnExit, so for it they go here.
+        TearDownRuns();
         m_contactBridge.Uninstall();
         m_animationBridge.Uninstall();
         if (auto* gfx = host.Graphics(); gfx != nullptr && gfx->Raw() != nullptr)

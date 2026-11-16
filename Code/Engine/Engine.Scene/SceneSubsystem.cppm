@@ -170,7 +170,8 @@ export namespace engine::scene
             m_frameTime = FrameTime(deltaTime,
                                     Manager() != nullptr ? Manager()->TimeScale() : 1.0f,
                                     /*group*/ 1.0f, /*scene*/ 1.0f,
-                                    Manager() != nullptr ? Manager()->FixedTimeStep() : 0.0f);
+                                    Manager() != nullptr ? Manager()->FixedTimeStep() : 0.0f,
+                                    Manager() != nullptr ? Manager()->MaxFixedSteps() : 4u);
             m_scenes.BeginFrame(m_frameTime);
         }
         void Update(f32 /*contextScaledDt: the captured FrameTime replaces it*/) override

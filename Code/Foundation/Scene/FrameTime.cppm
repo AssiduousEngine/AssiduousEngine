@@ -36,12 +36,13 @@ export namespace foundation::scene
         f32 groupScale = 1.0f;   // the group / instance term
         f32 sceneScale = 1.0f;   // the per-scene term
         f32 fixedStep = 1.0f / 60.0f;
+        u32 maxFixedSteps = 4; // a frame's catch-up cap (the app's maxFixedStepsPerFrame)
 
         FrameTime() = default;
         FrameTime(f32 raw, f32 context = 1.0f, f32 group = 1.0f, f32 scene = 1.0f,
-                  f32 step = 1.0f / 60.0f) noexcept
+                  f32 step = 1.0f / 60.0f, u32 maxSteps = 4) noexcept
             : rawDt(raw), contextScale(context), groupScale(group), sceneScale(scene),
-              fixedStep(step)
+              fixedStep(step), maxFixedSteps(maxSteps)
         {
         }
 

@@ -99,6 +99,10 @@ namespace foundation::run
                 Destroy(m_services[i - 1]);
                 m_services.RemoveAt(i - 1);
             }
+        // What the session posted and nobody drained goes with it: delivered at the next session's
+        // first drain, it would reach handlers about a game that is over. The subscribers stay; each
+        // owner unsubscribes as it stops.
+        m_events.DropPending();
         m_state = RunState::Idle;
     }
 
