@@ -8,6 +8,7 @@
 
 module;
 #include "Core/Prelude.h"
+#include "Core/Log/Log.h"
 #include <initializer_list>
 
 module foundation.content;
@@ -20,6 +21,16 @@ using namespace foundation::vfs;
 
 namespace foundation::content
 {
+    void ContentDatabase::NoteDuplicate(const Guid& id, const Instance& kept, const Instance& replaced)
+    {
+        DuplicateId duplicate{id, kept.Path(), replaced.Path()};
+        LOG_ERROR(u8"Content",
+                  u8"'{}' and '{}' have one guid: '{}' takes it, and a reference to it reaches that one only "
+                  u8"(give the copy a guid of its own)",
+                  duplicate.kept, duplicate.replaced, duplicate.replaced);
+        m_duplicates.PushBack(Move(duplicate));
+    }
+
     namespace
     {
         constexpr StringView kTextSuffix = u8".data";

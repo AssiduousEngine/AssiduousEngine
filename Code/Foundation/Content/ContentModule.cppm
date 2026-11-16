@@ -304,6 +304,20 @@ export namespace foundation::content
 
         [[nodiscard]] const ScanStats& LastScanStats() const noexcept { return m_scanStats; }
 
+        /// Two envelopes claiming one identity (a copied file, a bad merge): the guid, the record
+        /// the index already held and the one that took it over. Each is logged as it is found;
+        /// the index answers with the later one, as before, and tooling can name both.
+        struct DuplicateId
+        {
+            Guid id;
+            String kept;     // the path the index held
+            String replaced; // the path that claimed it after
+        };
+        [[nodiscard]] Span<const DuplicateId> DuplicateIds() const noexcept
+        {
+            return {m_duplicates.Data(), m_duplicates.Size()};
+        }
+
         // Delete an instance: its envelope and every data-stream sidecar are removed from the
         // mount, and it is unregistered from the group tree and the GUID index (the cook's
         // orphan sweep and the browser's Delete use it). NotFound when the id is unknown.
@@ -446,6 +460,10 @@ export namespace foundation::content
             m_allInstances.PushBack(instance);
             if (!id.IsNil())
             {
+                if (Instance* const* held = m_byGuid.Find(id); held != nullptr && *held != instance)
+                {
+                    NoteDuplicate(id, **held, *instance);
+                }
                 m_byGuid.InsertOrAssign(id, instance);
             }
             return instance;
@@ -465,6 +483,8 @@ export namespace foundation::content
         [[nodiscard]] bool ReadHeader(IStream& stream, Header& out) const;
 
         void RefreshEnvelope(StringView path, StringView recordPath, ContentChanges& out);
+        // Records and logs two records claiming one guid (DuplicateIds).
+        void NoteDuplicate(const Guid& id, const Instance& kept, const Instance& replaced);
         void RefreshDataStream(StringView path, ContentChanges& out);
         // Drops a record from the index and frees it, without touching its files. Another record
         // claiming the same identity (two envelopes with one guid) takes the index over.
@@ -537,6 +557,7 @@ export namespace foundation::content
         Array<Group*> m_allGroups;
         Array<Instance*> m_allInstances;
         HashMap<Guid, Instance*> m_byGuid;
+        Array<DuplicateId> m_duplicates; // DuplicateIds
         u64 m_revision = 0; // Revision()
     };
 

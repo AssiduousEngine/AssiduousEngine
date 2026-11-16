@@ -1533,3 +1533,41 @@ TEST_CASE("content: a file's owner is its envelope's or its sidecar's exact inst
     CHECK_FALSE(MatchSidecar(u8"Rock", u8"Rock.rasset", stream, encoding));
     CHECK_FALSE(MatchSidecar(u8"Rock", u8"RockBig.geometry.bin", stream, encoding));
 }
+
+TEST_CASE("content: two envelopes with one guid are reported, both named")
+{
+    // A copied envelope (a file duplicated outside the editor) kept its guid; the scan let the
+    // later one take the index over and said nothing, so references silently reached one of them.
+    const StringView dir = u8"scratch_content_duplicate";
+    (void)RemoveDirectoryRecursive(dir);
+    GlobalTypeRegistry().Register(MaterialResource::StaticType());
+    RegisterSerializable<MaterialResource>();
+    {
+        NativeFileSystem mount(dir, DefaultAllocator());
+        ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
+        foundation::content::Instance* original = db.RootGroup()->CreateInstance(u8"original", MaterialResource::StaticType());
+        REQUIRE(original != nullptr);
+        MaterialResource material;
+        REQUIRE(original->WriteObject(material).IsOk());
+        CHECK(db.DuplicateIds().IsEmpty());
+    }
+    {
+        NativeFileSystem mount(dir, DefaultAllocator());
+        Array<byte> bytes;
+        {
+            UniquePtr<IStream> in = mount.Open(u8"original.rasset", FileMode::Read);
+            REQUIRE(in.Get() != nullptr);
+            bytes.Resize(static_cast<usize>(in->Size()));
+            REQUIRE(in->Read(bytes.Data(), bytes.Size()) == bytes.Size());
+        }
+        REQUIRE(mount.AsWritable()->Save(u8"copy.rasset", Span<const byte>{bytes.Data(), bytes.Size()}).IsOk());
+    }
+    NativeFileSystem mount(dir, DefaultAllocator());
+    ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
+    REQUIRE(db.DuplicateIds().Size() == 1u);
+    const ContentDatabase::DuplicateId& duplicate = db.DuplicateIds()[0];
+    const bool both = (duplicate.kept.AsView().Contains(u8"original") && duplicate.replaced.AsView().Contains(u8"copy")) ||
+                      (duplicate.kept.AsView().Contains(u8"copy") && duplicate.replaced.AsView().Contains(u8"original"));
+    CHECK(both);
+    (void)RemoveDirectoryRecursive(dir);
+}

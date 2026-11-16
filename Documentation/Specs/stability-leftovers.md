@@ -267,7 +267,8 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   trusted only for a file modified before that second (git's racy-clean rule); the recipe folds
   the product type's data version chain; cook.db version 2.
 - **Duplicate guids are accepted silently.** `ContentModule.cppm:446`. Test: two envelopes with one
-  guid are reported.
+  guid are reported. Built 2026-11-16: logged as an error naming both paths and listed in
+  `ContentDatabase::DuplicateIds()`; the later one keeps the index, as before.
 - **The player opens every envelope at startup, copies entries twice and searches the TOC
   linearly.** `ContentModule.cppm:499`, `PakModule.cppm:92-102, 245`. Fix: lazy open, a view over
   the region, a hashed TOC.
