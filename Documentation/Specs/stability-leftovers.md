@@ -292,6 +292,8 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   2026-11-16: a hidden node's Invalidate still tells its ancestors (`NoteReachChanged`: subtree ink
   and child index), without marking them for redrawing.
 - **A percent size on an unbounded axis stops the relayout walk.** `LayoutImpl.cpp:36-41, 1188`.
+  Built 2026-11-16: a node whose percent (or calc) axis ever resolved to nothing is marked as
+  following its content, and the walk goes past it.
 - **SVG: `viewBox` ignored beside width and height; `fill-rule` never parsed; round and bevel joins
   keep the miter spike; `1e999`.** `VG.SVG/Loader.cppm:53, 767`, `Context.cppm:687`,
   `Tessellation.cppm:982`, `Parsers.cppm:757`.

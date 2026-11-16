@@ -3154,6 +3154,11 @@ export namespace foundation::gui
         Thickness m_padding{};
         Thickness m_paddingPercent{}; // of the containing box's width (CSS's padding percentages)
         f32 m_percentWidth = -1.0f;   // the containing box's width it was last measured in (-1: unknown)
+        // A measure found its style giving no size on an axis (a percent of an axis with no limit:
+        // a scroller's content, an auto-sized parent), so it sized from its content. Kept: the
+        // same node is measured again against a final size later in a pass, and a change inside
+        // it must still reach the containers that sized from it.
+        bool m_followedContent = false;
         core::Float2 m_scrollOffset{0.0f, 0.0f}; // a scroll container's offset (its children move by minus it)
         f32 m_pixelScale = 1.0f; // device pixels per unit at its last arrange (its edges round to that grid)
         core::Float2 m_contentExtent{0.0f, 0.0f}; // the children's extent as last laid out

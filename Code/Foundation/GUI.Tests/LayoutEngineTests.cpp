@@ -1202,3 +1202,27 @@ TEST_CASE("layout-engine: a grid line or span past the limit is clamped")
     CHECK(wide->GetLayoutStyle().Row.Start == 1000);
     bed.Layout();
 }
+
+TEST_CASE("layout: a percent height of an axis with no limit follows its content, and so do its ancestors")
+{
+    // A node with a percent width and height counted as fixed in size, so the relayout walk from a
+    // change inside it stopped there. Where the percent is of an axis with no limit (inside an
+    // auto-height column) it resolves to nothing and the node follows its content, so the column
+    // above it kept its old height.
+    Bed bed;
+    auto column = Box(*bed.root, [](LayoutStyle& s) { s.Height = LayoutLength{}; }); // auto height
+    bed.root->EditLayoutStyle([](LayoutStyle& s) { s.AlignItems = Align::Start; });
+    auto percent = Box(*column, [](LayoutStyle& s) {
+        s.Width = LayoutLength::Px(100.0f);
+        s.Height = LayoutLength::Percent(50.0f); // of the column's auto height: no limit
+    });
+    auto inner = Box(*percent, [](LayoutStyle&) {});
+    (void)Fixed(*inner, 50.0f, 20.0f);
+    bed.Layout();
+    const f32 before = column->GetSize().y;
+    CHECK(before == doctest::Approx(20.0f)); // its content's height, the percent of nothing
+
+    (void)Fixed(*inner, 50.0f, 100.0f); // a child added deep inside
+    bed.Layout();
+    CHECK(column->GetSize().y == doctest::Approx(120.0f)); // the walk went past the percent node
+}

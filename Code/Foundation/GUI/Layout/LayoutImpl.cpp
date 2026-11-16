@@ -931,6 +931,10 @@ namespace foundation::gui
             };
             Optional<f32> w = box(s.Width, constraints.PercentBase.x, ch);
             Optional<f32> h = box(s.Height, constraints.PercentBase.y, cv);
+            // A percent (or a calc with one) that resolved to nothing: the axis had no limit.
+            const auto relative = [](LayoutLength l) { return l.Kind == LayoutLengthKind::Percent || l.Kind == LayoutLengthKind::Calc; };
+            if ((!w.HasValue() && relative(s.Width)) || (!h.HasValue() && relative(s.Height)))
+                m_followedContent = true;
             // An aspect ratio gives the auto side from the other: one the style gives, else one the
             // container fixes (a stretch). It is the ratio of the box the sizing names.
             if (s.AspectRatio > 0.0f)
@@ -1185,7 +1189,9 @@ namespace foundation::gui
         // lays out again. A container of definite size stops the walk (its size does not change);
         // an out-of-flow node makes its container place it again, and nothing more.
         Node* n = this;
-        while (n->m_parent != nullptr && !HasDefiniteSize(*n))
+        // A size of its own on both axes stops the walk, unless a percent of it was ever of an axis
+        // with no limit: then it resolved to nothing and the node followed its content.
+        while (n->m_parent != nullptr && !(HasDefiniteSize(*n) && !n->m_followedContent))
         {
             const bool outOfFlow = n->m_layoutStyle.Placement == Position::Absolute;
             n = n->m_parent;
