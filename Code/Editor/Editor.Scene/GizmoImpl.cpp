@@ -175,23 +175,28 @@ namespace editor
         if (in.leftPressed && m_gizmo.Hovered() != GizmoAxis::None &&
             m_gizmo.BeginDrag(in.ray, m_mode))
         {
-            m_dragEntity = *primary;
-            m_dragStartLocal = scene.GetLocalTransform(entity);
-
-            // Parent frame captured once: world deltas convert into parent space.
-            const scene::EntityHandle parent = scene.GetParent(entity);
-            m_parentInverseWorld = Float4x4::Identity();
-            m_parentRotation = Quaternion::Identity;
-            if (parent.IsAssigned())
+            // Every selection root moves (an entity under a selected one moves with it); parent
+            // frames captured once, so world deltas convert into each parent's space.
+            m_dragTargets.Clear();
+            for (const Guid& id : m_edit->SelectionRoots())
             {
-                const Float4x4 parentWorld = scene.ComposeWorldMatrix(parent);
-                m_parentInverseWorld = Inverse(parentWorld);
-                Float3 t, s;
-                Quaternion r;
-                if (Decompose(parentWorld, t, r, s))
+                const scene::EntityHandle e = m_edit->Resolve(id);
+                DragTarget target;
+                target.entity = id;
+                target.startLocal = scene.GetLocalTransform(e);
+                const scene::EntityHandle parent = scene.GetParent(e);
+                if (parent.IsAssigned())
                 {
-                    m_parentRotation = r;
+                    const Float4x4 parentWorld = scene.ComposeWorldMatrix(parent);
+                    target.parentInverseWorld = Inverse(parentWorld);
+                    Float3 t, s;
+                    Quaternion r;
+                    if (Decompose(parentWorld, t, r, s))
+                    {
+                        target.parentRotation = r;
+                    }
                 }
+                m_dragTargets.PushBack(target);
             }
 
             m_edit->Commands().BeginGroup(u8"gizmo_drag");
@@ -217,17 +222,21 @@ namespace editor
         }
     }
 
-    Optional<Float3> GizmoController::FindSnapVertex(const GizmoRay& ray, scene::EntityHandle dragged)
+    Optional<Float3> GizmoController::FindSnapVertex(const GizmoRay& ray)
     {
         scene::Scene& scene = m_edit->Scene();
-        // Never snap onto itself: the dragged entity and everything under it move with the drag.
-        const auto accept = [&scene, dragged](scene::EntityHandle candidate)
+        // Never snap onto what moves: the dragged entities and everything under them.
+        const auto accept = [this, &scene](scene::EntityHandle candidate)
         {
             for (scene::EntityHandle e = candidate; e.IsAssigned(); e = scene.GetParent(e))
             {
-                if (e == dragged)
+                const Guid id = scene.GetEntityId(e);
+                for (const DragTarget& target : m_dragTargets)
                 {
-                    return false;
+                    if (target.entity == id)
+                    {
+                        return false;
+                    }
                 }
             }
             return true;
@@ -263,49 +272,73 @@ namespace editor
 
     void GizmoController::UpdateDrag(const GizmoFrameInput& in)
     {
-        const scene::EntityHandle entity = m_edit->Resolve(m_dragEntity);
-        if (!entity.IsAssigned())
+        if (m_dragTargets.IsEmpty() || !m_edit->Resolve(m_dragTargets[0].entity).IsAssigned())
         {
             AbortDrag();
             return;
         }
-
-        core::Transform t = m_dragStartLocal;
+        const bool snap = in.snap || m_snapMode;
+        // The handle's delta, once per frame, applied to every target.
+        Float3 worldDelta{};
+        Quaternion worldRotation = Quaternion::Identity;
+        Float3 scaleDelta{};
         switch (m_mode)
         {
         case GizmoMode::Translate:
         {
-            const Float3 worldDelta = m_gizmo.UpdateTranslateDrag(in.ray, in.snap || m_snapMode);
-            t.position =
-                m_dragStartLocal.position + TransformDirection(worldDelta, m_parentInverseWorld);
-            // Vertex snap: the pivot goes on the vertex under the cursor, whichever handle is held;
-            // over no surface, the drag stays as it is.
-            m_snapTarget = (in.vertexSnap || m_vertexSnapMode) ? FindSnapVertex(in.ray, entity) : Optional<Float3>{};
+            worldDelta = m_gizmo.UpdateTranslateDrag(in.ray, snap);
+            // Vertex snap: the primary's pivot goes on the vertex under the cursor, whichever
+            // handle is held, the others keeping their offsets; over no surface, the drag stays.
+            m_snapTarget = (in.vertexSnap || m_vertexSnapMode) ? FindSnapVertex(in.ray) : Optional<Float3>{};
             if (m_snapTarget.HasValue())
             {
-                t.position = TransformPoint(m_snapTarget.Value(), m_parentInverseWorld);
+                const DragTarget& primary = m_dragTargets[0];
+                const Float4x4 parentWorld = Inverse(primary.parentInverseWorld);
+                worldDelta = m_snapTarget.Value() - TransformPoint(primary.startLocal.position, parentWorld);
             }
             break;
         }
         case GizmoMode::Rotate:
         {
-            const TransformGizmo::RotateDelta d = m_gizmo.UpdateRotateDrag(in.ray, in.snap || m_snapMode);
-            const Quaternion worldDelta = Quaternion::FromAxisAngle(d.axis, d.angle);
-            // Conjugate the world delta into parent space, then compose with the start.
-            t.rotation = Normalized(Inverse(m_parentRotation) * worldDelta * m_parentRotation *
-                                    m_dragStartLocal.rotation);
+            const TransformGizmo::RotateDelta d = m_gizmo.UpdateRotateDrag(in.ray, snap);
+            worldRotation = Quaternion::FromAxisAngle(d.axis, d.angle);
             break;
         }
         case GizmoMode::Scale:
-        {
-            const Float3 d = m_gizmo.UpdateScaleDrag(in.ray, in.snap || m_snapMode);
-            t.scale.x = Max(m_dragStartLocal.scale.x + d.x, 0.001f);
-            t.scale.y = Max(m_dragStartLocal.scale.y + d.y, 0.001f);
-            t.scale.z = Max(m_dragStartLocal.scale.z + d.z, 0.001f);
+            scaleDelta = m_gizmo.UpdateScaleDrag(in.ray, snap);
             break;
         }
+        // A scale grows or shrinks in magnitude and keeps its sign: a mirrored entity stays
+        // mirrored (clamping the value itself to 0.001 flipped it on the first frame of a drag).
+        const auto scaled = [](f32 start, f32 delta)
+        {
+            const f32 sign = start < 0.0f ? -1.0f : 1.0f;
+            return sign * Max(Abs(start) + delta, 0.001f);
+        };
+        for (const DragTarget& target : m_dragTargets)
+        {
+            if (!m_edit->Resolve(target.entity).IsAssigned())
+            {
+                continue;
+            }
+            core::Transform t = target.startLocal;
+            switch (m_mode)
+            {
+            case GizmoMode::Translate:
+                t.position = target.startLocal.position + TransformDirection(worldDelta, target.parentInverseWorld);
+                break;
+            case GizmoMode::Rotate:
+                // Each about its own pivot: the world delta conjugated into its parent's space.
+                t.rotation = Normalized(Inverse(target.parentRotation) * worldRotation * target.parentRotation *
+                                        target.startLocal.rotation);
+                break;
+            case GizmoMode::Scale:
+                t.scale = Float3{scaled(target.startLocal.scale.x, scaleDelta.x), scaled(target.startLocal.scale.y, scaleDelta.y),
+                                 scaled(target.startLocal.scale.z, scaleDelta.z)};
+                break;
+            }
+            m_edit->SetLocalTransform(target.entity, t);
         }
-        m_edit->SetLocalTransform(m_dragEntity, t);
     }
 
     void GizmoController::FinishDrag()
@@ -318,7 +351,7 @@ namespace editor
             m_edit->Commands().LockGroup(); // the next drag is its own undo entry
             m_inGroup = false;
         }
-        m_dragEntity = Guid{};
+        m_dragTargets.Clear();
     }
 
     void GizmoController::AbortDrag()

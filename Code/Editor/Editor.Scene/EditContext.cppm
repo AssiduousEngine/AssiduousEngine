@@ -118,6 +118,16 @@ export namespace editor
         /// Guid (nil on failure); it becomes the selection. One undo step.
         Guid DuplicateEntity(const Guid& entity);
 
+        /// The selection's roots: each selected entity that is alive and has no selected ancestor
+        /// (moving, deleting or copying an ancestor takes it along), the primary first.
+        [[nodiscard]] Array<Guid> SelectionRoots();
+
+        /// Duplicates every selection root, as one undo step; the copies become the selection.
+        void DuplicateSelection();
+
+        /// Destroys every selection root and its subtree, as one undo step.
+        void DestroySelection();
+
         [[nodiscard]] String UniqueSiblingName(StringView base, scene::EntityHandle parent);
 
         // === Component clipboard ===

@@ -426,26 +426,23 @@ export namespace editor
         }
         {
             EditorActionDeclaration d = Declare(kEntityDuplicate, u8"Duplicate",
-                                                u8"Duplicate the selected entity's subtree "
-                                                u8"beside it",
+                                                u8"Duplicate the selected entities' subtrees "
+                                                u8"beside them",
                                                 u8"Scene/Entity/Duplicate", 200);
             d.shortcut = EditorShortcut::Of(u8"ctrl-d");
             d.enabled = [](EditorPage* page) { return !detail::PrimaryOf(page).IsNil(); };
             d.execute = [](EditorPage* page)
-            {
-                (void)detail::EditablePage(page)->EditContext().DuplicateEntity(
-                    detail::PrimaryOf(page));
-            };
+            { detail::EditablePage(page)->EditContext().DuplicateSelection(); };
             (void)actions.Register(Move(d));
         }
         {
             EditorActionDeclaration d = Declare(kEntityDelete, u8"Delete",
-                                                u8"Delete the selected entity and its subtree",
+                                                u8"Delete the selected entities and their subtrees",
                                                 u8"Scene/Entity/Delete", 201);
             d.shortcut = EditorShortcut::Of(u8"delete");
             d.enabled = [](EditorPage* page) { return !detail::PrimaryOf(page).IsNil(); };
             d.execute = [](EditorPage* page)
-            { detail::EditablePage(page)->EditContext().DestroyEntity(detail::PrimaryOf(page)); };
+            { detail::EditablePage(page)->EditContext().DestroySelection(); };
             (void)actions.Register(Move(d));
         }
         {

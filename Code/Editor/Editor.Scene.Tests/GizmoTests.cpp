@@ -866,3 +866,68 @@ TEST_CASE("gizmo: under an orthographic view it keeps one size at every depth")
     CHECK(TransformGizmo::ScreenScale(kCamPos, kCamFwd, 1.0472f, Float3{0, 0, -90}) >
           TransformGizmo::ScreenScale(kCamPos, kCamFwd, 1.0472f, Float3{0, 0, 8}));
 }
+
+TEST_CASE("gizmo-controller: a drag moves every selected entity once, as one undo entry")
+{
+    // The gizmo moved the primary only, the rest of the selection staying put.
+    foundation::scene::Scene scene{DefaultAllocator()};
+    EditorCommandStack commands;
+    SceneEditContext edit(scene, commands);
+    GizmoController ctl(edit);
+    const Guid a = edit.CreateEntity(u8"A");
+    const Guid b = edit.CreateEntity(u8"B");
+    const Guid child = edit.CreateEntity(u8"Child", b);
+    {
+        core::Transform t;
+        t.position = Float3{0.0f, 3.0f, 0.0f};
+        scene.SetLocalTransform(edit.Resolve(b), t);
+    }
+    const Guid picked[] = {a, b, child}; // the child moves with B, not twice
+    edit.EntitySelection().Set(Span<const Guid>{picked, 3});
+    commands.Clear();
+
+    const f32 size = TransformGizmo::ScreenScale(kCamPos, kCamFwd, 1.0472f, Float3{});
+    const Float3 grab{size * 0.6f, 0.0f, 0.0f};
+    CHECK(ctl.Update(Frame(grab, false, false, false)));
+    CHECK(ctl.Update(Frame(grab, true, true, false)));
+    CHECK(ctl.Update(Frame(grab + Float3{2.0f, 0, 0}, false, true, false)));
+    CHECK(ctl.Update(Frame(grab + Float3{2.0f, 0, 0}, false, false, true)));
+
+    CHECK(scene.GetLocalTransform(edit.Resolve(a)).position.x == doctest::Approx(2.0f).epsilon(0.05f));
+    CHECK(scene.GetLocalTransform(edit.Resolve(b)).position.x == doctest::Approx(2.0f).epsilon(0.05f));
+    CHECK(scene.GetLocalTransform(edit.Resolve(b)).position.y == doctest::Approx(3.0f));
+    CHECK(scene.GetLocalTransform(edit.Resolve(child)).position.x == doctest::Approx(0.0f)); // moved by its parent only
+    commands.Undo();
+    CHECK(scene.GetLocalTransform(edit.Resolve(a)).position.x == doctest::Approx(0.0f));
+    CHECK(scene.GetLocalTransform(edit.Resolve(b)).position.x == doctest::Approx(0.0f));
+    CHECK_FALSE(commands.CanUndo());
+}
+
+TEST_CASE("gizmo-controller: scaling a mirrored entity keeps it mirrored")
+{
+    // Each axis was clamped to at least 0.001, so a negative scale became 0.001 on the first frame.
+    foundation::scene::Scene scene{DefaultAllocator()};
+    EditorCommandStack commands;
+    SceneEditContext edit(scene, commands);
+    GizmoController ctl(edit);
+    const Guid id = edit.CreateEntity(u8"Mirrored");
+    {
+        core::Transform t;
+        t.scale = Float3{-1.0f, 1.0f, 1.0f};
+        scene.SetLocalTransform(edit.Resolve(id), t);
+    }
+    edit.EntitySelection().Set(id);
+    GizmoFrameInput in = Frame(Float3{5, 5, 0}, false, false, false);
+    in.keyScale = true;
+    (void)ctl.Update(in);
+    REQUIRE(ctl.Mode() == GizmoMode::Scale);
+    // The centre (uniform) handle, dragged outward a little: the magnitude grows on every axis.
+    CHECK(ctl.Update(Frame(Float3{}, false, false, false)));
+    CHECK(ctl.Update(Frame(Float3{}, true, true, false)));
+    CHECK(ctl.Update(Frame(Float3{0.3f, 0.3f, 0.0f}, false, true, false)));
+    CHECK(ctl.Update(Frame(Float3{0.3f, 0.3f, 0.0f}, false, false, true)));
+    const Float3 s = scene.GetLocalTransform(edit.Resolve(id)).scale;
+    CHECK(s.x < -1.0f);
+    CHECK(s.y > 1.0f);
+    CHECK(s.x == doctest::Approx(-s.y));
+}

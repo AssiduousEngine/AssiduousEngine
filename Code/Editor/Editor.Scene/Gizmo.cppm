@@ -322,7 +322,7 @@ export namespace editor
         void UpdateDrag(const GizmoFrameInput& in);
         /// The vertex under `ray` to snap the dragged entity onto: on any drawn surface except
         /// those of the dragged entity and its descendants.
-        [[nodiscard]] Optional<Float3> FindSnapVertex(const GizmoRay& ray, scene::EntityHandle dragged);
+        [[nodiscard]] Optional<Float3> FindSnapVertex(const GizmoRay& ray);
 
         void FinishDrag();
 
@@ -335,11 +335,16 @@ export namespace editor
         bool m_active = false; // false while nothing is selected or the gizmo is behind the camera
         bool m_inGroup = false;
 
-        // Drag session capture.
-        Guid m_dragEntity;
-        core::Transform m_dragStartLocal;
-        Float4x4 m_parentInverseWorld = Float4x4::Identity();
-        Quaternion m_parentRotation = Quaternion::Identity;
+        // Drag session capture: every selection root (the primary first) as it was when the drag
+        // began, with its parent's frame, so world deltas convert into each one's parent space.
+        struct DragTarget
+        {
+            Guid entity;
+            core::Transform startLocal;
+            Float4x4 parentInverseWorld = Float4x4::Identity();
+            Quaternion parentRotation = Quaternion::Identity;
+        };
+        Array<DragTarget> m_dragTargets;
         bool m_vertexSnapMode = false;
         bool m_handlesShown = true;
         bool m_snapMode = false;

@@ -1047,3 +1047,33 @@ TEST_CASE("scene-edit: a component mutates in one undo step, typed or through it
     const Guid bare = edit.CreateEntity(u8"Bare");
     CHECK_FALSE(edit.MutateComponent<HealthComponent>(bare, [](HealthComponent&) {}));
 }
+
+TEST_CASE("scene-edit: Delete and Duplicate take the whole selection, one undo step each")
+{
+    // Both acted on the primary alone.
+    scene::Scene scene{DefaultAllocator()};
+    EditorCommandStack commands;
+    SceneEditContext edit(scene, commands);
+    const Guid a = edit.CreateEntity(u8"A");
+    const Guid b = edit.CreateEntity(u8"B");
+    const Guid child = edit.CreateEntity(u8"Child", b);
+    const Guid picked[] = {a, b, child}; // the child goes with B, not on its own
+    edit.EntitySelection().Set(Span<const Guid>{picked, 3});
+    commands.Clear();
+    CHECK(edit.SelectionRoots().Size() == 2u);
+
+    edit.DuplicateSelection();
+    CHECK(scene.EntityCount() == 6u); // A, B and Child copied once each
+    CHECK(edit.EntitySelection().Size() == 2u); // the copies
+    commands.Undo();
+    CHECK(scene.EntityCount() == 3u);
+    CHECK_FALSE(commands.CanUndo());
+
+    edit.EntitySelection().Set(Span<const Guid>{picked, 3});
+    edit.DestroySelection();
+    CHECK(scene.EntityCount() == 0u);
+    commands.Undo();
+    CHECK(scene.EntityCount() == 3u);
+    CHECK(scene.GetParent(edit.Resolve(child)) == edit.Resolve(b));
+    CHECK_FALSE(commands.CanUndo());
+}

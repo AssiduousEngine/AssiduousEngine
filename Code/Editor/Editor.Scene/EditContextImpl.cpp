@@ -126,6 +126,67 @@ namespace editor
         return RunPasteCommand(Move(records), parent);
     }
 
+    Array<Guid> SceneEditContext::SelectionRoots()
+    {
+        Array<Guid> roots;
+        for (const Guid& id : m_selection.Items())
+        {
+            const scene::EntityHandle e = Resolve(id);
+            if (!e.IsAssigned())
+            {
+                continue;
+            }
+            bool underSelected = false;
+            for (scene::EntityHandle up = m_scene->GetParent(e); up.IsAssigned() && !underSelected; up = m_scene->GetParent(up))
+            {
+                underSelected = m_selection.Contains(m_scene->GetEntityId(up));
+            }
+            if (!underSelected)
+            {
+                roots.PushBack(id);
+            }
+        }
+        return roots;
+    }
+
+    void SceneEditContext::DuplicateSelection()
+    {
+        const Array<Guid> roots = SelectionRoots();
+        if (roots.IsEmpty())
+        {
+            return;
+        }
+        Array<Guid> copies;
+        m_commands->BeginGroup(u8"entity.duplicate");
+        for (const Guid& root : roots)
+        {
+            const Guid copy = DuplicateEntity(root);
+            if (!copy.IsNil())
+            {
+                copies.PushBack(copy);
+            }
+        }
+        m_commands->EndGroup();
+        m_commands->LockGroup();
+        m_selection.Set(Span<const Guid>{copies.Data(), copies.Size()});
+    }
+
+    void SceneEditContext::DestroySelection()
+    {
+        const Array<Guid> roots = SelectionRoots();
+        if (roots.IsEmpty())
+        {
+            return;
+        }
+        m_commands->BeginGroup(u8"entity.delete");
+        for (const Guid& root : roots)
+        {
+            DestroyEntity(root);
+        }
+        m_commands->EndGroup();
+        m_commands->LockGroup();
+    }
+
     String SceneEditContext::UniqueSiblingName(StringView base, scene::EntityHandle parent)
     {
         // Strip an existing " (n)" suffix so "Box (2)" duplicates to "Box (3)", not
