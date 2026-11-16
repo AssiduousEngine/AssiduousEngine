@@ -1123,6 +1123,10 @@ export namespace foundation::gui
                 f32 sum = 0.0f;
                 for (usize c = 0; c < node->Children.Size(); ++c)
                 {
+                    // Each a positive number: a NaN made the sum NaN, which no comparison refuses,
+                    // and a negative share could be made up by the others.
+                    if (!IsFinite(node->Weights[c]) || node->Weights[c] <= 0.0f)
+                        return fail(u8"a share that is not a positive number");
                     sum += node->Weights[c];
                     const DockNode* child = FindNode(node->Children[c]);
                     if (child == nullptr || child->Parent != id)

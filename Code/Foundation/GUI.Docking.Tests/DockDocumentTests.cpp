@@ -161,3 +161,35 @@ TEST_CASE("dock document: placeholders kept, registered panels it does not name 
     core::String why;
     CHECK(layout.CheckInvariants(&why));
 }
+
+TEST_CASE("dock document: a split share that is not a positive number is refused")
+{
+    // The check summed the shares and compared the sum with one: a NaN share made the sum NaN,
+    // which no comparison refuses, so the layout was adopted and its splits laid out as NaN.
+    DockLayoutDocument saved;
+    saved.Layout = Sample();
+    const core::String text = Save(saved);
+    const auto withShare = [&](core::StringView value)
+    {
+        // The first share in the text, replaced.
+        const core::StringView view = text.AsView();
+        const core::usize at = view.Find(u8"name=\"weights\"");
+        REQUIRE(at != core::StringView::kNotFound);
+        const core::usize open = view.Find(u8">", view.Find(u8"<f32", at)) + 1;
+        const core::usize close = view.Find(u8"<", open);
+        core::String edited(view.SubStr(0, open));
+        edited.Append(value);
+        edited.Append(view.SubStr(close, view.Size() - close));
+        return edited;
+    };
+    const core::StringView bads[] = {core::StringView(u8"nan"), core::StringView(u8"-0.5")};
+    for (const core::StringView bad : bads)
+    {
+        DockLayoutDocument loaded;
+        if (!Load(withShare(bad).AsView(), loaded))
+            continue; // refused while reading: as good
+        core::String why;
+        CHECK_FALSE(loaded.Layout.CheckInvariants(&why));
+        CHECK(why.AsView().Contains(u8"positive number"));
+    }
+}

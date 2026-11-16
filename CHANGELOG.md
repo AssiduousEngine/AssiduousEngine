@@ -35,6 +35,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- A saved dock layout whose split share is not a positive number (NaN, negative) is refused and the
+  default layout used, instead of laying its panels out as NaN.
 - Type lookups are safe while another thread (a cook worker, a plugin loading) registers types.
 - A storage image both read and written in one pass takes the layout (Vulkan) and state (DirectX 12)
   a write needs; a non-square texture array of six or more layers is no longer made cube-compatible.
