@@ -114,16 +114,22 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   Built 2026-11-15.
 - **DX12: a full descriptor heap hands out a null handle that is written.** `DxDevice.cppm:93-96`,
   `DxDescriptorHeap.cppm:59`, callers in `DxTextureView.cppm` and `DxSampler.cppm`. Test: 4097 SRV
-  views give an error status. Fix: check, report; grow or page the heaps.
+  views give an error status. Fix: check, report; grow or page the heaps. Built 2026-11-16 (not
+  compiled here: owed to the MSVC lanes): the CPU heaps page; a null handle only when no page can be
+  made, checked where it is written.
 - **DX12: `base + ~0u` wraps, so a "rest of the mips" barrier emits nothing.**
   `DxCommandEncoder.cppm:279-281`. Test: baseMip 1, count ~0u emits mips - 1 barriers. Fix: resolve
-  "all remaining" before adding.
+  "all remaining" before adding. Built 2026-11-16 (not compiled here); no suite counts barriers, so
+  it has no test.
 - **DX12: a resize drops the tearing flag.** `DxSwapChain.cppm:149`. Test: Immediate mode, resize,
-  Ok. Fix: pass the creation flags.
+  Ok. Fix: pass the creation flags. Built 2026-11-16 (not compiled here); no headless suite opens a
+  window, so it has no test.
 - **DX12: every bind group takes its own sampler slots** (2048). `DxBindGroup.cppm:65`. Test: 2049
-  groups on one sampler succeed. Fix: dedupe sampler tables.
+  groups on one sampler succeed. Fix: dedupe sampler tables. Built 2026-11-16 (not compiled here):
+  tables shared by sampler description and counted; bindless sampler groups keep their own.
+  `DxDescriptorTests` (4097 groups of a view and a sampler) runs on the MSVC lanes.
 - **DX12: a buffer barrier trusts the caller's `oldState`.** `DxCommandEncoder.cppm:195`. Fix: use
-  the tracked state.
+  the tracked state. Built 2026-11-16 (not compiled here).
 - **Vulkan: an upload leaves the tracked layout stale, waits from TOP_OF_PIPE, and ignores the
   submit's result.** `VkTransferBatch.cppm:296-330, 113`. Test: after `WriteTexture`, the tracked
   layout is shader-read. Fix: set the tracked layout; real stages; check the result. Built

@@ -9,6 +9,7 @@ add_executable(Render.Backend.Tests
     MsaaProbeTests.cpp
     ReverseZProbeTests.cpp
     ClusterProbeTests.cpp
+    DxDescriptorTests.cpp
     PickProbeTests.cpp
     WindProbeTests.cpp
     InstanceFadeProbeTests.cpp

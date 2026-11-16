@@ -30,6 +30,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- DirectX 12: a scene with more than 2048 material bind groups, or more than 4096 texture views, no
+  longer fails or crashes; a tearing (Immediate) swap chain survives a window resize; and barriers
+  over "the rest of the mips" and buffer barriers use the right ranges and states.
 - Rendering: the clustered light lists take a fraction of the GPU memory they did (about 13 MB a view
   at 1080p at most, from 50 MB, and far less for a scene of a few lights).
 - Core: a long environment variable (a PATH, a compiler's INCLUDE) is read whole, not cut at 1023

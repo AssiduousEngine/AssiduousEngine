@@ -65,6 +65,7 @@ export namespace foundation::rhi::dx12
             sd.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
             if (d.presentMode == PresentMode::Immediate)
                 sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+            m_swapChainFlags = sd.Flags; // ResizeBuffers must be given them again
 
             ComPtr<IDXGISwapChain1> sc1;
             HRESULT hr = factory->CreateSwapChainForHwnd(gfxQueue, surface->handle(), &sd, nullptr,
@@ -146,8 +147,10 @@ export namespace foundation::rhi::dx12
             m_width = w;
             m_height = h;
             releaseBackBuffers();
+            // The flags it was made with: given 0, a tearing swap chain loses ALLOW_TEARING, and its
+            // next Present with DXGI_PRESENT_ALLOW_TEARING fails.
             HRESULT hr = m_swapChain->ResizeBuffers(m_bufferCount, w, h,
-                                                    stripSrgb(toDxgiFormat(m_format)), 0);
+                                                    stripSrgb(toDxgiFormat(m_format)), m_swapChainFlags);
             if (FAILED(hr))
                 return ErrorCode::Unknown;
             if (acquireBackBuffers() != ErrorCode::Ok)
@@ -235,6 +238,7 @@ export namespace foundation::rhi::dx12
         TextureFormat m_format = TextureFormat::RGBA8UnormSrgb;
         TextureFormat m_alternate = TextureFormat::Undefined; // honoured alternate view format
         u32 m_width = 0, m_height = 0, m_bufferCount = 2;
+        UINT m_swapChainFlags = 0; // DXGI_SWAP_CHAIN_DESC1::Flags at creation
         u32 m_currentIndex = 0;
         PresentMode m_presentMode = PresentMode::Fifo;
         Array<DxTextureImpl*> m_textures;

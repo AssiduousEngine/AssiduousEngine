@@ -192,7 +192,11 @@ export namespace foundation::rhi::dx12
                 if (!dxBuf)
                     continue;
 
-                auto oldState = toResourceStates(bb.oldState);
+                // The state the buffer is in, as tracked: the caller's oldState is what it believes,
+                // and a before-state that is not the real one is a D3D12 error (a debug-layer stop,
+                // undefined on a release driver).
+                (void)bb.oldState;
+                auto oldState = dxBuf->currentState();
                 auto newState = toResourceStates(bb.newState);
                 if (oldState == newState)
                     continue;
@@ -275,10 +279,15 @@ export namespace foundation::rhi::dx12
                                          ? dxTex->desc.depth
                                          : dxTex->desc.arrayLayerCount,
                                      1u);
+                        // "The rest" (~0u) is resolved before it is added: base + ~0u wraps to
+                        // base - 1, so a barrier of the mips past the first covered none.
                         u32 baseMip = tb.baseMipLevel;
-                        u32 mipEnd = std::min(baseMip + tb.mipLevelCount, mipCount);
+                        u32 mipEnd = baseMip >= mipCount ? baseMip
+                                                         : baseMip + std::min(tb.mipLevelCount, mipCount - baseMip);
                         u32 baseLayer = tb.baseArrayLayer;
-                        u32 layerEnd = std::min(baseLayer + tb.arrayLayerCount, layerCount);
+                        u32 layerEnd = baseLayer >= layerCount
+                                           ? baseLayer
+                                           : baseLayer + std::min(tb.arrayLayerCount, layerCount - baseLayer);
 
                         for (u32 layer = baseLayer; layer < layerEnd; ++layer)
                         {

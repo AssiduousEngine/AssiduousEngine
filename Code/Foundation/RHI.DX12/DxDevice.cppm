@@ -103,6 +103,7 @@ export namespace foundation::rhi::dx12
             m_gpuSrvHeap.init(m_device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1000000,
                               true);
             m_gpuSamplerHeap.init(m_device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 2048, true);
+            m_samplerTables.init(m_device.Get(), &m_gpuSamplerHeap);
 
             // --- CPU-visible descriptor heaps (non-shader-visible, bind groups write here) ---
             m_cpuSrvHeap.init(m_device.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 65536, false);
@@ -442,7 +443,7 @@ export namespace foundation::rhi::dx12
         Status CreateBindGroup(const BindGroupDesc& d, BindGroup*& out) override
         {
             auto* g = m_allocator.New<DxBindGroupImpl>();
-            if (g->init(m_device.Get(), d, &m_cpuSrvHeap, &m_cpuSamplerHeap, &m_gpuSamplerHeap) !=
+            if (g->init(m_device.Get(), d, &m_cpuSrvHeap, &m_cpuSamplerHeap, &m_gpuSamplerHeap, &m_samplerTables) !=
                 ErrorCode::Ok)
             {
                 m_allocator.Delete(g);
@@ -1307,6 +1308,7 @@ export namespace foundation::rhi::dx12
         // GPU-visible descriptor heaps (shader-visible, for command buffer binding).
         DxGpuDescriptorHeap m_gpuSrvHeap;
         DxGpuDescriptorHeap m_gpuSamplerHeap;
+        DxSamplerTables m_samplerTables; // shared shader-visible sampler tables over m_gpuSamplerHeap
 
         // CPU-visible descriptor heaps (non-shader-visible, bind groups write here).
         DxGpuDescriptorHeap m_cpuSrvHeap;
@@ -1365,6 +1367,8 @@ export namespace foundation::rhi::dx12
 
         // Allocate temp RTV for destination mip.
         auto rtvHandle = m_device->rtvHeap()->allocate();
+        if (rtvHandle.ptr == 0)
+            return; // no heap page could be made: this mip is not blitted
 
         D3D12_RENDER_TARGET_VIEW_DESC rtvDesc{};
         rtvDesc.Format = dxgiFormat;

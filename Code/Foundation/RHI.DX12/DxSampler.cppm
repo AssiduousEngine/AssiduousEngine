@@ -70,7 +70,10 @@ export namespace foundation::rhi::dx12
                 break;
             }
 
+            m_desc = sd;
             m_handle = samplerHeap->allocate();
+            if (m_handle.ptr == 0)
+                return ErrorCode::OutOfMemory; // no heap page could be made
             device->CreateSampler(&sd, m_handle);
             return ErrorCode::Ok;
         }
@@ -82,8 +85,12 @@ export namespace foundation::rhi::dx12
         }
 
         [[nodiscard]] D3D12_CPU_DESCRIPTOR_HANDLE handle() const { return m_handle; }
+        /// What it was made from: its descriptor is a function of this, so two samplers of one
+        /// description share a shader-visible table.
+        [[nodiscard]] const D3D12_SAMPLER_DESC& desc() const { return m_desc; }
 
     private:
+        D3D12_SAMPLER_DESC m_desc{};
         D3D12_CPU_DESCRIPTOR_HANDLE m_handle{};
         DxDescriptorHeapAllocator* m_samplerHeap = nullptr;
     };

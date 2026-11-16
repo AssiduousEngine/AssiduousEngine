@@ -29,13 +29,91 @@ export namespace foundation::rhi::dx12
 
     class DxAccelStructImpl; // forward
 
+    /// Shader-visible sampler tables shared by the bind groups whose samplers are the same, in the
+    /// same order. The shader-visible sampler heap holds 2048 descriptors (a D3D12 limit) and every
+    /// bind group took a table of its own, so the 2049th group with a sampler failed however few
+    /// distinct samplers there were. Keyed by the samplers' descriptions (an address is reused once
+    /// a sampler is gone; a description determines the descriptor), counted, freed with the last.
+    class DxSamplerTables
+    {
+    public:
+        void init(ID3D12Device* device, DxGpuDescriptorHeap* gpuSamplerHeap)
+        {
+            m_device = device;
+            m_heap = gpuSamplerHeap;
+        }
+
+        /// The offset of a table holding `sources` (described by `descs`), made or shared; -1 when
+        /// the heap has no room. Slots with no source (an array's unwritten tail) are left as they are.
+        i32 acquire(Span<const D3D12_SAMPLER_DESC> descs, Span<const D3D12_CPU_DESCRIPTOR_HANDLE> sources)
+        {
+            for (Table& table : m_tables)
+            {
+                if (table.descs.Size() == descs.Size() &&
+                    MemCompare(table.descs.Data(), descs.Data(), descs.Size() * sizeof(D3D12_SAMPLER_DESC)) == 0)
+                {
+                    ++table.refs;
+                    return table.offset;
+                }
+            }
+            if (m_heap == nullptr)
+                return -1;
+            const i32 offset = m_heap->allocate(static_cast<u32>(descs.Size()));
+            if (offset < 0)
+                return -1;
+            for (usize i = 0; i < sources.Size(); ++i)
+            {
+                if (sources[i].ptr != 0)
+                    m_device->CopyDescriptorsSimple(1, m_heap->getCpuHandle(static_cast<u32>(offset) + static_cast<u32>(i)),
+                                                    sources[i], D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+            }
+            Table table;
+            table.descs.Resize(descs.Size());
+            MemCopy(table.descs.Data(), descs.Data(), descs.Size() * sizeof(D3D12_SAMPLER_DESC));
+            table.offset = offset;
+            table.refs = 1;
+            m_tables.PushBack(Move(table));
+            return offset;
+        }
+
+        void release(i32 offset)
+        {
+            for (usize i = 0; i < m_tables.Size(); ++i)
+            {
+                if (m_tables[i].offset != offset)
+                    continue;
+                if (--m_tables[i].refs == 0)
+                {
+                    m_heap->free(static_cast<u32>(offset), static_cast<u32>(m_tables[i].descs.Size()));
+                    m_tables.RemoveAtSwap(i);
+                }
+                return;
+            }
+        }
+
+        [[nodiscard]] usize tableCount() const { return m_tables.Size(); }
+
+    private:
+        struct Table
+        {
+            Array<D3D12_SAMPLER_DESC> descs;
+            i32 offset = -1;
+            u32 refs = 0;
+        };
+        ID3D12Device* m_device = nullptr;
+        DxGpuDescriptorHeap* m_heap = nullptr;
+        Array<Table> m_tables;
+    };
+
     class DxBindGroupImpl : public BindGroup
     {
     public:
         Status init(ID3D12Device* device, const BindGroupDesc& d, DxGpuDescriptorHeap* cpuSrvHeap,
-                    DxGpuDescriptorHeap* cpuSamplerHeap, DxGpuDescriptorHeap* gpuSamplerHeap)
+                    DxGpuDescriptorHeap* cpuSamplerHeap, DxGpuDescriptorHeap* gpuSamplerHeap,
+                    DxSamplerTables* samplerTables)
         {
             m_device = device;
+            m_samplerTables = samplerTables;
             m_layout = static_cast<DxBindGroupLayoutImpl*>(d.layout);
             m_cpuSrvHeap = cpuSrvHeap;
             m_cpuSamplerHeap = cpuSamplerHeap;
@@ -61,10 +139,15 @@ export namespace foundation::rhi::dx12
                 // Samplers are baked into the shader-visible heap once, at creation (the
                 // bind group is immutable), and SetBindGroup binds this table directly. The
                 // heap's hard 2048 cap cannot fit per-draw copy-on-bind staging, so
-                // samplers (unlike CBV/SRV/UAV tables) never go through staging.
-                m_gpuSamplerOffset = gpuSamplerHeap->allocate(m_cachedSamplerCount);
-                if (m_gpuSamplerOffset < 0)
-                    return ErrorCode::Unknown;
+                // samplers (unlike CBV/SRV/UAV tables) never go through staging. A group whose
+                // samplers are all given shares its table with every group of the same ones; one
+                // with bindless sampler ranges (rewritten in place) keeps its own.
+                if (!AcquireSharedSamplers(d))
+                {
+                    m_gpuSamplerOffset = gpuSamplerHeap->allocate(m_cachedSamplerCount);
+                    if (m_gpuSamplerOffset < 0)
+                        return ErrorCode::Unknown;
+                }
             }
 
             writeDescriptors(d);
@@ -104,8 +187,13 @@ export namespace foundation::rhi::dx12
             if (m_samplerOffset >= 0 && m_cachedSamplerCount > 0)
                 m_cpuSamplerHeap->free(static_cast<u32>(m_samplerOffset), m_cachedSamplerCount);
             if (m_gpuSamplerOffset >= 0 && m_cachedSamplerCount > 0)
-                m_gpuSamplerHeap->free(static_cast<u32>(m_gpuSamplerOffset),
-                                       m_cachedSamplerCount);
+            {
+                if (m_sharedSamplers)
+                    m_samplerTables->release(m_gpuSamplerOffset);
+                else
+                    m_gpuSamplerHeap->free(static_cast<u32>(m_gpuSamplerOffset), m_cachedSamplerCount);
+            }
+            m_sharedSamplers = false;
             m_cbvSrvUavOffset = -1;
             m_samplerOffset = -1;
             m_gpuSamplerOffset = -1;
@@ -121,6 +209,49 @@ export namespace foundation::rhi::dx12
         }
 
     private:
+        // Takes a shared table for the group's samplers, when every sampler range is a plain one and
+        // given; false leaves the group to make its own.
+        bool AcquireSharedSamplers(const BindGroupDesc& d)
+        {
+            if (m_samplerTables == nullptr)
+                return false;
+            Array<D3D12_SAMPLER_DESC> descs;
+            descs.Resize(m_cachedSamplerCount);
+            MemZero(descs.Data(), descs.Size() * sizeof(D3D12_SAMPLER_DESC));
+            Array<D3D12_CPU_DESCRIPTOR_HANDLE> sources;
+            sources.Resize(m_cachedSamplerCount);
+            for (D3D12_CPU_DESCRIPTOR_HANDLE& h : sources)
+                h.ptr = 0;
+            auto ranges = m_layout->ranges();
+            usize entryIdx = 0; // walked as writeDescriptors walks them
+            for (usize i = 0; i < ranges.Size(); ++i)
+            {
+                const auto& r = ranges[i];
+                if (r.type == BindingType::BindlessSamplers)
+                    return false; // rewritten in place by UpdateBindless: its own
+                if (r.type == BindingType::BindlessTextures || r.type == BindingType::BindlessStorageBuffers ||
+                    r.type == BindingType::BindlessStorageTextures)
+                    continue;
+                if (entryIdx >= d.entries.Size())
+                    break;
+                const auto& e = d.entries[entryIdx++];
+                if (!r.isSampler || r.hasDynamicOffset)
+                    continue;
+                auto* s = static_cast<DxSamplerImpl*>(e.sampler);
+                if (s == nullptr || r.heapOffset >= m_cachedSamplerCount)
+                    return false;
+                descs[r.heapOffset] = s->desc();
+                sources[r.heapOffset] = s->handle();
+            }
+            const i32 offset = m_samplerTables->acquire(Span<const D3D12_SAMPLER_DESC>(descs.Data(), descs.Size()),
+                                                        Span<const D3D12_CPU_DESCRIPTOR_HANDLE>(sources.Data(), sources.Size()));
+            if (offset < 0)
+                return false;
+            m_gpuSamplerOffset = offset;
+            m_sharedSamplers = true;
+            return true;
+        }
+
         void writeDescriptors(const BindGroupDesc& d)
         {
             auto ranges = m_layout->ranges();
@@ -260,6 +391,8 @@ export namespace foundation::rhi::dx12
             u32 off = static_cast<u32>(m_samplerOffset) + r.heapOffset + arrayIdx;
             m_device->CopyDescriptorsSimple(1, m_cpuSamplerHeap->getCpuHandle(off), s->handle(),
                                             D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+            if (m_sharedSamplers)
+                return; // the shared table was written when it was made
             // Mirror into the baked shader-visible table (bound directly at SetBindGroup).
             u32 gpuOff = static_cast<u32>(m_gpuSamplerOffset) + r.heapOffset + arrayIdx;
             m_device->CopyDescriptorsSimple(1, m_gpuSamplerHeap->getCpuHandle(gpuOff), s->handle(),
@@ -276,6 +409,8 @@ export namespace foundation::rhi::dx12
         i32 m_cbvSrvUavOffset = -1;
         i32 m_samplerOffset = -1;
         i32 m_gpuSamplerOffset = -1; // baked table in the shader-visible sampler heap
+        DxSamplerTables* m_samplerTables = nullptr; // the device's (borrowed)
+        bool m_sharedSamplers = false;               // the table is a shared one (released, not freed)
         Array<u64> m_dynAddrs;
     };
 

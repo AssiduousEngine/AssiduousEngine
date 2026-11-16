@@ -118,6 +118,8 @@ export namespace foundation::rhi::dx12
             }
 
             m_srv = m_srvHeap->allocate();
+            if (m_srv.ptr == 0)
+                return m_srv; // no heap page could be made: nothing is written through a null handle
             m_device->CreateShaderResourceView(m_texture->handle(), &sd, m_srv);
             m_hasSrv = true;
             return m_srv;
@@ -189,6 +191,8 @@ export namespace foundation::rhi::dx12
             }
 
             m_rtv = m_rtvHeap->allocate();
+            if (m_rtv.ptr == 0)
+                return m_rtv;
             m_device->CreateRenderTargetView(m_texture->handle(), &rd, m_rtv);
             m_hasRtv = true;
             return m_rtv;
@@ -253,6 +257,8 @@ export namespace foundation::rhi::dx12
             }
 
             m_dsv = m_dsvHeap->allocate();
+            if (m_dsv.ptr == 0)
+                return m_dsv;
             m_device->CreateDepthStencilView(m_texture->handle(), &dd, m_dsv);
             m_hasDsv = true;
             return m_dsv;
@@ -307,6 +313,8 @@ export namespace foundation::rhi::dx12
             }
 
             m_uav = m_srvHeap->allocate();
+            if (m_uav.ptr == 0)
+                return m_uav;
             m_device->CreateUnorderedAccessView(m_texture->handle(), nullptr, &ud, m_uav);
             m_hasUav = true;
             return m_uav;
