@@ -119,6 +119,10 @@ Mark component fields `Replicated` (a reflection attribute) and the model does t
 - clients **interpolate** replicated state for smoothness;
 - **per-peer relevancy / fog-of-war** filters what each client sees - interest management is a
   SECURITY requirement here (a client never receives what it should not see), not just bandwidth.
+  A game's own hook (`SetRelevance`) decides; without one, a built-in distance relevance can be
+  turned on (`SetRelevanceRadius`, `Net.setRelevanceRadius(r)` on the host, kept in the run's
+  binding for every endpoint it opens): a player is sent what lies within `r` of the first entity
+  it owns, its own always, and everything when it owns none. Off by default (0): all goes to all.
 
 No client prediction / reconciliation / lag compensation and no lockstep determinism are needed
 for the current target (server-authoritative), which is what shipped.

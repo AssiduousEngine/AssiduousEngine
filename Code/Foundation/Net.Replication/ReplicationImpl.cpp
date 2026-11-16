@@ -984,6 +984,37 @@ namespace foundation::net
         HashMap<u32, u8>
             present; // all present networked ids (despawn detection, relevance-independent)
 
+        // The built-in relevance, when it is on and no hook replaces it: measured from the first
+        // entity this peer owns. A peer that owns none sees everything.
+        bool byDistance = false;
+        Float3 viewer{};
+        if (!m_relevance && m_relevanceRadius > 0.0f)
+        {
+            netMgr->ForEach(
+                [&](NetworkComponent& nc, scene::EntityHandle e)
+                {
+                    if (!byDistance && nc.id.IsValid() && nc.owner == peerId)
+                    {
+                        viewer = scene.GetWorldPosition(e);
+                        byDistance = true;
+                    }
+                });
+        }
+        const f32 reachSq = m_relevanceRadius * m_relevanceRadius;
+        const auto relevant = [&](const NetworkComponent& nc, scene::EntityHandle e)
+        {
+            if (m_relevance)
+            {
+                return m_relevance(peerId, nc.id, e);
+            }
+            if (!byDistance || nc.owner == peerId)
+            {
+                return true;
+            }
+            const Float3 d = scene.GetWorldPosition(e) - viewer;
+            return d.x * d.x + d.y * d.y + d.z * d.z <= reachSq;
+        };
+
         netMgr->ForEach(
             [&](NetworkComponent& nc, scene::EntityHandle e)
             {
@@ -997,7 +1028,7 @@ namespace foundation::net
 
                 // Relevancy (fog of war): an irrelevant entity is never sent, and if the peer has it (in its
                 // baseline) it is removed (the client destroys it, leaving no hidden state in memory).
-                if (m_relevance && !m_relevance(peerId, NetworkId{nid}, e))
+                if (!relevant(nc, e))
                 {
                     if (oldEb != nullptr)
                     {

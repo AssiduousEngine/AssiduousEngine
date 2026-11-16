@@ -75,6 +75,8 @@ export namespace foundation::net
         /// Net.onJoin / Net.onLeave: called with the player id (SetPlayerEvents says who that is).
         RefPtr<IScriptDelegate> joinHandler;
         RefPtr<IScriptDelegate> leaveHandler;
+        /// Net.setRelevanceRadius: kept here, so a host opened after the call uses it too.
+        f32 relevanceRadius = 0.0f;
     };
 
     /// What a script RPC carries after its id: the Net facade writes the kind first, so Net.on's
@@ -473,6 +475,21 @@ export namespace foundation::net
             if (NetworkManager* m = Endpoint())
                 m->SetWaitForReady(wait);
         }
+        /// Host: send each player only the networked entities within `radius` of the one it owns
+        /// (its own always; everything to a player that owns none). 0, the default, sends all.
+        static void setRelevanceRadius(f32 radius)
+        {
+            NetScriptBinding* binding = Resolve();
+            if (binding == nullptr)
+            {
+                return;
+            }
+            binding->relevanceRadius = radius > 0.0f ? radius : 0.0f;
+            if (NetworkManager* m = Endpoint())
+            {
+                m->Replication().SetRelevanceRadius(binding->relevanceRadius);
+            }
+        }
         /// Client: its scene is the host's, loaded; the host's state starts, from a full snapshot.
         static void ready()
         {
@@ -792,6 +809,7 @@ export namespace foundation::net
     /// controller calls it when it hosts or joins).
     inline void InstallScriptRpcHandlers(const NetScriptBinding& binding, NetworkManager& endpoint)
     {
+        endpoint.Replication().SetRelevanceRadius(binding.relevanceRadius); // the script's, if it set one
         for (const NetScriptBinding::ScriptRpcHandler& entry : binding.rpcHandlers)
         {
             Net::InstallScriptRpcHandler(endpoint, entry.name.AsView(), entry.handler);

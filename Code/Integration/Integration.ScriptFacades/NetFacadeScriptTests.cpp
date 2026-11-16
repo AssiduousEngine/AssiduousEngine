@@ -609,4 +609,22 @@ TEST_CASE("net-facade: Luau reads the live session through the Net facade")
     CHECK(scriptContext->GetGlobal(u8"Peers").Get<f64>() == 0.0);
     CHECK(scriptContext->GetGlobal(u8"CanHost").Get<bool>() == net::NetworkManager::CanHost());
 }
+
+TEST_CASE("net-facade: Luau Net.setRelevanceRadius reaches the host's replication and the binding")
+{
+    RegisterCoreTypes();
+    net::RegisterNetScriptFacade();
+    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    RegisterReflectedTypes(*manager);
+    RefPtr<IScriptContext> scriptContext = manager->CreateContext();
+    ServerFixture fx;
+    OfferNet(*scriptContext, fx.binding);
+    CHECK(fx.server.Replication().RelevanceRadius() == 0.0f); // off until a game turns it on
+    REQUIRE(scriptContext->Load(u8"Net.setRelevanceRadius(40)\n", u8"main").IsOk());
+    CHECK(fx.server.Replication().RelevanceRadius() == 40.0f);
+    CHECK(fx.binding.relevanceRadius == 40.0f); // kept for an endpoint opened later
+    net::NetworkManager later{*fx.network.CreateSocket()};
+    net::InstallScriptRpcHandlers(fx.binding, later);
+    CHECK(later.Replication().RelevanceRadius() == 40.0f);
+}
 #endif // OPTION_HAS_LUAU

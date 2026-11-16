@@ -9,6 +9,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Added
 
+- Networking: `Net.setRelevanceRadius(r)` on the host sends each player only the networked
+  entities within `r` of the one it owns, for less traffic in large worlds. Off by default.
 - Export: a game exports to Android, as an APK to install or an App Bundle for Google Play. An
   Android preset gives the app's id, version, name, icon and release keystore (its password asked
   for at export, or read from `ANDROID_KEYSTORE_PASSWORD`); the export builds the app with the

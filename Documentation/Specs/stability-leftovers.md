@@ -232,7 +232,9 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   Test: after swapping scenes, an old id finds nothing. Fix: reset the maps and baselines. Built
   2026-11-16 (and the client's interpolation timelines).
 - **Every entity goes to every peer.** `SetRelevance` has no caller. Fix: a default relevance hook
-  (distance) the game can replace.
+  (distance) the game can replace. Built 2026-11-16, opt-in (user ruling): `SetRelevanceRadius`
+  and `Net.setRelevanceRadius`, off by default; a `SetRelevance` hook replaces it. No project
+  setting (a script call turns it on).
 - **The WebSocket gateway listens on every interface and parses a byte at a time with a rescan.**
   `NetworkControllerImpl.cpp:31`, `WebSocketGatewayImpl.cpp:449, 553, 1116`, `HttpImpl.cpp:296`.
   Fix: listen where the game's UDP port does; push whole reads; resume the scan where it stopped.

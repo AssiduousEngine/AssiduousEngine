@@ -281,6 +281,11 @@ export namespace foundation::net
         using RelevanceFn =
             core::Function<bool(u32 peerId, NetworkId id, scene::EntityHandle entity)>;
         void SetRelevance(RelevanceFn fn);
+        // The built-in relevance, off until a game turns it on: a peer is sent the entities within
+        // `radius` of the entity it owns (its own always), and everything when it owns none. 0 turns
+        // it off. A hook set with SetRelevance replaces it.
+        void SetRelevanceRadius(f32 radius) noexcept { m_relevanceRadius = radius > 0.0f ? radius : 0.0f; }
+        [[nodiscard]] f32 RelevanceRadius() const noexcept { return m_relevanceRadius; }
 
         // Server: give an entity a NetworkId (adds the NetworkComponent if absent), returning it. A
         // re-registered entity keeps its id. `prefab` records the source prefab so a client can network-
@@ -377,6 +382,7 @@ export namespace foundation::net
         Array<u32> m_authoredIds; // the scene's networked entities as loaded (every peer has them)
         SpawnHandler m_spawnHandler; // client-side prefab resolver (null = bare create)
         RelevanceFn m_relevance;     // server-side per-peer interest filter (null = all)
+        f32 m_relevanceRadius = 0.0f; // SetRelevanceRadius (0 = off)
     };
 
 }

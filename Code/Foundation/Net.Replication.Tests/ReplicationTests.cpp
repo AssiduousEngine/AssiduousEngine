@@ -1064,3 +1064,53 @@ TEST_CASE("replication: two authored entities whose Guids hash to one id get two
     CHECK(cnet->Get(client.FindEntity(first))->id == a);
     CHECK(cnet->Get(client.FindEntity(second))->id == b);
 }
+
+TEST_CASE("replication: the built-in relevance radius, off by default, sends a player what is near its own entity")
+{
+    RttiRegisterValue_Mover();
+    foundation::net::RegisterReplicationComponents();
+    scene::Scene server{DefaultAllocator()};
+    server.AddSystem<net::NetworkComponentManager>();
+    MoverManager* movers = server.AddSystem<MoverManager>();
+    net::StateReplication rep;
+    auto place = [&](StringView name, f32 x, u32 owner)
+    {
+        const scene::EntityHandle e = server.CreateEntity(name);
+        movers->Add(e);
+        Transform t;
+        t.position = Float3{x, 0, 0};
+        server.SetLocalTransform(e, t);
+        return rep.AssignNetworkId(server, e, Guid{}, owner);
+    };
+    const net::NetworkId mine = place(u8"Mine", 100.0f, 1); // peer 1's own, far from the rest
+    const net::NetworkId near = place(u8"Near", 105.0f, 0);
+    const net::NetworkId far = place(u8"Far", 0.0f, 0);
+    server.UpdateTransforms();
+
+    // What a peer's client ends up with after one delta.
+    auto received = [&](u32 peer, net::NetworkId id)
+    {
+        scene::Scene client{DefaultAllocator()};
+        client.AddSystem<net::NetworkComponentManager>();
+        client.AddSystem<MoverManager>();
+        net::StateReplication crep;
+        net::BitWriter w;
+        rep.ForgetPeer(peer);
+        rep.CaptureDelta(server, peer, w);
+        net::BitReader r(w.Data());
+        crep.ApplyDelta(client, r);
+        return crep.FindEntity(id).IsAssigned();
+    };
+
+    CHECK(rep.RelevanceRadius() == 0.0f); // off: everything to everyone
+    CHECK(received(1, far));
+
+    rep.SetRelevanceRadius(10.0f);
+    CHECK(received(1, mine)); // its own, always
+    CHECK(received(1, near));
+    CHECK_FALSE(received(1, far));
+    CHECK(received(2, far)); // a peer that owns nothing sees everything
+
+    rep.SetRelevance([](u32, net::NetworkId, scene::EntityHandle) { return true; }); // a hook replaces it
+    CHECK(received(1, far));
+}
