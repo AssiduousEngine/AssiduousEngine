@@ -309,6 +309,7 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
 - **DockSpace rebuilds a kept entry on every `ShowLayout`.** `DockSpace.cppm:822-826`. Built
   2026-11-16: the entry takes the node's new kind (and drops its stale pages).
 - **A multi-caret paste keeps a trailing CR.** `CodeEditor.cppm:3264`, `CodeDocument.cppm:521`.
+  Built 2026-11-16: the paste's split drops the CR before each line feed.
 
 ### T7: Core and tooling
 

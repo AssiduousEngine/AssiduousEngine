@@ -561,3 +561,16 @@ TEST_CASE("code editor: the host adds its items to the context menu for the clic
             ++count;
     CHECK(count == 1u);
 }
+
+TEST_CASE("code editor: lines pasted one to a caret from a CR LF clipboard carry no CR")
+{
+    // The clipboard's lines were split at the line feed alone, so text copied on Windows put a CR at
+    // the end of each line pasted into a caret.
+    Bed bed(u8"x\ny");
+    bed.clipboard.SetText(SV(u8"one\r\ntwo"));
+    bed.editor->SetCaret(At(0, 1));
+    bed.editor->AddCaret(At(1, 1));
+    bed.Run(TextEditCommand::Paste);
+    CHECK(bed.editor->GetDocument().LineText(0) == SV(u8"xone"));
+    CHECK(bed.editor->GetDocument().LineText(1) == SV(u8"ytwo"));
+}

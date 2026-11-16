@@ -30,6 +30,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Code editor: pasting lines copied on Windows into several carets no longer leaves a stray carriage
+  return at the end of each.
 - Editor: "Add transition" in an animation graph's node menu starts the transition, rather than
   being cancelled by the click that chose it.
 - Fonts: text whose size animates no longer builds a new font for every size it passes through,

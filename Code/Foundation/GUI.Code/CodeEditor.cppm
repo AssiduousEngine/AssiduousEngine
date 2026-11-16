@@ -3278,7 +3278,12 @@ export namespace foundation::gui
             for (usize i = 0; i <= text.Size(); ++i)
                 if (i == text.Size() || text.AsView()[i] == u8'\n')
                 {
-                    parts.PushBack(core::String(text.AsView().SubStr(start, i - start)));
+                    // A line ended CR LF (a clipboard filled on Windows) leaves its CR: it is part
+                    // of the break, not of the line put at a caret.
+                    usize end = i;
+                    if (end > start && text.AsView()[end - 1] == u8'\r')
+                        --end;
+                    parts.PushBack(core::String(text.AsView().SubStr(start, end - start)));
                     start = i + 1;
                 }
         }
