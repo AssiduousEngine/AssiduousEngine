@@ -397,6 +397,42 @@ namespace foundation::navigation
         return BuildOneTile(vertices, indices, params, grid, tileX, tileY, outTileData);
     }
 
+
+    namespace
+    {
+        // The poly bits a 32-bit ref has for a grid of `maxTiles`: what the tile bits and Detour's
+        // minimum 10 salt bits leave, at most 14 (what one tile was given before). 0 or less: the
+        // grid is too big for 32-bit refs.
+        [[nodiscard]] int PolyBitsFor(int maxTiles) noexcept
+        {
+            int tileBits = 0;
+            while ((1 << tileBits) < maxTiles)
+            {
+                ++tileBits;
+            }
+            return Min(14, 32 - 10 - tileBits);
+        }
+
+        // Whether a tile's polys fit the mesh's poly bits (a ref past them would name another
+        // tile's poly). Said once when one does not.
+        [[nodiscard]] bool TileFits(const unsigned char* data, usize size, int maxPolys) noexcept
+        {
+            if (size < sizeof(dtMeshHeader))
+            {
+                return false;
+            }
+            const dtMeshHeader* header = reinterpret_cast<const dtMeshHeader*>(data);
+            if (header->polyCount <= maxPolys)
+            {
+                return true;
+            }
+            LOG_ERROR(u8"Navigation",
+                      u8"a navmesh tile of {} polys is more than its grid's refs address ({}): "
+                      u8"bake with smaller tiles", header->polyCount, maxPolys);
+            return false;
+        }
+    }
+
     Status NavigationMeshBuilder::BuildTileInGrid(Span<const Float3> vertices,
                                                   Span<const u32> indices,
                                                   const NavigationBakeParams& params,
@@ -773,7 +809,18 @@ namespace foundation::navigation
         meshParams.tileWidth = info.tileWorldSize;
         meshParams.tileHeight = info.tileWorldSize;
         meshParams.maxTiles = info.tileCountX * info.tileCountY;
-        meshParams.maxPolys = 1 << 14;
+        // A 32-bit poly ref holds a salt (at least 10 bits), the tile and the poly. A fixed 14 poly
+        // bits left 8 for the tile, so a grid of more than 256 tiles never loaded: the polys take
+        // what the grid leaves (up to the old 14), and each tile is checked against it.
+        const int polyBits = PolyBitsFor(meshParams.maxTiles);
+        if (polyBits < 1)
+        {
+            LOG_ERROR(u8"Navigation", u8"a navmesh of {} tiles is more than one 32-bit poly ref can address",
+                      meshParams.maxTiles);
+            dtFreeNavMesh(mesh);
+            return Status{ErrorCode::NotSupported};
+        }
+        meshParams.maxPolys = 1 << polyBits;
         if (dtStatusFailed(mesh->init(&meshParams)))
         {
             dtFreeNavMesh(mesh);
@@ -804,6 +851,12 @@ namespace foundation::navigation
             }
             std::memcpy(tileBytes, cursor, record.dataSize);
             cursor += record.dataSize;
+            if (!TileFits(tileBytes, record.dataSize, meshParams.maxPolys))
+            {
+                dtFree(tileBytes);
+                dtFreeNavMesh(mesh);
+                return Status{ErrorCode::NotSupported};
+            }
             const dtStatus added =
                 mesh->addTile(tileBytes, static_cast<int>(record.dataSize),
                               DT_TILE_FREE_DATA, 0, nullptr);
@@ -851,6 +904,11 @@ namespace foundation::navigation
             return Status{ErrorCode::OutOfMemory};
         }
         std::memcpy(bytes, tileData.Data(), tileData.Size());
+        if (!TileFits(bytes, tileData.Size(), mesh->getParams()->maxPolys))
+        {
+            dtFree(bytes);
+            return Status{ErrorCode::NotSupported};
+        }
         const dtStatus added = mesh->addTile(bytes, static_cast<int>(tileData.Size()),
                                              DT_TILE_FREE_DATA, 0, nullptr);
         if (dtStatusFailed(added))

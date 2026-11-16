@@ -491,10 +491,6 @@ target_include_directories(recast SYSTEM PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/recastnavigation/Detour/Include
     ${CMAKE_CURRENT_SOURCE_DIR}/recastnavigation/DetourCrowd/Include)
 target_compile_features(recast PUBLIC cxx_std_17)
-# 64-bit poly refs: 32-bit refs split their bits between tile and poly ids, so a navmesh of more
-# than 256 tiles (at 16384 polys a tile) could not be made. PUBLIC: dtPolyRef's size is part of
-# Detour's headers, and every user of them must agree.
-target_compile_definitions(recast PUBLIC DT_POLYREF64)
 set_target_properties(recast PROPERTIES POSITION_INDEPENDENT_CODE ON
                                         OUTPUT_NAME thirdparty_recast)
 
