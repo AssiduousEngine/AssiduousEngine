@@ -12,7 +12,10 @@
 #define NOMINMAX
 #include <winsock2.h> // must precede windows.h (winsock2 vs the legacy winsock.h windows.h pulls in)
 #include <ws2tcpip.h>
-#include <mstcpip.h>  // SIO_UDP_CONNRESET
+#include <mstcpip.h>
+#ifndef SIO_UDP_CONNRESET // not every SDK's mstcpip.h defines it for the targeted Windows version
+#define SIO_UDP_CONNRESET _WSAIOW(IOC_VENDOR, 12)
+#endif
 #include <windows.h>
 #include <bcrypt.h> // BCryptGenRandom (FillEntropy)
 
