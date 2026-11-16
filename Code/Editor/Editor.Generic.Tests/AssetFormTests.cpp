@@ -392,3 +392,28 @@ TEST_CASE("generic page: undoing back to the save leaves the page clean, and Dis
     page->Refresh();
     CHECK(page->Fields()[index].floatValue == doctest::Approx(saved));
 }
+
+TEST_CASE("generic page: an asset written outside the page shows when clean, and keeps the edits when not")
+{
+    // The page had no outside refresh: it went on showing (and would save over) the old values.
+    Bed bed;
+    UniquePtr<GenericAssetEditorPage> page = bed.Open(*bed.probe);
+    const usize index = FieldIndex(*page, u8"friction");
+    FormProbeAsset outside;
+    outside.friction = 0.9f;
+    REQUIRE(bed.probe->WriteObject(outside).IsOk());
+    page->OnAssetExternallyModified();
+    page->Refresh();
+    CHECK(page->Fields()[index].floatValue == doctest::Approx(0.9));
+    CHECK_FALSE(page->IsDirty());
+    CHECK_FALSE(page->Commands().CanUndo());
+
+    // With an edit: kept, the outside write not taken.
+    page->Edit(PathOf(*page, u8"friction").AsView(), gui::Variant(0.25));
+    outside.friction = 0.1f;
+    REQUIRE(bed.probe->WriteObject(outside).IsOk());
+    page->OnAssetExternallyModified();
+    page->Refresh();
+    CHECK(page->Fields()[index].floatValue == doctest::Approx(0.25));
+    CHECK(page->IsDirty());
+}

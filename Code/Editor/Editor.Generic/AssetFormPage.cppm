@@ -107,6 +107,10 @@ export namespace editor
         [[nodiscard]] RefPtr<gui::Node> Content() override { return m_content; }
         [[nodiscard]] Status Save() override;
         void OnUpdate(foundation::runtime::IApplicationHost& host, f32 dt) override;
+        /// The asset was written outside the page (another editor, an agent): a clean page shows it
+        /// and drops its history; one with edits keeps them and says so.
+        void OnAssetExternallyModified() override;
+        bool ReloadFromSource() override;
 
         /// Runs once a frame: updates the bar to the actions' state over the page, rebuilds the
         /// rows after a change of shape (a branch of Serialize flipped), and shows the values

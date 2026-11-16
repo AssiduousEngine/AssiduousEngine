@@ -499,6 +499,35 @@ namespace editor
         Refresh();
     }
 
+    void GenericAssetEditorPage::OnAssetExternallyModified()
+    {
+        if (IsDirty())
+        {
+            m_context->Notify(NoticeKind::Warning, Format(u8"'{}' changed on disk but has unsaved edits here - not refreshed.", m_title).AsView());
+            return;
+        }
+        (void)ReloadFromSource();
+    }
+
+    bool GenericAssetEditorPage::ReloadFromSource()
+    {
+        foundation::content::Instance* instance =
+            m_context->Project() != nullptr ? m_context->Project()->SourceDb().GetInstance(InstanceId()) : nullptr;
+        RefPtr<ISerializable> object = instance != nullptr ? instance->ReadObject() : RefPtr<ISerializable>{};
+        if (object.Get() == nullptr)
+        {
+            return false;
+        }
+        m_object = Move(object);
+        m_fields.Clear();
+        (void)ScanAssetForm(*m_object, m_fields);
+        m_undoBaseline = Snapshot();
+        Commands().Clear();
+        ClearDirty();
+        m_rebuild = true;
+        return true;
+    }
+
     void GenericAssetEditorPage::Refresh()
     {
         if (m_bar)
