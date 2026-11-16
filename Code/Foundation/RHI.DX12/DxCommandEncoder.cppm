@@ -97,6 +97,10 @@ export namespace foundation::rhi::dx12
                     continue;
                 }
                 const D3D12_CPU_DESCRIPTOR_HANDLE rtv = dxView->getRtv();
+                if (rtv.ptr == 0)
+                {
+                    continue; // its heap had no room: drawn into as a missing view is
+                }
                 rtvHandles[rtvCount++] = rtv;
                 if (att.loadOp == LoadOp::Clear)
                 {
@@ -115,7 +119,7 @@ export namespace foundation::rhi::dx12
                 if (auto* dxView = static_cast<DxTextureViewImpl*>(dsAttach.view))
                 {
                     dsvStorage = dxView->getDsv();
-                    dsvPtr = &dsvStorage;
+                    dsvPtr = dsvStorage.ptr != 0 ? &dsvStorage : nullptr; // no room: no depth
                 }
             }
 

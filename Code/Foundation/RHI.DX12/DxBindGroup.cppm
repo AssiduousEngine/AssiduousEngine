@@ -47,6 +47,7 @@ export namespace foundation::rhi::dx12
         /// the heap has no room. Slots with no source (an array's unwritten tail) are left as they are.
         i32 acquire(Span<const D3D12_SAMPLER_DESC> descs, Span<const D3D12_CPU_DESCRIPTOR_HANDLE> sources)
         {
+            ScopedLock lock(m_mutex);
             for (Table& table : m_tables)
             {
                 if (table.descs.Size() == descs.Size() &&
@@ -78,6 +79,7 @@ export namespace foundation::rhi::dx12
 
         void release(i32 offset)
         {
+            ScopedLock lock(m_mutex);
             for (usize i = 0; i < m_tables.Size(); ++i)
             {
                 if (m_tables[i].offset != offset)
@@ -91,7 +93,28 @@ export namespace foundation::rhi::dx12
             }
         }
 
-        [[nodiscard]] usize tableCount() const { return m_tables.Size(); }
+        /// The sampler descriptions of the table at `offset` (empty when there is none).
+        [[nodiscard]] Array<D3D12_SAMPLER_DESC> descsOf(i32 offset)
+        {
+            ScopedLock lock(m_mutex);
+            Array<D3D12_SAMPLER_DESC> out;
+            for (const Table& table : m_tables)
+            {
+                if (table.offset == offset)
+                {
+                    out.Resize(table.descs.Size());
+                    MemCopy(out.Data(), table.descs.Data(), table.descs.Size() * sizeof(D3D12_SAMPLER_DESC));
+                    break;
+                }
+            }
+            return out;
+        }
+
+        [[nodiscard]] usize tableCount()
+        {
+            ScopedLock lock(m_mutex);
+            return m_tables.Size();
+        }
 
     private:
         struct Table
@@ -103,6 +126,9 @@ export namespace foundation::rhi::dx12
         ID3D12Device* m_device = nullptr;
         DxGpuDescriptorHeap* m_heap = nullptr;
         Array<Table> m_tables;
+        // Bind groups are made and destroyed on whichever thread records (the heap under the
+        // tables locks for the same reason), so the table list is guarded as the heap is.
+        Mutex m_mutex;
     };
 
     class DxBindGroupImpl : public BindGroup
@@ -177,10 +203,45 @@ export namespace foundation::rhi::dx12
                 bgEntry.sampler = e.sampler;
 
                 if (r.isSampler)
+                {
+                    // A shared table is every group's with these samplers: rewritten in place, it
+                    // would change them all (and writeSampler skipped it, so the update was lost).
+                    // The group takes a private table first.
+                    if (m_sharedSamplers && !makeSamplersPrivate())
+                        continue;
                     writeSampler(bgEntry, r, e.arrayIndex);
+                }
                 else
                     writeCbvSrvUav(bgEntry, r, e.arrayIndex);
             }
+        }
+
+        // Moves the group off its shared sampler table onto a table of its own, made from the shared
+        // one's descriptions (a shader-visible heap is no copy source). False, and the group as it
+        // was, when the heaps have no room.
+        bool makeSamplersPrivate()
+        {
+            const Array<D3D12_SAMPLER_DESC> descs = m_samplerTables->descsOf(m_gpuSamplerOffset);
+            const i32 cpu = m_cpuSamplerHeap->allocate(m_cachedSamplerCount);
+            const i32 gpu = cpu >= 0 ? m_gpuSamplerHeap->allocate(m_cachedSamplerCount) : -1;
+            if (gpu < 0)
+            {
+                if (cpu >= 0)
+                    m_cpuSamplerHeap->free(static_cast<u32>(cpu), m_cachedSamplerCount);
+                return false;
+            }
+            for (usize i = 0; i < descs.Size() && i < m_cachedSamplerCount; ++i)
+            {
+                if (descs[i].AddressU == 0)
+                    continue; // a slot the shared table left unwritten
+                m_device->CreateSampler(&descs[i], m_cpuSamplerHeap->getCpuHandle(static_cast<u32>(cpu) + static_cast<u32>(i)));
+                m_device->CreateSampler(&descs[i], m_gpuSamplerHeap->getCpuHandle(static_cast<u32>(gpu) + static_cast<u32>(i)));
+            }
+            m_samplerTables->release(m_gpuSamplerOffset);
+            m_sharedSamplers = false;
+            m_samplerOffset = cpu;
+            m_gpuSamplerOffset = gpu;
+            return true;
         }
 
         void cleanup()
@@ -359,14 +420,16 @@ export namespace foundation::rhi::dx12
                 break;
             case BindingType::SampledTexture:
             case BindingType::BindlessTextures:
-                if (auto* v = static_cast<DxTextureViewImpl*>(e.textureView))
+                // A view whose descriptor heap had no room has a null handle: no copy source
+                // (copying from it is invalid and can remove the device), so the slot is left.
+                if (auto* v = static_cast<DxTextureViewImpl*>(e.textureView); v != nullptr && v->getSrv().ptr != 0)
                     m_device->CopyDescriptorsSimple(1, dest, v->getSrv(),
                                                     D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
                 break;
             case BindingType::StorageTextureReadOnly:
             case BindingType::StorageTextureReadWrite:
             case BindingType::BindlessStorageTextures:
-                if (auto* v = static_cast<DxTextureViewImpl*>(e.textureView))
+                if (auto* v = static_cast<DxTextureViewImpl*>(e.textureView); v != nullptr && v->getUav().ptr != 0)
                     m_device->CopyDescriptorsSimple(1, dest, v->getUav(),
                                                     D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
                 break;

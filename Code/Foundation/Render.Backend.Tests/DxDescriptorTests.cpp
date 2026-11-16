@@ -108,4 +108,70 @@ TEST_CASE("dx12: more views than a descriptor page, and more groups than sampler
     if (dx12 != nullptr)
         dx12->Destroy();
 }
+
+// A bindless update of a sampler in a group whose sampler table is shared: the update stopped at
+// the group's CPU copy and never reached the shader-visible table (or, written there, would have
+// changed every group sharing it). The group takes a table of its own first; its neighbour keeps
+// the shared one.
+TEST_CASE("dx12: a sampler updated in a group with a shared table moves it to its own")
+{
+    rhi::Backend* dx12 = nullptr;
+    (void)rhi::dx12::CreateDxBackend(rhi::dx12::DxBackendDesc{}, dx12);
+    rhi::Device* device = dx12 != nullptr ? testsupport::MakeTestDevice(dx12) : nullptr;
+    if (device == nullptr)
+    {
+        MESSAGE("DX12 unavailable - skipped");
+        if (dx12 != nullptr)
+            dx12->Destroy();
+        return;
+    }
+    rhi::TextureDesc td{};
+    td.format = rhi::TextureFormat::RGBA8Unorm;
+    td.width = 4;
+    td.height = 4;
+    td.usage = rhi::TextureUsage::Sampled;
+    rhi::Texture* texture = nullptr;
+    REQUIRE(device->CreateTexture(td, texture).IsOk());
+    rhi::TextureViewDesc vd{};
+    vd.format = rhi::TextureFormat::RGBA8Unorm;
+    rhi::TextureView* view = nullptr;
+    REQUIRE(device->CreateTextureView(texture, vd, view).IsOk());
+    rhi::SamplerDesc linear{};
+    rhi::Sampler* sampler = nullptr;
+    REQUIRE(device->CreateSampler(linear, sampler).IsOk());
+    rhi::SamplerDesc point{};
+    point.minFilter = rhi::FilterMode::Nearest;
+    point.magFilter = rhi::FilterMode::Nearest;
+    rhi::Sampler* other = nullptr;
+    REQUIRE(device->CreateSampler(point, other).IsOk());
+    rhi::BindGroupLayout* layout = TextureAndSampler(*device);
+    rhi::BindGroupEntry entries[] = {rhi::BindGroupEntry::TextureEntry(view), rhi::BindGroupEntry::SamplerEntry(sampler)};
+    rhi::BindGroupDesc bgd{};
+    bgd.layout = layout;
+    bgd.entries = Span<const rhi::BindGroupEntry>{entries, 2};
+    rhi::BindGroup* a = nullptr;
+    rhi::BindGroup* b = nullptr;
+    REQUIRE(device->CreateBindGroup(bgd, a).IsOk());
+    REQUIRE(device->CreateBindGroup(bgd, b).IsOk());
+    auto* da = static_cast<rhi::dx12::DxBindGroupImpl*>(a);
+    auto* db = static_cast<rhi::dx12::DxBindGroupImpl*>(b);
+    CHECK(da->gpuSamplerOffset() == db->gpuSamplerOffset()); // shared
+
+    rhi::BindlessUpdateEntry update{};
+    update.layoutIndex = 1; // the sampler
+    update.sampler = other;
+    a->UpdateBindless(Span<const rhi::BindlessUpdateEntry>{&update, 1});
+    CHECK(da->gpuSamplerOffset() >= 0);
+    CHECK(da->gpuSamplerOffset() != db->gpuSamplerOffset()); // its own now; b keeps the shared one
+
+    device->DestroyBindGroup(a);
+    device->DestroyBindGroup(b);
+    device->DestroyBindGroupLayout(layout);
+    device->DestroySampler(other);
+    device->DestroySampler(sampler);
+    device->DestroyTextureView(view);
+    device->DestroyTexture(texture);
+    device->Destroy();
+    dx12->Destroy();
+}
 #endif // OPTION_HAS_DX12
