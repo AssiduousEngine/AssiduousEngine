@@ -573,22 +573,46 @@ export namespace editor
         }
         else
         {
-            LOG_ERROR(u8"Editor", u8"{} could not be read, nor moved aside; saving the settings will replace it", fileName);
+            LOG_ERROR(u8"Editor", u8"{} could not be read, nor moved aside; the settings are not saved over it", fileName);
         }
         return loaded;
     }
 
-    // Persist the editor settings store to `root` (XML).
-    [[nodiscard]] inline Status SaveEditorSettings(vfs::IWritableFileSystem& root,
+    // True when a settings file is there and does not read: a save refuses to replace it (a load
+    // that could not set it aside leaves it in place, and the sections it held are only there).
+    [[nodiscard]] inline bool IsSettingsFileUnreadable(vfs::IFileSystem& root, StringView fileName)
+    {
+        UniquePtr<IStream> stream = root.Open(fileName, FileMode::Read);
+        if (!stream)
+        {
+            return false;
+        }
+        settings::Settings probe(editor::EditorRootAllocator());
+        return !probe.Load(*stream, foundation::xml::XmlSerializerFactory()).IsOk();
+    }
+
+    // Persist the editor settings store to `root` (XML). Refused (AlreadyExists) over a file there
+    // that does not read.
+    [[nodiscard]] inline Status SaveEditorSettings(vfs::IFileSystem& root,
                                                    const settings::Settings& in,
                                                    StringView fileName = kEditorSettingsFile)
     {
+        vfs::IWritableFileSystem* writable = root.AsWritable();
+        if (writable == nullptr)
+        {
+            return Status{ErrorCode::NotSupported};
+        }
+        if (IsSettingsFileUnreadable(root, fileName))
+        {
+            LOG_ERROR(u8"Editor", u8"{} is there and does not read; not saved over it", fileName);
+            return Status{ErrorCode::AlreadyExists};
+        }
         MemoryStream buffer;
         if (Status s = in.Save(buffer, foundation::xml::XmlSerializerFactory()); !s.IsOk())
         {
             return s;
         }
-        return root.Save(fileName, buffer.Bytes());
+        return writable->Save(fileName, buffer.Bytes());
     }
 
     // Load/save the editor settings at their canonical location (<user-data>/editor.settings.xml).
@@ -603,7 +627,7 @@ export namespace editor
         const String dir = GetUserDataDirectory();
         (void)CreateDirectory(dir.AsView()); // ensure the leaf dir exists before writing
         vfs::NativeFileSystem fs(dir.AsView(), foundation::core::DefaultAllocator());
-        return SaveEditorSettings(*fs.AsWritable(), in);
+        return SaveEditorSettings(fs, in);
     }
 
     RTTI_DEFINE_OBJECT_VERSIONED(EditorUiSettings, "rtti::editor::editor", 1)

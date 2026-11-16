@@ -365,7 +365,8 @@ export namespace editor::app
         return store.Load(*stream, foundation::xml::XmlSerializerFactory());
     }
 
-    // Persists the per-project store; on success, deletes the older per-file state (layout.xml,
+    // Persists the per-project store (refused over a file there that does not read: the project's
+    // layout and favourites are only there); on success, deletes the older per-file state (layout.xml,
     // favorites.bin, pages.bin) so stale state cannot shadow the store.
     [[nodiscard]] inline Status SaveProjectEditorSettings(const settings::Settings& store,
                                                           StringView directory)
@@ -376,6 +377,11 @@ export namespace editor::app
             return s;
         }
         vfs::NativeFileSystem root(directory, editor::EditorRootAllocator());
+        if (IsSettingsFileUnreadable(root, kProjectEditorSettingsFile))
+        {
+            LOG_ERROR(u8"Editor", u8"{} is there and does not read; not saved over it", kProjectEditorSettingsFile);
+            return Status{ErrorCode::AlreadyExists};
+        }
         vfs::IWritableFileSystem* writable = root.AsWritable();
         if (writable == nullptr)
         {

@@ -2072,7 +2072,7 @@ TEST_CASE("export: EditorExportSettings round-trips through the editor settings 
     {
         settings::Settings store(foundation::core::DefaultAllocator());
         store.Section<editor::EditorExportSettings>().templatesRoot = String(u8"/shared/templates");
-        REQUIRE(editor::SaveEditorSettings(*root.AsWritable(), store).IsOk());
+        REQUIRE(editor::SaveEditorSettings(root, store).IsOk());
     }
 
     // Load it back into a fresh store: the override survives the XML round-trip.

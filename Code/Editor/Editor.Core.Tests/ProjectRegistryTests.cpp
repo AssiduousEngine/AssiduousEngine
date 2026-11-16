@@ -99,7 +99,7 @@ TEST_CASE("project-registry: remove deletes a row; the section round-trips the s
     const StringView dir = u8"scratch_registry_roundtrip_test";
     (void)CreateDirectory(dir);
     vfs::NativeFileSystem fs(dir, DefaultAllocator());
-    REQUIRE(SaveEditorSettings(*fs.AsWritable(), store).IsOk());
+    REQUIRE(SaveEditorSettings(fs, store).IsOk());
 
     settings::Settings loaded(foundation::core::DefaultAllocator());
     REQUIRE(LoadEditorSettings(fs, loaded).IsOk());
@@ -136,7 +136,7 @@ TEST_CASE("project-registry: an entry keeps when it was opened and its pin; the 
     const StringView dir = u8"scratch_registry_fields_test";
     (void)CreateDirectory(dir);
     vfs::NativeFileSystem fs(dir, DefaultAllocator());
-    REQUIRE(SaveEditorSettings(*fs.AsWritable(), store).IsOk());
+    REQUIRE(SaveEditorSettings(fs, store).IsOk());
     settings::Settings loaded(foundation::core::DefaultAllocator());
     REQUIRE(LoadEditorSettings(fs, loaded).IsOk());
     const RecentProjectsSettings& back = loaded.Section<RecentProjectsSettings>();
@@ -654,4 +654,22 @@ TEST_CASE("project-registry: New Project's check names where it goes, and refuse
     CHECK(c.message.AsView() == u8"Creates ~/Bobs-Game-Part-2, and opens it.");
     CHECK_FALSE(DirectoryExists(PathJoin(root.AsView(), u8"Later").AsView())); // checking makes nothing
     (void)RemoveDirectoryRecursive(root.AsView());
+}
+
+TEST_CASE("editor settings: a settings file that does not read is not saved over")
+{
+    // A load that could not set an unreadable file aside left it in place, and the next save
+    // replaced it with the defaults: the recent projects and every other section it held, gone.
+    const StringView dir = u8"scratch_settings_unreadable_test";
+    (void)RemoveDirectoryRecursive(dir);
+    (void)CreateDirectory(dir);
+    vfs::NativeFileSystem fs(dir, DefaultAllocator());
+    const char8_t junk[] = u8"<not settings";
+    REQUIRE(fs.AsWritable()->Save(kEditorSettingsFile, Span<const byte>(reinterpret_cast<const byte*>(junk), sizeof(junk) - 1)).IsOk());
+    settings::Settings store(foundation::core::DefaultAllocator());
+    CHECK(SaveEditorSettings(fs, store).Code() == ErrorCode::AlreadyExists);
+    Result<Array<byte>> kept = ReadFile(PathJoin(dir, kEditorSettingsFile).AsView());
+    REQUIRE(kept.HasValue());
+    CHECK(kept.Value().Size() == sizeof(junk) - 1);
+    (void)RemoveDirectoryRecursive(dir);
 }
