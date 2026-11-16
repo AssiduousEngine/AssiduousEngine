@@ -182,6 +182,9 @@ option(OPTION_PLUGIN_IMGUI  "Build the Dear ImGui debug-UI plugin (imgui.engine)
 # its vendored lib to have built (reconciled after ThirdParty is added, before the backend subdirs).
 option(OPTION_ENABLE_ANGELSCRIPT "Build the AngelScript script backend" ON)
 option(OPTION_ENABLE_LUAU        "Build the Luau script backend" ON)
+# C# scripting (experimental): the engine hosts .NET through hostfxr on the desktop. Needs the .NET
+# SDK; off by default while it is an experiment (Documentation/Specs/dotnet-scripting.md).
+option(OPTION_ENABLE_DOTNET      "Build the .NET host for C# scripting (experimental)" OFF)
 option(OPTION_WARNINGS_AS_ERRORS "Treat warnings as errors" ON)
 
 # A web (Emscripten) build ships a game, not the authoring toolchain: force the tooling group off
@@ -573,6 +576,9 @@ endif()
 if(OPTION_ENABLE_ANGELSCRIPT)
     add_subdirectory(Code/Foundation/Script.AngelScript)
 endif()
+if(OPTION_ENABLE_DOTNET AND NOT EMSCRIPTEN AND NOT ANDROID)
+    add_subdirectory(Code/Foundation/Script.DotNet)   # hosts .NET for C# scripting (desktop)
+endif()
 add_subdirectory(Code/Foundation/Script.Resource)   # cooked script classes and factory (source and harvested metadata)
 add_subdirectory(Code/Foundation/Script.Facades)    # curated behavior facades (Entity/Log/Time/Random), shared by the cook VM and the runtime
 add_subdirectory(Code/Foundation/Mcp.Script)        # MCP scripting tools (script_api) over Mcp, Script and Script.Facades
@@ -927,6 +933,7 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Foundation/Script.Resource.Tests           Foundation::Script.Resource)
     util_test_suite(Code/Foundation/Script.Tests                    Foundation::Script)
     util_test_suite(Code/Foundation/Script.Luau.Tests               Foundation::Script.Luau)
+    util_test_suite(Code/Foundation/Script.DotNet.Tests             Foundation::Script.DotNet)
     util_test_suite(Code/Foundation/Settings.Tests                  Foundation::Settings)
     util_test_suite(Code/Foundation/Shaders.Resource.Tests          Foundation::Shaders.Resource)
     util_test_suite(Code/Foundation/Shaders.System.Tests            Foundation::Shaders.System)
