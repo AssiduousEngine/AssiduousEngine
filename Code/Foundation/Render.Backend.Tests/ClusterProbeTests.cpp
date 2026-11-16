@@ -55,7 +55,50 @@ namespace
                                       static_cast<f32>(kSize - 1)));
     }
 
-    testsupport::CapturedImage RenderLights(rhi::Device& device, const ViewCamera& camera)
+    // The lights of the scene: a grid of small ones, or (crowded) a dim sun and 40 large point lights
+    // each reaching the whole view, more than the shared list's average per cluster.
+    void AddLights(ExtractedScene& scene, bool crowded)
+    {
+        if (crowded)
+        {
+            GpuLight sun;
+            sun.type = 0.0f;
+            sun.directionWS = Normalized(Float3{0.2f, -1.0f, 0.1f});
+            sun.color = Float3{1, 1, 1};
+            sun.intensity = 1.0f;
+            sun.shadowIndex = -1.0f;
+            scene.AddLight(sun);
+            for (i32 i = 0; i < 40; ++i)
+            {
+                GpuLight light;
+                light.type = 1.0f;
+                light.positionWS = Float3{static_cast<f32>(i % 8) - 3.5f, 30.0f, static_cast<f32>(i / 8) - 2.0f};
+                light.range = 60.0f; // far above, reaching all of the ground in view, faintly
+                light.color = Float3{1, 1, 1};
+                light.intensity = 0.01f;
+                light.shadowIndex = -1.0f;
+                scene.AddLight(light);
+            }
+            return;
+        }
+        // A 9 by 5 grid: 45 lights, past the list's average per cluster.
+        for (i32 gz = -2; gz <= 2; ++gz)
+        {
+            for (i32 gx = -4; gx <= 4; ++gx)
+            {
+                GpuLight light;
+                light.type = 1.0f; // point
+                light.positionWS = Float3{static_cast<f32>(gx) * kSpacing, kHeight, static_cast<f32>(gz) * kSpacing};
+                light.range = kRange;
+                light.color = Float3{1, 1, 1};
+                light.intensity = 6.0f;
+                light.shadowIndex = -1.0f;
+                scene.AddLight(light);
+            }
+        }
+    }
+
+    testsupport::CapturedImage RenderLights(rhi::Device& device, const ViewCamera& camera, bool crowded = false)
     {
         testsupport::CapturedImage image;
         shaders::ShaderSystemHost host{DefaultAllocator()};
@@ -91,21 +134,7 @@ namespace
             ground->mesh = plane.Get();
             ground->material = grey.Get();
             ground->category = RenderCategories::Opaque;
-            // A 9 by 5 grid: 45 lights, past the list's average per cluster.
-            for (i32 gz = -2; gz <= 2; ++gz)
-            {
-                for (i32 gx = -4; gx <= 4; ++gx)
-                {
-                    GpuLight light;
-                    light.type = 1.0f; // point
-                    light.positionWS = Float3{static_cast<f32>(gx) * kSpacing, kHeight, static_cast<f32>(gz) * kSpacing};
-                    light.range = kRange;
-                    light.color = Float3{1, 1, 1};
-                    light.intensity = 6.0f;
-                    light.shadowIndex = -1.0f;
-                    scene.AddLight(light);
-                }
-            }
+            AddLights(scene, crowded);
 
             rhi::TextureDesc td{};
             td.format = rhi::TextureFormat::RGBA8Unorm;
@@ -173,6 +202,18 @@ namespace
             CHECK(lit > 120);    // its own light found its cluster
             CHECK(between < 30); // and no light past its range did
         }
+
+        // Crowded: every cluster has the sun and all 40 point lights, more than its share. A packed
+        // list cut at its region's end left the clusters past it with no lights at all, the sun
+        // included: whole tiles of the ground went black.
+        const testsupport::CapturedImage crowded = RenderLights(device, camera, /*crowded*/ true);
+        REQUIRE(crowded.valid);
+        u32 darkest = 765;
+        for (u32 y = 8; y < kSize - 8; y += 4)
+            for (u32 x = 8; x < kSize - 8; x += 4)
+                darkest = Min(darkest, crowded.Luma(x, y));
+        INFO(doctest::String(name) << " crowded: darkest " << darkest);
+        CHECK(darkest > 60); // the sun reaches every pixel of the ground
     }
 }
 
