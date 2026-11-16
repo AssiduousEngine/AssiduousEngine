@@ -243,7 +243,11 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   value can carry CRLF (`HttpImpl.cpp:895-910`); an unresolved host connects "successfully"
   (`NetworkManagerImpl.cpp:166`); 1xx is final (`HttpImpl.cpp:241`); UDP sets `SO_REUSEADDR`
   (`LinuxSystem.cpp:765`); the 32-bit authored id hash has no collision check
-  (`ReplicationImpl.cpp:563-586`).
+  (`ReplicationImpl.cpp:563-586`). Built 2026-11-16, each its own commit: the parser drops parsed
+  frames before each read; header names, values, methods and URLs with a line break are refused
+  (the server leaves such a header out); an unresolved join fails at once; an interim 1xx is
+  passed over (101 stays final); UDP drops SO_REUSEADDR (Windows too); a colliding authored id
+  takes the next free one, the same on both peers, with a warning.
 
 ### T5: content and cook
 

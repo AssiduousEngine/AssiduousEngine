@@ -569,6 +569,25 @@ namespace foundation::net
         }
     }
 
+    NetworkId StateReplication::AuthoredId(scene::Scene& scene, scene::EntityHandle entity)
+    {
+        // Two Guids can hash to one 32-bit id. The later entity takes the next free id instead,
+        // and both peers agree on which that is: they load the same scene, so its networked
+        // entities come in the same order on each.
+        NetworkId id = DeterministicNetworkId(scene.GetEntityId(entity));
+        for (;;)
+        {
+            const scene::EntityHandle* holder = m_netIdToEntity.Find(id.value);
+            if (holder == nullptr || *holder == entity || !scene.IsValid(*holder))
+            {
+                return id;
+            }
+            LOG_WARNING(u8"Net", u8"the network ids of '{}' and '{}' collide; '{}' takes the next free one",
+                        scene.GetEntityName(*holder), scene.GetEntityName(entity), scene.GetEntityName(entity));
+            id = NetworkId{id.value == 0xFFFFFFFFu ? 1u : id.value + 1u};
+        }
+    }
+
     void StateReplication::AssignSceneNetworkIds(scene::Scene& scene)
     {
         auto* netMgr = scene.GetSystem<NetworkComponentManager>();
@@ -582,7 +601,7 @@ namespace foundation::net
             {
                 if (!nc.id.IsValid())
                 {
-                    nc.id = DeterministicNetworkId(scene.GetEntityId(e));
+                    nc.id = AuthoredId(scene, e);
                 }
                 m_netIdToEntity.InsertOrAssign(nc.id.value, e);
                 bool known = false;
@@ -615,7 +634,7 @@ namespace foundation::net
             {
                 if (!nc.id.IsValid())
                 {
-                    nc.id = DeterministicNetworkId(scene.GetEntityId(e));
+                    nc.id = AuthoredId(scene, e);
                 }
                 m_netIdToEntity.InsertOrAssign(nc.id.value, e);
             });

@@ -297,6 +297,9 @@ export namespace foundation::net
         // scene, so the same entity Guid gives the same id) and register id -> local entity, so incoming
         // replication updates the authored entity instead of creating a duplicate.
         void RegisterAuthoredEntities(scene::Scene& scene);
+        // The id an authored entity gets from its Guid; the next free one when another entity holds
+        // it (said once each time).
+        [[nodiscard]] NetworkId AuthoredId(scene::Scene& scene, scene::EntityHandle entity);
 
         // Forget the scene replicated so far: its id map, every peer's baseline and its authored
         // set. Another scene's entities reuse those ids (authored ids come from Guids, minted ones

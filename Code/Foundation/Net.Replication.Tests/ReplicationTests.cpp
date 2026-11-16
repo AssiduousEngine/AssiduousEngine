@@ -1032,3 +1032,35 @@ TEST_CASE("replication: an authored entity destroyed before a peer joins is remo
     CHECK(cmovers->Get(ca)->health == 3);        // with its state, sent in full
     CHECK(client.EntityCount() == 1u);           // and no duplicate of it
 }
+
+TEST_CASE("replication: two authored entities whose Guids hash to one id get two ids, the same on both peers")
+{
+    // The 32-bit id hashed from a Guid had no collision check: the second entity took the first's
+    // id, and replication drove one of them from the other's state.
+    foundation::net::RegisterReplicationComponents();
+    const Guid first{1, 0};                        // hashes to 1
+    const Guid second{0x0000000100000000ull, 0};  // also hashes to 1
+    auto build = [&](scene::Scene& scene)
+    {
+        auto* net = scene.AddSystem<net::NetworkComponentManager>();
+        net->Add(scene.CreateEntity(first, u8"First"));
+        net->Add(scene.CreateEntity(second, u8"Second"));
+        return net;
+    };
+    scene::Scene server{DefaultAllocator()};
+    net::NetworkComponentManager* snet = build(server);
+    net::StateReplication rep;
+    rep.AssignSceneNetworkIds(server);
+    const net::NetworkId a = snet->Get(server.FindEntity(first))->id;
+    const net::NetworkId b = snet->Get(server.FindEntity(second))->id;
+    CHECK(a != b);
+    CHECK(rep.FindEntity(a) == server.FindEntity(first));
+    CHECK(rep.FindEntity(b) == server.FindEntity(second));
+
+    scene::Scene client{DefaultAllocator()};
+    net::NetworkComponentManager* cnet = build(client);
+    net::StateReplication crep;
+    crep.RegisterAuthoredEntities(client);
+    CHECK(cnet->Get(client.FindEntity(first))->id == a);
+    CHECK(cnet->Get(client.FindEntity(second))->id == b);
+}
