@@ -50,6 +50,24 @@ namespace pipeline
                                      ScriptClassAsset::StaticType(), asset);
     }
 
+    foundation::content::Instance* CreateScriptProjectInstance(const AssetCreationContext& context, StringView languageId,
+                                                               StringView dottedExtension)
+    {
+        IScriptAssemblyCook* cook = ScriptAssemblyCookRegistry::Get().FindByLanguage(languageId);
+        foundation::content::Group* target = context.Target();
+        if (cook == nullptr || target == nullptr)
+        {
+            return nullptr;
+        }
+        const String name = target->UniqueInstanceName(context.NameOr(u8"Game"));
+        AssetCreationContext named = context;
+        named.name = name.AsView();
+        ScriptAssemblyAsset asset;
+        asset.language = String(languageId);
+        const String project = cook->NewProjectTemplate(ClassNameFor(name.AsView(), u8"Game").AsView());
+        return CreateLinkedTextAsset(named, u8"Game", dottedExtension, project.AsView(), ScriptAssemblyAsset::StaticType(), asset);
+    }
+
     usize RegisterScriptCreators(AssetCreatorRegistry& registry)
     {
         struct TierDesc
@@ -91,6 +109,22 @@ namespace pipeline
                 {
                     return CreateScriptInstance(context, languageId.AsView(), extension.AsView(),
                                                 tier, base.AsView());
+                };
+                registry.Register(Move(creator));
+                ++registered;
+            }
+            // A language whose classes build together (C#) needs its project file: one creator
+            // for it, seeded from the project build's template.
+            if (IScriptAssemblyCook* project = ScriptAssemblyCookRegistry::Get().FindByLanguage(backend.languageId.AsView()))
+            {
+                AssetCreator creator;
+                creator.label = Format(u8"{} Project", displayName);
+                creator.category = String(u8"Scripts");
+                creator.type = &ScriptAssemblyAsset::StaticType();
+                creator.run = [languageId = String(backend.languageId.AsView()),
+                               projectExtension = Format(u8".{}", project->ProjectExtension())](const AssetCreationContext& context)
+                {
+                    return CreateScriptProjectInstance(context, languageId.AsView(), projectExtension.AsView());
                 };
                 registry.Register(Move(creator));
                 ++registered;

@@ -17,6 +17,8 @@ import pipeline.importer;
 import pipeline.registration;
 import foundation.content; // ContentDatabase: a plain source database, no editor
 import foundation.vfs;
+import foundation.script; // the backends, for the creators each brings
+import script.pipeline;   // which of them build their classes in a project
 
 using namespace foundation::core;
 
@@ -127,7 +129,18 @@ TEST_CASE("pipeline.registration: every creator makes its asset with no editor")
     pipeline::RegisterPipelineTypes(); // the script creators need the cooks
     pipeline::AssetCreatorRegistry creators{DefaultAllocator()};
     const usize scripts = pipeline::RegisterAllCreators(creators);
-    CHECK(scripts % 3 == 0u); // three tiers per language with a cook
+    // Three tiers per language with a cook, and a project creator for one that builds its classes
+    // together.
+    usize expected = 0;
+    for (const foundation::script::ScriptBackendDesc& backend : foundation::script::ScriptBackendRegistry::Get().All())
+    {
+        if (pipeline::ScriptLanguageCookRegistry::Get().FindByLanguage(backend.languageId.AsView()) == nullptr)
+            continue;
+        expected += 3;
+        if (pipeline::ScriptAssemblyCookRegistry::Get().FindByLanguage(backend.languageId.AsView()) != nullptr)
+            expected += 1;
+    }
+    CHECK(scripts == expected);
     CHECK(creators.Count() == pipeline::kCreatorCount + scripts);
 
     constexpr StringView kRoot = u8"scratch_creators_db";

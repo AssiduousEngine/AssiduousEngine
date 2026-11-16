@@ -1003,9 +1003,11 @@ export namespace pipeline{
             // whose change recooks the class) and refers to it at run time.
             if (cook->BuildsInAssembly())
             {
-                if (ctx.sourceDb != nullptr)
+                // A scan's context carries the source database as `db` (a build's as `sourceDb`).
+                content::IContentDatabase* sourceDb = ctx.sourceDb != nullptr ? ctx.sourceDb : ctx.db;
+                if (sourceDb != nullptr)
                 {
-                    if (content::Instance* project = FindScriptAssemblyFor(*ctx.sourceDb, LanguageOf(scriptAsset), scriptAsset.fileName.View()))
+                    if (content::Instance* project = FindScriptAssemblyFor(*sourceDb, LanguageOf(scriptAsset), scriptAsset.fileName.View()))
                     {
                         out.reads.PushBack(project->Id());
                         out.references.PushBack(project->Id());
@@ -1618,7 +1620,13 @@ export namespace pipeline{
     [[nodiscard]] foundation::content::Instance* CreateScriptInstance(
         const AssetCreationContext& context, StringView languageId, StringView extension,
         ScriptTier tier, StringView baseName);
+    /// A new project file for a language whose classes build together (a C# .csproj): the project
+    /// build's template written to the sources folder as "<name><dottedExtension>", and its
+    /// ScriptAssemblyAsset. Null when the language has no project build or a write is refused.
+    [[nodiscard]] foundation::content::Instance* CreateScriptProjectInstance(const AssetCreationContext& context, StringView languageId,
+                                                                             StringView dottedExtension);
     /// File > New's script creators: three per registered backend with a cook (Behavior,
-    /// Level, Game). Answers how many it registered. Register the cooks first.
+    /// Level, Game), and a project creator for one whose classes build together. Answers how many
+    /// it registered. Register the cooks first.
     usize RegisterScriptCreators(AssetCreatorRegistry& registry);
 }

@@ -187,7 +187,13 @@ namespace
             AssetBuildContext ctx = Context(product);
             ScriptClassAssetBuilder builder;
             if (deps != nullptr)
-                builder.ScanDependencies(asset, ctx, *deps);
+            {
+                // As the cook driver scans: the source database as the context's db.
+                AssetBuildContext scan{DefaultAllocator()};
+                scan.sources = sources.Get();
+                scan.db = sourceDb.Get();
+                builder.ScanDependencies(asset, scan, *deps);
+            }
             const Status built = builder.Build(asset, ctx);
             if (built.IsOk())
             {
