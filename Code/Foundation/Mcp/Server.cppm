@@ -328,6 +328,41 @@ export namespace foundation::mcp
         McpClientInfo m_client;
         McpPathPolicy m_paths;
         u64 m_nextSerial = 1;
+        /// While a tool's handler runs, changes to the tool table wait here, in order, and apply
+        /// when it returns: a handler that opens a project loads its plugins, which register and
+        /// unregister tools, and the table moving under the running handler (or a call entry going)
+        /// left it running from freed memory.
+        struct PendingToolChange
+        {
+            bool remove = false;
+            String name; ///< the tool to remove
+            Tool tool;   ///< the tool to add
+        };
+        Array<PendingToolChange> m_pendingToolChanges;
+        bool m_inHandler = false;
+
+        void AddTool(Tool tool)
+        {
+            if (m_inHandler)
+            {
+                m_pendingToolChanges.PushBack(PendingToolChange{false, String{}, Move(tool)});
+                return;
+            }
+            m_tools.PushBack(Move(tool));
+        }
+        void ApplyPendingToolChanges()
+        {
+            Array<PendingToolChange> changes = Move(m_pendingToolChanges);
+            m_pendingToolChanges.Clear();
+            for (PendingToolChange& change : changes)
+            {
+                if (change.remove)
+                    (void)UnregisterTool(change.name.AsView());
+                else
+                    m_tools.PushBack(Move(change.tool));
+            }
+        }
+
         /// A call in flight, known by the transport's id, or by its line when it gave none.
         struct CallEntry
         {
@@ -373,16 +408,14 @@ export namespace foundation::mcp
         void RegisterTool(String name, String description, JsonValue schema,
                           ToolAnnotations annotations, ToolHandler handler)
         {
-            m_tools.PushBack(
-                Tool{Move(name), Move(description), Move(schema), annotations, Move(handler), {}});
+            AddTool(Tool{Move(name), Move(description), Move(schema), annotations, Move(handler), {}});
         }
         /// A tool whose handler sees its call (ToolCall): one that answers NotFinished and keeps
         /// what it started in the call's state.
         void RegisterTool(String name, String description, JsonValue schema,
                           ToolAnnotations annotations, ToolCallHandler handler)
         {
-            m_tools.PushBack(Tool{Move(name), Move(description), Move(schema), annotations,
-                                  ToolHandler{}, Move(handler)});
+            AddTool(Tool{Move(name), Move(description), Move(schema), annotations, ToolHandler{}, Move(handler)});
         }
         /// The caller of an unfinished call went away (its connection closed): the call ends, its
         /// state destroyed, as if it had answered. Nothing when the id names no call in flight.
@@ -431,6 +464,12 @@ export namespace foundation::mcp
         /// call to an unknown tool.
         bool UnregisterTool(StringView name)
         {
+            if (m_inHandler) // applied when the running handler returns
+            {
+                const bool known = FindTool(name) != nullptr;
+                m_pendingToolChanges.PushBack(PendingToolChange{true, String(name), Tool{}});
+                return known;
+            }
             for (usize i = 0; i < m_tools.Size(); ++i)
             {
                 if (m_tools[i].name.AsView() != name)
@@ -547,6 +586,15 @@ export namespace foundation::mcp
             {
                 Report(entry, ToolCallPhase::Abandoned);
             }
+        }
+
+        /// The index of the call with server number `serial`; m_calls.Size() when it has gone.
+        [[nodiscard]] usize FindCallBySerial(u64 serial) const noexcept
+        {
+            for (usize i = 0; i < m_calls.Size(); ++i)
+                if (m_calls[i].serial == serial)
+                    return i;
+            return m_calls.Size();
         }
 
         /// The index of the call in flight under the current identity, a new one started when
@@ -676,15 +724,33 @@ export namespace foundation::mcp
                 // line, same args). Both finished outcomes are successful JSON-RPC responses;
                 // a tool failure is reported as isError content, not a protocol error.
                 // The call this is: the one in flight under this identity, or a new one.
-                const usize callIndex = FindOrStartCall();
+                usize callIndex = FindOrStartCall();
                 if (!m_calls[callIndex].call.isReentry)
                 {
                     m_calls[callIndex].tool = tool->name;
                     m_calls[callIndex].arguments = args;
                     m_calls[callIndex].annotations = tool->annotations;
                 }
+                const u64 serial = m_calls[callIndex].serial;
+                m_inHandler = true;
                 ToolOutcome outcome = tool->callHandler ? tool->callHandler(m_calls[callIndex].call, args)
                                                         : tool->handler(args);
+                m_inHandler = false;
+                ApplyPendingToolChanges(); // may end this very call (its tool unregistered)
+                callIndex = FindCallBySerial(serial);
+                if (callIndex == m_calls.Size())
+                {
+                    // Its tool went while it ran: answered as finished all the same.
+                    JsonValue item = JsonValue::MakeObject();
+                    item.Set(u8"type", JsonValue::MakeString(u8"text"));
+                    item.Set(u8"text", JsonValue::MakeString(String(u8"the tool was removed while it ran")));
+                    JsonValue result = JsonValue::MakeObject();
+                    result.Set(u8"isError", JsonValue::MakeBool(true));
+                    JsonValue content = JsonValue::MakeArray();
+                    content.Add(Move(item));
+                    result.Set(u8"content", Move(content));
+                    return detail::Answered(detail::MakeResult(id, Move(result)));
+                }
                 if (!outcome.IsFinished())
                 {
                     if (!m_calls[callIndex].call.isReentry)

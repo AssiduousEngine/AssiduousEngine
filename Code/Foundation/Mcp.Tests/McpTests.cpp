@@ -752,3 +752,46 @@ TEST_CASE("mcp: the path policy allows the project and the named folders, nothin
     args.Set(u8"path", foundation::json::JsonValue::MakeString(String(u8"/etc/x.png")));
     CHECK_FALSE(policy.CheckArgument(args, u8"path").HasValue());
 }
+
+// A tool whose call changes the tool table (project_open loading a project's plugins registers
+// and unregisters theirs): the changes wait until it returns. Registered in place, the table
+// grew under the running handler, which went on from freed memory (ASAN), and a removal shifted
+// the call it was answering.
+TEST_CASE("mcp: tools registered or removed by a running tool apply when it returns")
+{
+    McpServer server;
+    Setup(server);
+    McpServer* self = &server;
+    server.RegisterTool(u8"plugins", u8"swaps a plugin's tools", SchemaBuilder().Build(), ToolAnnotations::Rebuilds(),
+                        [self](const JsonValue&) -> ToolResult
+                        {
+                            CHECK(self->UnregisterTool(u8"echo"));
+                            for (u32 i = 0; i < 64; ++i) // enough to move the table
+                            {
+                                self->RegisterTool(Format(u8"added{}", i), u8"added", SchemaBuilder().Build(),
+                                                   ToolAnnotations::ReadOnly(),
+                                                   [](const JsonValue&) -> ToolResult { return JsonValue::MakeBool(true); });
+                            }
+                            CHECK_FALSE(self->HasTool(u8"added0")); // not yet: after this returns
+                            return JsonValue::MakeString(String(u8"swapped"));
+                        });
+    const JsonValue answer = Response(server.HandleLine(
+        u8"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"plugins\",\"arguments\":{}}}"));
+    CHECK_FALSE(answer.Get(u8"result").Get(u8"isError").AsBool());
+    CHECK(server.HasTool(u8"added63"));
+    CHECK_FALSE(server.HasTool(u8"echo"));
+    CHECK(server.CallsInFlight() == 0u);
+
+    // A tool that removes itself is answered all the same.
+    server.RegisterTool(u8"leaving", u8"removes itself", SchemaBuilder().Build(), ToolAnnotations::Rebuilds(),
+                        [self](const JsonValue&) -> ToolResult
+                        {
+                            (void)self->UnregisterTool(u8"leaving");
+                            return JsonValue::MakeBool(true);
+                        });
+    const JsonValue gone = Response(server.HandleLine(
+        u8"{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"leaving\",\"arguments\":{}}}"));
+    CHECK(gone.Get(u8"result").Get(u8"isError").AsBool());
+    CHECK_FALSE(server.HasTool(u8"leaving"));
+    CHECK(server.CallsInFlight() == 0u);
+}
