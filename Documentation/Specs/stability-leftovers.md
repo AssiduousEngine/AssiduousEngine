@@ -210,7 +210,7 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   shut down before scenes; `maxSteps` is fixed at 4.** `RunImpl.cpp:85-103`,
   `SceneManager.cppm:46, 218, 243-253`, `ApplicationHost.cppm:294`.
 - **`MarkDirty` dirties the whole root tree.** `SceneImpl.cpp:980-1003`. Test: moving A leaves its
-  sibling B clean.
+  sibling B clean. Built 2026-11-15: marking goes down only.
 - **Plugin parts carry no ABI or build stamp.** `PluginPart.cppm:175-181`, `PluginLoader.cppm:70-90`.
   Test: a part with another stamp is refused. Fix: a stamp in the part, checked on load.
 

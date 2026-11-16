@@ -996,10 +996,10 @@ namespace foundation::scene
             MarkDirty(child);
             child = next;
         }
-        if (d.parent.IsAssigned())
-        {
-            MarkDirty(d.parent);
-        }
+        // Down only: a parent is not moved by its child. Marking it too dirtied the parent's other
+        // children and, up the chain, the whole tree, so one moved entity recomputed (and reported
+        // as updated) everything under its root. UpdateTransforms starts from each dirty entity
+        // whose parent is clean, so a dirty subtree needs nothing marked above it.
     }
 
     void Scene::ApplyWorldAsLocal(EntityHandle child, const Float4x4& childWorld)

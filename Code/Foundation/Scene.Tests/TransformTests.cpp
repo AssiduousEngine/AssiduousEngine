@@ -84,6 +84,33 @@ TEST_CASE("dirty cascade: moving a parent recomputes its descendants; nothing el
     CHECK(Near(scene.GetWorldPosition(child).y, 7.0f));
 }
 
+TEST_CASE("dirty cascade: moving a child leaves its parent and its siblings clean")
+{
+    // Marking dirty went up as well as down: a moved child dirtied its parent, and the parent its
+    // other children, so one entity moved recomputed everything under its root.
+    Scene scene{DefaultAllocator()};
+    EntityHandle root = scene.CreateEntity();
+    EntityHandle a = scene.CreateEntity();
+    EntityHandle b = scene.CreateEntity();
+    EntityHandle aChild = scene.CreateEntity();
+    scene.SetParent(a, root);
+    scene.SetParent(b, root);
+    scene.SetParent(aChild, a);
+    scene.SetLocalPosition(root, Float3{1, 0, 0});
+    scene.UpdateTransforms();
+    scene.UpdateTransforms(); // settled
+
+    scene.SetLocalPosition(a, Float3{0, 2, 0});
+    scene.UpdateTransforms();
+    CHECK(scene.IsTransformUpdatedThisFrame(a));
+    CHECK(scene.IsTransformUpdatedThisFrame(aChild));
+    CHECK_FALSE(scene.IsTransformUpdatedThisFrame(root));
+    CHECK_FALSE(scene.IsTransformUpdatedThisFrame(b));
+    CHECK(scene.TransformsUpdatedThisFrame().Size() == 2);
+    CHECK(Near(scene.GetWorldPosition(aChild).x, 1.0f)); // still under the root's offset
+    CHECK(Near(scene.GetWorldPosition(aChild).y, 2.0f));
+}
+
 // Read mid-update (a script after physics moved the entity, before UpdateTransforms), the world
 // pose is this frame's, not the cached matrix's last-frame answer.
 TEST_CASE("world matrix is current before UpdateTransforms: a moved parent's child, the previous kept")

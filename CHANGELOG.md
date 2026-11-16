@@ -28,6 +28,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Scene: moving one entity no longer recomputes every transform under its root; its parent and
+  siblings stay as they were.
 - Web: games draw in Safari and in every browser on iPhone and iPad. Their shaders wrote a very
   large number in full digits, which WebKit's WebGPU refused, so the screen stayed black while the
   game and its sound ran; the cook writes such numbers with an exponent.
