@@ -80,8 +80,25 @@ their checks; the function table's C side. Tested by a C# test assembly calling 
 ### D3: behaviours
 
 A C# class as a behaviour: the same lifecycle, properties in the inspector and saved with the
-scene, the same `X.of(entity)` component access. The cook builds the project's assembly; a project
-may mix C# with the other languages.
+scene, the same `X.of(entity)` component access. A project may mix C# with the other languages
+across runs; one run still has one script language.
+
+A project's C# is one assembly, so its files share types freely. The cook gains a project-wide
+product for it, the script assembly:
+
+- Its builder gathers every `.cs` in the project's sources and builds them together against the
+  engine's runtime (`dotnet build`), and writes the assembly image, its debug symbols (so a fault
+  names its file and line) and every public class's description (its handlers, its inspector
+  fields with their defaults, tooltips and replication). Its dependencies are all the `.cs` files.
+- A build that fails writes nothing: the last good assembly keeps running, as a failed class cook
+  keeps the last good class. One broken file holds back every C# class until it builds again.
+- Each `.cs` asset still cooks to a `ScriptClass` (language `csharp`), so scenes, the inspector
+  and replication are unchanged; its handlers and properties come from the assembly's
+  description, and the class names the assembly instead of carrying bytecode of its own.
+- At run time the run host hands the backend the class's assembly image; an image loads once
+  however many classes share it, and a rebuilt one loads beside the old (where D4 starts).
+- The editor's code page reports C#'s errors from the project build. Errors as one types would
+  need the compiler in the editor (Roslyn), later.
 
 ### D4: editor hot reload
 

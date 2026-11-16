@@ -81,11 +81,12 @@ namespace foundation::script::dotnet
         return Status{};
     }
 
-    Status DotNetRuntime::LoadAssembly(Span<const byte> image)
+    Status DotNetRuntime::LoadAssembly(Span<const byte> image, Span<const byte> symbols)
     {
         if (!IsStarted())
             return Fail(u8"the runtime is not started");
-        if (const i32 rc = m_loadAssembly(image.Data(), static_cast<i32>(image.Size())); rc != 0)
+        if (const i32 rc = m_loadAssembly(image.Data(), static_cast<i32>(image.Size()), symbols.Data(), static_cast<i32>(symbols.Size()));
+            rc != 0)
             return FailManaged(rc);
         return Status{};
     }

@@ -98,16 +98,18 @@ public static unsafe class Runtime
         }
     }
 
-    /// <summary>Loads a game assembly from its image; its classes are found before those of any
-    /// loaded earlier (a rebuilt assembly's class replaces its predecessor's).</summary>
+    /// <summary>Loads a game assembly from its image, with its debug symbols when given (a fault then
+    /// names its file and line); its classes are found before those of any loaded earlier (a rebuilt
+    /// assembly's class replaces its predecessor's).</summary>
     [UnmanagedCallersOnly]
-    public static int LoadAssembly(byte* image, int length)
+    public static int LoadAssembly(byte* image, int length, byte* symbols, int symbolsLength)
     {
         try
         {
             var context = new GameContext();
             using var stream = new System.IO.UnmanagedMemoryStream(image, length);
-            Assembly assembly = context.LoadFromStream(stream);
+            using System.IO.Stream? symbolStream = symbols != null && symbolsLength > 0 ? new System.IO.UnmanagedMemoryStream(symbols, symbolsLength) : null;
+            Assembly assembly = context.LoadFromStream(stream, symbolStream);
             s_assemblies.Add(assembly);
             foreach (Type type in assembly.GetTypes())
                 if (type.IsClass && !type.IsAbstract && type.IsPublic)
