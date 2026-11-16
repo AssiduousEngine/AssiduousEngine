@@ -2518,3 +2518,28 @@ TEST_CASE("prefab flows: Revert and Apply are one undo step each, and Apply leav
     CHECK(payload() != before);
     page->OnClose();
 }
+
+TEST_CASE("inspector: two components added one after the other are two undo steps")
+{
+    // The add groups were never locked, and consecutive groups of one type coalesce: add X then
+    // add Y was one step, and Undo took both away.
+    Bed bed;
+    UniquePtr<SceneEditorPage> page = bed.Open(*bed.level);
+    SceneInspectorView* inspector = page->Inspector();
+    page->EditContext().EntitySelection().Set(bed.crate);
+    page->OnUpdate(bed.host, 1.0f / 60.0f);
+    String other;
+    for (const String& name : inspector->AddableComponents())
+        if (other.IsEmpty() && name != String(u8"LightComponent"))
+            other = name;
+    REQUIRE_FALSE(other.IsEmpty());
+    REQUIRE(inspector->AddComponent(u8"LightComponent"));
+    REQUIRE(inspector->AddComponent(other.AsView()));
+    page->OnUpdate(bed.host, 1.0f / 60.0f);
+    const usize both = inspector->SectionTitles().Size();
+    page->Commands().Undo();
+    page->OnUpdate(bed.host, 1.0f / 60.0f);
+    CHECK(inspector->SectionTitles().AsView().Contains(u8"Light"));
+    CHECK(inspector->SectionTitles().Size() < both);
+    page->OnClose();
+}

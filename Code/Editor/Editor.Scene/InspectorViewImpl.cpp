@@ -387,6 +387,7 @@ namespace editor
                                   for (usize i = 0; i < self->m_entities.Size() && i < commit.After.Size(); ++i)
                                       self->m_edit->SetEntityActive(self->m_entities[i], commit.After[i].AsBool());
                                   self->m_edit->Commands().EndGroup();
+                                  self->m_edit->Commands().LockGroup(); // a separate action: never one undo step with the next
                               });
         m_sections.Add(kActiveKey, u8"Entity", *m_active);
         BuildTransform();
@@ -760,6 +761,7 @@ namespace editor
         for (const Guid& entity : m_entities)
             pasted = m_edit->PasteComponent(entity, clip) || pasted;
         m_edit->Commands().EndGroup();
+        m_edit->Commands().LockGroup(); // a separate action: never one undo step with the next
         return pasted;
     }
 
@@ -795,6 +797,7 @@ namespace editor
                                                     for (const Guid& entity : self->m_entities)
                                                         (void)self->m_edit->PasteComponent(entity, clip);
                                                     self->m_edit->Commands().EndGroup();
+                                                    self->m_edit->Commands().LockGroup(); // a separate action: never one undo step with the next
                                                 });
             paste->SetEnabled(!context->ClipboardData(u8"component").IsEmpty());
             menu.AddSeparator();
@@ -824,6 +827,7 @@ namespace editor
                                for (const Guid& entity : self->m_entities)
                                    self->m_edit->RemoveComponent(entity, type);
                                self->m_edit->Commands().EndGroup();
+                               self->m_edit->Commands().LockGroup(); // a separate action: never one undo step with the next
                            });
     }
 
@@ -872,6 +876,7 @@ namespace editor
             if (!m_edit->FindManager(type)->HasComponent(m_edit->Resolve(entity)))
                 m_edit->AddComponent(entity, type);
         m_edit->Commands().EndGroup();
+        m_edit->Commands().LockGroup(); // a separate action: never one undo step with the next
         return true;
     }
 
