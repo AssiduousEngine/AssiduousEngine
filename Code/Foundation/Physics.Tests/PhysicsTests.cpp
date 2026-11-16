@@ -1548,3 +1548,65 @@ TEST_CASE("physics: two characters walking into each other stop at each other")
     const f32 gap = world.CharacterPosition(right).x - world.CharacterPosition(left).x;
     CHECK(gap > 0.6f); // two radii (0.35 each), less a small contact slack
 }
+
+namespace
+{
+    // Counts the "Physics" errors logged while it is installed.
+    struct PhysicsErrorCapture : ILogSink
+    {
+        int bodyLimit = 0;
+        void Write(LogLevel level, StringView category, StringView message) noexcept override
+        {
+            if (level == LogLevel::Error && category == u8"Physics" &&
+                message.Contains(StringView(u8"maxBodies")))
+            {
+                ++bodyLimit;
+            }
+        }
+    };
+}
+
+TEST_CASE("physics: a world past its body budget says so, once")
+{
+    // CreateBody returned an invalid id with nothing said: a level past the budget lost bodies
+    // silently.
+    PhysicsErrorCapture capture;
+    Logger& logger = GlobalLogger();
+    logger.AddSink(&capture);
+    {
+        PhysicsWorldSettings settings;
+        settings.maxBodies = 4;
+        PhysicsWorld world(DefaultAllocator(), settings);
+        for (int i = 0; i < 4; ++i)
+        {
+            CHECK(world.CreateBody(BoxAt(static_cast<f32>(i) * 2.0f)).IsValid());
+        }
+        CHECK_FALSE(world.CreateBody(BoxAt(20.0f)).IsValid());
+        CHECK_FALSE(world.CreateBody(BoxAt(22.0f)).IsValid());
+        world.Step(1.0f / 60.0f); // the world steps on with what it holds
+    }
+    logger.RemoveSink(&capture);
+    CHECK(capture.bodyLimit == 1);
+}
+
+TEST_CASE("physics: worlds share one worker pool, each stepping as before")
+{
+    // Each world made its own pool of a thread per core; two scenes ran two pools.
+    PhysicsWorld first(DefaultAllocator());
+    PhysicsWorld second(DefaultAllocator());
+    (void)first.CreateBody(FloorDesc());
+    (void)second.CreateBody(FloorDesc());
+    const BodyId a = first.CreateBody(BoxAt(3.0f));
+    const BodyId b = second.CreateBody(BoxAt(3.0f));
+    for (int i = 0; i < 120; ++i)
+    {
+        first.Step(1.0f / 60.0f);
+        second.Step(1.0f / 60.0f);
+    }
+    Float3 pa, pb;
+    Quaternion ra, rb;
+    first.GetBodyTransform(a, pa, ra);
+    second.GetBodyTransform(b, pb, rb);
+    CHECK(pa.y == doctest::Approx(0.5f).epsilon(0.05));
+    CHECK(pb.y == doctest::Approx(0.5f).epsilon(0.05));
+}

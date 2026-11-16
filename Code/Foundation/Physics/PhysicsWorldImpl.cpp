@@ -330,6 +330,33 @@ namespace foundation::physics
             }
         }
 
+        // One worker pool for every world: a world each made its own, a thread per core per world,
+        // so a game with a few scenes ran several pools' worth of threads. Refcounted by the
+        // worlds; made with the first world's allocator, which every later world shares (the
+        // physics subsystem's), and gone with the last.
+        Mutex g_poolMutex;
+        i32 g_poolUsers = 0;
+        UniquePtr<JPH::JobSystemThreadPool> g_pool;
+        JPH::JobSystemThreadPool* AcquireJobPool(core::IAllocator& allocator)
+        {
+            ScopedLock lock(g_poolMutex);
+            if (g_poolUsers++ == 0)
+            {
+                g_pool = MakeUnique<JPH::JobSystemThreadPool>(
+                    allocator, JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers,
+                    static_cast<int>(JPH::thread::hardware_concurrency()) - 1);
+            }
+            return g_pool.Get();
+        }
+        void ReleaseJobPool()
+        {
+            ScopedLock lock(g_poolMutex);
+            if (--g_poolUsers == 0)
+            {
+                g_pool = nullptr;
+            }
+        }
+
         // Cooked blobs are Jolt binary shape state; these adapters bridge it to Array<byte>.
         struct BlobOut final : JPH::StreamOut
         {
@@ -815,7 +842,11 @@ namespace foundation::physics
         ObjectPairFilter pairFilter;
         ContactBuffer contacts;
         UniquePtr<JPH::TempAllocatorImpl> tempAllocator;
-        UniquePtr<JPH::JobSystemThreadPool> jobSystem;
+        JPH::JobSystemThreadPool* jobSystem = nullptr; // shared by every world (AcquireJobPool)
+        // Budgets met, each said once: a body past maxBodies, and the update's own caches.
+        bool saidBodyLimit = false;
+        u32 saidUpdateErrors = 0;
+        u32 maxBodies = 0;
         UniquePtr<JPH::PhysicsSystem> system;
         // JointId = slot index; null joint = freed. The two body IDs are kept in the slot so
         // DestroyJoint can wake the surviving bodies by ID through the body manager: the
@@ -844,9 +875,8 @@ namespace foundation::physics
         m_impl = MakeUnique<Impl>(allocator);
         m_impl->tempAllocator =
             MakeUnique<JPH::TempAllocatorImpl>(allocator, 10 * 1024 * 1024);
-        m_impl->jobSystem = MakeUnique<JPH::JobSystemThreadPool>(
-            allocator, JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers,
-            static_cast<int>(JPH::thread::hardware_concurrency()) - 1);
+        m_impl->jobSystem = AcquireJobPool(allocator);
+        m_impl->maxBodies = settings.maxBodies;
         m_impl->system = MakeUnique<JPH::PhysicsSystem>(allocator);
         for (u32 i = 0; i < kCollisionGroupCount; ++i)
         {
@@ -863,6 +893,7 @@ namespace foundation::physics
     PhysicsWorld::~PhysicsWorld()
     {
         m_impl = nullptr;
+        ReleaseJobPool();
         ReleaseJolt();
     }
 
@@ -952,6 +983,15 @@ namespace foundation::physics
         const JPH::BodyID id = bodies.CreateAndAddBody(
             settings, motionKind == MotionKind::Static ? JPH::EActivation::DontActivate
                                                        : JPH::EActivation::Activate);
+        if (id.IsInvalid() && !m_impl->saidBodyLimit &&
+            m_impl->system->GetNumBodies() >= m_impl->maxBodies)
+        {
+            LOG_ERROR(u8"Physics",
+                      u8"the world holds its most bodies ({}, PhysicsWorldSettings::maxBodies): "
+                      u8"no more are made",
+                      m_impl->maxBodies);
+            m_impl->saidBodyLimit = true;
+        }
         return id.IsInvalid() ? BodyId{} : BodyId{id.GetIndexAndSequenceNumber()};
     }
 
@@ -991,8 +1031,30 @@ namespace foundation::physics
 
     void PhysicsWorld::Step(f32 deltaTime, i32 collisionSteps)
     {
-        m_impl->system->Update(deltaTime, collisionSteps, m_impl->tempAllocator.Get(),
-                               m_impl->jobSystem.Get());
+        const JPH::EPhysicsUpdateError errors = m_impl->system->Update(
+            deltaTime, collisionSteps, m_impl->tempAllocator.Get(), m_impl->jobSystem);
+        // A cache that ran out drops contacts for the step: bodies pass through each other.
+        const u32 fresh = static_cast<u32>(errors) & ~m_impl->saidUpdateErrors;
+        if (fresh != 0)
+        {
+            m_impl->saidUpdateErrors |= fresh;
+            const auto has = [fresh](JPH::EPhysicsUpdateError e)
+            { return (fresh & static_cast<u32>(e)) != 0; };
+            if (has(JPH::EPhysicsUpdateError::BodyPairCacheFull))
+            {
+                LOG_ERROR(u8"Physics", u8"too many touching body pairs this step "
+                                       u8"(PhysicsWorldSettings::maxBodyPairs): some contacts were dropped");
+            }
+            if (has(JPH::EPhysicsUpdateError::ContactConstraintsFull))
+            {
+                LOG_ERROR(u8"Physics", u8"too many contacts this step "
+                                       u8"(PhysicsWorldSettings::maxContactConstraints): some were dropped");
+            }
+            if (has(JPH::EPhysicsUpdateError::ManifoldCacheFull))
+            {
+                LOG_ERROR(u8"Physics", u8"the contact cache ran out this step: some contacts were dropped");
+            }
+        }
         m_impl->contacts.FinishStep();
     }
 
