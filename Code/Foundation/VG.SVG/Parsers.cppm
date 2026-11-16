@@ -35,7 +35,9 @@ export namespace foundation::vg::svg
             buf[n] = '\0';
             char* end = nullptr;
             const f32 v = std::strtof(buf, &end);
-            if (end == buf)
+            // Not a number, or past what a float holds ("1e999" reads as infinity, and an infinite
+            // coordinate or scale turns the geometry built from it into NaNs): refused.
+            if (end == buf || !IsFinite(v))
                 return {};
             return v;
         }

@@ -38,6 +38,17 @@ export namespace foundation::vg::svg
             vg.PushState();
             vg.Translate(bounds.x, bounds.y);
             vg.Scale(scaleX, scaleY);
+            if (document.viewBox.HasValue())
+            {
+                // The viewBox into width by height: one scale for both axes, the spare centred.
+                const Rectangle box = document.viewBox.Value();
+                const f32 w = document.width > 0.0f ? document.width : box.width;
+                const f32 h = document.height > 0.0f ? document.height : box.height;
+                const f32 fit = Min(w / box.width, h / box.height);
+                vg.Translate((w - box.width * fit) * 0.5f, (h - box.height * fit) * 0.5f);
+                vg.Scale(fit, fit);
+                vg.Translate(-box.x, -box.y);
+            }
 
             for (usize i = 0; i < document.elements.Size(); ++i)
                 RenderElement(vg, document.elements[i], tint, &document);
@@ -81,10 +92,10 @@ export namespace foundation::vg::svg
                         ? document->gradients.Find(element.fillGradientId)
                         : nullptr;
                 if (gradient != nullptr && !gradient->stops.IsEmpty())
-                    FillWithGradient(vg, element.path.Value(), *gradient);
+                    FillWithGradient(vg, element.path.Value(), *gradient, element.fillRule);
                 else if (element.fillColor.HasValue())
                     vg.FillPath(element.path.Value(),
-                                tint.HasValue() ? tint.Value() : element.fillColor.Value());
+                                tint.HasValue() ? tint.Value() : element.fillColor.Value(), element.fillRule);
 
                 if (element.strokeColor.HasValue() && element.strokeWidth > 0.0f)
                     vg.StrokePath(element.path.Value(),
@@ -104,7 +115,7 @@ export namespace foundation::vg::svg
         /// onto the path's bounds; userSpaceOnUse takes document coordinates directly
         /// (the VG transform already maps those to the screen).
         static void FillWithGradient(foundation::vg::VGContext& vg, const foundation::vg::Path& path,
-                                     const SVGGradient& gradient)
+                                     const SVGGradient& gradient, foundation::vg::FillRule fillRule)
         {
             const Rectangle b = path.GetBounds();
             if (gradient.radial)
@@ -125,7 +136,7 @@ export namespace foundation::vg::svg
                 }
                 fill.spread = gradient.spread;
                 fill.stops = gradient.stops;
-                vg.FillPath(path, fill);
+                vg.FillPath(path, fill, fillRule);
             }
             else
             {
@@ -144,7 +155,7 @@ export namespace foundation::vg::svg
                 }
                 fill.spread = gradient.spread;
                 fill.stops = gradient.stops;
-                vg.FillPath(path, fill);
+                vg.FillPath(path, fill, fillRule);
             }
         }
 

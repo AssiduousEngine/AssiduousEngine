@@ -293,3 +293,72 @@ TEST_CASE("svg.loader: groups nested past the limit fail the load instead of the
     REQUIRE_FALSE(deep.HasValue());
     CHECK(deep.Error() == ErrorCode::OutOfRange);
 }
+
+TEST_CASE("svg.loader: a viewBox beside a width and height maps its coordinates into them")
+{
+    // The viewBox was read only without a width and height, so an icon exported as width="24"
+    // viewBox="0 0 960 960" drew its 960-unit coordinates as if they were 24: forty times too big.
+    const StringView svg = u8"<svg width=\"24\" height=\"24\" viewBox=\"0 0 960 960\">"
+                           u8"<rect x=\"0\" y=\"0\" width=\"960\" height=\"960\" fill=\"red\"/></svg>";
+    const Result<SVGDocument> r = SVGLoader::Load(svg);
+    REQUIRE(r.HasValue());
+    CHECK(r.Value().width == doctest::Approx(24.0f));
+    REQUIRE(r.Value().viewBox.HasValue());
+    VGContext ctx;
+    SVGRenderer::Render(ctx, r.Value(), Rectangle{0, 0, 48, 48});
+    f32 maxX = 0.0f;
+    f32 maxY = 0.0f;
+    for (const VGVertex& v : ctx.GetBatch().vertices)
+    {
+        maxX = Max(maxX, v.position.x);
+        maxY = Max(maxY, v.position.y);
+    }
+    CHECK(maxX <= 49.0f); // the bounds, give or take an antialiasing fringe
+    CHECK(maxY <= 49.0f);
+    CHECK(maxX >= 47.0f);
+
+    // A viewBox with another aspect than the box is fitted whole and centred (xMidYMid meet).
+    const Result<SVGDocument> wide = SVGLoader::Load(
+        u8"<svg width=\"100\" height=\"100\" viewBox=\"0 0 200 100\"><rect width=\"200\" height=\"100\"/></svg>");
+    REQUIRE(wide.HasValue());
+    VGContext wideCtx;
+    SVGRenderer::Render(wideCtx, wide.Value(), Rectangle{0, 0, 100, 100});
+    f32 minY = 1000.0f;
+    for (const VGVertex& v : wideCtx.GetBatch().vertices)
+        minY = Min(minY, v.position.y);
+    CHECK(minY >= 24.0f); // 50 tall, centred in 100
+}
+
+TEST_CASE("svg.loader: fill-rule is read and inherited, nonzero by default")
+{
+    // It was never parsed, and the fill used VG's default, even-odd: a shape drawn with nonzero in
+    // mind (overlapping subpaths, an outline with a counter wound the same way) lost its overlaps.
+    const Result<SVGDocument> r = SVGLoader::Load(
+        u8"<svg viewBox=\"0 0 10 10\"><rect width=\"1\" height=\"1\"/>"
+        u8"<g fill-rule=\"evenodd\"><rect width=\"2\" height=\"2\"/>"
+        u8"<rect width=\"3\" height=\"3\" fill-rule=\"nonzero\"/></g></svg>");
+    REQUIRE(r.HasValue());
+    const SVGDocument& doc = r.Value();
+    REQUIRE(doc.elements.Size() == 2u);
+    CHECK(doc.elements[0].fillRule == FillRule::NonZero);
+    REQUIRE(doc.elements[1].children.Size() == 2u);
+    CHECK(doc.elements[1].children[0].fillRule == FillRule::EvenOdd);
+    CHECK(doc.elements[1].children[1].fillRule == FillRule::NonZero);
+}
+
+TEST_CASE("svg.loader: a number too big for a float is refused, not read as infinity")
+{
+    // "1e999" read as infinity, and geometry built from an infinite coordinate is NaN throughout.
+    PathBuilder builder;
+    CHECK_FALSE(SVGPathParser::Parse(u8"M 0 0 L 1e999 0", builder).IsOk());
+    const Result<SVGDocument> r = SVGLoader::Load(
+        u8"<svg viewBox=\"0 0 10 10\"><rect width=\"1e999\" height=\"1\"/><rect width=\"2\" height=\"2\"/></svg>");
+    REQUIRE(r.HasValue());
+    for (const SVGElement& e : r.Value().elements)
+        if (e.path.HasValue())
+        {
+            const Rectangle b = e.path.Value().GetBounds();
+            CHECK(IsFinite(b.width));
+            CHECK(IsFinite(b.height));
+        }
+}

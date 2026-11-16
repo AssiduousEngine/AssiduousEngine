@@ -296,7 +296,10 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   following its content, and the walk goes past it.
 - **SVG: `viewBox` ignored beside width and height; `fill-rule` never parsed; round and bevel joins
   keep the miter spike; `1e999`.** `VG.SVG/Loader.cppm:53, 767`, `Context.cppm:687`,
-  `Tessellation.cppm:982`, `Parsers.cppm:757`.
+  `Tessellation.cppm:982`, `Parsers.cppm:757`. Built 2026-11-16: the joins (their own commit:
+  per-segment vertices, the wedge outside the turn with a fringe); viewBox fitted into width and
+  height (xMidYMid meet); fill-rule parsed and inherited, nonzero by default, passed to fills and
+  gradient fills; a number past a float's range refused.
 - **A failed font bake is retried on every `GetFont`, and fonts are never evicted.**
   `TrueTypeFontService.cppm:121, 243`.
 - **GraphView's "Add transition" is cancelled by its own release.** `GraphView.cppm:2201, 912`.

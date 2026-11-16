@@ -70,6 +70,7 @@ export namespace foundation::vg::svg
         f32 strokeWidth = 1.0f;
         foundation::vg::VGLineCap strokeCap = foundation::vg::VGLineCap::Butt;    ///< stroke-linecap
         foundation::vg::VGLineJoin strokeJoin = foundation::vg::VGLineJoin::Miter; ///< stroke-linejoin
+        foundation::vg::FillRule fillRule = foundation::vg::FillRule::NonZero;     ///< fill-rule (SVG: nonzero)
         f32 opacity = 1.0f;
         Array<SVGElement> children; ///< Children (for group elements).
 
@@ -97,6 +98,9 @@ export namespace foundation::vg::svg
     public:
         f32 width = 0.0f;
         f32 height = 0.0f;
+        /// The user coordinates the elements are in (`viewBox`), empty when none: it is fitted into
+        /// width by height, uniformly and centred (SVG's default `xMidYMid meet`).
+        Optional<Rectangle> viewBox;
         Array<SVGElement> elements;
         HashMap<String, SVGGradient> gradients; ///< By id (from <defs> or inline).
 

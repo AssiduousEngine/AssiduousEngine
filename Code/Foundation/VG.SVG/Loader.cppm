@@ -7,7 +7,7 @@
 // polyline, g, text) from a string into an SVGDocument. Has its own minimal XML
 // tag and attribute scanner (no XML library dependency).
 //
-// The paint attributes (fill, stroke, stroke-width, stroke-linecap, stroke-linejoin) are
+// The paint attributes (fill, fill-rule, stroke, stroke-width, stroke-linecap, stroke-linejoin) are
 // inherited as SVG's are: from the <svg> element and each <g> down to the shapes in them, a
 // shape's own attribute winning. An icon set written once on its root (fill="none" stroke=...)
 // draws as written.
@@ -49,20 +49,29 @@ export namespace foundation::vg::svg
                 if (const Optional<f32> h = ParseFloatValue(hStr->AsView()))
                     doc.height = h.Value();
 
-            // viewBox if no explicit width/height.
-            if (doc.width == 0.0f && doc.height == 0.0f)
+            // The viewBox: the user coordinates the drawing is in. It was read only without a width and
+            // height, so a file with all three (most exported icons: width="24" viewBox="0 0 960 960")
+            // was drawn at its raw coordinates, scaled as if they were the width and height.
+            if (const String* viewBox = svgAttrs.Find(String(u8"viewBox")))
             {
-                if (const String* viewBox = svgAttrs.Find(String(u8"viewBox")))
+                const StringView vb = viewBox->AsView();
+                usize vbPos = 0;
+                f32 box[4] = {};
+                bool all = true;
+                for (f32& v : box)
+                    all = all && ParseFloatFromView(vb, vbPos, v);
+                if (all && box[2] > 0.0f && box[3] > 0.0f)
                 {
-                    const StringView vb = viewBox->AsView();
-                    usize vbPos = 0;
-                    f32 tmp;
-                    (void)ParseFloatFromView(vb, vbPos, tmp); // min-x
-                    (void)ParseFloatFromView(vb, vbPos, tmp); // min-y
-                    if (ParseFloatFromView(vb, vbPos, tmp))
-                        doc.width = tmp;
-                    if (ParseFloatFromView(vb, vbPos, tmp))
-                        doc.height = tmp;
+                    doc.viewBox = Rectangle{box[0], box[1], box[2], box[3]};
+                    if (doc.width == 0.0f && doc.height == 0.0f)
+                    {
+                        doc.width = box[2];
+                        doc.height = box[3];
+                    }
+                    else if (doc.width == 0.0f)
+                        doc.width = doc.height * box[2] / box[3];
+                    else if (doc.height == 0.0f)
+                        doc.height = doc.width * box[3] / box[2];
                 }
             }
 
@@ -82,6 +91,7 @@ export namespace foundation::vg::svg
             f32 strokeWidth = 1.0f;
             foundation::vg::VGLineCap cap = foundation::vg::VGLineCap::Butt;
             foundation::vg::VGLineJoin join = foundation::vg::VGLineJoin::Miter;
+            foundation::vg::FillRule fillRule = foundation::vg::FillRule::NonZero; ///< SVG's default
         };
 
         /// `inherited` with the paint attributes `attrs` sets over it.
@@ -134,6 +144,13 @@ export namespace foundation::vg::svg
                     style.join = foundation::vg::VGLineJoin::Bevel;
                 else if (EqualsIgnoreCase(joinStr->AsView(), u8"miter"))
                     style.join = foundation::vg::VGLineJoin::Miter;
+            }
+            if (const String* ruleStr = attrs.Find(String(u8"fill-rule")))
+            {
+                if (EqualsIgnoreCase(ruleStr->AsView(), u8"evenodd"))
+                    style.fillRule = foundation::vg::FillRule::EvenOdd;
+                else if (EqualsIgnoreCase(ruleStr->AsView(), u8"nonzero"))
+                    style.fillRule = foundation::vg::FillRule::NonZero;
             }
             return style;
         }
@@ -398,6 +415,7 @@ export namespace foundation::vg::svg
             element.strokeWidth = paint.strokeWidth;
             element.strokeCap = paint.cap;
             element.strokeJoin = paint.join;
+            element.fillRule = paint.fillRule;
 
             if (const String* opStr = attrs.Find(String(u8"opacity")))
                 if (const Optional<f32> v = ParseFloatValue(opStr->AsView()))
