@@ -153,6 +153,8 @@ namespace foundation::script::dotnet
 
         u32 TypeSizeOf(const TypeInfo* type) { return type != nullptr ? type->size : 0u; }
 
+        u64 TypeIdOf(const TypeInfo* type) { return type != nullptr ? type->id : 0u; }
+
         void ReleaseHandle(void* handle)
         {
             if (handle != nullptr)
@@ -230,6 +232,35 @@ namespace foundation::script::dotnet
         return Status{};
     }
 
+    DotNetValue LendValue(const Variant& variant)
+    {
+        DotNetValue out{};
+        if (variant.IsEmpty())
+            return out;
+        if (const String* text = variant.TryGet<String>())
+        {
+            out.kind = DotNetValueKind::Text;
+            out.data = const_cast<utf8char*>(text->Data());
+            out.size = text->Size();
+            return out;
+        }
+        const TypeInfo* type = variant.Type();
+        const bool plain = type != nullptr && type->trivialCopy && !type->hasIdentity && !variant.IsObject() && !variant.IsMember();
+        out.type = type;
+        if (plain)
+        {
+            out.kind = DotNetValueKind::Bytes;
+            out.data = const_cast<void*>(variant.ValuePointer());
+            out.size = type->size;
+        }
+        else
+        {
+            out.kind = DotNetValueKind::Handle;
+            out.data = s_allocator->New<Variant>(variant);
+        }
+        return out;
+    }
+
     const DotNetEngineFunctions& EngineFunctions(IAllocator& allocator) noexcept
     {
         if (s_allocator == nullptr)
@@ -246,6 +277,7 @@ namespace foundation::script::dotnet
             f.construct = &ConstructOf;
             f.typeSize = &TypeSizeOf;
             f.releaseHandle = &ReleaseHandle;
+            f.typeIdOf = &TypeIdOf;
             f.lastError = &LastError;
             return f;
         }();

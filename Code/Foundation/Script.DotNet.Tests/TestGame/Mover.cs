@@ -1,0 +1,41 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026-Present Robert Campbell
+
+// A behaviour as a game writes one: constructed with its entity, called by handler name, its public
+// fields its inspector properties.
+
+using System;
+using Engine;
+
+namespace TestGame;
+
+public class Mover
+{
+    readonly Entity m_entity;
+
+    public float speed = 2.5f;
+    public int updates;
+    public float travelled;
+    public string label = "mover";
+    [Tooltip("where it heads")] public Float3 heading = new Float3 { x = 1, y = 2, z = 3 };
+    [Replicated] public bool active = true;
+
+    public Mover(Entity entity)
+    {
+        m_entity = entity;
+    }
+
+    public void onUpdate(float dt)
+    {
+        updates += 1;
+        travelled += speed * dt;
+    }
+
+    public string greet(string name) => $"hello {name} from {label}";
+
+    public Float3 scaled(float k) => new Float3 { x = heading.x * k, y = heading.y * k, z = heading.z * k };
+
+    public bool hasEntity() => m_entity.isValid();
+
+    public void fail() => throw new InvalidOperationException("failed on purpose");
+}
