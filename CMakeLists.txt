@@ -578,6 +578,7 @@ if(OPTION_ENABLE_ANGELSCRIPT)
 endif()
 if(OPTION_ENABLE_DOTNET AND NOT EMSCRIPTEN AND NOT ANDROID)
     add_subdirectory(Code/Foundation/Script.DotNet)   # hosts .NET for C# scripting (desktop)
+    add_subdirectory(Code/Tools/Tools.DotNetBindings) # writes the C# bindings from reflection
 endif()
 add_subdirectory(Code/Foundation/Script.Resource)   # cooked script classes and factory (source and harvested metadata)
 add_subdirectory(Code/Foundation/Script.Facades)    # curated behavior facades (Entity/Log/Time/Random), shared by the cook VM and the runtime

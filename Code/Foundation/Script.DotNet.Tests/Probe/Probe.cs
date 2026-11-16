@@ -31,3 +31,32 @@ public static unsafe class Entry
         return sum + squares.Count;
     }
 }
+
+// Through the generated bindings: Float3's fields and methods as C# writes them, each call going to
+// the engine's reflected method through the bridge.
+public static unsafe class UsesBindings
+{
+    [UnmanagedCallersOnly]
+    public static int Run(Engine.EngineFunctions* engine)
+    {
+        if (!Engine.Bridge.Initialize(engine))
+            return -1; // a table built for another layout
+        if (!Engine.Layouts.Check())
+            return -2; // a struct's layout differs from the engine's
+        var a = new Engine.Float3 { x = 1, y = 2, z = 3 };
+        var b = new Engine.Float3 { x = 4, y = 5, z = 6 };
+        float dot = Engine.Float3.Dot(a, b);
+        Engine.Float3 cross = Engine.Float3.Cross(a, b);
+        try
+        {
+            Engine.Float3.Lerp(a, b, float.NaN); // succeeds: NaN is a float
+        }
+        catch (Engine.EngineException e)
+        {
+            System.Console.Error.WriteLine($"Lerp failed: {e.Message}");
+            return -3;
+        }
+        // 32 and (-3, 6, -3), encoded so the host can check all four.
+        return (int)dot * 1000 + (int)(cross.x + 10) * 100 + (int)(cross.y) * 10 + (int)(cross.z + 10);
+    }
+}
