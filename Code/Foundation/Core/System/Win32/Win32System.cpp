@@ -27,6 +27,7 @@
 #undef GetEnvironmentVariable // windows.h maps it to ...A; we define our own and call ...A directly
 #undef SetEnvironmentVariable // ditto (SetEnvironmentVariableA)
 #undef GetCurrentDirectory    // ditto (GetCurrentDirectoryA)
+#undef CreateSymbolicLink     // ditto (CreateSymbolicLinkA): defined, ours called itself
 
 namespace foundation::core::sys
 {
@@ -696,7 +697,7 @@ namespace foundation::core::sys
         DWORD flags = SYMBOLIC_LINK_FLAG_ALLOW_UNPRIVILEGED_CREATE;
         if (directory)
             flags |= SYMBOLIC_LINK_FLAG_DIRECTORY;
-        return CreateSymbolicLinkA(link, target, flags) != 0;
+        return ::CreateSymbolicLinkA(link, target, flags) != 0;
     }
 
     bool CreateDirectory(const char* path) noexcept
