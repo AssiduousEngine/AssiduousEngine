@@ -319,7 +319,10 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   Enums are left: the engine's have a fixed underlying type (any value is defined), and checking
   values against the reflected enumerators would refuse every combined flag (no flag marker).
 - `RunProcess` drops arguments past 62, keeps 64 KiB of output, has no timeout
-  (`LinuxSystem.cpp:245-252, 327-346`).
+  (`LinuxSystem.cpp:245-252, 327-346`). Built 2026-11-16: arguments and the Windows command line
+  are sized to the call; output goes to a sink and all of it is kept up to its last 16 MiB; an
+  optional timeout kills the child (on Linux its whole process group); naga and tint get two
+  minutes. The Windows side is not compiled here.
 - Files of 2 GiB and more fail on Linux (one syscall) and Windows (a DWORD cast)
   (`LinuxSystem.cpp:425-435`, `Win32System.cpp:425, 435`).
 - `PathParent("/file")` is empty; UTF-8 accepts overlong forms and surrogates; `FileOpen` lacks

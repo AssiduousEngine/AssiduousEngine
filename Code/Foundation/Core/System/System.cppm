@@ -543,17 +543,34 @@ export namespace foundation::core
     // Outcome of RunProcess.
     struct ProcessResult
     {
-        int exitCode = -1;    // >=0 is the child's exit code; <0 means it could not spawn or was killed by a signal
-        String output;        // combined stdout and stderr (captured, capped)
+        int exitCode = -1;    // >=0 is the child's exit code; <0 means it could not spawn, was killed by a signal or timed out
+        String output;        // combined stdout and stderr: all of it, or its last 16 MiB
+        bool timedOut = false; // killed at the timeout
         [[nodiscard]] bool Ran() const noexcept { return exitCode >= 0; }
         [[nodiscard]] bool Ok() const noexcept { return exitCode == 0; }
     };
 
+    namespace detail
+    {
+        // What RunProcess keeps of a run's output: the whole of it up to this, past it the end,
+        // where a build's errors are. (A fixed 64 KiB kept the start and lost them.)
+        inline constexpr usize kProcessOutputKept = 16u * 1024u * 1024u;
+        inline void TakeProcessOutput(void* context, const char* data, std::size_t size)
+        {
+            String& output = *static_cast<String*>(context);
+            output.Append(StringView(reinterpret_cast<const char8_t*>(data), size));
+            if (output.Size() > 2 * kProcessOutputKept)
+            {
+                output = String(output.AsView().SubStr(output.Size() - kProcessOutputKept, kProcessOutputKept));
+            }
+        }
+    }
+
     // Run `exe` (an explicit path: no shell, no PATH search) with `args` (each one whole argument,
-    // no splitting or globbing). Blocks until the child exits, capturing its combined stdout and
-    // stderr. For cook-time tool shell-outs (the WGSL cook's naga and tint). Do not call it on the UI
-    // thread.
-    [[nodiscard]] inline ProcessResult RunProcess(StringView exe, Span<const StringView> args)
+    // no splitting or globbing). Blocks until the child exits, or `timeoutMilliseconds` pass (0: no
+    // limit) and it is killed, capturing its combined stdout and stderr. For tool shell-outs (the
+    // WGSL cook's naga and tint, the export's builds). Do not call it on the UI thread.
+    [[nodiscard]] inline ProcessResult RunProcess(StringView exe, Span<const StringView> args, u32 timeoutMilliseconds = 0)
     {
         const String exeZ(exe);
         Array<String> store;
@@ -569,15 +586,14 @@ export namespace foundation::core
             ptrs.PushBack(reinterpret_cast<const char*>(store[i].CStr()));
         }
 
-        // Cook diagnostics are small; 64 KiB caps a runaway tool without truncating real errors.
-        Array<char> buffer;
-        buffer.Resize(64 * 1024);
-        const int code = sys::RunProcess(reinterpret_cast<const char*>(exeZ.CStr()), ptrs.Data(),
-                                         static_cast<int>(ptrs.Size()), buffer.Data(),
-                                         buffer.Size());
         ProcessResult result;
-        result.exitCode = code;
-        result.output = String(reinterpret_cast<const char8_t*>(buffer.Data()));
+        result.exitCode = sys::RunProcess(reinterpret_cast<const char*>(exeZ.CStr()), ptrs.Data(), static_cast<int>(ptrs.Size()),
+                                          &detail::TakeProcessOutput, &result.output, timeoutMilliseconds, &result.timedOut);
+        if (result.output.Size() > detail::kProcessOutputKept)
+        {
+            result.output = String(result.output.AsView().SubStr(result.output.Size() - detail::kProcessOutputKept,
+                                                                 detail::kProcessOutputKept));
+        }
         return result;
     }
 

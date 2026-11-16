@@ -17,6 +17,7 @@
 
 #include <bit> // std::bit_cast (LibrarySymbol)
 #include <cstdio>
+#include <cstdlib> // std::realloc (RunProcess's command line)
 #include <cstring>
 
 // windows.h #defines these to the ...A/...W variants, which would also rewrite
@@ -201,30 +202,44 @@ namespace foundation::core::sys
         return true;
     }
 
-    int RunProcess(const char* exe, const char* const* argv, int argc, char* out,
-                   std::size_t outCap) noexcept
+    int RunProcess(const char* exe, const char* const* argv, int argc, ProcessOutputSink sink, void* sinkContext,
+                   std::uint32_t timeoutMilliseconds, bool* outTimedOut) noexcept
     {
-        if (exe == nullptr || exe[0] == '\0')
+        if (outTimedOut != nullptr)
+        {
+            *outTimedOut = false;
+        }
+        if (exe == nullptr || exe[0] == '\0' || argc < 0)
         {
             return -1;
         }
-        const bool capture = (out != nullptr && outCap > 0);
-        if (capture)
-        {
-            out[0] = '\0';
-        }
+        const bool capture = sink != nullptr;
 
         // Build the command line: exe arg0 arg1 ... CreateProcess re-parses this, so each token is
         // quoted only when it needs it (empty, or containing whitespace/quotes). Quoting
         // unconditionally breaks callees that parse their own command line rather than using
         // CommandLineToArgvW - notably cmd.exe, which does not recognise a quoted "/c" switch.
-        // Spaces in the vendored-tool path and file arguments still get quoted.
-        char command[8192];
+        // Spaces in the vendored-tool path and file arguments still get quoted. The buffer grows
+        // with the line (a fixed one cut a long command short).
+        char* command = nullptr;
         std::size_t len = 0;
+        std::size_t cap = 0;
+        bool full = false;
         auto put = [&](char c) noexcept
         {
-            if (len + 1 < sizeof(command))
-                command[len++] = c;
+            if (len + 2 > cap)
+            {
+                const std::size_t grown = cap == 0 ? 1024 : cap * 2;
+                char* next = static_cast<char*>(std::realloc(command, grown));
+                if (next == nullptr)
+                {
+                    full = true;
+                    return;
+                }
+                command = next;
+                cap = grown;
+            }
+            command[len++] = c;
         };
         auto appendArg = [&](const char* s) noexcept
         {
@@ -267,7 +282,12 @@ namespace foundation::core::sys
             put(' ');
             appendArg(argv[i]);
         }
-        command[(len < sizeof(command)) ? len : sizeof(command) - 1] = '\0';
+        if (full || command == nullptr)
+        {
+            std::free(command);
+            return -1;
+        }
+        command[len] = '\0';
 
         SECURITY_ATTRIBUTES sa{};
         sa.nLength = sizeof(sa);
@@ -280,6 +300,7 @@ namespace foundation::core::sys
         {
             if (!::CreatePipe(&readEnd, &writeEnd, &sa, 0))
             {
+                std::free(command);
                 return -1;
             }
             ::SetHandleInformation(readEnd, HANDLE_FLAG_INHERIT, 0); // parent-only read end
@@ -298,6 +319,7 @@ namespace foundation::core::sys
         PROCESS_INFORMATION process{};
         const BOOL ok = ::CreateProcessA(nullptr, command, nullptr, nullptr, TRUE, 0, nullptr,
                                          nullptr, &startup, &process);
+        std::free(command);
         if (capture)
         {
             ::CloseHandle(writeEnd); // parent holds only the read end now
@@ -311,35 +333,68 @@ namespace foundation::core::sys
             return -1;
         }
 
-        std::size_t total = 0;
-        if (capture)
+        // Read what is there, watch the process and the clock: a blocking read would wait past a
+        // timeout for output that never comes.
+        const ULONGLONG started = ::GetTickCount64();
+        bool killed = false;
+        char buffer[4096];
+        const auto drainReady = [&]() noexcept
         {
             for (;;)
             {
-                char buffer[4096];
+                DWORD available = 0;
+                if (!::PeekNamedPipe(readEnd, nullptr, 0, nullptr, &available, nullptr) || available == 0)
+                    return;
                 DWORD got = 0;
-                if (!::ReadFile(readEnd, buffer, sizeof(buffer), &got, nullptr) || got == 0)
+                const DWORD want = available < sizeof(buffer) ? available : static_cast<DWORD>(sizeof(buffer));
+                if (!::ReadFile(readEnd, buffer, want, &got, nullptr) || got == 0)
+                    return;
+                sink(sinkContext, buffer, got);
+            }
+        };
+        for (;;)
+        {
+            if (capture)
+                drainReady();
+            if (::WaitForSingleObject(process.hProcess, 20) == WAIT_OBJECT_0)
+                break;
+            if (timeoutMilliseconds != 0 && ::GetTickCount64() - started >= timeoutMilliseconds)
+            {
+                ::TerminateProcess(process.hProcess, 1);
+                ::WaitForSingleObject(process.hProcess, INFINITE);
+                killed = true;
+                break;
+            }
+        }
+        if (capture)
+        {
+            // The rest: what is left in the pipe once the process is done (or killed).
+            for (;;)
+            {
+                DWORD got = 0;
+                if (killed)
                 {
+                    drainReady(); // what is there, without waiting on anything it started
                     break;
                 }
-                if (total < outCap - 1)
-                {
-                    const std::size_t space = outCap - 1 - total;
-                    const std::size_t k = (got < space) ? got : space;
-                    std::memcpy(out + total, buffer, k);
-                    total += k;
-                }
+                if (!::ReadFile(readEnd, buffer, sizeof(buffer), &got, nullptr) || got == 0)
+                    break;
+                sink(sinkContext, buffer, got);
             }
-            out[total] = '\0';
             ::CloseHandle(readEnd);
         }
-        ::WaitForSingleObject(process.hProcess, INFINITE);
         DWORD code = static_cast<DWORD>(-1);
         ::GetExitCodeProcess(process.hProcess, &code);
         ::CloseHandle(process.hThread);
         ::CloseHandle(process.hProcess);
         if (nulIn != INVALID_HANDLE_VALUE)
             ::CloseHandle(nulIn);
+        if (killed)
+        {
+            if (outTimedOut != nullptr)
+                *outTimedOut = true;
+            return -1;
+        }
         return static_cast<int>(code);
     }
 

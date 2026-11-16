@@ -16,6 +16,7 @@
 #include <arpa/inet.h>
 #include <netdb.h> // getaddrinfo
 #include <poll.h>
+#include <signal.h> // kill (a timed-out RunProcess)
 #include <sys/mman.h>
 #include <sys/file.h>   // flock
 #include <sys/random.h> // getentropy
@@ -228,33 +229,38 @@ namespace foundation::core::sys
         return true;
     }
 
-    int RunProcess(const char* exe, const char* const* argv, int argc, char* out,
-                   std::size_t outCap) noexcept
+    int RunProcess(const char* exe, const char* const* argv, int argc, ProcessOutputSink sink, void* sinkContext,
+                   std::uint32_t timeoutMilliseconds, bool* outTimedOut) noexcept
     {
-        if (exe == nullptr || exe[0] == '\0')
+        if (outTimedOut != nullptr)
+        {
+            *outTimedOut = false;
+        }
+        if (exe == nullptr || exe[0] == '\0' || argc < 0)
         {
             return -1;
         }
-        const bool capture = (out != nullptr && outCap > 0);
-        if (capture)
-        {
-            out[0] = '\0';
-        }
+        const bool capture = sink != nullptr;
 
-        // Build argv2 = [exe, argv..., nullptr] before the fork so the child does no allocation.
-        constexpr int kMaxArgs = 62;
-        const char* argv2[kMaxArgs + 2];
+        // argv2 = [exe, argv..., nullptr], built before the fork so the child does no allocation,
+        // and as long as the call's arguments (a fixed array dropped those past 62).
+        const char** argv2 = static_cast<const char**>(std::malloc(sizeof(const char*) * static_cast<std::size_t>(argc + 2)));
+        if (argv2 == nullptr)
+        {
+            return -1;
+        }
         int n = 0;
         argv2[n++] = exe;
-        for (int i = 0; i < argc && n <= kMaxArgs; ++i)
+        for (int i = 0; i < argc; ++i)
         {
             argv2[n++] = argv[i];
         }
         argv2[n] = nullptr;
 
         int pipefd[2] = {-1, -1};
-        if (capture && pipe(pipefd) != 0)
+        if (capture && pipe2(pipefd, O_CLOEXEC) != 0)
         {
+            std::free(argv2);
             return -1;
         }
         // Self-pipe (close-on-exec) so the child can report an exec() failure to the parent: on a
@@ -262,16 +268,16 @@ namespace foundation::core::sys
         // writes errno first. Without this a missing binary would surface as the child's exit 127,
         // indistinguishable from a real 127, and unlike Win32, where a failed spawn returns -1.
         int execErr[2] = {-1, -1};
-        if (pipe(execErr) != 0)
+        if (pipe2(execErr, O_CLOEXEC) != 0)
         {
             if (capture)
             {
                 close(pipefd[0]);
                 close(pipefd[1]);
             }
+            std::free(argv2);
             return -1;
         }
-        fcntl(execErr[1], F_SETFD, FD_CLOEXEC);
 
         const pid_t child = fork();
         if (child < 0)
@@ -283,24 +289,24 @@ namespace foundation::core::sys
             }
             close(execErr[0]);
             close(execErr[1]);
+            std::free(argv2);
             return -1;
         }
         if (child == 0)
         {
-            // Child: stdout+stderr -> pipe, stdin <- /dev/null, then exec.
+            // Child: stdout+stderr -> pipe, stdin <- /dev/null, then exec. dup2 clears the
+            // close-on-exec flag on the descriptors it makes. A group of its own, so a timeout
+            // ends what it starts (a build's compilers) as well as it.
+            setpgid(0, 0);
             if (capture)
             {
                 dup2(pipefd[1], STDOUT_FILENO);
                 dup2(pipefd[1], STDERR_FILENO);
-                close(pipefd[0]);
-                close(pipefd[1]);
             }
-            close(execErr[0]);
             const int devnull = ::open("/dev/null", O_RDONLY);
             if (devnull >= 0)
             {
                 dup2(devnull, STDIN_FILENO);
-                close(devnull);
             }
             execv(exe, const_cast<char* const*>(argv2));
             const int e = errno; // exec failed: report to the parent, then bail
@@ -308,6 +314,7 @@ namespace foundation::core::sys
             (void)wrote;
             _exit(127);
         }
+        std::free(argv2);
 
         // Parent: first learn whether exec succeeded (read blocks until data or EOF-on-exec).
         close(execErr[1]);
@@ -316,35 +323,83 @@ namespace foundation::core::sys
         close(execErr[0]);
         const bool execFailed = (got > 0);
 
-        // Drain stdout+stderr (keep reading past a full buffer so the child never blocks), then reap.
-        std::size_t total = 0;
+        timespec started{};
+        clock_gettime(CLOCK_MONOTONIC, &started);
+        const auto elapsedMs = [&started]() -> std::uint64_t
+        {
+            timespec now{};
+            clock_gettime(CLOCK_MONOTONIC, &now);
+            return static_cast<std::uint64_t>(now.tv_sec - started.tv_sec) * 1000u +
+                   static_cast<std::uint64_t>((now.tv_nsec - started.tv_nsec) / 1000000);
+        };
+        bool killed = false;
+        const auto killIfLate = [&]()
+        {
+            if (!killed && timeoutMilliseconds != 0 && elapsedMs() >= timeoutMilliseconds)
+            {
+                kill(-child, SIGKILL); // its whole group
+                kill(child, SIGKILL);
+                killed = true;
+            }
+        };
+
+        // Drain stdout+stderr to the sink (reading on keeps the child from blocking on a full pipe),
+        // waking at least every 50 ms to watch the clock.
         if (capture)
         {
             close(pipefd[1]);
             for (;;)
             {
+                killIfLate();
+                if (killed)
+                {
+                    break; // whatever still holds the pipe is not waited for
+                }
+                pollfd waiting{pipefd[0], POLLIN, 0};
+                const int ready = poll(&waiting, 1, 50);
+                if (ready < 0 && errno != EINTR)
+                {
+                    break;
+                }
+                if (ready <= 0)
+                {
+                    continue;
+                }
                 char buffer[4096];
                 const ssize_t r = read(pipefd[0], buffer, sizeof(buffer));
                 if (r <= 0)
                 {
-                    break;
+                    break; // the child and whatever it started have closed the pipe
                 }
-                if (total < outCap - 1)
-                {
-                    const std::size_t space = outCap - 1 - total;
-                    const std::size_t k = (static_cast<std::size_t>(r) < space)
-                                              ? static_cast<std::size_t>(r)
-                                              : space;
-                    std::memcpy(out + total, buffer, k);
-                    total += k;
-                }
+                sink(sinkContext, buffer, static_cast<std::size_t>(r));
             }
-            out[total] = '\0';
             close(pipefd[0]);
         }
         int status = 0;
-        if (waitpid(child, &status, 0) < 0)
+        for (;;)
         {
+            const pid_t reaped = waitpid(child, &status, timeoutMilliseconds != 0 ? WNOHANG : 0);
+            if (reaped == child)
+            {
+                break;
+            }
+            if (reaped < 0 && errno != EINTR)
+            {
+                return -1;
+            }
+            killIfLate();
+            if (reaped == 0)
+            {
+                const timespec pause{0, 5 * 1000 * 1000};
+                nanosleep(&pause, nullptr);
+            }
+        }
+        if (killed)
+        {
+            if (outTimedOut != nullptr)
+            {
+                *outTimedOut = true;
+            }
             return -1;
         }
         if (execFailed)

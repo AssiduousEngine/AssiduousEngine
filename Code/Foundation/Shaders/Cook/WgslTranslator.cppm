@@ -99,6 +99,10 @@ export namespace foundation::shaders
         return out;
     }
 
+    // How long naga or tint may take on one shader before the cook gives it up: a translation takes
+    // well under a second, and a hung tool would otherwise stall the cook for good.
+    inline constexpr u32 kToolTimeoutMilliseconds = 120000;
+
     // Translates HLSL shader stages to WGSL at cook time. Borrows a DXC Compiler (the SPIR-V front
     // end) and writes intermediates into `scratchDir` (must exist and be writable). naga and tint
     // default to the vendored binaries; a host with no vendored binary for its platform leaves the
@@ -202,7 +206,7 @@ export namespace foundation::shaders
             const StringView nagaArgs[] = {u8"--keep-coordinate-space", spvPath.AsView(),
                                            wgslPath.AsView()};
             const ProcessResult np =
-                RunProcess(m_naga.AsView(), Span<const StringView>(nagaArgs, 3));
+                RunProcess(m_naga.AsView(), Span<const StringView>(nagaArgs, 3), kToolTimeoutMilliseconds);
             if (!np.Ok())
             {
                 result.failedStage = WgslCookStage::Translate;
@@ -212,7 +216,7 @@ export namespace foundation::shaders
                 }
                 else
                 {
-                    result.error = String(u8"could not run naga: ");
+                    result.error = String(np.timedOut ? u8"naga did not finish in time: " : u8"could not run naga: ");
                     result.error += m_naga;
                 }
                 Cleanup(spvPath, wgslPath);
@@ -257,7 +261,7 @@ export namespace foundation::shaders
             {
                 const StringView tintArgs[] = {u8"--format", u8"wgsl", wgslPath.AsView()};
                 const ProcessResult tp =
-                    RunProcess(m_tint.AsView(), Span<const StringView>(tintArgs, 3));
+                    RunProcess(m_tint.AsView(), Span<const StringView>(tintArgs, 3), kToolTimeoutMilliseconds);
                 if (!tp.Ok())
                 {
                     result.failedStage = WgslCookStage::Validate;
@@ -267,7 +271,7 @@ export namespace foundation::shaders
                     }
                     else
                     {
-                        result.error = String(u8"could not run tint: ");
+                        result.error = String(tp.timedOut ? u8"tint did not finish in time: " : u8"could not run tint: ");
                         result.error += m_tint;
                     }
                     Cleanup(spvPath, wgslPath);

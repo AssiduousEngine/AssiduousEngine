@@ -94,15 +94,19 @@ namespace foundation::core::sys
     // the other OS services here; the :system module re-exports a StringView wrapper for callers.
     bool NormalizePathSeparators(const char* path, char* out, std::size_t cap) noexcept;
 
-    // Run `exe` with arguments argv[0..argc-1] (without the program name; the backend prepends `exe`
-    // as argv[0]). No shell, no PATH search: `exe` is an explicit path. Blocks until the child exits.
-    // Returns the exit code (0..255), or -1 if the process could not be spawned or was killed by a
-    // signal. The child's combined stdout and stderr is captured into `out` (truncated to outCap-1,
-    // always null-terminated when out/outCap are valid; pass out=nullptr/outCap=0 to discard) and its
-    // stdin is empty (NUL). For cook-time tool shell-outs (the WGSL cook's naga and tint). Unlike
-    // OpenPathInFileManager it waits, so it must not run on the UI thread.
-    int RunProcess(const char* exe, const char* const* argv, int argc, char* out,
-                   std::size_t outCap) noexcept;
+    // Receives a run's combined stdout and stderr as it arrives, piece by piece.
+    using ProcessOutputSink = void (*)(void* context, const char* data, std::size_t size);
+
+    // Runs `exe` with `argc` arguments `argv` (argv[0] is the first real argument; exe goes in
+    // as argv[0]). No shell, no PATH search: `exe` is an explicit path. Blocks until the child exits,
+    // or until `timeoutMilliseconds` (0: no limit) pass, when it is killed and *outTimedOut set.
+    // Returns the exit code (0..255), or -1 if the process could not be spawned, was killed by a
+    // signal or timed out. Its combined stdout and stderr goes to `sink` (null: discarded) as it
+    // arrives, all of it, and its stdin is empty (NUL). For tool shell-outs (the WGSL cook's naga
+    // and tint, the export's builds). Unlike OpenPathInFileManager it waits, so it must not run on
+    // the UI thread.
+    int RunProcess(const char* exe, const char* const* argv, int argc, ProcessOutputSink sink, void* sinkContext,
+                   std::uint32_t timeoutMilliseconds, bool* outTimedOut) noexcept;
 
     // --- Virtual memory (page-granular) ------------------------------------
     void* PageAllocate(std::size_t size) noexcept; // nullptr on failure

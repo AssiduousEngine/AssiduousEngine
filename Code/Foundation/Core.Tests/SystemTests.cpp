@@ -412,6 +412,41 @@ TEST_CASE("system: RunProcess reports failure to spawn a missing binary")
     CHECK(r.exitCode < 0);
 }
 
+#if !defined(_WIN32)
+TEST_CASE("system: RunProcess passes every argument, keeps all its output, and stops a run past its timeout")
+{
+    // Arguments past 62 were dropped, output past 64 KiB was cut (keeping the start, losing a
+    // build's errors at the end), and a hung tool held the caller for good.
+    Array<String> words;
+    for (int i = 0; i < 100; ++i)
+        words.PushBack(Format(u8"a{}", i));
+    Array<StringView> args;
+    args.PushBack(StringView(u8"-c"));
+    args.PushBack(StringView(u8"echo $# \"${100}\""));
+    args.PushBack(StringView(u8"sh")); // $0
+    for (const String& w : words)
+        args.PushBack(w.AsView());
+    const ProcessResult many = RunProcess(u8"/bin/sh", Span<const StringView>(args.Data(), args.Size()));
+    REQUIRE(many.Ok());
+    CHECK(many.output.AsView().StartsWith(u8"100 a99"));
+
+    // About 200 KiB of output, its last line kept.
+    const StringView big[] = {u8"-c", u8"i=0; while [ $i -lt 4000 ]; do echo 'line of fifty characters to fill the output ......'; i=$((i+1)); done; echo END"};
+    const ProcessResult loud = RunProcess(u8"/bin/sh", Span<const StringView>(big, 2));
+    REQUIRE(loud.Ok());
+    CHECK(loud.output.Size() > 128u * 1024u);
+    CHECK(loud.output.AsView().EndsWith(u8"END\n"));
+
+    // A run past its timeout is killed and says so.
+    const StringView slow[] = {u8"-c", u8"sleep 30"};
+    const Stopwatch clock = Stopwatch::StartNew();
+    const ProcessResult late = RunProcess(u8"/bin/sh", Span<const StringView>(slow, 2), 300);
+    CHECK(late.timedOut);
+    CHECK_FALSE(late.Ran());
+    CHECK(clock.Elapsed().AsMilliseconds() < 10000.0);
+}
+#endif
+
 #endif // !PLATFORM_WEB (subprocess spawning is desktop-only)
 
 // NormalizePathSeparators is fanned out to the platform backends; the Win32 OpenPathInFileManager
