@@ -284,6 +284,59 @@ TEST_CASE("graph: player transitions states on a bool parameter")
     CHECK(skin.Size() == 1);
 }
 
+TEST_CASE("graph: a trigger set during a crossfade fires once the fade is done, and is spent")
+{
+    // Every update consumed every trigger, and no transition is looked at mid-fade: a trigger set
+    // while a layer crossfaded was gone before anything could test it.
+    Skeleton skel{1};
+    skel.Bones()[0].index = 0;
+    skel.Bones()[0].parentIndex = -1;
+    skel.FindRootBones();
+    skel.BuildChildIndices();
+    skel.ComputeInverseBindPoses();
+    AnimationClip clip{u8"pose", 1.0f, true};
+    clip.GetOrCreatePositionTrack(0)->AddKeyframe(0.0f, Float3{0, 0, 0});
+    clip.GetOrCreatePositionTrack(0)->AddKeyframe(1.0f, Float3{0, 0, 0});
+
+    AnimationGraph graph;
+    const i32 pGo = graph.AddParameter(u8"Go", AnimationParameterType::Bool);
+    const i32 pJump = graph.AddParameter(u8"Jump", AnimationParameterType::Trigger);
+    auto layer = MakeUnique<AnimationLayer>(DefaultAllocator(), StringView{u8"Base"});
+    const char8_t* names[] = {u8"Idle", u8"Walk", u8"Jump"};
+    for (const char8_t* name : names)
+    {
+        layer->AddState(MakeUnique<AnimationGraphState>(DefaultAllocator(), StringView{name},
+                                                        MakeUnique<ClipStateNode>(DefaultAllocator(), &clip)));
+    }
+    auto toWalk = MakeUnique<AnimationGraphTransition>(DefaultAllocator());
+    toWalk->sourceStateIndex = 0;
+    toWalk->destStateIndex = 1;
+    toWalk->duration = 0.5f; // a long fade
+    toWalk->AddBoolCondition(pGo, true);
+    layer->AddTransition(static_cast<UniquePtr<AnimationGraphTransition>&&>(toWalk));
+    auto toJump = MakeUnique<AnimationGraphTransition>(DefaultAllocator());
+    toJump->sourceStateIndex = 1;
+    toJump->destStateIndex = 2;
+    toJump->duration = 0.001f;
+    toJump->AddBoolCondition(pJump, true);
+    layer->AddTransition(static_cast<UniquePtr<AnimationGraphTransition>&&>(toJump));
+    graph.AddLayer(static_cast<UniquePtr<AnimationLayer>&&>(layer));
+
+    AnimationGraphPlayer player{graph, skel};
+    player.SetBool(pGo, true);
+    player.Update(0.016f);
+    REQUIRE(player.GetCurrentStateIndex() == 1); // fading into Walk
+    player.SetTrigger(pJump);                    // mid-fade
+    player.Update(0.1f);
+    CHECK(player.GetCurrentStateIndex() == 1);   // still fading: nothing transitions yet
+    for (int i = 0; i < 10; ++i)
+    {
+        player.Update(0.1f);
+    }
+    CHECK(player.GetCurrentStateIndex() == 2);   // the trigger fired once the fade was done
+    CHECK_FALSE(player.GetBool(pJump)); // and is spent
+}
+
 // ---- blend-tree event firing (the dominant clip's events) ----
 TEST_CASE("graph: BlendTree1D fires the dominant clip's events once (incl. loop wrap)")
 {

@@ -1064,10 +1064,8 @@ export namespace foundation::animation
                 // Only the base layer moves the character: an override or additive layer moves bones.
                 UpdateLayer(*m_graph->Layers()[i], m_layerRuntimes[i], deltaTime, i == 0);
             }
-            for (AnimationGraphParameter& p : m_parameters)
-            {
-                p.ConsumeTrigger();
-            }
+            // A trigger stays set until a transition that tests it fires (EvaluateTransitions): one
+            // set while a layer crossfades, when no transition is looked at, waits for the fade.
             CombineLayers();
             // One-shots and crossfades over the combined pose, then the pose modifiers (inverse
             // kinematics), before the palette.
@@ -1310,6 +1308,14 @@ export namespace foundation::animation
             }
             if (best != nullptr)
             {
+                // The triggers this transition tested are spent; others wait for theirs.
+                for (const AnimationGraphCondition& c : best->Conditions())
+                {
+                    if (c.parameterIndex >= 0 && static_cast<usize>(c.parameterIndex) < m_parameters.Size())
+                    {
+                        m_parameters[static_cast<usize>(c.parameterIndex)].ConsumeTrigger();
+                    }
+                }
                 rt.previousStateIndex = rt.currentStateIndex;
                 rt.previousTime = rt.currentTime;
                 rt.currentStateIndex = best->destStateIndex;
