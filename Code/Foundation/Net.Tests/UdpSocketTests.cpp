@@ -156,3 +156,32 @@ TEST_CASE("udp: a port a live socket holds is not bound by a second one")
     net::UdpSocket second(first.BoundPort());
     CHECK_FALSE(second.IsOpen());
 }
+
+TEST_CASE("udp: a send to a port nobody holds does not stop the next receive")
+{
+    // On Windows the ICMP port-unreachable for a datagram to a client that left came back as an
+    // error on the next receive, and the frame's receive loop stopped there with live peers'
+    // datagrams still queued. (Linux reports nothing on an unconnected socket; the Windows lanes
+    // are the ones this tells apart.)
+    net::UdpSocket a(0);
+    net::UdpSocket b(0);
+    REQUIRE(a.IsOpen());
+    REQUIRE(b.IsOpen());
+    net::DatagramEndpoint gone;
+    {
+        net::UdpSocket left(0);
+        REQUIRE(left.IsOpen());
+        gone = left.LocalEndpoint();
+    }
+    const u8 msg[] = {0x42};
+    a.Send(gone, Span<const byte>(reinterpret_cast<const byte*>(msg), sizeof(msg)));
+    SleepMilliseconds(50); // the port-unreachable is back by then
+    b.Send(a.LocalEndpoint(), Span<const byte>(reinterpret_cast<const byte*>(msg), sizeof(msg)));
+    SleepMilliseconds(50);
+
+    net::DatagramEndpoint from;
+    Array<byte> got;
+    REQUIRE(a.Receive(from, got));
+    CHECK(net::EndpointPort(from) == b.BoundPort());
+    REQUIRE(got.Size() == 1u);
+}

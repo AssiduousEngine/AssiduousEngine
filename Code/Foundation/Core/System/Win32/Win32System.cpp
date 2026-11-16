@@ -12,6 +12,7 @@
 #define NOMINMAX
 #include <winsock2.h> // must precede windows.h (winsock2 vs the legacy winsock.h windows.h pulls in)
 #include <ws2tcpip.h>
+#include <mstcpip.h>  // SIO_UDP_CONNRESET
 #include <windows.h>
 #include <bcrypt.h> // BCryptGenRandom (FillEntropy)
 
@@ -852,6 +853,12 @@ namespace foundation::core::sys
             ::closesocket(s);
             return kInvalidSocket;
         }
+        // A datagram to a port nobody listens on comes back as an ICMP port-unreachable, which
+        // Windows reports on the next receive as WSAECONNRESET: one client that left would stop
+        // the frame's receive loop with the others' datagrams still queued. Off.
+        BOOL report = FALSE;
+        DWORD returned = 0;
+        (void)::WSAIoctl(s, SIO_UDP_CONNRESET, &report, sizeof(report), nullptr, 0, &returned, nullptr, nullptr);
         if (outBoundPort != nullptr)
         {
             sockaddr_in bound{};
@@ -955,13 +962,22 @@ namespace foundation::core::sys
             return -1;
         }
         sockaddr_in addr{};
-        int len = sizeof(addr);
-        const int n =
-            ::recvfrom(static_cast<SOCKET>(socket), static_cast<char*>(out),
-                       static_cast<int>(outCap), 0, reinterpret_cast<sockaddr*>(&addr), &len);
-        if (n == SOCKET_ERROR)
+        int n = SOCKET_ERROR;
+        for (;;)
         {
-            return (WSAGetLastError() == WSAEWOULDBLOCK) ? kSocketWouldBlock : -1;
+            int len = sizeof(addr);
+            n = ::recvfrom(static_cast<SOCKET>(socket), static_cast<char*>(out),
+                           static_cast<int>(outCap), 0, reinterpret_cast<sockaddr*>(&addr), &len);
+            if (n != SOCKET_ERROR)
+            {
+                break;
+            }
+            const int error = WSAGetLastError();
+            if (error == WSAECONNRESET || error == WSAENETRESET)
+            {
+                continue; // an earlier send's ICMP error, consumed: the next datagram is still there
+            }
+            return (error == WSAEWOULDBLOCK) ? kSocketWouldBlock : -1;
         }
         if (fromIp != nullptr)
         {
