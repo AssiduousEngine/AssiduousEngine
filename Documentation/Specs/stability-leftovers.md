@@ -329,7 +329,11 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   through the loop.
 - `PathParent("/file")` is empty; UTF-8 accepts overlong forms and surrogates; `FileOpen` lacks
   `O_CLOEXEC`; environment values past 1023 bytes are cut; `BoundedArray`s share one TypeId;
-  `BoundedArray` get and set are unchecked.
+  `BoundedArray` get and set are unchecked. Built 2026-11-16: a root keeps its separator as a
+  parent; overlong forms, surrogates and values past U+10FFFF decode to U+FFFD; `FileOpen` is
+  close-on-exec (with the large-file commit); a long environment value is read again whole; each
+  bounded array's id mixes its owner, property, element and capacity; get and set past the count
+  reach nothing.
 
 ## Left in the backlog (design, or low with no user effect)
 

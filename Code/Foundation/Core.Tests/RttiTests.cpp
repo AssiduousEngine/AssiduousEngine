@@ -139,6 +139,18 @@ REFLECT_VALUE(BoundedThing, "rtti::test")
 {
     builder.BoundedArray<&BoundedThing::values, &BoundedThing::count>("values");
 }
+namespace
+{
+    struct OtherBounded // another bounded array, of another owner and element
+    {
+        float samples[8]{};
+        int used = 0;
+    };
+}
+REFLECT_VALUE(OtherBounded, "rtti::test")
+{
+    builder.BoundedArray<&OtherBounded::samples, &OtherBounded::used>("samples");
+}
 REFLECT_MEMBERS(NestedOwner, "rtti::test")
 {
     builder.Nested<&NestedOwner::leaf>("leaf");        // value member
@@ -758,6 +770,19 @@ TEST_CASE("rtti: a BoundedArray reflects a count-bound C-array as a clamped cont
     CHECK(ContainerSize(c, sub) == 4u);
     t.count = -5;
     CHECK(ContainerSize(c, sub) == 0u);
+
+    // Get and set past the count reach nothing (they indexed the array with no check).
+    t.count = 2;
+    CHECK(ContainerGetAt(c, sub, 3).IsEmpty());
+    CHECK(ContainerSetAt(c, sub, 3, Variant::From(7)).Code() == ErrorCode::OutOfRange);
+    CHECK(t.values[3] == 0);
+
+    // Each bounded array has a type of its own (all were "rtti::core::BoundedArray", one id).
+    RttiRegisterValue_OtherBounded();
+    const PropertyInfo* other = FindProperty(TypeOf<OtherBounded>(), "samples");
+    REQUIRE(other != nullptr);
+    REQUIRE(other->type != nullptr);
+    CHECK(other->type->id != prop->type->id);
 }
 
 TEST_CASE("rtti: container mutation - emplaceDefault / removeAt / moveElement")

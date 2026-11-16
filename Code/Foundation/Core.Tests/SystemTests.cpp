@@ -421,6 +421,24 @@ TEST_CASE("system: an open file is not inherited by a process this one starts")
 }
 #endif
 
+TEST_CASE("system: an environment value longer than 1023 bytes is read whole")
+{
+    // It was read into a 1024-byte buffer and cut there (a long PATH, a compiler's INCLUDE list).
+    String longValue;
+    for (int i = 0; i < 300; ++i)
+        longValue.Append(u8"abcdefghij");
+    REQUIRE(SetEnvironmentVariable(u8"ENGINE_TEST_LONG_VALUE", longValue.AsView()));
+    const Optional<String> read = GetEnvironmentVariable(u8"ENGINE_TEST_LONG_VALUE");
+    REQUIRE(read.HasValue());
+    CHECK(read->Size() == longValue.Size());
+    CHECK(*read == longValue);
+    String edge; // and one exactly at the buffer's edge
+    for (int i = 0; i < 1023; ++i)
+        edge.PushBack(u8'x');
+    REQUIRE(SetEnvironmentVariable(u8"ENGINE_TEST_LONG_VALUE", edge.AsView()));
+    CHECK(GetEnvironmentVariable(u8"ENGINE_TEST_LONG_VALUE")->Size() == 1023u);
+}
+
 TEST_CASE("system: RunProcess reports failure to spawn a missing binary")
 {
     // Explicit path, no PATH search: a bogus name cannot resolve on any platform.

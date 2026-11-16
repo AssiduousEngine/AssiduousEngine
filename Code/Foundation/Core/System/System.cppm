@@ -361,9 +361,18 @@ export namespace foundation::core
         {
             return {};
         } // unset (or empty, treated the same for our uses)
-        // Env values in practice are short (paths); anything past the buffer is truncated.
-        const usize got = (length < sizeof(buffer)) ? length : sizeof(buffer) - 1;
-        return String(StringView(reinterpret_cast<const utf8char*>(buffer), got));
+        // Fitted with room for its terminator (Windows writes nothing when it would not fit).
+        if (length < sizeof(buffer) - 1)
+        {
+            return String(StringView(reinterpret_cast<const utf8char*>(buffer), length));
+        }
+        // Longer than the buffer (a PATH, a compiler's INCLUDE list): read again into one its size.
+        // It was cut at 1023 bytes.
+        Array<char> whole;
+        whole.Resize(length + 1);
+        const usize again = sys::GetEnvironmentVariable(n.CStr(), whole.Data(), whole.Size());
+        const usize got = again < whole.Size() ? again : whole.Size() - 1;
+        return String(StringView(reinterpret_cast<const utf8char*>(whole.Data()), got));
     }
 
     // Sets environment variable `name` for this process, and so for the children it spawns after.

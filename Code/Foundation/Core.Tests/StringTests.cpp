@@ -376,3 +376,21 @@ TEST_CASE("string: StringView::ContainsIgnoreCase folds ASCII letters only, and 
     CHECK(StringView(u8"caf\u00e9").ContainsIgnoreCase(u8"CAF\u00e9")); // non-ASCII bytes compare exactly
     CHECK_FALSE(StringView(u8"caf\u00e9").ContainsIgnoreCase(u8"CAF\u00c9"));
 }
+
+TEST_CASE("string: DecodeUtf8 refuses overlong forms, surrogates and values past U+10FFFF")
+{
+    // They decoded as the values they spelt: an overlong '/' (C0 AF) passed a check of the bytes
+    // for '/', and a surrogate half came through as a character.
+    const auto decode = [](const char* bytes)
+    {
+        usize at = 0;
+        return DecodeUtf8(StringView(reinterpret_cast<const utf8char*>(bytes)), at);
+    };
+    CHECK(decode("\xC0\xAF") == 0xFFFDu);         // '/' in two bytes
+    CHECK(decode("\xE0\x80\xAF") == 0xFFFDu);     // '/' in three
+    CHECK(decode("\xF0\x80\x80\xAF") == 0xFFFDu); // '/' in four
+    CHECK(decode("\xED\xA0\x80") == 0xFFFDu);     // U+D800
+    CHECK(decode("\xF4\x90\x80\x80") == 0xFFFDu); // U+110000
+    CHECK(decode("\xC2\xA9") == 0xA9u);           // the shortest forms still decode
+    CHECK(decode("\xF4\x8F\xBF\xBF") == 0x10FFFFu);
+}

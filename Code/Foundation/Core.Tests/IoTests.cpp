@@ -957,3 +957,14 @@ TEST_CASE("binary serializer: a bool byte other than 0 or 1, and a matrix of ano
         CHECK(read.m[3][0] == 5.0f);
     }
 }
+
+TEST_CASE("path: the parent of a file at a root is the root, its separator kept")
+{
+    // The parent of "/file" was empty (a relative nothing) and of "C:\\file" "C:" (that drive's
+    // current folder).
+    CHECK(PathParent(u8"/file") == StringView(u8"/"));
+    CHECK(PathParent(u8"C:\\file") == StringView(u8"C:\\"));
+    CHECK(PathParent(u8"C:/file") == StringView(u8"C:/"));
+    CHECK(PathParent(u8"/") == StringView(u8""));
+    CHECK(PathParent(u8"/a/b") == StringView(u8"/a"));
+}

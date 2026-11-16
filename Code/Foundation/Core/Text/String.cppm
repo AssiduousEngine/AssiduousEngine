@@ -858,6 +858,14 @@ export namespace foundation::core
             codepoint = (codepoint << 6) | (cont & 0x3Fu);
             ++index;
         }
+        // What well-formed UTF-8 never holds: a character written in more bytes than it needs (an
+        // overlong form, which can smuggle a '/' or a NUL past a check of the bytes), a surrogate
+        // (a UTF-16 half), or one past U+10FFFF.
+        static constexpr u32 kLeast[4] = {0u, 0x80u, 0x800u, 0x10000u};
+        if (codepoint < kLeast[extra] || (codepoint >= 0xD800u && codepoint <= 0xDFFFu) || codepoint > 0x10FFFFu)
+        {
+            return 0xFFFDu;
+        }
         return codepoint;
     }
 

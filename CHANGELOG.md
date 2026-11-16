@@ -30,6 +30,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Core: a long environment variable (a PATH, a compiler's INCLUDE) is read whole, not cut at 1023
+  bytes; malformed UTF-8 (overlong forms, surrogates) reads as the replacement character.
 - Files of 2 GiB and more read and write whole, on Linux and Windows.
 - Export: a failed build's errors at the end of a long log are kept in what the editor shows
   (only the first 64 KiB of a tool's output was), and the shader cook gives up on a WebGPU tool that

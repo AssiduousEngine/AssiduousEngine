@@ -1351,15 +1351,25 @@ namespace foundation::core::detail
         const usize c = static_cast<usize>(raw);
         return c < N ? c : N; // clamp corrupt/oversized counts to the capacity
     }
+    // Get and set reach only the live elements: an index past the count (or a corrupt count past N)
+    // read or wrote outside the array.
     template <typename Owner, typename Elem, usize N, auto ArrayMember, auto CountMember>
     Variant BoundedArrayGetAt(const Instance& inst, usize index)
     {
+        if (index >= BoundedArraySize<Owner, Elem, N, ArrayMember, CountMember>(inst))
+        {
+            return Variant{};
+        }
         const Owner* owner = static_cast<const Owner*>(inst.Pointer());
         return Variant::From<Elem>((owner->*ArrayMember)[index]);
     }
     template <typename Owner, typename Elem, usize N, auto ArrayMember, auto CountMember>
     Status BoundedArraySetAt(const Instance& inst, usize index, const Variant& value)
     {
+        if (index >= BoundedArraySize<Owner, Elem, N, ArrayMember, CountMember>(inst))
+        {
+            return Status{ErrorCode::OutOfRange};
+        }
         const Elem* typed = value.TryGet<Elem>();
         if (typed == nullptr)
         {
@@ -2024,9 +2034,20 @@ export namespace foundation::core
                 .removeAt = &detail::BoundedRemoveAt<Owner, Elem, N, ArrayMember, CountMember>,
                 .moveElement = &detail::BoundedMove<Owner, Elem, N, ArrayMember, CountMember>,
                 .capacity = N};
-            static const TypeInfo boundedType = []()
+            // An id of its own: every bounded array was "rtti::core::BoundedArray", so a lookup by id
+            // found whichever registered first, with another owner's accessors. The owner, the
+            // property, the element and the capacity name it, the same in every library.
+            static const TypeInfo boundedType = [name]()
             {
                 TypeInfo info = MakeTypeInfo<Elem>("BoundedArray", "rtti::core", nullptr);
+                u64 id = info.id;
+                const auto mix = [&id](u64 v) { id = (id ^ v) * 0x100000001B3ull; };
+                mix(TypeOf<Owner>().id);
+                for (const char* c = name; *c != '\0'; ++c)
+                    mix(static_cast<u8>(*c));
+                mix(TypeOf<Elem>().id);
+                mix(static_cast<u64>(N));
+                info.id = id;
                 info.container = &container;
                 return info;
             }();

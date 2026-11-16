@@ -137,7 +137,9 @@ export namespace foundation::core
         return name.SubStr(0, name.Size() - ext.Size());
     }
 
-    // Everything before the last separator (empty if there is none).
+    // Everything before the last separator (empty if there is none). A root keeps its separator:
+    // the parent of "/file" is "/" and of "C:\\file" is "C:\\" (cut before it, they read as a
+    // relative path and a drive's current folder).
     [[nodiscard]] inline StringView PathParent(StringView path) noexcept
     {
         usize lastSep = path.Size();
@@ -151,6 +153,11 @@ export namespace foundation::core
         if (lastSep == path.Size())
         {
             return StringView{};
+        }
+        const bool driveRoot = lastSep == 2 && path[1] == u8':';
+        if ((lastSep == 0 || driveRoot) && path.Size() > lastSep + 1)
+        {
+            return path.SubStr(0, lastSep + 1);
         }
         return path.SubStr(0, lastSep);
     }
