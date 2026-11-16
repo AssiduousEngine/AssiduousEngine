@@ -804,10 +804,13 @@ export namespace foundation::resource
             Guid id;
             RefPtr<TaskHandle> task; // the decode; ended once its result is queued
             bool finalized = false;  // product set on main; safe to reap once the task has ended
+            u64 serial = 0;          // which load this is: a decode lands only on its own record
+            bool superseded = false; // a reload built the product since: the decode is dropped
         };
         struct CompletedDecode
         {
             Guid id;
+            u64 serial = 0; // its PendingLoad's
             RefPtr<ResourceHandle> handle;
             IResourceFactory* factory = nullptr;
             RefPtr<Object> decoded; // null => decode failed
@@ -901,6 +904,8 @@ export namespace foundation::resource
             UniquePtr<PendingLoad> pending = MakeUnique<PendingLoad>(*m_allocator);
             pending->handle = handle;
             pending->id = id;
+            pending->serial = ++m_loadSerial;
+            const u64 serial = pending->serial;
             PendingLoad* record = pending.Get();
             m_pending.InsertOrAssign(id, Move(pending));
             NoteBurstGrowth();
@@ -912,13 +917,13 @@ export namespace foundation::resource
             // finalizes it, so it needs no completion of the pool's.
             record->task = m_tasks->Submit(
                 instance->Name(),
-                [this, id, jobHandle = handle, factory, instance](TaskContext&) mutable
+                [this, id, serial, jobHandle = handle, factory, instance](TaskContext&) mutable
                 {
                     RefPtr<Object> decoded = factory->DecodeStage(*instance);
                     const bool ok = decoded.Get() != nullptr;
                     ScopedLock lock(m_completedMutex);
                     m_completed.PushBack(
-                        CompletedDecode{id, Move(jobHandle), factory, Move(decoded), ok});
+                        CompletedDecode{id, serial, Move(jobHandle), factory, Move(decoded), ok});
                     return Status{};
                 });
         }
@@ -928,6 +933,18 @@ export namespace foundation::resource
         // success, and mark the pending record finalized.
         void FinalizeCompleted(CompletedDecode& entry)
         {
+            // A decode whose load was replaced (another load of the id began) or superseded (a
+            // reload built the product since) is dropped: landing, it would put back what the
+            // newer build replaced.
+            UniquePtr<PendingLoad>* current = m_pending.Find(entry.id);
+            if (current == nullptr || (*current)->serial != entry.serial || (*current)->superseded)
+            {
+                if (current != nullptr && (*current)->serial == entry.serial)
+                {
+                    (*current)->finalized = true;
+                }
+                return;
+            }
             RefPtr<Object> product;
             if (entry.ok)
             {
@@ -1103,6 +1120,14 @@ export namespace foundation::resource
             {
                 // Held, not the slot: the rebuild's child binds may rehash the map.
                 RefPtr<ResourceHandle> handle = *slot;
+                // A decode in flight read the content before this reload: it is cancelled, or it
+                // would land after the rebuild and put the old product back. Cancelled rather than
+                // waited for, so a dependent reloading as a child settles never stalls on its own
+                // decode.
+                if (UniquePtr<PendingLoad>* pending = m_pending.Find(id))
+                {
+                    (*pending)->superseded = true;
+                }
                 BuildInto(*handle, handle->ProductTypeId(), id);
                 SettleSyncState(*handle); // an evicted handle revives Ready; a failed rebuild reads Failed
             }
@@ -1202,7 +1227,8 @@ export namespace foundation::resource
             RefPtr<Object> product;
             u32 framesLeft = 0;
         };
-        Array<Grave> m_graveyard; // hot-reloaded-away products awaiting release
+        Array<Grave> m_graveyard;
+        u64 m_loadSerial = 0; // PendingLoad::serial // hot-reloaded-away products awaiting release
     };
 
     template <typename T>

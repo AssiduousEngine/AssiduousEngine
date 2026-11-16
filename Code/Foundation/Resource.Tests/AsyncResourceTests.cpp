@@ -969,3 +969,38 @@ TEST_CASE("resource.async: BindAsyncAny binds an id as whatever its cooked form 
     CHECK(manager.ProductTypeOf(Guid{}) == nullptr); // no instance by that id
     CHECK_FALSE(manager.BindAsyncAny(Guid{}));
 }
+
+TEST_CASE("resource.async: a reload while a decode is in flight keeps the reload's product")
+{
+    // The decode read the content before the reload; it finished after, landed its product over
+    // the rebuilt one, and the reload was undone.
+    RegisterAsyncTypes();
+    CleanDir(u8"scratch_async_reload_db");
+    NativeFileSystem mount(u8"scratch_async_reload_db", DefaultAllocator());
+    foundation::content::ContentDatabase db(foundation::core::DefaultAllocator(), mount,
+                                            foundation::core::BinarySerializerFactory(), u8".rasset");
+    AsyncFactory factory;
+    factory.gates[0].store(false, MemoryOrder::Relaxed); // the decode is held mid-flight
+    TaskPool tasks(DefaultAllocator(), TaskPool::DefaultWorkerCount());
+    ResourceManager manager(DefaultAllocator(), db, &tasks);
+    manager.AddFactory(&factory);
+    const Guid id = MakeInstance(db, factory, u8"a", 7, 0); // the decode will produce 7
+
+    Proxy<AsyncProduct> product = manager.BindAsync<AsyncProduct>(id);
+    REQUIRE(product.Handle()->State() == ResourceState::Pending);
+
+    AsyncSource edited; // the content changes; the reload builds from it
+    edited.value = 9;
+    REQUIRE(db.GetInstance(id)->WriteObject(edited).IsOk());
+    REQUIRE(manager.Reload(id));
+    REQUIRE(product.Get() != nullptr);
+    CHECK(product->value == 9);
+
+    factory.gates[0].store(true, MemoryOrder::Release); // the old decode now finishes
+    manager.WaitAll();
+    REQUIRE(product.Get() != nullptr);
+    CHECK(product->value == 9); // the reload's, not the stale decode's
+    CHECK(product.Handle()->State() == ResourceState::Ready);
+    CHECK(manager.PendingCount() == 0u);
+    CleanDir(u8"scratch_async_reload_db");
+}

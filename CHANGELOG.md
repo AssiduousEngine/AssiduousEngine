@@ -30,6 +30,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Resources: an asset reloaded while it was still loading keeps the reloaded version, rather than
+  the load in flight putting the old one back.
 - Networking: a second game hosting on a port another already uses now fails to host, rather than
   sharing the port and taking some of the first one's players' traffic.
 - HTTP: a server's interim answer (100 Continue, 103 Early Hints) is no longer taken as the response;

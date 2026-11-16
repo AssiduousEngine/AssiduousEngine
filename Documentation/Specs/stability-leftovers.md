@@ -255,7 +255,8 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
 
 - **A Reload while a decode is in flight is reverted by it.** `ResourceModule.cppm:684, 1091, 939`.
   Test: BindAsync, Reload, WaitAll, the product is the new one. Fix: complete or cancel pending
-  work first, as Evict does.
+  work first, as Evict does. Built 2026-11-16: cancelled (a load serial; a superseded or replaced
+  decode is dropped), so a dependent reloading as a child settles never waits on its own decode.
 - **Nothing is ever unloaded.** `ResourceModule.cppm:387`. Fix: release unreferenced products at
   collection.
 - **The cook's change memo keys on size and whole seconds; a recipe lacks the product's data
