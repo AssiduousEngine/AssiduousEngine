@@ -260,6 +260,9 @@ export namespace foundation::script
         Array<String> handlers; // declared lifecycle/event handlers (dispatch gate)
         bool usesCoroutines =
             false; // harvested: the class starts coroutines (cancel-on-teardown gate)
+        // The project assembly the class is built into, for a language whose classes build together
+        // (C#): the class then carries no bytecode of its own. Nil for a class that cooks alone.
+        Guid assembly;
 
         void Serialize(ISerializer& ar) override
         {
@@ -272,7 +275,90 @@ export namespace foundation::script
             foundation::core::Serialize(ar, "properties", properties);
             foundation::core::Serialize(ar, "handlers", handlers);
             foundation::core::Serialize(ar, "usesCoroutines", usesCoroutines);
+            foundation::core::Serialize(ar, "assembly", assembly);
         }
+    };
+
+    // ---- a project's assembly ----
+
+    /// One class a project assembly declares, as its build described it: what the cook of the
+    /// class's own asset takes its handlers and inspector properties from.
+    struct ScriptAssemblyClass
+    {
+        String className;
+        Array<String> handlers;
+        Array<ScriptPropertyDesc> properties;
+    };
+
+    inline void Serialize(ISerializer& ar, ScriptAssemblyClass& c)
+    {
+        foundation::core::Serialize(ar, "className", c.className);
+        foundation::core::Serialize(ar, "handlers", c.handlers);
+        foundation::core::Serialize(ar, "properties", c.properties);
+    }
+
+    /// The cooked record of a project's script assembly: a language whose classes build together
+    /// (C#: every file of a project in one assembly, so they share types) builds once into this,
+    /// and each class's own record names it.
+    class ScriptAssemblySource : public ISerializable
+    {
+        RTTI_OBJECT(ScriptAssemblySource, ISerializable)
+    public:
+        String language;
+        Array<byte> image;   // the built assembly
+        Array<byte> symbols; // its debug symbols (a fault names its file and line); may be empty
+        Array<ScriptAssemblyClass> classes;
+
+        [[nodiscard]] const ScriptAssemblyClass* FindClass(StringView name) const
+        {
+            for (const ScriptAssemblyClass& c : classes)
+                if (c.className.AsView() == name)
+                    return &c;
+            return nullptr;
+        }
+
+        void Serialize(ISerializer& ar) override
+        {
+            foundation::core::Serialize(ar, "language", language);
+            foundation::core::Serialize(ar, "image", image);
+            foundation::core::Serialize(ar, "symbols", symbols);
+            foundation::core::Serialize(ar, "classes", classes);
+        }
+    };
+
+    /// A project's script assembly at run time: what its classes load.
+    class ScriptAssembly final : public Object
+    {
+        RTTI_OBJECT(ScriptAssembly, Object)
+    public:
+        String language;
+        Array<byte> image;
+        Array<byte> symbols;
+    };
+
+    class ScriptAssemblyFactory final : public foundation::resource::IResourceFactory
+    {
+    public:
+        explicit ScriptAssemblyFactory(IAllocator& allocator) noexcept : m_allocator(&allocator) {}
+
+        [[nodiscard]] const TypeInfo* ProductType() const override { return &ScriptAssembly::StaticType(); }
+        [[nodiscard]] const TypeInfo* CookedType() const override { return &ScriptAssemblySource::StaticType(); }
+
+        [[nodiscard]] RefPtr<Object> Create(foundation::resource::ResourceManager&, foundation::content::Instance& instance) override
+        {
+            RefPtr<ISerializable> object = instance.ReadObject();
+            ScriptAssemblySource* source = Cast<ScriptAssemblySource>(object.Get());
+            if (source == nullptr)
+                return RefPtr<Object>{};
+            RefPtr<ScriptAssembly> product = MakeRef<ScriptAssembly>(*m_allocator);
+            product->language = source->language;
+            product->image = Move(source->image);
+            product->symbols = Move(source->symbols);
+            return product;
+        }
+
+    private:
+        IAllocator* m_allocator;
     };
 
     // ---- the runtime product ----
@@ -288,6 +374,7 @@ export namespace foundation::script
         String source;
         Array<ScriptIncludedSource> includes; // every file `source` includes, each once (the cook's record)
         Array<byte> bytecode;        // compiled bytecode (empty = source-only); see ScriptClassSource
+        RefPtr<ScriptAssembly> assembly; // the project assembly it is built into (C#), else null
         Array<ScriptPropertyDesc> properties;
         Array<String> handlers;
         bool usesCoroutines = false; // the class starts coroutines (cancel on disable/destroy)
@@ -348,7 +435,7 @@ export namespace foundation::script
             return &ScriptClassSource::StaticType();
         }
 
-        [[nodiscard]] RefPtr<Object> Create(foundation::resource::ResourceManager&,
+        [[nodiscard]] RefPtr<Object> Create(foundation::resource::ResourceManager& manager,
                                             foundation::content::Instance& instance) override
         {
             RefPtr<ISerializable> object = instance.ReadObject();
@@ -364,6 +451,8 @@ export namespace foundation::script
             product->source = source->source;
             product->includes = source->includes;
             product->bytecode = source->bytecode;
+            if (!source->assembly.IsNil())
+                product->assembly = RefPtr<ScriptAssembly>(manager.Bind<ScriptAssembly>(source->assembly).Get());
             product->properties = source->properties;
             product->handlers = source->handlers;
             product->usesCoroutines = source->usesCoroutines;
@@ -378,17 +467,23 @@ export namespace foundation::script
     // Registers the cooked record and product types (content-DB construction by type name).
     inline void RegisterScriptResource()
     {
-        // Data version 1: each property's replicated flag; 2: the included files. A record cooked
+        // Data version 1: each property's replicated flag; 2: the included files; 3: the assembly a
+        // class is built into. A record cooked
         // before is in another layout; the strict reader refuses it and the script recooks. No
         // REFLECT block owns this type, so the version is patched on the TypeInfo.
-        const_cast<TypeInfo&>(ScriptClassSource::StaticType()).dataVersion = 2;
+        const_cast<TypeInfo&>(ScriptClassSource::StaticType()).dataVersion = 3;
         GlobalTypeRegistry().Register(ScriptClassSource::StaticType());
         RegisterSerializable<ScriptClassSource>();
         GlobalTypeRegistry().Register(ScriptClass::StaticType());
+        GlobalTypeRegistry().Register(ScriptAssemblySource::StaticType());
+        RegisterSerializable<ScriptAssemblySource>();
+        GlobalTypeRegistry().Register(ScriptAssembly::StaticType());
     }
 
     RTTI_DEFINE_OBJECT(ScriptClassSource, "rtti::script")
     RTTI_DEFINE_OBJECT(ScriptClass, "rtti::script")
+    RTTI_DEFINE_OBJECT(ScriptAssemblySource, "rtti::script")
+    RTTI_DEFINE_OBJECT(ScriptAssembly, "rtti::script")
 }
 
 export namespace foundation::script
@@ -397,6 +492,7 @@ export namespace foundation::script
     /// library.
     inline constexpr foundation::resource::ResourceFactoryDesc kScriptResourceFactories[] = {
         foundation::resource::FactoryWithAllocator<ScriptClass, ScriptClassSource, ScriptClassFactory>(),
+        foundation::resource::FactoryWithAllocator<ScriptAssembly, ScriptAssemblySource, ScriptAssemblyFactory>(),
     };
     inline constexpr foundation::resource::ResourceModule kScriptResourceModule{
         u8"script", &RegisterScriptResource, kScriptResourceFactories,

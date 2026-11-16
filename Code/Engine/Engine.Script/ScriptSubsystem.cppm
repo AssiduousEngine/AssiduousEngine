@@ -496,9 +496,15 @@ export namespace engine::script
             {
                 includes.PushBack(ScriptSection{included.path.AsView(), included.source.AsView()});
             }
+            // A class built into its project's assembly (C#) loads the assembly: the backend loads an
+            // image once, however many of its classes ask.
+            const ScriptAssembly* assembly = scriptClass.assembly.Get();
+            const Span<const byte> bytecode = assembly != nullptr ? Span<const byte>{assembly->image.Data(), assembly->image.Size()}
+                                                                  : Span<const byte>{scriptClass.bytecode.Data(), scriptClass.bytecode.Size()};
+            const Span<const byte> symbols =
+                assembly != nullptr ? Span<const byte>{assembly->symbols.Data(), assembly->symbols.Size()} : Span<const byte>{};
             const BehaviorModuleClass entry{scriptClass.sourceName.AsView(), scriptClass.source.AsView(),
-                                            Span<const ScriptSection>{includes.Data(), includes.Size()},
-                                            Span<const byte>{scriptClass.bytecode.Data(), scriptClass.bytecode.Size()}};
+                                            Span<const ScriptSection>{includes.Data(), includes.Size()}, bytecode, symbols};
             ++m_generation;
             const String moduleName = Format(u8"behaviors#{}", m_generation);
             if (!m_scriptContext->LoadBehaviorModule(Span<const BehaviorModuleClass>{&entry, 1}, moduleName.AsView()).IsOk())

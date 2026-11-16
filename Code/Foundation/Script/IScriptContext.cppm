@@ -98,6 +98,9 @@ export namespace foundation::script
         // loads it instead of compiling `source`, which is how the player runs without a compiler.
         // Empty means source-only. The default source-concatenating LoadBehaviorModule ignores it.
         core::Span<const core::byte> bytecode;
+        // Debug symbols for `bytecode`, for a backend that reads them apart from it (a C# assembly's
+        // portable PDB, so a fault names its file and line). Empty when there are none.
+        core::Span<const core::byte> symbols = {};
     };
 
     class IScriptContext : public core::Object

@@ -249,15 +249,16 @@ TEST_CASE("script.resource: cooked record -> factory -> runtime product, luau la
         u8"function Mover.new(entity) return setmetatable({}, Mover) end\n");
 }
 
-// A record cooked before each property carried its replicated flag (data version 0), or before it
-// carried its included files (version 1), is in another layout. Read as this one it would misread
+// A record cooked before each property carried its replicated flag (data version 0), before it
+// carried its included files (version 1), or before it named its assembly (version 2), is in
+// another layout. Read as this one it would misread
 // its counts; the data version refuses it, and the script recooks.
-TEST_CASE("script.resource: a record cooked before the replicated flag or the included files is refused")
+TEST_CASE("script.resource: a record cooked before the replicated flag, the included files or the assembly is refused")
 {
     RegisterScriptResource();
     TypeInfo& type = const_cast<TypeInfo&>(ScriptClassSource::StaticType());
     const u32 current = type.dataVersion;
-    CHECK(current == 2u);
+    CHECK(current == 3u);
 
     for (u32 stale = 0; stale < current; ++stale)
     {
@@ -284,4 +285,62 @@ TEST_CASE("script.resource: a record cooked before the replicated flag or the in
         CHECK_FALSE(product);
         RemoveDbTree(dir);
     }
+}
+
+// A class built into its project's assembly (C#) names the assembly in its cooked record; the
+// factory binds the assembly's product, whose image and symbols arrive whole, and the record keeps
+// no bytecode of its own. The assembly's class descriptions travel its record for the cook.
+TEST_CASE("script.resource: a class built into a project assembly binds the assembly")
+{
+    RegisterScriptResource();
+    const StringView outDir = u8"scratch_scriptres_assembly";
+    RemoveDbTree(outDir);
+    {
+        foundation::vfs::NativeFileSystem outputMount(outDir, DefaultAllocator());
+        content::ContentDatabase outputDb(DefaultAllocator(), outputMount, BinarySerializerFactory(), u8".rasset");
+
+        ScriptAssemblySource assembly;
+        assembly.language = String(u8"csharp");
+        for (u8 b : {u8{0x4d}, u8{0x5a}, u8{0x90}})
+            assembly.image.PushBack(static_cast<byte>(b));
+        assembly.symbols.PushBack(static_cast<byte>(0x42));
+        ScriptAssemblyClass mover;
+        mover.className = String(u8"Mover");
+        mover.handlers.PushBack(String(u8"onUpdate"));
+        assembly.classes.PushBack(Move(mover));
+        auto* assemblyInstance = outputDb.RootGroup()->CreateInstance(u8"assembly", ScriptAssemblySource::StaticType());
+        REQUIRE(assemblyInstance != nullptr);
+        REQUIRE(assemblyInstance->WriteObject(assembly).IsOk());
+
+        ScriptClassSource cooked;
+        cooked.language = String(u8"csharp");
+        cooked.className = String(u8"Mover");
+        cooked.assembly = assemblyInstance->Id();
+        auto* classInstance = outputDb.RootGroup()->CreateInstance(u8"mover", ScriptClassSource::StaticType());
+        REQUIRE(classInstance != nullptr);
+        REQUIRE(classInstance->WriteObject(cooked).IsOk());
+
+        // The record reads back with its classes, for the cook of each class's asset.
+        RefPtr<ISerializable> read = assemblyInstance->ReadObject();
+        const ScriptAssemblySource* readBack = Cast<ScriptAssemblySource>(read.Get());
+        REQUIRE(readBack != nullptr);
+        REQUIRE(readBack->FindClass(u8"Mover") != nullptr);
+        CHECK(readBack->FindClass(u8"Mover")->handlers.Size() == 1u);
+        CHECK(readBack->FindClass(u8"Nobody") == nullptr);
+
+        ScriptClassFactory classes(DefaultAllocator());
+        ScriptAssemblyFactory assemblies(DefaultAllocator());
+        foundation::resource::ResourceManager manager(DefaultAllocator(), outputDb);
+        manager.AddFactory(&classes);
+        manager.AddFactory(&assemblies);
+        foundation::resource::Proxy<ScriptClass> product = manager.Bind<ScriptClass>(classInstance->Id());
+        REQUIRE(product);
+        CHECK(product->bytecode.IsEmpty());
+        REQUIRE(product->assembly.Get() != nullptr);
+        CHECK(product->assembly->language == u8"csharp");
+        REQUIRE(product->assembly->image.Size() == 3u);
+        CHECK(product->assembly->image[0] == static_cast<byte>(0x4d));
+        REQUIRE(product->assembly->symbols.Size() == 1u);
+    }
+    RemoveDbTree(outDir);
 }
