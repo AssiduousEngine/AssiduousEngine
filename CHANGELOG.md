@@ -74,6 +74,11 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   another keeps its contact instead of ending it as it falls asleep; a compound body touching
   with two of its parts begins one contact.
 - Navigation: a navmesh of more than 256 tiles loads; it failed silently before.
+- Physics: moving a simulated body's entity (from a script or the editor) moves the body; editing
+  a body's shape, size or surface while the game runs rebuilds it; a box, sphere, capsule or plane
+  collider, and a terrain, take their entity's scale (they collided at their unscaled size). A
+  terrain hole's drawn rim now has collision, so the player no longer falls through ground drawn
+  around a hole.
 - Web: a game with a render size of its own (Sky Hopper, PaperKid) takes taps on phones and
   tablets. Its buttons answered a mouse but not a finger, since the browser shell, unlike the
   native ones, did not give the finger to the mouse; a quick tap or click within one frame also

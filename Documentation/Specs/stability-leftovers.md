@@ -167,9 +167,11 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
 - **A dynamic body cannot be teleported, runtime edits are ignored, primitives ignore scale.**
   `PhysicsWorldImpl.cpp:877`, `PhysicsSubsystem.cppm:739-769`, `PhysicsSubsystemImpl.cpp:222-240`.
   Tests: a moved transform moves the body; a changed shape rebuilds it; a box scaled x2 is hit at 2x.
+  Built 2026-11-15.
 - **Terrain collision ignores the entity's scale, and a hole's drawn rim has none.**
   `PhysicsSubsystemImpl.cpp:212-218`, `Terrain.cppm:155-157`. Tests: raycasts at a scaled terrain
-  and at a rim. Fix: scale the heightfield; the same hole rule as rendering.
+  and at a rim. Fix: scale the heightfield; the same hole rule as rendering. Built 2026-11-15, the
+  user's choice: a rim collision mesh traced at the bilinear mask's half, beside the heightfield.
 - **Physics budgets fail silently, and each world makes its own thread pool.**
   `PhysicsWorld.cppm:258-260`, `PhysicsSubsystem.cppm:929, 996`, `PhysicsWorldImpl.cpp:715-717, 862`.
   Test: 4097 bodies log why. Fix: say so once; one pool for every world.
