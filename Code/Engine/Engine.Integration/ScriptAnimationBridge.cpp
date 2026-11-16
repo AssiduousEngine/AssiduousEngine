@@ -28,6 +28,17 @@ namespace engine::integration
         scripts->DeliverEvent(ended.scene, ended.entity, u8"onAnimationFinished", Move(args));
     }
 
+    void ScriptAnimationBridge::Listener::OnClipEvent(const engine::animation::AnimationClipEvent& event)
+    {
+        if (scripts == nullptr)
+        {
+            return;
+        }
+        Array<Variant> args;
+        args.PushBack(Variant::From<String>(String(event.name)));
+        scripts->DeliverEvent(event.scene, event.entity, u8"onAnimationEvent", Move(args));
+    }
+
     ScriptAnimationBridge::~ScriptAnimationBridge()
     {
         Uninstall();

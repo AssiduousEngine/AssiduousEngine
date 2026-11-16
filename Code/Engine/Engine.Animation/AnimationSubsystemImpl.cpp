@@ -543,8 +543,26 @@ namespace engine::animation
                     listener->OnOneShotEnded(ended);
                 }
             }
+            m_events.Clear();
+            if (auto* graphs = scene->GetSystem<AnimationGraphComponentManager>())
+            {
+                graphs->DrainEvents(m_events);
+            }
+            if (auto* clips = scene->GetSystem<SkeletalAnimationComponentManager>())
+            {
+                clips->DrainEvents(m_events);
+            }
+            for (const ClipEventFired& e : m_events)
+            {
+                const AnimationClipEvent event{scene, e.entity, e.name.AsView()};
+                for (IAnimationListener* listener : m_listeners)
+                {
+                    listener->OnClipEvent(event);
+                }
+            }
         }
         m_ended.Clear();
+        m_events.Clear();
     }
 
     void AnimationSubsystem::Update(f32)

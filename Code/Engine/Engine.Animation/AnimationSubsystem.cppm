@@ -51,6 +51,14 @@ export namespace engine::animation
         Guid clip;
     };
 
+    // A clip event an entity's animation passed: the scene, the entity and the event's name.
+    struct AnimationClipEvent
+    {
+        foundation::scene::Scene* scene = nullptr;
+        foundation::scene::EntityHandle entity;
+        StringView name;
+    };
+
     // A consumer of the animation's events: the host bridges them to scripts (Engine.Integration's
     // ScriptAnimationBridge), so the animation stays script-agnostic, as physics contacts do.
     class IAnimationListener
@@ -58,6 +66,7 @@ export namespace engine::animation
     public:
         virtual ~IAnimationListener() = default;
         virtual void OnOneShotEnded(const AnimationOneShotEnded& ended) = 0;
+        virtual void OnClipEvent(const AnimationClipEvent& event) = 0;
     };
 
     // Registers the reflection, tells its listeners of the one-shots that ended in each running
@@ -120,6 +129,7 @@ export namespace engine::animation
         Array<foundation::scene::Scene*> m_scenes;
         Array<IAnimationListener*> m_listeners;
         Array<OneShotEnded> m_ended; // scratch: one scene's, drained from its managers
+        Array<ClipEventFired> m_events; // scratch: one scene's clip events
     };
 
 } // namespace engine::animation

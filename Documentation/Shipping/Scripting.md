@@ -113,6 +113,9 @@ A prefab is still the way to make something with many parts at once (`scene.pref
   true from the call until it has blended out.
 - When a one-shot ends (played out or stopped), the entity's behaviours get
   `onAnimationFinished(Guid clip)` at the next scene tick, as physics contacts arrive.
+- When an entity's animation passes one of its clip's events (a marker authored on the clip's
+  page: a footstep, the moment a swing lands), its behaviours get `onAnimationEvent(string name)`
+  at the next scene tick, in the order passed.
 - `clipLength(clip)` is a clip's length in seconds (0 for no clip).
 - `setClip(entity, clip, blendSeconds)` swaps an animator's clip easing from the pose shown now into
   the new clip, instead of the snap of `setClip(entity, clip)`.

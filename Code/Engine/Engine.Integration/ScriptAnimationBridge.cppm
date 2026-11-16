@@ -44,6 +44,7 @@ export namespace engine::integration
         {
             engine::script::ScriptSubsystem* scripts = nullptr;
             void OnOneShotEnded(const engine::animation::AnimationOneShotEnded& ended) override;
+            void OnClipEvent(const engine::animation::AnimationClipEvent& event) override;
         };
 
         Listener m_listener;

@@ -6154,6 +6154,38 @@ TEST_CASE("script.scene: a one-shot that ends calls the entity's behaviours' onA
     CHECK(world.scene->GetEntityName(pet) == StringView(u8"finished"));
 }
 
+TEST_CASE("script.scene: a clip's event calls the entity's behaviours' onAnimationEvent(name)")
+{
+    AnimationWorld world;
+    RefPtr<foundation::animation::Skeleton> skeleton = MakeRef<foundation::animation::Skeleton>(DefaultAllocator(), 1);
+    skeleton->Bones()[0].index = 0;
+    skeleton->Bones()[0].parentIndex = -1;
+    skeleton->FindRootBones();
+    skeleton->BuildChildIndices();
+    RefPtr<foundation::animation::AnimationClip> walk =
+        MakeRef<foundation::animation::AnimationClip>(DefaultAllocator(), u8"Walk", 1.0f, true);
+    walk->AddEvent(0.1f, u8"Footstep");
+
+    const scene::EntityHandle pet = world.scene->CreateEntity(u8"pet");
+    auto& animator = world.scene->GetSystem<engine::animation::SkeletalAnimationComponentManager>()->Add(pet);
+    animator.skeleton.SetDirect(skeleton);
+    animator.clip.SetDirect(walk);
+    RefPtr<ScriptClass> listener = MakeClass(u8"Listener",
+                                             u8"class Listener {\n"
+                                             u8"    private Entity self;\n"
+                                             u8"    Listener(Entity entity) { self = entity; }\n"
+                                             u8"    void onAnimationEvent(string name) { self.setName(name); }\n"
+                                             u8"}\n",
+                                             {u8"onAnimationEvent"});
+    auto& component = world.scene->GetSystem<ScriptComponentManager>()->Add(pet);
+    ScriptBehavior behavior;
+    behavior.script = listener;
+    component.behaviors.PushBack(Move(behavior));
+
+    world.Play(20); // past 0.1 s, and the next tick delivered it
+    CHECK(world.scene->GetEntityName(pet) == StringView(u8"Footstep"));
+}
+
 TEST_CASE("script.scene: a class that fails to load fails no class after it, in either language")
 {
     // Each new class rebuilt every known class into one module: a class that failed stayed in the

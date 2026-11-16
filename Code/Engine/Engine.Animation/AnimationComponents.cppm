@@ -210,6 +210,14 @@ export namespace engine::animation
         Guid clip;
     };
 
+    // A clip event a player passed (an authored marker: a footstep, a swing's hit): its entity and
+    // the event's name, for the animation subsystem's listeners.
+    struct ClipEventFired
+    {
+        scene::EntityHandle entity;
+        String name;
+    };
+
     // What the two managers do with a one-shot each tick. Static members rather than free inline
     // functions: GCC cannot read back a partition whose namespace-scope inline function
     // instantiates a template.
@@ -406,6 +414,8 @@ export namespace engine::animation
                     {
                         a.player =
                             MakeUnique<animation::AnimationPlayer>(DefaultAllocator(), *skeleton);
+                        a.player->SetEventHandler([this, owner](StringView name, f32)
+                                                  { m_events.PushBack(ClipEventFired{owner, String(name)}); });
                         a.playerSkeleton = skeleton;
                         a.playerClip = nullptr; // replay below: the new player has no clip yet
                     }
@@ -458,6 +468,15 @@ export namespace engine::animation
             }
             m_ended.Clear();
         }
+        // The clip events passed since the last call (the animation subsystem tells its listeners).
+        void DrainEvents(Array<ClipEventFired>& out)
+        {
+            for (ClipEventFired& e : m_events)
+            {
+                out.PushBack(Move(e));
+            }
+            m_events.Clear();
+        }
 
         [[nodiscard]] scene::ISkinningPaletteSource* AsSkinningPaletteSource() noexcept override { return this; }
         // The palette of the animator that posed `mesh` at its last update, read from its player now.
@@ -480,6 +499,7 @@ export namespace engine::animation
     private:
         scene::Scene* m_scene = nullptr;
         Array<OneShotEnded> m_ended;
+        Array<ClipEventFired> m_events;
         PosedMeshes m_posed;
     };
 
@@ -591,6 +611,8 @@ export namespace engine::animation
                     {
                         a.player = MakeUnique<animation::AnimationGraphPlayer>(DefaultAllocator(),
                                                                                *graph, *skeleton);
+                        a.player->SetEventHandler([this, owner](StringView name, f32)
+                                                  { m_events.PushBack(ClipEventFired{owner, String(name)}); });
                         a.playerSkeleton = skeleton;
                         a.playerGraph = graph;
                     }
@@ -627,6 +649,15 @@ export namespace engine::animation
             }
             m_ended.Clear();
         }
+        // The clip events passed since the last call (the animation subsystem tells its listeners).
+        void DrainEvents(Array<ClipEventFired>& out)
+        {
+            for (ClipEventFired& e : m_events)
+            {
+                out.PushBack(Move(e));
+            }
+            m_events.Clear();
+        }
 
         [[nodiscard]] scene::ISkinningPaletteSource* AsSkinningPaletteSource() noexcept override { return this; }
         // The palette of the animator that posed `mesh` at its last update, read from its player now.
@@ -649,6 +680,7 @@ export namespace engine::animation
     private:
         scene::Scene* m_scene = nullptr;
         Array<OneShotEnded> m_ended;
+        Array<ClipEventFired> m_events;
         PosedMeshes m_posed;
     };
 

@@ -36,7 +36,13 @@ namespace
     struct Listener final : engine::animation::IAnimationListener
     {
         Array<engine::animation::AnimationOneShotEnded> ended;
+        Array<String> events; // clip events heard, by name
         void OnOneShotEnded(const engine::animation::AnimationOneShotEnded& e) override { ended.PushBack(e); }
+        void OnClipEvent(const engine::animation::AnimationClipEvent& e) override
+        {
+            CHECK(e.entity.index != scene::kEntityHandleInvalidIndex);
+            events.PushBack(String(e.name));
+        }
     };
 
     struct Stage
@@ -173,4 +179,35 @@ TEST_CASE("animation: a graph's entity takes a one-shot over its graph")
     Array<engine::animation::OneShotEnded> ended;
     stage.level.GetSystem<engine::animation::AnimationGraphComponentManager>()->DrainEnded(ended);
     CHECK(ended.Size() == 1);
+}
+
+TEST_CASE("animation: a clip's events reach the animation subsystem's listeners")
+{
+    // The player fired its events into a handler nobody set: an authored footstep or hit marker
+    // reached nothing, and scripts never heard onAnimationEvent.
+    Stage stage;
+    RefPtr<animation::AnimationClip> walk = Holding(u8"Walk", 0.0f, 1.0f, true);
+    walk->AddEvent(0.25f, u8"StepLeft");
+    walk->AddEvent(0.75f, u8"StepRight");
+    (void)stage.Animator(walk);
+
+    engine::animation::AnimationSubsystem subsystem;
+    Listener listener;
+    subsystem.RegisterListener(&listener);
+    subsystem.OnSystemsReady(stage.level);
+
+    stage.Run(0.5f);
+    subsystem.Update(0.0f);
+    REQUIRE(listener.events.Size() == 1);
+    CHECK(listener.events[0].AsView() == StringView(u8"StepLeft"));
+
+    stage.Run(0.6f); // past 0.75 and round the loop to 1.1 (0.1 into the next pass)
+    subsystem.Update(0.0f);
+    REQUIRE(listener.events.Size() == 2);
+    CHECK(listener.events[1].AsView() == StringView(u8"StepRight"));
+    subsystem.Update(0.0f);
+    CHECK(listener.events.Size() == 2); // told once
+
+    subsystem.UnregisterListener(&listener);
+    subsystem.OnDestroying(stage.level);
 }
