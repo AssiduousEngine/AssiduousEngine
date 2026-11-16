@@ -379,6 +379,34 @@ TEST_CASE("tiled bake: a large ground splits into tiles, paths span them, and it
     CHECK(pos.z > -20.0f);
 }
 
+TEST_CASE("tiled bake: a grid of more than 256 tiles loads, and a path crosses it")
+{
+    // 32-bit poly refs left 8 bits for the tile at 16384 polys a tile: a 17x17 grid (289 tiles)
+    // failed to load. Small tiles keep the bake quick: 16 cells at 0.3 is 4.8 units, so 82 units
+    // of ground make a 17x17 grid.
+    Array<Float3> verts;
+    Array<u32> indices;
+    AddGround(verts, indices, -40.8f, 40.8f, -40.8f, 40.8f);
+    NavigationBakeParams params;
+    params.tileCells = 16;
+    Array<byte> blob;
+    REQUIRE(NavigationMeshBuilder::BuildTiled(Span<const Float3>{verts.Data(), verts.Size()},
+                                              Span<const u32>{indices.Data(), indices.Size()}, params, blob)
+                .IsOk());
+    NavigationTileGridDesc grid;
+    REQUIRE(ReadTiledBlobGrid(Span<const byte>{blob.Data(), blob.Size()}, grid));
+    REQUIRE(grid.countX * grid.countY > 256);
+
+    NavigationMesh mesh(DefaultAllocator());
+    REQUIRE(mesh.Load(Span<const byte>{blob.Data(), blob.Size()}).IsOk());
+    REQUIRE(mesh.IsValid());
+    NavigationMeshQuery query(DefaultAllocator(), mesh);
+    REQUIRE(query.IsValid());
+    NavigationPath path;
+    REQUIRE(query.FindPath(Float3{-38, 0, -38}, Float3{38, 0, 38}, path).IsOk());
+    CHECK(path.complete);
+}
+
 TEST_CASE("tiled bake: BuildTileAt regenerates a tile byte-identical to the full bake's")
 {
     Array<Float3> verts;
