@@ -346,6 +346,9 @@ export namespace foundation::net
         struct EntityBaseline
         {
             Array<ComponentBaseline> components;
+            // The peer has it from the scene it loaded, not from anything sent: its state was
+            // never sent, and its absence from the scene is a removal to send.
+            bool fromScene = false;
         };
         struct PeerBaseline
         {
@@ -355,6 +358,7 @@ export namespace foundation::net
         u32 m_nextNetworkId = 0; // server-side monotonic id allocator (0 stays "unassigned")
         HashMap<u32, scene::EntityHandle> m_netIdToEntity;
         HashMap<u32, PeerBaseline> m_peerBaselines; // peerId -> baseline
+        Array<u32> m_authoredIds; // the scene's networked entities as loaded (every peer has them)
         SpawnHandler m_spawnHandler; // client-side prefab resolver (null = bare create)
         RelevanceFn m_relevance;     // server-side per-peer interest filter (null = all)
     };

@@ -585,6 +585,15 @@ namespace foundation::net
                     nc.id = DeterministicNetworkId(scene.GetEntityId(e));
                 }
                 m_netIdToEntity.InsertOrAssign(nc.id.value, e);
+                bool known = false;
+                for (const u32 id : m_authoredIds)
+                {
+                    known = known || id == nc.id.value;
+                }
+                if (!known)
+                {
+                    m_authoredIds.PushBack(nc.id.value);
+                }
                 if (nc.id.value > m_nextNetworkId)
                 {
                     m_nextNetworkId = nc.id.value;
@@ -921,7 +930,16 @@ namespace foundation::net
         // Get-or-insert this peer's baseline.
         if (m_peerBaselines.Find(peerId) == nullptr)
         {
-            m_peerBaselines.InsertOrAssign(peerId, PeerBaseline{});
+            // A joining peer loaded the scene as authored: every authored entity is one it has,
+            // so one destroyed before it joined goes out as a removal rather than staying on it.
+            PeerBaseline joined;
+            for (const u32 id : m_authoredIds)
+            {
+                EntityBaseline authored;
+                authored.fromScene = true;
+                joined.entities.InsertOrAssign(id, Move(authored));
+            }
+            m_peerBaselines.InsertOrAssign(peerId, Move(joined));
         }
         PeerBaseline& base = *m_peerBaselines.Find(peerId);
 
@@ -1002,10 +1020,12 @@ namespace foundation::net
                         newEb.components.PushBack(ComponentBaseline{typeHash, CopyBlob(blob)});
                     });
 
-                if (oldEb == nullptr || !changed.IsEmpty())
-                { // new entity (spawn), or something changed
-                    entries.PushBack(
-                        Entry{nid, false, /*spawn=*/oldEb == nullptr, nc.prefab, nc.owner, Move(changed)});
+                // New to the peer (a spawn), held from its scene but never sent (its first state, as
+                // a spawn record so its owner goes too), or changed.
+                const bool first = oldEb == nullptr || oldEb->fromScene;
+                if (first || !changed.IsEmpty())
+                {
+                    entries.PushBack(Entry{nid, false, /*spawn=*/first, nc.prefab, nc.owner, Move(changed)});
                 }
                 nextBaseline.InsertOrAssign(nid, Move(newEb));
             });

@@ -227,7 +227,7 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
 
 - **A late joiner keeps authored entities destroyed before it joined.** `ReplicationImpl.cpp:1016-1022`.
   Test: destroy E, join, E is gone on the client. Fix: a joining peer's baseline starts from the
-  authored set, so a missing one is sent as destroyed.
+  authored set, so a missing one is sent as destroyed. Built 2026-11-16.
 - **A scene change keeps replication's maps.** `NetworkManager.cppm:321`, `Replication.cppm:355-357`.
   Test: after swapping scenes, an old id finds nothing. Fix: reset the maps and baselines.
 - **Every entity goes to every peer.** `SetRelevance` has no caller. Fix: a default relevance hook

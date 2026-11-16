@@ -991,3 +991,44 @@ TEST_CASE("replication: a component record whose length passes the packet is not
     clientRep.ApplySnapshot(client, reader);
     CHECK_FALSE(reader.Ok()); // refused as truncated
 }
+
+TEST_CASE("replication: an authored entity destroyed before a peer joins is removed on that peer")
+{
+    // A joining peer's baseline started empty, so an entity it had from its own load of the scene
+    // was never in it, and the server never told it that one was gone: it stayed on the client.
+    RttiRegisterValue_Mover();
+    foundation::net::RegisterReplicationComponents();
+    const Guid guidA{0xA0, 0x01};
+    const Guid guidB{0xB0, 0x02};
+
+    scene::Scene server{DefaultAllocator()};
+    auto* snet = server.AddSystem<net::NetworkComponentManager>();
+    server.AddSystem<MoverManager>()->Add(server.CreateEntity(guidA, u8"A")).health = 3;
+    const scene::EntityHandle b = server.CreateEntity(guidB, u8"B");
+    snet->Add(b);
+    snet->Add(server.FindEntity(guidA));
+    net::StateReplication rep;
+    rep.AssignSceneNetworkIds(server);
+    server.DestroyEntity(b); // gone before anyone joins
+
+    scene::Scene client{DefaultAllocator()};
+    auto* cnet = client.AddSystem<net::NetworkComponentManager>();
+    MoverManager* cmovers = client.AddSystem<MoverManager>();
+    const scene::EntityHandle ca = client.CreateEntity(guidA, u8"A");
+    cmovers->Add(ca);
+    cnet->Add(ca);
+    const scene::EntityHandle cb = client.CreateEntity(guidB, u8"B");
+    cnet->Add(cb);
+    net::StateReplication crep;
+    crep.RegisterAuthoredEntities(client);
+
+    net::BitWriter w;
+    rep.CaptureDelta(server, 1, w);
+    net::BitReader r(w.Data());
+    crep.ApplyDelta(client, r);
+    CHECK(r.Ok());
+    CHECK_FALSE(client.IsValid(cb));             // the destroyed one goes
+    REQUIRE(client.IsValid(ca));                 // the one still there stays
+    CHECK(cmovers->Get(ca)->health == 3);        // with its state, sent in full
+    CHECK(client.EntityCount() == 1u);           // and no duplicate of it
+}

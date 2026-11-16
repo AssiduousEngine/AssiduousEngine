@@ -28,6 +28,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Networking: a player who joins late no longer sees scene objects that were destroyed before they
+  joined.
 - Plugins: a plugin part loaded from a shared library that was built for another engine version,
   compiler or configuration (a Debug part in a Release editor) is refused with the reason, rather
   than loaded and run against types laid out otherwise.
