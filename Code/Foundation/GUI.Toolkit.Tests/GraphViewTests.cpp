@@ -873,6 +873,32 @@ TEST_CASE("GraphView: a node's menu begins a node link that follows the pointer 
     CHECK(bed.LinkCount() == 0);
 }
 
+TEST_CASE("GraphView: a node link begun by clicking the menu's item outlives the click that chose it")
+{
+    // The link took the pointer during the item's release, the release ended and took the pointer
+    // back, and the view cancelled the link as the pointer left it: clicking "Add transition" did
+    // nothing. (Activating the item directly, as the test above does, never released anything.)
+    Bed bed;
+    bed.graph.SetNodeLinks(true);
+    bed.Pause();
+    bed.RightClick(bed.Middle(bed.a));
+    Menu* menu = bed.view->GetMenu();
+    REQUIRE(menu != nullptr);
+    (void)bed.root->UpdateLayout();
+    MenuItem* item = Item(*menu, u8"Add transition");
+    REQUIRE(item != nullptr);
+    const core::Float2 at = item->ConvertToRootSpace(core::Float2{item->GetSize().x * 0.5f, item->GetSize().y * 0.5f});
+    bed.D().InjectMouseMove(at);
+    bed.D().InjectMouseDown(at, MouseButton::Left);
+    bed.D().InjectMouseUp(at, MouseButton::Left);
+    REQUIRE(bed.view->IsLinking());
+    bed.D().InjectMouseMove(bed.Middle(bed.b));
+    CHECK(bed.view->IsLinking());
+    bed.Click(bed.Middle(bed.b));
+    CHECK_FALSE(bed.view->IsLinking());
+    CHECK(bed.LinkCount() == 1);
+}
+
 namespace
 {
     // Pans the bed so the graph's (-100, -100) is at the view's top-left, turns snapping off, and adds

@@ -911,6 +911,11 @@ export namespace foundation::gui
         void OnPointerCancel(const MouseEvent& event) override;
         void OnPointerCaptureLost() override
         {
+            // A link begun from a menu follows the pointer until a click or Escape, with no button
+            // held: losing the pointer is no reason to end it. It took the pointer in the release
+            // that chose the menu's item, and that release ending took it back.
+            if (m_drag == Drag::Link && m_sticky)
+                return;
             if (m_drag == Drag::Link)
                 EndLink(false);
             else
