@@ -6,6 +6,7 @@
 
 #include "Core/System/SystemBackend.h"
 
+#include <climits> // PATH_MAX (ResolvePathLinks)
 #include <ctime>
 #include <cerrno>
 #include <dirent.h>
@@ -156,6 +157,23 @@ namespace foundation::core::sys
     const char* GetHostPlatformName() noexcept { return "Linux64"; }
 #endif
     const char* ExecutableExtension() noexcept { return ""; }
+
+    std::size_t ResolvePathLinks(const char* path, char* out, std::size_t outSize) noexcept
+    {
+        char buffer[PATH_MAX];
+        if (::realpath(path, buffer) == nullptr)
+        {
+            return 0;
+        }
+        const std::size_t length = std::strlen(buffer);
+        if (out != nullptr && outSize > 0)
+        {
+            const std::size_t k = (length < outSize - 1) ? length : outSize - 1;
+            std::memcpy(out, buffer, k);
+            out[k] = '\0';
+        }
+        return length;
+    }
 
     std::size_t GetExecutablePath(char* out, std::size_t outSize) noexcept
     {

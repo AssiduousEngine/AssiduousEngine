@@ -74,6 +74,10 @@ namespace foundation::core::sys
     // Absolute path of the running executable (readlink /proc/self/exe, GetModuleFileNameA). Same
     // truncation / return contract as GetEnvironmentVariable; 0 on failure.
     std::size_t GetExecutablePath(char* out, std::size_t outSize) noexcept;
+    // `path` with every symbolic link followed and the result absolute (realpath,
+    // GetFinalPathNameByHandleA). Same truncation / return contract as GetEnvironmentVariable; 0
+    // when the path does not exist or cannot be resolved.
+    std::size_t ResolvePathLinks(const char* path, char* out, std::size_t outSize) noexcept;
 
     // Current working directory (getcwd / GetCurrentDirectoryA). Same truncation / return contract as
     // GetEnvironmentVariable; 0 on failure. Used to resolve project-relative paths to absolute.

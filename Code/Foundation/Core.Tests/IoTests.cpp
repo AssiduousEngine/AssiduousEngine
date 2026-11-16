@@ -1007,3 +1007,23 @@ TEST_CASE("serialization: a misread count does not reserve that many large eleme
     CHECK_FALSE(loader.IsOk()); // 200,000 bytes do not hold 200,000 matrices
     CHECK(tracking.PeakBytes() < u64{kCount} * sizeof(Float4x4) / 4);
 }
+
+TEST_CASE("io: PathResolveLinks follows a symbolic link to what it names")
+{
+    // How the .NET host finds an install whose `dotnet` on PATH is a link into it (a snap).
+    (void)RemoveDirectoryRecursive(u8"scratch_resolve_links");
+    REQUIRE(CreateDirectories(u8"scratch_resolve_links/real"));
+    REQUIRE(WriteFile(u8"scratch_resolve_links/real/tool", Span<const byte>{}).IsOk());
+    const String target = PathAbsolute(u8"scratch_resolve_links/real/tool");
+    if (!CreateSymbolicLink(target.AsView(), u8"scratch_resolve_links/link", false))
+    {
+        MESSAGE("this platform refuses symbolic links here; skipped"); // Windows without the privilege
+        (void)RemoveDirectoryRecursive(u8"scratch_resolve_links");
+        return;
+    }
+    const String resolved = PathResolveLinks(u8"scratch_resolve_links/link");
+    CHECK(resolved.AsView().EndsWith(u8"scratch_resolve_links/real/tool"));
+    CHECK(PathIsAbsolute(resolved.AsView()));
+    CHECK(PathResolveLinks(u8"scratch_resolve_links/nothing").IsEmpty());
+    (void)RemoveDirectoryRecursive(u8"scratch_resolve_links");
+}

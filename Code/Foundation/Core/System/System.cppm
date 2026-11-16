@@ -490,6 +490,20 @@ export namespace foundation::core
         return String(StringView(reinterpret_cast<const utf8char*>(buffer), got));
     }
 
+    // `path` with every symbolic link followed, absolute (empty when it does not exist). How the
+    // folder of a command found on PATH is learned when PATH holds a link to it (a snap's
+    // `dotnet`).
+    [[nodiscard]] inline String PathResolveLinks(StringView path)
+    {
+        char buffer[4096];
+        const usize length = sys::ResolvePathLinks(detail::NullTerminated(path).CStr(), buffer, sizeof(buffer));
+        if (length == 0 || length >= sizeof(buffer))
+        {
+            return String{};
+        }
+        return String(StringView(reinterpret_cast<const utf8char*>(buffer), length));
+    }
+
     // Current working directory (empty on failure). Used to resolve a relative path to absolute.
     [[nodiscard]] inline String GetCurrentDirectory()
     {

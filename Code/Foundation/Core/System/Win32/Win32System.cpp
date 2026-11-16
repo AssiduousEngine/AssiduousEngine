@@ -123,6 +123,39 @@ namespace foundation::core::sys
     const char* GetHostPlatformName() noexcept { return "Win64"; }
     const char* ExecutableExtension() noexcept { return ".exe"; }
 
+    std::size_t ResolvePathLinks(const char* path, char* out, std::size_t outSize) noexcept
+    {
+        // Opened for no access (FILE_FLAG_BACKUP_SEMANTICS so a directory opens too): enough to
+        // ask the final path of what the links lead to.
+        const HANDLE file = ::CreateFileA(path, 0, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                                          OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, nullptr);
+        if (file == INVALID_HANDLE_VALUE)
+        {
+            return 0;
+        }
+        char buffer[4096];
+        const DWORD n = ::GetFinalPathNameByHandleA(file, buffer, static_cast<DWORD>(sizeof(buffer)), FILE_NAME_NORMALIZED);
+        ::CloseHandle(file);
+        if (n == 0 || n >= sizeof(buffer))
+        {
+            return 0;
+        }
+        // "\\?\C:\..." for a drive path: the prefix goes ("\\?\UNC\..." stays as it is).
+        const char* start = buffer;
+        if (n > 4 && std::memcmp(buffer, "\\\\?\\", 4) == 0 && buffer[5] == ':')
+        {
+            start += 4;
+        }
+        const std::size_t length = std::strlen(start);
+        if (out != nullptr && outSize > 0)
+        {
+            const std::size_t k = (length < outSize - 1) ? length : outSize - 1;
+            std::memcpy(out, start, k);
+            out[k] = '\0';
+        }
+        return length;
+    }
+
     std::size_t GetExecutablePath(char* out, std::size_t outSize) noexcept
     {
         // GetModuleFileNameA writes the (possibly truncated) null-terminated path and returns the
