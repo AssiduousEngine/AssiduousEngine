@@ -146,3 +146,13 @@ TEST_CASE("udp: an empty datagram is a datagram, and the ones behind it are read
     CHECK(static_cast<u8>(got[0]) == 0x5Au);
     CHECK_FALSE(b.Receive(from, got)); // and then nothing is waiting
 }
+
+TEST_CASE("udp: a port a live socket holds is not bound by a second one")
+{
+    // UDP sockets set SO_REUSEADDR, so a second server on the game's port bound it too and took
+    // datagrams meant for the first.
+    net::UdpSocket first(0);
+    REQUIRE(first.IsOpen());
+    net::UdpSocket second(first.BoundPort());
+    CHECK_FALSE(second.IsOpen());
+}

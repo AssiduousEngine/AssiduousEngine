@@ -769,8 +769,8 @@ namespace foundation::core::sys
         NotInherited(s);
         u_long nonBlocking = 1;
         ::ioctlsocket(s, FIONBIO, &nonBlocking);
-        const BOOL yes = TRUE;
-        ::setsockopt(s, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&yes), sizeof(yes));
+        // No SO_REUSEADDR: UDP has no TIME_WAIT to wait out, and with it a second socket binds a
+        // port a live one holds and takes its datagrams.
         sockaddr_in addr{};
         addr.sin_family = AF_INET;
         addr.sin_addr.s_addr = htonl(INADDR_ANY);

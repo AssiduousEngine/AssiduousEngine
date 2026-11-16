@@ -28,6 +28,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Networking: a second game hosting on a port another already uses now fails to host, rather than
+  sharing the port and taking some of the first one's players' traffic.
 - HTTP: a server's interim answer (100 Continue, 103 Early Hints) is no longer taken as the response;
   the real one after it is read.
 - HTTP: a request whose header, method or URL holds a line break is refused before anything is
