@@ -25,7 +25,7 @@ export namespace foundation::script::dotnet
     /// reference or container, every property a field whose type is a scalar or another such type.
     [[nodiscard]] Array<const TypeInfo*> BindableValueTypes();
 
-    /// The C# source binding `types` (a namespace `Engine`), with a `Layouts.Check()` C# calls at
-    /// start. Methods whose signature holds a type C# has no form for are left out.
+    /// The C# source binding `types` (a namespace `Engine`), with a `Layouts.FirstMismatch()` C#
+    /// calls at start. Methods whose signature holds a type C# has no form for are left out.
     [[nodiscard]] String GenerateCSharpBindings(Span<const TypeInfo* const> types);
 }

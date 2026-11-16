@@ -8,6 +8,7 @@
 
 import foundation.core;
 import foundation.script.dotnet;
+import engine.composition;
 
 using namespace foundation::core;
 
@@ -18,8 +19,11 @@ int main(int argc, char** argv)
         std::fprintf(stderr, "usage: Tools.DotNetBindings <out.cs>\n");
         return 2;
     }
+    // The surface a game's scripts see: the core types, every facade, every component.
     RegisterCoreTypes();
-    const Array<const TypeInfo*> types = foundation::script::dotnet::BindableValueTypes();
+    engine::RegisterAllScriptFacades();
+    engine::RegisterAllSceneComponentReflection();
+    const Array<const TypeInfo*> types = GlobalTypeRegistry().All();
     const String source =
         foundation::script::dotnet::GenerateCSharpBindings(Span<const TypeInfo* const>{types.Data(), types.Size()});
     const StringView path(reinterpret_cast<const utf8char*>(argv[1]));
@@ -28,6 +32,6 @@ int main(int argc, char** argv)
         std::fprintf(stderr, "Tools.DotNetBindings: could not write %s\n", argv[1]);
         return 1;
     }
-    std::printf("Tools.DotNetBindings: %zu types\n", static_cast<size_t>(types.Size()));
+    std::printf("Tools.DotNetBindings: %zu types registered\n", static_cast<size_t>(types.Size()));
     return 0;
 }
