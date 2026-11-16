@@ -252,6 +252,127 @@ TEST_CASE("physics: triggers sense without colliding")
     CHECK(position.y == doctest::Approx(0.5f).epsilon(0.05));
 }
 
+namespace
+{
+    // Steps the world `steps` times and counts the events of `kind` between bodies tagged `a` and `b`.
+    u32 CountContacts(PhysicsWorld& world, u32 steps, ContactKind kind, u64 a, u64 b)
+    {
+        u32 n = 0;
+        for (u32 i = 0; i < steps; ++i)
+        {
+            world.Step(1.0f / 60.0f);
+            Array<ContactEvent> events;
+            world.DrainContacts(events);
+            for (const ContactEvent& e : events)
+            {
+                if (e.kind == kind && ((e.userA == a && e.userB == b) || (e.userA == b && e.userB == a)))
+                {
+                    ++n;
+                }
+            }
+        }
+        return n;
+    }
+}
+
+TEST_CASE("physics: a body falling through a sensor leaves it with a trigger exit")
+{
+    // A sensor's contact ended as a plain End: scripts listening for onTriggerExit never heard it.
+    PhysicsWorld world(DefaultAllocator());
+    BodyDesc floor = FloorDesc();
+    floor.userData = 1;
+    (void)world.CreateBody(floor);
+    BodyDesc sensor;
+    sensor.motion = MotionKind::Kinematic;
+    sensor.isTrigger = true;
+    ShapeDesc volume;
+    volume.halfExtents = Float3{1.0f, 1.0f, 1.0f};
+    sensor.shapes.PushBack(volume);
+    sensor.position = Float3{0.0f, 5.0f, 0.0f}; // well above the floor: the box falls clear of it
+    sensor.userData = 7;
+    REQUIRE(world.CreateBody(sensor).IsValid());
+    BodyDesc drop = BoxAt(8.0f);
+    drop.userData = 42;
+    REQUIRE(world.CreateBody(drop).IsValid());
+
+    u32 entered = 0, exited = 0, ended = 0;
+    for (u32 i = 0; i < 240; ++i)
+    {
+        world.Step(1.0f / 60.0f);
+        Array<ContactEvent> events;
+        world.DrainContacts(events);
+        for (const ContactEvent& e : events)
+        {
+            const bool pair = (e.userA == 7u && e.userB == 42u) || (e.userA == 42u && e.userB == 7u);
+            entered += pair && e.kind == ContactKind::TriggerEnter ? 1u : 0u;
+            exited += pair && e.kind == ContactKind::TriggerExit ? 1u : 0u;
+            ended += pair && e.kind == ContactKind::End ? 1u : 0u;
+        }
+    }
+    CHECK(entered == 1u);
+    CHECK(exited == 1u);
+    CHECK(ended == 0u);
+}
+
+TEST_CASE("physics: a box that settles and sleeps on the floor is still in contact")
+{
+    // Jolt removes a pair's contact when its bodies fall asleep; that read as the box leaving the
+    // floor (an End while it lay still on it).
+    PhysicsWorld world(DefaultAllocator());
+    BodyDesc floor = FloorDesc();
+    floor.userData = 1;
+    (void)world.CreateBody(floor);
+    BodyDesc drop = BoxAt(1.0f);
+    drop.userData = 42;
+    const BodyId box = world.CreateBody(drop);
+    REQUIRE(box.IsValid());
+
+    u32 begun = 0, ended = 0;
+    for (u32 i = 0; i < 600; ++i) // ten seconds: long past the box falling asleep
+    {
+        world.Step(1.0f / 60.0f);
+        Array<ContactEvent> events;
+        world.DrainContacts(events);
+        for (const ContactEvent& e : events)
+        {
+            const bool pair = (e.userA == 1u && e.userB == 42u) || (e.userA == 42u && e.userB == 1u);
+            begun += pair && e.kind == ContactKind::Begin ? 1u : 0u;
+            ended += pair && e.kind == ContactKind::End ? 1u : 0u;
+        }
+    }
+    CHECK(begun == 1u);
+    CHECK(ended == 0u);
+    CHECK_FALSE(world.IsBodyActive(box)); // it did fall asleep: the case under test happened
+
+    // Lifted off the floor, it does leave: the kept contact ends.
+    world.SetBodyTransform(box, Float3{0.0f, 10.0f, 0.0f}, Quaternion::Identity);
+    CHECK(CountContacts(world, 30, ContactKind::End, 1, 42) == 1u);
+}
+
+TEST_CASE("physics: a compound's two children landing together begin one contact")
+{
+    // Contacts arrived per sub-shape: a two-box compound landing flat raised two Begins.
+    PhysicsWorld world(DefaultAllocator());
+    BodyDesc floor = FloorDesc();
+    floor.userData = 1;
+    (void)world.CreateBody(floor);
+    BodyDesc pair;
+    pair.motion = MotionKind::Dynamic;
+    pair.layer = PhysicsLayer::Dynamic;
+    const f32 offsets[] = {-1.0f, 1.0f};
+    for (const f32 x : offsets)
+    {
+        ShapeDesc child;
+        child.halfExtents = Float3{0.5f, 0.5f, 0.5f};
+        child.localPosition = Float3{x, 0.0f, 0.0f};
+        pair.shapes.PushBack(child);
+    }
+    pair.position = Float3{0.0f, 1.0f, 0.0f};
+    pair.userData = 42;
+    REQUIRE(world.CreateBody(pair).IsValid());
+    CHECK(CountContacts(world, 120, ContactKind::Begin, 1, 42) == 1u);
+}
+
 TEST_CASE("physics: compound bodies build and simulate")
 {
     PhysicsWorld world(DefaultAllocator());

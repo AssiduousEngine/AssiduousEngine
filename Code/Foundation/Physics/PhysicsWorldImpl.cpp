@@ -448,13 +448,37 @@ namespace foundation::physics
             return result.IsValid() ? result.Get() : JPH::Ref<JPH::Shape>{};
         }
 
+        // Contacts per body pair, not per sub-shape pair: a compound's children touching one body
+        // are one contact, begun on the first and ended with the last. Jolt removes a contact when
+        // its bodies fall asleep, though they still touch; such a pair is kept, asleep, and ends
+        // only if its bodies wake apart. A sensor's pair ends as a trigger exit.
         struct ContactBuffer final : JPH::ContactListener
         {
+            struct Pair
+            {
+                BodyId bodyA;
+                BodyId bodyB;
+                u64 userA = 0;
+                u64 userB = 0;
+                u32 touching = 0; // sub-shape contacts this step
+                bool sensor = false;
+                bool asleep = false; // removed by sleep, still touching
+            };
+
             Mutex mutex;
             Array<ContactEvent> events;
-            // Set after the PhysicsSystem is constructed: End events (OnContactRemoved) only
-            // carry body IDs, so we resolve their user words through the body interface.
+            HashMap<u64, Pair> pairs;
+            Array<u64> ended;  // pairs whose last sub-shape contact went this step
+            Array<u64> asleep; // pairs kept through their bodies' sleep
+            // Set after the PhysicsSystem is constructed; read only after an Update, when bodies may
+            // be locked (never inside OnContactRemoved, where Jolt forbids touching them).
             JPH::PhysicsSystem* system = nullptr;
+
+            [[nodiscard]] static u64 PairKey(JPH::BodyID a, JPH::BodyID b) noexcept
+            {
+                return (static_cast<u64>(a.GetIndexAndSequenceNumber()) << 32) |
+                       b.GetIndexAndSequenceNumber();
+            }
 
             void OnContactAdded(const JPH::Body& a, const JPH::Body& b,
                                 const JPH::ContactManifold& manifold,
@@ -478,38 +502,107 @@ namespace foundation::physics
                 // of how hard the two bodies met.
                 const JPH::Vec3 relative = a.GetLinearVelocity() - b.GetLinearVelocity();
                 e.speed = std::fabs(relative.Dot(manifold.mWorldSpaceNormal));
+                const u64 key = PairKey(a.GetID(), b.GetID());
                 ScopedLock lock(mutex);
+                Pair* pair = pairs.Find(key);
+                if (pair == nullptr)
+                {
+                    pairs.InsertOrAssign(key, Pair{e.bodyA, e.bodyB, e.userA, e.userB, 0,
+                                                   e.kind == ContactKind::TriggerEnter, false});
+                    pair = pairs.Find(key);
+                }
+                ++pair->touching;
+                if (pair->touching > 1)
+                {
+                    return; // another child of the same pair: already begun
+                }
+                if (pair->asleep)
+                {
+                    pair->asleep = false; // woke still touching: the contact never ended
+                    return;
+                }
                 events.PushBack(e);
             }
-            void OnContactRemoved(const JPH::SubShapeIDPair& pair) override
+            void OnContactRemoved(const JPH::SubShapeIDPair& subShapes) override
             {
-                ContactEvent e;
-                e.kind = ContactKind::End;
-                e.bodyA = BodyId{pair.GetBody1ID().GetIndexAndSequenceNumber()};
-                e.bodyB = BodyId{pair.GetBody2ID().GetIndexAndSequenceNumber()};
-                // Resolve the user words by body ID if the body still exists (the callback can
-                // fire for an already-destroyed body; leave that side 0 so the subsystem skips
-                // it). NoLock interface: contact callbacks run with bodies already locked.
-                if (system != nullptr)
-                {
-                    const JPH::BodyLockInterface& bodies = system->GetBodyLockInterfaceNoLock();
-                    {
-                        JPH::BodyLockRead lock(bodies, pair.GetBody1ID());
-                        if (lock.Succeeded())
-                        {
-                            e.userA = lock.GetBody().GetUserData();
-                        }
-                    }
-                    {
-                        JPH::BodyLockRead lock(bodies, pair.GetBody2ID());
-                        if (lock.Succeeded())
-                        {
-                            e.userB = lock.GetBody().GetUserData();
-                        }
-                    }
-                }
+                const u64 key = PairKey(subShapes.GetBody1ID(), subShapes.GetBody2ID());
                 ScopedLock lock(mutex);
-                events.PushBack(e);
+                Pair* pair = pairs.Find(key);
+                if (pair == nullptr || pair->touching == 0)
+                {
+                    return;
+                }
+                if (--pair->touching == 0)
+                {
+                    ended.PushBack(key); // decided after the step: separated, or asleep
+                }
+            }
+
+            // After an Update: a pair whose bodies woke apart ends now; a pair that lost its last
+            // contact ends unless its bodies only fell asleep.
+            void FinishStep()
+            {
+                ScopedLock lock(mutex);
+                const JPH::BodyLockInterface& bodies = system->GetBodyLockInterface();
+                // 0: the body is gone; 1: awake; 2: asleep or static (never moves on its own).
+                const auto state = [&bodies](BodyId id) -> int
+                {
+                    JPH::BodyLockRead read(bodies, JPH::BodyID(id.value));
+                    if (!read.Succeeded())
+                    {
+                        return 0;
+                    }
+                    const JPH::Body& body = read.GetBody();
+                    return body.IsStatic() || !body.IsActive() ? 2 : 1;
+                };
+                const auto end = [this](const Pair& pair, bool goneA, bool goneB)
+                {
+                    ContactEvent e;
+                    e.kind = pair.sensor ? ContactKind::TriggerExit : ContactKind::End;
+                    e.bodyA = pair.bodyA;
+                    e.bodyB = pair.bodyB;
+                    // A destroyed body's side is 0, as the subsystem expects for a body gone.
+                    e.userA = goneA ? 0 : pair.userA;
+                    e.userB = goneB ? 0 : pair.userB;
+                    events.PushBack(e);
+                };
+                for (usize i = 0; i < asleep.Size();)
+                {
+                    Pair* pair = pairs.Find(asleep[i]);
+                    if (pair == nullptr || !pair->asleep)
+                    {
+                        asleep.RemoveAtSwap(i); // touching again: woke still in contact
+                        continue;
+                    }
+                    const int a = state(pair->bodyA), b = state(pair->bodyB);
+                    if (a == 2 && b == 2)
+                    {
+                        ++i; // still asleep together
+                        continue;
+                    }
+                    end(*pair, a == 0, b == 0); // woke (or went) without touching again
+                    pairs.Remove(asleep[i]);
+                    asleep.RemoveAtSwap(i);
+                }
+                for (const u64 key : ended)
+                {
+                    Pair* pair = pairs.Find(key);
+                    if (pair == nullptr || pair->touching > 0 || pair->asleep)
+                    {
+                        continue; // touching again within the step, or already handled
+                    }
+                    const int a = state(pair->bodyA), b = state(pair->bodyB);
+                    if (a == 2 && b == 2)
+                    {
+                        // Fell asleep in contact (or at rest inside a sensor): still touching.
+                        pair->asleep = true;
+                        asleep.PushBack(key);
+                        continue;
+                    }
+                    end(*pair, a == 0, b == 0);
+                    pairs.Remove(key);
+                }
+                ended.Clear();
             }
         };
     }
@@ -724,7 +817,7 @@ namespace foundation::physics
                              settings.maxContactConstraints, m_impl->broadPhaseLayers,
                              m_impl->objectVsBroadPhase, m_impl->pairFilter);
         m_impl->system->SetGravity(ToJph(settings.gravity));
-        m_impl->contacts.system = m_impl->system.Get(); // End events resolve user words by ID
+        m_impl->contacts.system = m_impl->system.Get(); // FinishStep reads bodies after an Update
         m_impl->system->SetContactListener(&m_impl->contacts);
     }
 
@@ -861,6 +954,7 @@ namespace foundation::physics
     {
         m_impl->system->Update(deltaTime, collisionSteps, m_impl->tempAllocator.Get(),
                                m_impl->jobSystem.Get());
+        m_impl->contacts.FinishStep();
     }
 
     void PhysicsWorld::GetBodyTransform(BodyId id, Float3& outPosition,
@@ -872,6 +966,11 @@ namespace foundation::physics
         m_impl->system->GetBodyInterface().GetPositionAndRotation(jolt, position, rotation);
         outPosition = FromJph(position);
         outRotation = FromJph(rotation);
+    }
+
+    bool PhysicsWorld::IsBodyActive(BodyId id) const
+    {
+        return m_impl->system->GetBodyInterface().IsActive(JPH::BodyID(id.value));
     }
 
     void PhysicsWorld::SetBodyTransform(BodyId id, Float3 position, Quaternion rotation)

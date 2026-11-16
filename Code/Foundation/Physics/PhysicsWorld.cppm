@@ -328,6 +328,9 @@ export namespace foundation::physics
 
         // ---- transforms and motion ----
         void GetBodyTransform(BodyId id, Float3& outPosition, Quaternion& outRotation) const;
+        /// Whether the body is simulating: false once it has come to rest and fallen asleep (and for
+        /// a static body or one that does not exist).
+        [[nodiscard]] bool IsBodyActive(BodyId id) const;
         /// Teleport: snaps the body (velocities untouched). Dynamic bodies mid-sim should
         /// use this, never per-frame scene writes (transform ownership).
         void SetBodyTransform(BodyId id, Float3 position, Quaternion rotation);
