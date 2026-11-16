@@ -394,3 +394,22 @@ TEST_CASE("code find: Ctrl+G goes to a line, or a line and column; the bar keeps
     bed.Frame();
     CHECK(bar.GetScreenBounds().y == doctest::Approx(bed.editor->GetScreenBounds().y + bed.editor->GetContentBounds().y + 2.0f).epsilon(0.01));
 }
+
+TEST_CASE("code find: Replace All replaces every match, past those the bar highlights")
+{
+    // Replace All took the highlighted matches, a list that stops at a limit (100,000 by default),
+    // and left the rest as they were without a word. Here the limit is 10 and there are 20.
+    core::String text;
+    for (int i = 0; i < 20; ++i)
+        text.Append(SV(u8"x\n"));
+    Bed bed("angelscript", reinterpret_cast<const char8_t*>(text.CStr()));
+    bed.editor->SetHighlightedMatchLimit(10);
+    bed.Key(KeyCode::H, KeyModCtrl);
+    CodeFindBar& bar = bed.editor->GetFindBar();
+    bar.GetQueryField().SetText(SV(u8"x"));
+    bar.GetReplacementField().SetText(SV(u8"y"));
+    bed.editor->ReplaceAll();
+    const CodeDocument& doc = bed.editor->GetDocument();
+    CHECK(doc.LineText(0) == SV(u8"y"));
+    CHECK(doc.LineText(19) == SV(u8"y")); // past the limit too
+}

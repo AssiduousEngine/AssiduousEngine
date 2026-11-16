@@ -503,6 +503,9 @@ export namespace foundation::gui
             RequestLayout();
         }
         [[nodiscard]] CodeFindBar& GetFindBar() const noexcept { return *m_findBar; }
+        /// The most matches the find bar highlights and counts (100,000 by default: what is worth
+        /// drawing). Replace All is not bound by it.
+        void SetHighlightedMatchLimit(u32 limit) noexcept { m_highlightedMatchLimit = limit > 0 ? limit : 1; }
         /// Selects the next match of the bar's text after the primary selection (or, with
         /// `backwards`, the previous one before it), wrapping around the document. Returns false
         /// when there is no match.
@@ -994,6 +997,7 @@ export namespace foundation::gui
         void OnKeyDown(const KeyEvent& event) override;
 
     private:
+        u32 m_highlightedMatchLimit = 100000;
         static constexpr f32 kGutterPad = 6.0f;
         static constexpr f32 kMarkerColumn = 16.0f; // at the gutter's start: markers and diagnostic icons
         static constexpr f32 kTextGap = 8.0f;
@@ -1760,9 +1764,10 @@ export namespace foundation::gui
         {
             if (m_readOnly || edits.IsEmpty())
                 return;
-            for (usize i = 1; i < edits.Size(); ++i)
-                for (usize j = i; j > 0 && edits[j - 1].Range.Start < edits[j].Range.Start; --j)
-                    core::Swap(edits[j], edits[j - 1]);
+            // Last first, so each edit leaves the ranges before it where they are. A stable sort: an
+            // insertion sort here was quadratic in the edits, and Replace All's come in ascending
+            // order, its worst case (100,000 matches took minutes).
+            edits.Sort([](const Planned& a, const Planned& b) { return b.Range.Start < a.Range.Start; });
             const core::Array<CodeSelection> before = m_selections;
             core::Array<CodeSelection> after = m_selections;
             m_doc->Begin(before.AsSpan(), kind);
@@ -2033,7 +2038,7 @@ export namespace foundation::gui
                 return;
             CodePosition from{0, 0};
             CodeRange found;
-            while (m_matches.Size() < 100000 &&
+            while (m_matches.Size() < m_highlightedMatchLimit &&
                    m_doc->Find(query, from, m_findBar->MatchCase(), m_findBar->WholeWord(), false, found))
             {
                 m_matches.PushBack(found);
@@ -3143,9 +3148,18 @@ export namespace foundation::gui
         RefreshMatches();
         if (m_readOnly || m_matches.IsEmpty())
             return;
+        // Every match in the document, found here: the highlighted list stops at 100,000 (what is
+        // worth drawing), and Replace All taken from it left the rest unreplaced without a word.
+        const core::String query(m_matchesQuery.AsView());
+        const core::String replacement(m_findBar->GetReplacement());
         core::Array<Planned> edits(MemoryAllocator());
-        for (const CodeRange& r : m_matches)
-            edits.PushBack(Planned{r, core::String(m_findBar->GetReplacement())});
+        CodePosition from{0, 0};
+        CodeRange found;
+        while (m_doc->Find(query.AsView(), from, m_findBar->MatchCase(), m_findBar->WholeWord(), false, found))
+        {
+            edits.PushBack(Planned{found, replacement});
+            from = found.End; // no wrap, and a match is never empty: this ends at the last one
+        }
         ApplyPlanned(edits);
         UpdateCount();
     }
