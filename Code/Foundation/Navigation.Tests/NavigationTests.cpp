@@ -407,6 +407,41 @@ TEST_CASE("tiled bake: a grid of more than 256 tiles loads, and a path crosses i
     CHECK(path.complete);
 }
 
+TEST_CASE("tiled bake: a tile with more polys than its grid's refs address is refused, loaded or replaced")
+{
+    // On 32-bit refs a 17x17 grid (9 tile bits) leaves 13 poly bits, 8192 polys a tile. A tile
+    // past that would have its refs name another tile's polys; it is refused instead.
+    Array<Float3> verts;
+    Array<u32> indices;
+    AddGround(verts, indices, -40.8f, 40.8f, -40.8f, 40.8f);
+    NavigationBakeParams params;
+    params.tileCells = 16;
+    const Span<const Float3> v{verts.Data(), verts.Size()};
+    const Span<const u32> i{indices.Data(), indices.Size()};
+    Array<byte> blob;
+    REQUIRE(NavigationMeshBuilder::BuildTiled(v, i, params, blob).IsOk());
+    NavigationTileGridDesc grid;
+    REQUIRE(ReadTiledBlobGrid(Span<const byte>{blob.Data(), blob.Size()}, grid));
+    REQUIRE(grid.countX * grid.countY == 289);
+
+    Array<byte> tile;
+    REQUIRE(NavigationMeshBuilder::BuildTileInGrid(v, i, params, grid, 0, 0, tile).IsOk());
+    // dtMeshHeader: magic, version, x, y, layer, userId, then polyCount (seven 4-byte fields in).
+    constexpr usize kPolyCountOffset = 6 * sizeof(i32);
+    REQUIRE(tile.Size() > kPolyCountOffset + sizeof(i32));
+    const i32 tooMany = 8193;
+    MemCopy(tile.Data() + kPolyCountOffset, &tooMany, sizeof(tooMany));
+
+    NavigationMesh mesh(DefaultAllocator());
+    REQUIRE(mesh.Load(Span<const byte>{blob.Data(), blob.Size()}).IsOk());
+    CHECK_FALSE(mesh.ReplaceTile(0, 0, Span<const byte>{tile.Data(), tile.Size()}).IsOk());
+    CHECK(mesh.IsValid()); // the mesh keeps the tile it had
+
+    REQUIRE(PatchTiledNavMeshBlob(blob, 0, 0, Span<const byte>{tile.Data(), tile.Size()}));
+    NavigationMesh patched(DefaultAllocator());
+    CHECK_FALSE(patched.Load(Span<const byte>{blob.Data(), blob.Size()}).IsOk());
+}
+
 TEST_CASE("tiled bake: BuildTileAt regenerates a tile byte-identical to the full bake's")
 {
     Array<Float3> verts;
