@@ -816,103 +816,84 @@ export namespace foundation::vg
             if (antiAlias && halfWidth - fringeWidth * 0.5f < 0.0f)
                 strokeColor.a *= 2.0f * halfWidth / outerHalf;
 
-            if (antiAlias)
+            // Each side of a vertex is offset along its mitred normal, except the outer side of a
+            // round or bevel join: there each segment ends square, along its own normal, and the
+            // join fills the wedge between them. With one mitred vertex for both, the outer side ran
+            // out to the miter point and the join was drawn under that spike, so a round or bevel
+            // corner showed as a mitre.
+            Array<bool> outerLeft; // at a join: the left (+normal) side is the outside of the turn
+            outerLeft.Resize(static_cast<usize>(n));
+            for (i32 i = 0; i < n; ++i)
             {
-                // Ring 0: outer fringe (left side, coverage=0).
-                const u32 outerLeftBase = static_cast<u32>(vertices.Size());
-                for (i32 i = 0; i < n; ++i)
-                {
-                    const Float2 p = points[static_cast<usize>(i)];
-                    const Float2 offset = vertNormals[static_cast<usize>(i)] * outerHalf;
-                    vertices.PushBack(VGVertex::Solid(p + offset, strokeColor, 0.0f));
-                }
-
-                // Ring 1: stroke left edge (coverage=1).
-                const u32 strokeLeftBase = static_cast<u32>(vertices.Size());
-                for (i32 i = 0; i < n; ++i)
-                {
-                    const Float2 p = points[static_cast<usize>(i)];
-                    const Float2 offset = vertNormals[static_cast<usize>(i)] * innerHalf;
-                    vertices.PushBack(VGVertex::Solid(p + offset, strokeColor, 1.0f));
-                }
-
-                // Ring 2: stroke right edge (coverage=1).
-                const u32 strokeRightBase = static_cast<u32>(vertices.Size());
-                for (i32 i = 0; i < n; ++i)
-                {
-                    const Float2 p = points[static_cast<usize>(i)];
-                    const Float2 offset = vertNormals[static_cast<usize>(i)] * innerHalf;
-                    vertices.PushBack(VGVertex::Solid(p - offset, strokeColor, 1.0f));
-                }
-
-                // Ring 3: outer fringe (right side, coverage=0).
-                const u32 outerRightBase = static_cast<u32>(vertices.Size());
-                for (i32 i = 0; i < n; ++i)
-                {
-                    const Float2 p = points[static_cast<usize>(i)];
-                    const Float2 offset = vertNormals[static_cast<usize>(i)] * outerHalf;
-                    vertices.PushBack(VGVertex::Solid(p - offset, strokeColor, 0.0f));
-                }
-
-                const i32 segCount = closed ? n : n - 1;
-                for (i32 i = 0; i < segCount; ++i)
-                {
-                    const u32 ui = static_cast<u32>(i);
-                    const u32 uj = static_cast<u32>((i + 1) % n);
-
-                    indices.PushBack(outerLeftBase + ui);
-                    indices.PushBack(outerLeftBase + uj);
-                    indices.PushBack(strokeLeftBase + uj);
-                    indices.PushBack(outerLeftBase + ui);
-                    indices.PushBack(strokeLeftBase + uj);
-                    indices.PushBack(strokeLeftBase + ui);
-
-                    indices.PushBack(strokeLeftBase + ui);
-                    indices.PushBack(strokeLeftBase + uj);
-                    indices.PushBack(strokeRightBase + uj);
-                    indices.PushBack(strokeLeftBase + ui);
-                    indices.PushBack(strokeRightBase + uj);
-                    indices.PushBack(strokeRightBase + ui);
-
-                    indices.PushBack(strokeRightBase + ui);
-                    indices.PushBack(strokeRightBase + uj);
-                    indices.PushBack(outerRightBase + uj);
-                    indices.PushBack(strokeRightBase + ui);
-                    indices.PushBack(outerRightBase + uj);
-                    indices.PushBack(outerRightBase + ui);
-                }
+                if (!needsJoin[static_cast<usize>(i)])
+                    continue;
+                const i32 prevEdge = closed ? (i + edgeCount - 1) % edgeCount : i - 1;
+                const i32 nextEdge = closed ? i % edgeCount : i;
+                const Float2 a = edgeNormals[static_cast<usize>(prevEdge)];
+                const Float2 b = edgeNormals[static_cast<usize>(nextEdge)];
+                // Turning left (the normals' cross product positive), the outside is the right.
+                outerLeft[static_cast<usize>(i)] = a.x * b.y - a.y * b.x < 0.0f;
             }
-            else
+            // The normal segment `edge` uses at vertex `v` on its left (`left`) or right side.
+            const auto sideNormal = [&](i32 v, i32 edge, bool left) -> Float2
             {
-                // Without AA: a simple left-to-right quad strip.
-                const u32 strokeBase = static_cast<u32>(vertices.Size());
-                for (i32 i = 0; i < n; ++i)
+                const usize uv = static_cast<usize>(v);
+                if (needsJoin[uv] && outerLeft[uv] == left)
+                    return edgeNormals[static_cast<usize>(edge)];
+                return vertNormals[uv];
+            };
+
+            const i32 segCount = closed ? n : n - 1;
+            for (i32 i = 0; i < segCount; ++i)
+            {
+                const i32 j = (i + 1) % n;
+                const Float2 pi = points[static_cast<usize>(i)];
+                const Float2 pj = points[static_cast<usize>(j)];
+                const Float2 li = sideNormal(i, i, true), ri = sideNormal(i, i, false);
+                const Float2 lj = sideNormal(j, i, true), rj = sideNormal(j, i, false);
+                const u32 base = static_cast<u32>(vertices.Size());
+                if (antiAlias)
                 {
-                    const Float2 p = points[static_cast<usize>(i)];
-                    const Float2 offset = vertNormals[static_cast<usize>(i)] * halfWidth;
-                    vertices.PushBack(VGVertex::Solid(p + offset, color));
-                    vertices.PushBack(VGVertex::Solid(p - offset, color));
+                    // Four lines along the segment, at each end: the left fringe (coverage 0), the
+                    // left edge, the right edge (coverage 1) and the right fringe.
+                    const auto end = [&](Float2 p, Float2 l, Float2 r)
+                    {
+                        vertices.PushBack(VGVertex::Solid(p + l * outerHalf, strokeColor, 0.0f));
+                        vertices.PushBack(VGVertex::Solid(p + l * innerHalf, strokeColor, 1.0f));
+                        vertices.PushBack(VGVertex::Solid(p - r * innerHalf, strokeColor, 1.0f));
+                        vertices.PushBack(VGVertex::Solid(p - r * outerHalf, strokeColor, 0.0f));
+                    };
+                    end(pi, li, ri);
+                    end(pj, lj, rj);
+                    for (u32 band = 0; band < 3; ++band)
+                    {
+                        const u32 a0 = base + band, a1 = base + band + 1;     // start: this line, the next
+                        const u32 b0 = base + 4 + band, b1 = base + 5 + band; // end: the same
+                        indices.PushBack(a0);
+                        indices.PushBack(b0);
+                        indices.PushBack(b1);
+                        indices.PushBack(a0);
+                        indices.PushBack(b1);
+                        indices.PushBack(a1);
+                    }
                 }
-
-                const i32 segCount = closed ? n : n - 1;
-                for (i32 i = 0; i < segCount; ++i)
+                else
                 {
-                    const i32 j = (i + 1) % n;
-                    const u32 i0 = strokeBase + static_cast<u32>(i * 2);
-                    const u32 i1 = strokeBase + static_cast<u32>(i * 2 + 1);
-                    const u32 i2 = strokeBase + static_cast<u32>(j * 2);
-                    const u32 i3 = strokeBase + static_cast<u32>(j * 2 + 1);
-
-                    indices.PushBack(i0);
-                    indices.PushBack(i2);
-                    indices.PushBack(i1);
-                    indices.PushBack(i1);
-                    indices.PushBack(i2);
-                    indices.PushBack(i3);
+                    vertices.PushBack(VGVertex::Solid(pi + li * halfWidth, color));
+                    vertices.PushBack(VGVertex::Solid(pi - ri * halfWidth, color));
+                    vertices.PushBack(VGVertex::Solid(pj + lj * halfWidth, color));
+                    vertices.PushBack(VGVertex::Solid(pj - rj * halfWidth, color));
+                    indices.PushBack(base);
+                    indices.PushBack(base + 2);
+                    indices.PushBack(base + 1);
+                    indices.PushBack(base + 1);
+                    indices.PushBack(base + 2);
+                    indices.PushBack(base + 3);
                 }
             }
 
-            // Add joins at vertices that need them.
+            // The joins: the wedge between the two square segment ends, solid to the edge and,
+            // antialiased, with a fringe outside it as the segments have.
             for (i32 i = 0; i < n; ++i)
             {
                 if (!needsJoin[static_cast<usize>(i)])
@@ -920,10 +901,9 @@ export namespace foundation::vg
 
                 const i32 prevEdge = closed ? (i + edgeCount - 1) % edgeCount : i - 1;
                 const i32 nextEdge = closed ? i % edgeCount : i;
-                // At the solid radius: the body's mitred edge (and its fringe) covers the corner.
                 AddJoin(points[static_cast<usize>(i)], edgeNormals[static_cast<usize>(prevEdge)],
-                        edgeNormals[static_cast<usize>(nextEdge)], innerHalf, style.join,
-                        strokeColor, vertices, indices);
+                        edgeNormals[static_cast<usize>(nextEdge)], antiAlias ? innerHalf : halfWidth,
+                        antiAlias ? outerHalf : 0.0f, style.join, strokeColor, vertices, indices);
             }
 
             // Add caps for open paths.
@@ -1005,70 +985,72 @@ export namespace foundation::vg
             unitNormal = prevNormal;
         }
 
-        static void AddJoin(Float2 point, Float2 prevNormal, Float2 nextNormal, f32 halfWidth,
+        // The wedge of a round or bevel join, outside the turn: solid to `solidHalf`, then, when
+        // `fringeHalf` is past it, a fringe fading out to `fringeHalf`.
+        static void AddJoin(Float2 point, Float2 prevNormal, Float2 nextNormal, f32 solidHalf, f32 fringeHalf,
                             VGLineJoin joinType, Color color, Array<VGVertex>& vertices,
                             Array<u32>& indices)
         {
             const f32 cross = prevNormal.x * nextNormal.y - prevNormal.y * nextNormal.x;
             if (Abs(cross) < 0.001f)
                 return;
+            const f32 side = cross > 0.0f ? -1.0f : 1.0f; // the outside of the turn: right when turning left
 
-            if (joinType == VGLineJoin::Bevel)
+            // The rim: unit directions from the point, from the incoming segment's normal to the
+            // outgoing one's (two for a bevel, an arc's worth for a round join).
+            Array<Float2> rim;
+            const Float2 from = prevNormal * side;
+            const Float2 to = nextNormal * side;
+            if (joinType == VGLineJoin::Round)
             {
-                const u32 baseIdx = static_cast<u32>(vertices.Size());
-                vertices.PushBack(VGVertex::Solid(point, color));
-
-                if (cross > 0.0f)
-                {
-                    vertices.PushBack(VGVertex::Solid(point + prevNormal * halfWidth, color));
-                    vertices.PushBack(VGVertex::Solid(point + nextNormal * halfWidth, color));
-                }
-                else
-                {
-                    vertices.PushBack(VGVertex::Solid(point - prevNormal * halfWidth, color));
-                    vertices.PushBack(VGVertex::Solid(point - nextNormal * halfWidth, color));
-                }
-
-                indices.PushBack(baseIdx);
-                indices.PushBack(baseIdx + 1);
-                indices.PushBack(baseIdx + 2);
-            }
-            else if (joinType == VGLineJoin::Round)
-            {
-                const f32 startAngle = Atan2(prevNormal.y, prevNormal.x);
-                f32 endAngle = Atan2(nextNormal.y, nextNormal.x);
-
-                if (cross > 0.0f)
-                {
-                    if (endAngle < startAngle)
-                        endAngle += kTwoPi;
-                }
-                else
-                {
-                    if (endAngle > startAngle)
-                        endAngle -= kTwoPi;
-                }
-
-                const i32 segments = ArcSegments(Abs(endAngle - startAngle) * halfWidth * 0.5f, 3);
+                // The short way from one to the other, the turn's own angle.
+                const f32 startAngle = Atan2(from.y, from.x);
+                const f32 endAngle =
+                    startAngle + Atan2(from.x * to.y - from.y * to.x, from.x * to.x + from.y * to.y);
+                const i32 segments = ArcSegments(Abs(endAngle - startAngle) * solidHalf * 0.5f, 3);
                 const f32 angleStep = (endAngle - startAngle) / static_cast<f32>(segments);
-
-                const u32 baseIdx = static_cast<u32>(vertices.Size());
-                vertices.PushBack(VGVertex::Solid(point, color));
-
-                for (i32 i = 0; i <= segments; ++i)
+                for (i32 k = 0; k <= segments; ++k)
                 {
-                    const f32 angle = startAngle + angleStep * static_cast<f32>(i);
-                    const f32 x = point.x + Cos(angle) * halfWidth;
-                    const f32 y = point.y + Sin(angle) * halfWidth;
-                    vertices.PushBack(VGVertex::Solid(x, y, color));
+                    const f32 angle = startAngle + angleStep * static_cast<f32>(k);
+                    rim.PushBack(Float2{Cos(angle), Sin(angle)});
                 }
+            }
+            else
+            {
+                rim.PushBack(from);
+                rim.PushBack(to);
+            }
 
-                for (i32 i = 0; i < segments; ++i)
-                {
-                    indices.PushBack(baseIdx);
-                    indices.PushBack(baseIdx + static_cast<u32>(i + 1));
-                    indices.PushBack(baseIdx + static_cast<u32>(i + 2));
-                }
+            const u32 centre = static_cast<u32>(vertices.Size());
+            vertices.PushBack(VGVertex::Solid(point, color, 1.0f));
+            const u32 solid = static_cast<u32>(vertices.Size());
+            for (const Float2& d : rim)
+                vertices.PushBack(VGVertex::Solid(point + d * solidHalf, color, 1.0f));
+            for (u32 k = 0; k + 1 < static_cast<u32>(rim.Size()); ++k)
+            {
+                indices.PushBack(centre);
+                indices.PushBack(solid + k);
+                indices.PushBack(solid + k + 1);
+            }
+            if (fringeHalf <= solidHalf)
+                return;
+            // A bevel's fringe runs along its chord: its rim points pushed out across the chord.
+            const Float2 chordOut = joinType == VGLineJoin::Round ? Float2{0.0f, 0.0f}
+                                                                  : Normalized(from + to) * (fringeHalf - solidHalf);
+            const u32 fringe = static_cast<u32>(vertices.Size());
+            for (const Float2& d : rim)
+            {
+                const Float2 out = joinType == VGLineJoin::Round ? point + d * fringeHalf : point + d * solidHalf + chordOut;
+                vertices.PushBack(VGVertex::Solid(out, color, 0.0f));
+            }
+            for (u32 k = 0; k + 1 < static_cast<u32>(rim.Size()); ++k)
+            {
+                indices.PushBack(solid + k);
+                indices.PushBack(fringe + k);
+                indices.PushBack(fringe + k + 1);
+                indices.PushBack(solid + k);
+                indices.PushBack(fringe + k + 1);
+                indices.PushBack(solid + k + 1);
             }
         }
 

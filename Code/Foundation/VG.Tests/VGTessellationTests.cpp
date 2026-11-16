@@ -107,7 +107,7 @@ TEST_CASE("vg.stroke: open polyline (no AA) produces a quad strip")
     StrokeTessellator::Tessellate(Span<const Float2>(line, 3), /*closed*/ false, style,
                                   Span<const f32>{},
                                   /*antiAlias*/ false, Color::Blue, verts, idx);
-    CHECK(verts.Size() == 6u); // 2 per point
+    CHECK(verts.Size() == 8u); // 4 per segment: each ends on its own (a round or bevel join's outside is square)
     CHECK(idx.Size() == 12u);  // 2 segments * 2 tris * 3
 }
 

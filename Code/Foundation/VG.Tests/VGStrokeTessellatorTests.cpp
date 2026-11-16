@@ -129,3 +129,58 @@ TEST_CASE("stroketess: a zero-length edge has no direction and produces no NaN")
         CHECK(index < vertices.Size());
     }
 }
+
+TEST_CASE("stroketess: a round or bevel join stays inside the stroke's radius; a miter reaches its point")
+{
+    // Both sides of a corner were offset along one mitred normal, so the outside of a round or bevel
+    // join ran out to the miter point, and the join drawn under it never showed.
+    const Float2 corner{10.0f, 0.0f};
+    const Float2 points[3] = {{0.0f, 0.0f}, corner, {10.0f, 10.0f}}; // a right angle
+    const f32 width = 4.0f;
+    const auto farthest = [&](VGLineJoin join, bool antiAlias)
+    {
+        StrokeStyle style(width, VGLineCap::Butt, join);
+        Array<VGVertex> vertices;
+        Array<u32> indices;
+        StrokeTessellator::Tessellate(Span<const Float2>(points, 3), false, style, Span<const f32>{}, antiAlias,
+                                      Color::White, vertices, indices);
+        f32 reach = 0.0f;
+        for (const VGVertex& v : vertices)
+        {
+            const Float2 d = Float2{v.position.x, v.position.y} - corner;
+            if (v.position.x > corner.x - 0.5f && v.position.y < 0.5f) // the corner's outside quadrant
+                reach = Max(reach, Sqrt(d.x * d.x + d.y * d.y));
+        }
+        return reach;
+    };
+    const f32 miterPoint = width * 0.5f * Sqrt(2.0f);
+    CHECK(farthest(VGLineJoin::Miter, false) == doctest::Approx(miterPoint).epsilon(0.01));
+    CHECK(farthest(VGLineJoin::Round, false) <= width * 0.5f + 0.01f);
+    CHECK(farthest(VGLineJoin::Bevel, false) <= width * 0.5f + 0.01f);
+    CHECK(farthest(VGLineJoin::Round, true) <= width * 0.5f + 1.01f); // antialiased: its fringe past it
+}
+
+TEST_CASE("stroketess: a right turn's round join is on its outside too, and covers it")
+{
+    const Float2 corner{10.0f, 0.0f};
+    const Float2 points[3] = {{0.0f, 0.0f}, corner, {10.0f, -10.0f}}; // turning right
+    StrokeStyle style(4.0f, VGLineCap::Butt, VGLineJoin::Round);
+    Array<VGVertex> vertices;
+    Array<u32> indices;
+    StrokeTessellator::Tessellate(Span<const Float2>(points, 3), false, style, Span<const f32>{}, false,
+                                  Color::White, vertices, indices);
+    f32 reach = 0.0f;
+    bool diagonal = false; // the arc has a vertex out between the segments' square ends
+    for (const VGVertex& v : vertices)
+    {
+        const Float2 d = Float2{v.position.x, v.position.y} - corner;
+        if (d.x > -0.5f && d.y > -0.5f)
+        {
+            const f32 r = Sqrt(d.x * d.x + d.y * d.y);
+            reach = Max(reach, r);
+            diagonal = diagonal || (r > 1.9f && d.x > 0.3f && d.y > 0.3f); // on the rim, between the two ends
+        }
+    }
+    CHECK(reach <= 2.01f);
+    CHECK(diagonal);
+}
