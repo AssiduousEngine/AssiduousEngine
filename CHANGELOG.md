@@ -74,6 +74,19 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   another keeps its contact instead of ending it as it falls asleep; a compound body touching
   with two of its parts begins one contact.
 - Navigation: a navmesh of more than 256 tiles loads; it failed silently before.
+- Navigation: an agent sent somewhere it cannot reach stops and reports it: `finished()` is true
+  and the new `failed()` says why (it stood still forever before).
+- Animation: a clip's events reach the entity's scripts as `onAnimationEvent(string name)`. A glTF
+  clip with cubic-spline keys plays its curve as authored (its keys were read from the wrong place
+  and its tangents dropped; reimport such a model to pick this up). An animation graph trigger set
+  while the graph crossfades is no longer lost.
+- Particles: a one-shot effect finishes (and `play()` starts it over); an emitter thinned by
+  distance still spawns, at its thinned rate; a newly placed emitter's first particles no longer
+  fly off at the distance it was moved.
+- Audio: a looping sound that lost its voice to louder ones plays again once a voice is free; with
+  every voice taken, a new 2D sound takes the oldest instead of the one just started.
+- Physics: a world past its body or contact limits says so in the log. Vegetation regrown after a
+  layer change is drawn (the old scatter could stay on screen).
 - Physics: moving a simulated body's entity (from a script or the editor) moves the body; editing
   a body's shape, size or surface while the game runs rebuilds it; a box, sphere, capsule or plane
   collider, and a terrain, take their entity's scale (they collided at their unscaled size). A

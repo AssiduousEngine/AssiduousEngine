@@ -174,24 +174,24 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   user's choice: a rim collision mesh traced at the bilinear mask's half, beside the heightfield.
 - **Physics budgets fail silently, and each world makes its own thread pool.**
   `PhysicsWorld.cppm:258-260`, `PhysicsSubsystem.cppm:929, 996`, `PhysicsWorldImpl.cpp:715-717, 862`.
-  Test: 4097 bodies log why. Fix: say so once; one pool for every world.
+  Test: 4097 bodies log why. Fix: say so once; one pool for every world. Built 2026-11-15.
 - **A failed navigation target is swallowed.** `NavigationSubsystem.cppm:186`. Test: a target off
-  the mesh finishes as failed. Fix: report it on the agent.
+  the mesh finishes as failed. Fix: report it on the agent. Built 2026-11-15.
 - **Clip events reach nothing.** `AnimationPlayer.cppm:132` has no caller. Test: a clip's event
-  reaches a script handler. Fix: route player events to the entity's scripts.
+  reaches a script handler. Fix: route player events to the entity's scripts. Built 2026-11-15.
 - **glTF cubic-spline keys read the wrong element, and their tangents are dropped.**
   `GltfLoader.cppm:1081-1110`, `AnimConvert.cppm:270-274`, `ModelAnimation.cppm:111-113`. Test:
   key 0 equals output[1]; the curve passes through the tangent's slope. Fix: read 3k+1, keep and
-  evaluate tangents.
+  evaluate tangents. Built 2026-11-15.
 - **Graph triggers are consumed every update; nothing transitions mid-blend.**
-  `AnimationGraph.cppm:1067-1070, 1190`. Test: a trigger set during a crossfade fires.
+  `AnimationGraph.cppm:1067-1070, 1190`. Test: a trigger set during a crossfade fires. Built 2026-11-15.
 - **Particles.** `ParticleEffect.cppm:66-69, 180, 408-410, 856-870, 937`. Tests: a one-shot stops
   playing; rate 30 at half detail spawns; the first step has no inherited velocity; no UB at x=-1.
-  Also `ParticleRenderer.cppm:643, 762` never records the shader version.
+  Also `ParticleRenderer.cppm:643, 762` never records the shader version. Built 2026-11-15.
 - **Audio: a stolen looping autoplay never restarts; 2D stealing always takes slot 0.**
-  `AudioSubsystem.cppm:338-343`, `AudioEngineImpl.cpp:1276-1325`.
+  `AudioSubsystem.cppm:338-343`, `AudioEngineImpl.cpp:1276-1325`. Built 2026-11-15.
 - **Vegetation's version restarts after a cache reset.** `VegetationComponentsImpl.cpp:318-319`
-  against `MeshRendererImpl.cpp:865`. Test: a rescatter rewrites the instance buffer.
+  against `MeshRendererImpl.cpp:865`. Test: a rescatter rewrites the instance buffer. Built 2026-11-15.
 
 ### T3: input and runs
 
