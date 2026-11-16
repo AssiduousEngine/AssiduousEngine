@@ -51,7 +51,9 @@ export namespace foundation::rhi::vk
             ci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
             ci.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
-            if (d.arrayLayerCount >= 6 && d.dimension == TextureDimension::Texture2D)
+            // Cube-compatible only where a cube can be: square, six layers or more. A non-square
+            // array of six layers (a texture atlas, a shadow array) failed to create with it.
+            if (d.arrayLayerCount >= 6 && d.dimension == TextureDimension::Texture2D && d.width == d.height)
                 ci.flags |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
 
             // A view may also take the format's sRGB or UNORM twin: the image is mutable and lists

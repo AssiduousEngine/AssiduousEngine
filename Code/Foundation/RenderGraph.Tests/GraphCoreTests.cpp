@@ -134,3 +134,18 @@ TEST_CASE("rg.graph: a pass without SetViewport has no viewport override (full a
     REQUIRE(graph.Passes().Size() == 1u);
     CHECK_FALSE(graph.Passes()[0]->hasViewport);
 }
+
+TEST_CASE("rg.graph: a slot reused after Reset gives its new resource a new generation")
+{
+    // Every resource was generation 1, so a handle kept from an earlier frame matched whatever
+    // later took its slot: the stale handle resolved to the wrong texture.
+    RenderGraph graph(DefaultAllocator(), nullptr);
+    graph.BeginFrame(0);
+    const RGHandle first = graph.CreateTransient(u8"First", RGTextureDesc(rhi::TextureFormat::RGBA8Unorm));
+    graph.Reset();
+    graph.BeginFrame(1);
+    const RGHandle second = graph.CreateTransient(u8"Second", RGTextureDesc(rhi::TextureFormat::RGBA8Unorm));
+    REQUIRE(second.index == first.index); // the slot was reused
+    CHECK(second != first);               // and the old handle does not name the new resource
+    CHECK(graph.GetResource(u8"Second") == second);
+}

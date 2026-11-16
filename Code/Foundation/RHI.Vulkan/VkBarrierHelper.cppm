@@ -185,6 +185,10 @@ export namespace foundation::rhi::vk
             return VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         if (has(ResourceState::DepthStencilRead))
             return VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+        // Before a read: a storage image read and written (ShaderRead | ShaderWrite, the render
+        // graph's ReadWriteStorage) needs GENERAL, and took SHADER_READ_ONLY when read came first.
+        if (has(ResourceState::ShaderWrite))
+            return VK_IMAGE_LAYOUT_GENERAL;
         if (has(ResourceState::ShaderRead))
         {
             // Depth/stencil textures use DEPTH_STENCIL_READ_ONLY when sampled, not
@@ -193,8 +197,6 @@ export namespace foundation::rhi::vk
                 return VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
             return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         }
-        if (has(ResourceState::ShaderWrite))
-            return VK_IMAGE_LAYOUT_GENERAL;
         if (has(ResourceState::CopySrc))
             return VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
         if (has(ResourceState::CopyDst))

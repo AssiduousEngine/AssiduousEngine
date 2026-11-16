@@ -282,3 +282,13 @@ TEST_CASE("vk.descriptors: plain and update-after-bind sets come from pools of t
     device->Destroy();
     backend->Destroy();
 }
+
+TEST_CASE("vk.barrier: a storage image read and written takes the GENERAL layout")
+{
+    // ShaderRead | ShaderWrite (the render graph's ReadWriteStorage) was tested for its read first
+    // and took SHADER_READ_ONLY_OPTIMAL, a layout a storage write may not use.
+    CHECK(vk::getImageLayout(ResourceState::ShaderRead | ResourceState::ShaderWrite, TextureFormat::RGBA16Float) ==
+          VK_IMAGE_LAYOUT_GENERAL);
+    CHECK(vk::getImageLayout(ResourceState::ShaderRead, TextureFormat::RGBA16Float) ==
+          VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+}

@@ -568,7 +568,8 @@ export namespace foundation::render
                     SkyPass* sky = nullptr, BloomPass* bloom = nullptr, TaaPass* taa = nullptr,
                     AoPass* ao = nullptr, FxaaPass* fxaa = nullptr,
                     ExposurePass* exposure = nullptr, DebugBlitPass* debugBlit = nullptr) noexcept
-            : m_registry(&registry), m_pass(device, framesInFlight), m_graph(allocator, &device),
+            : m_registry(&registry), m_pass(device, framesInFlight),
+              m_graph(allocator, &device, GraphConfigFor(framesInFlight)),
               m_clusters(clusters), m_tonemap(tonemap), m_shadows(shadows), m_ibl(ibl), m_sky(sky),
               m_bloom(bloom), m_taa(taa), m_ao(ao), m_fxaa(fxaa), m_exposurePass(exposure),
               m_debugBlit(debugBlit), m_views(allocator)
@@ -786,6 +787,14 @@ export namespace foundation::render
     private:
         RendererRegistry* m_registry;
         ForwardPass m_pass;
+        // The graph's deletion ring is as deep as the frames in flight: built with its default (two),
+        // a third frame in flight still used a transient the ring had freed.
+        static rendergraph::RenderGraphConfig GraphConfigFor(u32 framesInFlight) noexcept
+        {
+            rendergraph::RenderGraphConfig config;
+            config.frameBufferCount = static_cast<i32>(framesInFlight < 1 ? 1 : framesInFlight);
+            return config;
+        }
         rendergraph::RenderGraph m_graph;    // one graph per frame, composes all views
         ClusterSystem* m_clusters = nullptr; // borrowed; declares the per-view cluster build pass
         TonemapPass* m_tonemap =

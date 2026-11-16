@@ -592,17 +592,25 @@ export namespace foundation::rendergraph
             return m_resources[handle.index];
         }
 
+        // A slot's generation moves each time it takes a resource, so a handle to what held it
+        // before (a pass's handle kept from an earlier frame) no longer resolves to its successor.
+        // Every resource was generation 1, so such a handle reached whatever took the slot.
         RGHandle AddResource(RenderGraphResource* res)
         {
+            u32 idx = 0;
             if (!m_freeResourceSlots.IsEmpty())
             {
-                const i32 idx = m_freeResourceSlots.Back();
+                idx = static_cast<u32>(m_freeResourceSlots.Back());
                 m_freeResourceSlots.PopBack();
-                m_resources[static_cast<usize>(idx)] = res;
-                return RGHandle{static_cast<u32>(idx), res->generation};
+                m_resources[idx] = res;
             }
-            const u32 idx = static_cast<u32>(m_resources.Size());
-            m_resources.PushBack(res);
+            else
+            {
+                idx = static_cast<u32>(m_resources.Size());
+                m_resources.PushBack(res);
+                m_slotGenerations.PushBack(0);
+            }
+            res->generation = ++m_slotGenerations[idx];
             return RGHandle{idx, res->generation};
         }
 
@@ -1395,6 +1403,7 @@ export namespace foundation::rendergraph
         RenderGraphConfig m_config;
         Array<RenderGraphResource*> m_resources;
         Array<i32> m_freeResourceSlots;
+        Array<u32> m_slotGenerations; // by slot: how many resources it has held (kept as slots are reused)
         Array<RenderGraphPass*> m_passes;
         Array<i32> m_executionOrder;
         Array<i32> m_finalAfter; // per resource: the execution position it takes its final state after

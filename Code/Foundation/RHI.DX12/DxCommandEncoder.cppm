@@ -967,7 +967,9 @@ export namespace foundation::rhi::dx12
             if (HasFlag(state, ResourceState::UniformBuffer))
                 result = static_cast<D3D12_RESOURCE_STATES>(
                     result | D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER);
-            if (HasFlag(state, ResourceState::ShaderRead))
+            // Read and written (the render graph's ReadWriteStorage) is UNORDERED_ACCESS alone: a
+            // UAV reads too, and D3D12 refuses a write state mixed with read states.
+            if (HasFlag(state, ResourceState::ShaderRead) && !HasFlag(state, ResourceState::ShaderWrite))
             {
                 // Depth textures use DEPTH_READ when sampled, not PIXEL_SHADER_RESOURCE.
                 if (IsDepthFormat(format))
