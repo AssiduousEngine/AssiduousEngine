@@ -30,6 +30,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Text settings and assets saved as XML keep a value made only of spaces (a separator, padding),
+  which read back empty before.
 - Exported games start faster: reading an asset from the game's pak no longer copies it whole into
   memory twice, startup reads only each asset's header, and finding an asset no longer walks the
   whole table.

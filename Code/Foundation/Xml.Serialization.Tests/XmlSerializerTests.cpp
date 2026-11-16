@@ -527,3 +527,40 @@ TEST_CASE("xml serializer: a file that is not well-formed fails the read and say
     REQUIRE(ok);
     CHECK(ok->serializer->IsOk());
 }
+
+TEST_CASE("xml.serialize: a string of spaces round-trips; indentation is still dropped")
+{
+    // Whitespace-only text was always dropped as layout, so a string of spaces (a separator, a
+    // padding) read back empty.
+    String out;
+    {
+        XmlSerializer w(foundation::core::DefaultAllocator());
+        String spaces = u8"   ";
+        String tab = u8"\t";
+        Serialize(w, "spaces", spaces);
+        Serialize(w, "tab", tab);
+        w.GetOutput(out);
+    }
+    XmlDocument doc(foundation::core::DefaultAllocator());
+    REQUIRE(doc.Parse(out) == XmlResult::Ok);
+    XmlSerializer r(doc);
+    String spaces;
+    String tab;
+    Serialize(r, "spaces", spaces);
+    Serialize(r, "tab", tab);
+    CHECK(r.IsOk());
+    CHECK(spaces == StringView(u8"   "));
+    CHECK(tab == StringView(u8"\t"));
+
+    // Whitespace between elements is layout: no text node is made of it.
+    XmlDocument layout(foundation::core::DefaultAllocator());
+    REQUIRE(layout.Parse(u8"<root>\n  <a> </a>\n  <b/>\n</root>") == XmlResult::Ok);
+    XmlNode* root = layout.FirstChild();
+    REQUIRE(root != nullptr);
+    usize children = 0;
+    for (XmlNode* c = root->FirstChild(); c != nullptr; c = c->NextSibling())
+    {
+        ++children;
+    }
+    CHECK(children == 2u);
+}

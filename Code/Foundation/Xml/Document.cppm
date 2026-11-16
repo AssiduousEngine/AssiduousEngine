@@ -626,7 +626,10 @@ export namespace foundation::xml
                     break;
                 }
             }
-            if (isWhitespace && !m_parseSettings.PreserveWhitespace)
+            // Whitespace between elements is layout (indentation) and goes. Whitespace that is an
+            // element's whole content (`<name> </name>`, a string of spaces) is its value, and stays.
+            const bool wholeContent = parent->FirstChild() == nullptr && text.StartsWith(StringView(u8"</"));
+            if (isWhitespace && !m_parseSettings.PreserveWhitespace && !wholeContent)
             {
                 return XmlResult::Ok;
             }

@@ -277,7 +277,8 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   into the pak so the player opens none is left for later.
 - **glTF: only the first skin is imported; reimport identity is name and type.**
   `FileImport.cppm:1384, 1055-1057`, `Cook.cppm:361`.
-- **XML drops whitespace-only strings.** `Document.cppm:629`.
+- **XML drops whitespace-only strings.** `Document.cppm:629`. Built 2026-11-16: whitespace that is
+  an element's whole content is kept (its value); whitespace between elements is still dropped.
 
 ### T6: text, VG and fonts
 
