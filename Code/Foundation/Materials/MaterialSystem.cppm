@@ -8,7 +8,7 @@
 /// 0, each effect group gets its own uniform buffer from binding 1, and each texture or sampler
 /// gets its own entry. A new material or custom shader therefore needs no renderer changes.
 /// Layouts are cached by content hash; instance uniform buffers and bind groups are (re)built
-/// lazily, and instances notify the system when dirty so PrepareDirtyInstances is O(dirty).
+/// lazily, when a draw prepares a dirty instance (PrepareInstance).
 
 module;
 #include "Core/Prelude.h"
@@ -209,17 +209,6 @@ export namespace foundation::materials
             return (bg != nullptr) ? *bg : nullptr;
         }
 
-        // --- IMaterialInstanceSink: dirty notification and cleanup ---
-        void MarkInstanceDirty(MaterialInstance* instance) override
-        {
-            if (instance == nullptr || instance->IsInDirtyList())
-            {
-                return;
-            }
-            instance->SetInDirtyList(true);
-            m_dirty.PushBack(instance);
-        }
-
         /// Per-frame: frees retired bind groups once the frame ring has cycled past them.
         /// The renderer calls this once per frame alongside its own retirement ticks.
         void TickRetired()
@@ -239,25 +228,6 @@ export namespace foundation::materials
                 }
             }
             m_retiredBindGroups.Resize(w);
-        }
-
-        // Re-prepares every instance dirtied since the last drain (O(dirty)).
-        void PrepareDirtyInstances()
-        {
-            for (usize i = 0; i < m_dirty.Size(); ++i)
-            {
-                MaterialInstance* inst = m_dirty[i];
-                if (inst == nullptr)
-                {
-                    continue;
-                }
-                inst->SetInDirtyList(false);
-                if (inst->IsUniformDirty() || inst->IsBindGroupDirty())
-                {
-                    (void)PrepareInstance(*inst);
-                }
-            }
-            m_dirty.Clear();
         }
 
         // Hands the instance's uniform buffer to the caller (removed from the system) without
@@ -324,11 +294,6 @@ export namespace foundation::materials
             if (instance == nullptr)
             {
                 return;
-            }
-            if (instance->IsInDirtyList())
-            {
-                RemoveFromDirty(instance);
-                instance->SetInDirtyList(false);
             }
             if (rhi::BindGroup** bg = m_bindGroups.Find(instance))
             {
@@ -720,18 +685,6 @@ export namespace foundation::materials
             return false;
         }
 
-        void RemoveFromDirty(MaterialInstance* instance)
-        {
-            for (usize i = 0; i < m_dirty.Size(); ++i)
-            {
-                if (m_dirty[i] == instance)
-                {
-                    m_dirty[i] = nullptr;
-                    return;
-                }
-            }
-        }
-
         void Shutdown()
         {
             if (m_device == nullptr)
@@ -848,7 +801,6 @@ export namespace foundation::materials
         };
         HashMap<MaterialInstance*, EffectBuffers> m_effectBuffers;
         HashMap<MaterialInstance*, rhi::BindGroup*> m_bindGroups;
-        Array<MaterialInstance*> m_dirty;
     };
 
 } // namespace foundation::materials

@@ -34,7 +34,6 @@ export namespace foundation::materials
     {
     public:
         virtual ~IMaterialInstanceSink() = default;
-        virtual void MarkInstanceDirty(MaterialInstance* instance) = 0;
         virtual void ReleaseInstance(MaterialInstance* instance) = 0;
     };
 
@@ -262,8 +261,6 @@ export namespace foundation::materials
 
         // --- wiring used only by MaterialSystem ---
         void SetSink(IMaterialInstanceSink* sink) noexcept { m_sink = sink; }
-        [[nodiscard]] bool IsInDirtyList() const noexcept { return m_inDirtyList; }
-        void SetInDirtyList(bool v) noexcept { m_inDirtyList = v; }
         [[nodiscard]] rhi::BindGroupLayout* BindGroupLayout() const noexcept
         {
             return m_bindGroupLayout;
@@ -308,10 +305,6 @@ export namespace foundation::materials
                 return;
             }
             m_uniformDirty = true;
-            if (!m_inDirtyList && m_sink != nullptr)
-            {
-                m_sink->MarkInstanceDirty(this);
-            }
         }
         void SetBindGroupDirty()
         {
@@ -320,10 +313,6 @@ export namespace foundation::materials
                 return;
             }
             m_bindGroupDirty = true;
-            if (!m_inDirtyList && m_sink != nullptr)
-            {
-                m_sink->MarkInstanceDirty(this);
-            }
         }
 
         RefPtr<Material> m_material; // owned (keeps a reloaded-away material alive while cached)
@@ -336,7 +325,6 @@ export namespace foundation::materials
         rhi::BindGroupLayout* m_bindGroupLayout = nullptr; // set by MaterialSystem for PSO creation
         bool m_uniformDirty = true;
         bool m_bindGroupDirty = true;
-        bool m_inDirtyList = false;
     };
 
 } // namespace foundation::materials

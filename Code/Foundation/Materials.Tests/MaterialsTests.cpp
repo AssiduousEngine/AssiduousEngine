@@ -241,13 +241,13 @@ TEST_CASE("material instance: overrides notify the system + re-prep is driven by
     MaterialInstance inst(mat.Get());
     REQUIRE(system.PrepareInstance(inst) != nullptr); // clears dirty + registers sink
 
-    // overriding a uniform marks it dirty and enqueues exactly one dirty entry
+    // overriding a uniform marks it dirty; the next prepare (a draw's) writes it
     inst.SetFloat(u8"roughness", 0.9f);
     CHECK(inst.IsUniformDirty());
-    inst.SetFloat(u8"roughness", 0.8f); // second set: still one enqueue
+    inst.SetFloat(u8"roughness", 0.8f);
 
-    system.PrepareDirtyInstances();
-    CHECK_FALSE(inst.IsUniformDirty()); // drained + re-prepped
+    REQUIRE(system.PrepareInstance(inst) != nullptr);
+    CHECK_FALSE(inst.IsUniformDirty());
 
     // the override is the effective value (0.8), not the material default (0.5)
     const Span<const u8> data = inst.UniformData();
@@ -256,7 +256,7 @@ TEST_CASE("material instance: overrides notify the system + re-prep is driven by
 
     // resetting restores the default
     inst.ResetProperty(u8"roughness");
-    system.PrepareDirtyInstances();
+    REQUIRE(system.PrepareInstance(inst) != nullptr);
     CHECK(*reinterpret_cast<const f32*>(inst.UniformData().Data()) == doctest::Approx(0.5f));
 }
 
@@ -502,7 +502,7 @@ TEST_CASE("material system: an effect group takes binding 1 of the material's se
 
     // A later override rewrites it.
     inst.SetFloat(u8"Wind.Height", 0.5f);
-    system.PrepareDirtyInstances();
+    (void)system.PrepareInstance(inst);
     CHECK(FloatAt(Span<const u8>{static_cast<const u8*>(windBuffer->Map()), 16}, 8) == doctest::Approx(0.5f));
 
     // Handed over for retirement with the uniform buffer, then gone from the system.
