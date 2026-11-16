@@ -30,6 +30,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Rendering: the clustered light lists take a fraction of the GPU memory they did (about 13 MB a view
+  at 1080p at most, from 50 MB, and far less for a scene of a few lights).
 - Core: a long environment variable (a PATH, a compiler's INCLUDE) is read whole, not cut at 1023
   bytes; malformed UTF-8 (overlong forms, surrogates) reads as the replacement character.
 - Files of 2 GiB and more read and write whole, on Linux and Windows.

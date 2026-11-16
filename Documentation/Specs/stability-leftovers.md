@@ -149,7 +149,10 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   Fix: track includes per registered source. Built 2026-11-15: a registered source that
   includes anything rebuilds on any include change (its text is kept).
 - **Cluster index buffers take about 50 MB per view and frame slot at 1080p.**
-  `ClusterSystemImpl.cpp:255`. Fix: a compact list with offsets.
+  `ClusterSystemImpl.cpp:255`. Fix: a compact list with offsets. Built 2026-11-16: each group of 64
+  clusters has a region of a shared list and its clusters take runs of it by a group prefix sum (no
+  atomics: WebGPU's shaders take none on a plain buffer), sized per cluster by the view's light count,
+  to 16 plus its directional lights past that. 1080p: about 13 MB at most, 3 MB at four lights.
 
 ### T2: physics, navigation and animation
 

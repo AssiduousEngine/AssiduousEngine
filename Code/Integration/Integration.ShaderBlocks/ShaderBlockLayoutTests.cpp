@@ -377,7 +377,7 @@ namespace
         FIELD(render::GpuClusterBuildParams, lightCount, "LightCount"),
         FIELD(render::GpuClusterBuildParams, lightOffset, "LightOffset"),
         FIELD(render::GpuClusterBuildParams, orthographic, "Orthographic"),
-        FIELD(render::GpuClusterBuildParams, pad0, "_pad"),
+        FIELD(render::GpuClusterBuildParams, slotsPerCluster, "SlotsPerCluster"),
         FIELD(render::GpuClusterBuildParams, viewMatrix, "ViewMatrix"),
         FIELD(render::GpuClusterBuildParams, invProjection, "InvProjection"),
     };

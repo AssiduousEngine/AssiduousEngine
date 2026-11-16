@@ -43,7 +43,7 @@ export namespace foundation::render
         f32 nearZ = 0.0f, farZ = 0.0f, logScale = 0.0f, logBias = 0.0f;
         u32 lightCount = 0, lightOffset = 0;
         u32 orthographic = 0; // the kernel unprojects tile corners without the depth scale
-        f32 pad0 = 0.0f;
+        u32 slotsPerCluster = 0; // a cluster's average share of the light-index list (its group's region)
         Float4x4 viewMatrix;
         Float4x4 invProjection;
     };
@@ -120,6 +120,12 @@ export namespace foundation::render
         static constexpr u32 kSliceCount = 24;
         static constexpr u32 kMaxPerCluster =
             64; // per-cluster light cap (matches MAX_PER_CLUSTER in the kernel)
+        // The shared index list holds this many lights a cluster on average, plus the view's
+        // directional lights (each reaches every cluster). A view of no more lights than that sizes
+        // it by its light count, which no cluster can pass; past it, a cluster's average is far below
+        // its cap (64), which each cluster had in full: 50 MB a view at 1080p.
+        static constexpr u32 kAveragePerCluster = 16;
+        static constexpr u32 kGroupClusters = 64; // the kernel's group: one region of the list each
         static constexpr u32 kMaxLights = kMaxLightsPerView; // per-view light budget
         static constexpr u64 kParamsSlot =
             256; // dynamic UBO offset alignment (>= sizeof(GpuClusterBuildParams))
@@ -129,7 +135,7 @@ export namespace foundation::render
         struct Slot
         {
             rhi::Buffer* offsets = nullptr; // cluster (offset, count)
-            rhi::Buffer* indices = nullptr; // flat light-index list
+            rhi::Buffer* indices = nullptr; // the shared light-index list
             u64 offsetsBytes = 0;           // size of the slot's buffers (views can differ)
             u64 indicesBytes = 0;
             u32 bufferVersion = 0; // incremented on realloc; consumers invalidate cached bind groups
@@ -137,11 +143,12 @@ export namespace foundation::render
             u32 bgParamsGen = 0;
             u32 bgLightGen = 0;
             rhi::Buffer* bgOffsets = nullptr;
+            rhi::Buffer* bgIndices = nullptr;
         };
 
         // (Re)create one slot's cluster buffers when its cluster count grows. Lazy: only the slots
         // actually used by rendered views are allocated.
-        bool EnsureBuffers(Slot& slot, u32 totalClusters);
+        bool EnsureBuffers(Slot& slot, u32 totalClusters, u32 indexCapacity);
 
         // (Re)build the bind group for a (view, frame) slot. There is one bind group per slot, each over
         // its own buffers, so a slot's group is stable across frames and is never freed while the previous

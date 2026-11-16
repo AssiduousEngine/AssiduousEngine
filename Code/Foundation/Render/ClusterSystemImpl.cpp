@@ -137,7 +137,20 @@ namespace foundation::render
 
         // Own buffers per (view, frame-in-flight): two views in one frame must not share a slot.
         Slot& slot = m_slots.At(viewIndex, frameIndex);
-        if (!EnsureBuffers(slot, totalClusters))
+        // The shared list: per cluster as many as the view's lights, to the average (plus the
+        // directional lights, which reach every cluster) past that; a region of it per group.
+        const Span<const GpuLight> sceneLights =
+            (view.Scene() != nullptr) ? view.Scene()->Lights() : Span<const GpuLight>{};
+        const u32 viewLights = Min(static_cast<u32>(sceneLights.Size()), kMaxLights);
+        u32 directional = 0;
+        for (usize i = 0; i < static_cast<usize>(viewLights); ++i)
+        {
+            directional += sceneLights[i].type < 0.5f ? 1u : 0u;
+        }
+        const u32 perCluster = Max(1u, Min(Min(viewLights, kAveragePerCluster + directional), kMaxPerCluster));
+        const u32 groupCount = (totalClusters + kGroupClusters - 1) / kGroupClusters;
+        const u32 indexCapacity = groupCount * kGroupClusters * perCluster;
+        if (!EnsureBuffers(slot, totalClusters, indexCapacity))
         {
             return binding;
         }
@@ -194,6 +207,7 @@ namespace foundation::render
         bp->viewMatrix = view.Camera().view;
         bp->invProjection = Inverse(view.Camera().projection);
         bp->orthographic = projection::IsOrthographic(view.Camera().projection) ? 1u : 0u;
+        bp->slotsPerCluster = perCluster;
 
         rhi::Buffer* offsets = slot.offsets;
         rhi::Buffer* indices = slot.indices;
@@ -243,13 +257,12 @@ namespace foundation::render
         return binding;
     }
 
-    bool ClusterSystem::EnsureBuffers(Slot& slot, u32 totalClusters)
+    bool ClusterSystem::EnsureBuffers(Slot& slot, u32 totalClusters, u32 indexCapacity)
     {
         const u64 offsetsBytes =
             static_cast<u64>(totalClusters) * sizeof(u32) * 2; // uint2 per cluster
-        const u64 indicesBytes =
-            static_cast<u64>(totalClusters) * kMaxPerCluster * sizeof(u32); // flat index list
-        if (slot.offsets != nullptr && offsetsBytes <= slot.offsetsBytes)
+        const u64 indicesBytes = static_cast<u64>(indexCapacity) * sizeof(u32); // the shared list
+        if (slot.offsets != nullptr && offsetsBytes <= slot.offsetsBytes && indicesBytes <= slot.indicesBytes)
         {
             return true;
         }
@@ -307,6 +320,7 @@ namespace foundation::render
             slot.indices = nullptr;
             return false;
         }
+
         slot.offsetsBytes = offsetsBytes;
         slot.indicesBytes = indicesBytes;
         ++slot.bufferVersion; // signal consumers to rebuild cached bind groups (the address may be reused)
@@ -324,6 +338,7 @@ namespace foundation::render
             slot.bindGroup = nullptr;
         }
         slot.bgOffsets = nullptr;
+        slot.bgIndices = nullptr;
         return true;
     }
 
@@ -335,7 +350,7 @@ namespace foundation::render
         const bool stable = slot.bindGroup != nullptr &&
                             slot.bgParamsGen == m_paramsRing.Generation() &&
                             slot.bgLightGen == m_lightRing.Generation() &&
-                            slot.bgOffsets == offsets;
+                            slot.bgOffsets == offsets && slot.bgIndices == indices;
         if (stable)
         {
             return true;
@@ -367,6 +382,7 @@ namespace foundation::render
         slot.bgParamsGen = m_paramsRing.Generation();
         slot.bgLightGen = m_lightRing.Generation();
         slot.bgOffsets = offsets;
+        slot.bgIndices = indices;
         return true;
     }
 
