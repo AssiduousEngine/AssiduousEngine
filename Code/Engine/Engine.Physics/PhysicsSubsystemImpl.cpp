@@ -659,6 +659,8 @@ namespace engine::physics
             &ScenePhysics::rayCast)>("rayCast", {"from", "direction", "maxDistance"});
         builder.Method<static_cast<RayCastHit (ScenePhysics::*)(Float3, Float3, f32, u32) const>(
             &ScenePhysics::rayCast)>("rayCast", {"from", "direction", "maxDistance", "groupMask"});
+        builder.Method<static_cast<RayCastHit (ScenePhysics::*)(Float3, Float3, f32, u32, Entity) const>(
+            &ScenePhysics::rayCast)>("rayCast", {"from", "direction", "maxDistance", "groupMask", "ignore"});
         builder.Method<static_cast<RayCastHit (ScenePhysics::*)(f32, f32, f32, f32, f32, f32, f32) const>(
             &ScenePhysics::rayCast)>(
             "rayCast", {"fromX", "fromY", "fromZ", "dirX", "dirY", "dirZ", "maxDistance"});
@@ -667,6 +669,9 @@ namespace engine::physics
         builder.Method<static_cast<RayCastHit (ScenePhysics::*)(Float3, Float3, f32, f32, u32) const>(
             &ScenePhysics::sphereCast)>("sphereCast",
                                         {"from", "direction", "maxDistance", "radius", "groupMask"});
+        builder.Method<static_cast<RayCastHit (ScenePhysics::*)(Float3, Float3, f32, f32, u32, Entity) const>(
+            &ScenePhysics::sphereCast)>(
+            "sphereCast", {"from", "direction", "maxDistance", "radius", "groupMask", "ignore"});
         builder.Method<static_cast<RayCastHit (ScenePhysics::*)(f32, f32, f32, f32, f32, f32, f32, f32)
                                        const>(&ScenePhysics::sphereCast)>(
             "sphereCast",

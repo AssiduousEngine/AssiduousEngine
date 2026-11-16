@@ -61,7 +61,10 @@ abstraction seam (deliberate - see the design history).
   board or a sled integrate momentum along the ground. `launch` lifts a character into the air
   (where a `jump` waits for the ground); `setPosition`, `grounded` and `positionX/Y/Z` round it out.
   Authored: `radius`, `halfHeight`, `maxSlopeDegrees`, `mass`, `maxStrength`, `stepUp`, `stepDown`.
-  A character walking into or out of a trigger raises `TriggerEnter` / `TriggerExit`.
+  A character walking into or out of a trigger raises `TriggerEnter` / `TriggerExit`. It has an
+  inner body of its capsule (an internal layer that meets moving bodies, not statics, triggers or
+  other characters), so rays, sweeps and overlaps find it and dynamic bodies collide with it;
+  characters meet each other through Jolt's character-vs-character check.
 - **`JointComponent`** - ONE component with a `JointKind` enum (Fixed / Point / Hinge / Slider /
   Distance) referencing a second entity; `motorEnabled` + `motorTargetVelocity` + `motorLimit`
   motors are actually applied. Deviation: one joint component with a kind, not five component types;
@@ -91,7 +94,11 @@ owns pos/rot; kinematic = scene owns; static = immutable while simulating.
 ## Queries + events
 
 Ray casts, sweeps, and overlaps carry REAL surface normals, body handle, entity, and
-distance/fraction. Contact/trigger events are appended to a lock-free buffer on Jolt worker threads
+distance/fraction. A ray or sweep that starts inside a body passes out of it without a hit (a
+character's probe from inside its own capsule); point and overlap queries report what contains or
+overlaps them. Contacts are per body pair (a compound's children touching one body are one
+contact), and a pair whose bodies fall asleep touching stays in contact until they wake apart; a
+sensor's pair ends as `TriggerExit`. Contact/trigger events are appended to a lock-free buffer on Jolt worker threads
 (entity ids packed in body user data - O(1) reverse mapping, no re-entry into Jolt) with an overflow
 counter surfaced as a warning, then dispatched on the main thread after the step (to each
 registered `IContactListener`, the script subsystem among them). Contact data (relative velocity,
@@ -123,7 +130,8 @@ Component gizmos draw the shape wires.
 
 `scene.physics` - a reflected, backend-neutral scene-bound value handle, a property of the scene:
 queries (`rayCast`, `sphereCast`, `nearestOverlap`, `overlapSphere`, by `Float3` or separate
-numbers, each with an optional group mask; a hit is a `RayCastHit` with `hit`, `distance`,
+numbers, each with an optional group mask; `rayCast` and `sphereCast` also take an entity whose
+bodies to pass over after the mask; a hit is a `RayCastHit` with `hit`, `distance`,
 `position`, `normal`, `surface`, `entity()`, `material()`, `impulse(x, y, z)`), gravity
 (`setGravity`, `gravity`, `gravityY`), `bodyCount`, the character verbs by entity
 (`moveCharacter`, `jumpCharacter`, `launchCharacter`, `setCharacterPosition`,

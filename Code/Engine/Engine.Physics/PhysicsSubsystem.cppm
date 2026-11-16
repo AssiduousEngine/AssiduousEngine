@@ -1262,11 +1262,33 @@ export namespace engine::physics
         }
         [[nodiscard]] f32 gravityY() const { return gravity().y; }
 
+        // The user word of `entity`'s bodies, to pass them over in a query; none for an invalid
+        // entity or one of another scene.
+        [[nodiscard]] Optional<u64> IgnoredWord(const foundation::script::Entity& entity) const
+        {
+            if (scene == nullptr || entity.scene.Get() != scene)
+            {
+                return {};
+            }
+            return PackEntity(entity.Handle());
+        }
+
         // Ray against this scene's world, returning a RayCastHit
         // (hit/distance/position/normal/surface, entity() and impulse()); RayCastHit.hit is false
-        // on a miss. `groupMask`: bit g considers collision group g.
+        // on a miss. `groupMask`: bit g considers collision group g. A ray that starts inside a
+        // body (a character's own capsule) passes out of it; `ignore`'s bodies are passed over.
+        [[nodiscard]] RayCastHit rayCast(Float3 from, Float3 direction, f32 maxDistance,
+                                         u32 groupMask, foundation::script::Entity ignore) const
+        {
+            return RayCastIgnoring(from, direction, maxDistance, groupMask, IgnoredWord(ignore));
+        }
         [[nodiscard]] RayCastHit rayCast(Float3 from, Float3 direction, f32 maxDistance,
                                          u32 groupMask) const
+        {
+            return RayCastIgnoring(from, direction, maxDistance, groupMask, {});
+        }
+        [[nodiscard]] RayCastHit RayCastIgnoring(Float3 from, Float3 direction, f32 maxDistance,
+                                                 u32 groupMask, Optional<u64> ignore) const
         {
             RayCastHit result;
             result.scene = scene;
@@ -1276,7 +1298,7 @@ export namespace engine::physics
                 return result;
             }
             RayHit hit;
-            if (world->RayCast(from, direction, maxDistance, hit, groupMask))
+            if (world->RayCast(from, direction, maxDistance, hit, groupMask, false, ignore))
             {
                 result.hit = true;
                 result.body = hit.body;
@@ -1304,7 +1326,19 @@ export namespace engine::physics
         // catches what a ray would slip past through a gap a fat projectile cannot pass.
         // `direction` must be unit length, as for rayCast, or `distance` scales by its length.
         [[nodiscard]] RayCastHit sphereCast(Float3 from, Float3 direction, f32 maxDistance,
+                                            f32 radius, u32 groupMask,
+                                            foundation::script::Entity ignore) const
+        {
+            return SphereCastIgnoring(from, direction, maxDistance, radius, groupMask, IgnoredWord(ignore));
+        }
+        [[nodiscard]] RayCastHit sphereCast(Float3 from, Float3 direction, f32 maxDistance,
                                             f32 radius, u32 groupMask) const
+        {
+            return SphereCastIgnoring(from, direction, maxDistance, radius, groupMask, {});
+        }
+        [[nodiscard]] RayCastHit SphereCastIgnoring(Float3 from, Float3 direction, f32 maxDistance,
+                                                    f32 radius, u32 groupMask,
+                                                    Optional<u64> ignore) const
         {
             RayCastHit result;
             result.scene = scene;
@@ -1318,7 +1352,7 @@ export namespace engine::physics
             shape.radius = radius;
             RayHit hit;
             if (world->ShapeCast(shape, from, Quaternion::Identity, direction, maxDistance, hit,
-                                 groupMask))
+                                 groupMask, ignore))
             {
                 result.hit = true;
                 result.body = hit.body;

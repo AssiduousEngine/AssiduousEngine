@@ -65,6 +65,10 @@ namespace foundation::physics
     {
         constexpr JPH::ObjectLayer kStatic = 0;
         constexpr JPH::ObjectLayer kTrigger = 3;
+        // A character's inner body (not a PhysicsLayer a body is authored on): queries and moving
+        // bodies meet it; statics, triggers and other characters do not (the character itself
+        // stands on statics, senses triggers and meets other characters directly).
+        constexpr JPH::ObjectLayer kCharacter = 5;
 
         constexpr JPH::BroadPhaseLayer kBpStatic{0};
         constexpr JPH::BroadPhaseLayer kBpMoving{1};
@@ -98,6 +102,11 @@ namespace foundation::physics
             if ((a == kTrigger && b == kStatic) || (a == kStatic && b == kTrigger))
             {
                 return false;
+            }
+            if (a == kCharacter || b == kCharacter)
+            {
+                const JPH::ObjectLayer other = a == kCharacter ? b : a;
+                return other != kStatic && other != kTrigger && other != kCharacter;
             }
             return true;
         }
@@ -173,15 +182,6 @@ namespace foundation::physics
         };
 
         // Passes solid bodies only: a trigger (a Jolt sensor) is not a surface.
-        class SolidBodyFilter final : public JPH::BodyFilter
-        {
-        public:
-            [[nodiscard]] bool ShouldCollideLocked(const JPH::Body& body) const override
-            {
-                return !body.IsSensor();
-            }
-        };
-
         [[nodiscard]] bool Holds(const Array<JPH::BodyID>& ids, JPH::BodyID id)
         {
             for (const JPH::BodyID& each : ids)
@@ -195,6 +195,43 @@ namespace foundation::physics
         }
 
         // Passes triggers only: what a character stands inside.
+        // A ray or sweep's bodies: triggers unless skipped, never the ignored user word's body or a
+        // body the query starts inside.
+        class QueryBodyFilter final : public JPH::BodyFilter
+        {
+        public:
+            bool skipTriggers = false;
+            Optional<u64> ignoreUserData;
+            const Array<JPH::BodyID>* startsInside = nullptr;
+
+            [[nodiscard]] bool ShouldCollide(const JPH::BodyID& id) const override
+            {
+                return startsInside == nullptr || !Holds(*startsInside, id);
+            }
+            [[nodiscard]] bool ShouldCollideLocked(const JPH::Body& body) const override
+            {
+                if (skipTriggers && body.IsSensor())
+                {
+                    return false;
+                }
+                return !ignoreUserData.HasValue() || body.GetUserData() != ignoreUserData.Value();
+            }
+        };
+
+        // A character's sweep: what a dynamic body meets, except characters' inner bodies.
+        class CharacterSweepFilter final : public JPH::ObjectLayerFilter
+        {
+        public:
+            explicit CharacterSweepFilter(const JPH::ObjectLayerFilter& base) : m_base(base) {}
+            [[nodiscard]] bool ShouldCollide(JPH::ObjectLayer layer) const override
+            {
+                return layers::Semantic(layer) != layers::kCharacter && m_base.ShouldCollide(layer);
+            }
+
+        private:
+            const JPH::ObjectLayerFilter& m_base;
+        };
+
         class SensorBodyFilter final : public JPH::BodyFilter
         {
         public:
@@ -797,6 +834,8 @@ namespace foundation::physics
         // is a swept capsule, not a body in the solver, so the contact listener never sees it
         // enter one; UpdateCharacter compares these and raises TriggerEnter/TriggerExit itself.
         Array<Array<JPH::BodyID>> characterSensors;
+        // Characters block each other: each is checked against the rest as it moves.
+        JPH::CharacterVsCharacterCollisionSimple characterCollision;
     };
 
     PhysicsWorld::PhysicsWorld(core::IAllocator& allocator, const PhysicsWorldSettings& settings)
@@ -1043,19 +1082,24 @@ namespace foundation::physics
     }
 
     bool PhysicsWorld::RayCast(Float3 from, Float3 direction, f32 maxDistance, RayHit& out,
-                               u32 groupMask, bool skipTriggers) const
+                               u32 groupMask, bool skipTriggers, Optional<u64> ignoreUserData) const
     {
         const JPH::RRayCast ray{ToJph(from), ToJph(direction) * maxDistance};
-        JPH::RayCastResult hit;
+        // Convex shapes hollow and back faces ignored: a ray from inside a body leaves it unseen,
+        // and hits from outside are as before.
+        JPH::RayCastSettings settings;
+        settings.mTreatConvexAsSolid = false;
+        JPH::ClosestHitCollisionCollector<JPH::CastRayCollector> collector;
         const GroupMaskFilter filter(groupMask);
-        const SolidBodyFilter solid;
-        const JPH::BodyFilter anyBody;
-        if (!m_impl->system->GetNarrowPhaseQuery().CastRay(ray, hit, {}, filter,
-                                                            skipTriggers ? static_cast<const JPH::BodyFilter&>(solid)
-                                                                         : anyBody))
+        QueryBodyFilter bodies;
+        bodies.skipTriggers = skipTriggers;
+        bodies.ignoreUserData = ignoreUserData;
+        m_impl->system->GetNarrowPhaseQuery().CastRay(ray, settings, collector, {}, filter, bodies);
+        if (!collector.HadHit())
         {
             return false;
         }
+        const JPH::RayCastResult& hit = collector.mHit;
         out.body = BodyId{hit.mBodyID.GetIndexAndSequenceNumber()};
         out.fraction = hit.mFraction;
         out.position = Float3{from.x + direction.x * maxDistance * hit.mFraction,
@@ -1130,7 +1174,8 @@ namespace foundation::physics
     }
 
     bool PhysicsWorld::ShapeCast(const QueryShape& shape, Float3 from, Quaternion rotation,
-                                 Float3 direction, f32 maxDistance, RayHit& out, u32 groupMask) const
+                                 Float3 direction, f32 maxDistance, RayHit& out, u32 groupMask,
+                                 Optional<u64> ignoreUserData) const
     {
         bool hitAny = false;
         (void)WithQueryShape(
@@ -1144,8 +1189,25 @@ namespace foundation::physics
                 const JPH::ShapeCastSettings settings;
                 JPH::ClosestHitCollisionCollector<JPH::CastShapeCollector> collector;
                 const GroupMaskFilter filter(groupMask);
+                // The bodies the shape overlaps where it starts are passed over, as a ray leaves
+                // the body it starts in.
+                JPH::AllHitCollisionCollector<JPH::CollideShapeCollector> overlapping;
+                m_impl->system->GetNarrowPhaseQuery().CollideShape(
+                    &js, JPH::Vec3::sReplicate(1.0f), start, JPH::CollideShapeSettings{},
+                    JPH::RVec3::sZero(), overlapping, {}, filter);
+                Array<JPH::BodyID> startsInside;
+                for (const JPH::CollideShapeResult& r : overlapping.mHits)
+                {
+                    if (!Holds(startsInside, r.mBodyID2))
+                    {
+                        startsInside.PushBack(r.mBodyID2);
+                    }
+                }
+                QueryBodyFilter bodies;
+                bodies.ignoreUserData = ignoreUserData;
+                bodies.startsInside = &startsInside;
                 m_impl->system->GetNarrowPhaseQuery().CastShape(cast, settings, JPH::RVec3::sZero(),
-                                                                collector, {}, filter);
+                                                                collector, {}, filter, bodies);
                 if (!collector.HadHit())
                 {
                     return;
@@ -1188,9 +1250,16 @@ namespace foundation::physics
         settings.mMaxSlopeAngle = JPH::DegreesToRadians(desc.maxSlopeDegrees);
         settings.mMass = desc.mass;
         settings.mMaxStrength = desc.maxStrength;
+        // An inner body of the same capsule makes the character part of the world: raycasts,
+        // overlaps and sweeps find it (with its user word), and dynamic bodies collide with it.
+        // The character itself never collides with its own inner body.
+        settings.mInnerBodyShape = settings.mShape;
+        settings.mInnerBodyLayer = static_cast<JPH::ObjectLayer>(layers::kCharacter << 8);
         JPH::Ref<JPH::CharacterVirtual> character =
             new JPH::CharacterVirtual(&settings, ToJph(desc.position), JPH::Quat::sIdentity(),
                                       desc.userData, m_impl->system.Get());
+        character->SetCharacterVsCharacterCollision(&m_impl->characterCollision);
+        m_impl->characterCollision.Add(character.GetPtr());
         // Keep the step settings per character (one value for the world would also work,
         // but they are authored per character).
         character->SetUserData(desc.userData);
@@ -1217,7 +1286,11 @@ namespace foundation::physics
         {
             return;
         }
-        m_impl->characters[id.value] = nullptr;
+        if (m_impl->characters[id.value] != nullptr)
+        {
+            m_impl->characterCollision.Remove(m_impl->characters[id.value].GetPtr());
+        }
+        m_impl->characters[id.value] = nullptr; // the CharacterVirtual removes its inner body
         m_impl->characterSensors[id.value].Clear();
     }
 
@@ -1263,11 +1336,15 @@ namespace foundation::physics
         JPH::CharacterVirtual::ExtendedUpdateSettings update;
         update.mWalkStairsStepUp = JPH::Vec3(0.0f, steps.x, 0.0f);
         update.mStickToFloorStepDown = JPH::Vec3(0.0f, -steps.y, 0.0f);
+        // What a dynamic body meets, less the characters' inner bodies: other characters are met
+        // through the character-vs-character check, which sees where they are now.
+        const JPH::DefaultObjectLayerFilter asDynamic =
+            m_impl->system->GetDefaultLayerFilter(layers::From(PhysicsLayer::Dynamic, 0));
+        const CharacterSweepFilter sweep(asDynamic);
         character.ExtendedUpdate(
             deltaTime, m_impl->system->GetGravity(), update,
             m_impl->system->GetDefaultBroadPhaseLayerFilter(layers::From(PhysicsLayer::Dynamic, 0)),
-            m_impl->system->GetDefaultLayerFilter(layers::From(PhysicsLayer::Dynamic, 0)), {}, {},
-            *m_impl->tempAllocator);
+            sweep, {}, {}, *m_impl->tempAllocator);
         SenseTriggers(id);
     }
 

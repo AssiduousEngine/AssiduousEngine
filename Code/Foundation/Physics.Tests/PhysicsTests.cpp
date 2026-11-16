@@ -1445,3 +1445,106 @@ TEST_CASE("physics: bodies give their world triangles touching a box, compounds 
     CHECK(AppendBodyTriangles(Span<const BodyDesc>(both, 2), elsewhere, triangles) == 1);
     CHECK(triangles.IsEmpty());
 }
+
+namespace
+{
+    // A character standing on the floor at `x` (capsule centre 0.9 above it), settled.
+    CharacterId StandingCharacter(PhysicsWorld& world, f32 x, u64 userData)
+    {
+        CharacterDesc desc;
+        desc.position = Float3{x, 0.9f, 0.0f};
+        desc.userData = userData;
+        const CharacterId id = world.CreateCharacter(desc);
+        for (int i = 0; i < 10; ++i)
+        {
+            world.SetCharacterVelocity(id, Float3{0.0f, -1.0f, 0.0f});
+            world.Step(1.0f / 60.0f);
+            world.UpdateCharacter(id, 1.0f / 60.0f);
+        }
+        return id;
+    }
+}
+
+TEST_CASE("physics: a character is in the world: a ray finds it, a ray from inside it does not")
+{
+    // A CharacterVirtual has no body of its own: rays, overlaps and other bodies passed through it.
+    PhysicsWorld world(DefaultAllocator());
+    BodyDesc floor = FloorDesc();
+    floor.userData = 1;
+    (void)world.CreateBody(floor);
+    const CharacterId character = StandingCharacter(world, 0.0f, 77);
+    REQUIRE(character.IsValid());
+
+    RayHit hit;
+    REQUIRE(world.RayCast(Float3{-5.0f, 0.9f, 0.0f}, Float3{1.0f, 0.0f, 0.0f}, 10.0f, hit));
+    CHECK(hit.userData == 77u);
+    CHECK(hit.position.x == doctest::Approx(-0.35f).epsilon(0.05)); // the capsule's surface
+
+    // From the character's own centre, down: out of its capsule, onto the floor.
+    REQUIRE(world.RayCast(world.CharacterPosition(character), Float3{0.0f, -1.0f, 0.0f}, 5.0f, hit));
+    CHECK(hit.userData == 1u);
+
+    // The same ray told to pass the floor over finds nothing.
+    CHECK_FALSE(world.RayCast(world.CharacterPosition(character), Float3{0.0f, -1.0f, 0.0f}, 5.0f, hit,
+                              0xFFFFFFFFu, false, Optional<u64>{1u}));
+
+    // An overlap at the character finds it.
+    Array<BodyId> found;
+    QueryShape probe;
+    probe.kind = ShapeKind::Sphere;
+    probe.radius = 0.2f;
+    world.ShapeOverlap(probe, world.CharacterPosition(character), Quaternion::Identity, found);
+    bool sawCharacter = false;
+    for (const BodyId& id : found)
+    {
+        sawCharacter = sawCharacter || world.UserData(id) == 77u;
+    }
+    CHECK(sawCharacter);
+}
+
+TEST_CASE("physics: rays and sweeps pass out of the body they start inside")
+{
+    PhysicsWorld world(DefaultAllocator());
+    BodyDesc floor = FloorDesc();
+    floor.userData = 1;
+    (void)world.CreateBody(floor);
+    BodyDesc crate = BoxAt(2.0f, MotionKind::Static);
+    crate.userData = 9;
+    REQUIRE(world.CreateBody(crate).IsValid());
+
+    // From the crate's middle, down: the floor, not the crate at distance 0.
+    RayHit hit;
+    REQUIRE(world.RayCast(Float3{0.0f, 2.0f, 0.0f}, Float3{0.0f, -1.0f, 0.0f}, 5.0f, hit));
+    CHECK(hit.userData == 1u);
+    // From above, the crate is solid as ever.
+    REQUIRE(world.RayCast(Float3{0.0f, 5.0f, 0.0f}, Float3{0.0f, -1.0f, 0.0f}, 10.0f, hit));
+    CHECK(hit.userData == 9u);
+    CHECK(hit.position.y == doctest::Approx(2.5f).epsilon(0.01));
+
+    // A small sphere swept down from inside the crate leaves it and lands on the floor.
+    QueryShape ball;
+    ball.kind = ShapeKind::Sphere;
+    ball.radius = 0.1f;
+    REQUIRE(world.ShapeCast(ball, Float3{0.0f, 2.0f, 0.0f}, Quaternion::Identity, Float3{0.0f, -1.0f, 0.0f},
+                            5.0f, hit));
+    CHECK(hit.userData == 1u);
+}
+
+TEST_CASE("physics: two characters walking into each other stop at each other")
+{
+    // Without a character-vs-character check, two characters walked through one another.
+    PhysicsWorld world(DefaultAllocator());
+    (void)world.CreateBody(FloorDesc());
+    const CharacterId left = StandingCharacter(world, -2.0f, 1);
+    const CharacterId right = StandingCharacter(world, 2.0f, 2);
+    for (int i = 0; i < 180; ++i)
+    {
+        world.SetCharacterVelocity(left, Float3{2.0f, -1.0f, 0.0f});
+        world.SetCharacterVelocity(right, Float3{-2.0f, -1.0f, 0.0f});
+        world.Step(1.0f / 60.0f);
+        world.UpdateCharacter(left, 1.0f / 60.0f);
+        world.UpdateCharacter(right, 1.0f / 60.0f);
+    }
+    const f32 gap = world.CharacterPosition(right).x - world.CharacterPosition(left).x;
+    CHECK(gap > 0.6f); // two radii (0.35 each), less a small contact slack
+}

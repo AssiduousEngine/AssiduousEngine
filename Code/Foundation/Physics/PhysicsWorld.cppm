@@ -352,17 +352,22 @@ export namespace foundation::physics
 
         // ---- queries ----
         /// `groupMask`: bit g = consider bodies in group g (default: all groups). Triggers are hit
-        /// unless `skipTriggers` (a probe for ground wants solid surfaces only).
+        /// unless `skipTriggers` (a probe for ground wants solid surfaces only). A ray that starts
+        /// inside a body passes out of it without a hit (a character's own probe from within its
+        /// capsule), and bodies whose user word is `ignoreUserData` are passed over.
         [[nodiscard]] bool RayCast(Float3 from, Float3 direction, f32 maxDistance, RayHit& out,
-                                   u32 groupMask = 0xFFFFFFFFu, bool skipTriggers = false) const;
+                                   u32 groupMask = 0xFFFFFFFFu, bool skipTriggers = false,
+                                   Optional<u64> ignoreUserData = {}) const;
         /// Bodies whose shapes contain `point` (triggers included). `out` is filled (cleared
         /// first), like ShapeOverlap, so a reused array never mixes results across queries.
         void QueryPoint(Float3 point, Array<BodyId>& out, u32 groupMask = 0xFFFFFFFFu) const;
         /// Sweep `shape` (at `rotation`) from `from` along `direction` up to `maxDistance`; reports the
         /// closest hit (like RayCast, but with a volume). `out.fraction` is the sweep fraction.
+        /// Like a ray, it passes out of the bodies it starts in, and over `ignoreUserData`'s.
         [[nodiscard]] bool ShapeCast(const QueryShape& shape, Float3 from, Quaternion rotation,
                                      Float3 direction, f32 maxDistance, RayHit& out,
-                                     u32 groupMask = 0xFFFFFFFFu) const;
+                                     u32 groupMask = 0xFFFFFFFFu,
+                                     Optional<u64> ignoreUserData = {}) const;
         /// Bodies overlapping `shape` placed at (`position`, `rotation`), triggers included. Each body
         /// appears once (sub-shape hits are de-duplicated). `out` is filled (cleared first), so a
         /// reused array never mixes results across queries.

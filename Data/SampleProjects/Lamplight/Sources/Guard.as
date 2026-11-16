@@ -237,7 +237,8 @@ class Guard
             {
                 RayCastHit hit = self.scene.physics.rayCast(eye, Float3(to.x / dist, to.y / dist, to.z / dist),
                                                                        dist, mask);
-                if (!hit.hit)
+                // The thief has a body: the ray reaching him first is a clear view of him.
+                if (!hit.hit || hit.entity() == thief)
                 {
                     Float3 light = self.scene.render.lightAt(chest, mask);
                     float lum = 0.2126f * light.x + 0.7152f * light.y + 0.0722f * light.z;

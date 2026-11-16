@@ -1373,22 +1373,22 @@ TEST_CASE("physics.lifetime: a joint lets go before the bodies it holds leave; a
     (void)play.scene.GetSystem<CharacterComponentManager>()->Add(hero);
     play.Start();
     play.Step(10);
-    CHECK(play.physics->World()->BodyCount() == 3u);
+    CHECK(play.physics->World()->BodyCount() == 4u); // floor, the pair, the hero's inner body
     REQUIRE(play.scene.GetSystem<JointComponentManager>()->Get(right)->joint.IsValid());
 
     // The joint's target goes: the joint drops in the same reconcile, before the target's body.
     play.scene.DestroyEntity(left);
     play.Step(10);
-    CHECK(play.physics->World()->BodyCount() == 2u);
+    CHECK(play.physics->World()->BodyCount() == 3u);
     CHECK_FALSE(play.scene.GetSystem<JointComponentManager>()->Get(right)->joint.IsValid());
 
     // A joint whose own entity's body is taken off has nothing to hold by: no joint.
     play.scene.GetSystem<RigidBodyComponentManager>()->RemoveComponent(right);
     play.Step(10);
-    CHECK(play.physics->World()->BodyCount() == 1u);
+    CHECK(play.physics->World()->BodyCount() == 2u);
     CHECK_FALSE(play.scene.GetSystem<JointComponentManager>()->Get(right)->joint.IsValid());
 
-    // A character goes with its entity; the world steps on.
+    // A character goes with its entity, its inner body with it; the world steps on.
     play.scene.DestroyEntity(hero);
     play.Step(10);
     CHECK(play.physics->World()->BodyCount() == 1u);
