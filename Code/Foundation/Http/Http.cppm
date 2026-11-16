@@ -322,6 +322,50 @@ export namespace foundation::http
         u64 m_nextSequence = 0;
     };
 
+    // ---- what a head may carry ----------------------------------------------------------------
+
+    /// Whether `name: value` may be written into a message head as one header: a name of token
+    /// characters, and a value with no line break or NUL. A CR or LF in either would end the line
+    /// and start a header (or a body) the caller never wrote.
+    [[nodiscard]] inline bool IsHeaderWritable(StringView name, StringView value) noexcept
+    {
+        if (name.IsEmpty())
+        {
+            return false;
+        }
+        for (const utf8char c : name)
+        {
+            const u8 b = static_cast<u8>(c);
+            if (b <= 0x20 || b >= 0x7F || b == ':' || b == '(' || b == ')' || b == '<' || b == '>' || b == '@' ||
+                b == ',' || b == ';' || b == '\\' || b == '"' || b == '/' || b == '[' || b == ']' || b == '?' ||
+                b == '=' || b == '{' || b == '}')
+            {
+                return false;
+            }
+        }
+        for (const utf8char c : value)
+        {
+            if (c == u8'\r' || c == u8'\n' || c == u8'\0')
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /// The first of `headers` that may not be written (IsHeaderWritable), or null when all may.
+    [[nodiscard]] inline const HttpHeader* FirstUnwritableHeader(Span<const HttpHeader> headers) noexcept
+    {
+        for (const HttpHeader& h : headers)
+        {
+            if (!IsHeaderWritable(h.name.AsView(), h.value.AsView()))
+            {
+                return &h;
+            }
+        }
+        return nullptr;
+    }
+
     // ---- client --------------------------------------------------------------------------
 
     /// Blocking one-shot HTTP request against `address` (a host name or a dotted quad; no

@@ -6,6 +6,7 @@
 module;
 #include "Core/Prelude.h"
 #include <cstring>
+#include "Core/Log/Log.h"
 
 module foundation.http;
 
@@ -661,6 +662,12 @@ namespace foundation::http
         head.Append(u8"\r\n");
         for (const HttpHeader& h : r.headers)
         {
+            if (!IsHeaderWritable(h.name.AsView(), h.value.AsView()))
+            {
+                // Written, it would end the head early and put what follows in as headers or body.
+                LOG_WARNING(u8"Http", u8"a response header '{}' left out: it has a line break", h.name.AsView());
+                continue;
+            }
             head.Append(h.name.AsView());
             head.Append(u8": ");
             head.Append(h.value.AsView());
@@ -876,6 +883,17 @@ namespace foundation::http
                                            const HttpRequest& request,
                                            u32 timeoutMilliseconds)
     {
+        if (const HttpHeader* bad = FirstUnwritableHeader(
+                Span<const HttpHeader>{request.headers.Data(), request.headers.Size()}))
+        {
+            return Err(Format(u8"the header '{}' has a line break or a character a name may not have",
+                              bad->name.AsView()));
+        }
+        if (!IsHeaderWritable(u8"Method", request.method.AsView()) || request.target.AsView().Contains(u8" ") ||
+            !IsHeaderWritable(u8"Target", request.target.AsView()))
+        {
+            return Err(String(u8"the request's method or target has a line break or a space"));
+        }
         net::TcpSocket socket = net::TcpSocket::Connect(address, port);
         if (!socket.IsOpen())
         {

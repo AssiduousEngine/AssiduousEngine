@@ -367,6 +367,19 @@ namespace foundation::http
                 String method = request.method;
                 Array<byte> body = request.body;
                 Array<HttpHeader> headers = request.headers;
+                // A line break in a header or the method would write lines the caller never meant
+                // (a header injected, or a second request): refused before anything is sent.
+                if (const HttpHeader* bad = FirstUnwritableHeader(Span<const HttpHeader>{headers.Data(), headers.Size()}))
+                {
+                    response.error = Format(u8"the header '{}' has a line break or a character a name may not have",
+                                            bad->name.AsView());
+                    return response;
+                }
+                if (!IsHeaderWritable(u8"Method", method.AsView()) || method.AsView().Contains(u8" "))
+                {
+                    response.error = String(u8"the method has a line break or a space");
+                    return response;
+                }
                 for (u32 hop = 0;; ++hop)
                 {
                     HttpUrl at;
@@ -374,6 +387,12 @@ namespace foundation::http
                     if (!ParseHttpUrl(url.AsView(), at, error))
                     {
                         response.error = error;
+                        return response;
+                    }
+                    if (!IsHeaderWritable(u8"Host", at.host.AsView()) || !IsHeaderWritable(u8"Target", at.target.AsView()) ||
+                        at.target.AsView().Contains(u8" "))
+                    {
+                        response.error = String(u8"the URL has a line break or a space");
                         return response;
                     }
                     HttpMessageParser parser(HttpMessageParser::Mode::Response, request.maxResponseBytes);

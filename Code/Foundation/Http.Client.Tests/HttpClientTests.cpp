@@ -582,3 +582,29 @@ TEST_CASE("http client: a redirect to another origin does not carry the caller's
 }
 
 #endif // !PLATFORM_WEB (a browser build has the fetch client: Http.Client.WebCheck, by hand)
+
+TEST_CASE("http client: a line break in a header, the method or the URL is refused before anything is sent")
+{
+    // Header values went onto the wire as given, so one carrying CR LF wrote a header (or a whole
+    // request) of the caller's data the caller never meant.
+    CHECK(IsHeaderWritable(u8"X-Token", u8"abc"));
+    CHECK_FALSE(IsHeaderWritable(u8"X-Token", u8"abc\r\nX-Admin: 1"));
+    CHECK_FALSE(IsHeaderWritable(u8"X Token", u8"abc"));
+    CHECK_FALSE(IsHeaderWritable(u8"X-Token:", u8"abc"));
+    CHECK_FALSE(IsHeaderWritable(u8"", u8"abc"));
+
+    UniquePtr<IHttpClient> client = CreateNativeHttpClient(DefaultAllocator(), nullptr);
+    HttpClientRequest injected = HttpClientRequest::Get(u8"http://127.0.0.1:1/");
+    injected.headers.PushBack(HttpHeader{String(u8"X-Token"), String(u8"a\r\nX-Admin: 1")});
+    const HttpClientResponse header = Fetch(*client, Move(injected), []() {});
+    CHECK(header.error.AsView().ContainsIgnoreCase(u8"line break"));
+    HttpClientRequest method = HttpClientRequest::Get(u8"http://127.0.0.1:1/");
+    method.method = String(u8"GET / HTTP/1.1\r\nX: y\r\n\r\nGET");
+    CHECK(Fetch(*client, Move(method), []() {}).error.AsView().ContainsIgnoreCase(u8"line break"));
+
+    HttpRequest raw;
+    raw.headers.PushBack(HttpHeader{String(u8"X"), String(u8"1\n2")});
+    const auto fetched = HttpFetch(u8"127.0.0.1", 1, raw, 10);
+    REQUIRE_FALSE(fetched.HasValue());
+    CHECK(fetched.Error().AsView().ContainsIgnoreCase(u8"line break"));
+}
