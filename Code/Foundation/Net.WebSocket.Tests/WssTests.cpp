@@ -364,3 +364,22 @@ TEST_CASE("websocket: join addresses with a scheme are read; a bare host is not 
     CHECK_FALSE(ParseWebSocketAddress(u8"wss://", 7000, c));
     CHECK_FALSE(ParseWebSocketAddress(u8"ws://host:99999", 7000, c));
 }
+
+TEST_CASE("websocket: an address or config with a line break in its host or path is refused")
+{
+    // The client wrote its address's path and host into the upgrade request as they were: a line
+    // break in either ended the line and began a header of the address's choosing.
+    WebSocketClientConfig c;
+    CHECK_FALSE(ParseWebSocketAddress(u8"ws://host/ball\r\nX-Injected: 1", 7000, c));
+    CHECK_FALSE(ParseWebSocketAddress(u8"ws://ho\nst/", 7000, c));
+    CHECK_FALSE(ParseWebSocketAddress(u8"ws://host/a b", 7000, c));
+#if !PLATFORM_WEB
+    WebSocketClientConfig config;
+    config.host = String(u8"127.0.0.1");
+    config.port = 1;
+    config.path = String(u8"/ball\r\nX-Injected: 1");
+    WebSocketClientSocket client(DefaultAllocator(), config);
+    CHECK_FALSE(client.IsOpen());
+    CHECK(client.Failure().ContainsIgnoreCase(u8"control character"));
+#endif
+}

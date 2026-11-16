@@ -780,8 +780,27 @@ namespace foundation::net
         }
     }
 
+    // Whether `text` may go into the upgrade request's request line or Host header as it is: no
+    // control characters, spaces or DEL (a line break in either would end the line and start a
+    // header of the caller's choosing).
+    static bool IsRequestTextSafe(StringView text) noexcept
+    {
+        for (const utf8char c : text)
+        {
+            if (c <= u8' ' || c == utf8char(0x7F))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     bool ParseWebSocketAddress(StringView address, u16 defaultPort, WebSocketClientConfig& out)
     {
+        if (!IsRequestTextSafe(address))
+        {
+            return false;
+        }
         const auto hasPrefix = [&](StringView prefix)
         {
             if (address.Size() < prefix.Size())
@@ -1054,9 +1073,9 @@ namespace foundation::net
         Stopwatch sinceStart = Stopwatch::StartNew();
         f64 upgradeSeconds = 10.0; // a host that never answers is given up on
         // Masking keys and the handshake key: unpredictable to a page script is what the RFC
-        // asks (they defeat cache poisoning through proxies); a seeded PCG is not
-        // cryptographic, and over wss the TLS layer makes the mask moot.
-        Random random;
+        // asks (they defeat cache poisoning through proxies), so seeded from the OS's entropy;
+        // over wss the TLS layer makes the mask moot.
+        Random random = Random::FromSystemEntropy();
 
         void Fail(StringView why)
         {
@@ -1194,6 +1213,13 @@ namespace foundation::net
         if (config.secure && config.tls == nullptr)
         {
             impl.Fail(u8"wss needs a TLS backend, and none was given");
+            return;
+        }
+        // A config made by hand (not by ParseWebSocketAddress) is checked too: its host and path
+        // go into the request as they are.
+        if (!IsRequestTextSafe(config.host.AsView()) || !IsRequestTextSafe(config.path.AsView()))
+        {
+            impl.Fail(u8"the host or path holds a space or a control character");
             return;
         }
         TcpSocket socket = TcpSocket::Connect(config.host.AsView(), config.port);
