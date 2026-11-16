@@ -60,6 +60,39 @@ TEST_CASE("http: parser - a request in arbitrarily split pushes")
     CHECK(parser.Body().Size() == 11u);
 }
 
+TEST_CASE("http: parser - what follows a message is not consumed, so a caller can hand it on")
+{
+    // A WebSocket upgrade's first frames can follow its head in one read. Push reported no count,
+    // so the gateways pushed a byte at a time (and the head search rescanned the buffer each time).
+    const StringView head = u8"GET /ws HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\n\r\n";
+    String wire(head);
+    wire.Append(u8"FRAME");
+    HttpMessageParser request(HttpMessageParser::Mode::Request);
+    CHECK(request.Push(Bytes(wire.AsView())) == HttpParseState::Complete);
+    CHECK(request.Consumed() == head.Size());
+
+    // Split: the part before the head's end is all consumed, then the rest of the head only.
+    HttpMessageParser split(HttpMessageParser::Mode::Request);
+    CHECK(split.Push(Bytes(wire.AsView().SubStr(0, 10))) == HttpParseState::NeedMore);
+    CHECK(split.Consumed() == 10u);
+    CHECK(split.Push(Bytes(wire.AsView().SubStr(10, wire.Size() - 10))) == HttpParseState::Complete);
+    CHECK(split.Consumed() == head.Size() - 10);
+
+    // A 101 with bytes after it, and a body with bytes after it.
+    const StringView switching = u8"HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n\r\n";
+    String answer(switching);
+    answer.Append(u8"xy");
+    HttpMessageParser response(HttpMessageParser::Mode::Response);
+    CHECK(response.Push(Bytes(answer.AsView())) == HttpParseState::Complete);
+    CHECK(response.Consumed() == switching.Size());
+    const StringView sized = u8"HTTP/1.1 200 OK\r\nContent-Length: 3\r\n\r\nabc";
+    String bodied(sized);
+    bodied.Append(u8"zz");
+    HttpMessageParser body(HttpMessageParser::Mode::Response);
+    CHECK(body.Push(Bytes(bodied.AsView())) == HttpParseState::Complete);
+    CHECK(body.Consumed() == sized.Size());
+}
+
 TEST_CASE("http: parser - failures (garbage, chunked, oversized head, body cap)")
 {
     {

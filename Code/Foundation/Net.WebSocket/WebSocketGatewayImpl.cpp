@@ -531,9 +531,9 @@ namespace foundation::net
                 usize offset = 0;
                 if (!client.upgraded)
                 {
-                    // Feed the handshake byte by byte so bytes past the request head (an eager
-                    // client's first frame in the same segment) land in the frame parser, not
-                    // the HTTP parser: Push reports no consumed count.
+                    // The whole read at once: the parser says how much was the request's, and what
+                    // follows its head (an eager client's first frame in the same segment) goes to
+                    // the frame parser. The loop runs once; its breaks and returns end it.
                     while (offset < static_cast<usize>(got))
                     {
                         // A request starts with its method's letters: anything else (a TLS hello
@@ -549,9 +549,9 @@ namespace foundation::net
                             }
                             client.started = true;
                         }
-                        const http::HttpParseState state =
-                            client.handshake->Push(Span<const byte>{chunk + offset, 1});
-                        ++offset;
+                        const http::HttpParseState state = client.handshake->Push(
+                            Span<const byte>{chunk + offset, static_cast<usize>(got) - offset});
+                        offset += client.handshake->Consumed();
                         if (state == http::HttpParseState::Failed)
                         {
                             const Array<byte> reject = BuildWebSocketRejectResponse();
@@ -1110,11 +1110,13 @@ namespace foundation::net
                 usize offset = 0;
                 if (!upgraded)
                 {
-                    // Byte-wise, so frames arriving with the 101 land in the frame parser.
+                    // The whole read at once; what follows the 101's head (frames sent with it) is
+                    // left past Consumed for the frame parser.
                     while (offset < static_cast<usize>(got) && !upgraded && !failed)
                     {
-                        const http::HttpParseState state = handshake->Push(Span<const byte>{chunk + offset, 1});
-                        ++offset;
+                        const http::HttpParseState state =
+                            handshake->Push(Span<const byte>{chunk + offset, static_cast<usize>(got) - offset});
+                        offset += handshake->Consumed();
                         if (state == http::HttpParseState::Failed)
                         {
                             Fail(u8"the server's answer is not HTTP");

@@ -631,3 +631,46 @@ TEST_CASE("websocket: the hybrid socket closes the client of a remote the transp
     PumpFor(hybrid.Gateway(), 20);
     CHECK(hybrid.Gateway().ClientCount() == 0u);
 }
+
+TEST_CASE("websocket: gateway - a frame sent in the same segment as the upgrade request arrives")
+{
+    // The gateway now pushes a whole read into the request parser and hands what follows the
+    // request's head to the frame parser.
+    net::WebSocketServerGateway gateway(DefaultAllocator(), 0);
+    REQUIRE(gateway.IsOpen());
+    net::TcpSocket socket = net::TcpSocket::Connect(u8"127.0.0.1", gateway.BoundPort());
+    REQUIRE(socket.IsOpen());
+    for (int i = 0; i < 300 && socket.ConnectStatus() == 0; ++i)
+    {
+        gateway.Pump();
+        SleepMilliseconds(1);
+    }
+    REQUIRE(socket.ConnectStatus() == 1);
+    Array<byte> wire = BytesOf(u8"GET /game HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\n"
+                               u8"Connection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+                               u8"Sec-WebSocket-Version: 13\r\n\r\n");
+    const Array<byte> hello = BytesOf(u8"eager");
+    net::EncodeWebSocketFrame(net::WsOpcode::Binary, Span<const byte>{hello.Data(), hello.Size()}, true,
+                              0x12345678u, wire);
+    REQUIRE(socket.Send(Span<const byte>{wire.Data(), wire.Size()}) == static_cast<i64>(wire.Size()));
+
+    bool connected = false;
+    Array<byte> message;
+    net::WsGatewayEvent event;
+    for (int i = 0; i < 500 && message.IsEmpty(); ++i)
+    {
+        gateway.Pump();
+        while (gateway.Poll(event))
+        {
+            connected = connected || event.kind == net::WsGatewayEventKind::Connected;
+            if (event.kind == net::WsGatewayEventKind::Message)
+            {
+                message = Move(event.payload);
+            }
+        }
+        SleepMilliseconds(1);
+    }
+    CHECK(connected);
+    REQUIRE(message.Size() == hello.Size());
+    CHECK(MemCompare(message.Data(), hello.Data(), hello.Size()) == 0);
+}

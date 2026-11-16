@@ -236,6 +236,9 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
 - **The WebSocket gateway listens on every interface and parses a byte at a time with a rescan.**
   `NetworkControllerImpl.cpp:31`, `WebSocketGatewayImpl.cpp:449, 553, 1116`, `HttpImpl.cpp:296`.
   Fix: listen where the game's UDP port does; push whole reads; resume the scan where it stopped.
+  Built 2026-11-16: whole reads (the parser reports what it consumed) and a resumed head scan. The
+  listener was already where UDP is: both bind every interface (`UdpSocket(port)`), so nothing
+  changed there.
 - **The rest:** the frame buffer grows without bound (`WebSocketGatewayImpl.cpp:334`); a header
   value can carry CRLF (`HttpImpl.cpp:895-910`); an unresolved host connects "successfully"
   (`NetworkManagerImpl.cpp:166`); 1xx is final (`HttpImpl.cpp:241`); UDP sets `SO_REUSEADDR`

@@ -281,6 +281,7 @@ namespace foundation::http
         {
             return m_state;
         }
+        m_consumed = bytes.Size();
         usize offset = 0;
         if (!m_headParsed)
         {
@@ -293,7 +294,9 @@ namespace foundation::http
             // Find the CRLFCRLF head terminator.
             usize headEnd = 0;
             bool found = false;
-            for (usize i = 0; i + 3 < m_buffer.Size(); ++i)
+            // From where the last search stopped (less the terminator's length, which may straddle
+            // two pushes): a head arriving a byte at a time is scanned once, not once per byte.
+            for (usize i = m_scanFrom; i + 3 < m_buffer.Size(); ++i)
             {
                 if (m_buffer[i] == byte{'\r'} && m_buffer[i + 1] == byte{'\n'} &&
                     m_buffer[i + 2] == byte{'\r'} && m_buffer[i + 3] == byte{'\n'})
@@ -305,6 +308,7 @@ namespace foundation::http
             }
             if (!found)
             {
+                m_scanFrom = m_buffer.Size() >= 3 ? m_buffer.Size() - 3 : 0;
                 return m_state; // NeedMore
             }
             const usize bodyStart = headEnd;
@@ -321,6 +325,7 @@ namespace foundation::http
             m_buffer.Clear();
             if (m_noBody)
             {
+                m_consumed = bytes.Size() - extra; // what follows the head is not this message's
                 m_state = HttpParseState::Complete;
                 return m_state;
             }
@@ -356,7 +361,9 @@ namespace foundation::http
         }
         if (BodySoFar() >= m_bodyExpected)
         {
-            m_body.Resize(m_bodyExpected - m_bodyTaken); // drop any over-read (Connection: close model)
+            // Bytes past the body are not this message's: not kept, and not counted consumed.
+            m_consumed = bytes.Size() - Min(bytes.Size(), static_cast<usize>(BodySoFar() - m_bodyExpected));
+            m_body.Resize(m_bodyExpected - m_bodyTaken);
             m_state = HttpParseState::Complete;
         }
         return m_state;

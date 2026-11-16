@@ -122,6 +122,10 @@ export namespace foundation::http
         }
 
         [[nodiscard]] HttpParseState Push(Span<const byte> bytes);
+        /// How many bytes of the last Push belong to the message: all of them until it completes,
+        /// and on the Push that completes it, those before what follows it (a WebSocket's first
+        /// frames after the upgrade's head), which the parser does not keep.
+        [[nodiscard]] usize Consumed() const noexcept { return m_consumed; }
         /// Response mode: the request was a HEAD, so the response has headers alone.
         void SetNoBody() noexcept { m_noBody = true; }
         /// Response mode: the peer closed, so a close-delimited body is complete.
@@ -179,6 +183,8 @@ export namespace foundation::http
         Array<byte> m_chunkRaw; // encoded bytes not yet decoded
         usize m_bodyExpected = 0;
         Array<byte> m_buffer; // head accumulation (capped), then body bytes append to m_body
+        usize m_scanFrom = 0; // where the head terminator's search resumes in m_buffer
+        usize m_consumed = 0; // Consumed()
         String m_method;
         String m_target;
         i32 m_status = 0;
