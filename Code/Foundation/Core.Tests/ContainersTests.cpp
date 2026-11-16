@@ -813,3 +813,32 @@ TEST_CASE("pointers: head = head->next takes the next node before freeing the he
     REQUIRE(shared);
     CHECK(shared->value == 3);
 }
+
+namespace
+{
+    struct PlainBase
+    {
+        int value = 0;
+    };
+    struct PlainDerived : PlainBase
+    {
+        Array<int> owned;
+    };
+    struct VirtualBase
+    {
+        virtual ~VirtualBase() = default;
+    };
+    struct VirtualDerived : VirtualBase
+    {
+    };
+}
+
+TEST_CASE("unique ptr: a derived pointer converts only to a base with a virtual destructor")
+{
+    // The converting move asked only that U derive from T, so a base without a virtual destructor
+    // took a derived object and destroyed it as the base: the derived members leaked.
+    static_assert(__is_constructible(UniquePtr<VirtualBase>, UniquePtr<VirtualDerived>&&));
+    static_assert(!__is_constructible(UniquePtr<PlainBase>, UniquePtr<PlainDerived>&&));
+    UniquePtr<VirtualBase> held = MakeUnique<VirtualDerived>(DefaultAllocator());
+    CHECK(held.Get() != nullptr);
+}

@@ -34,9 +34,10 @@ export namespace foundation::core
         }
 
         // Converting move from UniquePtr<U> where U derives from T (e.g. a derived node -> its
-        // interface). T must have a virtual destructor so Reset() frees the derived object.
+        // interface). Only when T's destructor is virtual: without it Reset() destroys a T, and
+        // the derived part (its members, its allocation's size) is never destroyed.
         template <typename U>
-            requires(__is_base_of(T, U))
+            requires(__is_base_of(T, U) && __has_virtual_destructor(T))
         UniquePtr(UniquePtr<U>&& other) noexcept
             : m_ptr(other.m_ptr), m_allocator(other.m_allocator)
         {
