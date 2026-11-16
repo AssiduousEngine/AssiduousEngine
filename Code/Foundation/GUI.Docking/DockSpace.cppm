@@ -821,8 +821,14 @@ export namespace foundation::gui
             Shown* shown = Find(id);
             if (shown != nullptr && shown->Kind != node->Kind)
             {
-                shown->Widget->RemoveFromParent();
+                // The id is another kind now (a layout read afresh numbers its nodes again): its
+                // widget goes, and the entry takes the new kind, or every later show would find the
+                // kinds differ and build it again.
+                if (shown->Widget)
+                    shown->Widget->RemoveFromParent();
                 shown->Widget = {};
+                shown->Pages.Clear();
+                shown->Kind = node->Kind;
             }
             if (shown == nullptr)
             {

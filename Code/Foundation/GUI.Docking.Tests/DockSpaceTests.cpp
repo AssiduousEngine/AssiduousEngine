@@ -490,3 +490,36 @@ TEST_CASE("dock space: the active panel is the chosen one of the stack the focus
     CHECK(bed.controller.ActivePanel() == SV(u8"first"));
     CHECK(heard.Back() == core::String(u8"first"));
 }
+
+TEST_CASE("dock space: a layout adopted where an id is now another kind builds it once, then keeps it")
+{
+    // The kept entry's kind was never brought up to date when an id came back as another kind (a
+    // layout read from a file numbers its nodes afresh), so every ShowLayout rebuilt its widget.
+    Bed bed;
+    REQUIRE(bed.controller.Edit([&](DockLayout& l) { return l.InsertTab(SV(u8"scene"), bed.Central()); }).Ok());
+    REQUIRE(bed.controller.Edit([&](DockLayout& l) { return l.InsertBeside(SV(u8"hierarchy"), bed.Central(), DockSide::Start, 0.25f); }).Ok());
+    REQUIRE(bed.controller.Edit([&](DockLayout& l) { return l.InsertAtEdge(SV(u8"console"), l.MainSurface(), DockSide::Start, 0.2f); }).Ok());
+    REQUIRE(bed.controller.Edit([&](DockLayout& l) { return l.InsertAtEdge(SV(u8"log"), l.MainSurface(), DockSide::Start, 0.2f); }).Ok());
+    bed.Lay();
+
+    // Another layout, built otherwise, in which some id the shown one has is another kind.
+    DockLayout other;
+    REQUIRE(other.InsertAtEdge(SV(u8"console"), other.MainSurface(), DockSide::End, 0.3f).Ok());
+    REQUIRE(other.InsertBeside(SV(u8"log"), other.StackOf(SV(u8"console")), DockSide::Bottom, 0.5f).Ok()); // across: a new split
+    REQUIRE(other.InsertTab(SV(u8"scene"), other.CentralStack()).Ok());
+    DockNodeId swapped = kNoDock;
+    for (const DockNode& node : other.Nodes())
+        if (const DockNode* shown = bed.controller.GetLayout().FindNode(node.Id); shown != nullptr && shown->Kind != node.Kind)
+            swapped = node.Id;
+    REQUIRE(swapped != kNoDock);
+
+    REQUIRE(bed.controller.Adopt(core::Move(other)).Ok());
+    bed.Lay();
+    UIWidget* built = bed.space->WidgetOf(swapped);
+    REQUIRE(built != nullptr);
+    built->AddClass(SV(u8"test-mark")); // a widget built again would not have it (an address can be reused)
+    bed.space->ShowLayout();
+    bed.Lay();
+    REQUIRE(bed.space->WidgetOf(swapped) != nullptr);
+    CHECK(bed.space->WidgetOf(swapped)->HasClass(SV(u8"test-mark"))); // kept, not built again
+}

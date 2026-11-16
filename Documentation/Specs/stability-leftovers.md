@@ -306,7 +306,8 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   bakes and 64 scaled views a family, views at quarter-pixel sizes, the closest serving the rest.
 - **GraphView's "Add transition" is cancelled by its own release.** `GraphView.cppm:2201, 912`.
   Built 2026-11-16: a link begun from a menu ignores losing the pointer (a click or Escape ends it).
-- **DockSpace rebuilds a kept entry on every `ShowLayout`.** `DockSpace.cppm:822-826`.
+- **DockSpace rebuilds a kept entry on every `ShowLayout`.** `DockSpace.cppm:822-826`. Built
+  2026-11-16: the entry takes the node's new kind (and drops its stale pages).
 - **A multi-caret paste keeps a trailing CR.** `CodeEditor.cppm:3264`, `CodeDocument.cppm:521`.
 
 ### T7: Core and tooling
