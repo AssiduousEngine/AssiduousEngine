@@ -229,7 +229,8 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   Test: destroy E, join, E is gone on the client. Fix: a joining peer's baseline starts from the
   authored set, so a missing one is sent as destroyed. Built 2026-11-16.
 - **A scene change keeps replication's maps.** `NetworkManager.cppm:321`, `Replication.cppm:355-357`.
-  Test: after swapping scenes, an old id finds nothing. Fix: reset the maps and baselines.
+  Test: after swapping scenes, an old id finds nothing. Fix: reset the maps and baselines. Built
+  2026-11-16 (and the client's interpolation timelines).
 - **Every entity goes to every peer.** `SetRelevance` has no caller. Fix: a default relevance hook
   (distance) the game can replace.
 - **The WebSocket gateway listens on every interface and parses a byte at a time with a rescan.**

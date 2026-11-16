@@ -336,3 +336,30 @@ TEST_CASE("net-manager: a host that does not wait for ready holds no joiner")
     CHECK_FALSE(server.IsHeld(server.Session().Peers()[0].id));
 }
 
+
+TEST_CASE("net manager: another replicated scene forgets the last one's ids")
+{
+    // The id map and the peers' baselines outlived a scene change, so an old id found a handle in
+    // the destroyed scene and a peer's baseline still held the old scene's entities.
+    foundation::net::RegisterReplicationComponents();
+    net::SimDatagramNetwork network(foundation::core::DefaultAllocator(), net::SimConditions{});
+    net::NetworkManager server(*network.CreateSocket());
+    server.StartServer(/*dedicated=*/true);
+
+    net::NetworkId oldId;
+    {
+        scene::Scene first{DefaultAllocator()};
+        first.AddSystem<net::NetworkComponentManager>();
+        const scene::EntityHandle e = first.CreateEntity(u8"Old");
+        first.GetSystem<net::NetworkComponentManager>()->Add(e);
+        server.SetReplicatedScene(&first);
+        oldId = first.GetSystem<net::NetworkComponentManager>()->Get(e)->id;
+        REQUIRE(server.Replication().FindEntity(oldId).IsAssigned());
+        server.SetReplicatedScene(nullptr);
+    }
+    scene::Scene second{DefaultAllocator()};
+    second.AddSystem<net::NetworkComponentManager>();
+    server.SetReplicatedScene(&second);
+    CHECK_FALSE(server.Replication().FindEntity(oldId).IsAssigned());
+    CHECK(server.Replication().NetworkedCount() == 0u);
+}

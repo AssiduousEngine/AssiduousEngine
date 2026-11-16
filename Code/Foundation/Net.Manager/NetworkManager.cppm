@@ -320,6 +320,13 @@ export namespace foundation::net
         // networked is enough for it to replicate; the client receives ids over the wire.
         void SetReplicatedScene(scene::Scene* scene)
         {
+            if (scene != m_scene)
+            {
+                // Another scene: what replication knew of the last one goes (ids, baselines,
+                // timelines), and the new one's authored entities are registered below.
+                m_replication.ResetScene();
+                m_interp.Clear();
+            }
             m_scene = scene;
             if (scene == nullptr)
             {

@@ -220,6 +220,8 @@ export namespace foundation::net
                     const Instance& component) const;
         // Drop an entity's timelines (despawn or disconnect).
         void Forget(NetworkId id);
+        // Drop every timeline (another scene: its ids name other entities).
+        void Clear() { m_entities.Clear(); }
         [[nodiscard]] usize TrackedEntities() const noexcept { return m_entities.Size(); }
 
     private:
@@ -295,6 +297,17 @@ export namespace foundation::net
         // scene, so the same entity Guid gives the same id) and register id -> local entity, so incoming
         // replication updates the authored entity instead of creating a duplicate.
         void RegisterAuthoredEntities(scene::Scene& scene);
+
+        // Forget the scene replicated so far: its id map, every peer's baseline and its authored
+        // set. Another scene's entities reuse those ids (authored ids come from Guids, minted ones
+        // from the counter), so kept, an old id would find a destroyed entity's handle and a peer's
+        // baseline would hold entities it never had in this scene.
+        void ResetScene()
+        {
+            m_netIdToEntity.Clear();
+            m_peerBaselines.Clear();
+            m_authoredIds.Clear();
+        }
 
         void CaptureSnapshot(scene::Scene& scene, BitWriter& out) override;
         void ApplySnapshot(scene::Scene& scene, BitReader& in) override;
