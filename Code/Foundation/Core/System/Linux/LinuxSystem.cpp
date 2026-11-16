@@ -465,7 +465,9 @@ namespace foundation::core::sys
             break;
         }
 
-        const int fd = open(path, flags, 0644);
+        // Close-on-exec, as the sockets are: a process this one starts (a build, a file manager)
+        // must not inherit its open files and hold them past this process.
+        const int fd = open(path, flags | O_CLOEXEC, 0644);
         return (fd < 0) ? kInvalidFile : static_cast<FileHandle>(fd);
     }
 
@@ -477,16 +479,49 @@ namespace foundation::core::sys
         }
     }
 
+    // One read or write moves at most about 2 GiB (Linux caps a call at 0x7ffff000 bytes) and may
+    // move less when interrupted, so both go on until all of it is done, the file ends, or it fails.
+    // A single call returned short for a file of 2 GiB, which callers read as an error.
     std::int64_t FileRead(FileHandle handle, void* buffer, std::uint64_t bytes) noexcept
     {
-        const ssize_t n = read(static_cast<int>(handle), buffer, static_cast<std::size_t>(bytes));
-        return static_cast<std::int64_t>(n);
+        constexpr std::uint64_t kChunk = 1ull << 30;
+        std::uint64_t done = 0;
+        while (done < bytes)
+        {
+            const std::uint64_t want = bytes - done < kChunk ? bytes - done : kChunk;
+            const ssize_t n = read(static_cast<int>(handle), static_cast<char*>(buffer) + done, static_cast<std::size_t>(want));
+            if (n < 0)
+            {
+                if (errno == EINTR)
+                    continue;
+                return done > 0 ? static_cast<std::int64_t>(done) : -1;
+            }
+            if (n == 0)
+                break; // the end of the file
+            done += static_cast<std::uint64_t>(n);
+        }
+        return static_cast<std::int64_t>(done);
     }
 
     std::int64_t FileWrite(FileHandle handle, const void* buffer, std::uint64_t bytes) noexcept
     {
-        const ssize_t n = write(static_cast<int>(handle), buffer, static_cast<std::size_t>(bytes));
-        return static_cast<std::int64_t>(n);
+        constexpr std::uint64_t kChunk = 1ull << 30;
+        std::uint64_t done = 0;
+        while (done < bytes)
+        {
+            const std::uint64_t want = bytes - done < kChunk ? bytes - done : kChunk;
+            const ssize_t n = write(static_cast<int>(handle), static_cast<const char*>(buffer) + done, static_cast<std::size_t>(want));
+            if (n < 0)
+            {
+                if (errno == EINTR)
+                    continue;
+                return done > 0 ? static_cast<std::int64_t>(done) : -1;
+            }
+            if (n == 0)
+                break;
+            done += static_cast<std::uint64_t>(n);
+        }
+        return static_cast<std::int64_t>(done);
     }
 
     std::int64_t FileSeek(FileHandle handle, std::int64_t offset, SeekOrigin origin) noexcept

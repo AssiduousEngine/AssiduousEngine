@@ -324,7 +324,9 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   optional timeout kills the child (on Linux its whole process group); naga and tint get two
   minutes. The Windows side is not compiled here.
 - Files of 2 GiB and more fail on Linux (one syscall) and Windows (a DWORD cast)
-  (`LinuxSystem.cpp:425-435`, `Win32System.cpp:425, 435`).
+  (`LinuxSystem.cpp:425-435`, `Win32System.cpp:425, 435`). Built 2026-11-16: reads and writes loop
+  in 1 GiB chunks until done (Linux retries EINTR). No test moves 2 GiB; the existing file tests run
+  through the loop.
 - `PathParent("/file")` is empty; UTF-8 accepts overlong forms and surrogates; `FileOpen` lacks
   `O_CLOEXEC`; environment values past 1023 bytes are cut; `BoundedArray`s share one TypeId;
   `BoundedArray` get and set are unchecked.

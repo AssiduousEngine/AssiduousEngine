@@ -474,24 +474,40 @@ namespace foundation::core::sys
     }
 
     // Single calls are capped at DWORD (4 GB); sufficient for buffered IO.
+    // ReadFile and WriteFile take a DWORD count: a request of 4 GiB or more was cut to its low 32
+    // bits. Both go in chunks of at most 1 GiB until all of it is done, the file ends, or it fails.
     std::int64_t FileRead(FileHandle handle, void* buffer, std::uint64_t bytes) noexcept
     {
-        DWORD read = 0;
-        if (!ReadFile(ToHandle(handle), buffer, static_cast<DWORD>(bytes), &read, nullptr))
+        constexpr std::uint64_t kChunk = 1ull << 30;
+        std::uint64_t done = 0;
+        while (done < bytes)
         {
-            return -1;
+            const DWORD want = static_cast<DWORD>(bytes - done < kChunk ? bytes - done : kChunk);
+            DWORD read = 0;
+            if (!ReadFile(ToHandle(handle), static_cast<char*>(buffer) + done, want, &read, nullptr))
+                return done > 0 ? static_cast<std::int64_t>(done) : -1;
+            if (read == 0)
+                break; // the end of the file
+            done += read;
         }
-        return static_cast<std::int64_t>(read);
+        return static_cast<std::int64_t>(done);
     }
 
     std::int64_t FileWrite(FileHandle handle, const void* buffer, std::uint64_t bytes) noexcept
     {
-        DWORD written = 0;
-        if (!WriteFile(ToHandle(handle), buffer, static_cast<DWORD>(bytes), &written, nullptr))
+        constexpr std::uint64_t kChunk = 1ull << 30;
+        std::uint64_t done = 0;
+        while (done < bytes)
         {
-            return -1;
+            const DWORD want = static_cast<DWORD>(bytes - done < kChunk ? bytes - done : kChunk);
+            DWORD written = 0;
+            if (!WriteFile(ToHandle(handle), static_cast<const char*>(buffer) + done, want, &written, nullptr))
+                return done > 0 ? static_cast<std::int64_t>(done) : -1;
+            if (written == 0)
+                break;
+            done += written;
         }
-        return static_cast<std::int64_t>(written);
+        return static_cast<std::int64_t>(done);
     }
 
     std::int64_t FileSeek(FileHandle handle, std::int64_t offset, SeekOrigin origin) noexcept

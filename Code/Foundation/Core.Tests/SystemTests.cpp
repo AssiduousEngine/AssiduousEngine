@@ -404,6 +404,23 @@ TEST_CASE("system: sockets are not inherited by a process this one starts")
         SocketClose(socket);
 }
 
+#if !defined(_WIN32)
+TEST_CASE("system: an open file is not inherited by a process this one starts")
+{
+    // FileOpen opened without O_CLOEXEC, so a build or a file manager the editor started held every
+    // file the editor had open, past the editor's own life.
+    const FileHandle file = FileOpen(u8"scratch_cloexec.txt", FileMode::Write);
+    REQUIRE(FileIsValid(file));
+    const String script = Format(u8"test -e /proc/self/fd/{} && echo inherited; echo done", static_cast<u64>(file));
+    const StringView args[] = {u8"-c", script.AsView()};
+    const ProcessResult r = RunProcess(u8"/bin/sh", Span<const StringView>(args, 2));
+    FileClose(file);
+    FileDelete(u8"scratch_cloexec.txt");
+    REQUIRE(r.Ok());
+    CHECK_FALSE(r.output.AsView().Contains(u8"inherited"));
+}
+#endif
+
 TEST_CASE("system: RunProcess reports failure to spawn a missing binary")
 {
     // Explicit path, no PATH search: a bogus name cannot resolve on any platform.
