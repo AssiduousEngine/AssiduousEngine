@@ -160,7 +160,7 @@ export namespace foundation::rhi::vk
         Status CreateSwapChain(u32 w, u32 h, TextureFormat reqFormat, u32 reqCount,
                                VkSwapchainKHR old);
         Status retrieveImages(VkFormat format);
-        void createSyncObjects();
+        [[nodiscard]] Status createSyncObjects();
         void cleanupImages();
         void destroySyncObjects();
 
@@ -462,7 +462,8 @@ export namespace foundation::rhi::vk
 
         if (retrieveImages(surfFmt.format) != ErrorCode::Ok)
             return ErrorCode::Unknown;
-        createSyncObjects();
+        if (!createSyncObjects().IsOk())
+            return ErrorCode::Unknown;
         m_frameIndex = 0;
         return ErrorCode::Ok;
     }
@@ -470,18 +471,30 @@ export namespace foundation::rhi::vk
     inline VkSurfaceFormatKHR VkSwapChainImpl::chooseSurfaceFormat(TextureFormat requested)
     {
         u32 count = 0;
-        vkGetPhysicalDeviceSurfaceFormatsKHR(m_physDevice, m_surface, &count, nullptr);
+        VkResult vr = vkGetPhysicalDeviceSurfaceFormatsKHR(m_physDevice, m_surface, &count, nullptr);
         Array<VkSurfaceFormatKHR> fmts(count);
-        vkGetPhysicalDeviceSurfaceFormatsKHR(m_physDevice, m_surface, &count, fmts.Data());
+        if (vr == VK_SUCCESS || vr == VK_INCOMPLETE)
+            vr = vkGetPhysicalDeviceSurfaceFormatsKHR(m_physDevice, m_surface, &count, fmts.Data());
+        if (vr != VK_SUCCESS && vr != VK_INCOMPLETE)
+        {
+            reportFailure("vkGetPhysicalDeviceSurfaceFormatsKHR", vr);
+            count = 0; // the chooser's default stands
+        }
         return ChooseSurfaceFormat(Span<const VkSurfaceFormatKHR>(fmts.Data(), count), toVkFormat(requested));
     }
 
     inline VkPresentModeKHR VkSwapChainImpl::choosePresentMode(PresentMode requested)
     {
         u32 count = 0;
-        vkGetPhysicalDeviceSurfacePresentModesKHR(m_physDevice, m_surface, &count, nullptr);
+        VkResult vr = vkGetPhysicalDeviceSurfacePresentModesKHR(m_physDevice, m_surface, &count, nullptr);
         Array<VkPresentModeKHR> modes(count);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(m_physDevice, m_surface, &count, modes.Data());
+        if (vr == VK_SUCCESS || vr == VK_INCOMPLETE)
+            vr = vkGetPhysicalDeviceSurfacePresentModesKHR(m_physDevice, m_surface, &count, modes.Data());
+        if (vr != VK_SUCCESS && vr != VK_INCOMPLETE)
+        {
+            reportFailure("vkGetPhysicalDeviceSurfacePresentModesKHR", vr);
+            modes.Clear(); // FIFO, which every surface has, is what remains
+        }
         auto has = [&](VkPresentModeKHR m)
         {
             for (auto x : modes)
@@ -527,9 +540,15 @@ export namespace foundation::rhi::vk
     inline Status VkSwapChainImpl::retrieveImages(VkFormat format)
     {
         u32 imgCount = 0;
-        vkGetSwapchainImagesKHR(m_device, m_swapchain, &imgCount, nullptr);
+        VkResult vr = vkGetSwapchainImagesKHR(m_device, m_swapchain, &imgCount, nullptr);
         Array<VkImage> images(imgCount);
-        vkGetSwapchainImagesKHR(m_device, m_swapchain, &imgCount, images.Data());
+        if (vr == VK_SUCCESS || vr == VK_INCOMPLETE)
+            vr = vkGetSwapchainImagesKHR(m_device, m_swapchain, &imgCount, images.Data());
+        if (vr != VK_SUCCESS || imgCount == 0)
+        {
+            reportFailure("vkGetSwapchainImagesKHR", vr);
+            return ErrorCode::Unknown;
+        }
         m_bufferCount = imgCount;
 
         TextureFormat texFmt = fromVkFormat(format);
@@ -582,18 +601,28 @@ export namespace foundation::rhi::vk
         return ErrorCode::Ok;
     }
 
-    inline void VkSwapChainImpl::createSyncObjects()
+    inline Status VkSwapChainImpl::createSyncObjects()
     {
         VkSemaphoreCreateInfo ci{};
         ci.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
         for (u32 i = 0; i < m_bufferCount; ++i)
         {
             VkSemaphore a = VK_NULL_HANDLE, p = VK_NULL_HANDLE;
-            vkCreateSemaphore(m_device, &ci, nullptr, &a);
-            vkCreateSemaphore(m_device, &ci, nullptr, &p);
+            VkResult vr = vkCreateSemaphore(m_device, &ci, nullptr, &a);
+            if (vr == VK_SUCCESS)
+                vr = vkCreateSemaphore(m_device, &ci, nullptr, &p);
+            if (vr != VK_SUCCESS)
+            {
+                // A null semaphore handed to acquire or present is undefined: the swapchain fails.
+                if (a != VK_NULL_HANDLE)
+                    vkDestroySemaphore(m_device, a, nullptr);
+                reportFailure("vkCreateSemaphore", vr);
+                return ErrorCode::OutOfMemory;
+            }
             m_acquireSems.PushBack(a);
             m_presentSems.PushBack(p);
         }
+        return ErrorCode::Ok;
     }
 
     inline void VkSwapChainImpl::cleanupImages()

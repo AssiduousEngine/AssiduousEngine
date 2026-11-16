@@ -634,4 +634,15 @@ export namespace foundation::rhi::vk
         return f;
     }
 
+    // Logs a Vulkan call that failed, the first time at its call site (`reported`, the site's own
+    // flag): the same failure would otherwise repeat every frame.
+    inline void ReportVkFailure(bool& reported, const char* what, VkResult result)
+    {
+        if (!reported)
+        {
+            reported = true;
+            LogErrorf("[RHI] Vulkan: %s failed (VkResult %d)", what, static_cast<int>(result));
+        }
+    }
+
 } // namespace foundation::rhi::vk

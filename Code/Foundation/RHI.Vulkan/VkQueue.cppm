@@ -95,6 +95,7 @@ export namespace foundation::rhi::vk
         u32 m_familyIndex = 0;
         f32 m_tsPeriod = 0.0f;
         VkDeviceImpl* m_device = nullptr;
+        bool m_submitFailureReported = false; // a failed submit is logged once (ReportVkFailure)
         VkDevice m_vkDevice = VK_NULL_HANDLE;
         VkPhysicalDevice m_physDevice = VK_NULL_HANDLE;
         IAllocator& m_allocator;

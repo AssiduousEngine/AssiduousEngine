@@ -275,7 +275,12 @@ export namespace foundation::rhi::vk
             VkCommandBufferBeginInfo bi{};
             bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
             bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-            vkBeginCommandBuffer(cb, &bi);
+            if (const VkResult vr = vkBeginCommandBuffer(cb, &bi); vr != VK_SUCCESS)
+            {
+                ReportVkFailure(m_recordFailureReported, "vkBeginCommandBuffer (uploads)", vr);
+                vkFreeCommandBuffers(m_device, ai.commandPool, 1, &cb);
+                return VK_NULL_HANDLE;
+            }
 
             for (const auto& c : m_bufferCopies)
             {
@@ -346,7 +351,12 @@ export namespace foundation::rhi::vk
                                           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
             }
 
-            vkEndCommandBuffer(cb);
+            if (const VkResult vr = vkEndCommandBuffer(cb); vr != VK_SUCCESS)
+            {
+                ReportVkFailure(m_recordFailureReported, "vkEndCommandBuffer (uploads)", vr);
+                vkFreeCommandBuffers(m_device, ai.commandPool, 1, &cb);
+                return VK_NULL_HANDLE;
+            }
             return cb;
         }
 
@@ -357,6 +367,7 @@ export namespace foundation::rhi::vk
         }
 
         VkDevice m_device = VK_NULL_HANDLE;
+        bool m_recordFailureReported = false; // a failed begin or end is logged once (ReportVkFailure)
         VkPhysicalDevice m_physDevice = VK_NULL_HANDLE;
         VkQueue m_queue = VK_NULL_HANDLE;
         u32 m_queueFamilyIndex = 0;

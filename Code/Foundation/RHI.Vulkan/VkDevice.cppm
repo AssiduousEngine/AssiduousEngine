@@ -1139,8 +1139,11 @@ export namespace foundation::rhi::vk
         si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
         si.commandBufferCount = static_cast<u32>(bufs.Size());
         si.pCommandBuffers = bufs.Data();
-        if (vkQueueSubmit(m_queue, 1, &si, VK_NULL_HANDLE) == VK_ERROR_DEVICE_LOST)
+        const VkResult submitted = vkQueueSubmit(m_queue, 1, &si, VK_NULL_HANDLE);
+        if (submitted == VK_ERROR_DEVICE_LOST)
             m_device->markLost();
+        else if (submitted != VK_SUCCESS)
+            ReportVkFailure(m_submitFailureReported, "vkQueueSubmit", submitted); // out of memory: the work is lost
     }
 
     void VkQueueImpl::Submit(Span<CommandBuffer* const> cmdBufs, Fence* signalFence,
@@ -1227,8 +1230,11 @@ export namespace foundation::rhi::vk
         si.signalSemaphoreCount = signalCount;
         si.pSignalSemaphores = signalSems;
 
-        if (vkQueueSubmit(m_queue, 1, &si, VK_NULL_HANDLE) == VK_ERROR_DEVICE_LOST)
+        const VkResult submitted = vkQueueSubmit(m_queue, 1, &si, VK_NULL_HANDLE);
+        if (submitted == VK_ERROR_DEVICE_LOST)
             m_device->markLost();
+        else if (submitted != VK_SUCCESS)
+            ReportVkFailure(m_submitFailureReported, "vkQueueSubmit", submitted); // out of memory: the work is lost
     }
 
 } // namespace foundation::rhi::vk

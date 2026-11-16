@@ -64,3 +64,30 @@ TEST_CASE("vk.swapchain: the alternate view follows the format negotiated")
     CHECK(vk::AlternateViewFor(TextureFormat::BGRA8UnormSrgb, TextureFormat::BGRA8Unorm, TextureFormat::RGB10A2Unorm) ==
           TextureFormat::Undefined);
 }
+
+namespace
+{
+    u32 g_errorLines = 0;
+    bool CountErrors(void*, bool error, const char*)
+    {
+        if (error)
+            ++g_errorLines;
+        return true; // swallowed
+    }
+}
+
+TEST_CASE("vk: a failing call is reported once at its site, not every time it repeats")
+{
+    // The swapchain's semaphores, surface queries, queue submits and command buffer begin and end
+    // went unchecked: a failure was silent. Each is now logged, once per call site.
+    g_errorLines = 0;
+    SetLogSink(&CountErrors, nullptr);
+    bool reported = false;
+    vk::ReportVkFailure(reported, "vkQueueSubmit", VK_ERROR_OUT_OF_DEVICE_MEMORY);
+    vk::ReportVkFailure(reported, "vkQueueSubmit", VK_ERROR_OUT_OF_DEVICE_MEMORY);
+    bool other = false;
+    vk::ReportVkFailure(other, "vkEndCommandBuffer", VK_ERROR_OUT_OF_HOST_MEMORY);
+    SetLogSink(nullptr, nullptr);
+    CHECK(reported);
+    CHECK(g_errorLines == 2u); // one per site
+}

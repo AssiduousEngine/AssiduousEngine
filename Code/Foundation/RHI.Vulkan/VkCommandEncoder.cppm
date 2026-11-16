@@ -559,7 +559,11 @@ export namespace foundation::rhi::vk
 
         CommandBuffer* Finish() override
         {
-            vkEndCommandBuffer(m_cmdBuf);
+            // A buffer whose recording failed is not executable; submitting it is the next failure,
+            // so this one is logged (once) where it happens.
+            static bool reported = false;
+            if (const VkResult vr = vkEndCommandBuffer(m_cmdBuf); vr != VK_SUCCESS)
+                ReportVkFailure(reported, "vkEndCommandBuffer", vr);
             auto* cb = m_allocator.New<VkCommandBufferImpl>(m_cmdBuf);
             m_pool->trackCommandBuffer(cb);
             return cb;
@@ -908,7 +912,14 @@ export namespace foundation::rhi::vk
         VkCommandBufferBeginInfo bi{};
         bi.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         bi.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        vkBeginCommandBuffer(cmdBuf, &bi);
+        if (const VkResult vr = vkBeginCommandBuffer(cmdBuf, &bi); vr != VK_SUCCESS)
+        {
+            static bool reported = false;
+            ReportVkFailure(reported, "vkBeginCommandBuffer", vr);
+            // Not reused: a buffer whose begin failed may be invalid until its pool resets; it stays
+            // allocated in the pool (freed with it). Only a device out of memory gets here.
+            return ErrorCode::OutOfMemory;
+        }
 
         out = m_allocator->New<VkCommandEncoderImpl>(cmdBuf, m_device, this, *m_allocator);
         return ErrorCode::Ok;
@@ -974,7 +985,12 @@ export namespace foundation::rhi::vk
         bi.flags = VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT |
                    VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
         bi.pInheritanceInfo = &ii;
-        vkBeginCommandBuffer(sec, &bi);
+        if (const VkResult vr = vkBeginCommandBuffer(sec, &bi); vr != VK_SUCCESS)
+        {
+            static bool reported = false;
+            ReportVkFailure(reported, "vkBeginCommandBuffer (bundle)", vr);
+            return nullptr; // the handle is already live: recycled at the pool's reset
+        }
 
         // Bundles carry no pass-level dynamic state and Vulkan secondaries don't inherit it, so
         // record the bundle's viewport and scissor up front (Y-flipped, like the pass encoder). The
