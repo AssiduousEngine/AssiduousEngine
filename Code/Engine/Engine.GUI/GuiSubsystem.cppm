@@ -660,6 +660,7 @@ export namespace engine::gui
         void ApplySheets();
         void ApplyUserAgentSheet();
         void PumpInput();
+        void PumpInputNow();
         void SyncCanvases(SceneTier& tier);
         void SyncBillboards(SceneTier& tier);
         void PlaceBillboards(SceneTier& tier, const render::SceneOverlayView& view);
@@ -781,6 +782,11 @@ export namespace engine::gui
         foundation::shell::IWindow* m_textInputTarget = nullptr;
         SceneRoot* m_activeRoot = nullptr; // the root input went to last
         SceneRoot* m_pressRoot = nullptr;  // the root a held press began in
+        // While the input pump dispatches, a handler may end a run (a "quit to menu" button):
+        // its screens are removed after the pump, not under it (the pump holds the tier's root and
+        // input bridge).
+        bool m_pumpingInput = false;
+        Array<foundation::run::RunId> m_runsEndedInPump{m_allocator};
         bool m_pressTaken = false;              // that press began over GUI that takes the pointer
         bool m_pointerTaken = false;
         bool m_textWanted = false;              // the root input went to is editing text

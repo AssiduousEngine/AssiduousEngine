@@ -1526,6 +1526,18 @@ namespace engine::gui
 
     void GuiSubsystem::PumpInput()
     {
+        m_pumpingInput = true;
+        PumpInputNow();
+        m_pumpingInput = false;
+        // Runs ended by a handler while it dispatched: their screens go now.
+        Array<foundation::run::RunId> ended = Move(m_runsEndedInPump);
+        m_runsEndedInPump.Clear();
+        for (foundation::run::RunId run : ended)
+            EndRunScreens(run);
+    }
+
+    void GuiSubsystem::PumpInputNow()
+    {
         m_pointerTaken = false;
         m_backUnhandled = false;
         if (m_input == nullptr || !m_screen.Root)
@@ -1968,6 +1980,11 @@ namespace engine::gui
 
     void GuiSubsystem::EndRunScreens(foundation::run::RunId run)
     {
+        if (m_pumpingInput)
+        {
+            m_runsEndedInPump.PushBack(run); // removed when the pump returns
+            return;
+        }
         for (usize i = 0; i < m_runTiers.Size(); ++i)
             if (m_runTiers[i]->Run == run)
             {
