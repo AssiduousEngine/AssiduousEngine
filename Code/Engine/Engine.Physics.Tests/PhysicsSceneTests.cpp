@@ -1788,6 +1788,42 @@ TEST_CASE("physics.scene: a body edited while live is built again; primitives ta
     CHECK(hit.position.y == doctest::Approx(6.5f).epsilon(0.01));
 }
 
+TEST_CASE("physics.scene: a jointed body edited while live keeps its joint, on the new body")
+{
+    // The joint pass runs before the body pass and found the joint wanted and present, so the body
+    // pass destroyed the body under it: the joint stayed on the destroyed body and the new one
+    // fell free.
+    PlayScene play;
+    play.scene.AddSystem<JointComponentManager>();
+    scene::EntityHandle door = play.scene.CreateEntity(u8"door");
+    play.scene.SetLocalPosition(door, Float3{0.0f, 2.0f, 0.0f});
+    {
+        RigidBodyComponent& body = play.scene.GetSystem<RigidBodyComponentManager>()->Add(door);
+        body.halfExtents = Float3{1.0f, 1.0f, 0.05f};
+        JointComponent& joint = play.scene.GetSystem<JointComponentManager>()->Add(door);
+        joint.kind = JointKind::Hinge; // no ancestor body: hinged to the world
+        joint.localAxis = Float3{0.0f, 1.0f, 0.0f};
+    }
+    play.Start();
+    play.Step(10);
+    play.physics->ApplyInterpolation(1.0f);
+    play.scene.UpdateTransforms();
+    const BodyId before = play.scene.GetSystem<RigidBodyComponentManager>()->Get(door)->body;
+    REQUIRE(before.IsValid());
+
+    play.scene.GetSystem<RigidBodyComponentManager>()->Get(door)->halfExtents = Float3{1.0f, 1.0f, 0.1f};
+    play.Step(120);
+    play.physics->ApplyInterpolation(1.0f);
+    play.scene.UpdateTransforms();
+    const BodyId after = play.scene.GetSystem<RigidBodyComponentManager>()->Get(door)->body;
+    REQUIRE(after.IsValid());
+    CHECK(after != before); // rebuilt
+    const JointId joint = play.scene.GetSystem<JointComponentManager>()->Get(door)->joint;
+    REQUIRE(joint.IsValid());
+    CHECK(play.physics->World()->JointHolds(joint, after)); // on the new body
+    CHECK(play.scene.GetWorldPosition(door).y == doctest::Approx(2.0f).epsilon(0.05)); // still held
+}
+
 namespace
 {
     // A flat 65x65 heightfield (1 m cells over 64 m, centred) at world Y = 2.

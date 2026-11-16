@@ -666,6 +666,27 @@ export namespace engine::physics
             return false;
         }
 
+        // Destroys every joint holding `body` and clears its component's handle, before the body
+        // itself is destroyed: the next reconcile's joint pass finds the joint wanted and not there,
+        // and makes it again on whatever body the entity has then.
+        void DropJointsHolding(BodyId body)
+        {
+            auto* joints = (m_scene != nullptr) ? m_scene->GetSystem<JointComponentManager>() : nullptr;
+            if (joints == nullptr || !body.IsValid())
+            {
+                return;
+            }
+            joints->ForEach(
+                [&](JointComponent& c, scene::EntityHandle)
+                {
+                    if (c.joint.IsValid() && m_world->JointHolds(c.joint, body))
+                    {
+                        m_world->DestroyJoint(c.joint);
+                        c.joint = JointId{};
+                    }
+                });
+        }
+
         // The managers hand back what removed components held to `releaser` (this while the world
         // runs; null when there is none).
         void SetReleasers(IPhysicsReleaser* releaser)
@@ -780,8 +801,11 @@ export namespace engine::physics
                             BuiltSignature(scene, c, e) != c.builtSignature)
                         {
                             // Edited while live (an inspector field, a script, a rescale): built
-                            // again from what it is now, keeping its motion.
+                            // again from what it is now, keeping its motion. A joint holding it lets
+                            // go first: the joint pass ran before this one and found it wanted and
+                            // present, so it would stay on the destroyed body, the new one free.
                             const Float3 velocity = m_world->LinearVelocity(c.body);
+                            DropJointsHolding(c.body);
                             m_world->DestroyBody(c.body);
                             c.body = BodyId{};
                             CreateBodyForEntity(c, e);

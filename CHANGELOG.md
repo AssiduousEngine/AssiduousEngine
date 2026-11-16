@@ -35,6 +35,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- A body with a joint, edited in play (its size in the inspector, a script), keeps the joint; it
+  had stayed on the old body and left the new one free.
 - The code editor's Replace All replaces every match, not only the first 100,000, and many matches
   no longer make it sort its edits in quadratic time.
 - A saved dock layout whose split share is not a positive number (NaN, negative) is refused and the
