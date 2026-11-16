@@ -138,9 +138,9 @@ int main(int argc, char** argv)
     pipeline::CookDriver host(AppRoot(), project->SourceDb(), project->CookedDb(), registry,
                               &sourcesMount, &cacheMount, &jobs);
     pipeline::CookPlan hostPlan = host.Plan(rebuild);
-    std::printf("cook plan (host): %zu dirty, %zu up to date, %zu orphan(s), %zu without builders\n",
+    std::printf("cook plan (host): %zu dirty, %zu up to date, %zu orphan(s), %zu without builders, %zu unreadable\n",
                 hostPlan.dirty.Size(), hostPlan.upToDate, hostPlan.orphans.Size(),
-                hostPlan.unbuildable);
+                hostPlan.unbuildable, hostPlan.unreadable);
     if (dryRun && hostOnly)
     {
         for (const pipeline::CookItem& item : hostPlan.dirty)
@@ -154,7 +154,9 @@ int main(int argc, char** argv)
     std::printf("host cooked %zu, failed %zu, swept %zu orphan(s)\n", hostStats.cooked,
                 hostStats.failed, hostStats.orphansSwept);
 
-    usize totalFailed = hostStats.failed;
+    // A source that did not read (named in the log above) cannot cook, and an export would ship
+    // without it: a failure, not a success with a warning.
+    usize totalFailed = hostStats.failed + hostPlan.unreadable;
 
     if (!hostOnly)
     {
