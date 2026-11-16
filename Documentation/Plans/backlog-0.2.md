@@ -348,6 +348,19 @@ What the audit of 2026-11-11 raised that `Archive/stability-history.md` leaves o
   re-checked against master: re-read each in source before acting on it. The spec took 61
   findings; everything else is here. Two more, found since by search, are marked (2026-11-13).
 
+## glTF: every skin, and a reimport identity that survives renames (user 2026-11-16)
+
+From the stability leftovers (T5), moved here by the user. Two parts, each its own layer:
+
+- **Every skin.** The importer and the cook take skin 0 only (`FileImport.cppm` ImportSkeletonAndClips,
+  `Cook.cppm` "skin 0 only"): a second character in one file loses its skeleton and its skinning.
+  Needs one skeleton per skin in the model manifest, each mesh bound to its own skin's skeleton, and
+  clips remapped per skeleton; the manifest version bumps and existing imports migrate.
+- **Reimport identity.** `ClaimInstance` matches an existing output by name and type, so a mesh or
+  material renamed in the source comes back as a new asset and every reference to the old one is
+  lost. Record a key from the source (the glTF node, mesh, material or image index path, or its
+  name where the format guarantees one) in the manifest at import, and match on it first.
+
 ## Scripting: later (2026-11-14)
 
 What `Specs/scripting.md` leaves out, from the same review of the AngelScript integration:
