@@ -642,6 +642,7 @@ export namespace engine::particles
             }
             p.pso = pso;
             p.format = colorFormat;
+            p.shaderVersion = shaderVersion; // never recorded, every frame after a reload rebuilt it
             return pso;
         }
 
@@ -760,6 +761,7 @@ export namespace engine::particles
             }
             p.pso = pso;
             p.format = colorFormat;
+            p.shaderVersion = shaderVersion; // never recorded, every frame after a reload rebuilt it
             return pso;
         }
 

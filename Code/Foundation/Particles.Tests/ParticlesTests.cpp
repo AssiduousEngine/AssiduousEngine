@@ -1170,3 +1170,64 @@ TEST_CASE("ParticleSystem: with no position initializer, particles are born at t
         CHECK(Length((*sys.Streams().Positions())[i] - Float3{-50.0f, 0.0f, 3.0f}) < 0.01f);
     }
 }
+
+TEST_CASE("Particles: a one-shot finishes, and Play plays it again")
+{
+    // A non-looping emitter past its duration stopped spawning but still counted as emitting, so
+    // the effect never finished (a spent one-shot was never cleaned up).
+    particles::ParticleEffect fx(u8"puff");
+    particles::ParticleSystem& sys = fx.AddSystem(200);
+    sys.AddInitializer<particles::LifetimeInitializer>().lifetime = particles::RangeFloat(0.2f, 0.2f);
+    sys.emitter.mode = particles::EmissionMode::Continuous;
+    sys.emitter.spawnRate = 100.0f;
+    sys.emitter.duration = 0.3f;
+    sys.emitter.looping = false;
+    particles::ParticleEffectInstance inst(fx);
+    for (int i = 0; i < 60; ++i)
+    {
+        inst.Update(1.0f / 60.0f);
+    }
+    CHECK(inst.IsFinished());
+
+    inst.Play();
+    inst.Update(0.1f);
+    CHECK(sys.AliveCount() > 0); // a played one-shot runs from its start
+}
+
+TEST_CASE("LOD: a slow emitter at half detail still spawns, at half its rate")
+{
+    // The detail level scaled each step's whole spawn count: 30 a second at 60 steps a second is
+    // 0 or 1 a step, and half of 1 truncated to 0, so it spawned nothing at all.
+    particles::ParticleSystem sys(1000);
+    BuildFountain(sys, 30.0f);
+    sys.lodStartDistance = 10.0f;
+    sys.lodCullDistance = 30.0f;
+    for (int i = 0; i < 60; ++i) // one second, the camera halfway through the fade
+    {
+        sys.Update(1.0f / 60.0f, Float3{20.0f, 0.0f, 0.0f});
+    }
+    // Halfway through the fade (with the lodMinRate floor, a little over a half).
+    const f32 scale = sys.LODRateMultiplier();
+    CHECK(scale > 0.4f);
+    CHECK(scale < 0.7f);
+    const f32 expected = 30.0f * scale; // a second at the thinned rate
+    CHECK(static_cast<f32>(sys.AliveCount()) >= expected - 2.0f);
+    CHECK(static_cast<f32>(sys.AliveCount()) <= expected + 2.0f);
+}
+
+TEST_CASE("Particles: the first step inherits no velocity from the emitter's place")
+{
+    // The last position started at the origin: an emitter placed far away read the whole distance
+    // as one step's motion, and its first particles flew off at it.
+    particles::ParticleSystem sys(100);
+    sys.AddInitializer<particles::LifetimeInitializer>().lifetime = particles::RangeFloat(1.0f, 1.0f);
+    particles::VelocityInitializer& velocity = sys.AddInitializer<particles::VelocityInitializer>();
+    velocity.baseVelocity = Float3{0, 0, 0};
+    velocity.velocityInheritance = 1.0f;
+    sys.emitter.mode = particles::EmissionMode::Burst;
+    sys.emitter.burstCount = 4;
+    sys.position = Float3{500.0f, 0.0f, 0.0f};
+    sys.Update(1.0f / 60.0f);
+    REQUIRE(sys.AliveCount() == 4);
+    CHECK(Length((*sys.Streams().Velocities())[0]) < 0.01f);
+}

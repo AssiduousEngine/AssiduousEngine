@@ -52,7 +52,9 @@ export namespace foundation::particles
         // Returns how many particles to spawn this frame (does not spawn). An accumulator for
         // continuous emission; a timer and cycle count for bursts. Gated by the duration and
         // looping window.
-        [[nodiscard]] i32 CalculateSpawnCount(f32 deltaTime) noexcept
+        // `rateScale` thins the emission (level of detail): applied to the rate before it gathers,
+        // so a slow emitter at half detail still spawns, at half its rate.
+        [[nodiscard]] i32 CalculateSpawnCount(f32 deltaTime, f32 rateScale = 1.0f) noexcept
         {
             if (!isEmitting)
             {
@@ -66,6 +68,7 @@ export namespace foundation::particles
                 {
                     if (!looping)
                     {
+                        isEmitting = false; // a one-shot done: the effect can finish
                         return 0;
                     }
                     while (m_cycleTime >= duration)
@@ -79,7 +82,7 @@ export namespace foundation::particles
             i32 count = 0;
             if (mode == EmissionMode::Continuous || mode == EmissionMode::ContinuousAndBurst)
             {
-                m_spawnAccumulator += spawnRate * deltaTime;
+                m_spawnAccumulator += spawnRate * rateScale * deltaTime;
                 const i32 whole = static_cast<i32>(m_spawnAccumulator);
                 count += whole;
                 m_spawnAccumulator -= static_cast<f32>(whole);
@@ -90,7 +93,7 @@ export namespace foundation::particles
                 {
                     if (!m_singleBurstDone)
                     {
-                        count += burstCount;
+                        count += ScaledBurst(rateScale);
                         m_singleBurstDone = true;
                     }
                 }
@@ -100,7 +103,7 @@ export namespace foundation::particles
                     while (m_burstTimer >= burstInterval &&
                            (burstCycles == 0 || m_burstCyclesCompleted < burstCycles))
                     {
-                        count += burstCount;
+                        count += ScaledBurst(rateScale);
                         m_burstTimer -= burstInterval;
                         ++m_burstCyclesCompleted;
                     }
@@ -108,6 +111,9 @@ export namespace foundation::particles
             }
             return count;
         }
+
+        // A one-shot whose duration has run out (its cycle starts over on Reset).
+        [[nodiscard]] bool CycleDone() const noexcept { return duration > 0.0f && !looping && m_cycleTime >= duration; }
 
         void Reset() noexcept
         {
@@ -119,6 +125,13 @@ export namespace foundation::particles
         }
 
     private:
+        // A burst thinned by the level of detail, rounded (a burst of 1 at half detail still fires).
+        [[nodiscard]] i32 ScaledBurst(f32 rateScale) const noexcept
+        {
+            return rateScale >= 1.0f ? burstCount
+                                     : static_cast<i32>(static_cast<f32>(burstCount) * rateScale + 0.5f);
+        }
+
         f32 m_cycleTime = 0.0f;
         f32 m_spawnAccumulator = 0.0f;
         f32 m_burstTimer = 0.0f;
@@ -404,10 +417,14 @@ export namespace foundation::particles
             m_deathCount = 0;
             m_birthCount = 0;                                        // 2
             m_lodRateMultiplier = CalculateLODMultiplier(cameraPos); // 3
-            i32 spawnCount = emitter.CalculateSpawnCount(deltaTime); // 4
-            spawnCount = (m_lodRateMultiplier <= 0.0f)
-                             ? 0
-                             : static_cast<i32>(static_cast<f32>(spawnCount) * m_lodRateMultiplier);
+            if (!m_hasPrevPosition)
+            {
+                // The first step: no last position to measure motion from, so none is inherited.
+                prevPosition = position;
+                m_hasPrevPosition = true;
+            }
+            const i32 spawnCount =
+                emitter.CalculateSpawnCount(deltaTime, Max(m_lodRateMultiplier, 0.0f)); // 4
             SpawnParticles(spawnCount);
             ParticleUpdateContext ctx{m_totalTime, deltaTime, position, &m_random}; // 5
             m_simulator->Simulate(m_streams, m_behaviors, ctx);                     // 6
@@ -457,6 +474,7 @@ export namespace foundation::particles
             m_totalTime = 0.0f;
             m_stepDeltaTime = 0.0f;
             m_prewarmed = false;
+            m_hasPrevPosition = false;
             m_random = Random(m_seed); // deterministic replay from the configured seed
         }
 
@@ -745,6 +763,7 @@ export namespace foundation::particles
         f32 m_stepDeltaTime = 0.0f; // the last Step's deltaTime: the emitter velocity's divisor
         f32 m_lodRateMultiplier = 1.0f;
         bool m_prewarmed = false;
+        bool m_hasPrevPosition = false; // false until the first step (and after a reset)
         u64 m_seed = 0x9E3779B97F4A7C15ull;
         SimulationMode m_resolvedMode = SimulationMode::CPU;
         ParticleEvent m_deathEvents[kMaxEventsPerFrame]{};
@@ -894,7 +913,12 @@ export namespace foundation::particles
             }
             for (i32 i = 0; i < m_effect->SystemCount(); ++i)
             {
-                m_effect->GetSystem(i)->emitter.isEmitting = true;
+                ParticleEmitter& emitter = m_effect->GetSystem(i)->emitter;
+                if (emitter.CycleDone())
+                {
+                    emitter.Reset(); // a finished one-shot plays again from its start
+                }
+                emitter.isEmitting = true;
             }
         }
 
@@ -933,9 +957,10 @@ export namespace foundation::particles
                         const ParticleEvent& evt = events[e];
                         if (link.probability < 1.0f)
                         {
-                            // Deterministic spatial-hash gate, stable per position.
-                            const u32 hash = static_cast<u32>(evt.position.x * 73856093.0f) ^
-                                             static_cast<u32>(evt.position.y * 19349663.0f);
+                            // Deterministic spatial-hash gate, stable per position. From the bits
+                            // of the position: a negative coordinate cast to u32 was undefined.
+                            const u32 hash = BitCast<u32>(evt.position.x) * 73856093u ^
+                                             BitCast<u32>(evt.position.y) * 19349663u;
                             if (static_cast<f32>(hash % 1000u) / 1000.0f > link.probability)
                             {
                                 continue;
