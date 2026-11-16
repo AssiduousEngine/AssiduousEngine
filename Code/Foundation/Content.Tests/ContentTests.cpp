@@ -1571,3 +1571,33 @@ TEST_CASE("content: two envelopes with one guid are reported, both named")
     CHECK(both);
     (void)RemoveDirectoryRecursive(dir);
 }
+
+TEST_CASE("content: a name is claimed ignoring case, as a case-insensitive file system sees it")
+{
+    // "Rock" and "rock" were two assets in one group, one file on Windows and macOS: whichever
+    // wrote last replaced the other.
+    GlobalTypeRegistry().Register(MaterialResource::StaticType());
+    RegisterSerializable<MaterialResource>();
+    const StringView dir = u8"scratch_content_case_db";
+    (void)RemoveDirectoryRecursive(dir);
+    NativeFileSystem mount(dir, DefaultAllocator());
+    ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
+    Group* group = db.RootGroup()->CreateGroup(u8"Materials");
+    REQUIRE(group != nullptr);
+    CHECK(db.RootGroup()->CreateGroup(u8"materials") == group); // one directory
+
+    foundation::content::Instance* rock = group->CreateInstance(u8"Rock", MaterialResource::StaticType());
+    REQUIRE(rock != nullptr);
+    CHECK(group->CreateInstance(u8"Rock", MaterialResource::StaticType()) == rock);
+    CHECK(group->CreateInstance(u8"rock", MaterialResource::StaticType()) == nullptr);
+    CHECK(group->UniqueInstanceName(u8"ROCK") == u8"ROCK.2");
+
+    MaterialResource m;
+    REQUIRE(rock->WriteObject(m).IsOk());
+    foundation::content::Instance* stone = group->CreateInstance(u8"Stone", MaterialResource::StaticType());
+    REQUIRE(stone != nullptr);
+    REQUIRE(stone->WriteObject(m).IsOk());
+    CHECK(db.RenameInstance(stone->Id(), u8"rOCK").Code() == ErrorCode::AlreadyExists);
+    CHECK(db.RenameInstance(rock->Id(), u8"ROCK").IsOk()); // its own name in another case
+    (void)RemoveDirectoryRecursive(dir);
+}

@@ -196,6 +196,56 @@ namespace foundation::content
         return nullptr;
     }
 
+    static bool NamesEqualIgnoringCase(StringView a, StringView b)
+    {
+        if (a.Size() != b.Size())
+        {
+            return false;
+        }
+        for (usize i = 0; i < a.Size(); ++i)
+        {
+            utf8char ca = a[i];
+            utf8char cb = b[i];
+            if (ca >= utf8char('A') && ca <= utf8char('Z'))
+            {
+                ca = static_cast<utf8char>(ca + 32);
+            }
+            if (cb >= utf8char('A') && cb <= utf8char('Z'))
+            {
+                cb = static_cast<utf8char>(cb + 32);
+            }
+            if (ca != cb)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    Group* Group::GetGroupIgnoringCase(StringView name) const
+    {
+        for (Group* group : m_groups)
+        {
+            if (NamesEqualIgnoringCase(group->Name(), name))
+            {
+                return group;
+            }
+        }
+        return nullptr;
+    }
+
+    Instance* Group::GetInstanceIgnoringCase(StringView name) const
+    {
+        for (Instance* instance : m_instances)
+        {
+            if (NamesEqualIgnoringCase(instance->Name(), name))
+            {
+                return instance;
+            }
+        }
+        return nullptr;
+    }
+
     bool Group::NameLess(StringView a, StringView b)
     {
         const usize n = Min(a.Size(), b.Size());
@@ -275,7 +325,7 @@ namespace foundation::content
 
     Group* Group::CreateGroup(StringView name)
     {
-        Group* existing = GetGroup(name);
+        Group* existing = GetGroupIgnoringCase(name);
         return (existing != nullptr) ? existing : AddChildGroup(name);
     }
 
@@ -312,20 +362,20 @@ namespace foundation::content
     String Group::UniqueInstanceName(StringView base) const
     {
         return FirstFreeName(base,
-                             [this](StringView name) { return GetInstance(name) != nullptr; });
+                             [this](StringView name) { return GetInstanceIgnoringCase(name) != nullptr; });
     }
 
     String Group::UniqueGroupName(StringView base) const
     {
         return FirstFreeName(base,
-                             [this](StringView name) { return GetGroup(name) != nullptr; });
+                             [this](StringView name) { return GetGroupIgnoringCase(name) != nullptr; });
     }
 
     Instance* Group::CreateInstance(StringView name, const TypeInfo& primaryType)
     {
-        if (Instance* existing = GetInstance(name))
+        if (Instance* existing = GetInstanceIgnoringCase(name))
         {
-            return existing;
+            return existing->Name() == name ? existing : nullptr;
         }
         // Mint a GUID that isn't already in use. The RNG is deterministic and Scan() (load from
         // disk) does not advance it past the instances it loads, so a fresh instance added to a
@@ -346,9 +396,9 @@ namespace foundation::content
     Instance* Group::CreateInstanceWithId(const Guid& id, StringView name,
                                           const TypeInfo& primaryType)
     {
-        if (Instance* existing = GetInstance(name))
+        if (Instance* existing = GetInstanceIgnoringCase(name))
         {
-            return existing;
+            return existing->Name() == name ? existing : nullptr;
         }
         const StringView ns(reinterpret_cast<const utf8char*>(primaryType.namespaceName));
         const StringView nm(reinterpret_cast<const utf8char*>(primaryType.name));
@@ -745,7 +795,8 @@ namespace foundation::content
         {
             return Status{ErrorCode::InvalidArgument};
         }
-        if (instance->OwningGroup().GetInstance(newName) != nullptr)
+        // In any case but its own: "rock" may become "Rock".
+        if (Instance* taken = instance->OwningGroup().GetInstanceIgnoringCase(newName); taken != nullptr && taken != instance)
         {
             return Status{ErrorCode::AlreadyExists};
         }
@@ -796,7 +847,7 @@ namespace foundation::content
         {
             return Status{ErrorCode::InvalidArgument};
         }
-        if (to.GetInstance(instance->Name()) != nullptr)
+        if (to.GetInstanceIgnoringCase(instance->Name()) != nullptr)
         {
             return Status{ErrorCode::AlreadyExists};
         }
@@ -857,7 +908,7 @@ namespace foundation::content
         {
             return Status{ErrorCode::InvalidArgument};
         }
-        if (group.Parent()->GetGroup(newName) != nullptr)
+        if (Group* taken = group.Parent()->GetGroupIgnoringCase(newName); taken != nullptr && taken != &group)
         {
             return Status{ErrorCode::AlreadyExists};
         }

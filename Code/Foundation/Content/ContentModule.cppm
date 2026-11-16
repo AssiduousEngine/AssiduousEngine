@@ -179,16 +179,21 @@ export namespace foundation::content
 
         [[nodiscard]] Group* GetGroup(StringView name) const;
         [[nodiscard]] Instance* GetInstance(StringView name) const;
+        // The child whose name matches `name` ignoring ASCII case: on a case-insensitive file
+        // system ("Rock" and "rock") they are one file, so a name is claimed case-folded.
+        [[nodiscard]] Group* GetGroupIgnoringCase(StringView name) const;
+        [[nodiscard]] Instance* GetInstanceIgnoringCase(StringView name) const;
 
         // --- tooling ---
-        // Returns the existing child group of this name, or creates it (no disk
-        // write until an instance is committed under it).
+        // Returns the existing child group of this name (in any case: one directory), or creates
+        // it (no disk write until an instance is committed under it).
         Group* CreateGroup(StringView name);
         // Creates a new instance of `primaryType` with a fresh Guid. The on-disk
         // file appears once WriteObject() is called.
         // A taken name returns the existing instance (for reimport and cook idempotency), so
         // a New-Asset creator that then writes a starter with WriteObject() would overwrite
-        // it. Such creators must pass UniqueInstanceName(base) instead of a fixed name.
+        // it. Such creators must pass UniqueInstanceName(base) instead of a fixed name. A name
+        // taken in another case ("rock" beside "Rock") is refused: null.
         Instance* CreateInstance(StringView name, const TypeInfo& primaryType);
 
         // First free name from `base`: `base`, then `base.2`, `base.3`, ... The one
