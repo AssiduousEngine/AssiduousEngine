@@ -2150,9 +2150,25 @@ export namespace foundation::gui
             if (!IsTreeVisible() || m_quietInvalidations != 0)
             {
                 NoteOldArea(nullptr); // hidden, so the area where it showed must be redrawn
+                // No frame for what is not shown, but the ancestors' bookkeeping still hears it:
+                // their child indexes and subtree ink would otherwise answer with where this was
+                // when it hid, once the ancestor that hides it is shown again.
+                NoteReachChanged();
                 return;
             }
             NoteOldArea(MarkAncestorsForRedraw()); // the topmost ancestor is its root
+        }
+        /// Tells each ancestor that what is under it may reach elsewhere now (its subtree ink and its
+        /// child index), without marking anything for redrawing.
+        void NoteReachChanged()
+        {
+            Node* through = this;
+            for (Node* p = m_parent; p != nullptr; p = p->m_parent)
+            {
+                p->m_subtreeInkValid = false;
+                p->NoteChildChanged(*through);
+                through = p;
+            }
         }
         /// Marks the ancestors up to the root for redrawing, because what holds them changed, and
         /// returns the root. This is what Invalidate does above the node, without counting the node's

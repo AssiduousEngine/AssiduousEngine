@@ -401,3 +401,28 @@ TEST_CASE("child index: a point finds through the index what it finds by trying 
     CHECK(same);
     CHECK(found > 100);
 }
+
+TEST_CASE("child index: a reach that moves while an ancestor is hidden is right once it shows")
+{
+    // A node under a hidden one returned from Invalidate before telling its ancestors, so the index
+    // of the node above the hidden one kept the reach it had when it hid.
+    Page page;
+    page.Draw(true);
+    Node& scroller = *page.scroller.Get();
+    Node* row = scroller.GetChildAt(5);
+    const auto agreeAt = [&](f32 y)
+    {
+        const Rect area{0.0f, y, 400.0f, 60.0f};
+        core::Array<Node*> indexed;
+        scroller.ChildrenReaching(area, indexed);
+        return SameNodes(indexed, ReachingByWalk(scroller, area));
+    };
+    row->SetVisible(false); // visibility: hidden, its place kept
+    page.Draw(true);
+    row->GetChildAt(0)->SetPosition(core::Float2{0.0f, 2600.0f}); // under it, a card moves far down
+    page.Draw(true);
+    CHECK(agreeAt(row->GetPosition().y + 2600.0f));
+    row->SetVisible(true);
+    page.Draw(true);
+    CHECK(agreeAt(row->GetPosition().y + 2600.0f));
+}
