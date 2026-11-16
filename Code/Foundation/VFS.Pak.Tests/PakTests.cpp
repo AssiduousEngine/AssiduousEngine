@@ -235,3 +235,54 @@ TEST_CASE("vfs.pak: a corrupt or truncated header is refused rather than sized f
     FileDelete(bad);
     FileDelete(good);
 }
+
+TEST_CASE("vfs.pak: an entry opens as a view over its region, and every one of thousands is found")
+{
+    // Find searched the table linearly, and Open read the entry whole into a buffer and copied it
+    // again into a memory stream: a header read paid for the whole envelope.
+    const StringView pak = u8"scratch_pak_view.pak";
+    FileDelete(pak);
+    constexpr int kEntries = 3000;
+    {
+        PakBuilder builder;
+        for (int i = 0; i < kEntries; ++i)
+        {
+            String name = Format(u8"set/entry{}.bin", i);
+            String text = Format(u8"payload-{}-", i);
+            for (int r = 0; r < 20; ++r)
+            {
+                text.Append(u8"0123456789");
+            }
+            Array<byte> bytes;
+            for (const utf8char c : text.AsView())
+            {
+                bytes.PushBack(static_cast<byte>(c));
+            }
+            builder.Add(name.AsView(), Span<const byte>{bytes.Data(), bytes.Size()});
+        }
+        REQUIRE(builder.Write(pak).IsOk());
+    }
+    PakFileSystem fs(pak);
+    REQUIRE(fs.IsValid());
+    REQUIRE(fs.EntryCount() == static_cast<usize>(kEntries));
+    const int probes[] = {0, 1234, kEntries - 1};
+    for (const int i : probes)
+    {
+        const String name = Format(u8"set/entry{}.bin", i);
+        UniquePtr<IStream> stream = fs.Open(name.AsView(), FileMode::Read);
+        REQUIRE(static_cast<bool>(stream));
+        const String head = Format(u8"payload-{}-", i);
+        CHECK(stream->Size() == static_cast<i64>(head.Size() + 200));
+        Array<char> buffer;
+        buffer.Resize(head.Size());
+        REQUIRE(stream->Read(buffer.Data(), buffer.Size()) == buffer.Size());
+        CHECK(std::strncmp(buffer.Data(), reinterpret_cast<const char*>(head.Data()), head.Size()) == 0);
+        // Seeking within the region reads from it, not from the archive's start.
+        REQUIRE(stream->Seek(-10, SeekOrigin::End) >= 0);
+        char tail[10] = {};
+        REQUIRE(stream->Read(tail, 10) == 10u);
+        CHECK(std::strncmp(tail, "0123456789", 10) == 0);
+    }
+    CHECK_FALSE(fs.Exists(u8"set/entry3000.bin"));
+    FileDelete(pak);
+}

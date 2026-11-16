@@ -78,31 +78,16 @@ export namespace foundation::vfs
                 return UniquePtr<IStream>{};
             }
 
-            // Reopen the archive per Open: a fresh handle, no shared seek lock.
-            FileRegionStream file(m_path.AsView(), m_base, m_length);
-            if (!file.IsValid())
+            // A view over the entry's region, on a handle of its own (no shared seek lock): read as
+            // the caller reads. The entry was read whole into a buffer and copied again into a
+            // memory stream, so a scan that wants an envelope's header paid for the whole of it.
+            FileRegionStream* stream =
+                m_allocator->New<FileRegionStream>(m_path.AsView(), m_base + entry->offset, entry->storedSize);
+            if (!stream->IsValid())
             {
+                m_allocator->Delete(stream);
                 return UniquePtr<IStream>{};
             }
-            if (file.Seek(static_cast<i64>(entry->offset), SeekOrigin::Begin) < 0)
-            {
-                return UniquePtr<IStream>{};
-            }
-
-            Array<byte> bytes(static_cast<usize>(entry->storedSize), *m_allocator);
-            if (entry->storedSize > 0 &&
-                file.Read(bytes.Data(), entry->storedSize) != entry->storedSize)
-            {
-                return UniquePtr<IStream>{};
-            }
-
-            // Hand the bytes to an in-memory stream the caller owns.
-            MemoryStream* stream = m_allocator->New<MemoryStream>();
-            if (entry->storedSize > 0)
-            {
-                (void)stream->Write(bytes.Data(), entry->storedSize);
-            }
-            (void)stream->Seek(0, SeekOrigin::Begin);
             return UniquePtr<IStream>{stream, *m_allocator};
         }
 
@@ -237,21 +222,18 @@ export namespace foundation::vfs
                 {
                     return;
                 }
+                m_index.InsertOrAssign(entry.locator, m_entries.Size());
                 m_entries.PushBack(static_cast<Entry&&>(entry));
             }
             m_valid = true;
         }
 
+        // Through the index built at load: a linear search of the table made every open of a
+        // large pak (thousands of entries) cost a pass over it.
         [[nodiscard]] const Entry* Find(StringView locator) const
         {
-            for (const Entry& entry : m_entries)
-            {
-                if (entry.locator.AsView() == locator)
-                {
-                    return &entry;
-                }
-            }
-            return nullptr;
+            const usize* index = m_index.Find(String(locator, *m_allocator));
+            return index != nullptr ? &m_entries[*index] : nullptr;
         }
 
         // Is `locator` under `folder`? If so, `outRel` is the remainder.
@@ -296,6 +278,7 @@ export namespace foundation::vfs
         u64 m_base = 0;   // where the pak starts in its file (0: the file is the pak)
         u64 m_length = 0; // its bytes
         Array<Entry> m_entries;
+        HashMap<String, usize> m_index; // locator -> its entry in m_entries (Find)
         bool m_valid = false;
     };
 

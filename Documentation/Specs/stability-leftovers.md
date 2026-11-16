@@ -271,7 +271,10 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   `ContentDatabase::DuplicateIds()`; the later one keeps the index, as before.
 - **The player opens every envelope at startup, copies entries twice and searches the TOC
   linearly.** `ContentModule.cppm:499`, `PakModule.cppm:92-102, 245`. Fix: lazy open, a view over
-  the region, a hashed TOC.
+  the region, a hashed TOC. Built 2026-11-16: an entry opens as a `FileRegionStream` over its
+  region (read as read, no copies), and Find goes through a locator index. The startup scan still
+  opens each envelope, but now reads only its header (it read each whole, twice); an index written
+  into the pak so the player opens none is left for later.
 - **glTF: only the first skin is imported; reimport identity is name and type.**
   `FileImport.cppm:1384, 1055-1057`, `Cook.cppm:361`.
 - **XML drops whitespace-only strings.** `Document.cppm:629`.

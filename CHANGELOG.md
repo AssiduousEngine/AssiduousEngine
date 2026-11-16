@@ -30,6 +30,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Exported games start faster: reading an asset from the game's pak no longer copies it whole into
+  memory twice, startup reads only each asset's header, and finding an asset no longer walks the
+  whole table.
 - Content: two asset files with one identity (a file copied outside the editor) are reported by
   name, rather than one silently hiding the other.
 - Cook: a source file saved again within a second of the last cook, at the same size, is cooked
