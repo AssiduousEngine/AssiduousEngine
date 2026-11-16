@@ -604,6 +604,7 @@ TEST_CASE("mesh convert: missing tangent stream generates tangents (DamagedHelme
                                                 model::VertexElementFormat::Float2, 24));
     tmesh.addVertexElement(model::VertexElement(model::VertexSemantic::Tangent,
                                                 model::VertexElementFormat::Float4, 32));
+    tmesh.setHasTangents(true); // as a loader says of a source that has them
     tmesh.allocateVertices(4, sizeof(SrcVertexT));
     tmesh.setVertexData(tverts, 4);
     tmesh.allocateIndices(6, true);
@@ -2913,4 +2914,35 @@ TEST_CASE("model importer: textures, materials and the skeleton with its clips e
     CHECK(importer.KindSetting(ImportResourceKind::Mesh).IsEmpty());
     CHECK(options->FindBoolSetting(u8"scale") == nullptr); // not a bool
     CHECK(options->FindBoolSetting(u8"noSuchSetting") == nullptr);
+}
+
+TEST_CASE("mesh convert: a glTF without tangents gets them generated through the real loader")
+{
+    // The glTF loader declares a tangent element on every mesh and fills (1,0,0,1) when the file
+    // has no TANGENT, so a converter that asked only whether the element was there never
+    // generated any: every glTF without authored tangents shaded its normal maps wrong.
+    model::Model duck;
+    model::gltf::GltfLoader loader;
+    REQUIRE(loader.load(MiDuck().AsView(), duck) == model::ModelLoadResult::Ok);
+    REQUIRE_FALSE(duck.meshes().IsEmpty());
+    model::ModelMesh& mesh = *duck.meshes()[0];
+    CHECK_FALSE(mesh.hasTangents()); // the Duck ships no TANGENT
+
+    geometry::StaticMeshSource source;
+    pipeline::StaticMeshSourceFromModel(mesh, source);
+    const auto* out = reinterpret_cast<const geometry::StaticMeshVertex*>(source.vertexBlob.Data());
+    const usize count = source.vertexBlob.Size() / sizeof(geometry::StaticMeshVertex);
+    REQUIRE(count > 0u);
+    usize generated = 0;
+    usize perpendicular = 0;
+    for (usize i = 0; i < count; ++i)
+    {
+        const Float4 t = out[i].tangent;
+        if (!(t.x == 1.0f && t.y == 0.0f && t.z == 0.0f && t.w == 1.0f))
+            ++generated;
+        if (Abs(Dot(Float3{t.x, t.y, t.z}, out[i].normal)) < 0.05f)
+            ++perpendicular;
+    }
+    CHECK(generated > count / 2); // not left at the default
+    CHECK(perpendicular > count * 9 / 10);
 }

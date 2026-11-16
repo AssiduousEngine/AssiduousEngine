@@ -35,6 +35,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- glTF and FBX models without authored tangents get them generated, so their normal maps shade
+  right; a model imported before keeps its old tangents until it is imported again.
 - Windows: a server whose client left no longer stops reading the frame's other datagrams (the
   connection-reset error a send to the gone client brought back).
 - The WebSocket client refuses an address whose host or path holds a line break, control character

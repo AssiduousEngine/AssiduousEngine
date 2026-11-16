@@ -468,10 +468,12 @@ namespace pipeline
             CopyIndices(mesh, out.indexData);
             CopyParts(mesh, out);
 
-            // No authored tangent stream (DamagedHelmet.gltf ships only NORMAL and TEXCOORD_0):
-            // generate them, or every vertex keeps the {1,0,0,+1} default and the TBN is garbage
-            // everywhere, so normal-mapped materials shade wrong across the whole mesh.
-            if (eTan == nullptr && eNrm != nullptr && eUv != nullptr && !out.indexData.IsEmpty())
+            // No authored tangents (DamagedHelmet.gltf ships only NORMAL and TEXCOORD_0): generate
+            // them, or every vertex keeps the {1,0,0,+1} default and the TBN is garbage everywhere,
+            // so normal-mapped materials shade wrong across the whole mesh. Asked of the mesh, not
+            // its layout: the glTF and FBX loaders always declare a tangent element, filled with
+            // the default when the source had none.
+            if ((eTan == nullptr || !mesh.hasTangents()) && eNrm != nullptr && eUv != nullptr && !out.indexData.IsEmpty())
             {
                 geometry::StaticMesh::GenerateTangents(
                     Span<geometry::StaticMeshVertex>{dst, static_cast<usize>(count)},
