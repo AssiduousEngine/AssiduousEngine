@@ -285,7 +285,9 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
 
 - **CJK text never wraps.** `TextLayout.cppm:1375`. Test: 150 CJK characters in 100 units wrap.
   Fix: break opportunities by Unicode line-break class (UAX 14, at least CJK ideographs and
-  kana).
+  kana). Built 2026-11-16: the ID class's common ranges break before and after, with the kinsoku
+  exceptions (no line starts with closing punctuation or small kana, none ends with an opening
+  mark). Tested over a test font (no repository font has CJK glyphs).
 - **A child index goes stale under a hidden ancestor.** `Node.cppm:2150-2154, 3014`.
 - **A percent size on an unbounded axis stops the relayout walk.** `LayoutImpl.cpp:36-41, 1188`.
 - **SVG: `viewBox` ignored beside width and height; `fill-rule` never parsed; round and bevel joins

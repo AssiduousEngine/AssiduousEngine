@@ -125,3 +125,98 @@ TEST_CASE("overflow wrap: inherits from a sheet, and normal turns it off")
     styles.ApplyTree(*root.Get());
     CHECK_FALSE(label->GetTextStyle().BreakWords);
 }
+
+namespace
+{
+    // A font every character of which is 10 wide, CJK included (no font in the repository has CJK
+    // glyphs, and one without them measures them 0, so nothing would ever wrap).
+    class EvenFont final : public fonts::IFont
+    {
+    public:
+        [[nodiscard]] StringView FamilyName() const override { return u8"Even"; }
+        [[nodiscard]] Span<const u8> SourceData() const override { return {}; }
+        [[nodiscard]] fonts::FontMetrics Metrics() const override { return fonts::FontMetrics(12.0f, -4.0f, 0.0f, 16.0f, 1.0f); }
+        [[nodiscard]] f32 PixelHeight() const override { return 16.0f; }
+        [[nodiscard]] fonts::GlyphInfo GetGlyphInfo(i32 codepoint) const override
+        {
+            fonts::GlyphInfo info;
+            info.codepoint = codepoint;
+            info.glyphIndex = codepoint;
+            info.advanceWidth = 10.0f;
+            return info;
+        }
+        [[nodiscard]] f32 GetKerning(i32, i32) const override { return 0.0f; }
+        [[nodiscard]] bool HasGlyph(i32) const override { return true; }
+        [[nodiscard]] f32 MeasureString(StringView text) const override
+        {
+            Array<fonts::GlyphPosition> positions;
+            return MeasureString(text, positions);
+        }
+        [[nodiscard]] f32 MeasureString(StringView text, Array<fonts::GlyphPosition>& out) const override
+        {
+            f32 x = 0.0f;
+            usize at = 0;
+            while (at < text.Size())
+            {
+                const usize start = at;
+                const u32 c = DecodeUtf8(text, at);
+                fonts::GlyphPosition position;
+                position.cluster = static_cast<i32>(start);
+                position.clusterLength = static_cast<i32>(at - start);
+                position.x = x;
+                position.advance = 10.0f;
+                position.glyphInfo = GetGlyphInfo(static_cast<i32>(c));
+                out.PushBack(position);
+                x += 10.0f;
+            }
+            return x;
+        }
+    };
+
+    TextLayout LayEven(fonts::CachedFont& font, StringView text, f32 maxWidth)
+    {
+        TextLayoutStyle style;
+        style.Font = &font;
+        style.Family = String(u8"Even");
+        style.Size = 16.0f;
+        style.MaxWidth = maxWidth;
+        TextDocument document;
+        TextRun run;
+        run.Text = String(text);
+        document.Runs.PushBack(Move(run));
+        return LayOutText(document, style);
+    }
+}
+
+TEST_CASE("line breaks: CJK text wraps between its characters, and keeps its punctuation off a line's start")
+{
+    // Pieces ended only at spaces, so 150 characters of Chinese or Japanese were one word that
+    // never wrapped and ran out of its box.
+    fonts::CachedFont font(DefaultAllocator(), DefaultAllocator().New<EvenFont>(), nullptr);
+    String text;
+    for (int i = 0; i < 50; ++i)
+    {
+        text.Append(u8"漢字か");
+    }
+    const TextLayout layout = LayEven(font, text.AsView(), 105.0f); // ten characters to a line
+    CHECK(layout.Lines.Size() == 15u);
+    CheckCovers(layout, text.Size(), 105.0f);
+
+    // "。" may not start a line: the break before it moves back one character.
+    String punctuated;
+    for (int i = 0; i < 10; ++i)
+    {
+        punctuated.Append(u8"漢");
+    }
+    punctuated.Append(u8"。字字");
+    const TextLayout kept = LayEven(font, punctuated.AsView(), 105.0f);
+    REQUIRE(kept.Lines.Size() == 2u);
+    CHECK(punctuated.AsView().SubStr(kept.Lines[1].Start, 3) != StringView(u8"。"));
+    CHECK(punctuated.AsView().SubStr(kept.Lines[1].Start, 3) == StringView(u8"漢"));
+
+    // Latin text still breaks only at its spaces.
+    CHECK(LayEven(font, StringView(u8"abcdefghijklmnopqrstuvwxyz"), 105.0f).Lines.Size() == 1u);
+    CHECK_FALSE(IsLineBreakBetween(u8'a', u8'b'));
+    CHECK(IsLineBreakBetween(0x6F22, 0x5B57));
+    CHECK_FALSE(IsLineBreakBetween(0x300C, 0x6F22)); // nothing after an opening bracket
+}

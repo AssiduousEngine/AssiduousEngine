@@ -1345,6 +1345,7 @@ export namespace foundation::gui
             const core::StringView text = run.Text.AsView();
             usize start = 0;
             usize i = 0;
+            u32 previous = 0; // the code point before i, for the breaks between characters
             const auto emit = [&](usize end)
             {
                 if (end <= start)
@@ -1380,7 +1381,17 @@ export namespace foundation::gui
                     start = i;
                     continue;
                 }
-                ++i;
+                // Text with no spaces (CJK) breaks between its characters: each place a line may
+                // break ends a piece, so a line wraps there as it would after a space.
+                usize next = i;
+                const u32 here = core::DecodeUtf8(text, next);
+                if (i > start && IsLineBreakBetween(previous, here))
+                {
+                    emit(i);
+                    start = i;
+                }
+                previous = here;
+                i = next;
             }
             emit(text.Size());
             runStart += text.Size();
