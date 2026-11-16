@@ -93,8 +93,16 @@ namespace editor::app
                 .Str(u8"path", u8"the PNG to write (default: a new file under <user-data>/screenshots)")
                 .Build(),
             ToolAnnotations::ReadOnly(),
-            [state](const JsonValue& args) -> ToolOutcome
+            [state, paths = &server.Paths()](const JsonValue& args) -> ToolOutcome
             {
+                if (!state->pending)
+                {
+                    Result<String, String> allowed = paths->CheckArgument(args, u8"path");
+                    if (!allowed.HasValue())
+                    {
+                        return Err(Move(allowed.Error()));
+                    }
+                }
                 if (state->pending)
                 {
                     // Re-entered: the same call, one pump later.

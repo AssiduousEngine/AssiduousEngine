@@ -115,23 +115,24 @@ TEST_CASE("editor_screenshot: the main window to a PNG, waiting for its frame")
     fake.windows.PushBack(7); // the main window
     fake.windows.PushBack(9); // a floating panel
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     app::RegisterWindowTools(server, fake.Seams());
     CHECK(server.ToolCount() == app::kWindowToolCount);
 
     // The first pump asks for the main window alone, to the path given.
-    CHECK(Pump(server, u8"{\"path\":\"/tmp/editor.png\"}").state == LineState::NotFinished);
+    CHECK(Pump(server, u8"{\"path\":\"shots/editor.png\"}").state == LineState::NotFinished);
     REQUIRE(fake.shots.Size() == 1);
     CHECK(fake.shots[0].window == 7u);
     CHECK(fake.shots[0].main);
-    CHECK(fake.shots[0].path == StringView(u8"/tmp/editor.png"));
+    CHECK(fake.shots[0].path == StringView(u8"shots/editor.png"));
 
     // Re-entered until it lands, with the same request rather than a new one.
-    CHECK(Pump(server, u8"{\"path\":\"/tmp/editor.png\"}").state == LineState::NotFinished);
+    CHECK(Pump(server, u8"{\"path\":\"shots/editor.png\"}").state == LineState::NotFinished);
     CHECK(fake.requests == 1u);
     fake.Land(app::WindowCaptureState::Written);
-    const Answer got = AnswerOf(Pump(server, u8"{\"path\":\"/tmp/editor.png\"}"));
+    const Answer got = AnswerOf(Pump(server, u8"{\"path\":\"shots/editor.png\"}"));
     REQUIRE(got.ok);
-    CHECK(got.payload.Get(u8"path").AsString() == StringView(u8"/tmp/editor.png"));
+    CHECK(got.payload.Get(u8"path").AsString() == StringView(u8"shots/editor.png"));
     const JsonValue shots = got.payload.Get(u8"shots");
     REQUIRE(shots.Count() == 1);
     CHECK(shots.At(0).Get(u8"window").AsNumber() == doctest::Approx(7));
@@ -161,16 +162,17 @@ TEST_CASE("editor_screenshot: every window with \"all\", each further one beside
     fake.windows.PushBack(9);
     fake.windows.PushBack(12);
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     app::RegisterWindowTools(server, fake.Seams());
 
-    const StringView args = u8"{\"window\":\"all\",\"path\":\"/tmp/all.png\"}";
+    const StringView args = u8"{\"window\":\"all\",\"path\":\"shots/all.png\"}";
     CHECK(Pump(server, args).state == LineState::NotFinished);
     REQUIRE(fake.shots.Size() == 3);
-    CHECK(fake.shots[0].path == StringView(u8"/tmp/all.png"));
+    CHECK(fake.shots[0].path == StringView(u8"shots/all.png"));
     CHECK(fake.shots[0].main);
-    CHECK(fake.shots[1].path == StringView(u8"/tmp/all-window9.png"));
+    CHECK(fake.shots[1].path == StringView(u8"shots/all-window9.png"));
     CHECK_FALSE(fake.shots[1].main);
-    CHECK(fake.shots[2].path == StringView(u8"/tmp/all-window12.png"));
+    CHECK(fake.shots[2].path == StringView(u8"shots/all-window12.png"));
 
     // Not done while one window has yet to draw.
     fake.shots[0].state = app::WindowCaptureState::Written;
@@ -179,13 +181,14 @@ TEST_CASE("editor_screenshot: every window with \"all\", each further one beside
     const Answer got = AnswerOf(Pump(server, args));
     REQUIRE(got.ok);
     CHECK(got.payload.Get(u8"shots").Count() == 3);
-    CHECK(got.payload.Get(u8"path").AsString() == StringView(u8"/tmp/all.png"));
+    CHECK(got.payload.Get(u8"path").AsString() == StringView(u8"shots/all.png"));
 }
 
 TEST_CASE("editor_screenshot: says why when it cannot capture")
 {
     FakeWindows fake;
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     app::RegisterWindowTools(server, fake.Seams());
 
     // No window that can draw (the editor minimised).

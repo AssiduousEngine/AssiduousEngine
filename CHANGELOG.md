@@ -23,6 +23,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- MCP tools read and write files by a given path only in the open project, the user-data and temp
+  folders, the engine's data root, and folders the user allows (`Tools.Mcp --allow-path <dir>` and the folder it starts in;
+  the editor's MCP `allowedFolders` setting); other paths are refused.
 - Scripting: an entity property never set (or naming an entity not in the scene) is an Entity
   whose `isValid()` is false in both languages, as a lookup that finds nothing already was; in
   Luau it was `nil`. Ask `isValid()` in Luau too: an entity is never `nil`. An AngelScript class

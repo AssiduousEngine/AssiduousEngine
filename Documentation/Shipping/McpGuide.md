@@ -188,6 +188,14 @@ entity outside a run, each running behaviour's properties under `live` beside wh
   (`pie_run: no field 'probes[0].field' (it takes: entity, fields, script)`); only a map of
   names the tool resolves itself (asset_import's `options`, a behaviour's `properties`) takes
   any key, and the tool refuses one it does not know.
+- **Paths stay where the user put them in reach.** A file path a tool takes (asset_import's
+  `source`, a screenshot's `path` or `screenshotDir`, project_create's and project_open's
+  `directory`, script_declarations' `directory`) must be inside the open project, the user-data
+  folder, the temp folder, the engine's data root, or a folder the user allowed: for `Tools.Mcp`, the folder it was
+  started in and each `--allow-path <dir>`; for the editor, the MCP settings' `allowedFolders`.
+  Anything else is refused, naming the folders that are allowed; ask the user to allow a folder
+  (a downloads folder to import from) rather than copying the file around it. The tools that
+  take such paths say so with `openWorldHint`.
 - **Read before destructive changes.** `asset_uses` before deleting anything;
   `project_health` after - dangling references surface later, not at delete time.
 - **Check `known_issues` before re-diagnosing** an odd symptom; if it matches a recorded

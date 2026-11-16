@@ -101,6 +101,7 @@ TEST_CASE("integration.mcp: scene tools - author, validate, read back, and real 
     RemoveDirectoryRecursive(u8"mcp_scene_project");
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;
     editor::mcp::RegisterProjectOpenTools(server, session, owner);
@@ -303,6 +304,7 @@ TEST_CASE("integration.mcp: scene tools - validation counts prefab instances and
 {
     RemoveDirectoryRecursive(u8"mcp_scene_prefabs");
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;
     editor::mcp::RegisterProjectOpenTools(server, session, owner);
@@ -375,6 +377,7 @@ TEST_CASE("integration.mcp: scene tools - validation counts prefab instances and
 TEST_CASE("integration.mcp: host_info reports pid, stamp, versions, and host state")
 {
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     server.SetServerInfo(u8"test-host", u8"9.9.9");
     bool open = false;
     RegisterHostInfoTool(server, String(u8"stamp-abc123"),

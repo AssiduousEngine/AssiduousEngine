@@ -738,8 +738,18 @@ namespace editor
             u8"compare with tolerances. Start from pie_start for a reproducible run. One run per "
             u8"instance at a time.",
             Move(schema), ToolAnnotations::Adjusts(),
-            [ctx, runsPtr, keep = Move(runs)](foundation::mcp::ToolCall& call,
+            [ctx, runsPtr, keep = Move(runs), paths = &server.Paths()](foundation::mcp::ToolCall& call,
                                               const JsonValue& args) -> ToolOutcome
-            { return Handle(*ctx, *runsPtr, call, args); });
+            {
+                if (!call.isReentry)
+                {
+                    Result<String, String> allowed = paths->CheckArgument(args, u8"screenshotDir");
+                    if (!allowed.HasValue())
+                    {
+                        return Err(Move(allowed.Error()));
+                    }
+                }
+                return Handle(*ctx, *runsPtr, call, args);
+            });
     }
 }

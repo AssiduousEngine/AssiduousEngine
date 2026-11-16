@@ -115,6 +115,7 @@ export namespace editor::mcp
         using foundation::mcp::ToolResult;
         ProjectSession* s = &session;
         ProjectOwner* o = &owner;
+        foundation::mcp::McpPathPolicy* paths = &server.Paths();
         const String seedRoot(dataRoot);
 
         server.RegisterTool(
@@ -127,10 +128,15 @@ export namespace editor::mcp
                 .Str(u8"directory", u8"path to create the project at", true)
                 .Str(u8"name", u8"the project's display name", true)
                 .Build(),
-                foundation::mcp::ToolAnnotations::Creates(),
-            [creators, seedRoot](const JsonValue& args) -> ToolResult
+                foundation::mcp::ToolAnnotations::Creates().OpenWorld(),
+            [creators, seedRoot, paths](const JsonValue& args) -> ToolResult
             {
-                const String directory = args.Get(u8"directory").AsString();
+                Result<String, String> allowed = paths->Check(args.Get(u8"directory").AsString().AsView());
+                if (!allowed.HasValue())
+                {
+                    return Err(Move(allowed.Error()));
+                }
+                const String directory = Move(allowed.Value());
                 const String name = args.Get(u8"name").AsString();
                 const Status st = editor::EditorProject::Create(editor::EditorRootAllocator(), directory.AsView(), name.AsView());
                 if (!st.IsOk())
@@ -164,10 +170,15 @@ export namespace editor::mcp
             u8"Open a project (mounts its source + cooked content databases) as the session's "
             u8"current project.",
             SchemaBuilder().Str(u8"directory", u8"the project directory", true).Build(),
-            foundation::mcp::ToolAnnotations::Rebuilds(),
-            [s, o, plugins](const JsonValue& args) -> ToolResult
+            foundation::mcp::ToolAnnotations::Rebuilds().OpenWorld(),
+            [s, o, plugins, paths](const JsonValue& args) -> ToolResult
             {
-                const String directory = args.Get(u8"directory").AsString();
+                Result<String, String> allowed = paths->Check(args.Get(u8"directory").AsString().AsView());
+                if (!allowed.HasValue())
+                {
+                    return Err(Move(allowed.Error()));
+                }
+                const String directory = Move(allowed.Value());
                 UniquePtr<editor::EditorProject> opened =
                     editor::EditorProject::Open(editor::EditorRootAllocator(), directory.AsView());
                 if (!opened)
@@ -185,6 +196,7 @@ export namespace editor::mcp
                 s->project = nullptr;
                 o->project = Move(opened);
                 s->project = o->project.Get();
+                paths->SetProject(o->project->Directory());
                 // The plugins this project enables that this host links, with their parts for MCP.
                 McpPluginServices* tools = plugins.tools;
                 editor::ExportPluginServices* exportHooks = plugins.exportHooks;
@@ -348,6 +360,7 @@ export namespace editor::mcp
         using foundation::mcp::ToolOutcome;
         ProjectSession* s = &session;
         pipeline::ImporterRegistry* imp = &importers;
+        foundation::mcp::McpPathPolicy* paths = &server.Paths();
         IProjectOperations* ops = &operations;
 
         server.RegisterTool(
@@ -361,7 +374,8 @@ export namespace editor::mcp
             u8"next free name); re-importing the same file replaces its asset. Does not cook - call "
             u8"asset_cook next.",
             SchemaBuilder()
-                .Str(u8"source", u8"absolute path to the file to import", true)
+                .Str(u8"source", u8"absolute path to the file to import (in the project, the temp or user-data "
+                                    u8"folder, or a folder the user allowed)", true)
                 .Str(u8"group", u8"source-DB group path to place it in (slash-joined; default root)")
                 .Str(u8"importer", u8"which importer to use when several claim the extension, by "
                                    u8"label (the result of an unhinted import lists them)")
@@ -370,15 +384,20 @@ export namespace editor::mcp
                 .Str(u8"onConflict", u8"when another file's asset of this type has the name: refuse (default), "
                                      u8"replace, or keepBoth")
                 .Build(),
-                foundation::mcp::ToolAnnotations::Creates(),
-            [s, imp, ops](foundation::mcp::ToolCall& call, const JsonValue& args) -> ToolOutcome
+                foundation::mcp::ToolAnnotations::Creates().OpenWorld(),
+            [s, imp, ops, paths](foundation::mcp::ToolCall& call, const JsonValue& args) -> ToolOutcome
             {
                 if (!s->project)
                 {
                     return Err(String(u8"no project is open (call project_open first)"));
                 }
                 ImportRequest request;
-                request.source = args.Get(u8"source").AsString();
+                Result<String, String> source = paths->Check(args.Get(u8"source").AsString().AsView());
+                if (!source.HasValue())
+                {
+                    return Err(Move(source.Error()));
+                }
+                request.source = Move(source.Value());
                 request.groupPath = args.Get(u8"group").AsString();
                 const String ext = pipeline::FileExtensionLower(request.source.AsView());
                 // Every claimant, as the interactive path asks for them, since several

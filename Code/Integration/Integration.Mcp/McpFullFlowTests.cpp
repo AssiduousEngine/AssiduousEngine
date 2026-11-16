@@ -116,6 +116,7 @@ TEST_CASE("integration.mcp: the full agent flow - create, import, cook, author, 
     engine::RegisterAllSceneComponentReflection();
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     // The flow runs over the shared engine surface that every host serves, plus the stdio host's
     // project_create and project_open.
     editor::EditorLogBuffer logBuffer{DefaultAllocator()};
@@ -197,6 +198,7 @@ TEST_CASE("integration.mcp: RegisterEngineTools registers exactly kEngineToolCou
     editor::mcp::ProjectSession session;
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::InlineProjectOperations operations(session, builders, String(), String());
     pipeline::AssetCreatorRegistry creators{DefaultAllocator()};
     (void)pipeline::RegisterAllCreators(creators);
@@ -262,6 +264,7 @@ TEST_CASE("integration.mcp: LocateShippingDocs walks up to the checkout layout, 
     {
         WriteText(u8"mcp_docs_checkout/Documentation/Shipping/Assets.md", u8"# assets");
         McpServer server;
+        server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
         editor::mcp::RegisterShippingDocResources(server,
                                                   u8"mcp_docs_checkout/Documentation/Shipping");
         LineOutcome line = server.HandleLine(
@@ -412,6 +415,7 @@ TEST_CASE("integration.mcp: the write tools ride a host's operations - not finis
     pipeline::RegisterAllImporters(importers);
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;
     SlowOperations slow;
@@ -550,6 +554,7 @@ TEST_CASE("integration.mcp: asset_creators and asset_create make what File > New
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::InlineProjectOperations operations(session, builders, String(), String());
     editor::mcp::RegisterEngineTools(server, session, builders, importers, creators, logBuffer,
                                      editor::mcp::EngineToolPaths{}, operations);
@@ -645,6 +650,7 @@ TEST_CASE("integration.mcp: an agent edits a data asset through its envelope")
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::InlineProjectOperations operations(session, builders, String(), String());
     editor::mcp::RegisterEngineTools(server, session, builders, importers, creators, logBuffer,
                                      editor::mcp::EngineToolPaths{}, operations);
@@ -736,6 +742,8 @@ TEST_CASE("integration.mcp: an agent sets the project's settings")
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
+    server.Paths().AddFolder(foundation::vfs::FindDataRoot().AsView()); // the engine's fonts, as a host allows
     pipeline::RegisterAllImporters(importers); // a font for the list setting
     editor::mcp::InlineProjectOperations operations(session, builders, String(), String());
     editor::mcp::RegisterEngineTools(server, session, builders, importers, creators, logBuffer,
@@ -970,6 +978,8 @@ TEST_CASE("integration.mcp: a headless model import generates its prefab")
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
+    server.Paths().AddFolder(foundation::vfs::FindDataRoot().AsView()); // the engine's data, as a host allows
     editor::mcp::InlineProjectOperations operations(session, builders, String(), String());
     operations.onImported = [](foundation::content::Instance& primary,
                                const pipeline::ImportOptions* options)
@@ -1059,6 +1069,7 @@ TEST_CASE("integration.mcp: export_presets and export_preset_set")
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::InlineProjectOperations operations(session, builders, String(), String());
     editor::mcp::RegisterEngineTools(server, session, builders, importers, creators, logBuffer,
                                      editor::mcp::EngineToolPaths{}, operations);
@@ -1252,6 +1263,7 @@ TEST_CASE("integration.mcp: material_set_shader lays a material out by its shade
     pipeline::RegisterAllImporters(importers);
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::EditorLogBuffer logBuffer{DefaultAllocator()};
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;

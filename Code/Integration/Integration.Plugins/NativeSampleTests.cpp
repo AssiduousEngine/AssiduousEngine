@@ -181,6 +181,7 @@ TEST_CASE("plugins: in the editor, a project's package brings every part's contr
     editor::mcp::McpPluginServices pluginTools{DefaultAllocator()};
     editor::mcp::ProjectSession mcpSession;
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     pluginTools.AttachServer(server, mcpSession); // the editor's MCP host's server, serving
     app::EditorSession::Services services;
     services.context = &context;
@@ -309,6 +310,7 @@ TEST_CASE("plugins: through the standalone MCP host, an agent creates and cooks 
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::InlineProjectOperations operations(session, builders, String(), String());
     editor::mcp::RegisterEngineTools(server, session, builders, importers, creators, logBuffer,
                                      editor::mcp::EngineToolPaths{}, operations);
@@ -541,6 +543,7 @@ TEST_CASE("plugins: the NativeSample project reads with its package, its scene's
         editor::mcp::ProjectSession session;
         editor::mcp::ProjectOwner owner;
         McpServer server;
+        server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
         editor::mcp::InlineProjectOperations operations(session, builders, String(), String());
         editor::mcp::RegisterEngineTools(server, session, builders, importers, creators, logBuffer,
                                          editor::mcp::EngineToolPaths{}, operations);

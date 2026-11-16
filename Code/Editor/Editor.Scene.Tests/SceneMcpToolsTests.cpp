@@ -242,6 +242,7 @@ TEST_CASE("scene-mcp-tools: page addressing, the selection round-trip, its refus
     pageA->EditContext().EntitySelection().Set(Span<const Guid>{});
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     RegisterSceneLiveTools(server, context);
     CHECK(server.ToolCount() == kSceneLiveToolCount);
     CHECK(kSceneLiveToolCount == 20u); // a tripwire: update it when a live tool is added or removed
@@ -350,6 +351,7 @@ TEST_CASE("scene-mcp-tools: entity_inspect reads an entity and its components th
     scene.SetLocalTransform(lamp, placed);
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     RegisterSceneLiveTools(server, context);
     const String pageGuid = GuidText(sceneId);
 
@@ -475,6 +477,7 @@ TEST_CASE("scene-mcp-tools: an entity by name or path, and a Script component's 
     component.behaviors.PushBack(Move(behavior));
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     RegisterSceneLiveTools(server, context);
     Answer got = Call(server, u8"entity_inspect",
                       Format(u8"{{\"page\":\"{}\",\"entity\":\"Player/Weapon\"}}", arena.AsView()).AsView());
@@ -580,6 +583,7 @@ TEST_CASE("scene-mcp-tools: component_set writes one property through the undo p
     edit.Commands().Clear();
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     RegisterSceneLiveTools(server, context);
     const String pageGuid = GuidText(sceneId);
     const String lampGuid = GuidText(lampId);
@@ -739,6 +743,7 @@ TEST_CASE("scene-mcp-tools: component_set writes a whole list - references by gu
     edit.Commands().Clear();
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     RegisterSceneLiveTools(server, context);
     const String pageGuid = GuidText(sceneId);
     const String riderGuid = GuidText(riderId);
@@ -853,6 +858,7 @@ TEST_CASE("scene-mcp-tools: component_set writes a string, a vector, a quaternio
     edit.Commands().Clear();
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     RegisterSceneLiveTools(server, context);
     const String pageGuid = GuidText(sceneId);
     const String signGuid = GuidText(signId);
@@ -954,6 +960,7 @@ TEST_CASE("scene-mcp-tools: the viewport camera reads and moves in degrees (posi
         DefaultAllocator().New<HeadlessScenePage>(u8"Menu", Guid::Generate(rng)), DefaultAllocator())));
     page->hasViewport = true;
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     RegisterSceneLiveTools(server, context);
     const String pageGuid = GuidText(sceneId);
     const String pageArg = Format(u8"{{\"page\":\"{}\"}}", pageGuid.AsView());
@@ -1036,32 +1043,32 @@ TEST_CASE("scene-mcp-tools: the viewport camera reads and moves in degrees (posi
     EditorPage* revealed = nullptr;
     context.OnRevealPage = [&revealed](EditorPage* shown) { revealed = shown; };
     LineOutcome outcome = Pump(server, u8"viewport_screenshot",
-                               Format(u8"{{\"page\":\"{}\",\"path\":\"/tmp/bistro.png\"}}", pageGuid.AsView()).AsView());
+                               Format(u8"{{\"page\":\"{}\",\"path\":\"shots/bistro.png\"}}", pageGuid.AsView()).AsView());
     CHECK(outcome.state == LineState::NotFinished);
     CHECK(context.ActivePage() == page);
     CHECK(revealed == page);
     CHECK(page->captureRequests == 1u);
     CHECK(page->capture.state == ViewportCaptureState::Pending);
-    CHECK(page->capture.path == u8"/tmp/bistro.png");
+    CHECK(page->capture.path == u8"shots/bistro.png");
     outcome = Pump(server, u8"viewport_screenshot",
-                   Format(u8"{{\"page\":\"{}\",\"path\":\"/tmp/bistro.png\"}}", pageGuid.AsView()).AsView());
+                   Format(u8"{{\"page\":\"{}\",\"path\":\"shots/bistro.png\"}}", pageGuid.AsView()).AsView());
     CHECK(outcome.state == LineState::NotFinished); // not yet rendered
     CHECK(page->captureRequests == 1u);              // the same request, not a new one
     page->CompleteCapture(1280, 720);
     got = AnswerOf(Pump(server, u8"viewport_screenshot",
-                        Format(u8"{{\"page\":\"{}\",\"path\":\"/tmp/bistro.png\"}}", pageGuid.AsView()).AsView()));
+                        Format(u8"{{\"page\":\"{}\",\"path\":\"shots/bistro.png\"}}", pageGuid.AsView()).AsView()));
     REQUIRE(got.ok);
-    CHECK(got.payload.Get(u8"path").AsString() == StringView(u8"/tmp/bistro.png"));
+    CHECK(got.payload.Get(u8"path").AsString() == StringView(u8"shots/bistro.png"));
     CHECK(got.payload.Get(u8"width").AsNumber() == doctest::Approx(1280));
     CHECK(got.payload.Get(u8"height").AsNumber() == doctest::Approx(720));
     // A failed capture is an error naming the log; a new call starts a new request.
     outcome = Pump(server, u8"viewport_screenshot",
-                   Format(u8"{{\"page\":\"{}\",\"path\":\"/tmp/again.png\"}}", pageGuid.AsView()).AsView());
+                   Format(u8"{{\"page\":\"{}\",\"path\":\"shots/again.png\"}}", pageGuid.AsView()).AsView());
     CHECK(outcome.state == LineState::NotFinished);
     CHECK(page->captureRequests == 2u);
     page->FailCapture();
     got = AnswerOf(Pump(server, u8"viewport_screenshot",
-                        Format(u8"{{\"page\":\"{}\",\"path\":\"/tmp/again.png\"}}", pageGuid.AsView()).AsView()));
+                        Format(u8"{{\"page\":\"{}\",\"path\":\"shots/again.png\"}}", pageGuid.AsView()).AsView()));
     CHECK_FALSE(got.ok);
     CHECK(got.error.AsView().StartsWith(u8"the capture of page 'Bistro' failed"));
 
@@ -1077,6 +1084,7 @@ TEST_CASE("scene-mcp-tools: viewport_frame frames named entities or the selectio
     auto* page = static_cast<HeadlessScenePage*>(context.AdoptPage(UniquePtr<EditorPage>(
         DefaultAllocator().New<HeadlessScenePage>(u8"Bistro", sceneId), DefaultAllocator())));
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     RegisterSceneLiveTools(server, context);
     CHECK(server.ToolCount() == kSceneLiveToolCount);
     context.SetActivePage(page);
@@ -1130,6 +1138,7 @@ TEST_CASE("scene-mcp-tools: navigation_bake bakes a page's zone into its asset, 
 
     EditorContext context{DefaultAllocator()};
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     RegisterSceneLiveTools(server, context);
     Random rng(77);
     auto* page = static_cast<HeadlessScenePage*>(context.AdoptPage(UniquePtr<EditorPage>(
@@ -1211,11 +1220,12 @@ TEST_CASE("scene-mcp-tools: viewport_run plays a timeline into a page's viewport
     page->hasViewport = true;
     context.SetActivePage(page);
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     RegisterSceneLiveTools(server, context);
     utf8char text[37];
     sceneGuid.ToChars(text);
     const String args = Format(u8"{{\"page\":\"{}\",\"duration\":1,\"input\":[{{\"at\":0.1,\"mouseMove\":[100,50]}},"
-                               u8"{{\"at\":0.2,\"mouseButton\":\"Left\"}}],\"screenshots\":[0.5],\"screenshotDir\":\"/tmp\"}}",
+                               u8"{{\"at\":0.2,\"mouseButton\":\"Left\"}}],\"screenshots\":[0.5],\"screenshotDir\":\"shots\"}}",
                                StringView(text, 36));
 
     // Once begun, the page holds the playtest's devices, and the call waits on its clock.
@@ -1230,7 +1240,7 @@ TEST_CASE("scene-mcp-tools: viewport_run plays a timeline into a page's viewport
     page->AdvanceRun(0.6);
     CHECK(Pump(server, u8"viewport_run", args.AsView()).state == LineState::NotFinished);
     CHECK(page->captureRequests == 1u);
-    CHECK(page->capture.path.AsView().StartsWith(u8"/tmp/"));
+    CHECK(page->capture.path.AsView().StartsWith(u8"shots/"));
     CHECK(Pump(server, u8"viewport_run", args.AsView()).state == LineState::NotFinished); // not rendered yet
     page->CompleteCapture(800, 600);
     CHECK(Pump(server, u8"viewport_run", args.AsView()).state == LineState::NotFinished); // the run goes on

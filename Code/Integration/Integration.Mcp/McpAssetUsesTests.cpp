@@ -113,6 +113,7 @@ TEST_CASE("integration.mcp: asset_uses - reverse dependencies across all edge ki
     RemoveDirectoryRecursive(u8"mcp_uses_project");
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::ProjectSession session;
     pipeline::BuilderRegistry builders{DefaultAllocator()};
     pipeline::RegisterPipelineTypes();
@@ -210,6 +211,7 @@ TEST_CASE("integration.mcp: project_health - the soundness sweep finds what brok
     RemoveDirectoryRecursive(u8"mcp_health_project");
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::ProjectSession session;
     pipeline::BuilderRegistry builders{DefaultAllocator()};
     pipeline::RegisterPipelineTypes();
@@ -343,6 +345,7 @@ TEST_CASE("integration.mcp: asset_delete - refused while used, unless forced")
     RemoveDirectoryRecursive(u8"mcp_delete_project");
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::ProjectSession session;
     pipeline::BuilderRegistry builders{DefaultAllocator()};
     pipeline::RegisterPipelineTypes();
@@ -425,6 +428,7 @@ TEST_CASE("integration.mcp: asset_rename - keeps the guid, the default scene's p
     RemoveDirectoryRecursive(u8"mcp_rename_project");
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::ProjectSession session;
     pipeline::BuilderRegistry builders{DefaultAllocator()};
     pipeline::RegisterPipelineTypes();

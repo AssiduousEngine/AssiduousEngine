@@ -109,6 +109,19 @@ int main(int argc, char** argv)
 
     McpServer server;
     server.SetServerInfo(ENGINE_ID u8"-mcp", String(engine::project::kEngineVersionDisplay));
+    // Where tools may read and write by a path an agent gives: the project it opens, the user-data
+    // and temp folders, the folder this host was started in (the user chose it), the engine's data
+    // root, and each --allow-path <dir>.
+    server.Paths().AddStandardFolders();
+    server.Paths().AddFolder(GetCurrentDirectory().AsView());
+    server.Paths().AddFolder(dataRoot.AsView()); // the engine's own data (its fonts, say)
+    for (int i = 1; i + 1 < argc; ++i)
+    {
+        if (StringView(reinterpret_cast<const utf8char*>(argv[i])) == StringView(u8"--allow-path"))
+        {
+            server.Paths().AddFolder(StringView(reinterpret_cast<const utf8char*>(argv[i + 1])));
+        }
+    }
 
 
     // The session every tool works through. This host owns the project it opens: project_open

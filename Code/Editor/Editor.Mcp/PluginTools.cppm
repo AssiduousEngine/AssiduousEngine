@@ -221,6 +221,11 @@ export namespace editor::mcp
                 if (args.Has(u8"path"))
                 {
                     entry.path = args.Get(u8"path").AsString();
+                    // Relative to the project and inside it: a package is the project's own.
+                    if (!entry.path.IsEmpty() && !PathStaysInside(entry.path.AsView()))
+                    {
+                        return Err(Format(u8"'{}' is not a path inside the project", entry.path.AsView()));
+                    }
                 }
                 if (args.Has(u8"platforms"))
                 {

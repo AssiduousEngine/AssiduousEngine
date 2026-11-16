@@ -634,9 +634,19 @@ namespace editor
                 .Str(u8"path", u8"the PNG to write (default: a new file under <user-data>/screenshots)")
                 .Build(),
             ToolAnnotations::ReadOnly(),
-            [ctx, serialPtr, keep = Move(serial)](foundation::mcp::ToolCall& call,
-                                                   const JsonValue& args) -> ToolOutcome
-            { return Screenshot(*ctx, *serialPtr, call, args); });
+            [ctx, serialPtr, keep = Move(serial), paths = &server.Paths()](foundation::mcp::ToolCall& call,
+                                                                            const JsonValue& args) -> ToolOutcome
+            {
+                if (!call.isReentry)
+                {
+                    Result<String, String> allowed = paths->CheckArgument(args, u8"path");
+                    if (!allowed.HasValue())
+                    {
+                        return Err(Move(allowed.Error()));
+                    }
+                }
+                return Screenshot(*ctx, *serialPtr, call, args);
+            });
 
         RegisterPieRunTool(server, context);
     }

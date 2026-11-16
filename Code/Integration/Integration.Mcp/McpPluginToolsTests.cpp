@@ -152,6 +152,7 @@ TEST_CASE("integration.mcp: an agent lists the project's plugins and sets a load
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::InlineProjectOperations operations(session, builders, String(), String());
     editor::mcp::RegisterEngineTools(server, session, builders, importers, creators, logBuffer,
                                      editor::mcp::EngineToolPaths{}, operations);
@@ -299,6 +300,7 @@ TEST_CASE("integration.mcp: an agent enables and disables plugins in the project
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::InlineProjectOperations operations(session, builders, String(), String());
     editor::mcp::RegisterEngineTools(server, session, builders, importers, creators, logBuffer,
                                      editor::mcp::EngineToolPaths{}, operations);
@@ -518,6 +520,7 @@ TEST_CASE("integration.mcp: a plugin's asset type is created and cooked through 
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::InlineProjectOperations operations(session, builders, String(), String());
     editor::mcp::RegisterEngineTools(server, session, builders, importers, creators, logBuffer,
                                      editor::mcp::EngineToolPaths{}, operations);
@@ -662,6 +665,7 @@ TEST_CASE("integration.mcp: a plugin's MCP tool is served by a server there befo
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::InlineProjectOperations operations(session, builders, String(), String());
     editor::mcp::RegisterEngineTools(server, session, builders, importers, creators, logBuffer,
                                      editor::mcp::EngineToolPaths{}, operations);
@@ -712,6 +716,7 @@ TEST_CASE("integration.mcp: a plugin's MCP tool is served by a server there befo
     // A server started after the plugin loaded serves it too, and leaves it as it stops.
     {
         McpServer later;
+        later.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
         later.RegisterTool(String(u8"project_info"), String(u8"the server's own"), SchemaBuilder().Build(),
                            ToolAnnotations::ReadOnly(), [](const JsonValue&) -> ToolResult { return JsonValue::MakeObject(); });
         pluginTools.AttachServer(later, session);
@@ -745,6 +750,7 @@ TEST_CASE("integration.mcp: an agent scaffolds the game's native code and adds a
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::InlineProjectOperations operations(session, builders, String(), String());
     editor::mcp::RegisterEngineTools(server, session, builders, importers, creators, logBuffer,
                                      editor::mcp::EngineToolPaths{}, operations);

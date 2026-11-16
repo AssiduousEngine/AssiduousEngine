@@ -1399,8 +1399,13 @@ namespace editor
                 .Str(u8"path", u8"the PNG to write (default: a new file under <user-data>/screenshots)")
                 .Build(),
             ToolAnnotations::ReadOnly(),
-            [ctx, pendingPtr, keep = Move(pending)](const JsonValue& args) -> foundation::mcp::ToolOutcome
+            [ctx, pendingPtr, keep = Move(pending), paths = &server.Paths()](const JsonValue& args) -> foundation::mcp::ToolOutcome
             {
+                Result<String, String> allowed = paths->CheckArgument(args, u8"path");
+                if (!allowed.HasValue())
+                {
+                    return Err(Move(allowed.Error()));
+                }
                 Result<AddressedPage, String> addressed = ResolveScenePage(*ctx, args);
                 if (!addressed.HasValue())
                 {
@@ -1501,8 +1506,13 @@ namespace editor
                 .Str(u8"screenshotDir", u8"an existing directory for the screenshots")
                 .Build(),
             ToolAnnotations::Creates(),
-            [ctx, runPtr, keep = Move(running)](const JsonValue& args) -> foundation::mcp::ToolOutcome
+            [ctx, runPtr, keep = Move(running), paths = &server.Paths()](const JsonValue& args) -> foundation::mcp::ToolOutcome
             {
+                Result<String, String> allowed = paths->CheckArgument(args, u8"screenshotDir");
+                if (!allowed.HasValue())
+                {
+                    return Err(Move(allowed.Error()));
+                }
                 Result<AddressedPage, String> addressed = ResolveScenePage(*ctx, args);
                 if (!addressed.HasValue())
                 {

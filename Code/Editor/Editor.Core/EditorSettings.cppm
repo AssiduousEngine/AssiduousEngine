@@ -88,6 +88,9 @@ export namespace editor
         bool enabled = false;
         u32 port = kEditorMcpDefaultPort;
         String token;
+        /// Folders beyond the project, the user-data and the temp folder where MCP tools may read
+        /// and write by a path an agent gives (a downloads folder to import from, say).
+        Array<String> allowedFolders;
 
         /// Applies the Preferences fields as typed. `portText` must name a port in 1024..65535
         /// (lower ports need elevation, and 0 cannot go in a client's URL); anything else leaves the
@@ -111,6 +114,8 @@ export namespace editor
             foundation::core::Serialize(ar, "enabled", enabled);
             foundation::core::Serialize(ar, "port", port);
             foundation::core::Serialize(ar, "token", token);
+            if (ar.Mode() == SerializeMode::Write || ar.HasKey("allowedFolders"))
+                foundation::core::Serialize(ar, "allowedFolders", allowedFolders);
         }
     };
 

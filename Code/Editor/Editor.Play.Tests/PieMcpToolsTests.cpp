@@ -233,6 +233,7 @@ namespace
 
         PlayRig()
         {
+            server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
             EditorActionDeclaration play;
             play.id = String(u8"game.play");
             play.label = String(u8"Play");

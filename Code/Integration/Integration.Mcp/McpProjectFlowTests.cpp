@@ -91,6 +91,7 @@ TEST_CASE("integration.mcp: an agent creates, opens, and inspects a project via 
     RemoveDirectoryRecursive(u8"mcp_fixture_project");
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;
     editor::mcp::RegisterProjectOpenTools(server, session, owner);
@@ -163,6 +164,7 @@ TEST_CASE("integration.mcp: project_create seeds the default UI font, the sky an
     REQUIRE_FALSE(dataRoot.IsEmpty());
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;
     editor::mcp::RegisterProjectOpenTools(server, session, owner, &creators, dataRoot.AsView());
@@ -195,6 +197,7 @@ TEST_CASE("integration.mcp: asset_list / asset_info read the open project's cont
     RemoveDirectoryRecursive(u8"mcp_asset_project");
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;
     editor::mcp::RegisterProjectOpenTools(server, session, owner);
@@ -259,6 +262,7 @@ namespace
         pipeline::RegisterAllImporters(importers);
 
         McpServer server;
+        server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
         editor::mcp::ProjectSession session;
         editor::mcp::ProjectOwner owner;
         editor::mcp::RegisterProjectOpenTools(server, session, owner);
@@ -343,6 +347,7 @@ TEST_CASE("integration.mcp: script_api reports the COMPLETE engine surface, head
     const StringView backend = RegisterSomeBackend();
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     RegisterScriptTools(server);
 
     JsonValue api = CallOk(server, u8"script_api", With(Obj(), u8"language", String(backend)));
@@ -387,6 +392,7 @@ namespace
     JsonValue ListedMember(StringView language, StringView typeName, StringView memberName)
     {
         McpServer server;
+        server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
         RegisterScriptTools(server);
         JsonValue types = CallOk(server, u8"script_api", With(Obj(), u8"language", language))
                               .Get(u8"languages")
@@ -454,6 +460,7 @@ TEST_CASE("integration.mcp: script_api lists the Luau properties a script can us
 TEST_CASE("integration.mcp: project_info before any project is open is a tool error")
 {
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;
     editor::mcp::RegisterProjectOpenTools(server, session, owner);
@@ -476,6 +483,8 @@ TEST_CASE("integration.mcp: asset_import names the other claimants of an extensi
     pipeline::RegisterAllImporters(importers);
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
+    server.Paths().AddFolder(foundation::vfs::FindDataRoot().AsView()); // the engine's data, as a host allows
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;
     editor::mcp::RegisterProjectOpenTools(server, session, owner);

@@ -79,6 +79,7 @@ TEST_CASE("integration.mcp: project_export - a real dist from an authored projec
     engine::RegisterAllSceneComponentReflection();
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;
     editor::mcp::RegisterProjectOpenTools(server, session, owner);

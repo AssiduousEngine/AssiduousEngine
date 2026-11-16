@@ -200,6 +200,7 @@ namespace
             pipeline::ImporterRegistry importers{DefaultAllocator()};
             pipeline::RegisterAllImporters(importers);
             foundation::mcp::McpServer server;
+            server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
             editor::mcp::ProjectSession session;
             editor::mcp::ProjectOwner owner;
             editor::mcp::RegisterProjectOpenTools(server, session, owner);

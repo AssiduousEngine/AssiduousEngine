@@ -125,7 +125,7 @@ export namespace foundation::mcp
         bool readOnly = false;   ///< readOnlyHint: changes nothing
         bool destructive = true; ///< destructiveHint: may overwrite or delete what exists
         bool idempotent = false; ///< idempotentHint: calling again with the same args changes nothing more
-        bool openWorld = false;  ///< openWorldHint: reaches outside the project (never, here)
+        bool openWorld = false;  ///< openWorldHint: reaches outside the project (see McpPathPolicy)
 
         /// Reads and reports; changes nothing of the project. A file of its own outside it (a
         /// screenshot, a profiler capture) does not count.
@@ -146,6 +146,77 @@ export namespace foundation::mcp
         /// Overwrites, Deletes), where a read, a rebuild of derived output or a change to the
         /// editor's session leaves the project's data as it was.
         [[nodiscard]] bool ChangesAuthoredData() const noexcept { return !readOnly && (destructive || !idempotent); }
+
+        /// The same, for a tool that takes a path outside the project (a file to import, a project
+        /// to open): only in the folders McpPathPolicy allows.
+        [[nodiscard]] ToolAnnotations OpenWorld() const noexcept
+        {
+            ToolAnnotations a = *this;
+            a.openWorld = true;
+            return a;
+        }
+    };
+
+    /// The folders a tool may read or write a file in by a path an agent gives it: the open
+    /// project, the user's data folder, the temp folder, and folders the user named (the host's
+    /// start folder, --allow-path, the editor's MCP folders). A path anywhere else is refused, so
+    /// an agent cannot be led to write over, or read, a file the user never put in its reach.
+    /// Paths are compared by their text (PathNormalizeLexically): a link inside an allowed folder
+    /// can still lead out of it.
+    class McpPathPolicy
+    {
+    public:
+        /// The open project's folder; empty when none is open.
+        void SetProject(StringView folder) { m_project = folder.IsEmpty() ? String{} : PathNormalizeLexically(PathAbsolute(folder).AsView()); }
+        void AddFolder(StringView folder)
+        {
+            if (!folder.IsEmpty())
+                m_folders.PushBack(PathNormalizeLexically(PathAbsolute(folder).AsView()));
+        }
+        /// The user's data folder and the temp folder.
+        void AddStandardFolders()
+        {
+            AddFolder(GetUserDataDirectory().AsView());
+            AddFolder(GetTempDirectory().AsView());
+        }
+
+        /// `path` made absolute and normalised when it is inside an allowed folder; otherwise a
+        /// message naming them.
+        [[nodiscard]] Result<String, String> Check(StringView path) const
+        {
+            if (path.IsEmpty())
+                return Err(String(u8"no path given"));
+            const String resolved = PathNormalizeLexically(PathAbsolute(path).AsView());
+            if (!m_project.IsEmpty() && PathIsInside(resolved.AsView(), m_project.AsView()))
+                return resolved;
+            for (const String& folder : m_folders)
+                if (PathIsInside(resolved.AsView(), folder.AsView()))
+                    return resolved;
+            String allowed = m_project.IsEmpty() ? String{} : m_project;
+            for (const String& folder : m_folders)
+            {
+                if (!allowed.IsEmpty())
+                    allowed.Append(StringView(u8", "));
+                allowed.Append(folder.AsView());
+            }
+            return Err(Format(u8"'{}' is outside the folders this host allows ({}); the user can allow a folder "
+                              u8"(Tools.Mcp --allow-path, or the editor's MCP folders setting)",
+                              path, allowed));
+        }
+
+        /// Check for an optional path argument: an empty string when `args` has none (or an empty
+        /// one), the resolved path when it is allowed, the refusal otherwise.
+        [[nodiscard]] Result<String, String> CheckArgument(const foundation::json::JsonValue& args, StringView key) const
+        {
+            const String given = args.Get(key).AsString();
+            if (given.IsEmpty())
+                return String{};
+            return Check(given.AsView());
+        }
+
+    private:
+        String m_project;
+        Array<String> m_folders;
     };
 
     /// Where a tools/call is when the tool observer hears of it.
@@ -255,8 +326,8 @@ export namespace foundation::mcp
         String m_serverVersion;
         Function<void(const ToolCallReport&)> m_toolObserver;
         McpClientInfo m_client;
+        McpPathPolicy m_paths;
         u64 m_nextSerial = 1;
-
         /// A call in flight, known by the transport's id, or by its line when it gave none.
         struct CallEntry
         {
@@ -294,6 +365,9 @@ export namespace foundation::mcp
         {
             m_toolObserver = Move(observer);
         }
+        /// Where the tools may read and write files by a path they are given; the host fills it.
+        [[nodiscard]] McpPathPolicy& Paths() noexcept { return m_paths; }
+        [[nodiscard]] const McpPathPolicy& Paths() const noexcept { return m_paths; }
         /// The client that last initialized, by its clientInfo; empty before any did.
         [[nodiscard]] const McpClientInfo& Client() const noexcept { return m_client; }
         void RegisterTool(String name, String description, JsonValue schema,

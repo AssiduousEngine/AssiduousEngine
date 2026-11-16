@@ -181,9 +181,14 @@ export namespace foundation::mcp
                 .Str(u8"language", u8"backend language id (e.g. \"angelscript\", \"luau\"); default: all")
                 .Build(),
             foundation::mcp::ToolAnnotations::Overwrites(),
-            [](const JsonValue& args) -> Result<JsonValue, String>
+            [paths = &server.Paths()](const JsonValue& args) -> Result<JsonValue, String>
             {
-                const String directory = args.Get(u8"directory").AsString();
+                Result<String, String> allowed = paths->Check(args.Get(u8"directory").AsString().AsView());
+                if (!allowed.HasValue())
+                {
+                    return Err(Move(allowed.Error()));
+                }
+                const String directory = Move(allowed.Value());
                 const String language = args.Get(u8"language").AsString();
                 if (directory.IsEmpty() || !DirectoryExists(directory.AsView()))
                 {

@@ -79,6 +79,7 @@ TEST_CASE("mcp.script: script_api reports the registered backend's bound API")
     const StringView backend = RegisterSomeBackend();
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     RegisterScriptTools(server);
 
     JsonValue api = CallOk(server, u8"script_api", JsonValue::MakeObject());
@@ -121,6 +122,7 @@ TEST_CASE("mcp.script: script_api narrows by language, and an unknown language i
     const StringView backend = RegisterSomeBackend();
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     RegisterScriptTools(server);
 
     JsonValue narrowed = CallOk(server, u8"script_api",
@@ -145,6 +147,7 @@ TEST_CASE("mcp.script: script_declarations writes the backend's declarations fil
 {
     const StringView backend = RegisterSomeBackend();
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     RegisterScriptTools(server);
     const String folder(u8"scratch_script_declarations");
     (void)CreateDirectory(folder.AsView());

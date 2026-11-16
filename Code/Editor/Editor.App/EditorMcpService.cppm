@@ -214,6 +214,16 @@ export namespace editor::app
             if (m_services.pluginTools != nullptr)
                 m_services.pluginTools->AttachServer(m_host->Server(), m_session);
 
+            // Where the tools may read and write by a path an agent gives: the project, the user-data
+            // and temp folders, the engine's data root, and the folders the user allowed in the settings.
+            foundation::mcp::McpPathPolicy& allowed = m_host->Server().Paths();
+            allowed.SetProject(project != nullptr ? project->Directory() : StringView{});
+            allowed.AddStandardFolders();
+            allowed.AddFolder(UserData().AsView());
+            allowed.AddFolder(m_services.dataRoot.AsView()); // the engine's own data (its fonts, say)
+            for (const String& folder : settings.allowedFolders)
+                allowed.AddFolder(folder.AsView());
+
             EditorMcpHostConfig config;
             config.port = static_cast<u16>(m_services.port != 0 ? m_services.port : settings.port);
             config.token = settings.token;

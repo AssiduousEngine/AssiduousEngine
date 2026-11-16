@@ -76,6 +76,7 @@ TEST_CASE("integration.mcp: script_validate - every enabled backend's starter co
     pipeline::RegisterPipelineTypes(); // registers the enabled language cooks (idempotent)
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::ProjectSession session; // no project: the tool compiles in-memory source
     editor::mcp::RegisterScriptValidateTool(server, session);
 
@@ -160,6 +161,7 @@ TEST_CASE("integration.mcp: script_create - starter-seeded asset, unique names, 
     pipeline::RegisterPipelineTypes();
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::ProjectSession session;
     editor::mcp::ProjectOwner owner;
     editor::mcp::RegisterProjectOpenTools(server, session, owner);
@@ -301,6 +303,7 @@ TEST_CASE("integration.mcp: script_validate - a platform check leaves out the pl
                 .loaded.Size() == 1u);
 
     McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     editor::mcp::ProjectSession session;
     editor::mcp::RegisterScriptValidateTool(server, session);
     constexpr StringView kSource = u8"double shine()\n{\n    Lantern l(2.0f);\n    return l.glow;\n}\n";

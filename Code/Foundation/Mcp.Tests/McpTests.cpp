@@ -730,3 +730,25 @@ TEST_CASE("mcp: an unregistered tool is gone from the list and the calls, its ca
         Response(server.HandleLine(u8"{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}")).Get(u8"result").Get(u8"tools");
     CHECK(listed.Count() == 2);
 }
+
+TEST_CASE("mcp: the path policy allows the project and the named folders, nothing else")
+{
+    // Every path argument was taken as given: an agent could be led to write a screenshot over
+    // any file, or import one from anywhere.
+    foundation::mcp::McpPathPolicy policy;
+    CHECK_FALSE(policy.Check(u8"/home/someone/project/a.png").HasValue()); // nothing allowed yet
+    policy.SetProject(u8"/home/someone/project");
+    policy.AddFolder(u8"/home/someone/Downloads");
+    CHECK(policy.Check(u8"/home/someone/project/Sources/a.png").HasValue());
+    CHECK(policy.Check(u8"/home/someone/Downloads/rock.glb").HasValue());
+    CHECK_FALSE(policy.Check(u8"/home/someone/project/../.ssh/id_rsa").HasValue());
+    CHECK_FALSE(policy.Check(u8"/home/someone/project2/a.png").HasValue());
+    const auto refused = policy.Check(u8"/etc/passwd");
+    REQUIRE_FALSE(refused.HasValue());
+    CHECK(refused.Error().AsView().Contains(u8"--allow-path"));
+
+    foundation::json::JsonValue args = foundation::json::JsonValue::MakeObject();
+    CHECK(policy.CheckArgument(args, u8"path").HasValue()); // absent: allowed (the tool's default)
+    args.Set(u8"path", foundation::json::JsonValue::MakeString(String(u8"/etc/x.png")));
+    CHECK_FALSE(policy.CheckArgument(args, u8"path").HasValue());
+}
