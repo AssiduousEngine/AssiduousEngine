@@ -35,6 +35,7 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Type lookups are safe while another thread (a cook worker, a plugin loading) registers types.
 - A storage image both read and written in one pass takes the layout (Vulkan) and state (DirectX 12)
   a write needs; a non-square texture array of six or more layers is no longer made cube-compatible.
 - DirectX 12: a bindless sampler update on a bind group sharing its sampler table reaches the GPU

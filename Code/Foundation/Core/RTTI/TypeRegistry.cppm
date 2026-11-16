@@ -16,7 +16,7 @@ import :array;
 import :hash_map;
 import :string;
 import :string_hash;
-import :mutex;
+import :shared_mutex;
 import :scoped_lock;
 import :atomic;
 
@@ -49,10 +49,10 @@ export namespace foundation::core
     class TypeRegistry
     {
     public:
-        // Mutations lock: registrars run from cook workers as well as the main thread, and two
-        // first-time registrations at once would corrupt the maps. Reads stay lock-free by the
-        // registration contract: a reader has called its own registrar (which returned after
-        // the write it depends on completed), and the pipeline root registers everything up front.
+        // Mutations take the lock alone and reads share it: registrars run from cook workers as well
+        // as the main thread (and a plugin registers as it loads), so a first-time registration on
+        // one thread could rehash the map another thread was reading. Reading without it relied on
+        // every reader having registered first, which a second worker's registration broke.
         void Register(const TypeInfo& info, TypeDomain domain = kRuntimeTypeDomain)
         {
             ScopedLock lock(m_lock);
@@ -135,12 +135,14 @@ export namespace foundation::core
         // read as Runtime: the default is the absence of a tag.
         [[nodiscard]] TypeDomain DomainOf(TypeId id) const noexcept
         {
+            ScopedSharedLock lock(m_lock);
             const TypeDomain* found = m_domains.Find(id);
             return (found != nullptr) ? *found : kRuntimeTypeDomain;
         }
 
         [[nodiscard]] const TypeInfo* FindById(TypeId id) const noexcept
         {
+            ScopedSharedLock lock(m_lock);
             const TypeInfo* const* found = m_byId.Find(id);
             return (found != nullptr) ? *found : nullptr;
         }
@@ -163,15 +165,29 @@ export namespace foundation::core
             return FindById(ComputeTypeId(namespaceName, name)); // current spellings only
         }
 
-        [[nodiscard]] usize Count() const noexcept { return m_all.Size(); }
+        [[nodiscard]] usize Count() const noexcept
+        {
+            ScopedSharedLock lock(m_lock);
+            return m_all.Size();
+        }
         /// Changes each time a type is added or removed (a count cannot tell a plugin's type
         /// replaced by another): what is built from the registered types (a script engine's API)
         /// is current while this has not moved.
         [[nodiscard]] u64 Generation() const noexcept { return m_generation.load(MemoryOrder::Acquire); }
-        [[nodiscard]] const Array<const TypeInfo*>& All() const noexcept { return m_all; }
+        /// The registered types, copied under the lock: a list handed out by reference grew (and
+        /// moved) under its reader whenever another thread registered.
+        [[nodiscard]] Array<const TypeInfo*> All() const
+        {
+            ScopedSharedLock lock(m_lock);
+            Array<const TypeInfo*> out;
+            out.Reserve(m_all.Size());
+            for (const TypeInfo* type : m_all)
+                out.PushBack(type);
+            return out;
+        }
 
     private:
-        Mutex m_lock;
+        mutable SharedMutex m_lock;
         HashMap<TypeId, const TypeInfo*> m_byId;
         void (*m_observer)(void*, TypeId) = nullptr;
         void* m_observerContext = nullptr;

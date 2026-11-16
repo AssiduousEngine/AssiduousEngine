@@ -683,3 +683,50 @@ TEST_CASE("reflection: TypeRegistry::Generation moves when a type is added or re
     CHECK(registry.Generation() != one);
     CHECK(registry.Generation() != removed);
 }
+
+TEST_CASE("type registry: lookups while other threads register see every type, intact")
+{
+    // Readers took no lock while writers did: a registration on one thread could rehash the map
+    // another thread was reading (cook workers register as they first meet a type). The race shows
+    // under a sanitizer; here every lookup must find what was registered before it began.
+    constexpr u32 kPerThread = 400;
+    constexpr u32 kThreads = 3;
+    static TypeInfo types[kThreads * kPerThread] = {};
+    for (u32 i = 0; i < kThreads * kPerThread; ++i)
+    {
+        types[i].id = 0x7A000000ull + i;
+        types[i].name = "ConcurrentProbe";
+        types[i].namespaceName = "rtti::tests";
+    }
+    TypeRegistry registry;
+    Atomic<u32> registered{0};
+    Array<Thread> writers;
+    for (u32 t = 0; t < kThreads; ++t)
+    {
+        writers.PushBack(Thread([&registry, &registered, t]()
+                                {
+                                    for (u32 i = 0; i < kPerThread; ++i)
+                                    {
+                                        registry.Register(types[t * kPerThread + i]);
+                                        registered.fetch_add(1, MemoryOrder::Release);
+                                    }
+                                }));
+    }
+    u32 lookups = 0;
+    while (registered.load(MemoryOrder::Acquire) < kThreads * kPerThread)
+    {
+        for (u32 i = 0; i < kThreads * kPerThread; i += 37)
+        {
+            const TypeInfo* found = registry.FindById(types[i].id);
+            CHECK((found == nullptr || found == &types[i]));
+            ++lookups;
+        }
+        (void)registry.All().Size();
+    }
+    for (Thread& writer : writers)
+        writer.Join();
+    CHECK(registry.Count() == kThreads * kPerThread);
+    for (u32 i = 0; i < kThreads * kPerThread; ++i)
+        CHECK(registry.FindById(types[i].id) == &types[i]);
+    CHECK(lookups > 0u);
+}
