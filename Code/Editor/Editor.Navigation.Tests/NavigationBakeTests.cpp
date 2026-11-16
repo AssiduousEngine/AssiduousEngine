@@ -254,10 +254,11 @@ TEST_CASE("editor.navigation: bake succeeds when the zone shares a SCALED entity
     engine::navigation::AddNavigationSceneManagers(sceneObj);
     sceneObj.AddSystem<engine::physics::RigidBodyComponentManager>();
 
-    // One entity carries both the ground slab and the zone, scaled up 20x in X and Z (a primitive
-    // body keeps its world size, as physics builds it; the frame must not shrink it).
+    // One entity carries both the ground slab and the zone, scaled up 20x in X and Z: a unit
+    // slab drawn and collided at 20 x 20 (a primitive takes its entity's scale, as physics builds
+    // it; the frame must not shrink it).
     scene::EntityHandle entity = AddBody(sceneObj, u8"ground_zone", Float3{0, 0, 0},
-                                         Float3{10, 0.5f, 10}, foundation::physics::MotionKind::Static);
+                                         Float3{0.5f, 0.5f, 0.5f}, foundation::physics::MotionKind::Static);
 
     engine::navigation::NavMeshZoneComponent& z =
         sceneObj.GetSystem<engine::navigation::NavMeshZoneComponentManager>()->Add(entity);

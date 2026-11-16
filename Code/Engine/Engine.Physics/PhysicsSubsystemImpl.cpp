@@ -168,6 +168,33 @@ namespace engine::physics
         }
     }
 
+    // A primitive's size in the entity's scale, as the mesh it stands for is drawn: a box takes each
+    // axis; a sphere, whose shape cannot stretch, the largest; a capsule its height from y and its
+    // radius from x and z; a plane its extent from x and z. Cooked shapes take the scale whole.
+    void ScalePrimitive(ShapeDesc& shape, Float3 scale)
+    {
+        const Float3 s{Abs(scale.x), Abs(scale.y), Abs(scale.z)};
+        switch (shape.kind)
+        {
+        case ShapeKind::Box:
+            shape.halfExtents = Float3{shape.halfExtents.x * s.x, shape.halfExtents.y * s.y,
+                                       shape.halfExtents.z * s.z};
+            break;
+        case ShapeKind::Sphere:
+            shape.radius *= Max(s.x, Max(s.y, s.z));
+            break;
+        case ShapeKind::Capsule:
+            shape.radius *= Max(s.x, s.z);
+            shape.halfHeight *= s.y;
+            break;
+        case ShapeKind::Plane:
+            shape.planeHalfExtent *= Max(s.x, s.z);
+            break;
+        default:
+            break;
+        }
+    }
+
     bool DescribeBody(scene::Scene& scene, RigidBodyComponent& c, scene::EntityHandle e, BodyDesc& out,
                       Array<Array<f32>>& heightBuffers)
     {
@@ -239,6 +266,10 @@ namespace engine::physics
             own.cooked = cooked->Blob();
             own.scale = scale; // cooked geometry is authored unit-scale
         }
+        else if (c.shape != ShapeKind::Heightfield)
+        {
+            ScalePrimitive(own, scale);
+        }
         else if (c.shape == ShapeKind::Heightfield)
         {
             if (!fillHeightfield(own, c.heightfield))
@@ -309,6 +340,10 @@ namespace engine::physics
                         }
                         shape.cooked = cooked->Blob();
                         shape.scale = ls;
+                    }
+                    else if (extra.shape != ShapeKind::Heightfield)
+                    {
+                        ScalePrimitive(shape, ls);
                     }
                     else if (extra.shape == ShapeKind::Heightfield)
                     {

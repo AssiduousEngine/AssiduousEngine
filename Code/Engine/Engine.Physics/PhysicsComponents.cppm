@@ -86,6 +86,13 @@ export namespace engine::physics
         Float3 currPosition{0, 0, 0};
         Quaternion prevRotation = Quaternion::Identity;
         Quaternion currRotation = Quaternion::Identity;
+        // The world pose the subsystem last gave the entity: a different one at the next step was
+        // written by someone else (a script, the editor), and the body is moved there.
+        Float3 writtenPosition{0, 0, 0};
+        Quaternion writtenRotation = Quaternion::Identity;
+        // What the body was built from (the authored fields and the entity's scale): a change
+        // rebuilds it.
+        u64 builtSignature = 0;
     };
 
     // An extra shape on a descendant entity, folded into the ancestor body's compound at

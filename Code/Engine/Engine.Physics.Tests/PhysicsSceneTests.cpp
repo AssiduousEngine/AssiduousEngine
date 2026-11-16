@@ -1716,3 +1716,72 @@ TEST_CASE("physics: bodies and colliders measure their entities by their authore
 
     CHECK_FALSE(scene::EntityWorldBounds(scene, ground, out));
 }
+
+TEST_CASE("physics.scene: a dynamic body moved by its entity's transform goes there")
+{
+    // The body owned its pose: a script or the editor moving the entity was overwritten by the
+    // next step's write-back.
+    PlayScene play;
+    (void)play.AddFloor();
+    const scene::EntityHandle box = play.AddBox(0.5f);
+    play.Start();
+    play.Step(30);
+    play.physics->ApplyInterpolation(1.0f);
+    play.scene.UpdateTransforms();
+
+    play.scene.SetLocalPosition(box, Float3{10.0f, 0.5f, -3.0f});
+    play.scene.UpdateTransforms();
+    play.Step(2);
+    const RigidBodyComponent* body = play.scene.GetSystem<RigidBodyComponentManager>()->Get(box);
+    REQUIRE(body != nullptr);
+    Float3 position;
+    Quaternion rotation;
+    play.physics->World()->GetBodyTransform(body->body, position, rotation);
+    CHECK(position.x == doctest::Approx(10.0f).epsilon(0.01));
+    CHECK(position.z == doctest::Approx(-3.0f).epsilon(0.01));
+
+    // Left alone, it stays where the physics put it: no teleport from its own write-back.
+    play.physics->ApplyInterpolation(1.0f);
+    play.scene.UpdateTransforms();
+    play.Step(30);
+    play.physics->World()->GetBodyTransform(body->body, position, rotation);
+    CHECK(position.x == doctest::Approx(10.0f).epsilon(0.01));
+    CHECK(position.y == doctest::Approx(0.5f).epsilon(0.05));
+}
+
+TEST_CASE("physics.scene: a body edited while live is built again; primitives take the entity's scale")
+{
+    PlayScene play;
+    (void)play.AddFloor();
+    const scene::EntityHandle crate = play.AddBox(5.0f, MotionKind::Static);
+    {
+        Transform t = play.scene.GetLocalTransform(crate);
+        t.scale = Float3{2.0f, 2.0f, 2.0f}; // a unit box drawn 2 m on a side
+        play.scene.SetLocalTransform(crate, t);
+    }
+    play.Start();
+    play.Step(1);
+
+    // Scaled x2, the box's top is at 5 + 1.
+    RayHit hit;
+    REQUIRE(play.physics->World()->RayCast(Float3{0.0f, 20.0f, 0.0f}, Float3{0.0f, -1.0f, 0.0f}, 30.0f, hit));
+    CHECK(hit.position.y == doctest::Approx(6.0f).epsilon(0.01));
+
+    // Its half extents edited in play: the body follows (top at 5 + 2 * 1.5).
+    play.scene.GetSystem<RigidBodyComponentManager>()->Get(crate)->halfExtents = Float3{1.5f, 1.5f, 1.5f};
+    play.Step(1);
+    REQUIRE(play.physics->World()->RayCast(Float3{0.0f, 20.0f, 0.0f}, Float3{0.0f, -1.0f, 0.0f}, 30.0f, hit));
+    CHECK(hit.position.y == doctest::Approx(8.0f).epsilon(0.01));
+    CHECK(play.physics->World()->BodyCount() == 2u); // rebuilt, not added
+
+    // Rescaled in play: the body follows again.
+    {
+        Transform t = play.scene.GetLocalTransform(crate);
+        t.scale = Float3{1.0f, 1.0f, 1.0f};
+        play.scene.SetLocalTransform(crate, t);
+    }
+    play.scene.UpdateTransforms();
+    play.Step(1);
+    REQUIRE(play.physics->World()->RayCast(Float3{0.0f, 20.0f, 0.0f}, Float3{0.0f, -1.0f, 0.0f}, 30.0f, hit));
+    CHECK(hit.position.y == doctest::Approx(6.5f).epsilon(0.01));
+}
