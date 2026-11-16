@@ -30,6 +30,7 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Prefab Apply and Revert can be undone, each as one step, and Apply marks the scene changed.
 - Script, shader and GUI code pages no longer save over a source changed outside the editor: a
   clean page reloads it, and a page with edits says so and asks for a second Save before overwriting.
 - DirectX 12: a scene with more than 2048 material bind groups, or more than 4096 texture views, no

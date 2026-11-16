@@ -466,6 +466,20 @@ export namespace editor
         Guid ReplaceWithPrefabInstance(const Guid& entity, const Guid& prefabId,
                                        Array<byte> payload);
 
+        /// Runs `change` as one undoable step over snapshots of the whole scene: Undo puts the scene
+        /// back as it was before, Redo as it was after, each restored in place (guids kept, so the
+        /// selection and the pages' references hold). For a change no finer command describes:
+        /// reverting a prefab instance, applying one to its prefab. `undone` and `redone`, when set,
+        /// run after the restore, to put back what lives outside the scene (the prefab asset).
+        /// False, with nothing pushed, when `change` did nothing.
+        bool RunSnapshotCommand(StringView typeId, Function<bool()> change, Function<void()> undone = {},
+                                Function<void()> redone = {})
+        {
+            return m_commands->Execute(UniquePtr<IEditorCommand>(
+                editor::EditorRootAllocator().New<SnapshotCommand>(*this, typeId, Move(change), Move(undone), Move(redone)),
+                editor::EditorRootAllocator()));
+        }
+
         /// Reverts a prefab member's component to its spawn-time baseline, undoably. Template
         /// components restore their baseline payload (added again if the user removed them);
         /// components the user added (with no baseline) are removed. No-op for non-members.
@@ -792,6 +806,57 @@ export namespace editor
             Array<byte> m_previous;
             bool m_hadComponent = false;
             bool m_captured = false;
+        };
+
+        class SnapshotCommand final : public IEditorCommand
+        {
+        public:
+            SnapshotCommand(SceneEditContext& ctx, StringView typeId, Function<bool()> change, Function<void()> undone,
+                            Function<void()> redone)
+                : m_ctx(&ctx), m_typeId(typeId), m_change(Move(change)), m_undone(Move(undone)), m_redone(Move(redone))
+            {
+            }
+
+            [[nodiscard]] bool Execute() override
+            {
+                scene::Scene& scene = m_ctx->Scene();
+                if (m_after) // redo
+                {
+                    Restore(*m_after);
+                    if (m_redone)
+                        m_redone();
+                    return true;
+                }
+                m_before = scene::SceneSnapshot::Capture(scene);
+                if (!m_before || !m_change())
+                    return false;
+                m_after = scene::SceneSnapshot::Capture(scene);
+                return static_cast<bool>(m_after);
+            }
+
+            void Undo() override
+            {
+                Restore(*m_before);
+                if (m_undone)
+                    m_undone();
+            }
+
+            [[nodiscard]] StringView TypeId() const override { return m_typeId.AsView(); }
+
+        private:
+            void Restore(const scene::SceneSnapshot& snapshot)
+            {
+                (void)snapshot.Restore(m_ctx->Scene());
+                m_ctx->ResolveRestoredResources();
+            }
+
+            SceneEditContext* m_ctx;
+            String m_typeId;
+            Function<bool()> m_change;
+            Function<void()> m_undone;
+            Function<void()> m_redone;
+            UniquePtr<scene::SceneSnapshot> m_before;
+            UniquePtr<scene::SceneSnapshot> m_after;
         };
 
         class DestroyEntityCommand final : public IEditorCommand

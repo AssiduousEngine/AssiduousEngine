@@ -2439,3 +2439,82 @@ TEST_CASE("script behaviours: an asset property's tag names the type the asset l
     CHECK(ScriptPropertyRows::AssetType(u8"Prefab") == nullptr); // PrefabDocument's display name only
     CHECK(ScriptPropertyRows::AssetType(u8"NothingIsCalledThis") == nullptr);
 }
+
+namespace
+{
+    scene::EntityHandle Named(scene::Scene& s, StringView name)
+    {
+        scene::EntityHandle found = scene::EntityHandle::Invalid();
+        s.ForEachEntity([&](scene::EntityHandle e) { if (s.GetEntityName(e) == name) found = e; });
+        return found;
+    }
+}
+
+TEST_CASE("prefab flows: Revert and Apply are one undo step each, and Apply leaves the page dirty")
+{
+    // Both wrote around the command stack: Revert could not be undone, and Apply left the page
+    // clean though its scene had changed.
+    Bed bed;
+    UniquePtr<SceneEditorPage> page = bed.Open(*bed.level);
+    SceneEditContext& edit = page->EditContext();
+    scene::Scene& s = *page->ScenePtr();
+    const Guid box = edit.CreateEntity(u8"Box");
+    (void)edit.CreateEntity(u8"Lid", box);
+    PrefabFlows::Services services;
+    services.context = &bed.context;
+    services.edit = &edit;
+    const Guid level = bed.level->Id();
+    services.pageAsset = [level]() { return level; };
+    services.later = [](Function<void()> work) { work(); };
+    services.confirm = [](StringView, StringView, StringView, Function<void()> yes) { yes(); };
+    PrefabFlows flows(Move(services));
+    flows.CreateFromEntity(box);
+    Guid root;
+    s.ForEachPrefabInstance([&](scene::Scene::PrefabInstanceState& state) { root = state.rootEntityId; });
+    REQUIRE_FALSE(root.IsNil());
+    REQUIRE(Named(s, u8"Lid").IsAssigned());
+
+    // An override: the lid moved.
+    const auto lidX = [&]() { return s.GetLocalTransform(Named(s, u8"Lid")).position.x; };
+    Transform moved = s.GetLocalTransform(Named(s, u8"Lid"));
+    moved.position.x = 5.0f;
+    edit.SetLocalTransform(s.GetEntityId(Named(s, u8"Lid")), moved);
+    REQUIRE(lidX() == doctest::Approx(5.0f));
+
+    flows.Revert(root);
+    CHECK(lidX() == doctest::Approx(0.0f));
+    page->Commands().Undo();
+    CHECK(lidX() == doctest::Approx(5.0f)); // the override is back
+    CHECK(s.FindPrefabInstanceByRoot(root) != nullptr);
+    page->Commands().Redo();
+    CHECK(lidX() == doctest::Approx(0.0f));
+    page->Commands().Undo();
+
+    // Apply: the prefab takes the moved lid; Undo writes the prefab as it was.
+    foundation::content::Instance* prefab = nullptr;
+    s.ForEachPrefabInstance([&](scene::Scene::PrefabInstanceState& state) { prefab = bed.project->SourceDb().GetInstance(state.prefabId); });
+    REQUIRE(prefab != nullptr);
+    const auto payload = [&]()
+    {
+        Array<byte> bytes;
+        UniquePtr<IStream> in = prefab->ReadData(u8"scene");
+        REQUIRE(in.Get() != nullptr);
+        bytes.Resize(static_cast<usize>(in->Size()));
+        (void)in->Read(bytes.Data(), bytes.Size());
+        return String(StringView(reinterpret_cast<const utf8char*>(bytes.Data()), bytes.Size()));
+    };
+    const String before = payload();
+    REQUIRE(page->Save().IsOk());
+    REQUIRE_FALSE(page->IsDirty());
+    flows.Apply(root);
+    CHECK(payload() != before);
+    CHECK(page->IsDirty());
+    CHECK(lidX() == doctest::Approx(5.0f));
+    page->Commands().Undo();
+    CHECK(payload() == before);
+    CHECK(lidX() == doctest::Approx(5.0f)); // the scene as it was: the override over the old prefab
+    CHECK_FALSE(page->IsDirty());
+    page->Commands().Redo();
+    CHECK(payload() != before);
+    page->OnClose();
+}
