@@ -19,6 +19,8 @@ import foundation.heightfield;
 import engine.physics;
 import foundation.script;
 import foundation.script.facades; // ExtraFacadeNames (the behavior-prelude facade list)
+import foundation.xml;               // XmlDocument (a version 1 settings block)
+import foundation.xml.serialization; // XmlSerializer
 
 using namespace foundation::core;
 using namespace engine::physics;
@@ -1869,4 +1871,37 @@ TEST_CASE("physics.scene: a heightfield takes its entity's scale")
     f32 y = 0.0f;
     REQUIRE(GroundAt(play, 50.0f, 50.0f, y)); // past the unscaled 32 m half extent
     CHECK(y == doctest::Approx(6.0f).epsilon(0.01)); // 2 m surface, 3x tall
+}
+
+TEST_CASE("physics.scene: the scene's settings set the world's body budget, and a version 1 block keeps the default")
+{
+    // The world's budgets were constants the scene could not change: a level with more bodies
+    // than 4096 lost the rest whatever its author wanted.
+    PlayScene play;
+    play.physics->Settings().maxBodies = 2;
+    (void)play.AddFloor();
+    (void)play.AddBox(2.0f);
+    (void)play.AddBox(4.0f);
+    play.Start();
+    REQUIRE(play.physics->World() != nullptr);
+    CHECK(play.physics->World()->BodyCount() == 2u); // the third refused, and logged
+
+    // A block written before the budgets (data version 1) is read, and keeps the defaults.
+    const TypeInfo& type = TypeOf<PhysicsSceneSettings>();
+    CHECK(type.dataVersion == 2u);
+    CHECK(type.minReadDataVersion == 1u);
+    foundation::xml::XmlDocument doc(DefaultAllocator());
+    REQUIRE(doc.Parse(u8"<root><Float3 name=\"gravity\"><f32 name=\"x\">0</f32><f32 name=\"y\">-9.81</f32>"
+                      u8"<f32 name=\"z\">0</f32></Float3><i32 name=\"collisionSteps\">1</i32>"
+                      u8"<bool name=\"debugDraw\">false</bool><array name=\"groupNames\" count=\"0\"/>"
+                      u8"<array name=\"groupCollides\" count=\"0\"/></root>") == foundation::xml::XmlResult::Ok);
+    foundation::xml::XmlSerializer reader(doc);
+    const SerializedDataVersion chain[] = {{type.id, 1}};
+    reader.PushVersionScope(chain, 1);
+    PhysicsSceneSettings got;
+    got.maxBodies = 7;
+    SerializePhysicsSceneSettings(reader, got);
+    reader.PopVersionScope();
+    CHECK(reader.IsOk()); // no budgets asked of a version 1 block
+    CHECK(got.maxBodies == 7u); // untouched: a version 1 block has no budgets
 }

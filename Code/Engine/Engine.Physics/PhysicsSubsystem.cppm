@@ -184,6 +184,9 @@ export namespace engine::physics
             // from the authored layout, never from identity matrices before the first update.
             PhysicsWorldSettings settings;
             settings.gravity = m_settings.gravity;
+            settings.maxBodies = Max(m_settings.maxBodies, 1u);
+            settings.maxBodyPairs = Max(m_settings.maxBodyPairs, 1u);
+            settings.maxContactConstraints = Max(m_settings.maxContactConstraints, 1u);
             for (usize i = 0; i < m_settings.groupCollides.Size() && i < kCollisionGroupCount; ++i)
             {
                 settings.groupCollides[i] = m_settings.groupCollides[i];

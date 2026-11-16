@@ -9,6 +9,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Added
 
+- Scene physics settings hold the world's budgets (most bodies, body pairs, contact constraints),
+  4096, 4096 and 2048 by default as before.
 - Networking: `Net.setRelevanceRadius(r)` on the host sends each player only the networked
   entities within `r` of the one it owns, for less traffic in large worlds. Off by default.
 - Export: a game exports to Android, as an APK to install or an App Bundle for Google Play. An
@@ -33,6 +35,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Windows: a server whose client left no longer stops reading the frame's other datagrams (the
+  connection-reset error a send to the gone client brought back).
+- The WebSocket client refuses an address whose host or path holds a line break, control character
+  or space, rather than writing it into its upgrade request.
 - `Tools.Cook` exits with failure when a source cannot be read, instead of 0.
 - MCP: opening a project whose plugins add tools no longer changes the tool table under the running
   call (a possible crash).

@@ -797,10 +797,14 @@ namespace engine::physics
     REFLECT_VALUE(PhysicsSceneSettings, "rtti::engine::physics")
     {
         builder.Attribute("displayName", String(u8"Physics")); // the Scene tab's section
-        builder.DataVersion(1);
+        builder.DataVersion(2).ReadsDataVersionsFrom(1); // 2: the world's budgets
         builder.Property<&PhysicsSceneSettings::gravity>("gravity");
         builder.Property<&PhysicsSceneSettings::collisionSteps>("collisionSteps");
         builder.Property<&PhysicsSceneSettings::debugDraw>("debugDraw");
+        const Float4 budget{1.0f, 1048576.0f, 1.0f, 0.0f};
+        builder.Property<&PhysicsSceneSettings::maxBodies>("maxBodies").PropAttribute("range", budget);
+        builder.Property<&PhysicsSceneSettings::maxBodyPairs>("maxBodyPairs").PropAttribute("range", budget);
+        builder.Property<&PhysicsSceneSettings::maxContactConstraints>("maxContactConstraints").PropAttribute("range", budget);
     }
 
     // The scene-bound physics handle: `scene.physics.rayCast/gravityY/setGravity/...` on

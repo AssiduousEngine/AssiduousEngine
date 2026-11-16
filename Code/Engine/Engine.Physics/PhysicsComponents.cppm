@@ -452,6 +452,11 @@ export namespace engine::physics
         // array's size default to collide-with-everything.
         Array<String> groupNames;
         Array<u32> groupCollides;
+        // The world's budgets (a scene with more bodies than maxBodies refuses the rest, saying so);
+        // the defaults are PhysicsWorldSettings'.
+        u32 maxBodies = PhysicsWorldSettings{}.maxBodies;
+        u32 maxBodyPairs = PhysicsWorldSettings{}.maxBodyPairs;
+        u32 maxContactConstraints = PhysicsWorldSettings{}.maxContactConstraints;
     };
 
     // One serializer for the settings block: the scene system persists through it, and the editor's
@@ -464,6 +469,12 @@ export namespace engine::physics
         foundation::core::Serialize(ar, "debugDraw", settings.debugDraw);
         foundation::core::Serialize(ar, "groupNames", settings.groupNames);
         foundation::core::Serialize(ar, "groupCollides", settings.groupCollides);
+        if (ar.Mode() == SerializeMode::Write || ar.Version() >= 2) // a version 1 scene keeps the defaults
+        {
+            foundation::core::Serialize(ar, "maxBodies", settings.maxBodies);
+            foundation::core::Serialize(ar, "maxBodyPairs", settings.maxBodyPairs);
+            foundation::core::Serialize(ar, "maxContactConstraints", settings.maxContactConstraints);
+        }
     }
 
     // Defined in PhysicsSubsystemImpl.cpp: the REFLECT_* bodies live there because GCC's module
