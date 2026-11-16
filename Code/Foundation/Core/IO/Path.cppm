@@ -14,6 +14,7 @@ export module foundation.core:path;
 import :base;
 import :allocator;
 import :string;
+import :array; // PathNormalizeLexically's components
 
 export namespace foundation::core
 {
@@ -178,5 +179,105 @@ export namespace foundation::core
         }
         result.Append(b);
         return result;
+    }
+
+    // `path` with its separators made '/', and empty, "." and ".." components resolved by the text
+    // alone (a ".." above the root is dropped; a relative path keeps its leading ".."). Links are
+    // not followed: a link inside a folder can still lead out of it.
+    [[nodiscard]] inline String PathNormalizeLexically(StringView path, IAllocator& allocator = DefaultAllocator())
+    {
+        String root{allocator};
+        usize i = 0;
+#if PLATFORM_WINDOWS
+        if (path.Size() >= 2 && path[1] == utf8char(':'))
+        {
+            root.PushBack(path[0]);
+            root.PushBack(utf8char(':'));
+            i = 2;
+        }
+#endif
+        const bool absolute = i < path.Size() && PathIsSeparator(path[i]);
+        if (absolute)
+        {
+            root.PushBack(kPathSeparator);
+            ++i;
+#if PLATFORM_WINDOWS
+            if (root.Size() == 1 && i < path.Size() && PathIsSeparator(path[i])) // UNC "\\server\share"
+            {
+                root.PushBack(kPathSeparator);
+                ++i;
+            }
+#endif
+        }
+        Array<StringView> parts(allocator);
+        usize start = i;
+        for (; i <= path.Size(); ++i)
+        {
+            if (i < path.Size() && !PathIsSeparator(path[i]))
+            {
+                continue;
+            }
+            const StringView part = path.SubStr(start, i - start);
+            start = i + 1;
+            if (part.IsEmpty() || part == StringView(u8"."))
+            {
+                continue;
+            }
+            if (part == StringView(u8".."))
+            {
+                if (!parts.IsEmpty() && parts[parts.Size() - 1] != StringView(u8".."))
+                {
+                    parts.PopBack();
+                }
+                else if (!absolute)
+                {
+                    parts.PushBack(part);
+                }
+                continue;
+            }
+            parts.PushBack(part);
+        }
+        String out = Move(root);
+        for (usize n = 0; n < parts.Size(); ++n)
+        {
+            if (n > 0)
+            {
+                out.PushBack(kPathSeparator);
+            }
+            out.Append(parts[n]);
+        }
+        if (out.IsEmpty())
+        {
+            out.PushBack(utf8char('.'));
+        }
+        return out;
+    }
+
+    // Whether `path` is `folder` or inside it, both taken as PathNormalizeLexically gives them
+    // (on Windows ignoring ASCII case, as its file system does).
+    [[nodiscard]] inline bool PathIsInside(StringView path, StringView folder)
+    {
+        const String p = PathNormalizeLexically(path);
+        const String f = PathNormalizeLexically(folder);
+        if (p.Size() < f.Size())
+        {
+            return false;
+        }
+        for (usize i = 0; i < f.Size(); ++i)
+        {
+            utf8char a = p[i];
+            utf8char b = f[i];
+#if PLATFORM_WINDOWS
+            if (a >= utf8char('A') && a <= utf8char('Z'))
+                a = static_cast<utf8char>(a + 32);
+            if (b >= utf8char('A') && b <= utf8char('Z'))
+                b = static_cast<utf8char>(b + 32);
+#endif
+            if (a != b)
+            {
+                return false;
+            }
+        }
+        return p.Size() == f.Size() || f[f.Size() - 1] == kPathSeparator || p[f.Size()] == kPathSeparator;
     }
 }

@@ -968,3 +968,19 @@ TEST_CASE("path: the parent of a file at a root is the root, its separator kept"
     CHECK(PathParent(u8"/") == StringView(u8""));
     CHECK(PathParent(u8"/a/b") == StringView(u8"/a"));
 }
+
+TEST_CASE("io: PathNormalizeLexically and PathIsInside")
+{
+    CHECK(PathNormalizeLexically(u8"/a/./b//c/../d") == u8"/a/b/d");
+    CHECK(PathNormalizeLexically(u8"/a/../../x") == u8"/x"); // above the root: dropped
+    CHECK(PathNormalizeLexically(u8"a/../../x") == u8"../x");
+    CHECK(PathNormalizeLexically(u8"a\\b") == u8"a/b");
+    CHECK(PathNormalizeLexically(u8"/") == u8"/");
+    CHECK(PathNormalizeLexically(u8"a/..") == u8".");
+
+    CHECK(PathIsInside(u8"/proj/Sources/a.png", u8"/proj"));
+    CHECK(PathIsInside(u8"/proj", u8"/proj/"));
+    CHECK_FALSE(PathIsInside(u8"/project2/a", u8"/proj")); // a prefix, not a folder
+    CHECK_FALSE(PathIsInside(u8"/proj/../etc/passwd", u8"/proj"));
+    CHECK(PathIsInside(u8"/anything", u8"/"));
+}
