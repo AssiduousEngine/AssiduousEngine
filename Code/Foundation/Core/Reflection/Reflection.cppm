@@ -1092,17 +1092,28 @@ export namespace foundation::core
             .elementType = &TypeOf<T>(),
             .size = [](const Instance& i) -> usize
             { return static_cast<const Arr*>(i.Pointer())->Size(); },
+            // Past the count, nothing is read or written (a null variant, OutOfRange), as for the
+            // bounded arrays: the indexing's own check is an assert, gone in Shipping, and the
+            // index comes from a script or a tool.
             .getAt = [](const Instance& i, usize index) -> Variant
-            { return Variant::From<T>((*static_cast<const Arr*>(i.Pointer()))[index]); },
+            {
+                const Arr& arr = *static_cast<const Arr*>(i.Pointer());
+                return index < arr.Size() ? Variant::From<T>(arr[index]) : Variant{};
+            },
             .setAt =
                 [](const Instance& i, usize index, const Variant& value) -> Status
             {
+                Arr& arr = *static_cast<Arr*>(i.Pointer());
+                if (index >= arr.Size())
+                {
+                    return Status{ErrorCode::OutOfRange};
+                }
                 const T* typed = value.TryGet<T>();
                 if (typed == nullptr)
                 {
                     return Status{ErrorCode::InvalidArgument};
                 }
-                (*static_cast<Arr*>(i.Pointer()))[index] = *typed;
+                arr[index] = *typed;
                 return Status{};
             },
             .flags = ContainerFlags::None,
@@ -1184,7 +1195,12 @@ export namespace foundation::core
             .getAt =
                 [](const Instance& i, usize index) -> Variant
             {
-                const RefPtr<Base>& elem = (*static_cast<const Arr*>(i.Pointer()))[index];
+                const Arr& arr = *static_cast<const Arr*>(i.Pointer());
+                if (index >= arr.Size())
+                {
+                    return Variant{};
+                }
+                const RefPtr<Base>& elem = arr[index];
                 return elem.Get() != nullptr ? Variant::From(elem) : Variant{};
             },
             .setAt = [](const Instance&, usize, const Variant&) -> Status

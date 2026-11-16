@@ -1715,3 +1715,20 @@ TEST_CASE("rtti: a reflected value is copied out of an address knowing only its 
     // An Object type has no value to copy.
     CHECK(Variant::CopyOf(TypeOf<Object>(), &slot).IsEmpty());
 }
+
+TEST_CASE("rtti: a reflected Array is not read or written past its count")
+{
+    // getAt and setAt indexed with no check of their own: the Array's is an assert, compiled out in
+    // Shipping, and the index comes from a script or a tool (as the bounded arrays' now refuse).
+    RegisterArrayType<int>();
+    const ContainerInfo& container = *TypeOf<Array<int>>().container;
+    Array<int> values;
+    values.PushBack(10);
+    Instance inst = Instance::From(&values);
+    CHECK(ContainerGetAt(container, inst, 1).IsEmpty());
+    CHECK(ContainerGetAt(container, inst, 100).IsEmpty());
+    CHECK(ContainerSetAt(container, inst, 1, Variant::From<int>(5)).Code() == ErrorCode::OutOfRange);
+    CHECK(values.Size() == 1u);
+    CHECK(ContainerSetAt(container, inst, 0, Variant::From<int>(5)).IsOk());
+    CHECK(values[0] == 5);
+}
