@@ -30,6 +30,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Resources: assets nothing uses any more are unloaded after about ten seconds, rather than kept
+  for the whole run; a game that moves between levels no longer keeps every level's assets.
 - Resources: an asset reloaded while it was still loading keeps the reloaded version, rather than
   the load in flight putting the old one back.
 - Networking: a second game hosting on a port another already uses now fails to host, rather than

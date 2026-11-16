@@ -112,6 +112,9 @@ namespace engine::runtime
         if (m_ownedResources)
         {
             m_ownedResources->Pump();
+            // Once a frame, as the editor does for its own: products a reload replaced, and those
+            // nothing has held for a while, go.
+            m_ownedResources->CollectGarbage();
         }
 
         // Tick every instance (the primary and any extras: multi-instance play in editor, a headless

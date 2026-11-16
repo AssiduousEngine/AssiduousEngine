@@ -258,7 +258,9 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   work first, as Evict does. Built 2026-11-16: cancelled (a load serial; a superseded or replaced
   decode is dropped), so a dependent reloading as a child settles never waits on its own decode.
 - **Nothing is ever unloaded.** `ResourceModule.cppm:387`. Fix: release unreferenced products at
-  collection.
+  collection. Built 2026-11-16: released after `SetUnusedFrames` collections unheld (600 by
+  default, so a spawn by guid between uses finds it loaded); the player now collects each frame
+  (only the editor did, so the player never even emptied its graveyard).
 - **The cook's change memo keys on size and whole seconds; a recipe lacks the product's data
   version.** `CookDriverImpl.cpp:481-482, 550-605`. Tests: a same-size rewrite in the same second
   recooks; a data version bump recooks.

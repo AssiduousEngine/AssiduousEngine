@@ -1004,3 +1004,49 @@ TEST_CASE("resource.async: a reload while a decode is in flight keeps the reload
     CHECK(manager.PendingCount() == 0u);
     CleanDir(u8"scratch_async_reload_db");
 }
+
+TEST_CASE("resource: what nothing holds is released after its unused collections; what is held stays")
+{
+    // Every product stayed loaded for the manager's life, whether anything still used it or not.
+    RegisterAsyncTypes();
+    CleanDir(u8"scratch_unused_db");
+    NativeFileSystem mount(u8"scratch_unused_db", DefaultAllocator());
+    foundation::content::ContentDatabase db(foundation::core::DefaultAllocator(), mount,
+                                            foundation::core::BinarySerializerFactory(), u8".rasset");
+    AsyncFactory factory;
+    factory.supportsAsync = false;
+    ResourceManager manager(DefaultAllocator(), db, nullptr);
+    manager.AddFactory(&factory);
+    manager.SetUnusedFrames(3);
+    const Guid heldId = MakeInstance(db, factory, u8"held", 1, 0);
+    const Guid droppedId = MakeInstance(db, factory, u8"dropped", 2, 1);
+
+    Proxy<AsyncProduct> held = manager.Bind<AsyncProduct>(heldId);
+    {
+        Proxy<AsyncProduct> dropped = manager.Bind<AsyncProduct>(droppedId);
+        REQUIRE(dropped.Get() != nullptr);
+    }
+    REQUIRE(manager.LoadedCount() == 2u);
+    manager.CollectGarbage();
+    manager.CollectGarbage();
+    CHECK(manager.LoadedCount() == 2u); // not yet: a spawn between uses finds it loaded
+    manager.CollectGarbage();
+    CHECK(manager.LoadedCount() == 1u); // the unheld one went
+    REQUIRE(held.Get() != nullptr);
+    CHECK(held->value == 1);
+
+    // Bound again, it is built again.
+    const int created = factory.createCalls.load();
+    Proxy<AsyncProduct> again = manager.Bind<AsyncProduct>(droppedId);
+    REQUIRE(again.Get() != nullptr);
+    CHECK(again->value == 2);
+    CHECK(factory.createCalls.load() == created + 1);
+
+    // Held through the collections, nothing goes.
+    for (int i = 0; i < 10; ++i)
+    {
+        manager.CollectGarbage();
+    }
+    CHECK(manager.LoadedCount() == 2u);
+    CleanDir(u8"scratch_unused_db");
+}

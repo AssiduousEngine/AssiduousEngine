@@ -745,7 +745,15 @@ export namespace foundation::resource
             // Destructors run here, with m_graveyard consistent; re-entrant pushes append
             // to the fresh member array safely.
             dropped.Clear();
+            ReleaseUnused();
         }
+
+        /// The collections a resource nothing holds stays loaded for before it is released (0:
+        /// never released). A spawn by guid that holds nothing between spawns finds it still
+        /// loaded; one left alone this long is unloaded, and a later bind builds it again.
+        void SetUnusedFrames(u32 frames) noexcept { m_unusedFrames = frames; }
+        [[nodiscard]] u32 UnusedFrames() const noexcept { return m_unusedFrames; }
+        [[nodiscard]] usize LoadedCount() const noexcept { return m_handles.Size(); }
 
         /// Takes a resource out of service because what it was built from is gone (its record
         /// deleted): the handle is marked Failed and KEPT registered, so a held proxy reads null
@@ -991,6 +999,56 @@ export namespace foundation::resource
             }
         }
 
+        // Releases what nothing outside the manager holds (its handle and its product held by the
+        // manager alone) once it has gone unused for m_unusedFrames collections. Its product is
+        // parked for the frames in flight; releasing a product drops its own proxies, so its
+        // children go in later collections.
+        void ReleaseUnused()
+        {
+            if (m_unusedFrames == 0)
+            {
+                return;
+            }
+            Array<Guid> release;
+            for (auto& [id, handle] : m_handles)
+            {
+                const bool held = handle->RefCount() > 1 || handle->State() == ResourceState::Pending ||
+                                  (handle->Get() != nullptr && handle->Get()->RefCount() > 1) ||
+                                  m_pending.Find(id) != nullptr;
+                if (held)
+                {
+                    (void)m_unused.Remove(id);
+                    continue;
+                }
+                const u32* seen = m_unused.Find(id);
+                const u32 idle = (seen != nullptr ? *seen : 0u) + 1u;
+                m_unused.InsertOrAssign(id, idle);
+                if (idle >= m_unusedFrames)
+                {
+                    release.PushBack(id);
+                }
+            }
+            for (const Guid& id : release)
+            {
+                (void)m_unused.Remove(id);
+                RefPtr<ResourceHandle>* slot = m_handles.Find(id);
+                if (slot == nullptr)
+                {
+                    continue;
+                }
+                RefPtr<ResourceHandle> handle = *slot;
+                ClearForwardDeps(id);
+                (void)m_dependencies.Remove(id);
+                (void)m_dependents.Remove(id);
+                (void)m_handles.Remove(id);
+                if (Object* product = handle->Get())
+                {
+                    m_graveyard.PushBack(Grave{RefPtr<Object>(product), kGraveFrames});
+                }
+                handle->Flush();
+            }
+        }
+
         // Block-complete an in-flight async load, then finalize it (a sync Bind of a pending id).
         void CompletePending(const Guid& id)
         {
@@ -1228,7 +1286,9 @@ export namespace foundation::resource
             u32 framesLeft = 0;
         };
         Array<Grave> m_graveyard;
-        u64 m_loadSerial = 0; // PendingLoad::serial // hot-reloaded-away products awaiting release
+        u64 m_loadSerial = 0; // PendingLoad::serial
+        HashMap<Guid, u32> m_unused; // collections each unheld resource has gone unused
+        u32 m_unusedFrames = 600;    // SetUnusedFrames: about ten seconds at sixty frames // hot-reloaded-away products awaiting release
     };
 
     template <typename T>
