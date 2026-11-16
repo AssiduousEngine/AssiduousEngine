@@ -722,3 +722,45 @@ TEST_CASE("audio.scene: entity-active - starts-inactive is silent; deactivation 
     CHECK(c->voice.IsValid());
     CHECK(play.engine.IsPlaying(c->voice));
 }
+
+TEST_CASE("audio.scene: a looping autoplay source taken for another voice comes back when one is free")
+{
+    // A stolen voice read as a finished one-shot: the handle was reaped and the source stayed
+    // silent for the rest of the scene.
+    PlayScene play;
+    RefPtr<AudioClip> clip = MakeToneClip(1.0f);
+    const scene::EntityHandle e = play.AddSource(clip, Float3{0.0f, 0.0f, 0.0f});
+    play.Start();
+    play.Frame();
+    auto* sources = play.scene.GetSystem<AudioSourceComponentManager>();
+    REQUIRE(play.engine.IsValidHandle(sources->Get(e)->voice));
+
+    // Fill the pool with louder business: the source's voice is the one taken.
+    Array<VoiceHandle> loud;
+    AudioPlayParams high;
+    high.loop = true;
+    high.priority = 250;
+    for (u32 i = 0; i < 64; ++i)
+    {
+        loud.PushBack(play.engine.Play(clip, high));
+    }
+    play.Frame();
+    CHECK_FALSE(play.engine.IsValidHandle(sources->Get(e)->voice));
+
+    // While the pool stays full it waits, taking nothing.
+    play.Frame();
+    CHECK(sources->Get(e)->awaitingVoice);
+    for (const VoiceHandle& v : loud)
+    {
+        CHECK(play.engine.IsValidHandle(v));
+    }
+
+    // A voice frees: the source plays again.
+    play.engine.Stop(loud[0]);
+    for (int i = 0; i < 10; ++i)
+    {
+        play.Frame(0.05f);
+    }
+    CHECK(play.engine.IsPlaying(sources->Get(e)->voice));
+    CHECK_FALSE(sources->Get(e)->awaitingVoice);
+}

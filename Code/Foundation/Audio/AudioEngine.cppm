@@ -313,6 +313,11 @@ export namespace foundation::audio
         /// this count at the instant of the steal (its handle dies) even though its
         /// audio tail keeps mixing briefly (see DyingVoiceCount()).
         [[nodiscard]] usize ActiveVoiceCount() const;
+        /// Whether `clip` played now would find a free voice (in its pool: the streamed one for a
+        /// streamed clip), taking no other voice's.
+        [[nodiscard]] bool HasFreeVoiceFor(const RefPtr<AudioClip>& clip) const;
+        /// Whether the in-memory pool (or the streamed one) has a free voice.
+        [[nodiscard]] bool HasFreeVoice(bool streamPool = false) const;
         /// Stolen voices still fading out on the dying side list (steal declick). They
         /// are unaddressable and capacity-bounded (settings.dyingVoiceCapacity).
         [[nodiscard]] usize DyingVoiceCount() const;

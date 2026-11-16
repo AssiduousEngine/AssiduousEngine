@@ -233,6 +233,7 @@ namespace foundation::audio
         u32 generation = 1;
         VoiceState state = VoiceState::Free;
         u8 priority = 0;
+        u64 started = 0; // when it was played (Impl::playSerial): the oldest of a tie is taken
         bool spatial = false;
         bool looping = false;
         String customBusName; // non-empty = routed through a named custom bus
@@ -351,6 +352,8 @@ namespace foundation::audio
         bool busMuted[static_cast<usize>(AudioBus::Count)] = {};
 
         Array<VoiceSlot> voices; // [0, voiceCount) in-memory, then stream slots
+
+        u64 playSerial = 0; // counts voices played (VoiceSlot::started)
         u32 voiceCount = 0;
         u32 streamVoiceCount = 0;
 
@@ -1283,8 +1286,32 @@ namespace foundation::audio
             return dx * dx + dy * dy + dz * dz; // squared is fine for ordering
         }
 
+        // Whether `candidate` goes before `held` among voices of one priority: the farther from the
+        // listener, else the older (2D voices are all at distance 0: the oldest goes, not slot 0).
+        [[nodiscard]] bool StealsBefore(const VoiceSlot& candidate, const VoiceSlot& held) const
+        {
+            const f32 a = DistanceToListener(candidate), b = DistanceToListener(held);
+            return a != b ? a > b : candidate.started < held.started;
+        }
+
+        // Whether `streamPool` has a free slot: a voice played now would take no other's.
+        [[nodiscard]] bool HasFreeSlot(bool streamPool) const
+        {
+            const usize begin = streamPool ? voiceCount : 0;
+            const usize end = streamPool ? voiceCount + streamVoiceCount : static_cast<usize>(voiceCount);
+            for (usize i = begin; i < end && i < voices.Size(); ++i)
+            {
+                if (voices[i].state == VoiceState::Free)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         // A free slot, else the lowest priority strictly below the new voice, else the
-        // farthest voice of the same priority. Returns the pool size when nothing may be taken.
+        // farthest (then oldest) voice of the same priority. Returns the pool size when nothing
+        // may be taken.
         [[nodiscard]] usize AcquireSlot(bool streamPool, u8 priority)
         {
             const usize begin = streamPool ? voiceCount : 0;
@@ -1304,7 +1331,7 @@ namespace foundation::audio
             {
                 if (voices[i].priority < victimPriority ||
                     (victim < voices.Size() && voices[i].priority == victimPriority &&
-                     DistanceToListener(voices[i]) > DistanceToListener(voices[victim])))
+                     StealsBefore(voices[i], voices[victim])))
                 {
                     victim = i;
                     victimPriority = voices[i].priority;
@@ -1319,8 +1346,7 @@ namespace foundation::audio
                     {
                         continue;
                     }
-                    if (victim == voices.Size() ||
-                        DistanceToListener(voices[i]) > DistanceToListener(voices[victim]))
+                    if (victim == voices.Size() || StealsBefore(voices[i], voices[victim]))
                     {
                         victim = i;
                     }
@@ -1984,6 +2010,7 @@ namespace foundation::audio
         slot.soundInitialized = true;
         slot.state = params.startPaused ? VoiceState::Paused : VoiceState::Playing;
         slot.priority = params.priority;
+        slot.started = ++impl.playSerial;
         slot.spatial = params.spatial;
         slot.position = params.position;
         slot.volume = params.volume;
@@ -2449,6 +2476,13 @@ namespace foundation::audio
     }
 
     usize AudioEngine::DyingVoiceCount() const { return m_impl->dyingVoices.Size(); }
+
+    bool AudioEngine::HasFreeVoiceFor(const RefPtr<AudioClip>& clip) const
+    {
+        return clip.Get() != nullptr && m_impl->HasFreeSlot(clip->stream);
+    }
+
+    bool AudioEngine::HasFreeVoice(bool streamPool) const { return m_impl->HasFreeSlot(streamPool); }
 
     void AudioEngine::SetListenerTransform(Float3 position, Float3 forward, Float3 up,
                                            Float3 velocity)

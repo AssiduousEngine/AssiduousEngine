@@ -72,6 +72,11 @@ export namespace engine::audio
         // effectively inactive; reactivation restarts autoplay sources from it. Runtime only,
         // never serialized.
         bool activeSuspended = false;
+        // The voice loops (the source's loop, or its clip's); a looping autoplay voice that goes
+        // without being stopped was taken for another (the pool was full) and comes back when a
+        // voice is free (awaitingVoice).
+        bool voiceLoops = false;
+        bool awaitingVoice = false;
         i32 lastCueVariant = -1; // cue no-repeat state (runtime)
         u32 cueSequentialCursor = 0;
         Float3 previousPosition{0.0f, 0.0f, 0.0f};

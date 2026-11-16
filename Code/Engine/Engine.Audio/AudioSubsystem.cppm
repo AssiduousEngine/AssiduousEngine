@@ -335,13 +335,30 @@ export namespace engine::audio
                                 (void)PlayComponent(c, e);
                             }
                         }
+                        if (c.awaitingVoice && c.autoPlay)
+                        {
+                            // Taken for another voice: back once one is free, taking no other's
+                            // (two loops at the pool's edge would otherwise keep taking each
+                            // other's place).
+                            const AudioClip* clip = c.sourceType == AudioSourceType::Clip ? c.clip.Get() : nullptr;
+                            const bool free = clip != nullptr
+                                                  ? m_engine->HasFreeVoiceFor(RefPtr<AudioClip>(const_cast<AudioClip*>(clip)))
+                                                  : m_engine->HasFreeVoice(); // a cue's next pick: the in-memory pool
+                            if (free)
+                            {
+                                (void)PlayComponent(c, e);
+                            }
+                        }
                         if (!c.voice.IsValid())
                         {
                             return;
                         }
                         if (!m_engine->IsValidHandle(c.voice))
                         {
-                            c.voice = VoiceHandle{}; // finished one-shot: reap the handle
+                            // A looping autoplay voice never ends by itself: it was taken for a
+                            // voice of higher priority (or nearer). Otherwise a finished one-shot.
+                            c.awaitingVoice = c.voiceLoops && c.autoPlay;
+                            c.voice = VoiceHandle{}; // reap the handle
                             c.hasPreviousPosition = false;
                             return;
                         }
@@ -466,6 +483,8 @@ export namespace engine::audio
                 params.coneOuterGain = c.coneOuterGain;
             }
             c.voice = m_engine->Play(RefPtr<AudioClip>(clip), params);
+            c.voiceLoops = c.loop || clip->loop;
+            c.awaitingVoice = !c.voice.IsValid() && c.voiceLoops && c.autoPlay; // no voice now: later
             c.previousPosition = params.position;
             c.hasPreviousPosition = c.spatial;
             return c.voice;

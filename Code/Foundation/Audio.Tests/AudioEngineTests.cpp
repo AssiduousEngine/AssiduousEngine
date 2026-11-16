@@ -1595,3 +1595,33 @@ TEST_CASE("audio.engine: a Reverb bus effect splices and the headless mixer surv
     engine.Update(1.0f / 60.0f);
     CHECK(engine.IsPlaying(voice));
 }
+
+TEST_CASE("audio.engine: among 2D voices of one priority, the oldest is taken, not slot 0")
+{
+    // 2D voices are all at distance 0 from the listener, so every tie went to the first slot:
+    // with the pool full, each new sound took the one just started there.
+    AudioEngine engine(DefaultAllocator(), HeadlessSettings(/*voiceCount=*/2, /*streamVoiceCount=*/0));
+    RefPtr<AudioClip> clip = MakeToneClip(2.0f);
+    AudioPlayParams flat;
+    flat.loop = true;
+    flat.priority = 50;
+    const VoiceHandle first = engine.Play(clip, flat);
+    const VoiceHandle second = engine.Play(clip, flat);
+    REQUIRE(first.IsValid());
+    REQUIRE(second.IsValid());
+    const VoiceHandle third = engine.Play(clip, flat); // takes the oldest: first
+    REQUIRE(third.IsValid());
+    CHECK_FALSE(engine.IsValidHandle(first));
+    CHECK(engine.IsValidHandle(second));
+    const VoiceHandle fourth = engine.Play(clip, flat); // the oldest now is second, not third
+    REQUIRE(fourth.IsValid());
+    CHECK_FALSE(engine.IsValidHandle(second));
+    CHECK(engine.IsValidHandle(third));
+    CHECK_FALSE(engine.HasFreeVoice());
+    engine.Stop(third);
+    for (int i = 0; i < 10; ++i)
+    {
+        engine.Update(0.05f);
+    }
+    CHECK(engine.HasFreeVoice());
+}
