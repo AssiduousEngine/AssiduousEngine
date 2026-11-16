@@ -195,8 +195,108 @@ namespace engine::physics
         }
     }
 
+    // The drawn ground a holed heightfield's collision lacks. Physics cuts a whole triangle at a cut
+    // sample, while the terrain draws a cell until all four of its samples are cut, shaping the rim
+    // where the bilinear hole mask (cut samples 1) crosses one half. So each cell with some but not
+    // all samples cut is traced by marching squares at that half: the ground corners, the middles
+    // of the edges that cross the rim, and, where two diagonal corners are cut (a saddle), the
+    // cell's centre, where the two pieces meet. Heights are the samples' (a cut one still has its
+    // height), bilinear between them. In the heightfield shape's own frame (centred). False when
+    // the heightfield has no partly cut cell.
+    bool TraceHoleRim(const Heightfield& hf, Array<Float3>& positions, Array<u32>& indices)
+    {
+        positions.Clear();
+        indices.Clear();
+        const Span<const u8> holes = hf.Holes();
+        const i32 n = hf.Size();
+        if (holes.IsEmpty() || n < 2)
+        {
+            return false;
+        }
+        const Span<const foundation::heightfield::Height> samples = hf.Samples();
+        const Float2 size = hf.WorldSize();
+        const f32 sx = size.x / static_cast<f32>(n - 1), sz = size.y / static_cast<f32>(n - 1);
+        const auto cut = [&](i32 x, i32 z) { return holes[static_cast<usize>(z) * n + x] != 0; };
+        const auto height = [&](i32 x, i32 z)
+        { return hf.SampleToWorldY(static_cast<f32>(samples[static_cast<usize>(z) * n + x])); };
+        // A point of the cell (x, z) at fractions (u, v) along x and z.
+        const auto at = [&](i32 x, i32 z, f32 u, f32 v)
+        {
+            const f32 h = height(x, z) * (1 - u) * (1 - v) + height(x + 1, z) * u * (1 - v) +
+                          height(x + 1, z + 1) * u * v + height(x, z + 1) * (1 - u) * v;
+            return Float3{-size.x * 0.5f + (static_cast<f32>(x) + u) * sx, h,
+                          -size.y * 0.5f + (static_cast<f32>(z) + v) * sz};
+        };
+        // A polygon as a fan; wound so its face looks up (+y), as the heightfield's does.
+        const auto fan = [&](const Float3* poly, u32 count)
+        {
+            const u32 base = static_cast<u32>(positions.Size());
+            for (u32 i = 0; i < count; ++i)
+            {
+                positions.PushBack(poly[i]);
+            }
+            for (u32 i = 1; i + 1 < count; ++i)
+            {
+                indices.PushBack(base);
+                indices.PushBack(base + i + 1);
+                indices.PushBack(base + i);
+            }
+        };
+        // The cell's corners in order around it, as fractions.
+        constexpr f32 kU[4] = {0, 1, 1, 0};
+        constexpr f32 kV[4] = {0, 0, 1, 1};
+        for (i32 z = 0; z + 1 < n; ++z)
+        {
+            for (i32 x = 0; x + 1 < n; ++x)
+            {
+                const bool corner[4] = {cut(x, z), cut(x + 1, z), cut(x + 1, z + 1), cut(x, z + 1)};
+                const i32 cuts = corner[0] + corner[1] + corner[2] + corner[3];
+                if (cuts == 0 || cuts == 4)
+                {
+                    continue; // whole ground (the heightfield has it) or wholly cut
+                }
+                if (cuts == 2 && corner[0] == corner[2])
+                {
+                    // A saddle: each ground corner keeps the quarter of the cell at it.
+                    for (i32 k = 0; k < 4; ++k)
+                    {
+                        if (corner[k])
+                        {
+                            continue;
+                        }
+                        const i32 prev = (k + 3) % 4, next = (k + 1) % 4;
+                        const Float3 quarter[4] = {
+                            at(x, z, kU[k], kV[k]),
+                            at(x, z, (kU[k] + kU[next]) * 0.5f, (kV[k] + kV[next]) * 0.5f),
+                            at(x, z, 0.5f, 0.5f),
+                            at(x, z, (kU[k] + kU[prev]) * 0.5f, (kV[k] + kV[prev]) * 0.5f)};
+                        fan(quarter, 4);
+                    }
+                    continue;
+                }
+                Float3 poly[8];
+                u32 count = 0;
+                for (i32 k = 0; k < 4; ++k)
+                {
+                    const i32 next = (k + 1) % 4;
+                    if (!corner[k])
+                    {
+                        poly[count++] = at(x, z, kU[k], kV[k]);
+                    }
+                    if (corner[k] != corner[next])
+                    {
+                        poly[count++] =
+                            at(x, z, (kU[k] + kU[next]) * 0.5f, (kV[k] + kV[next]) * 0.5f);
+                    }
+                }
+                fan(poly, count);
+            }
+        }
+        return !indices.IsEmpty();
+    }
+
     bool DescribeBody(scene::Scene& scene, RigidBodyComponent& c, scene::EntityHandle e, BodyDesc& out,
-                      Array<Array<f32>>& heightBuffers)
+                      BodyBuffers& buffers)
     {
         auto* colliders = scene.GetSystem<ColliderComponentManager>();
         out.motion = c.motion;
@@ -229,8 +329,8 @@ namespace engine::physics
                 return false;
             }
             const i32 n = hf->Size();
-            heightBuffers.PushBack(Array<f32>{});
-            Array<f32>& buf = heightBuffers[heightBuffers.Size() - 1];
+            buffers.heights.PushBack(Array<f32>{});
+            Array<f32>& buf = buffers.heights[buffers.heights.Size() - 1];
             const Span<const foundation::heightfield::Height> src = hf->Samples();
             const Span<const u8> holes = hf->Holes(); // a cut sample has no surface
             buf.Resize(src.Size());
@@ -244,6 +344,31 @@ namespace engine::physics
             s.heightSampleCount = static_cast<u32>(n);
             s.heightWorldSize = hf->WorldSize();
             return true;
+        };
+        // A holed heightfield's drawn rim as a cooked mesh beside it, at the same place and scale.
+        Array<ShapeDesc> rims;
+        const auto addRim = [&](const ShapeDesc& field, Heightfield* hf)
+        {
+            Array<Float3> positions;
+            Array<u32> indices;
+            if (hf == nullptr || !TraceHoleRim(*hf, positions, indices))
+            {
+                return;
+            }
+            buffers.blobs.PushBack(Array<byte>{});
+            Array<byte>& blob = buffers.blobs[buffers.blobs.Size() - 1];
+            if (!CookTriangleMesh(Span<const Float3>{positions.Data(), positions.Size()},
+                                  Span<const u32>{indices.Data(), indices.Size()}, {}, blob))
+            {
+                return;
+            }
+            ShapeDesc rim;
+            rim.kind = ShapeKind::Cooked;
+            rim.cooked = Span<const byte>{blob.Data(), blob.Size()};
+            rim.scale = field.scale;
+            rim.localPosition = field.localPosition;
+            rim.localRotation = field.localRotation;
+            rims.PushBack(rim);
         };
 
         ShapeDesc own;
@@ -280,6 +405,8 @@ namespace engine::physics
                                      scene.GetEntityName(e));
                 return false;
             }
+            own.scale = scale; // the terrain stretched as its entity is
+            addRim(own, c.heightfield.Get());
         }
         // A shape that can only be static (Jolt's MustBeStatic: plane, heightfield, a cooked
         // triangle mesh) under a moving body: the world demotes it to static rather than tripping
@@ -351,11 +478,20 @@ namespace engine::physics
                         {
                             return;
                         }
+                        shape.scale = ls;
                     }
                     shape.localPosition = lp;
                     shape.localRotation = lr;
                     out.shapes.PushBack(shape);
+                    if (extra.shape == ShapeKind::Heightfield)
+                    {
+                        addRim(shape, extra.heightfield.Get());
+                    }
                 });
+        }
+        for (const ShapeDesc& rim : rims)
+        {
+            out.shapes.PushBack(rim);
         }
 
         out.position = position;
@@ -378,7 +514,7 @@ namespace engine::physics
         // Static, solid bodies only: a dynamic or kinematic body moves and a trigger lets things
         // through, so neither is level geometry (a character is no rigid body at all). An inactive
         // entity has no body, as at scene start.
-        Array<Array<f32>> heightBuffers; // the descs' height samples point in here
+        BodyBuffers buffers; // the descs' height samples and rims point in here
         Array<BodyDesc> bodies;
         ForEach(
             [&](RigidBodyComponent& c, scene::EntityHandle e)
@@ -388,7 +524,7 @@ namespace engine::physics
                     return;
                 }
                 BodyDesc desc;
-                if (DescribeBody(scene, c, e, desc, heightBuffers))
+                if (DescribeBody(scene, c, e, desc, buffers))
                 {
                     bodies.PushBack(static_cast<BodyDesc&&>(desc));
                 }

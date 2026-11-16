@@ -77,12 +77,21 @@ export namespace engine::physics
     }
 
     /// The body a RigidBodyComponent makes on `entity`: its settings, the entity's world pose, its
+    /// What a described body points into (heightfield samples, the cooked rim of a holed
+    /// heightfield): it must outlive the description, until the body is made.
+    struct BodyBuffers
+    {
+        Array<Array<f32>> heights;
+        Array<Array<byte>> blobs;
+    };
+
     /// own shape and the ColliderComponents under it (a compound at their offsets). Heightfield
-    /// samples are copied into `heightBuffers`, which the desc points into and which must outlive
-    /// it. False (logged) when the transform does not decompose or a shape's resource is missing.
-    /// Body creation and the static geometry the navigation bake reads both describe bodies here.
+    /// samples and a holed heightfield's rim are kept in `buffers`, which the desc points into and
+    /// which must outlive it. False (logged) when the transform does not decompose or a shape's
+    /// resource is missing. Body creation and the static geometry the navigation bake reads both
+    /// describe bodies here.
     [[nodiscard]] bool DescribeBody(scene::Scene& scene, RigidBodyComponent& c, scene::EntityHandle entity,
-                                    BodyDesc& out, Array<Array<f32>>& heightBuffers);
+                                    BodyDesc& out, BodyBuffers& buffers);
 
     /// A contact whose bodies have been resolved back to scene entities (invalid handles for a side
     /// whose body no longer maps to a live entity, such as an End event after a body was
@@ -1048,10 +1057,10 @@ export namespace engine::physics
             scene::Scene& scene = *m_scene;
             {
                 {
-                    // Heightfield sample buffers kept alive until CreateBody, where Jolt copies them.
-                    Array<Array<f32>> heightBuffers;
+                    // Heightfield samples and rims kept alive until CreateBody, where Jolt copies them.
+                    BodyBuffers buffers;
                     BodyDesc desc;
-                    if (!DescribeBody(scene, c, e, desc, heightBuffers))
+                    if (!DescribeBody(scene, c, e, desc, buffers))
                     {
                         return;
                     }

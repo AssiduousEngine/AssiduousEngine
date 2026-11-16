@@ -1785,3 +1785,88 @@ TEST_CASE("physics.scene: a body edited while live is built again; primitives ta
     REQUIRE(play.physics->World()->RayCast(Float3{0.0f, 20.0f, 0.0f}, Float3{0.0f, -1.0f, 0.0f}, 30.0f, hit));
     CHECK(hit.position.y == doctest::Approx(6.5f).epsilon(0.01));
 }
+
+namespace
+{
+    // A flat 65x65 heightfield (1 m cells over 64 m, centred) at world Y = 2.
+    RefPtr<foundation::heightfield::Heightfield> FlatHeightfield()
+    {
+        RefPtr<foundation::heightfield::Heightfield> hf = MakeRef<foundation::heightfield::Heightfield>(
+            DefaultAllocator(), 65, Float2{64.0f, 64.0f}, 0.0f, 4.0f);
+        const foundation::heightfield::Height flat = hf->WorldYToSample(2.0f);
+        Span<foundation::heightfield::Height> samples = hf->Samples();
+        for (usize i = 0; i < samples.Size(); ++i)
+        {
+            samples[i] = flat;
+        }
+        return hf;
+    }
+
+    scene::EntityHandle AddHeightfieldGround(PlayScene& play, const RefPtr<foundation::heightfield::Heightfield>& hf)
+    {
+        scene::EntityHandle ground = play.scene.CreateEntity(u8"heightfield");
+        RigidBodyComponent& gb = play.scene.GetSystem<RigidBodyComponentManager>()->Add(ground);
+        gb.motion = MotionKind::Static;
+        gb.layer = PhysicsLayer::Static;
+        gb.shape = ShapeKind::Heightfield;
+        gb.heightfield = hf;
+        return ground;
+    }
+
+    bool GroundAt(PlayScene& play, f32 x, f32 z, f32& y)
+    {
+        RayHit hit;
+        if (!play.physics->World()->RayCast(Float3{x, 50.0f, z}, Float3{0.0f, -1.0f, 0.0f}, 100.0f, hit))
+        {
+            return false;
+        }
+        y = hit.position.y;
+        return true;
+    }
+}
+
+TEST_CASE("physics.scene: a hole's drawn rim collides; the cut itself does not")
+{
+    // Physics dropped every triangle at a cut sample, while the terrain draws a cell until all
+    // its samples are cut, shaping the rim at the bilinear mask's half: around one cut sample,
+    // ground was drawn where nothing collided.
+    RefPtr<foundation::heightfield::Heightfield> hf = FlatHeightfield();
+    hf->SetHole(32, 32, true); // the sample at the origin
+    PlayScene play;
+    (void)AddHeightfieldGround(play, hf);
+    play.Start();
+    play.Step(1);
+
+    f32 y = 0.0f;
+    // In each of the four cells around the cut, the corner away from it is drawn ground.
+    const f32 corners[4][2] = {{0.75f, 0.75f}, {-0.75f, 0.75f}, {0.75f, -0.75f}, {-0.75f, -0.75f}};
+    for (const auto& c : corners)
+    {
+        CAPTURE(c[0]);
+        CAPTURE(c[1]);
+        REQUIRE(GroundAt(play, c[0], c[1], y));
+        CHECK(y == doctest::Approx(2.0f).epsilon(0.01));
+    }
+    // At the cut sample, and close to it (the mask above one half), there is nothing.
+    CHECK_FALSE(GroundAt(play, 0.0f, 0.0f, y));
+    CHECK_FALSE(GroundAt(play, 0.15f, 0.15f, y));
+    // Far from it, the heightfield as ever.
+    REQUIRE(GroundAt(play, 10.0f, 10.0f, y));
+    CHECK(y == doctest::Approx(2.0f).epsilon(0.01));
+}
+
+TEST_CASE("physics.scene: a heightfield takes its entity's scale")
+{
+    // A terrain entity scaled up collided at its unscaled size.
+    PlayScene play;
+    const scene::EntityHandle ground = AddHeightfieldGround(play, FlatHeightfield());
+    Transform t = play.scene.GetLocalTransform(ground);
+    t.scale = Float3{2.0f, 3.0f, 2.0f};
+    play.scene.SetLocalTransform(ground, t);
+    play.Start();
+    play.Step(1);
+
+    f32 y = 0.0f;
+    REQUIRE(GroundAt(play, 50.0f, 50.0f, y)); // past the unscaled 32 m half extent
+    CHECK(y == doctest::Approx(6.0f).epsilon(0.01)); // 2 m surface, 3x tall
+}
