@@ -67,6 +67,21 @@ export namespace pipeline{
         }
     };
 
+    // Source asset: a project file (a C# .csproj) whose folder's sources of its language, every one
+    // under it, build together into one assembly; each class asset there names the assembly.
+    class ScriptAssemblyAsset final : public pipeline::Asset
+    {
+        RTTI_OBJECT(ScriptAssemblyAsset, pipeline::Asset)
+    public:
+        String language; // backend id ("csharp"), from the project file's extension
+
+        void Serialize(ISerializer& ar) override
+        {
+            pipeline::Asset::Serialize(ar); // fileName: the project file
+            foundation::core::Serialize(ar, "language", language);
+        }
+    };
+
     // ---- shared cook helpers (unit-testable without a project; not language syntax) ----
 
     /// Every top-level `class Name` in `source`, in order; empty when it declares none (a
@@ -744,7 +759,122 @@ export namespace pipeline{
         /// How many times Check has made the manager it keeps for checks: once, and again
         /// each time the registered types change. 0 for a language whose every check builds its own.
         [[nodiscard]] virtual u32 CheckManagerBuildCount() const = 0;
+
+        /// Whether the language's classes build together into their project's assembly (C#):
+        /// the class builder then cooks a class with CookFromAssembly, from the assembly the
+        /// project's build described, and not with Cook.
+        [[nodiscard]] virtual bool BuildsInAssembly() const { return false; }
+
+        /// Cooks the class `source` plays (chosen as Cook chooses it) from `assembly`, its
+        /// project's built assembly: its handlers and properties into `out`. Errors to `sink`.
+        [[nodiscard]] virtual bool CookFromAssembly(StringView source, StringView assetName, StringView preferredClass,
+                                                    const ScriptAssemblySource& assembly, CookScriptErrorSink& sink,
+                                                    ScriptClassSource& out)
+        {
+            (void)source;
+            (void)assetName;
+            (void)preferredClass;
+            (void)assembly;
+            (void)sink;
+            (void)out;
+            return false;
+        }
     };
+
+    /// One source file of a project assembly: its path in the sources and its text.
+    struct ScriptAssemblyFile
+    {
+        String path;
+        String text;
+    };
+
+    /// A language's project build (C#): the project file and every source of the language under
+    /// its folder, built into one assembly with every public class described. Registered in
+    /// ScriptAssemblyCookRegistry by language, beside the language's class cook.
+    class IScriptAssemblyCook
+    {
+    public:
+        virtual ~IScriptAssemblyCook() = default;
+
+        /// The project file's extension, lowercase without the dot ("csproj").
+        [[nodiscard]] virtual StringView ProjectExtension() const = 0;
+        /// The sources' extension ("cs").
+        [[nodiscard]] virtual StringView SourceExtension() const = 0;
+        /// Folded into the builder's version: a toolchain change rebuilds.
+        [[nodiscard]] virtual u32 CookVersion() const { return 0; }
+
+        /// Builds `projectPath` (its text `project`) with `sources` into `out`: the image, its
+        /// symbols, every public class's description. Errors (each at its file and line) to `sink`.
+        [[nodiscard]] virtual bool Build(StringView projectPath, StringView project, Span<const ScriptAssemblyFile> sources,
+                                         CookScriptErrorSink& sink, ScriptAssemblySource& out) = 0;
+
+        /// The project file a project named `name` starts with.
+        [[nodiscard]] virtual String NewProjectTemplate(StringView name) const = 0;
+    };
+
+    class ScriptAssemblyCookRegistry
+    {
+    public:
+        // Not inline (ScriptAssetImpl.cpp): one registry across shared libraries.
+        [[nodiscard]] static ScriptAssemblyCookRegistry& Get();
+
+        /// Idempotent by languageId.
+        void Register(String languageId, UniquePtr<IScriptAssemblyCook> cook)
+        {
+            for (Entry& existing : m_cooks)
+                if (existing.languageId == languageId)
+                {
+                    existing.cook = Move(cook);
+                    return;
+                }
+            m_cooks.PushBack(Entry{Move(languageId), Move(cook)});
+        }
+
+        [[nodiscard]] IScriptAssemblyCook* FindByLanguage(StringView languageId)
+        {
+            for (Entry& entry : m_cooks)
+                if (entry.languageId == languageId)
+                    return entry.cook.Get();
+            return nullptr;
+        }
+
+        /// The language whose project files have `extension` (lowercase, no dot); empty for none.
+        [[nodiscard]] StringView LanguageOfProject(StringView extension) const
+        {
+            for (const Entry& entry : m_cooks)
+                if (entry.cook.Get() != nullptr && entry.cook->ProjectExtension() == extension)
+                    return entry.languageId.AsView();
+            return StringView{};
+        }
+
+        [[nodiscard]] u32 CombinedCookVersion() const
+        {
+            u32 total = 0;
+            for (const Entry& entry : m_cooks)
+                if (entry.cook.Get() != nullptr)
+                    total += entry.cook->CookVersion();
+            return total;
+        }
+
+    private:
+        struct Entry
+        {
+            String languageId;
+            UniquePtr<IScriptAssemblyCook> cook;
+        };
+        Array<Entry> m_cooks;
+    };
+
+    /// The project assembly a `language` source file at `file` (a path in the sources) builds into:
+    /// the ScriptAssemblyAsset of that language whose project file's folder holds `file`, the
+    /// nearest when projects nest. Null when no project holds it. Defined in ScriptAssetImpl.cpp.
+    [[nodiscard]] content::Instance* FindScriptAssemblyFor(content::IContentDatabase& sourceDb, StringView language,
+                                                           StringView file);
+
+    /// Every file under `folder` (a path in the sources; empty for the root) whose extension is
+    /// `extension`, through `sources`, sorted; build output folders (bin, obj) are passed over.
+    /// Defined in ScriptAssetImpl.cpp.
+    [[nodiscard]] Array<String> ListSourcesUnder(foundation::vfs::IFileSystem& sources, StringView folder, StringView extension);
 
     /// The cook registry (shaped like ScriptBackendRegistry): a language library registers its
     /// cook here, keyed by languageId; the builder resolves through it, never by type.
@@ -869,6 +999,20 @@ export namespace pipeline{
             {
                 return; // Build says so
             }
+            // A class built into its project's assembly reads the assembly (which cooks first, and
+            // whose change recooks the class) and refers to it at run time.
+            if (cook->BuildsInAssembly())
+            {
+                if (ctx.sourceDb != nullptr)
+                {
+                    if (content::Instance* project = FindScriptAssemblyFor(*ctx.sourceDb, LanguageOf(scriptAsset), scriptAsset.fileName.View()))
+                    {
+                        out.reads.PushBack(project->Id());
+                        out.references.PushBack(project->Id());
+                    }
+                }
+                return;
+            }
             Array<String> pending;
             pending.PushBack(String(scriptAsset.fileName.View()));
             Array<String> seen;
@@ -939,11 +1083,22 @@ export namespace pipeline{
 
             ScriptClassSource cooked;
             CookScriptErrorSink sink;
-            MountIncludes includes{&ctx};
-            if (!cook->Cook(source.AsView(), scriptAsset.fileName.View(), PreferredScriptClass(scriptAsset).AsView(), sink,
-                            cooked, &includes))
+            if (cook->BuildsInAssembly())
             {
-                return Status{ErrorCode::InvalidArgument};
+                const Status fromAssembly = CookFromProject(*cook, scriptAsset, source.AsView(), ctx, sink, cooked);
+                if (!fromAssembly.IsOk())
+                {
+                    return fromAssembly;
+                }
+            }
+            else
+            {
+                MountIncludes includes{&ctx};
+                if (!cook->Cook(source.AsView(), scriptAsset.fileName.View(), PreferredScriptClass(scriptAsset).AsView(), sink,
+                                cooked, &includes))
+                {
+                    return Status{ErrorCode::InvalidArgument};
+                }
             }
             // A cook that succeeded may still have warnings to say.
             for (const CookScriptErrorSink::Entry& e : sink.errors)
@@ -963,6 +1118,40 @@ export namespace pipeline{
             return scriptAsset.language.IsEmpty() ? StringView(u8"angelscript") : scriptAsset.language.AsView();
         }
 
+        // A class of a language that builds per project: its description from the project's cooked
+        // assembly, and the record naming that assembly.
+        [[nodiscard]] static Status CookFromProject(IScriptLanguageCook& cook, const ScriptClassAsset& scriptAsset, StringView source,
+                                                    pipeline::AssetBuildContext& ctx, CookScriptErrorSink& sink, ScriptClassSource& cooked)
+        {
+            const StringView file = scriptAsset.fileName.View();
+            content::Instance* project =
+                ctx.sourceDb != nullptr ? FindScriptAssemblyFor(*ctx.sourceDb, LanguageOf(scriptAsset), file) : nullptr;
+            if (project == nullptr)
+            {
+                LOG_ERROR(u8"Script", u8"'{}': no {} project holds it (a project file in its folder or one above) - cook failed", file,
+                          LanguageOf(scriptAsset));
+                return Status{ErrorCode::NotFound};
+            }
+            content::Instance* built = ctx.db != nullptr ? ctx.db->GetInstance(project->Id()) : nullptr;
+            RefPtr<ISerializable> record = built != nullptr ? built->ReadObject() : RefPtr<ISerializable>{};
+            const ScriptAssemblySource* assembly = Cast<ScriptAssemblySource>(record.Get());
+            if (assembly == nullptr)
+            {
+                LOG_ERROR(u8"Script", u8"'{}': its project '{}' has not built - cook failed", file, project->Path());
+                return Status{ErrorCode::NotFound};
+            }
+            if (!cook.CookFromAssembly(source, file, PreferredScriptClass(scriptAsset).AsView(), *assembly, sink, cooked))
+            {
+                for (const CookScriptErrorSink::Entry& e : sink.errors)
+                {
+                    LOG_ERROR(u8"Script", u8"{}: {}", e.module.IsEmpty() ? file : e.module.AsView(), e.message);
+                }
+                return Status{ErrorCode::InvalidArgument};
+            }
+            cooked.assembly = project->Id();
+            return Status{};
+        }
+
         // Included files, read from the cook's sources mount.
         struct MountIncludes final : IScriptIncludeReader
         {
@@ -970,6 +1159,91 @@ export namespace pipeline{
             [[nodiscard]] bool Read(StringView path, String& out) override { return ReadSourceText(*ctx, path, out).IsOk(); }
             const pipeline::AssetBuildContext* ctx;
         };
+    };
+
+    // Builds a project's script assembly: the project file and every source of its language under
+    // its folder, through the language's assembly cook.
+    class ScriptAssemblyAssetBuilder final : public pipeline::DefaultAssetBuilder
+    {
+    public:
+        [[nodiscard]] const TypeInfo* AssetType() const override { return &ScriptAssemblyAsset::StaticType(); }
+        [[nodiscard]] const TypeInfo* ProductType() const override { return &ScriptAssemblySource::StaticType(); }
+        [[nodiscard]] u32 Version() const override { return 1 + ScriptAssemblyCookRegistry::Get().CombinedCookVersion(); }
+
+        // The engine surface the assembly is built against (the runtime's generated bindings).
+        [[nodiscard]] u64 EnvironmentHash() const override { return ScriptSurfaceHash(GlobalTypeRegistry()); }
+
+        // Every source under the project's folder is an input: an edit, a new file or a removed
+        // one rebuilds it.
+        void ScanDependencies(const pipeline::Asset& asset, pipeline::AssetBuildContext& ctx, pipeline::AssetDependencies& out) override
+        {
+            const ScriptAssemblyAsset& project = static_cast<const ScriptAssemblyAsset&>(asset);
+            IScriptAssemblyCook* cook = ScriptAssemblyCookRegistry::Get().FindByLanguage(project.language.AsView());
+            if (cook == nullptr || ctx.sources == nullptr)
+            {
+                return; // Build says so
+            }
+            for (const String& file : ListSourcesUnder(*ctx.sources, PathParent(project.fileName.View()), cook->SourceExtension()))
+            {
+                out.files.PushBack(foundation::vfs::SourcePath(file.AsView()));
+            }
+        }
+
+        [[nodiscard]] Status Build(const pipeline::Asset& asset, pipeline::AssetBuildContext& ctx) override
+        {
+            const ScriptAssemblyAsset& project = static_cast<const ScriptAssemblyAsset&>(asset);
+            if (ctx.output == nullptr || ctx.sources == nullptr)
+            {
+                return Status{ErrorCode::InvalidArgument};
+            }
+            IScriptAssemblyCook* cook = ScriptAssemblyCookRegistry::Get().FindByLanguage(project.language.AsView());
+            if (cook == nullptr)
+            {
+                LOG_ERROR(u8"Script", u8"'{}': no project build registered for language '{}' - cook failed", project.fileName.View(),
+                          project.language);
+                return Status{ErrorCode::NotSupported};
+            }
+            String text;
+            if (const Status read = ReadSourceText(ctx, project.fileName.View(), text); !read.IsOk())
+            {
+                LOG_ERROR(u8"Script", u8"'{}': project file missing - cook failed", project.fileName.View());
+                return read;
+            }
+            Array<ScriptAssemblyFile> sources;
+            for (const String& file : ListSourcesUnder(*ctx.sources, PathParent(project.fileName.View()), cook->SourceExtension()))
+            {
+                ScriptAssemblyFile source;
+                source.path = file;
+                if (!ReadSourceText(ctx, file.AsView(), source.text).IsOk())
+                {
+                    LOG_ERROR(u8"Script", u8"'{}': unreadable - '{}' cook failed", file, project.fileName.View());
+                    return Status{ErrorCode::NotFound};
+                }
+                sources.PushBack(Move(source));
+            }
+            ScriptAssemblySource built;
+            built.language = project.language;
+            CookScriptErrorSink sink;
+            const bool ok = cook->Build(project.fileName.View(), text.AsView(), Span<const ScriptAssemblyFile>{sources.Data(), sources.Size()},
+                                        sink, built);
+            for (const CookScriptErrorSink::Entry& e : sink.errors)
+            {
+                const StringView where = e.module.IsEmpty() ? project.fileName.View() : e.module.AsView();
+                if (e.kind == ScriptErrorKind::Warning)
+                {
+                    LOG_WARNING(u8"Script", u8"{}:{}: {}", where, e.line, e.message);
+                }
+                else
+                {
+                    LOG_ERROR(u8"Script", u8"{}:{}: {}", where, e.line, e.message);
+                }
+            }
+            if (!ok)
+            {
+                return Status{ErrorCode::InvalidArgument}; // nothing written: the last good assembly stays
+            }
+            return ctx.output->WriteObject(built);
+        }
     };
 
     // OS-file importer (editor drag-drop): accepts any extension a registered script
@@ -1051,6 +1325,60 @@ export namespace pipeline{
                 return Err(written.Code());
             }
             return instance;
+        }
+    };
+
+    // OS-file importer for a project file (a C# .csproj): any extension a registered project build
+    // claims, copied into Sources/ as a ScriptAssemblyAsset of that language.
+    class ScriptAssemblyFileImporter final : public pipeline::IFileImporter
+    {
+    public:
+        [[nodiscard]] StringView Label() const override { return u8"Script project"; }
+
+        [[nodiscard]] bool Accepts(StringView extension) const override
+        {
+            return !ScriptAssemblyCookRegistry::Get().LanguageOfProject(extension).IsEmpty();
+        }
+
+        [[nodiscard]] pipeline::ImportPlan DescribeImport(StringView sourcePath, const pipeline::ImportOptions*, Object*) override
+        {
+            return pipeline::SingleAssetPlan(sourcePath);
+        }
+
+        [[nodiscard]] StringView AssetTypeName(StringView) const override { return u8"ScriptAssemblyAsset"; }
+
+        [[nodiscard]] pipeline::ImportPlan StoredSelection(content::Group& group, StringView sourcePath) override
+        {
+            return pipeline::SingleAssetStoredSelection(group, sourcePath, u8"ScriptAssemblyAsset");
+        }
+
+        [[nodiscard]] RefPtr<pipeline::ImportOptions> CreateOptions(IAllocator&) const override { return {}; }
+
+        [[nodiscard]] Result<content::Instance*> Import(StringView sourcePath, const pipeline::ImportContext& context, content::Group& group,
+                                                        const pipeline::ImportOptions* options, Object*,
+                                                        Array<pipeline::DeferredImportWrite>*) override
+        {
+            const String extension = pipeline::FileExtensionLower(sourcePath);
+            const StringView language = ScriptAssemblyCookRegistry::Get().LanguageOfProject(extension.AsView());
+            if (language.IsEmpty())
+            {
+                return Err(ErrorCode::NotSupported);
+            }
+            String fileName;
+            Result<content::Instance*> claimed =
+                pipeline::ClaimSingleAsset(context, group, options, sourcePath, ScriptAssemblyAsset::StaticType(), fileName, nullptr);
+            if (!claimed.HasValue())
+            {
+                return Err(claimed.Error());
+            }
+            ScriptAssemblyAsset asset;
+            asset.fileName = foundation::vfs::SourcePath(fileName.AsView());
+            asset.language = String(language);
+            if (const Status written = claimed.Value()->WriteObject(asset); !written.IsOk())
+            {
+                return Err(written.Code());
+            }
+            return claimed.Value();
         }
     };
 
@@ -1194,6 +1522,8 @@ export namespace pipeline{
     {
         GlobalTypeRegistry().Register(ScriptClassAsset::StaticType(), TypeDomain(u8"Pipeline"));
         RegisterSerializable<ScriptClassAsset>();
+        GlobalTypeRegistry().Register(ScriptAssemblyAsset::StaticType(), TypeDomain(u8"Pipeline"));
+        RegisterSerializable<ScriptAssemblyAsset>();
     }
 
     // ScriptClassAsset::StaticType() is defined with its reflected properties in ScriptAssetImpl.cpp.

@@ -213,6 +213,114 @@ namespace pipeline{
         return sum;
     }
 
+    ScriptAssemblyCookRegistry& ScriptAssemblyCookRegistry::Get()
+    {
+        static ScriptAssemblyCookRegistry instance;
+        return instance;
+    }
+
+    namespace
+    {
+        void FindAssemblies(content::Group& group, StringView language, StringView file, content::Instance*& best, usize& bestDepth)
+        {
+            for (content::Instance* instance : group.Instances())
+            {
+                if (instance->TypeName() != StringView(u8"ScriptAssemblyAsset"))
+                {
+                    continue;
+                }
+                RefPtr<ISerializable> object = instance->ReadObject();
+                const auto* project = Cast<ScriptAssemblyAsset>(object.Get());
+                if (project == nullptr || project->language.AsView() != language)
+                {
+                    continue;
+                }
+                const StringView folder = PathParent(project->fileName.View());
+                if (!folder.IsEmpty() && !PathIsInside(file, folder))
+                {
+                    continue;
+                }
+                // The nearest project: the deepest folder holding the file.
+                if (best == nullptr || folder.Size() + 1 > bestDepth)
+                {
+                    best = instance;
+                    bestDepth = folder.Size() + 1;
+                }
+            }
+            for (content::Group* child : group.Groups())
+            {
+                FindAssemblies(*child, language, file, best, bestDepth);
+            }
+        }
+
+        void ListSources(foundation::vfs::IEnumerableFileSystem& files, StringView folder, StringView extension, Array<String>& out)
+        {
+            Array<foundation::vfs::DirEntry> entries;
+            if (!files.Enumerate(folder, entries).IsOk())
+            {
+                return;
+            }
+            for (const foundation::vfs::DirEntry& entry : entries)
+            {
+                const String path = folder.IsEmpty() ? entry.name : PathJoin(folder, entry.name.AsView());
+                if (entry.isDirectory)
+                {
+                    // An IDE's build of the project writes into these; they are not sources.
+                    if (entry.name.AsView() != StringView(u8"bin") && entry.name.AsView() != StringView(u8"obj"))
+                    {
+                        ListSources(files, path.AsView(), extension, out);
+                    }
+                    continue;
+                }
+                if (pipeline::FileExtensionLower(entry.name.AsView()).AsView() == extension)
+                {
+                    out.PushBack(path);
+                }
+            }
+        }
+    }
+
+    content::Instance* FindScriptAssemblyFor(content::IContentDatabase& sourceDb, StringView language, StringView file)
+    {
+        content::Instance* best = nullptr;
+        usize bestDepth = 0;
+        if (content::Group* root = sourceDb.RootGroup())
+        {
+            FindAssemblies(*root, language, file, best, bestDepth);
+        }
+        return best;
+    }
+
+    Array<String> ListSourcesUnder(foundation::vfs::IFileSystem& sources, StringView folder, StringView extension)
+    {
+        Array<String> out;
+        if (foundation::vfs::IEnumerableFileSystem* files = sources.AsEnumerable())
+        {
+            ListSources(*files, folder, extension, out);
+        }
+        // Sorted, so the build reads its sources in one order on every machine.
+        out.Sort(
+            [](const String& a, const String& b)
+            {
+                const StringView x = a.AsView();
+                const StringView y = b.AsView();
+                for (usize i = 0; i < x.Size() && i < y.Size(); ++i)
+                    if (x[i] != y[i])
+                        return x[i] < y[i];
+                return x.Size() < y.Size();
+            });
+        return out;
+    }
+
+    REFLECT_MEMBERS(ScriptAssemblyAsset, "rtti::pipeline::script")
+    {
+        builder.Attribute("displayName", String(u8"Script project"))
+            .Attribute("category", String(u8"Scripting"))
+            .Property<&ScriptAssemblyAsset::language>("language")
+            .PropAttribute("displayName", String(u8"Language"))
+            .PropAttribute("description", String(u8"Backend id (e.g. \"csharp\")"));
+    }
+
     REFLECT_MEMBERS(ScriptClassAsset, "rtti::pipeline::script")
     {
         // v1 adds "className"; v0 payloads still read (the legacy reader) and leave it empty.

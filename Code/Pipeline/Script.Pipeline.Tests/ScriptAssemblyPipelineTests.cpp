@@ -1,0 +1,291 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026-Present Robert Campbell
+
+// A language whose classes build together into their project's assembly, through the neutral
+// builders, with a stand-in language (so these are the pipeline's rules, not a compiler's): the
+// project builds from every source of its language under its folder (sorted, an IDE's bin and obj
+// passed over, a file outside the folder left out), and its sources are the build's inputs; a class
+// finds its project (the nearest when they nest), reads its cooked assembly, takes its description
+// from it and names it; a class in no project, or whose project has not built, fails its cook; a
+// project file imports as the project of its language.
+#include <doctest/doctest.h>
+#include "Core/Prelude.h"
+#include <initializer_list>
+
+import foundation.core;
+import foundation.vfs;
+import foundation.content;
+import pipeline.core;
+import foundation.script;
+import foundation.script.resource;
+import script.pipeline;
+
+using namespace foundation::core;
+using namespace pipeline;
+using namespace foundation::script;
+namespace content = foundation::content;
+
+namespace
+{
+    constexpr StringView kLanguage = u8"stand-in";
+
+    // The project "builds" by listing what it was given: the image is the source paths, and each
+    // source's "class X" line is a class with an onUpdate handler.
+    class StandInAssemblyCook final : public IScriptAssemblyCook
+    {
+    public:
+        [[nodiscard]] StringView ProjectExtension() const override { return u8"siproj"; }
+        [[nodiscard]] StringView SourceExtension() const override { return u8"si"; }
+        [[nodiscard]] bool Build(StringView, StringView project, Span<const ScriptAssemblyFile> sources, CookScriptErrorSink& sink,
+                                 ScriptAssemblySource& out) override
+        {
+            if (project.Contains(u8"broken"))
+            {
+                sink.OnError(ScriptError{ScriptErrorKind::Compile, u8"Broken.si", 3, 1, u8"does not build"});
+                return false;
+            }
+            for (const ScriptAssemblyFile& file : sources)
+            {
+                for (const utf8char c : file.path)
+                    out.image.PushBack(static_cast<byte>(c));
+                out.image.PushBack(static_cast<byte>(u8';'));
+                const usize at = file.text.AsView().Find(StringView(u8"class "));
+                if (at == StringView::kNotFound)
+                    continue;
+                ScriptAssemblyClass c;
+                c.className = String(file.text.AsView().SubStr(at + 6, file.text.Size() - at - 6));
+                c.handlers.PushBack(String(u8"onUpdate"));
+                out.classes.PushBack(Move(c));
+            }
+            return true;
+        }
+        [[nodiscard]] String NewProjectTemplate(StringView) const override { return String(u8"project"); }
+    };
+
+    class StandInClassCook final : public IScriptLanguageCook
+    {
+    public:
+        [[nodiscard]] String NewAssetTemplate(ScriptTier, StringView) const override { return String{}; }
+        [[nodiscard]] bool Cook(StringView, StringView, StringView, CookScriptErrorSink&, ScriptClassSource&,
+                                IScriptIncludeReader*) override
+        {
+            return false;
+        }
+        [[nodiscard]] bool Check(StringView, StringView, StringView, CookScriptErrorSink&, String&, Span<const TypeId>,
+                                 IScriptIncludeReader*) override
+        {
+            return true;
+        }
+        void ListIncludes(StringView, Array<String>&) const override {}
+        void PrepareCheck() override {}
+        [[nodiscard]] Array<ScriptApiType> DescribeApi() override { return {}; }
+        [[nodiscard]] u32 CheckManagerBuildCount() const override { return 0; }
+        [[nodiscard]] bool BuildsInAssembly() const override { return true; }
+        [[nodiscard]] bool CookFromAssembly(StringView source, StringView assetName, StringView, const ScriptAssemblySource& assembly,
+                                            CookScriptErrorSink& sink, ScriptClassSource& out) override
+        {
+            const StringView name = source.SubStr(6, source.Size() - 6);
+            const ScriptAssemblyClass* c = assembly.FindClass(name);
+            if (c == nullptr)
+            {
+                sink.OnError(ScriptError{ScriptErrorKind::Compile, assetName, -1, -1, u8"not in the assembly"});
+                return false;
+            }
+            out.language = String(kLanguage);
+            out.className = c->className;
+            out.handlers = c->handlers;
+            return true;
+        }
+    };
+
+    struct Bed
+    {
+        String root = String(u8"scratch_scriptassembly");
+        UniquePtr<foundation::vfs::NativeFileSystem> sources;
+        UniquePtr<foundation::vfs::NativeFileSystem> sourceMount;
+        UniquePtr<foundation::vfs::NativeFileSystem> outputMount;
+        UniquePtr<content::ContentDatabase> sourceDb;
+        UniquePtr<content::ContentDatabase> outputDb;
+
+        Bed()
+        {
+            RegisterScriptResource();
+            RegisterScriptAssets();
+            ScriptAssemblyCookRegistry::Get().Register(String(kLanguage), MakeUnique<StandInAssemblyCook>(DefaultAllocator()));
+            ScriptLanguageCookRegistry::Get().Register(String(kLanguage), MakeUnique<StandInClassCook>(DefaultAllocator()));
+            (void)RemoveDirectoryRecursive(root.AsView());
+            for (const StringView folder : {StringView(u8"src/Game/Enemies"), StringView(u8"src/Game/bin"), StringView(u8"src/Tools/Inner"),
+                                            StringView(u8"db"), StringView(u8"out")})
+                REQUIRE(CreateDirectories(PathJoin(root.AsView(), folder).AsView()));
+            sources = MakeUnique<foundation::vfs::NativeFileSystem>(DefaultAllocator(), PathJoin(root.AsView(), u8"src").AsView(),
+                                                                    DefaultAllocator());
+            sourceMount = MakeUnique<foundation::vfs::NativeFileSystem>(DefaultAllocator(), PathJoin(root.AsView(), u8"db").AsView(),
+                                                                        DefaultAllocator());
+            outputMount = MakeUnique<foundation::vfs::NativeFileSystem>(DefaultAllocator(), PathJoin(root.AsView(), u8"out").AsView(),
+                                                                        DefaultAllocator());
+            sourceDb = MakeUnique<content::ContentDatabase>(DefaultAllocator(), DefaultAllocator(), *sourceMount, BinarySerializerFactory(),
+                                                            u8".asset");
+            outputDb = MakeUnique<content::ContentDatabase>(DefaultAllocator(), DefaultAllocator(), *outputMount, BinarySerializerFactory(),
+                                                            u8".rasset");
+        }
+        ~Bed()
+        {
+            outputDb = nullptr;
+            sourceDb = nullptr;
+            sources = nullptr;
+            sourceMount = nullptr;
+            outputMount = nullptr;
+            (void)RemoveDirectoryRecursive(root.AsView());
+        }
+
+        void Write(StringView path, StringView text)
+        {
+            REQUIRE(WriteFile(PathJoin(PathJoin(root.AsView(), u8"src").AsView(), path).AsView(),
+                              Span<const byte>(reinterpret_cast<const byte*>(text.Data()), text.Size()))
+                        .IsOk());
+        }
+
+        content::Instance* AddProject(StringView name, StringView file)
+        {
+            ScriptAssemblyAsset asset;
+            asset.fileName = foundation::vfs::SourcePath(file);
+            asset.language = String(kLanguage);
+            content::Instance* instance = sourceDb->RootGroup()->CreateInstance(name, ScriptAssemblyAsset::StaticType());
+            REQUIRE(instance != nullptr);
+            REQUIRE(instance->WriteObject(asset).IsOk());
+            return instance;
+        }
+
+        AssetBuildContext Context(content::Instance* output)
+        {
+            AssetBuildContext ctx{DefaultAllocator()};
+            ctx.sources = sources.Get();
+            ctx.sourceDb = sourceDb.Get();
+            ctx.db = outputDb.Get();
+            ctx.output = output;
+            return ctx;
+        }
+
+        // The project's product, written where a class's cook looks for it (its asset's id).
+        Status BuildProject(content::Instance* project)
+        {
+            content::Instance* product = outputDb->GetInstance(project->Id());
+            if (product == nullptr)
+                product = outputDb->RootGroup()->CreateInstanceWithId(project->Id(), project->Name(), ScriptAssemblySource::StaticType());
+            RefPtr<ISerializable> object = project->ReadObject();
+            AssetBuildContext ctx = Context(product);
+            ScriptAssemblyAssetBuilder builder;
+            return builder.Build(*Cast<ScriptAssemblyAsset>(object.Get()), ctx);
+        }
+
+        Status CookClass(StringView file, ScriptClassSource& out, AssetDependencies* deps = nullptr)
+        {
+            ScriptClassAsset asset;
+            asset.fileName = foundation::vfs::SourcePath(file);
+            asset.language = String(kLanguage);
+            content::Instance* product = outputDb->RootGroup()->CreateInstance(PathFilename(file), ScriptClassSource::StaticType());
+            AssetBuildContext ctx = Context(product);
+            ScriptClassAssetBuilder builder;
+            if (deps != nullptr)
+                builder.ScanDependencies(asset, ctx, *deps);
+            const Status built = builder.Build(asset, ctx);
+            if (built.IsOk())
+            {
+                RefPtr<ISerializable> record = product->ReadObject();
+                const ScriptClassSource& cooked = *Cast<ScriptClassSource>(record.Get());
+                out.className = cooked.className;
+                out.handlers = cooked.handlers;
+                out.bytecode = cooked.bytecode;
+                out.assembly = cooked.assembly;
+            }
+            return built;
+        }
+    };
+
+    String ImageText(const ScriptAssemblySource& assembly)
+    {
+        return String(StringView(reinterpret_cast<const utf8char*>(assembly.image.Data()), assembly.image.Size()));
+    }
+}
+
+TEST_CASE("script assembly: a project builds every source under its folder, and its classes cook from it")
+{
+    Bed bed;
+    bed.Write(u8"Game/Game.siproj", u8"project");
+    bed.Write(u8"Game/Player.si", u8"class Player");
+    bed.Write(u8"Game/Enemies/Wolf.si", u8"class Wolf");
+    bed.Write(u8"Game/Helpers.si", u8"helpers, no class");
+    bed.Write(u8"Game/bin/Stale.si", u8"class Stale");   // an IDE's build output: not a source
+    bed.Write(u8"Game/Notes.txt", u8"class Notes");      // another language's file
+    bed.Write(u8"Tools/Tools.siproj", u8"project");
+    bed.Write(u8"Tools/Inner/Inner.siproj", u8"project");
+    bed.Write(u8"Tools/Inner/Deep.si", u8"class Deep");
+    bed.Write(u8"Loose.si", u8"class Loose");            // in no project
+    content::Instance* game = bed.AddProject(u8"Game", u8"Game/Game.siproj");
+    content::Instance* tools = bed.AddProject(u8"Tools", u8"Tools/Tools.siproj");
+    content::Instance* inner = bed.AddProject(u8"Inner", u8"Tools/Inner/Inner.siproj");
+
+    // The sources a project builds from are its inputs, sorted.
+    {
+        RefPtr<ISerializable> object = game->ReadObject();
+        AssetBuildContext ctx = bed.Context(nullptr);
+        AssetDependencies deps;
+        ScriptAssemblyAssetBuilder builder;
+        builder.ScanDependencies(*Cast<ScriptAssemblyAsset>(object.Get()), ctx, deps);
+        REQUIRE(deps.files.Size() == 3u);
+        CHECK(deps.files[0].View() == StringView(u8"Game/Enemies/Wolf.si"));
+        CHECK(deps.files[1].View() == StringView(u8"Game/Helpers.si"));
+        CHECK(deps.files[2].View() == StringView(u8"Game/Player.si"));
+    }
+    REQUIRE(bed.BuildProject(game).IsOk());
+    {
+        RefPtr<ISerializable> record = bed.outputDb->GetInstance(game->Id())->ReadObject();
+        const ScriptAssemblySource* built = Cast<ScriptAssemblySource>(record.Get());
+        REQUIRE(built != nullptr);
+        CHECK(built->language == kLanguage);
+        CHECK(ImageText(*built) == StringView(u8"Game/Enemies/Wolf.si;Game/Helpers.si;Game/Player.si;"));
+        CHECK(built->FindClass(u8"Wolf") != nullptr);
+    }
+
+    // A class reads its project (which cooks first) and names it; its description is the build's.
+    ScriptClassSource player;
+    AssetDependencies deps;
+    REQUIRE(bed.CookClass(u8"Game/Player.si", player, &deps).IsOk());
+    REQUIRE(deps.reads.Size() == 1u);
+    CHECK(deps.reads[0] == game->Id());
+    REQUIRE(deps.references.Size() == 1u);
+    CHECK(player.assembly == game->Id());
+    CHECK(player.className == u8"Player");
+    REQUIRE(player.handlers.Size() == 1u);
+    CHECK(player.bytecode.IsEmpty());
+
+    // Nested projects: the nearest holds the file.
+    REQUIRE(bed.BuildProject(inner).IsOk());
+    ScriptClassSource deep;
+    REQUIRE(bed.CookClass(u8"Tools/Inner/Deep.si", deep).IsOk());
+    CHECK(deep.assembly == inner->Id());
+    CHECK(deep.assembly != tools->Id());
+
+    // In no project, or in one that has not built: the cook fails.
+    ScriptClassSource loose;
+    CHECK(bed.CookClass(u8"Loose.si", loose).Code() == ErrorCode::NotFound);
+    bed.Write(u8"Tools/Tool.si", u8"class Tool");
+    ScriptClassSource tool;
+    CHECK(bed.CookClass(u8"Tools/Tool.si", tool).Code() == ErrorCode::NotFound);
+}
+
+TEST_CASE("script assembly: a project that does not build writes nothing, and its file imports as its language's project")
+{
+    Bed bed;
+    bed.Write(u8"Game/Game.siproj", u8"broken");
+    bed.Write(u8"Game/Player.si", u8"class Player");
+    content::Instance* game = bed.AddProject(u8"Game", u8"Game/Game.siproj");
+    CHECK_FALSE(bed.BuildProject(game).IsOk());
+    RefPtr<ISerializable> record = bed.outputDb->GetInstance(game->Id())->ReadObject();
+    CHECK(Cast<ScriptAssemblySource>(record.Get()) == nullptr);
+
+    ScriptAssemblyFileImporter importer;
+    CHECK(importer.Accepts(u8"siproj"));
+    CHECK_FALSE(importer.Accepts(u8"si"));
+    CHECK(importer.AssetTypeName(u8"Game.siproj") == StringView(u8"ScriptAssemblyAsset"));
+}

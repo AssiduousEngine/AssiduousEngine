@@ -191,6 +191,7 @@ namespace pipeline
         AddBuilder<AudioClipAssetBuilder>(registry);
         AddBuilder<AudioBusLayoutAssetBuilder>(registry);
         AddBuilder<SoundCueAssetBuilder>(registry);
+        AddBuilder<ScriptAssemblyAssetBuilder>(registry);
         AddBuilder<ScriptClassAssetBuilder>(registry);
     }
 
@@ -202,6 +203,7 @@ namespace pipeline
         AddImporter<GuiFileImporter>(registry);
         AddImporter<AudioFileImporter>(registry);
         AddImporter<ScriptFileImporter>(registry);
+        AddImporter<ScriptAssemblyFileImporter>(registry);
         AddImporter<ShaderFileImporter>(registry);
         AddImporter<FontAssetImporter>(registry);
         AddImporter<ImageFileImporter>(registry);
