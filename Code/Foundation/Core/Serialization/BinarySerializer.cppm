@@ -78,7 +78,24 @@ export namespace foundation::core
             }
         }
 
-        void Scalar(void* value, ScalarKind kind) override { RawBytes(value, ScalarSize(kind)); }
+        void Scalar(void* value, ScalarKind kind) override
+        {
+            // A bool read is a byte checked: a byte other than 0 or 1 copied into a bool is
+            // undefined behaviour, and such a byte here means the stream is not what was written.
+            if (kind == ScalarKind::Bool && IsReading())
+            {
+                u8 byteValue = 0;
+                RawBytes(&byteValue, 1);
+                if (byteValue > 1u)
+                {
+                    Fail(ErrorCode::Internal);
+                    byteValue = 0;
+                }
+                *static_cast<bool*>(value) = byteValue != 0u;
+                return;
+            }
+            RawBytes(value, ScalarSize(kind));
+        }
 
         void Text(String& value) override
         {

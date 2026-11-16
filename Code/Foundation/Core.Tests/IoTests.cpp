@@ -910,3 +910,50 @@ TEST_CASE("path: a name or a path read from a file stays inside the folder it is
     CHECK_FALSE(PathStaysInside(u8"a//x"));
     CHECK_FALSE(PathStaysInside(u8"http://x/y"));
 }
+
+TEST_CASE("binary serializer: a bool byte other than 0 or 1, and a matrix of another count, are refused")
+{
+    // A byte read straight into a bool is undefined behaviour past 0 and 1, and a matrix stored with
+    // more than 16 elements was read 16 in, leaving the rest to be misread as what came after.
+    {
+        MemoryStream stream;
+        const u8 corrupt = 7;
+        (void)stream.Write(&corrupt, 1);
+        CHECK(stream.Seek(0, SeekOrigin::Begin) == 0);
+        BinarySerializer loader(stream, SerializeMode::Read);
+        bool flag = true;
+        Serialize(loader, flag);
+        CHECK_FALSE(loader.IsOk());
+        CHECK_FALSE(flag);
+    }
+    {
+        MemoryStream stream;
+        {
+            BinarySerializer saver(stream, SerializeMode::Write);
+            Array<f32> eighteen;
+            for (int i = 0; i < 18; ++i)
+                eighteen.PushBack(static_cast<f32>(i));
+            Serialize(saver, eighteen); // a count and 18 floats, as a matrix would be framed
+        }
+        CHECK(stream.Seek(0, SeekOrigin::Begin) == 0);
+        BinarySerializer loader(stream, SerializeMode::Read);
+        Float4x4 m;
+        Serialize(loader, m);
+        CHECK_FALSE(loader.IsOk());
+    }
+    {
+        MemoryStream stream; // and a real matrix still round-trips
+        Float4x4 original = Float4x4::Identity();
+        original.m[3][0] = 5.0f;
+        {
+            BinarySerializer saver(stream, SerializeMode::Write);
+            Serialize(saver, original);
+        }
+        CHECK(stream.Seek(0, SeekOrigin::Begin) == 0);
+        BinarySerializer loader(stream, SerializeMode::Read);
+        Float4x4 read;
+        Serialize(loader, read);
+        CHECK(loader.IsOk());
+        CHECK(read.m[3][0] == 5.0f);
+    }
+}

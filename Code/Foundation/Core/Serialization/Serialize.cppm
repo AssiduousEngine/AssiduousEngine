@@ -168,8 +168,15 @@ export namespace foundation::core
         // 16 elements, row-major.
         u32 count = 16;
         ar.BeginArray(count);
-        const u32 n = count < 16u ? count : 16u;
-        for (u32 i = 0; i < n; ++i)
+        // Any other count is not a matrix: read as one, a stream with more elements was left
+        // part-read and everything after it misread.
+        if (count != 16u)
+        {
+            ar.FailPayload(ErrorCode::InvalidArgument);
+            ar.EndArray();
+            return;
+        }
+        for (u32 i = 0; i < 16u; ++i)
         {
             Serialize(ar, m.Data()[i]);
         }

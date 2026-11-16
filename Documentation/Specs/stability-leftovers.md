@@ -314,7 +314,10 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
 ### T7: Core and tooling
 
 - `BinarySerializer` reads raw bytes into bool and enum; a Float4x4 count other than 16 desyncs
-  (`BinarySerializer.cppm:81, 198-218`, `Serialize.cppm:166-176`).
+  (`BinarySerializer.cppm:81, 198-218`, `Serialize.cppm:166-176`). Built 2026-11-16: a bool read
+  is a byte checked (0 or 1, else the read fails); a matrix count other than 16 fails the payload.
+  Enums are left: the engine's have a fixed underlying type (any value is defined), and checking
+  values against the reflected enumerators would refuse every combined flag (no flag marker).
 - `RunProcess` drops arguments past 62, keeps 64 KiB of output, has no timeout
   (`LinuxSystem.cpp:245-252, 327-346`).
 - Files of 2 GiB and more fail on Linux (one syscall) and Windows (a DWORD cast)
