@@ -265,7 +265,6 @@ export namespace foundation::shell
 
         [[nodiscard]] core::u32 Id() const noexcept { return m_id; }
         [[nodiscard]] SDL_Gamepad* Handle() const noexcept { return m_pad; }
-        void SetIndex(core::i32 index) noexcept { m_index = index; }
         void SetButton(GamepadButton b, bool down) { m_buttons[Index(b)].Set(down); }
         void Disconnect() noexcept { m_pad = nullptr; }
         void BeginFrame();

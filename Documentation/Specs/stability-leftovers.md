@@ -206,7 +206,9 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   and Released; start frames at 1. Built 2026-11-15: the input subsystem drives every run's
   actions (`IRunInput`) in its BeginFrame; a scene's fixed step says which step of its frame it is.
 - **SDL: removing a pad renumbers the others; the file dialog's callback runs on SDL's thread.**
-  `SDL3ShellImpl.cpp:1021-1034, 1148-1165`.
+  `SDL3ShellImpl.cpp:1021-1034, 1148-1165`. Built 2026-11-15: stable pad slots (a hole the next pad
+  fills; virtual-joystick test); dialog results go through `SDL_RunOnMainThread` (no native test opens
+  a dialog).
 - **A run's bus survives Stop; `SceneManager::Clear` frees scenes without stopping them; subsystems
   shut down before scenes; `maxSteps` is fixed at 4.** `RunImpl.cpp:85-103`,
   `SceneManager.cppm:46, 218, 243-253`, `ApplicationHost.cppm:294`.

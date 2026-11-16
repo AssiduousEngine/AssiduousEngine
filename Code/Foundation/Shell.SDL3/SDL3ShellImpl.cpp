@@ -32,6 +32,7 @@ namespace foundation::shell
     {
         core::IAllocator* allocator = nullptr; // frees this box in the SDL dialog callback
         DialogResultCallback callback;
+        core::Array<core::String> paths; // the result, carried to the main thread
         core::Array<core::String> filterStrings; // keeps the SDL_DialogFileFilter char* data alive
         core::Array<SDL_DialogFileFilter> sdlFilters;
         core::String defaultPath;
@@ -991,7 +992,10 @@ namespace foundation::shell
         m_mouse.BeginFrame();
         for (auto& g : m_gamepads)
         {
-            g->BeginFrame();
+            if (g)
+            {
+                g->BeginFrame();
+            }
         }
         m_events.Clear(); // events are valid only for the frame they were pumped in
     }
@@ -1013,21 +1017,37 @@ namespace foundation::shell
             (n != nullptr)
                 ? core::String(core::StringView(reinterpret_cast<const core::utf8char*>(n)))
                 : core::String{};
-        const core::i32 index = static_cast<core::i32>(m_gamepads.Size());
-        m_gamepads.PushBack(core::MakeUnique<SDL3Gamepad>(*m_allocator, pad, id, index,
-                                                          static_cast<core::String&&>(name)));
+        // The first free slot: a pad keeps its number while it is connected, and one that comes
+        // back after another left takes the place that one left.
+        core::usize slot = 0;
+        while (slot < m_gamepads.Size() && m_gamepads[slot])
+        {
+            ++slot;
+        }
+        core::UniquePtr<SDL3Gamepad> gamepad = core::MakeUnique<SDL3Gamepad>(
+            *m_allocator, pad, id, static_cast<core::i32>(slot), static_cast<core::String&&>(name));
+        if (slot == m_gamepads.Size())
+        {
+            m_gamepads.PushBack(static_cast<core::UniquePtr<SDL3Gamepad>&&>(gamepad));
+        }
+        else
+        {
+            m_gamepads[slot] = static_cast<core::UniquePtr<SDL3Gamepad>&&>(gamepad);
+        }
     }
 
     void SDL3InputManager::RemoveGamepad(SDL_JoystickID id)
     {
         for (core::usize i = 0; i < m_gamepads.Size(); ++i)
         {
-            if (m_gamepads[i]->Id() == id)
+            if (m_gamepads[i] && m_gamepads[i]->Id() == id)
             {
-                m_gamepads.RemoveAt(i); // UniquePtr dtor closes the SDL handle
-                for (core::usize j = 0; j < m_gamepads.Size(); ++j)
+                // Its slot empties; the others keep their numbers, so player 2's pad stays player
+                // 2's when player 1's is unplugged (bindings and events name a pad by number).
+                m_gamepads[i].Reset(); // closes the SDL handle
+                while (!m_gamepads.IsEmpty() && !m_gamepads[m_gamepads.Size() - 1])
                 {
-                    m_gamepads[j]->SetIndex(static_cast<core::i32>(j));
+                    m_gamepads.PopBack();
                 }
                 return;
             }
@@ -1038,7 +1058,7 @@ namespace foundation::shell
     {
         for (auto& g : m_gamepads)
         {
-            if (g->Id() == id)
+            if (g && g->Id() == id)
             {
                 return g.Get();
             }
@@ -1145,23 +1165,41 @@ namespace foundation::shell
         return ctx;
     }
 
+    // Hands the result to the caller, on the main thread, and frees the dialog's box.
+    static void SDLCALL DeliverDialogResult(void* userdata)
+    {
+        Context* ctx = static_cast<Context*>(userdata);
+        if (ctx->callback)
+        {
+            ctx->callback(core::Span<const core::String>(ctx->paths.Data(), ctx->paths.Size()));
+        }
+        ctx->allocator->Delete(ctx);
+    }
+
     static void SDLCALL Trampoline(void* userdata, const char* const* filelist, int /*filter*/)
     {
         Context* ctx = static_cast<Context*>(userdata);
-        core::Array<core::String> paths;
         if (filelist != nullptr) // null means cancelled or error
         {
             for (const char* const* p = filelist; *p != nullptr; ++p)
             {
-                paths.PushBack(
+                ctx->paths.PushBack(
                     core::String(core::StringView(reinterpret_cast<const core::utf8char*>(*p))));
             }
         }
-        if (ctx->callback)
+        // SDL calls this on a thread of its own on some platforms (the portal and zenity dialogs
+        // on Linux, Windows'), and the callback touches the caller's state (the editor's pages),
+        // which belongs to the main thread: it runs there, at the next event pump.
+        if (SDL_IsMainThread())
         {
-            ctx->callback(core::Span<const core::String>(paths.Data(), paths.Size()));
+            DeliverDialogResult(ctx);
         }
-        ctx->allocator->Delete(ctx);
+        else if (!SDL_RunOnMainThread(&DeliverDialogResult, ctx, false))
+        {
+            LOG_ERROR(u8"Shell", u8"a file dialog's result could not reach the main thread: {}",
+                      core::StringView(reinterpret_cast<const core::utf8char*>(SDL_GetError())));
+            ctx->allocator->Delete(ctx);
+        }
     }
 
     void SDL3Shell::ProcessEvents()

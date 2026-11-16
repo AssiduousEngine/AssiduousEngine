@@ -659,3 +659,53 @@ TEST_CASE("sdl3 shell: window capabilities by video driver")
     CHECK(none.multipleWindows);
     CHECK(none.placesWindows);
 }
+
+TEST_CASE("shell.sdl3: unplugging a pad leaves the others their numbers")
+{
+    // Removing a pad shifted the ones after it down a number, so player 2's pad became player 1's
+    // (bindings and pad events name a pad by number).
+    SDL3Shell shell(DefaultAllocator());
+    if (shell.MainWindow() == nullptr)
+    {
+        return;
+    }
+    IInputManager* input = shell.Input();
+    REQUIRE(input != nullptr);
+    auto attach = []()
+    {
+        SDL_VirtualJoystickDesc desc;
+        SDL_INIT_INTERFACE(&desc);
+        desc.type = SDL_JOYSTICK_TYPE_GAMEPAD;
+        desc.naxes = SDL_GAMEPAD_AXIS_COUNT;
+        desc.nbuttons = SDL_GAMEPAD_BUTTON_COUNT;
+        return SDL_AttachVirtualJoystick(&desc);
+    };
+    const SDL_JoystickID first = attach();
+    const SDL_JoystickID second = attach();
+    if (first == 0 || second == 0)
+    {
+        return; // no virtual joysticks in this SDL
+    }
+    shell.ProcessEvents();
+    REQUIRE(input->GamepadCount() == 2);
+    IGamepad* secondPad = input->GetGamepad(1);
+    REQUIRE(secondPad != nullptr);
+
+    SDL_DetachVirtualJoystick(first);
+    shell.ProcessEvents();
+    CHECK(input->GetGamepad(0) == nullptr); // its slot is empty
+    CHECK(input->GetGamepad(1) == secondPad);
+    CHECK(secondPad->Index() == 1);
+
+    const SDL_JoystickID third = attach(); // a pad plugged in takes the free slot
+    shell.ProcessEvents();
+    REQUIRE(input->GetGamepad(0) != nullptr);
+    CHECK(input->GetGamepad(0)->Index() == 0);
+    CHECK(input->GamepadCount() == 2);
+
+    SDL_DetachVirtualJoystick(second);
+    shell.ProcessEvents();
+    CHECK(input->GamepadCount() == 1); // trailing empty slots go
+    SDL_DetachVirtualJoystick(third);
+    shell.ProcessEvents();
+}
