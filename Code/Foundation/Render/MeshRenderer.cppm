@@ -701,6 +701,7 @@ export namespace foundation::render
         Array<UniquePtr<materials::MaterialInstance>> m_instanceStorage{*m_allocator}; // ownership
         struct OverrideInstance
         {
+            u64 scene = 0;
             u64 entityId = 0;
             u32 slot = 0;
             u64 materialUid = 0;
@@ -709,7 +710,7 @@ export namespace foundation::render
             u64 lastUsed = 0; // m_frameSerial when a draw last used it
             UniquePtr<materials::MaterialInstance> instance;
         };
-        HashMap<u64, OverrideInstance> m_overrideInstances{*m_allocator}; // by (entity, slot)
+        HashMap<u64, OverrideInstance> m_overrideInstances{*m_allocator}; // by (scene, entity, slot)
         u64 m_frameSerial = 0;
 
         ViewUniformRing m_viewRing; // one slot per distinct view block a frame
@@ -745,19 +746,30 @@ export namespace foundation::render
         Array<SkinnedRef> m_skinnedScratch{*m_allocator};
         Array<DepthLikeRange> m_depthRanges{*m_allocator}; // a depth-like draw's ranges, reused
 
-        // Per-entity previous-frame world matrix, for rigid-object motion vectors. A flat double buffer
-        // indexed by entity index (entityId's low 32 bits) rather than a hash map: a per-instance lookup is
-        // the motion-vector hot path at scale, and a direct index avoids hashing. m_prevWorld holds last
-        // frame's worlds (read by every view this frame); resolves write this frame's into m_curWorld; the
-        // two swap at FinishFrame. An out-of-range or never-written entry gives prev == cur (no motion), so
-        // newly visible objects don't smear on their first frame.
-        Array<Float4x4> m_prevWorld{*m_allocator};
-        Array<Float4x4> m_curWorld{*m_allocator};
+        // Per-entity previous-frame world matrix, for rigid-object motion vectors, kept per scene:
+        // scenes drawn in one frame (two editor pages, a page and its play) reuse entity handles, and
+        // one history for all of them gave an entity another scene's last position (a smear). Within a
+        // scene a flat double buffer indexed by entity index (entityId's low 32 bits) rather than a
+        // hash map: a per-instance lookup is the motion-vector hot path at scale, and a direct index
+        // avoids hashing; the scene's history is found once per run of its draws (the last one is
+        // kept). `prev` holds last frame's worlds (read by every view this frame); resolves write this
+        // frame's into `cur`; the two swap at FinishFrame. An out-of-range or never-written entry
+        // gives prev == cur (no motion), so newly visible objects don't smear on their first frame.
+        struct MotionHistory
+        {
+            Array<Float4x4> prev;
+            Array<Float4x4> cur;
+            u64 lastUsed = 0; // m_frameSerial when a draw last read it; a scene gone for a while is dropped
+        };
+        HashMap<u64, MotionHistory> m_motion{*m_allocator}; // by scene serial
+        u64 m_motionScene = ~0ull;
+        MotionHistory* m_motionLast = nullptr; // m_motion's entry for m_motionScene (reset when it rehashes)
 
         // Record `cur` as this frame's world (idempotent across a frame's views, which pass the same value) and
-        // return the entity's previous-frame world (or `cur` if unknown). Indexed by entity index so multiple
-        // views resolving the same object read a stable prev (cur and prev are separate buffers).
-        [[nodiscard]] Float4x4 PrevWorldFor(u64 entityId, const Float4x4& cur);
+        // return the entity's previous-frame world in its scene (or `cur` if unknown). Indexed by entity
+        // index so multiple views resolving the same object read a stable prev (cur and prev are separate
+        // buffers).
+        [[nodiscard]] Float4x4 PrevWorldFor(u64 scene, u64 entityId, const Float4x4& cur);
 
         // Instance sharing from the camera depth prepass to the forward pass. The prepass fills the full
         // InstanceData (world, real prevWorld, tint) for each opaque run once and records the run's draw

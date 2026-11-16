@@ -228,7 +228,67 @@ namespace
             CHECK(Grey(cleared.mean[1]));
             CHECK(Abs(cleared.mean[1].x - cleared.mean[0].x) < 8.0f);
 
+            // Two scenes in one frame, their middle cards on one entity handle, red in one and green
+            // in the other at the same version: the override instances were keyed by entity and
+            // slot alone, so the second scene drew the first's red.
+            ExtractedScene other{DefaultAllocator()};
+            other.SetAmbient(Float3{1.0f, 1.0f, 1.0f});
+            for (i32 i = -1; i <= 1; ++i)
+            {
+                MeshRenderData* md = other.Add<MeshRenderData>();
+                REQUIRE(md != nullptr);
+                *md = *static_cast<MeshRenderData*>(scene.Items()[static_cast<usize>(i + 1)]);
+                md->scene = 2;
+            }
+            for (RenderData* item : scene.Items())
+            {
+                static_cast<MeshRenderData*>(item)->scene = 1;
+            }
+            MeshRenderData* otherMiddle = static_cast<MeshRenderData*>(other.Items()[1]);
+            Array<MaterialPropertyOverride> greenOverrides;
+            greenOverrides.PushBack(tint);
+            greenOverrides[0].value = Float4{0.05f, 0.9f, 0.05f, 1.0f};
+            overrides[0].value = Float4{0.9f, 0.05f, 0.05f, 1.0f};
+            middle->overrides = overrides.Data();
+            middle->overrideCount = 1;
+            middle->overrideVersion = 7;
+            otherMiddle->overrides = greenOverrides.Data();
+            otherMiddle->overrideCount = 1;
+            otherMiddle->overrideVersion = 7;
+            rhi::Texture* otherTarget = nullptr;
+            REQUIRE(device.CreateTexture(td, otherTarget).IsOk());
+            rhi::TextureView* otherView = nullptr;
+            REQUIRE(device.CreateTextureView(otherTarget, vd, otherView).IsOk());
+            ViewSettings otherSettings = settings;
+            otherSettings.targetTexture = otherTarget;
+            for (u32 i = 0; i < 2; ++i)
+            {
+                rhi::CommandEncoder* encoder = nullptr;
+                REQUIRE(pool->CreateEncoder(encoder).IsOk());
+                settings.targetCurrentState = rhi::ResourceState::CopySrc;
+                otherSettings.targetCurrentState = (i == 0) ? rhi::ResourceState::Undefined : rhi::ResourceState::CopySrc;
+                frame.Begin(*encoder, static_cast<u32>(submitted % 2));
+                frame.AddView(scene, camera, settings, targetView, rhi::TextureFormat::RGBA8Unorm, kSize, kSize);
+                frame.AddView(other, camera, otherSettings, otherView, rhi::TextureFormat::RGBA8Unorm, kSize, kSize);
+                frame.End();
+                rhi::CommandBuffer* commandBuffer = encoder->Finish();
+                REQUIRE(commandBuffer != nullptr);
+                rhi::CommandBuffer* commandBuffers[] = {commandBuffer};
+                ++submitted;
+                queue->Submit(Span<rhi::CommandBuffer* const>(commandBuffers, 1), fence, submitted);
+                REQUIRE(fence->Wait(submitted, ~0ull));
+                pool->DestroyEncoder(encoder);
+            }
+            const Thirds first = Measure(testsupport::Readback(device, target, kSize, kSize));
+            const Thirds second = Measure(testsupport::Readback(device, otherTarget, kSize, kSize));
+            REQUIRE(first.valid);
+            REQUIRE(second.valid);
+            CHECK(first.mean[1].x > first.mean[1].y * 3.0f);   // the first scene's card: red
+            CHECK(second.mean[1].y > second.mean[1].x * 3.0f); // the second's: green, its own
+
             device.WaitIdle();
+            device.DestroyTextureView(otherView);
+            device.DestroyTexture(otherTarget);
             device.DestroyFence(fence);
             device.DestroyCommandPool(pool);
             device.DestroyTextureView(targetView);

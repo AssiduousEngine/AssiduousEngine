@@ -190,6 +190,10 @@ export namespace foundation::render
         // GPU pick pass writes and its readback decodes. 0 means untagged. Set by every producer
         // whose draws should be pickable (meshes, instanced sets, terrain).
         u64 entityId = 0;
+        // The producer's scene (Scene::Serial()), 0 when it has none. Scenes drawn in one frame
+        // (two editor pages, a page and its play) reuse entity handles, so what a renderer keeps per
+        // entity across frames (motion history, override instances) is kept per scene too.
+        u64 scene = 0;
     };
 
     // The one layout of the `entityId` tag a producer stamps on RenderData for picking: the scene

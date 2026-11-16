@@ -92,6 +92,7 @@ namespace engine::render
         rd.mesh = mc.mesh.Get();
         rd.material = primary;
         rd.entityId = PackEntity(e);
+        rd.scene = scene.Serial();
         rd.fade = Clamp(mc.fade, 0.0f, 1.0f);
         rd.category = MeshSlotCategory(primary, rd.fade); // a fading mesh is out of the depth prepass
         rd.boneMatrices = skinned ? palette.current : nullptr;
@@ -380,6 +381,7 @@ namespace engine::render
                 rd->worldCenter = c.cachedCenter; // merged bounds: single-AABB cull and depth sort
                 rd->worldRadius = c.cachedRadius;
                 rd->entityId = PackEntity(e);
+                rd->scene = scene.Serial();
                 rd->category = CategoryForMaterial(primary);
                 rd->sortBatchKey = BatchKey(c.mesh.Get(), primary);
                 rd->posePool = c.posePool; // skinned crowds: shared pose pool (null means static)

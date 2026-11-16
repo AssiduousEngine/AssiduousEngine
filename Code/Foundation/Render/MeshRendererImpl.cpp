@@ -1370,9 +1370,26 @@ namespace foundation::render
         // pointer moves and no clear. Each visible entity overwrites its own slot when resolved, and slots
         // of entities no longer visible are never read (their draws don't resolve). Both buffers keep their
         // capacity, so the steady state does no allocation.
-        Array<Float4x4> recycled = Move(m_prevWorld);
-        m_prevWorld = Move(m_curWorld);
-        m_curWorld = Move(recycled);
+        // Per scene; a scene no draw has read for a while (a page closed) is dropped.
+        Array<u64> gone{*m_allocator};
+        for (auto& entry : m_motion)
+        {
+            MotionHistory& history = entry.value;
+            if (m_frameSerial - history.lastUsed > 600)
+            {
+                gone.PushBack(entry.key);
+                continue;
+            }
+            Array<Float4x4> recycled = Move(history.prev);
+            history.prev = Move(history.cur);
+            history.cur = Move(recycled);
+        }
+        for (u64 scene : gone)
+        {
+            m_motion.Remove(scene);
+        }
+        m_motionScene = ~0ull; // the map may have changed
+        m_motionLast = nullptr;
         m_ready = false;
     }
 
@@ -1413,7 +1430,7 @@ namespace foundation::render
         }
         GpuObject od{};
         od.world = md.world;
-        od.prevWorld = ctx.needsMotion ? PrevWorldFor(md.entityId, md.world) : md.world;
+        od.prevWorld = ctx.needsMotion ? PrevWorldFor(md.scene, md.entityId, md.world) : md.world;
         od.tint = md.color;
         od.boneBase = boneBase;
         od.prevBoneBase = prevBoneBase;
@@ -1544,7 +1561,7 @@ namespace foundation::render
             {
                 const auto* md = static_cast<const MeshRenderData*>(items[first + k].data);
                 id[k] = GpuInstance{
-                    md->world, ctx.needsMotion ? PrevWorldFor(md->entityId, md->world) : md->world,
+                    md->world, ctx.needsMotion ? PrevWorldFor(md->scene, md->entityId, md->world) : md->world,
                     md->color};
                 u32 boneBase = 0, prevBase = 0;
                 if (skinned)
@@ -1733,7 +1750,7 @@ namespace foundation::render
         {
             const auto* md = static_cast<const MeshRenderData*>(items[first + k].data);
             const Float4x4 prev = (feedsForward && ctx.needsMotion)
-                                      ? PrevWorldFor(md->entityId, md->world)
+                                      ? PrevWorldFor(md->scene, md->entityId, md->world)
                                       : md->world;
             id[k] = GpuInstance{md->world, prev, md->color};
             u32 boneBase = 0, prevBase = 0;
@@ -2355,10 +2372,11 @@ namespace foundation::render
         {
             return InstanceFor(material);
         }
-        const u64 key = md.entityId * 0x9E3779B97F4A7C15ull + slot;
+        const u64 identity[3] = {md.scene, md.entityId, slot};
+        const u64 key = HashBytes(identity, sizeof(identity));
         OverrideInstance* entry = m_overrideInstances.Find(key);
-        if (entry != nullptr &&
-            (entry->entityId != md.entityId || entry->slot != slot || entry->materialUid != material->uid))
+        if (entry != nullptr && (entry->scene != md.scene || entry->entityId != md.entityId || entry->slot != slot ||
+                                 entry->materialUid != material->uid))
         {
             // Another mesh hashed here, or the slot's material changed: start over with the new one.
             ReleaseInstance(*entry->instance);
@@ -2368,6 +2386,7 @@ namespace foundation::render
         if (entry == nullptr)
         {
             OverrideInstance created;
+            created.scene = md.scene;
             created.entityId = md.entityId;
             created.slot = slot;
             created.materialUid = material->uid;
@@ -3225,15 +3244,27 @@ namespace foundation::render
         // rings free their buffers in their destructors (m_device still valid after this).
     }
 
-    Float4x4 MeshRenderer::PrevWorldFor(u64 entityId, const Float4x4& cur)
+    Float4x4 MeshRenderer::PrevWorldFor(u64 scene, u64 entityId, const Float4x4& cur)
     {
-        const u32 idx = static_cast<u32>(entityId); // entityId = (generation << 32) | index
-        if (idx >= m_curWorld.Size())
+        if (scene != m_motionScene || m_motionLast == nullptr)
         {
-            m_curWorld.Resize(idx + 1u);
+            m_motionLast = m_motion.Find(scene);
+            if (m_motionLast == nullptr)
+            {
+                MotionHistory fresh{Array<Float4x4>{*m_allocator}, Array<Float4x4>{*m_allocator}, 0};
+                m_motionLast = &m_motion.InsertOrAssign(scene, Move(fresh)); // may rehash: only this pointer is kept
+            }
+            m_motionScene = scene;
+        }
+        MotionHistory& history = *m_motionLast;
+        history.lastUsed = m_frameSerial;
+        const u32 idx = static_cast<u32>(entityId); // entityId = (generation << 32) | index
+        if (idx >= history.cur.Size())
+        {
+            history.cur.Resize(idx + 1u);
         } // grows toward the max live index, then stable
-        m_curWorld[idx] = cur;
-        return (idx < m_prevWorld.Size()) ? m_prevWorld[idx] : cur;
+        history.cur[idx] = cur;
+        return (idx < history.prev.Size()) ? history.prev[idx] : cur;
     }
 
     u64 MeshRenderer::InstShareKey(const void* view, const void* runHead) noexcept
