@@ -47,6 +47,9 @@ export namespace pipeline
         u64 size = 0;
         i64 modifiedTime = 0;
         u64 contentHash = 0;
+        // When the hash was taken (unix seconds). A file modified in that second, or after, may
+        // have changed after the hash with the same size and time, so its memo is not trusted.
+        i64 hashedAt = 0;
     };
 
     /// One source asset's last cook.
@@ -66,6 +69,7 @@ export namespace pipeline
         foundation::core::Serialize(ar, "size", m.size);
         foundation::core::Serialize(ar, "mtime", m.modifiedTime);
         foundation::core::Serialize(ar, "hash", m.contentHash);
+        foundation::core::Serialize(ar, "hashedAt", m.hashedAt);
     }
 
     /// The persisted pipeline state (.cache/cook.db): source Guid -> CookRecord.
@@ -75,7 +79,7 @@ export namespace pipeline
         // The allocator (required; the owner decides) backs the cook records.
         explicit CookDb(IAllocator& allocator) noexcept : m_allocator(&allocator) {}
 
-        static constexpr u32 kVersion = 1;
+        static constexpr u32 kVersion = 2; // 2: a file memo records when it was hashed
         // Annotated on the member, not the class: dllexport on a class emits every
         // implicit member (CookDb holds move-only UniquePtr storage, so its copy constructor is
         // deleted) and flags each non-exported member type C4251.

@@ -478,8 +478,11 @@ namespace pipeline
         {
             for (const CookFileMemo& old : previous->files)
             {
+                // The same size and time are proof only for a file last modified before the second
+                // its hash was taken: one written in that second could have changed after the hash
+                // and kept both (the time is in whole seconds).
                 if (old.path == path && old.size == stat.size &&
-                    old.modifiedTime == stat.modifiedTime)
+                    old.modifiedTime == stat.modifiedTime && old.modifiedTime < old.hashedAt)
                 {
                     memo = old; // untouched since last cook: reuse the content hash
                     outMemos.PushBack(Move(memo));
@@ -498,6 +501,7 @@ namespace pipeline
             }
         }
         memo.contentHash = hash;
+        memo.hashedAt = GetUnixTime();
         if (hasStat)
         {
             memo.size = stat.size;
@@ -551,8 +555,14 @@ namespace pipeline
                                  (stream.Get() != nullptr) ? detail::HashStream(*stream) : 0);
         }
 
-        // 3. Builder version.
+        // 3. Builder version, and the data version of what it writes (the product type and its
+        // bases): a product format that changes recooks even when the builder's own number is
+        // not bumped with it.
         h = detail::FoldHash(h, 'V', builder.Version());
+        for (const TypeInfo* product = builder.ProductType(); product != nullptr; product = product->base)
+        {
+            h = detail::FoldHash(h, 'D', product->dataVersion);
+        }
 
         // 3a. What the build compiles against (the script surface), when the builder has one.
         if (const u64 environment = builder.EnvironmentHash(); environment != 0)

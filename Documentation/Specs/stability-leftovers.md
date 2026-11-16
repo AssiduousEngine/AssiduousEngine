@@ -263,7 +263,9 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   (only the editor did, so the player never even emptied its graveyard).
 - **The cook's change memo keys on size and whole seconds; a recipe lacks the product's data
   version.** `CookDriverImpl.cpp:481-482, 550-605`. Tests: a same-size rewrite in the same second
-  recooks; a data version bump recooks.
+  recooks; a data version bump recooks. Built 2026-11-16: a memo records when it hashed and is
+  trusted only for a file modified before that second (git's racy-clean rule); the recipe folds
+  the product type's data version chain; cook.db version 2.
 - **Duplicate guids are accepted silently.** `ContentModule.cppm:446`. Test: two envelopes with one
   guid are reported.
 - **The player opens every envelope at startup, copies entries twice and searches the TOC

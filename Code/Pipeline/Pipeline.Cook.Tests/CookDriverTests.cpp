@@ -708,3 +708,31 @@ TEST_CASE("cook variant axis: an invariant product that READS variant content re
     REQUIRE(plainProduct != nullptr);
     CHECK(plainProduct->cookedValue == fx.CookedValue(plain));
 }
+
+TEST_CASE("cook: a same-size rewrite in the second of the last cook recooks; a product data version bump recooks")
+{
+    // The memo trusted a file with the same size and whole-second time, so a rewrite of the same
+    // size inside the second the hash was taken kept the old product.
+    Fixture fx(u8"scratch_cook_test_racy");
+    fx.WriteSourceFile(u8"a.txt", u8"12345");
+    const Guid a = fx.AddWidget(u8"A", 10, u8"a.txt");
+    CookDriver driver = fx.MakeDriver();
+    CookPlan plan = driver.Plan();
+    (void)driver.Execute(plan);
+
+    fx.WriteSourceFile(u8"a.txt", u8"54321"); // same size, almost surely the same second
+    CookPlan rewritten = driver.Plan();
+    REQUIRE(rewritten.dirty.Size() == 1u);
+    CHECK(rewritten.dirty[0].source == a);
+    (void)driver.Execute(rewritten);
+
+    // The recipe had the builder's version and not the data version of what it writes, so a
+    // product format change that nobody mirrored into the builder's number kept old products.
+    auto& product = const_cast<TypeInfo&>(CookWidgetProduct::StaticType());
+    const u32 was = product.dataVersion;
+    CookPlan settled = driver.Plan();
+    (void)driver.Execute(settled); // whatever the last plan left
+    product.dataVersion = was + 1;
+    CHECK(driver.Plan().dirty.Size() == 1u);
+    product.dataVersion = was;
+}

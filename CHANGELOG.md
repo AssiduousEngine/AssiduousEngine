@@ -30,6 +30,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Cook: a source file saved again within a second of the last cook, at the same size, is cooked
+  again rather than kept stale; a change to a cooked format recooks its assets. The first cook after
+  updating cooks everything once.
 - Resources: assets nothing uses any more are unloaded after about ten seconds, rather than kept
   for the whole run; a game that moves between levels no longer keeps every level's assets.
 - Resources: an asset reloaded while it was still loading keeps the reloaded version, rather than
