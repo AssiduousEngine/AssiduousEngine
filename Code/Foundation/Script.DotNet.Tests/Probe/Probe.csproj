@@ -8,4 +8,9 @@
     <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
   </PropertyGroup>
+  <!-- The generated bindings and the bridge they call, passed in by the test's CMake. -->
+  <ItemGroup>
+    <Compile Include="$(EngineBindings)" Condition="'$(EngineBindings)' != ''" />
+    <Compile Include="$(EngineBridge)" Condition="'$(EngineBridge)' != ''" />
+  </ItemGroup>
 </Project>
