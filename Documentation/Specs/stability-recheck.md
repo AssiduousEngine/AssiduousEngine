@@ -1,6 +1,6 @@
 # Stability: what the audit recheck found still open
 
-> STATUS: APPROVED 2026-11-16 (user). Sized L, phases U0 to U6, each green on the lanes before the next.
+> STATUS: APPROVED 2026-11-16 (user). Sized L, phases U0 to U6; targeted suites per change, the full lanes at the end of the day.
 > Origin: `Documentation/Audits/engine-audit-recheck-2026-11-16.md` (the 2026-11-11 audit reread
 > against master after the leftovers series). Its rows were weighed again here on 2026-11-16 (master
 > 5b01569a0): the defects with a trigger are in the phases, the design notes and unmeasured
