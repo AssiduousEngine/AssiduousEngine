@@ -548,9 +548,15 @@ if(NOT OPTION_ENABLE_ANGELSCRIPT AND NOT OPTION_ENABLE_LUAU)
     message(FATAL_ERROR "All script backends are disabled; enable at least one of OPTION_ENABLE_ANGELSCRIPT / OPTION_ENABLE_LUAU.")
 endif()
 # Presence macros, defined only when enabled, so C++ guards read `#ifdef OPTION_HAS_ANGELSCRIPT`.
+# C# builds on the desktop alone (the web and Android run it differently, or not yet).
+set(DOTNET_SCRIPTING OFF)
+if(OPTION_ENABLE_DOTNET AND NOT EMSCRIPTEN AND NOT ANDROID)
+    set(DOTNET_SCRIPTING ON)
+endif()
 target_compile_definitions(policy INTERFACE
     $<$<BOOL:${OPTION_ENABLE_ANGELSCRIPT}>:OPTION_HAS_ANGELSCRIPT>
-    $<$<BOOL:${OPTION_ENABLE_LUAU}>:OPTION_HAS_LUAU>)
+    $<$<BOOL:${OPTION_ENABLE_LUAU}>:OPTION_HAS_LUAU>
+    $<$<BOOL:${DOTNET_SCRIPTING}>:OPTION_HAS_DOTNET>)
 
 # Target-or-empty aliases for the optional backend libs, so a consumer shared by both backends
 # (composition roots, multi-backend test suites) lists ${SCRIPTLIB_*} in target_link_libraries and
@@ -561,6 +567,10 @@ set(SCRIPTLIB_ANGELSCRIPT "")
 set(SCRIPTLIB_LUAU "")
 set(SCRIPTLIB_ANGELSCRIPT_PIPELINE "")
 set(SCRIPTLIB_LUAU_PIPELINE "")
+set(SCRIPTLIB_DOTNET "")
+if(DOTNET_SCRIPTING)
+    set(SCRIPTLIB_DOTNET Foundation::Script.DotNet)
+endif()
 if(OPTION_ENABLE_ANGELSCRIPT)
     set(SCRIPTLIB_ANGELSCRIPT Foundation::Script.AngelScript)
     set(SCRIPTLIB_ANGELSCRIPT_PIPELINE Pipeline::Script.AngelScript)
@@ -576,7 +586,7 @@ endif()
 if(OPTION_ENABLE_ANGELSCRIPT)
     add_subdirectory(Code/Foundation/Script.AngelScript)
 endif()
-if(OPTION_ENABLE_DOTNET AND NOT EMSCRIPTEN AND NOT ANDROID)
+if(DOTNET_SCRIPTING)
     add_subdirectory(Code/Foundation/Script.DotNet)   # hosts .NET for C# scripting (desktop)
     add_subdirectory(Code/Tools/Tools.DotNetBindings) # writes the C# bindings from reflection
 endif()

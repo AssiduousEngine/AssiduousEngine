@@ -31,7 +31,11 @@ target_link_libraries(Engine.DefaultApp
 # OPTION_ENABLE_* flags and OPTION_HAS_<backend> macros are global (root CMakeLists), and the
 # target-or-empty ${SCRIPTLIB_*} aliases link whichever are enabled; the root guarantees at least one.
 target_link_libraries(Engine.DefaultApp PUBLIC
-    ${SCRIPTLIB_ANGELSCRIPT} ${SCRIPTLIB_LUAU})
+    ${SCRIPTLIB_ANGELSCRIPT} ${SCRIPTLIB_LUAU} ${SCRIPTLIB_DOTNET})
+# C# (OPTION_ENABLE_DOTNET, desktop): the managed runtime it runs in is built beside the binaries.
+if(DOTNET_SCRIPTING)
+    add_dependencies(Engine.DefaultApp DotNet.Runtime)
+endif()
 
 target_sources(Engine.DefaultApp
     PRIVATE

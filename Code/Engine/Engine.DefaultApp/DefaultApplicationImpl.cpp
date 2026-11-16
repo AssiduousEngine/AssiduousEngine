@@ -42,6 +42,9 @@ import foundation.script.angelscript; // the AngelScript backend (OPTION_ENABLE_
 #ifdef OPTION_HAS_LUAU
 import foundation.script.luau;         // the Luau backend (OPTION_ENABLE_LUAU)
 #endif
+#ifdef OPTION_HAS_DOTNET
+import foundation.script.dotnet;       // the C# backend (OPTION_ENABLE_DOTNET, desktop)
+#endif
 import engine.behavior;    // BehaviorSubsystem (behaviors and the run's shared context)
 import foundation.resource;            // ResourceManager (owned or borrowed: see the infrastructure preset)
 import foundation.content;             // IContentDatabase (preset by the entry point)
@@ -287,6 +290,9 @@ namespace engine::runtime
 #endif
 #ifdef OPTION_HAS_LUAU
         foundation::script::RegisterLuauScriptBackend();
+#endif
+#ifdef OPTION_HAS_DOTNET
+        foundation::script::dotnet::RegisterDotNetScriptBackend();
 #endif
         // Networking: the Net facade type is registered by the surface root above. Each
         // ApplicationRun owns its own endpoint and goes online at runtime via the facade

@@ -51,12 +51,13 @@ export namespace foundation::script::dotnet
         /// `args` to read its defaults from.
         [[nodiscard]] Result<String> DescribeClass(StringView className, Span<const Variant> args);
 
-        /// Why the last call failed: the host's reason, or the managed one.
+        /// Why the last call failed: the host's reason, or the managed one. A failed call's error is
+        /// NotFound when what it asked for is not there (a class, a method, a field).
         [[nodiscard]] StringView Failure() const noexcept { return m_failure.AsView(); }
 
     private:
         Status Fail(StringView why);
-        Status FailManaged();
+        Status FailManaged(i32 rc); // NotFound for what is not there, else Unknown
         Array<DotNetValue> Lend(Span<const Variant> args) const;
 
         DotNetHost m_host;

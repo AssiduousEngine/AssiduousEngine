@@ -17,6 +17,7 @@ namespace foundation::script::dotnet
     namespace
     {
         constexpr StringView kRuntimeType = u8"Engine.Runtime, Engine.Runtime";
+        constexpr i32 kManagedMissing = -2; // Runtime.cs: what was asked for is not there
 
         i32 SizeOf(StringView text) { return static_cast<i32>(text.Size()); }
     }
@@ -33,12 +34,12 @@ namespace foundation::script::dotnet
         return Status{ErrorCode::Internal};
     }
 
-    Status DotNetRuntime::FailManaged()
+    Status DotNetRuntime::FailManaged(i32 rc)
     {
         i32 length = 0;
         const utf8char* text = m_lastError(&length);
         m_failure = String(StringView(text, static_cast<usize>(length)));
-        return Status{ErrorCode::Internal};
+        return Status{rc == kManagedMissing ? ErrorCode::NotFound : ErrorCode::Unknown};
     }
 
     Array<DotNetValue> DotNetRuntime::Lend(Span<const Variant> args) const
@@ -73,8 +74,8 @@ namespace foundation::script::dotnet
         if (initialize == nullptr || m_loadAssembly == nullptr || m_createInstance == nullptr || m_getField == nullptr ||
             m_release == nullptr || m_describeClass == nullptr || m_lastError == nullptr || invoke == nullptr)
             return Fail(m_host.Failure());
-        if (initialize(&EngineFunctions(allocator)) != 0)
-            return FailManaged();
+        if (const i32 rc = initialize(&EngineFunctions(allocator)); rc != 0)
+            return FailManaged(rc);
         m_invoke = invoke; // started: every entry point found and the layouts agree
         m_failure.Clear();
         return Status{};
@@ -84,8 +85,8 @@ namespace foundation::script::dotnet
     {
         if (!IsStarted())
             return Fail(u8"the runtime is not started");
-        if (m_loadAssembly(image.Data(), static_cast<i32>(image.Size())) != 0)
-            return FailManaged();
+        if (const i32 rc = m_loadAssembly(image.Data(), static_cast<i32>(image.Size())); rc != 0)
+            return FailManaged(rc);
         return Status{};
     }
 
@@ -95,8 +96,9 @@ namespace foundation::script::dotnet
             return Err(Fail(u8"the runtime is not started").Code());
         Array<DotNetValue> values = Lend(args);
         isize instance = 0;
-        if (m_createInstance(className.Data(), SizeOf(className), values.Data(), static_cast<i32>(values.Size()), &instance) != 0)
-            return Err(FailManaged().Code());
+        if (const i32 rc = m_createInstance(className.Data(), SizeOf(className), values.Data(), static_cast<i32>(values.Size()), &instance);
+            rc != 0)
+            return Err(FailManaged(rc).Code());
         return static_cast<u64>(instance);
     }
 
@@ -106,9 +108,10 @@ namespace foundation::script::dotnet
             return Err(Fail(u8"the runtime is not started").Code());
         Array<DotNetValue> values = Lend(args);
         DotNetValue result{};
-        if (m_invoke(static_cast<isize>(instance), method.Data(), SizeOf(method), values.Data(), static_cast<i32>(values.Size()),
-                     &result) != 0)
-            return Err(FailManaged().Code());
+        if (const i32 rc = m_invoke(static_cast<isize>(instance), method.Data(), SizeOf(method), values.Data(),
+                                    static_cast<i32>(values.Size()), &result);
+            rc != 0)
+            return Err(FailManaged(rc).Code());
         return ToVariant(result);
     }
 
@@ -117,8 +120,8 @@ namespace foundation::script::dotnet
         if (!IsStarted())
             return Err(Fail(u8"the runtime is not started").Code());
         DotNetValue result{};
-        if (m_getField(static_cast<isize>(instance), name.Data(), SizeOf(name), &result) != 0)
-            return Err(FailManaged().Code());
+        if (const i32 rc = m_getField(static_cast<isize>(instance), name.Data(), SizeOf(name), &result); rc != 0)
+            return Err(FailManaged(rc).Code());
         return ToVariant(result);
     }
 
@@ -135,8 +138,10 @@ namespace foundation::script::dotnet
         Array<DotNetValue> values = Lend(args);
         const utf8char* text = nullptr;
         i32 length = 0;
-        if (m_describeClass(className.Data(), SizeOf(className), values.Data(), static_cast<i32>(values.Size()), &text, &length) != 0)
-            return Err(FailManaged().Code());
+        if (const i32 rc = m_describeClass(className.Data(), SizeOf(className), values.Data(), static_cast<i32>(values.Size()), &text,
+                                           &length);
+            rc != 0)
+            return Err(FailManaged(rc).Code());
         return String(StringView(text, static_cast<usize>(length)));
     }
 }
