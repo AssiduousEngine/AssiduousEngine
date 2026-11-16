@@ -36,8 +36,9 @@ export namespace foundation::script::dotnet
         Status Start(IAllocator& allocator, StringView folder = {});
         [[nodiscard]] bool IsStarted() const noexcept { return m_invoke != nullptr; }
 
-        /// Loads a game's assembly from its image; its classes are found before earlier ones.
-        Status LoadAssembly(Span<const byte> image);
+        /// Loads a game's assembly from its image (and its debug symbols, when given, so a fault
+        /// names its file and line); its classes are found before earlier ones.
+        Status LoadAssembly(Span<const byte> image, Span<const byte> symbols = {});
 
         /// An instance of `className`, by its public constructor of args.Size() parameters.
         [[nodiscard]] Result<u64> CreateInstance(StringView className, Span<const Variant> args);
@@ -62,7 +63,7 @@ export namespace foundation::script::dotnet
 
         DotNetHost m_host;
         String m_failure;
-        i32 (*m_loadAssembly)(const byte*, i32) = nullptr;
+        i32 (*m_loadAssembly)(const byte*, i32, const byte*, i32) = nullptr;
         i32 (*m_createInstance)(const utf8char*, i32, DotNetValue*, i32, isize*) = nullptr;
         i32 (*m_invoke)(isize, const utf8char*, i32, DotNetValue*, i32, DotNetValue*) = nullptr;
         i32 (*m_getField)(isize, const utf8char*, i32, DotNetValue*) = nullptr;

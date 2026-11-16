@@ -4,7 +4,8 @@
 // C# as a script backend, through the registry as a run host reaches it: the class's built assembly
 // loads as its bytecode, the class is made with its entity, a property is set by its setter, a
 // handler runs, a field reads back; a handler the class lacks is NotFound and reports nothing; a C#
-// exception is a runtime error with its message; source never loads at run time, and a class with
+// exception is a runtime error with its message, at its file and line from the assembly's symbols;
+// source never loads at run time, and a class with
 // no assembly is refused.
 #include <doctest/doctest.h>
 #include "Core/Prelude.h"

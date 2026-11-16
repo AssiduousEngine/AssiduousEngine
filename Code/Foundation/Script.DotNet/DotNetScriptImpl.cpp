@@ -128,7 +128,7 @@ namespace foundation::script::dotnet
                         loaded = loaded || image == hash;
                     if (loaded)
                         continue;
-                    if (!m_runtime->LoadAssembly(entry.bytecode).IsOk())
+                    if (!m_runtime->LoadAssembly(entry.bytecode, entry.symbols).IsOk())
                     {
                         Report(ScriptErrorKind::Compile, moduleName, -1, m_runtime->Failure());
                         return Status{ErrorCode::Unknown};
