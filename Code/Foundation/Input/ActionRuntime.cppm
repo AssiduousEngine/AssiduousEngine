@@ -52,6 +52,17 @@ export namespace foundation::input
     };
 
     // The common case: the whole app's devices, straight off the shell.
+    // A run's input, as a capability the run offers (run.Get<IRunInput>()): its actions evaluated
+    // against its own source. Whoever starts the frame (the input subsystem) drives every run's
+    // before any scene steps, so fixed steps and updates read this frame's input.
+    class IRunInput
+    {
+    public:
+        virtual ~IRunInput() = default;
+        // `deltaTime` is the frame's, unscaled; `timeScale` the context's (for actions that follow it).
+        virtual void DriveInput(core::f32 deltaTime, core::f32 timeScale) = 0;
+    };
+
     class ShellInputSource final : public IInputSourceProvider
     {
     public:
@@ -536,12 +547,12 @@ export namespace foundation::input
         [[nodiscard]] bool WasPressed(ActionRef ref) const
         {
             const ActionState* state = StateFor(ref);
-            return state != nullptr && state->pressedFrame == m_frame;
+            return state != nullptr && EdgeSeen(state->pressedFrame);
         }
         [[nodiscard]] bool WasReleased(ActionRef ref) const
         {
             const ActionState* state = StateFor(ref);
-            return state != nullptr && state->releasedFrame == m_frame;
+            return state != nullptr && EdgeSeen(state->releasedFrame);
         }
         [[nodiscard]] f32 Value(ActionRef ref) const
         {
@@ -675,13 +686,32 @@ export namespace foundation::input
             bool digitalDown = false;
         };
 
+        // An edge recorded in `frame` is seen now: in the frame's update, the frame it happened; in
+        // a fixed step, the first step of a frame, for every frame since the step before it (see
+        // core::FixedStepFrame). Frame 0 is never: an action that never moved has no edge.
+        [[nodiscard]] bool EdgeSeen(u64 frame) const noexcept
+        {
+            if (frame == 0)
+            {
+                return false;
+            }
+            if (const core::FixedStepFrame* step = core::CurrentFixedStep())
+            {
+                return step->index == 0 && m_frame - frame < step->framesSinceLastStep;
+            }
+            return frame == m_frame;
+        }
+
         [[nodiscard]] static bool KeyDown(shell::IKeyboard* keyboard, u32 code, u32 modifiers)
         {
             if (keyboard == nullptr)
             {
                 return false;
             }
-            if (!keyboard->IsKeyDown(static_cast<shell::KeyCode>(code)))
+            // Pressed as well as down: a key pressed and released inside one frame is up at the
+            // frame's end, and reads as held for this one frame rather than not at all.
+            const shell::KeyCode key = static_cast<shell::KeyCode>(code);
+            if (!keyboard->IsKeyDown(key) && !keyboard->IsKeyPressed(key))
             {
                 return false;
             }
@@ -729,8 +759,8 @@ export namespace foundation::input
             case BindingSource::MouseButton:
             {
                 shell::IMouse* mouse = devices.Mouse();
-                if (mouse != nullptr &&
-                    mouse->IsButtonDown(static_cast<shell::MouseButton>(b.code)))
+                const shell::MouseButton button = static_cast<shell::MouseButton>(b.code);
+                if (mouse != nullptr && (mouse->IsButtonDown(button) || mouse->IsButtonPressed(button)))
                 {
                     out.value.x = b.scale * sign;
                     out.digitalDown = true;
@@ -774,7 +804,8 @@ export namespace foundation::input
                 ForEachPad(devices, b.device,
                            [&](shell::IGamepad& pad)
                            {
-                               if (pad.IsButtonDown(static_cast<shell::GamepadButton>(b.code)))
+                               const shell::GamepadButton button = static_cast<shell::GamepadButton>(b.code);
+                               if (pad.IsButtonDown(button) || pad.IsButtonPressed(button))
                                {
                                    out.value.x = b.scale * sign;
                                    out.digitalDown = true;
@@ -1132,7 +1163,7 @@ export namespace foundation::input
         Array<String> m_exclusiveStack;
         i32 m_exclusiveTop = -1; // ExclusiveTopSet, kept as the stack changes (queries compare no names)
         Array<RefEntry> m_refs;
-        u64 m_frame = 0;
+        u64 m_frame = 1; // from 1: an edge's frame 0 means none (EdgeSeen)
         f32 m_timeScale = 1.0f;
         ConsumptionMask m_consumed;
         bool m_latchHeldOnce = false; // set by exclusive push/pop, consumed next Update

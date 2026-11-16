@@ -815,12 +815,20 @@ namespace foundation::scene
     u32 Scene::AdvanceTime(f32 scaledDelta)
     {
         const u32 steps = m_stepper.Advance(scaledDelta);
+        ++m_framesSinceFixedStep;
         // The fixed step walks the scene as Update does: what it destroys waits for the end.
         const bool outermost = !m_isUpdating;
         m_isUpdating = true;
         for (u32 i = 0; i < steps; ++i)
         {
+            // Which step of the frame this is, for what reads once-a-frame edges (actions).
+            const FixedStepFrame frame{i, m_framesSinceFixedStep};
+            const FixedStepScope scope(frame);
             FixedUpdate(m_stepper.step);
+        }
+        if (steps > 0)
+        {
+            m_framesSinceFixedStep = 0;
         }
         m_fixedAlpha = m_stepper.Alpha();
         if (outermost)

@@ -562,3 +562,35 @@ TEST_CASE("scene: while its run defers, a component removed leaves at the run's 
     CHECK(health->destroyed == 1);
     CHECK(health->Count() == 0u);
 }
+
+namespace
+{
+    // Records what each fixed step says it is.
+    class StepRecorder final : public SceneSystem
+    {
+    public:
+        Array<FixedStepFrame> seen{DefaultAllocator()};
+        void OnFixedUpdate(f32) override
+        {
+            const FixedStepFrame* step = CurrentFixedStep();
+            seen.PushBack(step != nullptr ? *step : FixedStepFrame{99, 99});
+        }
+    };
+}
+
+TEST_CASE("scene: each fixed step says which of its frame's steps it is and the frames since the last")
+{
+    Scene scene(DefaultAllocator(), u8"steps");
+    StepRecorder* recorder = scene.AddSystem<StepRecorder>();
+    scene.SetFixedTiming(1.0f / 60.0f, 4);
+    (void)scene.AdvanceTime(1.0f / 30.0f + 0.001f); // two steps
+    (void)scene.AdvanceTime(0.0f);                   // none
+    (void)scene.AdvanceTime(1.0f / 60.0f);           // one, two frames after the last
+    REQUIRE(recorder->seen.Size() == 3);
+    CHECK(recorder->seen[0].index == 0);
+    CHECK(recorder->seen[0].framesSinceLastStep == 1);
+    CHECK(recorder->seen[1].index == 1);
+    CHECK(recorder->seen[2].index == 0);
+    CHECK(recorder->seen[2].framesSinceLastStep == 2);
+    CHECK(CurrentFixedStep() == nullptr); // only while a step runs
+}

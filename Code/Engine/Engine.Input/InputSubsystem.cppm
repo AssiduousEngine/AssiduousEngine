@@ -156,17 +156,32 @@ export namespace engine::input
                                            : static_cast<IInputSourceProvider&>(m_shellSource);
         }
 
-        void Update(f32 deltaTime) override
+        // After the GUI (-640), which marks what it takes on every runtime, and before physics
+        // (-600) and the scenes (-500), whose fixed steps run in their BeginFrame.
+        [[nodiscard]] i32 UpdateOrder() const noexcept override { return -620; }
+
+        // Actions are evaluated as the frame begins, this subsystem's and every run's, so what a
+        // scene reads in its fixed steps and its update is this frame's input, not the last.
+        void BeginFrame(f32 deltaTime) override
         {
-            if (foundation::runtime::SubsystemManager* context = Manager())
-            {
-                m_runtime.SetTimeScale(context->TimeScale());
-            }
-            IInputSourceProvider& devices = (m_override != nullptr)
-                                                ? *m_override
-                                                : static_cast<IInputSourceProvider&>(m_shellSource);
+            foundation::runtime::SubsystemManager* context = Manager();
+            const f32 timeScale = context != nullptr ? context->TimeScale() : 1.0f;
+            m_runtime.SetTimeScale(timeScale);
+            IInputSourceProvider& devices = ActiveSource();
             m_inputKinds.Update(devices);
             m_runtime.Update(devices, deltaTime);
+            foundation::run::IRunManager* runs = context != nullptr ? context->RunManager() : nullptr;
+            if (runs != nullptr)
+            {
+                runs->ForEachRun(
+                    [deltaTime, timeScale](foundation::run::IRun& run)
+                    {
+                        if (IRunInput* input = run.Get<IRunInput>())
+                        {
+                            input->DriveInput(deltaTime, timeScale);
+                        }
+                    });
+            }
         }
 
     private:

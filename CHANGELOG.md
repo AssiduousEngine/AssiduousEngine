@@ -28,6 +28,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Input: actions read the frame's own input, not the last frame's. `wasPressed` and `wasReleased`
+  in `onFixedUpdate` see each press once, whether the frame runs two fixed steps or none; a key
+  tapped inside one frame counts; and no action reads pressed before the first frame.
 - Scene: moving one entity no longer recomputes every transform under its root; its parent and
   siblings stay as they were.
 - Web: games draw in Safari and in every browser on iPhone and iPad. Their shaders wrote a very

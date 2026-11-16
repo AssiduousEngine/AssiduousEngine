@@ -713,6 +713,7 @@ export namespace foundation::scene
         bool m_simulationEnabled = true;
         f32 m_timeScale = 1.0f;
         core::FixedStepper m_stepper;
+        u64 m_framesSinceFixedStep = 0; // AdvanceTime calls since the last that stepped
         f32 m_fixedAlpha = 0.0f;
     };
 

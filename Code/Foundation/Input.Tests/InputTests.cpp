@@ -1403,3 +1403,96 @@ TEST_CASE("input: the bindings' version moves when what a binding resolves to ma
     rt.PopExclusiveSet(); // nothing to pop
     CHECK(rt.BindingsVersion() == popped);
 }
+
+TEST_CASE("input: no action reads pressed or released before its first update")
+{
+    // Frames counted from 0, like an edge that never happened, so before the first Update every
+    // action read as pressed and released this frame.
+    ActionRuntime runtime;
+    runtime.SetMap(MakeGameplayMap());
+    const ActionRef jump = runtime.Resolve(u8"Jump");
+    REQUIRE(jump.IsValid());
+    CHECK_FALSE(runtime.WasPressed(jump));
+    CHECK_FALSE(runtime.WasReleased(jump));
+}
+
+TEST_CASE("input: a key pressed and released inside one frame is a press, then a release")
+{
+    // Only the state at the frame's end was read, so a tap shorter than a frame was lost.
+    ActionRuntime runtime;
+    runtime.SetMap(MakeGameplayMap());
+    runtime.DisableSet(u8"Menu");
+    FakeDevices devices;
+    const ActionRef jump = runtime.Resolve(u8"Jump");
+    runtime.Update(devices, 1.0f / 60.0f);
+
+    devices.keyboard.pressed[static_cast<u32>(shell::KeyCode::Space)] = true; // down and up again
+    runtime.Update(devices, 1.0f / 60.0f);
+    CHECK(runtime.WasPressed(jump));
+    CHECK(runtime.IsDown(jump));
+
+    devices.keyboard.pressed[static_cast<u32>(shell::KeyCode::Space)] = false;
+    runtime.Update(devices, 1.0f / 60.0f);
+    CHECK(runtime.WasReleased(jump));
+    CHECK_FALSE(runtime.IsDown(jump));
+
+    // The same for a mouse button.
+    Action fire;
+    fire.name = String(u8"Fire");
+    fire.kind = ActionKind::Button;
+    Binding click;
+    click.source = BindingSource::MouseButton;
+    click.code = static_cast<u32>(shell::MouseButton::Left);
+    fire.bindings.PushBack(click);
+    InputMap map;
+    ActionSet set;
+    set.name = String(u8"Shoot");
+    set.actions.PushBack(static_cast<Action&&>(fire));
+    map.sets.PushBack(static_cast<ActionSet&&>(set));
+    ActionRuntime shooter;
+    shooter.SetMap(map);
+    const ActionRef fireRef = shooter.Resolve(u8"Fire");
+    devices.mouse.pressed[static_cast<u32>(shell::MouseButton::Left) & 7] = true;
+    shooter.Update(devices, 1.0f / 60.0f);
+    CHECK(shooter.WasPressed(fireRef));
+}
+
+TEST_CASE("input: a fixed step sees each edge once, in the first step of a frame")
+{
+    // Edges were per frame only: a frame of two fixed steps read a press in both, and a frame of
+    // none lost it, since the next frame's step compared against that frame.
+    ActionRuntime runtime;
+    runtime.SetMap(MakeGameplayMap());
+    runtime.DisableSet(u8"Menu");
+    FakeDevices devices;
+    const ActionRef jump = runtime.Resolve(u8"Jump");
+    runtime.Update(devices, 1.0f / 60.0f);
+
+    // Pressed in a frame of two steps: the first sees it, the second does not.
+    devices.keyboard.Set(shell::KeyCode::Space, true);
+    runtime.Update(devices, 1.0f / 60.0f);
+    {
+        const FixedStepFrame first{0, 1};
+        const FixedStepScope scope(first);
+        CHECK(runtime.WasPressed(jump));
+    }
+    {
+        const FixedStepFrame second{1, 1};
+        const FixedStepScope scope(second);
+        CHECK_FALSE(runtime.WasPressed(jump));
+    }
+    CHECK(runtime.WasPressed(jump)); // the frame's update still sees it
+
+    // Released in a frame of no step: the next frame's first step sees it, from two frames back.
+    devices.keyboard.Set(shell::KeyCode::Space, false);
+    runtime.Update(devices, 1.0f / 60.0f); // no step this frame
+    runtime.Update(devices, 1.0f / 60.0f);
+    CHECK_FALSE(runtime.WasReleased(jump)); // not this frame's update
+    {
+        const FixedStepFrame next{0, 2};
+        const FixedStepScope scope(next);
+        CHECK(runtime.WasReleased(jump));
+        CHECK_FALSE(runtime.WasPressed(jump)); // the press was before the step that saw it
+    }
+    CHECK(CurrentFixedStep() == nullptr);
+}

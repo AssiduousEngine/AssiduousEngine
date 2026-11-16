@@ -9,7 +9,7 @@ add_executable(Engine.Input.Tests
 
 target_link_libraries(Engine.Input.Tests PRIVATE
     Engine::Input Foundation::Input Foundation::Shell Foundation::Settings
-    Foundation::Script ${SCRIPTLIB_ANGELSCRIPT} ${SCRIPTLIB_LUAU} doctest::doctest)
+    Foundation::Run Foundation::Runtime Foundation::Script ${SCRIPTLIB_ANGELSCRIPT} ${SCRIPTLIB_LUAU} doctest::doctest)
 
 target_include_directories(Engine.Input.Tests PRIVATE
     ${CMAKE_SOURCE_DIR}/Code/Foundation/Input.Tests)  # InputTestSupport.h

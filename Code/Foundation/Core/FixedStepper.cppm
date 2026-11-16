@@ -70,4 +70,46 @@ export namespace foundation::core
             return (step > 0.0f) ? (accumulator / step) : 0.0f;
         }
     };
+
+    // The fixed step running on this thread: which of its frame's steps it is (0 for the first) and
+    // how many frames have gone by since its stepper last ran one (1 when it stepped the frame
+    // before). What happens once a frame (an action pressed) belongs to the first step of a frame
+    // only, and what happened in frames that ran no step belongs to the next one that does: so a
+    // fixed step sees each such edge once, never twice in a frame of two steps and never not at
+    // all in a frame of none.
+    struct FixedStepFrame
+    {
+        u32 index = 0;
+        u64 framesSinceLastStep = 1;
+    };
+
+    namespace detail
+    {
+        // Defined in FixedStepperImpl.cpp, so it is one per process: defined in this interface, each
+        // shared library would have its own.
+        [[nodiscard]] const FixedStepFrame*& CurrentFixedStepSlot() noexcept;
+    }
+
+    // Null outside every fixed step.
+    [[nodiscard]] inline const FixedStepFrame* CurrentFixedStep() noexcept
+    {
+        return detail::CurrentFixedStepSlot();
+    }
+
+    // Says a fixed step is running for its lifetime; nests (a step that steps another restores it).
+    class FixedStepScope
+    {
+    public:
+        explicit FixedStepScope(const FixedStepFrame& frame) noexcept
+            : m_previous(detail::CurrentFixedStepSlot())
+        {
+            detail::CurrentFixedStepSlot() = &frame;
+        }
+        ~FixedStepScope() { detail::CurrentFixedStepSlot() = m_previous; }
+        FixedStepScope(const FixedStepScope&) = delete;
+        FixedStepScope& operator=(const FixedStepScope&) = delete;
+
+    private:
+        const FixedStepFrame* m_previous;
+    };
 }

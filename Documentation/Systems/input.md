@@ -46,7 +46,14 @@ only). Kinds are DECLARED, not inferred; binding-to-kind mismatches validate at 
 Fed per frame from the shell event stream + polled device facades:
 - **Per-device aggregation** (Godot): pressed OR-folds, strength MAX-folds across devices/bindings;
   `raw` bypasses processors.
-- **Edges** (`WasPressed`/`WasReleased`) against a frame counter.
+- **Edges** (`WasPressed`/`WasReleased`) against a frame counter, from 1 (an action that never
+  moved has no edge). Inside a scene's fixed step (`core::CurrentFixedStep`), an edge belongs to
+  the first step of a frame and covers every frame since the scene's step before it: a press is
+  seen once however many steps a frame runs, none included. A key or button pressed and released
+  inside one frame reads as down for that frame (the latch's Pressed), so a quick tap is a press.
+- **When:** the input subsystem evaluates its runtime and every run's (`IRunInput`, which a game
+  instance offers) in its `BeginFrame` at order -620: after the GUI marks what it took, before
+  physics and the scenes step and update.
 - **Queries** on a name-hash-resolved `ActionRef`: `IsDown` / `WasPressed` / `WasReleased` / `Value` /
   `Value2D`, plus synthesized `Axis(neg,pos)` / `Vector2(...)` with circular dead zone.
 - **Set stack**: all enabled sets evaluate; queries resolve by priority. Pushing an exclusive set

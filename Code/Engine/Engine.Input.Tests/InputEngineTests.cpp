@@ -24,6 +24,8 @@ import foundation.script.angelscript;
 import foundation.script.luau;
 #endif
 import engine.input;
+import foundation.run;
+import foundation.runtime;
 
 using namespace foundation::core;
 using namespace engine::input;
@@ -450,10 +452,59 @@ TEST_CASE("input.subsystem: the subsystem tracks the input kind from its active 
     devices.pads.PushBack(&pad);
     InputSubsystem input(nullptr);
     input.SetSourceProvider(&devices);
-    input.Update(1.0f / 60.0f);
+    input.BeginFrame(1.0f / 60.0f);
     CHECK(input.InputKinds().Kind() == InputKind::Pointer); // nothing deliberate yet
     pad.buttonsPressed[static_cast<u32>(shell::GamepadButton::South)] = true;
-    input.Update(1.0f / 60.0f);
+    input.BeginFrame(1.0f / 60.0f);
     CHECK(input.InputKinds().Kind() == InputKind::Pad);
 }
 #endif // OPTION_HAS_ANGELSCRIPT
+
+namespace
+{
+    // A run with input of its own, as a game instance has.
+    struct InputRun final : foundation::run::RunBase, IRunInput
+    {
+        ActionRuntime runtime;
+        FakeDevices devices;
+        InputRun() : RunBase(DefaultAllocator(), u8"input")
+        {
+            runtime.SetMap(MakeGameplayMap());
+            runtime.DisableSet(u8"Menu");
+            Register<IRunInput>(*this);
+        }
+        void DriveInput(f32 deltaTime, f32 timeScale) override
+        {
+            runtime.SetTimeScale(timeScale);
+            runtime.Update(devices, deltaTime);
+        }
+    };
+}
+
+TEST_CASE("input.subsystem: actions are evaluated as the frame begins, the subsystem's and every run's")
+{
+    // Actions were evaluated in Update at order 0 (and a game's in the app's update, later still),
+    // after the scenes had stepped and updated on the last frame's input.
+    foundation::run::RunRegistry runs(DefaultAllocator());
+    InputRun run;
+    runs.Add(run);
+    foundation::runtime::SubsystemManager ctx(DefaultAllocator());
+    InputSubsystem* input = ctx.AddSubsystem<InputSubsystem>(nullptr);
+    ctx.SetRunManager(&runs);
+    ctx.Startup();
+    FakeDevices devices;
+    input->SetSourceProvider(&devices);
+    input->SetMap(MakeGameplayMap());
+    input->Runtime().DisableSet(u8"Menu");
+
+    devices.keyboard.Set(shell::KeyCode::Space, true);
+    run.devices.keyboard.Set(shell::KeyCode::Space, true);
+    ctx.BeginFrame(1.0f / 60.0f);
+    CHECK(input->Runtime().WasPressed(input->Runtime().Resolve(u8"Jump")));
+    CHECK(run.runtime.WasPressed(run.runtime.Resolve(u8"Jump")));
+    // Before the scenes, which step in their BeginFrame at -500, and after the GUI (-640), which
+    // marks what it takes on every runtime first.
+    CHECK(input->UpdateOrder() < -500);
+    CHECK(input->UpdateOrder() > -640);
+    ctx.Shutdown();
+}

@@ -311,7 +311,7 @@ export namespace engine::runtime
     // holds a NetworkController (which is the INetworkController the Net facade drives) and
     // forwards to it. The controller is a stable member, so its binding never dangles; the endpoint
     // inside it comes and goes.
-    class GameInstance final : public foundation::run::RunBase
+    class GameInstance final : public foundation::run::RunBase, public input::IRunInput
     {
     public:
         GameInstance() : RunBase(DefaultAllocator(), u8"Game")
@@ -335,6 +335,7 @@ export namespace engine::runtime
             Register<NetworkController>(m_network);
             Register<foundation::net::INetworkController>(m_network); // how engine.net reaches it (below this library)
             Register<input::ActionRuntime>(m_inputRuntime);
+            Register<input::IRunInput>(*this); // the input subsystem drives it as the frame begins
             Register<RunSave>(m_save);
             Register<engine::script::ScriptRunHost>(m_runHost);
             Register<foundation::http::HttpScriptBinding>(m_http);
@@ -646,9 +647,9 @@ export namespace engine::runtime
         /// into this instance's context, so instance A's script never sees instance B's keys).
         [[nodiscard]] input::ActionRuntime& InputRuntime() noexcept { return m_inputRuntime; }
 
-        /// Evaluate this instance's action runtime against its source (call before TickScript so the game
-        /// sees this frame's input). No-op when no source is set.
-        void DriveInput(f32 deltaTime, f32 contextTimeScale);
+        /// Evaluate this instance's action runtime against its source. The input subsystem calls it
+        /// for every run as the frame begins (IRunInput). No-op when no source is set.
+        void DriveInput(f32 deltaTime, f32 contextTimeScale) override;
 
         // ---- save (the values this game keeps between runs) ----
 

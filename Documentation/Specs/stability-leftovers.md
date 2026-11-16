@@ -203,7 +203,8 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   action reads pressed before the first update.** `ActionRuntime.cppm:536-540, 583-584, 684, 733,
   777, 1135`; `InputSubsystem.cppm:159`; `DefaultApplicationImpl.cpp:125`. Tests: one per symptom.
   Fix: update actions before scenes; per-step edges for the fixed lane; read the latch's Pressed
-  and Released; start frames at 1.
+  and Released; start frames at 1. Built 2026-11-15: the input subsystem drives every run's
+  actions (`IRunInput`) in its BeginFrame; a scene's fixed step says which step of its frame it is.
 - **SDL: removing a pad renumbers the others; the file dialog's callback runs on SDL's thread.**
   `SDL3ShellImpl.cpp:1021-1034, 1148-1165`.
 - **A run's bus survives Stop; `SceneManager::Clear` frees scenes without stopping them; subsystems

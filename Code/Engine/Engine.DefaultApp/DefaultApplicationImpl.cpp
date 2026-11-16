@@ -114,15 +114,14 @@ namespace engine::runtime
             m_ownedResources->Pump();
         }
 
-        // Drive and tick every instance (the primary and any extras: multi-instance play in editor,
-        // a headless server). Input first (so the game script sees this frame's keys), then the run
-        // host clock, then the tick.
+        // Tick every instance (the primary and any extras: multi-instance play in editor, a headless
+        // server). Their input was evaluated as the frame began (the input subsystem drives every
+        // run's), so the game script sees this frame's keys; then the run host clock, then the tick.
         const core::f32 contextScale = host.Subsystems().TimeScale();
         ForEachInstance(
             [&](GameInstance& gi)
             {
                 gi.PumpScriptLoads(); // activate any script-initiated load that finished (after Pump)
-                gi.DriveInput(deltaTime, contextScale);
                 gi.RunHost().Advance(deltaTime); // its scripts' clock
                 gi.TickScript(deltaTime, contextScale);
                 gi.DrainRunEvents(); // deliver this frame's run-bus events (after the game script ticked)
