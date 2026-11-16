@@ -28,7 +28,8 @@ namespace
 
 extern "C" PLUGIN_EXPORT const PluginPart* PluginPart_shared_probe_Engine()
 {
-    static constexpr PluginPart part{u8"shared_probe", PluginPartKind::Engine, &Load, &Unload};
+    // The stamp from the build (util_plugin_abi): this engine's, or another's for the refused copy.
+    static constexpr PluginPart part{u8"shared_probe", PluginPartKind::Engine, &Load, &Unload, PLUGIN_ABI_STAMP};
     return &part;
 }
 

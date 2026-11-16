@@ -219,8 +219,10 @@ rule.
   manifest's text lets a player with no package files on disk still check versions, dependencies
   and slots. `ShipMain.cpp` becomes the generated registry plus `PlayerMain`. A part's source
   writes its entry as `PLUGIN_PART(&Load, &Unload)` (`Runtime/PluginEntry.h`); the build supplies
-  the symbol, id and kind from the manifest.
-- **Shared (desktop development):** the host loads a part's library and resolves the same symbol.
+  the symbol, id and kind from the manifest, and the plugin ABI stamp (`util_plugin_abi`: the
+  engine version, compiler and its version, configuration).
+- **Shared (desktop development):** the host loads a part's library and resolves the same symbol;
+  a part whose stamp is not the host's (`PluginAbiStamp`) is refused before its load runs.
 - **Linked is not enabled.** The registry lists what is compiled in; the plugin host activates
   only the plugins the project enables for the running platform. A dormant plugin registers
   nothing, so it costs nothing at run time.

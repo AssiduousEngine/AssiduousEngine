@@ -4,6 +4,12 @@
 add_library(Runtime.TestPluginPart MODULE TestPluginPart.cpp)
 set_target_properties(Runtime.TestPluginPart PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(Runtime.TestPluginPart PRIVATE Foundation::Runtime Foundation::Policy)
+util_plugin_abi(Runtime.TestPluginPart)
+# The same part built for another engine: its stamp is not this one's, so it is refused.
+add_library(Runtime.TestPluginPartOtherAbi MODULE TestPluginPart.cpp)
+set_target_properties(Runtime.TestPluginPartOtherAbi PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_link_libraries(Runtime.TestPluginPartOtherAbi PRIVATE Foundation::Runtime Foundation::Policy)
+target_compile_definitions(Runtime.TestPluginPartOtherAbi PRIVATE "PLUGIN_ABI_STAMP=u8\"another-engine\"")
 
 add_executable(Runtime.Tests
     TestsMain.cpp
@@ -15,11 +21,12 @@ add_executable(Runtime.Tests
 target_link_libraries(Runtime.Tests PRIVATE Foundation::Runtime Foundation::Runtime.Client
     Foundation::Scene Foundation::Scene.Resource # the cross-boundary scene-contribution case
     doctest::doctest)
-add_dependencies(Runtime.Tests Runtime.TestPluginPart)
+add_dependencies(Runtime.Tests Runtime.TestPluginPart Runtime.TestPluginPartOtherAbi)
 
 target_compile_definitions(Runtime.Tests PRIVATE
     DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
     TEST_PLUGIN_PART_PATH="$<IF:$<BOOL:${ANDROID}>,$<TARGET_FILE_NAME:Runtime.TestPluginPart>,$<TARGET_FILE:Runtime.TestPluginPart>>"
+    TEST_PLUGIN_PART_OTHER_ABI_PATH="$<IF:$<BOOL:${ANDROID}>,$<TARGET_FILE_NAME:Runtime.TestPluginPartOtherAbi>,$<TARGET_FILE:Runtime.TestPluginPartOtherAbi>>"
     PLUGIN_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
     PLUGIN_MANIFESTS_READ="${UTIL_PLUGIN_MANIFESTS_READ}"
     PLUGIN_ROLES_FILE="${UTIL_PLUGIN_ROLES_FILE}")
@@ -50,6 +57,7 @@ if(ENGINE_SHARED_LIBS)
     set_target_properties(Runtime.CrossPlugin PROPERTIES POSITION_INDEPENDENT_CODE ON)
     target_link_libraries(Runtime.CrossPlugin PRIVATE Foundation::Runtime Foundation::Scene
         Foundation::Policy) # contributes a component manager
+    util_plugin_abi(Runtime.CrossPlugin)
     add_dependencies(Runtime.Tests Runtime.CrossPlugin)
     target_compile_definitions(Runtime.Tests PRIVATE
         CROSS_PLUGIN_PATH="$<TARGET_FILE:Runtime.CrossPlugin>")

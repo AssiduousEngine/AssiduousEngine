@@ -178,7 +178,14 @@ export namespace foundation::runtime
         PluginPartKind kind;
         PluginPartFn load;
         PluginPartFn unload;
+        // What it was compiled against (PluginAbiStamp of that engine); a part loaded from a
+        // shared library loads only where it is this engine's. PLUGIN_PART fills it.
+        const char8_t* abi = nullptr;
     };
+
+    // This engine's plugin ABI stamp: its version, its compiler and the compiler's version, its
+    // configuration.
+    [[nodiscard]] core::StringView PluginAbiStamp() noexcept;
 
     using PluginPartEntryFn = const PluginPart* (*)();
 

@@ -16,3 +16,7 @@ target_sources(Runtime
             EnabledPlugin.cppm
             PluginPart.cppm
             PluginHost.cppm)
+
+# The plugin ABI stamp (cmake/Plugins.cmake), in the one file that answers it.
+target_sources(Runtime PRIVATE PluginAbiImpl.cpp)
+set_source_files_properties(PluginAbiImpl.cpp PROPERTIES COMPILE_DEFINITIONS "${UTIL_PLUGIN_ABI_DEFINITION}")

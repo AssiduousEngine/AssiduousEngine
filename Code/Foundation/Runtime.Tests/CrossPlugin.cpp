@@ -57,7 +57,7 @@ namespace
 // The part's entry, named as a package's Engine part of id cross_probe would be.
 extern "C" PLUGIN_EXPORT const PluginPart* PluginPart_cross_probe_Engine()
 {
-    static constexpr PluginPart part{u8"cross_probe", PluginPartKind::Engine, &Load, nullptr};
+    static constexpr PluginPart part{u8"cross_probe", PluginPartKind::Engine, &Load, nullptr, PLUGIN_ABI_STAMP};
     return &part;
 }
 

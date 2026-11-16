@@ -16,6 +16,21 @@
 set(UTIL_PLUGIN_MANIFESTS_READ "${CMAKE_BINARY_DIR}/plugin-manifests-read.txt")
 file(WRITE "${UTIL_PLUGIN_MANIFESTS_READ}" "")
 
+# The plugin ABI stamp: what a part is compiled against (the engine's version, the compiler and
+# its version, and the configuration). A part loaded from a shared library carries its own and
+# loads only where it is the host's: a Debug part in a Release host, or one from another compiler
+# or engine release, would run against types laid out otherwise. The source revision is left out:
+# the editor's tree and a project's development build are configured apart, often at different
+# commits of the same source. It is given to the loader's one implementation file and to each part,
+# never to a module interface.
+set(UTIL_PLUGIN_ABI "${PROJECT_VERSION}+${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}")
+set(UTIL_PLUGIN_ABI_DEFINITION "PLUGIN_ABI_STAMP=u8\"${UTIL_PLUGIN_ABI}+$<CONFIG>\"")
+
+# util_plugin_abi(<target>): the target's sources are compiled with the stamp (PLUGIN_ABI_STAMP).
+function(util_plugin_abi target)
+    target_compile_definitions(${target} PRIVATE "${UTIL_PLUGIN_ABI_DEFINITION}")
+endfunction()
+
 # The part kinds in load order: a part links the one before it that the package has.
 set(UTIL_PLUGIN_PART_KINDS Engine Pipeline Tooling Editor)
 
@@ -199,6 +214,7 @@ macro(util_add_plugin_part)
         PLUGIN_PART_ENTRY_NAME=PluginPart_${PLUGIN_ID}_${PLUGIN_PART_KIND}
         PLUGIN_PART_ID=u8\"${PLUGIN_ID}\"
         PLUGIN_PART_KIND=${PLUGIN_PART_KIND})
+    util_plugin_abi(${PLUGIN_PART})
     if(PLUGIN_PREVIOUS_PART)
         target_link_libraries(${PLUGIN_PART} PUBLIC ${PLUGIN_PREVIOUS_PART})
     endif()

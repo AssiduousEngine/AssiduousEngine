@@ -10,7 +10,7 @@
 //
 // util_add_plugin_part (cmake/Plugins.cmake) gives each part's sources the manifest's names, so
 // the entry is `PluginPart_<id>_<Kind>` and its record carries the id and kind without the
-// source writing either. The record is constant: linking a part does no work until a host
+// source writing either, and the plugin ABI stamp of the engine it is compiled against. The record is constant: linking a part does no work until a host
 // loads it. `unload` may be nullptr.
 //
 // Use it once per part, in a translation unit that imports foundation.runtime.
@@ -18,7 +18,8 @@
 #ifndef FOUNDATION_RUNTIME_PLUGIN_ENTRY_H
 #define FOUNDATION_RUNTIME_PLUGIN_ENTRY_H
 
-#if !defined(PLUGIN_PART_ENTRY_NAME) || !defined(PLUGIN_PART_ID) || !defined(PLUGIN_PART_KIND)
+#if !defined(PLUGIN_PART_ENTRY_NAME) || !defined(PLUGIN_PART_ID) || !defined(PLUGIN_PART_KIND) || \
+    !defined(PLUGIN_ABI_STAMP)
 #error "PluginEntry.h is for a plugin part's sources: declare the part with util_add_plugin_part()"
 #endif
 
@@ -32,7 +33,8 @@
     extern "C" PLUGIN_PART_EXPORT const ::foundation::runtime::PluginPart* PLUGIN_PART_ENTRY_NAME()      \
     {                                                                                                    \
         static constexpr ::foundation::runtime::PluginPart part{                                         \
-            PLUGIN_PART_ID, ::foundation::runtime::PluginPartKind::PLUGIN_PART_KIND, loadFn, unloadFn};  \
+            PLUGIN_PART_ID, ::foundation::runtime::PluginPartKind::PLUGIN_PART_KIND, loadFn, unloadFn,  \
+            PLUGIN_ABI_STAMP};                                                                           \
         return &part;                                                                                    \
     }
 

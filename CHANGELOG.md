@@ -28,6 +28,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Plugins: a plugin part loaded from a shared library that was built for another engine version,
+  compiler or configuration (a Debug part in a Release editor) is refused with the reason, rather
+  than loaded and run against types laid out otherwise.
 - Runs: events a game posted just before it stopped no longer reach the next play. A game's scenes
   are stopped and torn down while the engine's systems are still running when the player quits,
   and the app's `maxFixedStepsPerFrame` setting now applies to scenes (it was always 4).

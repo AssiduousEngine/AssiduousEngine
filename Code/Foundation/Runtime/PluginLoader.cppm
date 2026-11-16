@@ -85,6 +85,14 @@ export namespace foundation::runtime
             {
                 return core::Err(core::Format(u8"did not load from '{}' (its entry gave no part)", path));
             }
+            // Built against another engine (another version, compiler or configuration),
+            // its code would run against types it does not know: refused before it runs at all.
+            const core::StringView abi = part->abi != nullptr ? core::StringView(part->abi) : core::StringView{};
+            if (abi != PluginAbiStamp())
+            {
+                return core::Err(core::Format(u8"did not load from '{}' (built for {}, this engine is {})", path,
+                                              abi.IsEmpty() ? core::StringView(u8"no stamp") : abi, PluginAbiStamp()));
+            }
             Entry entry{part, &context, core::Move(library), {}, {}, {}};
             return Admit(core::Move(entry));
         }

@@ -382,9 +382,9 @@ namespace
 
     // On Android the part's file name: the suite runs on the phone beside it, from a scratch folder,
     // so it is found beside the executable (scripts/android-tests.sh pushes it there).
-    [[nodiscard]] String PartLibraryPath()
+    [[nodiscard]] String PartLibraryPath(const char* built = TEST_PLUGIN_PART_PATH)
     {
-        const StringView path{reinterpret_cast<const utf8char*>(TEST_PLUGIN_PART_PATH)};
+        const StringView path{reinterpret_cast<const utf8char*>(built)};
 #if PLATFORM_ANDROID
         return PathJoin(GetExecutableDirectory().AsView(), path);
 #else
@@ -1058,4 +1058,24 @@ TEST_CASE("plugin host: a type's owner is the plugin whose load registered it")
     types.Clear();
     host.TypesOf(kFirst, types);
     CHECK(types.IsEmpty());
+}
+
+TEST_CASE("plugin host: a shared part built against another engine is refused before it runs")
+{
+    // A part carried no stamp of what it was compiled against, so one built for another engine
+    // version, compiler or configuration loaded and ran against types it did not know.
+    SubsystemManager subsystems(DefaultAllocator());
+    PluginLoader loader;
+    PluginContext context(HostRole::Player, subsystems, u8"shared_probe", Span<const PluginService>{},
+                          Span<const u8>{}, DefaultAllocator());
+    const StringView entry = u8"PluginPart_shared_probe_Engine";
+    auto other = loader.LoadPart(PartLibraryPath(TEST_PLUGIN_PART_OTHER_ABI_PATH).AsView(), entry, context);
+    REQUIRE_FALSE(other.HasValue());
+    CHECK(other.Error().AsView().Contains(u8"built for another-engine"));
+    CHECK(loader.Count() == 0u);
+
+    auto same = loader.LoadPart(PartLibraryPath().AsView(), entry, context); // built against this one
+    REQUIRE(same.HasValue());
+    CHECK(StringView(same.Value()->abi) == PluginAbiStamp());
+    loader.UnloadAll();
 }

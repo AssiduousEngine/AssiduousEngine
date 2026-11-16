@@ -219,7 +219,9 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
 - **`MarkDirty` dirties the whole root tree.** `SceneImpl.cpp:980-1003`. Test: moving A leaves its
   sibling B clean. Built 2026-11-15: marking goes down only.
 - **Plugin parts carry no ABI or build stamp.** `PluginPart.cppm:175-181`, `PluginLoader.cppm:70-90`.
-  Test: a part with another stamp is refused. Fix: a stamp in the part, checked on load.
+  Test: a part with another stamp is refused. Fix: a stamp in the part, checked on load. Built
+  2026-11-16: the stamp is the engine version, compiler and its version and configuration (the
+  revision is left out: the editor's tree and a project's development build configure apart).
 
 ### T4: networking
 
