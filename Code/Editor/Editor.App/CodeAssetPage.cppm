@@ -70,6 +70,7 @@ export namespace editor::app
                 {
                     m_saved = String(StringView(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size()));
                     m_read = true;
+                    RememberSourceFile();
                 }
             }
             if (m_code == nullptr)
@@ -109,6 +110,12 @@ export namespace editor::app
         void OnUpdate(foundation::runtime::IApplicationHost& host, f32 dt) override
         {
             AssetObjectPage::OnUpdate(host, dt);
+            m_nextFileCheck -= dt;
+            if (m_nextFileCheck <= 0.0f)
+            {
+                m_nextFileCheck = kFileCheckInterval;
+                CheckSourceOnDisk();
+            }
             if (m_checkIn > 0.0f)
             {
                 m_checkIn -= dt;
@@ -126,8 +133,24 @@ export namespace editor::app
                 Context().Notify(NoticeKind::Error, Format(u8"Not saved: {} is not there", m_fileName.IsEmpty() ? StringView(u8"its source") : m_fileName.AsView()).AsView());
                 return Status{ErrorCode::NotFound};
             }
+            // Changed outside the editor since the page read or wrote it: the first Save says so and
+            // writes nothing; a second Save (the user's choice, having been told) overwrites it.
+            // Saved over in silence, an edit made in another editor was lost.
+            if (Result<Array<byte>> disk = ReadFile(m_sourcePath.AsView()); disk.HasValue())
+            {
+                const StringView onDisk(reinterpret_cast<const utf8char*>(disk.Value().Data()), disk.Value().Size());
+                const u64 diskHash = HashBytes(onDisk.Data(), onDisk.Size());
+                if (onDisk != m_saved.AsView() && diskHash != m_refusedSaveHash)
+                {
+                    m_refusedSaveHash = diskHash;
+                    Context().Notify(NoticeKind::Warning,
+                                     Format(u8"Not saved: {} changed outside the editor. Save again to overwrite it, or Reload to take it",
+                                            m_fileName).AsView());
+                    return Status{ErrorCode::OutOfDate};
+                }
+            }
             const String text = Text();
-            if (text.AsView() != m_saved.AsView())
+            if (text.AsView() != m_saved.AsView() || m_refusedSaveHash != 0)
             {
                 const Status written = WriteFile(m_sourcePath.AsView(), Span<const byte>(reinterpret_cast<const byte*>(text.Data()), text.Size()));
                 if (!written.IsOk())
@@ -136,6 +159,7 @@ export namespace editor::app
                     return written;
                 }
                 m_saved = text;
+                RememberSourceFile();
             }
             const Status saved = AssetObjectPage::Save(); // writes the asset and requests a cook
             if (!saved.IsOk())
@@ -166,10 +190,44 @@ export namespace editor::app
                 m_saved = Move(text);
                 if (m_code != nullptr)
                     m_code->SetText(m_saved.AsView());
+                RememberSourceFile();
             }
             ClearDirty(); // the new text marked the page changed
             CheckSoon();
             return true;
+        }
+
+        /// Looks at the source on disk (the page does every second): changed outside the editor, a
+        /// clean page reloads it and a dirty one says so once (its Save then asks before overwriting).
+        void CheckSourceOnDisk()
+        {
+            if (!m_read)
+                return;
+            u64 size = 0;
+            i64 time = 0;
+            if (!FileStat(m_sourcePath.AsView(), size, time) || (size == m_diskSize && time == m_diskTime))
+                return;
+            m_diskSize = size;
+            m_diskTime = time;
+            Result<Array<byte>> bytes = ReadFile(m_sourcePath.AsView());
+            if (!bytes.HasValue())
+                return;
+            const StringView onDisk(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size());
+            if (onDisk == m_saved.AsView())
+                return; // touched, not changed
+            if (!IsDirty())
+            {
+                if (ReloadFromSource())
+                    Context().Notify(NoticeKind::Info, Format(u8"Reloaded {}: it changed outside the editor", m_fileName).AsView());
+                return;
+            }
+            if (!m_conflictWarned)
+            {
+                m_conflictWarned = true;
+                Context().Notify(NoticeKind::Warning,
+                                 Format(u8"{} changed outside the editor while it has edits here. Save asks before it overwrites that; Reload takes it",
+                                        m_fileName).AsView());
+            }
         }
 
         /// Checks the code now with the page's check, showing the problems in the list and on their lines.
@@ -323,6 +381,21 @@ export namespace editor::app
         String m_fileName;
         String m_sourcePath;
         String m_saved; // the source as read or last written
+        // The source file's size and time as the page last read or wrote it; the hash of the disk
+        // text a refused Save warned about (a second Save overwrites that text); and whether an
+        // outside change under unsaved edits has been warned about.
+        u64 m_diskSize = 0;
+        i64 m_diskTime = 0;
+        u64 m_refusedSaveHash = 0;
+        bool m_conflictWarned = false;
+        f32 m_nextFileCheck = 1.0f;
+        static constexpr f32 kFileCheckInterval = 1.0f;
+        void RememberSourceFile() noexcept
+        {
+            (void)FileStat(m_sourcePath.AsView(), m_diskSize, m_diskTime);
+            m_refusedSaveHash = 0;
+            m_conflictWarned = false;
+        }
         bool m_read = false;
         u32 m_listener = 0;
         usize m_steps = 0;       // how many of the code's steps the page's stack holds

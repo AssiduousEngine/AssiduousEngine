@@ -231,3 +231,46 @@ TEST_CASE("script page: the API browser built when it opens and searched; a brea
     CHECK_FALSE(bed.context.HasBreakpoint(u8"Hero.as", 3));
 }
 #endif // OPTION_HAS_ANGELSCRIPT
+
+#ifdef OPTION_HAS_ANGELSCRIPT
+TEST_CASE("script page: a source changed outside the editor is not saved over in silence")
+{
+    // The page compared its text only with what it last read, never the file: Save wrote over an
+    // edit made in another editor without a word.
+    Bed bed;
+    UniquePtr<ScriptEditorPage> page = bed.Open(*bed.hero);
+    REQUIRE(page->Code() != nullptr);
+    String outside(u8"// edited elsewhere\n");
+    outside.Append(bed.source.AsView());
+    const auto writeOutside = [&]
+    {
+        REQUIRE(WriteFile(PathJoin(bed.project->SourcesRoot().AsView(), u8"Hero.as").AsView(),
+                          Span<const byte>(reinterpret_cast<const byte*>(outside.Data()), outside.Size())).IsOk());
+    };
+
+    SUBCASE("a dirty page: the first Save refused, the disk kept; a second Save overwrites")
+    {
+        page->Code()->SetCaret(gui::CodePosition{0, 0});
+        page->Code()->Type(u8"// mine\n");
+        writeOutside();
+        page->CheckSourceOnDisk();
+        CHECK(page->IsDirty()); // the edits stay
+        CHECK(page->Save().Code() == ErrorCode::OutOfDate);
+        CHECK(bed.OnDisk() == outside);
+        CHECK(page->IsDirty());
+        REQUIRE(page->Save().IsOk());
+        CHECK(bed.OnDisk().AsView().StartsWith(u8"// mine\n"));
+        CHECK_FALSE(page->IsDirty());
+    }
+    SUBCASE("a clean page takes the change")
+    {
+        writeOutside();
+        page->CheckSourceOnDisk();
+        CHECK(page->Text() == outside);
+        CHECK_FALSE(page->IsDirty());
+        // and then saves without a refusal
+        page->Code()->Type(u8"x");
+        CHECK(page->Save().IsOk());
+    }
+}
+#endif
