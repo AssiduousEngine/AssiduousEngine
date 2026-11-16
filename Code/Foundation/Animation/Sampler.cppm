@@ -38,13 +38,26 @@ export namespace foundation::animation
 
     [[nodiscard]] inline Quaternion CubicSplineQuat(const Keyframe<Quaternion>& prev,
                                                     const Keyframe<Quaternion>& next, f32 t,
-                                                    f32 /*duration*/)
+                                                    f32 duration)
     {
-        // Simplified Hermite, then normalize (squad would be more accurate).
+        // glTF's rule: the same Hermite as a vector's, on the four components with their
+        // tangents, then normalized. The tangents had been ignored: every key eased in and out.
         const f32 t2 = t * t, t3 = t2 * t;
         const f32 h00 = 2.0f * t3 - 3.0f * t2 + 1.0f;
+        const f32 h10 = (t3 - 2.0f * t2 + t) * duration;
         const f32 h01 = -2.0f * t3 + 3.0f * t2;
-        return Normalized(Slerp(prev.value, next.value, h01 / (h00 + h01)));
+        const f32 h11 = (t3 - t2) * duration;
+        const Quaternion& p0 = prev.value;
+        const Quaternion& m0 = prev.outTangent;
+        const Quaternion& m1 = next.inTangent;
+        // The keys on one hemisphere, as a slerp would take them.
+        const f32 side = (p0.x * next.value.x + p0.y * next.value.y + p0.z * next.value.z +
+                          p0.w * next.value.w) < 0.0f ? -1.0f : 1.0f;
+        const Quaternion p1{next.value.x * side, next.value.y * side, next.value.z * side, next.value.w * side};
+        return Normalized(Quaternion{p0.x * h00 + m0.x * h10 + p1.x * h01 + m1.x * h11 * side,
+                                     p0.y * h00 + m0.y * h10 + p1.y * h01 + m1.y * h11 * side,
+                                     p0.z * h00 + m0.z * h10 + p1.z * h01 + m1.z * h11 * side,
+                                     p0.w * h00 + m0.w * h10 + p1.w * h01 + m1.w * h11 * side});
     }
 
     // Sample a Float3 track at `time` (returns `defaultValue` if empty).

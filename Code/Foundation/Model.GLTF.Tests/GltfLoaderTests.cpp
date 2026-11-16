@@ -212,3 +212,48 @@ TEST_CASE("gltf: a file that fails validation fails the load")
     CHECK(load(1000) == ModelLoadResult::InvalidData); // 12000 bytes claimed from a buffer of 12
     std::remove(path);
 }
+
+TEST_CASE("gltf: a cubic-spline key reads its value and keeps its tangents")
+{
+    // A cubic sampler stores in-tangent, value, out-tangent for each key; reading element k took
+    // key 0's value from its in-tangent and key 1's from key 0's out-tangent, and the tangents
+    // were dropped. One translation channel, two keys: values (1,2,3) and (7,8,9), key 0 leaving
+    // along (4,0,0), key 1 arriving along (0,5,0).
+    constexpr const char* json = R"({
+  "asset": {"version": "2.0"},
+  "buffers": [{"byteLength": 80, "uri": "data:application/octet-stream;base64,AAAAAAAAgD8AAAAAAAAAAAAAAAAAAIA/AAAAQAAAQEAAAIBAAAAAAAAAAAAAAAAAAACgQAAAAAAAAOBAAAAAQQAAEEEAAAAAAAAAAAAAAAA="}],
+  "bufferViews": [{"buffer": 0, "byteOffset": 0, "byteLength": 8},
+                  {"buffer": 0, "byteOffset": 8, "byteLength": 72}],
+  "accessors": [{"bufferView": 0, "componentType": 5126, "count": 2, "type": "SCALAR", "min": [0], "max": [1]},
+                {"bufferView": 1, "componentType": 5126, "count": 6, "type": "VEC3"}],
+  "nodes": [{"name": "mover"}],
+  "scenes": [{"nodes": [0]}],
+  "scene": 0,
+  "animations": [{"name": "Swing",
+                  "samplers": [{"input": 0, "output": 1, "interpolation": "CUBICSPLINE"}],
+                  "channels": [{"sampler": 0, "target": {"node": 0, "path": "translation"}}]}]
+})";
+    const char* path = "scratch_gltf_cubic.gltf";
+    REQUIRE(WriteFile(StringView(reinterpret_cast<const utf8char*>(path)),
+                      Span<const byte>(reinterpret_cast<const byte*>(json), std::strlen(json)))
+                .IsOk());
+    Model model;
+    gltf::GltfLoader loader;
+    REQUIRE(loader.load(StringView(reinterpret_cast<const utf8char*>(path)), model) == ModelLoadResult::Ok);
+    std::remove(path);
+
+    REQUIRE(model.animations().Size() == 1u);
+    const ModelAnimation* animation = model.animations()[0];
+    REQUIRE(animation->channels().Size() == 1u);
+    const AnimationChannel* channel = animation->channels()[0];
+    CHECK(channel->interpolation == AnimationInterpolation::CubicSpline);
+    const Span<const AnimationKeyframe> keys = channel->keyframes();
+    REQUIRE(keys.Size() == 2u);
+    CHECK(keys[0].value.x == doctest::Approx(1.0f));
+    CHECK(keys[0].value.z == doctest::Approx(3.0f));
+    CHECK(keys[0].outTangent.x == doctest::Approx(4.0f));
+    CHECK(keys[1].value.x == doctest::Approx(7.0f));
+    CHECK(keys[1].inTangent.y == doctest::Approx(5.0f));
+    // The curve leaves key 0 at its tangent's slope: a hundredth of a second on, 0.04 along x.
+    CHECK(channel->sample(0.01f).x == doctest::Approx(1.04f).epsilon(0.01));
+}

@@ -177,6 +177,10 @@ export namespace foundation::animation
         Array<u32> trackCount; // keyframe count
         Array<f32> keyTimes;
         Array<Float4> keyValues; // position/scale in xyz; rotation in xyzw
+        // A cubic spline's tangents (per second), parallel to keyValues; empty when the clip has no
+        // cubic track.
+        Array<Float4> keyInTangents;
+        Array<Float4> keyOutTangents;
         Array<f32> eventTimes;
         Array<String> eventNames;
         RootMotionSettings rootMotion;
@@ -209,6 +213,15 @@ export namespace foundation::animation
             SerializeAppended(ar, "rootTimes", rootTimes);
             SerializeAppended(ar, "rootPositions", rootPositions);
             SerializeAppended(ar, "rootYaws", rootYaws);
+            SerializeAppended(ar, "keyInTangents", keyInTangents);
+            SerializeAppended(ar, "keyOutTangents", keyOutTangents);
+        }
+
+        /// Whether the clip carries tangents for every key (it does when a track is cubic).
+        [[nodiscard]] bool HasTangents() const noexcept
+        {
+            return !keyValues.IsEmpty() && keyInTangents.Size() == keyValues.Size() &&
+                   keyOutTangents.Size() == keyValues.Size();
         }
 
         /// Every field of `other` (a cook's working copy: the builder bakes and strips it, the
@@ -231,6 +244,8 @@ export namespace foundation::animation
             rootTimes = other.rootTimes;
             rootPositions = other.rootPositions;
             rootYaws = other.rootYaws;
+            keyInTangents = other.keyInTangents;
+            keyOutTangents = other.keyOutTangents;
         }
 
         static void FromClip(const AnimationClip& clip, AnimationClipSource& out)
@@ -245,6 +260,21 @@ export namespace foundation::animation
             out.trackCount.Clear();
             out.keyTimes.Clear();
             out.keyValues.Clear();
+            out.keyInTangents.Clear();
+            out.keyOutTangents.Clear();
+            bool cubic = false;
+            for (const auto& t : clip.PositionTracks())
+            {
+                cubic = cubic || t->interpolation == InterpolationMode::CubicSpline;
+            }
+            for (const auto& t : clip.RotationTracks())
+            {
+                cubic = cubic || t->interpolation == InterpolationMode::CubicSpline;
+            }
+            for (const auto& t : clip.ScaleTracks())
+            {
+                cubic = cubic || t->interpolation == InterpolationMode::CubicSpline;
+            }
             for (const auto& t : clip.PositionTracks())
             {
                 AppendVec3Track(out, *t, TrackKind::Position);
@@ -256,6 +286,11 @@ export namespace foundation::animation
             for (const auto& t : clip.ScaleTracks())
             {
                 AppendVec3Track(out, *t, TrackKind::Scale);
+            }
+            if (!cubic)
+            {
+                out.keyInTangents.Clear(); // no cubic track: the tangents carry nothing
+                out.keyOutTangents.Clear();
             }
             out.eventTimes.Clear();
             out.eventNames.Clear();
@@ -285,6 +320,9 @@ export namespace foundation::animation
                 return false;
             }
             const usize pool = Min(keyTimes.Size(), keyValues.Size());
+            const bool tangents = HasTangents();
+            const auto tangent = [&](const Array<Float4>& from, u32 key)
+            { return tangents ? from[key] : Float4{0, 0, 0, 0}; };
             for (usize i = 0; i < trackTotal; ++i)
             {
                 const usize start = trackStart[i];
@@ -316,7 +354,11 @@ export namespace foundation::animation
                     for (u32 j = 0; j < count; ++j)
                     {
                         const Float4 v = keyValues[start + j];
-                        track->AddKeyframe(keyTimes[start + j], Quaternion{v.x, v.y, v.z, v.w});
+                        const Float4 in = tangent(keyInTangents, start + j);
+                        const Float4 out = tangent(keyOutTangents, start + j);
+                        track->AddKeyframe(keyTimes[start + j], Quaternion{v.x, v.y, v.z, v.w},
+                                           Quaternion{in.x, in.y, in.z, in.w},
+                                           Quaternion{out.x, out.y, out.z, out.w});
                     }
                 }
                 else
@@ -328,7 +370,10 @@ export namespace foundation::animation
                     for (u32 j = 0; j < count; ++j)
                     {
                         const Float4 v = keyValues[start + j];
-                        track->AddKeyframe(keyTimes[start + j], Float3{v.x, v.y, v.z});
+                        const Float4 in = tangent(keyInTangents, start + j);
+                        const Float4 out = tangent(keyOutTangents, start + j);
+                        track->AddKeyframe(keyTimes[start + j], Float3{v.x, v.y, v.z},
+                                           Float3{in.x, in.y, in.z}, Float3{out.x, out.y, out.z});
                     }
                 }
             }
@@ -363,6 +408,8 @@ export namespace foundation::animation
             {
                 out.keyTimes.PushBack(k.time);
                 out.keyValues.PushBack(Float4{k.value.x, k.value.y, k.value.z, 0.0f});
+                out.keyInTangents.PushBack(Float4{k.inTangent.x, k.inTangent.y, k.inTangent.z, 0.0f});
+                out.keyOutTangents.PushBack(Float4{k.outTangent.x, k.outTangent.y, k.outTangent.z, 0.0f});
             }
         }
         static void AppendQuatTrack(AnimationClipSource& out,
@@ -377,6 +424,8 @@ export namespace foundation::animation
             {
                 out.keyTimes.PushBack(k.time);
                 out.keyValues.PushBack(Float4{k.value.x, k.value.y, k.value.z, k.value.w});
+                out.keyInTangents.PushBack(Float4{k.inTangent.x, k.inTangent.y, k.inTangent.z, k.inTangent.w});
+                out.keyOutTangents.PushBack(Float4{k.outTangent.x, k.outTangent.y, k.outTangent.z, k.outTangent.w});
             }
         }
     };
@@ -416,10 +465,15 @@ export namespace foundation::animation
             }
             const usize t = static_cast<usize>(track);
             out.interpolation = static_cast<InterpolationMode>(t < clip.trackInterp.Size() ? clip.trackInterp[t] : 1);
+            const bool tangents = clip.HasTangents();
             for (u32 k = 0; k < clip.trackCount[t] && clip.trackStart[t] + k < clip.keyTimes.Size(); ++k)
             {
-                const Float4 v = clip.keyValues[clip.trackStart[t] + k];
-                out.AddKeyframe(clip.keyTimes[clip.trackStart[t] + k], Float3{v.x, v.y, v.z});
+                const u32 key = clip.trackStart[t] + k;
+                const Float4 v = clip.keyValues[key];
+                const Float4 in = tangents ? clip.keyInTangents[key] : Float4{0, 0, 0, 0};
+                const Float4 o = tangents ? clip.keyOutTangents[key] : Float4{0, 0, 0, 0};
+                out.AddKeyframe(clip.keyTimes[key], Float3{v.x, v.y, v.z}, Float3{in.x, in.y, in.z},
+                                Float3{o.x, o.y, o.z});
             }
         }
         inline void ReadTrack(const AnimationClipSource& clip, i32 track, AnimationTrack<Quaternion>& out)
@@ -430,10 +484,15 @@ export namespace foundation::animation
             }
             const usize t = static_cast<usize>(track);
             out.interpolation = static_cast<InterpolationMode>(t < clip.trackInterp.Size() ? clip.trackInterp[t] : 1);
+            const bool tangents = clip.HasTangents();
             for (u32 k = 0; k < clip.trackCount[t] && clip.trackStart[t] + k < clip.keyTimes.Size(); ++k)
             {
-                const Float4 v = clip.keyValues[clip.trackStart[t] + k];
-                out.AddKeyframe(clip.keyTimes[clip.trackStart[t] + k], Quaternion{v.x, v.y, v.z, v.w});
+                const u32 key = clip.trackStart[t] + k;
+                const Float4 v = clip.keyValues[key];
+                const Float4 in = tangents ? clip.keyInTangents[key] : Float4{0, 0, 0, 0};
+                const Float4 o = tangents ? clip.keyOutTangents[key] : Float4{0, 0, 0, 0};
+                out.AddKeyframe(clip.keyTimes[key], Quaternion{v.x, v.y, v.z, v.w},
+                                Quaternion{in.x, in.y, in.z, in.w}, Quaternion{o.x, o.y, o.z, o.w});
             }
         }
     }
@@ -533,21 +592,35 @@ export namespace foundation::animation
                 const usize t = static_cast<usize>(positionTrack);
                 for (u32 k = 0; k < clip.trackCount[t]; ++k)
                 {
-                    Float4& v = clip.keyValues[clip.trackStart[t] + k];
+                    const u32 key = clip.trackStart[t] + k;
+                    Float4& v = clip.keyValues[key];
+                    // A stripped axis is held still: its cubic tangents go with its motion.
+                    Float4 none{0, 0, 0, 0};
+                    Float4& in = clip.HasTangents() ? clip.keyInTangents[key] : none;
+                    Float4& out = clip.HasTangents() ? clip.keyOutTangents[key] : none;
                     if (clip.rootMotion.horizontal)
                     {
                         v.x = first.x;
                         v.z = first.z;
+                        in.x = in.z = out.x = out.z = 0.0f;
                     }
                     if (clip.rootMotion.vertical)
                     {
                         v.y = first.y;
+                        in.y = out.y = 0.0f;
                     }
                 }
             }
             if (rotationTrack >= 0 && clip.rootMotion.yaw)
             {
                 const usize t = static_cast<usize>(rotationTrack);
+                // Each key turned back by its own yaw: the tangents no longer fit the keys, so the
+                // track plays linearly between them (the baked curve keeps the motion's shape).
+                if (t < clip.trackInterp.Size() &&
+                    clip.trackInterp[t] == static_cast<u8>(InterpolationMode::CubicSpline))
+                {
+                    clip.trackInterp[t] = static_cast<u8>(InterpolationMode::Linear);
+                }
                 for (u32 k = 0; k < clip.trackCount[t]; ++k)
                 {
                     Float4& v = clip.keyValues[clip.trackStart[t] + k];

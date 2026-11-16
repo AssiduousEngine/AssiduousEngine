@@ -40,9 +40,16 @@ export namespace foundation::model
     {
         f32 time = 0.0f;
         Float4 value{}; // Translation (xyz), Rotation (xyzw), Scale (xyz), or single Weight.
+        // A cubic spline's tangents (per second, as glTF stores them); zero otherwise.
+        Float4 inTangent{};
+        Float4 outTangent{};
 
         constexpr AnimationKeyframe() = default;
         constexpr AnimationKeyframe(f32 t, Float4 v) : time(t), value(v) {}
+        constexpr AnimationKeyframe(f32 t, Float4 v, Float4 in, Float4 out)
+            : time(t), value(v), inTangent(in), outTangent(out)
+        {
+        }
     };
 
     /// An animation channel targeting a specific bone/node property.
@@ -56,6 +63,11 @@ export namespace foundation::model
         void addKeyframe(f32 time, Float4 value)
         {
             m_keyframes.PushBack(AnimationKeyframe(time, value));
+        }
+        /// Add a cubic spline keyframe with its tangents.
+        void addKeyframe(f32 time, Float4 value, Float4 inTangent, Float4 outTangent)
+        {
+            m_keyframes.PushBack(AnimationKeyframe(time, value, inTangent, outTangent));
         }
 
         [[nodiscard]] Span<const AnimationKeyframe> keyframes() const
@@ -109,8 +121,21 @@ export namespace foundation::model
                     return Lerp(k0.value, k1.value, t);
                 }
             case AnimationInterpolation::CubicSpline:
-                // TODO: Implement cubic spline interpolation.
-                return Lerp(k0.value, k1.value, t);
+            {
+                // glTF's Hermite: the tangents are per second, so scaled by the keys' gap; a
+                // rotation is the same blend of its components, normalized.
+                const f32 dt = k1.time - k0.time;
+                const f32 t2 = t * t, t3 = t2 * t;
+                const Float4 v = k0.value * (2.0f * t3 - 3.0f * t2 + 1.0f) +
+                                 k0.outTangent * (dt * (t3 - 2.0f * t2 + t)) +
+                                 k1.value * (-2.0f * t3 + 3.0f * t2) + k1.inTangent * (dt * (t3 - t2));
+                if (path == AnimationPath::Rotation)
+                {
+                    const Quaternion q = Normalized(Quaternion(v.x, v.y, v.z, v.w));
+                    return Float4(q.x, q.y, q.z, q.w);
+                }
+                return v;
+            }
             }
             return {};
         }

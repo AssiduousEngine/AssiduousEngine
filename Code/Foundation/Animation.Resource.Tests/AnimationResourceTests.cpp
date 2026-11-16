@@ -281,3 +281,31 @@ TEST_CASE("animation graph resource: composite - resolves clip refs through the 
     FileDelete(u8"scratch_anim_res_db/graph.rasset");
     RemoveDirectory(u8"scratch_anim_res_db");
 }
+
+TEST_CASE("anim resource: a cubic track's tangents survive the cooked record")
+{
+    // The record kept values only: a cubic clip came back with zero tangents everywhere.
+    AnimationClip clip{u8"swing", 1.0f, true};
+    AnimationClip::Vec3Track* pos = clip.GetOrCreatePositionTrack(0);
+    pos->interpolation = InterpolationMode::CubicSpline;
+    pos->AddKeyframe(0.0f, Float3{0, 0, 0}, Float3{0, 0, 0}, Float3{2, 0, 0});
+    pos->AddKeyframe(1.0f, Float3{1, 0, 0}, Float3{0, 3, 0}, Float3{0, 0, 0});
+    AnimationClipSource src;
+    AnimationClipSource::FromClip(clip, src);
+    REQUIRE(src.HasTangents());
+
+    AnimationClip back{u8"", 0.0f, false};
+    REQUIRE(src.FillClip(back));
+    REQUIRE(back.PositionTracks().Size() == 1u);
+    const AnimationClip::Vec3Track* read = back.PositionTracks()[0].Get();
+    REQUIRE(read->Keyframes().Size() == 2u);
+    CHECK(read->Keyframes()[0].outTangent.x == doctest::Approx(2.0f));
+    CHECK(read->Keyframes()[1].inTangent.y == doctest::Approx(3.0f));
+
+    // A clip with no cubic track carries none.
+    AnimationClip linear{u8"walk", 1.0f, true};
+    linear.GetOrCreatePositionTrack(0)->AddKeyframe(0.0f, Float3{0, 0, 0});
+    AnimationClipSource plain;
+    AnimationClipSource::FromClip(linear, plain);
+    CHECK(plain.keyInTangents.IsEmpty());
+}

@@ -110,8 +110,9 @@ export namespace pipeline{
         {
             return &AnimationClipSource::StaticType();
         }
-        // v2: the root motion bake and strip; every clip re-cooks.
-        [[nodiscard]] u32 Version() const override { return 2; }
+        // v2: the root motion bake and strip; v3: cubic tangents in the product. Every clip
+        // re-cooks.
+        [[nodiscard]] u32 Version() const override { return 3; }
 
         void ScanDependencies(const pipeline::Asset& asset, pipeline::AssetBuildContext&,
                               pipeline::AssetDependencies& out) override

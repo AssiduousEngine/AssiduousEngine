@@ -1084,36 +1084,48 @@ export namespace foundation::model::gltf
                                 cgltf_accessor_read_float(sampler->input,
                                                           static_cast<cgltf_size>(k), &time, 1);
 
-                                Float4 value{};
-                                switch (channel->path)
+                                // A cubic spline stores three elements a key, in-tangent, value,
+                                // out-tangent: the value is element 3k+1, not k.
+                                const bool cubic =
+                                    sampler->interpolation == cgltf_interpolation_type_cubic_spline;
+                                const auto read = [&](cgltf_size element)
                                 {
-                                case AnimationPath::Translation:
-                                case AnimationPath::Scale:
+                                    Float4 v{};
+                                    switch (channel->path)
+                                    {
+                                    case AnimationPath::Translation:
+                                    case AnimationPath::Scale:
+                                    {
+                                        float v3[3] = {};
+                                        cgltf_accessor_read_float(sampler->output, element, v3, 3);
+                                        v = Float4(v3[0], v3[1], v3[2], 0);
+                                        break;
+                                    }
+                                    case AnimationPath::Rotation:
+                                    {
+                                        float v4[4] = {};
+                                        cgltf_accessor_read_float(sampler->output, element, v4, 4);
+                                        v = Float4(v4[0], v4[1], v4[2], v4[3]);
+                                        break;
+                                    }
+                                    case AnimationPath::Weights:
+                                    {
+                                        float w = 0;
+                                        cgltf_accessor_read_float(sampler->output, element, &w, 1);
+                                        v.x = w;
+                                        break;
+                                    }
+                                    }
+                                    return v;
+                                };
+                                const cgltf_size key = static_cast<cgltf_size>(k);
+                                if (cubic)
                                 {
-                                    float v3[3] = {};
-                                    cgltf_accessor_read_float(sampler->output,
-                                                              static_cast<cgltf_size>(k), v3, 3);
-                                    value = Float4(v3[0], v3[1], v3[2], 0);
-                                    break;
+                                    channel->addKeyframe(time, read(3 * key + 1), read(3 * key),
+                                                         read(3 * key + 2));
+                                    continue;
                                 }
-                                case AnimationPath::Rotation:
-                                {
-                                    float v4[4] = {};
-                                    cgltf_accessor_read_float(sampler->output,
-                                                              static_cast<cgltf_size>(k), v4, 4);
-                                    value = Float4(v4[0], v4[1], v4[2], v4[3]);
-                                    break;
-                                }
-                                case AnimationPath::Weights:
-                                {
-                                    float w = 0;
-                                    cgltf_accessor_read_float(sampler->output,
-                                                              static_cast<cgltf_size>(k), &w, 1);
-                                    value.x = w;
-                                    break;
-                                }
-                                }
-
+                                const Float4 value = read(key);
                                 channel->addKeyframe(time, value);
                             }
                         }

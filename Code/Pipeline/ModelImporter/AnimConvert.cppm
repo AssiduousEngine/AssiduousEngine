@@ -272,7 +272,20 @@ export namespace pipeline
                 out.keyTimes.PushBack(k.time);
                 out.keyValues.PushBack(
                     k.value); // xyz for position and scale, xyzw for rotation (matches FillClip)
+                out.keyInTangents.PushBack(k.inTangent);
+                out.keyOutTangents.PushBack(k.outTangent);
             }
+        }
+        // Tangents are kept only for a clip with a cubic track (the rest are zero, unread).
+        bool cubic = false;
+        for (const u8 interp : out.trackInterp)
+        {
+            cubic = cubic || interp == static_cast<u8>(animation::InterpolationMode::CubicSpline);
+        }
+        if (!cubic)
+        {
+            out.keyInTangents.Clear();
+            out.keyOutTangents.Clear();
         }
     }
 
