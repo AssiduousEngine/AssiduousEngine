@@ -183,8 +183,11 @@ export namespace engine::navigation
                     if (a.targetDirty)
                     {
                         const Float3 local = TransformPoint(a.target, rz.invWorld);
-                        (void)rz.crowd->SetTarget(a.agentId, local);
                         a.targetDirty = false;
+                        if (!rz.crowd->SetTarget(a.agentId, local))
+                        {
+                            Fail(a); // no navmesh near the target: it cannot be walked
+                        }
                     }
                     if (a.stopRequested)
                     {
@@ -226,6 +229,11 @@ export namespace engine::navigation
                     const nav::NavigationAgentState st = rz.crowd->AgentState(a.agentId);
                     a.crowdState = static_cast<u8>(st.state);
                     a.crowdTargetState = static_cast<u8>(st.targetState);
+                    if (a.hasTarget && st.targetState == nav::NavAgentTargetState::Failed)
+                    {
+                        Fail(a); // the path search found no way there
+                        rz.crowd->ClearTarget(a.agentId);
+                    }
                     a.crowdDesiredSpeed = st.desiredSpeed;
                     a.pathCorners = st.cornerCount;
 
@@ -257,6 +265,14 @@ export namespace engine::navigation
         }
 
     private:
+        // A navigate() that cannot be walked: the agent stops where it is, finished and failed.
+        static void Fail(NavAgentComponent& a)
+        {
+            a.hasTarget = false;
+            a.finished = true;
+            a.failed = true;
+        }
+
         struct RuntimeZone
         {
             // The navmesh product the crowd and query were built over, held so a reload (a re-bake

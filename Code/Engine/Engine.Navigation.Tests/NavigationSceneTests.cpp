@@ -964,3 +964,64 @@ TEST_CASE("navigation.scene: an agent destroyed as its zone reloads leaves the o
     scene.Stop();
     RemoveTree(u8"scratch_navgonereload_db");
 }
+
+TEST_CASE("navigation.scene: a target off the navmesh finishes the agent as failed")
+{
+    // The crowd's refusal was dropped: the agent stood still forever, finished() never true, and
+    // a script waiting for it waited for good.
+    RegisterNavigationResource();
+    RegisterNavigationComponentReflection();
+    RemoveTree(u8"scratch_navfail_db");
+    foundation::vfs::NativeFileSystem mount(u8"scratch_navfail_db", foundation::core::DefaultAllocator());
+    content::ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
+    Array<byte> blob;
+    BakeGroundZone(blob);
+    auto* zoneInstance = db.RootGroup()->CreateInstance(u8"zone", NavigationZoneSource::StaticType());
+    REQUIRE(zoneInstance != nullptr);
+    {
+        NavigationZoneSource src;
+        src.navMeshBlob.Resize(blob.Size());
+        MemCopy(src.navMeshBlob.Data(), blob.Data(), blob.Size());
+        REQUIRE(zoneInstance->WriteObject(src).IsOk());
+    }
+    NavigationZoneFactory factory(DefaultAllocator());
+    ResourceManager manager(DefaultAllocator(), db);
+    manager.AddFactory(&factory);
+
+    scene::Scene scene(DefaultAllocator(), u8"navfail");
+    AddNavigationSceneManagers(scene);
+    scene::EntityHandle zoneEntity = scene.CreateEntity(u8"zone");
+    NavMeshZoneComponent& zoneComp = scene.GetSystem<NavMeshZoneComponentManager>()->Add(zoneEntity);
+    zoneComp.extents = Float3{15, 10, 15};
+    zoneComp.zone.SetId(zoneInstance->Id());
+    zoneComp.zone.Bind(manager);
+    scene::EntityHandle agentEntity = scene.CreateEntity(u8"agent");
+    scene.SetLocalPosition(agentEntity, Float3{-5, 0, 0});
+    NavAgentComponent* agent = &scene.GetSystem<NavAgentComponentManager>()->Add(agentEntity);
+    scene.UpdateTransforms();
+    scene.Start();
+    scene.SetSimulationEnabled(true);
+    REQUIRE(agent->agentId >= 0);
+
+    agent->navigate(300.0f, 0.0f, 300.0f); // nowhere near the zone's ground
+    for (int step = 0; step < 30; ++step)
+    {
+        scene.Update(1.0f / 30.0f);
+    }
+    CHECK(agent->failedNav());
+    CHECK(agent->finishedNav());
+
+    // A new order clears it, and a reachable one is walked.
+    agent->navigate(5.0f, 0.0f, 0.0f);
+    CHECK_FALSE(agent->failedNav());
+    for (int step = 0; step < 360 && !agent->finished; ++step)
+    {
+        scene.Update(1.0f / 30.0f);
+    }
+    CHECK(agent->finishedNav());
+    CHECK_FALSE(agent->failedNav());
+
+    scene.SetSimulationEnabled(false);
+    scene.Stop();
+    RemoveTree(u8"scratch_navfail_db");
+}

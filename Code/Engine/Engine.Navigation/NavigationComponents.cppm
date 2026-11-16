@@ -84,6 +84,9 @@ export namespace engine::navigation
         Float3 steerVelocity{0, 0, 0};
         Float3 warpTo{0, 0, 0};
         bool finished = true;
+        // The last navigate() could not be walked: its target is off every navmesh the agent's
+        // zone holds, or no path reaches it. The agent stops and finished() is true as well.
+        bool failed = false;
         f32 remainingDistance = 0.0f;
         Float3 desiredVelocity{0, 0, 0}; // crowd steering output (world space), for ReportOnly
         f32 appliedSpeed = -1.0f;        // steering profile last pushed into the crowd; the
@@ -106,6 +109,7 @@ export namespace engine::navigation
             targetDirty = true;
             stopRequested = false;
             finished = false;
+            failed = false;
         }
         // Halt where the agent is.
         void stop()
@@ -114,6 +118,7 @@ export namespace engine::navigation
             hasTarget = false;
             stopRequested = true;
             finished = true;
+            failed = false;
         }
         // Put the agent somewhere else at once (a respawn, a door to another room, a late joiner
         // placed): the crowd owns an agent's position, so moving its entity is undone next tick.
@@ -128,6 +133,7 @@ export namespace engine::navigation
             targetDirty = false;
             stopRequested = false;
             finished = true;
+            failed = false;
         }
         // Move at a velocity across the ground (m/s, world X and Z) instead of to a point: a
         // player's stick, sent each frame. No path is planned, so it is answered at once; the crowd
@@ -142,6 +148,7 @@ export namespace engine::navigation
             targetDirty = false;
             stopRequested = false;
             finished = vx == 0.0f && vz == 0.0f;
+            failed = false;
         }
         // Per-call speed control: applies to the live crowd agent next tick.
         void setSpeed(f32 speed) { maxSpeed = speed; }
@@ -161,6 +168,8 @@ export namespace engine::navigation
         [[nodiscard]] f32 desiredSpeed() const { return crowdDesiredSpeed; }
         [[nodiscard]] i32 corners() const { return pathCorners; }
         [[nodiscard]] bool finishedNav() const { return finished; }
+        // Whether the last navigate() could not be walked (finished() is true then too).
+        [[nodiscard]] bool failedNav() const { return failed; }
         [[nodiscard]] f32 remaining() const { return remainingDistance; }
         [[nodiscard]] f32 velocityX() const { return desiredVelocity.x; }
         [[nodiscard]] f32 velocityY() const { return desiredVelocity.y; }

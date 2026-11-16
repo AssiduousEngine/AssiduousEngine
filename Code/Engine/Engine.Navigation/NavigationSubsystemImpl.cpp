@@ -236,6 +236,7 @@ namespace engine::navigation
             .Method<&NavAgentComponent::warp>("warp", {"x", "y", "z"})
             .Method<&NavAgentComponent::move>("move", {"vx", "vz"})
             .Method<&NavAgentComponent::finishedNav>("finished")
+            .Method<&NavAgentComponent::failedNav>("failed")
             .Method<&NavAgentComponent::remaining>("remaining")
             .Method<&NavAgentComponent::velocityX>("velocityX")
             .Method<&NavAgentComponent::velocityY>("velocityY")
