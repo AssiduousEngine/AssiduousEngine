@@ -421,3 +421,34 @@ TEST_CASE("ttf.font: a font whose tables do not fit its bytes is refused before 
         CHECK(font.Initialize(Move(collection), 16.0f) == FontLoadResult::InvalidFormat);
     }
 }
+
+TEST_CASE("ttf.service: a family bakes so many sizes, and a size that will not bake is not tried again")
+{
+    // Every size asked for baked an atlas that was never freed, and a size that failed to bake was
+    // baked again (opening and parsing the font) on every request for it.
+    TrueTypeFonts::Initialize();
+    TrueTypeFontService service(DefaultAllocator());
+    REQUIRE(service.LoadFont(u8"Roboto", AssetPath("/Engine/Fonts/roboto/Roboto-Regular.ttf")) == FontLoadResult::Success);
+    const usize loaded = service.EntryCount();
+    for (int size = 10; size < 70; ++size)
+    {
+        REQUIRE(service.GetFont(u8"Roboto", static_cast<f32>(size)) != nullptr); // past the cap: the closest
+    }
+    CHECK(service.EntryCount() <= loaded + 24u);
+
+    // A family whose file is gone after it loaded cannot bake another size: tried once.
+    const String scratch(u8"scratch_ttf_failed_bake.ttf"); // in the build tree the suite runs in
+    {
+        const Result<Array<byte>> bytes = ReadFile(AssetPath("/Engine/Fonts/roboto/Roboto-Regular.ttf"));
+        REQUIRE(bytes.HasValue());
+        REQUIRE(WriteFile(scratch.AsView(), Span<const byte>{bytes.Value().Data(), bytes.Value().Size()}).IsOk());
+    }
+    TrueTypeFontService gone(DefaultAllocator());
+    REQUIRE(gone.LoadFont(u8"Gone", scratch.AsView()) == FontLoadResult::Success);
+    FileDelete(scratch.AsView());
+    CachedFont* first = gone.GetFont(u8"Gone", 33.0f);
+    CachedFont* second = gone.GetFont(u8"Gone", 33.0f);
+    REQUIRE(first != nullptr); // the closest bake answers
+    CHECK(first == second);
+    CHECK(gone.FailedBakeCount() == 1u);
+}

@@ -301,7 +301,9 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
   height (xMidYMid meet); fill-rule parsed and inherited, nonzero by default, passed to fills and
   gradient fills; a number past a float's range refused.
 - **A failed font bake is retried on every `GetFont`, and fonts are never evicted.**
-  `TrueTypeFontService.cppm:121, 243`.
+  `TrueTypeFontService.cppm:121, 243`. Built 2026-11-16: a failed size is remembered per family;
+  rather than evicting (the GUI holds fonts by raw pointer, uncounted), entries are bounded: 24
+  bakes and 64 scaled views a family, views at quarter-pixel sizes, the closest serving the rest.
 - **GraphView's "Add transition" is cancelled by its own release.** `GraphView.cppm:2201, 912`.
 - **DockSpace rebuilds a kept entry on every `ShowLayout`.** `DockSpace.cppm:822-826`.
 - **A multi-caret paste keeps a trailing CR.** `CodeEditor.cppm:3264`, `CodeDocument.cppm:521`.

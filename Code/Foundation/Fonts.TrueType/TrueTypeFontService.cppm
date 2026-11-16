@@ -101,6 +101,10 @@ export namespace foundation::fonts
             return GetFont(m_defaultFontFamily, pixelHeight);
         }
 
+        /// The fonts it holds (each bake and each scaled view), and the sizes that would not bake.
+        [[nodiscard]] usize EntryCount() const noexcept { return m_fonts.Size(); }
+        [[nodiscard]] usize FailedBakeCount() const noexcept { return m_failedBakes.Size(); }
+
         [[nodiscard]] CachedFont* GetFont(StringView familyName, f32 pixelHeight) override
         {
             if (const FontEntry* exact = FindExact(familyName, pixelHeight))
@@ -113,7 +117,15 @@ export namespace foundation::fonts
                     closest->cachedFont->atlas->Mode() == AtlasMode::DistanceField &&
                     closest->pixelHeight != pixelHeight)
                 {
-                    return SynthesizeScaled(*closest, familyName, pixelHeight);
+                    // Sizes to a quarter pixel, and so many to a family: entries are never freed
+                    // (the GUI holds them without counting), so a size that animates must not
+                    // leave one behind for every value it passes through.
+                    const f32 quantized = Round(pixelHeight * 4.0f) * 0.25f;
+                    if (const FontEntry* near = FindExact(familyName, quantized))
+                        return near->cachedFont;
+                    if (CountEntries(familyName, /*views=*/true) >= kMaxScaledViews)
+                        return closest->cachedFont;
+                    return SynthesizeScaled(*closest, familyName, quantized);
                 }
                 // A coverage atlas holds glyphs at its one size, so text drawn from it comes out
                 // at the bake's size whatever was asked. Bake the size asked for, once, from the
@@ -260,6 +272,17 @@ export namespace foundation::fonts
             {
                 return exact->cachedFont;
             }
+            // A size that would not bake is not tried again on every request for it, and a family
+            // bakes so many sizes before the closest serves the rest (bakes are never freed).
+            for (const FailedBake& failed : m_failedBakes)
+            {
+                if (failed.size == rounded && FamilyEquals(failed.family, familyName))
+                    return nullptr;
+            }
+            if (CountEntries(familyName, /*views=*/false) >= kMaxBakedSizes)
+            {
+                return nullptr;
+            }
             FontLoadOptions options = source->options;
             options.pixelHeight = rounded;
             // The atlas the family loaded with, grown with the size (glyph area goes with its square).
@@ -290,6 +313,7 @@ export namespace foundation::fonts
                 }
                 if (result != FontLoadResult::AtlasPackingFailed || side >= 4096u)
                 {
+                    m_failedBakes.PushBack(FailedBake{String(familyName), rounded});
                     return nullptr;
                 }
             }
@@ -303,6 +327,27 @@ export namespace foundation::fonts
             foundation::image::OwnedImageData* texture = nullptr; // owned unless sharedTexture
             bool sharedTexture = false; // scaled-view entry: texture belongs to the base entry
         };
+
+        // A size of a family that failed to bake (BakeSize does not try it again).
+        struct FailedBake
+        {
+            String family;
+            f32 size = 0.0f;
+        };
+        static constexpr usize kMaxBakedSizes = 24;  // coverage sizes baked per family
+        static constexpr usize kMaxScaledViews = 64; // distance-field views per family
+
+        // The family's entries: its scaled views (`views`) or its own bakes.
+        [[nodiscard]] usize CountEntries(StringView familyName, bool views) const
+        {
+            usize count = 0;
+            for (const FontEntry* entry : m_fonts)
+            {
+                if (entry->sharedTexture == views && FamilyEquals(entry->family, familyName))
+                    ++count;
+            }
+            return count;
+        }
 
         void DeleteEntry(FontEntry* entry)
         {
@@ -435,6 +480,7 @@ export namespace foundation::fonts
         foundation::vfs::IFileSystem* m_fileSystem = nullptr; // non-owning
         Array<FontEntry*> m_fonts;
         Array<FamilySource> m_sources; // each family's first load, to bake more sizes from
+        Array<FailedBake> m_failedBakes;
         String m_defaultFontFamily = String(u8"Default");
         CachedFont* m_defaultFont = nullptr;
         f32 m_defaultFontSize = 16;
