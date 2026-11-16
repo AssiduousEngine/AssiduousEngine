@@ -198,7 +198,8 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
 
 - **The web shell has no blur handler, and a mouse release outside the canvas is lost.**
   `WebInput.cppm:396-411`. Fix: blur and visibility release every key and button; mouseup on the
-  window. (Checked in a browser; no native suite runs the web shell.)
+  window. (Checked in a browser; no native suite runs the web shell.) Built 2026-11-15; the
+  browser check is the user's.
 - **Actions read a frame late, fixed-step edges drop or double, quick taps are lost, and every
   action reads pressed before the first update.** `ActionRuntime.cppm:536-540, 583-584, 684, 733,
   777, 1135`; `InputSubsystem.cppm:159`; `DefaultApplicationImpl.cpp:125`. Tests: one per symptom.

@@ -402,7 +402,13 @@ export namespace foundation::shell
             emscripten_set_keyup_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, this, EM_TRUE, &OnKey);
             emscripten_set_mousemove_callback(canvas, this, EM_TRUE, &OnMouseMove);
             emscripten_set_mousedown_callback(canvas, this, EM_TRUE, &OnMouseButton);
-            emscripten_set_mouseup_callback(canvas, this, EM_TRUE, &OnMouseButton);
+            // The release on the window: a drag that leaves the canvas lets go out there, and only
+            // the window hears it (a button never released stays held in the game).
+            emscripten_set_mouseup_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, this, EM_FALSE, &OnMouseButton);
+            // Focus leaving the page, or the page hidden: the releases that follow go elsewhere,
+            // so whatever is held is let go now (no key stuck down after an Alt+Tab).
+            emscripten_set_blur_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, this, EM_FALSE, &OnBlur);
+            emscripten_set_visibilitychange_callback(this, EM_FALSE, &OnVisibilityChange);
             emscripten_set_wheel_callback(canvas, this, EM_TRUE, &OnWheel);
             emscripten_set_touchstart_callback(canvas, this, EM_TRUE, &OnTouch);
             emscripten_set_touchmove_callback(canvas, this, EM_TRUE, &OnTouch);
@@ -472,7 +478,8 @@ export namespace foundation::shell
                 MouseMove,
                 MouseButton,
                 Wheel,
-                Touch
+                Touch,
+                ReleaseAll // focus or visibility lost
             } type{};
             KeyCode key{};
             KeyModifiers mods{};
@@ -519,6 +526,12 @@ export namespace foundation::shell
             }
             case RawEvent::Type::MouseButton:
             {
+                // A release heard on the window for a button the canvas never pressed: a click
+                // on the page around it, nothing of the game's.
+                if (!r.down && !m_mouse.IsButtonDown(static_cast<MouseButton>(r.button)))
+                {
+                    break;
+                }
                 m_mouse.OnButton(r.button, r.down);
                 InputEvent e;
                 e.kind = r.down ? InputEventKind::MouseButtonDown : InputEventKind::MouseButtonUp;
@@ -568,7 +581,47 @@ export namespace foundation::shell
                 CopyFingerToMouse(r.touchId, r.touchPhase, px, py);
                 break;
             }
+            case RawEvent::Type::ReleaseAll:
+                ReleaseAll();
+                break;
             }
+        }
+
+        // Every held key, button and finger lets go, with the events a real release brings.
+        void ReleaseAll()
+        {
+            TouchPoint point;
+            while (m_touch.GetTouchPoint(0, point))
+            {
+                RawEvent up;
+                up.type = RawEvent::Type::Touch;
+                up.touchId = point.id;
+                up.touchPhase = 2;
+                up.x = m_pointerScaleX > 0.0f ? point.pointerX / m_pointerScaleX : 0.0f;
+                up.y = m_pointerScaleY > 0.0f ? point.pointerY / m_pointerScaleY : 0.0f;
+                Apply(up);
+            }
+            for (core::u32 b = 0; b < static_cast<core::u32>(MouseButton::Count); ++b)
+            {
+                if (m_mouse.IsButtonDown(static_cast<MouseButton>(b)))
+                {
+                    RawEvent up;
+                    up.type = RawEvent::Type::MouseButton;
+                    up.button = b;
+                    Apply(up);
+                }
+            }
+            for (core::u32 k = 0; k < static_cast<core::u32>(KeyCode::Count); ++k)
+            {
+                if (m_keyboard.IsKeyDown(static_cast<KeyCode>(k)))
+                {
+                    RawEvent up;
+                    up.type = RawEvent::Type::Key;
+                    up.key = static_cast<KeyCode>(k);
+                    Apply(up);
+                }
+            }
+            m_keyboard.SetModifiers(KeyModifiers::None);
         }
 
         // The first finger down is the mouse too, its left button held while it is: as SDL copies a
@@ -720,6 +773,25 @@ export namespace foundation::shell
             r.mods = ModsFrom(e);
             self->m_queue.PushBack(r);
             return EM_TRUE;
+        }
+        static EM_BOOL OnBlur(int, const EmscriptenFocusEvent*, void* userData)
+        {
+            auto* self = static_cast<WebInputManager*>(userData);
+            RawEvent r;
+            r.type = RawEvent::Type::ReleaseAll;
+            self->m_queue.PushBack(r);
+            return EM_FALSE;
+        }
+        static EM_BOOL OnVisibilityChange(int, const EmscriptenVisibilityChangeEvent* e, void* userData)
+        {
+            if (e->hidden)
+            {
+                auto* self = static_cast<WebInputManager*>(userData);
+                RawEvent r;
+                r.type = RawEvent::Type::ReleaseAll;
+                self->m_queue.PushBack(r);
+            }
+            return EM_FALSE;
         }
         static EM_BOOL OnWheel(int, const EmscriptenWheelEvent* e, void* userData)
         {
