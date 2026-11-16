@@ -155,7 +155,8 @@ Each item: what is wrong, where (today's lines), the test that fails now, the fi
 
 - **A navmesh of more than 256 tiles never loads.** `NavigationImpl.cpp:775-776`. Test: bake a
   17x17 grid, it loads. Fix: `DT_POLYREF64`, or tile and poly bits sized to the bake. Built
-  2026-11-15 (`DT_POLYREF64`).
+  2026-11-15: poly bits sized to the grid (`DT_POLYREF64` was tried and dropped: it
+  changes the cooked tile layout).
 - **Trigger exit, sleep and sub-shape contacts.** `PhysicsWorldImpl.cpp:459-487`; the bridge
   `ScriptPhysicsContactBridge.cpp:38-45`. Tests: a body through a sensor raises onTriggerExit; a box
   settling raises no onContactEnd; a two-child compound raises one Begin. Fix: kind from the sensor
