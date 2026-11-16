@@ -133,17 +133,20 @@ export namespace foundation::rhi::dx12
             }
             if (m_cachedSamplerCount > 0)
             {
-                m_samplerOffset = cpuSamplerHeap->allocate(m_cachedSamplerCount);
-                if (m_samplerOffset < 0)
-                    return ErrorCode::Unknown;
                 // Samplers are baked into the shader-visible heap once, at creation (the
                 // bind group is immutable), and SetBindGroup binds this table directly. The
                 // heap's hard 2048 cap cannot fit per-draw copy-on-bind staging, so
                 // samplers (unlike CBV/SRV/UAV tables) never go through staging. A group whose
                 // samplers are all given shares its table with every group of the same ones; one
                 // with bindless sampler ranges (rewritten in place) keeps its own.
+                // Only a group with its own table takes slots in the CPU sampler heap (as big as the
+                // shader-visible one): a group sharing a table takes none, or the 2049th group of one
+                // sampler failed there though its table was shared.
                 if (!AcquireSharedSamplers(d))
                 {
+                    m_samplerOffset = cpuSamplerHeap->allocate(m_cachedSamplerCount);
+                    if (m_samplerOffset < 0)
+                        return ErrorCode::Unknown;
                     m_gpuSamplerOffset = gpuSamplerHeap->allocate(m_cachedSamplerCount);
                     if (m_gpuSamplerOffset < 0)
                         return ErrorCode::Unknown;
@@ -386,13 +389,11 @@ export namespace foundation::rhi::dx12
         void writeSampler(const BindGroupEntry& e, const DxBindingRangeInfo& r, u32 arrayIdx = 0)
         {
             auto* s = static_cast<DxSamplerImpl*>(e.sampler);
-            if (!s)
-                return;
+            if (!s || m_sharedSamplers)
+                return; // a shared table was written when it was made
             u32 off = static_cast<u32>(m_samplerOffset) + r.heapOffset + arrayIdx;
             m_device->CopyDescriptorsSimple(1, m_cpuSamplerHeap->getCpuHandle(off), s->handle(),
                                             D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
-            if (m_sharedSamplers)
-                return; // the shared table was written when it was made
             // Mirror into the baked shader-visible table (bound directly at SetBindGroup).
             u32 gpuOff = static_cast<u32>(m_gpuSamplerOffset) + r.heapOffset + arrayIdx;
             m_device->CopyDescriptorsSimple(1, m_gpuSamplerHeap->getCpuHandle(gpuOff), s->handle(),
