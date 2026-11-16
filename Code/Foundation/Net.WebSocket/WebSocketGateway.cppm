@@ -168,6 +168,10 @@ export namespace foundation::net
         WebSocketServerGateway(const WebSocketServerGateway&) = delete;
         WebSocketServerGateway& operator=(const WebSocketServerGateway&) = delete;
 
+        /// Most clients connected at once (accepted connections past it are closed); a host sets it
+        /// to its session's ReliableConfig::maxPeers, which it is by default.
+        void SetMaxClients(u32 count) noexcept;
+
         [[nodiscard]] bool IsOpen() const noexcept;
         [[nodiscard]] u16 BoundPort() const noexcept;
         [[nodiscard]] bool IsSecure() const noexcept;

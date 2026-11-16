@@ -472,7 +472,7 @@ namespace foundation::net
         Array<WsGatewayEvent> events;
         usize eventHead = 0;
         u32 nextClientId = 1;
-        static constexpr usize kMaxClients = 64;
+        usize maxClients = ReliableConfig{}.maxPeers; // SetMaxClients: the session's own limit
         f64 handshakeSeconds = WebSocketServerGateway::kHandshakeSeconds;
         f64 idleSeconds = WebSocketServerGateway::kIdleSeconds;
 
@@ -643,6 +643,11 @@ namespace foundation::net
         }
     };
 
+    void WebSocketServerGateway::SetMaxClients(u32 count) noexcept
+    {
+        m_impl->maxClients = count > 0 ? count : 1;
+    }
+
     WebSocketServerGateway::WebSocketServerGateway(IAllocator& allocator, u16 port, const WebSocketTls* tls)
         : m_impl(MakeUnique<Impl>(allocator, allocator, port))
     {
@@ -693,7 +698,7 @@ namespace foundation::net
             {
                 break;
             }
-            if (impl.clients.Size() >= Impl::kMaxClients)
+            if (impl.clients.Size() >= impl.maxClients)
             {
                 continue; // over cap: drop (RAII closes)
             }

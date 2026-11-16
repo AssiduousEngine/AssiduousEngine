@@ -706,3 +706,20 @@ TEST_CASE("websocket: the frame parser keeps only what is not parsed yet, howeve
     CHECK(parser.HeldBytes() == half);
     CHECK(parser.BufferBytes() <= 2 * frame.Size());
 }
+
+TEST_CASE("websocket: the gateway holds as many clients as it is set to, and no more")
+{
+    // The cap was a constant 64, apart from the session's own peer limit; a host now sets it to
+    // that limit.
+    net::WebSocketServerGateway gateway(DefaultAllocator(), 0);
+    REQUIRE(gateway.IsOpen());
+    gateway.SetMaxClients(2);
+    net::TcpSocket a = net::TcpSocket::Connect(u8"127.0.0.1", gateway.BoundPort());
+    net::TcpSocket b = net::TcpSocket::Connect(u8"127.0.0.1", gateway.BoundPort());
+    net::TcpSocket c = net::TcpSocket::Connect(u8"127.0.0.1", gateway.BoundPort());
+    REQUIRE(a.IsOpen());
+    REQUIRE(b.IsOpen());
+    REQUIRE(c.IsOpen());
+    PumpFor(gateway, 100);
+    CHECK(gateway.ClientCount() == 2u);
+}

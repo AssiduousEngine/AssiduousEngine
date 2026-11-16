@@ -86,6 +86,7 @@ namespace foundation::net
             // one session behind one datagram socket.
             UniquePtr<WebSocketHybridSocket> hybrid =
                 MakeUnique<WebSocketHybridSocket>(allocator, allocator, port, webSocketPort, webSocketTls);
+            hybrid->Gateway().SetMaxClients(config.maxPeers); // browser peers count against the session's limit
             if (!hybrid->IsOpen())
             {
                 if (!hybrid->Gateway().Failure().IsEmpty())
