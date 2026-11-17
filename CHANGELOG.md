@@ -12,7 +12,7 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Scripts: `Input.lockPointer(true)` locks the pointer for mouse look (hidden, held in place, only
   its movement read) and `Input.pointerLocked()` says whether it is; `lockPointer(false)` frees it,
   and a run's end does too. On the web the lock takes effect at the next click, and the browser's
-  Escape ends it.
+  Escape ends it. The lock carries through an MCP `pie_run`, so its mouse moves turn the view.
 - Scene physics settings hold the world's budgets (most bodies, body pairs, contact constraints),
   4096, 4096 and 2048 by default as before.
 - Networking: `Net.setRelevanceRadius(r)` on the host sends each player only the networked

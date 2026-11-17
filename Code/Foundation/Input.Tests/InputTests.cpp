@@ -1375,6 +1375,42 @@ TEST_CASE("input: a surface whose game locked the pointer keeps its movement whe
     CHECK(game.Mouse()->DeltaX() == doctest::Approx(0.0f));
 }
 
+// A host that swaps its devices while a lock holds (the editor's scripted input for a test run, in
+// and out): the new mouse is locked as asked, so the lock does not read as ended by the host.
+TEST_CASE("input.runtime: a pointer lock follows the host onto another mouse")
+{
+    ActionRuntime runtime;
+    runtime.SetMap(MakeGameplayMap());
+    FakeDevices first;
+    FakeDevices second;
+
+    runtime.SetPointerLock(true);
+    runtime.Update(first, 1.0f / 60.0f);
+    REQUIRE(runtime.PointerLocked());
+
+    runtime.Update(second, 1.0f / 60.0f);
+    CHECK(second.mouse.relative);
+    CHECK_FALSE(second.mouse.cursorVisible);
+    CHECK(runtime.PointerLocked());
+
+    // Freed on the second and back on the first: the first is freed too.
+    runtime.SetPointerLock(false);
+    runtime.Update(second, 1.0f / 60.0f);
+    CHECK_FALSE(second.mouse.relative);
+    runtime.Update(first, 1.0f / 60.0f);
+    CHECK_FALSE(first.mouse.relative);
+    CHECK(first.mouse.cursorVisible);
+
+    // A runtime that never locked leaves a new mouse as it is.
+    ActionRuntime other;
+    other.SetMap(MakeGameplayMap());
+    FakeDevices third;
+    third.mouse.relative = true;
+    other.Update(first, 1.0f / 60.0f);
+    other.Update(third, 1.0f / 60.0f);
+    CHECK(third.mouse.relative);
+}
+
 TEST_CASE("input.runtime: a pointer lock waits for the next update, holds until freed, and reads what the host grants")
 {
     ActionRuntime runtime;

@@ -517,6 +517,8 @@ export namespace foundation::input
             m_pointerLockAsked = false;
             m_pointerLockApplied = false;
             m_pointerLocked = false;
+            m_pointerLockMouse = nullptr;
+            m_pointerLockUsed = false;
         }
 
         /// Every action's name, value and held state on one line, "Move=(0,1) Jump=(1,0) down":
@@ -1214,6 +1216,8 @@ export namespace foundation::input
         bool m_pointerLockAsked = false;   // SetPointerLock
         bool m_pointerLockApplied = false; // what the last Update told the mouse
         bool m_pointerLocked = false;      // asked and granted, as of the last Update
+        const shell::IMouse* m_pointerLockMouse = nullptr; // the last Update's mouse, compared only
+        bool m_pointerLockUsed = false;    // a lock was applied since the last ResetPointerLock
         void ApplyPointerLock(IInputSourceProvider& devices)
         {
             shell::IMouse* mouse = devices.Mouse();
@@ -1222,7 +1226,19 @@ export namespace foundation::input
                 m_pointerLocked = false;
                 return;
             }
-            if (m_pointerLockAsked != m_pointerLockApplied)
+            // Another mouse (the host swapped its devices: a scripted run's in or out) has not been
+            // told: once this runtime has locked, it gets the lock as asked, rather than a lock
+            // reading as ended by the host or a freed one staying held.
+            const bool newMouse = mouse != m_pointerLockMouse;
+            m_pointerLockMouse = mouse;
+            m_pointerLockUsed = m_pointerLockUsed || m_pointerLockAsked;
+            if (newMouse && m_pointerLockUsed)
+            {
+                mouse->SetRelativeMode(m_pointerLockAsked);
+                mouse->SetCursorVisible(!m_pointerLockAsked);
+                m_pointerLockApplied = m_pointerLockAsked;
+            }
+            else if (m_pointerLockAsked != m_pointerLockApplied)
             {
                 mouse->SetRelativeMode(m_pointerLockAsked);
                 mouse->SetCursorVisible(!m_pointerLockAsked);
