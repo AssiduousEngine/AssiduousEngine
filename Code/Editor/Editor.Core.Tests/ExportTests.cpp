@@ -3908,3 +3908,69 @@ TEST_CASE("export: the editor's Android SDK and JDK stand in for the environment
     editor::EditorExportSettings none;
     editor::ApplyExportToolEnvironment(none, was);
 }
+
+namespace
+{
+    // C#'s project build as the export sees it: its project file's extension (the build itself is
+    // not run here).
+    class StandInCSharpProjects final : public pipeline::IScriptAssemblyCook
+    {
+    public:
+        [[nodiscard]] StringView ProjectExtension() const override { return u8"csproj"; }
+        [[nodiscard]] StringView SourceExtension() const override { return u8"cs"; }
+        [[nodiscard]] bool Build(StringView, StringView, Span<const pipeline::ScriptAssemblyFile>, pipeline::CookScriptErrorSink&,
+                                 foundation::script::ScriptAssemblySource&) override
+        {
+            return false;
+        }
+        [[nodiscard]] String NewProjectTemplate(StringView) const override { return String{}; }
+    };
+}
+
+// A project with C# runs it compiled into its own player: the export's choice is a built player
+// (so a template export is refused and told to export natively), its C# folder the one holding the
+// project file; two C# projects, an Android or a web preset are refused with the reason.
+TEST_CASE("export: a project with C# needs its own player")
+{
+    pipeline::ScriptAssemblyCookRegistry::Get().Register(String(u8"csharp"), MakeUnique<StandInCSharpProjects>(DefaultAllocator()));
+    const String projectDir = TempDir(u8"scratch_export_csharp_proj");
+    NukeTree(projectDir.AsView());
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), projectDir.AsView(), u8"CSharp Export").IsOk());
+    UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), projectDir.AsView());
+    REQUIRE(project);
+    editor::ExportTemplate tmpl;
+    tmpl.id = String(u8"test-template");
+    const StringView host = GetHostPlatformName();
+
+    // No C#: the template's player.
+    String folder;
+    String refusal;
+    CHECK_FALSE(editor::detail::FindScriptProjectFolder(*project, folder, refusal));
+    CHECK_FALSE(editor::detail::ChoosePlayer(*project, tmpl, host).build);
+
+    const String sources = PathJoin(projectDir.AsView(), u8"Sources");
+    REQUIRE(CreateDirectories(PathJoin(sources.AsView(), u8"Game/Actors").AsView()));
+    REQUIRE(CreateDirectories(PathJoin(sources.AsView(), u8"Game/bin").AsView()));
+    foundation::vfs::NativeFileSystem sourceFs(sources.AsView(), foundation::core::DefaultAllocator());
+    SaveText(sourceFs, u8"Game/Game.csproj", u8"<Project />");
+    SaveText(sourceFs, u8"Game/bin/Copy.csproj", u8"<Project />"); // an IDE's build output: not a project
+    SaveText(sourceFs, u8"Game/Actors/Mover.cs", u8"public class Mover {}");
+    REQUIRE(editor::detail::FindScriptProjectFolder(*project, folder, refusal));
+    CHECK(refusal.IsEmpty());
+    CHECK(folder == PathJoin(sources.AsView(), u8"Game"));
+    editor::detail::PlayerChoice choice = editor::detail::ChoosePlayer(*project, tmpl, host);
+    CHECK(choice.refusal.IsEmpty());
+    CHECK(choice.build);
+    CHECK(choice.reason.AsView().Contains(u8"C#"));
+
+    // Not on Android, not on the web yet.
+    CHECK(editor::detail::ChoosePlayer(*project, tmpl, u8"Android64").refusal.AsView().Contains(u8"Android"));
+    CHECK(editor::detail::ChoosePlayer(*project, tmpl, u8"Web").refusal.AsView().Contains(u8"web"));
+
+    // Two C# projects: a player compiles one in.
+    SaveText(sourceFs, u8"Tools.csproj", u8"<Project />");
+    CHECK(editor::detail::ChoosePlayer(*project, tmpl, host).refusal.AsView().Contains(u8"2 C# projects"));
+
+    project.Reset();
+    NukeTree(projectDir.AsView());
+}

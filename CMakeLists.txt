@@ -68,6 +68,10 @@ set(ENGINE_PROJECT_PLUGINS "" CACHE STRING "A project's plugin package folders, 
 # Engine.GamePlayer with no packages of the project's: the engine's plugins alone, for an export whose
 # template does not carry a plugin the project enables. The exporter sets it.
 option(ENGINE_GAME_PLAYER "Build Engine.GamePlayer, the project's player, without packages of its own" OFF)
+# A project's C#: the folder holding its .csproj, compiled ahead of time (with the engine's managed
+# runtime) into Engine.GamePlayer. The exporter sets it, with OPTION_ENABLE_DOTNET, for a native
+# export of a project with C#. Desktop.
+set(ENGINE_PROJECT_CSHARP "" CACHE PATH "A project's C# folder (its .csproj's), compiled into Engine.GamePlayer")
 # The GitHub repository (owner/name) whose releases carry what an editor downloads for its own
 # version, such as the sample games: release v<project VERSION> of it. Stamped into engine.project.
 set(ENGINE_RELEASE_REPOSITORY "AssiduousEngine/AssiduousEngine" CACHE STRING "GitHub owner/name whose releases carry the editor's downloads (the sample games)")
@@ -1054,4 +1058,11 @@ if(ENGINE_PROJECT_PLUGINS)
     util_add_project_plugins(${ENGINE_PROJECT_PLUGINS})
 elseif(TARGET Engine.GamePlayer)
     util_link_plugins(Engine.GamePlayer ROLE player PLUGINS ${UTIL_HOST_PLUGINS})
+endif()
+# A project's C#, compiled ahead of time into its player.
+if(ENGINE_PROJECT_CSHARP AND TARGET Engine.GamePlayer)
+    if(NOT DOTNET_SCRIPTING)
+        message(FATAL_ERROR "ENGINE_PROJECT_CSHARP needs OPTION_ENABLE_DOTNET (and a desktop build)")
+    endif()
+    dotnet_link_compiled_runtime(Engine.GamePlayer Game "${ENGINE_PROJECT_CSHARP}")
 endif()
