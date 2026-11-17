@@ -810,6 +810,12 @@ export namespace pipeline{
 
         /// The project file a project named `name` starts with.
         [[nodiscard]] virtual String NewProjectTemplate(StringView name) const = 0;
+
+        /// Files this machine's tools read beside a project (an IDE's path to the engine), each a
+        /// path relative to the project's folder and its text. Written when the project is made and
+        /// at every cook, they keep the project file itself free of any one machine's paths; never
+        /// an input to the build, and kept out of version control. None by default.
+        [[nodiscard]] virtual Array<ScriptAssemblyFile> LocalFiles() const { return {}; }
     };
 
     class ScriptAssemblyCookRegistry
@@ -1223,6 +1229,7 @@ export namespace pipeline{
                 }
                 sources.PushBack(Move(source));
             }
+            WriteLocalFiles(*cook, ctx, PathParent(project.fileName.View()));
             ScriptAssemblySource built;
             built.language = project.language;
             CookScriptErrorSink sink;
@@ -1245,6 +1252,32 @@ export namespace pipeline{
                 return Status{ErrorCode::InvalidArgument}; // nothing written: the last good assembly stays
             }
             return ctx.output->WriteObject(built);
+        }
+
+    private:
+        // The cook's local files beside the project, written only when they differ, so a cook that
+        // changes nothing touches nothing a file watcher sees.
+        static void WriteLocalFiles(const IScriptAssemblyCook& cook, pipeline::AssetBuildContext& ctx, StringView folder)
+        {
+            foundation::vfs::IWritableFileSystem* writable = ctx.sources->AsWritable();
+            if (writable == nullptr)
+            {
+                return;
+            }
+            for (const ScriptAssemblyFile& file : cook.LocalFiles())
+            {
+                const String path = folder.IsEmpty() ? file.path : PathJoin(folder, file.path.AsView());
+                String current;
+                if (ReadSourceText(ctx, path.AsView(), current).IsOk() && current == file.text)
+                {
+                    continue;
+                }
+                if (!writable->Save(path.AsView(), Span<const byte>(reinterpret_cast<const byte*>(file.text.Data()), file.text.Size()))
+                         .IsOk())
+                {
+                    LOG_WARNING(u8"Script", u8"'{}': could not write '{}' beside the project", folder, path);
+                }
+            }
         }
     };
 

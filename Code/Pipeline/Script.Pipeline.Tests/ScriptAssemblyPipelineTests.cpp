@@ -60,6 +60,15 @@ namespace
             return true;
         }
         [[nodiscard]] String NewProjectTemplate(StringView) const override { return String(u8"project"); }
+        [[nodiscard]] Array<ScriptAssemblyFile> LocalFiles() const override
+        {
+            ScriptAssemblyFile file;
+            file.path = String(u8"obj/Local.txt");
+            file.text = String(u8"this machine");
+            Array<ScriptAssemblyFile> files;
+            files.PushBack(Move(file));
+            return files;
+        }
     };
 
     class StandInClassCook final : public IScriptLanguageCook
@@ -294,4 +303,41 @@ TEST_CASE("script assembly: a project that does not build writes nothing, and it
     CHECK(importer.Accepts(u8"siproj"));
     CHECK_FALSE(importer.Accepts(u8"si"));
     CHECK(importer.AssetTypeName(u8"Game.siproj") == StringView(u8"ScriptAssemblyAsset"));
+}
+
+TEST_CASE("script assembly: a project's local files are written beside it when it is made and at each cook")
+{
+    Bed bed;
+    const String src = PathAbsolute(PathJoin(bed.root.AsView(), u8"src").AsView());
+    const auto read = [](StringView path)
+    {
+        Result<Array<byte>> bytes = ReadFile(path);
+        return bytes.HasValue() ? String(StringView(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size()))
+                                : String{};
+    };
+
+    // Made: the project file and, beside it, the cook's local files.
+    AssetCreationContext context;
+    context.root = bed.sourceDb->RootGroup();
+    context.sourcesRoot = src.AsView();
+    context.name = u8"Made";
+    REQUIRE(CreateScriptProjectInstance(context, kLanguage, u8".siproj") != nullptr);
+    CHECK(FileExists(PathJoin(src.AsView(), u8"Made.siproj").AsView()));
+    CHECK(read(PathJoin(src.AsView(), u8"obj/Local.txt").AsView()) == StringView(u8"this machine"));
+
+    // Cooked: written beside the project's file, and written again when it is no longer what the
+    // cook would write (another machine's, or edited).
+    bed.Write(u8"Game/Game.siproj", u8"project");
+    bed.Write(u8"Game/Player.si", u8"class Player");
+    content::Instance* game = bed.AddProject(u8"Game", u8"Game/Game.siproj");
+    REQUIRE(bed.BuildProject(game).IsOk());
+    const String local = PathJoin(src.AsView(), u8"Game/obj/Local.txt");
+    CHECK(read(local.AsView()) == StringView(u8"this machine"));
+    bed.Write(u8"Game/obj/Local.txt", u8"another machine");
+    REQUIRE(bed.BuildProject(game).IsOk());
+    CHECK(read(local.AsView()) == StringView(u8"this machine"));
+
+    // Never an input: the project still builds only its sources.
+    RefPtr<ISerializable> record = bed.outputDb->GetInstance(game->Id())->ReadObject();
+    CHECK(ImageText(*Cast<ScriptAssemblySource>(record.Get())) == StringView(u8"Game/Player.si;"));
 }

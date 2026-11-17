@@ -65,7 +65,20 @@ namespace pipeline
         ScriptAssemblyAsset asset;
         asset.language = String(languageId);
         const String project = cook->NewProjectTemplate(ClassNameFor(name.AsView(), u8"Game").AsView());
-        return CreateLinkedTextAsset(named, u8"Game", dottedExtension, project.AsView(), ScriptAssemblyAsset::StaticType(), asset);
+        foundation::content::Instance* created =
+            CreateLinkedTextAsset(named, u8"Game", dottedExtension, project.AsView(), ScriptAssemblyAsset::StaticType(), asset);
+        // The project file lands in the sources folder; its local files go beside it, so the project
+        // opens in an IDE at once rather than after its first cook.
+        if (created != nullptr)
+        {
+            for (const ScriptAssemblyFile& file : cook->LocalFiles())
+            {
+                const String path = PathJoin(context.sourcesRoot, file.path.AsView());
+                (void)CreateDirectories(PathParent(path.AsView()));
+                (void)WriteFile(path.AsView(), Span<const byte>(reinterpret_cast<const byte*>(file.text.Data()), file.text.Size()));
+            }
+        }
+        return created;
     }
 
     usize RegisterScriptCreators(AssetCreatorRegistry& registry)
