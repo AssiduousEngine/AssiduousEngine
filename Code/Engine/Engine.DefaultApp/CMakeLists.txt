@@ -33,7 +33,7 @@ target_link_libraries(Engine.DefaultApp
 target_link_libraries(Engine.DefaultApp PUBLIC
     ${SCRIPTLIB_ANGELSCRIPT} ${SCRIPTLIB_LUAU} ${SCRIPTLIB_DOTNET})
 # C# (OPTION_ENABLE_DOTNET, desktop): the managed runtime it runs in is built beside the binaries.
-if(DOTNET_SCRIPTING)
+if(DOTNET_SCRIPTING AND NOT EMSCRIPTEN)
     add_dependencies(Engine.DefaultApp DotNet.Runtime)
 endif()
 
