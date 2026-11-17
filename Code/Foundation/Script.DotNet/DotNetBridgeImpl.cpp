@@ -78,6 +78,36 @@ namespace foundation::script::dotnet
             return out;
         }
 
+        // An enum value's underlying integer, read by its width.
+        i64 EnumInt(const TypeInfo& type, const void* data)
+        {
+            switch (type.size)
+            {
+            case 1:
+                return *static_cast<const i8*>(data);
+            case 2:
+            {
+                i16 value = 0;
+                std::memcpy(&value, data, sizeof(value));
+                return value;
+            }
+            case 4:
+            {
+                i32 value = 0;
+                std::memcpy(&value, data, sizeof(value));
+                return value;
+            }
+            case 8:
+            {
+                i64 value = 0;
+                std::memcpy(&value, data, sizeof(value));
+                return value;
+            }
+            default:
+                return 0;
+            }
+        }
+
         const MethodInfo* MethodAt(const TypeInfo* type, u32 index)
         {
             return (type != nullptr && index < type->methodCount) ? &type->methods[index] : nullptr;
@@ -183,6 +213,10 @@ namespace foundation::script::dotnet
                 return Variant{};
             if (Variant scalar = ScalarVariant(*value.type, value.data); !scalar.IsEmpty())
                 return scalar;
+            // An enum crosses as its underlying integer, as from the other script languages: the
+            // call converts it back, and an enum records no value operations to copy it by.
+            if (value.type->enumeratorCount > 0)
+                return Variant::From<i64>(EnumInt(*value.type, value.data));
             return Variant::CopyOf(*value.type, value.data);
         case DotNetValueKind::Text:
             return Variant::From<String>(

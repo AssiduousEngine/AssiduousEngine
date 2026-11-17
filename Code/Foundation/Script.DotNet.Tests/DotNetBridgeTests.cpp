@@ -83,3 +83,16 @@ TEST_CASE("dotnet bridge: reflected methods and properties called through the ta
     CHECK(engine.invoke(engine.methodAt(float3, MethodIndex(*float3, u8"Cross", 2)), nullptr, args, 2, &small) < 0);
     CHECK(engine.methodAt(float3, 100000) == nullptr);
 }
+
+// An enum argument (the bindings pass its bytes under the enum's type) becomes its underlying
+// integer, as the other script languages pass it, which a reflected call converts back to the enum.
+TEST_CASE("dotnet bridge: an enum argument crosses as its underlying integer")
+{
+    RegisterCoreTypes();
+    const TypeInfo& level = GlobalTypeRegistry().Canonical(TypeOf<LogLevel>());
+    REQUIRE(level.enumeratorCount > 0);
+    LogLevel warning = LogLevel::Warning;
+    const Variant converted = ToVariant(Bytes(level, &warning));
+    REQUIRE(converted.TryGet<i64>() != nullptr);
+    CHECK(*converted.TryGet<i64>() == static_cast<i64>(LogLevel::Warning));
+}
