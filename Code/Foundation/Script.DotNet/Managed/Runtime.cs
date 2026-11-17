@@ -71,7 +71,8 @@ public static unsafe class Runtime
 
     const int kValueCapacity = 256;
 
-    // -1: it failed (a C# exception, a value with no form); -2: what was asked for is not there.
+    // An entry point returns 0 when it worked, -1 when it failed (a C# exception, a value with no
+    // form) and -2 when the class, constructor, method or field it was given does not exist.
     static int Fail(string why)
     {
         t_error = why;
@@ -88,7 +89,7 @@ public static unsafe class Runtime
 
     /// <summary>Takes the engine's table and checks the bindings' layouts against it: 0, or -1 with
     /// LastError naming the first type that differs.</summary>
-    [UnmanagedCallersOnly(EntryPoint = "assiduous_dotnet_Initialize")]
+    [UnmanagedCallersOnly(EntryPoint = "DotNetRuntime_Initialize")]
     public static int Initialize(EngineFunctions* engine)
     {
         try
@@ -121,7 +122,7 @@ public static unsafe class Runtime
     /// An image already current (one whose classes are the newest of their names) is not loaded
     /// again, so every class of a project asking for its assembly loads it once; an image loaded
     /// before and since replaced (an edit undone) loads anew.
-    [UnmanagedCallersOnly(EntryPoint = "assiduous_dotnet_LoadAssembly")]
+    [UnmanagedCallersOnly(EntryPoint = "DotNetRuntime_LoadAssembly")]
     public static int LoadAssembly(byte* image, int length, byte* symbols, int symbolsLength)
     {
         try
@@ -169,7 +170,7 @@ public static unsafe class Runtime
 
     /// <summary>Constructs the class `name` (by its public constructor of `count` parameters) with
     /// `args`; the instance is held for the engine until Release.</summary>
-    [UnmanagedCallersOnly(EntryPoint = "assiduous_dotnet_CreateInstance")]
+    [UnmanagedCallersOnly(EntryPoint = "DotNetRuntime_CreateInstance")]
     public static int CreateInstance(byte* name, int nameLength, DotNetValue* args, int count, nint* instance)
     {
         try
@@ -204,7 +205,7 @@ public static unsafe class Runtime
 
     /// <summary>Calls the instance's public method `name` of `count` parameters; "x=" sets its field
     /// or property x. The result (if any) is written to `result`, valid until the thread's next call.</summary>
-    [UnmanagedCallersOnly(EntryPoint = "assiduous_dotnet_Invoke")]
+    [UnmanagedCallersOnly(EntryPoint = "DotNetRuntime_Invoke")]
     public static int Invoke(nint instance, byte* name, int nameLength, DotNetValue* args, int count, DotNetValue* result)
     {
         try
@@ -248,7 +249,7 @@ public static unsafe class Runtime
     }
 
     /// <summary>Reads the instance's public field or property `name`.</summary>
-    [UnmanagedCallersOnly(EntryPoint = "assiduous_dotnet_GetField")]
+    [UnmanagedCallersOnly(EntryPoint = "DotNetRuntime_GetField")]
     public static int GetField(nint instance, byte* name, int nameLength, DotNetValue* result)
     {
         try
@@ -276,7 +277,7 @@ public static unsafe class Runtime
     }
 
     /// <summary>Lets the engine's hold on an instance go.</summary>
-    [UnmanagedCallersOnly(EntryPoint = "assiduous_dotnet_Release")]
+    [UnmanagedCallersOnly(EntryPoint = "DotNetRuntime_Release")]
     public static void Release(nint instance)
     {
         if (instance == 0)
@@ -304,7 +305,7 @@ public static unsafe class Runtime
 
     /// <summary>How many game assemblies are loaded: the ones in use, and the ones told to unload
     /// that the collector has not yet freed (after a full collection, which this runs).</summary>
-    [UnmanagedCallersOnly(EntryPoint = "assiduous_dotnet_LoadedAssemblyCount")]
+    [UnmanagedCallersOnly(EntryPoint = "DotNetRuntime_LoadedAssemblyCount")]
     public static int LoadedAssemblyCount()
     {
         for (int i = 0; i < 3; ++i)
@@ -318,7 +319,7 @@ public static unsafe class Runtime
 
     /// <summary>What the class `name` offers the engine (see DescribeType), an instance made with
     /// `args` to read its defaults from. Valid until the thread's next call.</summary>
-    [UnmanagedCallersOnly(EntryPoint = "assiduous_dotnet_DescribeClass")]
+    [UnmanagedCallersOnly(EntryPoint = "DotNetRuntime_DescribeClass")]
     public static int DescribeClass(byte* name, int nameLength, DotNetValue* args, int count, byte** text, int* length)
     {
         try
@@ -353,7 +354,7 @@ public static unsafe class Runtime
     /// fewest parameters, each given its type's default (an invalid Entity, a null object). A
     /// constructor that throws leaves the class's fields without defaults and adds "warning TEXT".
     /// The image loads into a context of its own, unloaded after. Valid until the thread's next call.</summary>
-    [UnmanagedCallersOnly(EntryPoint = "assiduous_dotnet_DescribeAssembly")]
+    [UnmanagedCallersOnly(EntryPoint = "DotNetRuntime_DescribeAssembly")]
     public static int DescribeAssembly(byte* image, int length, byte** text, int* textLength)
     {
         var context = new GameContext();
@@ -428,7 +429,7 @@ public static unsafe class Runtime
     }
 
     /// <summary>The reason the thread's last failed call failed, UTF-8.</summary>
-    [UnmanagedCallersOnly(EntryPoint = "assiduous_dotnet_LastError")]
+    [UnmanagedCallersOnly(EntryPoint = "DotNetRuntime_LastError")]
     public static byte* LastError(int* length)
     {
         string text = t_error ?? "";
@@ -459,7 +460,7 @@ public static unsafe class Runtime
     }
 
     /// <summary>1: the runtime is compiled into this program (the engine's stand-in answers 0).</summary>
-    [UnmanagedCallersOnly(EntryPoint = "assiduous_dotnet_Present")]
+    [UnmanagedCallersOnly(EntryPoint = "DotNetRuntime_Present")]
     public static int Present() => 1;
 
     // ---- values ----

@@ -137,7 +137,7 @@ namespace pipeline
         {
             constexpr utf8char kDigits[] = u8"0123456789abcdef";
             const u64 hash = HashBytes(projectPath.Data(), projectPath.Size());
-            String name(u8"assiduous-csharp-");
+            String name(u8"csharp-build-");
             for (i32 shift = 60; shift >= 0; shift -= 4)
                 name.PushBack(kDigits[(hash >> shift) & 0xFu]);
             return PathJoin(GetTempDirectory().AsView(), name.AsView());
