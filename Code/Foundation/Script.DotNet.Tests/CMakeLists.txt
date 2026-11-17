@@ -28,7 +28,7 @@ add_custom_command(
     COMMAND ${DOTNET_EXECUTABLE} build ${CMAKE_CURRENT_SOURCE_DIR}/TestGame/TestGame.csproj -c Debug -o ${TESTGAME_OUT}
             -p:BaseIntermediateOutputPath=${CMAKE_CURRENT_BINARY_DIR}/TestGameObj/
             -p:EngineRuntime=${RUNTIME_DIR}/Engine.Runtime.dll -nologo -v:q
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/TestGame/Mover.cs ${CMAKE_CURRENT_SOURCE_DIR}/TestGame/TestGame.csproj
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/TestGame/Mover.cs ${CMAKE_CURRENT_SOURCE_DIR}/TestGame/Game.cs ${CMAKE_CURRENT_SOURCE_DIR}/TestGame/TestGame.csproj
             ${RUNTIME_DIR}/Engine.Runtime.dll DotNet.Runtime
     COMMENT "Building the C# test game assembly")
 # The same game rebuilt with a change (REBUILT doubles Mover's speed): a second image for reload.
@@ -38,7 +38,7 @@ add_custom_command(
     COMMAND ${DOTNET_EXECUTABLE} build ${CMAKE_CURRENT_SOURCE_DIR}/TestGame/TestGame.csproj -c Debug -o ${TESTGAME_REBUILT_OUT}
             -p:BaseIntermediateOutputPath=${CMAKE_CURRENT_BINARY_DIR}/TestGameRebuiltObj/
             -p:EngineRuntime=${RUNTIME_DIR}/Engine.Runtime.dll -p:DefineConstants=REBUILT -nologo -v:q
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/TestGame/Mover.cs ${CMAKE_CURRENT_SOURCE_DIR}/TestGame/TestGame.csproj
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/TestGame/Mover.cs ${CMAKE_CURRENT_SOURCE_DIR}/TestGame/Game.cs ${CMAKE_CURRENT_SOURCE_DIR}/TestGame/TestGame.csproj
             ${RUNTIME_DIR}/Engine.Runtime.dll DotNet.Runtime
     COMMENT "Building the rebuilt C# test game assembly")
 add_custom_target(Script.DotNet.TestGame DEPENDS ${TESTGAME_OUT}/TestGame.dll ${TESTGAME_REBUILT_OUT}/TestGame.dll)
