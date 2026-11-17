@@ -42,8 +42,22 @@ public static unsafe class Runtime
             name.Name == typeof(Runtime).Assembly.GetName().Name ? typeof(Runtime).Assembly : null;
     }
 
-    static readonly List<Assembly> s_assemblies = new(); // newest last; a class is found newest first
-    static readonly Dictionary<string, Type> s_classes = new();
+    // A loaded game assembly: its context, the image's hash, and how many instances the engine holds
+    // of its classes. Once a newer assembly has taken all its class names (superseded) and the last
+    // instance goes, its context unloads.
+    sealed class GameAssembly
+    {
+        public required GameContext Context;
+        public required Assembly Assembly;
+        public required byte[] Hash;
+        public int Instances;
+        public bool Superseded;
+    }
+
+    static readonly List<GameAssembly> s_assemblies = new(); // loaded and not unloaded, newest last
+    static readonly Dictionary<string, (Type Type, GameAssembly From)> s_classes = new(); // the newest of each name
+    static readonly Dictionary<nint, GameAssembly> s_instances = new(); // the assembly of each instance held
+    static readonly List<WeakReference> s_unloaded = new(); // contexts told to unload, until collected
     static readonly Dictionary<ulong, Type> s_valueTypes = new();
     static readonly Dictionary<Type, ulong> s_valueIds = new();
     static readonly Dictionary<(Type, string, int), MethodInfo?> s_methods = new();
@@ -101,20 +115,43 @@ public static unsafe class Runtime
     /// <summary>Loads a game assembly from its image, with its debug symbols when given (a fault then
     /// names its file and line); its classes are found before those of any loaded earlier (a rebuilt
     /// assembly's class replaces its predecessor's).</summary>
+    /// An image already current (one whose classes are the newest of their names) is not loaded
+    /// again, so every class of a project asking for its assembly loads it once; an image loaded
+    /// before and since replaced (an edit undone) loads anew.
     [UnmanagedCallersOnly]
     public static int LoadAssembly(byte* image, int length, byte* symbols, int symbolsLength)
     {
         try
         {
+            byte[] hash = System.Security.Cryptography.SHA256.HashData(new ReadOnlySpan<byte>(image, length));
+            foreach (GameAssembly loaded in s_assemblies)
+                if (!loaded.Superseded && loaded.Hash.AsSpan().SequenceEqual(hash))
+                    return 0;
             var context = new GameContext();
             using var stream = new System.IO.UnmanagedMemoryStream(image, length);
             using System.IO.Stream? symbolStream = symbols != null && symbolsLength > 0 ? new System.IO.UnmanagedMemoryStream(symbols, symbolsLength) : null;
             Assembly assembly = context.LoadFromStream(stream, symbolStream);
-            s_assemblies.Add(assembly);
+            var added = new GameAssembly { Context = context, Assembly = assembly, Hash = hash };
+            s_assemblies.Add(added);
             foreach (Type type in assembly.GetTypes())
                 if (type.IsClass && !type.IsAbstract && type.IsPublic)
-                    s_classes[type.Name] = type;
+                    s_classes[type.Name] = (type, added);
             s_methods.Clear();
+            // An older assembly none of whose classes is the newest any more is superseded; with no
+            // instance left it unloads now, else when its last one goes.
+            foreach (GameAssembly older in s_assemblies.ToArray())
+            {
+                if (older == added || older.Superseded)
+                    continue;
+                bool current = false;
+                foreach ((Type _, GameAssembly from) in s_classes.Values)
+                    current = current || from == older;
+                if (current)
+                    continue;
+                older.Superseded = true;
+                if (older.Instances == 0)
+                    Unload(older);
+            }
             return 0;
         }
         catch (Exception e)
@@ -134,15 +171,18 @@ public static unsafe class Runtime
         {
             string className = Utf8(name, nameLength);
             *instance = 0;
-            if (!s_classes.TryGetValue(className, out Type? type))
+            if (!s_classes.TryGetValue(className, out (Type Type, GameAssembly From) found))
                 return Missing($"no C# class named {className} in the game's assembly");
-            foreach (ConstructorInfo constructor in type.GetConstructors())
+            foreach (ConstructorInfo constructor in found.Type.GetConstructors())
             {
                 ParameterInfo[] parameters = constructor.GetParameters();
                 if (parameters.Length != count)
                     continue;
                 object? made = constructor.Invoke(Arguments(parameters, args, count));
-                *instance = GCHandle.ToIntPtr(GCHandle.Alloc(made!));
+                nint handle = GCHandle.ToIntPtr(GCHandle.Alloc(made!));
+                s_instances[handle] = found.From;
+                found.From.Instances += 1;
+                *instance = handle;
                 return 0;
             }
             return Missing($"{className} has no public constructor of {count} parameters");
@@ -234,8 +274,39 @@ public static unsafe class Runtime
     [UnmanagedCallersOnly]
     public static void Release(nint instance)
     {
-        if (instance != 0)
-            GCHandle.FromIntPtr(instance).Free();
+        if (instance == 0)
+            return;
+        GCHandle.FromIntPtr(instance).Free();
+        if (s_instances.Remove(instance, out GameAssembly? from))
+        {
+            from.Instances -= 1;
+            if (from.Superseded && from.Instances == 0)
+                Unload(from);
+        }
+    }
+
+    // Lets a superseded assembly go: nothing here refers to its types any more, and its context
+    // unloads once the collector finds nothing else does.
+    static void Unload(GameAssembly assembly)
+    {
+        s_assemblies.Remove(assembly);
+        s_methods.Clear();
+        s_unloaded.Add(new WeakReference(assembly.Context));
+        assembly.Context.Unload();
+    }
+
+    /// <summary>How many game assemblies are loaded: the ones in use, and the ones told to unload
+    /// that the collector has not yet freed (after a full collection, which this runs).</summary>
+    [UnmanagedCallersOnly]
+    public static int LoadedAssemblyCount()
+    {
+        for (int i = 0; i < 3; ++i)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+        s_unloaded.RemoveAll(weak => !weak.IsAlive);
+        return s_assemblies.Count + s_unloaded.Count;
     }
 
     /// <summary>What the class `name` offers the engine (see DescribeType), an instance made with
@@ -246,8 +317,9 @@ public static unsafe class Runtime
         try
         {
             string className = Utf8(name, nameLength);
-            if (!s_classes.TryGetValue(className, out Type? type))
+            if (!s_classes.TryGetValue(className, out (Type Type, GameAssembly From) found))
                 return Missing($"no C# class named {className} in the game's assembly");
+            Type type = found.Type;
             object? instance = null;
             foreach (ConstructorInfo constructor in type.GetConstructors())
                 if (constructor.GetParameters().Length == count)

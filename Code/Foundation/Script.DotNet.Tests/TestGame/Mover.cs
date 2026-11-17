@@ -28,7 +28,11 @@ public class Mover
     public void onUpdate(float dt)
     {
         updates += 1;
+#if REBUILT
+        travelled += 2.0f * speed * dt; // the rebuilt game (TestGameRebuilt) goes twice as far
+#else
         travelled += speed * dt;
+#endif
     }
 
     public string greet(string name) => $"hello {name} from {label}";

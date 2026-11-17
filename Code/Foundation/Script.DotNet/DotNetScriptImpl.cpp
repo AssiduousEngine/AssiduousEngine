@@ -18,14 +18,6 @@ namespace foundation::script::dotnet
 {
     namespace
     {
-        // The images loaded into the runtime, by content hash: every class of a project carries the
-        // same assembly, which loads once.
-        Array<u64>& LoadedImages()
-        {
-            static Array<u64> images;
-            return images;
-        }
-
         // Where a C# exception's stack names a source line: the first " in <file>:line <n>".
         void FindSourceLine(StringView trace, String& file, i32& line)
         {
@@ -113,18 +105,13 @@ namespace foundation::script::dotnet
                                u8"this C# class has no built assembly (cook its project)");
                         return Status{ErrorCode::NotFound};
                     }
-                    const u64 hash = HashBytes(entry.bytecode.Data(), entry.bytecode.Size());
-                    bool loaded = false;
-                    for (const u64 image : LoadedImages())
-                        loaded = loaded || image == hash;
-                    if (loaded)
-                        continue;
+                    // Every class of a project carries its assembly; the runtime loads an image
+                    // once while it is current, and anew after another replaced it.
                     if (!m_runtime->LoadAssembly(entry.bytecode, entry.symbols).IsOk())
                     {
                         Report(ScriptErrorKind::Compile, moduleName, -1, m_runtime->Failure());
                         return Status{ErrorCode::Unknown};
                     }
-                    LoadedImages().PushBack(hash);
                 }
                 return Status{};
             }

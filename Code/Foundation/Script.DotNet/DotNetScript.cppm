@@ -5,8 +5,9 @@
 //
 // C# as a script language beside AngelScript and Luau (language "csharp", files ".cs"). Its classes
 // do not compile from source at run time: a project's C# builds into one assembly at cook, carried
-// as each class's bytecode, and the context loads that assembly (once, however many classes share
-// it) into the process's managed runtime. Behaviours are then made, called and read as the other
+// as each class's bytecode, and the context loads that assembly (once while it is current, however
+// many classes share it) into the process's managed runtime. A rebuilt assembly loads beside the
+// one it replaces, whose context unloads when its last instance goes. Behaviours are then made, called and read as the other
 // languages' are. A call into C# cannot be stopped part way, so the budget's seconds and heap are
 // not held to.
 

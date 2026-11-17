@@ -101,3 +101,73 @@ TEST_CASE("dotnet runtime: a game's behaviour is made, set, called, read and des
     CHECK_FALSE(runtime.CreateInstance(u8"Nobody", Span<const Variant>{entity, 1}).HasValue());
     CHECK(runtime.Failure().Contains(u8"Nobody"));
 }
+
+namespace
+{
+    Array<byte> Image(const char* folder)
+    {
+        const Result<Array<byte>> image =
+            ReadFile(PathJoin(StringView(reinterpret_cast<const utf8char*>(folder)), u8"TestGame.dll").AsView());
+        REQUIRE(image.HasValue());
+        return image.Value();
+    }
+
+    f32 TravelledAfterOneSecond(DotNetRuntime& runtime, u64 mover)
+    {
+        const Variant dt[1] = {Variant::From<f32>(1.0f)};
+        REQUIRE(runtime.Invoke(mover, u8"onUpdate", Span<const Variant>{dt, 1}).HasValue());
+        const Result<Variant> travelled = runtime.GetField(mover, u8"travelled");
+        REQUIRE(travelled.HasValue());
+        REQUIRE(travelled.Value().TryGet<f32>() != nullptr);
+        return *travelled.Value().TryGet<f32>();
+    }
+}
+
+// Hot reload in the runtime: a rebuilt game loads beside the one it replaces, a new instance is of
+// the rebuilt class while one made before keeps running the old; an image that is current does not
+// load again, one replaced and back (an edit undone) does; and a replaced assembly unloads (its
+// context collected) once the last instance of its classes is released.
+TEST_CASE("dotnet runtime: a rebuilt game loads beside the old, which unloads with its last instance")
+{
+    RegisterCoreTypes();
+    foundation::script::RegisterScriptFacadeReflection();
+    DotNetRuntime runtime;
+    REQUIRE(runtime.Start(DefaultAllocator(), StringView(reinterpret_cast<const utf8char*>(RUNTIME_DIR))).IsOk());
+    const Array<byte> first = Image(TESTGAME_DIR);
+    const Array<byte> rebuilt = Image(TESTGAME_REBUILT_DIR);
+    REQUIRE(HashBytes(first.Data(), first.Size()) != HashBytes(rebuilt.Data(), rebuilt.Size()));
+    const Variant entity[1] = {Variant::From(foundation::script::Entity{})};
+    auto make = [&]()
+    {
+        const Result<u64> made = runtime.CreateInstance(u8"Mover", Span<const Variant>{entity, 1});
+        REQUIRE(made.HasValue());
+        return made.Value();
+    };
+
+    REQUIRE(runtime.LoadAssembly(Span<const byte>{first.Data(), first.Size()}).IsOk());
+    const u32 base = runtime.LoadedAssemblyCount();
+    REQUIRE(runtime.LoadAssembly(Span<const byte>{first.Data(), first.Size()}).IsOk()); // current: not again
+    CHECK(runtime.LoadedAssemblyCount() == base);
+    const u64 old = make();
+    CHECK(TravelledAfterOneSecond(runtime, old) == doctest::Approx(2.5f));
+
+    REQUIRE(runtime.LoadAssembly(Span<const byte>{rebuilt.Data(), rebuilt.Size()}).IsOk());
+    CHECK(runtime.LoadedAssemblyCount() == base + 1); // the old one has an instance yet
+    const u64 fresh = make();
+    CHECK(TravelledAfterOneSecond(runtime, fresh) == doctest::Approx(5.0f)); // the rebuilt class
+    CHECK(TravelledAfterOneSecond(runtime, old) == doctest::Approx(5.0f));   // the old one's, a second second
+
+    // The first image again (the edit undone): it was replaced, so it loads anew.
+    REQUIRE(runtime.LoadAssembly(Span<const byte>{first.Data(), first.Size()}).IsOk());
+    CHECK(runtime.LoadedAssemblyCount() == base + 2);
+    const u64 undone = make();
+    CHECK(TravelledAfterOneSecond(runtime, undone) == doctest::Approx(2.5f));
+
+    // Each replaced assembly unloads with its last instance.
+    runtime.Release(old);
+    CHECK(runtime.LoadedAssemblyCount() == base + 1);
+    runtime.Release(fresh);
+    CHECK(runtime.LoadedAssemblyCount() == base);
+    runtime.Release(undone);
+    CHECK(runtime.LoadedAssemblyCount() == base); // current: stays loaded
+}
