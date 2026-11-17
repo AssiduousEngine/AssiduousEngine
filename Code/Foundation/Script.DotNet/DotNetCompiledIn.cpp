@@ -39,19 +39,21 @@ extern "C"
     DOTNET_STAND_IN(DotNetRuntime_Initialize)
     i32 DOTNET_STAND_IN_NAME(DotNetRuntime_Initialize)(const void*) { return -1; }
     DOTNET_STAND_IN(DotNetRuntime_LoadAssembly)
-    i32 DOTNET_STAND_IN_NAME(DotNetRuntime_LoadAssembly)(const byte*, i32, const byte*, i32) { return -1; }
+    i32 DOTNET_STAND_IN_NAME(DotNetRuntime_LoadAssembly)(isize, const byte*, i32, const byte*, i32) { return -1; }
     DOTNET_STAND_IN(DotNetRuntime_CreateInstance)
-    i32 DOTNET_STAND_IN_NAME(DotNetRuntime_CreateInstance)(const utf8char*, i32, void*, i32, isize*) { return -1; }
+    i32 DOTNET_STAND_IN_NAME(DotNetRuntime_CreateInstance)(isize, const utf8char*, i32, void*, i32, isize*) { return -1; }
     DOTNET_STAND_IN(DotNetRuntime_Invoke)
     i32 DOTNET_STAND_IN_NAME(DotNetRuntime_Invoke)(isize, const utf8char*, i32, void*, i32, void*) { return -1; }
     DOTNET_STAND_IN(DotNetRuntime_GetField)
     i32 DOTNET_STAND_IN_NAME(DotNetRuntime_GetField)(isize, const utf8char*, i32, void*) { return -1; }
     DOTNET_STAND_IN(DotNetRuntime_Release)
     void DOTNET_STAND_IN_NAME(DotNetRuntime_Release)(isize) {}
+    DOTNET_STAND_IN(DotNetRuntime_ReleaseOwner)
+    void DOTNET_STAND_IN_NAME(DotNetRuntime_ReleaseOwner)(isize) {}
     DOTNET_STAND_IN(DotNetRuntime_LoadedAssemblyCount)
     i32 DOTNET_STAND_IN_NAME(DotNetRuntime_LoadedAssemblyCount)() { return 0; }
     DOTNET_STAND_IN(DotNetRuntime_DescribeClass)
-    i32 DOTNET_STAND_IN_NAME(DotNetRuntime_DescribeClass)(const utf8char*, i32, void*, i32, const utf8char**, i32*) { return -1; }
+    i32 DOTNET_STAND_IN_NAME(DotNetRuntime_DescribeClass)(isize, const utf8char*, i32, void*, i32, const utf8char**, i32*) { return -1; }
     DOTNET_STAND_IN(DotNetRuntime_DescribeAssembly)
     i32 DOTNET_STAND_IN_NAME(DotNetRuntime_DescribeAssembly)(const byte*, i32, const utf8char**, i32*) { return -1; }
     DOTNET_STAND_IN(DotNetRuntime_LastError)
@@ -88,6 +90,7 @@ namespace foundation::script::dotnet
         m_createInstance = reinterpret_cast<decltype(m_createInstance)>(&DotNetRuntime_CreateInstance);
         m_getField = reinterpret_cast<decltype(m_getField)>(&DotNetRuntime_GetField);
         m_release = reinterpret_cast<decltype(m_release)>(&DotNetRuntime_Release);
+        m_releaseOwner = reinterpret_cast<decltype(m_releaseOwner)>(&DotNetRuntime_ReleaseOwner);
         m_loadedAssemblyCount = reinterpret_cast<decltype(m_loadedAssemblyCount)>(&DotNetRuntime_LoadedAssemblyCount);
         m_describeClass = reinterpret_cast<decltype(m_describeClass)>(&DotNetRuntime_DescribeClass);
         m_describeAssembly = reinterpret_cast<decltype(m_describeAssembly)>(&DotNetRuntime_DescribeAssembly);

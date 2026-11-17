@@ -15,6 +15,9 @@ import foundation.script.dotnet;
 import foundation.script.facades; // Entity
 
 using namespace foundation::core;
+
+// A script context as the runtime knows it: what it loads and finds is its own.
+constexpr u64 kOwner = 1;
 using namespace foundation::script::dotnet;
 
 namespace
@@ -35,12 +38,12 @@ TEST_CASE("dotnet runtime: a game's behaviour is made, set, called, read and des
     const Result<Array<byte>> image =
         ReadFile(PathJoin(StringView(reinterpret_cast<const utf8char*>(TESTGAME_DIR)), u8"TestGame.dll").AsView());
     REQUIRE(image.HasValue());
-    const Status loaded = runtime.LoadAssembly(Span<const byte>{image.Value().Data(), image.Value().Size()});
+    const Status loaded = runtime.LoadAssembly(kOwner, Span<const byte>{image.Value().Data(), image.Value().Size()});
     INFO(Text(runtime.Failure()));
     REQUIRE(loaded.IsOk());
 
     const Variant entity[1] = {Variant::From(foundation::script::Entity{})};
-    const Result<u64> mover = runtime.CreateInstance(u8"Mover", Span<const Variant>{entity, 1});
+    const Result<u64> mover = runtime.CreateInstance(kOwner, u8"Mover", Span<const Variant>{entity, 1});
     INFO(Text(runtime.Failure()));
     REQUIRE(mover.HasValue());
 
@@ -97,7 +100,7 @@ TEST_CASE("dotnet runtime: a game's behaviour is made, set, called, read and des
     CHECK_FALSE(runtime.Invoke(mover.Value(), u8"missing", Span<const Variant>{}).HasValue());
     CHECK(runtime.Failure().Contains(u8"missing"));
 
-    const Result<String> described = runtime.DescribeClass(u8"Mover", Span<const Variant>{entity, 1});
+    const Result<String> described = runtime.DescribeClass(kOwner, u8"Mover", Span<const Variant>{entity, 1});
     INFO(Text(runtime.Failure()));
     REQUIRE(described.HasValue());
     const StringView lines = described.Value().AsView();
@@ -112,7 +115,7 @@ TEST_CASE("dotnet runtime: a game's behaviour is made, set, called, read and des
     CHECK_FALSE(lines.Contains(u8"m_entity"));
 
     runtime.Release(mover.Value());
-    CHECK_FALSE(runtime.CreateInstance(u8"Nobody", Span<const Variant>{entity, 1}).HasValue());
+    CHECK_FALSE(runtime.CreateInstance(kOwner, u8"Nobody", Span<const Variant>{entity, 1}).HasValue());
     CHECK(runtime.Failure().Contains(u8"Nobody"));
 }
 
@@ -153,26 +156,26 @@ TEST_CASE("dotnet runtime: a rebuilt game loads beside the old, which unloads wi
     const Variant entity[1] = {Variant::From(foundation::script::Entity{})};
     auto make = [&]()
     {
-        const Result<u64> made = runtime.CreateInstance(u8"Mover", Span<const Variant>{entity, 1});
+        const Result<u64> made = runtime.CreateInstance(kOwner, u8"Mover", Span<const Variant>{entity, 1});
         REQUIRE(made.HasValue());
         return made.Value();
     };
 
-    REQUIRE(runtime.LoadAssembly(Span<const byte>{first.Data(), first.Size()}).IsOk());
+    REQUIRE(runtime.LoadAssembly(kOwner, Span<const byte>{first.Data(), first.Size()}).IsOk());
     const u32 base = runtime.LoadedAssemblyCount();
-    REQUIRE(runtime.LoadAssembly(Span<const byte>{first.Data(), first.Size()}).IsOk()); // current: not again
+    REQUIRE(runtime.LoadAssembly(kOwner, Span<const byte>{first.Data(), first.Size()}).IsOk()); // current: not again
     CHECK(runtime.LoadedAssemblyCount() == base);
     const u64 old = make();
     CHECK(TravelledAfterOneSecond(runtime, old) == doctest::Approx(2.5f));
 
-    REQUIRE(runtime.LoadAssembly(Span<const byte>{rebuilt.Data(), rebuilt.Size()}).IsOk());
+    REQUIRE(runtime.LoadAssembly(kOwner, Span<const byte>{rebuilt.Data(), rebuilt.Size()}).IsOk());
     CHECK(runtime.LoadedAssemblyCount() == base + 1); // the old one has an instance yet
     const u64 fresh = make();
     CHECK(TravelledAfterOneSecond(runtime, fresh) == doctest::Approx(5.0f)); // the rebuilt class
     CHECK(TravelledAfterOneSecond(runtime, old) == doctest::Approx(5.0f));   // the old one's, a second second
 
     // The first image again (the edit undone): it was replaced, so it loads anew.
-    REQUIRE(runtime.LoadAssembly(Span<const byte>{first.Data(), first.Size()}).IsOk());
+    REQUIRE(runtime.LoadAssembly(kOwner, Span<const byte>{first.Data(), first.Size()}).IsOk());
     CHECK(runtime.LoadedAssemblyCount() == base + 2);
     const u64 undone = make();
     CHECK(TravelledAfterOneSecond(runtime, undone) == doctest::Approx(2.5f));
@@ -184,4 +187,58 @@ TEST_CASE("dotnet runtime: a rebuilt game loads beside the old, which unloads wi
     CHECK(runtime.LoadedAssemblyCount() == base);
     runtime.Release(undone);
     CHECK(runtime.LoadedAssemblyCount() == base); // current: stays loaded
+}
+
+// Each owner (a script context: one run's C#) loads its own copy of an image, so two runs never
+// share a class's statics; releasing an owner unloads its copy once its last instance goes.
+TEST_CASE("dotnet runtime: each owner has its own copy of the game, statics and all")
+{
+    RegisterCoreTypes();
+    foundation::script::RegisterScriptFacadeReflection();
+    DotNetRuntime runtime;
+    REQUIRE(runtime.Start(DefaultAllocator(), StringView(reinterpret_cast<const utf8char*>(RUNTIME_DIR))).IsOk());
+    const Array<byte> image = Image(TESTGAME_DIR);
+    const Variant entity[1] = {Variant::From(foundation::script::Entity{})};
+    constexpr u64 kRunA = 11;
+    constexpr u64 kRunB = 12;
+    auto make = [&](u64 owner)
+    {
+        const Result<u64> made = runtime.CreateInstance(owner, u8"Mover", Span<const Variant>{entity, 1});
+        REQUIRE(made.HasValue());
+        return made.Value();
+    };
+    auto madeSoFar = [&](u64 mover)
+    {
+        const Result<Variant> count = runtime.Invoke(mover, u8"madeSoFar", Span<const Variant>{});
+        REQUIRE(count.HasValue());
+        REQUIRE(count.Value().TryGet<i32>() != nullptr);
+        return *count.Value().TryGet<i32>();
+    };
+
+    const u32 base = runtime.LoadedAssemblyCount();
+    REQUIRE(runtime.LoadAssembly(kRunA, Span<const byte>{image.Data(), image.Size()}).IsOk());
+    REQUIRE(runtime.LoadAssembly(kRunB, Span<const byte>{image.Data(), image.Size()}).IsOk());
+    CHECK(runtime.LoadedAssemblyCount() == base + 2); // the same image, a copy each
+
+    // Two made in one run, one in the other: each counts its own (a static per copy).
+    const u64 a1 = make(kRunA);
+    const u64 a2 = make(kRunA);
+    const u64 b1 = make(kRunB);
+    CHECK(madeSoFar(a2) == 2);
+    CHECK(madeSoFar(b1) == 1);
+
+    // An owner not loaded finds nothing of the others'.
+    CHECK_FALSE(runtime.CreateInstance(13, u8"Mover", Span<const Variant>{entity, 1}).HasValue());
+
+    // Released, a run's copy unloads with its last instance; the other's stays.
+    runtime.ReleaseOwner(kRunA);
+    CHECK_FALSE(runtime.CreateInstance(kRunA, u8"Mover", Span<const Variant>{entity, 1}).HasValue());
+    runtime.Release(a1);
+    CHECK(runtime.LoadedAssemblyCount() == base + 2);
+    runtime.Release(a2);
+    CHECK(runtime.LoadedAssemblyCount() == base + 1);
+    CHECK(madeSoFar(b1) == 1);
+    runtime.Release(b1);
+    runtime.ReleaseOwner(kRunB);
+    CHECK(runtime.LoadedAssemblyCount() == base);
 }

@@ -72,13 +72,14 @@ namespace foundation::script::dotnet
         m_createInstance = reinterpret_cast<decltype(m_createInstance)>(find(u8"CreateInstance"));
         m_getField = reinterpret_cast<decltype(m_getField)>(find(u8"GetField"));
         m_release = reinterpret_cast<decltype(m_release)>(find(u8"Release"));
+        m_releaseOwner = reinterpret_cast<decltype(m_releaseOwner)>(find(u8"ReleaseOwner"));
         m_loadedAssemblyCount = reinterpret_cast<decltype(m_loadedAssemblyCount)>(find(u8"LoadedAssemblyCount"));
         m_describeClass = reinterpret_cast<decltype(m_describeClass)>(find(u8"DescribeClass"));
         m_describeAssembly = reinterpret_cast<decltype(m_describeAssembly)>(find(u8"DescribeAssembly"));
         m_lastError = reinterpret_cast<decltype(m_lastError)>(find(u8"LastError"));
         auto* invoke = reinterpret_cast<decltype(m_invoke)>(find(u8"Invoke"));
         if (initialize == nullptr || m_loadAssembly == nullptr || m_createInstance == nullptr || m_getField == nullptr ||
-            m_release == nullptr || m_loadedAssemblyCount == nullptr || m_describeClass == nullptr || m_describeAssembly == nullptr || m_lastError == nullptr ||
+            m_release == nullptr || m_releaseOwner == nullptr || m_loadedAssemblyCount == nullptr || m_describeClass == nullptr || m_describeAssembly == nullptr || m_lastError == nullptr ||
             invoke == nullptr)
             return Fail(m_host.Failure());
         if (const i32 returnCode = initialize(&EngineFunctions(allocator)); returnCode != 0)
@@ -88,23 +89,24 @@ namespace foundation::script::dotnet
         return Status{};
     }
 
-    Status DotNetRuntime::LoadAssembly(Span<const byte> image, Span<const byte> symbols)
+    Status DotNetRuntime::LoadAssembly(u64 owner, Span<const byte> image, Span<const byte> symbols)
     {
         if (!IsStarted())
             return Fail(u8"the runtime is not started");
-        if (const i32 returnCode = m_loadAssembly(image.Data(), static_cast<i32>(image.Size()), symbols.Data(), static_cast<i32>(symbols.Size()));
+        if (const i32 returnCode = m_loadAssembly(static_cast<isize>(owner), image.Data(), static_cast<i32>(image.Size()), symbols.Data(),
+                                                  static_cast<i32>(symbols.Size()));
             returnCode != 0)
             return FailManaged(returnCode);
         return Status{};
     }
 
-    Result<u64> DotNetRuntime::CreateInstance(StringView className, Span<const Variant> args)
+    Result<u64> DotNetRuntime::CreateInstance(u64 owner, StringView className, Span<const Variant> args)
     {
         if (!IsStarted())
             return Err(Fail(u8"the runtime is not started").Code());
         Array<DotNetValue> values = Lend(args);
         isize instance = 0;
-        if (const i32 returnCode = m_createInstance(className.Data(), SizeOf(className), values.Data(), static_cast<i32>(values.Size()), &instance);
+        if (const i32 returnCode = m_createInstance(static_cast<isize>(owner), className.Data(), SizeOf(className), values.Data(), static_cast<i32>(values.Size()), &instance);
             returnCode != 0)
             return Err(FailManaged(returnCode).Code());
         return static_cast<u64>(instance);
@@ -139,19 +141,25 @@ namespace foundation::script::dotnet
             m_release(static_cast<isize>(instance));
     }
 
+    void DotNetRuntime::ReleaseOwner(u64 owner)
+    {
+        if (IsStarted())
+            m_releaseOwner(static_cast<isize>(owner));
+    }
+
     u32 DotNetRuntime::LoadedAssemblyCount()
     {
         return IsStarted() ? static_cast<u32>(m_loadedAssemblyCount()) : 0u;
     }
 
-    Result<String> DotNetRuntime::DescribeClass(StringView className, Span<const Variant> args)
+    Result<String> DotNetRuntime::DescribeClass(u64 owner, StringView className, Span<const Variant> args)
     {
         if (!IsStarted())
             return Err(Fail(u8"the runtime is not started").Code());
         Array<DotNetValue> values = Lend(args);
         const utf8char* text = nullptr;
         i32 length = 0;
-        if (const i32 returnCode = m_describeClass(className.Data(), SizeOf(className), values.Data(), static_cast<i32>(values.Size()), &text,
+        if (const i32 returnCode = m_describeClass(static_cast<isize>(owner), className.Data(), SizeOf(className), values.Data(), static_cast<i32>(values.Size()), &text,
                                            &length);
             returnCode != 0)
             return Err(FailManaged(returnCode).Code());

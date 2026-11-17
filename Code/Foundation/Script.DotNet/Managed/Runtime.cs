@@ -54,8 +54,19 @@ public static unsafe class Runtime
         public bool Superseded;
     }
 
-    static readonly List<ApplicationAssembly> s_assemblies = new(); // loaded and not unloaded, newest last
-    static readonly Dictionary<string, (Type Type, ApplicationAssembly From)> s_classes = new(); // the newest of each name
+    // What one owner (a script context: one run's C#) has loaded, and the newest class of each name
+    // among it. Each owner loads its own copy of an image, so two runs never share a class's statics;
+    // an owner reloading a rebuilt image supersedes its own older one.
+    sealed class Owner
+    {
+        public readonly List<ApplicationAssembly> Assemblies = new(); // loaded and current or in use, newest last
+        public readonly Dictionary<string, (Type Type, ApplicationAssembly From)> Classes = new();
+    }
+
+    static readonly Dictionary<nint, Owner> s_owners = new();
+    static readonly List<ApplicationAssembly> s_assemblies = new(); // every one loaded and not unloaded
+    // Compiled in (an exported player): the application's classes, one copy every owner shares.
+    static readonly Dictionary<string, (Type Type, ApplicationAssembly From)> s_compiledClasses = new();
     static readonly Dictionary<nint, ApplicationAssembly> s_instances = new(); // the assembly of each instance held
     static readonly List<WeakReference> s_unloaded = new(); // contexts told to unload, until collected
     // The value types the bindings know, by engine id and by C# type, with their typed copies.
@@ -97,7 +108,7 @@ public static unsafe class Runtime
             Bridge.Initialize(engine);
             if (Layouts.FirstMismatch() is string mismatch)
                 return Fail($"the C# layout of {mismatch} differs from the engine's");
-            if (CompiledIn && s_assemblies.Count == 0)
+            if (CompiledIn && s_compiledClasses.Count == 0)
                 RegisterCompiledIn();
             return 0;
         }
@@ -107,21 +118,24 @@ public static unsafe class Runtime
         }
     }
 
-    /// <summary>Loads an application assembly from its image, with its debug symbols when given (a fault then
-    /// names its file and line); its classes are found before those of any loaded earlier (a rebuilt
-    /// assembly's class replaces its predecessor's).</summary>
-    /// An image already current (one whose classes are the newest of their names) is not loaded
-    /// again, so every class of a project asking for its assembly loads it once; an image loaded
-    /// before and since replaced (an edit undone) loads anew.
+    /// <summary>Loads an application assembly for `ownerId` (a script context) from its image, with its
+    /// debug symbols when given (a fault then names its file and line); its classes are found, for
+    /// that owner, before those of any it loaded earlier (a rebuilt assembly's class replaces its
+    /// predecessor's).</summary>
+    /// An image already current for the owner is not loaded again, so every class of a project
+    /// asking for its assembly loads it once per owner; another owner loads its own copy, with its
+    /// own statics; an image loaded before and since replaced (an edit undone) loads anew.
     [UnmanagedCallersOnly(EntryPoint = "DotNetRuntime_LoadAssembly")]
-    public static int LoadAssembly(byte* image, int length, byte* symbols, int symbolsLength)
+    public static int LoadAssembly(nint ownerId, byte* image, int length, byte* symbols, int symbolsLength)
     {
         try
         {
             if (CompiledIn)
                 return 0; // the application is compiled in: there is nothing to load
+            if (!s_owners.TryGetValue(ownerId, out Owner? owner))
+                s_owners[ownerId] = owner = new Owner();
             byte[] hash = System.Security.Cryptography.SHA256.HashData(new ReadOnlySpan<byte>(image, length));
-            foreach (ApplicationAssembly loaded in s_assemblies)
+            foreach (ApplicationAssembly loaded in owner.Assemblies)
                 if (!loaded.Superseded && loaded.Hash.AsSpan().SequenceEqual(hash))
                     return 0;
             var context = new ApplicationContext();
@@ -130,24 +144,22 @@ public static unsafe class Runtime
             Assembly assembly = context.LoadFromStream(stream, symbolStream);
             var added = new ApplicationAssembly { Context = context, Assembly = assembly, Hash = hash };
             s_assemblies.Add(added);
+            owner.Assemblies.Add(added);
             foreach (Type type in assembly.GetTypes())
                 if (type.IsClass && !type.IsAbstract && type.IsPublic)
-                    s_classes[type.Name] = (type, added);
+                    owner.Classes[type.Name] = (type, added);
             s_methods.Clear();
-            // An older assembly none of whose classes is the newest any more is superseded; with no
-            // instance left it unloads now, else when its last one goes.
-            foreach (ApplicationAssembly older in s_assemblies.ToArray())
+            // An older assembly of this owner none of whose classes is the newest any more is
+            // superseded; with no instance left it unloads now, else when its last one goes.
+            foreach (ApplicationAssembly older in owner.Assemblies.ToArray())
             {
                 if (older == added || older.Superseded)
                     continue;
                 bool current = false;
-                foreach ((Type _, ApplicationAssembly from) in s_classes.Values)
+                foreach ((Type _, ApplicationAssembly from) in owner.Classes.Values)
                     current = current || from == older;
-                if (current)
-                    continue;
-                older.Superseded = true;
-                if (older.Instances == 0)
-                    Unload(older);
+                if (!current)
+                    Supersede(owner, older);
             }
             return 0;
         }
@@ -162,13 +174,13 @@ public static unsafe class Runtime
     /// <summary>Constructs the class `name` (by its public constructor of `count` parameters) with
     /// `args`; the instance is held for the engine until Release.</summary>
     [UnmanagedCallersOnly(EntryPoint = "DotNetRuntime_CreateInstance")]
-    public static int CreateInstance(byte* name, int nameLength, DotNetValue* args, int count, nint* instance)
+    public static int CreateInstance(nint ownerId, byte* name, int nameLength, DotNetValue* args, int count, nint* instance)
     {
         try
         {
             string className = Utf8(name, nameLength);
             *instance = 0;
-            if (!s_classes.TryGetValue(className, out (Type Type, ApplicationAssembly From) found))
+            if (!FindClass(ownerId, className, out (Type Type, ApplicationAssembly From) found))
                 return Missing($"no C# class named {className} in the application's assembly");
             foreach (ConstructorInfo constructor in found.Type.GetConstructors())
             {
@@ -291,6 +303,36 @@ public static unsafe class Runtime
         }
     }
 
+    // The class `name` as `ownerId` sees it: its own newest, else the one compiled in.
+    static bool FindClass(nint ownerId, string name, out (Type Type, ApplicationAssembly From) found)
+    {
+        if (s_owners.TryGetValue(ownerId, out Owner? owner) && owner.Classes.TryGetValue(name, out found))
+            return true;
+        return s_compiledClasses.TryGetValue(name, out found);
+    }
+
+    // An owner's assembly that no class of it names any more: it unloads now with no instance left,
+    // else when its last one goes (Release).
+    static void Supersede(Owner owner, ApplicationAssembly assembly)
+    {
+        assembly.Superseded = true;
+        owner.Assemblies.Remove(assembly);
+        if (assembly.Instances == 0)
+            Unload(assembly);
+    }
+
+    /// <summary>Lets `ownerId` (a script context that is going) go: its classes are no longer found,
+    /// and each of its assemblies unloads once the engine releases its last instance of it.</summary>
+    [UnmanagedCallersOnly(EntryPoint = "DotNetRuntime_ReleaseOwner")]
+    public static void ReleaseOwner(nint ownerId)
+    {
+        if (!s_owners.Remove(ownerId, out Owner? owner))
+            return;
+        foreach (ApplicationAssembly assembly in owner.Assemblies.ToArray())
+            Supersede(owner, assembly);
+        s_methods.Clear();
+    }
+
     // Lets a superseded assembly go: nothing here refers to its types any more, and its context
     // unloads once the collector finds nothing else does.
     static void Unload(ApplicationAssembly assembly)
@@ -320,12 +362,12 @@ public static unsafe class Runtime
     /// <summary>What the class `name` offers the engine (see DescribeType), an instance made with
     /// `args` to read its defaults from. Valid until the thread's next call.</summary>
     [UnmanagedCallersOnly(EntryPoint = "DotNetRuntime_DescribeClass")]
-    public static int DescribeClass(byte* name, int nameLength, DotNetValue* args, int count, byte** text, int* length)
+    public static int DescribeClass(nint ownerId, byte* name, int nameLength, DotNetValue* args, int count, byte** text, int* length)
     {
         try
         {
             string className = Utf8(name, nameLength);
-            if (!s_classes.TryGetValue(className, out (Type Type, ApplicationAssembly From) found))
+            if (!FindClass(ownerId, className, out (Type Type, ApplicationAssembly From) found))
                 return Missing($"no C# class named {className} in the application's assembly");
             Type type = found.Type;
             object? instance = null;
@@ -456,7 +498,7 @@ public static unsafe class Runtime
         s_assemblies.Add(compiled);
         foreach (Type type in assembly.GetTypes())
             if (type.IsClass && !type.IsAbstract && type.IsPublic && type.Namespace != "Engine")
-                s_classes[type.Name] = (type, compiled);
+                s_compiledClasses[type.Name] = (type, compiled);
     }
 
     /// <summary>1: the runtime is compiled into this program (the engine's stand-in answers 0).</summary>

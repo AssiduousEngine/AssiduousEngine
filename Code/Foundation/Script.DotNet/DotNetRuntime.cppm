@@ -39,27 +39,33 @@ export namespace foundation::script::dotnet
         /// Whether the runtime started is the one compiled into this program.
         [[nodiscard]] bool IsCompiledIn() const noexcept { return m_compiledIn; }
 
-        /// Loads an application's assembly from its image (and its debug symbols, when given, so a fault
-        /// names its file and line); its classes are found before earlier ones. An image already
-        /// current is not loaded again. An assembly whose classes all have newer ones unloads when
-        /// the last instance of its classes is released.
-        Status LoadAssembly(Span<const byte> image, Span<const byte> symbols = {});
+        /// Loads an application's assembly for `owner` (a script context: one run's C#) from its image
+        /// (and its debug symbols, when given, so a fault names its file and line); for that owner its
+        /// classes are found before earlier ones. An image already current for the owner is not loaded
+        /// again; another owner loads its own copy, so two runs never share a class's statics. An
+        /// assembly whose classes all have newer ones unloads when the last instance of its classes is
+        /// released. Compiled in, nothing loads and every owner finds the classes compiled in.
+        Status LoadAssembly(u64 owner, Span<const byte> image, Span<const byte> symbols = {});
 
-        /// An instance of `className`, by its public constructor of args.Size() parameters.
-        [[nodiscard]] Result<u64> CreateInstance(StringView className, Span<const Variant> args);
+        /// An instance of `className` as `owner` finds it, by its public constructor of args.Size()
+        /// parameters.
+        [[nodiscard]] Result<u64> CreateInstance(u64 owner, StringView className, Span<const Variant> args);
         /// Calls `method` on `instance`; "x=" sets its field x. The result, empty for none.
         [[nodiscard]] Result<Variant> Invoke(u64 instance, StringView method, Span<const Variant> args);
         /// Reads `instance`'s public field `name`.
         [[nodiscard]] Result<Variant> GetField(u64 instance, StringView name);
         void Release(u64 instance);
+        /// Lets `owner` go (its script context is going): its classes are no longer found, and each of
+        /// its assemblies unloads when the last instance of it is released.
+        void ReleaseOwner(u64 owner);
 
         /// How many application assemblies are loaded (in use, or unloading and not yet collected), after
         /// a full collection: what a test of unloading reads.
         [[nodiscard]] u32 LoadedAssemblyCount();
 
-        /// What `className` offers (DescribeClass's lines, see Runtime.cs), an instance made with
-        /// `args` to read its defaults from.
-        [[nodiscard]] Result<String> DescribeClass(StringView className, Span<const Variant> args);
+        /// What `className`, as `owner` finds it, offers (DescribeClass's lines, see Runtime.cs), an
+        /// instance made with `args` to read its defaults from.
+        [[nodiscard]] Result<String> DescribeClass(u64 owner, StringView className, Span<const Variant> args);
 
         /// Every public class of an assembly image, for the cook ("class NAME" before each class's
         /// lines, see Runtime.cs), without keeping the image loaded.
@@ -79,13 +85,14 @@ export namespace foundation::script::dotnet
 
         DotNetHost m_host;
         String m_failure;
-        i32 (*m_loadAssembly)(const byte*, i32, const byte*, i32) = nullptr;
-        i32 (*m_createInstance)(const utf8char*, i32, DotNetValue*, i32, isize*) = nullptr;
+        i32 (*m_loadAssembly)(isize, const byte*, i32, const byte*, i32) = nullptr;
+        i32 (*m_createInstance)(isize, const utf8char*, i32, DotNetValue*, i32, isize*) = nullptr;
         i32 (*m_invoke)(isize, const utf8char*, i32, DotNetValue*, i32, DotNetValue*) = nullptr;
         i32 (*m_getField)(isize, const utf8char*, i32, DotNetValue*) = nullptr;
         void (*m_release)(isize) = nullptr;
+        void (*m_releaseOwner)(isize) = nullptr;
         i32 (*m_loadedAssemblyCount)() = nullptr;
-        i32 (*m_describeClass)(const utf8char*, i32, DotNetValue*, i32, const utf8char**, i32*) = nullptr;
+        i32 (*m_describeClass)(isize, const utf8char*, i32, DotNetValue*, i32, const utf8char**, i32*) = nullptr;
         i32 (*m_describeAssembly)(const byte*, i32, const utf8char**, i32*) = nullptr;
         const utf8char* (*m_lastError)(i32*) = nullptr;
         bool m_compiledIn = false;
