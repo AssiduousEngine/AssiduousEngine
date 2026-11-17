@@ -990,7 +990,7 @@ namespace editor
                           vcvars);
                 return false;
             }
-            const String script = PathJoin(GetTempDirectory().AsView(), u8"assiduous-vcvars-dump.cmd");
+            const String script = PathJoin(GetTempDirectory().AsView(), u8"vcvars-dump.cmd");
             const String body = Format(u8"@echo off\r\ncall \"{}\" >nul\r\nset\r\n", vcvars);
             if (!WriteFile(script.AsView(),
                            Span<const byte>(reinterpret_cast<const byte*>(body.AsView().Data()),
