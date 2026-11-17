@@ -31,7 +31,17 @@ add_custom_command(
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/TestGame/Mover.cs ${CMAKE_CURRENT_SOURCE_DIR}/TestGame/TestGame.csproj
             ${RUNTIME_DIR}/Engine.Runtime.dll DotNet.Runtime
     COMMENT "Building the C# test game assembly")
-add_custom_target(Script.DotNet.TestGame DEPENDS ${TESTGAME_OUT}/TestGame.dll)
+# The same game rebuilt with a change (REBUILT doubles Mover's speed): a second image for reload.
+set(TESTGAME_REBUILT_OUT ${CMAKE_CURRENT_BINARY_DIR}/TestGameRebuilt)
+add_custom_command(
+    OUTPUT ${TESTGAME_REBUILT_OUT}/TestGame.dll
+    COMMAND ${DOTNET_EXECUTABLE} build ${CMAKE_CURRENT_SOURCE_DIR}/TestGame/TestGame.csproj -c Debug -o ${TESTGAME_REBUILT_OUT}
+            -p:BaseIntermediateOutputPath=${CMAKE_CURRENT_BINARY_DIR}/TestGameRebuiltObj/
+            -p:EngineRuntime=${RUNTIME_DIR}/Engine.Runtime.dll -p:DefineConstants=REBUILT -nologo -v:q
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/TestGame/Mover.cs ${CMAKE_CURRENT_SOURCE_DIR}/TestGame/TestGame.csproj
+            ${RUNTIME_DIR}/Engine.Runtime.dll DotNet.Runtime
+    COMMENT "Building the rebuilt C# test game assembly")
+add_custom_target(Script.DotNet.TestGame DEPENDS ${TESTGAME_OUT}/TestGame.dll ${TESTGAME_REBUILT_OUT}/TestGame.dll)
 
 add_executable(Script.DotNet.Tests TestsMain.cpp DotNetHostTests.cpp DotNetBridgeTests.cpp DotNetBindingsTests.cpp DotNetRuntimeTests.cpp DotNetScriptTests.cpp)
 add_dependencies(Script.DotNet.Tests Script.DotNet.Probe Script.DotNet.TestGame)
@@ -40,6 +50,7 @@ target_compile_definitions(Script.DotNet.Tests PRIVATE
     DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
     PROBE_DIR="${PROBE_OUT}"
     TESTGAME_DIR="${TESTGAME_OUT}"
+    TESTGAME_REBUILT_DIR="${TESTGAME_REBUILT_OUT}"
     RUNTIME_DIR="${RUNTIME_DIR}")
 target_compile_options(Script.DotNet.Tests PRIVATE
     "$<$<CXX_COMPILER_ID:Clang>:-Wno-error=#warnings;-Wno-error=c2y-extensions>"

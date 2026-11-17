@@ -37,7 +37,9 @@ export namespace foundation::script::dotnet
         [[nodiscard]] bool IsStarted() const noexcept { return m_invoke != nullptr; }
 
         /// Loads a game's assembly from its image (and its debug symbols, when given, so a fault
-        /// names its file and line); its classes are found before earlier ones.
+        /// names its file and line); its classes are found before earlier ones. An image already
+        /// current is not loaded again. An assembly whose classes all have newer ones unloads when
+        /// the last instance of its classes is released.
         Status LoadAssembly(Span<const byte> image, Span<const byte> symbols = {});
 
         /// An instance of `className`, by its public constructor of args.Size() parameters.
@@ -47,6 +49,10 @@ export namespace foundation::script::dotnet
         /// Reads `instance`'s public field `name`.
         [[nodiscard]] Result<Variant> GetField(u64 instance, StringView name);
         void Release(u64 instance);
+
+        /// How many game assemblies are loaded (in use, or unloading and not yet collected), after
+        /// a full collection: what a test of unloading reads.
+        [[nodiscard]] u32 LoadedAssemblyCount();
 
         /// What `className` offers (DescribeClass's lines, see Runtime.cs), an instance made with
         /// `args` to read its defaults from.
@@ -72,6 +78,7 @@ export namespace foundation::script::dotnet
         i32 (*m_invoke)(isize, const utf8char*, i32, DotNetValue*, i32, DotNetValue*) = nullptr;
         i32 (*m_getField)(isize, const utf8char*, i32, DotNetValue*) = nullptr;
         void (*m_release)(isize) = nullptr;
+        i32 (*m_loadedAssemblyCount)() = nullptr;
         i32 (*m_describeClass)(const utf8char*, i32, DotNetValue*, i32, const utf8char**, i32*) = nullptr;
         i32 (*m_describeAssembly)(const byte*, i32, const utf8char**, i32*) = nullptr;
         const utf8char* (*m_lastError)(i32*) = nullptr;

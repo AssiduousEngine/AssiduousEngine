@@ -68,12 +68,13 @@ namespace foundation::script::dotnet
         m_createInstance = reinterpret_cast<decltype(m_createInstance)>(find(u8"CreateInstance"));
         m_getField = reinterpret_cast<decltype(m_getField)>(find(u8"GetField"));
         m_release = reinterpret_cast<decltype(m_release)>(find(u8"Release"));
+        m_loadedAssemblyCount = reinterpret_cast<decltype(m_loadedAssemblyCount)>(find(u8"LoadedAssemblyCount"));
         m_describeClass = reinterpret_cast<decltype(m_describeClass)>(find(u8"DescribeClass"));
         m_describeAssembly = reinterpret_cast<decltype(m_describeAssembly)>(find(u8"DescribeAssembly"));
         m_lastError = reinterpret_cast<decltype(m_lastError)>(find(u8"LastError"));
         auto* invoke = reinterpret_cast<decltype(m_invoke)>(find(u8"Invoke"));
         if (initialize == nullptr || m_loadAssembly == nullptr || m_createInstance == nullptr || m_getField == nullptr ||
-            m_release == nullptr || m_describeClass == nullptr || m_describeAssembly == nullptr || m_lastError == nullptr ||
+            m_release == nullptr || m_loadedAssemblyCount == nullptr || m_describeClass == nullptr || m_describeAssembly == nullptr || m_lastError == nullptr ||
             invoke == nullptr)
             return Fail(m_host.Failure());
         if (const i32 rc = initialize(&EngineFunctions(allocator)); rc != 0)
@@ -132,6 +133,11 @@ namespace foundation::script::dotnet
     {
         if (IsStarted() && instance != 0)
             m_release(static_cast<isize>(instance));
+    }
+
+    u32 DotNetRuntime::LoadedAssemblyCount()
+    {
+        return IsStarted() ? static_cast<u32>(m_loadedAssemblyCount()) : 0u;
     }
 
     Result<String> DotNetRuntime::DescribeClass(StringView className, Span<const Variant> args)
