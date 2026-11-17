@@ -114,7 +114,8 @@ namespace engine::runtime
 
     bool GameInstance::StartScript(core::StringView source, core::StringView name,
                                    core::Span<const core::String> gameHandlers,
-                                   core::Span<const script::ScriptSection> includes)
+                                   core::Span<const script::ScriptSection> includes,
+                                   core::Span<const core::byte> assembly, core::Span<const core::byte> symbols)
     {
         StopScript();
         m_scriptFault = core::String{};
@@ -131,7 +132,18 @@ namespace engine::runtime
         m_scriptContext = core::RefPtr<script::IScriptContext>(scriptContext);
         m_runHost.SetGameScriptHold(true);
 
-        const bool loaded = m_scriptContext->Load(source, name, includes).IsOk();
+        // A Game class built into an assembly (C#) loads it, as a behaviour's class does; any other
+        // compiles its source.
+        bool loaded = false;
+        if (!assembly.IsEmpty())
+        {
+            const script::BehaviorModuleClass game{name, source, includes, assembly, symbols};
+            loaded = m_scriptContext->LoadBehaviorModule(core::Span<const script::BehaviorModuleClass>{&game, 1}, u8"game").IsOk();
+        }
+        else
+        {
+            loaded = m_scriptContext->Load(source, name, includes).IsOk();
+        }
         if (!loaded)
         {
             LOG_ERROR(u8"App", u8"game script '{}' failed to compile", name);

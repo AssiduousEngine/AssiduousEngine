@@ -396,10 +396,13 @@ export namespace engine::runtime
         /// As above, plus the Game class's declared handler names (from the cooked ScriptClass) so
         /// the Game tier's on<Event> inbox can subscribe to the run bus. A caller with no handler
         /// list (raw-source tests) gets a Game with no inbox.
-        /// `includes` are the files the source includes (the cook's record of them).
+        /// `includes` are the files the source includes (the cook's record of them). `assembly` and
+        /// `symbols`, when given, are the assembly the Game class is built into (C#): it loads in
+        /// place of compiling the source, which such a language does not do at run time.
         bool StartScript(core::StringView source, core::StringView name,
                          core::Span<const core::String> gameHandlers,
-                         core::Span<const foundation::script::ScriptSection> includes = {});
+                         core::Span<const foundation::script::ScriptSection> includes = {},
+                         core::Span<const core::byte> assembly = {}, core::Span<const core::byte> symbols = {});
 
         /// The cooked `Game` class: its source, its file identity and its declared handlers, so its
         /// on<Event> inbox hears the run bus. Every host that starts a cooked game (the player, the
@@ -411,10 +414,15 @@ export namespace engine::runtime
             {
                 includes.PushBack(foundation::script::ScriptSection{included.path.AsView(), included.source.AsView()});
             }
+            const foundation::script::ScriptAssembly* assembly = scriptClass.assembly.Get();
             return StartScript(scriptClass.source.AsView(), scriptClass.sourceName.AsView(),
                                core::Span<const core::String>(scriptClass.handlers.Data(),
                                                               scriptClass.handlers.Size()),
-                               core::Span<const foundation::script::ScriptSection>(includes.Data(), includes.Size()));
+                               core::Span<const foundation::script::ScriptSection>(includes.Data(), includes.Size()),
+                               assembly != nullptr ? core::Span<const core::byte>{assembly->image.Data(), assembly->image.Size()}
+                                                   : core::Span<const core::byte>{},
+                               assembly != nullptr ? core::Span<const core::byte>{assembly->symbols.Data(), assembly->symbols.Size()}
+                                                   : core::Span<const core::byte>{});
         }
 
         /// exit() the `Game` and release the game-script hold (idempotent; the update-fault path
