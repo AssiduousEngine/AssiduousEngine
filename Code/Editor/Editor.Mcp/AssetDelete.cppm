@@ -7,6 +7,8 @@
 // remove the old one. It is refused while anything still uses the asset, by the same scan
 // asset_uses runs, unless `force` says the breakage is intended. The host does the rest through
 // IProjectOperations::Delete (the editor closes the asset's page and waits out a cook).
+// `deleteSource` also removes its file under Sources/ when no other asset names that file, so an
+// asset made again (a script, a project file) takes its old file name rather than "Name.2".
 
 module;
 #include "Core/Prelude.h"
@@ -18,6 +20,7 @@ import foundation.json;
 import foundation.content;
 import foundation.mcp;
 import pipeline.core;
+import pipeline.importer; // SourcesCopyUsedByOther
 import editor.project;
 import :session;
 import :operations;
@@ -41,7 +44,9 @@ export namespace editor::mcp
             u8"asset_delete",
             u8"Delete a source asset, as the editor's Assets browser does: its stored object and data "
             u8"files go, and the next cook sweeps its cooked product. The original file an import "
-            u8"copied under Sources/ is NOT removed - it is an ordinary file. Refused while other "
+            u8"copied under Sources/ is NOT removed - it is an ordinary file - unless `deleteSource`, "
+            u8"which removes it when no other asset names that file (a model's meshes share theirs). "
+            u8"Refused while other "
             u8"assets or the project settings use it (the refusal names them, as asset_uses would); "
             u8"`force` deletes anyway, leaving those references dangling. In the editor its open "
             u8"page closes first, and a running cook is waited out. Returns the deleted asset's "
@@ -49,6 +54,8 @@ export namespace editor::mcp
             SchemaBuilder()
                 .Str(u8"guid", u8"the source asset to delete", true)
                 .Boolean(u8"force", u8"delete even though something still uses it (default false)")
+                .Boolean(u8"deleteSource",
+                         u8"also remove its file under Sources/ when no other asset names it (default false)")
                 .Build(),
             foundation::mcp::ToolAnnotations::Deletes(),
             [s, bld, ops](foundation::mcp::ToolCall& call, const JsonValue& args) -> ToolOutcome
@@ -113,6 +120,13 @@ export namespace editor::mcp
                     }
                 }
 
+                // The source file, read before the asset goes: kept when another asset names it.
+                const String sourceName(instance->SourceName());
+                const bool deleteSource = args.Get(u8"deleteSource").AsBool() && !sourceName.IsEmpty();
+                const bool sourceShared =
+                    deleteSource &&
+                    pipeline::SourcesCopyUsedByOther(*s->project->SourceDb().RootGroup(), sourceName.AsView(), instance);
+
                 JsonValue out = JsonValue::MakeObject();
                 out.Set(u8"guid", detail::GuidToJson(instance->Id()));
                 out.Set(u8"name", JsonValue::MakeString(String(instance->Name())));
@@ -127,6 +141,22 @@ export namespace editor::mcp
                     return ToolOutcome::NotFinished(); // held while a cook reads the databases
                 }
                 out.Set(u8"deleted", JsonValue::MakeBool(true));
+                if (deleteSource)
+                {
+                    const String path = PathJoin(s->project->SourcesRoot().AsView(), sourceName.AsView());
+                    if (sourceShared)
+                    {
+                        out.Set(u8"sourceKept", JsonValue::MakeString(Format(u8"{} (another asset names it)", sourceName)));
+                    }
+                    else if (FileExists(path.AsView()) && !FileDelete(path.AsView()))
+                    {
+                        out.Set(u8"sourceKept", JsonValue::MakeString(Format(u8"{} (could not be removed)", sourceName)));
+                    }
+                    else
+                    {
+                        out.Set(u8"sourceDeleted", JsonValue::MakeString(sourceName));
+                    }
+                }
                 return out;
             });
     }

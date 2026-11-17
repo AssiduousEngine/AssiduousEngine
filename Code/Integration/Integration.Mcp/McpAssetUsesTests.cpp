@@ -420,6 +420,75 @@ TEST_CASE("integration.mcp: asset_delete - refused while used, unless forced")
     RemoveDirectoryRecursive(u8"mcp_delete_project");
 }
 
+// asset_delete's deleteSource: the asset's own file under Sources/ goes with it, so an asset made
+// again takes its old name; a file another asset still names stays; without it, every file stays.
+TEST_CASE("integration.mcp: asset_delete - deleteSource removes a file no other asset names")
+{
+    RemoveDirectoryRecursive(u8"mcp_delete_source_project");
+
+    McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView());
+    editor::mcp::ProjectSession session;
+    pipeline::BuilderRegistry builders{DefaultAllocator()};
+    pipeline::RegisterPipelineTypes();
+    pipeline::RegisterAllBuilders(builders, foundation::vfs::FindDataRoot());
+    editor::mcp::ProjectOwner owner;
+    editor::mcp::InlineProjectOperations operations(session, builders, String(), String());
+    editor::mcp::RegisterProjectOpenTools(server, session, owner);
+    editor::mcp::RegisterAssetDeleteTool(server, session, builders, operations);
+
+    (void)UsesCallOk(server, u8"project_create",
+                     UsesWith(UsesWith(UsesObj(), u8"directory", u8"mcp_delete_source_project"), u8"name", u8"DeleteSource"));
+    (void)UsesCallOk(server, u8"project_open", UsesWith(UsesObj(), u8"directory", u8"mcp_delete_source_project"));
+    auto* root = session.project->SourceDb().RootGroup();
+    const String sources = session.project->SourcesRoot();
+
+    // Three textures over two files: "own.png" one asset's, "shared.png" two assets'.
+    const auto texture = [&](StringView name, StringView file)
+    {
+        const String path = PathJoin(sources.AsView(), file);
+        REQUIRE(WriteFile(path.AsView(), Span<const byte>(reinterpret_cast<const byte*>("png"), 3)).IsOk());
+        auto* instance = root->CreateInstance(name, pipeline::TextureAsset::StaticType());
+        REQUIRE(instance != nullptr);
+        pipeline::TextureAsset asset;
+        asset.fileName = foundation::vfs::SourcePath(file);
+        REQUIRE(instance->WriteObject(asset).IsOk());
+        return GuidText(instance->Id());
+    };
+    const String own = texture(u8"own", u8"own.png");
+    const String sharedA = texture(u8"sharedA", u8"shared.png");
+    const String sharedB = texture(u8"sharedB", u8"shared.png");
+    const String kept = texture(u8"kept", u8"kept.png");
+
+    const auto withSource = [](StringView guid)
+    {
+        JsonValue args = UsesWith(UsesObj(), u8"guid", guid);
+        args.Set(u8"deleteSource", JsonValue::MakeBool(true));
+        return args;
+    };
+
+    // Its own file: removed.
+    JsonValue removed = UsesCallOk(server, u8"asset_delete", withSource(own.AsView()));
+    CHECK(removed.Get(u8"sourceDeleted").AsString() == StringView(u8"own.png"));
+    CHECK_FALSE(FileExists(PathJoin(sources.AsView(), u8"own.png").AsView()));
+
+    // A file another asset names: kept, saying so; once the last one goes, removed.
+    JsonValue shared = UsesCallOk(server, u8"asset_delete", withSource(sharedA.AsView()));
+    CHECK(shared.Get(u8"sourceKept").AsString().AsView().StartsWith(u8"shared.png"));
+    CHECK(FileExists(PathJoin(sources.AsView(), u8"shared.png").AsView()));
+    (void)UsesCallOk(server, u8"asset_delete", withSource(sharedB.AsView()));
+    CHECK_FALSE(FileExists(PathJoin(sources.AsView(), u8"shared.png").AsView()));
+
+    // Without deleteSource: the file stays, as the Assets browser leaves it.
+    JsonValue plain = UsesCallOk(server, u8"asset_delete", UsesWith(UsesObj(), u8"guid", kept.AsView()));
+    CHECK_FALSE(plain.Has(u8"sourceDeleted"));
+    CHECK(FileExists(PathJoin(sources.AsView(), u8"kept.png").AsView()));
+
+    owner.project.Reset();
+    session.project = nullptr;
+    RemoveDirectoryRecursive(u8"mcp_delete_source_project");
+}
+
 // asset_rename, the Assets browser's Rename for an agent: the asset keeps its guid, so what used it
 // still does, and the default scene's path follows; a name the rule refuses or one taken in the
 // group is refused, saying why.

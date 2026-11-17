@@ -275,8 +275,10 @@ claims its folder the same way. Under Sources/, a copy never overwrites another 
 the next free name ("a.2.png"); a copy two assets share (the very same bytes from two folders) is
 overwritten for neither, so a `replace` over one of them copies in beside.
 `asset_list`/`asset_info` to inspect either database. `asset_delete` removes a source asset as the
-Assets browser does (the next cook sweeps its product; the original file under Sources/ stays); it
-is refused while anything uses it - the refusal names the users, as `asset_uses` would - unless
+Assets browser does (the next cook sweeps its product; the original file under Sources/ stays,
+unless `deleteSource`, which removes it when no other asset names that file and says so in
+`sourceDeleted`, or why not in `sourceKept`: delete a script or project file that way before making
+it again, or the new one lands beside the old as `Name.2`); it is refused while anything uses it - the refusal names the users, as `asset_uses` would - unless
 `force`. `asset_rename` renames one within its group as the browser does: its guid stays, so what
 uses it still does, and the default scene's path follows; a name a file cannot take, or one taken
 in the group, is refused. What File > New makes comes from

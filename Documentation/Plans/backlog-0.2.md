@@ -348,6 +348,16 @@ What the audit of 2026-11-11 raised that `Archive/stability-history.md` leaves o
   re-checked against master: re-read each in source before acting on it. The spec took 61
   findings; everything else is here. Two more, found since by search, are marked (2026-11-13).
 
+## Model import: embedded images kept as decoded pixels, once per model (2026-11-17)
+
+An image embedded in a glTF or GLB imports as an embedded TextureAsset: its decoded RGBA8 pixels in
+the asset's `pixels` stream under Content/ (`ModelImporter/FileImport.cppm`, the `rgba8` branch), a
+copy per model. Holdout's kit shows the cost: a small fence PNG embedded in three models is 3.2 MB
+of pixels three times, most of why its Content/ is 26 MB. Two ways, decided against for now (user):
+extract each embedded image's encoded bytes into Sources/ and import it file-backed (the same
+bytes shared as one file, which needs the model loader to keep the encoded bytes), or share one
+texture asset among models whose decoded pixels match.
+
 ## glTF: every skin, and a reimport identity that survives renames (user 2026-11-16)
 
 From the stability leftovers (T5), moved here by the user. Two parts, each its own layer:
