@@ -114,6 +114,14 @@ TEST_CASE("csharp cook: a project builds whole, one file's class using another's
     CHECK(cook->ProjectExtension() == StringView(u8"csproj"));
     const String project = cook->NewProjectTemplate(u8"Game");
     CHECK(project.AsView().Contains(u8"<AssemblyName>Game</AssemblyName>"));
+    // The project file names no machine's path: the engine's runtime comes from obj/Engine.props,
+    // a local file the cook writes for this machine.
+    CHECK_FALSE(project.AsView().Contains(EngineRuntimeAssemblyPath().AsView()));
+    CHECK(project.AsView().Contains(u8"<Import Project=\"obj/Engine.props\""));
+    const Array<ScriptAssemblyFile> local = cook->LocalFiles();
+    REQUIRE(local.Size() == 1u);
+    CHECK(local[0].path == StringView(u8"obj/Engine.props"));
+    CHECK(local[0].text.AsView().Contains(EngineRuntimeAssemblyPath().AsView()));
 
     ScriptAssemblyFile helpers;
     helpers.path = String(u8"Game/Helpers.cs");

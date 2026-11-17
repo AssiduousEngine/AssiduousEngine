@@ -226,14 +226,16 @@ namespace pipeline
 
             [[nodiscard]] String NewProjectTemplate(StringView name) const override
             {
-                // The runtime's path is this engine's, for an IDE's completion; the cook passes its own.
+                // The engine's runtime is named by obj/Engine.props (LocalFiles), written for this
+                // machine, so the project file is the same on every machine; the cook passes its own.
                 return Format(u8"<Project Sdk=\"Microsoft.NET.Sdk\">\n"
                               u8"  <!-- The project's C#: every .cs in this folder and below builds into one assembly. -->\n"
+                              u8"  <!-- Where this machine's engine runtime is, for an IDE: written by the engine's cook. -->\n"
+                              u8"  <Import Project=\"obj/Engine.props\" Condition=\"Exists('obj/Engine.props')\" />\n"
                               u8"  <PropertyGroup>\n"
                               u8"    <TargetFramework>net10.0</TargetFramework>\n"
                               u8"    <AssemblyName>{}</AssemblyName>\n"
                               u8"    <Nullable>enable</Nullable>\n"
-                              u8"    <EngineRuntime Condition=\"'$(EngineRuntime)' == ''\">{}</EngineRuntime>\n"
                               u8"  </PropertyGroup>\n"
                               u8"  <ItemGroup>\n"
                               u8"    <Reference Include=\"Engine.Runtime\">\n"
@@ -242,7 +244,23 @@ namespace pipeline
                               u8"    </Reference>\n"
                               u8"  </ItemGroup>\n"
                               u8"</Project>\n",
-                              name, EngineRuntimeAssemblyPath());
+                              name);
+            }
+
+            [[nodiscard]] Array<ScriptAssemblyFile> LocalFiles() const override
+            {
+                ScriptAssemblyFile props;
+                props.path = String(u8"obj/Engine.props");
+                props.text = Format(u8"<Project>\n"
+                                    u8"  <!-- Written by the engine for this machine; not for version control. -->\n"
+                                    u8"  <PropertyGroup>\n"
+                                    u8"    <EngineRuntime Condition=\"'$(EngineRuntime)' == ''\">{}</EngineRuntime>\n"
+                                    u8"  </PropertyGroup>\n"
+                                    u8"</Project>\n",
+                                    EngineRuntimeAssemblyPath());
+                Array<ScriptAssemblyFile> files;
+                files.PushBack(Move(props));
+                return files;
             }
 
         private:
