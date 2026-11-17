@@ -67,10 +67,7 @@ namespace foundation::script::dotnet
                 const String name = m_bound[static_cast<usize>(method.id - 1)]; // a bind during the call may move the list
                 return Invoke(name.AsView(), args);
             }
-            [[nodiscard]] Result<Variant> GetProperty(StringView name) override
-            {
-                return m_runtime->GetField(m_instance, name);
-            }
+            [[nodiscard]] Result<Variant> GetProperty(StringView name) override;
 
         private:
             RefPtr<DotNetScriptContext> m_context;
@@ -148,6 +145,8 @@ namespace foundation::script::dotnet
 
             [[nodiscard]] RefPtr<ScriptObject> CreateInstance(StringView className, Span<Variant> args) override
             {
+                // C# runs inside this context: what it calls in the engine resolves its run's services.
+                ScriptCallScope scope(this);
                 const Result<u64> made = m_runtime->CreateInstance(className, Span<const Variant>{args.Data(), args.Size()});
                 if (!made.HasValue())
                 {
@@ -187,14 +186,24 @@ namespace foundation::script::dotnet
             Array<Global> m_globals;
         };
 
+        // Every call into C# runs inside the object's context, so what the C# calls in the engine
+        // (Input, gui, entity.send and the other facades) resolves that run's services, as a call
+        // into the other languages does.
         Result<Variant> DotNetScriptObject::Invoke(StringView method, Span<Variant> args)
         {
+            ScriptCallScope scope(m_context.Get());
             Result<Variant> result = m_runtime->Invoke(m_instance, method, Span<const Variant>{args.Data(), args.Size()});
             // A member that is not there is the caller's to handle (a handler a class does not
             // declare); a call that threw is a script fault.
             if (!result.HasValue() && result.Error() != ErrorCode::NotFound)
                 m_context->ReportFailure(method);
             return result;
+        }
+
+        Result<Variant> DotNetScriptObject::GetProperty(StringView name)
+        {
+            ScriptCallScope scope(m_context.Get());
+            return m_runtime->GetField(m_instance, name);
         }
 
         class DotNetScriptManager final : public IScriptManager

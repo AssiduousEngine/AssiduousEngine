@@ -59,8 +59,6 @@ public static unsafe class Runtime
     static readonly Dictionary<nint, ApplicationAssembly> s_instances = new(); // the assembly of each instance held
     static readonly List<WeakReference> s_unloaded = new(); // contexts told to unload, until collected
     // The value types the bindings know, by engine id and by C# type, with their typed copies.
-    static readonly Dictionary<ulong, (Type Type, Func<nint, object> Read)> s_valueTypes = new();
-    static readonly Dictionary<Type, (ulong Id, Action<object, nint> Write, int Size)> s_valueIds = new();
     static readonly Dictionary<(Type, string, int), MethodInfo?> s_methods = new();
 
     [ThreadStatic] static string? t_error;
@@ -101,13 +99,6 @@ public static unsafe class Runtime
                 return Fail($"the C# layout of {mismatch} differs from the engine's");
             if (CompiledIn && s_assemblies.Count == 0)
                 RegisterCompiledIn();
-            s_valueTypes.Clear();
-            s_valueIds.Clear();
-            foreach ((ulong id, Type type, Func<nint, object> read, Action<object, nint> write, int size) in Types.Values)
-            {
-                s_valueTypes[id] = (type, read);
-                s_valueIds[type] = (id, write, size);
-            }
             return 0;
         }
         catch (Exception e)
@@ -529,44 +520,15 @@ public static unsafe class Runtime
     // arrives as a double), a value struct is copied from its bytes, a handle is wrapped.
     static object? FromEngine(DotNetValue value, Type target)
     {
-        switch (value.Kind)
-        {
-        case ValueKind.Empty:
+        object? any = Bridge.AnyOf(value);
+        if (any == null)
             return target.IsValueType ? Activator.CreateInstance(target) : null;
-        case ValueKind.Text:
-            return Bridge.TextOf(value);
-        case ValueKind.Handle:
-        {
-            EngineObject? wrapped = Types.Wrap(Bridge.TypeIdOf(value.Type), value);
-            if (wrapped == null)
-                Bridge.ReleaseHandle((nint)value.Data);
-            return wrapped;
-        }
-        }
-        ulong id = Bridge.TypeIdOf(value.Type);
-        if (s_valueTypes.TryGetValue(id, out (Type Type, Func<nint, object> Read) known))
-        {
-            if (!target.IsAssignableFrom(known.Type))
-                throw new ArgumentException($"a {known.Type.Name} is not a {target.Name}");
-            return known.Read((nint)value.Data);
-        }
-        object number = id switch
-        {
-            Types.F64Id => *(double*)value.Data,
-            Types.F32Id => *(float*)value.Data,
-            Types.I32Id => *(int*)value.Data,
-            Types.U32Id => *(uint*)value.Data,
-            Types.I64Id => *(long*)value.Data,
-            Types.U64Id => *(ulong*)value.Data,
-            Types.I16Id => *(short*)value.Data,
-            Types.U16Id => *(ushort*)value.Data,
-            Types.I8Id => *(sbyte*)value.Data,
-            Types.U8Id => *(byte*)value.Data,
-            Types.BoolId => *(byte*)value.Data != 0,
-            _ => throw new ArgumentException($"a value of engine type {id:x} has no C# form"),
-        };
+        if (target.IsInstanceOfType(any))
+            return any;
         Type wanted = Nullable.GetUnderlyingType(target) ?? target;
-        return wanted == typeof(object) ? number : Convert.ChangeType(number, wanted, System.Globalization.CultureInfo.InvariantCulture);
+        if (any is IConvertible && wanted.IsPrimitive)
+            return Convert.ChangeType(any, wanted, System.Globalization.CultureInfo.InvariantCulture);
+        throw new ArgumentException($"a {any.GetType().Name} is not a {target.Name}");
     }
 
     static void SetText(string text, out byte* bytes, out int length)
@@ -604,25 +566,7 @@ public static unsafe class Runtime
         case EngineObject engineObject:
             *result = engineObject.EngineValue;
             return;
-        case float f: *(float*)t_bytes = f; Scalar(result, Types.F32Id, 4); return;
-        case double d: *(double*)t_bytes = d; Scalar(result, Types.F64Id, 8); return;
-        case int i: *(int*)t_bytes = i; Scalar(result, Types.I32Id, 4); return;
-        case uint u: *(uint*)t_bytes = u; Scalar(result, Types.U32Id, 4); return;
-        case long l: *(long*)t_bytes = l; Scalar(result, Types.I64Id, 8); return;
-        case ulong ul: *(ulong*)t_bytes = ul; Scalar(result, Types.U64Id, 8); return;
-        case bool b: *t_bytes = b ? (byte)1 : (byte)0; Scalar(result, Types.BoolId, 1); return;
         }
-        if (s_valueIds.TryGetValue(value.GetType(), out (ulong Id, Action<object, nint> Write, int Size) known))
-        {
-            if (known.Size > kValueCapacity)
-                throw new ArgumentException($"{value.GetType().Name} is larger than a result holds");
-            known.Write(value, (nint)t_bytes);
-            Scalar(result, known.Id, known.Size);
-            return;
-        }
-        throw new ArgumentException($"a {value.GetType().Name} has no engine form");
+        *result = Bridge.PackValue(value, t_bytes, kValueCapacity);
     }
-
-    static void Scalar(DotNetValue* result, ulong id, int size) =>
-        *result = new DotNetValue { Type = Bridge.TypeById(id), Data = t_bytes, Size = (ulong)size, Kind = ValueKind.Bytes };
 }
