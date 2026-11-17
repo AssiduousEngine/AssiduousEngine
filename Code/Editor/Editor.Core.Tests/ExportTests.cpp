@@ -3886,7 +3886,7 @@ namespace
 
 // A project with C# runs it compiled into its own player: the export's choice is a built player
 // (so a template export is refused and told to export natively), its C# folder the one holding the
-// project file; two C# projects, an Android or a web preset are refused with the reason.
+// project file, on the desktop and the web; two C# projects or an Android preset are refused with the reason.
 TEST_CASE("export: a project with C# needs its own player")
 {
     pipeline::ScriptAssemblyCookRegistry::Get().Register(String(u8"csharp"), MakeUnique<StandInCSharpProjects>(DefaultAllocator()));
@@ -3920,9 +3920,9 @@ TEST_CASE("export: a project with C# needs its own player")
     CHECK(choice.build);
     CHECK(choice.reason.AsView().Contains(u8"C#"));
 
-    // Not on Android, not on the web yet.
+    // Not on Android; on the web, a built player as on the desktop.
     CHECK(editor::detail::ChoosePlayer(*project, tmpl, u8"Android64").refusal.AsView().Contains(u8"Android"));
-    CHECK(editor::detail::ChoosePlayer(*project, tmpl, u8"Web").refusal.AsView().Contains(u8"web"));
+    CHECK(editor::detail::ChoosePlayer(*project, tmpl, u8"Web").build);
 
     // Two C# projects: a player compiles one in.
     SaveText(sourceFs, u8"Tools.csproj", u8"<Project />");

@@ -1247,12 +1247,6 @@ namespace editor
                     choice.refusal = String(u8"C# does not run on Android");
                     return choice;
                 }
-                if (platform.StartsWith(u8"Web") || platform.StartsWith(u8"Wasm"))
-                {
-                    // TODO(export): NativeAOT-LLVM into the web player.
-                    choice.refusal = String(u8"C# does not export to the web yet");
-                    return choice;
-                }
                 choice.build = true;
                 choice.reason = String(u8"the project's C# is compiled into its player");
             }
@@ -1437,14 +1431,44 @@ namespace editor
             const String defCSharp = Format(u8"-DENGINE_PROJECT_CSHARP={}", csharpFolder);
             const StringView defDotNet = csharpFolder.IsEmpty() ? StringView(u8"-DOPTION_ENABLE_DOTNET=OFF")
                                                                 : StringView(u8"-DOPTION_ENABLE_DOTNET=ON");
+            // The web compiles the C# with NativeAOT-LLVM: under the emsdk its bitcode is built with,
+            // against the bindings this editor's build generated (the web build cannot run the tool).
+            String defBindings(u8"-DDOTNET_BINDINGS=");
+            String defDotNetEmsdk(u8"-DDOTNET_EMSDK=");
+            if (web && !csharpFolder.IsEmpty())
+            {
+                const String bindings = PathJoin(PathParent(ExecutablePath().AsView()), u8"DotNet/Engine.g.cs");
+                const Optional<String> fromEnvironment = GetEnvironmentVariable(u8"DOTNET_EMSDK");
+                const Optional<String> home = GetEnvironmentVariable(u8"HOME");
+                const String dotnetEmsdk = fromEnvironment.HasValue() ? fromEnvironment.Value()
+                                           : home.HasValue()          ? PathJoin(home.Value().AsView(), u8"emsdk-3.1.56")
+                                                                      : String{};
+                if (!FileExists(bindings.AsView()))
+                {
+                    LOG_ERROR(u8"Export", u8"C# for the web needs the C# bindings this editor's build generates, at '{}' - not found "
+                                          u8"(an editor built with OPTION_ENABLE_DOTNET has them)",
+                              bindings);
+                    return Status{ErrorCode::NotFound};
+                }
+                if (dotnetEmsdk.IsEmpty() || !FileExists(PathJoin(dotnetEmsdk.AsView(), u8"emsdk_env.sh").AsView()))
+                {
+                    LOG_ERROR(u8"Export", u8"C# for the web needs emsdk 3.1.56 (the one NativeAOT-LLVM builds with), at '{}' or "
+                                          u8"where DOTNET_EMSDK says - not found",
+                              dotnetEmsdk);
+                    return Status{ErrorCode::NotFound};
+                }
+                defBindings += bindings;
+                defDotNetEmsdk += dotnetEmsdk;
+            }
             const StringView cfgArgs[] = {u8"-S",       engineRoot,
                                           u8"-B",       shipDir.AsView(),
                                           u8"-G",       u8"Ninja",
                                           compilerOrToolchain,   defBuildType.AsView(),
                                           defPackages.AsView(),  defSuffix.AsView(),
-                                          defCSharp.AsView(),    defDotNet};
+                                          defCSharp.AsView(),    defDotNet,
+                                          defBindings.AsView(),  defDotNetEmsdk.AsView()};
             const ProcessResult configured =
-                RunProcess(cmakePath, Span<const StringView>(cfgArgs, 12));
+                RunProcess(cmakePath, Span<const StringView>(cfgArgs, 14));
             if (!configured.Ok())
             {
                 LOG_ERROR(u8"Export", u8"native ship configure failed ({}):\n{}",
