@@ -39,6 +39,10 @@ public class Mover
 
     public Float3 scaled(float k) => new Float3 { x = heading.x * k, y = heading.y * k, z = heading.z * k };
 
+    // An asset named by its id's text, as a script names a clip or a prefab, and that text written back.
+    public Engine.Guid asset(string text) => Engine.Guid.Parse(text);
+    public string assetText(string text) => Engine.Guid.Parse(text).ToString();
+
     public bool hasEntity() => m_entity.isValid();
 
     public void fail() => throw new InvalidOperationException("failed on purpose");

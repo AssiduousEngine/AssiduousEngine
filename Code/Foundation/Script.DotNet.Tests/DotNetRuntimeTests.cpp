@@ -70,6 +70,20 @@ TEST_CASE("dotnet runtime: a game's behaviour is made, set, called, read and des
     REQUIRE(scaled.Value().TryGet<Float3>() != nullptr);
     CHECK(scaled.Value().TryGet<Float3>()->z == doctest::Approx(6.0f));
 
+    // A guid's text parses in C# to the engine's Guid, and writes back the same, braces or not.
+    const StringView idText = u8"3f2a9c1e-0b7d-4e5a-9c21-7d0e5b6a4f38";
+    const Variant idArg[1] = {Variant::From<String>(String(u8"{3f2a9c1e-0b7d-4e5a-9c21-7d0e5b6a4f38}"))};
+    const Result<Variant> id = runtime.Invoke(mover.Value(), u8"asset", Span<const Variant>{idArg, 1});
+    INFO(Text(runtime.Failure()));
+    REQUIRE(id.HasValue());
+    REQUIRE(id.Value().TryGet<Guid>() != nullptr);
+    CHECK(*id.Value().TryGet<Guid>() == Guid(idText));
+    const Variant plainArg[1] = {Variant::From<String>(String(idText))};
+    const Result<Variant> written = runtime.Invoke(mover.Value(), u8"assetText", Span<const Variant>{plainArg, 1});
+    REQUIRE(written.HasValue());
+    REQUIRE(written.Value().TryGet<String>() != nullptr);
+    CHECK(*written.Value().TryGet<String>() == idText);
+
     // The entity it was made with: the default one, which names nothing.
     const Result<Variant> hasEntity = runtime.Invoke(mover.Value(), u8"hasEntity", Span<const Variant>{});
     INFO(Text(runtime.Failure()));
