@@ -1196,12 +1196,9 @@ namespace editor
     {
         folder.Clear();
         refusal.Clear();
-        const String sources = PathJoin(project.Directory(), u8"Sources");
-        if (!DirectoryExists(sources.AsView()))
-        {
-            return false;
-        }
+        const String sources = project.SourcesRoot();
         vfs::NativeFileSystem sourceFs(sources.AsView(), editor::EditorRootAllocator());
+        project.AddCodeFolder(sourceFs); // where a project's C# lives
         // A project file of a language whose classes build together (C#'s .csproj).
         Array<String> found;
         const StringView extensions[] = {u8"csproj"};
@@ -1226,7 +1223,7 @@ namespace editor
                              found[1]);
             return true;
         }
-        folder = PathJoin(sources.AsView(), PathParent(found[0].AsView()));
+        folder = project.SourceFile(PathParent(found[0].AsView()));
         return true;
     }
 
