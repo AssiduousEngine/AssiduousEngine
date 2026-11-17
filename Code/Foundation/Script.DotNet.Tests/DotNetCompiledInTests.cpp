@@ -55,6 +55,14 @@ TEST_CASE("dotnet compiled in: the runtime and the game run without .NET")
     const Result<Variant> greeting = runtime.Invoke(mover.Value(), u8"greet", Span<const Variant>{name, 1});
     REQUIRE(greeting.HasValue());
     CHECK(*greeting.Value().TryGet<String>() == StringView(u8"hello Ada from mover"));
+    for (const char8_t* method : {u8"sameEntity", u8"registryFinds"})
+    {
+        INFO(Text(StringView(method)));
+        const Result<Variant> same = runtime.Invoke(mover.Value(), method, Span<const Variant>{});
+        REQUIRE(same.HasValue());
+        REQUIRE(same.Value().TryGet<bool>() != nullptr);
+        CHECK(*same.Value().TryGet<bool>());
+    }
     CHECK_FALSE(runtime.Invoke(mover.Value(), u8"fail", Span<const Variant>{}).HasValue());
     CHECK(runtime.Failure().Contains(u8"failed on purpose"));
     const Result<String> described = runtime.DescribeClass(kOwner, u8"Mover", Span<const Variant>{entity, 1});

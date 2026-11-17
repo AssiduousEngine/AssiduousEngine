@@ -59,5 +59,17 @@ public class Mover
 
     public bool hasEntity() => m_entity.isValid();
 
+    // Whether its entity equals itself through the engine's Equals, and a registry of entities
+    // (a list of tuples, as a game keeps what can be hurt) finds it by that Equals.
+    public bool sameEntity() => Entity.Equals(m_entity, m_entity);
+    public bool registryFinds()
+    {
+        var registry = new System.Collections.Generic.List<(Entity Entity, Mover Owner)> { (m_entity, this) };
+        foreach ((Entity registered, Mover owner) in registry)
+            if (Entity.Equals(registered, m_entity))
+                return owner == this;
+        return false;
+    }
+
     public void fail() => throw new InvalidOperationException("failed on purpose");
 }

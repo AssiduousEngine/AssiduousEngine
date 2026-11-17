@@ -55,3 +55,18 @@ TEST_CASE("dotnet bindings: C# calls Float3's reflected methods through the gene
     INFO(std::string(reinterpret_cast<const char*>(why), static_cast<usize>(length)));
     CHECK(got == 32767);
 }
+
+// An engine value type held whole (no fields of its own in C#, CurveKey here) is written with
+// fields that cover its bytes, so every compiler copies them: one with only a declared size lost an
+// Entity's bytes in the web's ahead-of-time build.
+TEST_CASE("dotnet bindings: an opaque value type has fields covering its bytes")
+{
+    RegisterCoreTypes();
+    const Array<const TypeInfo*> types = GlobalTypeRegistry().All();
+    const String source = GenerateCSharpBindings(Span<const TypeInfo* const>{types.Data(), types.Size()});
+    const StringView key = u8"[StructLayout(LayoutKind.Sequential, Size = 20)]\npublic unsafe partial struct CurveKey\n{\n";
+    const usize at = source.AsView().Find(key);
+    REQUIRE(at != StringView::kNotFound);
+    const StringView body = source.AsView().SubStr(at + key.Size(), 300);
+    CHECK(body.Contains(u8"\n    uint m_held0;\n    uint m_held1;\n    uint m_held2;\n    uint m_held3;\n    uint m_held4;\n"));
+}
