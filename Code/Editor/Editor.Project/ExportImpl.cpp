@@ -1190,9 +1190,73 @@ namespace editor
         return {};
     }
 
+    bool detail::FindScriptProjectFolder(const EditorProject& project, String& folder, String& refusal)
+    {
+        folder.Clear();
+        refusal.Clear();
+        const String sources = PathJoin(project.Directory(), u8"Sources");
+        if (!DirectoryExists(sources.AsView()))
+        {
+            return false;
+        }
+        vfs::NativeFileSystem sourceFs(sources.AsView(), editor::EditorRootAllocator());
+        // A project file of a language whose classes build together (C#'s .csproj).
+        Array<String> found;
+        const StringView extensions[] = {u8"csproj"};
+        for (const StringView extension : extensions)
+        {
+            if (pipeline::ScriptAssemblyCookRegistry::Get().LanguageOfProject(extension).IsEmpty())
+            {
+                continue;
+            }
+            for (String& file : pipeline::ListSourcesUnder(sourceFs, StringView{}, extension))
+            {
+                found.PushBack(Move(file));
+            }
+        }
+        if (found.IsEmpty())
+        {
+            return false;
+        }
+        if (found.Size() > 1)
+        {
+            refusal = Format(u8"the project has {} C# projects ({} and {}): a player compiles one in", found.Size(), found[0],
+                             found[1]);
+            return true;
+        }
+        folder = PathJoin(sources.AsView(), PathParent(found[0].AsView()));
+        return true;
+    }
+
     detail::PlayerChoice detail::ChoosePlayer(const EditorProject& project, const ExportTemplate& tmpl, StringView platform)
     {
         PlayerChoice choice;
+        // C# runs compiled into the game's own player.
+        {
+            String folder;
+            String refusal;
+            if (FindScriptProjectFolder(project, folder, refusal))
+            {
+                if (!refusal.IsEmpty())
+                {
+                    choice.refusal = Move(refusal);
+                    return choice;
+                }
+                if (IsAndroidPlatform(platform))
+                {
+                    choice.refusal = String(u8"C# does not run on Android");
+                    return choice;
+                }
+                if (platform.StartsWith(u8"Web") || platform.StartsWith(u8"Wasm"))
+                {
+                    // TODO(export): NativeAOT-LLVM into the web player.
+                    choice.refusal = String(u8"C# does not export to the web yet");
+                    return choice;
+                }
+                choice.build = true;
+                choice.reason = String(u8"the project's C# is compiled into its player");
+            }
+        }
         for (const foundation::runtime::EnabledPlugin& entry : project.Settings().plugins)
         {
             foundation::runtime::PluginManifest manifest;
@@ -1365,13 +1429,22 @@ namespace editor
             // Web: the toolchain file selects the compiler (never pin clang++ under it).
             const StringView compilerOrToolchain =
                 web ? toolchainDef.AsView() : defCompiler.AsView();
+            // The game's C#, compiled into the player (OPTION_ENABLE_DOTNET builds the backend), or
+            // none: an empty folder clears what an earlier configure of this tree set.
+            String csharpFolder;
+            String csharpRefusal;
+            (void)detail::FindScriptProjectFolder(project, csharpFolder, csharpRefusal);
+            const String defCSharp = Format(u8"-DENGINE_PROJECT_CSHARP={}", csharpFolder);
+            const StringView defDotNet = csharpFolder.IsEmpty() ? StringView(u8"-DOPTION_ENABLE_DOTNET=OFF")
+                                                                : StringView(u8"-DOPTION_ENABLE_DOTNET=ON");
             const StringView cfgArgs[] = {u8"-S",       engineRoot,
                                           u8"-B",       shipDir.AsView(),
                                           u8"-G",       u8"Ninja",
                                           compilerOrToolchain,   defBuildType.AsView(),
-                                          defPackages.AsView(),  defSuffix.AsView()};
+                                          defPackages.AsView(),  defSuffix.AsView(),
+                                          defCSharp.AsView(),    defDotNet};
             const ProcessResult configured =
-                RunProcess(cmakePath, Span<const StringView>(cfgArgs, 10));
+                RunProcess(cmakePath, Span<const StringView>(cfgArgs, 12));
             if (!configured.Ok())
             {
                 LOG_ERROR(u8"Export", u8"native ship configure failed ({}):\n{}",

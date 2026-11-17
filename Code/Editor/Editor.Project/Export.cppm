@@ -131,6 +131,11 @@ export namespace editor
             foundation::core::String refusal;
             foundation::core::Array<foundation::core::String> enabled;
         };
+        // The folder of the project's C# project (its .csproj, the one a player compiles in), absolute,
+        // into `folder`: true when the project has C#. More than one project sets `refusal`. Defined
+        // in ExportImpl.cpp.
+        [[nodiscard]] bool FindScriptProjectFolder(const EditorProject& project, foundation::core::String& folder,
+                                                   foundation::core::String& refusal);
         [[nodiscard]] PlayerChoice ChoosePlayer(const EditorProject& project, const ExportTemplate& tmpl,
                                                 foundation::core::StringView platform);
 
