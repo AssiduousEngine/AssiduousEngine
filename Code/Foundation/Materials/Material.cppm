@@ -230,9 +230,9 @@ export namespace foundation::materials
         void SetDefaultFloat4(StringView n, Float4 v) { WriteUniform(n, &v, sizeof(v)); }
         void SetDefaultColor(StringView n, Float4 c) { SetDefaultFloat4(n, c); }
 
-        /// `owner` is what `tex` belongs to (the texture resource it is the view of): the material
-        /// holds it while it draws with the view, so a resource manager never releases a texture a
-        /// material still uses. Null for a view the caller keeps alive itself.
+        /// `owner` is the object that owns `tex`, usually its texture resource. The material keeps a
+        /// reference to it, so the resource manager does not release a texture the material still
+        /// draws with. Pass null when the caller keeps the view alive.
         void SetDefaultTexture(StringView n, rhi::TextureView* tex, RefPtr<Object> owner = {})
         {
             const isize i = GetPropertyIndex(n);
@@ -531,7 +531,7 @@ export namespace foundation::materials
         }
 
         HashMap<usize, rhi::TextureView*> m_defaultTextures;
-        HashMap<usize, RefPtr<Object>> m_textureOwners; // what each default view belongs to, held
+        HashMap<usize, RefPtr<Object>> m_textureOwners; // keeps each default texture alive
         HashMap<usize, rhi::Sampler*> m_defaultSamplers;
     };
 
