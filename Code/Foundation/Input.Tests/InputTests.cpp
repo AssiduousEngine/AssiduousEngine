@@ -940,6 +940,68 @@ TEST_CASE("input: touch - region buttons and the floating virtual stick")
     CHECK_FALSE(ValidateInputMap(bad));
 }
 
+// Touch look: a drag captures a touch that comes down in its region, and reads how far it moved
+// each frame (scaled), nothing while it rests, and lets it go when it lifts. A touch that came down
+// elsewhere and slides in is not taken, and the drag is not drawn among the on-screen controls.
+TEST_CASE("input: touch - a drag reads the movement of the touch it captured")
+{
+    InputMap map;
+    ActionSet set;
+    set.name = String(u8"S");
+    Action look;
+    look.name = String(u8"Look");
+    look.kind = ActionKind::Axis2D;
+    Binding drag;
+    drag.source = BindingSource::TouchDrag;
+    drag.regionX = 0.5f; // right half
+    drag.regionY = 0.0f;
+    drag.regionW = 0.5f;
+    drag.regionH = 1.0f;
+    drag.scale = 100.0f;
+    look.bindings.PushBack(drag);
+    set.actions.PushBack(static_cast<Action&&>(look));
+    map.sets.PushBack(static_cast<ActionSet&&>(set));
+    REQUIRE(ValidateInputMap(map));
+
+    ActionRuntime runtime;
+    runtime.SetMap(map);
+    FakeDevices devices;
+    const ActionRef ref = runtime.Resolve(u8"Look");
+    const f32 step = 1.0f / 60.0f;
+
+    devices.touch.Set(0, 0.70f, 0.50f);
+    runtime.Update(devices, step); // captured: no movement yet
+    CHECK(runtime.Value2D(ref).x == doctest::Approx(0.0f));
+    devices.touch.Set(0, 0.72f, 0.47f);
+    runtime.Update(devices, step);
+    CHECK(runtime.Value2D(ref).x == doctest::Approx(2.0f));
+    CHECK(runtime.Value2D(ref).y == doctest::Approx(-3.0f));
+    runtime.Update(devices, step); // resting: nothing
+    CHECK(runtime.Value2D(ref).x == doctest::Approx(0.0f));
+    // It follows its touch out of the region.
+    devices.touch.Set(0, 0.40f, 0.47f);
+    runtime.Update(devices, step);
+    CHECK(runtime.Value2D(ref).x == doctest::Approx(-32.0f));
+    devices.touch.Remove(0);
+    runtime.Update(devices, step);
+    CHECK(runtime.Value2D(ref).x == doctest::Approx(0.0f));
+
+    // A touch that came down on the left half and slides into the region is not taken.
+    devices.touch.Set(1, 0.20f, 0.50f);
+    runtime.Update(devices, step);
+    devices.touch.Set(1, 0.70f, 0.50f);
+    runtime.Update(devices, step);
+    devices.touch.Set(1, 0.80f, 0.50f);
+    runtime.Update(devices, step);
+    CHECK(runtime.Value2D(ref).x == doctest::Approx(0.0f));
+    devices.touch.Remove(1);
+    runtime.Update(devices, step);
+
+    usize shown = 0;
+    runtime.ForEachTouchControl([&](const ActionRuntime::TouchControl&) { ++shown; });
+    CHECK(shown == 0u);
+}
+
 TEST_CASE("input: the timeScale processor scales flagged action VALUES only")
 {
     InputMap map;
@@ -1212,7 +1274,7 @@ TEST_CASE("input reflection: the leaf value types + enums reflect")
     REQUIRE(srcProp != nullptr);
     REQUIRE(srcProp->type != nullptr);
     CHECK(IsEnum(*srcProp->type));
-    CHECK(Enumerators(*srcProp->type).Size() == 10u); // BindingSource has 10 values
+    CHECK(Enumerators(*srcProp->type).Size() == 11u); // BindingSource has 11 values
 
     // get/set round-trip through an Instance on a live Binding.
     Binding b;

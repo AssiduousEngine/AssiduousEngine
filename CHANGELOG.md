@@ -9,6 +9,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Added
 
+- Input maps: a Touch drag binding reads how far a touch that came down in its region moved each
+  frame, for looking around by dragging on a touch screen.
 - Scripts: `Input.lockPointer(true)` locks the pointer for mouse look (hidden, held in place, only
   its movement read) and `Input.pointerLocked()` says whether it is; `lockPointer(false)` frees it,
   and a run's end does too. On the web the lock takes effect at the next click, and the browser's

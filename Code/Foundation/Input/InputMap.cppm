@@ -43,6 +43,8 @@ export namespace foundation::input
         TouchButton,   // Button: any touch inside the normalized screen region
         TouchStick,    // Axis2D: a floating virtual stick; a touch inside the region anchors
                        // where it is captured; deflection/stickRadius = the value
+        TouchDrag,     // Axis2D rate: how far the touch it captured in the region moved this
+                       // frame, a fraction of the screen (touch look); never time-scaled
     };
 
     enum class MouseAxisCode : u32
@@ -377,7 +379,8 @@ export namespace foundation::input
                     const bool is2D = b.source == BindingSource::GamepadStick ||
                                       b.source == BindingSource::Composite2D ||
                                       b.source == BindingSource::MouseDelta ||
-                                      b.source == BindingSource::TouchStick;
+                                      b.source == BindingSource::TouchStick ||
+                                      b.source == BindingSource::TouchDrag;
                     const bool isAxis = b.source == BindingSource::MouseAxis ||
                                         b.source == BindingSource::GamepadAxis;
                     switch (action.kind)

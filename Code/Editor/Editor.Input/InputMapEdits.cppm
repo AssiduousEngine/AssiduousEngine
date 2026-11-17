@@ -116,6 +116,8 @@ export namespace editor
                 return u8"Touch button";
             case input::BindingSource::TouchStick:
                 return u8"Touch stick";
+            case input::BindingSource::TouchDrag:
+                return u8"Touch drag";
             }
             return u8"?";
         }

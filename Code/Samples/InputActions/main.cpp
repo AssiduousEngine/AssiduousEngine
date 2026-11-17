@@ -143,6 +143,8 @@ namespace
             return "TouchBtn";
         case input::BindingSource::TouchStick:
             return "TouchStick";
+        case input::BindingSource::TouchDrag:
+            return "TouchDrag";
         }
         return "?";
     }

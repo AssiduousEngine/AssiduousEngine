@@ -35,6 +35,7 @@ namespace foundation::input
         builder.Value("Composite2D", BindingSource::Composite2D);
         builder.Value("TouchButton", BindingSource::TouchButton);
         builder.Value("TouchStick", BindingSource::TouchStick);
+        builder.Value("TouchDrag", BindingSource::TouchDrag);
     }
 
     // The input map's own codes beside the shell's: what a binding's `code`

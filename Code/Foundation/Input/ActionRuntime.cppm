@@ -551,7 +551,7 @@ export namespace foundation::input
         /// Republished every frame by the UI subsystem; sticky until changed.
         struct ConsumptionMask
         {
-            bool pointer = false;  // MouseButton/MouseAxis/MouseDelta/TouchButton/TouchStick
+            bool pointer = false;  // MouseButton/MouseAxis/MouseDelta and the touch sources
             bool keyboard = false; // Key (and Composite2D, which is four keys)
         };
         void SetConsumptionMask(ConsumptionMask mask) noexcept { m_consumed = mask; }
@@ -561,7 +561,7 @@ export namespace foundation::input
         {
             return source == BindingSource::MouseButton || source == BindingSource::MouseAxis ||
                    source == BindingSource::MouseDelta || source == BindingSource::TouchButton ||
-                   source == BindingSource::TouchStick;
+                   source == BindingSource::TouchStick || source == BindingSource::TouchDrag;
         }
         [[nodiscard]] static bool IsKeyboardSource(BindingSource source) noexcept
         {
@@ -639,6 +639,14 @@ export namespace foundation::input
             u64 touchId = 0;
             Float2 touchAnchor{0.0f, 0.0f};
             Float2 touchPoint{0.0f, 0.0f};
+            // Drag tracking (TouchDrag): the touch it captured, where that touch was last frame, and
+            // the touches down last frame (a drag takes only a touch that has just come down).
+            static constexpr u32 kDragSeen = 10;
+            bool dragHeld = false;
+            u64 dragId = 0;
+            Float2 dragLast{0.0f, 0.0f};
+            u64 dragSeen[kDragSeen] = {};
+            u32 dragSeenCount = 0;
         };
         struct Candidate
         {
@@ -889,6 +897,7 @@ export namespace foundation::input
             }
             case BindingSource::TouchButton:
             case BindingSource::TouchStick:
+            case BindingSource::TouchDrag:
                 break; // stateful: handled by EvaluateTouchBinding at the call site
             case BindingSource::Composite2D:
             {
@@ -944,6 +953,7 @@ export namespace foundation::input
             if (touch == nullptr)
             {
                 state.touchHeld = false;
+                state.dragHeld = false;
                 return out;
             }
             auto inRegion = [&](f32 x, f32 y)
@@ -967,9 +977,53 @@ export namespace foundation::input
                 return out;
             }
 
+            const i32 count = touch->TouchCount();
+            if (b.source == BindingSource::TouchDrag)
+            {
+                // A drag: the touch it captured (one that came down inside the region) moves the
+                // value by how far it went since last frame, until it lifts. A touch that came down
+                // elsewhere (on a stick, a button) and slides in is not taken.
+                auto seenBefore = [&state](u64 id)
+                {
+                    for (u32 i = 0; i < state.dragSeenCount; ++i)
+                        if (state.dragSeen[i] == id)
+                            return true;
+                    return false;
+                };
+                bool alive = false;
+                for (i32 i = 0; i < count; ++i)
+                {
+                    shell::TouchPoint point;
+                    if (!touch->GetTouchPoint(i, point))
+                        continue;
+                    if (state.dragHeld && point.id == state.dragId)
+                    {
+                        alive = true;
+                        out.value.x = (point.x - state.dragLast.x) * b.scale;
+                        out.value.y = (point.y - state.dragLast.y) * b.scale * (b.invert ? -1.0f : 1.0f);
+                        state.dragLast = Float2{point.x, point.y};
+                        out.digitalDown = out.value.x != 0.0f || out.value.y != 0.0f;
+                    }
+                    else if (!state.dragHeld && !alive && !seenBefore(point.id) && inRegion(point.x, point.y))
+                    {
+                        alive = true; // captured: no movement yet this frame
+                        state.dragId = point.id;
+                        state.dragLast = Float2{point.x, point.y};
+                    }
+                }
+                state.dragHeld = alive;
+                state.dragSeenCount = 0;
+                for (i32 i = 0; i < count && state.dragSeenCount < ActionState::kDragSeen; ++i)
+                {
+                    shell::TouchPoint point;
+                    if (touch->GetTouchPoint(i, point))
+                        state.dragSeen[state.dragSeenCount++] = point.id;
+                }
+                return out;
+            }
+
             // TouchStick: a floating stick, anchored where its owning touch was when the stick
             // captured it (the first frame that touch lay inside the region).
-            const i32 count = touch->TouchCount();
             if (state.touchHeld)
             {
                 bool alive = false;
@@ -1055,7 +1109,7 @@ export namespace foundation::input
                     continue;
                 } // UI ate this device class
                 const Contribution c = (b.source == BindingSource::TouchButton ||
-                                        b.source == BindingSource::TouchStick)
+                                        b.source == BindingSource::TouchStick || b.source == BindingSource::TouchDrag)
                                            ? EvaluateTouchBinding(b, devices, state)
                                            : EvaluateBinding(b, devices);
                 if (std::fabs(c.value.x) > std::fabs(target.x))

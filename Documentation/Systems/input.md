@@ -117,7 +117,9 @@ construction.
 ## Touch + portability
 
 Touch bindings shipped (TouchButton regions + a floating TouchStick), demonstrated on the Steam Deck
-in the InputActions sample and played on an Android phone in Sky Hopper. Touches arrive in the
+in the InputActions sample and played on an Android phone in Sky Hopper. A TouchDrag reads, each
+frame, how far the touch it captured (one that came down in its region) moved, a fraction of the
+screen times its scale: touch look, the mouse delta's counterpart; it is not drawn. Touches arrive in the
 mouse's space (normalized on the web); `Engine.GUI`'s `GuiTouchGuide` draws each run's touch
 controls (`ActionRuntime::ForEachTouchControl`). The player keeps a game's frame, screens and
 pointer inside the window's safe area. The Android player (`PLATFORM_ANDROID`) runs the same SDL

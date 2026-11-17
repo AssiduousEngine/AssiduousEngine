@@ -202,6 +202,8 @@ export namespace foundation::input
             return String(u8"Touch Region");
         case BindingSource::TouchStick:
             return String(u8"Touch Stick");
+        case BindingSource::TouchDrag:
+            return String(u8"Touch Drag");
         case BindingSource::Composite2D:
         {
             // Up, left, down, right, as a player reads them ("W A S D"; the arrows "Up Left Down Right").
@@ -243,6 +245,8 @@ export namespace foundation::input
             return u8"TouchBtn";
         case BindingSource::TouchStick:
             return u8"TouchStick";
+        case BindingSource::TouchDrag:
+            return u8"TouchDrag";
         }
         return u8"?";
     }
@@ -272,6 +276,7 @@ export namespace foundation::input
             out[n++] = BindingSource::Composite2D;
             out[n++] = BindingSource::MouseDelta;
             out[n++] = BindingSource::TouchStick;
+            out[n++] = BindingSource::TouchDrag;
             break;
         }
         return n;

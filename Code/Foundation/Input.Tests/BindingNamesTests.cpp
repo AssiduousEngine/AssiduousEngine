@@ -91,7 +91,8 @@ TEST_CASE("binding names: ValidSources lists the accepted sources per action kin
     CHECK(out[2] == BindingSource::GamepadButton);
 
     const usize axis2d = ValidSources(ActionKind::Axis2D, out);
-    REQUIRE(axis2d == 4u);
+    REQUIRE(axis2d == 5u);
     CHECK(out[0] == BindingSource::GamepadStick);
     CHECK(out[1] == BindingSource::Composite2D);
+    CHECK(out[4] == BindingSource::TouchDrag);
 }

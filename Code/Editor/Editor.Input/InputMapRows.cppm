@@ -71,9 +71,9 @@ export namespace editor
             const bool composite = source == Source::Composite2D;
             const bool deadZone = source == Source::MouseAxis || source == Source::GamepadAxis || source == Source::GamepadStick || source == Source::TouchStick;
             const bool invert = source == Source::MouseAxis || source == Source::MouseDelta || source == Source::GamepadAxis || source == Source::GamepadStick ||
-                                source == Source::TouchStick || composite;
+                                source == Source::TouchStick || source == Source::TouchDrag || composite;
             const bool gamepad = source == Source::GamepadButton || source == Source::GamepadAxis || source == Source::GamepadStick;
-            const bool touch = source == Source::TouchButton || source == Source::TouchStick;
+            const bool touch = source == Source::TouchButton || source == Source::TouchStick || source == Source::TouchDrag;
             const auto range = [&info](f64 min, f64 max, f64 step)
             {
                 info.HasRange = true;

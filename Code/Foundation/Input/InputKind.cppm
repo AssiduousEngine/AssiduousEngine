@@ -68,7 +68,8 @@ export namespace foundation::input
             case BindingSource::GamepadAxis:
             case BindingSource::GamepadStick: return InputKind::Pad;
             case BindingSource::TouchButton:
-            case BindingSource::TouchStick: return InputKind::Pointer;
+            case BindingSource::TouchStick:
+            case BindingSource::TouchDrag: return InputKind::Pointer;
             default: return InputKind::Keyboard;
             }
         }
