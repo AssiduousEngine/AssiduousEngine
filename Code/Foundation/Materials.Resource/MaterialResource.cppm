@@ -617,7 +617,7 @@ export namespace foundation::materials
                         src->textureSlots[i]);
                     continue;
                 }
-                material->SetDefaultTexture(src->textureSlots[i].AsView(), tex->View());
+                material->SetDefaultTexture(src->textureSlots[i].AsView(), tex->View(), RefPtr<Object>(tex.Get()));
                 LOG_DEBUG(u8"Materials", u8"material '{}': slot '{}' bound", src->name,
                                    src->textureSlots[i]);
             }

@@ -230,12 +230,19 @@ export namespace foundation::materials
         void SetDefaultFloat4(StringView n, Float4 v) { WriteUniform(n, &v, sizeof(v)); }
         void SetDefaultColor(StringView n, Float4 c) { SetDefaultFloat4(n, c); }
 
-        void SetDefaultTexture(StringView n, rhi::TextureView* tex)
+        /// `owner` is what `tex` belongs to (the texture resource it is the view of): the material
+        /// holds it while it draws with the view, so a resource manager never releases a texture a
+        /// material still uses. Null for a view the caller keeps alive itself.
+        void SetDefaultTexture(StringView n, rhi::TextureView* tex, RefPtr<Object> owner = {})
         {
             const isize i = GetPropertyIndex(n);
             if (i >= 0 && m_properties[static_cast<usize>(i)].IsTexture())
             {
                 m_defaultTextures.InsertOrAssign(static_cast<usize>(i), tex);
+                if (owner)
+                    m_textureOwners.InsertOrAssign(static_cast<usize>(i), Move(owner));
+                else
+                    (void)m_textureOwners.Remove(static_cast<usize>(i));
             }
         }
         void SetDefaultSampler(StringView n, rhi::Sampler* s)
@@ -467,6 +474,8 @@ export namespace foundation::materials
                                      Span<const u8>{group.defaults.Data(), group.defaults.Size()});
             for (const auto& [index, texture] : m_defaultTextures)
                 copy->m_defaultTextures.InsertOrAssign(index, texture);
+            for (const auto& [index, owner] : m_textureOwners)
+                copy->m_textureOwners.InsertOrAssign(index, owner);
             for (const auto& [index, sampler] : m_defaultSamplers)
                 copy->m_defaultSamplers.InsertOrAssign(index, sampler);
             return copy;
@@ -522,6 +531,7 @@ export namespace foundation::materials
         }
 
         HashMap<usize, rhi::TextureView*> m_defaultTextures;
+        HashMap<usize, RefPtr<Object>> m_textureOwners; // what each default view belongs to, held
         HashMap<usize, rhi::Sampler*> m_defaultSamplers;
     };
 

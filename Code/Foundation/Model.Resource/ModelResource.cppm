@@ -330,7 +330,7 @@ export namespace foundation::model
                         manager.Bind<texture::Texture>(src->materialAlbedo[i]);
                     if (albedo && albedo->View() != nullptr)
                     {
-                        material->SetDefaultTexture(u8"AlbedoMap", albedo->View());
+                        material->SetDefaultTexture(u8"AlbedoMap", albedo->View(), RefPtr<Object>(albedo.Get()));
                     }
                 }
                 model->materials.PushBack(material);

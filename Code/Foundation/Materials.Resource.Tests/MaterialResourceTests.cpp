@@ -22,6 +22,7 @@ import foundation.shaders.system;
 import foundation.shaders.resource;
 import foundation.materials;
 import foundation.materials.resource;
+import foundation.texture.resource; // a material's textures, bound through the manager
 
 using namespace foundation::core;
 using namespace foundation::vfs;
@@ -140,6 +141,100 @@ TEST_CASE("material resource: built via the manager; resolves shader + records t
     CHECK(matAfter->shaderName == u8"lit");
 
     RemoveTree();
+    compiler->Destroy();
+}
+
+// A material holds the textures its default views point into: the manager's collection releases a
+// resource nothing holds, and a texture bound only while the material was built was released under
+// a material still drawing with its view (the view destroyed while in use).
+TEST_CASE("material resource: a bound material keeps its textures loaded through collections")
+{
+    shaders::Compiler* compiler = nullptr;
+    if (!shaders::createCompiler(shaders::CompilerDesc{}, compiler).IsOk())
+    {
+        MESSAGE("DXC unavailable; skipping");
+        return;
+    }
+    GlobalTypeRegistry().Register(shaders::ShaderSource::StaticType());
+    RegisterSerializable<shaders::ShaderSource>();
+    GlobalTypeRegistry().Register(shaders::ShaderResource::StaticType());
+    GlobalTypeRegistry().Register(MaterialSource::StaticType());
+    RegisterSerializable<MaterialSource>();
+    GlobalTypeRegistry().Register(Material::StaticType());
+    foundation::texture::RegisterTextureResource();
+
+    (void)RemoveDirectoryRecursive(u8"scratch_mat_tex_db");
+    NativeFileSystem mount(u8"scratch_mat_tex_db", DefaultAllocator());
+    Guid matId;
+    Guid texId;
+    {
+        foundation::content::ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
+        auto* shaderInst = db.RootGroup()->CreateInstance(u8"lit_shader", shaders::ShaderSource::StaticType());
+        shaders::ShaderSource ss;
+        ss.name = String(u8"lit");
+        ss.vertexSource = String(kVtx);
+        ss.fragmentSource = String(kFrag);
+        REQUIRE(shaderInst->WriteObject(ss).IsOk());
+
+        auto* texInst = db.RootGroup()->CreateInstance(u8"albedo", foundation::texture::TextureResource::StaticType());
+        texId = texInst->Id();
+        foundation::texture::TextureResource tex;
+        tex.width = 2;
+        tex.height = 2;
+        tex.format = rhi::TextureFormat::RGBA8UnormSrgb;
+        REQUIRE(texInst->WriteObject(tex).IsOk());
+        const u8 pixels[2 * 2 * 4] = {};
+        REQUIRE(texInst->WriteData(u8"data", Span<const byte>(reinterpret_cast<const byte*>(pixels), sizeof(pixels))).IsOk());
+
+        RefPtr<Material> authored = MaterialBuilder(u8"texturedMat").Shader(u8"lit").Texture(u8"albedoMap").Build();
+        MaterialSource ms;
+        MaterialSource::FromMaterial(*authored, shaderInst->Id(), ms);
+        ms.textureSlots.PushBack(String(u8"albedoMap"));
+        ms.textureIds.PushBack(texId);
+        auto* matInst = db.RootGroup()->CreateInstance(u8"textured_mat", MaterialSource::StaticType());
+        matId = matInst->Id();
+        REQUIRE(matInst->WriteObject(ms).IsOk());
+    }
+
+    foundation::content::ContentDatabase db(DefaultAllocator(), mount, BinarySerializerFactory(), u8".rasset");
+    rhi::null::NullDevice device{DefaultAllocator()};
+    shaders::ShaderSystem system(*compiler, device);
+    shaders::ShaderFactory shaderFactory(DefaultAllocator(), system);
+    foundation::texture::TextureFactory textureFactory(DefaultAllocator(), device);
+    MaterialFactory materialFactory;
+    ResourceManager manager(DefaultAllocator(), db);
+    manager.AddFactory(&shaderFactory);
+    manager.AddFactory(&textureFactory);
+    manager.AddFactory(&materialFactory);
+    manager.SetUnusedFrames(2);
+
+    usize loaded = 0;
+    {
+        Proxy<Material> mat = manager.Bind<Material>(matId);
+        REQUIRE(mat);
+        const isize slot = mat->GetPropertyIndex(u8"albedoMap");
+        REQUIRE(slot >= 0);
+        rhi::TextureView* view = mat->GetDefaultTexture(static_cast<usize>(slot));
+        REQUIRE(view != nullptr);
+
+        // Only the material is held: its texture stays, and so does the view it draws with.
+        for (int i = 0; i < 16; ++i)
+            manager.CollectGarbage();
+        // Bound again, the texture is the one still loaded, not a new load: the same view.
+        loaded = manager.LoadedCount();
+        Proxy<foundation::texture::Texture> again = manager.Bind<foundation::texture::Texture>(texId);
+        REQUIRE(again);
+        CHECK(manager.LoadedCount() == loaded);
+        CHECK(again->View() == view);
+        CHECK(mat->GetDefaultTexture(static_cast<usize>(slot)) == view);
+    }
+
+    // The material let go: it goes, and its texture follows.
+    for (int i = 0; i < 32; ++i)
+        manager.CollectGarbage();
+    CHECK(manager.LoadedCount() == 0);
+
+    (void)RemoveDirectoryRecursive(u8"scratch_mat_tex_db");
     compiler->Destroy();
 }
 
