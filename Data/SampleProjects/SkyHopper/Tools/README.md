@@ -18,7 +18,7 @@ scripts drive them; none of this is game content.
   Settings, LevelClear, GameOver, Victory and Fade (`.xml`), styled by `SkyHopperSheet.css`, the
   project's GUI sheet; the icons are the project's vector images (UI/Icons), shown by `<Image
   src="{guid}">`. It checks each with `gui_validate`, imports them into UI, makes the sheet the
-  project's GUI sheet and cooks. A re-import keeps their ids, which `Sources/PlatformerGame.as`
+  project's GUI sheet and cooks. A re-import keeps their ids, which `Code/PlatformerGame.as`
   pushes the screens by.
 - `appicon.py`: the app icon, `Branding/AppIcon.png` (512 pixels: the HUD's star on a cloud in
   the game's sky), which the Android preset's `androidIcon` names. It draws an SVG and renders it

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """render.py <Name>...: scripts/<Name>.as with its {{Asset}} placeholders filled with the asset ids,
-written to PaperKid's Sources/<Name>.as, then script_validate over the editor's MCP."""
+written to PaperKid's Code/<Name>.as (where the project keeps its scripts), then script_validate over the
+editor's MCP."""
 import os, re, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pkgen import mcp
 HERE = os.path.dirname(os.path.abspath(__file__))
-SOURCES = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Sources")
+CODE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Code")
 # By name; a prefab sharing a script's name is written {{Prefab:Name}}, and an animation clip
 # {{Clip:Name}} (the kid's Throw clip shares its name with the throw's sound).
 PREFIX = {"PrefabDocument": "Prefab:", "AnimationClipAsset": "Clip:"}
@@ -31,7 +32,7 @@ for name in sys.argv[1:]:
     # A name starts with a word character, so "{{{Title}}}" (a GUI document, wanted braced) keeps its
     # outer braces: "{<id>}".
     text = re.sub(r"\{\{(\w[^{}]*)\}\}", resolve, text)
-    open(os.path.join(SOURCES, name + ".as"), "w").write(text)
+    open(os.path.join(CODE, name + ".as"), "w").write(text)
     v = mcp("script_validate", {"source": text, "language": "angelscript", "name": name + ".as"})
     print(name, "valid" if v["valid"] else "INVALID", v.get("properties"), v.get("handlers"))
     for e in v.get("errors", []):
