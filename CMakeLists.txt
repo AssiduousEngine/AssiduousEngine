@@ -341,8 +341,10 @@ target_compile_options(policy INTERFACE
 # Emscripten builds clean with it but gains nothing measurable (em++ precompiles each interface in
 # a step of its own, and the web build has no editor). Not on Android: NDK r30's Clang 21.0.0 then
 # finds bionic's fortified memcpy defined twice in a unit that instantiates code of two partitions
-# calling it (backlog-0.2.md, "Reduced module interfaces on Android").
-if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND NOT ANDROID)
+# calling it (backlog-0.2.md, "Reduced module interfaces on Android"). Not on Windows: CMake drives
+# clang there through a --precompile step per interface, whose output Clang 22 refuses to share with
+# the reduced BMI (-Wreduced-bmi-output-overrided, an error under -Werror).
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND NOT ANDROID AND NOT WIN32)
     target_compile_options(policy INTERFACE -fmodules-reduced-bmi)
 endif()
 
