@@ -1325,6 +1325,56 @@ TEST_CASE("input reflection: every input code reflects its cases")
           u8"South");
 }
 
+TEST_CASE("input: a surface whose game locked the pointer keeps its movement wherever the hidden pointer drifts")
+{
+    class Manager final : public shell::IInputManager
+    {
+    public:
+        FakeKeyboard keyboard;
+        FakeMouse mouse;
+        FakeTouch touch;
+        [[nodiscard]] shell::IKeyboard* Keyboard() override { return &keyboard; }
+        [[nodiscard]] shell::IMouse* Mouse() override { return &mouse; }
+        [[nodiscard]] shell::ITouch* Touch() override { return &touch; }
+        [[nodiscard]] i32 GamepadCount() const override { return 0; }
+        [[nodiscard]] shell::IGamepad* GetGamepad(i32) override { return nullptr; }
+        [[nodiscard]] Span<const shell::InputEvent> Events() const override { return {}; }
+        [[nodiscard]] u32 HoverWindow() const override { return 1u; }
+        [[nodiscard]] u32 FocusedWindow() const override { return 1u; }
+        void Update() override {}
+    };
+    Manager manager;
+    // A game's tab on the left half of the window.
+    shell::InputSurface game(&manager, 1u, ContentFit{});
+    game.SetRegion(Rectangle{0.0f, 0.0f, 400.0f, 400.0f});
+    game.SetContentSize(Float2{400.0f, 400.0f});
+    game.SetWindowSize(Float2{800.0f, 400.0f});
+    shell::InputRouter router(&manager);
+    router.AddSurface(&game);
+    const auto frame = [&](f32 x, f32 dx)
+    {
+        manager.mouse.x = x;
+        manager.mouse.y = 200.0f;
+        manager.mouse.dx = dx;
+        router.Update();
+    };
+
+    // The game locks the pointer through its own mouse; the hidden pointer drifts past the tab's
+    // right edge, and the game still reads its movement and its buttons.
+    frame(200.0f, 0.0f);
+    game.Mouse()->SetRelativeMode(true);
+    CHECK(manager.mouse.relative);
+    frame(650.0f, 30.0f);
+    CHECK(game.MouseActive());
+    CHECK(game.Mouse()->DeltaX() == doctest::Approx(30.0f));
+
+    // Freed: past the edge, the tab no longer has the mouse.
+    game.Mouse()->SetRelativeMode(false);
+    frame(650.0f, 30.0f);
+    CHECK_FALSE(game.MouseActive());
+    CHECK(game.Mouse()->DeltaX() == doctest::Approx(0.0f));
+}
+
 TEST_CASE("input.runtime: a pointer lock waits for the next update, holds until freed, and reads what the host grants")
 {
     ActionRuntime runtime;

@@ -45,6 +45,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 - A body with a joint, edited in play (its size in the inspector, a script), keeps the joint; it
   had stayed on the old body and left the new one free.
+- Editor: a game's mouse look in the Game tab keeps turning however far the mouse moves; it stopped
+  once the hidden pointer drifted past the tab's edge.
 - A textured model no longer stops all drawing after ten seconds of play (the Vulkan device lost):
   a material now holds the textures it draws with, which the resource collection had released
   under it.

@@ -188,6 +188,11 @@ export namespace foundation::shell
         /// takes it back when the press ends, the ask is withdrawn or the surface goes.
         void SetPointerLock(bool lock) noexcept { m_wantsLock = lock; }
         [[nodiscard]] bool WantsPointerLock() const noexcept { return m_wantsLock; }
+        /// Whether this surface's own mouse turned relative mode on (a game's mouse look, through
+        /// Mouse()->SetRelativeMode). While it holds it the router gives this surface the mouse
+        /// wherever the hidden pointer drifts, so its movement never stops at the surface's edge.
+        [[nodiscard]] bool HoldsRelativeMode() const noexcept { return m_holdsRelative; }
+        void SetHoldsRelativeMode(bool holds) noexcept { m_holdsRelative = holds; }
 
         [[nodiscard]] core::Float2 ContentMouse() const noexcept { return m_contentMouse; }
         [[nodiscard]] core::Float2 ContentDelta() const noexcept { return m_contentDelta; }
@@ -227,6 +232,7 @@ export namespace foundation::shell
         core::Float2 m_contentMouse{0, 0};
         core::Float2 m_contentDelta{0, 0};
         bool m_wantsLock = false;
+        bool m_holdsRelative = false; // HoldsRelativeMode
 
         SurfaceMouse m_mouse{this};
         SurfaceKeyboard m_keyboard{this};
@@ -265,7 +271,11 @@ export namespace foundation::shell
         return m_s->MouseActive() && m_s->Raw()->Mouse()->IsButtonReleased(b);
     }
     inline bool SurfaceMouse::RelativeMode() const { return m_s->Raw()->Mouse()->RelativeMode(); }
-    inline void SurfaceMouse::SetRelativeMode(bool e) { m_s->Raw()->Mouse()->SetRelativeMode(e); }
+    inline void SurfaceMouse::SetRelativeMode(bool e)
+    {
+        m_s->SetHoldsRelativeMode(e);
+        m_s->Raw()->Mouse()->SetRelativeMode(e);
+    }
     inline bool SurfaceMouse::CursorVisible() const { return m_s->Raw()->Mouse()->CursorVisible(); }
     inline void SurfaceMouse::SetCursorVisible(bool v) { m_s->Raw()->Mouse()->SetCursorVisible(v); }
     inline void SurfaceMouse::SetCursor(CursorType c) { m_s->Raw()->Mouse()->SetCursor(c); }
@@ -488,6 +498,19 @@ export namespace foundation::shell
                         continue;
                     }
                     if (s->Fit().DstRect().Contains(pos))
+                    {
+                        m_hovered = s;
+                    }
+                }
+            }
+            // A surface whose own mouse holds relative mode (a game's mouse look) keeps the mouse:
+            // the hidden pointer still drifts in the window, and past the surface's edge its
+            // movement would stop reaching the game.
+            if (rawMouse->RelativeMode())
+            {
+                for (InputSurface* s : m_surfaces)
+                {
+                    if (s->HoldsRelativeMode())
                     {
                         m_hovered = s;
                     }
