@@ -288,3 +288,52 @@ public static unsafe class Bridge
         return text == null ? "" : System.Text.Encoding.UTF8.GetString(text, (int)length);
     }
 }
+
+/// <summary>The engine's Guid, made from its text as the engine writes it
+/// ("3f2a9c1e-0b7d-4e5a-9c21-7d0e5b6a4f38", braces allowed): the first 16 hex digits are `high`,
+/// the last 16 `low`. A script names an asset (a clip, a prefab) by it.</summary>
+public partial struct Guid
+{
+    public static Guid Parse(string text)
+    {
+        if (!TryParse(text, out Guid parsed))
+            throw new FormatException($"'{text}' is not a guid");
+        return parsed;
+    }
+
+    public static bool TryParse(string? text, out Guid result)
+    {
+        result = default;
+        if (text == null)
+            return false;
+        ReadOnlySpan<char> span = text.AsSpan().Trim();
+        if (span.Length == 38 && span[0] == '{' && span[37] == '}')
+            span = span.Slice(1, 36);
+        if (span.Length != 36)
+            return false;
+        ulong high = 0, low = 0;
+        int digits = 0;
+        for (int i = 0; i < 36; ++i)
+        {
+            char c = span[i];
+            if (i == 8 || i == 13 || i == 18 || i == 23)
+            {
+                if (c != '-')
+                    return false;
+                continue;
+            }
+            int value = c >= '0' && c <= '9' ? c - '0' : c >= 'a' && c <= 'f' ? c - 'a' + 10 : c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
+            if (value < 0)
+                return false;
+            if (digits < 16)
+                high = (high << 4) | (ulong)value;
+            else
+                low = (low << 4) | (ulong)value;
+            ++digits;
+        }
+        result = new Guid { high = high, low = low };
+        return true;
+    }
+
+    public override string ToString() => $"{high >> 32:x8}-{(high >> 16) & 0xFFFF:x4}-{high & 0xFFFF:x4}-{low >> 48:x4}-{low & 0xFFFFFFFFFFFF:x12}";
+}
