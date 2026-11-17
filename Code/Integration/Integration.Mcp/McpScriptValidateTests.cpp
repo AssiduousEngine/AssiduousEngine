@@ -198,9 +198,10 @@ TEST_CASE("integration.mcp: script_create - starter-seeded asset, unique names, 
         created = ScCall(server, u8"script_create", Move(a), true);
     }
     CHECK(created.Get(u8"name").AsString() == StringView(u8"Mover"));
-    CHECK(created.Get(u8"fileName").AsString() == StringView(u8"Mover.luau"));
+    CHECK(created.Get(u8"fileName").AsString() == StringView(u8"Code/Mover.luau")); // a new script is in Code/
     const String sourceFile(created.Get(u8"sourceFile").AsString());
     REQUIRE(FileExists(sourceFile.AsView()));
+    CHECK(sourceFile.AsView().Contains(u8"/Code/Mover.luau"));
 
     // The created file's content validates through script_validate, as in the authoring loop.
     Result<Array<byte>> text = ReadFile(sourceFile.AsView());

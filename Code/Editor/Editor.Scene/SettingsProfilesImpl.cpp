@@ -106,8 +106,9 @@ namespace editor
             return nullptr;
         }
         const String sourcesRoot = project->SourcesRoot();
+        const String codeRoot = project->CodeRoot();
         foundation::content::Instance* instance =
-            creator->Create(nullptr, project->SourceDb().RootGroup(), sourcesRoot.AsView(), name);
+            creator->Create(nullptr, project->SourceDb().RootGroup(), sourcesRoot.AsView(), name, codeRoot.AsView());
         if (instance == nullptr ||
             !WriteSettingsProfileValues(*instance, system->EffectiveSettingsInstance()).IsOk())
         {

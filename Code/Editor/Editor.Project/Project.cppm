@@ -286,10 +286,7 @@ export namespace editor
         /// with Code/, else under Sources/.
         [[nodiscard]] String SourceFile(StringView sourceName) const
         {
-            const StringView code = engine::project::kProjectCodeDir;
-            if (sourceName.StartsWith(code) && sourceName.Size() > code.Size() && sourceName[code.Size()] == utf8char('/'))
-                return PathJoin(CodeRoot().AsView(), sourceName.SubStr(code.Size() + 1, sourceName.Size() - code.Size() - 1));
-            return PathJoin(SourcesRoot().AsView(), sourceName);
+            return foundation::vfs::SourceFileOnDisk(SourcesRoot().AsView(), CodeRoot().AsView(), sourceName);
         }
         /// Makes a mount of SourcesRoot read the code folder as its Code/: every mount the sources
         /// are read through (the cook, an export, the tools) is given it.

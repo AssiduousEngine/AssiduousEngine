@@ -212,6 +212,53 @@ TEST_CASE("importer: a copy never overwrites another file's; a re-import overwri
     (void)RemoveDirectoryRecursive(dir.AsView());
 }
 
+// A copy into a folder under the sources: Code, which the context's code folder holds. The name
+// carries the folder (Code/Hero.as), the file lands in the code folder, a second file of that name
+// goes beside it (Code/Hero.2.as), and the ledger keys the names with their folder.
+TEST_CASE("importer: a copy into Code lands in the project's code folder")
+{
+    const String dir = PathJoin(GetCurrentDirectory().AsView(), u8"scratch_importer_code");
+    (void)RemoveDirectoryRecursive(dir.AsView());
+    const String sources = PathJoin(dir.AsView(), u8"Sources");
+    const String code = PathJoin(dir.AsView(), u8"Code");
+    const String one = PathJoin(dir.AsView(), u8"one");
+    const String two = PathJoin(dir.AsView(), u8"two");
+    for (const String* d : {&sources, &code, &one, &two})
+    {
+        REQUIRE(CreateDirectories(d->AsView()));
+    }
+    auto write = [](const String& folder, StringView text)
+    {
+        const String path = PathJoin(folder.AsView(), u8"Hero.as");
+        REQUIRE(WriteFile(path.AsView(), Span<const byte>(reinterpret_cast<const byte*>(text.Data()), text.Size())).IsOk());
+        return path;
+    };
+    ImportContext context{DefaultAllocator(), sources.AsView()};
+    context.codeRoot = code;
+    context.ledgerPath = ImportLedgerPath(PathJoin(dir.AsView(), u8".cache").AsView());
+
+    const String first = write(one, u8"first");
+    Result<String> a = CopyIntoSources(context, first.AsView(), false, u8"Code");
+    REQUIRE(a.HasValue());
+    CHECK(a.Value() == StringView(u8"Code/Hero.as"));
+    CHECK(FileExists(PathJoin(code.AsView(), u8"Hero.as").AsView()));
+    CHECK_FALSE(FileExists(PathJoin(sources.AsView(), u8"Hero.as").AsView()));
+    CHECK(context.FileOf(u8"Code/Hero.as") == PathJoin(code.AsView(), u8"Hero.as"));
+    CHECK(ImportOriginOf(context.ledgerPath.AsView(), u8"Code/Hero.as") == first);
+
+    const String second = write(two, u8"second");
+    Result<String> b = CopyIntoSources(context, second.AsView(), true, u8"Code");
+    REQUIRE(b.HasValue());
+    CHECK(b.Value() == StringView(u8"Code/Hero.2.as"));
+    CHECK(FileExists(PathJoin(code.AsView(), u8"Hero.2.as").AsView()));
+    // A copy with no folder still lands in Sources.
+    Result<String> c = CopyIntoSources(context, second.AsView(), true);
+    REQUIRE(c.HasValue());
+    CHECK(c.Value() == StringView(u8"Hero.as"));
+    CHECK(FileExists(PathJoin(sources.AsView(), u8"Hero.as").AsView()));
+    (void)RemoveDirectoryRecursive(dir.AsView());
+}
+
 TEST_CASE("importer: the ledger keeps one line per file, the last origin")
 {
     const String ledger = PathJoin(GetCurrentDirectory().AsView(), u8"scratch_importer_ledger_lines/.cache/imports.txt");

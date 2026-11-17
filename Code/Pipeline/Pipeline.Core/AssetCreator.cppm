@@ -19,6 +19,7 @@ export module pipeline.core:asset_creator;
 
 import foundation.core;
 import foundation.content;
+import foundation.vfs; // SourceFileOnDisk, the Code/ rule
 
 using namespace foundation::core;
 
@@ -35,11 +36,20 @@ export namespace pipeline
         /// Absolute; empty when the host has no sources folder, which a file-backed creator
         /// refuses.
         StringView sourcesRoot;
+        /// Absolute; the project's Code/ folder, which a source name starting Code/ names. Empty:
+        /// such a name is a folder under the sources.
+        StringView codeRoot;
         /// The name asked for; empty lets the creator use its own ("Material"). A creator makes
         /// it unique in the group, so a caller that wants it exact refuses a taken name first.
         StringView name;
         /// The creator's folder under the root when nothing was picked; empty is the root.
         StringView defaultGroup;
+
+        /// The file on disk a name under the sources (an asset's fileName) is.
+        [[nodiscard]] String FileOf(StringView sourcesName) const
+        {
+            return foundation::vfs::SourceFileOnDisk(sourcesRoot, codeRoot, sourcesName);
+        }
 
         /// The name asked for, else the creator's `fallback`.
         [[nodiscard]] StringView NameOr(StringView fallback) const noexcept
@@ -94,7 +104,7 @@ export namespace pipeline
         [[nodiscard]] foundation::content::Instance* Create(foundation::content::Group* picked,
                                                             foundation::content::Group* root,
                                                             StringView sourcesRoot,
-                                                            StringView name = {}) const
+                                                            StringView name = {}, StringView codeRoot = {}) const
         {
             if (!run)
             {
@@ -104,6 +114,7 @@ export namespace pipeline
             context.picked = picked;
             context.root = root;
             context.sourcesRoot = sourcesRoot;
+            context.codeRoot = codeRoot;
             context.name = name;
             context.defaultGroup = defaultGroup.AsView();
             return run(context);

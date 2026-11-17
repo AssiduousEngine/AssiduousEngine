@@ -28,6 +28,37 @@ using namespace foundation::core;
 
 export namespace foundation::vfs
 {
+    /// The top-level name a source path reserves for a project's code: Code/Weapon.cs is a file in
+    /// the project's Code/ folder, any other path one under its Sources/ folder.
+    inline constexpr StringView kSourcesCodeFolder = u8"Code";
+
+    /// The rest of `path` after its first folder `folder` ("Weapon.cs" for "Code/Weapon.cs"), or
+    /// false when it does not start with that folder (a longer name, "Codex/", is not it).
+    [[nodiscard]] inline bool AfterFolder(StringView path, StringView folder, StringView& rest) noexcept
+    {
+        if (folder.IsEmpty() || !path.StartsWith(folder))
+            return false;
+        if (path.Size() == folder.Size())
+        {
+            rest = StringView{};
+            return true;
+        }
+        if (path[folder.Size()] != utf8char('/'))
+            return false;
+        rest = path.SubStr(folder.Size() + 1, path.Size() - folder.Size() - 1);
+        return true;
+    }
+
+    /// The file on disk a source path names: under `codeRoot` when it starts with Code/ (and a code
+    /// folder is given), else under `sourcesRoot`.
+    [[nodiscard]] inline String SourceFileOnDisk(StringView sourcesRoot, StringView codeRoot, StringView path)
+    {
+        StringView rest;
+        if (!codeRoot.IsEmpty() && AfterFolder(path, kSourcesCodeFolder, rest))
+            return rest.IsEmpty() ? String(codeRoot) : PathJoin(codeRoot, rest);
+        return PathJoin(sourcesRoot, path);
+    }
+
     class SourcePath
     {
     public:

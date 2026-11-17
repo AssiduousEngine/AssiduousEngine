@@ -20,6 +20,7 @@ export module foundation.vfs:native_filesystem;
 
 import foundation.core;
 import :ifilesystem;
+import :source_path; // AfterFolder, the Code/ rule
 
 using namespace foundation::core;
 
@@ -317,14 +318,9 @@ export namespace foundation::vfs
         /// The file on disk that `path` (relative to the mount) names.
         [[nodiscard]] String FullPath(StringView path) const
         {
-            if (!m_mappedName.IsEmpty() && path.StartsWith(m_mappedName.AsView()))
-            {
-                const StringView rest = path.SubStr(m_mappedName.Size(), path.Size() - m_mappedName.Size());
-                if (rest.IsEmpty())
-                    return String(m_mappedRoot.AsView(), *m_allocator);
-                if (rest[0] == utf8char('/'))
-                    return PathJoin(m_mappedRoot.AsView(), rest.SubStr(1, rest.Size() - 1), *m_allocator);
-            }
+            StringView rest;
+            if (AfterFolder(path, m_mappedName.AsView(), rest))
+                return rest.IsEmpty() ? String(m_mappedRoot.AsView(), *m_allocator) : PathJoin(m_mappedRoot.AsView(), rest, *m_allocator);
             return PathJoin(m_root.AsView(), path, *m_allocator);
         }
 

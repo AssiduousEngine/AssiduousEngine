@@ -246,6 +246,7 @@ export namespace editor::mcp
                 out.Set(u8"name", JsonValue::MakeString(String(s->project->Name())));
                 out.Set(u8"directory", JsonValue::MakeString(String(s->project->Directory())));
                 out.Set(u8"sourcesRoot", JsonValue::MakeString(s->project->SourcesRoot()));
+                out.Set(u8"codeRoot", JsonValue::MakeString(s->project->CodeRoot()));
                 out.Set(u8"settings", detail::ProjectSettingsJson(*s->project));
                 out.Set(u8"settingCategories", detail::ProjectSettingCategoriesJson());
                 return out;
@@ -663,6 +664,7 @@ export namespace editor::mcp
             const String sourcesRoot = project.SourcesRoot();
             const String cacheRoot = project.CacheRoot();
             vfs::NativeFileSystem sourcesMount(sourcesRoot.AsView(), editor::EditorRootAllocator());
+            project.AddCodeFolder(sourcesMount);
             vfs::NativeFileSystem cacheMount(cacheRoot.AsView(), editor::EditorRootAllocator());
             JobSystem jobs(editor::EditorRootAllocator());
             pipeline::CookDriver driver(editor::EditorRootAllocator(), project.SourceDb(),
@@ -693,6 +695,7 @@ export namespace editor::mcp
             content::Group* group = detail::ResolveGroupPath(project.SourceDb().RootGroup(),
                                                              request.groupPath.AsView());
             pipeline::ImportContext ctx{editor::EditorRootAllocator(), project.SourcesRoot().AsView()};
+            ctx.codeRoot = project.CodeRoot();
             ctx.onConflict = request.onConflict;
             ctx.ledgerPath = pipeline::ImportLedgerPath(project.CacheRoot().AsView());
             pipeline::IFileImporter& importer = *request.importer;

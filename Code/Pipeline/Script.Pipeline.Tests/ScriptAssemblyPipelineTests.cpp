@@ -316,14 +316,22 @@ TEST_CASE("script assembly: a project's local files are written beside it when i
                                 : String{};
     };
 
-    // Made: the project file and, beside it, the cook's local files.
+    // Made: the project file in the project's code folder (its fileName Code/Made.siproj) and,
+    // beside it, the cook's local files; nothing under the sources folder.
+    const String code = PathAbsolute(PathJoin(bed.root.AsView(), u8"code").AsView());
     AssetCreationContext context;
     context.root = bed.sourceDb->RootGroup();
     context.sourcesRoot = src.AsView();
+    context.codeRoot = code.AsView();
     context.name = u8"Made";
-    REQUIRE(CreateScriptProjectInstance(context, kLanguage, u8".siproj") != nullptr);
-    CHECK(FileExists(PathJoin(src.AsView(), u8"Made.siproj").AsView()));
-    CHECK(read(PathJoin(src.AsView(), u8"obj/Local.txt").AsView()) == StringView(u8"this machine"));
+    content::Instance* made = CreateScriptProjectInstance(context, kLanguage, u8".siproj");
+    REQUIRE(made != nullptr);
+    CHECK(FileExists(PathJoin(code.AsView(), u8"Made.siproj").AsView()));
+    CHECK_FALSE(FileExists(PathJoin(src.AsView(), u8"Made.siproj").AsView()));
+    CHECK(read(PathJoin(code.AsView(), u8"obj/Local.txt").AsView()) == StringView(u8"this machine"));
+    RefPtr<ISerializable> madeAsset = made->ReadObject();
+    REQUIRE(Cast<ScriptAssemblyAsset>(madeAsset.Get()) != nullptr);
+    CHECK(Cast<ScriptAssemblyAsset>(madeAsset.Get())->fileName.View() == StringView(u8"Code/Made.siproj"));
 
     // Cooked: written beside the project's file, and written again when it is no longer what the
     // cook would write (another machine's, or edited).

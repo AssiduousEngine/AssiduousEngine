@@ -185,8 +185,9 @@ export namespace editor::mcp
             }
         }
         const String sourcesRoot = project.SourcesRoot();
+        const String codeRoot = project.CodeRoot();
         foundation::content::Instance* instance = request.creator->Create(
-            picked, root, sourcesRoot.AsView(), request.name.AsView());
+            picked, root, sourcesRoot.AsView(), request.name.AsView(), codeRoot.AsView());
         if (instance == nullptr)
         {
             return Err(Format(u8"the {} creator made nothing (a write was refused)",

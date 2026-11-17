@@ -374,10 +374,11 @@ TEST_CASE("script.pipeline: an imported script plays the class its file is named
     const String root = String(u8"scratch_scriptpipe_import_class");
     CookBed::RemoveTree(root.AsView());
     const String sources = PathJoin(root.AsView(), u8"Sources");
+    const String code = PathJoin(root.AsView(), u8"Code");
     const String one = PathJoin(root.AsView(), u8"one");
     const String two = PathJoin(root.AsView(), u8"two");
     const String db = PathJoin(root.AsView(), u8"db");
-    for (const String* d : {&sources, &one, &two, &db})
+    for (const String* d : {&sources, &code, &one, &two, &db})
         REQUIRE(CreateDirectories(d->AsView()));
     auto write = [](const String& folder, StringView text)
     {
@@ -392,6 +393,7 @@ TEST_CASE("script.pipeline: an imported script plays the class its file is named
     content::ContentDatabase sourceDb(DefaultAllocator(), mount, BinarySerializerFactory(), u8".asset");
     content::Group& group = *sourceDb.RootGroup();
     ImportContext context{DefaultAllocator(), sources.AsView()};
+    context.codeRoot = code;
     context.ledgerPath = ImportLedgerPath(PathJoin(root.AsView(), u8".cache").AsView());
     ScriptFileImporter importer;
     // A copy of an instance's asset (the asset type is not copyable: field by field).
@@ -409,6 +411,7 @@ TEST_CASE("script.pipeline: an imported script plays the class its file is named
         copyOf(*asset, to);
     };
     foundation::vfs::NativeFileSystem sourcesMount(sources.AsView(), DefaultAllocator());
+    sourcesMount.MapFolder(foundation::vfs::kSourcesCodeFolder, code.AsView());
     auto cookClass = [&](const ScriptClassAsset& asset, String& className)
     {
         content::Instance* out = bed.outputDb->RootGroup()->GetInstance(u8"cooked");
@@ -430,13 +433,15 @@ TEST_CASE("script.pipeline: an imported script plays the class its file is named
     ScriptClassAsset madeAsset;
     assetOf(*made.Value(), madeAsset);
     CHECK(madeAsset.className == u8"Battle");
+    CHECK(madeAsset.fileName.View() == StringView(u8"Code/Battle.as")); // a script lands in the code folder
+    CHECK(FileExists(PathJoin(code.AsView(), u8"Battle.as").AsView()));
 
     context.onConflict = ImportConflictChoice::KeepBoth;
     Result<content::Instance*> beside = importer.Import(second.AsView(), context, group, nullptr, nullptr, nullptr);
     REQUIRE(beside.HasValue());
     ScriptClassAsset kept;
     assetOf(*beside.Value(), kept);
-    CHECK(kept.fileName.View() == StringView(u8"Battle.2.as"));
+    CHECK(kept.fileName.View() == StringView(u8"Code/Battle.2.as"));
     CHECK(kept.className == u8"Battle");
     String played;
     REQUIRE(cookClass(kept, played));

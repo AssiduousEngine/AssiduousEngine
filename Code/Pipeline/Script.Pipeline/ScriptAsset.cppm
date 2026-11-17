@@ -678,14 +678,16 @@ export namespace pipeline{
     class FolderIncludeReader final : public IScriptIncludeReader
     {
     public:
-        explicit FolderIncludeReader(StringView root) : m_root(root) {}
+        /// Reads includes from the project's sources folder `root`, and those starting Code/ from its
+        /// code folder `codeRoot` when given.
+        explicit FolderIncludeReader(StringView root, StringView codeRoot = {}) : m_root(root), m_codeRoot(codeRoot) {}
         [[nodiscard]] bool Read(StringView path, String& out) override
         {
             if (m_root.IsEmpty())
             {
                 return false;
             }
-            Result<Array<byte>> bytes = ReadFile(PathJoin(m_root.AsView(), path).AsView());
+            Result<Array<byte>> bytes = ReadFile(foundation::vfs::SourceFileOnDisk(m_root.AsView(), m_codeRoot.AsView(), path).AsView());
             if (!bytes.HasValue())
             {
                 return false;
@@ -696,6 +698,7 @@ export namespace pipeline{
 
     private:
         String m_root;
+        String m_codeRoot;
     };
 
     class IScriptLanguageCook
@@ -1332,7 +1335,8 @@ export namespace pipeline{
             String fileName;
             pipeline::ImportClashKind clash = pipeline::ImportClashKind::None;
             Result<content::Instance*> claimed =
-                pipeline::ClaimSingleAsset(context, group, options, sourcePath, ScriptClassAsset::StaticType(), fileName, &clash);
+                pipeline::ClaimSingleAsset(context, group, options, sourcePath, ScriptClassAsset::StaticType(), fileName, &clash,
+                                           foundation::vfs::kSourcesCodeFolder); // code goes in the project's Code/
             if (!claimed.HasValue())
             {
                 return Err(claimed.Error());
@@ -1401,7 +1405,8 @@ export namespace pipeline{
             }
             String fileName;
             Result<content::Instance*> claimed =
-                pipeline::ClaimSingleAsset(context, group, options, sourcePath, ScriptAssemblyAsset::StaticType(), fileName, nullptr);
+                pipeline::ClaimSingleAsset(context, group, options, sourcePath, ScriptAssemblyAsset::StaticType(), fileName, nullptr,
+                                           foundation::vfs::kSourcesCodeFolder);
             if (!claimed.HasValue())
             {
                 return Err(claimed.Error());
@@ -1442,11 +1447,14 @@ export namespace pipeline{
         };
 
         /// Bind to an asset's source file: the project's Sources/ root, the asset's file name,
-        /// its language id (empty defaults to AngelScript, matching the builder) and the class
-        /// it prefers (PreferredScriptClass; empty: the one named like the file).
-        void Bind(StringView sourcesRoot, StringView fileName, StringView language, StringView preferredClass = {})
+        /// its language id (empty defaults to AngelScript, matching the builder), the class it
+        /// prefers (PreferredScriptClass; empty: the one named like the file) and the project's
+        /// Code/ folder, which a file name starting Code/ is in.
+        void Bind(StringView sourcesRoot, StringView fileName, StringView language, StringView preferredClass = {},
+                  StringView codeRoot = {})
         {
             m_sourcesRoot = String(sourcesRoot);
+            m_codeRoot = String(codeRoot);
             m_fileName = String(fileName);
             m_language = language.IsEmpty() ? String(u8"angelscript") : String(language);
             m_preferredClass = preferredClass.IsEmpty() ? String(pipeline::FileStemOf(pipeline::FileNameOf(fileName)))
@@ -1459,7 +1467,7 @@ export namespace pipeline{
         /// Read the bound source file into the edit buffer (and mark it as the saved baseline).
         [[nodiscard]] Status Load()
         {
-            const String path = PathJoin(m_sourcesRoot.AsView(), m_fileName.AsView());
+            const String path = foundation::vfs::SourceFileOnDisk(m_sourcesRoot.AsView(), m_codeRoot.AsView(), m_fileName.AsView());
             Result<Array<byte>> bytes = ReadFile(path.AsView());
             if (!bytes.HasValue())
             {
@@ -1480,7 +1488,7 @@ export namespace pipeline{
         /// The caller drives the recook and hot reload afterwards (EditorContext::RequestCook).
         [[nodiscard]] Status Save()
         {
-            const String path = PathJoin(m_sourcesRoot.AsView(), m_fileName.AsView());
+            const String path = foundation::vfs::SourceFileOnDisk(m_sourcesRoot.AsView(), m_codeRoot.AsView(), m_fileName.AsView());
             const Status written = WriteFile(
                 path.AsView(),
                 Span<const byte>(reinterpret_cast<const byte*>(m_source.Data()), m_source.Size()));
@@ -1512,7 +1520,7 @@ export namespace pipeline{
             }
             CookScriptErrorSink sink;
             String className;
-            FolderIncludeReader includes(m_sourcesRoot.AsView()); // the files it includes, from the project
+            FolderIncludeReader includes(m_sourcesRoot.AsView(), m_codeRoot.AsView()); // the files it includes, from the project
             const bool ok = cook->Check(m_source.AsView(), m_fileName.AsView(), m_preferredClass.AsView(), sink, className,
                                         Span<const TypeId>{}, &includes);
             for (const CookScriptErrorSink::Entry& entry : sink.errors)
@@ -1542,6 +1550,7 @@ export namespace pipeline{
 
     private:
         String m_sourcesRoot;
+        String m_codeRoot;
         String m_fileName;
         String m_preferredClass;
         String m_language;

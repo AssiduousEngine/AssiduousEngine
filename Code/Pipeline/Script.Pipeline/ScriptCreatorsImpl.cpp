@@ -47,7 +47,7 @@ namespace pipeline
         asset.className = String(ScriptStarterClassName(tier, className.AsView()));
         const String starter = cook->NewAssetTemplate(tier, className.AsView());
         return CreateLinkedTextAsset(named, baseName, dottedExtension.AsView(), starter.AsView(),
-                                     ScriptClassAsset::StaticType(), asset);
+                                     ScriptClassAsset::StaticType(), asset, foundation::vfs::kSourcesCodeFolder);
     }
 
     foundation::content::Instance* CreateScriptProjectInstance(const AssetCreationContext& context, StringView languageId,
@@ -66,14 +66,15 @@ namespace pipeline
         asset.language = String(languageId);
         const String project = cook->NewProjectTemplate(ClassNameFor(name.AsView(), u8"Game").AsView());
         foundation::content::Instance* created =
-            CreateLinkedTextAsset(named, u8"Game", dottedExtension, project.AsView(), ScriptAssemblyAsset::StaticType(), asset);
-        // The project file lands in the sources folder; its local files go beside it, so the project
+            CreateLinkedTextAsset(named, u8"Game", dottedExtension, project.AsView(), ScriptAssemblyAsset::StaticType(), asset,
+                                  foundation::vfs::kSourcesCodeFolder);
+        // The project file lands in the code folder; its local files go beside it, so the project
         // opens in an IDE at once rather than after its first cook.
         if (created != nullptr)
         {
             for (const ScriptAssemblyFile& file : cook->LocalFiles())
             {
-                const String path = PathJoin(context.sourcesRoot, file.path.AsView());
+                const String path = context.FileOf(PathJoin(foundation::vfs::kSourcesCodeFolder, file.path.AsView()).AsView());
                 (void)CreateDirectories(PathParent(path.AsView()));
                 (void)WriteFile(path.AsView(), Span<const byte>(reinterpret_cast<const byte*>(file.text.Data()), file.text.Size()));
             }

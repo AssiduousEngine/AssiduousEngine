@@ -211,6 +211,7 @@ export namespace editor::mcp
                 const String sourcesRoot = s->project->SourcesRoot();
                 const String cacheRoot = s->project->CacheRoot();
                 vfs::NativeFileSystem planSources(sourcesRoot.AsView(), editor::EditorRootAllocator());
+                s->project->AddCodeFolder(planSources);
                 vfs::NativeFileSystem cacheMount(cacheRoot.AsView(), editor::EditorRootAllocator());
                 pipeline::CookDriver driver(editor::EditorRootAllocator(), db,
                                             s->project->CookedDb(), *bld, &planSources,

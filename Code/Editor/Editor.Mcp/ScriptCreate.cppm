@@ -121,7 +121,9 @@ export namespace editor::mcp
                 creation.root = s->project->SourceDb().RootGroup();
                 creation.picked = detail::ResolveGroupPath(creation.root,
                                                            args.Get(u8"group").AsString().AsView());
+                const String codeRoot = s->project->CodeRoot();
                 creation.sourcesRoot = sourcesRoot.AsView();
+                creation.codeRoot = codeRoot.AsView();
                 creation.name = requestedName.AsView();
                 content::Instance* instance = pipeline::CreateScriptInstance(
                     creation, language.AsView(), backend->fileExtensions[0].AsView(), tier,
@@ -130,13 +132,14 @@ export namespace editor::mcp
                 {
                     return Err(Format(u8"could not create '{}': the source file under '{}' or the "
                                       u8"asset did not write (log_read says which)",
-                                      requestedName.AsView(), sourcesRoot.AsView()));
+                                      requestedName.AsView(), codeRoot.AsView()));
                 }
                 const String name(instance->Name());
-                String fileName(name.AsView());
-                fileName.PushBack(utf8char('.'));
-                fileName.Append(backend->fileExtensions[0].AsView());
-                const String path = PathJoin(sourcesRoot.AsView(), fileName.AsView());
+                // The file it wrote, as its asset names it (Code/<name>.<ext>, or .2 on a clash).
+                RefPtr<ISerializable> written = instance->ReadObject();
+                const auto* asset = Cast<pipeline::Asset>(written.Get());
+                const String fileName(asset != nullptr ? asset->fileName.View() : StringView{});
+                const String path = s->project->SourceFile(fileName.AsView());
 
                 JsonValue out = JsonValue::MakeObject();
                 out.Set(u8"guid", detail::GuidToJson(instance->Id()));

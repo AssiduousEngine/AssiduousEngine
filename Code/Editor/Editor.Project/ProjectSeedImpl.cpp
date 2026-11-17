@@ -72,7 +72,8 @@ namespace editor
                             bool allPrimitives)
     {
         foundation::content::Group* root = project.SourceDb().RootGroup();
-        const pipeline::ImportContext import{allocator, project.SourcesRoot()};
+        pipeline::ImportContext import{allocator, project.SourcesRoot()};
+        import.codeRoot = project.CodeRoot();
 
         // 1. The UI font: Roboto as a font asset, set as the manifest's default (the font a
         //    shipped game binds; the built-in one is not in a dist). A distance-field font, so a
@@ -126,6 +127,7 @@ namespace editor
         // 3. Primitive meshes: the creators File > New > Primitives runs (the cube, sphere and
         //    plane; every one with allPrimitives).
         const String sourcesRoot(project.SourcesRoot().AsView());
+        const String codeRoot(project.CodeRoot().AsView());
         for (const pipeline::AssetCreator& creator : creators.All())
         {
             if (creator.category.AsView() != StringView(u8"Primitives"))
@@ -137,7 +139,7 @@ namespace editor
                                  label == StringView(u8"Plane");
             if (starter || allPrimitives)
             {
-                (void)creator.Create(nullptr, root, sourcesRoot.AsView());
+                (void)creator.Create(nullptr, root, sourcesRoot.AsView(), {}, codeRoot.AsView());
             }
         }
 

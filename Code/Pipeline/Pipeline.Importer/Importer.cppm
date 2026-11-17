@@ -49,11 +49,20 @@ export namespace pipeline
 
         IAllocator* allocator;
         String sourcesRoot; // absolute OS path to the project's Sources/ tree
+        // Absolute OS path to the project's Code/ folder, which a source name starting Code/ names
+        // (foundation::vfs::kSourcesCodeFolder). Empty: such a name is a folder under Sources/.
+        String codeRoot;
         ImportConflictChoice onConflict = ImportConflictChoice::Refuse;
         // The import ledger (ImportLedgerPath: under the project's ignored .cache/): which OS
         // file each file under Sources/ came from, so a re-import of the same file is told from
         // another file of the same name. Empty: none kept (the file name alone decides).
         String ledgerPath;
+
+        /// The file on disk a name under the sources (an asset's fileName) is.
+        [[nodiscard]] String FileOf(StringView sourcesName) const
+        {
+            return foundation::vfs::SourceFileOnDisk(sourcesRoot.AsView(), codeRoot.AsView(), sourcesName);
+        }
     };
 
     /// What kind of asset an import-plan entry would create (the review dialog's grouping).
@@ -895,7 +904,7 @@ export namespace pipeline
         // already there untouched.
         [[nodiscard]] inline Status WriteSourcesCopy(const ImportContext& context, StringView sourcesName, const Array<byte>& bytes)
         {
-            const String target = PathJoin(context.sourcesRoot.AsView(), sourcesName);
+            const String target = context.FileOf(sourcesName);
             if (FileExists(target.AsView()))
             {
                 Result<Array<byte>> existing = ReadFile(target.AsView());
@@ -904,6 +913,7 @@ export namespace pipeline
                     return Status{};
                 }
             }
+            (void)CreateDirectories(PathParent(target.AsView())); // a folder under the sources (Code/)
             return WriteFile(target.AsView(), Span<const byte>(bytes.Data(), bytes.Size()));
         }
     }
@@ -913,17 +923,19 @@ export namespace pipeline
     /// (`mayOverwrite`, or the ledger saying it came from `sourcePath`); else, when that name is
     /// another file's (the ledger names another origin, or the caller says it may not overwrite),
     /// the next free one ("a.2.png"). Noted in the ledger as `sourcePath`'s. For a copy made later
-    /// (a deferred write); CopyIntoSources copies at once.
+    /// (a deferred write); CopyIntoSources copies at once. `folder`, when given, is the folder under
+    /// the sources the copy goes in (Code for a script: Code/Weapon.cs).
     [[nodiscard]] inline String SourcesNameFor(const ImportContext& context, StringView sourcePath, bool mayOverwrite = true,
-                                               const Array<byte>* bytes = nullptr)
+                                               const Array<byte>* bytes = nullptr, StringView folder = {})
     {
         const StringView fileName = FileNameOf(sourcePath);
         const StringView stem = FileStemOf(fileName);
         const StringView extension = fileName.SubStr(stem.Size(), fileName.Size() - stem.Size()); // with its dot
-        String name(fileName);
+        auto inFolder = [folder](StringView file) { return folder.IsEmpty() ? String(file) : PathJoin(folder, file); };
+        String name = inFolder(fileName);
         for (u32 n = 2;; ++n)
         {
-            const String target = PathJoin(context.sourcesRoot.AsView(), name.AsView());
+            const String target = context.FileOf(name.AsView());
             if (!FileExists(target.AsView()))
             {
                 break;
@@ -941,7 +953,7 @@ export namespace pipeline
                     break; // the very same bytes: shared, nothing lost
                 }
             }
-            name = Format(u8"{}.{}{}", stem, n, extension); // another file's: the next name
+            name = inFolder(Format(u8"{}.{}{}", stem, n, extension).AsView()); // another file's: the next name
         }
         RecordImportOrigin(context.ledgerPath.AsView(), name.AsView(), sourcePath);
         return name;
@@ -953,7 +965,7 @@ export namespace pipeline
     /// see the edited file) and never another file's. The copy goes through the core file API and
     /// the context's sources root only; the pipeline reads it back through the sources mount.
     [[nodiscard]] inline Result<String> CopyIntoSources(const ImportContext& context,
-                                                        StringView sourcePath, bool mayOverwrite = true)
+                                                        StringView sourcePath, bool mayOverwrite = true, StringView folder = {})
     {
         if (FileNameOf(sourcePath).IsEmpty())
         {
@@ -964,7 +976,7 @@ export namespace pipeline
         {
             return Err(bytes.Error());
         }
-        String name = SourcesNameFor(context, sourcePath, mayOverwrite, &bytes.Value());
+        String name = SourcesNameFor(context, sourcePath, mayOverwrite, &bytes.Value(), folder);
         const Status written = import_detail::WriteSourcesCopy(context, name.AsView(), bytes.Value());
         if (!written.IsOk())
         {
@@ -1127,11 +1139,12 @@ export namespace pipeline
     /// else the file is copied in beside, as a new asset's is. Refused (AlreadyExists) for an asset
     /// of another type, or of its type from another file when the choice is Refuse; nothing is
     /// copied or made then. `clashKind`, when given, gets what the name met (Reimport: this file's
-    /// own earlier import).
+    /// own earlier import). `folder` is the folder under the sources a new copy goes in (Code for a
+    /// script), none by default.
     [[nodiscard]] inline Result<foundation::content::Instance*> ClaimSingleAsset(const ImportContext& context, foundation::content::Group& group,
                                                                                  const ImportOptions* options, StringView sourcePath,
                                                                                  const TypeInfo& type, String& sourcesName,
-                                                                                 ImportClashKind* clashKind = nullptr)
+                                                                                 ImportClashKind* clashKind = nullptr, StringView folder = {})
     {
         const StringView stem = FileStemOf(FileNameOf(sourcePath));
         String name(SingleAssetName(options, stem));
@@ -1157,7 +1170,8 @@ export namespace pipeline
             if (asset != nullptr)
             {
                 const StringView held = asset->fileName.View();
-                overwriteOwn = held == FileNameOf(sourcePath);
+                const StringView file = FileNameOf(sourcePath);
+                overwriteOwn = folder.IsEmpty() ? held == file : held == PathJoin(folder, file).AsView();
                 if (!held.IsEmpty() && FileExtensionLower(held) == FileExtensionLower(sourcePath) &&
                     !SourcesCopyUsedByOther(group, held, reuse))
                 {
@@ -1180,7 +1194,7 @@ export namespace pipeline
             sourcesName = Move(own);
             return reuse;
         }
-        Result<String> copied = CopyIntoSources(context, sourcePath, overwriteOwn);
+        Result<String> copied = CopyIntoSources(context, sourcePath, overwriteOwn, folder);
         if (!copied.HasValue())
         {
             return Err(copied.Error());

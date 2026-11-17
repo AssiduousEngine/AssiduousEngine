@@ -367,6 +367,7 @@ export namespace editor::app
             auto deferred = MakeUnique<Array<pipeline::DeferredImportWrite>>(allocator);
             const Stopwatch clock = Stopwatch::StartNew();
             pipeline::ImportContext context{allocator, Project()->SourcesRoot()};
+            context.codeRoot = Project()->CodeRoot();
             context.onConflict = onConflict;
             context.ledgerPath = ledgerPath;
             Result<content::Instance*> imported =

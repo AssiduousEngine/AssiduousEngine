@@ -324,15 +324,16 @@ export namespace pipeline
     void RegisterAssetReflection();
 
     /// A file-backed creation: `starter` written to "<name><extension>" in the context's
-    /// sources folder, and a uniquely named instance of `type` whose `asset` links that file
-    /// through fileName (a script, a UI document). Names are unique per group and the sources
-    /// folder is flat, so a file already there (another group's asset of that name) is never
-    /// written over: the first free "<name>.2<extension>", ".3" and on is taken instead. Null when
-    /// there is no sources folder, the name is not one plain file name, or a write is refused.
+    /// sources folder (in `folder` under it when given: Code for a script), and a uniquely named
+    /// instance of `type` whose `asset` links that file through fileName (a script, a UI
+    /// document). Names are unique per group, not per folder, so a file already there (another
+    /// group's asset of that name) is never written over: the first free "<name>.2<extension>",
+    /// ".3" and on is taken instead. Null when there is no sources folder, the name is not one
+    /// plain file name, or a write is refused.
     [[nodiscard]] inline foundation::content::Instance*
     CreateLinkedTextAsset(const AssetCreationContext& context, StringView baseName,
                           StringView extension, StringView starter, const TypeInfo& type,
-                          Asset& asset)
+                          Asset& asset, StringView folder = {})
     {
         foundation::content::Group* target = context.Target();
         if (target == nullptr || context.sourcesRoot.IsEmpty())
@@ -344,14 +345,15 @@ export namespace pipeline
         {
             return nullptr;
         }
-        String fileName(name.AsView());
-        fileName.Append(extension);
-        String path = PathJoin(context.sourcesRoot, fileName.AsView());
+        auto inFolder = [folder](StringView file) { return folder.IsEmpty() ? String(file) : PathJoin(folder, file); };
+        String fileName = inFolder(Format(u8"{}{}", name.AsView(), extension).AsView());
+        String path = context.FileOf(fileName.AsView());
         for (u32 n = 2; FileExists(path.AsView()); ++n)
         {
-            fileName = Format(u8"{}.{}{}", name.AsView(), n, extension);
-            path = PathJoin(context.sourcesRoot, fileName.AsView());
+            fileName = inFolder(Format(u8"{}.{}{}", name.AsView(), n, extension).AsView());
+            path = context.FileOf(fileName.AsView());
         }
+        (void)CreateDirectories(PathParent(path.AsView()));
         if (!WriteFile(path.AsView(), Span<const byte>(reinterpret_cast<const byte*>(starter.Data()),
                                                        starter.Size()))
                  .IsOk())

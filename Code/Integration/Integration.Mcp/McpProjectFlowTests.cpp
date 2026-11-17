@@ -295,8 +295,10 @@ namespace
         CHECK(list.Get(u8"count").AsInt() == 1);
         CHECK(list.Get(u8"assets").At(0).Get(u8"group").AsString() == StringView(u8"scripts"));
 
-        // The raw source was copied under Sources/ and the envelope written under Content/.
-        CHECK(FileExists(Format(u8"{}/Sources/{}", projectDir, srcFile.AsView()).AsView()));
+        // The raw source was copied into the project's Code/ (a script is code) and the envelope
+        // written under Content/.
+        CHECK(FileExists(Format(u8"{}/Code/{}", projectDir, srcFile.AsView()).AsView()));
+        CHECK_FALSE(FileExists(Format(u8"{}/Sources/{}", projectDir, srcFile.AsView()).AsView()));
         CHECK(FileExists(Format(u8"{}/Content/scripts/{}.xasset", projectDir, sourceStem).AsView()));
 
         // Cook builds it into the cooked DB, with the product guid equal to the source guid.

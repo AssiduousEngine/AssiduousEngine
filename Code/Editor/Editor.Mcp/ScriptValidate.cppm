@@ -115,8 +115,8 @@ export namespace editor::mcp
                 pipeline::CookScriptErrorSink sink;
                 foundation::script::ScriptClassSource harvested;
                 // The files it includes, from the open project's sources (`name` is its path there).
-                pipeline::FolderIncludeReader includes(session.project != nullptr ? session.project->SourcesRoot().AsView()
-                                                                                 : StringView{});
+                pipeline::FolderIncludeReader includes(session.project != nullptr ? session.project->SourcesRoot().AsView() : StringView{},
+                                                       session.project != nullptr ? session.project->CodeRoot().AsView() : StringView{});
                 bool ok = cook->Cook(source.AsView(), name.AsView(), preferred.AsView(), sink, harvested, &includes);
                 // Then against the platform's surface, when one is asked for and lacks plugins.
                 String absent;

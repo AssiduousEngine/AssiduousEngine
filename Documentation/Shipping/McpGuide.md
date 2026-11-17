@@ -250,7 +250,9 @@ the project), and none takes a name the engine's tools hold. `project_health` is
 one-call soundness sweep (dangling refs, broken sources, cook state); a dirty count alone
 is normal - clear it with `asset_cook`.
 
-**Assets**: `asset_import` (OS file -> Sources/ + typed asset) -> `asset_cook`
+**Assets**: `asset_import` (OS file -> Sources/ + typed asset; a script or a script project file goes
+to the project's Code/ folder instead, its fileName starting `Code/`, which `project_info`'s
+`codeRoot` names) -> `asset_cook`
 (incremental; `force` for full). `options` sets the importer's settings by label, as the import
 window shows them: a flag true or false (`{"Generate collision": true}` gives an imported model's
 prefab colliders), a number (a model's `"Scale": 0.01` for a file in centimetres) or a choice by

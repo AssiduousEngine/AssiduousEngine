@@ -60,7 +60,9 @@ export namespace editor::app
                 return;
             }
             const String sourcesRoot(m_project->SourcesRoot().AsView());
-            foundation::content::Instance* instance = creator.Create(group, m_project->SourceDb().RootGroup(), sourcesRoot.AsView(), name);
+            const String codeRoot(m_project->CodeRoot().AsView());
+            foundation::content::Instance* instance =
+                creator.Create(group, m_project->SourceDb().RootGroup(), sourcesRoot.AsView(), name, codeRoot.AsView());
             if (instance == nullptr)
             {
                 context.Notify(editor::NoticeKind::Error, Format(u8"Create failed: the {} could not be written.", creator.label).AsView());
