@@ -178,7 +178,7 @@ namespace editor
             return;
         }
         // An external file (the +X face stands in for a cubemap's).
-        const String path = PathJoin(Context().Project()->SourcesRoot().AsView(), asset->fileName.View());
+        const String path = Context().Project()->SourceFile(asset->fileName.View());
         image::Image source;
         image::Image shown;
         if (image::io::LoadImage(path.AsView(), source).IsOk())

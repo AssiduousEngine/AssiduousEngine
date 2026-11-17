@@ -444,6 +444,7 @@ namespace editor
                          Array<Guid>& outReachable, const ExportProgress& onProgress)
     {
         foundation::vfs::NativeFileSystem sourcesMount(project.SourcesRoot().AsView(), editor::EditorRootAllocator());
+        project.AddCodeFolder(sourcesMount);
         foundation::vfs::NativeFileSystem cacheMount(project.CacheRoot().AsView(), editor::EditorRootAllocator());
         JobSystem jobs(editor::EditorRootAllocator()); // export tool root
         CookDriver driver(editor::EditorRootAllocator(), project.SourceDb(), project.CookedDb(),
@@ -571,6 +572,7 @@ namespace editor
         hostRecords.Load(cacheMount);
 
         foundation::vfs::NativeFileSystem sourcesMount(project.SourcesRoot().AsView(), editor::EditorRootAllocator());
+        project.AddCodeFolder(sourcesMount);
         JobSystem jobs(editor::EditorRootAllocator()); // export tool root
         usize failed = 0;
         for (const ContentVariant& v : variants)
@@ -853,6 +855,7 @@ namespace editor
             onProgress(u8"Cooking content...", 0.05f);
         }
         foundation::vfs::NativeFileSystem sourcesMount(project.SourcesRoot().AsView(), editor::EditorRootAllocator());
+        project.AddCodeFolder(sourcesMount);
         foundation::vfs::NativeFileSystem cacheMount(project.CacheRoot().AsView(), editor::EditorRootAllocator());
         JobSystem jobs(editor::EditorRootAllocator()); // export tool root
         CookDriver driver(editor::EditorRootAllocator(), project.SourceDb(), project.CookedDb(),
@@ -1161,7 +1164,7 @@ namespace editor
             const StringView language =
                 script->language.IsEmpty() ? StringView(u8"angelscript") : script->language.AsView();
             pipeline::IScriptLanguageCook* cook = pipeline::ScriptLanguageCookRegistry::Get().FindByLanguage(language);
-            Result<Array<byte>> bytes = ReadFile(PathJoin(project.SourcesRoot().AsView(), script->fileName.View()).AsView());
+            Result<Array<byte>> bytes = ReadFile(project.SourceFile(script->fileName.View()).AsView());
             if (cook == nullptr || !bytes.HasValue())
             {
                 continue; // the cook reports a script it cannot read or has no cook for

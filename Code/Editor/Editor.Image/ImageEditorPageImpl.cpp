@@ -64,7 +64,7 @@ namespace editor
                 m_preview->ShowNone(u8"This image names no source file.");
             return;
         }
-        const String path = PathJoin(Context().Project()->SourcesRoot().AsView(), asset->fileName.View());
+        const String path = Context().Project()->SourceFile(asset->fileName.View());
         image::Image source;
         if (!image::io::LoadImage(path.AsView(), source).IsOk() || source.Width() == 0 || source.Height() == 0)
         {

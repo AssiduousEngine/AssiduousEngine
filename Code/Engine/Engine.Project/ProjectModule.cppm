@@ -78,6 +78,9 @@ export namespace engine::project
     inline constexpr StringView kProjectManifestFile = u8"Project.xml";
     inline constexpr StringView kProjectContentDir = u8"Content";
     inline constexpr StringView kProjectSourcesDir = u8"Sources";
+    /// A project's code (scripts and their project files), beside Sources/. A source path starting
+    /// with this name (Code/Weapon.cs) is a file here; any other is under Sources/.
+    inline constexpr StringView kProjectCodeDir = u8"Code";
     inline constexpr StringView kProjectCookedDir = u8"Cooked";
     inline constexpr StringView kProjectEditorDir = u8"Editor";
     inline constexpr StringView kProjectCacheDir = u8".cache";

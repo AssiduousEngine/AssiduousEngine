@@ -147,7 +147,7 @@ export namespace editor::app
             }
             const String sourcesName(asset->fileName.View());
             const String origin = pipeline::ImportOriginOf(pipeline::ImportLedgerPath(Project()->CacheRoot().AsView()).AsView(), sourcesName.AsView());
-            out.path = !origin.IsEmpty() && FileExists(origin.AsView()) ? origin : PathJoin(Project()->SourcesRoot().AsView(), sourcesName.AsView());
+            out.path = !origin.IsEmpty() && FileExists(origin.AsView()) ? origin : Project()->SourceFile(sourcesName.AsView());
             if (!FileExists(out.path.AsView()))
             {
                 why = Format(u8"Its file, {}, is missing.", sourcesName.AsView());

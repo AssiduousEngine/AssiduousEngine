@@ -146,6 +146,7 @@ namespace editor::mcp::detail
     {
         content::ContentDatabase& db = project.SourceDb();
         vfs::NativeFileSystem sourcesMount(project.SourcesRoot().AsView(), editor::EditorRootAllocator());
+        project.AddCodeFolder(sourcesMount);
         Array<AssetUse> uses;
         CollectUses(db.RootGroup(), String(), target, db, builders, sourcesMount, uses);
         return uses;

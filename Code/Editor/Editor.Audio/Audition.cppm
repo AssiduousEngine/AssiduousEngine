@@ -35,7 +35,7 @@ export namespace editor
     {
         if (asset.fileName.IsEmpty())
             return {};
-        Result<Array<byte>> bytes = ReadFile(PathJoin(project.SourcesRoot().AsView(), asset.fileName.View()).AsView());
+        Result<Array<byte>> bytes = ReadFile(project.SourceFile(asset.fileName.View()).AsView());
         audio::AudioClipMetadata probed;
         if (!bytes.HasValue() || !audio::ProbeAudioClipMetadata(Span<const byte>(bytes.Value().Data(), bytes.Value().Size()), probed))
             return {};

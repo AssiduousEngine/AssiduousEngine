@@ -105,7 +105,7 @@ namespace editor
         {
             // Imported: the image at its own size, one plane per channel, as the cook decodes it.
             m_imported = true;
-            const String path = PathJoin(Context().Project()->SourcesRoot().AsView(), asset->fileName.View());
+            const String path = Context().Project()->SourceFile(asset->fileName.View());
             image::Image source;
             if (!image::io::LoadImage(path.AsView(), source).IsOk() || source.Format() != image::PixelFormat::RGBA8 || source.Width() == 0)
             {

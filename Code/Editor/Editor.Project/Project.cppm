@@ -277,6 +277,26 @@ export namespace editor
         {
             return PathJoin(m_directory.AsView(), kProjectSourcesDir);
         }
+        /// The project's code folder, read through the sources mount as its Code/ (AddCodeFolder).
+        [[nodiscard]] String CodeRoot() const
+        {
+            return PathJoin(m_directory.AsView(), engine::project::kProjectCodeDir);
+        }
+        /// The file on disk a source path names (an asset's fileName): under Code/ when it starts
+        /// with Code/, else under Sources/.
+        [[nodiscard]] String SourceFile(StringView sourceName) const
+        {
+            const StringView code = engine::project::kProjectCodeDir;
+            if (sourceName.StartsWith(code) && sourceName.Size() > code.Size() && sourceName[code.Size()] == utf8char('/'))
+                return PathJoin(CodeRoot().AsView(), sourceName.SubStr(code.Size() + 1, sourceName.Size() - code.Size() - 1));
+            return PathJoin(SourcesRoot().AsView(), sourceName);
+        }
+        /// Makes a mount of SourcesRoot read the code folder as its Code/: every mount the sources
+        /// are read through (the cook, an export, the tools) is given it.
+        void AddCodeFolder(foundation::vfs::NativeFileSystem& sources) const
+        {
+            sources.MapFolder(engine::project::kProjectCodeDir, CodeRoot().AsView());
+        }
         /// Per-user editor state directory (dock layout, open pages).
         [[nodiscard]] String EditorStateRoot() const
         {

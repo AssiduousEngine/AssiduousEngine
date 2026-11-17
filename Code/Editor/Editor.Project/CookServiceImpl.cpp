@@ -48,6 +48,7 @@ namespace editor
         m_builders = &builders;
         m_sources = MakeUnique<foundation::vfs::NativeFileSystem>(
             editor::EditorRootAllocator(), project.SourcesRoot().AsView(), editor::EditorRootAllocator());
+        project.AddCodeFolder(*m_sources);
         m_cache = MakeUnique<foundation::vfs::NativeFileSystem>(
             editor::EditorRootAllocator(), project.CacheRoot().AsView(), editor::EditorRootAllocator());
         m_jobs = MakeUnique<JobSystem>(editor::EditorRootAllocator(), editor::EditorRootAllocator());

@@ -236,7 +236,7 @@ namespace editor
         const auto* document = Cast<pipeline::GuiDocumentAsset>(object.Get());
         if (document == nullptr || document->fileName.IsEmpty())
             return; // an unlinked document has no markup to preview over
-        Result<Array<byte>> bytes = ReadFile(PathJoin(Context().Project()->SourcesRoot().AsView(), document->fileName.View()).AsView());
+        Result<Array<byte>> bytes = ReadFile(Context().Project()->SourceFile(document->fileName.View()).AsView());
         if (!bytes.HasValue())
             return;
         // Copied once; from now on the page edits its copy, and the document is not touched.

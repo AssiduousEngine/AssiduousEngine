@@ -186,6 +186,7 @@ export namespace editor::mcp
                 }
                 content::ContentDatabase& db = s->project->SourceDb();
                 vfs::NativeFileSystem sourcesMount(s->project->SourcesRoot().AsView(), editor::EditorRootAllocator());
+                s->project->AddCodeFolder(sourcesMount);
                 // The reference and deserializability sweep.
                 detail::HealthSweep sweep;
                 detail::SweepHealth(db.RootGroup(), db, *bld, sourcesMount, sweep);

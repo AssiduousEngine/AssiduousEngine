@@ -65,7 +65,7 @@ export namespace editor::app
             if (asset != nullptr && !asset->fileName.IsEmpty() && context.Project() != nullptr)
             {
                 m_fileName = String(asset->fileName.View());
-                m_sourcePath = PathJoin(context.Project()->SourcesRoot().AsView(), m_fileName.AsView());
+                m_sourcePath = context.Project()->SourceFile(m_fileName.AsView());
                 if (Result<Array<byte>> bytes = ReadFile(m_sourcePath.AsView()); bytes.HasValue())
                 {
                     m_saved = String(StringView(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size()));

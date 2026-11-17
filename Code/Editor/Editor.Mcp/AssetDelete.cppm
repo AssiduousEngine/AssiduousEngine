@@ -143,7 +143,7 @@ export namespace editor::mcp
                 out.Set(u8"deleted", JsonValue::MakeBool(true));
                 if (deleteSource)
                 {
-                    const String path = PathJoin(s->project->SourcesRoot().AsView(), sourceName.AsView());
+                    const String path = s->project->SourceFile(sourceName.AsView());
                     if (sourceShared)
                     {
                         out.Set(u8"sourceKept", JsonValue::MakeString(Format(u8"{} (another asset names it)", sourceName)));

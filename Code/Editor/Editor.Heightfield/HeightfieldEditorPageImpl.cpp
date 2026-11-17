@@ -81,7 +81,7 @@ namespace editor
                 m_preview->ShowNone(u8"A blank heightfield: no source image, its heights flat until sculpted.");
             return;
         }
-        const String path = PathJoin(Context().Project()->SourcesRoot().AsView(), asset->fileName.View());
+        const String path = Context().Project()->SourceFile(asset->fileName.View());
         image::Image source;
         if (!image::io::LoadImage16(path.AsView(), source).IsOk() || source.Width() == 0 || source.Height() == 0)
         {

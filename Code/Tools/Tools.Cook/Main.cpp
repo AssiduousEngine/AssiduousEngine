@@ -122,6 +122,7 @@ int main(int argc, char** argv)
                                 foundation::runtime::LinkedPluginList(), pipeline::PipelineRegistries{&registry});
 
     vfs::NativeFileSystem sourcesMount(project->SourcesRoot().AsView(), AppRoot());
+    project->AddCodeFolder(sourcesMount);
     vfs::NativeFileSystem cacheMount(project->CacheRoot().AsView(), AppRoot());
     JobSystem jobs(AppRoot()); // owned by the tool's composition root
 

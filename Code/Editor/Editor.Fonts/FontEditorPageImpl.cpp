@@ -184,7 +184,7 @@ namespace editor
         }
         request.valid = true;
         request.path =
-            PathJoin(Context().Project()->SourcesRoot().AsView(), asset->fileName.View());
+            Context().Project()->SourceFile(asset->fileName.View());
         request.distanceField = asset->mode == pipeline::FontBakeMode::DistanceField;
         // Coverage previews at the ramp's largest size (the most informative atlas).
         request.size = asset->distanceFieldSize;
