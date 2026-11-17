@@ -218,6 +218,49 @@ namespace foundation::script::dotnet
             return set.HasValue() ? Status{} : Status{set.Error()};
         }
 
+        // A C# handler the engine holds (a GUI event's, a message's): called through the runtime as an
+        // instance, inside the context that gave it, and let go when the engine drops it.
+        class DotNetScriptDelegate final : public IScriptDelegate
+        {
+        public:
+            DotNetScriptDelegate(DotNetRuntime& runtime, u64 handler, RefPtr<IScriptContext> context)
+                : m_runtime(&runtime), m_handler(handler), m_context(Move(context))
+            {
+            }
+            ~DotNetScriptDelegate() override { m_runtime->Release(m_handler); }
+
+            [[nodiscard]] Result<Variant> Invoke(Span<Variant> args) override
+            {
+                ScriptCallScope scope(m_context.Get());
+                Result<Variant> result = m_runtime->Invoke(m_handler, u8"Invoke", Span<const Variant>{args.Data(), args.Size()});
+                if (!result.HasValue())
+                {
+                    if (auto* context = static_cast<DotNetScriptContext*>(m_context.Get()))
+                        context->ReportFailure(u8"handler");
+                    else
+                        LOG_ERROR(u8"Script", u8"C# handler: {}", m_runtime->Failure());
+                }
+                return result;
+            }
+
+        private:
+            DotNetRuntime* m_runtime;
+            u64 m_handler;
+            RefPtr<IScriptContext> m_context; // the C# context the handler came from
+        };
+
+        DotNetRuntime* s_handlerRuntime = nullptr; // the process runtime the handlers belong to
+        IAllocator* s_handlerAllocator = nullptr;  // the C# script manager's, which makes them
+
+        Variant MakeHandler(void* handle)
+        {
+            if (s_handlerRuntime == nullptr || s_handlerAllocator == nullptr)
+                return Variant{};
+            RefPtr<IScriptContext> context(CurrentScriptContext());
+            return Variant::From(RefPtr<IScriptDelegate>(
+                MakeRef<DotNetScriptDelegate>(*s_handlerAllocator, *s_handlerRuntime, reinterpret_cast<u64>(handle), Move(context)).Get()));
+        }
+
         class DotNetScriptManager final : public IScriptManager
         {
         public:
@@ -269,7 +312,15 @@ namespace foundation::script::dotnet
 
     RefPtr<IScriptManager> CreateDotNetScriptManager(IAllocator& allocator)
     {
-        return RefPtr<IScriptManager>(MakeRef<DotNetScriptManager>(allocator, ProcessRuntime(allocator)).Get());
+        DotNetRuntime* runtime = ProcessRuntime(allocator);
+        if (runtime != nullptr)
+        {
+            // C# handlers crossing in become the engine's script delegates, on this runtime.
+            s_handlerRuntime = runtime;
+            s_handlerAllocator = &allocator;
+            SetCallbackMaker(&MakeHandler);
+        }
+        return RefPtr<IScriptManager>(MakeRef<DotNetScriptManager>(allocator, runtime).Get());
     }
 
     void RegisterDotNetScriptBackend()

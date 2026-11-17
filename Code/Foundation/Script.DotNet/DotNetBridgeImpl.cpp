@@ -169,6 +169,11 @@ namespace foundation::script::dotnet
         }
     }
 
+    namespace
+    {
+        CallbackMaker s_callbackMaker = nullptr; // SetCallbackMaker
+    }
+
     Variant ToVariant(const DotNetValue& value)
     {
         switch (value.kind)
@@ -184,11 +189,15 @@ namespace foundation::script::dotnet
                 String(StringView(static_cast<const utf8char*>(value.data), static_cast<usize>(value.size))));
         case DotNetValueKind::Handle:
             return value.data != nullptr ? *static_cast<const Variant*>(value.data) : Variant{};
+        case DotNetValueKind::Callback:
+            return value.data != nullptr && s_callbackMaker != nullptr ? s_callbackMaker(value.data) : Variant{};
         case DotNetValueKind::Empty:
             break;
         }
         return Variant{};
     }
+
+    void SetCallbackMaker(CallbackMaker maker) noexcept { s_callbackMaker = maker; }
 
     Status FromVariant(const Variant& variant, DotNetValue& out)
     {

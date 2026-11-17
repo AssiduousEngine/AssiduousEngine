@@ -68,6 +68,23 @@ TEST_CASE("dotnet backend: a behaviour runs through the script interfaces")
     REQUIRE(travelled.Value().TryGet<f32>() != nullptr);
     CHECK(*travelled.Value().TryGet<f32>() == doctest::Approx(6.0f));
 
+    // A handler C# gives the engine: held as a script delegate, called from here inside the context,
+    // and let go when the engine drops it.
+    {
+        const Result<Variant> given = instance->Invoke(u8"tripler", Span<Variant>{});
+        REQUIRE(given.HasValue());
+        IScriptDelegate* handler = given.Value().AsObject<IScriptDelegate>();
+        REQUIRE(handler != nullptr);
+        Variant two[1] = {Variant::From<f32>(2.0f)};
+        const Result<Variant> tripled = handler->Invoke(Span<Variant>{two, 1});
+        REQUIRE(tripled.HasValue());
+        REQUIRE(tripled.Value().TryGet<f32>() != nullptr);
+        CHECK(*tripled.Value().TryGet<f32>() == doctest::Approx(6.0f));
+        const Result<Variant> handled = instance->GetProperty(u8"handled");
+        REQUIRE(handled.HasValue());
+        CHECK(*handled.Value().TryGet<i32>() == 1);
+    }
+
     // A handler the class does not declare: NotFound, nothing reported.
     const Result<Variant> missing = instance->Invoke(u8"onStart", Span<Variant>{});
     REQUIRE_FALSE(missing.HasValue());

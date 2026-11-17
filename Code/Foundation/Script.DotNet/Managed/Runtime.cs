@@ -206,6 +206,15 @@ public static unsafe class Runtime
             Type type = target.GetType();
             string member = Utf8(name, nameLength);
             *result = default;
+            if (target is ScriptHandler handler)
+            {
+                // A handler the engine calls back: every argument as the object it is.
+                var values = new object?[count];
+                for (int i = 0; i < count; ++i)
+                    values[i] = Bridge.AnyOf(args[i]);
+                ToEngine(handler(values), result);
+                return 0;
+            }
             if (member.EndsWith('=') && count == 1)
             {
                 string fieldName = member[..^1];
@@ -565,6 +574,9 @@ public static unsafe class Runtime
             return;
         case EngineObject engineObject:
             *result = engineObject.EngineValue;
+            return;
+        case ScriptHandler handler:
+            *result = Bridge.Lend(handler);
             return;
         }
         *result = Bridge.PackValue(value, t_bytes, kValueCapacity);
