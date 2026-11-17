@@ -48,6 +48,11 @@ namespace vfs = foundation::vfs;
 
 namespace editor
 {
+    REFLECT_ENUM(ExportKind, "rtti::editor::editor")
+    {
+        builder.Value("Template", ExportKind::Template).Value("Native", ExportKind::Native);
+    }
+
     REFLECT_ENUM(AndroidPackage, "rtti::editor::editor")
     {
         builder.Value("Apk", AndroidPackage::Apk).Value("Bundle", AndroidPackage::Bundle).Value("Both", AndroidPackage::Both);
@@ -65,6 +70,12 @@ namespace editor
         label(u8"Name");
         builder.Property<&ExportPreset::platform>("platform");
         label(u8"Platform");
+        RttiRegisterEnum_ExportKind();
+        builder.Property<&ExportPreset::kind>("kind");
+        label(u8"Export kind");
+        builder.PropAttribute("description", String(u8"Template: the template's prebuilt player. Native: the game's own "
+                                                    u8"player, built from the engine checkout with its plugin packages "
+                                                    u8"and C# (needs the platform's toolchain)."));
         builder.Property<&ExportPreset::config>("config");
         label(u8"Config");
         builder.Property<&ExportPreset::templateId>("templateId");
@@ -1906,11 +1917,25 @@ namespace editor
             return Status{ErrorCode::InvalidArgument};
         }
 
-        // The player this dist runs, and whether the project's plugins allow the export at all.
+        // The player this dist runs, and whether the project's plugins allow the export at all. The
+        // preset says which kind of export it is: a template export never builds a player, so a
+        // project that needs its own is refused and told so; a native export always builds one.
         detail::PlayerChoice choice;
         if (tmpl != nullptr)
         {
             choice = detail::ChoosePlayer(project, *tmpl, preset.platform.AsView());
+        }
+        if (choice.refusal.IsEmpty() && preset.kind == ExportKind::Template && choice.build)
+        {
+            choice.refusal = Format(u8"{}, so the game needs its own player: make '{}' a native export", choice.reason, preset.name);
+        }
+        if (choice.refusal.IsEmpty() && preset.kind == ExportKind::Native && !contentOnly)
+        {
+            if (!choice.build)
+            {
+                choice.reason = String(u8"the preset is a native export");
+            }
+            choice.build = true;
         }
         if (!choice.refusal.IsEmpty())
         {

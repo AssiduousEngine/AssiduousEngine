@@ -501,10 +501,12 @@ here has; its templateId need not, since presets travel with the project and tem
 A preset's `qualityLevelId` is the level its platform starts at, written into the dist as its
 default; it must be one of the project's `qualityLevelIds` (empty: the project's default).
 A project's custom shaders ship as bytecode in the dist's shader pack, their HLSL left out unless
-the preset's `includeShaderSource` is set. The result's `player` says which player the dist runs and
-why: the template's when it carries every plugin the project enables on the preset's platform, or one
-built for the project (its own packages, a plugin the template lacks or carries older), which needs
-the engine checkout and takes a while. Each enabled plugin's deploy files for the platform ship beside
+the preset's `includeShaderSource` is set. A preset's `kind` is how
+the export makes its player: `Template` copies the template's prebuilt player, `Native` builds the
+game's own player from the engine checkout with its native parts linked in (its plugin packages),
+which needs the platform's toolchain and takes a while. A template export of a project that needs its
+own player (its own packages, a plugin the template lacks or carries older) is refused, saying why and
+to make the preset native. The result's `player` says which player the dist runs and why. Each enabled plugin's deploy files for the platform ship beside
 the player. The export is refused, with the reason, when an entry is enabled on a platform its plugin
 does not support or names a plugin no package holds, and when a script uses a plugin the project
 does not enable on the preset's platform: a plugin this host loaded but the platform lacks takes its

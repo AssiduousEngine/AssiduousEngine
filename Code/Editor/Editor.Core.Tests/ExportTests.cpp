@@ -539,7 +539,7 @@ TEST_CASE("export: a preset describes its fields through reflection")
         CHECK(engine::project::SettingAttribute(property, engine::project::kSettingLabelAttribute) != nullptr);
         ++labelled;
     }
-    CHECK(labelled == 30u);
+    CHECK(labelled == 31u);
     const PropertyInfo* files = FindProperty(type, "additionalFiles");
     REQUIRE(files != nullptr);
     CHECK(IsContainer(*files->type));
@@ -3450,8 +3450,9 @@ TEST_CASE("export: the template's player when it carries the project's plugins, 
 }
 
 // An export whose template carries the project's plugins ships the template's player, with each
-// enabled plugin's deploy files beside it and the result saying which player it is; an export the
-// plugins cannot ship is refused, with the reason, and writes nothing.
+// enabled plugin's deploy files beside it and the result saying which player it is; a template
+// export of a project that needs its own player is refused and told to export natively; an export
+// the plugins cannot ship is refused, with the reason, and writes nothing.
 TEST_CASE("export: ExportOne ships an enabled plugin's deploy files beside the template's player, and refuses what cannot ship")
 {
     const String projectDir = TempDir(u8"scratch_export_plugins_proj");
@@ -3488,6 +3489,23 @@ TEST_CASE("export: ExportOne ships an enabled plugin's deploy files beside the t
     CHECK(distFs.Exists(GetExecutableName(u8"Engine.Player").AsView()));
     CHECK(distFs.Exists(u8"carried-runtime.bin")); // beside the player
     CHECK(result.playerReason.AsView().Contains(u8"carries every plugin"));
+
+    // A plugin the template does not carry: the game needs its own player, which a template export
+    // never builds, so it is refused and told to export natively (it used to build one unasked).
+    const String ownPackage = TempDir(u8"scratch_export_plugins_own");
+    WritePackage(ownPackage.AsView(), u8"uncarried", u8"1.0.0", {GetHostPlatformName()});
+    {
+        foundation::runtime::EnabledPlugin uncarried; // the project's own package
+        uncarried.id = String(u8"uncarried");
+        uncarried.path = String(ownPackage);
+        project->Settings().plugins.PushBack(Move(uncarried));
+        editor::ExportResult template_;
+        CHECK_FALSE(editor::ExportOne(*project, preset, registry, builders, outRoot.AsView(), TestDataRoot(), false, &template_).IsOk());
+        CHECK(template_.refusal.AsView().Contains(u8"needs its own player"));
+        CHECK(template_.refusal.AsView().Contains(u8"make 'Host Build' a native export"));
+        project->Settings().plugins.PopBack();
+        NukeTree(ownPackage.AsView());
+    }
 
     // A plugin no package holds: refused, with the reason.
     project->Settings().plugins[0].id = String(u8"missing_plugin");

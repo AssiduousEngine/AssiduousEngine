@@ -26,6 +26,7 @@
 			<bool name="overridesOrientation">false</bool>
 			<i32 name="orientation">0</i32>
 			<bool name="includeShaderSource">false</bool>
+			<u8 name="kind">1</u8>
 		</object>
 		<object>
 			<string name="name">Web</string>
@@ -49,6 +50,7 @@
 			<bool name="overridesOrientation">false</bool>
 			<i32 name="orientation">0</i32>
 			<bool name="includeShaderSource">false</bool>
+			<u8 name="kind">1</u8>
 		</object>
 	</array>
 </root>

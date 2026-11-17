@@ -101,6 +101,16 @@ export namespace editor
         return out;
     }
 
+    /// How an export makes its player. A template export copies the template's prebuilt player (no
+    /// toolchain needed); a native export builds the game's own player from the engine checkout with
+    /// the game's native parts linked in (its plugin packages, its C#), and needs the platform's
+    /// toolchain. A project with native parts exports natively only.
+    enum class ExportKind : u8
+    {
+        Template,
+        Native,
+    };
+
     /// What an Android export builds: an APK to install (on a phone, or from a store that takes
     /// one), an Android App Bundle for Google Play, or both.
     enum class AndroidPackage : u8
@@ -171,6 +181,7 @@ export namespace editor
     {
         String name;         // "Windows Desktop"
         String platform;     // "Win64" or "Linux64" (the Bin/<Config>/<Platform> tag)
+        ExportKind kind = ExportKind::Template; // the template's player, or one built for the game
         String config;       // "Debug", "Release" or "RelWithDebInfo"; "" means Release (the default)
         String templateId;   // which template; "" resolves by (platform, config)
         String playerName;   // output executable name; "" uses the template's player basename
@@ -261,6 +272,7 @@ export namespace editor
             SerializeAppended(ar, "androidPackage", androidPackage);
             SerializeAppended(ar, "androidKeystore", androidKeystore);
             SerializeAppended(ar, "androidKeyAlias", androidKeyAlias);
+            SerializeAppended(ar, "kind", kind);
         }
     };
 
