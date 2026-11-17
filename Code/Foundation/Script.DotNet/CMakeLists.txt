@@ -19,4 +19,5 @@ target_sources(Script.DotNet
         DotNetBridgeImpl.cpp
         DotNetBindingsImpl.cpp
         DotNetRuntimeImpl.cpp
-        DotNetScriptImpl.cpp)
+        DotNetScriptImpl.cpp
+        DotNetCompiledIn.cpp)

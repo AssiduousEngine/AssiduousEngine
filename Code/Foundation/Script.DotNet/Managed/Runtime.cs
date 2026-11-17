@@ -47,7 +47,7 @@ public static unsafe class Runtime
     // instance goes, its context unloads.
     sealed class GameAssembly
     {
-        public required GameContext Context;
+        public required GameContext? Context; // null: the assembly compiled in with the runtime
         public required Assembly Assembly;
         public required byte[] Hash;
         public int Instances;
@@ -58,8 +58,9 @@ public static unsafe class Runtime
     static readonly Dictionary<string, (Type Type, GameAssembly From)> s_classes = new(); // the newest of each name
     static readonly Dictionary<nint, GameAssembly> s_instances = new(); // the assembly of each instance held
     static readonly List<WeakReference> s_unloaded = new(); // contexts told to unload, until collected
-    static readonly Dictionary<ulong, Type> s_valueTypes = new();
-    static readonly Dictionary<Type, ulong> s_valueIds = new();
+    // The value types the bindings know, by engine id and by C# type, with their typed copies.
+    static readonly Dictionary<ulong, (Type Type, Func<nint, object> Read)> s_valueTypes = new();
+    static readonly Dictionary<Type, (ulong Id, Action<object, nint> Write, int Size)> s_valueIds = new();
     static readonly Dictionary<(Type, string, int), MethodInfo?> s_methods = new();
 
     [ThreadStatic] static string? t_error;
@@ -87,7 +88,7 @@ public static unsafe class Runtime
 
     /// <summary>Takes the engine's table and checks the bindings' layouts against it: 0, or -1 with
     /// LastError naming the first type that differs.</summary>
-    [UnmanagedCallersOnly]
+    [UnmanagedCallersOnly(EntryPoint = "assiduous_dotnet_Initialize")]
     public static int Initialize(EngineFunctions* engine)
     {
         try
@@ -97,12 +98,14 @@ public static unsafe class Runtime
             Bridge.Initialize(engine);
             if (Layouts.FirstMismatch() is string mismatch)
                 return Fail($"the C# layout of {mismatch} differs from the engine's");
+            if (CompiledIn && s_assemblies.Count == 0)
+                RegisterCompiledIn();
             s_valueTypes.Clear();
             s_valueIds.Clear();
-            foreach ((ulong id, Type type) in Types.Values)
+            foreach ((ulong id, Type type, Func<nint, object> read, Action<object, nint> write, int size) in Types.Values)
             {
-                s_valueTypes[id] = type;
-                s_valueIds[type] = id;
+                s_valueTypes[id] = (type, read);
+                s_valueIds[type] = (id, write, size);
             }
             return 0;
         }
@@ -118,11 +121,13 @@ public static unsafe class Runtime
     /// An image already current (one whose classes are the newest of their names) is not loaded
     /// again, so every class of a project asking for its assembly loads it once; an image loaded
     /// before and since replaced (an edit undone) loads anew.
-    [UnmanagedCallersOnly]
+    [UnmanagedCallersOnly(EntryPoint = "assiduous_dotnet_LoadAssembly")]
     public static int LoadAssembly(byte* image, int length, byte* symbols, int symbolsLength)
     {
         try
         {
+            if (CompiledIn)
+                return 0; // the game is compiled in: there is nothing to load
             byte[] hash = System.Security.Cryptography.SHA256.HashData(new ReadOnlySpan<byte>(image, length));
             foreach (GameAssembly loaded in s_assemblies)
                 if (!loaded.Superseded && loaded.Hash.AsSpan().SequenceEqual(hash))
@@ -164,7 +169,7 @@ public static unsafe class Runtime
 
     /// <summary>Constructs the class `name` (by its public constructor of `count` parameters) with
     /// `args`; the instance is held for the engine until Release.</summary>
-    [UnmanagedCallersOnly]
+    [UnmanagedCallersOnly(EntryPoint = "assiduous_dotnet_CreateInstance")]
     public static int CreateInstance(byte* name, int nameLength, DotNetValue* args, int count, nint* instance)
     {
         try
@@ -199,7 +204,7 @@ public static unsafe class Runtime
 
     /// <summary>Calls the instance's public method `name` of `count` parameters; "x=" sets its field
     /// or property x. The result (if any) is written to `result`, valid until the thread's next call.</summary>
-    [UnmanagedCallersOnly]
+    [UnmanagedCallersOnly(EntryPoint = "assiduous_dotnet_Invoke")]
     public static int Invoke(nint instance, byte* name, int nameLength, DotNetValue* args, int count, DotNetValue* result)
     {
         try
@@ -243,7 +248,7 @@ public static unsafe class Runtime
     }
 
     /// <summary>Reads the instance's public field or property `name`.</summary>
-    [UnmanagedCallersOnly]
+    [UnmanagedCallersOnly(EntryPoint = "assiduous_dotnet_GetField")]
     public static int GetField(nint instance, byte* name, int nameLength, DotNetValue* result)
     {
         try
@@ -271,7 +276,7 @@ public static unsafe class Runtime
     }
 
     /// <summary>Lets the engine's hold on an instance go.</summary>
-    [UnmanagedCallersOnly]
+    [UnmanagedCallersOnly(EntryPoint = "assiduous_dotnet_Release")]
     public static void Release(nint instance)
     {
         if (instance == 0)
@@ -291,13 +296,15 @@ public static unsafe class Runtime
     {
         s_assemblies.Remove(assembly);
         s_methods.Clear();
+        if (assembly.Context == null)
+            return; // compiled in: never unloads
         s_unloaded.Add(new WeakReference(assembly.Context));
         assembly.Context.Unload();
     }
 
     /// <summary>How many game assemblies are loaded: the ones in use, and the ones told to unload
     /// that the collector has not yet freed (after a full collection, which this runs).</summary>
-    [UnmanagedCallersOnly]
+    [UnmanagedCallersOnly(EntryPoint = "assiduous_dotnet_LoadedAssemblyCount")]
     public static int LoadedAssemblyCount()
     {
         for (int i = 0; i < 3; ++i)
@@ -311,7 +318,7 @@ public static unsafe class Runtime
 
     /// <summary>What the class `name` offers the engine (see DescribeType), an instance made with
     /// `args` to read its defaults from. Valid until the thread's next call.</summary>
-    [UnmanagedCallersOnly]
+    [UnmanagedCallersOnly(EntryPoint = "assiduous_dotnet_DescribeClass")]
     public static int DescribeClass(byte* name, int nameLength, DotNetValue* args, int count, byte** text, int* length)
     {
         try
@@ -346,7 +353,7 @@ public static unsafe class Runtime
     /// fewest parameters, each given its type's default (an invalid Entity, a null object). A
     /// constructor that throws leaves the class's fields without defaults and adds "warning TEXT".
     /// The image loads into a context of its own, unloaded after. Valid until the thread's next call.</summary>
-    [UnmanagedCallersOnly]
+    [UnmanagedCallersOnly(EntryPoint = "assiduous_dotnet_DescribeAssembly")]
     public static int DescribeAssembly(byte* image, int length, byte** text, int* textLength)
     {
         var context = new GameContext();
@@ -421,7 +428,7 @@ public static unsafe class Runtime
     }
 
     /// <summary>The reason the thread's last failed call failed, UTF-8.</summary>
-    [UnmanagedCallersOnly]
+    [UnmanagedCallersOnly(EntryPoint = "assiduous_dotnet_LastError")]
     public static byte* LastError(int* length)
     {
         string text = t_error ?? "";
@@ -434,6 +441,26 @@ public static unsafe class Runtime
         *length = count;
         return t_errorBytes;
     }
+
+    /// <summary>Whether this runtime was compiled ahead of time with the game (an exported player):
+    /// then nothing loads at run time, and the game's classes are the ones compiled in.</summary>
+    static bool CompiledIn => !RuntimeFeature.IsDynamicCodeSupported;
+
+    // The game's classes compiled in beside the runtime: every public class outside the engine's
+    // namespace. The images a class's record carries are not loaded.
+    static void RegisterCompiledIn()
+    {
+        Assembly assembly = typeof(Runtime).Assembly;
+        var compiled = new GameAssembly { Context = null, Assembly = assembly, Hash = Array.Empty<byte>() };
+        s_assemblies.Add(compiled);
+        foreach (Type type in assembly.GetTypes())
+            if (type.IsClass && !type.IsAbstract && type.IsPublic && type.Namespace != "Engine")
+                s_classes[type.Name] = (type, compiled);
+    }
+
+    /// <summary>1: the runtime is compiled into this program (the engine's stand-in answers 0).</summary>
+    [UnmanagedCallersOnly(EntryPoint = "assiduous_dotnet_Present")]
+    public static int Present() => 1;
 
     // ---- values ----
 
@@ -516,11 +543,11 @@ public static unsafe class Runtime
         }
         }
         ulong id = Bridge.TypeIdOf(value.Type);
-        if (s_valueTypes.TryGetValue(id, out Type? valueType))
+        if (s_valueTypes.TryGetValue(id, out (Type Type, Func<nint, object> Read) known))
         {
-            if (!target.IsAssignableFrom(valueType))
-                throw new ArgumentException($"a {valueType.Name} is not a {target.Name}");
-            return Marshal.PtrToStructure((nint)value.Data, valueType);
+            if (!target.IsAssignableFrom(known.Type))
+                throw new ArgumentException($"a {known.Type.Name} is not a {target.Name}");
+            return known.Read((nint)value.Data);
         }
         object number = id switch
         {
@@ -584,13 +611,12 @@ public static unsafe class Runtime
         case ulong ul: *(ulong*)t_bytes = ul; Scalar(result, Types.U64Id, 8); return;
         case bool b: *t_bytes = b ? (byte)1 : (byte)0; Scalar(result, Types.BoolId, 1); return;
         }
-        if (s_valueIds.TryGetValue(value.GetType(), out ulong id))
+        if (s_valueIds.TryGetValue(value.GetType(), out (ulong Id, Action<object, nint> Write, int Size) known))
         {
-            int size = Marshal.SizeOf(value.GetType());
-            if (size > kValueCapacity)
+            if (known.Size > kValueCapacity)
                 throw new ArgumentException($"{value.GetType().Name} is larger than a result holds");
-            Marshal.StructureToPtr(value, (nint)t_bytes, false);
-            Scalar(result, id, size);
+            known.Write(value, (nint)t_bytes);
+            Scalar(result, known.Id, known.Size);
             return;
         }
         throw new ArgumentException($"a {value.GetType().Name} has no engine form");

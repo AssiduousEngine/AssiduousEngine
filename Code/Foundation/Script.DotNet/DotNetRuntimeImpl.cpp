@@ -55,6 +55,8 @@ namespace foundation::script::dotnet
     {
         if (IsStarted())
             return Status{};
+        if (StartCompiledIn(allocator))
+            return IsStarted() ? Status{} : Status{ErrorCode::Unknown};
         const String root = folder.IsEmpty() ? DefaultRuntimeFolder() : String(folder);
         const String assembly = PathJoin(root.AsView(), u8"Engine.Runtime.dll");
         const String config = PathJoin(root.AsView(), u8"Engine.Runtime.runtimeconfig.json");

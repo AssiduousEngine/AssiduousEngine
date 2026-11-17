@@ -463,7 +463,7 @@ namespace foundation::script::dotnet
                               u8"using System.Runtime.CompilerServices;\n"
                               u8"using System.Runtime.InteropServices;\n\n"
                               u8"namespace Engine;\n\n"));
-        out.Append(StringView(u8"public static partial class Types\n{\n"
+        out.Append(StringView(u8"public static unsafe partial class Types\n{\n"
                               u8"    static readonly System.Collections.Generic.Dictionary<ulong, nint> s_found = new();\n"
                               u8"    public static nint Get(ulong id)\n    {\n"
                               u8"        if (!s_found.TryGetValue(id, out nint type))\n"
@@ -538,11 +538,15 @@ namespace foundation::script::dotnet
         // The C# type of each value an engine id names, the wrapper of each class's handle, and the
         // scalars' ids: what the runtime converts a value crossing into C# code it did not
         // generate (a behaviour's fields and handlers) with.
-        out.Append(StringView(u8"public static partial class Types\n{\n"
-                              u8"    public static readonly (ulong Id, System.Type Type)[] Values =\n    {\n"));
+        // Each value type's typed read and write of its bytes: a copy that needs no marshalling data,
+        // so it holds compiled ahead of time.
+        out.Append(StringView(u8"public static unsafe partial class Types\n{\n"
+                              u8"    public static readonly (ulong Id, System.Type Type, System.Func<nint, object> Read, "
+                              u8"System.Action<object, nint> Write, int Size)[] Values =\n    {\n"));
         for (const Bound& b : surface.types)
             if (b.shape == Shape::Struct || b.shape == Shape::Opaque)
-                AppendFormat(out, u8"        (0x{}ul, typeof({})),\n", HexOf(b.type->id), b.name);
+                AppendFormat(out, u8"        (0x{}ul, typeof({}), static p => *({}*)p, static (o, p) => *({}*)p = ({})o, sizeof({})),\n",
+                             HexOf(b.type->id), b.name, b.name, b.name, b.name, b.name);
         out.Append(StringView(u8"    };\n\n    public static EngineObject? Wrap(ulong id, DotNetValue handle) => id switch\n    {\n"));
         for (const Bound& b : surface.types)
             if (b.shape == Shape::Class)

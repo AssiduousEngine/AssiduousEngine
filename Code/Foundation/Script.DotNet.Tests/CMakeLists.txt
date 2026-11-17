@@ -56,3 +56,16 @@ target_compile_options(Script.DotNet.Tests PRIVATE
     "$<$<CXX_COMPILER_ID:Clang>:-Wno-error=#warnings;-Wno-error=c2y-extensions>"
     "$<$<CXX_COMPILER_ID:GNU>:-Wno-error=cpp>")
 add_test(NAME Script.DotNet.Tests COMMAND Script.DotNet.Tests)
+
+# The same runtime compiled ahead of time with the test game (NativeAOT, Linux), as an exported
+# player links it: no .NET is started.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(Script.DotNet.CompiledIn.Tests TestsMain.cpp DotNetCompiledInTests.cpp)
+    target_link_libraries(Script.DotNet.CompiledIn.Tests PRIVATE Foundation::Script.DotNet Foundation::Script.Facades doctest::doctest)
+    target_compile_definitions(Script.DotNet.CompiledIn.Tests PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)
+    target_compile_options(Script.DotNet.CompiledIn.Tests PRIVATE
+        "$<$<CXX_COMPILER_ID:Clang>:-Wno-error=#warnings;-Wno-error=c2y-extensions>"
+        "$<$<CXX_COMPILER_ID:GNU>:-Wno-error=cpp>")
+    dotnet_link_compiled_runtime(Script.DotNet.CompiledIn.Tests TestGameCompiled ${CMAKE_CURRENT_SOURCE_DIR}/TestGame)
+    add_test(NAME Script.DotNet.CompiledIn.Tests COMMAND Script.DotNet.CompiledIn.Tests)
+endif()
