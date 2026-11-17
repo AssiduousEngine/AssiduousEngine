@@ -2099,3 +2099,112 @@ TEST_CASE("game-instance: script services resolve the run first, then the applic
     CHECK(host.FindService(TypeOf<foundation::script::ScriptRuntimeBinding>().id) == &host.Binding());
     CHECK(host.FindService(TypeOf<double>().id) == nullptr);
 }
+
+namespace
+{
+    // A stand-in language whose classes are built ahead into an assembly: its context has no
+    // compiler (Load is refused) and loads a module from bytes alone. What it saw is kept here.
+    struct AssembledSeen
+    {
+        Array<byte> loaded;
+        String moduleName;
+        Array<String> calls;
+        bool compiled = false;
+    };
+    AssembledSeen g_assembled;
+
+    class AssembledGame final : public foundation::script::ScriptObject
+    {
+    public:
+        [[nodiscard]] Result<Variant> Invoke(StringView method, Span<Variant>) override
+        {
+            g_assembled.calls.PushBack(String(method));
+            return Variant{};
+        }
+        [[nodiscard]] Result<Variant> GetProperty(StringView) override { return Err(ErrorCode::NotFound); }
+    };
+
+    class AssembledContext final : public foundation::script::IScriptContext
+    {
+    public:
+        void SetErrorHandler(foundation::script::IScriptErrorHandler*) override {}
+        Status Load(StringView, StringView, Span<const foundation::script::ScriptSection>) override
+        {
+            g_assembled.compiled = true;
+            return Status{ErrorCode::NotSupported};
+        }
+        Status LoadBehaviorModule(Span<const foundation::script::BehaviorModuleClass> classes, StringView moduleName) override
+        {
+            g_assembled.moduleName = String(moduleName);
+            for (const foundation::script::BehaviorModuleClass& entry : classes)
+                for (byte b : entry.bytecode)
+                    g_assembled.loaded.PushBack(b);
+            return Status{};
+        }
+        void SetGlobal(StringView, const Variant&) override {}
+        Variant GetGlobal(StringView) override { return Variant{}; }
+        bool HasFunction(StringView) const override { return false; }
+        Result<Variant> Call(StringView, Span<Variant>) override { return Err(ErrorCode::NotSupported); }
+        RefPtr<foundation::script::ScriptObject> CreateInstance(StringView className, Span<Variant>) override
+        {
+            if (className != u8"Game" || g_assembled.loaded.IsEmpty())
+                return nullptr;
+            return RefPtr<foundation::script::ScriptObject>(MakeRef<AssembledGame>(DefaultAllocator()));
+        }
+    };
+
+    class AssembledManager final : public foundation::script::IScriptManager
+    {
+    public:
+        void RegisterType(const TypeInfo&) override {}
+        RefPtr<foundation::script::IScriptContext> CreateContext() override
+        {
+            return RefPtr<foundation::script::IScriptContext>(MakeRef<AssembledContext>(DefaultAllocator()));
+        }
+        bool Check(StringView, StringView, foundation::script::IScriptErrorHandler&) override { return true; }
+        void SetBudget(const foundation::script::ScriptBudget& budget) override { m_budget = budget; }
+        [[nodiscard]] foundation::script::ScriptBudget Budget() const override { return m_budget; }
+
+    private:
+        foundation::script::ScriptBudget m_budget;
+    };
+}
+
+// A Game class built into an assembly starts from the assembly, loaded as a behaviour module, not
+// from its source: its language has no compiler at run time (C# is one). It is then made by name
+// and launched, updated and exited as any Game is.
+TEST_CASE("game-instance: a Game built into an assembly starts from it, not from its source")
+{
+    RegisterCoreTypes();
+    foundation::script::ScriptBackendDesc backend;
+    backend.languageId = String(u8"assembled");
+    backend.displayName = String(u8"Assembled");
+    backend.fileExtensions.PushBack(String(u8"asm"));
+    backend.create = [](IAllocator& allocator) { return RefPtr<foundation::script::IScriptManager>(MakeRef<AssembledManager>(allocator)); };
+    foundation::script::ScriptBackendRegistry::Get().Register(Move(backend));
+    g_assembled = AssembledSeen{};
+
+    foundation::script::ScriptClass cooked;
+    cooked.language = String(u8"assembled");
+    cooked.className = String(u8"Game");
+    cooked.sourceName = String(u8"Game.asm");
+    cooked.source = String(u8"(the source, never compiled)");
+    cooked.assembly = MakeRef<foundation::script::ScriptAssembly>(DefaultAllocator());
+    cooked.assembly->language = String(u8"assembled");
+    cooked.assembly->image.PushBack(byte{0x4D});
+    cooked.assembly->image.PushBack(byte{0x5A});
+    {
+        engine::runtime::GameInstance gi;
+        REQUIRE(gi.StartScript(cooked));
+        CHECK_FALSE(g_assembled.compiled);
+        CHECK(g_assembled.moduleName == StringView(u8"game"));
+        REQUIRE(g_assembled.loaded.Size() == 2u);
+        CHECK(g_assembled.loaded[0] == byte{0x4D});
+        gi.TickScript(0.1f, 1.0f);
+        gi.StopScript();
+    }
+    REQUIRE(g_assembled.calls.Size() >= 3u);
+    CHECK(g_assembled.calls[0] == StringView(u8"launch"));
+    CHECK(g_assembled.calls[1] == StringView(u8"update"));
+    CHECK(g_assembled.calls.Back() == StringView(u8"exit"));
+}
