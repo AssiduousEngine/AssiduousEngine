@@ -131,6 +131,17 @@ export namespace foundation::input
         }
     }
 
+    /// Frees the pointer of `devices` and shows it (a run's end, when its runtime locked it: no
+    /// pointer is left held after it, nor a lock still waiting for a click).
+    inline void ReleasePointerLock(IInputSourceProvider& devices)
+    {
+        if (shell::IMouse* mouse = devices.Mouse())
+        {
+            mouse->SetRelativeMode(false);
+            mouse->SetCursorVisible(true);
+        }
+    }
+
     [[nodiscard]] inline bool CaptureBinding(IInputSourceProvider& devices,
                                              const CaptureFilter& filter, Binding& out)
     {
@@ -373,6 +384,7 @@ export namespace foundation::input
             }
             m_latchHeldOnce = false;
             ApplyRumble(devices);
+            ApplyPointerLock(devices);
         }
         [[nodiscard]] u64 Frame() const noexcept { return m_frame; }
 
@@ -484,6 +496,27 @@ export namespace foundation::input
         {
             m_rumble.Clear();
             m_stopRumble = true;
+        }
+
+        // ---- pointer lock ----
+        // Asked like a rumble and applied by the next Update through that frame's mouse, so each
+        // run locks only its own host's pointer. The lock holds until freed.
+
+        /// Locks the pointer (hidden, held in place, only its movement read: mouse look), or frees
+        /// it. A host that grants a lock only on a user action (a browser: on a click) holds it
+        /// asked until then.
+        void SetPointerLock(bool locked) noexcept { m_pointerLockAsked = locked; }
+        /// Whether the pointer is locked as of the last Update: asked, and granted by the host. A
+        /// lock the host ended (a browser's Escape) reads false while it is still asked.
+        [[nodiscard]] bool PointerLocked() const noexcept { return m_pointerLocked; }
+        /// Whether the last Update told the mouse to lock (granted or still waiting for it).
+        [[nodiscard]] bool PointerLockApplied() const noexcept { return m_pointerLockApplied; }
+        /// Forgets a lock without touching a device (a run's end, after ReleasePointerLock).
+        void ResetPointerLock() noexcept
+        {
+            m_pointerLockAsked = false;
+            m_pointerLockApplied = false;
+            m_pointerLocked = false;
         }
 
         /// Every action's name, value and held state on one line, "Move=(0,1) Jump=(1,0) down":
@@ -1178,6 +1211,25 @@ export namespace foundation::input
         };
         Array<RumbleRequest> m_rumble; // waiting for the next Update's devices
         bool m_stopRumble = false;     // StopRumble: every pad, at the next Update
+        bool m_pointerLockAsked = false;   // SetPointerLock
+        bool m_pointerLockApplied = false; // what the last Update told the mouse
+        bool m_pointerLocked = false;      // asked and granted, as of the last Update
+        void ApplyPointerLock(IInputSourceProvider& devices)
+        {
+            shell::IMouse* mouse = devices.Mouse();
+            if (mouse == nullptr)
+            {
+                m_pointerLocked = false;
+                return;
+            }
+            if (m_pointerLockAsked != m_pointerLockApplied)
+            {
+                mouse->SetRelativeMode(m_pointerLockAsked);
+                mouse->SetCursorVisible(!m_pointerLockAsked);
+                m_pointerLockApplied = m_pointerLockAsked;
+            }
+            m_pointerLocked = m_pointerLockApplied && mouse->RelativeMode();
+        }
         void ApplyRumble(IInputSourceProvider& devices)
         {
             if (m_stopRumble)

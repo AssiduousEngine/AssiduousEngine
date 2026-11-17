@@ -264,6 +264,24 @@ export namespace engine::input
                 rt->Rumble(gamepad, low, high, seconds);
             }
         }
+        /// Locks the pointer for mouse look (hidden, held in place, only its movement read: bind
+        /// MouseDelta to a look action), or frees it with false. A browser grants a lock only on a
+        /// click, so on the web it takes effect at the player's next click in the game. A run's end
+        /// frees it.
+        static void lockPointer(bool locked)
+        {
+            if (ActionRuntime* rt = Resolve())
+            {
+                rt->SetPointerLock(locked);
+            }
+        }
+        /// Whether the pointer is locked: asked and granted. False after a browser's Escape freed it
+        /// (a game shows its pause then).
+        [[nodiscard]] static bool pointerLocked()
+        {
+            ActionRuntime* rt = Resolve();
+            return rt != nullptr && rt->PointerLocked();
+        }
         /// Stops every pad's rumble (a run's end stops it too).
         static void stopRumble()
         {

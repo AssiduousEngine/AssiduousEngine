@@ -166,8 +166,23 @@ export namespace foundation::shell
         [[nodiscard]] bool IsButtonDown(MouseButton b) const override { return m_buttons[Index(b)].Down; }
         [[nodiscard]] bool IsButtonPressed(MouseButton b) const override { return m_buttons[Index(b)].Pressed; }
         [[nodiscard]] bool IsButtonReleased(MouseButton b) const override { return m_buttons[Index(b)].Released; }
-        [[nodiscard]] bool RelativeMode() const override { return m_relative; }
-        void SetRelativeMode(bool enabled) override { m_relative = enabled; } // no pointer lock: only recorded
+        // Relative mode is the browser's pointer lock. A page may lock the pointer only from a
+        // user action, so a lock asked outside one waits: the next press on the canvas asks the
+        // browser (RequestLockOnPress). RelativeMode reads the lock the browser holds, which its
+        // Escape ends; the ask stays, so a press locks it again until the game frees it.
+        [[nodiscard]] bool RelativeMode() const override { return m_locked; }
+        void SetRelativeMode(bool enabled) override
+        {
+            m_lockAsked = enabled;
+            if (enabled && !m_locked)
+            {
+                (void)emscripten_request_pointerlock(m_canvas, EM_FALSE); // granted only in a user action
+            }
+            else if (!enabled && m_locked)
+            {
+                (void)emscripten_exit_pointerlock();
+            }
+        }
         [[nodiscard]] bool CursorVisible() const override { return m_cursorVisible; }
         void SetCursorVisible(bool v) override { m_cursorVisible = v; }
         void SetCursor(CursorType) override {}
@@ -192,6 +207,18 @@ export namespace foundation::shell
             m_sx += sx;
             m_sy += sy;
         }
+        // The canvas a lock is asked for (its selector, kept by the manager).
+        void SetCanvas(const char* selector) noexcept { m_canvas = selector; }
+        // From a press on the canvas, a user action: a lock still asked is asked of the browser now.
+        void RequestLockOnPress()
+        {
+            if (m_lockAsked && !m_locked && m_canvas != nullptr)
+            {
+                (void)emscripten_request_pointerlock(m_canvas, EM_FALSE);
+            }
+        }
+        // The browser's pointerlockchange: whether the canvas holds the lock now.
+        void OnLockChanged(bool locked) noexcept { m_locked = locked; }
         void BeginFrame()
         {
             for (ButtonLatch& button : m_buttons)
@@ -210,7 +237,9 @@ export namespace foundation::shell
         }
         core::f32 m_x = 0, m_y = 0, m_dx = 0, m_dy = 0, m_sx = 0, m_sy = 0;
         ButtonLatch m_buttons[kCount] = {};
-        bool m_relative = false;
+        const char* m_canvas = nullptr; // the manager's selector
+        bool m_lockAsked = false;       // SetRelativeMode
+        bool m_locked = false;          // the browser holds the lock for the canvas
         bool m_cursorVisible = true;
     };
 
@@ -402,6 +431,9 @@ export namespace foundation::shell
             emscripten_set_keyup_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, this, EM_TRUE, &OnKey);
             emscripten_set_mousemove_callback(canvas, this, EM_TRUE, &OnMouseMove);
             emscripten_set_mousedown_callback(canvas, this, EM_TRUE, &OnMouseButton);
+            m_mouse.SetCanvas(canvas);
+            emscripten_set_pointerlockchange_callback(EMSCRIPTEN_EVENT_TARGET_DOCUMENT, this, EM_FALSE,
+                                                      &OnPointerLockChange);
             // The release on the window: a drag that leaves the canvas lets go out there, and only
             // the window hears it (a button never released stays held in the game).
             emscripten_set_mouseup_callback(EMSCRIPTEN_EVENT_TARGET_WINDOW, this, EM_FALSE, &OnMouseButton);
@@ -772,7 +804,17 @@ export namespace foundation::shell
             r.down = (eventType == EMSCRIPTEN_EVENT_MOUSEDOWN);
             r.mods = ModsFrom(e);
             self->m_queue.PushBack(r);
+            if (r.down)
+            {
+                self->m_mouse.RequestLockOnPress(); // inside the press: the browser grants it here
+            }
             return EM_TRUE;
+        }
+        static EM_BOOL OnPointerLockChange(int, const EmscriptenPointerlockChangeEvent* e, void* userData)
+        {
+            auto* self = static_cast<WebInputManager*>(userData);
+            self->m_mouse.OnLockChanged(e->isActive != 0); // only the canvas asks for one
+            return EM_FALSE;
         }
         static EM_BOOL OnBlur(int, const EmscriptenFocusEvent*, void* userData)
         {

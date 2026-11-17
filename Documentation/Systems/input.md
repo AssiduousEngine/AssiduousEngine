@@ -105,6 +105,14 @@ construction.
   tab, the player) rumbles only its own; a later request for the same pad replaces it. A run's end
   stops its pads (`GameInstance::StopScript`). Rumble is not gated on the Game tab's focus: asking
   an unfocused pad to stop has to work.
+  **Pointer lock** (mouse look): `lockPointer(true)` hides the pointer and holds it in place, so
+  only its movement is read (bind `MouseDelta` to a look action); `lockPointer(false)` frees it, and
+  `pointerLocked()` says whether it is locked now. Like rumble, the ask waits for the runtime's next
+  update and reaches that run's own mouse: the window in the player, the editor's window from a
+  Game tab. A browser grants a lock only on a user action, so on the web the lock takes effect at
+  the next click on the canvas; its Escape ends it, `pointerLocked()` then reads false (a game shows
+  its pause) and the next click locks it again until the game frees it. A run's end frees a pointer
+  its game locked.
 
 ## Touch + portability
 

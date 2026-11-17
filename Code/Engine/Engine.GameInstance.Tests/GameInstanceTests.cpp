@@ -69,6 +69,40 @@ namespace
         [[nodiscard]] shell::IGamepad* Gamepad(i32) override { return nullptr; }
         [[nodiscard]] shell::ITouch* Touch() override { return nullptr; }
     };
+    // A mouse that records the lock asked of it, for a run's end freeing it.
+    class LockMouse final : public shell::IMouse
+    {
+    public:
+        bool relative = false;
+        bool cursorVisible = true;
+        [[nodiscard]] f32 X() const override { return 0.0f; }
+        [[nodiscard]] f32 Y() const override { return 0.0f; }
+        [[nodiscard]] f32 GlobalX() const override { return 0.0f; }
+        [[nodiscard]] f32 GlobalY() const override { return 0.0f; }
+        [[nodiscard]] f32 DeltaX() const override { return 0.0f; }
+        [[nodiscard]] f32 DeltaY() const override { return 0.0f; }
+        [[nodiscard]] f32 ScrollX() const override { return 0.0f; }
+        [[nodiscard]] f32 ScrollY() const override { return 0.0f; }
+        [[nodiscard]] bool IsButtonDown(shell::MouseButton) const override { return false; }
+        [[nodiscard]] bool IsButtonPressed(shell::MouseButton) const override { return false; }
+        [[nodiscard]] bool IsButtonReleased(shell::MouseButton) const override { return false; }
+        [[nodiscard]] bool RelativeMode() const override { return relative; }
+        void SetRelativeMode(bool enabled) override { relative = enabled; }
+        [[nodiscard]] bool CursorVisible() const override { return cursorVisible; }
+        void SetCursorVisible(bool visible) override { cursorVisible = visible; }
+        void SetCursor(shell::CursorType) override {}
+        void SetGlobalCapture(bool) override {}
+    };
+    class MouseSource final : public input::IInputSourceProvider
+    {
+    public:
+        OneKeyKeyboard keyboard;
+        LockMouse mouse;
+        [[nodiscard]] shell::IKeyboard* Keyboard() override { return &keyboard; }
+        [[nodiscard]] shell::IMouse* Mouse() override { return &mouse; }
+        [[nodiscard]] i32 GamepadCount() const override { return 0; }
+        [[nodiscard]] shell::IGamepad* Gamepad(i32) override { return nullptr; }
+    };
     [[nodiscard]] input::InputMap MakeFireMap(shell::KeyCode key)
     {
         input::InputMap map;
@@ -176,6 +210,31 @@ TEST_CASE("game-instance: the instance is an IRun, its scenes on the run's bus, 
     CHECK(run.State() == foundation::run::RunState::Paused);
     gi.Stop();
     CHECK(run.State() == foundation::run::RunState::Idle);
+}
+
+TEST_CASE("game-instance: a run's end frees a pointer its game locked")
+{
+    // A run ends through StopScript (the player's and the editor's stop, and a restart), the path
+    // that stops its pads too.
+    engine::runtime::GameInstance gi;
+    MouseSource source;
+    gi.SetInputSource(&source);
+    gi.SetInputMap(MakeFireMap(shell::KeyCode::H));
+    gi.InputRuntime().SetPointerLock(true); // as Input.lockPointer asks it
+    gi.DriveInput(0.016f, 1.0f);
+    REQUIRE(source.mouse.relative);
+    REQUIRE_FALSE(source.mouse.cursorVisible);
+
+    gi.StopScript();
+    CHECK_FALSE(source.mouse.relative);
+    CHECK(source.mouse.cursorVisible);
+    CHECK_FALSE(gi.InputRuntime().PointerLockApplied()); // the next run starts unlocked
+
+    // A run that never locked leaves a pointer someone else holds alone (an editor viewport's).
+    source.mouse.relative = true;
+    gi.DriveInput(0.016f, 1.0f);
+    gi.StopScript();
+    CHECK(source.mouse.relative);
 }
 
 TEST_CASE("game-instance: each instance's input runtime reads ONLY its own source (per-instance "

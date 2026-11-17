@@ -159,6 +159,45 @@ TEST_CASE("input: a script rumbles its own context's pad, and stops it")
 }
 #endif // OPTION_HAS_ANGELSCRIPT
 
+#ifdef OPTION_HAS_ANGELSCRIPT
+TEST_CASE("input: a script locks its own context's pointer, reads the lock, and frees it")
+{
+    RefPtr<foundation::script::IScriptManager> manager =
+        foundation::script::angelscript::CreateScriptManager(DefaultAllocator());
+    engine::input::RegisterInputScriptFacade();
+    foundation::script::RegisterReflectedTypes(*manager);
+
+    ActionRuntime runtimeA;
+    ActionRuntime runtimeB;
+    FakeDevices devicesA;
+    FakeDevices devicesB;
+    RefPtr<foundation::script::IScriptContext> ctxA = manager->CreateContext();
+    RefPtr<foundation::script::IScriptContext> ctxNone = manager->CreateContext();
+    foundation::script::ScriptServices servicesA;
+    servicesA.Add(runtimeA);
+    ctxA->SetServiceResolver(servicesA.Resolver());
+
+    REQUIRE(ctxA->Load(u8"bool Locked = true;\nvoid main() { Input::lockPointer(true); Locked = Input::pointerLocked(); }\n",
+                       u8"main").IsOk());
+    CHECK(ctxA->GetGlobal(u8"Locked").Get<bool>() == false); // asked, not yet applied
+    runtimeA.Update(devicesA, 1.0f / 60.0f);
+    runtimeB.Update(devicesB, 1.0f / 60.0f);
+    CHECK(devicesA.mouse.relative);
+    CHECK_FALSE(devicesB.mouse.relative); // another run's pointer is not touched
+
+    REQUIRE(ctxA->Load(u8"bool Locked = false;\nvoid main() { Locked = Input::pointerLocked(); Input::lockPointer(false); }\n",
+                       u8"main").IsOk());
+    CHECK(ctxA->GetGlobal(u8"Locked").Get<bool>() == true);
+    runtimeA.Update(devicesA, 1.0f / 60.0f);
+    CHECK_FALSE(devicesA.mouse.relative);
+
+    // No input service: a no-op reading unlocked, never a fault.
+    REQUIRE(ctxNone->Load(u8"bool Locked = true;\nvoid main() { Input::lockPointer(true); Locked = Input::pointerLocked(); }\n",
+                          u8"main").IsOk());
+    CHECK(ctxNone->GetGlobal(u8"Locked").Get<bool>() == false);
+}
+#endif // OPTION_HAS_ANGELSCRIPT
+
 #ifdef OPTION_HAS_LUAU
 TEST_CASE("input: the Input facade resolves PER-CONTEXT services (Luau)")
 {

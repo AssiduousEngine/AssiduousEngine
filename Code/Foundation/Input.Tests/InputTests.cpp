@@ -1325,6 +1325,54 @@ TEST_CASE("input reflection: every input code reflects its cases")
           u8"South");
 }
 
+TEST_CASE("input.runtime: a pointer lock waits for the next update, holds until freed, and reads what the host grants")
+{
+    ActionRuntime runtime;
+    runtime.SetMap(MakeGameplayMap());
+    FakeDevices devices;
+
+    // Asked between frames: the mouse is told at the next update, and hides.
+    runtime.SetPointerLock(true);
+    CHECK_FALSE(devices.mouse.relative);
+    CHECK_FALSE(runtime.PointerLocked());
+    runtime.Update(devices, 1.0f / 60.0f);
+    CHECK(devices.mouse.relative);
+    CHECK_FALSE(devices.mouse.cursorVisible);
+    CHECK(runtime.PointerLocked());
+
+    // Held: later updates tell the mouse nothing more.
+    runtime.Update(devices, 1.0f / 60.0f);
+    CHECK(devices.mouse.relativeChanges == 1);
+
+    // The host ends the lock (a browser's Escape): it reads unlocked while still asked, and the
+    // runtime does not fight the host for it.
+    devices.mouse.relative = false;
+    runtime.Update(devices, 1.0f / 60.0f);
+    CHECK_FALSE(runtime.PointerLocked());
+    CHECK(runtime.PointerLockApplied());
+    CHECK_FALSE(devices.mouse.relative);
+
+    // Freed: the mouse is told and shows again.
+    devices.mouse.relative = true;
+    runtime.SetPointerLock(false);
+    runtime.Update(devices, 1.0f / 60.0f);
+    CHECK_FALSE(devices.mouse.relative);
+    CHECK(devices.mouse.cursorVisible);
+    CHECK_FALSE(runtime.PointerLocked());
+
+    // A run's end frees the devices and forgets the ask.
+    runtime.SetPointerLock(true);
+    runtime.Update(devices, 1.0f / 60.0f);
+    REQUIRE(devices.mouse.relative);
+    ReleasePointerLock(devices);
+    runtime.ResetPointerLock();
+    CHECK_FALSE(devices.mouse.relative);
+    CHECK(devices.mouse.cursorVisible);
+    runtime.Update(devices, 1.0f / 60.0f);
+    CHECK_FALSE(devices.mouse.relative);
+    CHECK_FALSE(runtime.PointerLockApplied());
+}
+
 TEST_CASE("input.runtime: a rumble waits for the next update and reaches its pad through that frame's devices")
 {
     ActionRuntime runtime;

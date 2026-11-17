@@ -195,11 +195,17 @@ namespace engine::runtime
         m_http.Reset();   // so do its HTTP requests: no answer reaches a script that has stopped
         // What the game saved and did not write yet is kept: the run writes it as it ends.
         (void)m_save.Flush();
-        // So does any rumble the game started: no pad is left buzzing after its run.
+        // So does any rumble the game started, and a pointer it locked: no pad is left buzzing and
+        // no pointer held after its run.
         if (m_inputSource != nullptr)
         {
             input::StopRumble(*m_inputSource);
+            if (m_inputRuntime.PointerLockApplied())
+            {
+                input::ReleasePointerLock(*m_inputSource);
+            }
         }
+        m_inputRuntime.ResetPointerLock();
         // The run host tears down when nothing else pins it, driven by the scene-stop observer
         // (ScriptSubsystem::MaybeTeardownRunHost). A bare instance (no scenes) keeps it until
         // destruction.
