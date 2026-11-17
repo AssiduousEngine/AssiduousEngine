@@ -20,10 +20,16 @@ public class Mover
     [Tooltip("where it heads")] public Float3 heading = new Float3 { x = 1, y = 2, z = 3 };
     [Replicated] public bool active = true;
 
+    // How many movers this copy of the game has made: a static, so it is per loaded copy.
+    static int s_made;
+
     public Mover(Entity entity)
     {
         m_entity = entity;
+        s_made += 1;
     }
+
+    public int madeSoFar() => s_made;
 
     public void onUpdate(float dt)
     {

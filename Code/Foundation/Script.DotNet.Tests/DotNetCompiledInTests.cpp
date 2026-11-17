@@ -15,6 +15,9 @@ import foundation.script.dotnet;
 import foundation.script.facades; // Entity
 
 using namespace foundation::core;
+
+// A script context as the runtime knows it: what it loads and finds is its own.
+constexpr u64 kOwner = 1;
 using namespace foundation::script;
 
 namespace
@@ -34,10 +37,10 @@ TEST_CASE("dotnet compiled in: the runtime and the game run without .NET")
     CHECK(runtime.IsCompiledIn());
 
     const byte notAnImage[] = {byte{1}, byte{2}};
-    CHECK(runtime.LoadAssembly(Span<const byte>{notAnImage, 2}).IsOk()); // nothing to load
+    CHECK(runtime.LoadAssembly(kOwner, Span<const byte>{notAnImage, 2}).IsOk()); // nothing to load
 
     const Variant entity[1] = {Variant::From(Entity{})};
-    const Result<u64> mover = runtime.CreateInstance(u8"Mover", Span<const Variant>{entity, 1});
+    const Result<u64> mover = runtime.CreateInstance(kOwner, u8"Mover", Span<const Variant>{entity, 1});
     INFO(Text(runtime.Failure()));
     REQUIRE(mover.HasValue());
     const Variant speed[1] = {Variant::From<f64>(4.0)};
@@ -54,12 +57,12 @@ TEST_CASE("dotnet compiled in: the runtime and the game run without .NET")
     CHECK(*greeting.Value().TryGet<String>() == StringView(u8"hello Ada from mover"));
     CHECK_FALSE(runtime.Invoke(mover.Value(), u8"fail", Span<const Variant>{}).HasValue());
     CHECK(runtime.Failure().Contains(u8"failed on purpose"));
-    const Result<String> described = runtime.DescribeClass(u8"Mover", Span<const Variant>{entity, 1});
+    const Result<String> described = runtime.DescribeClass(kOwner, u8"Mover", Span<const Variant>{entity, 1});
     REQUIRE(described.HasValue());
     CHECK(described.Value().AsView().Contains(u8"field speed float 2.5\n"));
     runtime.Release(mover.Value());
     // The engine's own classes are not the game's.
-    CHECK_FALSE(runtime.CreateInstance(u8"Runtime", Span<const Variant>{}).HasValue());
+    CHECK_FALSE(runtime.CreateInstance(kOwner, u8"Runtime", Span<const Variant>{}).HasValue());
 }
 
 TEST_CASE("dotnet compiled in: the backend runs a behaviour with its assembly image left unloaded")

@@ -80,6 +80,12 @@ namespace foundation::script::dotnet
         {
         public:
             explicit DotNetScriptContext(DotNetRuntime& runtime) : m_runtime(&runtime) {}
+            // Its assemblies go with it: another run's context has its own (Owner).
+            ~DotNetScriptContext() override { m_runtime->ReleaseOwner(Owner()); }
+
+            // This context as the runtime's owner of what it loads: its own copy of each assembly, so
+            // two runs never share a class's statics.
+            [[nodiscard]] u64 Owner() const noexcept { return reinterpret_cast<u64>(this); }
 
             void SetErrorHandler(IScriptErrorHandler* handler) override { m_errors = handler; }
 
@@ -103,8 +109,8 @@ namespace foundation::script::dotnet
                         return Status{ErrorCode::NotFound};
                     }
                     // Every class of a project carries its assembly; the runtime loads an image
-                    // once while it is current, and anew after another replaced it.
-                    if (!m_runtime->LoadAssembly(entry.bytecode, entry.symbols).IsOk())
+                    // once for this context while it is current, and anew after another replaced it.
+                    if (!m_runtime->LoadAssembly(Owner(), entry.bytecode, entry.symbols).IsOk())
                     {
                         Report(ScriptErrorKind::Compile, moduleName, -1, m_runtime->Failure());
                         return Status{ErrorCode::Unknown};
@@ -147,7 +153,7 @@ namespace foundation::script::dotnet
             {
                 // C# runs inside this context: what it calls in the engine resolves its run's services.
                 ScriptCallScope scope(this);
-                const Result<u64> made = m_runtime->CreateInstance(className, Span<const Variant>{args.Data(), args.Size()});
+                const Result<u64> made = m_runtime->CreateInstance(Owner(), className, Span<const Variant>{args.Data(), args.Size()});
                 if (!made.HasValue())
                 {
                     ReportFailure(className);
