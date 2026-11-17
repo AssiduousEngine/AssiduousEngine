@@ -19,6 +19,9 @@ import foundation.script.facades; // RegisterScriptFacadeReflection (the Scene f
 import foundation.script.resource; // BehaviorClass (the cooked Game class a run starts from)
 import foundation.script.angelscript;
 import foundation.script.luau;
+#ifdef OPTION_HAS_DOTNET
+import foundation.script.dotnet; // the C# backend (a Game built into an assembly)
+#endif
 import foundation.net;         // NetSession queries (IsServer/PeerCount)
 import foundation.net.manager; // NetworkManager (the endpoint the instance owns)
 import foundation.net.replication; // RegisterReplicationComponents (net scene managers)
@@ -1108,6 +1111,63 @@ TEST_CASE("game-instance: a Game started from its cooked class hears the run bus
     CHECK(scriptContext->GetGlobal(u8"Reached").Get<f64>() == doctest::Approx(1.0));
     gi.StopRunBehavior();
 }
+
+#ifdef OPTION_HAS_DOTNET
+namespace
+{
+    struct CapturedLog final : ILogSink
+    {
+        Array<String> lines;
+        void Write(LogLevel, StringView, StringView message) noexcept override { lines.PushBack(String(message)); }
+        [[nodiscard]] bool Has(StringView text) const
+        {
+            for (const String& line : lines)
+                if (line.AsView().Contains(text))
+                    return true;
+            return false;
+        }
+    };
+}
+
+// A C# Game class starts from the assembly it is built into (C# compiles nothing at run time): it
+// is launched, updated, hears the run's bus through its on<Event> handler, and exits.
+TEST_CASE("game-instance: a C# Game starts from its assembly")
+{
+    RegisterCoreTypes();
+    foundation::script::RegisterScriptFacadeReflection();
+    foundation::script::dotnet::RegisterDotNetScriptBackend();
+    const Result<Array<byte>> image =
+        ReadFile(PathJoin(StringView(reinterpret_cast<const utf8char*>(CSHARP_TESTGAME_DIR)), u8"TestGame.dll").AsView());
+    REQUIRE(image.HasValue());
+
+    RefPtr<foundation::script::ScriptClass> cookedClass = MakeRef<foundation::script::ScriptClass>(DefaultAllocator());
+    foundation::script::ScriptClass& cooked = *cookedClass; // a cooked class is a resource, never on the stack
+    cooked.language = String(u8"csharp");
+    cooked.className = String(u8"Game");
+    cooked.sourceName = String(u8"Game.cs");
+    cooked.handlers.PushBack(String(u8"onGoalReached"));
+    cooked.assembly = MakeRef<foundation::script::ScriptAssembly>(DefaultAllocator());
+    cooked.assembly->language = String(u8"csharp");
+    cooked.assembly->image = image.Value();
+
+    CapturedLog log;
+    GlobalLogger().AddSink(&log);
+    {
+        engine::runtime::GameInstance gi;
+        REQUIRE(gi.StartScript(cooked));
+        CHECK(log.Has(u8"C# game launched"));
+        gi.TickScript(0.1f, 1.0f);
+        gi.TickScript(0.1f, 1.0f);
+        CHECK(log.Has(u8"C# game updated twice"));
+        gi.Events().Publish(StringHash(StringView(u8"GoalReached")), Variant::From<i32>(7));
+        gi.DrainRunEvents();
+        CHECK(log.Has(u8"C# game heard GoalReached 7"));
+        gi.StopScript();
+        CHECK(log.Has(u8"C# game exited"));
+    }
+    GlobalLogger().RemoveSink(&log);
+}
+#endif // OPTION_HAS_DOTNET
 
 TEST_CASE("game-instance: the Game tier's on<Event> inbox harvests the run bus (Luau)")
 {
