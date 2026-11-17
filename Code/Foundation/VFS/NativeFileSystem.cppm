@@ -173,7 +173,7 @@ export namespace foundation::vfs
         // --- IFileSystem ---
         [[nodiscard]] UniquePtr<IStream> Open(StringView path, FileMode mode) override
         {
-            const String full = PathJoin(m_root.AsView(), path, *m_allocator);
+            const String full = FullPath(path);
             FileStream* stream = m_allocator->New<FileStream>(full.AsView(), mode);
             if (stream == nullptr)
             {
@@ -189,7 +189,7 @@ export namespace foundation::vfs
 
         [[nodiscard]] bool Exists(StringView path) override
         {
-            const String full = PathJoin(m_root.AsView(), path, *m_allocator);
+            const String full = FullPath(path);
             return FileExists(full.AsView()) || DirectoryExists(full.AsView());
         }
 
@@ -211,14 +211,14 @@ export namespace foundation::vfs
         // --- IStatFileSystem ---
         [[nodiscard]] bool Stat(StringView path, FileStatInfo& out) override
         {
-            const String full = PathJoin(m_root.AsView(), path, *m_allocator);
+            const String full = FullPath(path);
             return FileStat(full.AsView(), out.size, out.modifiedTime);
         }
 
         // --- IEnumerableFileSystem ---
         [[nodiscard]] Status Enumerate(StringView folder, Array<DirEntry>& out) override
         {
-            const String full = PathJoin(m_root.AsView(), folder, *m_allocator);
+            const String full = FullPath(folder);
             const bool ok = ListDirectory(
                 full.AsView(),
                 [](void* ctx, StringView name, bool isDir)
@@ -227,13 +227,22 @@ export namespace foundation::vfs
                     dst->PushBack(DirEntry{String(name), isDir});
                 },
                 &out);
+            if (ok && !m_mappedName.IsEmpty() && IsTop(folder))
+            {
+                // The mapped folder stands in for any folder of its name under the root.
+                for (usize i = out.Size(); i-- > 0;)
+                    if (out[i].name == m_mappedName)
+                        out.RemoveAt(i);
+                if (DirectoryExists(m_mappedRoot.AsView()))
+                    out.PushBack(DirEntry{String(m_mappedName), true});
+            }
             return ok ? Status{} : Status{ErrorCode::NotFound};
         }
 
         // --- IWritableFileSystem ---
         [[nodiscard]] Status Save(StringView path, Span<const byte> data) override
         {
-            const String full = PathJoin(m_root.AsView(), path, *m_allocator);
+            const String full = FullPath(path);
             EnsureParentDirectories(full.AsView());
 
             // Whole or not at all: a crash or a full disk mid-save leaves the old file, never a
@@ -245,7 +254,7 @@ export namespace foundation::vfs
 
         [[nodiscard]] Status Delete(StringView path) override
         {
-            const String full = PathJoin(m_root.AsView(), path, *m_allocator);
+            const String full = FullPath(path);
             const bool deleted = FileDelete(full.AsView());
             if (deleted)
             {
@@ -256,8 +265,8 @@ export namespace foundation::vfs
 
         [[nodiscard]] Status Move(StringView from, StringView to) override
         {
-            const String fullFrom = PathJoin(m_root.AsView(), from, *m_allocator);
-            const String fullTo = PathJoin(m_root.AsView(), to, *m_allocator);
+            const String fullFrom = FullPath(from);
+            const String fullTo = FullPath(to);
             EnsureParentDirectories(fullTo.AsView());
             const bool moved = FileMove(fullFrom.AsView(), fullTo.AsView());
             if (moved)
@@ -270,7 +279,7 @@ export namespace foundation::vfs
 
         [[nodiscard]] Status DeleteDirectory(StringView path) override
         {
-            const String full = PathJoin(m_root.AsView(), path, *m_allocator);
+            const String full = FullPath(path);
             const bool removed = RemoveDirectory(full.AsView());
             if (removed)
             {
@@ -281,7 +290,7 @@ export namespace foundation::vfs
 
         [[nodiscard]] Status CreateDirectory(StringView path) override
         {
-            const String full = PathJoin(m_root.AsView(), path, *m_allocator);
+            const String full = FullPath(path);
             EnsureParentDirectories(full.AsView()); // the ancestors
             // ...then the leaf itself (qualified: the member CreateDirectory shadows it here).
             const bool made = foundation::core::CreateDirectory(full.AsView());
@@ -294,6 +303,30 @@ export namespace foundation::vfs
 
         /// The mount's folder on disk, as it was given.
         [[nodiscard]] StringView Root() const noexcept { return m_root.AsView(); }
+
+        /// Makes the top-level folder `name` of this mount another folder on disk, `folder`: a path
+        /// whose first part is `name` resolves under `folder`, and listing the root shows `name` in
+        /// place of any folder of that name under it (a project's Code/ beside its Sources/, read as
+        /// one). One mapping; a second replaces the first.
+        void MapFolder(StringView name, StringView folder)
+        {
+            m_mappedName = String(name, *m_allocator);
+            m_mappedRoot = String(folder, *m_allocator);
+        }
+
+        /// The file on disk that `path` (relative to the mount) names.
+        [[nodiscard]] String FullPath(StringView path) const
+        {
+            if (!m_mappedName.IsEmpty() && path.StartsWith(m_mappedName.AsView()))
+            {
+                const StringView rest = path.SubStr(m_mappedName.Size(), path.Size() - m_mappedName.Size());
+                if (rest.IsEmpty())
+                    return String(m_mappedRoot.AsView(), *m_allocator);
+                if (rest[0] == utf8char('/'))
+                    return PathJoin(m_mappedRoot.AsView(), rest.SubStr(1, rest.Size() - 1), *m_allocator);
+            }
+            return PathJoin(m_root.AsView(), path, *m_allocator);
+        }
 
         /// Told, after the fact, of each path a write through this mount touched: a file saved or
         /// deleted, a directory made or removed, both ends of a move (a call that touched nothing
@@ -324,8 +357,13 @@ export namespace foundation::vfs
             }
         }
 
+        // Whether `folder` is the mount's root.
+        static bool IsTop(StringView folder) { return folder.IsEmpty() || folder == StringView(u8"."); }
+
         String m_root;
         IAllocator* m_allocator;
+        String m_mappedName; // MapFolder: empty when nothing is mapped
+        String m_mappedRoot;
         UniquePtr<NativeChangeSource> m_changeSource; // lazy (most mounts never watch)
     };
 }

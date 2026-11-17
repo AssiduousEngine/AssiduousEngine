@@ -470,3 +470,69 @@ TEST_CASE("vfs: a save replaces the file whole; a reader that had it open keeps 
     CHECK(now.Value()[0] == byte{9});
     (void)RemoveDirectoryRecursive(dir);
 }
+
+// A mapped top-level folder: a project's Code/ read through its Sources/ mount. A path starting
+// with the name resolves under the other folder; listing the root shows the mapped folder in place
+// of a folder of the same name under the root; a watch sweeps into it.
+TEST_CASE("vfs: NativeFileSystem maps one top-level folder to another on disk")
+{
+    const StringView sources = u8"scratch_vfs_map/Sources";
+    const StringView code = u8"scratch_vfs_map/Code";
+    REQUIRE(foundation::core::CreateDirectory(u8"scratch_vfs_map"));
+    NativeFileSystem disk(u8".", DefaultAllocator());
+    const byte art[] = {byte{1}};
+    const byte script[] = {byte{2}, byte{3}};
+    const byte hidden[] = {byte{9}};
+    REQUIRE(disk.Save(u8"scratch_vfs_map/Sources/Models/a.bin", Span<const byte>{art, 1}).IsOk());
+    REQUIRE(disk.Save(u8"scratch_vfs_map/Code/Weapon.cs", Span<const byte>{script, 2}).IsOk());
+    REQUIRE(disk.Save(u8"scratch_vfs_map/Sources/Code/Old.cs", Span<const byte>{hidden, 1}).IsOk());
+
+    NativeFileSystem project(sources, DefaultAllocator());
+    project.MapFolder(u8"Code", code);
+    CHECK(project.Exists(u8"Models/a.bin"));
+    CHECK(project.Exists(u8"Code/Weapon.cs"));
+    CHECK_FALSE(project.Exists(u8"Code/Old.cs")); // the folder of that name under Sources/ is hidden
+    CHECK(project.FullPath(u8"Code/Weapon.cs") == PathJoin(code, u8"Weapon.cs"));
+    CHECK(project.FullPath(u8"Codex/x.cs") == PathJoin(sources, u8"Codex/x.cs")); // a longer name is not it
+
+    // Writes land in the mapped folder.
+    REQUIRE(project.Save(u8"Code/Enemies/Enemy.cs", Span<const byte>{script, 2}).IsOk());
+    CHECK(disk.Exists(u8"scratch_vfs_map/Code/Enemies/Enemy.cs"));
+
+    // The root lists Code once, and it is the mapped one.
+    Array<DirEntry> top;
+    REQUIRE(project.Enumerate(u8"", top).IsOk());
+    usize codes = 0;
+    for (const DirEntry& entry : top)
+        codes += entry.name == StringView(u8"Code") ? 1u : 0u;
+    CHECK(codes == 1u);
+    Array<DirEntry> inCode;
+    REQUIRE(project.Enumerate(u8"Code", inCode).IsOk());
+    bool hasWeapon = false;
+    for (const DirEntry& entry : inCode)
+        hasWeapon = hasWeapon || entry.name == StringView(u8"Weapon.cs");
+    CHECK(hasWeapon);
+
+    // A watch of the root sees a file added under the mapped folder.
+    IChangeSource* changes = project.ChangeSource();
+    REQUIRE(changes != nullptr);
+    changes->Track(u8"");
+    REQUIRE(disk.Save(u8"scratch_vfs_map/Code/New.cs", Span<const byte>{script, 2}).IsOk());
+    Array<String> changed;
+    (void)changes->Poll(changed);
+    bool sawNew = false;
+    for (const String& path : changed)
+        sawNew = sawNew || path == StringView(u8"Code/New.cs");
+    CHECK(sawNew);
+
+    const StringView files[] = {StringView(u8"scratch_vfs_map/Sources/Models/a.bin"), StringView(u8"scratch_vfs_map/Code/Weapon.cs"),
+                                  StringView(u8"scratch_vfs_map/Sources/Code/Old.cs"), StringView(u8"scratch_vfs_map/Code/Enemies/Enemy.cs"),
+                                  StringView(u8"scratch_vfs_map/Code/New.cs")};
+    for (const StringView file : files)
+        (void)disk.Delete(file);
+    const StringView folders[] = {StringView(u8"scratch_vfs_map/Sources/Models"), StringView(u8"scratch_vfs_map/Sources/Code"),
+                                    StringView(u8"scratch_vfs_map/Code/Enemies"), StringView(u8"scratch_vfs_map/Sources"),
+                                    StringView(u8"scratch_vfs_map/Code"), StringView(u8"scratch_vfs_map")};
+    for (const StringView folder : folders)
+        (void)RemoveDirectory(folder);
+}
