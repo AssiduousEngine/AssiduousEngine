@@ -30,6 +30,7 @@ export namespace foundation::script::dotnet
         Bytes = 1,  ///< `size` bytes at `data`, a trivially copied value of `type`
         Text = 2,   ///< `size` bytes of UTF-8 at `data`
         Handle = 3, ///< a Variant* at `data`: the receiver of a result owns it (releaseHandle)
+        Callback = 4, ///< a C# handler at `data` (a pinned handle the engine then owns): a script delegate
     };
 
     /// A value crossing between C# and the engine. The same field order in C# (pointers as nint),
@@ -76,6 +77,10 @@ export namespace foundation::script::dotnet
     /// A DotNetValue's value as a Variant (empty when it cannot be one: a type with no recorded
     /// value operations).
     [[nodiscard]] Variant ToVariant(const DotNetValue& value);
+    /// Makes a C# handler crossing in (a Callback value's handle) into the engine's script
+    /// delegate. The C# script backend sets it; with none set a handler crosses as nothing.
+    using CallbackMaker = Variant (*)(void* handle);
+    void SetCallbackMaker(CallbackMaker maker) noexcept;
     /// `variant` lent to C# for one call: a plain value's bytes and text in place (valid while
     /// `variant` is), anything else as a handle C# then owns.
     [[nodiscard]] DotNetValue LendValue(const Variant& variant);

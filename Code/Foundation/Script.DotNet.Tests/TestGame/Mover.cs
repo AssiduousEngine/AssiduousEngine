@@ -39,6 +39,14 @@ public class Mover
 
     public Float3 scaled(float k) => new Float3 { x = heading.x * k, y = heading.y * k, z = heading.z * k };
 
+    // A handler given to the engine, which calls it back: a number triples, and the call is counted.
+    public int handled;
+    public ScriptHandler tripler() => args =>
+    {
+        handled += 1;
+        return (float)args[0]! * 3.0f;
+    };
+
     // An asset named by its id's text, as a script names a clip or a prefab, and that text written back.
     public Engine.Guid asset(string text) => Engine.Guid.Parse(text);
     public string assetText(string text) => Engine.Guid.Parse(text).ToString();

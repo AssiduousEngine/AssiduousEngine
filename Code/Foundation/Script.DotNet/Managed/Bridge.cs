@@ -17,7 +17,12 @@ public enum ValueKind : uint
     Bytes = 1,
     Text = 2,
     Handle = 3, // a native Variant* the receiver of a result owns
+    Callback = 4, // a C# handler the engine calls back (a pinned handle it then owns)
 }
+
+/// <summary>A handler the engine calls back (a GUI event, a network message, a reply): the call's
+/// arguments as C# objects, and what it returns (true when a GUI event is handled).</summary>
+public delegate object? ScriptHandler(object?[] args);
 
 /// <summary>A value crossing to or from the engine; the field order of the C++ DotNetValue.</summary>
 [StructLayout(LayoutKind.Sequential)]
@@ -233,6 +238,12 @@ public static unsafe class Bridge
     }
 
     public static nint TypeById(ulong id) => s_engine.TypeById(id);
+
+    /// <summary>`handler` given to the engine, which keeps it until it lets the handler go (the
+    /// runtime's Release frees it); null crosses as nothing.</summary>
+    public static DotNetValue Lend(ScriptHandler? handler) => handler == null
+        ? default
+        : new DotNetValue { Data = (void*)GCHandle.ToIntPtr(GCHandle.Alloc(handler)), Kind = ValueKind.Callback };
     public static nint MethodAt(nint type, uint index) => s_engine.MethodAt(type, index);
     public static nint PropertyAt(nint type, uint index) => s_engine.PropertyAt(type, index);
     public static uint TypeSize(nint type) => s_engine.TypeSize(type);

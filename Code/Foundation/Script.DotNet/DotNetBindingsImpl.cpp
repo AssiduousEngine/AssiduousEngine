@@ -100,6 +100,7 @@ namespace foundation::script::dotnet
             Text,
             Class, // a handle to the engine's value
             Any,   // a script value of any type (Variant): C# object, its form chosen at the call
+            Handler, // a script delegate the engine calls back (IScriptDelegate): C# ScriptHandler
         };
 
         struct Bound
@@ -161,6 +162,8 @@ namespace foundation::script::dotnet
                     return Shape::Text;
                 if (type->id == TypeOf<Variant>().id)
                     return Shape::Any;
+                if (type->id == IScriptDelegate::StaticType().id)
+                    return isReturn ? Shape::None : Shape::Handler; // a handler is only ever given
                 const Bound* b = Find(type);
                 return b != nullptr ? b->shape : Shape::None;
             }
@@ -175,6 +178,8 @@ namespace foundation::script::dotnet
                     return String(u8"string");
                 if (type->id == TypeOf<Variant>().id)
                     return String(u8"object");
+                if (type->id == IScriptDelegate::StaticType().id)
+                    return String(u8"ScriptHandler");
                 const Bound* b = Find(type);
                 return b != nullptr ? b->name : String{};
             }
@@ -183,7 +188,9 @@ namespace foundation::script::dotnet
             String DeclaredName(const TypeInfo* type) const
             {
                 const Shape shape = ShapeOf(type, true);
-                return shape == Shape::Class || shape == Shape::Any ? Format(u8"{}?", CSharpName(type)) : CSharpName(type);
+                const Shape given = ShapeOf(type, false);
+                return shape == Shape::Class || shape == Shape::Any || given == Shape::Handler ? Format(u8"{}?", CSharpName(type))
+                                                                                                 : CSharpName(type);
             }
         };
 
@@ -283,6 +290,9 @@ namespace foundation::script::dotnet
                 break;
             case Shape::Class:
                 AppendFormat(out, u8"        args[{}] = {} != null ? {}.EngineValue : default;\n", index, name, name);
+                break;
+            case Shape::Handler:
+                AppendFormat(out, u8"        args[{}] = Bridge.Lend({});\n", index, name);
                 break;
             case Shape::Any:
                 // Packed by the value's own type, into storage of its own: several in one call never
