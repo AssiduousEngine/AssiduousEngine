@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// The engine's managed runtime: the entry points the engine calls to load a game's assembly and run
+// The engine's managed runtime: the entry points the engine calls to load an application's assembly and run
 // its behaviours. A behaviour is a plain C# class the engine constructs with its entity and calls by
 // handler name (onStart, onUpdate, ...), as it does an AngelScript or Luau class; its public fields
 // are its inspector properties.
@@ -32,31 +32,31 @@ public sealed class TooltipAttribute : Attribute
 
 public static unsafe class Runtime
 {
-    // A game assembly's context: it resolves the engine's runtime to this assembly, so the game's
+    // An application assembly's context: it resolves the engine's runtime to this assembly, so the application's
     // Float3 is the runtime's Float3 (hostfxr loads the runtime into a context of its own).
-    sealed class GameContext : AssemblyLoadContext
+    sealed class ApplicationContext : AssemblyLoadContext
     {
-        public GameContext() : base("Game", isCollectible: true) { }
+        public ApplicationContext() : base("Application", isCollectible: true) { }
 
         protected override Assembly? Load(AssemblyName name) =>
             name.Name == typeof(Runtime).Assembly.GetName().Name ? typeof(Runtime).Assembly : null;
     }
 
-    // A loaded game assembly: its context, the image's hash, and how many instances the engine holds
+    // A loaded application assembly: its context, the image's hash, and how many instances the engine holds
     // of its classes. Once a newer assembly has taken all its class names (superseded) and the last
     // instance goes, its context unloads.
-    sealed class GameAssembly
+    sealed class ApplicationAssembly
     {
-        public required GameContext? Context; // null: the assembly compiled in with the runtime
+        public required ApplicationContext? Context; // null: the assembly compiled in with the runtime
         public required Assembly Assembly;
         public required byte[] Hash;
         public int Instances;
         public bool Superseded;
     }
 
-    static readonly List<GameAssembly> s_assemblies = new(); // loaded and not unloaded, newest last
-    static readonly Dictionary<string, (Type Type, GameAssembly From)> s_classes = new(); // the newest of each name
-    static readonly Dictionary<nint, GameAssembly> s_instances = new(); // the assembly of each instance held
+    static readonly List<ApplicationAssembly> s_assemblies = new(); // loaded and not unloaded, newest last
+    static readonly Dictionary<string, (Type Type, ApplicationAssembly From)> s_classes = new(); // the newest of each name
+    static readonly Dictionary<nint, ApplicationAssembly> s_instances = new(); // the assembly of each instance held
     static readonly List<WeakReference> s_unloaded = new(); // contexts told to unload, until collected
     // The value types the bindings know, by engine id and by C# type, with their typed copies.
     static readonly Dictionary<ulong, (Type Type, Func<nint, object> Read)> s_valueTypes = new();
@@ -116,7 +116,7 @@ public static unsafe class Runtime
         }
     }
 
-    /// <summary>Loads a game assembly from its image, with its debug symbols when given (a fault then
+    /// <summary>Loads an application assembly from its image, with its debug symbols when given (a fault then
     /// names its file and line); its classes are found before those of any loaded earlier (a rebuilt
     /// assembly's class replaces its predecessor's).</summary>
     /// An image already current (one whose classes are the newest of their names) is not loaded
@@ -128,16 +128,16 @@ public static unsafe class Runtime
         try
         {
             if (CompiledIn)
-                return 0; // the game is compiled in: there is nothing to load
+                return 0; // the application is compiled in: there is nothing to load
             byte[] hash = System.Security.Cryptography.SHA256.HashData(new ReadOnlySpan<byte>(image, length));
-            foreach (GameAssembly loaded in s_assemblies)
+            foreach (ApplicationAssembly loaded in s_assemblies)
                 if (!loaded.Superseded && loaded.Hash.AsSpan().SequenceEqual(hash))
                     return 0;
-            var context = new GameContext();
+            var context = new ApplicationContext();
             using var stream = new System.IO.UnmanagedMemoryStream(image, length);
             using System.IO.Stream? symbolStream = symbols != null && symbolsLength > 0 ? new System.IO.UnmanagedMemoryStream(symbols, symbolsLength) : null;
             Assembly assembly = context.LoadFromStream(stream, symbolStream);
-            var added = new GameAssembly { Context = context, Assembly = assembly, Hash = hash };
+            var added = new ApplicationAssembly { Context = context, Assembly = assembly, Hash = hash };
             s_assemblies.Add(added);
             foreach (Type type in assembly.GetTypes())
                 if (type.IsClass && !type.IsAbstract && type.IsPublic)
@@ -145,12 +145,12 @@ public static unsafe class Runtime
             s_methods.Clear();
             // An older assembly none of whose classes is the newest any more is superseded; with no
             // instance left it unloads now, else when its last one goes.
-            foreach (GameAssembly older in s_assemblies.ToArray())
+            foreach (ApplicationAssembly older in s_assemblies.ToArray())
             {
                 if (older == added || older.Superseded)
                     continue;
                 bool current = false;
-                foreach ((Type _, GameAssembly from) in s_classes.Values)
+                foreach ((Type _, ApplicationAssembly from) in s_classes.Values)
                     current = current || from == older;
                 if (current)
                     continue;
@@ -177,8 +177,8 @@ public static unsafe class Runtime
         {
             string className = Utf8(name, nameLength);
             *instance = 0;
-            if (!s_classes.TryGetValue(className, out (Type Type, GameAssembly From) found))
-                return Missing($"no C# class named {className} in the game's assembly");
+            if (!s_classes.TryGetValue(className, out (Type Type, ApplicationAssembly From) found))
+                return Missing($"no C# class named {className} in the application's assembly");
             foreach (ConstructorInfo constructor in found.Type.GetConstructors())
             {
                 ParameterInfo[] parameters = constructor.GetParameters();
@@ -283,7 +283,7 @@ public static unsafe class Runtime
         if (instance == 0)
             return;
         GCHandle.FromIntPtr(instance).Free();
-        if (s_instances.Remove(instance, out GameAssembly? from))
+        if (s_instances.Remove(instance, out ApplicationAssembly? from))
         {
             from.Instances -= 1;
             if (from.Superseded && from.Instances == 0)
@@ -293,7 +293,7 @@ public static unsafe class Runtime
 
     // Lets a superseded assembly go: nothing here refers to its types any more, and its context
     // unloads once the collector finds nothing else does.
-    static void Unload(GameAssembly assembly)
+    static void Unload(ApplicationAssembly assembly)
     {
         s_assemblies.Remove(assembly);
         s_methods.Clear();
@@ -303,7 +303,7 @@ public static unsafe class Runtime
         assembly.Context.Unload();
     }
 
-    /// <summary>How many game assemblies are loaded: the ones in use, and the ones told to unload
+    /// <summary>How many application assemblies are loaded: the ones in use, and the ones told to unload
     /// that the collector has not yet freed (after a full collection, which this runs).</summary>
     [UnmanagedCallersOnly(EntryPoint = "DotNetRuntime_LoadedAssemblyCount")]
     public static int LoadedAssemblyCount()
@@ -325,8 +325,8 @@ public static unsafe class Runtime
         try
         {
             string className = Utf8(name, nameLength);
-            if (!s_classes.TryGetValue(className, out (Type Type, GameAssembly From) found))
-                return Missing($"no C# class named {className} in the game's assembly");
+            if (!s_classes.TryGetValue(className, out (Type Type, ApplicationAssembly From) found))
+                return Missing($"no C# class named {className} in the application's assembly");
             Type type = found.Type;
             object? instance = null;
             foreach (ConstructorInfo constructor in type.GetConstructors())
@@ -357,7 +357,7 @@ public static unsafe class Runtime
     [UnmanagedCallersOnly(EntryPoint = "DotNetRuntime_DescribeAssembly")]
     public static int DescribeAssembly(byte* image, int length, byte** text, int* textLength)
     {
-        var context = new GameContext();
+        var context = new ApplicationContext();
         try
         {
             using var stream = new System.IO.UnmanagedMemoryStream(image, length);
@@ -443,16 +443,16 @@ public static unsafe class Runtime
         return t_errorBytes;
     }
 
-    /// <summary>Whether this runtime was compiled ahead of time with the game (an exported player):
-    /// then nothing loads at run time, and the game's classes are the ones compiled in.</summary>
+    /// <summary>Whether this runtime was compiled ahead of time with the application (an exported player):
+    /// then nothing loads at run time, and the application's classes are the ones compiled in.</summary>
     static bool CompiledIn => !RuntimeFeature.IsDynamicCodeSupported;
 
-    // The game's classes compiled in beside the runtime: every public class outside the engine's
+    // The application's classes compiled in beside the runtime: every public class outside the engine's
     // namespace. The images a class's record carries are not loaded.
     static void RegisterCompiledIn()
     {
         Assembly assembly = typeof(Runtime).Assembly;
-        var compiled = new GameAssembly { Context = null, Assembly = assembly, Hash = Array.Empty<byte>() };
+        var compiled = new ApplicationAssembly { Context = null, Assembly = assembly, Hash = Array.Empty<byte>() };
         s_assemblies.Add(compiled);
         foreach (Type type in assembly.GetTypes())
             if (type.IsClass && !type.IsAbstract && type.IsPublic && type.Namespace != "Engine")

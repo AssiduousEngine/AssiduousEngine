@@ -19,7 +19,7 @@ int main(int argc, char** argv)
         std::fprintf(stderr, "usage: Tools.DotNetBindings <out.cs>\n");
         return 2;
     }
-    // The surface a game's scripts see: the core types, every facade, every component.
+    // The surface an application's scripts see: the core types, every facade, every component.
     RegisterCoreTypes();
     engine::RegisterAllScriptFacades();
     engine::RegisterAllSceneComponentReflection();

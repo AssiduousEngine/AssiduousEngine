@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// The engine's managed runtime: a game's assembly loads from its image, and a behaviour in it is
+// The engine's managed runtime: an application's assembly loads from its image, and a behaviour in it is
 // constructed with its entity, has a field set as an inspector value arrives (a double for a float
 // field), is called by handler name with numbers, text and value structs in and out, is read, says
 // what it offers (its handlers, its properties with their defaults, tooltips and replication), and
