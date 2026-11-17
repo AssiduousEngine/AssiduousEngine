@@ -208,7 +208,7 @@ TEST_CASE("integration.mcp: a C# project cooks whole through the MCP tools, and 
         REQUIRE(at != StringView::kNotFound);
         edited = Format(u8"{}\"restarted\"{}", edited.AsView().SubStr(0, at),
                         edited.AsView().SubStr(at + 9, edited.Size() - at - 9));
-        Write(Format(u8"{}/Sources/Mover.cs", projectDir).AsView(), edited.AsView());
+        Write(Format(u8"{}/Code/scripts/Mover.cs", projectDir).AsView(), edited.AsView());
         JsonValue recooked = CallOk(server, u8"asset_cook", Obj());
         CHECK(recooked.Get(u8"failed").AsInt() == 0);
         const foundation::script::ScriptClass* before = moverClass.Get();
@@ -222,7 +222,7 @@ TEST_CASE("integration.mcp: a C# project cooks whole through the MCP tools, and 
     }
 
     // A source that no longer builds fails the cook; the class keeps its last good build.
-    Write(Format(u8"{}/Sources/Speeds.cs", projectDir).AsView(), u8"public static class Speeds { broken }\n");
+    Write(Format(u8"{}/Code/scripts/Speeds.cs", projectDir).AsView(), u8"public static class Speeds { broken }\n");
     JsonValue broken = CallOk(server, u8"asset_cook", Obj());
     CHECK(broken.Get(u8"failed").AsInt() >= 1);
     CHECK(FileExists(Format(u8"{}/Cooked/scripts/Mover.rasset", projectDir).AsView()));
