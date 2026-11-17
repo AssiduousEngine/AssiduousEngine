@@ -545,7 +545,15 @@ namespace foundation::script::dotnet
                 }
                 else
                 {
-                    // Held whole as bytes, sized for 64-bit (a 32-bit engine's is no larger).
+                    // Held whole as bytes, sized for 64-bit (a 32-bit engine's is no larger), in
+                    // fields that cover them: a struct with a size and no fields is copied whole by
+                    // CoreCLR but not by every ahead-of-time compiler (the web's dropped an Entity's
+                    // bytes on the way into a List of tuples).
+                    // The widest word that divides the size, so the fields add up to it exactly.
+                    const u32 word = type.size % 8 == 0 ? 8u : type.size % 4 == 0 ? 4u : 1u;
+                    const StringView wordType = word == 8 ? StringView(u8"ulong") : word == 4 ? StringView(u8"uint") : StringView(u8"byte");
+                    for (u32 i = 0; i < type.size / word; ++i)
+                        AppendFormat(out, u8"    {} m_held{};\n", wordType, i);
                     AppendFormat(checks, u8"        if ({}.EngineType != 0 && sizeof({}) < Bridge.TypeSize({}.EngineType)) return \"{} size\";\n", b.name, b.name, b.name,
                                  b.name);
                 }
