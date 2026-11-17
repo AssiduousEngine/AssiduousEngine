@@ -107,8 +107,38 @@ as the other backends do; the old context unloads.
 
 ### D5: export
 
-NativeAOT for the desktop player; NativeAOT-LLVM for the web export, through the export pipeline
-(templates gain the C# runtime pieces they need).
+Two kinds of export, chosen per preset:
+
+- **Template export** (today's): the template's prebuilt player and the cooked content. No
+  toolchain is needed. A project with native parts (C#, or plugin packages its template does not
+  carry) is refused, with the reason and "use a native export".
+- **Native export**: the game's own player, built for the project from the engine checkout (the
+  existing per-project build, `.cache/ship-<config>`, wasm included) with the game's native parts
+  linked in: its plugin packages, and its C# compiled ahead of time. It needs the platform's
+  toolchain (CMake and a compiler; for C#, the .NET SDK, and for the web both emsdks and the
+  NativeAOT-LLVM package). It never starts unless the preset asks for it.
+
+C# under a native export, the same on every platform: the export builds a generated host project
+(the engine's managed runtime, its bindings and the game's sources) to a static library, with
+NativeAOT on the desktop and NativeAOT-LLVM for the web, and the project's player links it. The
+player's C# backend then calls the compiled-in entry points (no .NET is loaded) and its classes
+come from the compiled-in assembly; an assembly image in a class's record is not loaded. Every
+game type is kept through trimming, since behaviours are called by reflection. Templates do not
+change.
+
+Phases:
+
+- **D5a**: the export kind on presets; template export refuses a project with native parts;
+  the automatic switch to a per-project player gives way to the preset's choice (presets that
+  relied on it, such as NativeSample's, migrate to native).
+- **D5b**: C# in a desktop native export (Linux, then Windows on Windows).
+- **D5c**: C# in a web native export.
+- **D5d**: the Steam Deck: its native export builds in the Deck's container (SteamOS's glibc).
+
+Limits: a native export does not cross operating systems (a Windows build on Windows); it needs
+an engine checkout until the engine ships an SDK (its libraries per platform), which is beyond
+this spec; Android is not covered. Done when a sample with C# exports natively and runs on Linux,
+Windows, the Deck and in a browser.
 
 ## Known risks
 
