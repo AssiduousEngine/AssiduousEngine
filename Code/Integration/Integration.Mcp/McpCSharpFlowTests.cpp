@@ -4,8 +4,10 @@
 // C# end to end, as an agent makes a game's C#: a project file and two sources imported through the
 // MCP tools, where one source's behaviour uses a class the other declares; one cook builds the
 // project's assembly and cooks each class from it; the cooked behaviour then runs in a scene, its
-// inspector default (computed by the other file's class) applied and its onUpdate moving its
-// entity. A source that no longer builds fails the cook, and the class keeps its last good build.
+// inspector default (computed by the other file's class) applied, a component of its entity read
+// through NetworkComponent.of (an object and an enum crossing), and its onUpdate moving its entity. Edited while the scene runs, the behaviour restarts on the new code once the cook rebuilds
+// and the assembly reloads. A source that no longer builds fails the cook, and the class keeps its
+// last good build.
 #include <doctest/doctest.h>
 
 #include "Core/Prelude.h"
@@ -28,6 +30,7 @@ import pipeline.registration;
 import script.pipeline;
 import engine.script;
 import editor.mcp;
+import foundation.net.replication; // NetworkComponent: a component the behaviour reaches with of()
 
 using namespace foundation::core;
 using namespace foundation::mcp;
@@ -86,7 +89,10 @@ namespace
                                   u8"    readonly Entity m_entity;\n"
                                   u8"    public float speed = Speeds.Doubled(1.5f);\n\n"
                                   u8"    public Mover(Entity entity) { m_entity = entity; }\n\n"
-                                  u8"    public void onStart() { m_entity.setName(\"started\"); }\n\n"
+                                  u8"    public void onStart()\n    {\n"
+                                  u8"        NetworkComponent? net = NetworkComponent.of(m_entity);\n"
+                                  u8"        bool server = net != null && net.authority == NetworkAuthority.Server;\n"
+                                  u8"        m_entity.setName(server ? \"started\" : \"no component\");\n    }\n\n"
                                   u8"    public void onUpdate(float dt)\n    {\n"
                                   u8"        Float3 p = m_entity.position();\n"
                                   u8"        m_entity.setPosition(p.x + speed * dt, p.y, p.z);\n    }\n}\n";
@@ -159,7 +165,9 @@ TEST_CASE("integration.mcp: a C# project cooks whole through the MCP tools, and 
         RegisterCoreTypes();
         engine::script::RegisterScriptComponentReflection();
         foundation::script::RegisterScriptFacadeReflection();
+        foundation::net::RegisterNetworkComponentScriptFacade();
         world.SetRun(&run);
+        auto* net = world.AddSystem<foundation::net::NetworkComponentManager>();
         auto* components = world.AddSystem<engine::script::ScriptComponentManager>();
         auto* scripts = world.AddSystem<engine::script::ScriptSceneSystem>();
         components->SetScriptSystem(scripts);
@@ -167,8 +175,9 @@ TEST_CASE("integration.mcp: a C# project cooks whole through the MCP tools, and 
         const scene::EntityHandle walker = world.CreateEntity(u8"walker");
         engine::script::ScriptComponent& component = components->Add(walker);
         engine::script::ScriptBehavior behavior;
-        behavior.script = RefPtr<foundation::script::ScriptClass>(moverClass.Get());
+        behavior.script.SetProxy(moverClass); // as a scene binds it: a reload reaches it
         component.behaviors.PushBack(Move(behavior));
+        net->Add(walker).authority = foundation::net::NetworkAuthority::Server;
         world.Start();
         world.SetSimulationEnabled(true);
         for (i32 frame = 0; frame < 2; ++frame)
@@ -179,6 +188,26 @@ TEST_CASE("integration.mcp: a C# project cooks whole through the MCP tools, and 
         }
         CHECK(world.GetEntityName(walker) == StringView(u8"started"));
         CHECK(world.GetLocalTransform(walker).position.x == doctest::Approx(3.0f)); // speed 3 for two half seconds
+        CHECK(scripts->InstanceCount() == 1u);
+
+        // Hot reload: the behaviour edited while the scene runs. The cook rebuilds the assembly and
+        // recooks the classes; reloading the assembly (as the editor does for what a cook wrote)
+        // rebuilds the classes bound to it, and the behaviour restarts on the edited code.
+        String edited(kMover);
+        const usize at = edited.AsView().Find(StringView(u8"\"started\""));
+        REQUIRE(at != StringView::kNotFound);
+        edited = Format(u8"{}\"restarted\"{}", edited.AsView().SubStr(0, at),
+                        edited.AsView().SubStr(at + 9, edited.Size() - at - 9));
+        Write(Format(u8"{}/Sources/Mover.cs", projectDir).AsView(), edited.AsView());
+        JsonValue recooked = CallOk(server, u8"asset_cook", Obj());
+        CHECK(recooked.Get(u8"failed").AsInt() == 0);
+        const foundation::script::ScriptClass* before = moverClass.Get();
+        CHECK(resources.Reload(Guid(project.AsView())));
+        CHECK(moverClass.Get() != before); // the class rebuilt with its assembly
+        host.Binding().deltaSeconds = 0.5f;
+        run.Events().Drain();
+        world.Update(0.5f);
+        CHECK(world.GetEntityName(walker) == StringView(u8"restarted"));
         CHECK(scripts->InstanceCount() == 1u);
     }
 
