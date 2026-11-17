@@ -53,9 +53,13 @@
 
 ### The Code folder (E0, E1)
 
-- A project has two source roots: `Sources/` (imported files) and `Code/` (code). A source asset's
-  `fileName` names its root: it becomes relative to the project (`Code/Weapons/Weapon.cs`,
-  `Sources/Models/Guns/Pistol.gltf`) rather than to `Sources/`. One path type, no second field.
+- A project has two source folders, `Sources/` (imported files) and `Code/` (code). A source
+  asset's `fileName` stays relative to `Sources/`, and one top-level name is reserved: a path
+  starting `Code/` names the project's `Code/` folder (`Code/Weapons/Weapon.cs`); any other path is
+  under `Sources/` (`Models/Guns/Pistol.gltf`). The cook, export and the tools read one file system
+  joining both folders that way, so a path keeps one form and the import ledger its keys (the
+  user's choice, 2026-11-17, over every path naming its folder: little churn, only scripts move).
+  A folder already at `Sources/Code/` would be hidden by it; the migration moves it aside first.
 - Which root a file goes to is asked of the importer, not listed: an importer says whether its
   files are code (the script importers and the project-file importer do). New scripts
   (`script_create`, the editor's New Script) go to `Code/`.
@@ -63,10 +67,12 @@
   `Sources/<group path>/`), so the folders read as the Assets browser does. Moving an asset to
   another group moves its file and keeps its id (a drag in the Assets browser moves the file on
   disk); a clash takes the next free name as today.
-- Migration: a data-version bump. Opening an older project moves every file once (scripts and
-  project files to `Code/`, the rest into their group folders under `Sources/`), rewrites each
-  asset's `fileName`, keeps every id. The sample projects migrate in the same commit, through the
-  tools.
+- Migration: a project layout version in the manifest (as the quality-levels upgrade is done, the
+  manifest backed up first). Opening an older project moves each script and project file from
+  `Sources/` to `Code/` (prefixing its `fileName` with `Code/`) and, with E1, every other file into
+  its group's folder, rewriting each asset's `fileName` and keeping every id. The cook database
+  keys on the paths, so the moved files cook once more. The sample projects migrate in the same
+  commit, through the tools.
 - `.gitignore` of a new project: unchanged (both roots are the project's own); a C# project's
   `obj/` and `bin/` under `Code/` are ignored as they are under `Sources/` today.
 
@@ -130,7 +136,7 @@
 
 | Phase | What | Checked by |
 |---|---|---|
-| E0 | Project-relative `fileName` with two roots; importers say code or not; new scripts to `Code/`; data-version migration | Pipeline tests: an old project's assets move and keep ids; Integration.Mcp: each sample reads and cooks after migrating |
+| E0 | `Code/` reserved in source paths, one file system over both folders; importers say code or not; new scripts to `Code/`; layout-version migration | Pipeline tests: an old project's assets move and keep ids; Integration.Mcp: each sample reads and cooks after migrating |
 | E1 | Files in their group's folder; a group move moves files | Content tests: import into a group, move a group |
 | E2 | `Code/` watched; new code files imported in place | Editor.Project tests: a file written to `Code/` becomes an asset, a removed one goes missing |
 | E3 | Code Editor preference, `LaunchDetached`, `OpenCode`, menu and context items | Core test for the launcher (a script that records its arguments); editor test for the placeholder expansion |
@@ -148,3 +154,4 @@ the user wants it sooner.
    the line follows its first reference.
 3. The built-in page opens `Code/`'s other files as plain text (E3).
 4. Debugging in the outside editor (a `launch.json` attaching to the editor's run) is left for later.
+5. Source paths stay relative to `Sources/` with `Code/` reserved, not relative to the project (E0).
