@@ -552,9 +552,10 @@ if(NOT OPTION_ENABLE_ANGELSCRIPT AND NOT OPTION_ENABLE_LUAU)
     message(FATAL_ERROR "All script backends are disabled; enable at least one of OPTION_ENABLE_ANGELSCRIPT / OPTION_ENABLE_LUAU.")
 endif()
 # Presence macros, defined only when enabled, so C++ guards read `#ifdef OPTION_HAS_ANGELSCRIPT`.
-# C# builds on the desktop alone (the web and Android run it differently, or not yet).
+# C# builds on the desktop and the web (the web only compiled into a program: see cmake/DotNet.cmake);
+# Android is not covered.
 set(DOTNET_SCRIPTING OFF)
-if(OPTION_ENABLE_DOTNET AND NOT EMSCRIPTEN AND NOT ANDROID)
+if(OPTION_ENABLE_DOTNET AND NOT ANDROID)
     set(DOTNET_SCRIPTING ON)
 endif()
 target_compile_definitions(policy INTERFACE
@@ -593,8 +594,11 @@ if(OPTION_ENABLE_ANGELSCRIPT)
     add_subdirectory(Code/Foundation/Script.AngelScript)
 endif()
 if(DOTNET_SCRIPTING)
-    add_subdirectory(Code/Foundation/Script.DotNet)   # hosts .NET for C# scripting (desktop)
-    add_subdirectory(Code/Tools/Tools.DotNetBindings) # writes the C# bindings from reflection
+    add_subdirectory(Code/Foundation/Script.DotNet)   # C# scripting: hosts .NET, or calls the runtime compiled in
+    if(NOT EMSCRIPTEN)
+        add_subdirectory(Code/Tools/Tools.DotNetBindings) # writes the C# bindings from reflection, builds the runtime
+    endif()
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/DotNet.cmake) # dotnet_link_compiled_runtime
 endif()
 add_subdirectory(Code/Foundation/Script.Resource)   # cooked script classes and factory (source and harvested metadata)
 add_subdirectory(Code/Foundation/Script.Facades)    # curated behavior facades (Entity/Log/Time/Random), shared by the cook VM and the runtime
@@ -1038,6 +1042,13 @@ if(EMSCRIPTEN)
         util_add_project_plugins(${ENGINE_PROJECT_PLUGINS})
     elseif(TARGET Engine.GamePlayer)
         util_link_plugins(Engine.GamePlayer ROLE player PLUGINS ${UTIL_HOST_PLUGINS})
+    endif()
+    # A project's C#, compiled to bitcode and linked into its web player.
+    if(ENGINE_PROJECT_CSHARP AND TARGET Engine.GamePlayer)
+        if(NOT DOTNET_SCRIPTING OR NOT DOTNET_BINDINGS)
+            message(FATAL_ERROR "ENGINE_PROJECT_CSHARP on the web needs OPTION_ENABLE_DOTNET and DOTNET_BINDINGS")
+        endif()
+        dotnet_link_compiled_runtime(Engine.GamePlayer Game "${ENGINE_PROJECT_CSHARP}")
     endif()
     return()
 endif()

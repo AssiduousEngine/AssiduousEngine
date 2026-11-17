@@ -11,6 +11,9 @@
 
 module;
 #include "Core/Prelude.h"
+#if defined(__EMSCRIPTEN__)
+#include <unistd.h> // getentropy
+#endif
 
 module foundation.script.dotnet;
 
@@ -59,6 +62,21 @@ extern "C"
         return u8"";
     }
 }
+
+#if defined(__EMSCRIPTEN__)
+// The runtime compiled for the web asks its JavaScript host for random bytes; the player gives them
+// from Emscripten's getentropy (at most 256 bytes a call).
+extern "C" i32 SystemJS_RandomBytes(u8* buffer, i32 length)
+{
+    for (i32 offset = 0; offset < length; offset += 256)
+    {
+        const i32 chunk = length - offset < 256 ? length - offset : 256;
+        if (getentropy(buffer + offset, static_cast<usize>(chunk)) != 0)
+            return -1;
+    }
+    return 0;
+}
+#endif
 
 namespace foundation::script::dotnet
 {
