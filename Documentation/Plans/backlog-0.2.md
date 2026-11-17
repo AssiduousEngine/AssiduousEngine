@@ -410,6 +410,31 @@ name hashes; after it loads, make each object again from its class, write the sa
 default), and tell it it was reloaded (an `onReloaded` handler). Reflected properties make the save
 and the restore cheap. Not needed until native behaviors are built and a game asks for it.
 
+## C#: the cost of crossing between the engine and C# (user 2026-11-17)
+
+Measure first, then pick what to speed up. Everything crosses through the reflection layer today,
+in both directions, as the code stands:
+
+- **Engine to C#:** each lifecycle call (`onUpdate` every frame, per behaviour) passes the method's
+  name as UTF-8; the runtime decodes it, looks the method up by name and calls it through
+  `MethodInfo.Invoke`, boxing each argument (`Managed/Runtime.cs`, `Invoke`). Field writes go
+  through `FieldInfo.SetValue` the same way.
+- **C# to engine:** each generated call (`Engine.g.cs`) wraps every argument, a float included, in a
+  `DotNetValue` (a type pointer, a data pointer and a size), and the engine's side turns them into
+  Variants for the reflected method (`DotNetBridgeImpl.cpp`). A property read is the same round trip.
+
+To measure: a benchmark in the C# tests (behaviours with an empty `onUpdate`, with a transform read
+and write, with a component property, at 100 and 1000 instances), on the JIT and compiled in, the
+same scene beside AngelScript and Luau for scale, and a profile of where the time goes. And a native
+baseline (the user, 2026-11-17): the same work done in engine code, a component's update calling the
+same engine functions directly, so each language's cost reads as its overhead over native.
+
+Likely openings, to be confirmed by the numbers: a delegate built once per class and handler
+(no lookup or boxing per call, and no string per frame); a fast path for blittable values (floats,
+ints, the math types) passed by pointer without a Variant; the math types (Float3, Quaternion,
+Color and the like) mirrored in C# with their operations done there, rather than a call into the
+engine per operation; and direct entry points for the hottest calls (transform get and set).
+
 ## Reduced module interfaces on Android: memcpy through one core wrapper (user 2026-11-12)
 
 The root CMakeLists gives Clang `-fmodules-reduced-bmi` everywhere but Android (8b51e8fff). With it,
