@@ -4,7 +4,7 @@
 // Foundation::Script.DotNet - the `:runtime` partition.
 //
 // The engine's managed runtime (Engine.Runtime.dll, built beside the binaries under DotNet/) as the
-// engine sees it: started once per process on the installed .NET, it loads a game's assembly from
+// engine sees it: started once per process on the installed .NET, it loads an application's assembly from
 // its image and creates, calls and reads the behaviours in it. An instance is a handle the runtime
 // holds for the engine until Release. Values cross as Variants, through the bridge.
 
@@ -39,7 +39,7 @@ export namespace foundation::script::dotnet
         /// Whether the runtime started is the one compiled into this program.
         [[nodiscard]] bool IsCompiledIn() const noexcept { return m_compiledIn; }
 
-        /// Loads a game's assembly from its image (and its debug symbols, when given, so a fault
+        /// Loads an application's assembly from its image (and its debug symbols, when given, so a fault
         /// names its file and line); its classes are found before earlier ones. An image already
         /// current is not loaded again. An assembly whose classes all have newer ones unloads when
         /// the last instance of its classes is released.
@@ -53,7 +53,7 @@ export namespace foundation::script::dotnet
         [[nodiscard]] Result<Variant> GetField(u64 instance, StringView name);
         void Release(u64 instance);
 
-        /// How many game assemblies are loaded (in use, or unloading and not yet collected), after
+        /// How many application assemblies are loaded (in use, or unloading and not yet collected), after
         /// a full collection: what a test of unloading reads.
         [[nodiscard]] u32 LoadedAssemblyCount();
 
@@ -74,7 +74,7 @@ export namespace foundation::script::dotnet
         // Takes the compiled-in runtime when this program has one (DotNetCompiledIn.cpp): true when
         // it does, started or not; false when there is none.
         bool StartCompiledIn(IAllocator& allocator);
-        Status FailManaged(i32 rc); // NotFound for what is not there, else Unknown
+        Status FailManaged(i32 returnCode); // NotFound when what it named does not exist, else Unknown
         Array<DotNetValue> Lend(Span<const Variant> args) const;
 
         DotNetHost m_host;

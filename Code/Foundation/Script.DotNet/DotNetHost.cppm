@@ -121,11 +121,11 @@ namespace foundation::script::dotnet::detail
     }
 
     // A hostfxr status as it is documented and searched for: 0x80008083.
-    inline String StatusText(i32 rc)
+    inline String StatusText(i32 returnCode)
     {
         constexpr utf8char kDigits[] = u8"0123456789abcdef";
         String text(u8"0x");
-        const u32 value = static_cast<u32>(rc);
+        const u32 value = static_cast<u32>(returnCode);
         for (i32 shift = 28; shift >= 0; shift -= 4)
             text.PushBack(kDigits[(value >> shift) & 0xFu]);
         return text;
@@ -248,11 +248,11 @@ export namespace foundation::script::dotnet
             const detail::HostString config(runtimeConfigPath);
             const detail::HostString root(m_root.AsView());
             const detail::HostfxrInitializeParameters parameters{sizeof(detail::HostfxrInitializeParameters), nullptr, root.CStr()};
-            if (const i32 rc = initialize(config.CStr(), &parameters, &m_handle); rc < 0 || m_handle == nullptr)
-                return Fail(Format(u8"the runtime did not start from {} (hostfxr {})", runtimeConfigPath, detail::StatusText(rc)).AsView());
+            if (const i32 returnCode = initialize(config.CStr(), &parameters, &m_handle); returnCode < 0 || m_handle == nullptr)
+                return Fail(Format(u8"the runtime did not start from {} (hostfxr {})", runtimeConfigPath, detail::StatusText(returnCode)).AsView());
             void* load = nullptr;
-            if (const i32 rc = getDelegate(m_handle, detail::kLoadAssemblyAndGetFunctionPointer, &load); rc < 0 || load == nullptr)
-                return Fail(Format(u8"no assembly loader from the runtime (hostfxr {})", detail::StatusText(rc)).AsView());
+            if (const i32 returnCode = getDelegate(m_handle, detail::kLoadAssemblyAndGetFunctionPointer, &load); returnCode < 0 || load == nullptr)
+                return Fail(Format(u8"no assembly loader from the runtime (hostfxr {})", detail::StatusText(returnCode)).AsView());
             m_load = reinterpret_cast<detail::LoadAssemblyAndGetFunctionPointerFn>(load);
             m_failure.Clear();
             return Status{};
@@ -272,11 +272,11 @@ export namespace foundation::script::dotnet
             const detail::HostString type(typeName);
             const detail::HostString method(methodName);
             void* entry = nullptr;
-            if (const i32 rc = m_load(assembly.CStr(), type.CStr(), method.CStr(), detail::UnmanagedCallersOnly(), nullptr, &entry);
-                rc < 0 || entry == nullptr)
+            if (const i32 returnCode = m_load(assembly.CStr(), type.CStr(), method.CStr(), detail::UnmanagedCallersOnly(), nullptr, &entry);
+                returnCode < 0 || entry == nullptr)
             {
                 (void)Fail(Format(u8"{}.{} not found in {} (hostfxr {})", typeName, methodName, assemblyPath,
-                                  detail::StatusText(rc)).AsView());
+                                  detail::StatusText(returnCode)).AsView());
                 return nullptr;
             }
             return entry;
