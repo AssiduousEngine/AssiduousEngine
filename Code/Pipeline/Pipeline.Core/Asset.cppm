@@ -63,6 +63,10 @@ export namespace pipeline
         // Its source file, which the source database keeps on the asset's record (an import asks
         // which assets share a copy without reading them).
         [[nodiscard]] StringView SourceName() const override { return fileName.View(); }
+
+        // Whether its file is code (a script, a script project), which lives in the project's
+        // Code/ folder: its fileName starts Code/ (foundation::vfs::kSourcesCodeFolder).
+        [[nodiscard]] virtual bool IsCode() const { return false; }
     };
 
     // The export target a cook is producing for. `id` names the target: it is both the

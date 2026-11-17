@@ -35,6 +35,96 @@ namespace editor
         }
     }
 
+    namespace
+    {
+        // Every instance under `group`, its subgroups' included.
+        void CollectInstances(foundation::content::Group& group, Array<foundation::content::Instance*>& out)
+        {
+            for (foundation::content::Instance* instance : group.Instances())
+                out.PushBack(instance);
+            for (foundation::content::Group* child : group.Groups())
+                CollectInstances(*child, out);
+        }
+
+        // Points `instance`'s asset at `fileName`, keeping everything else it holds.
+        bool Repoint(foundation::content::Instance& instance, RefPtr<ISerializable>& object, pipeline::Asset& asset, StringView fileName)
+        {
+            asset.fileName = foundation::vfs::SourcePath(fileName);
+            return instance.WriteObject(*object).IsOk();
+        }
+    }
+
+    void EditorProject::MoveCodeIntoCodeFolder(EditorProject& project)
+    {
+        const StringView code = foundation::vfs::kSourcesCodeFolder;
+        const String sourcesRoot = project.SourcesRoot();
+        const String codeRoot = project.CodeRoot();
+        const String ledger = pipeline::ImportLedgerPath(project.CacheRoot().AsView());
+        Array<foundation::content::Instance*> instances;
+        CollectInstances(*project.SourceDb().RootGroup(), instances);
+
+        // A folder Sources/Code from before would be hidden by Code/: renamed first, and the assets
+        // naming files in it follow it.
+        const String hidden = PathJoin(sourcesRoot.AsView(), code);
+        if (DirectoryExists(hidden.AsView()))
+        {
+            String renamed = Format(u8"{}.moved", code);
+            for (u32 n = 2; DirectoryExists(PathJoin(sourcesRoot.AsView(), renamed.AsView()).AsView()); ++n)
+                renamed = Format(u8"{}.moved{}", code, n);
+            if (!FileMove(hidden.AsView(), PathJoin(sourcesRoot.AsView(), renamed.AsView()).AsView()))
+            {
+                LOG_ERROR(u8"Project", u8"Sources/{} could not be renamed, so the project's code stays under Sources/ for now", code);
+                return;
+            }
+            LOG_WARNING(u8"Project", u8"Sources/{} is now Sources/{}: Code/ is the project's code folder", code, renamed);
+            for (foundation::content::Instance* instance : instances)
+            {
+                RefPtr<ISerializable> object = instance->ReadObject();
+                auto* asset = Cast<pipeline::Asset>(object.Get());
+                StringView rest;
+                if (asset != nullptr && foundation::vfs::AfterFolder(asset->fileName.View(), code, rest))
+                    (void)Repoint(*instance, object, *asset, PathJoin(renamed.AsView(), rest).AsView());
+            }
+        }
+
+        u32 moved = 0;
+        for (foundation::content::Instance* instance : instances)
+        {
+            RefPtr<ISerializable> object = instance->ReadObject();
+            auto* asset = Cast<pipeline::Asset>(object.Get());
+            StringView rest;
+            if (asset == nullptr || !asset->IsCode() || asset->fileName.IsEmpty() ||
+                foundation::vfs::AfterFolder(asset->fileName.View(), code, rest))
+                continue;
+            const String name(asset->fileName.View());
+            const String from = PathJoin(sourcesRoot.AsView(), name.AsView());
+            const String to = PathJoin(codeRoot.AsView(), name.AsView());
+            if (FileExists(to.AsView()))
+            {
+                LOG_ERROR(u8"Project", u8"{} is not moved into Code/: a file of that name is there already", name);
+                continue;
+            }
+            if (FileExists(from.AsView()))
+            {
+                (void)CreateDirectories(PathParent(to.AsView()));
+                if (!FileMove(from.AsView(), to.AsView()))
+                {
+                    LOG_ERROR(u8"Project", u8"{} could not be moved into Code/", name);
+                    continue;
+                }
+            }
+            const String movedName = PathJoin(code, name.AsView());
+            if (!Repoint(*instance, object, *asset, movedName.AsView()))
+                continue;
+            const String origin = pipeline::ImportOriginOf(ledger.AsView(), name.AsView());
+            if (!origin.IsEmpty())
+                pipeline::RecordImportOrigin(ledger.AsView(), movedName.AsView(), origin.AsView());
+            ++moved;
+        }
+        if (moved > 0)
+            LOG_INFO(u8"Project", u8"moved {} code file(s) from Sources/ into Code/", moved);
+    }
+
     void EditorProject::UpgradeToQualityLevels(EditorProject& project, u32 msaa)
     {
         ProjectSettings& settings = project.Settings();

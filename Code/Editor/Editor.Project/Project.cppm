@@ -156,6 +156,7 @@ export namespace editor
             {
                 UpgradeToQualityLevels(*project, msaaBeforeLevels);
             }
+            MoveCodeIntoCodeFolder(*project);
             return UniquePtr<EditorProject>(project, allocator);
         }
 
@@ -165,6 +166,13 @@ export namespace editor
         /// default and saves the manifest. The antialiasing a scene or profile asked for is not
         /// carried over: their loads say which asked for one, for the level to take it.
         static void UpgradeToQualityLevels(EditorProject& project, u32 msaaSamples);
+
+        /// A project made before its code had a folder of its own kept scripts and their project
+        /// files under Sources/. Moves each code asset's file (pipeline::Asset::IsCode) still there
+        /// into Code/ and points the asset at it (its fileName gains Code/, its id is kept); a
+        /// folder already at Sources/Code, which Code/ would hide, is renamed first, and the
+        /// assets naming files in it follow. Nothing to do once every code file is in Code/.
+        static void MoveCodeIntoCodeFolder(EditorProject& project);
 
         [[nodiscard]] StringView Name() const noexcept { return m_settings.name.AsView(); }
         [[nodiscard]] StringView Directory() const noexcept { return m_directory.AsView(); }

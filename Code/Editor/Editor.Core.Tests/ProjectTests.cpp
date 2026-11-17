@@ -17,6 +17,8 @@ import foundation.runtime; // the plugins' entries
 import engine.project;
 import engine.render;  // a quality level's values
 import render.pipeline; // RenderQualityAsset: an older project's upgrade
+import pipeline.core;   // Asset: what a source file names
+import script.pipeline; // ScriptClassAsset: code, which an older project kept under Sources/
 import editor.core;
 
 using namespace foundation::core;
@@ -1198,4 +1200,83 @@ TEST_CASE("project: the folders the editor, a cook and an export write are its o
         CAPTURE(name);
         CHECK_FALSE(engine::project::IsProjectOutputFolder(name));
     }
+}
+
+// A project from before its code had a folder: its scripts and their project files are under
+// Sources/. Opened, each code asset's file moves into Code/ and the asset follows (fileName gains
+// Code/, id kept); a file that is not code stays; a folder that was already at Sources/Code, which
+// Code/ would hide, is renamed and the asset naming a file in it follows; opening again moves
+// nothing more.
+TEST_CASE("editor-project: an older project's code moves from Sources into Code when it opens")
+{
+    const StringView dir = u8"scratch_editor_code_move";
+    (void)RemoveDirectoryRecursive(dir);
+    REQUIRE(EditorProject::Create(DefaultAllocator(), dir, u8"P").IsOk());
+    const String sources = PathJoin(dir, u8"Sources");
+    const String code = PathJoin(dir, u8"Code");
+    // Both code asset types read back (the editor's pipeline registers them; a test, itself).
+    pipeline::RegisterScriptAssets();
+    const auto write = [&sources](StringView path, StringView text)
+    {
+        const String full = PathJoin(sources.AsView(), path);
+        REQUIRE(CreateDirectories(PathParent(full.AsView())));
+        REQUIRE(WriteFile(full.AsView(), Span<const byte>(reinterpret_cast<const byte*>(text.Data()), text.Size())).IsOk());
+    };
+    const auto fileNameOf = [](foundation::content::Instance* instance)
+    {
+        RefPtr<ISerializable> object = instance->ReadObject();
+        const auto* asset = Cast<pipeline::Asset>(object.Get());
+        return asset != nullptr ? String(asset->fileName.View()) : String{};
+    };
+    Guid heroId, projectId, tilesId, notesId;
+    {
+        // As an older editor left it: the assets naming files under Sources/, a folder Code there.
+        UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir);
+        REQUIRE(static_cast<bool>(project));
+        foundation::content::Group* root = project->SourceDb().RootGroup();
+        auto add = [root](StringView name, pipeline::Asset& asset, const TypeInfo& type, StringView file)
+        {
+            foundation::content::Instance* instance = root->CreateInstance(name, type);
+            REQUIRE(instance != nullptr);
+            asset.fileName = foundation::vfs::SourcePath(file);
+            REQUIRE(instance->WriteObject(asset).IsOk());
+            return instance->Id();
+        };
+        pipeline::ScriptClassAsset hero;
+        heroId = add(u8"Hero", hero, pipeline::ScriptClassAsset::StaticType(), u8"Hero.as");
+        pipeline::ScriptAssemblyAsset game;
+        projectId = add(u8"Game", game, pipeline::ScriptAssemblyAsset::StaticType(), u8"Game/Game.siproj");
+        pipeline::ScriptClassAsset notes; // a script that was in the folder Code/ will hide
+        notesId = add(u8"Notes", notes, pipeline::ScriptClassAsset::StaticType(), u8"Code/Notes.as");
+        pipeline::RenderQualityAsset tiles; // not code
+        tilesId = add(u8"Tiles", tiles, pipeline::RenderQualityAsset::StaticType(), u8"Tiles.png");
+        write(u8"Hero.as", u8"class Hero {}");
+        write(u8"Game/Game.siproj", u8"project");
+        write(u8"Code/Notes.as", u8"older");
+        write(u8"Tiles.png", u8"png");
+    }
+
+    UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir);
+    REQUIRE(static_cast<bool>(project));
+    foundation::content::ContentDatabase& db = project->SourceDb();
+    CHECK(fileNameOf(db.GetInstance(heroId)) == StringView(u8"Code/Hero.as"));
+    CHECK(FileExists(PathJoin(code.AsView(), u8"Hero.as").AsView()));
+    CHECK_FALSE(FileExists(PathJoin(sources.AsView(), u8"Hero.as").AsView()));
+    CHECK(fileNameOf(db.GetInstance(projectId)) == StringView(u8"Code/Game/Game.siproj"));
+    CHECK(FileExists(PathJoin(code.AsView(), u8"Game/Game.siproj").AsView()));
+    CHECK(fileNameOf(db.GetInstance(tilesId)) == StringView(u8"Tiles.png"));
+    CHECK(FileExists(PathJoin(sources.AsView(), u8"Tiles.png").AsView()));
+    // The older folder, renamed; its script followed it and then moved into Code/ as any other.
+    CHECK(DirectoryExists(PathJoin(sources.AsView(), u8"Code.moved").AsView()));
+    CHECK(fileNameOf(db.GetInstance(notesId)) == StringView(u8"Code/Code.moved/Notes.as"));
+    CHECK(FileExists(PathJoin(code.AsView(), u8"Code.moved/Notes.as").AsView()));
+    CHECK(project->SourceFile(u8"Code/Hero.as") == PathJoin(code.AsView(), u8"Hero.as"));
+    project.Reset();
+
+    // Again: nothing left to move.
+    project = EditorProject::Open(DefaultAllocator(), dir);
+    REQUIRE(static_cast<bool>(project));
+    CHECK(fileNameOf(project->SourceDb().GetInstance(heroId)) == StringView(u8"Code/Hero.as"));
+    project.Reset();
+    (void)RemoveDirectoryRecursive(dir);
 }

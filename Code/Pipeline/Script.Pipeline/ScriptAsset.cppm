@@ -56,6 +56,8 @@ export namespace pipeline{
         // Data version 1; version 0 assets read it empty.
         String className;
 
+        [[nodiscard]] bool IsCode() const override { return true; }
+
         void Serialize(ISerializer& ar) override
         {
             pipeline::Asset::Serialize(ar); // fileName
@@ -74,6 +76,8 @@ export namespace pipeline{
         RTTI_OBJECT(ScriptAssemblyAsset, pipeline::Asset)
     public:
         String language; // backend id ("csharp"), from the project file's extension
+
+        [[nodiscard]] bool IsCode() const override { return true; }
 
         void Serialize(ISerializer& ar) override
         {

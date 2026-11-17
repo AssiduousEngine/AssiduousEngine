@@ -9,6 +9,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Added
 
+- Projects keep their code in a `Code/` folder beside `Sources/`: scripts and script project files
+  imported or created land there, so a code editor opened on it sees only code. An older project's
+  scripts move into it when it opens.
 - Input maps: a Touch drag binding reads how far a touch that came down in its region moved each
   frame, for looking around by dragging on a touch screen.
 - Scripts: `Input.lockPointer(true)` locks the pointer for mouse look (hidden, held in place, only
