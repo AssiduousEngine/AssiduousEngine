@@ -33,6 +33,9 @@ Thumbs.db
 .test-scratch/
 
 Dist/
+
+# A project's caches (its cook database, import ledger, thumbnails, export builds), wherever it is.
+.cache/
 Documentation/Parity/
 
 # Editor/game distribution output (scripts/build-editor-dist.sh, build-export-templates)
