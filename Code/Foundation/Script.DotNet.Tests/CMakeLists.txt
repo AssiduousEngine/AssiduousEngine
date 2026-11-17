@@ -34,7 +34,7 @@ add_custom_command(
     COMMENT "Building the C# probe assembly")
 add_custom_target(Script.DotNet.Probe DEPENDS ${PROBE_OUT}/Probe.dll)
 
-# A game's assembly over the engine's managed runtime (built by Tools.DotNetBindings into DotNet/).
+# An application's assembly over the engine's managed runtime (built by Tools.DotNetBindings into DotNet/).
 set(TESTGAME_OUT ${CMAKE_CURRENT_BINARY_DIR}/TestGame)
 set(RUNTIME_DIR ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/DotNet)
 add_custom_command(

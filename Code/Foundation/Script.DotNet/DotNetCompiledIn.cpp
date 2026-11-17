@@ -2,7 +2,7 @@
 // Copyright (c) 2026-Present Robert Campbell
 
 // Foundation::Script.DotNet - the managed runtime's entry points by their C names, for a player the
-// runtime and its game are compiled into ahead of time (a native export with C#).
+// runtime and its application are compiled into ahead of time (a native export with C#).
 //
 // Every name has a stand-in here, defined weakly, which a program without the compiled runtime
 // keeps: Present() answers 0 and the runtime starts .NET through hostfxr as in the editor. A

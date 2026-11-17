@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- The engine's managed runtime: the bridge, the bindings generated from the engine's
-       reflection (passed in as EngineBindings), and the entry points the engine runs a game's
-       behaviours through. A game's assembly references it. -->
+       reflection (passed in as EngineBindings), and the entry points the engine runs an application's
+       behaviours through. An application's assembly references it. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>Engine.Runtime</AssemblyName>

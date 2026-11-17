@@ -228,7 +228,7 @@ namespace pipeline
             {
                 // The runtime's path is this engine's, for an IDE's completion; the cook passes its own.
                 return Format(u8"<Project Sdk=\"Microsoft.NET.Sdk\">\n"
-                              u8"  <!-- The game's C#: every .cs in this folder and below builds into one assembly. -->\n"
+                              u8"  <!-- The project's C#: every .cs in this folder and below builds into one assembly. -->\n"
                               u8"  <PropertyGroup>\n"
                               u8"    <TargetFramework>net10.0</TargetFramework>\n"
                               u8"    <AssemblyName>{}</AssemblyName>\n"
