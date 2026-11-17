@@ -5,6 +5,7 @@
 // functions, the value that crosses, and the call the generated bindings make. The same under
 // CoreCLR and NativeAOT: no DllImport, no reflection, no runtime code generation.
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 
 namespace Engine;
@@ -106,6 +107,40 @@ public unsafe struct TextArg : IDisposable
     }
 }
 
+// An argument the engine takes as any script value (its Variant), from a C# object: text as UTF-8
+// it owns until disposed, an engine object by its handle, a number or a value struct as bytes in
+// `storage` (Capacity bytes the caller keeps for the call). Null crosses as nothing.
+public unsafe struct AnyArg : IDisposable
+{
+    public const int Capacity = 256;
+
+    TextArg m_text;
+    DotNetValue m_value;
+
+    public AnyArg(object? value, byte* storage)
+    {
+        m_text = default;
+        m_value = default;
+        switch (value)
+        {
+        case null:
+            return;
+        case string text:
+            m_text = new TextArg(text);
+            m_value = m_text.Value;
+            return;
+        case EngineObject engineObject:
+            m_value = engineObject.EngineValue;
+            return;
+        }
+        m_value = Bridge.PackValue(value, storage, Capacity);
+    }
+
+    public DotNetValue Value => m_value;
+
+    public void Dispose() => m_text.Dispose();
+}
+
 public static unsafe class Bridge
 {
     static EngineFunctions s_engine;
@@ -117,7 +152,84 @@ public static unsafe class Bridge
         if (engine == null || engine->Size != (uint)sizeof(EngineFunctions))
             return false;
         s_engine = *engine;
+        ValueTypes.Clear();
+        ValueIds.Clear();
+        foreach ((ulong id, Type type, Func<nint, object> read, Action<object, nint> write, int size) in Types.Values)
+        {
+            ValueTypes[id] = (type, read);
+            ValueIds[type] = (id, write, size);
+        }
         return true;
+    }
+
+    // The value types the engine and C# share, both ways: an engine id to its C# type and reader,
+    // and a C# type to its engine id, writer and size (from the generated Types.Values).
+    internal static readonly Dictionary<ulong, (Type Type, Func<nint, object> Read)> ValueTypes = new();
+    internal static readonly Dictionary<Type, (ulong Id, Action<object, nint> Write, int Size)> ValueIds = new();
+
+    /// <summary>A number or a value struct as the engine's bytes, written to `storage` (`capacity`
+    /// bytes): what a result and an argument of any type (AnyArg) carry.</summary>
+    public static DotNetValue PackValue(object value, byte* storage, int capacity)
+    {
+        switch (value)
+        {
+        case float f: *(float*)storage = f; return Bytes(Types.F32Id, storage, 4);
+        case double d: *(double*)storage = d; return Bytes(Types.F64Id, storage, 8);
+        case int i: *(int*)storage = i; return Bytes(Types.I32Id, storage, 4);
+        case uint u: *(uint*)storage = u; return Bytes(Types.U32Id, storage, 4);
+        case long l: *(long*)storage = l; return Bytes(Types.I64Id, storage, 8);
+        case ulong ul: *(ulong*)storage = ul; return Bytes(Types.U64Id, storage, 8);
+        case bool b: *storage = b ? (byte)1 : (byte)0; return Bytes(Types.BoolId, storage, 1);
+        }
+        if (ValueIds.TryGetValue(value.GetType(), out (ulong Id, Action<object, nint> Write, int Size) known))
+        {
+            if (known.Size > capacity)
+                throw new ArgumentException($"{value.GetType().Name} is larger than a value holds");
+            known.Write(value, (nint)storage);
+            return Bytes(known.Id, storage, known.Size);
+        }
+        throw new ArgumentException($"a {value.GetType().Name} has no engine form");
+    }
+
+    static DotNetValue Bytes(ulong id, byte* data, int size) =>
+        new DotNetValue { Type = TypeById(id), Data = data, Size = (ulong)size, Kind = ValueKind.Bytes };
+
+    /// <summary>A value from the engine as the C# object it is: null for none, text, an engine object
+    /// (a handle it then owns), a number or a value struct boxed.</summary>
+    public static object? AnyOf(DotNetValue value)
+    {
+        switch (value.Kind)
+        {
+        case ValueKind.Empty:
+            return null;
+        case ValueKind.Text:
+            return TextOf(value);
+        case ValueKind.Handle:
+        {
+            EngineObject? wrapped = Types.Wrap(TypeIdOf(value.Type), value);
+            if (wrapped == null)
+                ReleaseHandle((nint)value.Data);
+            return wrapped;
+        }
+        }
+        ulong id = TypeIdOf(value.Type);
+        if (ValueTypes.TryGetValue(id, out (Type Type, Func<nint, object> Read) known))
+            return known.Read((nint)value.Data);
+        return id switch
+        {
+            Types.F64Id => *(double*)value.Data,
+            Types.F32Id => *(float*)value.Data,
+            Types.I32Id => *(int*)value.Data,
+            Types.U32Id => *(uint*)value.Data,
+            Types.I64Id => *(long*)value.Data,
+            Types.U64Id => *(ulong*)value.Data,
+            Types.I16Id => *(short*)value.Data,
+            Types.U16Id => *(ushort*)value.Data,
+            Types.I8Id => *(sbyte*)value.Data,
+            Types.U8Id => *(byte*)value.Data,
+            Types.BoolId => *(byte*)value.Data != 0,
+            _ => throw new ArgumentException($"a value of engine type {id:x} has no C# form"),
+        };
     }
 
     public static nint TypeById(ulong id) => s_engine.TypeById(id);

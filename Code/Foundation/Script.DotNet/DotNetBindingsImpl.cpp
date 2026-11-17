@@ -99,6 +99,7 @@ namespace foundation::script::dotnet
             Enum,
             Text,
             Class, // a handle to the engine's value
+            Any,   // a script value of any type (Variant): C# object, its form chosen at the call
         };
 
         struct Bound
@@ -158,6 +159,8 @@ namespace foundation::script::dotnet
                     return Shape::Scalar;
                 if (IsText(*type))
                     return Shape::Text;
+                if (type->id == TypeOf<Variant>().id)
+                    return Shape::Any;
                 const Bound* b = Find(type);
                 return b != nullptr ? b->shape : Shape::None;
             }
@@ -170,6 +173,8 @@ namespace foundation::script::dotnet
                     return String(scalar);
                 if (IsText(*type))
                     return String(u8"string");
+                if (type->id == TypeOf<Variant>().id)
+                    return String(u8"object");
                 const Bound* b = Find(type);
                 return b != nullptr ? b->name : String{};
             }
@@ -177,7 +182,8 @@ namespace foundation::script::dotnet
             // As a parameter or return is declared: a class may be null.
             String DeclaredName(const TypeInfo* type) const
             {
-                return ShapeOf(type, true) == Shape::Class ? Format(u8"{}?", CSharpName(type)) : CSharpName(type);
+                const Shape shape = ShapeOf(type, true);
+                return shape == Shape::Class || shape == Shape::Any ? Format(u8"{}?", CSharpName(type)) : CSharpName(type);
             }
         };
 
@@ -278,6 +284,14 @@ namespace foundation::script::dotnet
             case Shape::Class:
                 AppendFormat(out, u8"        args[{}] = {} != null ? {}.EngineValue : default;\n", index, name, name);
                 break;
+            case Shape::Any:
+                // Packed by the value's own type, into storage of its own: several in one call never
+                // share a buffer, and text is freed when the call returns.
+                AppendFormat(out,
+                             u8"        byte* v{} = stackalloc byte[AnyArg.Capacity];\n        using AnyArg a{} = new({}, v{});\n"
+                             u8"        args[{}] = a{}.Value;\n",
+                             index, index, name, index, index, index);
+                break;
             default:
                 break;
             }
@@ -314,6 +328,13 @@ namespace foundation::script::dotnet
                              u8"        DotNetValue result = default;\n        {}&result);\n"
                              u8"        return result.Kind == ValueKind.Handle ? new {}(result) : null;\n",
                              call, name);
+                break;
+            case Shape::Any:
+                AppendFormat(out,
+                             u8"        byte* returnedBytes = stackalloc byte[AnyArg.Capacity];\n"
+                             u8"        DotNetValue result = DotNetValue.OfBytes(0, returnedBytes, AnyArg.Capacity);\n"
+                             u8"        {}&result);\n        return Bridge.AnyOf(result);\n",
+                             call);
                 break;
             default:
                 break;

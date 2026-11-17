@@ -5,7 +5,8 @@
 // MCP tools, where one source's behaviour uses a class the other declares; one cook builds the
 // project's assembly and cooks each class from it; the cooked behaviour then runs in a scene, its
 // inspector default (computed by the other file's class) applied, a component of its entity read
-// through NetworkComponent.of (an object and an enum crossing), and its onUpdate moving its entity. Edited while the scene runs, the behaviour restarts on the new code once the cook rebuilds
+// through NetworkComponent.of (an object and an enum crossing), messages with a value it sends itself
+// (text and a Float3 as the payload of entity.send), and its onUpdate moving its entity. Edited while the scene runs, the behaviour restarts on the new code once the cook rebuilds
 // and the assembly reloads. A source that no longer builds fails the cook, and the class keeps its
 // last good build.
 #include <doctest/doctest.h>
@@ -92,7 +93,10 @@ namespace
                                   u8"    public void onStart()\n    {\n"
                                   u8"        NetworkComponent? net = NetworkComponent.of(m_entity);\n"
                                   u8"        bool server = net != null && net.authority == NetworkAuthority.Server;\n"
-                                  u8"        m_entity.setName(server ? \"started\" : \"no component\");\n    }\n\n"
+                                  u8"        m_entity.send(\"Named\", server ? \"started\" : \"no component\");\n"
+                                  u8"        m_entity.send(\"Raised\", new Float3 { x = 0.0f, y = 2.0f, z = 0.0f });\n    }\n\n"
+                                  u8"    public void onNamed(string name) => m_entity.setName(name);\n"
+                                  u8"    public void onRaised(Float3 by) => m_entity.setPosition(m_entity.position().x, by.y, 0.0f);\n\n"
                                   u8"    public void onUpdate(float dt)\n    {\n"
                                   u8"        Float3 p = m_entity.position();\n"
                                   u8"        m_entity.setPosition(p.x + speed * dt, p.y, p.z);\n    }\n}\n";
@@ -172,6 +176,11 @@ TEST_CASE("integration.mcp: a C# project cooks whole through the MCP tools, and 
         auto* scripts = world.AddSystem<engine::script::ScriptSceneSystem>();
         components->SetScriptSystem(scripts);
         scripts->SetRunHost(&host);
+        // The single-scene message route (a real run's ScriptSubsystem installs a scene multiplexer).
+        host.Binding().dispatchMessage =
+            Function<void(scene::Scene*, scene::EntityHandle, StringView, Span<const Variant>)>{
+                [scripts](scene::Scene*, scene::EntityHandle target, StringView message, Span<const Variant> args)
+                { scripts->EnqueueMessage(target, message, args); }};
         const scene::EntityHandle walker = world.CreateEntity(u8"walker");
         engine::script::ScriptComponent& component = components->Add(walker);
         engine::script::ScriptBehavior behavior;
@@ -188,6 +197,7 @@ TEST_CASE("integration.mcp: a C# project cooks whole through the MCP tools, and 
         }
         CHECK(world.GetEntityName(walker) == StringView(u8"started"));
         CHECK(world.GetLocalTransform(walker).position.x == doctest::Approx(3.0f)); // speed 3 for two half seconds
+        CHECK(world.GetLocalTransform(walker).position.y == doctest::Approx(2.0f)); // the Float3 its message carried
         CHECK(scripts->InstanceCount() == 1u);
 
         // Hot reload: the behaviour edited while the scene runs. The cook rebuilds the assembly and
