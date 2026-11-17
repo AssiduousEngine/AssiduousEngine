@@ -34,7 +34,7 @@ TEST_CASE("code languages: each shared definition read by its id once, an unknow
 {
     u32 reads = 0;
     editor::app::CodeLanguages languages(DefaultAllocator(), ReadData(reads));
-    constexpr StringView kIds[] = {u8"angelscript", u8"luau", u8"hlsl", u8"xml", u8"css"};
+    constexpr StringView kIds[] = {u8"angelscript", u8"luau", u8"csharp", u8"hlsl", u8"xml", u8"css"};
     for (const StringView id : kIds)
     {
         const gui::CodeLanguage* language = languages.Find(id);
@@ -42,9 +42,40 @@ TEST_CASE("code languages: each shared definition read by its id once, an unknow
         CHECK_FALSE(language->Contexts.IsEmpty());
         CHECK(languages.Find(id) == language); // kept: the same object, not read again
     }
-    CHECK(reads == 5u);
+    CHECK(reads == 6u);
     CHECK(languages.Find(u8"cobol") == nullptr);
     CHECK(languages.Find(u8"cobol") == nullptr);
-    CHECK(reads == 6u); // a miss is kept too
+    CHECK(reads == 7u); // a miss is kept too
     CHECK(languages.Find(u8"") == nullptr);
+}
+
+// C# colours as C# does: its keywords and types, a verbatim string whose backslash is no escape,
+// an interpolated string, and a comment.
+TEST_CASE("code languages: C# colours its keywords, types, strings and comments")
+{
+    u32 reads = 0;
+    editor::app::CodeLanguages languages(DefaultAllocator(), ReadData(reads));
+    const gui::CodeLanguage* csharp = languages.Find(u8"csharp");
+    REQUIRE(csharp != nullptr);
+
+    const StringView line = u8"public static string Path = @\"a\\b\" + $\"{x}\"; // done";
+    gui::CodeLexState state;
+    Array<gui::CodeSpan> spans;
+    csharp->Tokenize(line, state, spans);
+    const auto tokenAt = [&](StringView text)
+    {
+        const usize at = line.Find(text);
+        REQUIRE(at != StringView::kNotFound);
+        for (const gui::CodeSpan& span : spans)
+            if (span.Start <= at && at < span.End)
+                return span.Token;
+        return gui::CodeToken::Text;
+    };
+    CHECK(tokenAt(u8"public") == gui::CodeToken::Keyword);
+    CHECK(tokenAt(u8"static") == gui::CodeToken::Keyword);
+    CHECK(tokenAt(u8"string") == gui::CodeToken::Type);
+    CHECK(tokenAt(u8"Path") == gui::CodeToken::Text);
+    CHECK(tokenAt(u8"\\b") == gui::CodeToken::String); // inside @"...": no escape
+    CHECK(tokenAt(u8"{x}") == gui::CodeToken::String);
+    CHECK(tokenAt(u8"done") == gui::CodeToken::Comment);
 }
