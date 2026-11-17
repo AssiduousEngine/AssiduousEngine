@@ -31,10 +31,13 @@ export namespace foundation::script::dotnet
         DotNetRuntime(const DotNetRuntime&) = delete;
         DotNetRuntime& operator=(const DotNetRuntime&) = delete;
 
-        /// Starts .NET with the runtime in `folder` (DefaultRuntimeFolder when empty) and hands it
-        /// the engine's functions, made from `allocator`. Failure() says why it did not.
+        /// Starts the runtime and hands it the engine's functions, made from `allocator`: the one
+        /// compiled into this program when there is one (an exported player), else .NET with the
+        /// runtime in `folder` (DefaultRuntimeFolder when empty). Failure() says why it did not.
         Status Start(IAllocator& allocator, StringView folder = {});
         [[nodiscard]] bool IsStarted() const noexcept { return m_invoke != nullptr; }
+        /// Whether the runtime started is the one compiled into this program.
+        [[nodiscard]] bool IsCompiledIn() const noexcept { return m_compiledIn; }
 
         /// Loads a game's assembly from its image (and its debug symbols, when given, so a fault
         /// names its file and line); its classes are found before earlier ones. An image already
@@ -68,6 +71,9 @@ export namespace foundation::script::dotnet
 
     private:
         Status Fail(StringView why);
+        // Takes the compiled-in runtime when this program has one (DotNetCompiledIn.cpp): true when
+        // it does, started or not; false when there is none.
+        bool StartCompiledIn(IAllocator& allocator);
         Status FailManaged(i32 rc); // NotFound for what is not there, else Unknown
         Array<DotNetValue> Lend(Span<const Variant> args) const;
 
@@ -82,5 +88,6 @@ export namespace foundation::script::dotnet
         i32 (*m_describeClass)(const utf8char*, i32, DotNetValue*, i32, const utf8char**, i32*) = nullptr;
         i32 (*m_describeAssembly)(const byte*, i32, const utf8char**, i32*) = nullptr;
         const utf8char* (*m_lastError)(i32*) = nullptr;
+        bool m_compiledIn = false;
     };
 }
