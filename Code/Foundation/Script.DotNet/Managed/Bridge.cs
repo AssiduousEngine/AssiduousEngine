@@ -54,6 +54,7 @@ public unsafe struct EngineFunctions
     public delegate* unmanaged<void*, void> ReleaseHandle;
     public delegate* unmanaged<nint, ulong> TypeIdOf;
     public delegate* unmanaged<ulong*, byte*> LastError;
+    public delegate* unmanaged<nint, void*, int> ComponentAlive;
 }
 
 /// <summary>A call into the engine that failed; the engine's reason is the message.</summary>
@@ -291,6 +292,10 @@ public static unsafe class Bridge
         if (s_engine.Invoke(method, self, args, count, result) < 0)
             throw new EngineException(LastError());
     }
+
+    /// <summary>Whether a scene component held as a value (its entity, under the component's type)
+    /// is there: its entity has it.</summary>
+    public static bool ComponentAlive(nint type, void* value) => s_engine.ComponentAlive(type, value) != 0;
 
     public static string LastError()
     {

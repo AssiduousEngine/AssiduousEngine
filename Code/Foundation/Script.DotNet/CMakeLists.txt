@@ -4,7 +4,8 @@
 # linked into the player). Experimental: OPTION_ENABLE_DOTNET, off by default.
 
 util_add_engine_library(Script.DotNet ALIAS Foundation::Script.DotNet)
-target_link_libraries(Script.DotNet PUBLIC Foundation::Core Foundation::Script)
+# The facades and the scene: a scene component crosses to C# as its entity (a value, no handle).
+target_link_libraries(Script.DotNet PUBLIC Foundation::Core Foundation::Script PRIVATE Foundation::Script.Facades Foundation::Scene)
 
 target_sources(Script.DotNet
     PUBLIC

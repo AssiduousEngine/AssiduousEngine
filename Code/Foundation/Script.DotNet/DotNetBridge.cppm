@@ -69,6 +69,9 @@ export namespace foundation::script::dotnet
         u64 (*typeIdOf)(const TypeInfo* type) = nullptr;
         /// The reason the calling thread's last failed call failed, UTF-8, valid until its next call.
         const utf8char* (*lastError)(u64* length) = nullptr;
+        /// Whether a scene component held as a value (its entity's bytes under the component's
+        /// type, see FromVariant) is there: 1 when its entity has it, else 0.
+        i32 (*componentAlive)(const TypeInfo* type, const void* data) = nullptr;
     };
 
     /// The table, filled; handles are made from `allocator` (the host's), the first call's.
@@ -81,11 +84,11 @@ export namespace foundation::script::dotnet
     /// delegate. The C# script backend sets it; with none set a handler crosses as nothing.
     using CallbackMaker = Variant (*)(void* handle);
     void SetCallbackMaker(CallbackMaker maker) noexcept;
-    /// `variant` lent to C# for one call: a plain value's bytes and text in place (valid while
-    /// `variant` is), anything else as a handle C# then owns.
     /// How many engine calls from C# took the typed path (MethodInfo::call) rather than Variants:
     /// what a test reads to know the path was taken.
     [[nodiscard]] u64 TypedCallCount() noexcept;
+    /// `variant` lent to C# for one call: a plain value's bytes and text in place (valid while
+    /// `variant` is), anything else as a handle C# then owns.
     [[nodiscard]] DotNetValue LendValue(const Variant& variant);
     /// `variant` into `out`: a plain value's bytes into out.data when they fit out.size (else
     /// OutOfRange), text into the thread's buffer, anything else as a handle the caller owns.
