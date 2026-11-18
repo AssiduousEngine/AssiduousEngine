@@ -56,6 +56,15 @@ public class Bench
         return sum;
     }
 
+    public double checks(int n, Entity e)
+    {
+        double valid = 0;
+        for (int i = 0; i < n; i++)
+            if (e.isValid())
+                valid += 1;
+        return valid;
+    }
+
     public double texts(int n, string s, Entity e)
     {
         for (int i = 0; i < n; i++)
