@@ -39,7 +39,7 @@ export namespace editor
     // Editor-level UI preferences (a Settings section). uiScale multiplies the window's OS content
     // scale for the whole editor UI (layout, fonts and baked icons); it is both an accessibility
     // setting and the way to exercise the DPI path without a scaled monitor. The look's inputs sit
-    // beside it: the scheme, the accent, the density and reduced motion.
+    // beside it: the scheme, the accent, the density, reduced motion and how windows present.
     class EditorUiSettings final : public ISerializable
     {
         RTTI_OBJECT(EditorUiSettings, ISerializable)
@@ -52,6 +52,9 @@ export namespace editor
         String accent{u8"#2f6fdf"};   // a fill that white text is legible on, as #rrggbb (azure)
         String density{u8"compact"};  // "compact", "default" or "comfortable"
         bool reduceMotion = false;    // keep moving parts of the UI still
+        // How the editor's windows present: "vsync" (paced to the display), "mailbox" (uncapped,
+        // without tearing) or "immediate" (uncapped, tearing).
+        String presentMode{u8"vsync"};
 
         void Serialize(ISerializer& ar) override
         {
@@ -61,6 +64,7 @@ export namespace editor
             foundation::core::SerializeAppended(ar, "accent", accent);
             foundation::core::SerializeAppended(ar, "density", density);
             foundation::core::SerializeAppended(ar, "reduceMotion", reduceMotion);
+            foundation::core::SerializeAppended(ar, "presentMode", presentMode);
         }
     };
 

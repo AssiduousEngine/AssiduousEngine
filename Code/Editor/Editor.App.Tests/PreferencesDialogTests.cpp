@@ -5,7 +5,7 @@
 // look in the user's store, each change shows at once, and Save writes the store and persists it,
 // while Cancel or closing puts the look back as it was. The Shortcuts tab stages its edits and
 // applies them on Save (a chord another action holds is refused, naming that action), and Reset
-// returns to the declared chord. Also covers the orthographic check, the templates folder, the MCP
+// returns to the declared chord. Also covers the frame rate (the present mode), the orthographic check, the templates folder, the MCP
 // host's fields, the preview resolutions and a contributed category's tab.
 #include <doctest/doctest.h>
 #include "Core/Prelude.h"
@@ -13,6 +13,7 @@
 import foundation.core;
 import foundation.settings;
 import foundation.gui;
+import foundation.rhi;
 import editor.core;
 import editor.app;
 
@@ -163,6 +164,39 @@ TEST_CASE("preferences: its controls as the store has the look; a change shown a
     CHECK(ui.density == String(u8"comfortable"));
     CHECK(ui.reduceMotion);
     CHECK_FALSE(bed.shown.Back().dark); // saved: nothing is put back
+}
+
+TEST_CASE("preferences: the frame rate shows as the store has it, applies at once, Save keeps it and Cancel puts it back")
+{
+    using foundation::rhi::PresentMode;
+    Bed bed;
+    bed.store.Section<editor::EditorUiSettings>().presentMode = String(u8"mailbox");
+    REQUIRE(bed.dialog->Open(*bed.root));
+    gui::Window& window = bed.Window();
+    auto* vsync = FindId<gui::Button>(window, u8"pref-present-vsync");
+    auto* uncapped = FindId<gui::Button>(window, u8"pref-present-mailbox");
+    auto* tearing = FindId<gui::Button>(window, u8"pref-present-immediate");
+    REQUIRE(vsync != nullptr);
+    REQUIRE(uncapped != nullptr);
+    REQUIRE(tearing != nullptr);
+    CHECK_FALSE(vsync->IsChecked());
+    CHECK(uncapped->IsChecked());
+    CHECK_FALSE(tearing->IsChecked());
+
+    CHECK(tearing->HandleActivate());
+    REQUIRE(bed.shown.Size() == 1u);
+    CHECK(bed.shown.Back().presentMode == PresentMode::Immediate); // shown at once: the windows change now
+    CHECK_FALSE(uncapped->IsChecked());
+    bed.dialog->Cancel();
+    CHECK(bed.shown.Back().presentMode == PresentMode::Mailbox); // put back
+    CHECK(bed.store.Find<editor::EditorUiSettings>()->presentMode == String(u8"mailbox"));
+
+    REQUIRE(bed.dialog->Open(*bed.root));
+    CHECK(FindId<gui::Button>(bed.Window(), u8"pref-present-vsync")->HandleActivate());
+    CHECK(bed.shown.Back().presentMode == PresentMode::Fifo);
+    CHECK(bed.dialog->Save());
+    CHECK(bed.store.Find<editor::EditorUiSettings>()->presentMode == String(u8"vsync"));
+    CHECK(bed.shown.Back().presentMode == PresentMode::Fifo); // saved: nothing is put back
 }
 
 TEST_CASE("preferences: the UI scale's percentage follows a drag; the scale applies on release")

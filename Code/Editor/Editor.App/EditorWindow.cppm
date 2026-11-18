@@ -47,7 +47,7 @@ export namespace editor::app
     namespace fonts = foundation::fonts;
 
     /// The user's appearance inputs (Preferences): the scheme, the accent, the density, less
-    /// motion and the UI scale. The defaults are the editor's.
+    /// motion, the UI scale and how the windows present. The defaults are the editor's.
     struct EditorLook
     {
         bool dark = true;
@@ -55,7 +55,29 @@ export namespace editor::app
         String density{u8"compact"}; // compact, default or comfortable: Editor/density-<name>.css
         bool reduceMotion = false;
         f32 uiScale = 1.0f;
+        foundation::rhi::PresentMode presentMode = foundation::rhi::PresentMode::Fifo; // vsync
     };
+
+    /// The present modes Preferences offers, by the name the settings file keeps, in their order:
+    /// vsync first, the default.
+    struct EditorPresentMode
+    {
+        StringView name;
+        foundation::rhi::PresentMode mode;
+    };
+    inline constexpr EditorPresentMode kEditorPresentModes[] = {
+        {u8"vsync", foundation::rhi::PresentMode::Fifo},
+        {u8"mailbox", foundation::rhi::PresentMode::Mailbox},
+        {u8"immediate", foundation::rhi::PresentMode::Immediate},
+    };
+    /// The name the settings file keeps for `mode`; vsync's for a mode Preferences does not offer.
+    [[nodiscard]] inline StringView PresentModeName(foundation::rhi::PresentMode mode) noexcept
+    {
+        for (const EditorPresentMode& entry : kEditorPresentModes)
+            if (entry.mode == mode)
+                return entry.name;
+        return kEditorPresentModes[0].name;
+    }
 
     /// The densities the editor's sheets give (Editor/density-<name>.css), in their order.
     inline constexpr StringView kEditorDensities[] = {u8"compact", u8"default", u8"comfortable"};
@@ -102,6 +124,9 @@ export namespace editor::app
                 look.density = String(density);
         look.reduceMotion = ui->reduceMotion;
         look.uiScale = Clamp(ui->uiScale, editor::kUiScaleMin, editor::kUiScaleMax);
+        for (const EditorPresentMode& entry : kEditorPresentModes)
+            if (ui->presentMode.AsView() == entry.name)
+                look.presentMode = entry.mode;
         return look;
     }
     /// Stores `look` into the user's settings, keeping the section's other fields.
@@ -112,6 +137,7 @@ export namespace editor::app
         ui.density = look.density;
         ui.reduceMotion = look.reduceMotion;
         ui.uiScale = look.uiScale;
+        ui.presentMode = String(PresentModeName(look.presentMode));
     }
 
     /// The keys the satellite libraries' widgets need, which a host binds once for its GUI (as it
@@ -122,14 +148,27 @@ export namespace editor::app
         gui::BindCodeEditorKeys(keymap);
     }
 
-    /// How every editor window presents: vsync with two swapchain images, as a game does. A third
-    /// image would hide a compositor late returning one, at a frame more of latency.
-    [[nodiscard]] inline foundation::graphics::RenderWindowDesc EditorRenderWindowDesc() noexcept
+    /// How every editor window presents: in `mode` (Preferences' choice; vsync until the user's
+    /// settings are read) with two swapchain images. A third image would hide a compositor late
+    /// returning one, at a frame more of latency.
+    [[nodiscard]] inline foundation::graphics::RenderWindowDesc EditorRenderWindowDesc(
+        foundation::rhi::PresentMode mode = foundation::rhi::PresentMode::Fifo) noexcept
     {
         foundation::graphics::RenderWindowDesc desc;
-        desc.presentMode = foundation::rhi::PresentMode::Fifo;
+        desc.presentMode = mode;
         desc.bufferCount = 2;
         return desc;
+    }
+
+    /// Presents each of `windows` in `mode`, their swapchains made again at once. Returns how many
+    /// refused it (a surface without the mode, a driver without tearing); those go on as they were.
+    inline usize PresentWindowsIn(Span<foundation::graphics::RenderWindow* const> windows, foundation::rhi::PresentMode mode)
+    {
+        usize refused = 0;
+        for (foundation::graphics::RenderWindow* window : windows)
+            if (window != nullptr && !window->SetPresentMode(mode))
+                ++refused;
+        return refused;
     }
 
     /// EditorWindow::kThemeOverridesPath, at namespace scope for another library to read (MSVC exports no class's
@@ -192,9 +231,10 @@ export namespace editor::app
             m_host = MakeUnique<gui::GuiHost>(m_allocator, m_allocator, *host.Graphics(), *host.Shell(), m_fonts.Get(), m_shaders->Set());
             {
                 foundation::runtime::IApplicationHost* runtimeHost = &host;
+                EditorWindow* owner = this;
                 gui::GuiHost::WindowOpener opener; // opens a floating panel in an OS window of its own
-                opener.Open = [runtimeHost](const foundation::shell::WindowSettings& settings)
-                { return runtimeHost->OpenWindow(settings, EditorRenderWindowDesc()); };
+                opener.Open = [runtimeHost, owner](const foundation::shell::WindowSettings& settings)
+                { return runtimeHost->OpenWindow(settings, EditorRenderWindowDesc(owner->m_look.presentMode)); };
                 opener.Close = [runtimeHost](foundation::graphics::RenderWindow& window) { runtimeHost->CloseWindow(&window); };
                 m_host->SetWindowOpener(Move(opener));
             }
@@ -236,7 +276,8 @@ export namespace editor::app
         }
 
         /// Applies the look: the sheets for the density, the accent as an input, the scheme and
-        /// motion through the media, the UI scale through the host.
+        /// motion through the media, the UI scale through the host, and the present mode to every
+        /// window, at once.
         void SetLook(const EditorLook& look)
         {
             m_look = look;
@@ -246,6 +287,7 @@ export namespace editor::app
             m_host->Context().SetColorScheme(look.dark);
             m_host->Context().SetReducedMotion(look.reduceMotion);
             ApplySheet();
+            ApplyPresentMode();
         }
         [[nodiscard]] const EditorLook& Look() const noexcept { return m_look; }
 
@@ -383,6 +425,23 @@ export namespace editor::app
         void ApplySheet()
         {
             m_host->Styles().SetStyleSheet(gui::CSSParser::Parse(SheetFor(*m_resources, m_look, m_theme.Get()).AsView(), StringView(kSheetPath)));
+        }
+        // Presents every window in the look's mode: the main one (attached to the GUI only once the
+        // frame is built, after the first look) and each floating panel's. New panels' windows are
+        // made in it by the opener.
+        void ApplyPresentMode()
+        {
+            Array<foundation::graphics::RenderWindow*> windows(m_allocator);
+            windows.PushBack(m_window);
+            m_host->ForEachWindow([&windows, main = m_window](foundation::graphics::RenderWindow& window)
+                                  {
+                                      if (&window != main)
+                                          windows.PushBack(&window);
+                                  });
+            const usize refused = PresentWindowsIn(Span<foundation::graphics::RenderWindow* const>(windows.Data(), windows.Size()), m_look.presentMode);
+            if (refused > 0)
+                LOG_WARNING(u8"Editor", u8"{} window(s) cannot present as '{}' on this device; they keep the mode they had",
+                            refused, PresentModeName(m_look.presentMode));
         }
 
     public:

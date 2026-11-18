@@ -389,3 +389,82 @@ TEST_CASE("graphics: a phone's window without its surface yet gets a render wind
     CHECK_FALSE(rw->IsSuspended());
     rw->EndFrame(frame);
 }
+
+TEST_CASE("graphics: a window's present mode changes at once, its swapchain made again in it")
+{
+    // A preference for vsync or an uncapped frame rate applies without a restart: the swapchain is
+    // made again in the new mode, and the window keeps rendering.
+    NullShell shell;
+    auto created = CreateNullGraphicsDevice(2);
+    REQUIRE(created.HasValue());
+    UniquePtr<GraphicsDevice>& gd = created.Value();
+    auto rwResult = gd->CreateRenderWindow(*shell.MainWindow(), RenderWindowDesc{});
+    REQUIRE(rwResult.HasValue());
+    RenderWindow& rw = *rwResult.Value();
+    REQUIRE(RenderOne(*gd, rw));
+    CHECK(rw.PresentMode() == foundation::rhi::PresentMode::Fifo);
+
+    CHECK(rw.SetPresentMode(foundation::rhi::PresentMode::Immediate));
+    CHECK(rw.PresentMode() == foundation::rhi::PresentMode::Immediate);
+    auto* swap = static_cast<foundation::rhi::null::NullSwapChain*>(rw.Swap());
+    REQUIRE(swap != nullptr);
+    CHECK(swap->m_presentMode == foundation::rhi::PresentMode::Immediate);
+    CHECK(swap->Width() == shell.MainWindow()->PixelWidth());
+    CHECK(RenderOne(*gd, rw));
+
+    // The same mode again leaves the swapchain as it is.
+    CHECK(rw.SetPresentMode(foundation::rhi::PresentMode::Immediate));
+    CHECK(rw.Swap() == swap);
+
+    CHECK(rw.SetPresentMode(foundation::rhi::PresentMode::Fifo));
+    CHECK(static_cast<foundation::rhi::null::NullSwapChain*>(rw.Swap())->m_presentMode == foundation::rhi::PresentMode::Fifo);
+    CHECK(RenderOne(*gd, rw));
+}
+
+TEST_CASE("graphics: a present mode the device refuses leaves the window in the mode it had")
+{
+    // A surface without the mode (or a driver without tearing) refuses the swapchain: the window
+    // must not be left dark, so it is made again in its old mode.
+    NullShell shell;
+    auto created = CreateNullGraphicsDevice(2);
+    REQUIRE(created.HasValue());
+    UniquePtr<GraphicsDevice>& gd = created.Value();
+    auto* device = static_cast<foundation::rhi::null::NullDevice*>(gd->Raw());
+    auto rwResult = gd->CreateRenderWindow(*shell.MainWindow(), RenderWindowDesc{});
+    REQUIRE(rwResult.HasValue());
+    RenderWindow& rw = *rwResult.Value();
+
+    device->refusePresentMode = true;
+    device->refusedPresentMode = foundation::rhi::PresentMode::Immediate;
+    CHECK_FALSE(rw.SetPresentMode(foundation::rhi::PresentMode::Immediate));
+    CHECK(rw.PresentMode() == foundation::rhi::PresentMode::Fifo);
+    REQUIRE(rw.Swap() != nullptr);
+    CHECK(static_cast<foundation::rhi::null::NullSwapChain*>(rw.Swap())->m_presentMode == foundation::rhi::PresentMode::Fifo);
+    CHECK(RenderOne(*gd, rw));
+}
+
+TEST_CASE("graphics: a minimized window takes a new present mode when it is shown again")
+{
+    // No swapchain can be made for a window with no pixels, so the mode waits for the next frame
+    // that has some.
+    NullShell shell;
+    auto created = CreateNullGraphicsDevice(2);
+    REQUIRE(created.HasValue());
+    UniquePtr<GraphicsDevice>& gd = created.Value();
+    auto* window = static_cast<NullWindow*>(shell.MainWindow());
+    auto rwResult = gd->CreateRenderWindow(*window, RenderWindowDesc{});
+    REQUIRE(rwResult.HasValue());
+    RenderWindow& rw = *rwResult.Value();
+    const u32 width = window->PixelWidth();
+    const u32 height = window->PixelHeight();
+
+    window->Resize(0, 0);
+    CHECK(rw.SetPresentMode(foundation::rhi::PresentMode::Mailbox));
+    CHECK(rw.PresentMode() == foundation::rhi::PresentMode::Mailbox);
+    CHECK_FALSE(RenderOne(*gd, rw)); // nothing to draw into yet
+
+    window->Resize(width, height);
+    CHECK(RenderOne(*gd, rw));
+    REQUIRE(rw.Swap() != nullptr);
+    CHECK(static_cast<foundation::rhi::null::NullSwapChain*>(rw.Swap())->m_presentMode == foundation::rhi::PresentMode::Mailbox);
+}

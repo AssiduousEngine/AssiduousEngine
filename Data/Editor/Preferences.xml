@@ -27,6 +27,11 @@
                 <Panel class="form-field">
                     <Panel class="pref-scale"><Slider id="pref-scale" min="0.5" max="2" step="0.05"/><Label id="pref-scale-value" class="pref-scale-value"/></Panel>
                 </Panel>
+                <Label class="form-label" text="Frame rate"/>
+                <Panel class="form-field">
+                    <Panel class="segmented"><Button id="pref-present-vsync" class="segment" name="pref-present" toggle="true" text="VSync"/><Button id="pref-present-mailbox" class="segment" name="pref-present" toggle="true" text="Uncapped"/><Button id="pref-present-immediate" class="segment" name="pref-present" toggle="true" text="Uncapped, tearing"/></Panel>
+                    <Label class="form-help" text="VSync draws a frame per display refresh. Uncapped draws as fast as it can; with tearing it does not wait for the display at all."/>
+                </Panel>
                 <Label class="form-label" text="Scene views"/>
                 <Panel class="form-field">
                     <CheckBox id="pref-auto-ortho" text="Axis views are orthographic"/>

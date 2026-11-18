@@ -318,6 +318,7 @@ export namespace foundation::rhi::null
         u32 m_count = 2;
         u32 m_imgIdx = 0;
         ContentRotation m_rotation = ContentRotation::None; // the device's displayTurn, when asked to pre-rotate
+        PresentMode m_presentMode = PresentMode::Fifo; // as it was asked for, for a test to read
 
         TextureFormat Format() const override { return m_format; }
         u32 Width() const override { return m_width; }
@@ -413,6 +414,10 @@ export namespace foundation::rhi::null
         // natural orientation (a test sets it): a swapchain asked to pre-rotate takes it, its
         // images the window's size turned; one not asked is drawn as the window stands.
         ContentRotation displayTurn = ContentRotation::None;
+        // A present mode the device refuses a swapchain in, as a surface without it (or a driver
+        // without tearing) would. A test sets it; off, every mode is taken.
+        bool refusePresentMode = false;
+        PresentMode refusedPresentMode = PresentMode::Immediate;
 
         explicit NullDevice(IAllocator& allocator) : m_allocator(allocator)
         {
@@ -554,8 +559,11 @@ export namespace foundation::rhi::null
         }
         Status CreateSwapChain(Surface*, const SwapChainDesc& d, SwapChain*& out) override
         {
+            if (refusePresentMode && d.presentMode == refusedPresentMode)
+                return ErrorCode::NotSupported;
             auto* sc = m_allocator.New<NullSwapChain>();
             sc->m_format = d.format;
+            sc->m_presentMode = d.presentMode;
             // Nothing to refuse: a twin request is honoured, as a capable device would.
             sc->m_alternate = d.alternateViewFormat == SrgbTwin(d.format) ? d.alternateViewFormat
                                                                           : TextureFormat::Undefined;

@@ -278,6 +278,14 @@ export namespace foundation::graphics
         void Suspend();
         [[nodiscard]] bool IsSuspended() const noexcept { return m_swapChain == nullptr; }
 
+        // The present mode its swapchain is made in (vsync, or uncapped with or without tearing).
+        [[nodiscard]] rhi::PresentMode PresentMode() const noexcept { return m_desc.presentMode; }
+        // Makes the swapchain again in `mode`, at once, so a preference applies without a restart.
+        // False when the device would not make one in it (a surface without the mode, a driver
+        // without tearing): the window goes on in the mode it had. A suspended or zero-sized window
+        // takes the mode when its swapchain is next made.
+        bool SetPresentMode(rhi::PresentMode mode);
+
         // Poll the window size; recreate the swapchain if it changed. Returns true
         // when a resize happened.
         bool SyncSize();
@@ -592,6 +600,41 @@ export namespace foundation::graphics
             dev->DestroySurface(m_surface);
             m_surface = nullptr;
         }
+    }
+
+    inline bool RenderWindow::SetPresentMode(rhi::PresentMode mode)
+    {
+        if (mode == m_desc.presentMode)
+        {
+            return true;
+        }
+        const rhi::PresentMode previous = m_desc.presentMode;
+        m_desc.presentMode = mode;
+        // Suspended, or a window with no pixels (minimized) that no swapchain can be made for:
+        // BeginFrame makes it in the new mode when it can.
+        if (m_swapChain == nullptr || m_window->PixelWidth() == 0 || m_window->PixelHeight() == 0)
+        {
+            Suspend();
+            return true;
+        }
+        Suspend(); // waits for the GPU, then lets the old chain and its surface go
+        if (m_device->MakePresentation(*m_window, m_desc, m_surface, m_swapChain))
+        {
+            m_width = m_window->PixelWidth();
+            m_height = m_window->PixelHeight();
+            m_rebuild = false;
+            return true;
+        }
+        // Refused: made again in the mode it had. Should that fail too, the window is left
+        // suspended and BeginFrame tries again each frame, as after the app returns to view.
+        m_desc.presentMode = previous;
+        if (m_device->MakePresentation(*m_window, m_desc, m_surface, m_swapChain))
+        {
+            m_width = m_window->PixelWidth();
+            m_height = m_window->PixelHeight();
+            m_rebuild = false;
+        }
+        return false;
     }
 
     inline bool RenderWindow::SyncSize()

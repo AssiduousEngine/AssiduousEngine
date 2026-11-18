@@ -4,14 +4,18 @@
 // Editor::App: EditorWindow's look. A look builds its sheet from the editor's files: the density's
 // sheet after the editor's so its sizes win, the user's accent as an input after both, and the
 // user's theme overrides last, applied again as they change. Also covers a notice's toast, which
-// stays up with its button when it has an action.
+// stays up with its button when it has an action, and the present mode the windows are made in and
+// changed to.
 #include <doctest/doctest.h>
 #include "Core/Prelude.h"
 
 import foundation.core;
 import foundation.gui;
 import foundation.graphics;
+import foundation.graphics.null;
 import foundation.rhi;
+import foundation.shell;
+import foundation.shell.null;
 import editor.core;
 import editor.app;
 
@@ -163,12 +167,62 @@ TEST_CASE("editor window: a notice's toast times out; one with an action (Open F
     CHECK(exported.Actions[0].Text == String(u8"Open Folder"));
 }
 
-TEST_CASE("editor window: its windows present with vsync and two images, as a game does")
+TEST_CASE("editor window: its windows present with vsync and two images until Preferences says otherwise")
 {
     const foundation::graphics::RenderWindowDesc desc = editor::app::EditorRenderWindowDesc();
     CHECK(desc.bufferCount == 2u);
     CHECK(desc.presentMode == foundation::rhi::PresentMode::Fifo);
     CHECK(desc.bufferCount == foundation::graphics::RenderWindowDesc{}.bufferCount);
+    // A floating panel's window is made in the mode the look has.
+    CHECK(editor::app::EditorRenderWindowDesc(foundation::rhi::PresentMode::Immediate).presentMode == foundation::rhi::PresentMode::Immediate);
+}
+
+TEST_CASE("editor window: the present mode from the user's settings by name, vsync for none or a wrong one, and back")
+{
+    using foundation::rhi::PresentMode;
+    CHECK(editor::app::LookFrom(nullptr).presentMode == PresentMode::Fifo);
+    editor::EditorUiSettings ui;
+    CHECK(ui.presentMode == String(u8"vsync")); // the default a settings file without the field reads as
+    CHECK(editor::app::LookFrom(&ui).presentMode == PresentMode::Fifo);
+    ui.presentMode = String(u8"mailbox");
+    CHECK(editor::app::LookFrom(&ui).presentMode == PresentMode::Mailbox);
+    ui.presentMode = String(u8"immediate");
+    CHECK(editor::app::LookFrom(&ui).presentMode == PresentMode::Immediate);
+    ui.presentMode = String(u8"turbo"); // no such mode
+    CHECK(editor::app::LookFrom(&ui).presentMode == PresentMode::Fifo);
+
+    editor::app::EditorLook look;
+    look.presentMode = PresentMode::Mailbox;
+    editor::app::StoreLook(ui, look);
+    CHECK(ui.presentMode == String(u8"mailbox"));
+    look.presentMode = PresentMode::FifoRelaxed; // not offered: kept as vsync
+    editor::app::StoreLook(ui, look);
+    CHECK(ui.presentMode == String(u8"vsync"));
+}
+
+TEST_CASE("editor window: a present mode applies to every window at once, without a restart")
+{
+    using foundation::rhi::PresentMode;
+    foundation::shell::NullShell shell;
+    auto created = foundation::graphics::CreateNullGraphicsDevice(2);
+    REQUIRE(created.HasValue());
+    foundation::graphics::GraphicsDevice& device = *created.Value();
+    auto second = shell.WindowManager()->CreateWindow(foundation::shell::WindowSettings{});
+    REQUIRE(second.HasValue());
+    auto main = device.CreateRenderWindow(*shell.MainWindow(), editor::app::EditorRenderWindowDesc());
+    auto panel = device.CreateRenderWindow(*second.Value(), editor::app::EditorRenderWindowDesc());
+    REQUIRE(main.HasValue());
+    REQUIRE(panel.HasValue());
+    foundation::graphics::RenderWindow* windows[] = {main.Value().Get(), panel.Value().Get(), nullptr};
+
+    CHECK(editor::app::PresentWindowsIn(Span<foundation::graphics::RenderWindow* const>(windows, 3), PresentMode::Immediate) == 0u);
+    CHECK(main.Value()->PresentMode() == PresentMode::Immediate);
+    CHECK(panel.Value()->PresentMode() == PresentMode::Immediate);
+    CHECK(main.Value()->Swap() != nullptr); // made again at once, not left for a restart
+
+    CHECK(editor::app::PresentWindowsIn(Span<foundation::graphics::RenderWindow* const>(windows, 3), PresentMode::Fifo) == 0u);
+    CHECK(main.Value()->PresentMode() == PresentMode::Fifo);
+    CHECK(panel.Value()->PresentMode() == PresentMode::Fifo);
 }
 
 TEST_CASE("editor window: the code editor's keys are bound, so Return breaks a line in a script page")

@@ -715,6 +715,13 @@ export namespace foundation::gui
             return Rectangle{};
         }
         [[nodiscard]] usize WindowCount() const noexcept { return m_attached.Size(); }
+        /// Calls `visit` with each window the host draws in, in the order they were attached (the
+        /// main window first, then each floating panel's own).
+        void ForEachWindow(const Function<void(graphics::RenderWindow&)>& visit) const
+        {
+            for (const Attached& attached : m_attached)
+                visit(*attached.Window);
+        }
 
         /// Styles `root` through `styles` (null: the host's) and lays it out, as Update does for each
         /// pane. This is for a root drawn elsewhere (offscreen).
