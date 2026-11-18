@@ -49,6 +49,9 @@ export namespace editor::mcp
         /// The plugins this host's binary links: what plugin_list offers as available beside the
         /// project's own packages.
         Span<const foundation::runtime::LinkedPlugin> linkedPlugins;
+        /// What finds references in a log line's text, for log_read: the editor's, with what its
+        /// plugins and languages add. Null: log_read finds the project's files and assets itself.
+        const editor::LogReferenceRecognizers* logRecognizers = nullptr;
     };
 
     // The stdio host's project ownership: project_open stores what it opened here and points

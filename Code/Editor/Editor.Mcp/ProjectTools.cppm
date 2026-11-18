@@ -886,7 +886,7 @@ export namespace editor::mcp
         RegisterAssetDeleteTool(server, session, builders, operations);
         RegisterAssetRenameTool(server, session, operations);
         RegisterProjectHealthTool(server, session, builders);
-        RegisterLogTools(server, logBuffer, paths.knownIssues);
+        RegisterLogTools(server, logBuffer, paths.knownIssues, &session);
         RegisterSceneTools(server, session);
         // The scene format reference, generated from this host's own registrations (the engine
         // composition's managers, settings systems and factory descriptions, the project's plugins'

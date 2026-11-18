@@ -136,6 +136,7 @@ export namespace editor::app
             m_session.project = project;
             m_session.plugins = m_services.context->Plugins(); // the project's plugins, loaded with it
             m_session.exportHooks = m_services.context->ExportHooks(); // what project_export runs after staging
+            m_session.logRecognizers = &m_services.context->LogRecognizers();
             m_session.linkedPlugins = m_services.linkedPlugins;
 
             EditorProjectOperationsSeams operations;
@@ -311,6 +312,7 @@ export namespace editor::app
             m_session.project = nullptr;
             m_session.plugins = nullptr;
             m_session.exportHooks = nullptr;
+            m_session.logRecognizers = nullptr;
         }
 
         /// Called each frame: answers the calls that arrived, on the main thread.

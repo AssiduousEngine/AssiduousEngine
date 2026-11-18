@@ -552,7 +552,9 @@ preset. A project with its own native packages does not export to Android yet.
 - `asset_uses` reports DIRECT users only; re-run on a user to walk the chain. An empty
   result plus empty `projectSettingsUses` is the "safe to touch" signal.
 - `log_read` is incremental - always pass the previous `lastSequence`; a non-zero
-  `dropped` means the ring overflowed and old lines are gone.
+  `dropped` means the ring overflowed and old lines are gone. An entry that names a project
+  file or asset carries `references` (`source`: file, line, column; `asset`: guid): read the
+  file at that line rather than searching for it.
 - `asset_cook` and `project_export` are long-running calls (a full cook may run inside
   them); do not assume a hang before minutes have passed.
 - `profiler_capture` keeps the call open for the capture plus a few frames for the GPU's

@@ -177,3 +177,46 @@ TEST_CASE("integration.mcp: log tools - markers, incremental reads, filters, kno
     GlobalLogger().RemoveSink(&buffer);
     (void)FileDelete(StringView(reinterpret_cast<const utf8char*>(issuesPath)));
 }
+
+TEST_CASE("integration.mcp: log_read gives each line's references: attached, and the project's files and assets found")
+{
+    (void)RemoveDirectoryRecursive(u8"mcp_log_references");
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), u8"mcp_log_references", u8"Refs").IsOk());
+    UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), u8"mcp_log_references");
+    REQUIRE(project);
+    editor::mcp::ProjectSession session;
+    session.project = project.Get();
+
+    editor::EditorLogBuffer buffer(DefaultAllocator());
+    GlobalLogger().AddSink(&buffer);
+    McpServer server;
+    editor::mcp::RegisterLogTools(server, buffer, String(), &session);
+
+    const String file = PathJoin(PathAbsolute(project->Directory()).AsView(), u8"Code/Player.luau");
+    LOG_WARNING(u8"Script", u8"{}:12:3: unknown global 'speed'", file);
+    Guid id;
+    REQUIRE(Guid::TryParse(u8"0e9b3a52-1c1f-4c2e-9d3b-5a7f1e2d3c4b", id));
+    LOG_WARNING_AT(u8"Cook", AssetReference(id), u8"Crate did not cook");
+    LOG_INFO(u8"Scene", u8"nothing to follow");
+    GlobalLogger().RemoveSink(&buffer);
+
+    const JsonValue read = LogCallOk(server, u8"log_read", LogObj());
+    const JsonValue& entries = read.Get(u8"entries");
+    REQUIRE(entries.Count() == 3);
+    const JsonValue& source = entries.At(0).Get(u8"references");
+    REQUIRE(source.Count() == 1);
+    CHECK(String(source.At(0).Get(u8"kind").AsString()) == StringView(u8"source"));
+    CHECK(String(source.At(0).Get(u8"fields").At(0).AsString()) == file);
+    CHECK(String(source.At(0).Get(u8"fields").At(1).AsString()) == StringView(u8"12"));
+    CHECK(String(source.At(0).Get(u8"fields").At(2).AsString()) == StringView(u8"3"));
+    CHECK(source.At(0).Get(u8"start").AsNumber() == 0.0);
+    CHECK(source.At(0).Get(u8"length").AsNumber() == static_cast<f64>(file.Size() + 5));
+    const JsonValue& asset = entries.At(1).Get(u8"references");
+    REQUIRE(asset.Count() == 1);
+    CHECK(String(asset.At(0).Get(u8"kind").AsString()) == StringView(u8"asset"));
+    CHECK(asset.At(0).Get(u8"length").AsNumber() == 0.0);
+    CHECK_FALSE(entries.At(2).Has(u8"references"));
+
+    project.Reset();
+    (void)RemoveDirectoryRecursive(u8"mcp_log_references");
+}

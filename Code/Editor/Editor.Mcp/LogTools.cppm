@@ -71,9 +71,12 @@ export namespace editor::mcp
     // Registers log_read, log_write and known_issues. `logBuffer` is the host's sink (registered
     // on the global logger before anything else logs; it must outlive the server).
     // `knownIssuesPath` is the resolved absolute path of KnownIssues.md ("" when not found; the
-    // tool then fails with guidance instead of being absent, so agents learn why).
+    // tool then fails with guidance instead of being absent, so agents learn why). `session` gives
+    // log_read the project whose files and assets a line's references name (null: only those the
+    // log calls attached).
     inline void RegisterLogTools(foundation::mcp::McpServer& server,
-                                 editor::EditorLogBuffer& logBuffer, String knownIssuesPath)
+                                 editor::EditorLogBuffer& logBuffer, String knownIssuesPath,
+                                 const ProjectSession* session = nullptr)
     {
         using foundation::mcp::SchemaBuilder;
         using foundation::mcp::ToolResult;
@@ -85,7 +88,10 @@ export namespace editor::mcp
             u8"output, agent markers). Poll incrementally: pass the lastSequence from the "
             u8"previous call as sinceSequence to get only what is new. Returns the newest "
             u8"`limit` matching entries; `dropped` > 0 means the ring overflowed and old "
-            u8"entries were lost.",
+            u8"entries were lost. An entry that names a file of the project (with its line and "
+            u8"column), an asset, or another place has `references`: each a kind (source: file, "
+            u8"line, column; asset: guid), its fields, and the part of the message it stands for "
+            u8"(start and length in bytes; length 0: the whole line).",
             SchemaBuilder()
                 .Number(u8"sinceSequence",
                         u8"only entries with sequence > this (default 0 = everything buffered)")
@@ -95,8 +101,18 @@ export namespace editor::mcp
                 .Str(u8"category", u8"only entries with exactly this category (e.g. Cook, Scene)")
                 .Build(),
                 foundation::mcp::ToolAnnotations::ReadOnly(),
-            [buffer](const JsonValue& args) -> ToolResult
+            [buffer, session](const JsonValue& args) -> ToolResult
             {
+                // The recognizers: the host's, else the project's files and assets.
+                editor::LogReferenceRecognizers own;
+                const editor::LogReferenceRecognizers* recognizers = session != nullptr ? session->logRecognizers : nullptr;
+                if (recognizers == nullptr && session != nullptr && session->project != nullptr)
+                {
+                    editor::EditorProject* project = session->project;
+                    (void)own.Add(editor::SourcePathRecognizer(PathAbsolute(project->Directory()).AsView()));
+                    (void)own.Add(editor::AssetIdRecognizer([project](const Guid& id) { return project->SourceDb().GetInstance(id) != nullptr; }));
+                    recognizers = &own;
+                }
                 const u64 since = static_cast<u64>(args.Get(u8"sinceSequence").AsNumber());
                 const f64 limitRaw = args.Get(u8"limit").AsNumber();
                 const usize limit = limitRaw > 0.0 ? static_cast<usize>(limitRaw) : usize(200);
@@ -133,6 +149,25 @@ export namespace editor::mcp
                           JsonValue::MakeString(String(StringView(LogLevelName(entry.level)))));
                     e.Set(u8"category", JsonValue::MakeString(entry.category));
                     e.Set(u8"message", JsonValue::MakeString(entry.message));
+                    const Array<LogReference> references =
+                        recognizers != nullptr ? recognizers->Of(entry.message.AsView(), entry.references.AsSpan()) : entry.references;
+                    if (!references.IsEmpty())
+                    {
+                        JsonValue list = JsonValue::MakeArray();
+                        for (const LogReference& reference : references)
+                        {
+                            JsonValue r = JsonValue::MakeObject();
+                            r.Set(u8"kind", JsonValue::MakeString(reference.kind));
+                            JsonValue fields = JsonValue::MakeArray();
+                            for (const String& field : reference.fields)
+                                fields.Add(JsonValue::MakeString(field));
+                            r.Set(u8"fields", Move(fields));
+                            r.Set(u8"start", JsonValue::MakeNumber(static_cast<f64>(reference.start)));
+                            r.Set(u8"length", JsonValue::MakeNumber(static_cast<f64>(reference.length)));
+                            list.Add(Move(r));
+                        }
+                        e.Set(u8"references", Move(list));
+                    }
                     entries.Add(Move(e));
                 }
                 JsonValue out = JsonValue::MakeObject();
