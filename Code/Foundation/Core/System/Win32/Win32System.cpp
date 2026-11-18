@@ -341,13 +341,14 @@ namespace foundation::core::sys
         if (script)
         {
             // cmd /s /c "<line>" takes everything between the outer quotes as the command, as is.
+            static constexpr char kCmd[] = "\\cmd.exe";
             char shell[MAX_PATH];
             const UINT shellLength = ::GetSystemDirectoryA(shell, sizeof(shell));
-            if (shellLength == 0 || shellLength + 9 > sizeof(shell))
+            if (shellLength == 0 || shellLength + sizeof(kCmd) > sizeof(shell))
             {
                 return false;
             }
-            std::strcat(shell, "\\cmd.exe");
+            std::memcpy(shell + shellLength, kCmd, sizeof(kCmd)); // the name and its terminator
             line.AppendArgument(shell);
             line.PutText(" /d /s /c \"");
         }
