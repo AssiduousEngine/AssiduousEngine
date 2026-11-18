@@ -136,3 +136,24 @@ public class Pacer
         }
     }
 }
+
+// Text arguments on both paths: one that surely fits the call's stack storage (85 three-byte
+// characters, its 255 bytes the most it holds) and one past it, in native memory; each read back.
+public class Namer
+{
+    readonly Entity m_entity;
+
+    public Namer(Entity entity) { m_entity = entity; }
+
+    bool Kept(string name)
+    {
+        m_entity.setName(name);
+        return m_entity.name() == name;
+    }
+
+    public void onUpdate(float dt)
+    {
+        bool kept = Kept(new string('\u20ac', 85)) && Kept(new string('\u00e9', 100) + "end") && Kept("");
+        m_entity.setName(kept ? "kept \u00e9" : "lost");
+    }
+}

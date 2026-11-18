@@ -134,7 +134,7 @@ error, more in the per-call measures than in the scene ones.
 | Engine call (`Entity.isValid`) | 3.1 to 3.4 ns | 205 to 215 ns | 150 to 160 ns | 53 to 55 ns | 54 to 55 ns |
 | Pure function (`Math.Abs`) | 3.5 to 3.7 ns | 200 to 210 ns | 150 to 155 ns | 1.4 ns, in C# | about 0.1 ns, in C# |
 | Value method (`Float3.Cross`) | 3.6 to 3.7 ns | 635 to 695 ns | 515 to 545 ns | about 12 ns, in C# | under 0.1 ns, in C# |
-| String argument (`setName`, 16 characters) | 4.7 to 5.1 ns | 215 to 225 ns | 245 to 255 ns | 100 to 110 ns | 100 to 110 ns |
+| String argument (`setName`, 16 characters) | 4.7 to 5.1 ns | 215 to 225 ns | 245 to 255 ns | 80 to 82 ns | 80 to 82 ns |
 | Handler call (engine into script) | | 260 to 265 ns | 180 to 195 ns | 63 to 64 ns | 58 to 63 ns |
 | Value math, one iteration | | 1.5 to 1.6 µs | 0.75 to 0.80 µs | 40 to 42 ns | 1.0 to 1.1 ns |
 
@@ -152,9 +152,10 @@ error, more in the per-call measures than in the scene ones.
 - Pure value functions no longer cross at all, so C#'s value math runs at native speed from a
   Release assembly.
 - 5,000 movers take 11% of a 60 Hz frame in C#; AngelScript and Luau still take 28 to 36%.
-- A C# string argument costs 45 to 55 ns more than a call without one: per call it counts and
-  encodes the UTF-8, allocates native memory for it and frees it (TextArg), and the engine copies
-  it into a String.
+- A C# string argument costs about 25 ns more than a call without one: the call encodes its
+  UTF-8 into stack storage and the engine copies it into a String. Before the stack storage it
+  cost 45 to 55 ns more (100 to 110 ns a call), counting the UTF-8 first and allocating and freeing
+  native memory for it each call; a string over 85 characters still does.
 - That a component fetch no longer allocates a C# object follows from its being a struct; .NET's
   heap is not counted here, so it is not measured.
 
