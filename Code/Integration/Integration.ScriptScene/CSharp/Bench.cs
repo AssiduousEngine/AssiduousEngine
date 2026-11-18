@@ -15,9 +15,8 @@ public class Bench
 
     public void tick(double dt) { m_total += dt; }
 
-    // The others' math, as C# writes it today: the bindings give Float3 no operators and Color no
-    // constructor, so the sum, the scaling and the Color are written field by field; Float3.Dot
-    // crosses into the engine.
+    // The others' math: Float3's operators and Dot are C#'s own (pure functions the bindings
+    // compute in C#); Color has no constructor in the bindings, so it is written by its fields.
     public double math(int n)
     {
         Float3 a = new Float3 { x = 1, y = 2, z = 3 };
@@ -25,7 +24,7 @@ public class Bench
         double sum = 0;
         for (int i = 0; i < n; i++)
         {
-            Float3 d = new Float3 { x = a.x + b.x * 2, y = a.y + b.y * 2, z = a.z + b.z * 2 };
+            Float3 d = a + b * 2;
             Color c = new Color { r = d.x, g = d.y, b = d.z, a = 1 };
             sum += Float3.Dot(d, a) + c.r;
         }

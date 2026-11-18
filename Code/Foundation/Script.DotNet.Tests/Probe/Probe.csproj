@@ -12,5 +12,6 @@
   <ItemGroup>
     <Compile Include="$(EngineBindings)" Condition="'$(EngineBindings)' != ''" />
     <Compile Include="$(EngineBridge)" Condition="'$(EngineBridge)' != ''" />
+    <Compile Include="$(EngineValueMath)" Condition="'$(EngineValueMath)' != ''" />
   </ItemGroup>
 </Project>

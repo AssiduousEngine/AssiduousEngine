@@ -24,6 +24,6 @@ add_custom_command(
     # The bindings beside the runtime: a web build (which cannot run this tool) is given them.
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${DOTNET_RUNTIME_BINDINGS} ${DOTNET_RUNTIME_OUT}/Engine.g.cs
     DEPENDS ${DOTNET_RUNTIME_SOURCE}/Engine.Runtime.csproj ${DOTNET_RUNTIME_SOURCE}/Bridge.cs ${DOTNET_RUNTIME_SOURCE}/Runtime.cs
-            ${DOTNET_RUNTIME_BINDINGS}
+            ${DOTNET_RUNTIME_SOURCE}/ValueMath.cs ${DOTNET_RUNTIME_BINDINGS}
     COMMENT "Building the engine's managed runtime")
 add_custom_target(DotNet.Runtime ALL DEPENDS ${DOTNET_RUNTIME_OUT}/Engine.Runtime.dll)

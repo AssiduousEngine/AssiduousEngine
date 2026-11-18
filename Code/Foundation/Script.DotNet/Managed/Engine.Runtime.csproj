@@ -17,6 +17,7 @@
   <ItemGroup>
     <Compile Include="Bridge.cs" />
     <Compile Include="Runtime.cs" />
+    <Compile Include="ValueMath.cs" />
     <Compile Include="$(EngineBindings)" />
   </ItemGroup>
 </Project>
