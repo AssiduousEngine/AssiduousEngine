@@ -150,7 +150,7 @@
 | E3 | (built 2026-11-18) Code Editor preference, `LaunchDetached`, `OpenCode`, menu and context items | Core test for the launcher (a script that records its arguments); editor test for the placeholder expansion |
 | E4 | (built 2026-11-18) Tooling files kept in `Code/` | Editor tests: written on open, rewritten after an API change, a user-changed file left alone |
 | E5 | (built 2026-11-18; the entity handler waits for the first line that names an entity) References, recognizers, handlers, console links, `log_read` | Core and editor tests per piece; the user clicks through |
-| E6 | (Luau and AngelScript built 2026-11-18; C# on the dotnet branch) C# stack frames and build errors, Luau and AngelScript errors as references | Script suites per language |
+| E6 | (built 2026-11-18; C# on the dotnet branch) C# stack frames and build errors, Luau and AngelScript errors as references | Script suites per language |
 
 The C# speed work (measure first, backlog-0.2) runs as its own spec after E3, beside E4 to E6 if
 the user wants it sooner.

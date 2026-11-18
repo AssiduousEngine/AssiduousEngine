@@ -137,7 +137,7 @@ namespace pipeline
         {
             constexpr utf8char kDigits[] = u8"0123456789abcdef";
             const u64 hash = HashBytes(projectPath.Data(), projectPath.Size());
-            String name(u8"csharp-build-");
+            String name(foundation::script::dotnet::kCSharpBuildFolderPrefix); // a stack frame's file is read back by it
             for (i32 shift = 60; shift >= 0; shift -= 4)
                 name.PushBack(kDigits[(hash >> shift) & 0xFu]);
             return PathJoin(GetTempDirectory().AsView(), name.AsView());
@@ -519,14 +519,28 @@ namespace pipeline
                     column = c.HasValue() ? static_cast<i32>(c.Value()) : -1;
                 }
             }
-            if (file.Size() > root.Size() && file.SubStr(0, root.Size()) == root)
-                file = file.SubStr(root.Size() + 1, file.Size() - root.Size() - 1);
+            // The file under the build's root is the project's source path; Windows writes it with
+            // backslashes, so both are read with forward ones.
+            const auto forward = [](StringView path)
+            {
+                String out(path);
+                for (usize i = 0; i < out.Size(); ++i)
+                    if (out[i] == u8'\\')
+                        out[i] = u8'/';
+                return out;
+            };
+            const String shownFile = forward(file);
+            const String buildRoot = forward(root);
+            StringView module = shownFile.AsView();
+            if (module.Size() > buildRoot.Size() && module.SubStr(0, buildRoot.Size()) == buildRoot.AsView() &&
+                module[buildRoot.Size()] == u8'/')
+                module = module.SubStr(buildRoot.Size() + 1, module.Size() - buildRoot.Size() - 1);
             // The message: past "error CODE: ", without MSBuild's trailing "[project]".
             const usize textAt = marker + (kind == ScriptErrorKind::Warning ? 11u : 9u);
             StringView message = line.SubStr(textAt, line.Size() - textAt);
             if (const usize bracket = message.FindLast(u8'['); bracket != StringView::kNotFound && bracket > 0)
                 message = message.SubStr(0, bracket - 1);
-            sink.OnError(ScriptError{kind, file, row, column, message});
+            sink.OnError(ScriptError{kind, module, row, column, message});
         }
     }
 

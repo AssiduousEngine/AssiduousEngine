@@ -105,3 +105,24 @@ TEST_CASE("dotnet backend: a behaviour runs through the script interfaces")
     instance = nullptr;
     context->SetErrorHandler(nullptr);
 }
+
+TEST_CASE("dotnet backend: a C# stack's frames name the project's source paths, not the build's copies")
+{
+    const StringView trace =
+        u8"NullReferenceException: Object reference not set to an instance of an object.\n"
+        u8"   at Holdout.Weapon.Fire() in /tmp/csharp-build-0123456789abcdef/src/Code/Scripts/Weapon.cs:line 42\n"
+        u8"   at Holdout.Player.Update(Double dt) in C:\\Temp\\csharp-build-0123456789abcdef\\src\\Code\\Player.cs:line 7\r\n"
+        u8"   at Engine.Runtime.Call(UInt64 id)\n"
+        u8"   at Tools.Helper() in /home/me/Helper.cs:line 3\n";
+    const Array<ScriptStackFrame> frames = dotnet::ParseCSharpStack(trace);
+    REQUIRE(frames.Size() == 4u);
+    CHECK(frames[0].function == StringView(u8"Holdout.Weapon.Fire()"));
+    CHECK(frames[0].file == StringView(u8"Code/Scripts/Weapon.cs"));
+    CHECK(frames[0].line == 42);
+    CHECK(frames[1].file == StringView(u8"Code/Player.cs"));
+    CHECK(frames[1].line == 7);
+    CHECK(frames[2].function == StringView(u8"Engine.Runtime.Call(UInt64 id)"));
+    CHECK(frames[2].file.IsEmpty());
+    CHECK(frames[3].file == StringView(u8"/home/me/Helper.cs")); // not a build's copy: as written
+    CHECK(dotnet::ParseCSharpStack(u8"InvalidOperationException: no frames").IsEmpty());
+}

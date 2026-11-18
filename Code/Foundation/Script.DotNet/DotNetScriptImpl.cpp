@@ -18,25 +18,6 @@ namespace foundation::script::dotnet
 {
     namespace
     {
-        // Where a C# exception's stack names a source line: the first " in <file>:line <n>".
-        void FindSourceLine(StringView trace, String& file, i32& line)
-        {
-            const StringView marker = u8":line ";
-            const usize at = trace.Find(marker);
-            if (at == StringView::kNotFound)
-                return;
-            usize start = at;
-            while (start > 0 && !(start >= 4 && trace.SubStr(start - 4, 4) == StringView(u8" in ")))
-                --start;
-            if (start == 0)
-                return;
-            file = String(PathFilename(trace.SubStr(start, at - start)));
-            i32 value = 0;
-            for (usize i = at + marker.Size(); i < trace.Size() && trace[i] >= u8'0' && trace[i] <= u8'9'; ++i)
-                value = value * 10 + (trace[i] - u8'0');
-            line = value > 0 ? value : -1;
-        }
-
         class DotNetScriptContext;
 
         class DotNetScriptObject final : public BehaviorObject
@@ -164,13 +145,25 @@ namespace foundation::script::dotnet
                     MakeRef<DotNetScriptObject>(MemoryAllocator(), RefPtr<DotNetScriptContext>(this), *m_runtime, made.Value()).Get());
             }
 
-            /// A failed call's reason, as a runtime error at the C# line that threw when its stack names one.
+            /// A failed call's reason, as a runtime error at the C# line that threw, with the stack
+            /// below it, when its stack names one.
             void ReportFailure(StringView where)
             {
-                String file;
+                const StringView failure = m_runtime->Failure();
+                const Array<ScriptStackFrame> stack = ParseCSharpStack(failure);
+                StringView file = where;
                 i32 line = -1;
-                FindSourceLine(m_runtime->Failure(), file, line);
-                Report(ScriptErrorKind::Runtime, file.IsEmpty() ? where : file.AsView(), line, m_runtime->Failure());
+                for (const ScriptStackFrame& frame : stack)
+                    if (!frame.file.IsEmpty())
+                    {
+                        file = frame.file.AsView();
+                        line = frame.line;
+                        break;
+                    }
+                // The message is the exception's first line; its stack goes as the frames.
+                const usize newline = failure.Find(u8'\n');
+                const StringView message = stack.IsEmpty() || newline == StringView::kNotFound ? failure : failure.SubStr(0, newline);
+                Report(ScriptErrorKind::Runtime, file, line, message, stack.AsSpan());
             }
 
         private:
@@ -180,12 +173,12 @@ namespace foundation::script::dotnet
                 Variant value;
             };
 
-            void Report(ScriptErrorKind kind, StringView module, i32 line, StringView message)
+            void Report(ScriptErrorKind kind, StringView module, i32 line, StringView message, Span<const ScriptStackFrame> stack = {})
             {
                 if (m_errors != nullptr)
-                    m_errors->OnError(ScriptError{kind, module, line, -1, message});
+                    m_errors->OnError(ScriptError{kind, module, line, -1, message, stack});
                 else
-                    LOG_ERROR(u8"Script", u8"{}: {}", module, message);
+                    LogScriptFault(module, line, message, stack);
             }
 
             DotNetRuntime* m_runtime;
@@ -329,12 +322,57 @@ namespace foundation::script::dotnet
         return RefPtr<IScriptManager>(MakeRef<DotNetScriptManager>(allocator, runtime).Get());
     }
 
+    Array<ScriptStackFrame> ParseCSharpStack(StringView trace)
+    {
+        Array<ScriptStackFrame> frames;
+        usize lineStart = 0;
+        while (lineStart < trace.Size())
+        {
+            usize lineEnd = trace.Find(u8'\n', lineStart);
+            if (lineEnd == StringView::kNotFound)
+                lineEnd = trace.Size();
+            StringView line = trace.SubStr(lineStart, lineEnd - lineStart);
+            lineStart = lineEnd + 1;
+            while (!line.IsEmpty() && (line[0] == u8' ' || line[0] == u8'\t'))
+                line = line.SubStr(1, line.Size() - 1);
+            while (!line.IsEmpty() && line[line.Size() - 1] == u8'\r')
+                line = line.SubStr(0, line.Size() - 1);
+            if (!line.StartsWith(u8"at "))
+                continue;
+            ScriptStackFrame frame;
+            const StringView in = u8" in ";
+            const StringView lineMarker = u8":line ";
+            const usize inAt = line.Find(in);
+            const usize lineAt = inAt == StringView::kNotFound ? StringView::kNotFound : line.Find(lineMarker, inAt);
+            frame.function = String(line.SubStr(3, (inAt == StringView::kNotFound ? line.Size() : inAt) - 3));
+            if (lineAt != StringView::kNotFound)
+            {
+                String file(line.SubStr(inAt + in.Size(), lineAt - inAt - in.Size()));
+                for (usize i = 0; i < file.Size(); ++i)
+                    if (file[i] == u8'\\')
+                        file[i] = u8'/';
+                // The build's copy: <temp>/csharp-build-<hash>/src/<source path>.
+                const usize build = file.AsView().Find(kCSharpBuildFolderPrefix);
+                const usize src = build == StringView::kNotFound ? StringView::kNotFound : file.AsView().Find(StringView(u8"/src/"), build);
+                frame.file = src == StringView::kNotFound ? Move(file) : String(file.AsView().SubStr(src + 5, file.Size() - src - 5));
+                i32 value = 0;
+                for (usize i = lineAt + lineMarker.Size(); i < line.Size() && line[i] >= u8'0' && line[i] <= u8'9'; ++i)
+                    value = value * 10 + (line[i] - u8'0');
+                frame.line = value > 0 ? value : -1;
+            }
+            frames.PushBack(Move(frame));
+        }
+        return frames;
+    }
+
     void RegisterDotNetScriptBackend()
     {
         ScriptBackendDesc desc;
         desc.languageId = String(kCSharpLanguage);
         desc.displayName = String(u8"C#");
         desc.fileExtensions.PushBack(String(u8"cs"));
+        // The C# extension reads the project file beside the scripts (Code/<name>.csproj).
+        desc.vscodeExtension = String(u8"ms-dotnettools.csharp");
         desc.create = [](IAllocator& allocator) { return CreateDotNetScriptManager(allocator); };
         ScriptBackendRegistry::Get().Register(Move(desc));
     }

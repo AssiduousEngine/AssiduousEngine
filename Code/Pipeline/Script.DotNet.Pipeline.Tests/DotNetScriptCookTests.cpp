@@ -66,6 +66,14 @@ TEST_CASE("csharp cook: a build's problems are read at their file, line and colu
     CHECK(sink.errors[0].message == u8"CS1002: ; expected");
     CHECK(sink.errors[1].kind == ScriptErrorKind::Warning);
     CHECK(sink.errors[1].module == u8"Game/Helpers.cs");
+
+    // Windows writes the path with backslashes; it is the same source path.
+    CookScriptErrorSink windows;
+    ReportBuildOutput(u8"C:\\Temp\\b\\src\\Code\\Player.cs(4,2): error CS1002: ; expected [C:\\Temp\\b\\src\\Code\\Game.csproj]\r\n",
+                      u8"C:/Temp/b/src", windows);
+    REQUIRE(windows.errors.Size() == 1u);
+    CHECK(windows.errors[0].module == u8"Code/Player.cs");
+    CHECK(windows.errors[0].line == 4);
 }
 
 TEST_CASE("csharp cook: the runtime's description reads into classes")
