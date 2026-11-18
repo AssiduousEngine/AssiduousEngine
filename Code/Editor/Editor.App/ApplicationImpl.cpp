@@ -531,6 +531,7 @@ namespace editor::app
         EditorCodeOpener::Services code;
         code.context = &m_context;
         code.openPage = [self](foundation::content::Instance& instance) -> editor::EditorPage* { return self->m_pages->Open(instance); };
+        code.openFile = [self](StringView file) -> editor::EditorPage* { return self->m_pages->OpenFile(file); };
         code.showFolder = [self](StringView folder)
         {
             if (foundation::shell::IDialogService* dialogs = self->ShellDialogs())

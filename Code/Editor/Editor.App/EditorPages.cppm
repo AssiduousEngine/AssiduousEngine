@@ -28,6 +28,7 @@ import foundation.gui;
 import foundation.gui.docking;
 import editor.core;
 import :ui_page;
+import :text_file_page;
 import :editor_dock;
 import :layout;
 import :asset_create_dialog; // AssetNames: the naming rule for a new asset
@@ -118,6 +119,24 @@ export namespace editor::app
             foundation::content::ContentDatabase* sources = Sources();
             foundation::content::Instance* instance = sources != nullptr ? sources->GetInstance(id) : nullptr;
             return instance != nullptr ? Open(*instance) : nullptr;
+        }
+
+        /// Opens (or brings forward) a page showing `file`, a file on disk that is no asset, as plain
+        /// text (a script project's file in the Code folder).
+        UIEditorPage* OpenFile(StringView file)
+        {
+            const String panel = Format(u8"file:{}", file);
+            for (const OpenPage& open : m_open)
+                if (open.panel == panel && !IsClosing(open.page))
+                {
+                    Reveal(open.page);
+                    return open.page;
+                }
+            UniquePtr<editor::EditorPage> made(m_allocator.New<TextFilePage>(m_allocator, file), m_allocator);
+            auto* page = static_cast<UIEditorPage*>(m_services.context->AdoptPage(Move(made)));
+            if (page != nullptr)
+                Dock(*page, panel);
+            return page;
         }
 
         /// Opens the Game tab (`newInstance`: another one beside it, with a game instance of its own).

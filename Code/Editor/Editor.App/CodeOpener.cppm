@@ -5,8 +5,9 @@
 //
 // EditorCodeOpener: where the editor opens code, by the user's Code Editor preference
 // (EditorCodeEditorSettings). An outside editor gets its command with the file, line, column and
-// the project's Code/ folder put in; the built-in editor opens the asset's page at the line. A
-// command that does not start falls back to the built-in page, saying so. The Code folder opens in
+// the project's Code/ folder put in; the built-in editor opens the asset's page at the line, and a
+// file in the Code folder that is no asset (a .csproj) as plain text. A command that does not
+// start falls back to the built-in editor, saying so. The Code folder opens in
 // the outside editor's folder command, or the system's file manager. Every way the user opens code
 // comes here (the Assets browser, a log line, the menu); an agent's page_open keeps its page.
 
@@ -35,6 +36,8 @@ export namespace editor::app
             editor::EditorContext* context = nullptr; // the project, the user's store, notices
             /// Opens (or brings forward) the page for an asset; null when it has none.
             Function<editor::EditorPage*(foundation::content::Instance&)> openPage;
+            /// Opens a page showing a file that is no asset as plain text; null when it cannot.
+            Function<editor::EditorPage*(StringView file)> openFile;
             /// Starts a program and leaves it running; LaunchDetached unless a test records it.
             Function<bool(StringView program, Span<const StringView> args)> launch;
             /// Shows a folder in the system's file manager.
@@ -119,12 +122,19 @@ export namespace editor::app
             return parts.IsEmpty() ? String(command) : parts[0];
         }
 
-        // The asset whose file `file` is opens its page at the line.
+        // The asset whose file `file` is opens its page at the line; another file in the Code
+        // folder opens as plain text.
         bool OpenBuiltIn(editor::EditorProject& project, StringView file, u32 line, u32 column)
         {
             const String name = SourceNameOf(project, file);
             foundation::content::Instance* instance = name.IsEmpty() ? nullptr : FindBySource(*project.SourceDb().RootGroup(), name.AsView());
-            editor::EditorPage* page = instance != nullptr && m_services.openPage ? m_services.openPage(*instance) : nullptr;
+            editor::EditorPage* page = nullptr;
+            StringView rest;
+            if (instance != nullptr && m_services.openPage)
+                page = m_services.openPage(*instance);
+            else if (instance == nullptr && m_services.openFile &&
+                     foundation::vfs::AfterFolder(name.AsView(), foundation::vfs::kSourcesCodeFolder, rest) && FileExists(file))
+                page = m_services.openFile(file);
             if (page == nullptr)
             {
                 Notify(editor::NoticeKind::Warning, Format(u8"No page here opens {}.", PathFilename(file)).AsView());

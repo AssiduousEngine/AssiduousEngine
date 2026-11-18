@@ -140,7 +140,7 @@
 | E0 | (built 2026-11-17) `Code/` reserved in source paths, one file system over both folders; importers say code or not; new scripts to `Code/`; layout-version migration | Pipeline tests: an old project's assets move and keep ids; Integration.Mcp: each sample reads and cooks after migrating |
 | E1 | Files in their group's folder; a group move moves files (built 2026-11-17: a file several groups share stays; a project file another includes by path is not followed) | Content tests: import into a group, move a group |
 | E2 | (built 2026-11-18) `Code/` watched; new code files imported in place | Editor.Project tests: a file written to `Code/` becomes an asset, a removed one goes missing |
-| E3 | (layer 1 built 2026-11-18: the preference, `LaunchDetached`, `OpenCode`, the menu and context items; the text page is next) Code Editor preference, `LaunchDetached`, `OpenCode`, menu and context items | Core test for the launcher (a script that records its arguments); editor test for the placeholder expansion |
+| E3 | (built 2026-11-18) Code Editor preference, `LaunchDetached`, `OpenCode`, menu and context items | Core test for the launcher (a script that records its arguments); editor test for the placeholder expansion |
 | E4 | Tooling files kept in `Code/` | Editor tests: written on open, rewritten after an API change, a user-changed file left alone |
 | E5 | References, recognizers, handlers, console links, `log_read` | Core and editor tests per piece; the user clicks through |
 | E6 | C# stack frames and build errors, Luau and AngelScript errors as references | Script suites per language |

@@ -12,7 +12,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Editor: Preferences, Code chooses where code opens: the built-in editor (the default), VS Code, or
   a command of your own with `{file}`, `{line}`, `{column}` and `{folder}`. Opening a script from the
   Assets panel follows it; its menu's Open in Built-in Editor always opens the editor's own page.
-  Project > Open Code Folder opens the project's `Code/` folder there, or in the file manager.
+  Project > Open Code Folder opens the project's `Code/` folder there, or in the file manager. The
+  built-in editor opens `Code/`'s other files, such as a `.csproj`, as plain text.
 - Editor: Preferences, Appearance, Frame rate chooses how the editor's windows present: VSync (the
   default), Uncapped, or Uncapped with tearing. A change applies to every editor window at once,
   with no restart; a device that cannot present in the chosen mode keeps the one it had.

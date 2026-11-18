@@ -195,3 +195,34 @@ TEST_CASE("code opener: the Code folder opens in the folder command, else the fi
     CHECK(bed.launched.Size() == 1u);
     CHECK(bed.shownFolders.Size() == 2u);
 }
+
+TEST_CASE("code opener: a file in the Code folder that is no asset opens as plain text")
+{
+    Bed bed;
+    Array<String> files;
+    // The bed's opener again, now with a text page to open.
+    EditorCodeOpener::Services services;
+    services.context = &bed.context;
+    services.openPage = [&bed](content::Instance&) -> editor::EditorPage* { return &bed.page; };
+    services.openFile = [&files, &bed](StringView file) -> editor::EditorPage*
+    {
+        files.PushBack(String(file));
+        return &bed.page;
+    };
+    EditorCodeOpener opener(Move(services));
+
+    const String project = PathJoin(bed.project->CodeRoot().AsView(), u8"Opener.csproj");
+    REQUIRE(CreateDirectories(bed.project->CodeRoot().AsView()));
+    REQUIRE(WriteFile(project.AsView(), Span<const byte>(reinterpret_cast<const byte*>("<Project/>"), 10)).IsOk());
+    CHECK(opener.Open(project.AsView(), 2, 0));
+    REQUIRE(files.Size() == 1u);
+    CHECK(files[0] == project);
+    CHECK(bed.page.line == 2u);
+
+    // A file outside the Code folder, or one not there, is not opened.
+    const String outside = PathJoin(bed.project->SourcesRoot().AsView(), u8"notes.txt");
+    REQUIRE(WriteFile(outside.AsView(), Span<const byte>(reinterpret_cast<const byte*>("x"), 1)).IsOk());
+    CHECK_FALSE(opener.Open(outside.AsView(), 0, 0));
+    CHECK_FALSE(opener.Open(PathJoin(bed.project->CodeRoot().AsView(), u8"gone.luaurc").AsView(), 0, 0));
+    CHECK(files.Size() == 1u);
+}

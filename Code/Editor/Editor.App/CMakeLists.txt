@@ -100,6 +100,7 @@ target_sources(Editor.App
             ProblemsList.cppm
             CodeAssetPage.cppm
             CodeOpener.cppm
+            TextFilePage.cppm
             EditorProfilerTools.cppm
             EditorMcpHost.cppm
             EditorProjectOperations.cppm
