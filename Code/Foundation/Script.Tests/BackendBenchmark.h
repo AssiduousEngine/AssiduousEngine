@@ -132,17 +132,17 @@ namespace foundation::script::benchmark
 
         // A handler call: the cost of crossing into script and back.
         {
-            constexpr u32 kCalls = 100000;
+            constexpr u32 kHandlerCalls = 100000;
             Variant dt[] = {Variant::From<f64>(0.016)};
             const u64 allocations = counted.TotalAllocations();
             const Stopwatch clock = Stopwatch::StartNew();
-            for (u32 i = 0; i < kCalls; ++i)
+            for (u32 i = 0; i < kHandlerCalls; ++i)
             {
                 REQUIRE(bench->Invoke(u8"tick", Span<Variant>{dt, 1}).HasValue());
             }
-            detail::Report(language, "handler-call", clock.Elapsed().AsSeconds() * 1e9 / kCalls, "ns/call");
+            detail::Report(language, "handler-call", clock.Elapsed().AsSeconds() * 1e9 / kHandlerCalls, "ns/call");
             detail::Report(language, "handler-call-allocations",
-                           static_cast<f64>(counted.TotalAllocations() - allocations) / kCalls, "per call");
+                           static_cast<f64>(counted.TotalAllocations() - allocations) / kHandlerCalls, "per call");
         }
 
         // Math: Float3 arithmetic and a Color, in a script loop.
