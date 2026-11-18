@@ -1590,6 +1590,91 @@ namespace foundation::script
                    type == &TypeOf<Float3>() || IsScriptValue(type);
         }
 
+        // A typed call's arguments matched off the Lua stack where they are (TypedReflected,
+        // ConstructorThunk): each in its parameter's native form, or no match.
+        struct TypedArguments
+        {
+            alignas(16) byte scratch[kTypedSlots][16];
+            void* slots[kTypedSlots];
+            InlineArray<String, kTypedSlots> strings;
+            StringView views[kTypedSlots];
+
+            // The `count` arguments from stack index `first`, for `params`; false when one is not
+            // in its parameter's native form (the Variant path then runs).
+            [[nodiscard]] bool Match(lua_State* state, const ParamInfo* params, int count, int first)
+            {
+                if (count > static_cast<int>(kTypedSlots))
+                {
+                    return false;
+                }
+                for (int k = 0; k < count; ++k)
+                {
+                    const ParamInfo& param = params[k];
+                    const int index = first + k;
+                    if (param.type == nullptr)
+                    {
+                        return false;
+                    }
+                    const TypeInfo& type = *param.type();
+                    switch (lua_type(state, index))
+                    {
+                    case LUA_TNUMBER:
+                        if (param.form != ParamForm::Value || &type == &TypeOf<bool>() ||
+                            !WriteNumber(type, lua_tonumber(state, index), scratch[k]))
+                            return false;
+                        slots[k] = scratch[k];
+                        break;
+                    case LUA_TBOOLEAN:
+                        if (param.form != ParamForm::Value || &type != &TypeOf<bool>())
+                            return false;
+                        *reinterpret_cast<bool*>(scratch[k]) = lua_toboolean(state, index) != 0;
+                        slots[k] = scratch[k];
+                        break;
+                    case LUA_TVECTOR:
+                    {
+                        if (param.form != ParamForm::Value || &type != &TypeOf<Float3>())
+                            return false;
+                        const float* v = lua_tovector(state, index);
+                        new (scratch[k]) Float3(v[0], v[1], v[2]);
+                        slots[k] = scratch[k];
+                        break;
+                    }
+                    case LUA_TSTRING:
+                    {
+                        size_t length = 0;
+                        const char* text = lua_tolstring(state, index, &length);
+                        const StringView view(reinterpret_cast<const utf8char*>(text), length);
+                        if (param.form == ParamForm::View)
+                        {
+                            views[k] = view;
+                            slots[k] = &views[k];
+                        }
+                        else if (param.form == ParamForm::Value && type.id == TypeOf<String>().id)
+                        {
+                            strings.Add(String(view));
+                            slots[k] = &strings[strings.Size() - 1];
+                        }
+                        else
+                            return false;
+                        break;
+                    }
+                    case LUA_TUSERDATA:
+                    {
+                        void* payload = lua_touserdatatagged(state, index, kValueTag);
+                        if (payload == nullptr || param.form != ParamForm::Value ||
+                            static_cast<const ValueBoxHeader*>(payload)->type->id != type.id)
+                            return false;
+                        slots[k] = ValueBoxBytes(payload, type); // the box's bytes, as the value
+                        break;
+                    }
+                    default:
+                        return false;
+                    }
+                }
+                return true;
+            }
+        };
+
         // `method` called with no Variant when every argument on the stack is already in its
         // parameter's native form (a number for a number or enum, a boolean for a bool, a vector
         // for a Float3, a value box of the exact type, a string for a String or a view) and its
@@ -1634,73 +1719,10 @@ namespace foundation::script
                 }
             }
 
-            alignas(16) byte scratch[kTypedSlots][16];
-            void* args[kTypedSlots];
-            InlineArray<String, kTypedSlots> strings;
-            StringView views[kTypedSlots];
-            for (int k = 0; k < given; ++k)
+            TypedArguments arguments;
+            if (!arguments.Match(state, method.params, given, firstArg))
             {
-                const ParamInfo& param = method.params[k];
-                if (param.type == nullptr)
-                {
-                    return false;
-                }
-                const TypeInfo& type = *param.type();
-                const int index = firstArg + k;
-                switch (lua_type(state, index))
-                {
-                case LUA_TNUMBER:
-                    if (param.form != ParamForm::Value || &type == &TypeOf<bool>() ||
-                        !WriteNumber(type, lua_tonumber(state, index), scratch[k]))
-                        return false;
-                    args[k] = scratch[k];
-                    break;
-                case LUA_TBOOLEAN:
-                    if (param.form != ParamForm::Value || &type != &TypeOf<bool>())
-                        return false;
-                    *reinterpret_cast<bool*>(scratch[k]) = lua_toboolean(state, index) != 0;
-                    args[k] = scratch[k];
-                    break;
-                case LUA_TVECTOR:
-                {
-                    if (param.form != ParamForm::Value || &type != &TypeOf<Float3>())
-                        return false;
-                    const float* v = lua_tovector(state, index);
-                    new (scratch[k]) Float3(v[0], v[1], v[2]);
-                    args[k] = scratch[k];
-                    break;
-                }
-                case LUA_TSTRING:
-                {
-                    size_t length = 0;
-                    const char* text = lua_tolstring(state, index, &length);
-                    const StringView view(reinterpret_cast<const utf8char*>(text), length);
-                    if (param.form == ParamForm::View)
-                    {
-                        views[k] = view;
-                        args[k] = &views[k];
-                    }
-                    else if (param.form == ParamForm::Value && type.id == TypeOf<String>().id)
-                    {
-                        strings.Add(String(view));
-                        args[k] = &strings[strings.Size() - 1];
-                    }
-                    else
-                        return false;
-                    break;
-                }
-                case LUA_TUSERDATA:
-                {
-                    void* payload = lua_touserdatatagged(state, index, kValueTag);
-                    if (payload == nullptr || param.form != ParamForm::Value ||
-                        static_cast<const ValueBoxHeader*>(payload)->type->id != type.id)
-                        return false;
-                    args[k] = ValueBoxBytes(payload, type); // the box's bytes, as the value
-                    break;
-                }
-                default:
-                    return false;
-                }
+                return false;
             }
 
             alignas(16) byte result[kTypedResultBytes];
@@ -1710,7 +1732,7 @@ namespace foundation::script
             }
             {
                 ScriptCallScope scope(context);
-                method.call(self, args, returned != nullptr ? result : nullptr);
+                method.call(self, arguments.slots, returned != nullptr ? result : nullptr);
             }
             g_typedCalls.fetch_add(1, MemoryOrder::Relaxed);
             results = returned != nullptr && PushTyped(state, *returned, result) ? 1 : 0;
@@ -2273,6 +2295,30 @@ namespace foundation::script
                 {
                     ctor = &candidate;
                     break;
+                }
+            }
+            // A value (Float3, a Color) whose arguments are already native: made by its typed
+            // constructor where it is pushed from, with no Variant (the method call's matching).
+            if (ctor != nullptr && ctor->construct != nullptr && IsScriptValue(type) && type->size <= kTypedResultBytes &&
+                type->align <= 16)
+            {
+                bool made = false;
+                {
+                    TypedArguments arguments;
+                    if (arguments.Match(state, ctor->params, argCount, 1))
+                    {
+                        alignas(16) byte value[kTypedResultBytes];
+                        {
+                            ScriptCallScope scope(context);
+                            ctor->construct(arguments.slots, value);
+                        }
+                        g_typedCalls.fetch_add(1, MemoryOrder::Relaxed);
+                        made = PushTyped(state, *type, value);
+                    }
+                }
+                if (made)
+                {
+                    return 1;
                 }
             }
             // The call, in a scope of its own: an error is raised after the arguments and the call

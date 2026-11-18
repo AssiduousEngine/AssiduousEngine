@@ -1379,9 +1379,9 @@ end
     CHECK(scriptContext->GetGlobal(u8"L").Get<f64>() == 4.0);
     CHECK(scriptContext->GetGlobal(u8"VL").Get<f64>() == 5.0);
 
-    // Add twice on the box itself, Twice with a box in and out, Mean; the constructor and the field
-    // reads go by Variant.
-    CHECK(typedCalls(u8"values") == 4u);
+    // The constructor (a value made where it is pushed from), Add twice on the box itself, Twice
+    // with a box in and out, Mean; the field reads go by Variant.
+    CHECK(typedCalls(u8"values") == 5u);
     CHECK(scriptContext->GetGlobal(u8"TT").Get<f64>() == 12.0);
     CHECK(scriptContext->GetGlobal(u8"TM").Get<f64>() == 3.0); // the box Add changed in place
 
