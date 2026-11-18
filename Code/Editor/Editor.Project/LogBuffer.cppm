@@ -10,8 +10,8 @@
 // and device are created) so early startup logs are captured too.
 //
 // Entries keep whole heap strings (core's RingLogSink truncates messages to 192 characters, which
-// is useless for build errors and file paths) and carry a monotonic sequence, so main-thread
-// consumers poll incrementally with CollectSince. When the ring is full the oldest entry drops but
+// is useless for build errors and file paths) and the references the log call attached, and carry a
+// monotonic sequence, so main-thread consumers poll incrementally with CollectSince. When the ring is full the oldest entry drops but
 // sequences keep advancing, so a consumer can tell (and report) that it missed entries.
 
 module;
@@ -32,6 +32,7 @@ export namespace editor
         String message;
         u64 sequence = 0; // monotonic, 1-based across the run
         Duration time;    // when it was written, since the buffer was made (the editor's start)
+        Array<LogReference> references; // what the log call attached (recognizers add more on reading)
     };
 
     class EditorLogBuffer final : public ILogSink
@@ -49,6 +50,11 @@ export namespace editor
         // from the main thread concurrently, hence the buffer's own mutex.
         void Write(LogLevel level, StringView category, StringView message) noexcept override
         {
+            WriteReferenced(level, category, message, {});
+        }
+        void WriteReferenced(LogLevel level, StringView category, StringView message,
+                             Span<const LogReference> references) noexcept override
+        {
             ScopedLock lock(m_mutex);
             if (m_entries.IsFull())
             {
@@ -62,6 +68,8 @@ export namespace editor
             entry.message = String(message);
             entry.sequence = m_nextSequence++;
             entry.time = m_clock.Elapsed();
+            for (const LogReference& reference : references)
+                entry.references.PushBack(reference);
             (void)m_entries.PushBack(Move(entry));
         }
 

@@ -54,4 +54,5 @@ target_sources(Editor.Project
             ToolPlugins.cppm
             ExportHooks.cppm
             CodeTooling.cppm
+            LogReferences.cppm
             EditorProjectModule.cppm)

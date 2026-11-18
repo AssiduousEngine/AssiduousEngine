@@ -2,8 +2,8 @@
 // Copyright (c) 2026-Present Robert Campbell
 
 // EditorLogBuffer tests: sink capture through the global logger, incremental CollectSince
-// polling, bounded-ring overflow with drop counting, untruncated messages, and cross-thread
-// writes.
+// polling, bounded-ring overflow with drop counting, untruncated messages, cross-thread writes, the
+// references a line carries, and the recognizers that find more in its text.
 
 #include <doctest/doctest.h>
 
@@ -132,4 +132,79 @@ TEST_CASE("editor-log: concurrent writers do not lose or corrupt entries")
     const u64 high = buffer.CollectSince(0, out);
     CHECK(out.Size() == static_cast<usize>(kThreads * kPerThread));
     CHECK(high == static_cast<u64>(kThreads * kPerThread));
+}
+
+TEST_CASE("editor-log: an entry keeps the references its log call attached")
+{
+    EditorLogBuffer buffer(DefaultAllocator(), 8);
+    Logger& logger = GlobalLogger();
+    const LogLevel previous = logger.MinLevel();
+    logger.SetMinLevel(LogLevel::Info);
+    logger.AddSink(&buffer);
+    LOG_WARNING_AT(u8"Script", SourceReference(u8"/p/Code/A.luau", 3), u8"a problem");
+    LOG_WARNING(u8"Script", u8"no reference");
+    logger.RemoveSink(&buffer);
+    logger.SetMinLevel(previous);
+
+    Array<EditorLogEntry> entries;
+    (void)buffer.CollectSince(0, entries);
+    REQUIRE(entries.Size() == 2u);
+    REQUIRE(entries[0].references.Size() == 1u);
+    CHECK(entries[0].references[0].Field(0) == StringView(u8"/p/Code/A.luau"));
+    CHECK(entries[1].references.IsEmpty());
+}
+
+TEST_CASE("editor-log: paths in the project become source references, with their line and column")
+{
+    LogReferenceRecognizers recognizers;
+    (void)recognizers.Add(SourcePathRecognizer(u8"/home/me/Game/"));
+
+    // A compiler's file(line,col), with the part taking in the numbers.
+    const StringView build = u8"/home/me/Game/Code/Player.cs(12,5): error CS0103: no 'speed'";
+    Array<LogReference> found = recognizers.Recognize(build);
+    REQUIRE(found.Size() == 1u);
+    CHECK(found[0].kind == kLogSourceReference);
+    CHECK(found[0].Field(0) == StringView(u8"/home/me/Game/Code/Player.cs"));
+    CHECK(found[0].Field(1) == StringView(u8"12"));
+    CHECK(found[0].Field(2) == StringView(u8"5"));
+    CHECK(build.SubStr(found[0].start, found[0].length) == StringView(u8"/home/me/Game/Code/Player.cs(12,5)"));
+
+    // file:line:col, a path in the Code folder read under the project, a Windows path, and a
+    // path that ends a sentence.
+    found = recognizers.Recognize(u8"see Code/Enemies/Boss.luau:7 and \\home\\me\\Game\\Sources\\a.png. Also /home/me/Game/x.as:3:9.");
+    REQUIRE(found.Size() == 3u);
+    CHECK(found[0].Field(0) == StringView(u8"/home/me/Game/Code/Enemies/Boss.luau"));
+    CHECK(found[0].Field(1) == StringView(u8"7"));
+    CHECK(found[0].Field(2).IsEmpty());
+    CHECK(found[1].Field(0) == StringView(u8"/home/me/Game/Sources/a.png"));
+    CHECK(found[1].Field(1).IsEmpty());
+    CHECK(found[2].Field(0) == StringView(u8"/home/me/Game/x.as"));
+    CHECK(found[2].Field(2) == StringView(u8"9"));
+
+    // A path outside the project, and a word that only contains "Code/", are not.
+    CHECK(recognizers.Recognize(u8"/home/other/Game/Code/A.luau:1 and MyCode/x.luau").IsEmpty());
+}
+
+TEST_CASE("editor-log: the ids of known assets become asset references; overlaps keep the first")
+{
+    Guid known;
+    REQUIRE(Guid::TryParse(u8"0e9b3a52-1c1f-4c2e-9d3b-5a7f1e2d3c4b", known));
+    LogReferenceRecognizers recognizers;
+    (void)recognizers.Add(AssetIdRecognizer([known](const Guid& id) { return id == known; }));
+    (void)recognizers.Add(SourcePathRecognizer(u8"/p"));
+
+    const StringView message = u8"{0e9b3a52-1c1f-4c2e-9d3b-5a7f1e2d3c4b} reads /p/Code/a.luau; 11111111-2222-3333-4444-555555555555 is unknown";
+    const Array<LogReference> found = recognizers.Recognize(message);
+    REQUIRE(found.Size() == 2u);
+    CHECK(found[0].kind == kLogAssetReference);
+    CHECK(found[0].start == 0u);
+    CHECK(found[0].length == 38u); // the braces too
+    CHECK(found[1].kind == kLogSourceReference);
+
+    // A line's references: the attached first, then the recognized.
+    const LogReference attached = SourceReference(u8"/p/Code/b.luau");
+    const Array<LogReference> all = recognizers.Of(message, Span<const LogReference>(&attached, 1));
+    REQUIRE(all.Size() == 3u);
+    CHECK(all[0].Field(0) == StringView(u8"/p/Code/b.luau"));
+    CHECK(all[1].kind == kLogAssetReference);
 }
