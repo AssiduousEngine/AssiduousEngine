@@ -61,41 +61,67 @@ release, and each later step adds its after-numbers to it.
 
 ## Measurements
 
-**Per call, desktop, 2026-11-18.** i7-10875H, `build/clang-reldbg`, master at `94d9f1623` with the
-benchmark's changes; two runs, which agreed within 10%. A million calls in a script loop; "call
-alone" is the measure less the loop with no call in it. Allocations are through the language's
-own allocator; the engine side's default heap is not counted.
+**Step 1, desktop, 2026-11-18.** i7-10875H, `build/clang-reldbg` with C# on, `dotnet` at the
+measures' commit (master's engine with the C# backend); no other build or tool running; two runs,
+each figure their range. Every language makes the same calls into the engine (`Math.Abs`,
+`Float3.Cross`, `Entity.setName` on an entity with no scene, `PathFollowComponent.of`); C# runs its
+assembly built Debug (as the engine's cook builds a game's) and Release. All from
+`Integration.ScriptScene`.
 
-| Measure | native | AngelScript | Luau |
-|---|---|---|---|
-| Loop with no call (per iteration) | | 22 ns | 28 ns |
-| Engine call (`BenchProbe.Twice`), call alone | 3.5 ns | 200 to 220 ns (about 60x) | 160 to 165 ns (about 45x) |
-| Value method (`Float3.Cross`), call alone | 3.6 ns | 690 to 710 ns (about 190x) | 550 to 575 ns (about 155x) |
-| String argument (16 characters), call alone | 2.5 ns | 240 to 250 ns (about 95x) | 220 to 230 ns (about 90x) |
-| Handler call (engine into script) | | 300 ns | 225 ns |
-| Allocations per call, every measure | | 0 | 0 |
+Per call: a million calls in a script loop, "alone" being the measure less the loop with no call.
 
-**Scene, desktop, 2026-11-18.** The same machine and tree (master at `42c5cff64` with the suite),
-no other build or tool running; two runs, the medians agreeing within 15%. A whole frame of a real
-scene through the script systems (`Integration.ScriptScene`), 1,000 frames after a warm-up; the
-native column is the same work in a component manager on the same scene. The frame includes the
-scene's own phases, transform propagation among them, in every column.
+| Per call | native | AngelScript | Luau | C# Debug | C# Release |
+|---|---|---|---|---|---|
+| Loop with no call (per iteration) | | 21 to 28 ns | 28 ns | 2.5 ns | 1.2 ns |
+| Engine call (`Math.Abs`), alone | 3.6 ns | about 205 ns | about 160 ns | about 210 ns | about 150 ns |
+| Value method (`Float3.Cross`), alone | 3.5 ns | about 690 ns | about 550 ns | about 240 ns | about 240 ns |
+| String argument (`setName`, 16 characters), alone | 5 ns | about 230 ns | about 265 ns | about 245 ns | about 215 ns |
+| Handler call (engine into script) | | 270 to 310 ns | 240 to 250 ns | 725 to 735 ns | 870 to 880 ns |
+| Value math, one iteration (`math`) | | 1.5 to 1.6 µs | 0.78 to 0.80 µs | 0.40 to 0.41 µs | 0.24 to 0.25 µs |
 
-| Measure (median frame) | native | AngelScript | Luau |
-|---|---|---|---|
-| 1,000 empty update handlers | 0.0025 ms | 0.325 ms (about 130x) | 0.266 ms (about 105x) |
-| 100 movers | 0.0033 ms | 0.123 ms (about 37x) | 0.092 ms (about 28x) |
-| 1,000 movers | 0.034 ms | 1.24 ms (about 36x) | 0.935 ms (about 27x) |
-| 5,000 movers | 0.178 ms | 6.29 ms (about 35x) | 4.77 ms (about 27x) |
-| 1,000 component fetches | 0.0046 ms | 0.462 ms (about 100x) | 0.39 ms (about 85x) |
-| Allocations per frame (language's own) | | 0, except 1,000 for the fetches (one per fetch) | 0 |
+C#'s value math is written as C# writes it today: the sum, the scaling and the Color field by
+field (its bindings give Float3 no operators and Color no constructor), so only `Float3.Dot`
+crosses; the other languages' version crosses for the operators and the Color too.
 
-The 99th percentile frame was within 10% of the median for every script measure. Read as cost
-per thing: an update handler call is about 325 ns from AngelScript and 265 ns from Luau, a mover
-about 1.25 and 0.95 µs, a component fetch about 460 and 390 ns. 5,000 movers take 38% (AngelScript)
-and 29% (Luau) of a 60 Hz frame.
+Per scene: a whole frame through the script systems, 1,000 frames after a warm-up, the median; the
+native column is the same work in a component manager on the same scene, and every column includes
+the scene's own phases.
 
-C# (CoreCLR and the web) and the collector's figures follow.
+| Median frame | native | AngelScript | Luau | C# Debug | C# Release |
+|---|---|---|---|---|---|
+| 1,000 empty update handlers | 0.0056 ms | 0.33 ms | 0.27 ms | 0.37 to 0.38 ms | 0.37 ms |
+| 100 movers | 0.0039 ms | 0.12 ms | 0.091 to 0.095 ms | 0.084 to 0.086 ms | 0.084 to 0.087 ms |
+| 1,000 movers | 0.039 to 0.041 ms | 1.25 ms | 0.95 to 0.98 ms | 0.85 to 0.88 ms | 0.86 ms |
+| 5,000 movers | 0.20 ms | 6.3 ms | 4.85 ms | 4.3 to 4.4 ms | 4.3 to 4.4 ms |
+| 1,000 component fetches | 0.0048 ms | 0.49 ms | 0.40 to 0.43 ms | 0.36 to 0.39 ms | 0.35 to 0.38 ms |
+
+Allocations, counted through each language's own allocator: none per call or per frame, except
+AngelScript's component fetch, once per fetch. C#'s are not visible to this count (its objects
+live on .NET's heap, and the bridge allocates the engine objects it hands C# from the allocator
+the runtime started with), so a C# zero says nothing yet.
+
+What the numbers say:
+
+- Every crossing from script into the engine costs 150 to 270 ns in every language, 40 to 75 times
+  a native call; the bridge, not the language, sets it. Part 1's typed entry is aimed at exactly
+  this.
+- A value method is about 3.4 times an ordinary call in AngelScript and Luau, and little more than
+  one in C# (240 against 150 to 210 ns), whose bindings pass a Float3 as its bytes: building and
+  unpacking `Float3` Variants is the difference.
+- C# runs its own loop 10 to 20 times faster than the other two, but the engine calling a C#
+  handler costs 2.5 to 3 times what it costs them (Part 3's handler binding), and in a scene,
+  where the crossings dominate, C# is level with Luau. Release over Debug changes C#'s own code
+  (the loop, the math), not the crossings: a game's Debug build costs little in a scene.
+- 5,000 movers take 26 to 38% of a 60 Hz frame in script against 1.2% natively.
+
+**Found while measuring (C#).** The process's C# runtime keeps the allocator its first script
+manager was made with, for every engine object it hands C# from then on (the bridge's
+`EngineFunctions`). A first manager with a shorter-lived allocator than the process leaves it
+dangling: the next object handed to C# crashes. The game instance and the editor make their run
+hosts over the process's root allocator, so they do not hit it today; the measures' suite starts
+the runtime on one before any manager. To decide: the allocator a process-wide runtime owns.
+
+The web (C# through NativeAOT-LLVM, and the other languages compiled to WebAssembly) follows.
 
 ## What stays as it is
 
