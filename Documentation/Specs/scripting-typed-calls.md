@@ -1,6 +1,6 @@
 # Scripting: measured, then typed calls and bound names
 
-> PROPOSED 2026-11-18. Nothing here is built. Read on master at `6cebdf698` (AngelScript, Luau,
+> APPROVED 2026-11-18. Nothing here is built. Read on master at `6cebdf698` (AngelScript, Luau,
 > the engine layer) and on `dotnet` at `094a81e4b` (C#); `dotnet` has been rebased since, so the
 > line numbers below are read again before each step is built. No timings were taken: every
 > statement about cost says what work a path does, not how long it takes. Step 1 puts numbers on

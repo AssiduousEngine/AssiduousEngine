@@ -14,7 +14,7 @@ for every one.
 | [whiteboxing.md](whiteboxing.md) | M | PROPOSED and reviewed 2026-09-23: parametric blockout pieces, P0 to P3 |
 | [script-run-modules.md](script-run-modules.md) | M (L with P2) | PROPOSED 2026-09-26: one script module per run, hot reload that migrates |
 | [code-editing.md](code-editing.md) | L | APPROVED 2026-11-17, built 2026-11-18 (C# on dotnet; no entity handler yet): a project's Code folder, outside code editors, log references, E0 to E6 |
-| [scripting-typed-calls.md](scripting-typed-calls.md) | L | PROPOSED 2026-11-18: script speed measured against native code, then a typed call path and names bound once |
+| [scripting-typed-calls.md](scripting-typed-calls.md) | L | APPROVED 2026-11-18: script speed measured against native code, then a typed call path and names bound once |
 | [terrain-improvements.md](terrain-improvements.md) | L | PROPOSED 2026-11-14: detiling, steep faces, distance scale, geomorphing, ground rules, authoring, T0 to T6 |
 
 A spec moves to `../Archive/<name>-history.md` once it is built (or made obsolete), with a banner
