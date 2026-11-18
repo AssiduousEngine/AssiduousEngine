@@ -102,7 +102,8 @@ TEST_CASE("shader creator: a new shader links its starter file and takes its ins
         // The second took a unique name, and its shader name and file follow it.
         CHECK(asset->name.AsView() == second->Name());
         CHECK(asset->name.AsView() != first->Name());
-        String expectedFile(second->Name());
+        String expectedFile(u8"Shaders/"); // in its group's folder
+        expectedFile += second->Name();
         expectedFile += u8".hlsl";
         CHECK(asset->fileName.View() == expectedFile.AsView());
         CHECK(asset->vertexEntryPoint == u8"VSMain");

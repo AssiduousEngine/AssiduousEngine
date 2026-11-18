@@ -248,16 +248,20 @@ TEST_CASE("pipeline.registration: a file-backed creation never writes over anoth
         const String sourcesRoot = PathJoin(GetCurrentDirectory().AsView(), kSources);
         foundation::content::Group* a = db.RootGroup()->CreateGroup(u8"A");
         foundation::content::Group* b = db.RootGroup()->CreateGroup(u8"B");
+        // Each in its group's folder; a file already in B's (edited, of no asset) is kept, the
+        // creation taking the next free name.
         REQUIRE(document->Create(a, db.RootGroup(), sourcesRoot.AsView(), u8"Menu") != nullptr);
-        const String first = PathJoin(sourcesRoot.AsView(), u8"Menu.xml");
+        CHECK(FileExists(PathJoin(sourcesRoot.AsView(), u8"A/Menu.xml").AsView()));
+        const String first = PathJoin(sourcesRoot.AsView(), u8"B/Menu.xml");
         const StringView edited = u8"<edited/>";
+        REQUIRE(CreateDirectories(PathParent(first.AsView())));
         REQUIRE(WriteFile(first.AsView(), Span<const byte>(reinterpret_cast<const byte*>(edited.Data()), edited.Size())).IsOk());
 
         REQUIRE(document->Create(b, db.RootGroup(), sourcesRoot.AsView(), u8"Menu") != nullptr);
         Result<Array<byte>> kept = ReadFile(first.AsView());
         REQUIRE(kept.HasValue());
         CHECK(kept.Value().Size() == edited.Size());
-        CHECK(FileExists(PathJoin(sourcesRoot.AsView(), u8"Menu.2.xml").AsView()));
+        CHECK(FileExists(PathJoin(sourcesRoot.AsView(), u8"B/Menu.2.xml").AsView()));
 
         CHECK(document->Create(b, db.RootGroup(), sourcesRoot.AsView(), u8"../Escape") == nullptr);
         CHECK_FALSE(FileExists(PathJoin(GetCurrentDirectory().AsView(), u8"Escape.xml").AsView()));

@@ -1202,12 +1202,11 @@ TEST_CASE("project: the folders the editor, a cook and an export write are its o
     }
 }
 
-// A project from before its code had a folder: its scripts and their project files are under
-// Sources/. Opened, each code asset's file moves into Code/ and the asset follows (fileName gains
-// Code/, id kept); a file that is not code stays; a folder that was already at Sources/Code, which
-// Code/ would hide, is renamed and the asset naming a file in it follows; opening again moves
-// nothing more.
-TEST_CASE("editor-project: an older project's code moves from Sources into Code when it opens")
+// A project from before its files followed their groups: everything flat under Sources/, scripts
+// too. Opened, each file moves into its group's folder, code under Code/, and its asset follows
+// (id kept); a folder that was already at Sources/Code, which Code/ would hide, is renamed and the
+// asset naming a file in it follows; opening again moves nothing more.
+TEST_CASE("editor-project: an older project's files move into their groups' folders when it opens")
 {
     const StringView dir = u8"scratch_editor_code_move";
     (void)RemoveDirectoryRecursive(dir);
@@ -1234,9 +1233,12 @@ TEST_CASE("editor-project: an older project's code moves from Sources into Code 
         UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir);
         REQUIRE(static_cast<bool>(project));
         foundation::content::Group* root = project->SourceDb().RootGroup();
-        auto add = [root](StringView name, pipeline::Asset& asset, const TypeInfo& type, StringView file)
+        foundation::content::Group* quality = root->CreateGroup(u8"Quality");
+        REQUIRE(quality != nullptr);
+        auto add = [root](StringView name, pipeline::Asset& asset, const TypeInfo& type, StringView file,
+                          foundation::content::Group* in = nullptr)
         {
-            foundation::content::Instance* instance = root->CreateInstance(name, type);
+            foundation::content::Instance* instance = (in != nullptr ? in : root)->CreateInstance(name, type);
             REQUIRE(instance != nullptr);
             asset.fileName = foundation::vfs::SourcePath(file);
             REQUIRE(instance->WriteObject(asset).IsOk());
@@ -1249,7 +1251,7 @@ TEST_CASE("editor-project: an older project's code moves from Sources into Code 
         pipeline::ScriptClassAsset notes; // a script that was in the folder Code/ will hide
         notesId = add(u8"Notes", notes, pipeline::ScriptClassAsset::StaticType(), u8"Code/Notes.as");
         pipeline::RenderQualityAsset tiles; // not code
-        tilesId = add(u8"Tiles", tiles, pipeline::RenderQualityAsset::StaticType(), u8"Tiles.png");
+        tilesId = add(u8"Tiles", tiles, pipeline::RenderQualityAsset::StaticType(), u8"Tiles.png", quality);
         write(u8"Hero.as", u8"class Hero {}");
         write(u8"Game/Game.siproj", u8"project");
         write(u8"Code/Notes.as", u8"older");
@@ -1262,14 +1264,17 @@ TEST_CASE("editor-project: an older project's code moves from Sources into Code 
     CHECK(fileNameOf(db.GetInstance(heroId)) == StringView(u8"Code/Hero.as"));
     CHECK(FileExists(PathJoin(code.AsView(), u8"Hero.as").AsView()));
     CHECK_FALSE(FileExists(PathJoin(sources.AsView(), u8"Hero.as").AsView()));
-    CHECK(fileNameOf(db.GetInstance(projectId)) == StringView(u8"Code/Game/Game.siproj"));
-    CHECK(FileExists(PathJoin(code.AsView(), u8"Game/Game.siproj").AsView()));
-    CHECK(fileNameOf(db.GetInstance(tilesId)) == StringView(u8"Tiles.png"));
-    CHECK(FileExists(PathJoin(sources.AsView(), u8"Tiles.png").AsView()));
-    // The older folder, renamed; its script followed it and then moved into Code/ as any other.
-    CHECK(DirectoryExists(PathJoin(sources.AsView(), u8"Code.moved").AsView()));
-    CHECK(fileNameOf(db.GetInstance(notesId)) == StringView(u8"Code/Code.moved/Notes.as"));
-    CHECK(FileExists(PathJoin(code.AsView(), u8"Code.moved/Notes.as").AsView()));
+    // In the root group: Code/ itself (its folder under Sources/, Game/, left empty and gone).
+    CHECK(fileNameOf(db.GetInstance(projectId)) == StringView(u8"Code/Game.siproj"));
+    CHECK(FileExists(PathJoin(code.AsView(), u8"Game.siproj").AsView()));
+    CHECK_FALSE(DirectoryExists(PathJoin(sources.AsView(), u8"Game").AsView()));
+    // Not code, in the Quality group: Sources/Quality/.
+    CHECK(fileNameOf(db.GetInstance(tilesId)) == StringView(u8"Quality/Tiles.png"));
+    CHECK(FileExists(PathJoin(sources.AsView(), u8"Quality/Tiles.png").AsView()));
+    // The older folder, renamed; its script followed it and then moved into Code/ as any other
+    // (the renamed folder, left empty, gone).
+    CHECK(fileNameOf(db.GetInstance(notesId)) == StringView(u8"Code/Notes.as"));
+    CHECK(FileExists(PathJoin(code.AsView(), u8"Notes.as").AsView()));
     CHECK(project->SourceFile(u8"Code/Hero.as") == PathJoin(code.AsView(), u8"Hero.as"));
     project.Reset();
 
@@ -1277,6 +1282,72 @@ TEST_CASE("editor-project: an older project's code moves from Sources into Code 
     project = EditorProject::Open(DefaultAllocator(), dir);
     REQUIRE(static_cast<bool>(project));
     CHECK(fileNameOf(project->SourceDb().GetInstance(heroId)) == StringView(u8"Code/Hero.as"));
+    project.Reset();
+    (void)RemoveDirectoryRecursive(dir);
+}
+
+// Files follow their groups: a move into another group moves the file into that group's folder
+// (made when missing, the old one removed once empty), a file assets in two groups share stays where
+// it is, and a name already taken in the folder takes the next free one.
+TEST_CASE("editor-project: an asset's file follows it into its group's folder")
+{
+    const StringView dir = u8"scratch_editor_group_folders";
+    (void)RemoveDirectoryRecursive(dir);
+    REQUIRE(EditorProject::Create(DefaultAllocator(), dir, u8"P").IsOk());
+    UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir);
+    REQUIRE(static_cast<bool>(project));
+    const String sources = PathJoin(dir, u8"Sources");
+    const auto write = [&sources](StringView path)
+    {
+        const String full = PathJoin(sources.AsView(), path);
+        REQUIRE(CreateDirectories(PathParent(full.AsView())));
+        REQUIRE(WriteFile(full.AsView(), Span<const byte>(reinterpret_cast<const byte*>(path.Data()), path.Size())).IsOk());
+    };
+    const auto fileNameOf = [](foundation::content::Instance* instance)
+    {
+        RefPtr<ISerializable> object = instance->ReadObject();
+        const auto* asset = Cast<pipeline::Asset>(object.Get());
+        return asset != nullptr ? String(asset->fileName.View()) : String{};
+    };
+    foundation::content::Group* root = project->SourceDb().RootGroup();
+    foundation::content::Group* a = root->CreateGroup(u8"A");
+    foundation::content::Group* b = root->CreateGroup(u8"B");
+    auto add = [](foundation::content::Group* in, StringView name, StringView file)
+    {
+        foundation::content::Instance* instance = in->CreateInstance(name, pipeline::RenderQualityAsset::StaticType());
+        REQUIRE(instance != nullptr);
+        pipeline::RenderQualityAsset asset;
+        asset.fileName = foundation::vfs::SourcePath(file);
+        REQUIRE(instance->WriteObject(asset).IsOk());
+        return instance;
+    };
+    write(u8"A/Lone.png");
+    write(u8"Shared.png");
+    write(u8"B/Lone.png"); // B's folder already has a Lone.png
+    foundation::content::Instance* lone = add(a, u8"Lone", u8"A/Lone.png");
+    foundation::content::Instance* sharedA = add(a, u8"SharedA", u8"Shared.png");
+    foundation::content::Instance* sharedB = add(b, u8"SharedB", u8"Shared.png");
+
+    // Moved to B: the file follows, beside B's own Lone.png under the next free name; A's folder,
+    // empty now, goes.
+    REQUIRE(project->SourceDb().MoveInstance(lone->Id(), *b).IsOk());
+    foundation::content::Instance* const moved[] = {lone};
+    CHECK(project->PlaceInGroupFolders(Span<foundation::content::Instance* const>{moved, 1}) == 1u);
+    CHECK(fileNameOf(lone) == StringView(u8"B/Lone.2.png"));
+    CHECK(FileExists(PathJoin(sources.AsView(), u8"B/Lone.2.png").AsView()));
+    CHECK(FileExists(PathJoin(sources.AsView(), u8"B/Lone.png").AsView()));
+    CHECK_FALSE(DirectoryExists(PathJoin(sources.AsView(), u8"A").AsView()));
+
+    // Shared by assets in A and B: stays.
+    foundation::content::Instance* const shared[] = {sharedA, sharedB};
+    CHECK(project->PlaceInGroupFolders(Span<foundation::content::Instance* const>{shared, 2}) == 0u);
+    CHECK(fileNameOf(sharedA) == StringView(u8"Shared.png"));
+    CHECK(FileExists(PathJoin(sources.AsView(), u8"Shared.png").AsView()));
+    // Once both are in B, it follows them there.
+    REQUIRE(project->SourceDb().MoveInstance(sharedA->Id(), *b).IsOk());
+    CHECK(project->PlaceInGroupFolders(Span<foundation::content::Instance* const>{shared, 2}) == 1u);
+    CHECK(fileNameOf(sharedA) == StringView(u8"B/Shared.png"));
+    CHECK(fileNameOf(sharedB) == StringView(u8"B/Shared.png"));
     project.Reset();
     (void)RemoveDirectoryRecursive(dir);
 }

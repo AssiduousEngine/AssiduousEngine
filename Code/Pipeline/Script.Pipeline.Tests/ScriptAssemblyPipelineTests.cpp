@@ -332,6 +332,18 @@ TEST_CASE("script assembly: a project's local files are written beside it when i
     RefPtr<ISerializable> madeAsset = made->ReadObject();
     REQUIRE(Cast<ScriptAssemblyAsset>(madeAsset.Get()) != nullptr);
     CHECK(Cast<ScriptAssemblyAsset>(madeAsset.Get())->fileName.View() == StringView(u8"Code/Made.siproj"));
+    // Made in a group: in that group's folder under Code/, its local files beside it.
+    content::Group* tools = bed.sourceDb->RootGroup()->CreateGroup(u8"Tools");
+    REQUIRE(tools != nullptr);
+    context.picked = tools;
+    context.name = u8"Builder";
+    content::Instance* grouped = CreateScriptProjectInstance(context, kLanguage, u8".siproj");
+    REQUIRE(grouped != nullptr);
+    RefPtr<ISerializable> groupedAsset = grouped->ReadObject();
+    CHECK(Cast<ScriptAssemblyAsset>(groupedAsset.Get())->fileName.View() == StringView(u8"Code/Tools/Builder.siproj"));
+    CHECK(FileExists(PathJoin(code.AsView(), u8"Tools/Builder.siproj").AsView()));
+    CHECK(read(PathJoin(code.AsView(), u8"Tools/obj/Local.txt").AsView()) == StringView(u8"this machine"));
+    context.picked = nullptr;
 
     // Cooked: written beside the project's file, and written again when it is no longer what the
     // cook would write (another machine's, or edited).

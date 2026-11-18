@@ -60,6 +60,45 @@ export namespace pipeline
 
     namespace content = foundation::content;
 
+    // The files a .gltf's text names beside it (buffers and images by relative "uri"), in order,
+    // each once: data URIs and paths that leave its folder (PathStaysInside) are not among them. A
+    // plain text scan: the uris live in JSON string values.
+    [[nodiscard]] inline Array<String> GltfSidecarUris(StringView text)
+    {
+        Array<String> uris;
+        const StringView key = u8"\"uri\"";
+        for (usize i = 0; i + key.Size() < text.Size(); ++i)
+        {
+            if (text.SubStr(i, key.Size()) != key)
+                continue;
+            usize j = i + key.Size();
+            while (j < text.Size() && (text[j] == utf8char(':') || text[j] == utf8char(' ') || text[j] == utf8char('\t')))
+                ++j;
+            if (j >= text.Size() || text[j] != utf8char('"'))
+                continue;
+            const usize begin = ++j;
+            while (j < text.Size() && text[j] != utf8char('"'))
+                ++j;
+            if (j >= text.Size())
+                break;
+            const StringView uri = text.SubStr(begin, j - begin);
+            i = j;
+            if (uri.IsEmpty() || (uri.Size() >= 5 && uri.SubStr(0, 5) == StringView(u8"data:")))
+                continue;
+            if (!PathStaysInside(uri))
+            {
+                LOG_WARNING(u8"Import", u8"gltf sidecar skipped, its uri leaves the model's folder: {}", uri);
+                continue;
+            }
+            bool seen = false;
+            for (const String& known : uris)
+                seen = seen || known.AsView() == uri;
+            if (!seen)
+                uris.PushBack(String(uri));
+        }
+        return uris;
+    }
+
     // Source asset embedding a ModelManifestSource (built at import; the cook writes it
     // through). Guids inside are source guids, which equal product guids.
     class ModelManifestAsset final : public pipeline::Asset
@@ -70,6 +109,17 @@ export namespace pipeline
         // Re-import memory: the review dialog's decisions from the import that wrote this
         // manifest. A re-import merges them onto the fresh plan instead of asking again.
         pipeline::ImportPlan importSelection;
+
+        // A .gltf's sidecars, which sit beside it and move with it.
+        [[nodiscard]] Array<String> CompanionFiles(StringView fileOnDisk) const override
+        {
+            if (pipeline::FileExtensionLower(fileOnDisk) != StringView(u8"gltf"))
+                return {};
+            Result<Array<byte>> bytes = ReadFile(fileOnDisk);
+            if (!bytes.HasValue())
+                return {};
+            return GltfSidecarUris(StringView(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size()));
+        }
 
         void Serialize(ISerializer& ar) override
         {
@@ -707,10 +757,12 @@ export namespace pipeline
         }
 
         [[nodiscard]] Result<content::Instance*>
-        Import(StringView sourcePath, const pipeline::ImportContext& context, content::Group& group,
+        Import(StringView sourcePath, const pipeline::ImportContext& baseContext, content::Group& group,
                const pipeline::ImportOptions* options, Object* prepared,
                Array<pipeline::DeferredImportWrite>* deferredWrites) override
         {
+            // Its files go in its own group's folder (set below, once the group's name is known).
+            pipeline::ImportContext context = baseContext;
             const ModelImportOptions defaults;
             const ModelImportOptions& opt =
                 (options != nullptr) ? static_cast<const ModelImportOptions&>(*options) : defaults;
@@ -736,12 +788,16 @@ export namespace pipeline
             {
                 RefPtr<ISerializable> previous = clash.existing->ReadObject();
                 const auto* asset = Cast<pipeline::Asset>(previous.Get());
-                overwriteOwn = asset != nullptr && asset->fileName.View() == sourceFileName;
+                overwriteOwn = asset != nullptr && pipeline::FileNameOf(asset->fileName.View()) == sourceFileName;
             }
             else if (clash.kind == pipeline::ImportClashKind::SameType)
             {
                 folderName = group.UniqueGroupName(folderName.AsView()); // KeepBoth
                 overwriteOwn = false;
+            }
+            {
+                const String groupPath = group.Path();
+                context.folder = groupPath.IsEmpty() ? folderName : PathJoin(groupPath.AsView(), folderName.AsView());
             }
             Result<String> fileName = Result<String>(String(sourceFileName));
             if (deferredWrites != nullptr)
@@ -750,7 +806,7 @@ export namespace pipeline
                 pipeline::DeferredImportWrite copy;
                 copy.copyFrom = String(sourcePath);
                 fileName = pipeline::SourcesNameFor(context, sourcePath, overwriteOwn);
-                copy.copyTo = PathJoin(context.sourcesRoot.AsView(), fileName.Value().AsView());
+                copy.copyTo = context.FileOf(fileName.Value().AsView());
                 deferredWrites->PushBack(static_cast<pipeline::DeferredImportWrite&&>(copy));
             }
             else
@@ -951,51 +1007,9 @@ export namespace pipeline
 
             foundation::vfs::NativeFileSystem sources(context.sourcesRoot.AsView(),
                                                       *context.allocator);
-            const StringView key = u8"\"uri\"";
-            for (usize i = 0; i + key.Size() < text.Size(); ++i)
+            for (const String& sidecar : GltfSidecarUris(text))
             {
-                if (text.SubStr(i, key.Size()) != key)
-                {
-                    continue;
-                }
-                usize j = i + key.Size();
-                while (j < text.Size() && (text[j] == utf8char(':') || text[j] == utf8char(' ') ||
-                                           text[j] == utf8char('\t')))
-                {
-                    ++j;
-                }
-                if (j >= text.Size() || text[j] != utf8char('"'))
-                {
-                    continue;
-                }
-                const usize begin = ++j;
-                while (j < text.Size() && text[j] != utf8char('"'))
-                {
-                    ++j;
-                }
-                if (j >= text.Size())
-                {
-                    break;
-                }
-                const StringView uri = text.SubStr(begin, j - begin);
-                i = j;
-
-                if (uri.IsEmpty())
-                {
-                    continue;
-                }
-                if (uri.Size() >= 5 && uri.SubStr(0, 5) == StringView(u8"data:"))
-                {
-                    continue;
-                }
-                // Only a path that stays under the model's folder: an absolute one, a drive, a
-                // scheme or a ".." would read, and then write, outside the package and the sources.
-                if (!PathStaysInside(uri))
-                {
-                    LOG_WARNING(u8"Import", u8"gltf sidecar skipped, its uri leaves the model's folder: {}", uri);
-                    continue;
-                }
-
+                const StringView uri = sidecar.AsView();
                 String from(dir);
                 from.Append(uri);
                 // A uri the package does not ship (a package can name a PNG twin for every DDS
@@ -1010,7 +1024,7 @@ export namespace pipeline
                 {
                     pipeline::DeferredImportWrite copy;
                     copy.copyFrom = from;
-                    copy.copyTo = PathJoin(context.sourcesRoot.AsView(), uri);
+                    copy.copyTo = context.FileOf(context.InFolder(uri).AsView());
                     deferredWrites->PushBack(static_cast<pipeline::DeferredImportWrite&&>(copy));
                     continue;
                 }
@@ -1021,7 +1035,7 @@ export namespace pipeline
                     continue;
                 }
                 const Status saved = sources.AsWritable()->Save(
-                    uri, Span<const byte>(payload.Value().Data(), payload.Value().Size()));
+                    context.InFolder(uri).AsView(), Span<const byte>(payload.Value().Data(), payload.Value().Size()));
                 if (!saved.IsOk())
                 {
                     LOG_WARNING(u8"Import", u8"gltf sidecar copy failed: {}", uri);
@@ -1105,8 +1119,15 @@ export namespace pipeline
         {
             const StringView sourceFile = t.sourceFile();
             const bool relative = IsModelRelativeUri(t.uri());
-            // The name the asset references under Sources/: the model-relative uri, else the file.
-            const StringView fileName = relative ? t.uri() : pipeline::FileNameOf(sourceFile);
+            // The name the asset references under Sources/: the model-relative uri, else the file,
+            // in the model's folder.
+            const StringView localName = relative ? t.uri() : pipeline::FileNameOf(sourceFile);
+            if (localName.IsEmpty())
+            {
+                return nullptr;
+            }
+            const String fileNameInFolder = context.InFolder(localName);
+            const StringView fileName = fileNameInFolder.AsView();
             if (fileName.IsEmpty())
             {
                 return nullptr;
@@ -1125,7 +1146,7 @@ export namespace pipeline
                 {
                     pipeline::DeferredImportWrite copy;
                     copy.copyFrom = String(sourceFile);
-                    copy.copyTo = PathJoin(context.sourcesRoot.AsView(), fileName);
+                    copy.copyTo = context.FileOf(fileName);
                     deferredWrites->PushBack(static_cast<pipeline::DeferredImportWrite&&>(copy));
                 }
                 else

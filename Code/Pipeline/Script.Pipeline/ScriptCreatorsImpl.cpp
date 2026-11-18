@@ -72,9 +72,13 @@ namespace pipeline
         // opens in an IDE at once rather than after its first cook.
         if (created != nullptr)
         {
+            RefPtr<ISerializable> made = created->ReadObject(); // beside the project file, in its folder
+            const auto* madeAsset = Cast<Asset>(made.Get());
+            const String folder(madeAsset != nullptr ? PathParent(madeAsset->fileName.View()) : StringView{});
             for (const ScriptAssemblyFile& file : cook->LocalFiles())
             {
-                const String path = context.FileOf(PathJoin(foundation::vfs::kSourcesCodeFolder, file.path.AsView()).AsView());
+                const String inFolder = folder.IsEmpty() ? String(file.path) : PathJoin(folder.AsView(), file.path.AsView());
+                const String path = context.FileOf(inFolder.AsView());
                 (void)CreateDirectories(PathParent(path.AsView()));
                 (void)WriteFile(path.AsView(), Span<const byte>(reinterpret_cast<const byte*>(file.text.Data()), file.text.Size()));
             }

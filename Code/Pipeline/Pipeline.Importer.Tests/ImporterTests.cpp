@@ -236,9 +236,10 @@ TEST_CASE("importer: a copy into Code lands in the project's code folder")
     ImportContext context{DefaultAllocator(), sources.AsView()};
     context.codeRoot = code;
     context.ledgerPath = ImportLedgerPath(PathJoin(dir.AsView(), u8".cache").AsView());
+    context.folder = String(u8"Code");
 
     const String first = write(one, u8"first");
-    Result<String> a = CopyIntoSources(context, first.AsView(), false, u8"Code");
+    Result<String> a = CopyIntoSources(context, first.AsView(), false);
     REQUIRE(a.HasValue());
     CHECK(a.Value() == StringView(u8"Code/Hero.as"));
     CHECK(FileExists(PathJoin(code.AsView(), u8"Hero.as").AsView()));
@@ -247,12 +248,24 @@ TEST_CASE("importer: a copy into Code lands in the project's code folder")
     CHECK(ImportOriginOf(context.ledgerPath.AsView(), u8"Code/Hero.as") == first);
 
     const String second = write(two, u8"second");
-    Result<String> b = CopyIntoSources(context, second.AsView(), true, u8"Code");
+    Result<String> b = CopyIntoSources(context, second.AsView(), true);
     REQUIRE(b.HasValue());
     CHECK(b.Value() == StringView(u8"Code/Hero.2.as"));
     CHECK(FileExists(PathJoin(code.AsView(), u8"Hero.2.as").AsView()));
+    // In a group's folder: the name carries it, the file lands under it (made when missing).
+    ImportContext inGroup = context;
+    inGroup.folder = String(u8"Code/Heroes/Melee");
+    Result<String> grouped = CopyIntoSources(inGroup, first.AsView(), true);
+    REQUIRE(grouped.HasValue());
+    CHECK(grouped.Value() == StringView(u8"Code/Heroes/Melee/Hero.as"));
+    CHECK(FileExists(PathJoin(code.AsView(), u8"Heroes/Melee/Hero.as").AsView()));
+    ImportContext artGroup = context;
+    artGroup.folder = String(u8"Textures/UI");
+    CHECK(artGroup.InFolder(u8"x.png") == StringView(u8"Textures/UI/x.png"));
     // A copy with no folder still lands in Sources.
-    Result<String> c = CopyIntoSources(context, second.AsView(), true);
+    ImportContext plain = context;
+    plain.folder = String{};
+    Result<String> c = CopyIntoSources(plain, second.AsView(), true);
     REQUIRE(c.HasValue());
     CHECK(c.Value() == StringView(u8"Hero.as"));
     CHECK(FileExists(PathJoin(sources.AsView(), u8"Hero.as").AsView()));

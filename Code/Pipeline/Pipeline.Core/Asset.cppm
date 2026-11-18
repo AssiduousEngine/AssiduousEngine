@@ -67,6 +67,10 @@ export namespace pipeline
         // Whether its file is code (a script, a script project), which lives in the project's
         // Code/ folder: its fileName starts Code/ (foundation::vfs::kSourcesCodeFolder).
         [[nodiscard]] virtual bool IsCode() const { return false; }
+
+        // The files beside its file that belong with it, relative to its folder (a .gltf's buffers
+        // and images): they move with it. `fileOnDisk` is its file's path. None by default.
+        [[nodiscard]] virtual Array<String> CompanionFiles(StringView /*fileOnDisk*/) const { return {}; }
     };
 
     // The export target a cook is producing for. `id` names the target: it is both the
@@ -327,8 +331,8 @@ export namespace pipeline
     // Asset::StaticType() itself is defined with the fileName property in AssetImpl.cpp.
     void RegisterAssetReflection();
 
-    /// A file-backed creation: `starter` written to "<name><extension>" in the context's
-    /// sources folder (in `folder` under it when given: Code for a script), and a uniquely named
+    /// A file-backed creation: `starter` written to "<name><extension>" in the target group's
+    /// folder under the sources (under `folder` when given: Code for a script), and a uniquely named
     /// instance of `type` whose `asset` links that file through fileName (a script, a UI
     /// document). Names are unique per group, not per folder, so a file already there (another
     /// group's asset of that name) is never written over: the first free "<name>.2<extension>",
@@ -349,7 +353,10 @@ export namespace pipeline
         {
             return nullptr;
         }
-        auto inFolder = [folder](StringView file) { return folder.IsEmpty() ? String(file) : PathJoin(folder, file); };
+        // In the target group's folder (under `folder` when given: Code/<group>/ for a script).
+        const String groupPath = target->Path();
+        const String inGroup = folder.IsEmpty() ? groupPath : groupPath.IsEmpty() ? String(folder) : PathJoin(folder, groupPath.AsView());
+        auto inFolder = [&inGroup](StringView file) { return inGroup.IsEmpty() ? String(file) : PathJoin(inGroup.AsView(), file); };
         String fileName = inFolder(Format(u8"{}{}", name.AsView(), extension).AsView());
         String path = context.FileOf(fileName.AsView());
         for (u32 n = 2; FileExists(path.AsView()); ++n)

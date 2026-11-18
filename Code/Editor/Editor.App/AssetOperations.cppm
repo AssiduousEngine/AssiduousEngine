@@ -83,6 +83,10 @@ export namespace editor::app
                 return String(u8"The rename failed (see the Console).");
             if (content::Group* cooked = GroupAt(project.CookedDb(), oldPath.AsView()))
                 (void)project.CookedDb().RenameGroup(*cooked, name);
+            // Its files follow it to its new folder, its subgroups' too.
+            Array<content::Instance*> inside;
+            CollectInstances(group, inside);
+            (void)project.PlaceInGroupFolders(Span<content::Instance* const>{inside.Data(), inside.Size()});
             RefreshDefaultScenePath(project);
             LOG_INFO(u8"Assets", u8"renamed group '{}' -> '{}'", oldPath, group.Path());
             return String{};
@@ -161,6 +165,7 @@ export namespace editor::app
                 return;
             editor::EditorProject& project = *Project();
             usize moved = 0;
+            Array<content::Instance*> movedAssets; // their files follow them to the group's folder
             for (const Guid& id : ids)
             {
                 content::Instance* instance = Find(id);
@@ -178,6 +183,7 @@ export namespace editor::app
                     continue;
                 }
                 ++moved;
+                movedAssets.PushBack(instance);
                 LOG_INFO(u8"Assets", u8"moved '{}' -> '{}'", from, instance->Path());
                 // Move the cooked product too. Everything binds by guid, so this only keeps the
                 // mirror accurate.
@@ -185,6 +191,7 @@ export namespace editor::app
                     if (content::Group* cooked = MakeGroupAt(project.CookedDb(), to.Path().AsView()))
                         (void)project.CookedDb().MoveInstance(id, *cooked);
             }
+            (void)project.PlaceInGroupFolders(Span<content::Instance* const>{movedAssets.Data(), movedAssets.Size()});
             RefreshDefaultScenePath(project);
             if (moved > 0)
                 Context().SetStatus(moved == 1 ? Format(u8"Moved 1 asset to {}.", GroupPicker::ShownName(to)).AsView()
@@ -323,6 +330,15 @@ export namespace editor::app
                 return Format(u8"{} is already there.", name);
             return String{};
         }
+        // Every asset in `group` and its subgroups.
+        static void CollectInstances(content::Group& group, Array<content::Instance*>& out)
+        {
+            for (content::Instance* instance : group.Instances())
+                out.PushBack(instance);
+            for (content::Group* child : group.Groups())
+                CollectInstances(*child, out);
+        }
+
         [[nodiscard]] static content::Group* MakeGroupAt(content::ContentDatabase& db, StringView path)
         {
             content::Group* group = db.RootGroup();

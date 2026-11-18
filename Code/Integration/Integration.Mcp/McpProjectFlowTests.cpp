@@ -187,9 +187,9 @@ TEST_CASE("integration.mcp: project_create seeds the default UI font, the sky an
     foundation::content::Group* root = project->SourceDb().RootGroup();
     REQUIRE(root->GetGroup(u8"Environment") != nullptr);
     CHECK(root->GetGroup(u8"Environment")->GetInstance(u8"Sky") != nullptr);
-    CHECK(FileExists(u8"mcp_seeded_project/Sources/kloofendal_48d_partly_cloudy_puresky_1k.hdr"));
+    CHECK(FileExists(u8"mcp_seeded_project/Sources/Environment/kloofendal_48d_partly_cloudy_puresky_1k.hdr"));
     CHECK_FALSE(FileExists(u8"mcp_seeded_project/Sources/BlueSky.hdr")); // the large sky is not seeded
-    CHECK(FileExists(u8"mcp_seeded_project/Sources/Roboto-Regular.ttf"));
+    CHECK(FileExists(u8"mcp_seeded_project/Sources/Fonts/Roboto-Regular.ttf"));
 }
 
 TEST_CASE("integration.mcp: asset_list / asset_info read the open project's content DB")
@@ -295,9 +295,9 @@ namespace
         CHECK(list.Get(u8"count").AsInt() == 1);
         CHECK(list.Get(u8"assets").At(0).Get(u8"group").AsString() == StringView(u8"scripts"));
 
-        // The raw source was copied into the project's Code/ (a script is code) and the envelope
-        // written under Content/.
-        CHECK(FileExists(Format(u8"{}/Code/{}", projectDir, srcFile.AsView()).AsView()));
+        // The raw source was copied into the project's Code/ (a script is code), in its group's
+        // folder, and the envelope written under Content/.
+        CHECK(FileExists(Format(u8"{}/Code/scripts/{}", projectDir, srcFile.AsView()).AsView())); // its group's folder
         CHECK_FALSE(FileExists(Format(u8"{}/Sources/{}", projectDir, srcFile.AsView()).AsView()));
         CHECK(FileExists(Format(u8"{}/Content/scripts/{}.xasset", projectDir, sourceStem).AsView()));
 

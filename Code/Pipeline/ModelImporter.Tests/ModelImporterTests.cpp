@@ -348,10 +348,10 @@ TEST_CASE("model-import: external-sidecar .gltf imports and its sidecars land in
     REQUIRE(imported.HasValue());
     REQUIRE(imported.Value() != nullptr);
 
-    // The main file and both referenced sidecars are in Sources/.
-    CHECK(FileExists(PathJoin(dir, u8"Sources/Fox.gltf").AsView()));
-    CHECK(FileExists(PathJoin(dir, u8"Sources/Fox.bin").AsView()));
-    CHECK(FileExists(PathJoin(dir, u8"Sources/Texture.png").AsView()));
+    // The main file and both referenced sidecars are in the model's folder under Sources/.
+    CHECK(FileExists(PathJoin(dir, u8"Sources/Fox/Fox.gltf").AsView()));
+    CHECK(FileExists(PathJoin(dir, u8"Sources/Fox/Fox.bin").AsView()));
+    CHECK(FileExists(PathJoin(dir, u8"Sources/Fox/Texture.png").AsView()));
 
     // The fan-out produced meshes and the Fox's animation clips.
     RefPtr<ISerializable> object = imported.Value()->ReadObject();
@@ -1723,9 +1723,9 @@ TEST_CASE("model-import: nested-subfolder sidecars survive the DEFERRED write pa
         const Status s = write.Execute();
         CHECK(s.IsOk());
     }
-    CHECK(FileExists(PathJoin(dir, u8"Sources/Fox.gltf").AsView()));
-    CHECK(FileExists(PathJoin(dir, u8"Sources/Fox.bin").AsView()));
-    CHECK(FileExists(PathJoin(dir, u8"Sources/textures/Texture.png").AsView()));
+    CHECK(FileExists(PathJoin(dir, u8"Sources/Fox/Fox.gltf").AsView()));
+    CHECK(FileExists(PathJoin(dir, u8"Sources/Fox/Fox.bin").AsView()));
+    CHECK(FileExists(PathJoin(dir, u8"Sources/Fox/textures/Texture.png").AsView()));
 
     // Naming prefers the file stem over the authored image name (this fixture's image is
     // named "authored_name_lies", like a packed arm map named "*_rough"), and the asset
@@ -1900,9 +1900,9 @@ TEST_CASE("model-import: DDS textures stay on disk as file-backed assets and pas
     REQUIRE(imported.HasValue());
     REQUIRE(imported.Value() != nullptr);
     // One copy each, at the model-relative path the sidecar pass uses - never a second flat copy.
-    CHECK(FileExists(PathJoin(dir, u8"Sources/tex/albedo.dds").AsView()));
-    CHECK(FileExists(PathJoin(dir, u8"Sources/tex/normal.dds").AsView()));
-    CHECK_FALSE(FileExists(PathJoin(dir, u8"Sources/albedo.dds").AsView()));
+    CHECK(FileExists(PathJoin(dir, u8"Sources/tri/tex/albedo.dds").AsView()));
+    CHECK(FileExists(PathJoin(dir, u8"Sources/tri/tex/normal.dds").AsView()));
+    CHECK_FALSE(FileExists(PathJoin(dir, u8"Sources/tri/albedo.dds").AsView()));
 
     foundation::content::Group* modelGroup = project->SourceDb().RootGroup()->GetGroup(u8"tri");
     REQUIRE(modelGroup != nullptr);
@@ -1914,7 +1914,7 @@ TEST_CASE("model-import: DDS textures stay on disk as file-backed assets and pas
         RefPtr<ISerializable> object = albedoInst->ReadObject();
         auto* asset = Cast<pipeline::TextureAsset>(object.Get());
         REQUIRE(asset != nullptr);
-        CHECK(asset->fileName == StringView(u8"tex/albedo.dds")); // file-backed, not embedded
+        CHECK(asset->fileName == StringView(u8"tri/tex/albedo.dds")); // file-backed, not embedded
         CHECK(asset->embeddedWidth == 0u);
         CHECK(asset->usage == ::texcomp::TextureUsage::Color);
         CHECK(asset->colorSpace == foundation::image::ImageColorSpace::Srgb); // the DX10 fact
@@ -1924,7 +1924,7 @@ TEST_CASE("model-import: DDS textures stay on disk as file-backed assets and pas
         RefPtr<ISerializable> object = normalInst->ReadObject();
         auto* asset = Cast<pipeline::TextureAsset>(object.Get());
         REQUIRE(asset != nullptr);
-        CHECK(asset->fileName == StringView(u8"tex/normal.dds"));
+        CHECK(asset->fileName == StringView(u8"tri/tex/normal.dds"));
         CHECK(asset->usage == ::texcomp::TextureUsage::Normal); // the slot
         CHECK(asset->colorSpace == foundation::image::ImageColorSpace::Linear);
     }
@@ -1980,10 +1980,10 @@ TEST_CASE("model-import: DDS textures stay on disk as file-backed assets and pas
     {
         CHECK_MESSAGE(write.Execute().IsOk(), write.Label());
     }
-    CHECK(FileExists(PathJoin(dir, u8"Sources/tex/albedo.dds").AsView()));
-    CHECK(FileExists(PathJoin(dir, u8"Sources/tex/normal.dds").AsView()));
-    CHECK(FileExists(PathJoin(dir, u8"Sources/tri.bin").AsView()));
-    CHECK_FALSE(FileExists(PathJoin(dir, u8"Sources/tex/albedo.png").AsView()));
+    CHECK(FileExists(PathJoin(dir, u8"Sources/tri/tex/albedo.dds").AsView()));
+    CHECK(FileExists(PathJoin(dir, u8"Sources/tri/tex/normal.dds").AsView()));
+    CHECK(FileExists(PathJoin(dir, u8"Sources/tri/tri.bin").AsView()));
+    CHECK_FALSE(FileExists(PathJoin(dir, u8"Sources/tri/tex/albedo.png").AsView()));
     project.Reset();
     (void)RemoveDirectoryRecursive(dir);
     (void)RemoveDirectoryRecursive(src);
@@ -2723,9 +2723,9 @@ TEST_CASE("model import: the same file re-imports in place; another file of its 
     REQUIRE(second != nullptr);
     CHECK(&beside.Value()->OwningGroup() == second);
     RefPtr<ISerializable> object = beside.Value()->ReadObject();
-    CHECK(Cast<pipeline::Asset>(object.Get())->fileName.View() == StringView(u8"character-oozi.2.glb"));
+    CHECK(Cast<pipeline::Asset>(object.Get())->fileName.View() == StringView(u8"character-oozi.2/character-oozi.glb")); // its own folder
     RefPtr<ISerializable> firstObject = project->SourceDb().GetInstance(manifest)->ReadObject();
-    CHECK(Cast<pipeline::Asset>(firstObject.Get())->fileName.View() == StringView(u8"character-oozi.glb"));
+    CHECK(Cast<pipeline::Asset>(firstObject.Get())->fileName.View() == StringView(u8"character-oozi/character-oozi.glb"));
     project.Reset();
     (void)RemoveDirectoryRecursive(dir.AsView());
 }
@@ -2945,4 +2945,29 @@ TEST_CASE("mesh convert: a glTF without tangents gets them generated through the
     }
     CHECK(generated > count / 2); // not left at the default
     CHECK(perpendicular > count * 9 / 10);
+}
+
+// A .gltf's companions: the files its buffers and images name beside it, each once, in order;
+// data URIs and paths leaving its folder are not among them. The model's manifest asset reports
+// them for its file, so a move of the model takes them along.
+TEST_CASE("model-importer: a .gltf's sidecars are its manifest's companion files")
+{
+    const StringView text = u8R"({"buffers":[{"uri":"Crate.bin"},{"uri":"data:application/octet-stream;base64,AAAA"}],
+        "images":[{"uri" : "textures/wood.png"},{"uri":"../outside.png"},{"uri":"/abs.png"},{"uri":"Crate.bin"}]})";
+    const Array<String> uris = pipeline::GltfSidecarUris(text);
+    REQUIRE(uris.Size() == 2u);
+    CHECK(uris[0] == StringView(u8"Crate.bin"));
+    CHECK(uris[1] == StringView(u8"textures/wood.png"));
+
+    const String dir = PathJoin(GetCurrentDirectory().AsView(), u8"scratch_modelimporter_companions");
+    (void)RemoveDirectoryRecursive(dir.AsView());
+    REQUIRE(CreateDirectories(dir.AsView()));
+    const String gltf = PathJoin(dir.AsView(), u8"Crate.gltf");
+    REQUIRE(WriteFile(gltf.AsView(), Span<const byte>(reinterpret_cast<const byte*>(text.Data()), text.Size())).IsOk());
+    pipeline::ModelManifestAsset manifest;
+    const Array<String> companions = manifest.CompanionFiles(gltf.AsView());
+    REQUIRE(companions.Size() == 2u);
+    CHECK(companions[1] == StringView(u8"textures/wood.png"));
+    CHECK(manifest.CompanionFiles(PathJoin(dir.AsView(), u8"Crate.glb").AsView()).IsEmpty()); // a .glb holds its own
+    (void)RemoveDirectoryRecursive(dir.AsView());
 }

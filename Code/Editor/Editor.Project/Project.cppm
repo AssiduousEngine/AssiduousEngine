@@ -156,7 +156,7 @@ export namespace editor
             {
                 UpgradeToQualityLevels(*project, msaaBeforeLevels);
             }
-            MoveCodeIntoCodeFolder(*project);
+            PlaceFilesAtOpen(*project);
             return UniquePtr<EditorProject>(project, allocator);
         }
 
@@ -167,12 +167,21 @@ export namespace editor
         /// carried over: their loads say which asked for one, for the level to take it.
         static void UpgradeToQualityLevels(EditorProject& project, u32 msaaSamples);
 
-        /// A project made before its code had a folder of its own kept scripts and their project
-        /// files under Sources/. Moves each code asset's file (pipeline::Asset::IsCode) still there
-        /// into Code/ and points the asset at it (its fileName gains Code/, its id is kept); a
-        /// folder already at Sources/Code, which Code/ would hide, is renamed first, and the
-        /// assets naming files in it follow. Nothing to do once every code file is in Code/.
-        static void MoveCodeIntoCodeFolder(EditorProject& project);
+        /// A project made before its files followed their groups kept them flat in Sources/, its
+        /// code among them. Puts every asset's file in its group's folder (PlaceInGroupFolders:
+        /// code, pipeline::Asset::IsCode, under Code/); a folder already at Sources/Code, which
+        /// Code/ would hide, is renamed first and the assets naming files in it follow. Nothing to
+        /// do once every file is in place.
+        static void PlaceFilesAtOpen(EditorProject& project);
+
+        /// Puts the files of `assets` in their groups' folders (Sources/<group>/, Code/<group>/
+        /// for code): each file not there moves, with its companions (a .gltf's sidecars), and
+        /// every asset naming it or a companion follows (ids kept, the import ledger's origins
+        /// carried). A file assets in different groups share stays where it is; a name taken in
+        /// the folder takes the next free one ("a.2.png"). Folders a move leaves empty go. Run
+        /// for the assets a move or a group rename touched, and for all of an older project's at
+        /// open. Returns how many files moved.
+        u32 PlaceInGroupFolders(Span<foundation::content::Instance* const> assets);
 
         [[nodiscard]] StringView Name() const noexcept { return m_settings.name.AsView(); }
         [[nodiscard]] StringView Directory() const noexcept { return m_directory.AsView(); }

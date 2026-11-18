@@ -1291,7 +1291,7 @@ TEST_CASE("integration.mcp: material_set_shader lays a material out by its shade
                                    FfStr(FfStr(JsonValue::MakeObject(), u8"creator", u8"Low-Level Shader"),
                                          u8"name", u8"Still"));
     {
-        const String path = PathJoin(session.project->SourcesRoot().AsView(), u8"Still.hlsl");
+        const String path = session.project->SourceFile(u8"Shaders/Still.hlsl"); // in its group's folder
         Result<Array<byte>> bytes = ReadFile(path.AsView());
         REQUIRE(bytes.HasValue());
         const String text(StringView(reinterpret_cast<const char8_t*>(bytes.Value().Data()), bytes.Value().Size()));

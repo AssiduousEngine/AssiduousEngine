@@ -1361,10 +1361,12 @@ export namespace pipeline{
                    content::Group& group)
         {
             String posXName;
+            pipeline::ImportContext inGroup = context; // the faces go in the group's folder
+            inGroup.folder = group.Path();
             for (usize i = 0; i < facePaths.Size(); ++i)
             {
                 Result<String> copied =
-                    pipeline::CopyIntoSources(context, facePaths[i].AsView());
+                    pipeline::CopyIntoSources(inGroup, facePaths[i].AsView());
                 if (!copied.HasValue())
                 {
                     return Err(copied.Error());
