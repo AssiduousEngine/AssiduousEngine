@@ -196,7 +196,7 @@ namespace foundation::script::dotnet
                     return false;
             }
             void* slots[kMaxArgs];
-            String strings[kMaxArgs];
+            InlineArray<String, kMaxArgs> strings; // made only for a String argument; never moved
             StringView views[kMaxArgs];
             for (u32 i = 0; i < count; ++i)
             {
@@ -209,8 +209,8 @@ namespace foundation::script::dotnet
                 }
                 else if (param.form == ParamForm::Value && arg.kind == DotNetValueKind::Text && param.type()->id == TypeOf<String>().id)
                 {
-                    strings[i] = String(StringView(static_cast<const utf8char*>(arg.data), static_cast<usize>(arg.size)));
-                    slots[i] = &strings[i];
+                    strings.Add(String(StringView(static_cast<const utf8char*>(arg.data), static_cast<usize>(arg.size))));
+                    slots[i] = &strings[strings.Size() - 1];
                 }
                 else if (param.form == ParamForm::Value && arg.kind == DotNetValueKind::Bytes && arg.type != nullptr &&
                          arg.type->id == param.type()->id && arg.data != nullptr) // by id: a type may have more than one record
