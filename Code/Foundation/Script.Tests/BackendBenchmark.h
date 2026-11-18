@@ -50,6 +50,9 @@ namespace foundation::script::benchmark
         Function<bool(IScriptContext&)> load;
         /// Whether to run the coroutine and collector measures (spawn and churn).
         bool collector = true;
+        /// Whether to run the value math measure (math), which uses operators and a Color a
+        /// language's bindings may not offer.
+        bool math = true;
     };
 
     namespace detail
@@ -143,6 +146,7 @@ namespace foundation::script::benchmark
         }
 
         // Math: Float3 arithmetic and a Color, in a script loop.
+        if (dialect.math)
         {
             constexpr i32 kIterations = 100000;
             Variant n[] = {Variant::From<i32>(kIterations)};
@@ -165,7 +169,7 @@ namespace foundation::script::benchmark
                 const f64 seconds = clock.Elapsed().AsSeconds();
                 if (!ran.HasValue())
                 {
-                    FAIL_CHECK(name << " did not run"); // a failed call times nothing
+                    FAIL_CHECK(doctest::String(name) << " did not run"); // a failed call times nothing
                     return;
                 }
                 detail::Report(language, name, seconds * 1e9 / kCalls, "ns/call");
