@@ -21,7 +21,7 @@
 
 #include <bit> // std::bit_cast (LibrarySymbol)
 #include <cstdio>
-#include <cstdlib> // std::realloc (RunProcess's command line)
+#include <cstdlib> // std::realloc (CommandLine)
 #include <cstring>
 
 // windows.h #defines these to the ...A/...W variants, which would also rewrite
@@ -35,6 +35,102 @@
 
 namespace foundation::core::sys
 {
+    namespace
+    {
+        // A CreateProcess command line that grows as it is built (a fixed one cut a long command
+        // short). CreateProcess re-parses it, so each argument is quoted only when it needs it
+        // (empty, or holding whitespace or quotes). Quoting unconditionally breaks callees that
+        // parse their own command line rather than using CommandLineToArgvW, notably cmd.exe,
+        // which does not recognise a quoted "/c" switch.
+        class CommandLine
+        {
+        public:
+            CommandLine() = default;
+            CommandLine(const CommandLine&) = delete;
+            CommandLine& operator=(const CommandLine&) = delete;
+            ~CommandLine() { std::free(m_text); }
+
+            void Put(char c) noexcept
+            {
+                if (m_length + 2 > m_capacity)
+                {
+                    const std::size_t grown = m_capacity == 0 ? 1024 : m_capacity * 2;
+                    char* next = static_cast<char*>(std::realloc(m_text, grown));
+                    if (next == nullptr)
+                    {
+                        m_full = true;
+                        return;
+                    }
+                    m_text = next;
+                    m_capacity = grown;
+                }
+                m_text[m_length++] = c;
+            }
+
+            void PutText(const char* text) noexcept
+            {
+                for (const char* p = text; *p != '\0'; ++p)
+                    Put(*p);
+            }
+
+            void AppendArgument(const char* s) noexcept
+            {
+                bool needsQuotes = (s[0] == '\0');
+                for (const char* p = s; *p != '\0' && !needsQuotes; ++p)
+                {
+                    needsQuotes = (*p == ' ' || *p == '\t' || *p == '"');
+                }
+                if (!needsQuotes)
+                {
+                    PutText(s);
+                    return;
+                }
+                Put('"');
+                for (const char* p = s; *p != '\0'; ++p)
+                {
+                    if (*p == '\\')
+                    {
+                        // A backslash run is literal unless it precedes the closing quote, where
+                        // each one must be doubled so it isn't read as escaping that quote.
+                        std::size_t slashes = 0;
+                        while (p[slashes] == '\\')
+                            ++slashes;
+                        const bool beforeClose = (p[slashes] == '\0');
+                        for (std::size_t i = 0; i < slashes * (beforeClose ? 2u : 1u); ++i)
+                            Put('\\');
+                        p += slashes - 1;
+                        continue;
+                    }
+                    if (*p == '"')
+                        Put('\\');
+                    Put(*p);
+                }
+                Put('"');
+            }
+
+            // The finished, NUL-terminated line for the caller to free, or null when it ran out of memory.
+            [[nodiscard]] char* Take() noexcept
+            {
+                if (m_full || m_text == nullptr)
+                {
+                    return nullptr;
+                }
+                m_text[m_length] = '\0';
+                char* text = m_text;
+                m_text = nullptr;
+                m_length = 0;
+                m_capacity = 0;
+                return text;
+            }
+
+        private:
+            char* m_text = nullptr;
+            std::size_t m_length = 0;
+            std::size_t m_capacity = 0;
+            bool m_full = false;
+        };
+    }
+
     std::uint64_t GetTicks() noexcept
     {
         LARGE_INTEGER counter;
@@ -216,6 +312,78 @@ namespace foundation::core::sys
         return true;
     }
 
+    bool LaunchDetached(const char* program, const char* const* argv, int argc) noexcept
+    {
+        if (program == nullptr || program[0] == '\0' || argc < 0)
+        {
+            return false;
+        }
+        // CreateProcess's own search only adds .exe, and most editors put a .cmd on PATH (VS Code's
+        // `code`, beside a `code` shell script for WSL that Windows cannot run), so find the program
+        // first, as an .exe, a .cmd or a .bat. A name with an extension is searched as it is.
+        char found[MAX_PATH];
+        DWORD foundLength = 0;
+        const char* const extensions[] = {".exe", ".cmd", ".bat"};
+        for (const char* extension : extensions)
+        {
+            foundLength = ::SearchPathA(nullptr, program, extension, sizeof(found), found, nullptr);
+            if (foundLength != 0 && foundLength < sizeof(found))
+                break;
+        }
+        if (foundLength == 0 || foundLength >= sizeof(found))
+        {
+            return false;
+        }
+        const char* extension = std::strrchr(found, '.');
+        const bool script = extension != nullptr && (_stricmp(extension, ".cmd") == 0 || _stricmp(extension, ".bat") == 0);
+
+        CommandLine line;
+        if (script)
+        {
+            // cmd /s /c "<line>" takes everything between the outer quotes as the command, as is.
+            char shell[MAX_PATH];
+            const UINT shellLength = ::GetSystemDirectoryA(shell, sizeof(shell));
+            if (shellLength == 0 || shellLength + 9 > sizeof(shell))
+            {
+                return false;
+            }
+            std::strcat(shell, "\\cmd.exe");
+            line.AppendArgument(shell);
+            line.PutText(" /d /s /c \"");
+        }
+        line.AppendArgument(found);
+        for (int i = 0; i < argc; ++i)
+        {
+            line.Put(' ');
+            line.AppendArgument(argv[i]);
+        }
+        if (script)
+        {
+            line.Put('"');
+        }
+        char* command = line.Take();
+        if (command == nullptr)
+        {
+            return false;
+        }
+        // No inherited handles, a process group of its own, and no console window for the cmd.exe
+        // that runs a script. CreateProcess returns once the child starts; nothing waits on it.
+        STARTUPINFOA startup{};
+        startup.cb = sizeof(startup);
+        PROCESS_INFORMATION process{};
+        const DWORD flags = CREATE_NEW_PROCESS_GROUP | (script ? CREATE_NO_WINDOW : 0);
+        const BOOL ok = ::CreateProcessA(nullptr, command, nullptr, nullptr, FALSE, flags, nullptr, nullptr,
+                                         &startup, &process);
+        std::free(command);
+        if (!ok)
+        {
+            return false;
+        }
+        ::CloseHandle(process.hThread);
+        ::CloseHandle(process.hProcess);
+        return true;
+    }
+
     bool NormalizePathSeparators(const char* path, char* out, std::size_t cap) noexcept
     {
         // Windows-native separator is '\'; flip any forward slash. (POSIX flips the other way.)
@@ -253,79 +421,19 @@ namespace foundation::core::sys
         }
         const bool capture = sink != nullptr;
 
-        // Build the command line: exe arg0 arg1 ... CreateProcess re-parses this, so each token is
-        // quoted only when it needs it (empty, or containing whitespace/quotes). Quoting
-        // unconditionally breaks callees that parse their own command line rather than using
-        // CommandLineToArgvW - notably cmd.exe, which does not recognise a quoted "/c" switch.
-        // Spaces in the vendored-tool path and file arguments still get quoted. The buffer grows
-        // with the line (a fixed one cut a long command short).
-        char* command = nullptr;
-        std::size_t len = 0;
-        std::size_t cap = 0;
-        bool full = false;
-        auto put = [&](char c) noexcept
-        {
-            if (len + 2 > cap)
-            {
-                const std::size_t grown = cap == 0 ? 1024 : cap * 2;
-                char* next = static_cast<char*>(std::realloc(command, grown));
-                if (next == nullptr)
-                {
-                    full = true;
-                    return;
-                }
-                command = next;
-                cap = grown;
-            }
-            command[len++] = c;
-        };
-        auto appendArg = [&](const char* s) noexcept
-        {
-            bool needsQuotes = (s[0] == '\0');
-            for (const char* p = s; *p != '\0' && !needsQuotes; ++p)
-            {
-                needsQuotes = (*p == ' ' || *p == '\t' || *p == '"');
-            }
-            if (!needsQuotes)
-            {
-                for (const char* p = s; *p != '\0'; ++p)
-                    put(*p);
-                return;
-            }
-            put('"');
-            for (const char* p = s; *p != '\0'; ++p)
-            {
-                if (*p == '\\')
-                {
-                    // A backslash run is literal unless it precedes the closing quote, where
-                    // each one must be doubled so it isn't read as escaping that quote.
-                    std::size_t slashes = 0;
-                    while (p[slashes] == '\\')
-                        ++slashes;
-                    const bool beforeClose = (p[slashes] == '\0');
-                    for (std::size_t i = 0; i < slashes * (beforeClose ? 2u : 1u); ++i)
-                        put('\\');
-                    p += slashes - 1;
-                    continue;
-                }
-                if (*p == '"')
-                    put('\\');
-                put(*p);
-            }
-            put('"');
-        };
-        appendArg(exe);
+        // Build the command line: exe arg0 arg1 ... (see CommandLine for the quoting).
+        CommandLine line;
+        line.AppendArgument(exe);
         for (int i = 0; i < argc; ++i)
         {
-            put(' ');
-            appendArg(argv[i]);
+            line.Put(' ');
+            line.AppendArgument(argv[i]);
         }
-        if (full || command == nullptr)
+        char* command = line.Take();
+        if (command == nullptr)
         {
-            std::free(command);
             return -1;
         }
-        command[len] = '\0';
 
         SECURITY_ATTRIBUTES sa{};
         sa.nLength = sizeof(sa);

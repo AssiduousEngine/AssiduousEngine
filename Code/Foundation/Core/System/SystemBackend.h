@@ -98,6 +98,13 @@ namespace foundation::core::sys
     // the other OS services here; the :system module re-exports a StringView wrapper for callers.
     bool NormalizePathSeparators(const char* path, char* out, std::size_t cap) noexcept;
 
+    // Starts `program` with `argc` arguments `argv` and does not wait for it: it outlives this
+    // process, with its own session and no handles of ours. `program` is searched on PATH when it
+    // has no directory (on Windows a .cmd or .bat found there runs through cmd.exe, which is how
+    // most editors put themselves on PATH). True once it started, false if it could not be found
+    // or started. Never blocks for long: it may run on the UI thread.
+    bool LaunchDetached(const char* program, const char* const* argv, int argc) noexcept;
+
     // Receives a run's combined stdout and stderr as it arrives, piece by piece.
     using ProcessOutputSink = void (*)(void* context, const char* data, std::size_t size);
 

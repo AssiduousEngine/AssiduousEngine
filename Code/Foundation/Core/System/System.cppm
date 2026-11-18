@@ -554,6 +554,29 @@ export namespace foundation::core
         return sys::OpenPathInFileManager(detail::NullTerminated(path).CStr());
     }
 
+    // Start `program` with `args` (each one whole argument) and leave it running: it outlives this
+    // process. `program` is searched on PATH when it names no folder; on Windows a .cmd or .bat
+    // found there runs through cmd.exe. True once it started, false if it could not be found or
+    // started. It does not wait for the program, so the UI thread may call it (an outside editor).
+    [[nodiscard]] inline bool LaunchDetached(StringView program, Span<const StringView> args)
+    {
+        const String programZ(program);
+        Array<String> store;
+        store.Reserve(args.Size());
+        for (usize i = 0; i < args.Size(); ++i)
+        {
+            store.PushBack(String(args[i]));
+        }
+        Array<const char*> pointers;
+        pointers.Reserve(store.Size());
+        for (usize i = 0; i < store.Size(); ++i)
+        {
+            pointers.PushBack(reinterpret_cast<const char*>(store[i].CStr()));
+        }
+        return sys::LaunchDetached(reinterpret_cast<const char*>(programZ.CStr()), pointers.Data(),
+                                   static_cast<int>(pointers.Size()));
+    }
+
     // Normalize a path's directory separators to the OS-native form (see the backend: '/' -> '\' on
     // Windows, '\' -> '/' on POSIX). Copies into `out` (capacity `cap`, NUL-terminated); false (no
     // write) if empty or overlong-with-NUL. Tests cover the per-platform behaviour through it, and the

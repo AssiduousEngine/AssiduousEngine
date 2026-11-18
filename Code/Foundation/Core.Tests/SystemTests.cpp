@@ -355,6 +355,63 @@ TEST_CASE("system: RunProcess propagates a non-zero exit code")
     CHECK(r.exitCode == expected);
 }
 
+// LaunchDetached starts a script that writes its arguments to a file, one per line, and returns
+// before reading them back: the arguments arrive whole, spaces and all.
+TEST_CASE("system: LaunchDetached starts a program with its arguments and does not wait")
+{
+    const String folder = GetCurrentDirectory();
+    const String record = PathJoin(folder.AsView(), u8"scratch_sys_launch_record.txt");
+#if defined(_WIN32)
+    const String script = PathJoin(folder.AsView(), u8"scratch_sys_launch.cmd");
+    const char body[] = "@echo off\r\n(echo %~2& echo %~3)> \"%~1\"\r\n";
+#else
+    const String script = PathJoin(folder.AsView(), u8"scratch_sys_launch.sh");
+    const char body[] = "#!/bin/sh\nout=\"$1\"; shift\nprintf '%s\\n' \"$@\" > \"$out.part\"\nmv \"$out.part\" \"$out\"\n";
+#endif
+    (void)FileDelete(record.AsView());
+    {
+        FileHandle f = FileOpen(script.AsView(), FileMode::Write);
+        REQUIRE(FileIsValid(f));
+        (void)FileWrite(f, body, sizeof(body) - 1);
+        FileClose(f);
+    }
+#if !defined(_WIN32)
+    REQUIRE(::chmod(reinterpret_cast<const char*>(script.CStr()), 0755) == 0);
+#endif
+    const StringView args[] = {record.AsView(), u8"two words", u8"plain"};
+    REQUIRE(LaunchDetached(script.AsView(), Span<const StringView>(args, 3)));
+
+    String recorded;
+    for (int attempt = 0; attempt < 500 && recorded.IsEmpty(); ++attempt)
+    {
+        FileHandle f = FileOpen(record.AsView(), FileMode::Read);
+        if (FileIsValid(f))
+        {
+            char buffer[256];
+            const i64 got = FileRead(f, buffer, sizeof(buffer));
+            FileClose(f);
+            if (got > 0)
+            {
+                recorded = String(StringView(reinterpret_cast<const char8_t*>(buffer), static_cast<usize>(got)));
+            }
+        }
+        if (recorded.IsEmpty())
+        {
+            SleepMilliseconds(10);
+        }
+    }
+    CHECK(recorded.AsView().StartsWith(u8"two words"));
+    CHECK(recorded.AsView().Contains(u8"plain"));
+    (void)FileDelete(record.AsView());
+    (void)FileDelete(script.AsView());
+}
+
+TEST_CASE("system: LaunchDetached reports a program it cannot find")
+{
+    CHECK_FALSE(LaunchDetached(u8"scratch-no-such-program-anywhere", Span<const StringView>()));
+    CHECK_FALSE(LaunchDetached(u8"", Span<const StringView>()));
+}
+
 #if defined(_WIN32)
 extern "C" __declspec(dllimport) int __stdcall GetHandleInformation(void* handle, unsigned long* flags);
 #endif

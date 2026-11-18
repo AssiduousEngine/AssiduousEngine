@@ -223,6 +223,84 @@ namespace foundation::core::sys
         return true; // launch initiated (xdg-open's own success isn't observable here)
     }
 
+    bool LaunchDetached(const char* program, const char* const* argv, int argc) noexcept
+    {
+        if (program == nullptr || program[0] == '\0' || argc < 0)
+        {
+            return false;
+        }
+        // The argument list is built before the fork, so neither child allocates.
+        const char** argv2 = static_cast<const char**>(std::malloc(sizeof(const char*) * static_cast<std::size_t>(argc + 2)));
+        if (argv2 == nullptr)
+        {
+            return false;
+        }
+        int n = 0;
+        argv2[n++] = program;
+        for (int i = 0; i < argc; ++i)
+        {
+            argv2[n++] = argv[i];
+        }
+        argv2[n] = nullptr;
+
+        // The grandchild writes errno here when exec fails; a successful exec closes it (close on
+        // exec), so the parent reads end of file.
+        int execErr[2] = {-1, -1};
+        if (pipe2(execErr, O_CLOEXEC) != 0)
+        {
+            std::free(argv2);
+            return false;
+        }
+        // Double fork, as OpenPathInFileManager does: the grandchild reparents to init, which reaps it.
+        const pid_t child = fork();
+        if (child < 0)
+        {
+            close(execErr[0]);
+            close(execErr[1]);
+            std::free(argv2);
+            return false;
+        }
+        if (child == 0)
+        {
+            const pid_t grandchild = fork();
+            if (grandchild == 0)
+            {
+                setsid();
+                const int devnull = ::open("/dev/null", O_RDWR);
+                if (devnull >= 0)
+                {
+                    dup2(devnull, STDIN_FILENO);
+                    dup2(devnull, STDOUT_FILENO);
+                    dup2(devnull, STDERR_FILENO);
+                }
+                execvp(program, const_cast<char* const*>(argv2));
+                const int e = errno;
+                const ssize_t wrote = write(execErr[1], &e, sizeof(e));
+                (void)wrote;
+                _exit(127);
+            }
+            if (grandchild < 0)
+            {
+                const int e = errno;
+                const ssize_t wrote = write(execErr[1], &e, sizeof(e));
+                (void)wrote;
+            }
+            _exit(0);
+        }
+        std::free(argv2);
+        close(execErr[1]);
+        int status = 0;
+        (void)waitpid(child, &status, 0);
+        int childErr = 0;
+        ssize_t got = 0;
+        do
+        {
+            got = read(execErr[0], &childErr, sizeof(childErr));
+        } while (got < 0 && errno == EINTR);
+        close(execErr[0]);
+        return got == 0;
+    }
+
     bool NormalizePathSeparators(const char* path, char* out, std::size_t cap) noexcept
     {
         // POSIX-native separator is '/'; flip any backslash. (Windows flips the other way.)
