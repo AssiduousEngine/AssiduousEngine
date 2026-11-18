@@ -46,6 +46,10 @@ namespace foundation::script
         // Entity), after a header naming its type: nothing to destroy, and no Variant made or
         // freed per value.
         constexpr int kValueTag = 2;
+        // A typed call's room: arguments (each a number, a Float3 or a view, in 16 bytes; a value
+        // box's bytes are used where they are) and a result. A call with more goes by Variant.
+        constexpr usize kTypedSlots = 16;
+        constexpr usize kTypedResultBytes = 128;
 
         struct ValueBoxHeader
         {
@@ -1527,12 +1531,202 @@ namespace foundation::script
             return out;
         }
 
+        Atomic<u64> g_typedCalls{0};
+
+        // A Lua number written as a `type` (an integer or float of its width, an enum of its
+        // underlying width), converted as ScriptNumbers::As converts it. False for any other type.
+        [[nodiscard]] bool WriteNumber(const TypeInfo& type, f64 n, void* out) noexcept
+        {
+            if (&type == &TypeOf<f32>()) { *static_cast<f32*>(out) = static_cast<f32>(n); return true; }
+            if (&type == &TypeOf<f64>()) { *static_cast<f64*>(out) = n; return true; }
+            if (&type == &TypeOf<i32>()) { *static_cast<i32*>(out) = static_cast<i32>(n); return true; }
+            if (&type == &TypeOf<u32>()) { *static_cast<u32*>(out) = static_cast<u32>(n); return true; }
+            if (&type == &TypeOf<i64>()) { *static_cast<i64*>(out) = static_cast<i64>(n); return true; }
+            if (&type == &TypeOf<u64>()) { *static_cast<u64*>(out) = static_cast<u64>(n); return true; }
+            if (&type == &TypeOf<i16>()) { *static_cast<i16*>(out) = static_cast<i16>(n); return true; }
+            if (&type == &TypeOf<u16>()) { *static_cast<u16*>(out) = static_cast<u16>(n); return true; }
+            if (&type == &TypeOf<i8>()) { *static_cast<i8*>(out) = static_cast<i8>(n); return true; }
+            if (&type == &TypeOf<u8>()) { *static_cast<u8*>(out) = static_cast<u8>(n); return true; }
+            if (type.enumeratorCount > 0 && type.size <= sizeof(i64))
+            {
+                const i64 value = static_cast<i64>(n); // an enum crosses as its underlying integer
+                std::memcpy(out, &value, type.size);  // its low bytes: the cast to the enum
+                return true;
+            }
+            return false;
+        }
+
+        // A `type` result (constructed at `at`) pushed as the Variant path pushes it; false, with
+        // nothing pushed, for a type it does not push directly.
+        [[nodiscard]] bool PushTyped(lua_State* state, const TypeInfo& type, const void* at)
+        {
+            if (&type == &TypeOf<bool>()) { lua_pushboolean(state, *static_cast<const bool*>(at) ? 1 : 0); return true; }
+            if (&type == &TypeOf<f32>()) { lua_pushnumber(state, *static_cast<const f32*>(at)); return true; }
+            if (&type == &TypeOf<f64>()) { lua_pushnumber(state, *static_cast<const f64*>(at)); return true; }
+            if (&type == &TypeOf<i32>()) { lua_pushnumber(state, *static_cast<const i32*>(at)); return true; }
+            if (&type == &TypeOf<u32>()) { lua_pushnumber(state, *static_cast<const u32*>(at)); return true; }
+            if (&type == &TypeOf<i64>()) { lua_pushnumber(state, static_cast<f64>(*static_cast<const i64*>(at))); return true; }
+            if (&type == &TypeOf<u64>()) { lua_pushnumber(state, static_cast<f64>(*static_cast<const u64*>(at))); return true; }
+            if (&type == &TypeOf<Float3>())
+            {
+                const Float3& v = *static_cast<const Float3*>(at);
+                lua_pushvector(state, v.x, v.y, v.z);
+                return true;
+            }
+            if (IsScriptValue(&type))
+            {
+                PushValueBox(state, type, at);
+                return true;
+            }
+            return false;
+        }
+
+        // Whether InvokeReflected's typed path pushes a `type` result (TypedReflected decides before
+        // calling, so a result it cannot push never runs the method twice).
+        [[nodiscard]] bool PushesTyped(const TypeInfo* type) noexcept
+        {
+            return type == nullptr || type == &TypeOf<bool>() || type == &TypeOf<f32>() || type == &TypeOf<f64>() ||
+                   type == &TypeOf<i32>() || type == &TypeOf<u32>() || type == &TypeOf<i64>() || type == &TypeOf<u64>() ||
+                   type == &TypeOf<Float3>() || IsScriptValue(type);
+        }
+
+        // `method` called with no Variant when every argument on the stack is already in its
+        // parameter's native form (a number for a number or enum, a boolean for a bool, a vector
+        // for a Float3, a value box of the exact type, a string for a String or a view) and its
+        // result is one pushed directly: MethodInfo::call over the arguments where they are. False,
+        // with nothing done, otherwise (or for a self that is not there): the Variant path runs, and
+        // raises what it raises.
+        [[nodiscard]] bool TypedReflected(lua_State* state, LuauScriptContext* context, const MethodInfo& method,
+                                          const TypeInfo* selfType, int& results)
+        {
+            const int argCount = lua_gettop(state);
+            const int firstArg = method.isStatic ? 1 : 2;
+            const int given = argCount - firstArg + 1;
+            const TypeInfo* returned = method.returnType != nullptr ? method.returnType() : nullptr;
+            if (method.call == nullptr || given != static_cast<int>(method.paramCount) ||
+                given > static_cast<int>(kTypedSlots) || !PushesTyped(returned))
+            {
+                return false;
+            }
+            void* self = nullptr;
+            if (!method.isStatic)
+            {
+                if (void* payload = lua_touserdatatagged(state, 1, kValueTag))
+                {
+                    const TypeInfo& type = *static_cast<const ValueBoxHeader*>(payload)->type;
+                    if (!IsDerivedFrom(&type, selfType))
+                    {
+                        return false;
+                    }
+                    self = ValueBoxBytes(payload, type);
+                }
+                else if (auto* boxed = static_cast<Variant*>(lua_touserdatatagged(state, 1, kVariantTag)))
+                {
+                    if (!IsDerivedFrom(boxed->Type(), selfType))
+                    {
+                        return false;
+                    }
+                    self = ToInstance(*boxed).Pointer();
+                }
+                if (self == nullptr)
+                {
+                    return false; // not a box of the type, or its object is gone: the Variant path says so
+                }
+            }
+
+            alignas(16) byte scratch[kTypedSlots][16];
+            void* args[kTypedSlots];
+            InlineArray<String, kTypedSlots> strings;
+            StringView views[kTypedSlots];
+            for (int k = 0; k < given; ++k)
+            {
+                const ParamInfo& param = method.params[k];
+                if (param.type == nullptr)
+                {
+                    return false;
+                }
+                const TypeInfo& type = *param.type();
+                const int index = firstArg + k;
+                switch (lua_type(state, index))
+                {
+                case LUA_TNUMBER:
+                    if (param.form != ParamForm::Value || &type == &TypeOf<bool>() ||
+                        !WriteNumber(type, lua_tonumber(state, index), scratch[k]))
+                        return false;
+                    args[k] = scratch[k];
+                    break;
+                case LUA_TBOOLEAN:
+                    if (param.form != ParamForm::Value || &type != &TypeOf<bool>())
+                        return false;
+                    *reinterpret_cast<bool*>(scratch[k]) = lua_toboolean(state, index) != 0;
+                    args[k] = scratch[k];
+                    break;
+                case LUA_TVECTOR:
+                {
+                    if (param.form != ParamForm::Value || &type != &TypeOf<Float3>())
+                        return false;
+                    const float* v = lua_tovector(state, index);
+                    new (scratch[k]) Float3(v[0], v[1], v[2]);
+                    args[k] = scratch[k];
+                    break;
+                }
+                case LUA_TSTRING:
+                {
+                    size_t length = 0;
+                    const char* text = lua_tolstring(state, index, &length);
+                    const StringView view(reinterpret_cast<const utf8char*>(text), length);
+                    if (param.form == ParamForm::View)
+                    {
+                        views[k] = view;
+                        args[k] = &views[k];
+                    }
+                    else if (param.form == ParamForm::Value && type.id == TypeOf<String>().id)
+                    {
+                        strings.Add(String(view));
+                        args[k] = &strings[strings.Size() - 1];
+                    }
+                    else
+                        return false;
+                    break;
+                }
+                case LUA_TUSERDATA:
+                {
+                    void* payload = lua_touserdatatagged(state, index, kValueTag);
+                    if (payload == nullptr || param.form != ParamForm::Value ||
+                        static_cast<const ValueBoxHeader*>(payload)->type->id != type.id)
+                        return false;
+                    args[k] = ValueBoxBytes(payload, type); // the box's bytes, as the value
+                    break;
+                }
+                default:
+                    return false;
+                }
+            }
+
+            alignas(16) byte result[kTypedResultBytes];
+            if (returned != nullptr && (returned->size > sizeof(result) || returned->align > 16))
+            {
+                return false;
+            }
+            {
+                ScriptCallScope scope(context);
+                method.call(self, args, returned != nullptr ? result : nullptr);
+            }
+            g_typedCalls.fetch_add(1, MemoryOrder::Relaxed);
+            results = returned != nullptr && PushTyped(state, *returned, result) ? 1 : 0;
+            return true;
+        }
+
         // Marshal self (for instance methods) and args off the Lua stack and invoke `method`, pushing
         // its result. Shared by MethodThunk (one captured method) and ArityMethodThunk (resolved by
         // argc). Returns the Lua result count.
         int InvokeReflected(lua_State* state, LuauScriptContext* context, const MethodInfo& method,
                             const TypeInfo* selfType)
         {
+            if (int results = 0; TypedReflected(state, context, method, selfType, results))
+            {
+                return results;
+            }
             const int argCount = lua_gettop(state);
             // The bound self is dispatched by pointer into its userdata box (like the property
             // get and set thunks below), not a copy, so a mutating reflected method (such as
@@ -3620,6 +3814,13 @@ namespace foundation::script
 
 export namespace foundation::script
 {
+    /// How many reflected method calls from Luau took the typed path (MethodInfo::call) rather
+    /// than Variants: what a test reads to know the path was taken.
+    [[nodiscard]] core::u64 LuauTypedCallCount() noexcept
+    {
+        return g_typedCalls.load(core::MemoryOrder::Relaxed);
+    }
+
     /// The backend factory: a Luau IScriptManager (interpreter-only, longjmp error
     /// unwinding, sandboxed stdlib). Language id: "luau".
     [[nodiscard]] core::RefPtr<IScriptManager>

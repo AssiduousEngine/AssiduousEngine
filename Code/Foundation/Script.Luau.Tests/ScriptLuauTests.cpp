@@ -1249,6 +1249,147 @@ REFLECT_MEMBERS(Compass, "rtti::luau::test")
     builder.Method<&Compass::opposite>("opposite");
 }
 
+// The typed path (MethodInfo::call, no Variant) when every argument is already in its parameter's
+// form: numbers of every width, an enum, a bool, a vector for a Float3, a value box (in place for a
+// method that changes its self), a string for a String or a view. Anything else, and an object
+// result, goes by Variant and behaves as before.
+namespace
+{
+    enum class LuauGear : i32
+    {
+        Low,
+        High
+    };
+    struct LuauTally
+    {
+        f64 total = 0.0;
+        i64 count = 0;
+        void Add(f64 v)
+        {
+            total += v;
+            ++count;
+        }
+        [[nodiscard]] f64 Mean() const { return count == 0 ? 0.0 : total / static_cast<f64>(count); }
+    };
+    class LuauTypedProbe : public Object
+    {
+        RTTI_OBJECT(LuauTypedProbe, Object)
+    public:
+        [[nodiscard]] f64 Mix(f64 a, i64 b, f32 c, i8 d, u16 e) const
+        {
+            return a + static_cast<f64>(b) + static_cast<f64>(c) + d + e;
+        }
+        [[nodiscard]] bool IsHigh(LuauGear g) const { return g == LuauGear::High; }
+        [[nodiscard]] bool Not(bool b) const { return !b; }
+        [[nodiscard]] Float3 Scale(Float3 v, f32 by) const { return Float3{v.x * by, v.y * by, v.z * by}; }
+        [[nodiscard]] LuauTally Twice(LuauTally t) const
+        {
+            t.total *= 2.0;
+            t.count *= 2;
+            return t;
+        }
+        [[nodiscard]] i32 Length(String text) const { return static_cast<i32>(text.Size()); }
+        [[nodiscard]] i32 ViewLength(StringView text) const { return static_cast<i32>(text.Size()); }
+        [[nodiscard]] RefPtr<LuauTypedProbe> Self() { return RefPtr<LuauTypedProbe>(this); }
+    };
+}
+REFLECT_ENUM(LuauGear, "rtti::luau::test")
+{
+    builder.Value("Low", LuauGear::Low);
+    builder.Value("High", LuauGear::High);
+}
+REFLECT_VALUE(LuauTally, "rtti::luau::test")
+{
+    builder.Property<&LuauTally::total>("total");
+    builder.Property<&LuauTally::count>("count");
+    builder.Method<&LuauTally::Add>("Add");
+    builder.Method<&LuauTally::Mean>("Mean");
+    builder.Constructor();
+}
+REFLECT_MEMBERS(LuauTypedProbe, "rtti::luau::test")
+{
+    builder.Method<&LuauTypedProbe::Mix>("Mix");
+    builder.Method<&LuauTypedProbe::IsHigh>("IsHigh");
+    builder.Method<&LuauTypedProbe::Not>("Not");
+    builder.Method<&LuauTypedProbe::Scale>("Scale");
+    builder.Method<&LuauTypedProbe::Twice>("Twice");
+    builder.Method<&LuauTypedProbe::Length>("Length");
+    builder.Method<&LuauTypedProbe::ViewLength>("ViewLength");
+    builder.Method<&LuauTypedProbe::Self>("Self");
+    builder.Constructor();
+}
+
+TEST_CASE("script.luau: a call whose arguments are already native takes the typed path, and agrees with the Variant one")
+{
+    static const bool registered = []
+    {
+        RttiRegisterEnum_LuauGear();
+        RttiRegisterValue_LuauTally();
+        return true;
+    }();
+    (void)registered;
+    RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
+    manager->RegisterType(TypeOf<LuauGear>());
+    manager->RegisterType(TypeOf<LuauTally>());
+    manager->RegisterType(LuauTypedProbe::StaticType());
+    manager->FinalizeTypes();
+    RefPtr<IScriptContext> scriptContext = manager->CreateContext();
+    REQUIRE(scriptContext->Load(u8R"lua(
+local p = LuauTypedProbe.new()
+function natives()
+    M = p:Mix(1.5, 1099511627776, 2.25, -3, 40000)
+    H = p:IsHigh(LuauGear.High)
+    N = p:Not(false)
+    local v = p:Scale(vector.create(1, 2, 3), 2)
+    VZ = v.z
+    L = p:Length("four")
+    VL = p:ViewLength("fives")
+end
+function values()
+    local t = LuauTally.new()
+    t:Add(2.5)
+    t:Add(3.5)
+    local d = p:Twice(t)
+    TT = d.total
+    TM = t:Mean()
+end
+function fallbacks()
+    local ok = pcall(p.Not, p, 1) -- a number for a bool: the Variant path, which refuses it
+    Refused = not ok
+    Same = p:Self() ~= nil       -- an object result: the Variant path
+end
+)lua",
+                                u8"typed")
+                .IsOk());
+    conformance::CapturedErrors errors;
+    scriptContext->SetErrorHandler(&errors);
+    const auto typedCalls = [&](const char8_t* function) -> u64
+    {
+        const u64 before = LuauTypedCallCount();
+        INFO(std::string(reinterpret_cast<const char*>(errors.lastMessage.CStr()), errors.lastMessage.Size()));
+        REQUIRE(scriptContext->Call(function, Span<Variant>{}).HasValue());
+        return LuauTypedCallCount() - before;
+    };
+
+    CHECK(typedCalls(u8"natives") == 6u);
+    CHECK(scriptContext->GetGlobal(u8"M").Get<f64>() == 1099511667776.75);
+    CHECK(scriptContext->GetGlobal(u8"H").Get<bool>());
+    CHECK(scriptContext->GetGlobal(u8"N").Get<bool>());
+    CHECK(scriptContext->GetGlobal(u8"VZ").Get<f64>() == 6.0);
+    CHECK(scriptContext->GetGlobal(u8"L").Get<f64>() == 4.0);
+    CHECK(scriptContext->GetGlobal(u8"VL").Get<f64>() == 5.0);
+
+    // Add twice on the box itself, Twice with a box in and out, Mean; the constructor and the field
+    // reads go by Variant.
+    CHECK(typedCalls(u8"values") == 4u);
+    CHECK(scriptContext->GetGlobal(u8"TT").Get<f64>() == 12.0);
+    CHECK(scriptContext->GetGlobal(u8"TM").Get<f64>() == 3.0); // the box Add changed in place
+
+    CHECK(typedCalls(u8"fallbacks") == 0u);
+    CHECK(scriptContext->GetGlobal(u8"Refused").Get<bool>());
+    CHECK(scriptContext->GetGlobal(u8"Same").Get<bool>());
+}
+
 TEST_CASE("script.luau: reflected enums - named tables + number marshalling both ways")
 {
     RttiRegisterEnum_Facing();
