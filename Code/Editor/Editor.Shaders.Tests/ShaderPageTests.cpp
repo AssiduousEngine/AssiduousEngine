@@ -77,7 +77,7 @@ namespace
             project = EditorProject::Open(DefaultAllocator(), dir.AsView());
             REQUIRE(static_cast<bool>(project));
             context.SetProject(project.Get());
-            REQUIRE(ReadData(u8"SampleProjects/ShaderGallery/Sources/01_UnlitColour.hlsl", source));
+            REQUIRE(ReadData(u8"SampleProjects/ShaderGallery/Sources/Shaders/01_UnlitColour.hlsl", source));
             // Line feeds only, as the page's code document holds a file's text; a Windows checkout
             // gives the sample CRLF endings.
             String feeds;
