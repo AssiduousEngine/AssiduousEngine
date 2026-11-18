@@ -355,3 +355,10 @@ TEST_CASE("script: an error's line and a fault's stack carry source references t
     logger.RemoveSink(&sink);
     logger.SetMinLevel(previous);
 }
+
+#include "BackendBenchmark.h"
+
+TEST_CASE("script: the per-call measures in C++, the baseline the languages are read against" * doctest::skip())
+{
+    foundation::script::benchmark::RunNativeBenchmark();
+}

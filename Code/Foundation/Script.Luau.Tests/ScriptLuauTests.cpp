@@ -1756,6 +1756,27 @@ end
 function Bench:churn(n)
     for i = 1, n do local h = {}; h.self = h; h.at = Float3.new(1, 2, 3) end
 end
+function Bench:loops(n)
+    local sum = 0
+    for i = 1, n do sum = sum + i end
+    return sum
+end
+function Bench:calls(n)
+    local sum = 0
+    for i = 1, n do sum = sum + BenchProbe.Twice(i) end
+    return sum
+end
+function Bench:crosses(n)
+    local a = Float3.new(1, 2, 3)
+    local sum = 0
+    for i = 1, n do sum = sum + Float3.Cross(a, Float3.new(i, 0.5, 0.25)).x end
+    return sum
+end
+function Bench:texts(n, s)
+    local sum = 0
+    for i = 1, n do sum = sum + BenchProbe.Length(s) end
+    return sum
+end
 )lua";
     foundation::script::benchmark::RunScriptBackendBenchmark(
         [](IAllocator& allocator) { return CreateLuauScriptManager(allocator); }, dialect);

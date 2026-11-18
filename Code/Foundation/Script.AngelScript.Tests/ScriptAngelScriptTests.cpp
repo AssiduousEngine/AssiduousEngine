@@ -1929,6 +1929,15 @@ TEST_CASE("angelscript: benchmark of the call path" * doctest::skip())
                          u8"  void churn(int n) {\n"
                          u8"    for (int i = 0; i < n; i++) { Holder h; @h.self = h; h.at = Float3(1, 2, 3); }\n"
                          u8"  }\n"
+                         u8"  double loops(int n) { double sum = 0; for (int i = 0; i < n; i++) sum += float(i); return sum; }\n"
+                         u8"  double calls(int n) { double sum = 0; for (int i = 0; i < n; i++) sum += BenchProbe::Twice(float(i)); return sum; }\n"
+                         u8"  double crosses(int n) {\n"
+                         u8"    Float3 a = Float3(1, 2, 3);\n"
+                         u8"    double sum = 0;\n"
+                         u8"    for (int i = 0; i < n; i++) sum += Float3::Cross(a, Float3(float(i), 0.5f, 0.25f)).x;\n"
+                         u8"    return sum;\n"
+                         u8"  }\n"
+                         u8"  double texts(int n, string s) { double sum = 0; for (int i = 0; i < n; i++) sum += BenchProbe::Length(s); return sum; }\n"
                          u8"}\n";
     foundation::script::benchmark::RunScriptBackendBenchmark(
         [](IAllocator& allocator) { return foundation::script::angelscript::CreateScriptManager(allocator); }, dialect);

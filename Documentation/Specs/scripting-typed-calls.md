@@ -61,7 +61,21 @@ release, and each later step adds its after-numbers to it.
 
 ## Measurements
 
-None yet.
+**Per call, desktop, 2026-11-18.** i7-10875H, `build/clang-reldbg`, master at `94d9f1623` with the
+benchmark's changes; two runs, which agreed within 10%. A million calls in a script loop; "call
+alone" is the measure less the loop with no call in it. Allocations are through the language's
+own allocator; the engine side's default heap is not counted.
+
+| Measure | native | AngelScript | Luau |
+|---|---|---|---|
+| Loop with no call (per iteration) | | 22 ns | 28 ns |
+| Engine call (`BenchProbe.Twice`), call alone | 3.5 ns | 200 to 220 ns (about 60x) | 160 to 165 ns (about 45x) |
+| Value method (`Float3.Cross`), call alone | 3.6 ns | 690 to 710 ns (about 190x) | 550 to 575 ns (about 155x) |
+| String argument (16 characters), call alone | 2.5 ns | 240 to 250 ns (about 95x) | 220 to 230 ns (about 90x) |
+| Handler call (engine into script) | | 300 ns | 225 ns |
+| Allocations per call, every measure | | 0 | 0 |
+
+C# (CoreCLR and the web), the scene measures and the collector's figures follow.
 
 ## What stays as it is
 

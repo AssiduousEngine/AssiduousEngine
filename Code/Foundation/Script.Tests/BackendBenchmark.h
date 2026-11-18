@@ -7,17 +7,42 @@
 // (build/clang-reldbg), since a Debug build's times say little.
 //
 // It prints one line per measure, `[bench] <language> <measure> <value> <unit>`, for the weekly.
+// RunNativeBenchmark does the per-call measures' work in C++, as `native`: the baseline each
+// language is read against.
 #pragma once
 #include <doctest/doctest.h>
 #include <cstdio>
 #include "Core/Prelude.h"
+#include "Core/Reflection/Reflect.h"
 
 import foundation.core;
 import foundation.script;
 
 namespace foundation::script::benchmark
 {
+    /// What a script calls in the engine for the per-call measures: reflected statics, so every
+    /// language reaches them as `BenchProbe.Twice(x)` and the native baseline calls the same
+    /// functions.
+    struct BenchProbe
+    {
+        static foundation::core::f32 Twice(foundation::core::f32 x) { return x * 2.0f; }
+        static foundation::core::i32 Length(foundation::core::String text) { return static_cast<foundation::core::i32>(text.Size()); }
+    };
+
+    REFLECT_VALUE(BenchProbe, "rtti::tests::benchmark")
+    {
+        builder.Method<&BenchProbe::Twice>("Twice", {"x"}).Method<&BenchProbe::Length>("Length", {"text"});
+    }
+}
+
+namespace foundation::script::benchmark
+{
     using namespace foundation::core;
+
+    /// The per-call measures' sizes, the same in every language and natively.
+    inline constexpr i32 kCalls = 1000000;
+    /// The string the string measure passes: 16 characters.
+    inline constexpr StringView kSixteen = u8"sixteen-chars-ab";
 
     struct Dialect
     {
@@ -28,7 +53,11 @@ namespace foundation::script::benchmark
         //              returning a number so the work is not optimised away;
         //   spawn(n)   starts n coroutines that each wait 1000 seconds;
         //   churn(n)   makes n script objects that each refer to themselves and hold a Float3,
-        //              then drops them, leaving garbage only the collector frees.
+        //              then drops them, leaving garbage only the collector frees;
+        //   loops(n)   the per-call measures' loop with no call in it, summing its index;
+        //   calls(n)   n calls of BenchProbe.Twice, summing what they return;
+        //   crosses(n) n calls of Float3.Cross, summing a component of the result;
+        //   texts(n, s) n calls of BenchProbe.Length(s), summing what they return.
         StringView benchClass;
     };
 
@@ -41,18 +70,68 @@ namespace foundation::script::benchmark
         }
     }
 
+    /// The per-call measures in C++, through function pointers the compiler cannot see through,
+    /// reported as `native`: what a call costs with no language in the way.
+    inline void RunNativeBenchmark()
+    {
+        f32 (*volatile twice)(f32) = &BenchProbe::Twice;
+        Float3 (*volatile cross)(Float3, Float3) = &Cross;
+        i32 (*volatile length)(String) = &BenchProbe::Length;
+        {
+            const Stopwatch clock = Stopwatch::StartNew();
+            f32 sum = 0.0f;
+            for (i32 i = 0; i < kCalls; ++i)
+                sum += twice(static_cast<f32>(i));
+            detail::Report(u8"native", "engine-call", clock.Elapsed().AsSeconds() * 1e9 / kCalls, "ns/call");
+            CHECK(sum > 0.0f);
+        }
+        {
+            const Stopwatch clock = Stopwatch::StartNew();
+            f32 sum = 0.0f;
+            const Float3 a{1.0f, 2.0f, 3.0f};
+            for (i32 i = 0; i < kCalls; ++i)
+                sum += cross(a, Float3{static_cast<f32>(i), 0.5f, 0.25f}).x;
+            detail::Report(u8"native", "value-method", clock.Elapsed().AsSeconds() * 1e9 / kCalls, "ns/call");
+            CHECK(sum != 0.0f);
+        }
+        {
+            // A script passes its own string, so each call here makes one as well.
+            const Stopwatch clock = Stopwatch::StartNew();
+            i64 sum = 0;
+            for (i32 i = 0; i < kCalls; ++i)
+                sum += length(String(kSixteen));
+            detail::Report(u8"native", "string-argument", clock.Elapsed().AsSeconds() * 1e9 / kCalls, "ns/call");
+            CHECK(sum == static_cast<i64>(kCalls) * 16);
+        }
+    }
+
     /// `factory` makes the manager over the allocator it is given: the runner counts what goes
-    /// through it, so a measure says how many allocations it made as well as its time.
+    /// through it, so a measure says how many allocations it made as well as its time. Those are
+    /// the language's own; what the engine side allocates from the default heap is not counted.
     inline void RunScriptBackendBenchmark(const Function<RefPtr<IScriptManager>(IAllocator&)>& factory,
                                           const Dialect& dialect)
     {
         RegisterCoreTypes();
+        RttiRegisterValue_BenchProbe();
+        GlobalTypeRegistry().Register(TypeOf<BenchProbe>());
         TrackingAllocator counted(DefaultAllocator());
         RefPtr<IScriptManager> manager = factory(counted);
         REQUIRE(manager.Get() != nullptr);
         RegisterReflectedTypes(*manager);
         RefPtr<IScriptContext> scriptContext = manager->CreateContext();
         REQUIRE(scriptContext.Get() != nullptr);
+        // What a script reports (a compile error, a failed call) is printed, so a failed run says why.
+        struct Printer final : IScriptErrorHandler
+        {
+            void OnError(const ScriptError& error) override
+            {
+                std::printf("[bench] script error %.*s:%d: %.*s\n", static_cast<int>(error.module.Size()),
+                            reinterpret_cast<const char*>(error.module.Data()), error.line, static_cast<int>(error.message.Size()),
+                            reinterpret_cast<const char*>(error.message.Data()));
+            }
+        };
+        Printer printer;
+        scriptContext->SetErrorHandler(&printer);
         REQUIRE(scriptContext->Load(dialect.benchClass, u8"bench").IsOk());
         RefPtr<ScriptObject> bench = scriptContext->CreateInstance(u8"Bench", Span<Variant>{});
         REQUIRE(bench.Get() != nullptr);
@@ -83,6 +162,34 @@ namespace foundation::script::benchmark
             detail::Report(language, "math-iteration", clock.Elapsed().AsSeconds() * 1e9 / kIterations, "ns/iteration");
             detail::Report(language, "math-iteration-allocations",
                            static_cast<f64>(counted.TotalAllocations() - allocations) / kIterations, "per iteration");
+        }
+
+        // The per-call measures: one crossing from script into the engine, kCalls times in a
+        // script loop. The loop is part of each; its cost alone is what `native` does not pay.
+        {
+            const auto measure = [&](StringView method, const char* name, Span<Variant> args)
+            {
+                const u64 allocations = counted.TotalAllocations();
+                const Stopwatch clock = Stopwatch::StartNew();
+                const Result<Variant> ran = bench->Invoke(method, args);
+                const f64 seconds = clock.Elapsed().AsSeconds();
+                if (!ran.HasValue())
+                {
+                    FAIL_CHECK(name << " did not run"); // a failed call times nothing
+                    return;
+                }
+                detail::Report(language, name, seconds * 1e9 / kCalls, "ns/call");
+                char allocationsName[64];
+                std::snprintf(allocationsName, sizeof(allocationsName), "%s-allocations", name);
+                detail::Report(language, allocationsName, static_cast<f64>(counted.TotalAllocations() - allocations) / kCalls,
+                               "per call");
+            };
+            Variant n[] = {Variant::From<i32>(kCalls)};
+            measure(u8"loops", "loop-alone", Span<Variant>{n, 1}); // subtract it from the others for a call's own cost
+            measure(u8"calls", "engine-call", Span<Variant>{n, 1});
+            measure(u8"crosses", "value-method", Span<Variant>{n, 1});
+            Variant texts[] = {Variant::From<i32>(kCalls), Variant::From<String>(String(kSixteen))};
+            measure(u8"texts", "string-argument", Span<Variant>{texts, 2});
         }
 
         // Waiting coroutines: what a frame's scheduler pays for them.
