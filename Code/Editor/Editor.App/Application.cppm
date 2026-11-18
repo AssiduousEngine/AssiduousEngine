@@ -278,6 +278,7 @@ export namespace editor::app
         EditorDock m_dock{m_editorAllocator};
         UniquePtr<EditorPages> m_pages; // made with the dock, in OnStartup
         UniquePtr<EditorCodeOpener> m_codeOpener; // where code opens (the Code Editor preference); made with the pages
+        Array<u64> m_logRecognizers;              // the open project's, in the context's recognizers
         UniquePtr<ActionMenuBar> m_menus; // the frame's menu bar, from the actions
         UniquePtr<ActionShortcuts> m_shortcuts; // the actions' keys in the GUI's keymap
         UniquePtr<CommandPalette> m_palette;    // every action by name (View > Command Palette)

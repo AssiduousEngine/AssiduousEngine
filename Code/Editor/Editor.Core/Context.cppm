@@ -161,6 +161,51 @@ export namespace editor
         /// file opens the project's Code/ folder. Bound by the application; may be unset.
         Function<void(StringView file, u32 line, u32 column)> OpenCode;
 
+        // === Log references: what a log line points at, followed from the console ===
+
+        /// The recognizers that find references in a log line's text (editor::LogReferenceRecognizers):
+        /// the application adds the engine's for the open project; a plugin or a language adds its own.
+        [[nodiscard]] LogReferenceRecognizers& LogRecognizers() noexcept { return m_logRecognizers; }
+        [[nodiscard]] const LogReferenceRecognizers& LogRecognizers() const noexcept { return m_logRecognizers; }
+
+        /// Follows a reference of one kind: `open` is a double click, which opens what a click
+        /// only selects (an asset's page).
+        using LogReferenceHandler = Function<void(const LogReference& reference, bool open)>;
+        /// Sets the handler for `kind`, replacing any before it; an empty handler removes it.
+        void SetLogReferenceHandler(StringView kind, LogReferenceHandler handler)
+        {
+            for (usize i = 0; i < m_logHandlers.Size(); ++i)
+                if (m_logHandlers[i].kind.AsView() == kind)
+                {
+                    if (handler)
+                        m_logHandlers[i].handler = Move(handler);
+                    else
+                        m_logHandlers.RemoveAt(i);
+                    return;
+                }
+            if (handler)
+                m_logHandlers.PushBack(LogHandlerEntry{String(kind), Move(handler)});
+        }
+        /// Whether a handler follows `reference`'s kind (one without shows as text).
+        [[nodiscard]] bool CanFollow(const LogReference& reference) const
+        {
+            for (const LogHandlerEntry& entry : m_logHandlers)
+                if (entry.kind == reference.kind)
+                    return true;
+            return false;
+        }
+        /// Follows `reference` by its kind's handler; false when its kind has none.
+        bool FollowLogReference(const LogReference& reference, bool open)
+        {
+            for (const LogHandlerEntry& entry : m_logHandlers)
+                if (entry.kind == reference.kind)
+                {
+                    entry.handler(reference, open);
+                    return true;
+                }
+            return false;
+        }
+
         /// Asset-open interception: a claimant (such as the scene page, which takes animation clips
         /// into its animation bar) sees an OpenAsset before it routes to a page, and returning true
         /// claims it. Claimants are consulted newest first, so the most recently opened one wins;
@@ -642,5 +687,12 @@ export namespace editor
         Array<ScriptBreakpoint> m_breakpoints; // shared script debugger breakpoints
         ScriptExecutionPoint m_executionPoint; // paused debugger location (versioned)
         u64 m_executionPointVersion = 0;
+        LogReferenceRecognizers m_logRecognizers;
+        struct LogHandlerEntry
+        {
+            String kind;
+            LogReferenceHandler handler;
+        };
+        Array<LogHandlerEntry> m_logHandlers;
     };
 }

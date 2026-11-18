@@ -12,7 +12,9 @@
 // in any list (click, Ctrl, Shift, Ctrl+A); Ctrl+C or the menu's Copy puts the selected lines on
 // the clipboard, oldest first, one per line. The entries are capped (the oldest trimmed); a
 // selection is by entry, so it survives a trim. It is fed once a frame from the editor's log
-// buffer.
+// buffer. A line's references (a file at a line, an asset) that something can follow show as
+// underlined links: a click on one follows it, and a double click on the line follows its first
+// reference, opening what a click only selects.
 module;
 #include "Core/Prelude.h"
 
@@ -83,6 +85,11 @@ export namespace editor::app
                 rows.Bind = [self](gui::Node& row, const gui::ModelIndex& index) { self->BindRow(row, index); };
                 m_list->SetRowFactory(Move(rows));
                 m_list->SetModel(&m_model);
+                m_list->SetOnActivated([self](gui::ModelIndex index)
+                                       {
+                                           if (index.Row >= 0)
+                                               (void)self->FollowFirst(static_cast<usize>(index.Row));
+                                       });
                 // Handle Ctrl+C before the list's own keys; the menu offers Copy, Select All and Clear.
                 (void)m_list->AddEventListener(gui::EventType::KeyDown, [self](const gui::Event& e)
                                                {
@@ -135,8 +142,18 @@ export namespace editor::app
         /// Called with how many lines a copy put on the clipboard (for the application's toast).
         void SetOnCopied(Function<void(usize)> copied) { m_onCopied = Move(copied); }
 
-        /// Adds one line at the end; past the cap, the oldest are trimmed.
-        void AddEntry(LogLevel level, StringView category, StringView message, Duration time = {})
+        /// What follows a reference (the context's handlers): whether one can, and following it
+        /// (`open`: a double click). Unset: references show as text.
+        void SetFollow(Function<bool(const LogReference&)> canFollow, Function<void(const LogReference&, bool open)> follow)
+        {
+            m_canFollow = Move(canFollow);
+            m_follow = Move(follow);
+        }
+
+        /// Adds one line at the end; past the cap, the oldest are trimmed. `references` are the
+        /// line's, their parts in `message`.
+        void AddEntry(LogLevel level, StringView category, StringView message, Duration time = {},
+                      Span<const LogReference> references = {})
         {
             const bool follow = IsAtBottom();
             Entry entry;
@@ -144,6 +161,16 @@ export namespace editor::app
             entry.text = category.IsEmpty() ? String(message) : Format(u8"[{}] {}", category, message);
             entry.time = time;
             entry.id = m_nextId++;
+            const usize shift = entry.text.Size() - message.Size(); // the category before the message
+            for (const LogReference& reference : references)
+                if (m_canFollow && m_canFollow(reference))
+                {
+                    LogReference shown = reference;
+                    if (shown.length > 0)
+                        shown.start += shift;
+                    entry.references.PushBack(Move(shown));
+                }
+            entry.markup = LinkMarkup(entry.text.AsView(), entry.references);
             ++m_counts[static_cast<usize>(BucketOf(level))];
             m_entries.PushBack(Move(entry));
             bool reset = false;
@@ -228,6 +255,27 @@ export namespace editor::app
         /// The list (its selection, for a test).
         [[nodiscard]] gui::ListView* List() const noexcept { return m_list; }
 
+        /// A shown line's rich text with its references as links; empty when it shows plain.
+        [[nodiscard]] StringView ShownMarkup(usize row) const { return row < m_shown.Size() ? m_entries[m_shown[row]].markup.AsView() : StringView{}; }
+        /// A shown line's references that can be followed, their parts in its text.
+        [[nodiscard]] Span<const LogReference> ShownReferences(usize row) const
+        {
+            return row < m_shown.Size() ? m_entries[m_shown[row]].references.AsSpan() : Span<const LogReference>{};
+        }
+        /// Follows a shown line's reference `index` (its link's click, or with `open` a double click).
+        bool FollowReference(usize row, usize index, bool open)
+        {
+            if (row >= m_shown.Size() || !m_follow)
+                return false;
+            const Entry& entry = m_entries[m_shown[row]];
+            if (index >= entry.references.Size())
+                return false;
+            m_follow(entry.references[index], open);
+            return true;
+        }
+        /// Follows a shown line's first reference, opening it (the line's double click).
+        bool FollowFirst(usize row) { return FollowReference(row, 0, true); }
+
     private:
         struct Entry
         {
@@ -235,7 +283,44 @@ export namespace editor::app
             String text;
             Duration time;
             u64 id = 0;
+            Array<LogReference> references; // those that can be followed
+            String markup;                  // the text with its references as links; empty: none has a part
         };
+
+        // The text as rich markup with each reference's part a link named by its index; empty when
+        // none has a part.
+        [[nodiscard]] static String LinkMarkup(StringView text, const Array<LogReference>& references)
+        {
+            bool any = false;
+            for (const LogReference& reference : references)
+                any = any || (reference.length > 0 && reference.start + reference.length <= text.Size());
+            if (!any)
+                return String{};
+            String markup;
+            const auto plain = [&markup](StringView piece)
+            {
+                for (usize i = 0; i < piece.Size(); ++i)
+                {
+                    if (piece[i] == utf8char('['))
+                        markup.Append(u8"[");
+                    markup.Append(piece.SubStr(i, 1));
+                }
+            };
+            usize at = 0;
+            for (usize i = 0; i < references.Size(); ++i)
+            {
+                const LogReference& reference = references[i];
+                if (reference.length == 0 || reference.start < at || reference.start + reference.length > text.Size())
+                    continue;
+                plain(text.SubStr(at, reference.start - at));
+                markup.Append(Format(u8"[u][link={}]", i).AsView());
+                plain(text.SubStr(reference.start, reference.length));
+                markup.Append(u8"[/link][/u]");
+                at = reference.start + reference.length;
+            }
+            plain(text.SubStr(at, text.Size() - at));
+            return markup;
+        }
 
         // The shown lines as the list's model; a line's id is its entry's, so a selection follows
         // the entry.
@@ -338,6 +423,20 @@ export namespace editor::app
             time->AddClass(u8"mono");
             RefPtr<gui::Label> text = MakeRef<gui::Label>(m_allocator);
             text->AddClass(u8"log-text");
+            // A click on a reference's link follows it; the row is found by the entry it shows.
+            LogView* self = this;
+            gui::Label* label = text.Get();
+            (void)text->AddEventListener(gui::EventType::Link, [self, label](const gui::Event& e)
+                                         {
+                                             const auto& link = static_cast<const gui::LinkEvent&>(e);
+                                             const Optional<i64> index = ParseInt(link.Link);
+                                             for (const BoundRow& bound : self->m_bound)
+                                                 if (bound.label == label && index.HasValue())
+                                                     for (usize row = 0; row < self->m_shown.Size(); ++row)
+                                                         if (self->m_entries[self->m_shown[row]].id == bound.entry)
+                                                             (void)self->FollowReference(row, static_cast<usize>(index.Value()), false);
+                                             e.Handled = true;
+                                         });
             row->AddChild(time.Get());
             row->AddChild(text.Get());
             return RefPtr<gui::Node>(row);
@@ -351,7 +450,19 @@ export namespace editor::app
             if (auto* time = Cast<gui::Label>(row->GetChildAt(0)))
                 time->SetText(TimeText(entry.time).AsView());
             if (auto* text = Cast<gui::Label>(row->GetChildAt(1)))
-                text->SetText(entry.text.AsView());
+            {
+                text->SetRich(!entry.markup.IsEmpty());
+                text->SetText(entry.markup.IsEmpty() ? entry.text.AsView() : entry.markup.AsView());
+                bool known = false;
+                for (BoundRow& bound : m_bound)
+                    if (bound.label == text)
+                    {
+                        bound.entry = entry.id;
+                        known = true;
+                    }
+                if (!known)
+                    m_bound.PushBack(BoundRow{text, entry.id});
+            }
             static constexpr StringView kLevels[] = {u8"debug", u8"warning", u8"error"};
             for (StringView level : kLevels)
                 row->RemoveClass(level);
@@ -409,6 +520,14 @@ export namespace editor::app
         String m_search;
         u64 m_nextId = 1;
         Function<void(usize)> m_onCopied;
+        Function<bool(const LogReference&)> m_canFollow;
+        Function<void(const LogReference&, bool)> m_follow;
+        struct BoundRow
+        {
+            gui::Label* label = nullptr; // a row's text, which the list keeps while the view lives
+            u64 entry = 0;               // the entry it shows
+        };
+        Array<BoundRow> m_bound;
         Model m_model;
     };
 }

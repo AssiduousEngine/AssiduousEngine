@@ -133,8 +133,9 @@
 - **Handlers** are registered in the editor by kind: `source` calls `OpenCode`; `asset` selects it
   in the Assets browser (opening its page on a double click); `entity` selects it in its open scene
   page. A reference whose kind has no handler shows as text.
-- **The console** underlines a reference's span on hover; a click on it follows it; a double click
-  on the line follows its first reference.
+- **The console** shows a reference's span underlined (always, not on hover: the GUI's rich text
+  has no hover underline); a click on it follows it; a double click on the line follows its first
+  reference.
 - **MCP:** `log_read` returns each entry's references, so an agent gets the file and line too.
 - **E6, the languages:** a C# exception's stack frames (the symbols exist) and `dotnet build`'s
   errors become `source` references; Luau's and AngelScript's error reports carry theirs.
@@ -148,7 +149,7 @@
 | E2 | (built 2026-11-18) `Code/` watched; new code files imported in place | Editor.Project tests: a file written to `Code/` becomes an asset, a removed one goes missing |
 | E3 | (built 2026-11-18) Code Editor preference, `LaunchDetached`, `OpenCode`, menu and context items | Core test for the launcher (a script that records its arguments); editor test for the placeholder expansion |
 | E4 | (built 2026-11-18) Tooling files kept in `Code/` | Editor tests: written on open, rewritten after an API change, a user-changed file left alone |
-| E5 | References, recognizers, handlers, console links, `log_read` | Core and editor tests per piece; the user clicks through |
+| E5 | (built 2026-11-18; the entity handler waits for the first line that names an entity) References, recognizers, handlers, console links, `log_read` | Core and editor tests per piece; the user clicks through |
 | E6 | C# stack frames and build errors, Luau and AngelScript errors as references | Script suites per language |
 
 The C# speed work (measure first, backlog-0.2) runs as its own spec after E3, beside E4 to E6 if

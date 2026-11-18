@@ -4,7 +4,8 @@
 // The Console over its markup (Data/Editor/Console.xml). Covers lines with their category; the level
 // chips (Debug includes trace, Error includes fatal), which show their counts and show or hide their
 // lines; the search; the cap that trims the oldest lines; Clear; the empty-state line; a selection
-// that follows its entries through a trim and copies oldest first; and each line's time.
+// that follows its entries through a trim and copies oldest first; each line's time; and a line's
+// references, shown as links when something follows their kind.
 
 #include <doctest/doctest.h>
 #include "Core/Prelude.h"
@@ -231,4 +232,46 @@ TEST_CASE("console: under the editor's sheet it keeps its panel's height and the
         CHECK(list.GetScrollOffset().y < last); // up a notch, not pulled back down by the new line
         last = list.GetScrollOffset().y;
     }
+}
+
+TEST_CASE("console: a line's references that can be followed show as links; a click follows, a double click opens")
+{
+    Bed bed;
+    struct Followed
+    {
+        String kind;
+        bool open = false;
+    };
+    Array<Followed> followed;
+    bed.view->SetFollow([](const LogReference& reference) { return reference.kind == kLogSourceReference; },
+                        [&followed](const LogReference& reference, bool open) { followed.PushBack(Followed{reference.kind, open}); });
+
+    const StringView message = u8"bad [x] at /p/a.luau:3";
+    Array<LogReference> references;
+    LogReference source = SourceReference(u8"/p/a.luau", 3);
+    source.start = 11;
+    source.length = 11;
+    references.PushBack(Move(source));
+    LogReference node;
+    node.kind = String(kLogNodeReference); // nothing follows it here
+    node.start = 0;
+    node.length = 3;
+    references.PushBack(Move(node));
+    bed.view->AddEntry(LogLevel::Error, u8"Script", message, {}, references.AsSpan());
+    bed.view->AddEntry(LogLevel::Info, u8"Script", u8"plain", {});
+
+    REQUIRE(bed.view->ShownReferences(0).Size() == 1u);
+    const LogReference& shown = bed.view->ShownReferences(0)[0];
+    CHECK(bed.view->ShownText(0).SubStr(shown.start, shown.length) == StringView(u8"/p/a.luau:3")); // past "[Script] "
+    CHECK(bed.view->ShownMarkup(0) == StringView(u8"[[Script] bad [[x] at [u][link=0]/p/a.luau:3[/link][/u]"));
+    CHECK(bed.view->ShownMarkup(1).IsEmpty());
+    CHECK(bed.view->ShownReferences(1).IsEmpty());
+
+    CHECK(bed.view->FollowReference(0, 0, false));
+    CHECK(bed.view->FollowFirst(0));
+    CHECK_FALSE(bed.view->FollowFirst(1)); // nothing to follow
+    REQUIRE(followed.Size() == 2u);
+    CHECK(followed[0].kind == kLogSourceReference);
+    CHECK_FALSE(followed[0].open);
+    CHECK(followed[1].open);
 }

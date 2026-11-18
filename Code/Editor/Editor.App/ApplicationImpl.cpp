@@ -161,9 +161,17 @@ namespace editor::app
             // The Code folder's declarations follow the engine (and the plugins loaded) from the
             // engines just prepared.
             self->KeepCodeTooling(true);
+            // Log lines name the project's files and assets: they become links.
+            editor::EditorContext* context = &self->m_context;
+            self->m_logRecognizers.PushBack(context->LogRecognizers().Add(editor::SourcePathRecognizer(PathAbsolute(project.Directory()).AsView())));
+            self->m_logRecognizers.PushBack(context->LogRecognizers().Add(editor::AssetIdRecognizer(
+                [context](const Guid& id) { return context->Project() != nullptr && context->Project()->SourceDb().GetInstance(id) != nullptr; })));
         };
         services.closing = [self]()
         {
+            for (const u64 recognizer : self->m_logRecognizers)
+                self->m_context.LogRecognizers().Remove(recognizer);
+            self->m_logRecognizers.Clear();
             self->m_dock.SetProjectContent({}); // show the welcome again
             self->m_home.Reset();
             self->m_pages->CloseAll(); // close them while the project's services still live
@@ -443,6 +451,8 @@ namespace editor::app
         }
         contents.assets = [self]() { return self->m_assets->Content(); };
         m_console = MakeUnique<LogView>(m_editorAllocator, m_editorAllocator, m_window.LoadMarkup(LogView::kPath));
+        m_console->SetFollow([self](const LogReference& reference) { return self->m_context.CanFollow(reference); },
+                             [self](const LogReference& reference, bool open) { (void)self->m_context.FollowLogReference(reference, open); });
         m_console->SetOnCopied([self](usize lines)
                                {
                                    const String text = lines == 1 ? String(u8"Copied 1 log line.") : Format(u8"Copied {} log lines.", lines);
@@ -543,6 +553,24 @@ namespace editor::app
         };
         m_codeOpener = MakeUnique<EditorCodeOpener>(m_editorAllocator, Move(code));
         m_context.OpenCode = [self](StringView file, u32 line, u32 column) { (void)self->m_codeOpener->Open(file, line, column); };
+        // A log line's file opens where code opens; its asset is selected in the Assets panel, and
+        // opened on a double click.
+        m_context.SetLogReferenceHandler(kLogSourceReference, [self](const LogReference& reference, bool)
+                                         {
+                                             const u32 line = static_cast<u32>(ParseInt(reference.Field(1)).ValueOr(0));
+                                             const u32 column = static_cast<u32>(ParseInt(reference.Field(2)).ValueOr(0));
+                                             (void)self->m_codeOpener->Open(reference.Field(0), line, column);
+                                         });
+        m_context.SetLogReferenceHandler(kLogAssetReference, [self](const LogReference& reference, bool open)
+                                         {
+                                             Guid id;
+                                             if (!Guid::TryParse(reference.Field(0), id))
+                                                 return;
+                                             if (open && self->m_context.OpenAsset)
+                                                 self->m_context.OpenAsset(id);
+                                             else if (self->m_context.RevealAsset)
+                                                 self->m_context.RevealAsset(id);
+                                         });
         (void)m_context.AddOpenAssetInterceptor([self](foundation::content::Instance& instance) { return self->m_codeOpener->OpenAsset(instance); });
     }
 
@@ -940,7 +968,10 @@ namespace editor::app
         Array<editor::EditorLogEntry> entries(m_editorAllocator);
         m_logSequence = m_config.logBuffer->CollectSince(m_logSequence, entries);
         for (const editor::EditorLogEntry& entry : entries)
-            m_console->AddEntry(entry.level, entry.category.AsView(), entry.message.AsView(), entry.time);
+        {
+            const Array<LogReference> references = m_context.LogRecognizers().Of(entry.message.AsView(), entry.references.AsSpan());
+            m_console->AddEntry(entry.level, entry.category.AsView(), entry.message.AsView(), entry.time, references.AsSpan());
+        }
     }
 
     // Runs `work` at the GUI's next drain, never inside the click that asked for it (a screen swap

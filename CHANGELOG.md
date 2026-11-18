@@ -19,6 +19,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   written when the project opens and whenever the API changed. With VS Code chosen,
   `.vscode/extensions.json` recommends luau-lsp and angel-lsp, and `.vscode/settings.json` points
   luau-lsp at the declarations; once you edit either, it is yours and is not written over.
+- Editor: a Console line that names a file of the project (with its line and column, as a
+  compiler writes them) or one of its assets shows it as a link. A click opens the file where code
+  opens or selects the asset; a double click on the line follows its first link, opening the
+  asset's page. MCP `log_read` returns each line's references too.
 - Editor: Preferences, Appearance, Frame rate chooses how the editor's windows present: VSync (the
   default), Uncapped, or Uncapped with tearing. A change applies to every editor window at once,
   with no restart; a device that cannot present in the chosen mode keeps the one it had.
