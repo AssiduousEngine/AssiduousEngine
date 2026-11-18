@@ -83,6 +83,9 @@ export namespace foundation::script::dotnet
     void SetCallbackMaker(CallbackMaker maker) noexcept;
     /// `variant` lent to C# for one call: a plain value's bytes and text in place (valid while
     /// `variant` is), anything else as a handle C# then owns.
+    /// How many engine calls from C# took the typed path (MethodInfo::call) rather than Variants:
+    /// what a test reads to know the path was taken.
+    [[nodiscard]] u64 TypedCallCount() noexcept;
     [[nodiscard]] DotNetValue LendValue(const Variant& variant);
     /// `variant` into `out`: a plain value's bytes into out.data when they fit out.size (else
     /// OutOfRange), text into the thread's buffer, anything else as a handle the caller owns.
