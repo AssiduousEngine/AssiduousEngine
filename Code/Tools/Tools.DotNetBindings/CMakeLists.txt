@@ -15,10 +15,12 @@ add_custom_command(
     COMMAND Tools.DotNetBindings ${DOTNET_RUNTIME_BINDINGS}
     DEPENDS Tools.DotNetBindings
     COMMENT "Generating the C# bindings")
+# Release whatever the engine's configuration: every call a game makes into the engine runs this
+# assembly's code, and a game debugging its own scripts steps over it, not into it.
 add_custom_command(
     OUTPUT ${DOTNET_RUNTIME_OUT}/Engine.Runtime.dll ${DOTNET_RUNTIME_OUT}/Engine.Runtime.runtimeconfig.json
            ${DOTNET_RUNTIME_OUT}/Engine.g.cs
-    COMMAND ${DOTNET_EXECUTABLE} build ${DOTNET_RUNTIME_SOURCE}/Engine.Runtime.csproj -c Debug -o ${DOTNET_RUNTIME_OUT}
+    COMMAND ${DOTNET_EXECUTABLE} build ${DOTNET_RUNTIME_SOURCE}/Engine.Runtime.csproj -c Release -o ${DOTNET_RUNTIME_OUT}
             -p:BaseIntermediateOutputPath=${CMAKE_CURRENT_BINARY_DIR}/RuntimeObj/
             -p:EngineBindings=${DOTNET_RUNTIME_BINDINGS} -nologo -v:q --disable-build-servers
     # The bindings beside the runtime: a web build (which cannot run this tool) is given them.
