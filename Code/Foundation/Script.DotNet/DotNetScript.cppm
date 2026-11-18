@@ -35,4 +35,14 @@ export namespace foundation::script::dotnet
 
     /// Registers C# with the backend registry. Idempotent.
     void RegisterDotNetScriptBackend();
+
+    /// The start of the name of the folder a C# project builds in (in the temp folder, a hash
+    /// after it). The build compiles a copy of the project's sources in its src/ folder, so a
+    /// stack frame names that copy.
+    inline constexpr StringView kCSharpBuildFolderPrefix = u8"csharp-build-";
+
+    /// A C# exception's stack frames ("at <function> in <file>:line <n>"), innermost first. A
+    /// frame in the build's copy of a source names the project's source path (Code/Weapon.cs); a
+    /// frame without a source (the engine's own code) has no file.
+    [[nodiscard]] Array<ScriptStackFrame> ParseCSharpStack(StringView trace);
 }
