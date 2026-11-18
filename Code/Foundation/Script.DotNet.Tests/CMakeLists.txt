@@ -28,9 +28,11 @@ add_custom_command(
     COMMAND ${DOTNET_EXECUTABLE} build ${CMAKE_CURRENT_SOURCE_DIR}/Probe/Probe.csproj -c Debug -o ${PROBE_OUT}
             -p:BaseIntermediateOutputPath=${CMAKE_CURRENT_BINARY_DIR}/ProbeObj/
             -p:EngineBindings=${PROBE_BINDINGS}
-            -p:EngineBridge=${CMAKE_SOURCE_DIR}/Code/Foundation/Script.DotNet/Managed/Bridge.cs -nologo -v:q --disable-build-servers
+            -p:EngineBridge=${CMAKE_SOURCE_DIR}/Code/Foundation/Script.DotNet/Managed/Bridge.cs
+            -p:EngineValueMath=${CMAKE_SOURCE_DIR}/Code/Foundation/Script.DotNet/Managed/ValueMath.cs -nologo -v:q --disable-build-servers
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/Probe/Probe.cs ${CMAKE_CURRENT_SOURCE_DIR}/Probe/Probe.csproj ${PROBE_BINDINGS}
             ${CMAKE_SOURCE_DIR}/Code/Foundation/Script.DotNet/Managed/Bridge.cs
+            ${CMAKE_SOURCE_DIR}/Code/Foundation/Script.DotNet/Managed/ValueMath.cs
     COMMENT "Building the C# probe assembly")
 add_custom_target(Script.DotNet.Probe DEPENDS ${PROBE_OUT}/Probe.dll)
 

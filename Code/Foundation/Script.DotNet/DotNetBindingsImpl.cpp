@@ -402,7 +402,8 @@ namespace foundation::script::dotnet
                     out.Append(StringView(u8"    }\n"));
                 }
             }
-            // Methods.
+            // Methods, and the operators they implement (written after them).
+            String operators;
             for (u32 m = 0; m < type.methodCount; ++m)
             {
                 const MethodInfo& method = type.methods[m];
@@ -429,6 +430,44 @@ namespace foundation::script::dotnet
                 if (!bindable)
                     continue;
                 signatures.PushBack(Move(signature));
+                // An operator the method implements, written as C#'s on a value type (a + b, v * 2,
+                // -v): it calls the method. Equality stays a method: C#'s == asks for Equals and
+                // GetHashCode beside it.
+                if (b.shape == Shape::Struct && method.isStatic && method.op != MethodOperator::None && method.op != MethodOperator::Equals)
+                {
+                    const StringView symbol = method.op == MethodOperator::Add        ? StringView(u8"+")
+                                              : method.op == MethodOperator::Subtract ? StringView(u8"-")
+                                              : method.op == MethodOperator::Multiply ? StringView(u8"*")
+                                              : method.op == MethodOperator::Divide   ? StringView(u8"/")
+                                                                                      : StringView(u8"-");
+                    String operands;
+                    String names;
+                    for (u32 p = 0; p < method.paramCount; ++p)
+                    {
+                        AppendFormat(operands, u8"{}{} {}", p > 0 ? StringView(u8", ") : StringView(u8""),
+                                     surface.DeclaredName(method.params[p].type()), ParamName(method, p));
+                        AppendFormat(names, u8"{}{}", p > 0 ? StringView(u8", ") : StringView(u8""), ParamName(method, p));
+                    }
+                    AppendFormat(operators, u8"\n    public static {} operator {}({}) => {}({});\n", surface.DeclaredName(returned), symbol,
+                                 operands, Identifier(rawName), names);
+                }
+                // A pure function of its arguments runs in C# (ValueMath), with no crossing.
+                if (method.pure)
+                {
+                    AppendFormat(out, u8"\n    public {}{} {}(", method.isStatic ? StringView(u8"static ") : StringView(u8""),
+                                 surface.DeclaredName(returned), Identifier(rawName));
+                    String names;
+                    if (!method.isStatic)
+                        names.Append(StringView(u8"this"));
+                    for (u32 p = 0; p < method.paramCount; ++p)
+                    {
+                        AppendFormat(out, u8"{}{} {}", p > 0 ? StringView(u8", ") : StringView(u8""), surface.DeclaredName(method.params[p].type()),
+                                     ParamName(method, p));
+                        AppendFormat(names, u8"{}{}", names.IsEmpty() ? StringView(u8"") : StringView(u8", "), ParamName(method, p));
+                    }
+                    AppendFormat(out, u8") => ValueMath.{}{}({});\n", b.name, Identifier(rawName), names);
+                    continue;
+                }
                 AppendFormat(out, u8"\n    static nint s_m{};\n    public {}{} {}(", m, method.isStatic ? StringView(u8"static ") : StringView(u8""),
                              surface.DeclaredName(returned), Identifier(rawName));
                 for (u32 p = 0; p < method.paramCount; ++p)
@@ -447,6 +486,7 @@ namespace foundation::script::dotnet
                                       .AsView());
                 out.Append(StringView(u8"    }\n"));
             }
+            out.Append(operators.AsView());
             // A class with a constructor of no arguments is made from C#.
             if (b.shape == Shape::Class)
             {

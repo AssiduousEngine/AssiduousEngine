@@ -82,3 +82,51 @@ public static unsafe class UsesBindings
         return (int)dot * 1000 + (int)(cross.x + 10) * 100 + (int)(cross.y) * 10 + (int)(cross.z + 10);
     }
 }
+
+// The engine's pure value functions as C# computes them (ValueMath, through the generated
+// bindings), on fixed inputs: the host computes the same in C++ and compares. The order is the
+// host test's (DotNetBindingsTests, "pure functions"): keep the two the same.
+public static unsafe class PureValues
+{
+    [UnmanagedCallersOnly]
+    public static int Run(float* output, int capacity)
+    {
+        int count = 0;
+        void Put(float value)
+        {
+            if (count < capacity)
+                output[count] = value;
+            count += 1;
+        }
+        void V2(Engine.Float2 v) { Put(v.x); Put(v.y); }
+        void V3(Engine.Float3 v) { Put(v.x); Put(v.y); Put(v.z); }
+        void V4(Engine.Float4 v) { Put(v.x); Put(v.y); Put(v.z); Put(v.w); }
+        void C(Engine.Color c) { Put(c.r); Put(c.g); Put(c.b); Put(c.a); }
+        void B(bool b) => Put(b ? 1.0f : 0.0f);
+
+        var a2 = new Engine.Float2 { x = 1.5f, y = -2.0f };
+        var b2 = new Engine.Float2 { x = -4.0f, y = 0.5f };
+        var a = new Engine.Float3 { x = 1.5f, y = -2.0f, z = 3.25f };
+        var b = new Engine.Float3 { x = -4.0f, y = 0.5f, z = 2.0f };
+        var a4 = new Engine.Float4 { x = 1.5f, y = -2.0f, z = 3.25f, w = 0.5f };
+        var b4 = new Engine.Float4 { x = -4.0f, y = 0.5f, z = 2.0f, w = -1.0f };
+        var ca = new Engine.Color { r = 0.25f, g = 0.5f, b = 0.75f, a = 1.0f };
+        var cb = new Engine.Color { r = 0.5f, g = 0.25f, b = 0.125f, a = 0.5f };
+        const float s = 0.75f, x = 0.6f, y = -1.25f;
+
+        V2(a2 + b2); V2(a2 - b2); V2(a2 * b2); V2(a2 * s); V2(a2 / s); V2(-a2); B(Engine.Float2.Equals(a2, b2));
+        Put(Engine.Float3.Dot(a, b)); V3(Engine.Float3.Cross(a, b)); Put(Engine.Float3.Length(a));
+        Put(Engine.Float3.LengthSquared(a)); Put(Engine.Float3.Distance(a, b)); V3(Engine.Float3.Normalized(a));
+        V3(Engine.Float3.Lerp(a, b, s)); V3(a + b); V3(a - b); V3(a * b); V3(a * s); V3(a / b); V3(a / s); V3(-a);
+        B(Engine.Float3.Equals(a, a));
+        V3(a4.XYZ()); V4(a4 + b4); V4(a4 - b4); V4(a4 * s); V4(-a4); B(Engine.Float4.Equals(a4, b4));
+        C(ca + cb); C(ca * s); B(Engine.Color.Equals(ca, ca));
+        Put(Engine.Math.Abs(y)); Put(Engine.Math.Sqrt(s)); Put(Engine.Math.Sin(x)); Put(Engine.Math.Cos(x));
+        Put(Engine.Math.Tan(x)); Put(Engine.Math.Asin(x)); Put(Engine.Math.Acos(x)); Put(Engine.Math.Atan2(y, x));
+        Put(Engine.Math.Floor(y)); Put(Engine.Math.Ceil(y)); Put(Engine.Math.Round(2.5f)); Put(Engine.Math.Pow(s, x));
+        Put(Engine.Math.Log(s)); Put(Engine.Math.Exp(x)); Put(Engine.Math.DegreesToRadians(45.0f));
+        Put(Engine.Math.RadiansToDegrees(x)); Put(Engine.Math.Lerp(x, y, s)); Put(Engine.Math.Min(x, y));
+        Put(Engine.Math.Max(x, y)); Put(Engine.Math.Clamp(y, -1.0f, 1.0f));
+        return count;
+    }
+}
