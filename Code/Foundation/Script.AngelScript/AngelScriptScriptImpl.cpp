@@ -5624,6 +5624,7 @@ namespace foundation::script::angelscript
         desc.languageId = core::String(u8"angelscript");
         desc.displayName = core::String(u8"AngelScript");
         desc.fileExtensions.PushBack(core::String(u8"as"));
+        desc.vscodeExtension = core::String(u8"sashi0034.angel-lsp"); // reads as.predefined beside the scripts
         desc.create = [](core::IAllocator& allocator)
         { return CreateScriptManager(allocator); };
         ScriptBackendRegistry::Get().Register(core::Move(desc));

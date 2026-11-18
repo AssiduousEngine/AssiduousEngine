@@ -152,6 +152,13 @@ namespace pipeline{
         return m_api;
     }
 
+    ScriptDeclarations CachedCheckManager::Declarations()
+    {
+        ScopedLock lock(m_lock);
+        IScriptManager* manager = Current();
+        return manager != nullptr ? manager->Declarations() : ScriptDeclarations{};
+    }
+
     u64 ScriptSurfaceHash(const TypeRegistry& registry)
     {
         const auto text = [](u64 hash, const char* value)

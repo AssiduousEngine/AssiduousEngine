@@ -26,6 +26,16 @@ export namespace foundation::script
         String languageId;            // canonical lowercase id: u8"angelscript", u8"luau"
         String displayName;           // editor-facing: u8"AngelScript"
         Array<String> fileExtensions; // lowercase, no dot: { u8"as" }
+        // What VS Code needs for the language: the extension that reads its declarations
+        // (IScriptManager::Declarations), as publisher.name, and the workspace settings that point
+        // it at them, each a key and its value as JSON text. Empty: none.
+        struct EditorSetting
+        {
+            String key;
+            String json;
+        };
+        String vscodeExtension;
+        Array<EditorSetting> vscodeSettings;
         // The allocator becomes the manager's own (MakeRef records it; everything
         // the manager creates inherits via MemoryAllocator()).
         Function<RefPtr<IScriptManager>(IAllocator&)> create;

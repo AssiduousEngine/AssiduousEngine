@@ -337,6 +337,7 @@ namespace pipeline{
             void ListIncludes(StringView, Array<String>&) const override {}
 
             [[nodiscard]] Array<ScriptApiType> DescribeApi() override { return m_checkManager.DescribeApi(); }
+            [[nodiscard]] foundation::script::ScriptDeclarations Declarations() override { return m_checkManager.Declarations(); }
 
             [[nodiscard]] u32 CheckManagerBuildCount() const override { return m_checkManager.BuildCount(); }
 

@@ -3483,6 +3483,12 @@ export namespace foundation::script
         desc.languageId = core::String(u8"luau");
         desc.displayName = core::String(u8"Luau");
         desc.fileExtensions.PushBack(core::String(u8"luau"));
+        // luau-lsp reads the declarations from its settings; the engine is no Roblox place, so its
+        // platform is the standard library and it looks for no Rojo sourcemap.
+        desc.vscodeExtension = core::String(u8"JohnnyMorganz.luau-lsp");
+        desc.vscodeSettings.PushBack({core::String(u8"luau-lsp.types.definitionFiles"), core::String(u8"{ \"@engine\": \"engine.d.luau\" }")});
+        desc.vscodeSettings.PushBack({core::String(u8"luau-lsp.platform.type"), core::String(u8"\"standard\"")});
+        desc.vscodeSettings.PushBack({core::String(u8"luau-lsp.sourcemap.enabled"), core::String(u8"false")});
         desc.create = [](core::IAllocator& allocator)
         { return CreateLuauScriptManager(allocator); };
         ScriptBackendRegistry::Get().Register(core::Move(desc));

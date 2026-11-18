@@ -646,6 +646,8 @@ export namespace pipeline{
         void Prepare();
         /// The engine's API, described for completion and the API browser.
         [[nodiscard]] Array<foundation::script::ScriptApiType> DescribeApi();
+        /// The engine's API as the declarations file an outside editor reads.
+        [[nodiscard]] foundation::script::ScriptDeclarations Declarations();
         /// How many times the manager has been made.
         [[nodiscard]] u32 BuildCount() const noexcept { return m_buildCount; }
 
@@ -762,6 +764,10 @@ export namespace pipeline{
         /// The API a script checked here can use (every registered type), described for
         /// completion and the API browser.
         [[nodiscard]] virtual Array<foundation::script::ScriptApiType> DescribeApi() = 0;
+
+        /// The same API as the declarations file an outside editor reads to complete and check
+        /// the language (IScriptManager::Declarations). Empty for a language without one.
+        [[nodiscard]] virtual foundation::script::ScriptDeclarations Declarations() { return {}; }
 
         /// How many times Check has made the manager it keeps for checks: once, and again
         /// each time the registered types change. 0 for a language whose every check builds its own.
