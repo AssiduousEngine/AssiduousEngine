@@ -514,8 +514,9 @@ namespace foundation::script::angelscript
         const core::ConstructorInfo* constructor;
         const core::PropertyInfo* property;
         const core::MethodInfo* method;
-        // A method whose every parameter and return AngelScript holds in its native form: called
-        // through MethodInfo::call with AngelScript's own addresses, no Variant (TypedMethodCall).
+        // Every value it passes AngelScript holds in its native form: called through the typed entry
+        // (MethodInfo::call, ConstructorInfo::construct, PropertyInfo::read or write) with
+        // AngelScript's own addresses, no Variant (TypedMethodCall and its siblings).
         bool typed = false;
     };
 
@@ -530,7 +531,12 @@ namespace foundation::script::angelscript
     void IsValidDispatch(asIScriptGeneric* gen);
     void PropertySetDispatch(asIScriptGeneric* gen);
     void MethodDispatch(asIScriptGeneric* gen);
-    [[nodiscard]] bool CanCallTyped(const core::MethodInfo& method) noexcept; // MethodDispatch's typed path
+    // The typed paths (Binding::typed): each false, with nothing done, when the Variant path must run.
+    [[nodiscard]] bool CanCallTyped(const core::MethodInfo& method) noexcept;
+    [[nodiscard]] bool CanConstructTyped(const core::ConstructorInfo& constructor) noexcept;
+    [[nodiscard]] bool CanAccessTyped(const core::PropertyInfo& property, bool write) noexcept;
+    [[nodiscard]] bool TypedValueConstruct(asIScriptGeneric* gen, const Binding& binding);
+    [[nodiscard]] bool TypedPropertyAccess(asIScriptGeneric* gen, const Binding& binding, bool write);
     void OperatorDispatch(asIScriptGeneric* gen); // a reflected operator (Binding::Kind::Operator*)
     void CoroutineStartDispatch(asIScriptGeneric* gen); // startCoroutine(ScriptCoroutine@)
     void CoroutineWaitDispatch(asIScriptGeneric* gen);  // wait(float seconds)
@@ -3072,6 +3078,7 @@ namespace foundation::script::angelscript
                 }
                 Binding* binding = MakeBinding(Binding{Binding::Kind::ValueConstructor, this, &type,
                                                        &constructor, nullptr, nullptr});
+                binding->typed = CanConstructTyped(constructor);
                 if (m_engine->RegisterObjectBehaviour(name, asBEHAVE_CONSTRUCT, CStr(decl),
                                                       asFUNCTION(ValueConstructDispatch), asCALL_GENERIC,
                                                       binding) >= 0)
@@ -3222,6 +3229,7 @@ namespace foundation::script::angelscript
                     AppendAscii(decl, "() property");
                     Binding* binding = MakeBinding(Binding{Binding::Kind::PropertyGet, this, &type,
                                                            nullptr, &property, nullptr});
+                    binding->typed = CanAccessTyped(property, false);
                     (void)m_engine->RegisterObjectMethod(
                         name, CStr(decl), asFUNCTION(PropertyGetDispatch), asCALL_GENERIC, binding);
                 }
@@ -3240,6 +3248,7 @@ namespace foundation::script::angelscript
                     AppendAscii(decl, ") property");
                     Binding* binding = MakeBinding(Binding{Binding::Kind::PropertySet, this, &type,
                                                            nullptr, &property, nullptr});
+                    binding->typed = CanAccessTyped(property, true);
                     (void)m_engine->RegisterObjectMethod(
                         name, CStr(decl), asFUNCTION(PropertySetDispatch), asCALL_GENERIC, binding);
                 }
@@ -3641,6 +3650,10 @@ namespace foundation::script::angelscript
             std::memset(self, 0, binding->type->size);
             return;
         }
+        if (binding->typed && TypedValueConstruct(gen, *binding))
+        {
+            return;
+        }
         const int argc = static_cast<int>(gen->GetArgCount());
         core::InlineArray<core::Variant, kMaxArgs> args; // only those passed are made
         for (int i = 0; i < argc && i < kMaxArgs; ++i)
@@ -3701,6 +3714,10 @@ namespace foundation::script::angelscript
     void PropertyGetDispatch(asIScriptGeneric* gen)
     {
         const Binding* binding = static_cast<const Binding*>(gen->GetAuxiliary());
+        if (binding->typed && TypedPropertyAccess(gen, *binding, false))
+        {
+            return;
+        }
         SelfOf selfOf(gen, binding->type);
         core::Variant& self = selfOf.Value();
         core::Instance instance = core::ToInstance(self);
@@ -3716,6 +3733,10 @@ namespace foundation::script::angelscript
     void PropertySetDispatch(asIScriptGeneric* gen)
     {
         const Binding* binding = static_cast<const Binding*>(gen->GetAuxiliary());
+        if (binding->typed && TypedPropertyAccess(gen, *binding, true))
+        {
+            return;
+        }
         SelfOf selfOf(gen, binding->type);
         core::Variant& self = selfOf.Value();
         core::Instance instance = core::ToInstance(self);
@@ -3932,6 +3953,31 @@ namespace foundation::script::angelscript
         return returned == nullptr || HeldNatively(returned);
     }
 
+    // A script value's constructor whose every parameter is a value held natively.
+    [[nodiscard]] bool CanConstructTyped(const core::ConstructorInfo& constructor) noexcept
+    {
+        if (constructor.construct == nullptr || constructor.paramCount > static_cast<core::u32>(kMaxArgs))
+        {
+            return false;
+        }
+        for (core::u32 i = 0; i < constructor.paramCount; ++i)
+        {
+            const core::ParamInfo& param = constructor.params[i];
+            if (param.form != core::ParamForm::Value || param.type == nullptr || !HeldNatively(param.type()))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // A property of a type held natively, with the typed entry for the access (`write` is null for
+    // a read-only one, which then keeps refusing on the Variant path).
+    [[nodiscard]] bool CanAccessTyped(const core::PropertyInfo& property, bool write) noexcept
+    {
+        return HeldNatively(property.type) && (write ? property.write != nullptr : property.read != nullptr);
+    }
+
     // Aligned room for what a typed call cannot take where AngelScript keeps it: an argument or a
     // `self` on AngelScript's 4-byte-aligned stack whose type needs more, and the result.
     class TypedScratch
@@ -3971,18 +4017,15 @@ namespace foundation::script::angelscript
         return copy;
     }
 
-    // A method call with no Variant (Binding::typed): the arguments where AngelScript holds them,
-    // `self` in place, and the result straight into AngelScript's return. False, with nothing done,
-    // when it needs more aligned room than the scratch has: the Variant call then runs instead.
-    [[nodiscard]] bool TypedMethodCall(asIScriptGeneric* gen, const Binding& binding)
+    // The arguments of a typed call where AngelScript holds them: a script value passed `const &in`
+    // by its address, a number or enum by its slot, each moved to `scratch` when misaligned. False
+    // when one does not fit there.
+    [[nodiscard]] bool TypedArgs(asIScriptGeneric* gen, const core::ParamInfo* params, core::u32 count,
+                                 TypedScratch& scratch, void** args)
     {
-        const core::MethodInfo& method = *binding.method;
-        TypedScratch scratch;
-        void* args[kMaxArgs];
-        for (core::u32 i = 0; i < method.paramCount; ++i)
+        for (core::u32 i = 0; i < count; ++i)
         {
-            const core::TypeInfo& type = *method.params[i].type();
-            // A script value is passed `const T &in`: its address. A number or enum by value: its slot.
+            const core::TypeInfo& type = *params[i].type();
             void* at = IsScriptValue(&type) ? gen->GetArgAddress(i) : gen->GetAddressOfArg(i);
             args[i] = at != nullptr ? AlignedFor(type, at, scratch) : nullptr;
             if (args[i] == nullptr)
@@ -3990,63 +4033,52 @@ namespace foundation::script::angelscript
                 return false;
             }
         }
+        return true;
+    }
 
+    // The object a typed member call is made on: a script value in place (moved to `scratch` when
+    // misaligned, and `writeBack` set to where it goes back after), or a handle's object.
+    struct TypedSelf
+    {
         void* self = nullptr;
-        void* writeBack = nullptr; // a script value `self` moved for alignment goes back after
-        if (!method.isStatic)
-        {
-            if (IsScriptValue(binding.type))
-            {
-                void* at = gen->GetObject();
-                self = AlignedFor(*binding.type, at, scratch);
-                if (self == nullptr)
-                {
-                    return false;
-                }
-                writeBack = self != at ? at : nullptr;
-            }
-            else
-            {
-                const core::Instance instance = core::ToInstance(static_cast<BoxedVariant*>(gen->GetObject())->value);
-                if (RefuseGone(instance))
-                {
-                    return true; // the script's error is raised; nothing to fall back to
-                }
-                self = instance.Pointer();
-            }
-        }
+        void* writeBack = nullptr;
+        bool gone = false; // a handle whose object is gone: the script's error is raised
+    };
 
-        const core::TypeInfo* returned = method.returnType != nullptr ? method.returnType() : nullptr;
-        void* result = returned != nullptr ? scratch.Take(returned->size, returned->align) : nullptr;
-        if (returned != nullptr && result == nullptr)
+    // False when a misaligned value does not fit `scratch`.
+    [[nodiscard]] bool TypedSelfOf(asIScriptGeneric* gen, const core::TypeInfo& type, TypedScratch& scratch, TypedSelf& out)
+    {
+        if (IsScriptValue(&type))
         {
-            return false;
+            void* at = gen->GetObject();
+            out.self = AlignedFor(type, at, scratch);
+            out.writeBack = out.self != at ? at : nullptr;
+            return out.self != nullptr;
         }
-        method.call(self, args, result);
-        g_typedCalls.fetch_add(1, core::MemoryOrder::Relaxed);
-        if (writeBack != nullptr)
+        const core::Instance instance = core::ToInstance(static_cast<BoxedVariant*>(gen->GetObject())->value);
+        out.gone = RefuseGone(instance);
+        out.self = instance.Pointer();
+        return true;
+    }
+
+    // A typed call's result (`returned` constructed at `result`) as AngelScript's return.
+    void SetTypedReturn(asIScriptGeneric* gen, const core::TypeInfo& returned, const void* result)
+    {
+        if (IsScriptValue(&returned))
         {
-            std::memcpy(writeBack, self, binding.type->size);
+            std::memcpy(gen->GetAddressOfReturnLocation(), result, returned.size); // returned by value
         }
-        if (returned == nullptr)
-        {
-            return true;
-        }
-        if (IsScriptValue(returned))
-        {
-            std::memcpy(gen->GetAddressOfReturnLocation(), result, returned->size); // returned by value
-        }
-        else if (returned == &core::TypeOf<core::f32>())
+        else if (&returned == &core::TypeOf<core::f32>())
         {
             gen->SetReturnFloat(*static_cast<const core::f32*>(result));
         }
-        else if (returned == &core::TypeOf<core::f64>())
+        else if (&returned == &core::TypeOf<core::f64>())
         {
             gen->SetReturnDouble(*static_cast<const core::f64*>(result));
         }
         else
         {
-            switch (returned->size) // an integer, a bool or a 32-bit enum: its bytes at its width
+            switch (returned.size) // an integer, a bool or a 32-bit enum: its bytes at its width
             {
             case 1:
                 gen->SetReturnByte(*static_cast<const asBYTE*>(result));
@@ -4061,6 +4093,116 @@ namespace foundation::script::angelscript
                 gen->SetReturnQWord(*static_cast<const asQWORD*>(result));
                 break;
             }
+        }
+    }
+
+    // A method call with no Variant (Binding::typed): the arguments where AngelScript holds them,
+    // `self` in place, and the result straight into AngelScript's return. False, with nothing done,
+    // when it needs more aligned room than the scratch has: the Variant call then runs instead.
+    [[nodiscard]] bool TypedMethodCall(asIScriptGeneric* gen, const Binding& binding)
+    {
+        const core::MethodInfo& method = *binding.method;
+        TypedScratch scratch;
+        void* args[kMaxArgs];
+        if (!TypedArgs(gen, method.params, method.paramCount, scratch, args))
+        {
+            return false;
+        }
+        TypedSelf self;
+        if (!method.isStatic)
+        {
+            if (!TypedSelfOf(gen, *binding.type, scratch, self))
+            {
+                return false;
+            }
+            if (self.gone)
+            {
+                return true; // the script's error is raised; nothing to fall back to
+            }
+        }
+        const core::TypeInfo* returned = method.returnType != nullptr ? method.returnType() : nullptr;
+        void* result = returned != nullptr ? scratch.Take(returned->size, returned->align) : nullptr;
+        if (returned != nullptr && result == nullptr)
+        {
+            return false;
+        }
+        method.call(self.self, args, result);
+        g_typedCalls.fetch_add(1, core::MemoryOrder::Relaxed);
+        if (self.writeBack != nullptr)
+        {
+            std::memcpy(self.writeBack, self.self, binding.type->size);
+        }
+        if (returned != nullptr)
+        {
+            SetTypedReturn(gen, *returned, result);
+        }
+        return true;
+    }
+
+    // A script value made in place by its typed constructor: built in aligned room, then its bytes
+    // copied to the object (which AngelScript may have placed misaligned). False when it does not
+    // fit the scratch: the Variant constructor then runs.
+    [[nodiscard]] bool TypedValueConstruct(asIScriptGeneric* gen, const Binding& binding)
+    {
+        const core::ConstructorInfo& constructor = *binding.constructor;
+        TypedScratch scratch;
+        void* args[kMaxArgs];
+        if (!TypedArgs(gen, constructor.params, constructor.paramCount, scratch, args))
+        {
+            return false;
+        }
+        const core::TypeInfo& type = *binding.type;
+        void* made = scratch.Take(type.size, type.align);
+        if (made == nullptr)
+        {
+            return false;
+        }
+        constructor.construct(args, made);
+        g_typedCalls.fetch_add(1, core::MemoryOrder::Relaxed);
+        std::memcpy(gen->GetObject(), made, type.size); // a script value: its bytes are all of it
+        return true;
+    }
+
+    // A property read or write with no Variant (Binding::typed): the value straight between the
+    // member and AngelScript. False when it does not fit the scratch: the Variant path then runs.
+    [[nodiscard]] bool TypedPropertyAccess(asIScriptGeneric* gen, const Binding& binding, bool write)
+    {
+        const core::PropertyInfo& property = *binding.property;
+        TypedScratch scratch;
+        TypedSelf self;
+        if (!TypedSelfOf(gen, *binding.type, scratch, self))
+        {
+            return false;
+        }
+        if (self.gone)
+        {
+            return true; // the script's error is raised; nothing to fall back to
+        }
+        const core::TypeInfo& type = *property.type;
+        if (write)
+        {
+            void* at = IsScriptValue(&type) ? gen->GetArgAddress(0) : gen->GetAddressOfArg(0);
+            void* value = at != nullptr ? AlignedFor(type, at, scratch) : nullptr;
+            if (value == nullptr)
+            {
+                return false;
+            }
+            property.write(self.self, value);
+        }
+        else
+        {
+            void* result = scratch.Take(type.size, type.align);
+            if (result == nullptr)
+            {
+                return false;
+            }
+            property.read(self.self, result);
+            SetTypedReturn(gen, type, result);
+        }
+        g_typedCalls.fetch_add(1, core::MemoryOrder::Relaxed);
+        if (self.writeBack != nullptr)
+        {
+            std::memcpy(self.writeBack, self.self, binding.type->size);
         }
         return true;
     }

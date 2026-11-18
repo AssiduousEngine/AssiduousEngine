@@ -767,8 +767,9 @@ TEST_CASE("angelscript: plain reflected-type members and globals read back as th
 }
 
 // The typed path (MethodInfo::call with AngelScript's own addresses): numbers of every width, an
-// enum of AngelScript's int width, a value argument and return, and a value `self` a method changes.
-// A string and a one-byte enum are not held natively, so their methods keep the Variant call.
+// enum of AngelScript's int width, a value argument and return, and a value `self` a method changes;
+// a value's constructor and its properties read and written the same way. A string and a one-byte
+// enum are not held natively, so their methods keep the Variant call.
 namespace
 {
     enum class Gear : i32
@@ -783,6 +784,8 @@ namespace
     };
     struct Tally
     {
+        Tally() = default;
+        Tally(f64 startTotal, i64 startCount) : total(startTotal), count(startCount) {}
         f64 total = 0.0;
         i64 count = 0;
         void Add(f64 v)
@@ -796,6 +799,7 @@ namespace
     {
         RTTI_OBJECT(TypedProbe, Object)
     public:
+        f64 level = 1.0;
         [[nodiscard]] f64 Mix(f64 a, i64 b, f32 c, i8 d, u16 e) const
         {
             return a + static_cast<f64>(b) + static_cast<f64>(c) + d + e;
@@ -830,9 +834,11 @@ REFLECT_VALUE(Tally, "rtti::script::test")
     builder.Method<&Tally::Add>("Add");
     builder.Method<&Tally::Mean>("Mean");
     builder.Constructor();
+    builder.Constructor<f64, i64>();
 }
 REFLECT_MEMBERS(TypedProbe, "rtti::script::test")
 {
+    builder.Property<&TypedProbe::level>("level");
     builder.Method<&TypedProbe::Mix>("Mix");
     builder.Method<&TypedProbe::IsHigh>("IsHigh");
     builder.Method<&TypedProbe::Flip>("Flip");
@@ -859,37 +865,62 @@ TEST_CASE("angelscript: a method of natively held values takes the typed call, a
     manager->RegisterType(TypeOf<Tally>());
     manager->RegisterType(TypedProbe::StaticType());
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
-    REQUIRE(scriptContext->Load(u8"double M; bool H; int G; bool BigOk; int L; int N; double TT; int64 TC; double TM;\n"
-                                u8"void main() {\n"
-                                u8"  TypedProbe p;\n"
-                                u8"  M = p.Mix(1.5, 1099511627776, 2.25f, -3, 40000);\n"
-                                u8"  H = p.IsHigh(Gear::High);\n"
-                                u8"  G = int(p.Flip(Gear::Low));\n"
-                                u8"  BigOk = p.Big() == 1152921504606846983;\n" // 2^60 + 7, compared at 64 bits
-                                u8"  L = p.Length(\"four\");\n"
-                                u8"  N = int(p.Grow(Notch::Small));\n"
+    REQUIRE(scriptContext->Load(u8"double M; bool H; int G; bool BigOk; int L; int N;\n"
+                                u8"double TT; int64 TC; double TM; double UT; double UM; double LV;\n"
+                                u8"TypedProbe g;\n"
+                                u8"void methods() {\n"
+                                u8"  M = g.Mix(1.5, 1099511627776, 2.25f, -3, 40000);\n"
+                                u8"  H = g.IsHigh(Gear::High);\n"
+                                u8"  G = int(g.Flip(Gear::Low));\n"
+                                u8"  BigOk = g.Big() == 1152921504606846983;\n" // 2^60 + 7, compared at 64 bits
+                                u8"  L = g.Length(\"four\");\n"
+                                u8"  N = int(g.Grow(Notch::Small));\n"
+                                u8"}\n"
+                                u8"void values() {\n"
                                 u8"  Tally t;\n"
                                 u8"  t.Add(2.5);\n"
                                 u8"  t.Add(3.5);\n"
-                                u8"  Tally d = p.Twice(t);\n"
+                                u8"  Tally d = g.Twice(t);\n"
                                 u8"  TT = d.total; TC = d.count; TM = t.Mean();\n"
-                                u8"}\n",
+                                u8"  Tally u = Tally(10.0, 4);\n"
+                                u8"  u.total = 2.0;\n"
+                                u8"  UT = u.total; UM = u.Mean();\n"
+                                u8"}\n"
+                                u8"void readLevel() { LV = g.level; }\n"
+                                u8"void writeLevel() { g.level = 2.5; }\n",
                                 u8"main")
                 .IsOk());
-    const u64 before = angelscript::TypedCallCount();
-    REQUIRE(scriptContext->Call(u8"main", Span<Variant>{}).HasValue());
-    // Mix, IsHigh, Flip, Big, Add twice, Twice and Mean; Length (a string) and Grow (a one-byte
-    // enum) go by Variant.
-    CHECK(angelscript::TypedCallCount() - before == 8u);
+    const auto typedCalls = [&](const char8_t* function) -> u64
+    {
+        const u64 before = angelscript::TypedCallCount();
+        REQUIRE(scriptContext->Call(function, Span<Variant>{}).HasValue());
+        return angelscript::TypedCallCount() - before;
+    };
+
+    // Mix, IsHigh, Flip and Big; Length (a string) and Grow (a one-byte enum) go by Variant.
+    CHECK(typedCalls(u8"methods") == 4u);
     CHECK(scriptContext->GetGlobal(u8"M").Get<f64>() == 1099511667776.75); // 8-byte arguments, misaligned or not
     CHECK(scriptContext->GetGlobal(u8"H").Get<bool>());
     CHECK(scriptContext->GetGlobal(u8"G").Get<f64>() == 1.0); // an int global reads as a number
     CHECK(scriptContext->GetGlobal(u8"BigOk").Get<bool>()); // a global reads as a double: compared in script
     CHECK(scriptContext->GetGlobal(u8"L").Get<f64>() == 4.0);
     CHECK(scriptContext->GetGlobal(u8"N").Get<f64>() == 1.0);
+
+    // Add twice, Twice, Mean twice and the constructors (AngelScript makes a value more often than
+    // the text shows); a value's fields it reaches itself, with no call.
+    CHECK(typedCalls(u8"values") >= 6u);
     CHECK(scriptContext->GetGlobal(u8"TT").Get<f64>() == 12.0); // a value in, a value out
     CHECK(scriptContext->GetGlobal(u8"TC").Get<f64>() == 4.0);
-    CHECK(scriptContext->GetGlobal(u8"TM").Get<f64>() == 3.0); // the value `self` Add changed
+    CHECK(scriptContext->GetGlobal(u8"TM").Get<f64>() == 3.0);  // the value `self` Add changed
+    CHECK(scriptContext->GetGlobal(u8"UT").Get<f64>() == 2.0);  // constructed with its values, then written
+    CHECK(scriptContext->GetGlobal(u8"UM").Get<f64>() == 0.5);  // 2.0 over the constructed count
+
+    // An object's property, read and written: one typed access each.
+    CHECK(typedCalls(u8"readLevel") == 1u);
+    CHECK(scriptContext->GetGlobal(u8"LV").Get<f64>() == 1.0);
+    CHECK(typedCalls(u8"writeLevel") == 1u);
+    CHECK(typedCalls(u8"readLevel") == 1u);
+    CHECK(scriptContext->GetGlobal(u8"LV").Get<f64>() == 2.5);
 }
 
 TEST_CASE("angelscript: 64-bit integer facade args/returns round-trip exactly (no double funnel)")
