@@ -97,6 +97,7 @@ export namespace foundation::scene
             }
             DIAGNOSTIC_ASSERT(!HasComponent(entity));
             const u32 dense = static_cast<u32>(m_dense.Size());
+            ++m_storageRevision;
             m_dense.PushBack(T{});
             m_owners.PushBack(entity);
             m_sparse.InsertOrAssign(entity.index, dense);
@@ -127,6 +128,11 @@ export namespace foundation::scene
             return true;
         }
 
+        /// Changes whenever a component may move in memory (an add or a removal): a pointer from
+        /// Get stays good while this is unchanged, so a caller holding one across code that may
+        /// add or remove (a script's handler) looks it up again only when it changed.
+        [[nodiscard]] u64 StorageRevision() const noexcept { return m_storageRevision; }
+
         [[nodiscard]] T* Get(EntityHandle entity)
         {
             const u32 i = DenseIndex(entity);
@@ -152,6 +158,7 @@ export namespace foundation::scene
             // Unlinked first, then the hook is told, on the value moved out: a hook (a behaviour's
             // onDestroy) may add or remove components of this manager, which moves the pool, so
             // the index found above is only good until it runs.
+            ++m_storageRevision;
             T removed = Move(m_dense[i]);
             const u32 last = static_cast<u32>(m_dense.Size()) - 1u;
             if (i != last)
@@ -306,6 +313,7 @@ export namespace foundation::scene
         }
 
         Array<T> m_dense;                  // packed component data (no holes)
+        u64 m_storageRevision = 0;         // StorageRevision
         Array<EntityHandle> m_owners;      // owning entity per dense slot
         HashMap<u32, u32> m_sparse;        // entity.index -> dense index
         Array<EntityHandle> m_pendingInit; // entities awaiting OnComponentInitialized

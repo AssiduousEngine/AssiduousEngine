@@ -349,3 +349,28 @@ TEST_CASE("component pool: lookups and walks over 10k components, timed (perf ca
     MESSAGE("one leaving: Get x " << kCount * kRounds << ": " << leavingLookupMs << " ms; ForEach of " << kCount << " x " << kRounds
                                   << ": " << leavingWalkMs << " ms");
 }
+
+// A pointer from Get stays good while the storage revision is unchanged: it changes on every add
+// and removal (each may move the pool), never on a read or a write through a component.
+TEST_CASE("scene: a component manager's storage revision changes when a component may move")
+{
+    Scene scene(DefaultAllocator(), u8"revision");
+    HealthManager* mgr = scene.AddSystem<HealthManager>();
+    const EntityHandle a = scene.CreateEntity(u8"a");
+    const EntityHandle b = scene.CreateEntity(u8"b");
+
+    const u64 empty = mgr->StorageRevision();
+    mgr->Add(a).value = 1.0f;
+    const u64 one = mgr->StorageRevision();
+    CHECK(one != empty);
+    Health* held = mgr->Get(a);
+    held->value = 5.0f; // reads and writes leave it
+    CHECK(mgr->Get(a) != nullptr);
+    CHECK(mgr->StorageRevision() == one);
+    mgr->Add(b).value = 2.0f;
+    CHECK(mgr->StorageRevision() != one);
+    const u64 two = mgr->StorageRevision();
+    mgr->RemoveComponent(a); // b swaps into a's slot
+    CHECK(mgr->StorageRevision() != two);
+    CHECK(mgr->Get(b)->value == doctest::Approx(2.0f));
+}
