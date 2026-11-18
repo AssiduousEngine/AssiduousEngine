@@ -681,6 +681,54 @@ TEST_CASE("ComputeCascades: fitted to the scene, a cascade shrinks to what of it
     }
 }
 
+TEST_CASE("CascadeReceiverDepths: a cascade shades its slice and the blend band before it")
+{
+    ShadowCascades cascades;
+    cascades.splitFar[0] = 10.0f;
+    cascades.splitFar[1] = 30.0f;
+    cascades.splitFar[2] = 60.0f;
+    cascades.splitFar[3] = 100.0f;
+    f32 nearDepth = 0.0f;
+    f32 farDepth = 0.0f;
+    CascadeReceiverDepths(cascades, 0.1f, 0, nearDepth, farDepth);
+    CHECK(nearDepth == doctest::Approx(0.1f)); // the first starts at the view's near plane
+    CHECK(farDepth == doctest::Approx(10.0f));
+    // The second also shades the last 15% of the first, where SampleCSM blends into it.
+    CascadeReceiverDepths(cascades, 0.1f, 1, nearDepth, farDepth);
+    CHECK(nearDepth == doctest::Approx(10.0f - 10.0f * kCascadeBlendBand));
+    CHECK(farDepth == doctest::Approx(30.0f));
+    CascadeReceiverDepths(cascades, 0.1f, 3, nearDepth, farDepth);
+    CHECK(nearDepth == doctest::Approx(60.0f - 30.0f * kCascadeBlendBand));
+    CHECK(farDepth == doctest::Approx(100.0f));
+
+    // A slice of the view: a point between its depths is inside, one nearer or further is not.
+    ViewCamera cam;
+    cam.view = Float4x4::LookAtRH(Float3{0, 0, 0}, Float3{0, 0, -1}, Float3{0, 1, 0});
+    cam.projection = Float4x4::PerspectiveFovRH(1.0472f, 1.0f, 0.1f, 250.0f);
+    const BoundingFrustum slice = ShadowSliceFrustum(cam, 30.0f, 60.0f);
+    CHECK(slice.Contains(Float3{0, 0, -45}) != ContainmentType::Disjoint);
+    CHECK(slice.Contains(Float3{0, 0, -20}) == ContainmentType::Disjoint);
+    CHECK(slice.Contains(Float3{0, 0, -70}) == ContainmentType::Disjoint);
+}
+
+TEST_CASE("ShadowSweepLength: a shadow runs along the light no further than the scene's bounds")
+{
+    // A forest 200 m across, from the ground (0) to the treetops (20 m).
+    const AABB scene{Float3{-100.0f, 0.0f, -100.0f}, Float3{100.0f, 20.0f, 100.0f}};
+    const f32 reach = 480.0f; // what the cascades alone would allow
+    // Straight down from 10 m up (radius 1): to the ground, and its own radius past it.
+    CHECK(ShadowSweepLength(Float4{0, 10, 0, 1}, Float3{0, -1, 0}, reach, scene) == doctest::Approx(11.0f));
+    // Sideways from the middle: to the far side of the scene, not the cascades' whole reach.
+    CHECK(ShadowSweepLength(Float4{0, 10, 0, 1}, Float3{1, 0, 0}, reach, scene) == doctest::Approx(101.0f));
+    // A low sun: whichever bound the sweep meets first.
+    const Float3 low = Normalized(Float3{1.0f, -0.5f, 0.0f});
+    CHECK(ShadowSweepLength(Float4{0, 10, 0, 1}, low, reach, scene) == doctest::Approx(11.0f / 0.5f * Length(Float3{1.0f, -0.5f, 0.0f})).epsilon(0.001));
+    // Already past the scene along the light: nothing left for its shadow to land on.
+    CHECK(ShadowSweepLength(Float4{0, -50, 0, 1}, Float3{0, -1, 0}, reach, scene) == doctest::Approx(0.0f));
+    // A scene with no bounds leaves the cascades' reach.
+    CHECK(ShadowSweepLength(Float4{0, 10, 0, 1}, Float3{0, -1, 0}, reach, AABB::Empty()) == doctest::Approx(reach));
+}
+
 TEST_CASE("ExtractedScene: past the per-view budget, the lights that matter to the view are kept")
 {
     // The forward and the cluster build shade the first kMaxLightsPerView lights in extraction

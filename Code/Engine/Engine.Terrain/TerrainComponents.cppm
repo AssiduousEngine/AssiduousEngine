@@ -293,6 +293,7 @@ export namespace engine::terrain
                     const Float3 localCenter = cache.localBounds.Center();
                     rd->worldCenter = TransformPoint(localCenter, rd->chunkToWorld);
                     rd->worldRadius = Length(cache.localBounds.Extents());
+                    rd->worldBounds = TransformAABB(cache.localBounds, rd->chunkToWorld);
                 });
         }
 

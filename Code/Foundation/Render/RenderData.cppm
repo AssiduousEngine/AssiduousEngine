@@ -182,6 +182,10 @@ export namespace foundation::render
         // World-space bounding-sphere radius about worldCenter. Read generically by the draw-list builder
         // for view-frustum culling (every producer sets it: meshes from local bounds, sprites from size).
         f32 worldRadius = 0.0f;
+        // The world-space box, where the producer knows one tighter than the sphere: a mesh's bounds
+        // through its transform, a vegetation chunk's or a terrain's. Empty: the sphere stands for it.
+        // Where shadows can land is built from these (a flat ground's sphere would reach far below it).
+        AABB worldBounds = AABB::Empty();
         u32 sortBatchKey = 0;
         // Whether this item is a shadow caster (the sun cascades and the local-light tiles).
         // Producers that draw dense fillers (vegetation) opt out; everything else casts.

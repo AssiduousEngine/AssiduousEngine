@@ -350,6 +350,7 @@ namespace engine::vegetation
                            (corner & 4u) ? hi.z : lo.z};
             world.Expand(TransformPoint(p, cache.entityWorld));
         }
+        set.worldBounds = world;
         set.worldCenter = world.Center();
         set.worldRadius = Length(world.Extents());
         set.version = ++m_nextVersion; // the renderer re-uploads the set's buffer on a version change
@@ -641,6 +642,7 @@ namespace engine::vegetation
             rd->submeshMaterialCount = perSlot ? static_cast<u32>(cache.materials.Size()) : 0u;
             rd->worldCenter = set.worldCenter;
             rd->worldRadius = set.worldRadius;
+            rd->worldBounds = set.worldBounds;
             rd->entityId = engine::render::PackEntity(owner);
             rd->category = foundation::render::CategoryForMaterial(material);
             rd->sortBatchKey = render::BatchKey(mesh, material);

@@ -59,6 +59,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- Rendering: each of the sun's shadow cascades draws only the casters whose shadow lands on what it
+  shades, and a shadow ends at the scene's bounds (a tree's at the ground), so most casters are drawn
+  into one cascade, not all four. Over a 40,000-mesh forest the shadows went from about 200 ms a
+  frame to 59. The Profiler counts the casters each cascade draws ("Shadow casters cascade N").
 - Rendering: shadow and depth prepass draws of a static mesh read a slim position-and-uv copy of
   its vertices (20 bytes a vertex, beside the full 52), a few percent faster in a shadow pass bound
   by its triangles. It takes about 19 MB of GPU memory per million unique vertices.

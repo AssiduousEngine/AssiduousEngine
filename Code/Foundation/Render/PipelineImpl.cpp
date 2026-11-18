@@ -986,10 +986,16 @@ namespace foundation::render
             {
                 continue;
             }
-            // Everything drawn can receive a shadow, caster or not (a grass filler, a blended glass).
+            // Everything drawn can receive a shadow, caster or not (a grass filler, a blended glass):
+            // by its box where its producer gave one, which a flat ground keeps flat, else its sphere.
             // Bounds that are not finite would make the box meaningless: a producer's sphere is finite.
-            if (IsFinite(data->worldRadius) && IsFinite(data->worldCenter.x) && IsFinite(data->worldCenter.y) &&
-                IsFinite(data->worldCenter.z))
+            if (data->worldBounds.IsValid())
+            {
+                ctx.receiverBounds.Expand(data->worldBounds.min);
+                ctx.receiverBounds.Expand(data->worldBounds.max);
+            }
+            else if (IsFinite(data->worldRadius) && IsFinite(data->worldCenter.x) && IsFinite(data->worldCenter.y) &&
+                     IsFinite(data->worldCenter.z))
             {
                 const Float3 r{data->worldRadius, data->worldRadius, data->worldRadius};
                 ctx.receiverBounds.Expand(data->worldCenter - r);
@@ -1593,6 +1599,10 @@ namespace foundation::render
             viewShadows.Resize(m_views.ActiveCount());
             m_viewShadowDebug.Clear();
             m_viewShadowDebug.Resize(m_views.ActiveCount());
+            for (f64& sum : m_shadowCasterSums)
+            {
+                sum = 0.0;
+            }
             for (usize i = 0; i < m_views.ActiveCount(); ++i)
             {
                 // Every view (shadowed or not) carries its scene's local-shadow entry base: its lights'
@@ -1658,20 +1668,71 @@ namespace foundation::render
                     PROFILE_SCOPE("shadow.viewCull");
                     const BoundingFrustum receivers = ShadowReceiverFrustum(v->Camera(), shadowDistance);
                     const Float3 lightDir = Normalized(viewLightDir);
-                    Array<DrawItem>& kept = m_viewCasters[i];
-                    Array<Float4>& keptBounds = m_viewCasterBounds[i];
-                    kept.Clear();
-                    keptBounds.Clear();
+                    // Each cascade draws only the casters whose shadow lands on what it shades: its
+                    // slice of the view and the blend band before it (CascadeReceiverDepths). Without
+                    // this every cascade whose box holds a forest draws all of it, four times over.
+                    // A shadow lookup reaches past its texel (the PCF kernel, the normal offset): the
+                    // caster's sphere is widened by that much in the cascade's texels.
+                    BoundingFrustum slices[ShadowCascades::kCount];
+                    f32 margins[ShadowCascades::kCount] = {};
+                    for (u32 c = 0; c < cascadeCount; ++c)
+                    {
+                        f32 nearDepth = 0.0f;
+                        f32 farDepth = 0.0f;
+                        CascadeReceiverDepths(cascades, v->Camera().NearZ(), c, nearDepth, farDepth);
+                        slices[c] = ShadowSliceFrustum(v->Camera(), nearDepth, farDepth);
+                        margins[c] = cascades.texelWorldSize[c] * (2.0f + cascades.normalBias);
+                        m_cascadeCasters[i][c].Clear();
+                        m_cascadeCasterBounds[i][c].Clear();
+                    }
+                    u32 reaching = 0;
                     for (usize k = 0; k < sctx->casters.Size(); ++k)
                     {
                         const Float4 bounds = sctx->casterBounds[k];
-                        if (CasterShadowReachesView(receivers, lightDir, cascades.casterReach, bounds))
+                        // Its shadow runs along the light no further than the scene's bounds: past
+                        // them there is nothing to land on (a tree's shadow ends at the ground).
+                        const f32 sweep = ShadowSweepLength(bounds, lightDir, cascades.casterReach, sctx->receiverBounds);
+                        if (!CasterShadowReachesView(receivers, lightDir, sweep, bounds))
                         {
-                            kept.PushBack(sctx->casters[k]);
-                            keptBounds.PushBack(bounds);
+                            continue;
+                        }
+                        ++reaching;
+                        for (u32 c = 0; c < cascadeCount; ++c)
+                        {
+                            const Float4 widened{bounds.x, bounds.y, bounds.z, bounds.w + margins[c]};
+                            if (cascades.hasReceivers[c] &&
+                                CasterShadowReachesView(slices[c], lightDir, sweep + margins[c], widened))
+                            {
+                                m_cascadeCasters[i][c].PushBack(sctx->casters[k]);
+                                m_cascadeCasterBounds[i][c].PushBack(bounds);
+                            }
                         }
                     }
-                    m_viewShadowDebug[i].directionalCasters = static_cast<u32>(kept.Size());
+                    m_viewShadowDebug[i].directionalCasters = reaching;
+                    for (u32 c = 0; c < cascadeCount; ++c)
+                    {
+                        m_viewShadowDebug[i].cascadeCasters[c] = static_cast<u32>(m_cascadeCasters[i][c].Size());
+                    }
+                    // The profiler's counters (set as each view adds its share: the frame keeps the
+                    // last, the total), which show how many casters each cascade draws.
+                    profiler::Profiler& prof = profiler::Profiler::Get();
+                    if (!m_shadowCountersRegistered)
+                    {
+                        m_shadowCounterIds[0] = prof.RegisterCounter(StringView(u8"Shadow casters"), profiler::CounterUnit::Count);
+                        for (u32 c = 0; c < ShadowCascades::kCount; ++c)
+                        {
+                            const String name = Format(u8"Shadow casters cascade {}", c + 1);
+                            m_shadowCounterIds[1 + c] = prof.RegisterCounter(name.AsView(), profiler::CounterUnit::Count);
+                        }
+                        m_shadowCountersRegistered = true;
+                    }
+                    m_shadowCasterSums[0] += static_cast<f64>(reaching);
+                    prof.SetCounter(m_shadowCounterIds[0], m_shadowCasterSums[0]);
+                    for (u32 c = 0; c < cascadeCount; ++c)
+                    {
+                        m_shadowCasterSums[1 + c] += static_cast<f64>(m_cascadeCasters[i][c].Size());
+                        prof.SetCounter(m_shadowCounterIds[1 + c], m_shadowCasterSums[1 + c]);
+                    }
                 }
                 for (u32 c = 0; c < cascadeCount; ++c)
                 {
@@ -1681,7 +1742,7 @@ namespace foundation::render
                     const bool draws = cascades.hasReceivers[c];
                     m_graph.AddRenderPass(
                         u8"shadow.cascade",
-                        [this, shadowH, cascadeVP, shadowRes, layer, reg, sctx, i, draws,
+                        [this, shadowH, cascadeVP, shadowRes, layer, reg, sctx, i, c, draws,
                          v](rendergraph::PassBuilder& b)
                         {
                             rendergraph::RGSubresourceRange sub{};
@@ -1691,16 +1752,16 @@ namespace foundation::render
                                              rhi::depth::ClearValue(), sub);
                             b.SetViewport(0, 0, shadowRes, shadowRes);
                             b.SetExecute(
-                                [this, cascadeVP, reg, sctx, i, draws, v](rhi::RenderPassEncoder& rp)
+                                [this, cascadeVP, reg, sctx, i, c, draws, v](rhi::RenderPassEncoder& rp)
                                 {
                                     if (!draws)
                                     {
                                         return;
                                     }
-                                    const Span<const DrawItem> casters{m_viewCasters[i].Data(),
-                                                                       m_viewCasters[i].Size()};
-                                    const Span<const Float4> bounds{m_viewCasterBounds[i].Data(),
-                                                                    m_viewCasterBounds[i].Size()};
+                                    const Span<const DrawItem> casters{m_cascadeCasters[i][c].Data(),
+                                                                       m_cascadeCasters[i][c].Size()};
+                                    const Span<const Float4> bounds{m_cascadeCasterBounds[i][c].Data(),
+                                                                    m_cascadeCasterBounds[i][c].Size()};
                                     // Cascades follow their owning view's LOD selection, so
                                     // the shadow matches what the view draws.
                                     RecordShadowCasters(rp, casters, *reg, cascadeVP, {}, 0.0f,

@@ -635,9 +635,10 @@ export namespace foundation::render
             bool directional = false;
             bool mapBound = false;
             u32 localEntryBase = 0;
-            // Of the scene's casters, those whose shadow can reach this view (CasterShadowReachesView):
-            // what its cascades draw from.
+            // Of the scene's casters, those whose shadow can reach this view (CasterShadowReachesView),
+            // and of those, the ones each cascade draws: whose shadow can land on what it shades.
             u32 directionalCasters = 0;
+            u32 cascadeCasters[ShadowCascades::kCount] = {};
             // Of its cascades, those whose slice holds anything the scene draws (the others draw no
             // casters).
             u32 cascadesWithReceivers = 0;
@@ -910,10 +911,16 @@ export namespace foundation::render
             m_staticAtlasDraws; // static atlas layer, all tiles (all scenes; cache source)
         Array<AtlasDraw> m_staticRenderDraws; // static layer tiles dirty this frame (all scenes)
         Array<DrawItem> m_shadowCullScratch;  // per-tile sphere-culled subset (reused)
-        // Per shadow view, the scene's casters whose shadow can reach it and their bounds, aligned:
-        // what its cascades cull from. Filled as the cascades are declared, read as they record.
-        Array<DrawItem> m_viewCasters[ShadowSystem::kMaxShadowViews];
-        Array<Float4> m_viewCasterBounds[ShadowSystem::kMaxShadowViews];
+        // Per shadow view and cascade, the scene's casters whose shadow can land on what that cascade
+        // shades, and their bounds, aligned: what it draws (after its own frustum cull). Filled as the
+        // cascades are declared, read as they record.
+        Array<DrawItem> m_cascadeCasters[ShadowSystem::kMaxShadowViews][ShadowCascades::kCount];
+        Array<Float4> m_cascadeCasterBounds[ShadowSystem::kMaxShadowViews][ShadowCascades::kCount];
+        // The profiler's counters of them, over the frame's views: the casters whose shadow reaches a
+        // view ("Shadow casters"), then those each cascade draws ("Shadow casters cascade N").
+        u32 m_shadowCounterIds[1 + ShadowCascades::kCount] = {};
+        bool m_shadowCountersRegistered = false;
+        f64 m_shadowCasterSums[1 + ShadowCascades::kCount] = {};
         Array<ViewShadowDebug> m_viewShadowDebug; // tests and debug: last End()'s per-view composition
         RenderViewPool m_views;
         Array<DrawItem> m_sortScratch; // reused radix-sort ping-pong buffer

@@ -88,6 +88,7 @@ namespace engine::render
         }
         rd.worldCenter = TransformPoint(lb.Center(), rd.world); // bounds center (cull and depth sort)
         rd.worldRadius = WorldBoundsRadius(lb, rd.world);
+        rd.worldBounds = TransformAABB(lb, rd.world);
         rd.color = ToLinear(mc.color); // authored sRGB -> linear render data
         rd.mesh = mc.mesh.Get();
         rd.material = primary;

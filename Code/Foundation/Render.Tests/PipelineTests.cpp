@@ -653,6 +653,116 @@ TEST_CASE("RenderFrame: a view's cascades draw only the casters whose shadow can
     CHECK(frame.ViewShadowInfo()[0].directionalCasters == 0u);
 }
 
+TEST_CASE("RenderFrame: each cascade draws only the casters whose shadow lands on its slice")
+{
+    // A camera looking down -Z over 100 m (its far plane cuts the 300 m default shadow reach), the sun
+    // straight down: its slices end near 12.8, 26.6, 46.4 and 100 m. A caster 5 m in front shadows
+    // the first slice alone, one 65 m out the last alone: each is drawn into its own cascade, not
+    // all four. (Before, every cascade whose box held a caster drew it.)
+    RenderHarness h;
+    if (!h.Init(128, 128))
+    {
+        MESSAGE("DXC/Null unavailable; skipping");
+        return;
+    }
+    InertOpaqueRenderer external;
+    RendererRegistry registry;
+    registry.Register(&external);
+    ShadowSystem shadows(h.device, 2);
+    REQUIRE(shadows.Initialize().IsOk());
+    RenderFrame frame(DefaultAllocator(), h.device, registry, 2, nullptr, nullptr, &shadows);
+
+    ExtractedScene scene{DefaultAllocator()};
+    const Float3 places[] = {Float3{0, 0, 0}, Float3{0, 0, -60}};
+    for (const Float3& place : places)
+    {
+        JunkRenderData* caster = scene.Add<JunkRenderData>();
+        caster->category = RenderCategories::Opaque;
+        caster->rendererId = external.RendererId();
+        caster->worldCenter = place;
+        caster->worldRadius = 1.0f;
+    }
+    DirectionalShadow ds;
+    ds.direction = Float3{0.0f, -1.0f, 0.0f};
+    ds.valid = true;
+    scene.SetDirectionalShadow(ds);
+
+    ViewCamera camera;
+    camera.view = Float4x4::LookAtRH(Float3{0, 0, 5}, Float3{0, 0, 0}, Float3{0, 1, 0});
+    camera.projection = Float4x4::PerspectiveFovRH(1.0472f, 1.0f, 0.1f, 100.0f);
+    camera.farZ = 100.0f; // as a view's camera says it, the projection's far plane
+    ViewSettings settings;
+    frame.Begin(*h.encoder, 0);
+    frame.AddView(scene, camera, settings, h.colorView, rhi::TextureFormat::BGRA8Unorm, 128, 128);
+    frame.End();
+
+    const Span<const RenderFrame::ViewShadowDebug> info = frame.ViewShadowInfo();
+    REQUIRE(info.Size() == 1u);
+    CHECK(info[0].directionalCasters == 2u);
+    CHECK(info[0].cascadeCasters[0] == 1u); // the near one
+    CHECK(info[0].cascadeCasters[1] == 0u);
+    CHECK(info[0].cascadeCasters[2] == 0u);
+    CHECK(info[0].cascadeCasters[3] == 1u); // the far one
+}
+
+TEST_CASE("RenderFrame: a shadow ends at the ground's box, not its sphere")
+{
+    // A flat ground 200 m across (it casts nothing) and a grass tuft on it about 40 m ahead of a
+    // camera looking down over it, the sun shining away from the camera. The ground's sphere reaches
+    // 141 m below it; its box, 0.1 m. Swept to the sphere's bottom, the tuft's shadow would run some
+    // 230 m along the light, deep into the furthest cascade; to the box's, it stays in its own slice.
+    RenderHarness h;
+    if (!h.Init(128, 128))
+    {
+        MESSAGE("DXC/Null unavailable; skipping");
+        return;
+    }
+    InertOpaqueRenderer external;
+    RendererRegistry registry;
+    registry.Register(&external);
+    ShadowSystem shadows(h.device, 2);
+    REQUIRE(shadows.Initialize().IsOk());
+    RenderFrame frame(DefaultAllocator(), h.device, registry, 2, nullptr, nullptr, &shadows);
+
+    const Float3 eye{0.0f, 30.0f, 0.0f};
+    const Float3 forward = Normalized(Float3{0.0f, -0.563f, -0.826f});
+    ExtractedScene scene{DefaultAllocator()};
+    JunkRenderData* ground = scene.Add<JunkRenderData>();
+    ground->category = RenderCategories::Opaque;
+    ground->rendererId = external.RendererId();
+    ground->castShadows = false;
+    ground->worldCenter = Float3{0.0f, 0.0f, 0.0f};
+    ground->worldRadius = Length(Float3{100.0f, 0.1f, 100.0f});
+    ground->worldBounds = AABB{Float3{-100.0f, -0.1f, -100.0f}, Float3{100.0f, 0.1f, 100.0f}};
+    Float3 tuft = eye + forward * 35.0f;
+    tuft.y = 0.5f;
+    JunkRenderData* grass = scene.Add<JunkRenderData>();
+    grass->category = RenderCategories::Opaque;
+    grass->rendererId = external.RendererId();
+    grass->worldCenter = tuft;
+    grass->worldRadius = 0.5f;
+    DirectionalShadow ds;
+    ds.direction = Normalized(Float3{-0.55f, -0.62f, -0.56f});
+    ds.valid = true;
+    scene.SetDirectionalShadow(ds);
+
+    ViewCamera camera;
+    camera.view = Float4x4::LookAtRH(eye, eye + forward, Float3{0, 1, 0});
+    camera.projection = Float4x4::PerspectiveFovRH(1.0472f, 1.0f, 0.1f, 200.0f);
+    camera.farZ = 200.0f;
+    camera.position = eye;
+    ViewSettings settings;
+    frame.Begin(*h.encoder, 0);
+    frame.AddView(scene, camera, settings, h.colorView, rhi::TextureFormat::BGRA8Unorm, 128, 128);
+    frame.End();
+
+    const Span<const RenderFrame::ViewShadowDebug> info = frame.ViewShadowInfo();
+    REQUIRE(info.Size() == 1u);
+    CHECK(info[0].directionalCasters == 1u);
+    CHECK(info[0].cascadeCasters[1] == 1u); // its slice: about 40 m out
+    CHECK(info[0].cascadeCasters[3] == 0u); // not the furthest
+}
+
 TEST_CASE("RenderFrame: a caster that moves, appears or goes counts as moving for cached shadows")
 {
     RenderHarness h;

@@ -183,23 +183,57 @@ export namespace foundation::render
         return out;
     }
 
-    // What of a view receives its directional shadows: its frustum from the near plane to
-    // `shadowDistance`, the depth the cascades cover (measured as ComputeCascades measures it), with
-    // the planes pointing outward. The far plane is the cut at that depth, not the camera's.
-    [[nodiscard]] inline BoundingFrustum ShadowReceiverFrustum(const ViewCamera& cam, f32 shadowDistance)
+    // The share of a cascade's depth range, at its far end, over which the shader blends toward the
+    // next cascade: a receiver there samples both. Matches SampleCSM in lighting.hlsli and
+    // terrain.ps.hlsl.
+    inline constexpr f32 kCascadeBlendBand = 0.15f;
+
+    // The view depths cascade `c` of `cascades` shades, as SampleCSM picks it: its own slice, and the
+    // blend band at the far end of the slice before (a receiver there samples this one too).
+    // `cameraNear` is the view's near plane, where the first slice starts.
+    inline void CascadeReceiverDepths(const ShadowCascades& cascades, f32 cameraNear, u32 c, f32& outNear,
+                                      f32& outFar) noexcept
+    {
+        outFar = cascades.splitFar[c];
+        if (c == 0)
+        {
+            outNear = cameraNear;
+            return;
+        }
+        const f32 prevFar = cascades.splitFar[c - 1];
+        const f32 prevNear = c == 1 ? 0.0f : cascades.splitFar[c - 2];
+        outNear = Max(cameraNear, prevFar - (prevFar - prevNear) * kCascadeBlendBand);
+    }
+
+    // The part of a view between two of its view depths (the depth the shader compares with the
+    // cascades' splits): its frustum with the near and far planes moved there, planes pointing
+    // outward, the depths kept to what the view sees. The cuts are taken along the view's own axis,
+    // between its projection's near and far planes, rather than from the planes themselves, which an
+    // endless projection does not have.
+    [[nodiscard]] inline BoundingFrustum ShadowSliceFrustum(const ViewCamera& cam, f32 nearDepth, f32 farDepth)
     {
         BoundingFrustum frustum{cam.ViewProjection()};
         const f32 nearZ = cam.NearZ();
-        const f32 farZ = Max(nearZ + 1.0f, shadowDistance);
-        const f32 camFar = Max(farZ, cam.FarZ());
+        const f32 projFar = Max(cam.FarZ(), nearZ + 1e-3f);
         const Float4x4 invVP = Inverse(cam.ViewProjection());
         const Float3 nearCentre = UnprojectNDC(invVP, 0.0f, 0.0f, projection::kNdcDepthNear);
         const Float3 farCentre = UnprojectNDC(invVP, 0.0f, 0.0f, projection::kNdcDepthFar);
-        const Float3 cut = nearCentre + (farCentre - nearCentre) * ((farZ - nearZ) / (camFar - nearZ));
-        // From the view's own axis rather than the projection's far plane, which an endless projection
-        // does not have.
-        frustum.planes[1] = Plane::FromPointNormal(cut, Normalized(farCentre - nearCentre));
+        const Float3 axis = Normalized(farCentre - nearCentre);
+        const auto at = [&](f32 depth)
+        { return nearCentre + (farCentre - nearCentre) * ((Clamp(depth, nearZ, projFar) - nearZ) / (projFar - nearZ)); };
+        frustum.planes[1] = Plane::FromPointNormal(at(farDepth), axis);
+        if (nearDepth > nearZ)
+        {
+            frustum.planes[0] = Plane::FromPointNormal(at(Min(nearDepth, farDepth)), -axis);
+        }
         return frustum;
+    }
+
+    // What of a view receives its directional shadows: its frustum from the near plane to
+    // `shadowDistance`, the depth the cascades cover.
+    [[nodiscard]] inline BoundingFrustum ShadowReceiverFrustum(const ViewCamera& cam, f32 shadowDistance)
+    {
+        return ShadowSliceFrustum(cam, cam.NearZ(), shadowDistance);
     }
 
     // Whether a directional light's caster can shadow what the view receives shadows on. A shadow falls
@@ -226,6 +260,37 @@ export namespace foundation::render
             }
         }
         return true;
+    }
+
+    // How far along the light a caster's shadow can still land on something: `reach` (the furthest a
+    // cascade carries a shadow), cut short where the sweep of its sphere (xyz centre, w radius) along
+    // `lightDir` (unit) leaves `receivers`, the bounds of everything the scene draws. Past them there
+    // is nothing for the shadow to fall on: a tree's shadow ends at the ground, not hundreds of metres
+    // beyond it. Invalid bounds (nothing drawn) leave `reach` as it is.
+    [[nodiscard]] inline f32 ShadowSweepLength(Float4 sphere, Float3 lightDir, f32 reach, const AABB& receivers) noexcept
+    {
+        if (!receivers.IsValid())
+        {
+            return reach;
+        }
+        const f32 r = sphere.w;
+        const f32 centre[3] = {sphere.x, sphere.y, sphere.z};
+        const f32 dir[3] = {lightDir.x, lightDir.y, lightDir.z};
+        const f32 lo[3] = {receivers.min.x - r, receivers.min.y - r, receivers.min.z - r};
+        const f32 hi[3] = {receivers.max.x + r, receivers.max.y + r, receivers.max.z + r};
+        f32 exit = reach;
+        for (int a = 0; a < 3; ++a)
+        {
+            if (dir[a] > 1e-6f)
+            {
+                exit = Min(exit, (hi[a] - centre[a]) / dir[a]);
+            }
+            else if (dir[a] < -1e-6f)
+            {
+                exit = Min(exit, (lo[a] - centre[a]) / dir[a]);
+            }
+        }
+        return Clamp(exit, 0.0f, reach);
     }
 
     // A rectangular tile within the shadow atlas (pixels): the depth pass's viewport for one caster.

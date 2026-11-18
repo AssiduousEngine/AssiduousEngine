@@ -390,6 +390,7 @@ export namespace engine::vegetation
             Array<Float4x4> world; // composed instances (terrain-local x entity world)
             Array<Float4x4> local; // the scatter (kept: a moved entity recomposes, no rescatter)
             AABB localBounds = AABB::Empty();
+            AABB worldBounds = AABB::Empty();
             Float3 worldCenter = Float3{0.0f, 0.0f, 0.0f};
             f32 worldRadius = 0.0f;
         };
