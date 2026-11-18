@@ -598,6 +598,9 @@ export namespace foundation::render
             const ExtractedScene* scene = nullptr;
             Array<DrawItem> casters;            // camera-independent caster list (this scene)
             Array<Float4> casterBounds;         // aligned to casters: xyz worldCenter, w radius
+            // The bounds of everything the scene draws (casters or not): where shadows can land, which
+            // the directional cascades fit to (ComputeCascades). Empty when the scene draws nothing.
+            AABB receiverBounds = AABB::Empty();
             Array<Float4> animatedSpheres;      // moving casters' spheres, xyz centre w radius (static-tile routing)
             Array<Float4> prevAnimatedSpheres;  // last frame's (a caster leaving a tile redraws it too)
             usize movingCasters = 0;            // how many casters moved this frame (diagnostics)
@@ -632,6 +635,12 @@ export namespace foundation::render
             bool directional = false;
             bool mapBound = false;
             u32 localEntryBase = 0;
+            // Of the scene's casters, those whose shadow can reach this view (CasterShadowReachesView):
+            // what its cascades draw from.
+            u32 directionalCasters = 0;
+            // Of its cascades, those whose slice holds anything the scene draws (the others draw no
+            // casters).
+            u32 cascadesWithReceivers = 0;
         };
         [[nodiscard]] Span<const ViewShadowDebug> ViewShadowInfo() const noexcept;
         [[nodiscard]] Span<const GpuLocalShadow> LocalShadowEntries() const noexcept;
@@ -901,6 +910,10 @@ export namespace foundation::render
             m_staticAtlasDraws; // static atlas layer, all tiles (all scenes; cache source)
         Array<AtlasDraw> m_staticRenderDraws; // static layer tiles dirty this frame (all scenes)
         Array<DrawItem> m_shadowCullScratch;  // per-tile sphere-culled subset (reused)
+        // Per shadow view, the scene's casters whose shadow can reach it and their bounds, aligned:
+        // what its cascades cull from. Filled as the cascades are declared, read as they record.
+        Array<DrawItem> m_viewCasters[ShadowSystem::kMaxShadowViews];
+        Array<Float4> m_viewCasterBounds[ShadowSystem::kMaxShadowViews];
         Array<ViewShadowDebug> m_viewShadowDebug; // tests and debug: last End()'s per-view composition
         RenderViewPool m_views;
         Array<DrawItem> m_sortScratch; // reused radix-sort ping-pong buffer

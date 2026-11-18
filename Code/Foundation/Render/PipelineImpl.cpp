@@ -979,11 +979,21 @@ namespace foundation::render
         HashMap<u64, Float4>& bounds = ctx.casterBoundsById[ctx.boundsFrame];
         const HashMap<u64, Float4>& lastBounds = ctx.casterBoundsById[ctx.boundsFrame ^ 1u];
         bounds.Clear();
+        ctx.receiverBounds = AABB::Empty();
         for (RenderData* data : scene.Items())
         {
             if (data == nullptr)
             {
                 continue;
+            }
+            // Everything drawn can receive a shadow, caster or not (a grass filler, a blended glass).
+            // Bounds that are not finite would make the box meaningless: a producer's sphere is finite.
+            if (IsFinite(data->worldRadius) && IsFinite(data->worldCenter.x) && IsFinite(data->worldCenter.y) &&
+                IsFinite(data->worldCenter.z))
+            {
+                const Float3 r{data->worldRadius, data->worldRadius, data->worldRadius};
+                ctx.receiverBounds.Expand(data->worldCenter - r);
+                ctx.receiverBounds.Expand(data->worldCenter + r);
             }
             if (data->category != RenderCategories::Opaque &&
                 data->category != RenderCategories::Masked)
@@ -1621,9 +1631,15 @@ namespace foundation::render
                 // The scene's reach (its environment settings), from the view's eye (ShadowReach).
                 const SceneShadowSettings& reach = sctx->scene->ShadowSettings();
                 const f32 shadowDistance = ShadowReach(v->Camera(), reach.distance);
+                // Fitted to what the scene draws: a slice over its edge shrinks to the overlap, and
+                // one with nothing in it (up into the sky) draws no casters.
                 ShadowCascades cascades =
                     ComputeCascades(v->Camera(), viewLightDir, shadowDistance, shadowRes,
-                                    Clamp(reach.cascadeSplit, 0.0f, 1.0f));
+                                    Clamp(reach.cascadeSplit, 0.0f, 1.0f), &sctx->receiverBounds);
+                for (u32 c = 0; c < cascadeCount; ++c)
+                {
+                    m_viewShadowDebug[i].cascadesWithReceivers += cascades.hasReceivers[c] ? 1u : 0u;
+                }
                 cascades.farFade = reach.fadeDistance;
                 // The caster light's own biases and strength ride with its cascades.
                 const DirectionalShadow& caster = sctx->scene->DirectionalShadowData();
@@ -1632,17 +1648,40 @@ namespace foundation::render
                 cascades.strength = caster.strength;
                 const u32 layerBase = static_cast<u32>(i) * cascadeCount;
                 RendererRegistry* reg = m_registry;
+                // The casters whose shadow can reach this view. They come from the scene's
+                // camera-independent list (built above), not the view's culled draw list, since an
+                // off-camera caster can shadow what the view sees; but one whose shadow, swept along
+                // the light as far as a cascade carries it, misses everything the view receives
+                // shadows on is dropped here, once for all four cascades. Per-cascade frustum culling
+                // then keeps each one left to about one cascade.
+                {
+                    PROFILE_SCOPE("shadow.viewCull");
+                    const BoundingFrustum receivers = ShadowReceiverFrustum(v->Camera(), shadowDistance);
+                    const Float3 lightDir = Normalized(viewLightDir);
+                    Array<DrawItem>& kept = m_viewCasters[i];
+                    Array<Float4>& keptBounds = m_viewCasterBounds[i];
+                    kept.Clear();
+                    keptBounds.Clear();
+                    for (usize k = 0; k < sctx->casters.Size(); ++k)
+                    {
+                        const Float4 bounds = sctx->casterBounds[k];
+                        if (CasterShadowReachesView(receivers, lightDir, cascades.casterReach, bounds))
+                        {
+                            kept.PushBack(sctx->casters[k]);
+                            keptBounds.PushBack(bounds);
+                        }
+                    }
+                    m_viewShadowDebug[i].directionalCasters = static_cast<u32>(kept.Size());
+                }
                 for (u32 c = 0; c < cascadeCount; ++c)
                 {
                     const Float4x4 cascadeVP = cascades.viewProj[c];
                     const u32 layer = layerBase + c;
-                    // Casters come from the view's scene's camera-independent list (built above), not this
-                    // view's culled draw list, so view-frustum culling can't drop an off-camera caster
-                    // whose shadow is visible. Per-cascade frustum culling then keeps each caster to about
-                    // one cascade.
+                    // Still cleared when it has nothing to shadow, so its layer never holds an old frame.
+                    const bool draws = cascades.hasReceivers[c];
                     m_graph.AddRenderPass(
                         u8"shadow.cascade",
-                        [this, shadowH, cascadeVP, shadowRes, layer, reg, sctx,
+                        [this, shadowH, cascadeVP, shadowRes, layer, reg, sctx, i, draws,
                          v](rendergraph::PassBuilder& b)
                         {
                             rendergraph::RGSubresourceRange sub{};
@@ -1652,12 +1691,16 @@ namespace foundation::render
                                              rhi::depth::ClearValue(), sub);
                             b.SetViewport(0, 0, shadowRes, shadowRes);
                             b.SetExecute(
-                                [this, cascadeVP, reg, sctx, v](rhi::RenderPassEncoder& rp)
+                                [this, cascadeVP, reg, sctx, i, draws, v](rhi::RenderPassEncoder& rp)
                                 {
-                                    const Span<const DrawItem> casters{sctx->casters.Data(),
-                                                                       sctx->casters.Size()};
-                                    const Span<const Float4> bounds{sctx->casterBounds.Data(),
-                                                                    sctx->casterBounds.Size()};
+                                    if (!draws)
+                                    {
+                                        return;
+                                    }
+                                    const Span<const DrawItem> casters{m_viewCasters[i].Data(),
+                                                                       m_viewCasters[i].Size()};
+                                    const Span<const Float4> bounds{m_viewCasterBounds[i].Data(),
+                                                                    m_viewCasterBounds[i].Size()};
                                     // Cascades follow their owning view's LOD selection, so
                                     // the shadow matches what the view draws.
                                     RecordShadowCasters(rp, casters, *reg, cascadeVP, {}, 0.0f,

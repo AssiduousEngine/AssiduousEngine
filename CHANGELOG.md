@@ -59,6 +59,11 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- Rendering: the sun's shadows draw only the casters whose shadow can fall on what the view shows,
+  and each cascade fits the part of its slice the scene fills, so a view turned to the sky or past
+  the scene's edge no longer pays for the whole scene's shadows (a 40,000-mesh forest seen against
+  the sky went from about 215 ms of shadow drawing a frame to 2 ms). What the shadows look like is
+  unchanged.
 - Export: a preset says its kind. A template export copies the template's player; a native export
   builds the game's own player from the engine checkout with its packages. A template export of a
   project that needs its own player is refused and says to make the preset native, where it used to

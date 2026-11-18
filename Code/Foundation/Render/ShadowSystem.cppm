@@ -55,9 +55,17 @@ export namespace foundation::render
     // light-space texel snapping against shimmer. `lightDir` is the direction light travels; the light
     // camera looks along it. Cascades cover [near, shadowDistance]; `lambda` blends the splits
     // (0 uniform, 1 logarithmic: more of the map near the camera).
+    //
+    // With `receivers` (the bounds of what the scene draws), each cascade fits what of its slice
+    // holds anything: a slice with nothing in it is marked (hasReceivers), and one that only partly
+    // overlaps the scene (a view over its edge, up into the sky) shrinks to the overlap, which
+    // sharpens its texels and leaves fewer casters in it. The fitted radius steps in eighths of the
+    // slice's, which depends only on the projection, so the box does not swim as the camera turns.
+    // A fitted cascade keeps the reach toward the light the slice's own would have had (three of its
+    // radii): every caster that box would have drawn still lands in it, and its depth never grows.
     [[nodiscard]] inline ShadowCascades ComputeCascades(const ViewCamera& cam, Float3 lightDir,
                                                         f32 shadowDistance, u32 resolution,
-                                                        f32 lambda = 0.5f)
+                                                        f32 lambda = 0.5f, const AABB* receivers = nullptr)
     {
         ShadowCascades out;
         out.valid = true;
@@ -120,13 +128,41 @@ export namespace foundation::render
             {
                 radius = Max(radius, Length(corners[i] - center));
             }
+            // How far toward the light the box reaches past its centre: the slice's own three radii.
+            const f32 towardLight = (Ceil(radius * 16.0f) / 16.0f) * 3.0f;
+
+            if (receivers != nullptr && receivers->IsValid())
+            {
+                AABB slice = AABB::Empty();
+                for (int i = 0; i < 8; ++i)
+                {
+                    slice.Expand(corners[i]);
+                }
+                const AABB overlap{Max(slice.min, receivers->min), Min(slice.max, receivers->max)};
+                if (!overlap.IsValid())
+                {
+                    out.hasReceivers[c] = false; // nothing here to shadow: keep the slice's box
+                }
+                else
+                {
+                    const f32 step = radius / 8.0f;
+                    const f32 fitted = Ceil(Length(overlap.Extents()) / step) * step;
+                    if (fitted < radius)
+                    {
+                        radius = fitted;
+                        center = overlap.Center();
+                    }
+                }
+            }
             radius = Ceil(radius * 16.0f) / 16.0f; // snap radius (reduces size shimmer)
 
             out.texelWorldSize[c] = (radius * 2.0f) / static_cast<f32>(resolution);
             out.splitFar[c] = splits[c + 1];
 
-            const f32 shadowDepth = radius * 6.0f;
-            const Float3 eye = center - dir * (radius * 3.0f);
+            const f32 shadowDepth = towardLight + radius * 3.0f;
+            // A caster in the box shadows a receiver in it no further along the light than its depth.
+            out.casterReach = Max(out.casterReach, shadowDepth);
+            const Float3 eye = center - dir * towardLight;
             const Float4x4 view = Float4x4::LookAtRH(eye, center, up);
             const Float4x4 proj =
                 Float4x4::OrthographicRH(radius * 2.0f, radius * 2.0f, 0.0f, shadowDepth);
@@ -145,6 +181,51 @@ export namespace foundation::render
             out.viewProj[c] = vp;
         }
         return out;
+    }
+
+    // What of a view receives its directional shadows: its frustum from the near plane to
+    // `shadowDistance`, the depth the cascades cover (measured as ComputeCascades measures it), with
+    // the planes pointing outward. The far plane is the cut at that depth, not the camera's.
+    [[nodiscard]] inline BoundingFrustum ShadowReceiverFrustum(const ViewCamera& cam, f32 shadowDistance)
+    {
+        BoundingFrustum frustum{cam.ViewProjection()};
+        const f32 nearZ = cam.NearZ();
+        const f32 farZ = Max(nearZ + 1.0f, shadowDistance);
+        const f32 camFar = Max(farZ, cam.FarZ());
+        const Float4x4 invVP = Inverse(cam.ViewProjection());
+        const Float3 nearCentre = UnprojectNDC(invVP, 0.0f, 0.0f, projection::kNdcDepthNear);
+        const Float3 farCentre = UnprojectNDC(invVP, 0.0f, 0.0f, projection::kNdcDepthFar);
+        const Float3 cut = nearCentre + (farCentre - nearCentre) * ((farZ - nearZ) / (camFar - nearZ));
+        // From the view's own axis rather than the projection's far plane, which an endless projection
+        // does not have.
+        frustum.planes[1] = Plane::FromPointNormal(cut, Normalized(farCentre - nearCentre));
+        return frustum;
+    }
+
+    // Whether a directional light's caster can shadow what the view receives shadows on. A shadow falls
+    // from its caster along the light. A cascade draws a caster whose sphere touches its box, and the
+    // shadow pass clamps depth, so the part of it that sticks out toward the light (up to its diameter)
+    // still casts: its shadow lands at most `reach` (ShadowCascades::casterReach) plus that diameter
+    // from its centre. The caster matters only when its bounding sphere (xyz centre, w radius), swept
+    // that far along `lightDir` (unit, the direction light travels), touches `receivers`. Conservative:
+    // a caster it rejects writes no shadow the view samples. A caster beside or behind the view whose
+    // shadow falls away from it, or every caster of a view turned to the sky, is rejected.
+    [[nodiscard]] inline bool CasterShadowReachesView(const BoundingFrustum& receivers, Float3 lightDir, f32 reach,
+                                                      Float4 sphere) noexcept
+    {
+        const Float3 centre{sphere.x, sphere.y, sphere.z};
+        const f32 sweep = reach + 2.0f * sphere.w;
+        for (const Plane& plane : receivers.planes)
+        {
+            // The capsule is outside the plane when both its ends are further out than its radius.
+            const f32 start = Dot(plane.normal, centre) + plane.d;
+            const f32 end = start + Dot(plane.normal, lightDir) * sweep;
+            if (Min(start, end) > sphere.w)
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     // A rectangular tile within the shadow atlas (pixels): the depth pass's viewport for one caster.

@@ -592,6 +592,67 @@ TEST_CASE("RenderData::kind says what an item is; the caster list never downcast
     CHECK(frame.MovingShadowCasterCount(&scene) == 1u);
 }
 
+TEST_CASE("RenderFrame: a view's cascades draw only the casters whose shadow can reach it")
+{
+    RenderHarness h;
+    if (!h.Init(128, 128))
+    {
+        MESSAGE("DXC/Null unavailable; skipping");
+        return;
+    }
+    InertOpaqueRenderer external;
+    RendererRegistry registry;
+    registry.Register(&external);
+    ShadowSystem shadows(h.device, 2);
+    REQUIRE(shadows.Initialize().IsOk());
+    RenderFrame frame(DefaultAllocator(), h.device, registry, 2, nullptr, nullptr, &shadows);
+
+    // The sun straight down over three casters: one in front of the camera, one 55 m behind it
+    // (its shadow falls behind it too) and one far above anything a cascade carries a shadow from.
+    ExtractedScene scene{DefaultAllocator()};
+    const Float3 places[] = {Float3{0, 0, 0}, Float3{0, 0, 60}, Float3{0, 5000, 0}};
+    for (const Float3& place : places)
+    {
+        JunkRenderData* caster = scene.Add<JunkRenderData>();
+        caster->category = RenderCategories::Opaque;
+        caster->rendererId = external.RendererId();
+        caster->worldCenter = place;
+        caster->worldRadius = 1.0f;
+    }
+    DirectionalShadow ds;
+    ds.direction = Float3{0.0f, -1.0f, 0.0f};
+    ds.valid = true;
+    scene.SetDirectionalShadow(ds);
+
+    ViewCamera camera;
+    camera.view = Float4x4::LookAtRH(Float3{0, 0, 5}, Float3{0, 0, 0}, Float3{0, 1, 0});
+    camera.projection = Float4x4::PerspectiveFovRH(1.0472f, 1.0f, 0.1f, 100.0f);
+    ViewSettings settings;
+    frame.Begin(*h.encoder, 0);
+    frame.AddView(scene, camera, settings, h.colorView, rhi::TextureFormat::BGRA8Unorm, 128, 128);
+    frame.End();
+
+    // The scene's caster list keeps all three (another view, or a local light, may need them); this
+    // view's cascades draw from the one whose shadow it can see.
+    CHECK(frame.ShadowCasterCount(&scene) == 3u);
+    const Span<const RenderFrame::ViewShadowDebug> info = frame.ViewShadowInfo();
+    REQUIRE(info.Size() == 1u);
+    CHECK(info[0].directional);
+    CHECK(info[0].directionalCasters == 1u);
+    // The scene lies within a few metres of the camera along its view: the nearer cascades hold it,
+    // the furthest slices are past it and draw nothing.
+    CHECK(info[0].cascadesWithReceivers >= 1u);
+    CHECK(info[0].cascadesWithReceivers < ShadowCascades::kCount);
+
+    // Turned to the sky from just above them, the view keeps none of the casters below it.
+    camera.view = Float4x4::LookAtRH(Float3{0, 3, 0}, Float3{0, 4, 0}, Float3{0, 0, -1});
+    frame.Begin(*h.encoder, 1);
+    frame.AddView(scene, camera, settings, h.colorView, rhi::TextureFormat::BGRA8Unorm, 128, 128);
+    frame.End();
+    REQUIRE(frame.ViewShadowInfo().Size() == 1u);
+    CHECK(frame.ViewShadowInfo()[0].directionalCasters == 0u);
+}
+
 TEST_CASE("RenderFrame: a caster that moves, appears or goes counts as moving for cached shadows")
 {
     RenderHarness h;

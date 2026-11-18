@@ -577,6 +577,110 @@ TEST_CASE("ShadowReach: a view drawn from behind its eye reaches as far past the
     CHECK(ShadowReach(cam, 5000.0f) == doctest::Approx(1040.0f)); // never past the far plane
 }
 
+TEST_CASE("CasterShadowReachesView: a caster counts when its shadow can fall on what the view receives")
+{
+    // A camera at the origin looking down -Z (60 degrees, near 0.1, far 100), shadows to 50 m, the sun
+    // straight down and carried 30 m. The receivers are the view's frustum cut at 50 m.
+    ViewCamera cam;
+    cam.view = Float4x4::LookAtRH(Float3{0, 0, 0}, Float3{0, 0, -1}, Float3{0, 1, 0});
+    cam.projection = Float4x4::PerspectiveFovRH(1.0472f, 1.0f, 0.1f, 100.0f);
+    const BoundingFrustum receivers = ShadowReceiverFrustum(cam, 50.0f);
+    const Float3 down{0.0f, -1.0f, 0.0f};
+    const f32 reach = 30.0f;
+
+    CHECK(CasterShadowReachesView(receivers, down, reach, Float4{0, 0, -10, 1})); // in view
+    // Above the view, out of it, but its shadow falls through it: kept (the view culling a caster
+    // list must never do, the reason shadows take their casters from the scene).
+    CHECK(CasterShadowReachesView(receivers, down, reach, Float4{0, 20, -10, 1}));
+    // The same caster higher than the light carries a shadow: nothing of it can reach the view.
+    CHECK_FALSE(CasterShadowReachesView(receivers, down, reach, Float4{0, 40, -10, 1}));
+    // Just within reach once its diameter counts: the shadow pass clamps a caster's depth, so the
+    // part sticking out toward the light still casts (30 m from its centre alone would fall short).
+    CHECK(CasterShadowReachesView(receivers, down, reach, Float4{0, 37, -10, 1}));
+    // Behind the camera, its shadow falling straight down behind it too.
+    CHECK_FALSE(CasterShadowReachesView(receivers, down, reach, Float4{0, 0, 20, 1}));
+    // In front but past the shadow distance (inside the camera's far plane): no shadow is drawn there.
+    CHECK_FALSE(CasterShadowReachesView(receivers, down, reach, Float4{0, 0, -80, 1}));
+    // Its radius counts: the same caster just beyond the cut, but large enough to reach back into it.
+    CHECK(CasterShadowReachesView(receivers, down, reach, Float4{0, 0, -55, 6}));
+
+    // The view turned to the sky from 2 m up: the forest below it shadows nothing it sees.
+    ViewCamera sky;
+    sky.view = Float4x4::LookAtRH(Float3{0, 2, 0}, Float3{0, 3, 0}, Float3{0, 0, -1});
+    sky.projection = cam.projection;
+    const BoundingFrustum skyward = ShadowReceiverFrustum(sky, 50.0f);
+    for (f32 x = -40.0f; x <= 40.0f; x += 10.0f)
+    {
+        for (f32 z = -40.0f; z <= 40.0f; z += 10.0f)
+        {
+            CHECK_FALSE(CasterShadowReachesView(skyward, down, reach, Float4{x, 0.5f, z, 1.0f}));
+        }
+    }
+    // A caster up in the view (a branch overhead) still casts.
+    CHECK(CasterShadowReachesView(skyward, down, reach, Float4{0, 10, 0, 1}));
+}
+
+TEST_CASE("ComputeCascades: casterReach is the deepest cascade's depth, as far as any shadow is carried")
+{
+    ViewCamera cam;
+    cam.view = Float4x4::LookAtRH(Float3{0, 2, 0}, Float3{0, 2, -1}, Float3{0, 1, 0});
+    cam.projection = Float4x4::PerspectiveFovRH(1.0472f, 16.0f / 9.0f, 0.1f, 250.0f);
+    const u32 resolution = 1024;
+    const ShadowCascades cascades =
+        ComputeCascades(cam, Normalized(Float3{0.3f, -1.0f, 0.2f}), 200.0f, resolution);
+    // Each cascade's box is six radii deep along the light, its radius half its width in texels.
+    f32 deepest = 0.0f;
+    for (u32 c = 0; c < ShadowCascades::kCount; ++c)
+    {
+        deepest = Max(deepest, cascades.texelWorldSize[c] * static_cast<f32>(resolution) * 0.5f * 6.0f);
+    }
+    CHECK(cascades.casterReach > 0.0f);
+    CHECK(cascades.casterReach == doctest::Approx(deepest));
+}
+
+TEST_CASE("ComputeCascades: fitted to the scene, a cascade shrinks to what of its slice holds anything")
+{
+    // A view 2 m up looking down -Z over a scene 30 m tall that ends partway along it.
+    ViewCamera cam;
+    cam.view = Float4x4::LookAtRH(Float3{0, 2, 0}, Float3{0, 2, -1}, Float3{0, 1, 0});
+    cam.projection = Float4x4::PerspectiveFovRH(1.0472f, 1.0f, 0.1f, 250.0f);
+    const Float3 light = Normalized(Float3{0.3f, -1.0f, 0.2f});
+    const u32 resolution = 1024;
+    const ShadowCascades slices = ComputeCascades(cam, light, 200.0f, resolution);
+    // The scene ends just before the last cascade's slice begins.
+    const AABB scene{Float3{-50.0f, -13.0f, -(slices.splitFar[2] - 1.0f)}, Float3{50.0f, 17.0f, 10.0f}};
+    const ShadowCascades fitted = ComputeCascades(cam, light, 200.0f, resolution, 0.5f, &scene);
+
+    // The near cascade's slice lies wholly in the scene: unchanged.
+    CHECK(fitted.hasReceivers[0]);
+    CHECK(fitted.texelWorldSize[0] == doctest::Approx(slices.texelWorldSize[0]));
+    // The last slice is past the scene: nothing to shadow there.
+    CHECK_FALSE(fitted.hasReceivers[3]);
+    // The third slice spans far more height than the scene's 30 m: it shrinks to the overlap, its
+    // texels finer, and still holds what of the scene is in it.
+    CHECK(fitted.hasReceivers[2]);
+    CHECK(fitted.texelWorldSize[2] < slices.texelWorldSize[2]);
+    const f32 mid = (slices.splitFar[1] + slices.splitFar[2]) * 0.5f;
+    const BoundingFrustum box{fitted.viewProj[2]};
+    const Float3 inScene[] = {Float3{0, 0, -mid}, Float3{-10, 15, -mid}, Float3{10, -12, -mid}};
+    for (const Float3& p : inScene)
+    {
+        CHECK(box.Contains(p) != ContainmentType::Disjoint);
+    }
+    // A fitted box reaches no deeper than the slice's would: as far toward the light, less beyond.
+    CHECK(fitted.casterReach > 0.0f);
+    CHECK(fitted.casterReach <= slices.casterReach + 1e-3f);
+
+    // No bounds (a scene that draws nothing) fits nothing: the boxes stay the slices'.
+    const AABB nothing = AABB::Empty();
+    const ShadowCascades none = ComputeCascades(cam, light, 200.0f, resolution, 0.5f, &nothing);
+    for (u32 c = 0; c < ShadowCascades::kCount; ++c)
+    {
+        CHECK(none.hasReceivers[c]);
+        CHECK(none.texelWorldSize[c] == doctest::Approx(slices.texelWorldSize[c]));
+    }
+}
+
 TEST_CASE("ExtractedScene: past the per-view budget, the lights that matter to the view are kept")
 {
     // The forward and the cluster build shade the first kMaxLightsPerView lights in extraction

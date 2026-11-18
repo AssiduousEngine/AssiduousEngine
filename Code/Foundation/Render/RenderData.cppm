@@ -594,6 +594,12 @@ export namespace foundation::render
         f32 splitFar[kCount] = {0.0f, 0.0f, 0.0f, 0.0f}; // view-space far depth of each cascade
         f32 texelWorldSize[kCount] = {0.0f, 0.0f, 0.0f,
                                       0.0f}; // world units per texel (normal-offset bias)
+        // The furthest along the light a cascade carries a shadow from its caster: the deepest
+        // cascade's depth. A caster whose shadow cannot reach the view within it is not drawn.
+        f32 casterReach = 0.0f;
+        // Whether anything the scene draws lies in each cascade's slice of the view. One without
+        // (a view turned to the sky, past the scene's edge) is cleared but draws no casters.
+        bool hasReceivers[kCount] = {true, true, true, true};
         // The caster light's own values (DirectionalShadow), carried to every renderer that samples,
         // and the scene's fade width at the reach (SceneShadowSettings::fadeDistance).
         f32 farFade = 40.0f;
