@@ -19,7 +19,11 @@ namespace foundation::core
         // console output alone. Platform work lives in the System backend.
         void PrintStackTrace() noexcept
         {
+#if defined(_WIN32)
+            std::fprintf(stderr, "  backtrace (module+offset; the module's .pdb names them):\n");
+#else
             std::fprintf(stderr, "  backtrace (addr2line -e <binary> -f -C to resolve):\n");
+#endif
             std::fflush(stderr);
             (void)sys::WriteBacktrace(2 /* stderr */);
         }

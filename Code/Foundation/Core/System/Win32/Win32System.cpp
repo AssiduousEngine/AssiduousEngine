@@ -1310,30 +1310,430 @@ namespace foundation::core::sys
 }
 
 #include <io.h>
+#include <dbghelp.h> // MiniDumpWriteDump
+#include <csignal>   // SIGABRT: abort(), which a fatal error and std::terminate end in
+
+// ASAN detection, nested so MSVC only lexes __has_feature (see TestMain.h).
+#if defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#define WIN32_SYSTEM_ASAN 1
+#endif
+#endif
+#if defined(__SANITIZE_ADDRESS__) && !defined(WIN32_SYSTEM_ASAN)
+#define WIN32_SYSTEM_ASAN 1
+#endif
 
 namespace foundation::core::sys
 {
+    namespace
+    {
+        // Where a crash's lines go: stderr, and the report file beside the minidump once it is
+        // open. Fixed buffers only, since the process is dying, maybe with the heap's lock held.
+        struct CrashOutput
+        {
+            int fd = -1;
+            HANDLE file = INVALID_HANDLE_VALUE;
+
+            // `length` is what snprintf returned for a buffer of `capacity`: clamped to what it holds.
+            void Write(const char* text, int length, std::size_t capacity) const noexcept
+            {
+                if (length <= 0)
+                    return;
+                const std::size_t size =
+                    static_cast<std::size_t>(length) < capacity ? static_cast<std::size_t>(length) : capacity - 1;
+                if (fd >= 0)
+                    (void)_write(fd, text, static_cast<unsigned>(size));
+                if (file != INVALID_HANDLE_VALUE)
+                {
+                    DWORD written = 0;
+                    (void)::WriteFile(file, text, static_cast<DWORD>(size), &written, nullptr);
+                }
+            }
+        };
+
+        // One frame as `  #NN Module.exe+0xOFFSET`: the module's file name and the address's offset
+        // into its image, which stays the same from run to run (the load address does not). The
+        // module's .pdb names it; the minidump, opened beside the .pdb files, names them all.
+        void WriteFrame(const CrashOutput& out, int index, std::uintptr_t address) noexcept
+        {
+            char line[MAX_PATH + 64];
+            HMODULE module = nullptr;
+            if (!::GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                      reinterpret_cast<LPCSTR>(address), &module) ||
+                module == nullptr)
+            {
+                // In no module: a call through a bad pointer, or code made at run time.
+                out.Write(line,
+                          std::snprintf(line, sizeof(line), "  #%02d 0x%016llx\n", index,
+                                        static_cast<unsigned long long>(address)),
+                          sizeof(line));
+                return;
+            }
+            char path[MAX_PATH];
+            if (::GetModuleFileNameA(module, path, sizeof(path)) == 0)
+            {
+                path[0] = '?';
+                path[1] = '\0';
+            }
+            const char* name = path;
+            for (const char* p = path; *p != '\0'; ++p)
+            {
+                if (*p == '\\' || *p == '/')
+                    name = p + 1;
+            }
+            const std::uintptr_t offset = address - reinterpret_cast<std::uintptr_t>(module);
+            out.Write(line,
+                      std::snprintf(line, sizeof(line), "  #%02d %s+0x%llx\n", index, name,
+                                    static_cast<unsigned long long>(offset)),
+                      sizeof(line));
+        }
+
+        // Walks the stack a CONTEXT describes (the crashing thread's, at the crash) through the
+        // unwind tables every x64 and ARM64 image carries, writing a frame per return address. It
+        // runs on another thread than the one that crashed, so a blown stack still walks; a stack
+        // too wrecked to read faults the walk, and __try ends it there with what it had.
+        // __try is the MSVC extension clang supports on Windows but warns of under -Wpedantic.
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wlanguage-extension-token"
+#endif
+        int WriteContextBacktrace(const CrashOutput& out, const CONTEXT& crashed) noexcept
+        {
+            CONTEXT context = crashed;
+            volatile int count = 0;
+#if defined(_M_X64) || defined(__x86_64__) || defined(_M_ARM64) || defined(__aarch64__)
+            __try
+            {
+                while (count < 64)
+                {
+#if defined(_M_X64) || defined(__x86_64__)
+                    DWORD64& pc = context.Rip;
+#else
+                    DWORD64& pc = context.Pc;
+#endif
+                    WriteFrame(out, count, static_cast<std::uintptr_t>(pc));
+                    count = count + 1;
+                    DWORD64 imageBase = 0;
+                    PRUNTIME_FUNCTION function = ::RtlLookupFunctionEntry(pc, &imageBase, nullptr);
+                    if (function == nullptr)
+                    {
+                        // No unwind data: a leaf function, or a call through a null pointer. Either
+                        // way the caller's return address is where the call left it.
+#if defined(_M_X64) || defined(__x86_64__)
+                        pc = *reinterpret_cast<const DWORD64*>(context.Rsp);
+                        context.Rsp += sizeof(DWORD64);
+#else
+                        pc = context.Lr;
+#endif
+                    }
+                    else
+                    {
+                        PVOID handlerData = nullptr;
+                        DWORD64 establisherFrame = 0;
+                        (void)::RtlVirtualUnwind(UNW_FLAG_NHANDLER, imageBase, pc, function, &context, &handlerData,
+                                                 &establisherFrame, nullptr);
+                    }
+                    if (pc == 0)
+                        break; // past the thread's first frame
+                }
+            }
+            __except (EXCEPTION_EXECUTE_HANDLER)
+            {
+            }
+#else
+            (void)out;
+            (void)context;
+#endif
+            return count;
+        }
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+
+        // What abort() reports itself as, the way Windows names it: STATUS_FATAL_APP_EXIT.
+        constexpr DWORD kAbortCode = 0x40000015;
+        // An MSVC-ABI C++ throw that nothing caught ("msc" with the top bits set).
+        constexpr DWORD kCppExceptionCode = 0xE06D7363;
+
+        const char* ExceptionName(DWORD code) noexcept
+        {
+            switch (code)
+            {
+            case EXCEPTION_ACCESS_VIOLATION: return "EXCEPTION_ACCESS_VIOLATION";
+            case EXCEPTION_IN_PAGE_ERROR: return "EXCEPTION_IN_PAGE_ERROR";
+            case EXCEPTION_STACK_OVERFLOW: return "EXCEPTION_STACK_OVERFLOW";
+            // A trap: a failed assert or a panic outside a debugger lands here, after its own message.
+            case EXCEPTION_ILLEGAL_INSTRUCTION: return "EXCEPTION_ILLEGAL_INSTRUCTION";
+            case EXCEPTION_PRIV_INSTRUCTION: return "EXCEPTION_PRIV_INSTRUCTION";
+            case EXCEPTION_BREAKPOINT: return "EXCEPTION_BREAKPOINT";
+            case EXCEPTION_INT_DIVIDE_BY_ZERO: return "EXCEPTION_INT_DIVIDE_BY_ZERO";
+            case EXCEPTION_INT_OVERFLOW: return "EXCEPTION_INT_OVERFLOW";
+            case EXCEPTION_FLT_DIVIDE_BY_ZERO: return "EXCEPTION_FLT_DIVIDE_BY_ZERO";
+            case EXCEPTION_FLT_INVALID_OPERATION: return "EXCEPTION_FLT_INVALID_OPERATION";
+            case EXCEPTION_DATATYPE_MISALIGNMENT: return "EXCEPTION_DATATYPE_MISALIGNMENT";
+            case EXCEPTION_ARRAY_BOUNDS_EXCEEDED: return "EXCEPTION_ARRAY_BOUNDS_EXCEEDED";
+            case EXCEPTION_NONCONTINUABLE_EXCEPTION: return "EXCEPTION_NONCONTINUABLE_EXCEPTION";
+            case kCppExceptionCode: return "uncaught C++ exception";
+            case kAbortCode: return "abort()";
+            default: return "unhandled exception";
+            }
+        }
+
+        // How long a crashing thread waits for its report and minidump: long enough for a big
+        // process's dump, short enough that a reporter stuck on a lock the crash left held does
+        // not keep a dead process around for good.
+        constexpr DWORD kCrashReportWaitMilliseconds = 60000;
+
+        // Resolved when the handler is installed: at the crash, the heap may be what broke.
+        struct CrashState
+        {
+            char directory[1024] = {};   // <user data>\<engine>\crashes; empty: stderr only
+            char program[MAX_PATH] = {}; // the executable's name without .exe, which names the files
+            HANDLE requested = nullptr;  // the reporter thread waits on this,
+            HANDLE finished = nullptr;   // and sets this once the report and the minidump are written
+            DWORD reporterId = 0;        // 0: no reporter thread, so the crashing thread writes them
+            EXCEPTION_POINTERS* pointers = nullptr;
+            DWORD threadId = 0;        // the thread that crashed
+            volatile LONG claimed = 0; // the first crash reports; a later one waits for it
+        };
+        CrashState g_crash;
+
+        // Makes each folder of `path` that is missing. `path` is cut and put back as it goes.
+        void CreateDirectories(char* path) noexcept
+        {
+            for (char* p = path; *p != '\0'; ++p)
+            {
+                if ((*p == '\\' || *p == '/') && p != path && p[-1] != ':')
+                {
+                    const char separator = *p;
+                    *p = '\0';
+                    (void)::CreateDirectoryA(path, nullptr);
+                    *p = separator;
+                }
+            }
+            (void)::CreateDirectoryA(path, nullptr);
+        }
+
+        // Writes the crash's lines to stderr and to <crashes>\<program>-<date>-<time>-<pid>.txt, and
+        // its minidump beside them as .dmp: the threads' stacks and the memory they point at, which
+        // Visual Studio or WinDbg open with the .pdb files to show the crash as it was.
+        void WriteCrashReport() noexcept
+        {
+            const EXCEPTION_RECORD& record = *g_crash.pointers->ExceptionRecord;
+            char stem[1024 + MAX_PATH + 64] = {};
+            if (g_crash.directory[0] != '\0')
+            {
+                CreateDirectories(g_crash.directory);
+                SYSTEMTIME now{};
+                ::GetLocalTime(&now);
+                const int n = std::snprintf(stem, sizeof(stem), "%s\\%s-%04u%02u%02u-%02u%02u%02u-%lu",
+                                            g_crash.directory, g_crash.program, now.wYear, now.wMonth, now.wDay,
+                                            now.wHour, now.wMinute, now.wSecond, ::GetCurrentProcessId());
+                if (n <= 0 || static_cast<std::size_t>(n) >= sizeof(stem))
+                    stem[0] = '\0';
+            }
+            char path[sizeof(stem) + 8];
+            HANDLE reportFile = INVALID_HANDLE_VALUE;
+            if (stem[0] != '\0')
+            {
+                (void)std::snprintf(path, sizeof(path), "%s.txt", stem);
+                reportFile = ::CreateFileA(path, GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS,
+                                           FILE_ATTRIBUTE_NORMAL, nullptr);
+            }
+            const CrashOutput out{2 /* stderr */, reportFile};
+
+            char line[sizeof(path) + 64];
+            out.Write(line,
+                      std::snprintf(line, sizeof(line), "\n=== %s (0x%08lX) on thread %lu ===\n",
+                                    ExceptionName(record.ExceptionCode), record.ExceptionCode, g_crash.threadId),
+                      sizeof(line));
+            if ((record.ExceptionCode == EXCEPTION_ACCESS_VIOLATION || record.ExceptionCode == EXCEPTION_IN_PAGE_ERROR) &&
+                record.NumberParameters >= 2)
+            {
+                const ULONG_PTR operation = record.ExceptionInformation[0];
+                const char* verb = operation == 0 ? "reading" : operation == 1 ? "writing" : "executing";
+                out.Write(line,
+                          std::snprintf(line, sizeof(line), "  %s address 0x%016llx\n", verb,
+                                        static_cast<unsigned long long>(record.ExceptionInformation[1])),
+                          sizeof(line));
+            }
+            static const char kBacktrace[] = "  backtrace (module+offset; the module's .pdb names them):\n";
+            out.Write(kBacktrace, static_cast<int>(sizeof(kBacktrace) - 1), sizeof(kBacktrace));
+            (void)WriteContextBacktrace(out, *g_crash.pointers->ContextRecord);
+
+            if (stem[0] == '\0')
+            {
+                static const char kNoFolder[] = "  minidump: not written, no crash folder (LOCALAPPDATA is unset)\n";
+                out.Write(kNoFolder, static_cast<int>(sizeof(kNoFolder) - 1), sizeof(kNoFolder));
+            }
+            else
+            {
+                (void)std::snprintf(path, sizeof(path), "%s.dmp", stem);
+                const HANDLE dump =
+                    ::CreateFileA(path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+                MINIDUMP_EXCEPTION_INFORMATION exception{};
+                exception.ThreadId = g_crash.threadId;
+                exception.ExceptionPointers = g_crash.pointers;
+                exception.ClientPointers = FALSE; // the pointers are this process's own
+                // The stacks, the memory they point at, and the threads' and modules' details: a few
+                // MB that show the crash's locals, where a full dump would carry the whole heap.
+                const auto type = static_cast<MINIDUMP_TYPE>(MiniDumpWithIndirectlyReferencedMemory |
+                                                             MiniDumpWithThreadInfo | MiniDumpWithUnloadedModules |
+                                                             MiniDumpWithProcessThreadData);
+                const bool written = dump != INVALID_HANDLE_VALUE &&
+                                     ::MiniDumpWriteDump(::GetCurrentProcess(), ::GetCurrentProcessId(), dump, type,
+                                                         &exception, nullptr, nullptr) != FALSE;
+                const DWORD error = written ? 0 : ::GetLastError();
+                if (dump != INVALID_HANDLE_VALUE)
+                    ::CloseHandle(dump);
+                if (written)
+                {
+                    out.Write(line, std::snprintf(line, sizeof(line), "  minidump: %s\n", path), sizeof(line));
+                }
+                else
+                {
+                    (void)::DeleteFileA(path);
+                    out.Write(line, std::snprintf(line, sizeof(line), "  minidump: not written (error %lu)\n", error),
+                              sizeof(line));
+                }
+                if (reportFile != INVALID_HANDLE_VALUE)
+                    out.Write(line, std::snprintf(line, sizeof(line), "  report: %s.txt\n", stem), sizeof(line));
+            }
+            if (reportFile != INVALID_HANDLE_VALUE)
+                ::CloseHandle(reportFile);
+        }
+
+        // Parked from install until a crash: a thread with a whole stack of its own, so a crash
+        // that blew the crashing thread's stack still gets its report and minidump written.
+        DWORD WINAPI CrashReporterMain(LPVOID) noexcept
+        {
+            (void)::WaitForSingleObject(g_crash.requested, INFINITE);
+            WriteCrashReport();
+            (void)::SetEvent(g_crash.finished);
+            return 0;
+        }
+
+        void ReportCrash(EXCEPTION_POINTERS* pointers) noexcept
+        {
+            if (::InterlockedCompareExchange(&g_crash.claimed, 1, 0) != 0)
+            {
+                // Already reporting. A second thread crashing meanwhile waits for that report, so the
+                // process does not end under it; the reporter crashing in it cannot wait on itself.
+                if (::GetCurrentThreadId() != g_crash.reporterId && g_crash.finished != nullptr)
+                    (void)::WaitForSingleObject(g_crash.finished, kCrashReportWaitMilliseconds);
+                return;
+            }
+            g_crash.pointers = pointers;
+            g_crash.threadId = ::GetCurrentThreadId();
+            if (g_crash.reporterId != 0)
+            {
+                (void)::SetEvent(g_crash.requested);
+                (void)::WaitForSingleObject(g_crash.finished, kCrashReportWaitMilliseconds);
+            }
+            else
+            {
+                WriteCrashReport();
+                if (g_crash.finished != nullptr)
+                    (void)::SetEvent(g_crash.finished);
+            }
+        }
+
+        // Only reached with no debugger attached: a debugger is told first and stops there.
+        LONG WINAPI CrashFilter(EXCEPTION_POINTERS* pointers) noexcept
+        {
+            ReportCrash(pointers);
+            // Then Windows' own handling, as before: Windows Error Reporting, and the exception
+            // code as the exit code.
+            return EXCEPTION_CONTINUE_SEARCH;
+        }
+
+        // abort() raises SIGABRT and never reaches the filter, so it reports from here, at this
+        // frame's own context. Returning lets abort() finish as it would have.
+        void AbortHandler(int) noexcept
+        {
+            CONTEXT context{};
+            ::RtlCaptureContext(&context);
+            EXCEPTION_RECORD record{};
+            record.ExceptionCode = kAbortCode;
+#if defined(_M_X64) || defined(__x86_64__)
+            record.ExceptionAddress = reinterpret_cast<PVOID>(context.Rip);
+#elif defined(_M_ARM64) || defined(__aarch64__)
+            record.ExceptionAddress = reinterpret_cast<PVOID>(context.Pc);
+#endif
+            EXCEPTION_POINTERS pointers{&record, &context};
+            ReportCrash(&pointers);
+        }
+    }
+
     int WriteBacktrace(int fd) noexcept
     {
-        // TODO(win32): validate on Windows (frame capture + module-relative addresses).
         void* frames[64];
-        const USHORT count = CaptureStackBackTrace(0, 64, frames, nullptr);
-        char line[32];
+        const USHORT count = ::CaptureStackBackTrace(1 /* not this function */, 64, frames, nullptr);
+        const CrashOutput out{fd, INVALID_HANDLE_VALUE};
         for (USHORT i = 0; i < count; ++i)
         {
-            const int written =
-                std::snprintf(line, sizeof(line), "[%p]\n", frames[i]);
-            if (written > 0)
-            {
-                (void)_write(fd, line, static_cast<unsigned>(written));
-            }
+            WriteFrame(out, static_cast<int>(i), reinterpret_cast<std::uintptr_t>(frames[i]));
         }
         return static_cast<int>(count);
     }
 
     void InstallCrashBacktrace() noexcept
     {
-        // TODO(win32): SetUnhandledExceptionFilter writing WriteBacktrace to stderr (the POSIX
-        // backend installs fatal-signal handlers). No-op until validated on Windows.
+        static bool installed = false;
+        if (installed)
+        {
+            return;
+        }
+        installed = true;
+#if defined(WIN32_SYSTEM_ASAN)
+        // Under AddressSanitizer its own handler is the useful one (it names the faulting frame and
+        // the freeing stack); ours would take its place. Leave the sanitizer in charge.
+        return;
+#endif
+
+        char base[MAX_PATH];
+        const std::size_t length = GetUserDataDirectory(base, sizeof(base));
+        if (length != 0 && length < sizeof(base))
+        {
+            const int n = std::snprintf(g_crash.directory, sizeof(g_crash.directory), "%s\\%s\\crashes", base,
+                                        reinterpret_cast<const char*>(USER_DATA_DIR_NAME));
+            if (n <= 0 || static_cast<std::size_t>(n) >= sizeof(g_crash.directory))
+                g_crash.directory[0] = '\0';
+        }
+
+        char exe[MAX_PATH];
+        const DWORD exeLength = ::GetModuleFileNameA(nullptr, exe, sizeof(exe));
+        const char* name = "crash";
+        if (exeLength != 0 && exeLength < sizeof(exe))
+        {
+            name = exe;
+            for (const char* p = exe; *p != '\0'; ++p)
+            {
+                if (*p == '\\' || *p == '/')
+                    name = p + 1;
+            }
+            char* dot = std::strrchr(exe, '.');
+            if (dot != nullptr && dot >= name && _stricmp(dot, ".exe") == 0)
+                *dot = '\0';
+        }
+        (void)std::snprintf(g_crash.program, sizeof(g_crash.program), "%s", name);
+
+        g_crash.requested = ::CreateEventA(nullptr, FALSE, FALSE, nullptr);
+        g_crash.finished = ::CreateEventA(nullptr, TRUE, FALSE, nullptr); // manual reset: every waiter wakes
+        if (g_crash.requested != nullptr && g_crash.finished != nullptr)
+        {
+            const HANDLE reporter = ::CreateThread(nullptr, 256 * 1024, &CrashReporterMain, nullptr,
+                                                   STACK_SIZE_PARAM_IS_A_RESERVATION, &g_crash.reporterId);
+            if (reporter != nullptr)
+                ::CloseHandle(reporter);
+            else
+                g_crash.reporterId = 0;
+        }
+
+        // Stack kept back for the filter when this thread (the main one) overflows its own.
+        ULONG guarantee = 64 * 1024;
+        (void)::SetThreadStackGuarantee(&guarantee);
+        (void)::SetUnhandledExceptionFilter(&CrashFilter);
+        (void)std::signal(SIGABRT, &AbortHandler);
     }
 }

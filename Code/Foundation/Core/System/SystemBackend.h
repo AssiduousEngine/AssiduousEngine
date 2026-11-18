@@ -31,8 +31,9 @@ namespace foundation::core::sys
 
     // --- Native stack trace (assert/fatal reporting) ------------------------
     // Writes the current native call stack to file descriptor `fd` (frames print as
-    // `binary(+0xADDR)`; resolve offline with `addr2line -e <binary> -f -C`). Returns the
-    // frame count (0 where unsupported). Avoids heap allocation (assert-context safe).
+    // `binary(+0xADDR)`, resolved offline with `addr2line -e <binary> -f -C`; on Windows as
+    // `Module.exe+0xOFFSET`, which the module's .pdb names). Returns the frame count (0 where
+    // unsupported). Avoids heap allocation (assert-context safe).
     int WriteBacktrace(int fd) noexcept;
 
     // Install fatal-signal handlers (SIGSEGV/SIGBUS/SIGILL/SIGFPE/SIGABRT on POSIX) that write
@@ -40,7 +41,10 @@ namespace foundation::core::sys
     // exit status / core dump behavior is unchanged. Makes a crash in the wild actionable from
     // console output alone (the assert path already prints one; raw segfaults otherwise print
     // nothing). Best-effort: backtrace() in a signal handler is not strictly async-signal-safe, a
-    // trade accepted for a dying process. Idempotent; no-op where unsupported.
+    // trade accepted for a dying process. On Windows an unhandled exception filter and a SIGABRT
+    // handler print the same, and also write a minidump and a copy of the lines to the user data
+    // folder's `crashes` (<program>-<date>-<time>-<pid>.dmp and .txt), then let Windows' own
+    // handling go on. Idempotent; no-op where unsupported and under AddressSanitizer.
     void InstallCrashBacktrace() noexcept;
 
     // --- Environment -------------------------------------------------------

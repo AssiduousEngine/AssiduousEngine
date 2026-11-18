@@ -90,7 +90,8 @@ export namespace foundation::runtime
             m_running = true;
 
             // Fatal-signal backtraces: a crash anywhere in the app prints a native stack to
-            // stderr before dying, which a raw segfault otherwise would not.
+            // stderr before dying, which a raw segfault otherwise would not. On Windows it also
+            // leaves a minidump and the report in the user data folder's crashes.
             core::InstallCrashBacktrace();
 
             // Bring up the engine-wide JobSystem before any subsystem starts, so it is

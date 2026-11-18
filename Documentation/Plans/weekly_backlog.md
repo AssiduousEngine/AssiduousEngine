@@ -869,6 +869,12 @@ panel/graph work here remains.
 > `LinuxSystem.cpp`, installed by `ApplicationHost`). Remaining: Windows (`InstallCrashBacktrace`
 > is a no-op there, `WriteBacktrace` prints raw addresses), the crash report file with a log tail
 > and build id, minidumps, offline symbolication and a "force crash" command.
+> Checked 2026-11-18: Windows done. `InstallCrashBacktrace` in `Win32System.cpp` installs an
+> unhandled exception filter and a SIGABRT handler. Each prints the exception, the address and a
+> backtrace of module offsets, and writes a minidump plus a .txt copy to the user data folder's
+> `crashes`, from a reporter thread so a stack overflow is covered too. `WriteBacktrace` prints
+> module offsets. Remaining: the log tail and build id in the report, Linux minidumps (it relies on
+> system core dumps), offline symbolication and a "force crash" command.
 
 Origin: parity doc, editor platform - Lumix has "crash reporting (WINDOWS)";
 Draconic has none. A chance to be AHEAD via portability: Lumix's is Windows-only,

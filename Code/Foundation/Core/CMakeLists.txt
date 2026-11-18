@@ -128,7 +128,7 @@ elseif(WIN32)
     target_sources(Core PRIVATE
         System/Win32/Win32System.cpp
         Threading/Win32/Win32Thread.cpp)
-    target_link_libraries(Core PUBLIC ws2_32 bcrypt)   # Winsock2 for the UDP socket backend; BCrypt for FillEntropy
+    target_link_libraries(Core PUBLIC ws2_32 bcrypt dbghelp) # Winsock2 for the UDP socket backend; BCrypt for FillEntropy; DbgHelp for crash minidumps
 endif()
 
 # Threading runtime (pthreads on Linux).

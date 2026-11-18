@@ -27,6 +27,11 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Editor: Preferences, Appearance, Frame rate chooses how the editor's windows present: VSync (the
   default), Uncapped, or Uncapped with tearing. A change applies to every editor window at once,
   with no restart; a device that cannot present in the chosen mode keeps the one it had.
+- Windows: a crash in the editor, a player or a tool prints its exception, the address and a
+  backtrace (module and offset, which the .pdb names) to stderr, and writes a minidump with the
+  same lines beside it to the user data folder's `crashes` (`%LOCALAPPDATA%\assiduousengine\crashes`).
+  Access violations, stack overflows, failed asserts and `abort()` all leave one; Visual Studio or
+  WinDbg open the `.dmp` with the build's `.pdb` files. Windows' own crash handling still follows.
 - A script or script project file saved into `Code/` from another editor becomes an asset by
   itself, in the group its folder names.
 - Projects keep their code in a `Code/` folder beside `Sources/`: scripts and script project files

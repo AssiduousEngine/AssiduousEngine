@@ -3,6 +3,7 @@
 
 #include <doctest/doctest.h>
 
+#include <cstdlib> // std::abort (the crash handler child)
 #include <cstring>
 #if !defined(_WIN32)
 #include <sys/stat.h> // stat/chmod: FileCopyPreserving's +x-preservation check
@@ -648,6 +649,181 @@ TEST_CASE("system: InstallCrashBacktrace prints a native stack on SIGSEGV")
     CHECK(std::strstr(buffer, "SIGSEGV") != nullptr); // the banner
     CHECK(std::strstr(buffer, "backtrace") != nullptr);
     CHECK(std::strstr(buffer, "0x") != nullptr); // at least one frame line
+}
+#endif
+
+#if defined(_WIN32)
+// Declared alone: windows.h's macros would rename this file's calls into Core.
+extern "C" __declspec(dllimport) unsigned int __stdcall SetErrorMode(unsigned int mode);
+
+namespace
+{
+    // Recurses until the stack runs out; the volatile frame keeps the optimizer from making it a loop.
+    int OverflowStack(int depth)
+    {
+        volatile char frame[4096];
+        frame[0] = static_cast<char>(depth);
+        if (depth < 0) // never: it keeps clang from calling the recursion a mistake
+            return 0;
+        return OverflowStack(depth + 1) + frame[0];
+    }
+
+    // What a crashing child left behind: its output, and its minidump and report, read back.
+    struct CrashRun
+    {
+        ProcessResult run;
+        String dumpName;
+        Array<byte> dump;
+        String report;
+    };
+
+    // Runs Core.Tests again with only the child case below, asked to crash `how`, its user data
+    // folder pointed at scratch through LOCALAPPDATA (which the child inherits).
+    CrashRun RunCrashingChild(StringView how)
+    {
+        CrashRun result;
+        const String scratch = PathAbsolute(u8"crash_handler_scratch");
+        (void)RemoveDirectoryRecursive(scratch.AsView());
+        REQUIRE(CreateDirectory(scratch.AsView()));
+        const Optional<String> savedLocalAppData = GetEnvironmentVariable(u8"LOCALAPPDATA");
+        REQUIRE(SetEnvironmentVariable(u8"LOCALAPPDATA", scratch.AsView()));
+        REQUIRE(SetEnvironmentVariable(u8"ENGINE_CRASH_CHILD", how));
+        const StringView args[] = {u8"--test-case=system: crash handler child crashes when asked"};
+        result.run = RunProcess(GetExecutablePath().AsView(), Span<const StringView>(args, 1), 120000);
+        (void)SetEnvironmentVariable(u8"ENGINE_CRASH_CHILD", u8"");
+        (void)SetEnvironmentVariable(u8"LOCALAPPDATA",
+                                     savedLocalAppData.HasValue() ? savedLocalAppData.Value().AsView() : StringView());
+
+        struct Found
+        {
+            String dump;
+            String report;
+        } found;
+        const String crashes = PathJoin(PathJoin(scratch.AsView(), USER_DATA_DIR_NAME).AsView(), u8"crashes");
+        (void)ListDirectory(
+            crashes.AsView(),
+            [](void* context, StringView name, bool isDirectory)
+            {
+                Found& into = *static_cast<Found*>(context);
+                if (!isDirectory && name.StartsWith(u8"Core.Tests-") && name.EndsWith(u8".dmp"))
+                    into.dump = String(name);
+                if (!isDirectory && name.StartsWith(u8"Core.Tests-") && name.EndsWith(u8".txt"))
+                    into.report = String(name);
+            },
+            &found);
+        result.dumpName = found.dump;
+        if (!found.dump.IsEmpty())
+        {
+            Result<Array<byte>> dump = ReadFile(PathJoin(crashes.AsView(), found.dump.AsView()).AsView());
+            if (dump.HasValue())
+                result.dump = Move(dump.Value());
+        }
+        if (!found.report.IsEmpty())
+        {
+            const Result<Array<byte>> report = ReadFile(PathJoin(crashes.AsView(), found.report.AsView()).AsView());
+            if (report.HasValue())
+                result.report =
+                    String(StringView(reinterpret_cast<const utf8char*>(report.Value().Data()), report.Value().Size()));
+        }
+        (void)RemoveDirectoryRecursive(scratch.AsView());
+        return result;
+    }
+
+    bool IsMinidump(const Array<byte>& bytes)
+    {
+        return bytes.Size() > 4 && std::memcmp(bytes.Data(), "MDMP", 4) == 0; // a minidump's signature
+    }
+}
+
+// The child half of the tests below, run as a process of its own. Without the variable it does nothing.
+TEST_CASE("system: crash handler child crashes when asked")
+{
+    const Optional<String> asked = GetEnvironmentVariable(u8"ENGINE_CRASH_CHILD");
+    if (!asked.HasValue() || asked.Value().IsEmpty())
+    {
+        return;
+    }
+    // SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX: no Windows Error Reporting dialog to wait on.
+    (void)SetErrorMode(0x0001 | 0x0002);
+    InstallCrashBacktrace();
+    const StringView how = asked.Value().AsView();
+    if (how == StringView(u8"abort"))
+    {
+        std::abort(); // the SIGABRT handler reports, then abort() ends the process
+    }
+    if (how == StringView(u8"overflow"))
+    {
+        (void)OverflowStack(0);
+    }
+    volatile int* nullPointer = nullptr;
+    *nullPointer = 42; // the filter reports, then Windows ends the process with the exception code
+}
+
+#if defined(__has_feature) // nested so MSVC only lexes __has_feature (see TestMain.h)
+#if __has_feature(address_sanitizer)
+#define SYSTEM_TESTS_ASAN 1
+#endif
+#endif
+
+// The unhandled exception filter: a crash prints its exception, the address and a backtrace of
+// module offsets to stderr, and leaves a minidump with the same lines beside it in the user data
+// folder's crashes.
+TEST_CASE("system: InstallCrashBacktrace writes a report and a minidump on an access violation")
+{
+#if defined(SYSTEM_TESTS_ASAN)
+    MESSAGE("AddressSanitizer build: the engine's crash handler yields to the sanitizer's");
+    return;
+#endif
+    const CrashRun crash = RunCrashingChild(u8"access");
+    CHECK_FALSE(crash.run.timedOut);
+    CHECK(crash.run.exitCode != 0); // ended by the exception (0xC0000005), not a clean exit
+    const StringView output = crash.run.output.AsView();
+    CHECK(output.Contains(u8"EXCEPTION_ACCESS_VIOLATION"));
+    CHECK(output.Contains(u8"writing address 0x0000000000000000"));
+    CHECK(output.Contains(u8"Core.Tests.exe+0x")); // the faulting frame, as a module offset
+    CHECK(output.Contains(u8"minidump: "));
+
+    REQUIRE_FALSE(crash.dumpName.IsEmpty());
+    CHECK(IsMinidump(crash.dump));
+    CHECK(crash.report.AsView().Contains(u8"EXCEPTION_ACCESS_VIOLATION"));
+    CHECK(crash.report.AsView().Contains(u8"Core.Tests.exe+0x"));
+    CHECK(crash.report.AsView().Contains(crash.dumpName.AsView())); // names the minidump it sits beside
+}
+
+// abort() (where a fatal error and std::terminate end) never reaches the filter; the SIGABRT
+// handler reports it the same way.
+TEST_CASE("system: InstallCrashBacktrace writes a report and a minidump on abort")
+{
+#if defined(SYSTEM_TESTS_ASAN)
+    MESSAGE("AddressSanitizer build: the engine's crash handler yields to the sanitizer's");
+    return;
+#endif
+    const CrashRun crash = RunCrashingChild(u8"abort");
+    CHECK_FALSE(crash.run.timedOut);
+    CHECK(crash.run.exitCode != 0);
+    CHECK(crash.run.output.AsView().Contains(u8"=== abort()"));
+    CHECK(crash.run.output.AsView().Contains(u8"Core.Tests.exe+0x"));
+    REQUIRE_FALSE(crash.dumpName.IsEmpty());
+    CHECK(IsMinidump(crash.dump));
+    CHECK(crash.report.AsView().Contains(u8"abort()"));
+}
+
+// A blown stack leaves the crashing thread too little to write a minidump on; the reporter thread
+// writes it, and walks the crashed thread's stack from the outside.
+TEST_CASE("system: InstallCrashBacktrace writes a report and a minidump on a stack overflow")
+{
+#if defined(SYSTEM_TESTS_ASAN)
+    MESSAGE("AddressSanitizer build: the engine's crash handler yields to the sanitizer's");
+    return;
+#endif
+    const CrashRun crash = RunCrashingChild(u8"overflow");
+    CHECK_FALSE(crash.run.timedOut);
+    CHECK(crash.run.exitCode != 0);
+    CHECK(crash.run.output.AsView().Contains(u8"EXCEPTION_STACK_OVERFLOW"));
+    CHECK(crash.run.output.AsView().Contains(u8"Core.Tests.exe+0x"));
+    REQUIRE_FALSE(crash.dumpName.IsEmpty());
+    CHECK(IsMinidump(crash.dump));
+    CHECK(crash.report.AsView().Contains(u8"EXCEPTION_STACK_OVERFLOW"));
 }
 #endif
 
