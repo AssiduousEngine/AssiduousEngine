@@ -89,8 +89,8 @@ export namespace editor::mcp
             u8"previous call as sinceSequence to get only what is new. Returns the newest "
             u8"`limit` matching entries; `dropped` > 0 means the ring overflowed and old "
             u8"entries were lost. An entry that names a file of the project (with its line and "
-            u8"column), an asset, or another place has `references`: each a kind (source: file, "
-            u8"line, column; asset: guid), its fields, and the part of the message it stands for "
+            u8"column), an asset, or another place has `references`: each a kind (source: file on "
+            u8"disk, line, column; asset: guid), its fields, and the part of the message it stands for "
             u8"(start and length in bytes; length 0: the whole line).",
             SchemaBuilder()
                 .Number(u8"sinceSequence",
@@ -159,8 +159,14 @@ export namespace editor::mcp
                             JsonValue r = JsonValue::MakeObject();
                             r.Set(u8"kind", JsonValue::MakeString(reference.kind));
                             JsonValue fields = JsonValue::MakeArray();
-                            for (const String& field : reference.fields)
-                                fields.Add(JsonValue::MakeString(field));
+                            for (usize f = 0; f < reference.fields.Size(); ++f)
+                            {
+                                // A script's file is its source path (Code/Player.luau): given on disk.
+                                const bool sourcePath = f == 0 && reference.kind == kLogSourceReference && session != nullptr &&
+                                                        session->project != nullptr && !PathIsAbsolute(reference.fields[f].AsView());
+                                fields.Add(JsonValue::MakeString(sourcePath ? session->project->SourceFile(reference.fields[f].AsView())
+                                                                            : reference.fields[f]));
+                            }
                             r.Set(u8"fields", Move(fields));
                             r.Set(u8"start", JsonValue::MakeNumber(static_cast<f64>(reference.start)));
                             r.Set(u8"length", JsonValue::MakeNumber(static_cast<f64>(reference.length)));

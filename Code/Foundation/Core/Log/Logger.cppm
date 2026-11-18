@@ -65,7 +65,7 @@ export namespace foundation::core
     // -----------------------------------------------------------------------
 
     /// The kinds of reference the engine makes; a plugin or a language may add its own.
-    inline constexpr StringView kLogSourceReference = u8"source"; // fields: file, line, column
+    inline constexpr StringView kLogSourceReference = u8"source"; // fields: file (on disk, or a project's source path), line, column
     inline constexpr StringView kLogAssetReference = u8"asset";   // fields: guid
     inline constexpr StringView kLogEntityReference = u8"entity"; // fields: scene, path
     inline constexpr StringView kLogNodeReference = u8"node";     // fields: document, id

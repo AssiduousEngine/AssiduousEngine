@@ -208,3 +208,16 @@ TEST_CASE("editor-log: the ids of known assets become asset references; overlaps
     CHECK(all[0].Field(0) == StringView(u8"/p/Code/b.luau"));
     CHECK(all[1].kind == kLogAssetReference);
 }
+
+TEST_CASE("editor-log: a recognized reference over an attached one's part is dropped")
+{
+    LogReferenceRecognizers recognizers;
+    (void)recognizers.Add(SourcePathRecognizer(u8"/p"));
+    const StringView message = u8"Code/A.luau:3: bad, see Code/B.luau:9";
+    LogReference attached = SourceReference(u8"Code/A.luau", 3);
+    attached.length = 13; // "Code/A.luau:3"
+    const Array<LogReference> all = recognizers.Of(message, Span<const LogReference>(&attached, 1));
+    REQUIRE(all.Size() == 2u);
+    CHECK(all[0].Field(0) == StringView(u8"Code/A.luau"));
+    CHECK(all[1].Field(0) == StringView(u8"/p/Code/B.luau"));
+}

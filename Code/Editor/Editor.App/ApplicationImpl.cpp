@@ -559,7 +559,15 @@ namespace editor::app
                                          {
                                              const u32 line = static_cast<u32>(ParseInt(reference.Field(1)).ValueOr(0));
                                              const u32 column = static_cast<u32>(ParseInt(reference.Field(2)).ValueOr(0));
-                                             (void)self->m_codeOpener->Open(reference.Field(0), line, column);
+                                             // A script names its file by its source path (Code/Player.luau).
+                                             StringView file = reference.Field(0);
+                                             String onDisk;
+                                             if (!PathIsAbsolute(file) && self->m_context.Project() != nullptr)
+                                             {
+                                                 onDisk = self->m_context.Project()->SourceFile(file);
+                                                 file = onDisk.AsView();
+                                             }
+                                             (void)self->m_codeOpener->Open(file, line, column);
                                          });
         m_context.SetLogReferenceHandler(kLogAssetReference, [self](const LogReference& reference, bool open)
                                          {

@@ -295,3 +295,63 @@ TEST_CASE("script.debug: snapshot value types are wire-symmetric (remote-transpo
     CHECK(objectOut.ref == 99u);
     CHECK(objectOut.text == u8"Entity#3");
 }
+
+namespace
+{
+    struct ScriptLineSink : foundation::core::ILogSink
+    {
+        foundation::core::String message;
+        foundation::core::Array<foundation::core::LogReference> references;
+        void Write(foundation::core::LogLevel, foundation::core::StringView, foundation::core::StringView text) noexcept override
+        {
+            message = foundation::core::String(text);
+            references.Clear();
+        }
+        void WriteReferenced(foundation::core::LogLevel, foundation::core::StringView, foundation::core::StringView text,
+                             foundation::core::Span<const foundation::core::LogReference> carried) noexcept override
+        {
+            message = foundation::core::String(text);
+            references.Clear();
+            for (const foundation::core::LogReference& reference : carried)
+                references.PushBack(reference);
+        }
+    };
+}
+
+TEST_CASE("script: an error's line and a fault's stack carry source references to their files")
+{
+    using namespace foundation::core;
+    ScriptLineSink sink;
+    Logger& logger = GlobalLogger();
+    const LogLevel previous = logger.MinLevel();
+    logger.SetMinLevel(LogLevel::Info);
+    logger.AddSink(&sink);
+
+    foundation::script::LogScriptLine(LogLevel::Error, u8"Code/Player.luau", 12, 5, u8"unknown global 'speed'");
+    CHECK(sink.message == StringView(u8"Code/Player.luau:12: unknown global 'speed'"));
+    REQUIRE(sink.references.Size() == 1u);
+    CHECK(sink.references[0].kind == kLogSourceReference);
+    CHECK(sink.references[0].Field(0) == StringView(u8"Code/Player.luau"));
+    CHECK(sink.references[0].Field(1) == StringView(u8"12"));
+    CHECK(sink.references[0].Field(2) == StringView(u8"5"));
+    CHECK(sink.message.AsView().SubStr(sink.references[0].start, sink.references[0].length) == StringView(u8"Code/Player.luau:12"));
+
+    // No line known: the file alone.
+    foundation::script::LogScriptLine(LogLevel::Warning, u8"Code/A.as", -1, -1, u8"unused");
+    CHECK(sink.message == StringView(u8"Code/A.as: unused"));
+    REQUIRE(sink.references.Size() == 1u);
+    CHECK(sink.references[0].Field(1).IsEmpty());
+
+    const foundation::script::ScriptStackFrame frames[] = {{String(u8"Code/Gun.luau"), String(u8"fire"), 7},
+                                                           {String(u8"Code/Player.luau"), String(u8"update"), 30}};
+    foundation::script::LogScriptFault(u8"Code/Gun.luau", 7, u8"attempt to index nil",
+                                       Span<const foundation::script::ScriptStackFrame>(frames, 2));
+    CHECK(sink.message == StringView(u8"Code/Gun.luau (line 7): attempt to index nil\n  at fire (Code/Gun.luau:7)\n  at update (Code/Player.luau:30)"));
+    REQUIRE(sink.references.Size() == 3u);
+    CHECK(sink.message.AsView().SubStr(sink.references[0].start, sink.references[0].length) == StringView(u8"Code/Gun.luau"));
+    CHECK(sink.message.AsView().SubStr(sink.references[2].start, sink.references[2].length) == StringView(u8"Code/Player.luau:30"));
+    CHECK(sink.references[2].Field(1) == StringView(u8"30"));
+
+    logger.RemoveSink(&sink);
+    logger.SetMinLevel(previous);
+}

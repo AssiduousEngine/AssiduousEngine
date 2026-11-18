@@ -207,7 +207,7 @@ export namespace engine::script
         {
             if (error.kind == ScriptErrorKind::Warning)
             {
-                LOG_WARNING(u8"Script", u8"{}:{}: {}", error.module, error.line, error.message);
+                foundation::script::LogScriptLine(LogLevel::Warning, error.module, error.line, error.column, error.message);
                 if (external != nullptr)
                 {
                     external->OnError(error);
@@ -217,18 +217,12 @@ export namespace engine::script
             last = Format(u8"{} (line {}): {}", error.module, error.line, error.message);
             if (error.kind == ScriptErrorKind::Compile)
             {
-                LOG_ERROR(u8"Script", u8"{}:{}: {}", error.module, error.line,
-                                   error.message);
+                foundation::script::LogScriptLine(LogLevel::Error, error.module, error.line, error.column, error.message);
             }
             else
             {
-                // The call stack below the message, innermost first, when the backend gave one.
-                String stack;
-                for (const ScriptStackFrame& frame : error.stack)
-                {
-                    stack.Append(Format(u8"\n  at {} ({}:{})", frame.function, frame.file, frame.line).AsView());
-                }
-                LOG_ERROR(u8"Script", u8"{} (line {}): {}{}", error.module, error.line, error.message, stack);
+                // With the call stack below the message, innermost first, when the backend gave one.
+                foundation::script::LogScriptFault(error.module, error.line, error.message, error.stack);
             }
             if (external != nullptr)
             {

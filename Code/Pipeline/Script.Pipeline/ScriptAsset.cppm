@@ -587,20 +587,20 @@ export namespace pipeline{
     inline void ReportScriptCookErrors(StringView fileName, const CookScriptErrorSink& sink,
                                        i32 preludeLines = 0)
     {
-        bool said = false;
+        bool reported = false;
         for (const CookScriptErrorSink::Entry& e : sink.errors)
         {
             const i32 line = e.line > preludeLines ? e.line - preludeLines : e.line;
             const StringView file = e.module.IsEmpty() ? fileName : e.module.AsView();
             if (e.kind == ScriptErrorKind::Warning)
             {
-                LOG_WARNING(u8"Script", u8"{}:{}: {}", file, line, e.message); // not why it failed
+                LogScriptLine(LogLevel::Warning, file, line, e.column, e.message.AsView()); // not why it failed
                 continue;
             }
-            LOG_ERROR(u8"Script", u8"{}:{}: {} - cook failed", file, line, e.message);
-            said = true;
+            LogScriptLine(LogLevel::Error, file, line, e.column, Format(u8"{} - cook failed", e.message).AsView());
+            reported = true;
         }
-        if (!said)
+        if (!reported)
         {
             LOG_ERROR(u8"Script", u8"'{}': compile failed - cook failed", fileName);
         }
@@ -1126,8 +1126,8 @@ export namespace pipeline{
             {
                 if (e.kind == ScriptErrorKind::Warning)
                 {
-                    LOG_WARNING(u8"Script", u8"{}:{}: {}",
-                                e.module.IsEmpty() ? scriptAsset.fileName.View() : e.module.AsView(), e.line, e.message);
+                    LogScriptLine(LogLevel::Warning, e.module.IsEmpty() ? scriptAsset.fileName.View() : e.module.AsView(), e.line,
+                                  e.column, e.message.AsView());
                 }
             }
             return ctx.output->WriteObject(cooked);
@@ -1165,7 +1165,7 @@ export namespace pipeline{
             {
                 for (const CookScriptErrorSink::Entry& e : sink.errors)
                 {
-                    LOG_ERROR(u8"Script", u8"{}: {}", e.module.IsEmpty() ? file : e.module.AsView(), e.message);
+                    LogScriptLine(LogLevel::Error, e.module.IsEmpty() ? file : e.module.AsView(), e.line, e.column, e.message.AsView());
                 }
                 return Status{ErrorCode::InvalidArgument};
             }
@@ -1251,14 +1251,8 @@ export namespace pipeline{
             for (const CookScriptErrorSink::Entry& e : sink.errors)
             {
                 const StringView where = e.module.IsEmpty() ? project.fileName.View() : e.module.AsView();
-                if (e.kind == ScriptErrorKind::Warning)
-                {
-                    LOG_WARNING(u8"Script", u8"{}:{}: {}", where, e.line, e.message);
-                }
-                else
-                {
-                    LOG_ERROR(u8"Script", u8"{}:{}: {}", where, e.line, e.message);
-                }
+                LogScriptLine(e.kind == ScriptErrorKind::Warning ? LogLevel::Warning : LogLevel::Error, where, e.line, e.column,
+                              e.message.AsView());
             }
             if (!ok)
             {

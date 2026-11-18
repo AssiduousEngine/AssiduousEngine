@@ -66,14 +66,22 @@ export namespace editor
             return kept;
         }
 
-        /// A line's references: those its log call attached first, then those recognized in it.
+        /// A line's references: those its log call attached first, then those recognized in it
+        /// that overlap none of the attached parts.
         [[nodiscard]] Array<LogReference> Of(StringView message, Span<const LogReference> attached) const
         {
             Array<LogReference> all;
             for (const LogReference& reference : attached)
                 all.PushBack(reference);
             for (LogReference& reference : Recognize(message))
-                all.PushBack(Move(reference));
+            {
+                bool overlaps = false;
+                for (const LogReference& given : attached)
+                    overlaps = overlaps || (given.length > 0 && reference.start < given.start + given.length &&
+                                            given.start < reference.start + reference.length);
+                if (!overlaps)
+                    all.PushBack(Move(reference));
+            }
             return all;
         }
 

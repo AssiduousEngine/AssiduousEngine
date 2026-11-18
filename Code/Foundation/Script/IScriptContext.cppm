@@ -47,6 +47,52 @@ export namespace foundation::script
         core::Span<const ScriptStackFrame> stack = {};
     };
 
+    /// Logs "<file>:<line>: <text>" in the Script category with a source reference to the file
+    /// at the line (and column, when known), standing for its "<file>:<line>" part, so a tool can
+    /// open it. `file` is as the script names it (a project's source path, Code/Player.luau).
+    inline void LogScriptLine(core::LogLevel level, core::StringView file, core::i32 line, core::i32 column, core::StringView text)
+    {
+        const core::String place = line > 0 ? core::Format(u8"{}:{}", file, line) : core::String(file);
+        core::LogReference reference = core::SourceReference(file, line > 0 ? static_cast<core::u32>(line) : 0u,
+                                                             column > 0 ? static_cast<core::u32>(column) : 0u);
+        reference.length = file.IsEmpty() ? 0 : place.Size();
+        core::LogfReferenced(level, u8"Script", core::Span<const core::LogReference>(&reference, 1), u8"{}: {}", place, text);
+    }
+
+    /// Logs a runtime fault: "<module> (line N): <message>", then the stack below it, innermost
+    /// first ("  at <function> (<file>:<line>)"), as an error in the Script category. The module
+    /// and each frame's file and line are source references, standing for their parts.
+    inline void LogScriptFault(core::StringView module, core::i32 line, core::StringView message, core::Span<const ScriptStackFrame> stack)
+    {
+        core::Array<core::LogReference> references;
+        core::String text;
+        if (!module.IsEmpty())
+        {
+            core::LogReference reference = core::SourceReference(module, line > 0 ? static_cast<core::u32>(line) : 0u);
+            reference.length = module.Size();
+            references.PushBack(core::Move(reference));
+        }
+        text.Append(core::Format(u8"{} (line {}): {}", module, line, message).AsView());
+        for (const ScriptStackFrame& frame : stack)
+        {
+            text.Append(core::Format(u8"\n  at {} (", frame.function).AsView());
+            if (!frame.file.IsEmpty())
+            {
+                core::LogReference reference = core::SourceReference(frame.file.AsView(), frame.line > 0 ? static_cast<core::u32>(frame.line) : 0u);
+                reference.start = text.Size();
+                text.Append(core::Format(u8"{}:{}", frame.file, frame.line).AsView());
+                reference.length = text.Size() - reference.start;
+                references.PushBack(core::Move(reference));
+            }
+            else
+            {
+                text.Append(core::Format(u8"{}:{}", frame.file, frame.line).AsView());
+            }
+            text.Append(u8")");
+        }
+        core::LogfReferenced(core::LogLevel::Error, u8"Script", references.AsSpan(), u8"{}", text);
+    }
+
     // Host-provided sink for script errors (compile and runtime). Non-owning: the
     // host manages its lifetime and outlives the context it's attached to.
     class IScriptErrorHandler

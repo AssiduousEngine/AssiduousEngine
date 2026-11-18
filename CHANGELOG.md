@@ -22,7 +22,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Editor: a Console line that names a file of the project (with its line and column, as a
   compiler writes them) or one of its assets shows it as a link. A click opens the file where code
   opens or selects the asset; a double click on the line follows its first link, opening the
-  asset's page. MCP `log_read` returns each line's references too.
+  asset's page. MCP `log_read` returns each line's references too. A script's compile error, and
+  a runtime error with each frame of its stack, link to its file at the line.
 - Editor: Preferences, Appearance, Frame rate chooses how the editor's windows present: VSync (the
   default), Uncapped, or Uncapped with tearing. A change applies to every editor window at once,
   with no restart; a device that cannot present in the chosen mode keeps the one it had.
