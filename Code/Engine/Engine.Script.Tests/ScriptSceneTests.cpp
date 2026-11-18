@@ -438,6 +438,18 @@ TEST_CASE("script.scene: entity-active - deactivation freezes updates with NO li
     CHECK(bed.scripts->InstanceCount() == 1u);
 }
 
+// A component's script methods mark its type a scene component, which a language that holds it as
+// a value (its entity) asks for rather than knowing the component types.
+TEST_CASE("script.scene: a component's script methods mark it a scene component")
+{
+    EnsureGadgetRegistered();
+    const Variant* marked = FindAttribute(TypeOf<Gadget>(), "sceneComponent");
+    REQUIRE(marked != nullptr);
+    REQUIRE(marked->TryGet<bool>() != nullptr);
+    CHECK(*marked->TryGet<bool>());
+    CHECK(FindAttribute(TypeOf<Float3>(), "sceneComponent") == nullptr);
+}
+
 TEST_CASE("script.scene: the entity facade exposes active/setActive/activeInHierarchy")
 {
     ScriptedScene bed;

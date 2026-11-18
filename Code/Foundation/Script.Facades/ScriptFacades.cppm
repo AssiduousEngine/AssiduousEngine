@@ -699,6 +699,9 @@ export namespace foundation::script
     void ComponentMethods(TypeBuilder<T>& builder)
     {
         builder.HasIdentity();
+        // A scene component: its handle is its entity and type, which a language may hold as a
+        // value (C# does) and the engine finds the component by again (Scene::MakeComponentRef).
+        builder.Attribute("sceneComponent", true);
         builder.template Method<&ComponentOf<T>, T>("of");
         builder.template Method<&ComponentAddTo<T>, T>("addTo");
         builder.template Method<&ComponentRemoveFrom<T>>("removeFrom");
