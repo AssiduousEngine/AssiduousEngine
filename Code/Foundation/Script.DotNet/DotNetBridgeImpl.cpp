@@ -41,8 +41,18 @@ namespace foundation::script::dotnet
         {
             if (type == nullptr || !type->hasIdentity)
                 return false;
-            const Variant* marked = FindAttribute(*type, "sceneComponent");
-            return marked != nullptr && marked->TryGet<bool>() != nullptr && *marked->TryGet<bool>();
+            // A type's attributes are fixed once registered, and a run of calls asks about the same
+            // component type: the last answer is kept rather than searching the attributes by name
+            // on every crossing.
+            thread_local const TypeInfo* lastType = nullptr;
+            thread_local bool lastAnswer = false;
+            if (type != lastType)
+            {
+                const Variant* marked = FindAttribute(*type, "sceneComponent");
+                lastAnswer = marked != nullptr && marked->TryGet<bool>() != nullptr && *marked->TryGet<bool>();
+                lastType = type;
+            }
+            return lastAnswer;
         }
 
         // The component handle the bytes of a scene component held as a value stand for: empty when
