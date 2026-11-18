@@ -206,7 +206,12 @@ TEST_CASE("integration.mcp: log_read gives each line's references: attached, and
     const JsonValue& source = entries.At(0).Get(u8"references");
     REQUIRE(source.Count() == 1);
     CHECK(String(source.At(0).Get(u8"kind").AsString()) == StringView(u8"source"));
-    CHECK(String(source.At(0).Get(u8"fields").At(0).AsString()) == file);
+    // The file as the recognizer gives it, with forward slashes on every platform.
+    String forward = file;
+    for (usize i = 0; i < forward.Size(); ++i)
+        if (forward[i] == utf8char('\\'))
+            forward[i] = utf8char('/');
+    CHECK(String(source.At(0).Get(u8"fields").At(0).AsString()) == forward);
     CHECK(String(source.At(0).Get(u8"fields").At(1).AsString()) == StringView(u8"12"));
     CHECK(String(source.At(0).Get(u8"fields").At(2).AsString()) == StringView(u8"3"));
     CHECK(source.At(0).Get(u8"start").AsNumber() == 0.0);
