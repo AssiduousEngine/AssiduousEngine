@@ -88,37 +88,51 @@ public abstract unsafe class EngineObject : IDisposable
     }
 }
 
-/// <summary>A string as an argument: its UTF-8 in native memory for the length of the call.</summary>
+/// <summary>A string as an argument: its UTF-8 for the length of the call, in `storage` (Capacity
+/// bytes the caller keeps on its stack) when it fits, else in native memory freed by Dispose.</summary>
 public unsafe struct TextArg : IDisposable
 {
+    public const int Capacity = 256;
+
     byte* m_bytes;
     int m_length;
+    bool m_allocated;
 
-    public TextArg(string? text)
+    public TextArg(string? text, byte* storage)
     {
         text ??= "";
-        m_length = System.Text.Encoding.UTF8.GetByteCount(text);
-        m_bytes = (byte*)System.Runtime.InteropServices.NativeMemory.Alloc((nuint)System.Math.Max(m_length, 1));
+        m_allocated = false;
+        // A UTF-16 unit is at most three UTF-8 bytes: a string that surely fits is encoded once,
+        // without counting it first or allocating.
+        if (text.Length <= Capacity / 3)
+            m_bytes = storage;
+        else
+        {
+            int length = System.Text.Encoding.UTF8.GetByteCount(text);
+            m_bytes = (byte*)System.Runtime.InteropServices.NativeMemory.Alloc((nuint)System.Math.Max(length, 1));
+            m_allocated = true;
+        }
         fixed (char* chars = text)
-            System.Text.Encoding.UTF8.GetBytes(chars, text.Length, m_bytes, m_length);
+            m_length = System.Text.Encoding.UTF8.GetBytes(chars, text.Length, m_bytes, m_allocated ? int.MaxValue : Capacity);
     }
 
     public DotNetValue Value => new() { Data = m_bytes, Size = (ulong)m_length, Kind = ValueKind.Text };
 
     public void Dispose()
     {
-        if (m_bytes != null)
+        if (m_allocated)
             System.Runtime.InteropServices.NativeMemory.Free(m_bytes);
         m_bytes = null;
+        m_allocated = false;
     }
 }
 
 // An argument the engine takes as any script value (its Variant), from a C# object: text as UTF-8
-// it owns until disposed, an engine object by its handle, a number or a value struct as bytes in
-// `storage` (Capacity bytes the caller keeps for the call). Null crosses as nothing.
+// (a TextArg over the same storage), an engine object by its handle, a number or a value struct as
+// bytes in `storage` (Capacity bytes the caller keeps for the call). Null crosses as nothing.
 public unsafe struct AnyArg : IDisposable
 {
-    public const int Capacity = 256;
+    public const int Capacity = TextArg.Capacity;
 
     TextArg m_text;
     DotNetValue m_value;
@@ -132,7 +146,7 @@ public unsafe struct AnyArg : IDisposable
         case null:
             return;
         case string text:
-            m_text = new TextArg(text);
+            m_text = new TextArg(text, storage);
             m_value = m_text.Value;
             return;
         case EngineObject engineObject:

@@ -292,7 +292,10 @@ namespace foundation::script::dotnet
                              EnumUnderlying(type));
                 break;
             case Shape::Text:
-                AppendFormat(out, u8"        using TextArg t{} = new({});\n        args[{}] = t{}.Value;\n", index, name, index, index);
+                AppendFormat(out,
+                             u8"        byte* s{} = stackalloc byte[TextArg.Capacity];\n"
+                             u8"        using TextArg t{} = new({}, s{});\n        args[{}] = t{}.Value;\n",
+                             index, index, name, index, index, index);
                 break;
             case Shape::Class:
                 AppendFormat(out, u8"        args[{}] = {} != null ? {}.EngineValue : default;\n", index, name, name);

@@ -579,6 +579,16 @@ TEST_CASE("script scene: each measure's scene runs its behaviours")
         components.Frame();
         CHECK(components.follows->Get(paced) == nullptr);
         CHECK(components.scene.GetEntityName(paced) == StringView(u8"has none"));
+
+        // Text arguments in C#: on the call's stack when short, in native memory when long.
+        BenchScene names;
+        names.AddScripted(MakeClass(foundation::script::dotnet::kCSharpLanguage, u8"Namer", u8"",
+                                    Span<const byte>{image.Data(), image.Size()}),
+                          1);
+        names.scene.Start();
+        names.scene.SetSimulationEnabled(true);
+        names.Frame();
+        CHECK(names.scene.GetEntityName(names.scene.GetFirstRoot()) == StringView(u8"kept \u00e9"));
     }
 #endif
     BenchScene native;
