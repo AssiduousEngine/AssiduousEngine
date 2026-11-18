@@ -264,6 +264,9 @@ export namespace foundation::core
 
         // Resolve mode (see Resolving): a live re-resolving handle over external value state.
         [[nodiscard]] bool IsResolving() const noexcept { return m_resolver != nullptr; }
+        // The resolver a resolve-mode handle was made with (null otherwise): how its owning layer
+        // knows a handle it made.
+        [[nodiscard]] auto Resolver() const noexcept { return m_resolver; }
         // Raw resolve-context bytes; the owning layer casts back to its Ctx. Valid in resolve mode.
         [[nodiscard]] const void* ResolveContext() const noexcept { return m_storage.inlineBytes; }
         // The value's current address, or null (dead). Valid in resolve mode; null otherwise.

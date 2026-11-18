@@ -810,6 +810,10 @@ export namespace foundation::scene
         SceneTable::Slot m_slot;
     };
 
+    /// When `handle` is a component handle a scene made (Scene::MakeComponentRef): true, with its
+    /// scene (null once that scene is gone) and its entity. False for any other value.
+    [[nodiscard]] bool ReadComponentRef(const Variant& handle, Scene*& scene, EntityHandle& entity) noexcept;
+
     /// The scene a re-resolving handle over its state was anchored to (Variant::Resolving with the
     /// scene's Life() as the anchor), or null once that scene is gone: a resolver asks this before
     /// reading anything its context points into.

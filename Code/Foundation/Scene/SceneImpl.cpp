@@ -806,6 +806,16 @@ namespace foundation::scene
                                   ComponentRefCtx{this, entity, manager}, m_life.Get());
     }
 
+    bool ReadComponentRef(const Variant& handle, Scene*& scene, EntityHandle& entity) noexcept
+    {
+        if (handle.Resolver() != &ResolveComponent)
+            return false;
+        const auto* ctx = static_cast<const ComponentRefCtx*>(handle.ResolveContext());
+        scene = AnchoredScene(handle);
+        entity = ctx->entity;
+        return true;
+    }
+
     void Scene::SetFixedTiming(f32 step, u32 maxSteps) noexcept
     {
         m_stepper.step = step;

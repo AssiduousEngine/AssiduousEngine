@@ -219,6 +219,24 @@ TEST_CASE("scene: MakeComponentRef gives a RESOLVE Variant that re-resolves the 
     CHECK(ToInstance(ref).Pointer() == nullptr);
 }
 
+// A component handle reads back as its scene and entity (what a binding holding the component by
+// value keeps); any other Variant is not one.
+TEST_CASE("scene: a component handle reads back as its scene and entity")
+{
+    Scene scene(DefaultAllocator(), u8"read");
+    HealthManager* mgr = scene.AddSystem<HealthManager>();
+    const EntityHandle e = scene.CreateEntity(u8"e");
+    mgr->Add(e);
+
+    Scene* from = nullptr;
+    EntityHandle entity;
+    CHECK(ReadComponentRef(scene.MakeComponentRef(e, TypeOf<Health>()), from, entity));
+    CHECK(from == &scene);
+    CHECK(entity == e);
+    CHECK_FALSE(ReadComponentRef(Variant::From<i32>(4), from, entity));
+    CHECK_FALSE(ReadComponentRef(Variant{}, from, entity));
+}
+
 namespace
 {
     // Its destroy hook removes another entity's component and adds one, as a behaviour's onDestroy
