@@ -388,6 +388,13 @@ What `Specs/scripting.md` leaves out, from the same review of the AngelScript in
   out, in both languages.
 - **Bitflag enums** (moved likewise): an enum the reflection marks as flags combines with `|` and
   tests with `&` in script, in both languages.
+- **A context per language in one run** (moved out of `Specs/scripting-typed-calls.md`, 2026-11-18):
+  `ScriptRunHost::EnsureContext` refuses a second language in a run. One context, manager and
+  debugger per language would let a project mix them (a typed gameplay core with light level
+  scripts). Messages and events already cross as `Variant`s, so behaviours in different languages
+  reach each other; a script object handed across goes as an opaque engine handle or not at all
+  (to decide, and say in the script guide); garbage steps and coroutines run per context, sharing
+  the frame's collector budget. A CHANGELOG line and a section in `Shipping/Scripting.md` with it.
 
 ## Reduced module interfaces on Android: memcpy through one core wrapper (user 2026-11-12)
 
