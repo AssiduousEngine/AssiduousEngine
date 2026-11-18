@@ -819,7 +819,7 @@ namespace foundation::script::angelscript
             {
                 if (m_manager.m_executeDepth++ == 0)
                 {
-                    m_manager.m_executeStartTicks = core::GetTicks();
+                    m_manager.m_executeStartTicks = 0; // StopIfOverBudget's first clock read starts it
                     m_manager.m_linesSinceCheck = 0;
                 }
             }
@@ -878,7 +878,15 @@ namespace foundation::script::angelscript
                 return false;
             }
             m_linesSinceCheck = 0;
-            const core::f64 seconds = static_cast<core::f64>(core::GetTicks() - m_executeStartTicks) /
+            // The first read starts the call's clock: a call that ends sooner reads none, and the
+            // budget starts kLinesPerCheck lines late (microseconds, against seconds).
+            const core::u64 now = core::GetTicks();
+            if (m_executeStartTicks == 0)
+            {
+                m_executeStartTicks = now;
+                return false;
+            }
+            const core::f64 seconds = static_cast<core::f64>(now - m_executeStartTicks) /
                                       static_cast<core::f64>(core::GetTickFrequency());
             if (seconds <= m_budget.callSeconds)
             {
@@ -2614,7 +2622,7 @@ namespace foundation::script::angelscript
         static constexpr asPWORD kMaxScriptCallDepth = 20000;      // nested script calls
         ScriptBudget m_budget;
         core::u32 m_executeDepth = 0;     // nested Executes (ExecuteClock)
-        core::u64 m_executeStartTicks = 0; // when the outermost began
+        core::u64 m_executeStartTicks = 0; // when the outermost's clock started (0: not yet)
         core::u32 m_linesSinceCheck = 0;
 
         struct RegisteredType

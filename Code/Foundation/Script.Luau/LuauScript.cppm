@@ -296,8 +296,8 @@ namespace foundation::script
         [[nodiscard]] LuauDebugger* Debugger() const noexcept { return m_debugger; }
 
         // One entry into the VM from the engine (a pcall or a resume). The outermost starts the
-        // budget's clock; a call into script from inside one (a facade that dispatches script)
-        // runs on the outer call's clock.
+        // budget's count; a call into script from inside one (a facade that dispatches script)
+        // runs on the outer call's. No clock is read here: OverTimeBudget reads it.
         class VmCall
         {
         public:
@@ -305,7 +305,8 @@ namespace foundation::script
             {
                 if (m_context.m_vmDepth++ == 0)
                 {
-                    m_context.m_vmStartTicks = GetTicks();
+                    m_context.m_vmStartTicks = 0;
+                    m_context.m_safepointsSinceCheck = 0;
                 }
             }
             ~VmCall() { --m_context.m_vmDepth; }
@@ -316,7 +317,10 @@ namespace foundation::script
             LuauScriptContext& m_context;
         };
         // The running call has used its seconds (called from the VM's interrupt).
-        [[nodiscard]] bool OverTimeBudget() const noexcept;
+        // Whether the running call is past its budget, by the clock every kSafepointsPerCheck
+        // safepoints. The first read starts the call's clock: a call that ends sooner reads none,
+        // and the budget starts that many safepoints late (microseconds, against seconds).
+        [[nodiscard]] bool OverTimeBudget() noexcept;
         [[nodiscard]] f64 CallBudgetSeconds() const noexcept;
         // The heap allocator: every block the state takes, held to the budget's bytes.
         static void* Allocate(void* userdata, void* block, usize oldSize, usize newSize);
@@ -390,7 +394,11 @@ namespace foundation::script
         Array<ScriptStackFrame> m_faultStack; // the last call's fault stack, for its report (RunCallable)
         LuauDebugger* m_debugger = nullptr; // borrowed; the attached debugger's
         u32 m_vmDepth = 0;                   // nested VM entries (VmCall)
-        u64 m_vmStartTicks = 0;              // when the outermost began
+        u64 m_vmStartTicks = 0;              // when the outermost's clock started (0: not yet)
+        u32 m_safepointsSinceCheck = 0;
+        // Safepoints (loop back edges, calls, returns) between clock reads: reading it at every
+        // one cost a quarter of a call-heavy script's time.
+        static constexpr u32 kSafepointsPerCheck = 256;
         usize m_heapBytes = 0;               // what the state's blocks hold now
         Array<LuauScriptDelegate*> m_delegates; // borrowed; Detach()ed at close
         Array<lua_State*> m_freeThreads; // recyclable resumable threads (all registry-pinned)
@@ -2623,7 +2631,7 @@ namespace foundation::script
             {
                 return;
             }
-            const auto* context = static_cast<const LuauScriptContext*>(lua_callbacks(state)->userdata);
+            auto* context = static_cast<LuauScriptContext*>(lua_callbacks(state)->userdata);
             if (context != nullptr && context->OverTimeBudget())
             {
                 lua_rawcheckstack(state, 1); // room for the message
@@ -2893,13 +2901,20 @@ namespace foundation::script
         m_debugger = nullptr;
     }
 
-    bool LuauScriptContext::OverTimeBudget() const noexcept
+    bool LuauScriptContext::OverTimeBudget() noexcept
     {
-        if (m_vmDepth == 0)
+        if (m_vmDepth == 0 || ++m_safepointsSinceCheck < kSafepointsPerCheck)
         {
             return false;
         }
-        const f64 seconds = static_cast<f64>(GetTicks() - m_vmStartTicks) / static_cast<f64>(GetTickFrequency());
+        m_safepointsSinceCheck = 0;
+        const u64 now = GetTicks();
+        if (m_vmStartTicks == 0)
+        {
+            m_vmStartTicks = now;
+            return false;
+        }
+        const f64 seconds = static_cast<f64>(now - m_vmStartTicks) / static_cast<f64>(GetTickFrequency());
         return seconds > CallBudgetSeconds();
     }
 
