@@ -157,8 +157,7 @@ export namespace pipeline
         // A transmissive surface (glTF transmission: glass) that is otherwise opaque: the engine
         // does not refract, so it draws blended, as see-through as it transmits (down to
         // kTransmissiveMinOpacity), its base colour's alpha carrying the opacity.
-        const bool transmissive = m.transmission > 0.0f && m.alphaMode == model::AlphaMode::Opaque &&
-                                  m.shadingModel == model::ShadingModel::Pbr;
+        const bool transmissive = DrawsTransmissive(m);
         const Float4 baseColor = transmissive
                                      ? Float4{m.baseColorFactor.x, m.baseColorFactor.y, m.baseColorFactor.z,
                                               m.baseColorFactor.w * (1.0f - Clamp(m.transmission, 0.0f, 1.0f) * (1.0f - kTransmissiveMinOpacity))}

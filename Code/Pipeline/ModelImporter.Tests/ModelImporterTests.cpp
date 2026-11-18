@@ -535,10 +535,11 @@ TEST_CASE("importer: FBX separate metal/rough maps bake into one packed MR textu
     CHECK(linear[1]);
 }
 
-TEST_CASE("importer: a masked material's base colour keeps its cutoff's coverage in its mipmaps")
+TEST_CASE("importer: a base colour's alpha uses are each cutoff its materials test at, and whether one blends")
 {
-    // Leaves: an alpha-tested (Mask) material's base colour. Its cutoff is what each mipmap keeps
-    // the coverage of; an opaque or blended material's texture, and every other slot, keep none.
+    // Leaves tested at two cutoffs (the same cutoff twice counts once), a veil blending with the
+    // same texture, glass (transmissive, drawn blended) with another; an opaque material reads no
+    // alpha, and a normal map is no base colour.
     model::Model mdl;
     const auto makeTexture = [&]() -> i32
     {
@@ -552,29 +553,136 @@ TEST_CASE("importer: a masked material's base colour keeps its cutoff's coverage
     const i32 leaves = makeTexture();
     const i32 leavesNormal = makeTexture();
     const i32 bark = makeTexture();
-    const i32 glass = makeTexture();
+    const i32 glassTexture = makeTexture();
+    const i32 grass = makeTexture();
+    const auto material = [&](model::AlphaMode mode, f32 cutoff, i32 baseColour) -> model::ModelMaterial*
+    {
+        auto* m = new model::ModelMaterial();
+        m->alphaMode = mode;
+        m->alphaCutoff = cutoff;
+        m->baseColorTextureIndex = baseColour;
+        mdl.addMaterial(m);
+        return m;
+    };
+    material(model::AlphaMode::Mask, 0.5f, leaves)->normalTextureIndex = leavesNormal;
+    material(model::AlphaMode::Mask, 0.3f, leaves);
+    material(model::AlphaMode::Mask, 0.5f, leaves);
+    material(model::AlphaMode::Blend, 0.5f, leaves);
+    material(model::AlphaMode::Opaque, 0.5f, bark);
+    material(model::AlphaMode::Opaque, 0.5f, glassTexture)->transmission = 1.0f;
+    material(model::AlphaMode::Mask, 0.45f, grass);
+    material(model::AlphaMode::Opaque, 0.5f, grass); // reads no alpha: grass keeps its cutoff's copy
 
-    auto* masked = new model::ModelMaterial();
-    masked->alphaMode = model::AlphaMode::Mask;
-    masked->alphaCutoff = 0.45f;
-    masked->baseColorTextureIndex = leaves;
-    masked->normalTextureIndex = leavesNormal;
-    mdl.addMaterial(masked);
-    auto* opaque = new model::ModelMaterial();
-    opaque->baseColorTextureIndex = bark;
-    mdl.addMaterial(opaque);
-    auto* blended = new model::ModelMaterial();
-    blended->alphaMode = model::AlphaMode::Blend;
-    blended->baseColorTextureIndex = glass;
-    mdl.addMaterial(blended);
+    Array<pipeline::TextureAlphaUses> uses;
+    pipeline::ClassifyBaseColorAlpha(mdl, uses);
+    REQUIRE(uses.Size() == 5u);
+    const pipeline::TextureAlphaUses& leafUses = uses[static_cast<usize>(leaves)];
+    REQUIRE(leafUses.cutoffs.Size() == 2u);
+    CHECK(leafUses.cutoffs[0] == pipeline::AlphaCutoffStep(0.3f)); // ascending, once each
+    CHECK(leafUses.cutoffs[1] == pipeline::AlphaCutoffStep(0.5f));
+    CHECK(leafUses.blended);
+    CHECK(leafUses.OwnCutoff() == 0u); // the veil blends with it: its own asset stays plain
+    CHECK(uses[static_cast<usize>(leavesNormal)].cutoffs.IsEmpty());
+    CHECK(uses[static_cast<usize>(bark)].cutoffs.IsEmpty());
+    CHECK_FALSE(uses[static_cast<usize>(bark)].blended);
+    CHECK(uses[static_cast<usize>(glassTexture)].blended);
+    const pipeline::TextureAlphaUses& grassUses = uses[static_cast<usize>(grass)];
+    CHECK(grassUses.OwnCutoff() == pipeline::AlphaCutoffStep(0.45f)); // its own asset keeps the cutoff
+    CHECK(pipeline::AlphaCopySuffix(pipeline::AlphaCutoffStep(0.5f)) != pipeline::AlphaCopySuffix(pipeline::AlphaCutoffStep(0.3f)));
+}
 
-    Array<f32> cutoff;
-    pipeline::ClassifyAlphaTestedTextures(mdl, cutoff);
-    REQUIRE(cutoff.Size() == 4u);
-    CHECK(cutoff[static_cast<usize>(leaves)] == doctest::Approx(0.45f));
-    CHECK(cutoff[static_cast<usize>(leavesNormal)] == 0.0f);
-    CHECK(cutoff[static_cast<usize>(bark)] == 0.0f);
-    CHECK(cutoff[static_cast<usize>(glass)] == 0.0f);
+TEST_CASE("model-import: a base colour shared by materials with different alpha uses is an asset per use")
+{
+    // One texture: leaves tested at 0.5, leaves tested at 0.3, a veil blending with it. Each tested
+    // material reads a copy keeping its own cutoff's coverage; the veil reads the alpha as authored.
+    using namespace editor;
+    pipeline::RegisterModelManifestAsset();
+    pipeline::RegisterTextureAsset();
+    pipeline::RegisterMeshAssets();
+    pipeline::RegisterMaterialAsset();
+    pipeline::RegisterAnimationAssets();
+
+    const String dir(u8"scratch_gltf_alphauses_project");
+    (void)RemoveDirectoryRecursive(dir.AsView());
+    (void)RemoveDirectoryRecursive(u8"scratch_gltf_alphauses_src");
+    REQUIRE(CreateDirectories(u8"scratch_gltf_alphauses_src"));
+    const String source = PathJoin(u8"scratch_gltf_alphauses_src", u8"Shrub.gltf");
+    const StringView gltf = u8R"({"asset":{"version":"2.0"},"scene":0,"scenes":[{"nodes":[0]}],"nodes":[{"mesh":0}],"meshes":[{"primitives":[{"attributes":{"POSITION":0,"TEXCOORD_0":1},"material":0},{"attributes":{"POSITION":0,"TEXCOORD_0":1},"material":1},{"attributes":{"POSITION":0,"TEXCOORD_0":1},"material":2}]}],"materials":[{"name":"LeavesHalf","alphaMode":"MASK","alphaCutoff":0.5,"pbrMetallicRoughness":{"baseColorTexture":{"index":0}}},{"name":"LeavesLow","alphaMode":"MASK","alphaCutoff":0.3,"pbrMetallicRoughness":{"baseColorTexture":{"index":0}}},{"name":"Veil","alphaMode":"BLEND","pbrMetallicRoughness":{"baseColorTexture":{"index":0}}}],"textures":[{"source":0}],"images":[{"name":"leaf","uri":"leaf.png"}],"buffers":[{"byteLength":60,"uri":"data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/"}],"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":36},{"buffer":0,"byteOffset":36,"byteLength":24}],"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","min":[0,0,0],"max":[1,1,0]},{"bufferView":1,"componentType":5126,"count":3,"type":"VEC2"}]})";
+    REQUIRE(WriteFile(source.AsView(), Span<const byte>(reinterpret_cast<const byte*>(gltf.Data()), gltf.Size()))
+                .IsOk());
+    // A 2 x 2 RGBA image, two texels opaque and two clear, beside the model.
+    const u8 leaf[] = {0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x08, 0x06, 0x00, 0x00, 0x00, 0x72, 0xb6, 0x0d, 0x24, 0x00, 0x00, 0x00, 0x11, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9c, 0x63, 0xf8, 0x0f, 0x01, 0x0c, 0x0c, 0x20, 0x02, 0xc4, 0x02, 0x00, 0x80, 0x91, 0x0d, 0xf3, 0x7e, 0xc1, 0xff, 0xde, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e, 0x44, 0xae, 0x42, 0x60, 0x82};
+    REQUIRE(WriteFile(PathJoin(u8"scratch_gltf_alphauses_src", u8"leaf.png").AsView(),
+                      Span<const byte>(reinterpret_cast<const byte*>(leaf), sizeof(leaf)))
+                .IsOk());
+    REQUIRE(EditorProject::Create(DefaultAllocator(), dir.AsView(), u8"P").IsOk());
+    UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir.AsView());
+    REQUIRE(static_cast<bool>(project));
+
+    pipeline::ModelFileImporter importer;
+    Result<foundation::content::Instance*> imported =
+        importer.Import(source.AsView(), pipeline::ImportContext{DefaultAllocator(), project->SourcesRoot()},
+                        *project->SourceDb().RootGroup(), nullptr, nullptr, nullptr);
+    REQUIRE(imported.HasValue());
+    RefPtr<ISerializable> object = imported.Value()->ReadObject();
+    auto* manifest = Cast<pipeline::ModelManifestAsset>(object.Get());
+    REQUIRE(manifest != nullptr);
+    REQUIRE(manifest->manifest.materialGuids.Size() == 3u);
+    usize textures = 0;
+    for (foundation::content::Instance* inst : imported.Value()->OwningGroup().Instances())
+        textures += inst->TypeName() == StringView(u8"TextureAsset") ? 1u : 0u;
+    CHECK(textures == 3u); // the texture, and a copy for each cutoff
+
+    // The texture each material reads as its base colour, and what that asset keeps.
+    struct Read
+    {
+        bool coverage = false;
+        f32 reference = 0.0f;
+        String name;
+        Guid id;
+    };
+    const auto baseColour = [&](usize material) -> Read
+    {
+        foundation::content::Instance* inst = project->SourceDb().GetInstance(manifest->manifest.materialGuids[material]);
+        REQUIRE(inst != nullptr);
+        RefPtr<ISerializable> read = inst->ReadObject();
+        auto* asset = Cast<pipeline::MaterialAsset>(read.Get());
+        REQUIRE(asset != nullptr);
+        Read out;
+        for (usize slot = 0; slot < asset->source.textureSlots.Size(); ++slot)
+        {
+            if (asset->source.textureSlots[slot].AsView() == StringView(u8"AlbedoMap"))
+            {
+                out.id = asset->source.textureIds[slot];
+            }
+        }
+        foundation::content::Instance* texture = project->SourceDb().GetInstance(out.id);
+        REQUIRE(texture != nullptr);
+        out.name = String(texture->Name());
+        RefPtr<ISerializable> textureObject = texture->ReadObject();
+        auto* ta = Cast<pipeline::TextureAsset>(textureObject.Get());
+        REQUIRE(ta != nullptr);
+        out.coverage = ta->preserveAlphaCoverage;
+        out.reference = ta->alphaCoverageReference;
+        CHECK(manifest->manifest.materialAlbedo[material] == out.id); // the manifest names the same one
+        return out;
+    };
+    const Read half = baseColour(0);
+    const Read low = baseColour(1);
+    const Read veil = baseColour(2);
+    CHECK_FALSE(veil.coverage); // the alpha as authored
+    CHECK(half.coverage);
+    CHECK(half.reference == doctest::Approx(0.5f).epsilon(0.01));
+    CHECK(low.coverage);
+    CHECK(low.reference == doctest::Approx(0.3f).epsilon(0.01));
+    CHECK(half.id != low.id);
+    CHECK(half.id != veil.id);
+    CHECK(half.name.AsView().StartsWith(veil.name.AsView())); // a copy is named after the texture
+    CHECK(low.name.AsView().StartsWith(veil.name.AsView()));
+
+    project = nullptr;
+    (void)RemoveDirectoryRecursive(dir.AsView());
+    (void)RemoveDirectoryRecursive(u8"scratch_gltf_alphauses_src");
 }
 
 TEST_CASE("mesh convert: missing tangent stream generates tangents (DamagedHelmet class)")
@@ -1891,6 +1999,78 @@ namespace
         Bc4Solid(normal.data, 128);
         WriteDdsFile(normal, PathJoin(dir, u8"tex/normal.dds").AsView());
     }
+}
+
+TEST_CASE("model-import: a file-backed base colour tested at two cutoffs is an asset per cutoff over one file")
+{
+    // The DDS triangle's albedo, as the base colour of leaves tested at 0.5 and at 0.3: the
+    // texture's own asset keeps the lower cutoff's coverage, a copy the higher's, both over the
+    // one file, and each material reads the one for its cutoff.
+    using namespace editor;
+    pipeline::RegisterModelManifestAsset();
+    pipeline::RegisterTextureAsset();
+    pipeline::RegisterMeshAssets();
+    pipeline::RegisterMaterialAsset();
+    pipeline::RegisterAnimationAssets();
+
+    const StringView src = u8"scratch_dds_cutoffs_src";
+    const StringView dir = u8"scratch_dds_cutoffs_project";
+    (void)RemoveDirectoryRecursive(src);
+    (void)RemoveDirectoryRecursive(dir);
+    WriteDdsTriangle(src);
+    const StringView json =
+        u8"{\"asset\":{\"version\":\"2.0\"},\"scene\":0,\"scenes\":[{\"nodes\":[0]}],"
+        u8"\"nodes\":[{\"mesh\":0,\"name\":\"Tri\"}],"
+        u8"\"meshes\":[{\"primitives\":[{\"attributes\":{\"POSITION\":0,\"NORMAL\":1,\"TEXCOORD_0\":2},\"indices\":3,\"material\":0},"
+        u8"{\"attributes\":{\"POSITION\":0,\"NORMAL\":1,\"TEXCOORD_0\":2},\"indices\":3,\"material\":1}]}],"
+        u8"\"extensionsUsed\":[\"MSFT_texture_dds\"],"
+        u8"\"materials\":[{\"name\":\"Half\",\"alphaMode\":\"MASK\",\"alphaCutoff\":0.5,\"pbrMetallicRoughness\":{\"baseColorTexture\":{\"index\":0}}},"
+        u8"{\"name\":\"Low\",\"alphaMode\":\"MASK\",\"alphaCutoff\":0.3,\"pbrMetallicRoughness\":{\"baseColorTexture\":{\"index\":0}}}],"
+        u8"\"textures\":[{\"source\":1,\"extensions\":{\"MSFT_texture_dds\":{\"source\":0}}}],"
+        u8"\"images\":[{\"uri\":\"tex/albedo.dds\"},{\"uri\":\"tex/albedo.png\"}],"
+        u8"\"buffers\":[{\"uri\":\"tri.bin\",\"byteLength\":102}],"
+        u8"\"bufferViews\":[{\"buffer\":0,\"byteOffset\":0,\"byteLength\":36},{\"buffer\":0,\"byteOffset\":36,\"byteLength\":36},"
+        u8"{\"buffer\":0,\"byteOffset\":72,\"byteLength\":24},{\"buffer\":0,\"byteOffset\":96,\"byteLength\":6}],"
+        u8"\"accessors\":[{\"bufferView\":0,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\",\"min\":[0,0,0],\"max\":[1,1,0]},"
+        u8"{\"bufferView\":1,\"componentType\":5126,\"count\":3,\"type\":\"VEC3\"},"
+        u8"{\"bufferView\":2,\"componentType\":5126,\"count\":3,\"type\":\"VEC2\"},"
+        u8"{\"bufferView\":3,\"componentType\":5123,\"count\":3,\"type\":\"SCALAR\"}]}";
+    REQUIRE(WriteFile(PathJoin(src, u8"tri.gltf").AsView(), Span<const byte>(reinterpret_cast<const byte*>(json.Data()), json.Size()))
+                .IsOk());
+
+    REQUIRE(EditorProject::Create(DefaultAllocator(), dir, u8"P").IsOk());
+    UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir);
+    REQUIRE(static_cast<bool>(project));
+    pipeline::ModelFileImporter importer;
+    Result<foundation::content::Instance*> imported =
+        importer.Import(PathJoin(src, u8"tri.gltf").AsView(), pipeline::ImportContext{DefaultAllocator(), project->SourcesRoot()},
+                        *project->SourceDb().RootGroup(), nullptr, nullptr, nullptr);
+    REQUIRE(imported.HasValue());
+    RefPtr<ISerializable> object = imported.Value()->ReadObject();
+    auto* manifest = Cast<pipeline::ModelManifestAsset>(object.Get());
+    REQUIRE(manifest != nullptr);
+    REQUIRE(manifest->manifest.materialAlbedo.Size() == 2u);
+    const Guid halfId = manifest->manifest.materialAlbedo[0];
+    const Guid lowId = manifest->manifest.materialAlbedo[1];
+    CHECK(halfId != lowId);
+    const auto read = [&](const Guid& id, f32 reference)
+    {
+        foundation::content::Instance* inst = project->SourceDb().GetInstance(id);
+        REQUIRE(inst != nullptr);
+        RefPtr<ISerializable> got = inst->ReadObject();
+        auto* asset = Cast<pipeline::TextureAsset>(got.Get());
+        REQUIRE(asset != nullptr);
+        CHECK(asset->fileName == StringView(u8"tri/tex/albedo.dds")); // the one file
+        CHECK(asset->preserveAlphaCoverage);
+        CHECK(asset->alphaCoverageReference == doctest::Approx(reference).epsilon(0.01));
+    };
+    read(halfId, 0.5f);
+    read(lowId, 0.3f);
+    CHECK(FileExists(PathJoin(dir, u8"Sources/tri/tex/albedo.dds").AsView()));
+
+    project = nullptr;
+    (void)RemoveDirectoryRecursive(dir);
+    (void)RemoveDirectoryRecursive(src);
 }
 
 TEST_CASE("model-import: DDS textures stay on disk as file-backed assets and pass through the cook")

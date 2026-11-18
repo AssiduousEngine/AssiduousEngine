@@ -96,7 +96,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   texture's mipmaps averaged each leaf with the gaps round it below the material's cutoff; a
   texture can now keep its cutoff's coverage in every mipmap (Preserve Alpha Coverage, with the
   cutoff as its reference), and a model import sets it for each alpha-tested material's base colour.
-  Reimport a model to have it for textures imported before.
+  A texture that materials use in different ways becomes one asset per use: a copy per cutoff it is
+  tested at, and the alpha as authored for a material that blends with it. Reimport a model to have
+  it for textures imported before.
 - A body with a joint, edited in play (its size in the inspector, a script), keeps the joint; it
   had stayed on the old body and left the new one free.
 - Editor: a game's mouse look in the Game tab keeps turning however far the mouse moves; it stopped

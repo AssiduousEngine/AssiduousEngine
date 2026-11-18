@@ -880,9 +880,10 @@ export namespace pipeline
             // Gem_Blue.gltf) takes a suffix rather than the manifest's instance.
             claimed.PushBack(String(stem));
             Array<Guid> textureGuids;
+            HashMap<u64, Guid> alphaCopies; // a base colour's copies for its other cutoffs (ImportTextures)
             if (opt.importTextures)
             {
-                ImportTextures(model, context, sidecarsCopied, *modelGroup, textureGuids, claimed,
+                ImportTextures(model, context, sidecarsCopied, *modelGroup, textureGuids, alphaCopies, claimed,
                                deferredWrites, opt);
             }
             else
@@ -895,7 +896,7 @@ export namespace pipeline
             lap(phaseTexturesMs);
             if (opt.importMaterials)
             {
-                ImportMaterials(model, *modelGroup, textureGuids, manifest, claimed,
+                ImportMaterials(model, *modelGroup, textureGuids, alphaCopies, manifest, claimed,
                                 deferredWrites, opt);
             }
             lap(phaseMaterialsMs);
@@ -1111,10 +1112,14 @@ export namespace pipeline
             return true;
         }
 
+        // `coverageCutoff` (AlphaCutoffStep, 0 for none): the cutoff whose coverage its mipmaps
+        // keep. A copy of a texture (another cutoff's, AlphaCopySuffix in `nameSuffix`) names
+        // itself after the texture with the suffix, follows the texture's selection, and does not
+        // copy the source file again.
         static content::Instance* ImportFileBackedTexture(
             const foundation::model::ModelTexture& t, usize index, bool normalSlot, bool linear,
-            f32 alphaCutoff, const pipeline::ImportContext& context, bool sidecarsCopied, content::Group& group,
-            Array<String>& claimed, Array<pipeline::DeferredImportWrite>* deferredWrites,
+            u8 coverageCutoff, StringView nameSuffix, const pipeline::ImportContext& context, bool sidecarsCopied,
+            content::Group& group, Array<String>& claimed, Array<pipeline::DeferredImportWrite>* deferredWrites,
             const pipeline::ImportOptions& sel)
         {
             const StringView sourceFile = t.sourceFile();
@@ -1140,7 +1145,8 @@ export namespace pipeline
             // The .gltf sidecar pass already copies every relative uri (the same bytes to the
             // same place), and copying again here would double a large package's IO. Only what
             // it did not cover is copied: an absolute reference, or a container with no sidecar pass.
-            if (!(relative && sidecarsCopied))
+            const bool copy = nameSuffix.IsEmpty(); // a copy's file came in with the texture's own asset
+            if (copy && !(relative && sidecarsCopied))
             {
                 if (deferredWrites != nullptr)
                 {
@@ -1183,11 +1189,15 @@ export namespace pipeline
                 asset.SetupForDataMask();
             }
             // A masked material's base colour: its mipmaps keep the cutoff's coverage.
-            asset.preserveAlphaCoverage = alphaCutoff > 0.0f;
-            asset.alphaCoverageReference = alphaCutoff > 0.0f ? alphaCutoff : asset.alphaCoverageReference;
-            content::Instance* inst = ClaimInstance(
-                group, sel.SelectionName(pipeline::ImportResourceKind::Texture, texBase.AsView()),
-                pipeline::TextureAsset::StaticType(), claimed);
+            if (coverageCutoff > 0)
+            {
+                asset.preserveAlphaCoverage = true;
+                asset.alphaCoverageReference = static_cast<f32>(coverageCutoff) / 255.0f;
+            }
+            String name = sel.SelectionName(pipeline::ImportResourceKind::Texture, texBase.AsView());
+            name.Append(nameSuffix);
+            content::Instance* inst =
+                ClaimInstance(group, name.AsView(), pipeline::TextureAsset::StaticType(), claimed);
             if (inst == nullptr || !inst->WriteObject(asset).IsOk())
             {
                 return nullptr;
@@ -1195,10 +1205,14 @@ export namespace pipeline
             return inst;
         }
 
+        // Every texture as an asset (outGuids, by texture index; nil when deselected or failed), and,
+        // for a base colour that materials test at more than one cutoff, or that one blends with,
+        // a copy per other cutoff keeping that cutoff's coverage (outAlphaCopies, by AlphaCopyKey):
+        // a masked material reads the copy for its cutoff, the rest the texture's own asset.
         static void ImportTextures(const foundation::model::Model& model,
                                    const pipeline::ImportContext& context, bool sidecarsCopied,
                                    content::Group& group, Array<Guid>& outGuids,
-                                   Array<String>& claimed,
+                                   HashMap<u64, Guid>& outAlphaCopies, Array<String>& claimed,
                                    Array<pipeline::DeferredImportWrite>* deferredWrites,
                                    const pipeline::ImportOptions& sel)
         {
@@ -1208,49 +1222,48 @@ export namespace pipeline
             ClassifyLinearTextures(model, linear);
             Array<bool> normal;
             ClassifyNormalTextures(model, normal);
-            Array<f32> cutoff; // a masked material's base colour: its alpha cutoff
-            ClassifyAlphaTestedTextures(model, cutoff);
+            Array<TextureAlphaUses> alpha; // what the base colour's materials need of its alpha
+            ClassifyBaseColorAlpha(model, alpha);
 
             const Span<foundation::model::ModelTexture* const> textures = model.textures();
             for (usize i = 0; i < textures.Size(); ++i)
             {
                 const foundation::model::ModelTexture& t = *textures[i];
+                const TextureAlphaUses* uses = i < alpha.Size() ? &alpha[i] : nullptr;
+                const u8 ownCutoff = uses != nullptr ? uses->OwnCutoff() : u8{0};
                 const u8* data = t.getData();
                 const i32 size = t.getDataSize();
                 const bool rgba8 = (data != nullptr && t.width > 0 && t.height > 0 &&
                                     size == t.width * t.height * 4);
                 if (!rgba8)
                 {
+                    const bool isNormal = i < normal.Size() && normal[i];
+                    const bool isLinear = i < linear.Size() && linear[i];
                     content::Instance* fileBacked =
                         t.sourceFile().IsEmpty()
                             ? nullptr
-                            : ImportFileBackedTexture(t, i, i < normal.Size() && normal[i],
-                                                      i < linear.Size() && linear[i],
-                                                      i < cutoff.Size() ? cutoff[i] : 0.0f, context,
-                                                      sidecarsCopied, group, claimed,
-                                                      deferredWrites, sel);
+                            : ImportFileBackedTexture(t, i, isNormal, isLinear, ownCutoff, StringView{}, context,
+                                                      sidecarsCopied, group, claimed, deferredWrites, sel);
                     outGuids.PushBack(fileBacked != nullptr ? fileBacked->Id() : Guid{});
+                    if (fileBacked != nullptr && uses != nullptr)
+                    {
+                        for (const u8 cutoff : uses->cutoffs)
+                        {
+                            if (cutoff == ownCutoff)
+                            {
+                                continue;
+                            }
+                            const String suffix = AlphaCopySuffix(cutoff);
+                            if (content::Instance* copy = ImportFileBackedTexture(t, i, isNormal, isLinear, cutoff, suffix.AsView(),
+                                                                                  context, sidecarsCopied, group, claimed,
+                                                                                  deferredWrites, sel))
+                            {
+                                outAlphaCopies.InsertOrAssign(AlphaCopyKey(i, cutoff), copy->Id());
+                            }
+                        }
+                    }
                     continue;
                 }
-
-                pipeline::TextureAsset asset;
-                asset.embeddedWidth = static_cast<u32>(t.width);
-                asset.embeddedHeight = static_cast<u32>(t.height);
-                asset.colorSpace =
-                    (i < linear.Size() && linear[i])
-                        ? foundation::image::ImageColorSpace::Linear // data maps (normal, MR, AO)
-                        : foundation::image::ImageColorSpace::Srgb;  // color maps (albedo, emissive)
-                asset.generateMipmaps = true; // mips at cook; without them minified textures shimmer
-                // A masked material's base colour: its mipmaps keep the cutoff's coverage.
-                if (i < cutoff.Size() && cutoff[i] > 0.0f)
-                {
-                    asset.preserveAlphaCoverage = true;
-                    asset.alphaCoverageReference = cutoff[i];
-                }
-                // Provenance for the texture page: the model's image uri (display only;
-                // asset names prefer the file stem, but a review-dialog rename or an
-                // authored-name fallback can still diverge from the file).
-                asset.sourceHint = String(t.uri());
 
                 // Asset names prefer the file stem (authored image names can misdescribe the
                 // file, such as packed arm maps named "*_rough"); embedded images fall
@@ -1261,32 +1274,68 @@ export namespace pipeline
                     outGuids.PushBack(Guid{}); // deselected: dependents wire no texture
                     continue;
                 }
-                content::Instance* inst = ClaimInstance(
-                    group,
-                    sel.SelectionName(pipeline::ImportResourceKind::Texture, texBase.AsView()),
-                    pipeline::TextureAsset::StaticType(), claimed);
-                if (inst == nullptr || !inst->WriteObject(asset).IsOk())
+                const Span<const byte> pixels{reinterpret_cast<const byte*>(data), static_cast<usize>(size)};
+                // The texture's own asset (keeping `ownCutoff`'s coverage, or none), then a copy per
+                // other cutoff its materials test at.
+                const auto importEmbedded = [&](u8 cutoff, StringView suffix) -> Guid
                 {
-                    outGuids.PushBack(Guid{});
-                    continue;
-                }
-                const Span<const byte> pixels{reinterpret_cast<const byte*>(data),
-                                              static_cast<usize>(size)};
-                if (deferredWrites != nullptr)
+                    pipeline::TextureAsset asset;
+                    asset.embeddedWidth = static_cast<u32>(t.width);
+                    asset.embeddedHeight = static_cast<u32>(t.height);
+                    asset.colorSpace =
+                        (i < linear.Size() && linear[i])
+                            ? foundation::image::ImageColorSpace::Linear // data maps (normal, MR, AO)
+                            : foundation::image::ImageColorSpace::Srgb;  // color maps (albedo, emissive)
+                    asset.generateMipmaps = true; // mips at cook; without them minified textures shimmer
+                    // A masked material's base colour: its mipmaps keep the cutoff's coverage.
+                    if (cutoff > 0)
+                    {
+                        asset.preserveAlphaCoverage = true;
+                        asset.alphaCoverageReference = static_cast<f32>(cutoff) / 255.0f;
+                    }
+                    // Provenance for the texture page: the model's image uri (display only;
+                    // asset names prefer the file stem, but a review-dialog rename or an
+                    // authored-name fallback can still diverge from the file).
+                    asset.sourceHint = String(t.uri());
+                    String name = sel.SelectionName(pipeline::ImportResourceKind::Texture, texBase.AsView());
+                    name.Append(suffix);
+                    content::Instance* inst =
+                        ClaimInstance(group, name.AsView(), pipeline::TextureAsset::StaticType(), claimed);
+                    if (inst == nullptr || !inst->WriteObject(asset).IsOk())
+                    {
+                        return Guid{};
+                    }
+                    if (deferredWrites != nullptr)
+                    {
+                        // Decoded pixels are the import's bulk (hundreds of MB for a big model):
+                        // park them for the worker flush; the view borrows from the prepared
+                        // model, which the caller keeps alive until the flush completes.
+                        pipeline::DeferredImportWrite write;
+                        write.instance = inst;
+                        write.streamName = String(u8"pixels");
+                        write.view = pixels;
+                        deferredWrites->PushBack(static_cast<pipeline::DeferredImportWrite&&>(write));
+                        return inst->Id();
+                    }
+                    return inst->WriteData(u8"pixels", pixels).IsOk() ? inst->Id() : Guid{};
+                };
+                const Guid own = importEmbedded(ownCutoff, StringView{});
+                outGuids.PushBack(own);
+                if (!own.IsNil() && uses != nullptr)
                 {
-                    // Decoded pixels are the import's bulk (hundreds of MB for a big model):
-                    // park them for the worker flush; the view borrows from the prepared
-                    // model, which the caller keeps alive until the flush completes.
-                    pipeline::DeferredImportWrite write;
-                    write.instance = inst;
-                    write.streamName = String(u8"pixels");
-                    write.view = pixels;
-                    deferredWrites->PushBack(static_cast<pipeline::DeferredImportWrite&&>(write));
-                    outGuids.PushBack(inst->Id());
-                    continue;
+                    for (const u8 cutoff : uses->cutoffs)
+                    {
+                        if (cutoff == ownCutoff)
+                        {
+                            continue;
+                        }
+                        const Guid copy = importEmbedded(cutoff, AlphaCopySuffix(cutoff).AsView());
+                        if (!copy.IsNil())
+                        {
+                            outAlphaCopies.InsertOrAssign(AlphaCopyKey(i, cutoff), copy);
+                        }
+                    }
                 }
-                const Status ds = inst->WriteData(u8"pixels", pixels);
-                outGuids.PushBack(ds.IsOk() ? inst->Id() : Guid{});
             }
         }
 
@@ -1349,7 +1398,8 @@ export namespace pipeline
         }
 
         static void ImportMaterials(const foundation::model::Model& model, content::Group& group,
-                                    const Array<Guid>& textureGuids, ModelManifestSource& manifest,
+                                    const Array<Guid>& textureGuids, const HashMap<u64, Guid>& alphaCopies,
+                                    ModelManifestSource& manifest,
                                     Array<String>& claimed,
                                     Array<pipeline::DeferredImportWrite>* deferredWrites,
                                     const pipeline::ImportOptions& sel)
@@ -1377,6 +1427,26 @@ export namespace pipeline
                                    [&](i32 roughIndex, i32 metalIndex)
                                    { return GetOrBakePackedMR(model, group, bakedMR, roughIndex, metalIndex, claimed, deferredWrites); },
                                    asset);
+                // An alpha-tested material reads the copy of its base colour that keeps its own
+                // cutoff's coverage, where the texture's asset keeps another's or none (ImportTextures).
+                const i32 tIdx = m.baseColorTextureIndex;
+                Guid albedo = (tIdx >= 0 && static_cast<usize>(tIdx) < textureGuids.Size())
+                                  ? textureGuids[static_cast<usize>(tIdx)]
+                                  : Guid{};
+                if (tIdx >= 0 && BaseColorAlphaUse(m) == BaseAlphaUse::Tested)
+                {
+                    if (const Guid* copy = alphaCopies.Find(AlphaCopyKey(static_cast<usize>(tIdx), AlphaCutoffStep(m.alphaCutoff))))
+                    {
+                        for (usize slot = 0; slot < asset.source.textureSlots.Size(); ++slot)
+                        {
+                            if (asset.source.textureSlots[slot].AsView() == StringView(u8"AlbedoMap"))
+                            {
+                                asset.source.textureIds[slot] = *copy;
+                            }
+                        }
+                        albedo = *copy;
+                    }
+                }
 
                 content::Instance* inst = ClaimInstance(
                     group,
@@ -1389,12 +1459,7 @@ export namespace pipeline
                     continue;
                 }
                 manifest.materialGuids.PushBack(inst->Id());
-
-                const i32 tIdx = m.baseColorTextureIndex;
-                manifest.materialAlbedo.PushBack(
-                    (tIdx >= 0 && static_cast<usize>(tIdx) < textureGuids.Size())
-                        ? textureGuids[static_cast<usize>(tIdx)]
-                        : Guid{});
+                manifest.materialAlbedo.PushBack(albedo);
             }
         }
 

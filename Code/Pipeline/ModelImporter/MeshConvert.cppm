@@ -565,27 +565,105 @@ namespace pipeline
             }
         }
 
-        // Per texture, the cutoff of an alpha-tested (Mask) material that takes it as its base
-        // colour, 0 for none: its mipmaps keep that cutoff's coverage (TextureAsset::
-        // preserveAlphaCoverage), or leaves and grass thin out and vanish with distance. Two
-        // masked materials sharing one texture: the higher cutoff, which thins the most.
-        inline void ClassifyAlphaTestedTextures(const model::Model& mdl, Array<f32>& outCutoff)
+        // How a material reads its base colour's alpha: tested against its cutoff (Mask), blended
+        // (Blend, or a transmissive surface the engine draws blended), or not at all (opaque).
+        enum class BaseAlphaUse : u8
         {
-            outCutoff.Clear();
-            outCutoff.Resize(mdl.textures().Size(), 0.0f);
+            Ignored,
+            Tested,
+            Blended,
+        };
+
+        // A transmissive (glass) surface that is otherwise opaque: the engine does not refract, so
+        // it draws blended, its base colour's alpha carrying the opacity (BuildModelMaterial).
+        [[nodiscard]] inline bool DrawsTransmissive(const model::ModelMaterial& m) noexcept
+        {
+            return m.transmission > 0.0f && m.alphaMode == model::AlphaMode::Opaque &&
+                   m.shadingModel == model::ShadingModel::Pbr;
+        }
+
+        // The alpha a cutoff compares against, in the 1/255 steps the cook keeps coverage in. 0: a
+        // cutoff everything passes, which has no coverage to keep.
+        [[nodiscard]] inline u8 AlphaCutoffStep(f32 cutoff) noexcept
+        {
+            return static_cast<u8>(Clamp(cutoff, 0.0f, 1.0f) * 255.0f + 0.5f);
+        }
+
+        [[nodiscard]] inline BaseAlphaUse BaseColorAlphaUse(const model::ModelMaterial& m) noexcept
+        {
+            if (m.alphaMode == model::AlphaMode::Mask)
+            {
+                return AlphaCutoffStep(m.alphaCutoff) > 0 ? BaseAlphaUse::Tested : BaseAlphaUse::Ignored;
+            }
+            if (m.alphaMode == model::AlphaMode::Blend || DrawsTransmissive(m))
+            {
+                return BaseAlphaUse::Blended;
+            }
+            return BaseAlphaUse::Ignored;
+        }
+
+        // What the materials taking a texture as their base colour need of its alpha: the cutoffs
+        // they test it at (distinct AlphaCutoffStep values, ascending), each needing mipmaps that
+        // keep that cutoff's coverage (TextureAsset::preserveAlphaCoverage), or leaves and grass
+        // thin out and vanish with distance; and whether one blends with it, which needs the alpha
+        // as authored. An opaque material reads no alpha and takes any of them.
+        struct TextureAlphaUses
+        {
+            Array<u8> cutoffs;
+            bool blended = false;
+
+            // The cutoff whose coverage the texture's own asset keeps (0: none): the first tested
+            // one, unless a material blends with it, which keeps the plain asset. Every other
+            // cutoff gets an asset of its own.
+            [[nodiscard]] u8 OwnCutoff() const noexcept { return !blended && !cutoffs.IsEmpty() ? cutoffs[0] : u8{0}; }
+        };
+
+        inline void ClassifyBaseColorAlpha(const model::Model& mdl, Array<TextureAlphaUses>& out)
+        {
+            out.Clear();
+            out.Resize(mdl.textures().Size());
             for (const model::ModelMaterial* m : mdl.materials())
             {
-                if (m == nullptr || m->alphaMode != model::AlphaMode::Mask)
+                if (m == nullptr || m->baseColorTextureIndex < 0 || static_cast<usize>(m->baseColorTextureIndex) >= out.Size())
                 {
                     continue;
                 }
-                const i32 index = m->baseColorTextureIndex;
-                if (index >= 0 && static_cast<usize>(index) < outCutoff.Size())
+                TextureAlphaUses& uses = out[static_cast<usize>(m->baseColorTextureIndex)];
+                switch (BaseColorAlphaUse(*m))
                 {
-                    f32& cutoff = outCutoff[static_cast<usize>(index)];
-                    cutoff = Max(cutoff, Clamp(m->alphaCutoff, 0.0f, 1.0f));
+                case BaseAlphaUse::Tested:
+                {
+                    const u8 step = AlphaCutoffStep(m->alphaCutoff);
+                    usize at = 0;
+                    while (at < uses.cutoffs.Size() && uses.cutoffs[at] < step)
+                    {
+                        ++at;
+                    }
+                    if (at == uses.cutoffs.Size() || uses.cutoffs[at] != step)
+                    {
+                        uses.cutoffs.Insert(at, step);
+                    }
+                    break;
+                }
+                case BaseAlphaUse::Blended:
+                    uses.blended = true;
+                    break;
+                case BaseAlphaUse::Ignored:
+                    break;
                 }
             }
+        }
+
+        // The asset key of a texture's copy that keeps `cutoff`'s coverage (TextureAlphaUses).
+        [[nodiscard]] inline u64 AlphaCopyKey(usize textureIndex, u8 cutoff) noexcept
+        {
+            return (static_cast<u64>(textureIndex) << 8) | cutoff;
+        }
+
+        // The name suffix of that copy: the cutoff in thousandths, distinct for distinct steps.
+        [[nodiscard]] inline String AlphaCopySuffix(u8 cutoff)
+        {
+            return Format(u8"_cutoff{}", (static_cast<u32>(cutoff) * 1000u + 127u) / 255u);
         }
 
         // Bake a glTF-style packed metallic-roughness texture (G = roughness, B = metalness; R = A =
