@@ -14,6 +14,11 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   Assets panel follows it; its menu's Open in Built-in Editor always opens the editor's own page.
   Project > Open Code Folder opens the project's `Code/` folder there, or in the file manager. The
   built-in editor opens `Code/`'s other files, such as a `.csproj`, as plain text.
+- Editor: a project's `Code/` folder keeps what an outside editor needs to complete and check
+  scripts against the engine's API: `engine.d.luau` for Luau and `as.predefined` for AngelScript,
+  written when the project opens and whenever the API changed. With VS Code chosen,
+  `.vscode/extensions.json` recommends luau-lsp and angel-lsp, and `.vscode/settings.json` points
+  luau-lsp at the declarations; once you edit either, it is yours and is not written over.
 - Editor: Preferences, Appearance, Frame rate chooses how the editor's windows present: VSync (the
   default), Uncapped, or Uncapped with tearing. A change applies to every editor window at once,
   with no restart; a device that cannot present in the chosen mode keeps the one it had.

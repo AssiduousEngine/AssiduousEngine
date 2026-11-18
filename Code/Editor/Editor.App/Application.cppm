@@ -218,6 +218,9 @@ export namespace editor::app
         void OpenCommandPalette();
         bool ConfirmExit();
         void OpenPreferences();
+        /// Writes the Code folder's files an outside editor reads (editor::KeepCodeToolingFiles), on a
+        /// worker; with `onlyWithCode`, only when the project has a Code folder already.
+        void KeepCodeTooling(bool onlyWithCode);
         void OpenProjectSettings();
         /// Imports files into a group: at once when nothing needs review, else through the window.
         void ImportFiles(Span<const String> paths, foundation::content::Group& group);

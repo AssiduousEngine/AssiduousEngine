@@ -158,6 +158,9 @@ namespace editor::app
                     return Status{};
                 },
                 {}, self->m_context.LightLane());
+            // The Code folder's declarations follow the engine (and the plugins loaded) from the
+            // engines just prepared.
+            self->KeepCodeTooling(true);
         };
         services.closing = [self]()
         {
@@ -532,6 +535,7 @@ namespace editor::app
         code.context = &m_context;
         code.openPage = [self](foundation::content::Instance& instance) -> editor::EditorPage* { return self->m_pages->Open(instance); };
         code.openFile = [self](StringView file) -> editor::EditorPage* { return self->m_pages->OpenFile(file); };
+        code.beforeLaunch = [self]() { self->KeepCodeTooling(false); };
         code.showFolder = [self](StringView folder)
         {
             if (foundation::shell::IDialogService* dialogs = self->ShellDialogs())
@@ -647,12 +651,36 @@ namespace editor::app
             };
             services.exportChanged = [self]()
             { editor::ApplyExportToolEnvironment(self->m_editorSettings.Section<editor::EditorExportSettings>(), self->m_inheritedTools); };
+            services.codeEditorChanged = [self]() { self->KeepCodeTooling(true); };
             services.showLook = [self](const EditorLook& look) { self->m_window.SetLook(look); };
             services.persist = [self]() { return editor::SaveEditorSettingsToUserData(self->m_editorSettings).IsOk(); };
             m_preferences = MakeUnique<EditorPreferencesDialog>(m_editorAllocator, m_editorAllocator, Move(services),
                                                                 m_window.LoadMarkup(EditorPreferencesDialog::kPath));
         }
         (void)m_preferences->Open(*root);
+    }
+
+    void EditorApplication::KeepCodeTooling(bool onlyWithCode)
+    {
+        editor::EditorProject* project = m_session.Project();
+        if (project == nullptr)
+            return;
+        const String code = project->CodeRoot();
+        if (onlyWithCode && !DirectoryExists(code.AsView()))
+            return; // a project with no code yet gets no Code folder for it
+        const editor::EditorCodeEditorSettings* preference = m_editorSettings.Find<editor::EditorCodeEditorSettings>();
+        const bool vscode = preference != nullptr && preference->editor.AsView() == StringView(u8"vscode");
+        const String ledger = PathJoin(project->CacheRoot().AsView(), editor::kCodeToolingLedger);
+        (void)m_context.Tasks().Submit(
+            u8"Code folder tooling", [code, ledger, vscode](TaskContext&) -> Status
+            {
+                const Array<editor::CodeToolingFile> files = editor::CodeToolingFiles(vscode);
+                const u32 written = editor::KeepCodeToolingFiles(code.AsView(), ledger.AsView(), files.AsSpan());
+                if (written > 0)
+                    LOG_INFO(u8"Editor", u8"wrote {} tooling file(s) into {}", written, code);
+                return Status{};
+            },
+            {}, m_context.LightLane());
     }
 
     // Opens Project Settings over the main window (created on first use), showing the manifest as

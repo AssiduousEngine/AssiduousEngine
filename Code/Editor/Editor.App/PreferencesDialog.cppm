@@ -57,6 +57,8 @@ export namespace editor::app
             Function<void()> mcpChanged;
             /// Called when the export section was saved, so the Android SDK and JDK it names apply.
             Function<void()> exportChanged;
+            /// Called when the code editor section was saved, so the Code folder's files follow it.
+            Function<void()> codeEditorChanged;
             /// Asks for a folder with the system's dialog, starting at `from`; `chosen` gets it, or
             /// nothing when the user cancels.
             Function<void(StringView from, Function<void(StringView)> chosen)> pickFolder;
@@ -414,6 +416,8 @@ export namespace editor::app
                         code.folderCommand = String(Trim(folder->GetText()));
                 }
                 user.MarkChanged<editor::EditorCodeEditorSettings>();
+                if (m_services.codeEditorChanged)
+                    m_services.codeEditorChanged();
             }
             if (editor::GamePreviewSettings* previews = editor::GamePreviewSettings::From(&user))
             {

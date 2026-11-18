@@ -103,14 +103,20 @@
 
 ### Each language's outside tooling (E4)
 
-- The editor keeps a project's tooling files in `Code/`, written on project open and when the
-  engine's script API changed since (the declarations carry the engine build they came from):
+- The editor keeps a project's tooling files in `Code/`, written on project open (when the project
+  has a `Code/` folder), when the code editor preference is saved, and before an outside editor
+  starts. The declarations come from the API the script checks use (the engine and the plugins
+  loaded) and are written whenever they differ:
   - C#: the `.csproj` and `obj/Engine.props` (exist; they move with the project file).
-  - Luau: `engine.d.luau` and a `.luaurc` naming it (luau-lsp reads both).
+  - Luau: `engine.d.luau`. luau-lsp finds a definitions file only through its settings
+    (`luau-lsp.types.definitionFiles`) or its command line, not through `.luaurc`, so no `.luaurc`
+    is written.
   - AngelScript: `as.predefined`.
-  - VS Code: `.vscode/extensions.json` recommending each language's extension, and
-    `.vscode/settings.json` pointing luau-lsp at `engine.d.luau`. Written only while VS Code is the
-    preference, and never over a file the user changed (a content hash is kept beside it).
+  - VS Code: `.vscode/extensions.json` recommending each language's extension (a script backend
+    names it: `JohnnyMorganz.luau-lsp`, `sashi0034.angel-lsp`), and `.vscode/settings.json` with the
+    settings each backend names (luau-lsp's definition file, its standard platform, no sourcemap).
+    Written only while VS Code is the preference, and never over a file the user changed or that
+    was there first (a ledger of the hashes written is kept in the project's `.cache/`).
 - `script_declarations` keeps working and writes the same files.
 
 ### Log references (E5, E6)
@@ -141,7 +147,7 @@
 | E1 | Files in their group's folder; a group move moves files (built 2026-11-17: a file several groups share stays; a project file another includes by path is not followed) | Content tests: import into a group, move a group |
 | E2 | (built 2026-11-18) `Code/` watched; new code files imported in place | Editor.Project tests: a file written to `Code/` becomes an asset, a removed one goes missing |
 | E3 | (built 2026-11-18) Code Editor preference, `LaunchDetached`, `OpenCode`, menu and context items | Core test for the launcher (a script that records its arguments); editor test for the placeholder expansion |
-| E4 | Tooling files kept in `Code/` | Editor tests: written on open, rewritten after an API change, a user-changed file left alone |
+| E4 | (built 2026-11-18) Tooling files kept in `Code/` | Editor tests: written on open, rewritten after an API change, a user-changed file left alone |
 | E5 | References, recognizers, handlers, console links, `log_read` | Core and editor tests per piece; the user clicks through |
 | E6 | C# stack frames and build errors, Luau and AngelScript errors as references | Script suites per language |
 

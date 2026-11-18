@@ -40,6 +40,8 @@ export namespace editor::app
             Function<editor::EditorPage*(StringView file)> openFile;
             /// Starts a program and leaves it running; LaunchDetached unless a test records it.
             Function<bool(StringView program, Span<const StringView> args)> launch;
+            /// Called before an outside editor starts, so the Code folder holds what it reads.
+            Function<void()> beforeLaunch;
             /// Shows a folder in the system's file manager.
             Function<void(StringView folder)> showFolder;
         };
@@ -107,6 +109,8 @@ export namespace editor::app
             const Array<String> parts = editor::ExpandCodeEditorCommand(command, at);
             if (parts.IsEmpty())
                 return false;
+            if (m_services.beforeLaunch)
+                m_services.beforeLaunch();
             Array<StringView> args;
             for (usize i = 1; i < parts.Size(); ++i)
                 args.PushBack(parts[i].AsView());

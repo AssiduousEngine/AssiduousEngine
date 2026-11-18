@@ -53,4 +53,5 @@ target_sources(Editor.Project
             CookService.cppm
             ToolPlugins.cppm
             ExportHooks.cppm
+            CodeTooling.cppm
             EditorProjectModule.cppm)
