@@ -1012,6 +1012,8 @@ export namespace engine::script
             return name;
         }
 
+        Variant m_frameDelta; // this tick's delta, for every behaviour's onUpdate (TickBehaviors)
+
         void TickBehaviors(f32 deltaTime)
         {
             auto* components = m_scene->GetSystem<ScriptComponentManager>();
@@ -1028,22 +1030,26 @@ export namespace engine::script
                 m_tickOwners.PushBack(owner);
             }
 
+            // One delta for every behaviour's onUpdate this tick (a handler reads its arguments).
+            m_frameDelta = Variant::From(deltaTime);
             for (scene::EntityHandle entity : m_tickOwners)
             {
-                // Re-resolve per behavior: any dispatch can mutate the pool.
-                for (usize i = 0;; ++i)
+                // A dispatch can add or remove script components, moving the pool: the component
+                // is looked up again after one only when it did.
+                ScriptComponent* component = components->Get(entity);
+                for (usize i = 0; component != nullptr && i < component->behaviors.Size(); ++i)
                 {
-                    ScriptComponent* component = components->Get(entity);
-                    if (component == nullptr || i >= component->behaviors.Size())
-                    {
-                        break;
-                    }
+                    const u64 storage = components->StorageRevision();
                     TickBehavior(component->behaviors[i], entity, deltaTime);
                     // A breakpoint hit inside that dispatch pauses the game mid-tick: stop
                     // advancing the rest of this tick (the world holds still).
                     if (m_host != nullptr && m_host->IsDebugPaused())
                     {
                         return;
+                    }
+                    if (components->StorageRevision() != storage)
+                    {
+                        component = components->Get(entity);
                     }
                 }
             }
@@ -1147,9 +1153,8 @@ export namespace engine::script
             }
             else
             {
-                Variant dt = Variant::From(deltaTime);
                 (void)InvokeHandler(behavior, *scriptClass, entity, behavior.lifecycle.update, kOnUpdate,
-                                    Span<Variant>{&dt, 1});
+                                    Span<Variant>{&m_frameDelta, 1});
             }
         }
 
