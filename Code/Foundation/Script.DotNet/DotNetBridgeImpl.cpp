@@ -6,6 +6,7 @@
 module;
 #include "Core/Prelude.h"
 #include <cstring>
+#include <new> // std::launder: a typed call's String result
 
 module foundation.script.dotnet;
 
@@ -23,6 +24,8 @@ namespace foundation::script::dotnet
         thread_local String t_text;
         // What handles are made from: the host's allocator, given with the table.
         IAllocator* s_allocator = nullptr;
+        // How many calls took the typed path (TypedCallCount).
+        Atomic<u64> s_typedCalls{0};
 
         i32 Fail(ErrorCode code, StringView why)
         {
@@ -118,12 +121,95 @@ namespace foundation::script::dotnet
             return (type != nullptr && index < type->propertyCount) ? &type->properties[index] : nullptr;
         }
 
+        // The typed call (MethodInfo::call) made straight from what C# passed: when every argument
+        // is in the form its parameter takes (a value's bytes of exactly its type, text for a string)
+        // and the result is nothing, a plain value or a string. Anything else (an object, a Variant,
+        // a value of another type to convert) is left to the Variant call: false, nothing done.
+        bool TryInvokeTyped(const MethodInfo& method, const DotNetValue* self, const DotNetValue* args, u32 count,
+                            DotNetValue* result)
+        {
+            constexpr u32 kMaxArgs = 8;
+            constexpr usize kResultBytes = 64;
+            if (method.call == nullptr || count > kMaxArgs)
+                return false;
+            const TypeInfo* returned = method.returnType != nullptr ? method.returnType() : nullptr;
+            const bool returnsText = returned != nullptr && returned->id == TypeOf<String>().id;
+            if (returned != nullptr && !returnsText &&
+                (!returned->trivialCopy || returned->hasIdentity || returned->size > kResultBytes || result == nullptr ||
+                 result->data == nullptr || result->size < returned->size))
+                return false;
+            void* object = nullptr;
+            if (!method.isStatic)
+            {
+                const Instance instance = SelfOf(self);
+                object = instance.Pointer();
+                if (object == nullptr)
+                    return false;
+            }
+            void* slots[kMaxArgs];
+            String strings[kMaxArgs];
+            StringView views[kMaxArgs];
+            for (u32 i = 0; i < count; ++i)
+            {
+                const ParamInfo& param = method.params[i];
+                const DotNetValue& arg = args[i];
+                if (param.form == ParamForm::View && arg.kind == DotNetValueKind::Text)
+                {
+                    views[i] = StringView(static_cast<const utf8char*>(arg.data), static_cast<usize>(arg.size));
+                    slots[i] = &views[i];
+                }
+                else if (param.form == ParamForm::Value && arg.kind == DotNetValueKind::Text && param.type()->id == TypeOf<String>().id)
+                {
+                    strings[i] = String(StringView(static_cast<const utf8char*>(arg.data), static_cast<usize>(arg.size)));
+                    slots[i] = &strings[i];
+                }
+                else if (param.form == ParamForm::Value && arg.kind == DotNetValueKind::Bytes && arg.type != nullptr &&
+                         arg.type->id == param.type()->id && arg.data != nullptr) // by id: a type may have more than one record
+                    slots[i] = arg.data;
+                else
+                    return false;
+            }
+            s_typedCalls.fetch_add(1, MemoryOrder::Relaxed);
+            if (returned == nullptr)
+            {
+                method.call(object, slots, nullptr);
+                if (result != nullptr)
+                    *result = DotNetValue{};
+                return true;
+            }
+            if (returnsText)
+            {
+                alignas(String) unsigned char storage[sizeof(String)];
+                method.call(object, slots, storage);
+                String* text = std::launder(reinterpret_cast<String*>(storage));
+                t_text = Move(*text);
+                text->~String();
+                if (result != nullptr)
+                {
+                    result->kind = DotNetValueKind::Text;
+                    result->type = nullptr;
+                    result->data = const_cast<utf8char*>(t_text.CStr());
+                    result->size = t_text.Size();
+                }
+                return true;
+            }
+            alignas(16) unsigned char storage[kResultBytes];
+            method.call(object, slots, storage);
+            std::memcpy(result->data, storage, returned->size);
+            result->kind = DotNetValueKind::Bytes;
+            result->type = returned;
+            result->size = returned->size;
+            return true;
+        }
+
         i32 Invoke(const MethodInfo* method, const DotNetValue* self, const DotNetValue* args, u32 count,
                    DotNetValue* result)
         {
             t_error.Clear();
             if (method == nullptr)
                 return Fail(ErrorCode::InvalidArgument, u8"no method");
+            if (count == method->paramCount && TryInvokeTyped(*method, self, args, count, result))
+                return 0;
             if (count != method->paramCount)
                 return Fail(ErrorCode::InvalidArgument,
                             Format(u8"{} takes {} arguments, not {}", StringView(reinterpret_cast<const utf8char*>(method->name)),
@@ -303,6 +389,8 @@ namespace foundation::script::dotnet
         }
         return out;
     }
+
+    u64 TypedCallCount() noexcept { return s_typedCalls.load(MemoryOrder::Relaxed); }
 
     const DotNetEngineFunctions& EngineFunctions(IAllocator& allocator) noexcept
     {
