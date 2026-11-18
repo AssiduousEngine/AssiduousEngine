@@ -24,7 +24,7 @@ scripts drive them; none of this is game content.
   cooks. The game script names the screens by id (`"{{{Title}}}"`, a braced id), so run
   `render.py PaperKidGame` after their first import.
 - `scripts/*.as` + `render.py`: the game's scripts with `{{AssetName}}` placeholders;
-  `render.py <Name>...` fills in the asset ids, writes `Code/<Name>.as` and compile-checks it.
+  `render.py <Name>...` fills in the asset ids, writes it over the project's copy under `Code/` and compile-checks it.
   A name several assets answer to (each model's Walk clip) is refused: such an asset is a
   behaviour property, set where the prefab or scene is built.
 - `anim.py`: the property-animation clips (the marker's bob, the porch mat's pulse) and the

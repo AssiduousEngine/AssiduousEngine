@@ -2,12 +2,13 @@
 	<string name="guid">985bbf73-25df-4964-a4eb-1e9bf7e8d9df</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Town/DogModel/DogModel.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">DogModel.glb</string>
+		<string name="fileName">Models/Town/DogModel/DogModel.glb</string>
 		<array name="meshGuids" count="1">
 			<string>ef92abe3-250d-4489-8c93-727b5bd74d9f</string>
 		</array>

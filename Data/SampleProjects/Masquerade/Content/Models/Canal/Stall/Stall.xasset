@@ -2,12 +2,13 @@
 	<string name="guid">a07c59a3-8399-42c0-b052-02d03f7e9f0e</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Canal/Stall/Stall.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Stall.glb</string>
+		<string name="fileName">Models/Canal/Stall/Stall.glb</string>
 		<array name="meshGuids" count="1">
 			<string>6a57cfa6-ec06-4e11-9832-7f3d38ae1500</string>
 		</array>

@@ -2,12 +2,13 @@
 	<string name="guid">964015ba-df47-4a24-ae0d-550098417a77</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Manor/Stairs/Stairs.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Stairs.glb</string>
+		<string name="fileName">Models/Manor/Stairs/Stairs.glb</string>
 		<array name="meshGuids" count="1">
 			<string>80f50d43-a0fe-42ce-9b5b-e98530c39e19</string>
 		</array>

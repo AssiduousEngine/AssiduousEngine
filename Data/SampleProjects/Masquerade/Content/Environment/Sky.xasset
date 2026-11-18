@@ -2,12 +2,13 @@
 	<string name="guid">84f1fdef-18fa-474f-8453-784b41048526</string>
 	<string name="typeNamespace">rtti::pipeline::texture</string>
 	<string name="typeName">TextureAsset</string>
+	<string name="source">Environment/kloofendal_48d_partly_cloudy_puresky_1k.hdr</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">18429015988889570204</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">kloofendal_48d_partly_cloudy_puresky_1k.hdr</string>
+		<string name="fileName">Environment/kloofendal_48d_partly_cloudy_puresky_1k.hdr</string>
 		<u32 name="colorSpace">1</u32>
 		<u8 name="usage">3</u8>
 		<u8 name="compression">0</u8>

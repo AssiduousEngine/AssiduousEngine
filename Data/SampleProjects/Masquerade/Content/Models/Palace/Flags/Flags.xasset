@@ -2,12 +2,13 @@
 	<string name="guid">9bc4e99f-621e-4ada-857f-b2ce1bddeb07</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Palace/Flags/Flags.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Flags.glb</string>
+		<string name="fileName">Models/Palace/Flags/Flags.glb</string>
 		<array name="meshGuids" count="1">
 			<string>8bacfa9e-1e41-464a-92bb-b5310279c6bc</string>
 		</array>

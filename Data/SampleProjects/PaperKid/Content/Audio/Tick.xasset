@@ -2,12 +2,13 @@
 	<string name="guid">96dd2268-4344-4224-bfad-661e2b5cf12b</string>
 	<string name="typeNamespace">rtti::pipeline::audio</string>
 	<string name="typeName">AudioClipAsset</string>
+	<string name="source">Audio/Tick.ogg</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">16043286944878179724</u64>
 		<u32 name="version">0</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Tick.ogg</string>
+		<string name="fileName">Audio/Tick.ogg</string>
 		<bool name="stream">false</bool>
 		<bool name="keepCompressed">false</bool>
 		<bool name="forceMono">false</bool>

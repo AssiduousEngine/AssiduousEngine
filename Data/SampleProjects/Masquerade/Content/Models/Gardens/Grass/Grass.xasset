@@ -2,12 +2,13 @@
 	<string name="guid">aa5747b7-7dc0-4802-94d6-05443d6e1aa6</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Gardens/Grass/Grass.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Grass.glb</string>
+		<string name="fileName">Models/Gardens/Grass/Grass.glb</string>
 		<array name="meshGuids" count="1">
 			<string>cdfb4d75-fb82-4c85-af5c-5f580994d607</string>
 		</array>

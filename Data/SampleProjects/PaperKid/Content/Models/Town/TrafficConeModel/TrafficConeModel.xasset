@@ -2,12 +2,13 @@
 	<string name="guid">2aa8d496-8b0d-415d-b059-715be509075f</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Town/TrafficConeModel/TrafficConeModel.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
-		<u32 name="version">2</u32>
+		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">TrafficConeModel.glb</string>
+		<string name="fileName">Models/Town/TrafficConeModel/TrafficConeModel.glb</string>
 		<array name="meshGuids" count="1">
 			<string>749bf3fe-4b03-4ae0-a846-3a3cc4ca6478</string>
 		</array>
@@ -59,6 +60,7 @@
 			<i32 name="mesh">0</i32>
 		</array>
 		<string name="skeletonGuid">00000000-0000-0000-0000-000000000000</string>
+		<i32 name="skeletonParentNode">-2</i32>
 		<array name="animationGuids" count="0"/>
 		<object name="boundsMin">
 			<f32 name="x">-0.3</f32>

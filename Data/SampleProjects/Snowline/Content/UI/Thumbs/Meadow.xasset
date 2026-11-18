@@ -2,12 +2,13 @@
 	<string name="guid">80e6e15f-9ae9-49eb-8997-be7cece959e1</string>
 	<string name="typeNamespace">rtti::pipeline::texture</string>
 	<string name="typeName">TextureAsset</string>
+	<string name="source">UI/Thumbs/Meadow.png</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">18429015988889570204</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Meadow.png</string>
+		<string name="fileName">UI/Thumbs/Meadow.png</string>
 		<u32 name="colorSpace">0</u32>
 		<u8 name="usage">0</u8>
 		<u8 name="compression">0</u8>

@@ -2,12 +2,13 @@
 	<string name="guid">205fdf14-a52a-46e3-a757-5f8d2ffbc003</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Grounds/Pier/Pier.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Pier.glb</string>
+		<string name="fileName">Models/Grounds/Pier/Pier.glb</string>
 		<array name="meshGuids" count="1">
 			<string>71ee19bc-83fa-4f48-9cac-c6e197f5b7ef</string>
 		</array>

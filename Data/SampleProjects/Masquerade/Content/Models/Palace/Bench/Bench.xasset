@@ -2,12 +2,13 @@
 	<string name="guid">f06ec024-7ec2-40e7-bc68-5d0f090204c9</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Palace/Bench/Bench.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Bench.glb</string>
+		<string name="fileName">Models/Palace/Bench/Bench.glb</string>
 		<array name="meshGuids" count="1">
 			<string>0ced35c2-e281-49f4-aad4-b6b9a976cd2c</string>
 		</array>

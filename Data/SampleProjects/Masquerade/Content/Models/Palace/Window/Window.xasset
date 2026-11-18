@@ -2,12 +2,13 @@
 	<string name="guid">8ad51e7b-47b1-47bb-80d0-519f150d7a81</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Palace/Window/Window.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Window.glb</string>
+		<string name="fileName">Models/Palace/Window/Window.glb</string>
 		<array name="meshGuids" count="1">
 			<string>56d289c6-4c4d-4e36-9419-9beb8b3ba45c</string>
 		</array>

@@ -2,12 +2,13 @@
 	<string name="guid">374c4789-7306-4bcd-95ed-41796d8537fd</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Mechanics/SpikyBall/SpikyBall/SpikyBall.gltf</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
-		<u32 name="version">2</u32>
+		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">SpikyBall.gltf</string>
+		<string name="fileName">Models/Mechanics/SpikyBall/SpikyBall/SpikyBall.gltf</string>
 		<array name="meshGuids" count="1">
 			<string>491dac57-099c-419f-b45b-676923542bd1</string>
 		</array>
@@ -59,6 +60,7 @@
 			<i32 name="mesh">0</i32>
 		</array>
 		<string name="skeletonGuid">00000000-0000-0000-0000-000000000000</string>
+		<i32 name="skeletonParentNode">-2</i32>
 		<array name="animationGuids" count="0"/>
 		<object name="boundsMin">
 			<f32 name="x">-0.58946985</f32>

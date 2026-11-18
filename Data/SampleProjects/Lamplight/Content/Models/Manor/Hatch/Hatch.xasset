@@ -2,12 +2,13 @@
 	<string name="guid">892db740-b2d0-4d9b-9156-2ee371d05f18</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Manor/Hatch/Hatch.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Hatch.glb</string>
+		<string name="fileName">Models/Manor/Hatch/Hatch.glb</string>
 		<array name="meshGuids" count="1">
 			<string>3e2c7ff7-01e0-4f6e-8dfd-e4c746a40d7a</string>
 		</array>

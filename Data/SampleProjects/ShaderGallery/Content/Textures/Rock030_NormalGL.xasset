@@ -2,12 +2,13 @@
 	<string name="guid">a87f7398-578b-4b27-9b91-6cea9c382c52</string>
 	<string name="typeNamespace">rtti::pipeline::texture</string>
 	<string name="typeName">TextureAsset</string>
+	<string name="source">Textures/Rock030_NormalGL.jpg</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">18429015988889570204</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Rock030_NormalGL.jpg</string>
+		<string name="fileName">Textures/Rock030_NormalGL.jpg</string>
 		<u32 name="colorSpace">1</u32>
 		<u8 name="usage">1</u8>
 		<u8 name="compression">0</u8>

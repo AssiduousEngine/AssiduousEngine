@@ -2,12 +2,13 @@
 	<string name="guid">b0f9f2fb-4e1e-48fe-9e6f-c3839a86e135</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Pickups/Gem_Blue/Gem_Blue/Gem_Blue.gltf</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
-		<u32 name="version">2</u32>
+		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Gem_Blue.gltf</string>
+		<string name="fileName">Models/Pickups/Gem_Blue/Gem_Blue/Gem_Blue.gltf</string>
 		<array name="meshGuids" count="1">
 			<string>f215a097-a8eb-4a9b-883b-e63ed03f6bf0</string>
 		</array>
@@ -53,6 +54,7 @@
 			<i32 name="mesh">0</i32>
 		</array>
 		<string name="skeletonGuid">00000000-0000-0000-0000-000000000000</string>
+		<i32 name="skeletonParentNode">-2</i32>
 		<array name="animationGuids" count="0"/>
 		<object name="boundsMin">
 			<f32 name="x">-0.49313548</f32>

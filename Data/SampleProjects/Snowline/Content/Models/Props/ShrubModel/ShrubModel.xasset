@@ -2,12 +2,13 @@
 	<string name="guid">20a1fa02-31d3-4c36-9e4b-07b836c28306</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Props/ShrubModel/ShrubModel.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">ShrubModel.glb</string>
+		<string name="fileName">Models/Props/ShrubModel/ShrubModel.glb</string>
 		<array name="meshGuids" count="1">
 			<string>e4f56813-d46a-4076-ae12-cbea7f6a322f</string>
 		</array>

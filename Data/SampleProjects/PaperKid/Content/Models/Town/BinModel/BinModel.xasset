@@ -2,12 +2,13 @@
 	<string name="guid">4b2cd83d-7b5e-42a0-9f8e-d9019828ed69</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Town/BinModel/BinModel.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
-		<u32 name="version">2</u32>
+		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">BinModel.glb</string>
+		<string name="fileName">Models/Town/BinModel/BinModel.glb</string>
 		<array name="meshGuids" count="1">
 			<string>8f6d8c96-7614-426d-954f-db835719292b</string>
 		</array>
@@ -59,6 +60,7 @@
 			<i32 name="mesh">0</i32>
 		</array>
 		<string name="skeletonGuid">00000000-0000-0000-0000-000000000000</string>
+		<i32 name="skeletonParentNode">-2</i32>
 		<array name="animationGuids" count="0"/>
 		<object name="boundsMin">
 			<f32 name="x">-0.33</f32>

@@ -2,12 +2,13 @@
 	<string name="guid">887c1351-a4b1-4992-bca4-74afccf7f67e</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Manor/CellarPillar/CellarPillar.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">CellarPillar.glb</string>
+		<string name="fileName">Models/Manor/CellarPillar/CellarPillar.glb</string>
 		<array name="meshGuids" count="1">
 			<string>d8028f86-159b-42f4-be87-17a30fc2cba7</string>
 		</array>

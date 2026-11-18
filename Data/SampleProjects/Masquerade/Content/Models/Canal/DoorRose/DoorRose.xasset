@@ -2,12 +2,13 @@
 	<string name="guid">9b383414-7073-42a5-962f-20ade02063d3</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Canal/DoorRose/DoorRose.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">DoorRose.glb</string>
+		<string name="fileName">Models/Canal/DoorRose/DoorRose.glb</string>
 		<array name="meshGuids" count="1">
 			<string>4dd00478-241c-458b-b5db-3550d69ce0de</string>
 		</array>

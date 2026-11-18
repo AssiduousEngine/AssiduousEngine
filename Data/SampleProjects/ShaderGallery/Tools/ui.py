@@ -79,7 +79,7 @@ def script():
     template = open(os.path.join(HERE, "scripts", "Gallery.as.in")).read()
     wire = "\n".join('        gui::root().find("lesson-%d").on("click", EventHandler(this.onLesson%d));' % (l["n"], l["n"])
                      for l in LESSONS)
-    handlers = "\n".join('    private bool onLesson%d(GuiEvent e) { showLesson(%d, "%s", "%s", "Sources/%s"); return true; }'
+    handlers = "\n".join('    private bool onLesson%d(GuiEvent e) { showLesson(%d, "%s", "%s", "Sources/Shaders/%s"); return true; }'
                          % (l["n"], l["n"], as_text(l["title"]), as_text(l["summary"]), shader_file(l))
                          for l in LESSONS)
     return template.replace("{{WIRE}}", wire).replace("{{HANDLERS}}", handlers)

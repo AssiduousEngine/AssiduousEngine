@@ -2,11 +2,12 @@
 	<string name="guid">c1e3a2f2-ed4e-4765-886f-d5fd8d2776fd</string>
 	<string name="typeNamespace">rtti::pipeline::vg</string>
 	<string name="typeName">VectorImageAsset</string>
+	<string name="source">UI/Icons/IconHeart.svg</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">16629563329266334117</u64>
 		<u32 name="version">0</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">IconHeart.svg</string>
+		<string name="fileName">UI/Icons/IconHeart.svg</string>
 	</object>
 </root>

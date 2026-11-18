@@ -2,12 +2,13 @@
 	<string name="guid">460b5dc1-202c-4362-850c-39626b1307cd</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Town/HouseRedModel/HouseRedModel.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">HouseRedModel.glb</string>
+		<string name="fileName">Models/Town/HouseRedModel/HouseRedModel.glb</string>
 		<array name="meshGuids" count="1">
 			<string>a5b3bfbc-ba95-4b9c-9698-fd58a57cd8f2</string>
 		</array>

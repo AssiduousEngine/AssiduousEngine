@@ -2,12 +2,13 @@
 	<string name="guid">9c02139a-37fe-4314-b416-2038fc5804a6</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Enemies/Skull/Skull.gltf</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
-		<u32 name="version">2</u32>
+		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Skull.gltf</string>
+		<string name="fileName">Models/Enemies/Skull/Skull.gltf</string>
 		<array name="meshGuids" count="1">
 			<string>31b11995-6ae4-4b8c-bfdb-be3b964c087c</string>
 		</array>
@@ -170,6 +171,7 @@
 			<i32 name="mesh">-1</i32>
 		</array>
 		<string name="skeletonGuid">b3c97c1e-f297-4a03-b8ad-f2e2fdfe88e5</string>
+		<i32 name="skeletonParentNode">-2</i32>
 		<array name="animationGuids" count="10">
 			<string>586350b5-8aeb-4619-b185-398cee1c064d</string>
 			<string>90814483-b9d8-4a52-a7e7-a5d717dece1c</string>

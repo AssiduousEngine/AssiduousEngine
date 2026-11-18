@@ -2,12 +2,13 @@
 	<string name="guid">b6a63a44-e374-4547-a8c3-aabba87b09c9</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Palace/Balustrade/Balustrade.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Balustrade.glb</string>
+		<string name="fileName">Models/Palace/Balustrade/Balustrade.glb</string>
 		<array name="meshGuids" count="1">
 			<string>16b2ecbb-f72f-448b-b129-dc15ac9ed45b</string>
 		</array>

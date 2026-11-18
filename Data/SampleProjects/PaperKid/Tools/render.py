@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """render.py <Name>...: scripts/<Name>.as with its {{Asset}} placeholders filled with the asset ids,
-written to PaperKid's Code/<Name>.as (where the project keeps its scripts), then script_validate over the
-editor's MCP."""
+written over the project's copy of <Name>.as (under Code/, in its group's folder), then script_validate over
+the editor's MCP."""
 import os, re, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pkgen import mcp
@@ -32,7 +32,9 @@ for name in sys.argv[1:]:
     # A name starts with a word character, so "{{{Title}}}" (a GUI document, wanted braced) keeps its
     # outer braces: "{<id>}".
     text = re.sub(r"\{\{(\w[^{}]*)\}\}", resolve, text)
-    open(os.path.join(CODE, name + ".as"), "w").write(text)
+    # The script's file where the project keeps it (Code/<group>/), else Code/ for one not imported yet.
+    found = [os.path.join(d, name + ".as") for d, _, files in os.walk(CODE) if name + ".as" in files]
+    open(found[0] if found else os.path.join(CODE, name + ".as"), "w").write(text)
     v = mcp("script_validate", {"source": text, "language": "angelscript", "name": name + ".as"})
     print(name, "valid" if v["valid"] else "INVALID", v.get("properties"), v.get("handlers"))
     for e in v.get("errors", []):

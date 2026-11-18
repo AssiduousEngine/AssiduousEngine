@@ -2,12 +2,13 @@
 	<string name="guid">6a3f3b03-7759-4321-87b9-193e30752406</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Nature/Tree_Fruit/Tree_Fruit/Tree_Fruit.gltf</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
-		<u32 name="version">2</u32>
+		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Tree_Fruit.gltf</string>
+		<string name="fileName">Models/Nature/Tree_Fruit/Tree_Fruit/Tree_Fruit.gltf</string>
 		<array name="meshGuids" count="1">
 			<string>645567f1-07fa-4533-8c8c-115329b0d09a</string>
 		</array>
@@ -59,6 +60,7 @@
 			<i32 name="mesh">0</i32>
 		</array>
 		<string name="skeletonGuid">00000000-0000-0000-0000-000000000000</string>
+		<i32 name="skeletonParentNode">-2</i32>
 		<array name="animationGuids" count="0"/>
 		<object name="boundsMin">
 			<f32 name="x">-2.7672405</f32>

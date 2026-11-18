@@ -2,12 +2,13 @@
 	<string name="guid">3a15b5ac-9fdc-4b80-80c7-ae3b29268783</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Gardens/Statue/Statue.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Statue.glb</string>
+		<string name="fileName">Models/Gardens/Statue/Statue.glb</string>
 		<array name="meshGuids" count="1">
 			<string>2d553e3c-80ba-4b89-b227-8725079c4315</string>
 		</array>

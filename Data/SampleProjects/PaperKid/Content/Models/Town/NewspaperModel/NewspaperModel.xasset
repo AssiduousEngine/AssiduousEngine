@@ -2,12 +2,13 @@
 	<string name="guid">bb36552c-fc4d-4ed3-9b8f-09c9f7d5fbbd</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Town/NewspaperModel/NewspaperModel.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
-		<u32 name="version">2</u32>
+		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">NewspaperModel.glb</string>
+		<string name="fileName">Models/Town/NewspaperModel/NewspaperModel.glb</string>
 		<array name="meshGuids" count="1">
 			<string>9fc46b42-894f-4546-a0c3-f20a6766426b</string>
 		</array>
@@ -56,6 +57,7 @@
 			<i32 name="mesh">0</i32>
 		</array>
 		<string name="skeletonGuid">00000000-0000-0000-0000-000000000000</string>
+		<i32 name="skeletonParentNode">-2</i32>
 		<array name="animationGuids" count="0"/>
 		<object name="boundsMin">
 			<f32 name="x">-0.18</f32>

@@ -2,12 +2,13 @@
 	<string name="guid">51e98399-87b3-4b83-87c5-61bd44a4e2b3</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Canal/Coping/Coping.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Coping.glb</string>
+		<string name="fileName">Models/Canal/Coping/Coping.glb</string>
 		<array name="meshGuids" count="1">
 			<string>c283c631-250d-40dd-b732-890636f62eb9</string>
 		</array>

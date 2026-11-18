@@ -2,12 +2,13 @@
 	<string name="guid">59bd15a5-af06-411f-8beb-1f1b572cfccc</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Town/CarOuterModel/CarOuterModel.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
-		<u32 name="version">2</u32>
+		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">CarOuterModel.glb</string>
+		<string name="fileName">Models/Town/CarOuterModel/CarOuterModel.glb</string>
 		<array name="meshGuids" count="1">
 			<string>742e6c6b-77be-4044-bde2-01b75e8e4256</string>
 		</array>
@@ -71,6 +72,7 @@
 			<i32 name="mesh">0</i32>
 		</array>
 		<string name="skeletonGuid">00000000-0000-0000-0000-000000000000</string>
+		<i32 name="skeletonParentNode">-2</i32>
 		<array name="animationGuids" count="0"/>
 		<object name="boundsMin">
 			<f32 name="x">-1.05</f32>

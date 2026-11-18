@@ -2,12 +2,13 @@
 	<string name="guid">62695db5-901a-4848-b930-48c4de71333e</string>
 	<string name="typeNamespace">rtti::pipeline::audio</string>
 	<string name="typeName">AudioClipAsset</string>
+	<string name="source">Audio/GatePass.ogg</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">16043286944878179724</u64>
 		<u32 name="version">0</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">GatePass.ogg</string>
+		<string name="fileName">Audio/GatePass.ogg</string>
 		<bool name="stream">false</bool>
 		<bool name="keepCompressed">false</bool>
 		<bool name="forceMono">false</bool>

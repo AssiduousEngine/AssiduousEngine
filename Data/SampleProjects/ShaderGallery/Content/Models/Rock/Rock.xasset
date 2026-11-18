@@ -2,12 +2,13 @@
 	<string name="guid">bf9459e0-2774-498c-8349-f68355070c6c</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Rock/Rock.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Rock.glb</string>
+		<string name="fileName">Models/Rock/Rock.glb</string>
 		<array name="meshGuids" count="1">
 			<string>0a7fd555-653c-4530-a973-e1245409f9cb</string>
 		</array>

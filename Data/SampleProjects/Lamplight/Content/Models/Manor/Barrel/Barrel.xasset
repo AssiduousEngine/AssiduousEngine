@@ -2,12 +2,13 @@
 	<string name="guid">65f3bfec-223e-471a-9d95-3b5e27559739</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Manor/Barrel/Barrel.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Barrel.glb</string>
+		<string name="fileName">Models/Manor/Barrel/Barrel.glb</string>
 		<array name="meshGuids" count="1">
 			<string>7ce31823-a50a-4fe7-b8b0-b5a7c5aba4ff</string>
 		</array>

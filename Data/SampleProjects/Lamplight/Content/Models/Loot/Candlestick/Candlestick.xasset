@@ -2,12 +2,13 @@
 	<string name="guid">5be9339b-f60f-4533-b222-7ad896380fa3</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Loot/Candlestick/Candlestick.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Candlestick.glb</string>
+		<string name="fileName">Models/Loot/Candlestick/Candlestick.glb</string>
 		<array name="meshGuids" count="1">
 			<string>45ed7e36-1a9a-4f1f-9fe8-c37ffef401f6</string>
 		</array>

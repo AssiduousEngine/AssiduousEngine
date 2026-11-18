@@ -2,12 +2,13 @@
 	<string name="guid">cfc03f34-fa50-4a1d-adf2-a81a3a2d5b72</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Nature/Rock_1/Rock_1/Rock_1.gltf</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
-		<u32 name="version">2</u32>
+		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Rock_1.gltf</string>
+		<string name="fileName">Models/Nature/Rock_1/Rock_1/Rock_1.gltf</string>
 		<array name="meshGuids" count="1">
 			<string>78a2a62a-7600-4f61-9a2b-4dbfbd0138ee</string>
 		</array>
@@ -53,6 +54,7 @@
 			<i32 name="mesh">0</i32>
 		</array>
 		<string name="skeletonGuid">00000000-0000-0000-0000-000000000000</string>
+		<i32 name="skeletonParentNode">-2</i32>
 		<array name="animationGuids" count="0"/>
 		<object name="boundsMin">
 			<f32 name="x">-0.79587376</f32>

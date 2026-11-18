@@ -2,12 +2,13 @@
 	<string name="guid">0a50ae57-4f9b-40c2-9dec-44d3bc0630ba</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/KidBike/KidBike/KidBike.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
-		<u32 name="version">2</u32>
+		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">KidBike.glb</string>
+		<string name="fileName">Models/KidBike/KidBike/KidBike.glb</string>
 		<array name="meshGuids" count="1">
 			<string>4cd966db-135b-41dd-9c27-c05581d9f3fd</string>
 		</array>
@@ -494,6 +495,7 @@
 			<i32 name="mesh">-1</i32>
 		</array>
 		<string name="skeletonGuid">81addf2b-4da9-4f6d-be65-24a8684d358e</string>
+		<i32 name="skeletonParentNode">-2</i32>
 		<array name="animationGuids" count="3">
 			<string>1665cf6f-0df9-41eb-ad47-29a3eb080937</string>
 			<string>2ae5fb65-f74f-46ed-af06-ddc1b2901b75</string>

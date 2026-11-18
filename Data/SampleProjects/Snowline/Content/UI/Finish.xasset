@@ -2,11 +2,12 @@
 	<string name="guid">fcf23249-e50a-4394-af4c-2bc21ab39962</string>
 	<string name="typeNamespace">rtti::pipeline::gui</string>
 	<string name="typeName">GuiDocumentAsset</string>
+	<string name="source">UI/Finish.xml</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">4454064819806775415</u64>
 		<u32 name="version">0</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Finish.xml</string>
+		<string name="fileName">UI/Finish.xml</string>
 	</object>
 </root>

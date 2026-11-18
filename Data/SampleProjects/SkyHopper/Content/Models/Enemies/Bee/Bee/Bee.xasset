@@ -2,12 +2,13 @@
 	<string name="guid">2d04fde0-90d0-4511-84e2-2fed10277eab</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Enemies/Bee/Bee/Bee.gltf</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
-		<u32 name="version">2</u32>
+		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Bee.gltf</string>
+		<string name="fileName">Models/Enemies/Bee/Bee/Bee.gltf</string>
 		<array name="meshGuids" count="1">
 			<string>4bae5408-b446-4859-a776-af56299e9e51</string>
 		</array>
@@ -258,6 +259,7 @@
 			<i32 name="mesh">-1</i32>
 		</array>
 		<string name="skeletonGuid">a93d8110-8482-42f6-81e8-233d8996cb2f</string>
+		<i32 name="skeletonParentNode">-2</i32>
 		<array name="animationGuids" count="4">
 			<string>5d1b9b4e-6fd8-455a-a573-f1262b7ff750</string>
 			<string>abbcc6b9-2ae2-4e18-94d6-5abc8cfa628d</string>

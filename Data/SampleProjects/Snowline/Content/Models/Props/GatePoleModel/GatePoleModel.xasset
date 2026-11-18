@@ -2,12 +2,13 @@
 	<string name="guid">890ef379-51d1-4695-8c80-c1fae2f78bee</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Props/GatePoleModel/GatePoleModel.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">GatePoleModel.glb</string>
+		<string name="fileName">Models/Props/GatePoleModel/GatePoleModel.glb</string>
 		<array name="meshGuids" count="1">
 			<string>797c5bae-71da-40f1-84f5-2b0deecaaa08</string>
 		</array>

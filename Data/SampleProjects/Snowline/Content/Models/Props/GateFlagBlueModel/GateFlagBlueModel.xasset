@@ -2,12 +2,13 @@
 	<string name="guid">32ed50b0-572e-4e83-9d21-ed323b08dde2</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Props/GateFlagBlueModel/GateFlagBlueModel.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">GateFlagBlueModel.glb</string>
+		<string name="fileName">Models/Props/GateFlagBlueModel/GateFlagBlueModel.glb</string>
 		<array name="meshGuids" count="1">
 			<string>fb470fdd-68ac-4bb6-86c3-3b3c7f00e5c3</string>
 		</array>

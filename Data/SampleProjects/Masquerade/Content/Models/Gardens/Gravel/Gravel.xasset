@@ -2,12 +2,13 @@
 	<string name="guid">ff8c26d7-464d-4eab-ae0f-06266ad23169</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Gardens/Gravel/Gravel.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Gravel.glb</string>
+		<string name="fileName">Models/Gardens/Gravel/Gravel.glb</string>
 		<array name="meshGuids" count="1">
 			<string>e6c009be-f7f5-475a-918e-3da11703824a</string>
 		</array>

@@ -2,12 +2,13 @@
 	<string name="guid">c22e5aa4-15c4-472d-93c8-dcdf24c1fd99</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Town/PedestrianModel/PedestrianModel.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
-		<u32 name="version">2</u32>
+		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">PedestrianModel.glb</string>
+		<string name="fileName">Models/Town/PedestrianModel/PedestrianModel.glb</string>
 		<array name="meshGuids" count="1">
 			<string>b2f6b4c8-80e3-4972-8914-aa2b5abd2d3f</string>
 		</array>
@@ -359,6 +360,7 @@
 			<i32 name="mesh">-1</i32>
 		</array>
 		<string name="skeletonGuid">b8f89880-01e1-4e13-bdc0-0cbb316795c6</string>
+		<i32 name="skeletonParentNode">-2</i32>
 		<array name="animationGuids" count="1">
 			<string>a17a3a0d-f0e4-4d8e-b39d-3ead681d7273</string>
 		</array>

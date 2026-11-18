@@ -2,12 +2,13 @@
 	<string name="guid">22b9f4eb-0086-45a2-b0bb-2ba078843d41</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Manor/Table/Table.glb</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
 		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Table.glb</string>
+		<string name="fileName">Models/Manor/Table/Table.glb</string>
 		<array name="meshGuids" count="1">
 			<string>f71072f1-96c5-4e9f-93a7-8368c3ca92ae</string>
 		</array>

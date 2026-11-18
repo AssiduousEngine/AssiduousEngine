@@ -2,12 +2,13 @@
 	<string name="guid">ac842af2-9db9-48d0-9787-befd1270bff7</string>
 	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
 	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Mechanics/Bridge_Modular/Bridge_Modular/Bridge_Modular.gltf</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">2440385714661564817</u64>
-		<u32 name="version">2</u32>
+		<u32 name="version">3</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Bridge_Modular.gltf</string>
+		<string name="fileName">Models/Mechanics/Bridge_Modular/Bridge_Modular/Bridge_Modular.gltf</string>
 		<array name="meshGuids" count="1">
 			<string>7a7b2d69-a289-429f-b994-0a26a3f9f322</string>
 		</array>
@@ -55,6 +56,7 @@
 			<i32 name="mesh">0</i32>
 		</array>
 		<string name="skeletonGuid">00000000-0000-0000-0000-000000000000</string>
+		<i32 name="skeletonParentNode">-2</i32>
 		<array name="animationGuids" count="0"/>
 		<object name="boundsMin">
 			<f32 name="x">-1.4483521</f32>

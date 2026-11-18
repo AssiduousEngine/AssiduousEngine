@@ -2,13 +2,13 @@
 	<string name="guid">fa366e88-ce33-4ee6-9d9f-73c759593743</string>
 	<string name="typeNamespace">rtti::pipeline::script</string>
 	<string name="typeName">ScriptClassAsset</string>
-	<string name="source">Code/Kicker.as</string>
+	<string name="source">Code/Scripts/Kicker.as</string>
 	<array name="dataVersions" count="1">
 		<u64 name="type">1265517353284495090</u64>
 		<u32 name="version">1</u32>
 	</array>
 	<object name="payload">
-		<string name="fileName">Code/Kicker.as</string>
+		<string name="fileName">Code/Scripts/Kicker.as</string>
 		<string name="language">angelscript</string>
 		<string name="className"/>
 	</object>
