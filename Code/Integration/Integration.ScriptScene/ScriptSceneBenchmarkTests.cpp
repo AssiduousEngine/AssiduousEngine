@@ -2,10 +2,10 @@
 // Copyright (c) 2026-Present Robert Campbell
 
 // The script speed work's measures, in every language against native code. Per call (the script
-// benchmark, Script.Tests/BackendBenchmark.h): a call into the engine, a value method, a string
-// argument and a handler call, with the language's loop alone to subtract. Per scene: script
-// behaviours on a real scene, ticked through the script subsystem, against the same work done by
-// native components on the same scene:
+// benchmark, Script.Tests/BackendBenchmark.h): a call into the engine, an entity method, a value
+// method, a string argument and a handler call, with the language's loop alone to subtract. Per
+// scene: script behaviours on a real scene, ticked through the script subsystem, against the same
+// work done by native components on the same scene:
 //
 //   handler-dispatch  1,000 behaviours with an empty update;
 //   movers-<N>        N behaviours each reading its entity's position, moving it and writing it
@@ -314,6 +314,7 @@ TEST_CASE("script per call: AngelScript" * doctest::skip())
                          u8"    for (int i = 0; i < n; i++) sum += Float3::Cross(a, Float3(float(i), 0.5f, 0.25f)).x;\n"
                          u8"    return sum;\n"
                          u8"  }\n"
+                         u8"  double checks(int n, Entity e) { double valid = 0; for (int i = 0; i < n; i++) if (e.isValid()) valid += 1; return valid; }\n"
                          u8"  double texts(int n, string s, Entity e) { for (int i = 0; i < n; i++) e.setName(s); return n; }\n"
                          u8"}\n";
     foundation::script::benchmark::RunScriptBackendBenchmark(
@@ -363,6 +364,11 @@ function Bench:crosses(n)
     local sum = 0
     for i = 1, n do sum = sum + Float3.Cross(a, Float3.new(i, 0.5, 0.25)).x end
     return sum
+end
+function Bench:checks(n, e)
+    local valid = 0
+    for i = 1, n do if e:isValid() then valid = valid + 1 end end
+    return valid
 end
 function Bench:texts(n, s, e)
     for i = 1, n do e:setName(s) end

@@ -42,6 +42,9 @@ namespace foundation::script::benchmark
         //   loops(n)   the per-call measures' loop with no call in it, summing its index;
         //   calls(n)   n calls of Math.Abs, summing what they return;
         //   crosses(n) n calls of Float3.Cross, summing a component of the result;
+        //   checks(n, e) n calls of e.isValid() on the Entity it is given, counting the true ones:
+        //              a call every language makes into the engine (what Math.Abs was until a
+        //              language computed pure functions itself);
         //   texts(n, s, e) n calls of e.setName(s) on the Entity it is given (one with no scene,
         //              so the call crosses and does nothing), returning n.
         StringView benchClass;
@@ -71,6 +74,7 @@ namespace foundation::script::benchmark
         f32 (*volatile absolute)(f32) = &Abs;
         Float3 (*volatile cross)(Float3, Float3) = &Cross;
         void (Entity::*volatile setName)(String) = &Entity::setName;
+        bool (Entity::*volatile isValid)() const = &Entity::isValid;
         {
             const Stopwatch clock = Stopwatch::StartNew();
             f32 sum = 0.0f;
@@ -87,6 +91,15 @@ namespace foundation::script::benchmark
                 sum += cross(a, Float3{static_cast<f32>(i), 0.5f, 0.25f}).x;
             detail::Report(u8"native", "value-method", clock.Elapsed().AsSeconds() * 1e9 / kCalls, "ns/call");
             CHECK(sum != 0.0f);
+        }
+        {
+            const Entity none;
+            const Stopwatch clock = Stopwatch::StartNew();
+            i32 valid = 0;
+            for (i32 i = 0; i < kCalls; ++i)
+                valid += (none.*isValid)() ? 1 : 0;
+            detail::Report(u8"native", "entity-call", clock.Elapsed().AsSeconds() * 1e9 / kCalls, "ns/call");
+            CHECK(valid == 0);
         }
         {
             // A script passes its own string, so each call here makes one as well.
@@ -182,6 +195,8 @@ namespace foundation::script::benchmark
             measure(u8"loops", "loop-alone", Span<Variant>{n, 1}); // subtract it from the others for a call's own cost
             measure(u8"calls", "engine-call", Span<Variant>{n, 1});
             measure(u8"crosses", "value-method", Span<Variant>{n, 1});
+            Variant checks[] = {Variant::From<i32>(kCalls), Variant::From(Entity{})};
+            measure(u8"checks", "entity-call", Span<Variant>{checks, 2});
             Variant texts[] = {Variant::From<i32>(kCalls), Variant::From<String>(String(kSixteen)), Variant::From(Entity{})};
             measure(u8"texts", "string-argument", Span<Variant>{texts, 3});
         }

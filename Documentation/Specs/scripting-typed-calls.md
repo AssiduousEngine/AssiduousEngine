@@ -114,6 +114,39 @@ What the numbers say:
   (the loop, the math), not the crossings: a game's Debug build costs little in a scene.
 - 5,000 movers take 26 to 38% of a 60 Hz frame in script against 1.2% natively.
 
+**After step 3 (C#), desktop, 2026-11-18.** The same machine and tree, two runs, with C#'s
+handlers bound (3a), its calls on the typed entry (3b), its value math in C# (3d), its components
+held as values (3e) and the engine's C# runtime built Release. The measures gained `entity-call`
+(`Entity.isValid()` on an entity with no scene), a call every language makes into the engine:
+`Math.Abs` is pure now, so C# computes it without crossing. AngelScript and Luau did not change;
+their columns are this run's.
+
+| Per call, alone | native | AngelScript | Luau | C# Debug | C# Release |
+|---|---|---|---|---|---|
+| Engine call (`Entity.isValid`) | 3.5 ns | 210 to 230 ns | 155 to 175 ns | about 150 ns | 55 to 57 ns |
+| Pure function (`Math.Abs`) | 3.8 ns | 200 to 225 ns | 160 to 170 ns | 2.5 ns, in C# | under 0.1 ns, in C# |
+| Value method (`Float3.Cross`) | 3.6 ns | 665 to 715 ns | 545 to 600 ns | about 20 ns, in C# | under 0.1 ns, in C# |
+| String argument (`setName`, 16 characters) | 5.6 to 5.9 ns | 225 to 245 ns | 260 to 280 ns | 155 to 160 ns | 185 to 195 ns |
+| Handler call (engine into script) | | 280 to 285 ns | 235 to 260 ns | 190 to 195 ns | 100 to 107 ns |
+| Value math, one iteration | | 1.5 to 1.6 µs | 0.77 to 0.84 µs | 75 ns | 4.2 ns |
+
+| Median frame | native | AngelScript | Luau | C# Debug | C# Release |
+|---|---|---|---|---|---|
+| 1,000 empty update handlers | 0.0055 to 0.0059 ms | 0.33 to 0.35 ms | 0.26 to 0.28 ms | 0.135 to 0.15 ms | 0.135 to 0.14 ms |
+| 100 movers | 0.0039 to 0.0042 ms | 0.12 to 0.13 ms | 0.093 to 0.099 ms | 0.036 to 0.038 ms | 0.035 ms |
+| 1,000 movers | 0.039 to 0.043 ms | 1.23 to 1.33 ms | 0.91 to 1.0 ms | 0.36 to 0.39 ms | 0.35 to 0.37 ms |
+| 5,000 movers | 0.20 to 0.22 ms | 6.2 to 6.7 ms | 4.9 to 5.1 ms | 1.84 to 1.92 ms | 1.82 to 1.89 ms |
+| 1,000 component fetches | 0.0047 to 0.0051 ms | 0.49 to 0.52 ms | 0.40 to 0.44 ms | 0.26 to 0.27 ms | 0.25 to 0.27 ms |
+
+- A C# call into the engine costs 55 ns from Release code, against 150 to 210 ns before step 3
+  and 155 to 230 ns in the other languages: the typed entry and a Release runtime between them.
+- Pure value functions no longer cross at all, so C#'s value math runs at native speed.
+- 5,000 movers take 11% of a 60 Hz frame in C#, from 26%; AngelScript and Luau still take 30 to 40%.
+- C#'s string argument is slower from Release code than from Debug code (185 to 195 against 155 to
+  160 ns), as it was after 3b; not yet explained.
+- That a component fetch no longer allocates a C# object follows from its being a struct; .NET's
+  heap is not counted here, so it is not measured.
+
 **Found while measuring (C#).** The process's C# runtime keeps the allocator its first script
 manager was made with, for every engine object it hands C# from then on (the bridge's
 `EngineFunctions`). A first manager with a shorter-lived allocator than the process leaves it
