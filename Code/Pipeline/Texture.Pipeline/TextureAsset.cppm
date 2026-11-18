@@ -61,6 +61,12 @@ export namespace pipeline{
         TextureWrap wrapW = TextureWrap::Repeat;
         bool generateMipmaps = true;
         f32 anisotropy = 1.0f;
+        // An alpha-tested material's texture: each mip level keeps as much of the texture at or above
+        // `alphaCoverageReference` (the material's cutoff) as the full-size image has. A plain chain
+        // averages a leaf with the gaps round it below the cutoff, and foliage thins out, then
+        // vanishes, with distance. The model importer sets both for a masked material's base colour.
+        bool preserveAlphaCoverage = false;
+        f32 alphaCoverageReference = 0.5f;
         // Block-compression authoring. Editor-data only: the builder feeds these
         // to the policy table to pick the cooked rhi::TextureFormat; the runtime never sees them.
         texcomp::TextureUsage usage = texcomp::TextureUsage::Color;
@@ -90,6 +96,12 @@ export namespace pipeline{
             foundation::core::Serialize(ar, "generateMipmaps", generateMipmaps);
             foundation::core::Serialize(ar, "anisotropy", anisotropy);
             foundation::core::Serialize(ar, "sourceHint", sourceHint);
+            // Data version 4 added the alpha coverage; an older asset keeps the defaults (off).
+            if (ar.Mode() == SerializeMode::Write || ar.Version() == 0 || ar.Version() >= 4)
+            {
+                foundation::core::Serialize(ar, "preserveAlphaCoverage", preserveAlphaCoverage);
+                foundation::core::Serialize(ar, "alphaCoverageReference", alphaCoverageReference);
+            }
         }
 
         // Profiles (a sampler and the usage/colorSpace pair): each configures the whole set
@@ -469,7 +481,7 @@ export namespace pipeline{
                 {
                     resource.mipLevels = AppendMipChain(
                         mipPixels, image.Width(), image.Height(),
-                        ta.colorSpace == image::ImageColorSpace::Srgb, ctx.jobs);
+                        ta.colorSpace == image::ImageColorSpace::Srgb, ctx.jobs, CoverageReference(ta));
                 }
                 mipsMs = static_cast<i64>(phaseClock.Elapsed().AsMilliseconds());
                 // Block-compress the RGBA8 chain when the policy table says to (2D RGBA8 only).
@@ -796,9 +808,12 @@ export namespace pipeline{
         /// Appends the full mip chain (levels 1..N, 2x2 box, clamped for odd dims) to
         /// `pixels`, which holds level 0 as tight RGBA8. Color channels of sRGB images
         /// filter in linear space; alpha (and everything in Linear images) averages
-        /// directly. Returns the total level count including level 0.
+        /// directly. With `coverageReference` above 0, each level's alpha is then scaled to
+        /// keep level 0's coverage of it (PreserveAlphaCoverage). Returns the total level count
+        /// including level 0.
         [[nodiscard]] static u32 AppendMipChain(Array<byte>& pixels, u32 width, u32 height,
-                                                bool srgb, JobSystem* jobs = nullptr)
+                                                bool srgb, JobSystem* jobs = nullptr,
+                                                f32 coverageReference = 0.0f)
         {
             // Every destination row is independent: the big levels fan their rows out over the
             // cook's job system (a 4k chain takes seconds on one core in a Debug build); the
@@ -863,8 +878,90 @@ export namespace pipeline{
                 srcH = dstH;
                 ++levels;
             }
+            if (coverageReference > 0.0f)
+            {
+                PreserveAlphaCoverage(pixels, width, height, levels, coverageReference);
+            }
             return levels;
         }
+
+    public:
+        /// The reference an asset's chain keeps the coverage of, or 0 when it keeps none.
+        [[nodiscard]] static f32 CoverageReference(const TextureAsset& ta) noexcept
+        {
+            return ta.preserveAlphaCoverage ? Clamp(ta.alphaCoverageReference, 0.0f, 1.0f) : 0.0f;
+        }
+
+        /// Scales the alpha of each level after the first of a tight RGBA8 2D chain (`levels` levels,
+        /// level 0 `width` x `height`) so the share of its texels at or above `reference` (0..1, an
+        /// alpha test's cutoff) is level 0's. The whole chain is built from unscaled levels first,
+        /// so no level's scale feeds the next. Per level, the alpha above which that share of its
+        /// texels lies (from a histogram) is scaled onto the reference.
+        static void PreserveAlphaCoverage(Array<byte>& pixels, u32 width, u32 height, u32 levels, f32 reference)
+        {
+            const u32 cut = static_cast<u32>(Clamp(reference, 0.0f, 1.0f) * 255.0f + 0.5f);
+            if (cut == 0 || levels < 2)
+            {
+                return; // everything passes a zero cutoff: nothing to keep
+            }
+            u8* base = reinterpret_cast<u8*>(pixels.Data());
+            u64 bins[256];
+            const auto histogram = [&](usize offset, usize count)
+            {
+                for (u64& b : bins)
+                {
+                    b = 0;
+                }
+                for (usize i = 0; i < count; ++i)
+                {
+                    ++bins[base[offset + i * 4 + 3]];
+                }
+            };
+            const usize count0 = static_cast<usize>(width) * height;
+            histogram(0, count0);
+            u64 passing0 = 0;
+            for (u32 a = cut; a < 256; ++a)
+            {
+                passing0 += bins[a];
+            }
+            if (passing0 == 0 || passing0 == count0)
+            {
+                return; // all or nothing passes: the box chain keeps that already
+            }
+            const f64 target = static_cast<f64>(passing0) / static_cast<f64>(count0);
+            usize offset = count0 * 4;
+            u32 w = width;
+            u32 h = height;
+            for (u32 level = 1; level < levels; ++level)
+            {
+                w = w > 1 ? w / 2 : 1;
+                h = h > 1 ? h / 2 : 1;
+                const usize count = static_cast<usize>(w) * h;
+                histogram(offset, count);
+                // The alpha above which the target share of this level's texels lies.
+                const u64 wanted = static_cast<u64>(target * static_cast<f64>(count) + 0.5);
+                u64 seen = 0;
+                u32 threshold = 255;
+                while (threshold > 0 && seen + bins[threshold] < wanted)
+                {
+                    seen += bins[threshold];
+                    --threshold;
+                }
+                // Threshold 0 would need texels with no alpha to pass: the level keeps what it has.
+                if (threshold > 0 && wanted > 0)
+                {
+                    const f32 scale = static_cast<f32>(cut) / static_cast<f32>(threshold);
+                    for (usize i = 0; i < count; ++i)
+                    {
+                        u8& a = base[offset + i * 4 + 3];
+                        a = static_cast<u8>(Min(255.0f, static_cast<f32>(a) * scale + 0.5f));
+                    }
+                }
+                offset += count * 4;
+            }
+        }
+
+    private:
 
         // Cook a 6-face cubemap: derive the face paths from the +X face's naming convention,
         // load each through the VFS, validate (square, matching size/format), concatenate.
@@ -983,7 +1080,7 @@ export namespace pipeline{
             {
                 resource.mipLevels =
                     AppendMipChain(pixels, ta.embeddedWidth, ta.embeddedHeight,
-                                   ta.colorSpace == image::ImageColorSpace::Srgb);
+                                   ta.colorSpace == image::ImageColorSpace::Srgb, nullptr, CoverageReference(ta));
             }
             if (ta.shape == TextureShape::Texture2D)
             {

@@ -565,6 +565,29 @@ namespace pipeline
             }
         }
 
+        // Per texture, the cutoff of an alpha-tested (Mask) material that takes it as its base
+        // colour, 0 for none: its mipmaps keep that cutoff's coverage (TextureAsset::
+        // preserveAlphaCoverage), or leaves and grass thin out and vanish with distance. Two
+        // masked materials sharing one texture: the higher cutoff, which thins the most.
+        inline void ClassifyAlphaTestedTextures(const model::Model& mdl, Array<f32>& outCutoff)
+        {
+            outCutoff.Clear();
+            outCutoff.Resize(mdl.textures().Size(), 0.0f);
+            for (const model::ModelMaterial* m : mdl.materials())
+            {
+                if (m == nullptr || m->alphaMode != model::AlphaMode::Mask)
+                {
+                    continue;
+                }
+                const i32 index = m->baseColorTextureIndex;
+                if (index >= 0 && static_cast<usize>(index) < outCutoff.Size())
+                {
+                    f32& cutoff = outCutoff[static_cast<usize>(index)];
+                    cutoff = Max(cutoff, Clamp(m->alphaCutoff, 0.0f, 1.0f));
+                }
+            }
+        }
+
         // Bake a glTF-style packed metallic-roughness texture (G = roughness, B = metalness; R = A =
         // 255) from FBX's separate grayscale maps. Missing maps bake as 255 (identity: the factor
         // carries the value). Sizes may differ; the output takes the larger and nearest-samples.

@@ -27,7 +27,8 @@ using namespace foundation::texture;
 namespace pipeline{
     REFLECT_MEMBERS(TextureAsset, "rtti::pipeline::texture")
     {
-        builder.DataVersion(3) // v3: sourceHint provenance (v2: usage/compression)
+        builder.DataVersion(4) // v4: alpha coverage; v3: sourceHint provenance (v2: usage/compression)
+            .ReadsDataVersionsFrom(3) // a v3 texture reads with its coverage off (Serialize branches)
             .Attribute("displayName", String(u8"Texture"))
             .Attribute("category", String(u8"Textures"))
             .Property<&TextureAsset::colorSpace>("colorSpace")
@@ -54,6 +55,14 @@ namespace pipeline{
             .PropAttribute("displayName", String(u8"Wrap W"))
             .Property<&TextureAsset::generateMipmaps>("generateMipmaps")
             .PropAttribute("displayName", String(u8"Generate Mipmaps"))
+            .Property<&TextureAsset::preserveAlphaCoverage>("preserveAlphaCoverage")
+            .PropAttribute("displayName", String(u8"Preserve Alpha Coverage"))
+            .PropAttribute("description",
+                           String(u8"Keep the share of texels at or above the reference in every mipmap, so an alpha-tested material (leaves, grass) does not thin out with distance"))
+            .Property<&TextureAsset::alphaCoverageReference>("alphaCoverageReference")
+            .PropAttribute("displayName", String(u8"Alpha Coverage Reference"))
+            .PropAttribute("description", String(u8"The alpha whose coverage is kept: the material's alpha cutoff"))
+            .PropAttribute("range", Float4{0.0f, 1.0f, 0.01f, 0.0f})
             .Property<&TextureAsset::anisotropy>("anisotropy")
             .PropAttribute("displayName", String(u8"Anisotropy"))
             .PropAttribute("range", Float4{1.0f, 16.0f, 1.0f, 0.0f})

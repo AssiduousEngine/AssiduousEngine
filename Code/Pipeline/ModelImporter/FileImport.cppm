@@ -1113,7 +1113,7 @@ export namespace pipeline
 
         static content::Instance* ImportFileBackedTexture(
             const foundation::model::ModelTexture& t, usize index, bool normalSlot, bool linear,
-            const pipeline::ImportContext& context, bool sidecarsCopied, content::Group& group,
+            f32 alphaCutoff, const pipeline::ImportContext& context, bool sidecarsCopied, content::Group& group,
             Array<String>& claimed, Array<pipeline::DeferredImportWrite>* deferredWrites,
             const pipeline::ImportOptions& sel)
         {
@@ -1182,6 +1182,9 @@ export namespace pipeline
             {
                 asset.SetupForDataMask();
             }
+            // A masked material's base colour: its mipmaps keep the cutoff's coverage.
+            asset.preserveAlphaCoverage = alphaCutoff > 0.0f;
+            asset.alphaCoverageReference = alphaCutoff > 0.0f ? alphaCutoff : asset.alphaCoverageReference;
             content::Instance* inst = ClaimInstance(
                 group, sel.SelectionName(pipeline::ImportResourceKind::Texture, texBase.AsView()),
                 pipeline::TextureAsset::StaticType(), claimed);
@@ -1205,6 +1208,8 @@ export namespace pipeline
             ClassifyLinearTextures(model, linear);
             Array<bool> normal;
             ClassifyNormalTextures(model, normal);
+            Array<f32> cutoff; // a masked material's base colour: its alpha cutoff
+            ClassifyAlphaTestedTextures(model, cutoff);
 
             const Span<foundation::model::ModelTexture* const> textures = model.textures();
             for (usize i = 0; i < textures.Size(); ++i)
@@ -1220,7 +1225,8 @@ export namespace pipeline
                         t.sourceFile().IsEmpty()
                             ? nullptr
                             : ImportFileBackedTexture(t, i, i < normal.Size() && normal[i],
-                                                      i < linear.Size() && linear[i], context,
+                                                      i < linear.Size() && linear[i],
+                                                      i < cutoff.Size() ? cutoff[i] : 0.0f, context,
                                                       sidecarsCopied, group, claimed,
                                                       deferredWrites, sel);
                     outGuids.PushBack(fileBacked != nullptr ? fileBacked->Id() : Guid{});
@@ -1235,6 +1241,12 @@ export namespace pipeline
                         ? foundation::image::ImageColorSpace::Linear // data maps (normal, MR, AO)
                         : foundation::image::ImageColorSpace::Srgb;  // color maps (albedo, emissive)
                 asset.generateMipmaps = true; // mips at cook; without them minified textures shimmer
+                // A masked material's base colour: its mipmaps keep the cutoff's coverage.
+                if (i < cutoff.Size() && cutoff[i] > 0.0f)
+                {
+                    asset.preserveAlphaCoverage = true;
+                    asset.alphaCoverageReference = cutoff[i];
+                }
                 // Provenance for the texture page: the model's image uri (display only;
                 // asset names prefer the file stem, but a review-dialog rename or an
                 // authored-name fallback can still diverge from the file).

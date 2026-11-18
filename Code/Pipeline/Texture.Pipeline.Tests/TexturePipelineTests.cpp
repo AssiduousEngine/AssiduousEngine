@@ -1287,3 +1287,199 @@ TEST_CASE("texture.pipeline: a cube map's other faces are its asset's companion 
     TextureAsset flat;
     CHECK(flat.CompanionFiles(u8"some/dir/sky_px.png").IsEmpty());
 }
+
+namespace
+{
+    // A level-0 RGBA8 image of thin opaque strokes (foliage-like: a cutoff's worth of texels, the
+    // rest clear), at a density that varies across it, and its 2x2 box chain as the cook builds it.
+    Array<byte> FoliageChain(u32 size, u32& outLevels)
+    {
+        Array<byte> pixels;
+        pixels.Resize(static_cast<usize>(size) * size * 4);
+        u32 seed = 12345u;
+        for (u32 y = 0; y < size; ++y)
+        {
+            for (u32 x = 0; x < size; ++x)
+            {
+                seed = seed * 1664525u + 1013904223u;
+                // Denser toward the left: about 45% of texels there, 5% at the right.
+                const f32 density = 0.45f - 0.40f * static_cast<f32>(x) / static_cast<f32>(size);
+                const bool leaf = static_cast<f32>(seed >> 8) / 16777216.0f < density;
+                u8* p = reinterpret_cast<u8*>(pixels.Data()) + (static_cast<usize>(y) * size + x) * 4;
+                p[0] = 40;
+                p[1] = 160;
+                p[2] = 40;
+                p[3] = leaf ? 255 : 0;
+            }
+        }
+        outLevels = 1;
+        usize src = 0;
+        for (u32 w = size; w > 1; w /= 2)
+        {
+            const u32 d = w / 2;
+            const usize dst = pixels.Size();
+            pixels.Resize(dst + static_cast<usize>(d) * d * 4);
+            const u8* s = reinterpret_cast<const u8*>(pixels.Data()) + src;
+            u8* o = reinterpret_cast<u8*>(pixels.Data()) + dst;
+            for (u32 y = 0; y < d; ++y)
+            {
+                for (u32 x = 0; x < d; ++x)
+                {
+                    for (u32 c = 0; c < 4; ++c)
+                    {
+                        const u32 sum = s[((2 * y) * w + 2 * x) * 4 + c] + s[((2 * y) * w + 2 * x + 1) * 4 + c] +
+                                        s[((2 * y + 1) * w + 2 * x) * 4 + c] + s[((2 * y + 1) * w + 2 * x + 1) * 4 + c];
+                        o[(y * d + x) * 4 + c] = static_cast<u8>((sum + 2) / 4);
+                    }
+                }
+            }
+            src = dst;
+            ++outLevels;
+        }
+        return pixels;
+    }
+
+    // The share of each level's texels at or above `cut` (0..255), level 0 first.
+    Array<f32> CoverageByLevel(const Array<byte>& pixels, u32 size, u32 levels, u32 cut)
+    {
+        Array<f32> out;
+        usize offset = 0;
+        u32 w = size;
+        for (u32 level = 0; level < levels; ++level)
+        {
+            const usize count = static_cast<usize>(w) * w;
+            usize passing = 0;
+            for (usize i = 0; i < count; ++i)
+            {
+                passing += reinterpret_cast<const u8*>(pixels.Data())[offset + i * 4 + 3] >= cut ? 1u : 0u;
+            }
+            out.PushBack(static_cast<f32>(passing) / static_cast<f32>(count));
+            offset += count * 4;
+            w = w > 1 ? w / 2 : 1;
+        }
+        return out;
+    }
+}
+
+TEST_CASE("texture.pipeline: an alpha-tested texture's mipmaps keep its cutoff's coverage")
+{
+    // The box chain averages each stroke with the clear texels round it below the cutoff: past a
+    // few levels almost nothing passes, which is foliage thinning out and vanishing with distance.
+    constexpr u32 kSize = 256;
+    constexpr u32 kCut = 115; // 0.45 of 255, the forest's leaves
+    u32 levels = 0;
+    const Array<byte> plain = FoliageChain(kSize, levels);
+    const Array<f32> before = CoverageByLevel(plain, kSize, levels, kCut);
+    const f32 target = before[0];
+    REQUIRE(target > 0.1f);
+    REQUIRE(target < 0.4f);
+    CHECK(before[4] < target * 0.5f); // 16x16: most of it gone
+
+    // Preserved: every level down to 8x8 keeps level 0's share, within what its texel count allows.
+    Array<byte> kept = FoliageChain(kSize, levels);
+    TextureAssetBuilder::PreserveAlphaCoverage(kept, kSize, kSize, levels, static_cast<f32>(kCut) / 255.0f);
+    const Array<f32> after = CoverageByLevel(kept, kSize, levels, kCut);
+    CHECK(after[0] == doctest::Approx(target)); // level 0 is never touched
+    u32 w = kSize;
+    for (u32 level = 0; level < levels && w >= 8; ++level, w /= 2)
+    {
+        INFO("level " << level << " (" << w << "x" << w << "): " << after[level] << " against " << target);
+        CHECK(Abs(after[level] - target) < 0.05f + 2.0f / static_cast<f32>(w));
+    }
+
+    // Opaque or clear everywhere: nothing to keep, the chain is left as it is.
+    Array<byte> solid;
+    solid.Resize(16 * 4 + 4 * 4 + 4);
+    for (usize i = 0; i < solid.Size(); ++i)
+    {
+        solid[i] = static_cast<byte>(255);
+    }
+    const Array<byte> solidBefore = solid;
+    TextureAssetBuilder::PreserveAlphaCoverage(solid, 4, 4, 3, 0.5f);
+    CHECK(std::memcmp(solid.Data(), solidBefore.Data(), solid.Size()) == 0);
+}
+
+TEST_CASE("texture.pipeline: an asset keeps its alpha coverage settings")
+{
+    // Off by default: an opaque or blended texture's mipmaps are plain averages.
+    CHECK_FALSE(TextureAsset{}.preserveAlphaCoverage);
+    RegisterTextureAsset(); // the database makes the type back from its id
+    (void)RemoveDirectoryRecursive(u8"scratch_texture_coverage_db");
+    NativeFileSystem mount(u8"scratch_texture_coverage_db", DefaultAllocator());
+    Guid id;
+    {
+        foundation::content::ContentDatabase db(DefaultAllocator(), mount, foundation::xml::XmlSerializerFactory(),
+                                                u8".xasset");
+        foundation::content::Instance* inst = db.RootGroup()->CreateInstance(u8"leaves", TextureAsset::StaticType());
+        REQUIRE(inst != nullptr);
+        id = inst->Id();
+        TextureAsset asset;
+        asset.preserveAlphaCoverage = true;
+        asset.alphaCoverageReference = 0.45f;
+        REQUIRE(inst->WriteObject(asset).IsOk());
+    }
+    {
+        foundation::content::ContentDatabase db(DefaultAllocator(), mount, foundation::xml::XmlSerializerFactory(),
+                                                u8".xasset");
+        foundation::content::Instance* inst = db.GetInstance(id);
+        REQUIRE(inst != nullptr);
+        RefPtr<ISerializable> object = inst->ReadObject();
+        const auto* asset = Cast<TextureAsset>(object.Get());
+        REQUIRE(asset != nullptr);
+        if (asset == nullptr)
+        {
+            return; // REQUIRE does not stop a build without exceptions
+        }
+        CHECK(asset->preserveAlphaCoverage);
+        CHECK(asset->alphaCoverageReference == doctest::Approx(0.45f));
+    }
+
+    // A texture stored before the settings existed (data version 3, no such fields) still reads,
+    // with its coverage off: a project's textures must not stop loading for a new field.
+    {
+        Result<Array<byte>> stored = ReadFile(u8"scratch_texture_coverage_db/leaves.xasset");
+        REQUIRE(stored.HasValue());
+        if (!stored.HasValue())
+        {
+            return;
+        }
+        String text(StringView(reinterpret_cast<const utf8char*>(stored.Value().Data()), stored.Value().Size()));
+        String older;
+        bool versioned = false;
+        usize start = 0;
+        while (start < text.Size())
+        {
+            usize end = text.AsView().Find(u8'\n', start);
+            end = end == StringView::kNotFound ? text.Size() : end + 1;
+            const StringView line = text.AsView().SubStr(start, end - start);
+            start = end;
+            if (line.Contains(u8"preserveAlphaCoverage") || line.Contains(u8"alphaCoverageReference"))
+            {
+                continue;
+            }
+            if (!versioned && line.Contains(u8"name=\"version\">4<"))
+            {
+                older.Append(StringView(u8"\t\t<u32 name=\"version\">3</u32>\n"));
+                versioned = true;
+                continue;
+            }
+            older.Append(line);
+        }
+        REQUIRE(versioned);
+        REQUIRE(mount.AsWritable()
+                    ->Save(u8"leaves.xasset", Span<const byte>(reinterpret_cast<const byte*>(older.Data()), older.Size()))
+                    .IsOk());
+        foundation::content::ContentDatabase db(DefaultAllocator(), mount, foundation::xml::XmlSerializerFactory(),
+                                                u8".xasset");
+        foundation::content::Instance* inst = db.GetInstance(id);
+        REQUIRE(inst != nullptr);
+        RefPtr<ISerializable> object = inst->ReadObject();
+        const auto* asset = Cast<TextureAsset>(object.Get());
+        REQUIRE(asset != nullptr);
+        if (asset != nullptr)
+        {
+            CHECK_FALSE(asset->preserveAlphaCoverage);
+        }
+    }
+    (void)RemoveDirectoryRecursive(u8"scratch_texture_coverage_db");
+}

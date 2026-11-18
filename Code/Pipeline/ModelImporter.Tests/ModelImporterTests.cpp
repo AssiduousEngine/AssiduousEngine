@@ -535,6 +535,48 @@ TEST_CASE("importer: FBX separate metal/rough maps bake into one packed MR textu
     CHECK(linear[1]);
 }
 
+TEST_CASE("importer: a masked material's base colour keeps its cutoff's coverage in its mipmaps")
+{
+    // Leaves: an alpha-tested (Mask) material's base colour. Its cutoff is what each mipmap keeps
+    // the coverage of; an opaque or blended material's texture, and every other slot, keep none.
+    model::Model mdl;
+    const auto makeTexture = [&]() -> i32
+    {
+        auto* tex = new model::ModelTexture();
+        u8 px[4] = {255, 255, 255, 255};
+        tex->width = 1;
+        tex->height = 1;
+        tex->setData(static_cast<const u8*>(px), static_cast<usize>(sizeof(px)));
+        return mdl.addTexture(tex);
+    };
+    const i32 leaves = makeTexture();
+    const i32 leavesNormal = makeTexture();
+    const i32 bark = makeTexture();
+    const i32 glass = makeTexture();
+
+    auto* masked = new model::ModelMaterial();
+    masked->alphaMode = model::AlphaMode::Mask;
+    masked->alphaCutoff = 0.45f;
+    masked->baseColorTextureIndex = leaves;
+    masked->normalTextureIndex = leavesNormal;
+    mdl.addMaterial(masked);
+    auto* opaque = new model::ModelMaterial();
+    opaque->baseColorTextureIndex = bark;
+    mdl.addMaterial(opaque);
+    auto* blended = new model::ModelMaterial();
+    blended->alphaMode = model::AlphaMode::Blend;
+    blended->baseColorTextureIndex = glass;
+    mdl.addMaterial(blended);
+
+    Array<f32> cutoff;
+    pipeline::ClassifyAlphaTestedTextures(mdl, cutoff);
+    REQUIRE(cutoff.Size() == 4u);
+    CHECK(cutoff[static_cast<usize>(leaves)] == doctest::Approx(0.45f));
+    CHECK(cutoff[static_cast<usize>(leavesNormal)] == 0.0f);
+    CHECK(cutoff[static_cast<usize>(bark)] == 0.0f);
+    CHECK(cutoff[static_cast<usize>(glass)] == 0.0f);
+}
+
 TEST_CASE("mesh convert: missing tangent stream generates tangents (DamagedHelmet class)")
 {
     // A quad in the XY plane, normal +Z, with U mapped along +Y, so the generated tangent
