@@ -362,7 +362,10 @@ Each step stands on its own and leaves the tree green.
 3. **C# onto the typed entry**, with the C# items of Part 3. It has the most to gain and its
    bindings are generated, so the change is in one generator. Moves: Engine call, Value method,
    Object return, String argument (C#).
-4. **Part 2**: handler bits and `Bind`. Moves: Handler dispatch (every language).
+4. **Part 2**: handler bits and `Bind`. Moves: Handler dispatch (every language). Built
+   2026-11-18 as `Bind` and lifecycle handles per behaviour; it moved nothing measurable: the name
+   compares were not the cost. A behaviour spends 50 to 90 ns of engine work outside the script
+   call in every language, not yet attributed.
 5. **Luau stack buffer**, then **AngelScript onto the typed entry** after the parameter-form
    check. Moves: Engine call (Luau, AngelScript).
 6. **Luau tagged value userdata**, if the Value method and Movers measures show value math in

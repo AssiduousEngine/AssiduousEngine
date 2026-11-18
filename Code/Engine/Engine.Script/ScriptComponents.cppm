@@ -61,6 +61,17 @@ export namespace engine::script
         }
     }
 
+    /// A behaviour's lifecycle handlers as its instance bound them, once, when it was made: an
+    /// invalid one is a handler its class does not declare.
+    struct ScriptLifecycleMethods
+    {
+        ScriptMethod enable;
+        ScriptMethod start;
+        ScriptMethod update;
+        ScriptMethod disable;
+        ScriptMethod destroy;
+    };
+
     struct ScriptBehavior
     {
         // Authored:
@@ -72,6 +83,7 @@ export namespace engine::script
 
         // Runtime (transient):
         RefPtr<ScriptObject> instance;
+        ScriptLifecycleMethods lifecycle;        // bound with the instance, gone with it
         const ScriptClass* boundClass = nullptr; // product the instance was built from
                                                  // (a reload swaps the product: re-instantiate)
         bool started = false;                    // onStart delivered

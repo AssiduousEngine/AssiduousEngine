@@ -1090,7 +1090,7 @@ export namespace engine::script
                 {
                     behavior.active =
                         false; // set before dispatch (no re-dispatch on suspend or fault)
-                    (void)InvokeHandler(behavior, *behavior.boundClass, entity, kOnDisable, {});
+                    (void)InvokeHandler(behavior, *behavior.boundClass, entity, behavior.lifecycle.disable, kOnDisable, {});
                     CancelCoroutines(behavior); // a disabled behavior's coroutines stop too
                 }
                 return;
@@ -1115,7 +1115,7 @@ export namespace engine::script
             if (!behavior.active)
             {
                 behavior.active = true;
-                if (InvokeHandler(behavior, *scriptClass, entity, kOnEnable, {}) !=
+                if (InvokeHandler(behavior, *scriptClass, entity, behavior.lifecycle.enable, kOnEnable, {}) !=
                     HandlerOutcome::Ok)
                 {
                     return;
@@ -1124,7 +1124,7 @@ export namespace engine::script
             if (!behavior.started)
             {
                 behavior.started = true;
-                if (InvokeHandler(behavior, *scriptClass, entity, kOnStart, {}) !=
+                if (InvokeHandler(behavior, *scriptClass, entity, behavior.lifecycle.start, kOnStart, {}) !=
                     HandlerOutcome::Ok)
                 {
                     return;
@@ -1141,14 +1141,14 @@ export namespace engine::script
                     Variant dt = Variant::From(behavior.updateAccumulator);
                     behavior.updateAccumulator =
                         0.0f; // consume before dispatch (no double on resume)
-                    (void)InvokeHandler(behavior, *scriptClass, entity, kOnUpdate,
+                    (void)InvokeHandler(behavior, *scriptClass, entity, behavior.lifecycle.update, kOnUpdate,
                                         Span<Variant>{&dt, 1});
                 }
             }
             else
             {
                 Variant dt = Variant::From(deltaTime);
-                (void)InvokeHandler(behavior, *scriptClass, entity, kOnUpdate,
+                (void)InvokeHandler(behavior, *scriptClass, entity, behavior.lifecycle.update, kOnUpdate,
                                     Span<Variant>{&dt, 1});
             }
         }
@@ -1181,6 +1181,17 @@ export namespace engine::script
                     m_scene->GetEntityName(entity), scriptClass.className);
                 return;
             }
+            // The lifecycle handlers the class declares, bound once: each frame's dispatch then
+            // tests a handle rather than comparing names.
+            const auto bind = [&](StringView name, usize argCount)
+            {
+                return scriptClass.HasHandler(name) ? behavior.instance->Bind(name, argCount) : ScriptMethod{};
+            };
+            behavior.lifecycle.enable = bind(kOnEnable, 0);
+            behavior.lifecycle.start = bind(kOnStart, 0);
+            behavior.lifecycle.update = bind(kOnUpdate, 1);
+            behavior.lifecycle.disable = bind(kOnDisable, 0);
+            behavior.lifecycle.destroy = bind(kOnDestroy, 0);
             ApplyProperties(behavior, scriptClass, entity);
             // Subscribe this scene's bus to the on<Event> handlers this class declares (deduped),
             // so a fired event reaches every declaring behavior through BroadcastEvent.
@@ -1212,7 +1223,35 @@ export namespace engine::script
                 return HandlerOutcome::Ok;
             }
             PROFILE_SCOPE(scriptClass.ProfileName());
-            auto result = behavior.instance->Invoke(method, args);
+            return HandlerResult(behavior, scriptClass, entity, method, behavior.instance->Invoke(method, args));
+        }
+
+        // A lifecycle handler, by the method its instance bound: no name looked up per call. One
+        // the instance could not bind goes by `name`, which also names a fault: a declared handler
+        // the object lacks (the wrong parameters) faults as it always has, and an undeclared one
+        // is skipped.
+        [[nodiscard]] HandlerOutcome InvokeHandler(ScriptBehavior& behavior,
+                                                   const ScriptClass& scriptClass,
+                                                   scene::EntityHandle entity, ScriptMethod method,
+                                                   StringView name, Span<Variant> args)
+        {
+            if (!method.IsValid())
+            {
+                return InvokeHandler(behavior, scriptClass, entity, name, args);
+            }
+            if (behavior.instance.Get() == nullptr)
+            {
+                return HandlerOutcome::Ok;
+            }
+            PROFILE_SCOPE(scriptClass.ProfileName());
+            return HandlerResult(behavior, scriptClass, entity, name, behavior.instance->Invoke(method, args));
+        }
+
+        // What a handler's result means: a fault disables the behaviour; a debug pause is not one.
+        [[nodiscard]] HandlerOutcome HandlerResult(ScriptBehavior& behavior, const ScriptClass& scriptClass,
+                                                   scene::EntityHandle entity, StringView method,
+                                                   const Result<Variant>& result)
+        {
             if (result.HasValue())
             {
                 return HandlerOutcome::Ok;
@@ -1253,10 +1292,11 @@ export namespace engine::script
             if (behavior.instance.Get() != nullptr && invokeDestroy && behavior.started &&
                 behavior.boundClass != nullptr && !behavior.faulted)
             {
-                (void)InvokeHandler(behavior, *behavior.boundClass, entity, kOnDestroy, {});
+                (void)InvokeHandler(behavior, *behavior.boundClass, entity, behavior.lifecycle.destroy, kOnDestroy, {});
             }
             CancelCoroutines(behavior); // drop pending coroutines before releasing the instance
             behavior.instance = nullptr;
+            behavior.lifecycle = ScriptLifecycleMethods{};
             behavior.boundClass = nullptr;
             behavior.started = false;
             behavior.active = false;

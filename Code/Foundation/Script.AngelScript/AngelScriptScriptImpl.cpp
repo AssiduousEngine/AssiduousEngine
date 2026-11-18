@@ -4738,6 +4738,25 @@ namespace foundation::script::angelscript
             return m_owner->ExecuteCall(target, m_instance, args);
         }
 
+        // The handle is the method's function: a class's methods are fixed once compiled, and the
+        // module that owns them outlives every instance of it.
+        [[nodiscard]] ScriptMethod Bind(core::StringView method, core::usize argCount) override
+        {
+            asITypeInfo* type = m_instance->GetObjectType();
+            asIScriptFunction* found = type != nullptr ? FindMethod(type, method, argCount) : nullptr;
+            return ScriptMethod{reinterpret_cast<core::u64>(found)};
+        }
+
+        [[nodiscard]] core::Result<core::Variant> Invoke(ScriptMethod method, core::Span<core::Variant> args) override
+        {
+            auto* function = reinterpret_cast<asIScriptFunction*>(method.id);
+            if (function == nullptr || function->GetParamCount() != args.Size())
+            {
+                return core::Err(core::ErrorCode::NotFound);
+            }
+            return m_owner->ExecuteCall(function, m_instance, args);
+        }
+
         [[nodiscard]] core::Result<core::Variant> GetProperty(core::StringView name) override
         {
             const core::String fieldName(name);

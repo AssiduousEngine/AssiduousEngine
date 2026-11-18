@@ -236,14 +236,31 @@ namespace foundation::script
         ~LuauScriptObject() override;
 
         [[nodiscard]] Result<Variant> Invoke(StringView method, Span<Variant> args) override;
+        [[nodiscard]] ScriptMethod Bind(StringView method, usize argCount) override;
+        [[nodiscard]] Result<Variant> Invoke(ScriptMethod method, Span<Variant> args) override;
         [[nodiscard]] Result<Variant> GetProperty(StringView name) override;
 
         // Identity of the instance table (coroutine ownership matching).
         [[nodiscard]] const void* TablePointer() const;
 
     private:
+        // Calls the method whose name is on top of the stack (over the instance), looked up on the
+        // instance then. A fault names `method`, or the bound name at `boundIndex` when it is one
+        // (read after the call: a bind during it may move the list).
+        [[nodiscard]] Result<Variant> CallNamedOnTop(StringView method, usize boundIndex, Span<Variant> args);
+        static constexpr usize kNotBound = ~usize{0};
+
+        // A bound method: its name interned in the registry (no string made or hashed per call)
+        // and kept as text for an error's report. The handle's id is its index plus one.
+        struct BoundName
+        {
+            String name;
+            int ref = 0;
+        };
+
         RefPtr<LuauScriptContext> m_context;
         int m_tableRef;
+        Array<BoundName> m_bound;
     };
 
     // =====================================================================
@@ -3073,6 +3090,8 @@ namespace foundation::script
     // =====================================================================
     LuauScriptObject::~LuauScriptObject()
     {
+        for (const BoundName& bound : m_bound)
+            lua_unref(m_context->State(), bound.ref);
         lua_unref(m_context->State(), m_tableRef);
     }
 
@@ -3110,6 +3129,34 @@ namespace foundation::script
         // at runtime (`self.onUpdate = walking`). The name goes in from the view, with no copy.
         lua_getref(state, m_tableRef);
         lua_pushlstring(state, reinterpret_cast<const char*>(method.Data()), method.Size());
+        return CallNamedOnTop(method, kNotBound, args);
+    }
+
+    ScriptMethod LuauScriptObject::Bind(StringView method, usize argCount)
+    {
+        (void)argCount; // a Luau function takes what it is given
+        lua_State* state = m_context->State();
+        lua_pushlstring(state, reinterpret_cast<const char*>(method.Data()), method.Size());
+        m_bound.PushBack(BoundName{String(method), lua_ref(state, -1)});
+        lua_pop(state, 1);
+        return ScriptMethod{static_cast<u64>(m_bound.Size())};
+    }
+
+    Result<Variant> LuauScriptObject::Invoke(ScriptMethod method, Span<Variant> args)
+    {
+        if (method.id == 0 || method.id > m_bound.Size())
+            return Err(ErrorCode::NotFound);
+        const usize index = static_cast<usize>(method.id - 1);
+        lua_State* state = m_context->State();
+        lua_getref(state, m_tableRef);
+        lua_getref(state, m_bound[index].ref);
+        return CallNamedOnTop(StringView{}, index, args);
+    }
+
+    Result<Variant> LuauScriptObject::CallNamedOnTop(StringView method, usize boundIndex, Span<Variant> args)
+    {
+        // The instance, then the name, on the stack.
+        lua_State* state = m_context->State();
         lua_gettable(state, -2); // honors the class metatable chain
         if (!lua_isfunction(state, -1))
         {
@@ -3125,7 +3172,8 @@ namespace foundation::script
         // The method, self and N args: N + 2 items to run on a pooled resumable thread.
         if (m_context->RunCallable(static_cast<int>(args.Size()) + 2) != LUA_OK)
         {
-            m_context->ReportTopOfStack(ScriptErrorKind::Runtime, method);
+            m_context->ReportTopOfStack(ScriptErrorKind::Runtime,
+                                        boundIndex != kNotBound ? m_bound[boundIndex].name.AsView() : method);
             return Err(ErrorCode::Unknown);
         }
         Variant result = m_context->ToVariant(state, -1);

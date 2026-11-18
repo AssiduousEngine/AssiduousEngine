@@ -513,6 +513,11 @@ namespace
         {
             return Err(ErrorCode::NotFound);
         }
+        [[nodiscard]] foundation::script::ScriptMethod Bind(StringView, usize) override { return {}; }
+        [[nodiscard]] Result<Variant> Invoke(foundation::script::ScriptMethod, Span<Variant>) override
+        {
+            return Err(ErrorCode::NotFound);
+        }
         [[nodiscard]] Result<Variant> GetProperty(StringView name) override
         {
             if (name == u8"speed")

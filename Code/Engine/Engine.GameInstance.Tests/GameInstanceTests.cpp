@@ -2121,7 +2121,21 @@ namespace
             g_assembled.calls.PushBack(String(method));
             return Variant{};
         }
+        [[nodiscard]] foundation::script::ScriptMethod Bind(StringView method, usize) override
+        {
+            m_bound.PushBack(String(method));
+            return foundation::script::ScriptMethod{m_bound.Size()};
+        }
+        [[nodiscard]] Result<Variant> Invoke(foundation::script::ScriptMethod method, Span<Variant> args) override
+        {
+            if (method.id == 0 || method.id > m_bound.Size())
+                return Err(ErrorCode::NotFound);
+            return Invoke(m_bound[static_cast<usize>(method.id - 1)].AsView(), args);
+        }
         [[nodiscard]] Result<Variant> GetProperty(StringView) override { return Err(ErrorCode::NotFound); }
+
+    private:
+        Array<String> m_bound;
     };
 
     class AssembledContext final : public foundation::script::IScriptContext

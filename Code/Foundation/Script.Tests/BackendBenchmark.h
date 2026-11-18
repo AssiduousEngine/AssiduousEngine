@@ -177,16 +177,19 @@ namespace foundation::script::benchmark
             return true;
         };
 
-        // A handler call: the cost of crossing into script and back.
+        // A handler call: the cost of crossing into script and back, by the method bound once, as
+        // the engine calls a behaviour's handlers.
         {
             constexpr u32 kHandlerCalls = 100000;
             Variant dt[] = {Variant::From<f64>(0.016)};
+            const ScriptMethod tick = bench->Bind(u8"tick", 1);
+            REQUIRE(tick.IsValid());
             Steady measured;
             const bool ran = steady(
                 [&]()
                 {
                     for (u32 i = 0; i < kHandlerCalls; ++i)
-                        if (!bench->Invoke(u8"tick", Span<Variant>{dt, 1}).HasValue())
+                        if (!bench->Invoke(tick, Span<Variant>{dt, 1}).HasValue())
                             return false;
                     return true;
                 },

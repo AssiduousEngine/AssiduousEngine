@@ -790,6 +790,58 @@ TEST_CASE("script.scene: a faulting behavior is disabled and logged; siblings ke
     CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 2.0f)); // sibling unaffected
 }
 
+// Lifecycle handlers are bound once with the instance. One the class declares but the object
+// cannot bind (onUpdate without its dt) still faults on its first dispatch, as by name; one the
+// class does not declare is skipped.
+TEST_CASE("script.scene: lifecycle handlers dispatch by their bound methods; a declared one with "
+          "the wrong parameters faults")
+{
+    ScriptedScene bed;
+    RefPtr<ScriptClass> mover = MakeClass(u8"Mover",
+                                          u8"class Mover {\n"
+                                          u8"    private Entity self;\n"
+                                          u8"    Mover(Entity entity) { self = entity; }\n"
+                                          u8"    void onStart() { self.setPosition(10.0f, 0.0f, 0.0f); }\n"
+                                          u8"    void onUpdate(double dt) {\n"
+                                          u8"        Float3 p = self.position();\n"
+                                          u8"        self.setPosition(p.x + 1.0f, p.y, p.z);\n"
+                                          u8"    }\n"
+                                          u8"}\n",
+                                          {u8"onStart", u8"onUpdate"});
+    RefPtr<ScriptClass> wrong = MakeClass(u8"Wrong",
+                                          u8"class Wrong {\n"
+                                          u8"    private Entity self;\n"
+                                          u8"    Wrong(Entity entity) { self = entity; }\n"
+                                          u8"    void onUpdate() {}\n"
+                                          u8"}\n",
+                                          {u8"onUpdate"});
+
+    const scene::EntityHandle moving = bed.scene.CreateEntity(u8"moving");
+    {
+        ScriptBehavior behavior;
+        behavior.script = mover;
+        bed.components->Add(moving).behaviors.PushBack(Move(behavior));
+    }
+    const scene::EntityHandle broken = bed.scene.CreateEntity(u8"broken");
+    {
+        ScriptBehavior behavior;
+        behavior.script = wrong;
+        bed.components->Add(broken).behaviors.PushBack(Move(behavior));
+    }
+
+    bed.Start();
+    bed.Frame();
+    const ScriptBehavior& bound = bed.components->Get(moving)->behaviors[0];
+    CHECK(bound.lifecycle.start.IsValid());
+    CHECK(bound.lifecycle.update.IsValid());
+    CHECK_FALSE(bound.lifecycle.enable.IsValid()); // not declared
+    bed.Frame();
+    CHECK(Near(bed.scene.GetLocalTransform(moving).position.x, 12.0f)); // onStart, then two updates
+    const ScriptBehavior& unbound = bed.components->Get(broken)->behaviors[0];
+    CHECK_FALSE(unbound.lifecycle.update.IsValid());
+    CHECK(unbound.faulted);
+}
+
 TEST_CASE("script.scene: hot reload - product swap re-instantiates, re-applies "
           "overrides, resets transient state")
 {

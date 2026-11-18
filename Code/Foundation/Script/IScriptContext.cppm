@@ -106,6 +106,16 @@ export namespace foundation::script
     // script-defined class. Reference-counted; it keeps its owning context alive
     // for as long as it exists. Script integration builds on it: a global driver
     // object the runtime ticks, or per-entity script behaviors a system ticks.
+    // A method of one script object, bound once (ScriptObject::Bind) and called by it every time
+    // after (a behaviour's onUpdate, every frame). What `id` holds is the object's own; zero is
+    // no method.
+    struct ScriptMethod
+    {
+        core::u64 id = 0;
+
+        [[nodiscard]] bool IsValid() const noexcept { return id != 0; }
+    };
+
     class ScriptObject : public core::Object
     {
     public:
@@ -114,6 +124,13 @@ export namespace foundation::script
         // or the script faults.
         [[nodiscard]] virtual core::Result<core::Variant>
         Invoke(core::StringView method, core::Span<core::Variant> args) = 0;
+        // The method named `method` taking `argCount` arguments, found once, for Invoke by handle;
+        // invalid when the object surely has none. Valid for as long as the object lives. A
+        // language that lets a script replace a method at run time (Luau) still finds it at each
+        // call, by the name it keeps.
+        [[nodiscard]] virtual ScriptMethod Bind(core::StringView method, core::usize argCount) = 0;
+        // Invoke(StringView) for a method this object bound: the same result and errors.
+        [[nodiscard]] virtual core::Result<core::Variant> Invoke(ScriptMethod method, core::Span<core::Variant> args) = 0;
         // Reads the instance's property (a member field) named `name`: a game script's score or
         // lives count, for a playtest that probes it. NotFound when the object has no such
         // property; methods are not properties.

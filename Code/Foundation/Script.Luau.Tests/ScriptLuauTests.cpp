@@ -1775,6 +1775,34 @@ TEST_CASE("script.luau: a method an instance assigns itself is the one the next 
     CHECK(walker->Invoke(u8"onUpdate", Span<Variant>{}).Value().Get<f64>() == 2.0);
 }
 
+TEST_CASE("script.luau: a bound method is called by its handle, and a swap still takes effect")
+{
+    // Bind interns the name once; the call still finds the method on the instance, so a handler
+    // the instance replaces runs through the same handle.
+    RefPtr<IScriptContext> scriptContext = CreateLuauScriptManager(DefaultAllocator())->CreateContext();
+    REQUIRE(scriptContext
+                ->Load(u8"Walker = {}\nWalker.__index = Walker\n"
+                       u8"function Walker.new() return setmetatable({}, Walker) end\n"
+                       u8"local function walking(self, dt) return dt * 2 end\n"
+                       u8"function Walker:onUpdate(dt) self.onUpdate = walking return dt end\n"
+                       u8"function Walker:onBroken() error('broken') end\n",
+                       u8"walker")
+                .IsOk());
+    RefPtr<ScriptObject> walker = scriptContext->CreateInstance(u8"Walker", Span<Variant>{});
+    REQUIRE(static_cast<bool>(walker));
+    const ScriptMethod update = walker->Bind(u8"onUpdate", 1);
+    REQUIRE(update.IsValid());
+    Variant dt[] = {Variant::From<f64>(3.0)};
+    CHECK(walker->Invoke(update, Span<Variant>{dt, 1}).Value().Get<f64>() == 3.0);
+    CHECK(walker->Invoke(update, Span<Variant>{dt, 1}).Value().Get<f64>() == 6.0);
+    // A name the instance has no function for is NotFound at the call; a fault is a fault.
+    CHECK(walker->Invoke(walker->Bind(u8"onMissing", 0), Span<Variant>{}).Error() == ErrorCode::NotFound);
+    const Result<Variant> broken = walker->Invoke(walker->Bind(u8"onBroken", 0), Span<Variant>{});
+    REQUIRE_FALSE(broken.HasValue());
+    CHECK(broken.Error() != ErrorCode::NotFound);
+    CHECK(walker->Invoke(ScriptMethod{}, Span<Variant>{}).Error() == ErrorCode::NotFound);
+}
+
 TEST_CASE("script.luau: a constructor that matches none fails without leaking its arguments")
 {
     // The refusal was raised with the arguments and the call scope alive: raising unwinds past

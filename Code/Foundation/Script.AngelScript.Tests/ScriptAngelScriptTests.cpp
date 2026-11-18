@@ -1376,6 +1376,35 @@ TEST_CASE("angelscript: instantiate a script class and invoke its methods")
     CHECK(counter->Invoke(u8"value", Span<Variant>{}).Value().Get<f64>() == 0.0);
 }
 
+TEST_CASE("angelscript: a bound method is called by its handle, matched by its parameter count")
+{
+    RefPtr<IScriptContext> scriptContext = angelscript::CreateScriptManager(foundation::core::DefaultAllocator())->CreateContext();
+    REQUIRE(scriptContext->Load(u8"class Counter {\n"
+                                u8"  double n = 0;\n"
+                                u8"  void add(double x) { n = n + x; }\n"
+                                u8"  double value() { return n; }\n"
+                                u8"}\n",
+                                u8"main")
+                .IsOk());
+    RefPtr<ScriptObject> counter = scriptContext->CreateInstance(u8"Counter", Span<Variant>{});
+    REQUIRE(static_cast<bool>(counter));
+
+    const ScriptMethod add = counter->Bind(u8"add", 1);
+    const ScriptMethod value = counter->Bind(u8"value", 0);
+    REQUIRE(add.IsValid());
+    REQUIRE(value.IsValid());
+    Variant five[] = {Variant::From(5)};
+    CHECK(counter->Invoke(add, Span<Variant>{five, 1}).HasValue());
+    CHECK(counter->Invoke(add, Span<Variant>{five, 1}).HasValue());
+    CHECK(counter->Invoke(value, Span<Variant>{}).Value().Get<f64>() == 10.0);
+    // No method by that name with that many parameters: nothing to bind, and a call with the
+    // wrong count through a bound one is refused.
+    CHECK_FALSE(counter->Bind(u8"add", 0).IsValid());
+    CHECK_FALSE(counter->Bind(u8"missing", 0).IsValid());
+    CHECK(counter->Invoke(add, Span<Variant>{}).Error() == ErrorCode::NotFound);
+    CHECK(counter->Invoke(ScriptMethod{}, Span<Variant>{}).Error() == ErrorCode::NotFound);
+}
+
 TEST_CASE("angelscript: CreateInstance returns null for an unknown class")
 {
     RefPtr<IScriptContext> scriptContext = angelscript::CreateScriptManager(foundation::core::DefaultAllocator())->CreateContext();
