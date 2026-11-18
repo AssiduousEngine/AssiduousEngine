@@ -1022,7 +1022,12 @@ TEST_CASE("io: PathResolveLinks follows a symbolic link to what it names")
         return;
     }
     const String resolved = PathResolveLinks(u8"scratch_resolve_links/link");
-    CHECK(resolved.AsView().EndsWith(u8"scratch_resolve_links/real/tool"));
+    // In the platform's own separators (Windows answers with backslashes, as its other paths do).
+    String forward(resolved);
+    for (usize i = 0; i < forward.Size(); ++i)
+        if (forward[i] == utf8char('\\'))
+            forward[i] = utf8char('/');
+    CHECK(forward.AsView().EndsWith(u8"scratch_resolve_links/real/tool"));
     CHECK(PathIsAbsolute(resolved.AsView()));
     CHECK(PathResolveLinks(u8"scratch_resolve_links/nothing").IsEmpty());
     (void)RemoveDirectoryRecursive(u8"scratch_resolve_links");
