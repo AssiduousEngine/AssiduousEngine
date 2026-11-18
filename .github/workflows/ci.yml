@@ -414,7 +414,9 @@ jobs:
     timeout-minutes: 180
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: '4' # lower to 2 if the modules build OOMs on the 16 GB runner
-      LLVM_VERSION: '21.1.8' # the version development and the Linux lanes use
+      # Ahead of development and the Linux lanes (21.1.8): the runner's MSVC library (14.52 on)
+      # refuses a Clang older than 22.
+      LLVM_VERSION: '22.1.8'
     steps:
       - uses: actions/checkout@v7
 
