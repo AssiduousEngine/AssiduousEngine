@@ -75,7 +75,27 @@ own allocator; the engine side's default heap is not counted.
 | Handler call (engine into script) | | 300 ns | 225 ns |
 | Allocations per call, every measure | | 0 | 0 |
 
-C# (CoreCLR and the web), the scene measures and the collector's figures follow.
+**Scene, desktop, 2026-11-18.** The same machine and tree (master at `42c5cff64` with the suite),
+no other build or tool running; two runs, the medians agreeing within 15%. A whole frame of a real
+scene through the script systems (`Integration.ScriptScene`), 1,000 frames after a warm-up; the
+native column is the same work in a component manager on the same scene. The frame includes the
+scene's own phases, transform propagation among them, in every column.
+
+| Measure (median frame) | native | AngelScript | Luau |
+|---|---|---|---|
+| 1,000 empty update handlers | 0.0025 ms | 0.325 ms (about 130x) | 0.266 ms (about 105x) |
+| 100 movers | 0.0033 ms | 0.123 ms (about 37x) | 0.092 ms (about 28x) |
+| 1,000 movers | 0.034 ms | 1.24 ms (about 36x) | 0.935 ms (about 27x) |
+| 5,000 movers | 0.178 ms | 6.29 ms (about 35x) | 4.77 ms (about 27x) |
+| 1,000 component fetches | 0.0046 ms | 0.462 ms (about 100x) | 0.39 ms (about 85x) |
+| Allocations per frame (language's own) | | 0, except 1,000 for the fetches (one per fetch) | 0 |
+
+The 99th percentile frame was within 10% of the median for every script measure. Read as cost
+per thing: an update handler call is about 325 ns from AngelScript and 265 ns from Luau, a mover
+about 1.25 and 0.95 µs, a component fetch about 460 and 390 ns. 5,000 movers take 38% (AngelScript)
+and 29% (Luau) of a 60 Hz frame.
+
+C# (CoreCLR and the web) and the collector's figures follow.
 
 ## What stays as it is
 

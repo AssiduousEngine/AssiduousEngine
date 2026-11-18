@@ -1,0 +1,22 @@
+# Integration.ScriptScene - script behaviours on a real scene through the script subsystem, measured
+# against the same work done by native components (the script speed work's scene measures). The
+# measures are skipped in a normal run; run them with --no-skip from an optimised build.
+
+add_executable(Integration.ScriptScene TestsMain.cpp ScriptSceneBenchmarkTests.cpp)
+target_link_libraries(Integration.ScriptScene PRIVATE
+    Engine::Script Foundation::Script.Resource Foundation::Scene Foundation::Script doctest::doctest)
+
+# Each backend is independently switchable; include its leg only when the backend is built.
+if(TARGET ${SCRIPTLIB_ANGELSCRIPT})
+    target_link_libraries(Integration.ScriptScene PRIVATE ${SCRIPTLIB_ANGELSCRIPT})
+    target_compile_definitions(Integration.ScriptScene PRIVATE INTEGRATION_HAS_ANGELSCRIPT=1)
+endif()
+if(TARGET ${SCRIPTLIB_LUAU})
+    target_link_libraries(Integration.ScriptScene PRIVATE ${SCRIPTLIB_LUAU})
+    target_compile_definitions(Integration.ScriptScene PRIVATE INTEGRATION_HAS_LUAU=1)
+endif()
+
+target_compile_definitions(Integration.ScriptScene PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)
+target_compile_options(Integration.ScriptScene PRIVATE
+    "$<$<CXX_COMPILER_ID:Clang>:-Wno-error=#warnings;-Wno-error=c2y-extensions>" "$<$<CXX_COMPILER_ID:GNU>:-Wno-error=cpp>")
+add_test(NAME Integration.ScriptScene COMMAND Integration.ScriptScene)

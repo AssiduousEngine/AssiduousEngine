@@ -955,6 +955,10 @@ if(OPTION_BUILD_TESTS)
     if(OPTION_ENABLE_ANGELSCRIPT OR OPTION_ENABLE_LUAU)
         util_test_suite(Code/Integration/Integration.ScriptFacades     Engine::Audio)
     endif()
+    # Script behaviours on a scene measured against native components (the script speed work).
+    if(OPTION_ENABLE_ANGELSCRIPT OR OPTION_ENABLE_LUAU)
+        util_test_suite(Code/Integration/Integration.ScriptScene       Engine::Script)
+    endif()
     # The GUI (foundation.gui) and its satellites from scripts, the engine's GUI among them.
     if(OPTION_ENABLE_ANGELSCRIPT OR OPTION_ENABLE_LUAU)
         util_test_suite(Code/Integration/Integration.GuiScript         Foundation::GUI.Gamekit)
