@@ -36,6 +36,7 @@ import foundation.content;
 import foundation.vfs;
 import pipeline.core;
 import pipeline.cook;
+import pipeline.importer; // ImporterRegistry (new code found under Code/)
 import :project;
 import :content_watcher;
 
@@ -94,6 +95,9 @@ export namespace editor
         /// Wires the service to the open project. `builders` must outlive the service (the executable
         /// assembles the registry before the project opens).
         void Initialize(EditorProject& project, BuilderRegistry& builders);
+        /// The importers new code found under Code/ is imported with (EditorProject::AdoptNewCode,
+        /// at each watch poll); null (the default) adopts nothing.
+        void SetImporters(const pipeline::ImporterRegistry* importers) noexcept { m_importers = importers; }
 
         void Shutdown();
 
@@ -165,6 +169,7 @@ export namespace editor
         [[nodiscard]] CookBadge BadgeFor(foundation::content::Instance& instance);
 
     private:
+        const pipeline::ImporterRegistry* m_importers = nullptr; // SetImporters
         void Post(String message);
 
         void JoinWorker();

@@ -19,6 +19,10 @@ import engine.render;  // a quality level's values
 import render.pipeline; // RenderQualityAsset: an older project's upgrade
 import pipeline.core;   // Asset: what a source file names
 import script.pipeline; // ScriptClassAsset: code, which an older project kept under Sources/
+import pipeline.importer; // ImporterRegistry (new code found under Code/)
+#ifdef OPTION_HAS_ANGELSCRIPT
+import foundation.script.angelscript; // a code language's backend for the adoption test
+#endif
 import editor.core;
 
 using namespace foundation::core;
@@ -1448,3 +1452,44 @@ TEST_CASE("editor-project: a companion file moves with its owner, never on its o
     project.Reset();
     (void)RemoveDirectoryRecursive(dir);
 }
+
+#ifdef OPTION_HAS_ANGELSCRIPT
+// A script made in an outside editor under Code/ becomes an asset where it lies: in the group its
+// folder names (made), its file not copied; a second report adopts nothing more; a file no code
+// importer takes, and one removed, are left alone.
+TEST_CASE("editor-project: new code under Code becomes an asset where it lies")
+{
+    foundation::script::angelscript::RegisterAngelScriptBackend();
+    pipeline::RegisterScriptAssets();
+    const StringView dir = u8"scratch_editor_adopt_code";
+    (void)RemoveDirectoryRecursive(dir);
+    REQUIRE(EditorProject::Create(DefaultAllocator(), dir, u8"P").IsOk());
+    UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir);
+    REQUIRE(static_cast<bool>(project));
+    pipeline::ImporterRegistry importers(DefaultAllocator());
+    (void)importers.Register(MakeUnique<pipeline::ScriptFileImporter>(DefaultAllocator()));
+    const auto write = [&project](StringView path, StringView text)
+    {
+        const String full = project->SourceFile(path);
+        REQUIRE(CreateDirectories(PathParent(full.AsView())));
+        REQUIRE(WriteFile(full.AsView(), Span<const byte>(reinterpret_cast<const byte*>(text.Data()), text.Size())).IsOk());
+    };
+    write(u8"Code/Enemies/Boss.as", u8"class Boss { void onStart() {} }");
+    write(u8"Code/Notes.txt", u8"not code");
+    const String changed[] = {String(u8"Code/Enemies/Boss.as"), String(u8"Code/Notes.txt"), String(u8"Code/Gone.as"),
+                              String(u8"Models/Crate.png")};
+    CHECK(project->AdoptNewCode(Span<const String>{changed, 4}, importers) == 1u);
+    foundation::content::Group* enemies = project->SourceDb().RootGroup()->GetGroup(u8"Enemies");
+    REQUIRE(enemies != nullptr);
+    foundation::content::Instance* boss = enemies->GetInstance(u8"Boss");
+    REQUIRE(boss != nullptr);
+    RefPtr<ISerializable> object = boss->ReadObject();
+    REQUIRE(Cast<pipeline::ScriptClassAsset>(object.Get()) != nullptr);
+    CHECK(Cast<pipeline::ScriptClassAsset>(object.Get())->fileName.View() == StringView(u8"Code/Enemies/Boss.as"));
+    CHECK_FALSE(FileExists(project->SourceFile(u8"Code/Enemies/Boss.2.as").AsView())); // no copy beside it
+    // Reported again: it is an asset's now.
+    CHECK(project->AdoptNewCode(Span<const String>{changed, 4}, importers) == 0u);
+    project.Reset();
+    (void)RemoveDirectoryRecursive(dir);
+}
+#endif

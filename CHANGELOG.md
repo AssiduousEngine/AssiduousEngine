@@ -12,6 +12,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Editor: Preferences, Appearance, Frame rate chooses how the editor's windows present: VSync (the
   default), Uncapped, or Uncapped with tearing. A change applies to every editor window at once,
   with no restart; a device that cannot present in the chosen mode keeps the one it had.
+- A script or script project file saved into `Code/` from another editor becomes an asset by
+  itself, in the group its folder names.
 - Projects keep their code in a `Code/` folder beside `Sources/`: scripts and script project files
   imported or created land there, so a code editor opened on it sees only code. An older project's
   scripts move into it when it opens.

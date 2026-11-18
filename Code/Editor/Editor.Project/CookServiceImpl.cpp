@@ -329,6 +329,9 @@ namespace editor
                 m_watchChanged.Clear();
                 if (m_watcher->Poll(m_watchChanged))
                 {
+                    // New code an outside editor made becomes an asset before the cook takes it.
+                    if (m_importers != nullptr && m_project != nullptr)
+                        (void)m_project->AdoptNewCode(Span<const String>{m_watchChanged.Data(), m_watchChanged.Size()}, *m_importers);
                     LOG_INFO(u8"Cook", u8"{} source file(s) changed - recooking",
                                       m_watchChanged.Size());
                     RequestCook(false);

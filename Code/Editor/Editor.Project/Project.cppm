@@ -32,6 +32,7 @@ import foundation.xml.serialization;
 import engine.project;
 import foundation.runtime; // PluginPartKind (the game package's parts)
 import pipeline.core; // AssetCreatorRegistry (the starter content's primitives)
+import pipeline.importer; // ImporterRegistry (new code found under Code/)
 import :export_roots; // the project owns its "Always Export" set (export_roots.xml)
 
 using namespace foundation::core;
@@ -182,6 +183,14 @@ export namespace editor
         /// for the assets a move or a group rename touched, and for all of an older project's at
         /// open. Returns how many files moved.
         u32 PlaceInGroupFolders(Span<foundation::content::Instance* const> assets);
+
+        /// Imports where it lies each file among `changed` (source paths a watch reported) that is
+        /// new code under Code/: one no asset names yet, whose importer imports code
+        /// (pipeline::IFileImporter::ImportsCode). It joins the group its folder names, made if
+        /// missing (Code/Enemies/Boss.cs: Enemies), so a script made in an outside editor becomes
+        /// an asset by itself. A name its group already holds is left for the user, and reported.
+        /// Returns how many it imported.
+        u32 AdoptNewCode(Span<const String> changed, const pipeline::ImporterRegistry& importers);
 
         [[nodiscard]] StringView Name() const noexcept { return m_settings.name.AsView(); }
         [[nodiscard]] StringView Directory() const noexcept { return m_directory.AsView(); }

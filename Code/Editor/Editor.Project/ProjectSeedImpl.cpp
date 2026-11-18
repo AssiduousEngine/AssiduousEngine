@@ -244,6 +244,69 @@ namespace editor
         return moved;
     }
 
+    u32 EditorProject::AdoptNewCode(Span<const String> changed, const pipeline::ImporterRegistry& importers)
+    {
+        const StringView code = foundation::vfs::kSourcesCodeFolder;
+        u32 adopted = 0;
+        Array<foundation::content::Instance*> all(*m_allocator); // read once, when a candidate needs it
+        bool collected = false;
+        for (const String& path : changed)
+        {
+            StringView rest;
+            if (!foundation::vfs::AfterFolder(path.AsView(), code, rest) || rest.IsEmpty())
+                continue;
+            const String onDisk = SourceFile(path.AsView());
+            if (!FileExists(onDisk.AsView()))
+                continue; // removed: its asset, if any, finds its file missing
+            pipeline::IFileImporter* importer = importers.FindFor(pipeline::FileExtensionLower(path.AsView()).AsView());
+            if (importer == nullptr || !importer->ImportsCode())
+                continue;
+            // One an asset names already is not new (its edit is a cook's business).
+            if (!collected)
+            {
+                CollectInstances(*SourceDb().RootGroup(), all);
+                collected = true;
+            }
+            bool named = false;
+            for (const foundation::content::Instance* instance : all)
+                named = named || instance->SourceName() == path.AsView();
+            if (named)
+                continue;
+            // Its group: the folders between Code/ and the file, made where missing.
+            foundation::content::Group* group = SourceDb().RootGroup();
+            const StringView folders = PathParent(rest);
+            usize start = 0;
+            for (usize i = 0; i <= folders.Size() && group != nullptr; ++i)
+            {
+                if (i < folders.Size() && folders[i] != utf8char('/'))
+                    continue;
+                if (i > start)
+                {
+                    const StringView name = folders.SubStr(start, i - start);
+                    foundation::content::Group* child = group->GetGroup(name);
+                    group = child != nullptr ? child : group->CreateGroup(name);
+                }
+                start = i + 1;
+            }
+            if (group == nullptr)
+                continue;
+            pipeline::ImportContext context{*m_allocator, SourcesRoot()};
+            context.codeRoot = CodeRoot();
+            context.ledgerPath = pipeline::ImportLedgerPath(CacheRoot().AsView());
+            // Its copy is itself (the import's target in its group's folder is where it lies), so
+            // nothing is written but its asset.
+            Result<foundation::content::Instance*> made = importer->Import(onDisk.AsView(), context, *group, nullptr, nullptr, nullptr);
+            if (!made.HasValue())
+            {
+                LOG_WARNING(u8"Project", u8"{} is not imported: {} has an asset of its name already", path, group->Path());
+                continue;
+            }
+            LOG_INFO(u8"Project", u8"imported new code {} into '{}'", path, group->Path());
+            ++adopted;
+        }
+        return adopted;
+    }
+
     void EditorProject::PlaceFilesAtOpen(EditorProject& project)
     {
         const StringView code = foundation::vfs::kSourcesCodeFolder;

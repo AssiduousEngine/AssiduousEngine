@@ -508,6 +508,7 @@ export namespace editor::app
             editor::EditorCookService* cook = m_services.cook;
             pipeline::BuilderRegistry* builders = m_services.builders;
             cook->Initialize(*m_project, *builders);
+            cook->SetImporters(&context.Importers()); // new code under Code/ is imported as it appears
             context.OnCookRequested = [cook](bool rebuild) { cook->RequestCook(rebuild); };
             // Cook-gated starts (play waits for the cook) wait for anything in flight or a request still waiting.
             context.CookBusy = [cook]() { return cook->IsReady() && !cook->IsIdle(); };

@@ -1295,6 +1295,7 @@ export namespace pipeline{
     {
     public:
         [[nodiscard]] StringView Label() const override { return u8"Script"; }
+        [[nodiscard]] bool ImportsCode() const override { return true; }
 
         [[nodiscard]] bool Accepts(StringView extension) const override
         {
@@ -1377,6 +1378,7 @@ export namespace pipeline{
     {
     public:
         [[nodiscard]] StringView Label() const override { return u8"Script project"; }
+        [[nodiscard]] bool ImportsCode() const override { return true; }
 
         [[nodiscard]] bool Accepts(StringView extension) const override
         {
