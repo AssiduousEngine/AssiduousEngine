@@ -198,3 +198,61 @@ TEST_CASE("format: checked FormatTo validates arg count at compile time")
     // A mismatched count, e.g. FormatTo(buffer, u8"x={}", 1, 2), would fail to
     // compile via FormatString's consteval constructor.
 }
+
+namespace
+{
+    struct ReferenceSink : ILogSink
+    {
+        int plain = 0;
+        Array<LogReference> references;
+        String message;
+        void Write(LogLevel, StringView, StringView text) noexcept override
+        {
+            ++plain;
+            message = String(text);
+        }
+        void WriteReferenced(LogLevel, StringView, StringView text, Span<const LogReference> carried) noexcept override
+        {
+            message = String(text);
+            for (const LogReference& reference : carried)
+                references.PushBack(reference);
+        }
+    };
+}
+
+TEST_CASE("log: a line carries its references to the sinks that keep them; others get the text")
+{
+    ReferenceSink keeper;
+    RingLogSink ring(4, DefaultAllocator());
+    Logger& logger = GlobalLogger();
+    const LogLevel previous = logger.MinLevel();
+    logger.SetMinLevel(LogLevel::Info);
+    logger.AddSink(&keeper);
+    logger.AddSink(&ring);
+
+    Guid id;
+    REQUIRE(Guid::TryParse(u8"0e9b3a52-1c1f-4c2e-9d3b-5a7f1e2d3c4b", id));
+    LOG_WARNING_AT(u8"Cook", AssetReference(id), u8"{} did not cook", u8"Crate");
+    LOG_ERROR_AT(u8"Script", SourceReference(u8"/p/Code/Player.luau", 12, 4), u8"bad {}", 1);
+    LOG_WARNING(u8"Cook", u8"plain");
+
+    logger.RemoveSink(&ring);
+    logger.RemoveSink(&keeper);
+    logger.SetMinLevel(previous);
+
+    REQUIRE(keeper.references.Size() == 2u);
+    CHECK(keeper.references[0].kind == kLogAssetReference);
+    CHECK(keeper.references[0].Field(0) == StringView(u8"0e9b3a52-1c1f-4c2e-9d3b-5a7f1e2d3c4b"));
+    CHECK(keeper.references[0].length == 0u); // attached: the whole line
+    CHECK(keeper.references[1].kind == kLogSourceReference);
+    CHECK(keeper.references[1].Field(0) == StringView(u8"/p/Code/Player.luau"));
+    CHECK(keeper.references[1].Field(1) == StringView(u8"12"));
+    CHECK(keeper.references[1].Field(2) == StringView(u8"4"));
+    CHECK(keeper.references[1].Field(3).IsEmpty());
+    CHECK(keeper.plain == 1); // the line without references
+    CHECK(keeper.message == StringView(u8"plain"));
+    // The ring keeps the text of each, without the references.
+    REQUIRE(ring.Count() == 3u);
+    CHECK(StringView(ring.Record(0).message) == StringView(u8"Crate did not cook"));
+    CHECK(StringView(ring.Record(1).message) == StringView(u8"bad 1"));
+}
