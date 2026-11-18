@@ -158,6 +158,36 @@ error, more in the per-call measures than in the scene ones.
 - That a component fetch no longer allocates a C# object follows from its being a struct; .NET's
   heap is not counted here, so it is not measured.
 
+**After steps 3 to 6, desktop, 2026-11-18.** The same machine and tree, warm, three runs; C#'s
+third run was disturbed by something else on the machine (its entity call 58 against 40 to 43
+ns), so C# is from the first two. "In C#" means C# computes it without calling the engine.
+
+| Per call, alone | native | AngelScript | Luau | C# Debug | C# Release |
+|---|---|---|---|---|---|
+| Loop with no call (per iteration) | | 22 to 25 ns | 7 to 9 ns | 2.2 ns | 0.9 ns |
+| Engine call (`Entity.isValid`) | 3.6 to 3.8 ns | 45 to 47 ns | 116 to 121 ns | 40 to 41 ns | 39 to 42 ns |
+| Pure function (`Math.Abs`) | 3.5 ns | about 50 ns | 74 to 79 ns | 1.3 ns, in C# | about 0.1 ns, in C# |
+| Value method (`Float3.Cross`) | 3.4 to 3.5 ns | 147 to 155 ns | 184 to 196 ns | about 12 ns, in C# | under 0.1 ns, in C# |
+| String argument (`setName`, 16 characters) | 5.3 to 5.9 ns | 168 to 180 ns | 136 to 142 ns | about 67 ns | 69 to 70 ns |
+| Handler call (engine into script) | | 239 to 251 ns | 151 to 157 ns | 62 to 63 ns | 60 to 65 ns |
+| Value math, one iteration | | 0.82 to 0.87 µs | 0.41 to 0.43 µs | 42 ns | 1.0 ns |
+
+| Median frame | native | AngelScript | Luau | C# Debug | C# Release |
+|---|---|---|---|---|---|
+| 1,000 empty update handlers | 0.006 ms | 0.30 to 0.31 ms | 0.21 to 0.22 ms | 0.12 ms | 0.12 ms |
+| 100 movers | 0.004 ms | 0.060 to 0.063 ms | 0.060 to 0.064 ms | 0.029 ms | 0.029 ms |
+| 1,000 movers | 0.039 to 0.042 ms | 0.62 to 0.65 ms | 0.61 to 0.64 ms | 0.31 ms | 0.30 ms |
+| 5,000 movers | 0.20 to 0.21 ms | 3.1 to 3.3 ms | 3.1 to 3.3 ms | 1.57 ms | 1.54 to 1.55 ms |
+| 1,000 component fetches | 0.005 ms | 0.42 to 0.44 ms | 0.36 to 0.37 ms | 0.225 ms | 0.22 ms |
+
+- 5,000 movers, against the start of the day: C# 4.35 to 1.55 ms, AngelScript 6.3 to 3.2, Luau
+  4.85 to 3.2; native 0.2. A 60 Hz frame spends 9% on them in C#, 19% in AngelScript and Luau.
+- A call into the engine is now 40 to 120 ns in every language, from 150 to 270; the rest of a
+  script's cost is its own code and the handler call into it.
+- Luau's handler call (150 ns) and AngelScript's (240 ns) are now the larger part of a behaviour:
+  the engine into script, a pooled thread or context per call.
+- Strings still cross by copy into a String in every language.
+
 **Found while measuring (C#).** The process's C# runtime keeps the allocator its first script
 manager was made with, for every engine object it hands C# from then on (the bridge's
 `EngineFunctions`). A first manager with a shorter-lived allocator than the process leaves it
@@ -301,12 +331,19 @@ for (int i = 0; i < argc; ++i)
 method.call(self, args, gen->GetAddressOfReturnLocation());
 ```
 
-This holds where AngelScript's stack form of an argument is the native type. To check before
-building: how each parameter kind is declared to AngelScript today (width of numbers, handles
-against values). Handles need one pointer hop first.
+This holds where AngelScript's stack form of an argument is the native type. Built: a binding is
+marked typed at registration when every parameter and its return are held natively (a number or
+bool at its width, an enum of AngelScript's 32-bit int, a script value by `const &in`); values on
+AngelScript's 4-byte-aligned stack that need more alignment are copied aside first. Strings and
+handles keep `invoke`. Value constructors and property reads and writes take their typed entries
+the same way.
 
-**Luau.** Stays on `invoke`, with a fixed stack array in place of the heap `Array<Variant>`, as
-AngelScript already has.
+**Luau.** The plan was to stay on `invoke` with a stack array; the stack array measured no gain
+(Luau's allocator is cheap), and matching per call turned out cheap enough to make the typed
+entry worth it. Built: a script value crosses as a value box (its type, then its bytes), and a
+call whose arguments are already in their parameters' native form (a number, a boolean, a vector
+for a Float3, a value box of the exact type, a string) takes `call` with them where they are,
+matched per call as C# matches; anything else takes `invoke`. Value constructors likewise.
 
 ## Part 2: names bound once
 
@@ -367,9 +404,16 @@ Each step stands on its own and leaves the tree green.
    compares were not the cost. A behaviour spends 50 to 90 ns of engine work outside the script
    call in every language, not yet attributed.
 5. **Luau stack buffer**, then **AngelScript onto the typed entry** after the parameter-form
-   check. Moves: Engine call (Luau, AngelScript).
+   check. Moves: Engine call (Luau, AngelScript). Built 2026-11-18 for AngelScript, with its value
+   constructors and properties; the Luau stack buffer measured nothing and was dropped.
 6. **Luau tagged value userdata**, if the Value method and Movers measures show value math in
-   Luau matters.
+   Luau matters. Built 2026-11-18 as value boxes, with Luau's calls and value constructors on the
+   typed entry over them.
+
+Found by profiling on the way (perf), and fixed: the call budget read the clock at every Luau
+safepoint (a quarter of Luau's time, and its loops too), each behaviour's component was looked up
+twice, AngelScript built sixteen Variants per call and C# sixteen Strings per call whatever they
+passed.
 
 ## The Beef mirror
 
