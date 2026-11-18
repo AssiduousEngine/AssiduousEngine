@@ -96,8 +96,8 @@ namespace editor
             foundation::content::Instance* instance = nullptr;
             String folder;
         };
-        HashMap<String, Array<Use>> uses;
-        Array<foundation::content::Instance*> all;
+        HashMap<String, Array<Use>> uses(*m_allocator);
+        Array<foundation::content::Instance*> all(*m_allocator);
         CollectInstances(*SourceDb().RootGroup(), all);
         for (foundation::content::Instance* instance : all)
         {
@@ -109,10 +109,35 @@ namespace editor
             Array<Use>* list = uses.Find(file);
             if (list == nullptr)
             {
-                uses.InsertOrAssign(file, Array<Use>{});
+                uses.InsertOrAssign(file, Array<Use>(*m_allocator));
                 list = uses.Find(file);
             }
             list->PushBack(Use{instance, GroupFolderOf(*instance, *asset)});
+        }
+
+        // Which files are companions (a .gltf's sidecars), and of which files: a companion moves only
+        // with the file it belongs to, never on its own (it would leave that file's relative path
+        // behind), and a file whose companion another file also names stays where it is (moving
+        // the companion would break the other's path).
+        HashMap<String, Array<String>> ownersOf(*m_allocator);
+        for (auto& entry : uses)
+        {
+            RefPtr<ISerializable> object = entry.value[0].instance->ReadObject();
+            const auto* asset = Cast<pipeline::Asset>(object.Get());
+            if (asset == nullptr)
+                continue;
+            const StringView folder = PathParent(entry.key.AsView());
+            for (const String& uri : asset->CompanionFiles(SourceFile(entry.key.AsView()).AsView()))
+            {
+                const String companion = InFolder(folder, uri.AsView());
+                Array<String>* owners = ownersOf.Find(companion);
+                if (owners == nullptr)
+                {
+                    ownersOf.InsertOrAssign(companion, Array<String>(*m_allocator));
+                    owners = ownersOf.Find(companion);
+                }
+                owners->PushBack(entry.key);
+            }
         }
 
         // Repoints every asset that names `from` to `to`, and carries the ledger's origin.
@@ -132,7 +157,7 @@ namespace editor
 
         auto diskOf = [this](StringView sourceName) { return SourceFile(sourceName); };
         u32 moved = 0;
-        Array<String> done;
+        Array<String> done(*m_allocator);
         for (foundation::content::Instance* instance : assets)
         {
             RefPtr<ISerializable> object = instance->ReadObject();
@@ -154,6 +179,8 @@ namespace editor
                     agreed = agreed && use.folder == folder;
             if (!agreed || PathParent(file.AsView()) == folder.AsView())
                 continue; // shared across groups, or in its folder already
+            if (ownersOf.Find(file) != nullptr)
+                continue; // another file's companion: it moves with that file
 
             const String fromDisk = SourceFile(file.AsView());
             if (!FileExists(fromDisk.AsView()))
@@ -170,8 +197,18 @@ namespace editor
             const StringView oldFolder = PathParent(file.AsView());
             const Array<String> companions = asset->CompanionFiles(fromDisk.AsView());
             bool clear = true;
+            bool sharedCompanion = false;
             for (const String& companion : companions)
+            {
                 clear = clear && !FileExists(SourceFile(InFolder(folder.AsView(), companion.AsView()).AsView()).AsView());
+                const Array<String>* owners = ownersOf.Find(InFolder(oldFolder, companion.AsView()));
+                sharedCompanion = sharedCompanion || (owners != nullptr && owners->Size() > 1);
+            }
+            if (sharedCompanion)
+            {
+                LOG_WARNING(u8"Project", u8"{} stays: a file beside it belongs to another file too", file);
+                continue;
+            }
             if (!clear)
             {
                 LOG_WARNING(u8"Project", u8"{} stays: a file beside it would land on another in {}", file, folder);

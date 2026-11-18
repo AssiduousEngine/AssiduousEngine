@@ -54,7 +54,35 @@ namespace
     }
 }
 
+namespace
+{
+    // A model-like asset: its file lists, one per line, the files beside it that belong with it.
+    class TestModelAsset final : public pipeline::Asset
+    {
+        RTTI_OBJECT(TestModelAsset, pipeline::Asset)
+    public:
+        [[nodiscard]] Array<String> CompanionFiles(StringView fileOnDisk) const override
+        {
+            Array<String> companions;
+            Result<Array<byte>> bytes = ReadFile(fileOnDisk);
+            if (!bytes.HasValue())
+                return companions;
+            const StringView text(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size());
+            usize start = 0;
+            for (usize i = 0; i <= text.Size(); ++i)
+                if (i == text.Size() || text[i] == utf8char('\n'))
+                {
+                    if (i > start)
+                        companions.PushBack(String(text.SubStr(start, i - start)));
+                    start = i + 1;
+                }
+            return companions;
+        }
+    };
+}
+
 RTTI_DEFINE_OBJECT(TestMaterial, "rtti::editor::editor::test")
+RTTI_DEFINE_OBJECT(TestModelAsset, "rtti::editor::editor::test")
 
 TEST_CASE("editor-project: create scaffolds the layout and open round-trips the manifest")
 {
@@ -1348,6 +1376,75 @@ TEST_CASE("editor-project: an asset's file follows it into its group's folder")
     CHECK(project->PlaceInGroupFolders(Span<foundation::content::Instance* const>{shared, 2}) == 1u);
     CHECK(fileNameOf(sharedA) == StringView(u8"B/Shared.png"));
     CHECK(fileNameOf(sharedB) == StringView(u8"B/Shared.png"));
+    project.Reset();
+    (void)RemoveDirectoryRecursive(dir);
+}
+
+// A file another file names beside it (a model's texture under tex/) moves only with that file, so
+// its relative path holds: placing the folders leaves it where its owner points. A file two owners
+// in different groups share keeps both owners where they are.
+TEST_CASE("editor-project: a companion file moves with its owner, never on its own")
+{
+    GlobalTypeRegistry().Register(TestModelAsset::StaticType()); // read back as itself
+    RegisterSerializable<TestModelAsset>();
+    const StringView dir = u8"scratch_editor_companions";
+    (void)RemoveDirectoryRecursive(dir);
+    REQUIRE(EditorProject::Create(DefaultAllocator(), dir, u8"P").IsOk());
+    UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir);
+    REQUIRE(static_cast<bool>(project));
+    const String sources = PathJoin(dir, u8"Sources");
+    const auto write = [&sources](StringView path, StringView text)
+    {
+        const String full = PathJoin(sources.AsView(), path);
+        REQUIRE(CreateDirectories(PathParent(full.AsView())));
+        REQUIRE(WriteFile(full.AsView(), Span<const byte>(reinterpret_cast<const byte*>(text.Data()), text.Size())).IsOk());
+    };
+    const auto fileNameOf = [](foundation::content::Instance* instance)
+    {
+        RefPtr<ISerializable> object = instance->ReadObject();
+        const auto* asset = Cast<pipeline::Asset>(object.Get());
+        return asset != nullptr ? String(asset->fileName.View()) : String{};
+    };
+    foundation::content::Group* root = project->SourceDb().RootGroup();
+    auto add = [](foundation::content::Group* in, StringView name, const TypeInfo& type, StringView file)
+    {
+        foundation::content::Instance* instance = in->CreateInstance(name, type);
+        REQUIRE(instance != nullptr);
+        RefPtr<ISerializable> object = MakeRef<TestModelAsset>(DefaultAllocator());
+        if (&type == &pipeline::RenderQualityAsset::StaticType())
+            object = MakeRef<pipeline::RenderQualityAsset>(DefaultAllocator());
+        Cast<pipeline::Asset>(object.Get())->fileName = foundation::vfs::SourcePath(file);
+        REQUIRE(instance->WriteObject(*object).IsOk());
+        return instance;
+    };
+
+    // A model in its folder already, its texture under tex/ beside it: nothing moves.
+    foundation::content::Group* crate = root->CreateGroup(u8"Crate");
+    write(u8"Crate/Crate.model", u8"tex/wood.png");
+    write(u8"Crate/tex/wood.png", u8"png");
+    (void)add(crate, u8"Crate", TestModelAsset::StaticType(), u8"Crate/Crate.model");
+    foundation::content::Instance* wood = add(crate, u8"wood", pipeline::RenderQualityAsset::StaticType(), u8"Crate/tex/wood.png");
+
+    // Two flat models in different groups sharing one texture: both stay, the texture with them.
+    foundation::content::Group* a = root->CreateGroup(u8"A");
+    foundation::content::Group* b = root->CreateGroup(u8"B");
+    write(u8"x.model", u8"shared.png");
+    write(u8"y.model", u8"shared.png");
+    write(u8"shared.png", u8"png");
+    foundation::content::Instance* x = add(a, u8"x", TestModelAsset::StaticType(), u8"x.model");
+    foundation::content::Instance* y = add(b, u8"y", TestModelAsset::StaticType(), u8"y.model");
+
+    Array<foundation::content::Instance*> all;
+    foundation::content::Group* const groups[] = {crate, a, b};
+    for (foundation::content::Group* group : groups)
+        for (foundation::content::Instance* instance : group->Instances())
+            all.PushBack(instance);
+    (void)project->PlaceInGroupFolders(Span<foundation::content::Instance* const>{all.Data(), all.Size()});
+    CHECK(fileNameOf(wood) == StringView(u8"Crate/tex/wood.png"));
+    CHECK(FileExists(PathJoin(sources.AsView(), u8"Crate/tex/wood.png").AsView()));
+    CHECK(fileNameOf(x) == StringView(u8"x.model"));
+    CHECK(fileNameOf(y) == StringView(u8"y.model"));
+    CHECK(FileExists(PathJoin(sources.AsView(), u8"shared.png").AsView()));
     project.Reset();
     (void)RemoveDirectoryRecursive(dir);
 }

@@ -1273,3 +1273,17 @@ TEST_CASE("texture-import: a new usage brings its preset's colour space, wrap an
     importer.SettingChanged(options, *options.FindSetting(u8"Mipmaps"));
     CHECK(options.colorSpace == foundation::image::ImageColorSpace::Srgb);
 }
+
+// A cube map's other five faces are companions of its texture asset (whose file is the +X face),
+// so moving the asset takes them along; a plain texture has none.
+TEST_CASE("texture.pipeline: a cube map's other faces are its asset's companion files")
+{
+    TextureAsset cube;
+    cube.shape = foundation::texture::TextureShape::Cubemap;
+    const Array<String> faces = cube.CompanionFiles(u8"some/dir/sky_px.png");
+    REQUIRE(faces.Size() == 5u);
+    CHECK(faces[0] == StringView(u8"sky_nx.png"));
+    CHECK(faces[4] == StringView(u8"sky_nz.png"));
+    TextureAsset flat;
+    CHECK(flat.CompanionFiles(u8"some/dir/sky_px.png").IsEmpty());
+}

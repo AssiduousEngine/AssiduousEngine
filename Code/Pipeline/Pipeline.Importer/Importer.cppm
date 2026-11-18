@@ -755,7 +755,7 @@ export namespace pipeline
             }
             RefPtr<ISerializable> object = instance->ReadObject();
             const auto* asset = Cast<Asset>(object.Get());
-            if (asset == nullptr || asset->fileName != fileName)
+            if (asset == nullptr || FileNameOf(asset->fileName.View()) != fileName) // in its group's folder
             {
                 continue;
             }

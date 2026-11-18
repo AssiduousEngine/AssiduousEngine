@@ -70,6 +70,9 @@ export namespace pipeline{
         // or file branch keys on fileName/embeddedWidth, and this must stay out of it.
         String sourceHint;
 
+        // A cube map's other five faces, beside its +X face (its file): they move with it.
+        [[nodiscard]] Array<String> CompanionFiles(StringView fileOnDisk) const override;
+
         void Serialize(ISerializer& ar) override
         {
             pipeline::Asset::Serialize(ar); // fileName
@@ -321,6 +324,19 @@ export namespace pipeline{
 
     // Cooks a TextureAsset to a TextureResource (decode and resolve the RHI format, then write the
     // cooked record and "data" pixel stream).
+    inline Array<String> TextureAsset::CompanionFiles(StringView fileOnDisk) const
+    {
+        Array<String> faces;
+        if (shape != TextureShape::Cubemap || !TextureImporter::DetectCubemapFaces(fileOnDisk, faces).IsOk())
+            return {};
+        const StringView own = pipeline::FileNameOf(fileOnDisk);
+        Array<String> companions;
+        for (const String& face : faces)
+            if (pipeline::FileNameOf(face.AsView()) != own)
+                companions.PushBack(String(pipeline::FileNameOf(face.AsView())));
+        return companions;
+    }
+
     class TextureAssetBuilder final : public pipeline::DefaultAssetBuilder
     {
     public:

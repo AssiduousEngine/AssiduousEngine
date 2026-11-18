@@ -435,6 +435,8 @@ TEST_CASE("script.pipeline: an imported script plays the class its file is named
     CHECK(madeAsset.className == u8"Battle");
     CHECK(madeAsset.fileName.View() == StringView(u8"Code/Battle.as")); // a script lands in the code folder
     CHECK(FileExists(PathJoin(code.AsView(), u8"Battle.as").AsView()));
+    // Its earlier import is found again by the file's name, wherever in Code/ its copy is.
+    CHECK(importer.StoredSelection(group, first.AsView()).entries.Size() == 1u);
 
     context.onConflict = ImportConflictChoice::KeepBoth;
     Result<content::Instance*> beside = importer.Import(second.AsView(), context, group, nullptr, nullptr, nullptr);
