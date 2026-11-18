@@ -74,6 +74,18 @@ export namespace editor
         ~IGameRunPage() = default;
     };
 
+    /// A page that shows code (a script's, a shader's, a text file's): where a log line, a problem
+    /// or an outside request points, it shows.
+    class ICodePage : public IPageService
+    {
+    public:
+        /// Moves the cursor to `line` and `column` (1-based; 0 is the start) and brings it into view.
+        virtual void ShowLine(u32 line, u32 column) = 0;
+
+    protected:
+        ~ICodePage() = default;
+    };
+
     // One open document. Owns its command stack; the context routes Edit > Undo and Redo to the
     // active page's stack. The page is unsaved when its history has left the point last saved, or
     // when it changed without a step (MarkDirty).

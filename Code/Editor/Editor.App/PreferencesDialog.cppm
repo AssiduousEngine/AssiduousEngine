@@ -8,8 +8,8 @@
 // a modal window from the editor's markup (Data/Editor/Preferences.xml), with a tab per category.
 // Appearance holds the look's inputs: the scheme, the accent (one of the editor's, or any
 // #rrggbb), the density, reduced motion and the UI scale, plus whether axis views are
-// orthographic; each change to the look shows at once. Export holds the templates' folder, Agent
-// access the MCP host (enabled, its port, its token), and Game preview the sizes the Game tab
+// orthographic; each change to the look shows at once. Export holds the templates' folder, Code the
+// editor code opens in (built-in, a preset such as VS Code, or a command), Agent access the MCP host (enabled, its port, its token), and Game preview the sizes the Game tab
 // offers. Shortcuts lists every action with its chord: a click captures the next keys, and Reset
 // restores the declared chord. Then comes a tab per category that other parts of the editor
 // contribute, whose checks apply as they change. Save writes everything into the store and
@@ -232,6 +232,31 @@ export namespace editor::app
                     const String id(field);
                     browse->SetOnClick([self, id]() { self->BrowseFolder(id.AsView()); });
                 }
+            // The Code tab: Built-in, each preset, then Command, whose fields are the user's.
+            if (gui::Node* editors = Find<gui::Node>(u8"pref-code-editors"))
+            {
+                m_codeEditorGroup = MakeRef<gui::ButtonGroup>(m_allocator);
+                const auto addEditor = [self, editors](StringView id, StringView label)
+                {
+                    RefPtr<gui::Button> segment = MakeRef<gui::Button>(self->m_allocator);
+                    segment->AddClass(u8"segment");
+                    segment->SetText(label);
+                    segment->SetToggle(true);
+                    segment->SetGroup(self->m_codeEditorGroup);
+                    const String chosen(id);
+                    (void)segment->AddEventListener(gui::EventType::Changed, [self, chosen](const gui::Event&)
+                                                    {
+                                                        if (!self->m_showing)
+                                                            self->ChooseCodeEditor(chosen.AsView());
+                                                    });
+                    editors->AddChild(segment.Get());
+                    self->m_codeEditors.PushBack(CodeEditorSegment{chosen, segment});
+                };
+                addEditor(u8"builtin", u8"Built-in");
+                for (const editor::CodeEditorPreset& preset : editor::kCodeEditorPresets)
+                    addEditor(preset.id, preset.label);
+                addEditor(u8"command", u8"Command");
+            }
             AddContributions();
             if (auto* save = Find<gui::Button>(u8"pref-save"))
                 save->SetOnClick([self]() { (void)self->Save(); });
@@ -258,6 +283,35 @@ export namespace editor::app
                                       if (!chosen.IsEmpty())
                                           field->SetText(chosen);
                                   });
+        }
+
+        /// Shows the Code tab for `id`: a preset's commands for reading, the user's own to edit
+        /// under Command, nothing under Built-in.
+        void ChooseCodeEditor(StringView id)
+        {
+            auto* file = Find<gui::TextField>(u8"pref-code-file");
+            auto* folder = Find<gui::TextField>(u8"pref-code-folder");
+            // Leaving Command keeps what was typed there, for coming back to it.
+            if (m_codeEditor.AsView() == StringView(u8"command") && id != StringView(u8"command") && file != nullptr && folder != nullptr)
+            {
+                m_codeFileCommand = String(file->GetText());
+                m_codeFolderCommand = String(folder->GetText());
+            }
+            m_codeEditor = String(id);
+            m_showing = true;
+            for (const CodeEditorSegment& segment : m_codeEditors)
+                segment.button->SetChecked(segment.id.AsView() == id);
+            m_showing = false;
+            if (file == nullptr || folder == nullptr)
+                return;
+            const bool own = id == StringView(u8"command");
+            editor::EditorCodeEditorSettings shown;
+            shown.editor = String(id);
+            const editor::CodeEditorCommands commands = editor::CodeEditorCommandsOf(&shown);
+            file->SetText(own ? m_codeFileCommand.AsView() : commands.fileCommand.AsView());
+            folder->SetText(own ? m_codeFolderCommand.AsView() : commands.folderCommand.AsView());
+            file->SetEnabled(own);
+            folder->SetEnabled(own);
         }
 
         void Change(const Function<void(EditorLook&)>& edit)
@@ -302,6 +356,11 @@ export namespace editor::app
                 port->SetText(Format(u8"{}", mcp != nullptr ? mcp->port : editor::kEditorMcpDefaultPort).AsView());
             if (auto* token = Find<gui::TextField>(u8"pref-mcp-token"))
                 token->SetText(mcp != nullptr ? mcp->token.AsView() : StringView{});
+            const editor::EditorCodeEditorSettings* code = user->Find<editor::EditorCodeEditorSettings>();
+            m_codeEditor = String(u8"builtin");
+            m_codeFileCommand = code != nullptr ? code->fileCommand : String{};
+            m_codeFolderCommand = code != nullptr ? code->folderCommand : String{};
+            ChooseCodeEditor(code != nullptr ? code->editor.AsView() : StringView(u8"builtin"));
             ShowPreviews();
             for (const Contributed& check : m_contributed)
                 check.box->SetChecked(check.field->get ? check.field->get() : false);
@@ -341,6 +400,20 @@ export namespace editor::app
                 user.MarkChanged<editor::EditorMcpSettings>();
                 if (m_services.mcpChanged)
                     m_services.mcpChanged();
+            }
+            if (!m_codeEditors.IsEmpty())
+            {
+                editor::EditorCodeEditorSettings& code = user.Section<editor::EditorCodeEditorSettings>();
+                code.editor = m_codeEditor;
+                // Only Command's fields are the user's; a preset's are shown, not kept.
+                if (m_codeEditor.AsView() == StringView(u8"command"))
+                {
+                    if (auto* file = Find<gui::TextField>(u8"pref-code-file"))
+                        code.fileCommand = String(Trim(file->GetText()));
+                    if (auto* folder = Find<gui::TextField>(u8"pref-code-folder"))
+                        code.folderCommand = String(Trim(folder->GetText()));
+                }
+                user.MarkChanged<editor::EditorCodeEditorSettings>();
             }
             if (editor::GamePreviewSettings* previews = editor::GamePreviewSettings::From(&user))
             {
@@ -557,6 +630,17 @@ export namespace editor::app
             const editor::EditorContext::EditorSettingsBoolField* field = nullptr;
             gui::CheckBox* box = nullptr;
         };
+
+        struct CodeEditorSegment
+        {
+            String id; // the stored editor value
+            RefPtr<gui::Button> button;
+        };
+        RefPtr<gui::ButtonGroup> m_codeEditorGroup;
+        Array<CodeEditorSegment> m_codeEditors;
+        String m_codeEditor{u8"builtin"}; // the Code tab's choice
+        String m_codeFileCommand;          // the user's own commands, kept while a preset is shown
+        String m_codeFolderCommand;
 
         editor::ShortcutEdits m_shortcutEdits; // staged; applied and persisted on Save
         Array<PreviewRow> m_previews;

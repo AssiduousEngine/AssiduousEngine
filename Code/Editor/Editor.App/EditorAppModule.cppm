@@ -78,5 +78,6 @@ export import :mcp_window_tools;
 export import :mcp_input_tools;
 export import :code_languages;
 export import :problems_list;
+export import :code_opener;
 export import :code_asset_page;
 export import :mcp_profiler_tools;

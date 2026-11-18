@@ -76,6 +76,140 @@ export namespace editor
         return ui == nullptr || ui->autoOrthographic;
     }
 
+    // Where the editor opens code (Preferences > Code): its own page, or an outside editor started
+    // with a command. `editor` is "builtin", "vscode" or "command". A command is a program and its
+    // arguments, split at spaces outside double quotes, with {file}, {line}, {column} and {folder}
+    // (the project's Code/ folder) put in each argument after the split, so a path with spaces
+    // stays one argument. `fileCommand` opens a file at a line; `folderCommand` opens the folder
+    // (empty: the system's file manager shows it). VS Code is a preset of the two.
+    class EditorCodeEditorSettings final : public ISerializable
+    {
+        RTTI_OBJECT(EditorCodeEditorSettings, ISerializable)
+    public:
+        String editor{u8"builtin"};
+        String fileCommand;
+        String folderCommand;
+
+        void Serialize(ISerializer& ar) override
+        {
+            foundation::core::Serialize(ar, "editor", editor);
+            foundation::core::Serialize(ar, "fileCommand", fileCommand);
+            foundation::core::Serialize(ar, "folderCommand", folderCommand);
+        }
+    };
+
+    // A preset of the command preference: an outside editor the Code tab offers by name.
+    struct CodeEditorPreset
+    {
+        StringView id;            // the stored `editor` value
+        StringView label;         // what the Code tab shows
+        StringView fileCommand;   // see EditorCodeEditorSettings
+        StringView folderCommand;
+    };
+    // The folder first, so a file opens in the window that has its project.
+    inline constexpr CodeEditorPreset kCodeEditorPresets[] = {
+        {u8"vscode", u8"VS Code", u8"code {folder} --goto {file}:{line}:{column}", u8"code {folder}"},
+    };
+
+    // The commands the preference names: a preset's, the user's for "command", and none (both
+    // empty) for the built-in page or an id this build does not know.
+    struct CodeEditorCommands
+    {
+        String fileCommand;
+        String folderCommand;
+        [[nodiscard]] bool Outside() const noexcept { return !fileCommand.IsEmpty(); }
+    };
+    [[nodiscard]] inline CodeEditorCommands CodeEditorCommandsOf(const EditorCodeEditorSettings* settings)
+    {
+        if (settings == nullptr)
+            return {};
+        if (settings->editor.AsView() == StringView(u8"command"))
+            return CodeEditorCommands{String(Trim(settings->fileCommand.AsView())), String(Trim(settings->folderCommand.AsView()))};
+        for (const CodeEditorPreset& preset : kCodeEditorPresets)
+            if (settings->editor.AsView() == preset.id)
+                return CodeEditorCommands{String(preset.fileCommand), String(preset.folderCommand)};
+        return {};
+    }
+
+    // Where a code editor opens: a file on disk at a 1-based line and column (0: the start), and
+    // the project's Code/ folder.
+    struct CodeLocation
+    {
+        StringView file;
+        u32 line = 0;
+        u32 column = 0;
+        StringView folder;
+    };
+
+    // Splits a command into its program and arguments: at spaces and tabs outside double quotes,
+    // the quotes removed. An empty command gives none.
+    [[nodiscard]] inline Array<String> SplitCommandLine(StringView command)
+    {
+        Array<String> parts;
+        String part;
+        bool quoted = false;
+        bool started = false;
+        for (usize i = 0; i < command.Size(); ++i)
+        {
+            const utf8char c = command[i];
+            if (c == utf8char('"'))
+            {
+                quoted = !quoted;
+                started = true;
+            }
+            else if (!quoted && (c == utf8char(' ') || c == utf8char('\t')))
+            {
+                if (started)
+                    parts.PushBack(Move(part));
+                part = String{};
+                started = false;
+            }
+            else
+            {
+                part.Append(command.SubStr(i, 1));
+                started = true;
+            }
+        }
+        if (started)
+            parts.PushBack(Move(part));
+        return parts;
+    }
+
+    // The command split (SplitCommandLine), with the location put in each part's placeholders: the
+    // program first, then its arguments. A line or column of 0 is written 1.
+    [[nodiscard]] inline Array<String> ExpandCodeEditorCommand(StringView command, const CodeLocation& at)
+    {
+        const String line = Format(u8"{}", at.line == 0 ? 1u : at.line);
+        const String column = Format(u8"{}", at.column == 0 ? 1u : at.column);
+        const StringView names[] = {u8"{file}", u8"{line}", u8"{column}", u8"{folder}"};
+        const StringView values[] = {at.file, line.AsView(), column.AsView(), at.folder};
+        Array<String> parts = SplitCommandLine(command);
+        for (String& part : parts)
+        {
+            String expanded;
+            const StringView text = part.AsView();
+            for (usize i = 0; i < text.Size();)
+            {
+                const StringView rest = text.SubStr(i, text.Size() - i);
+                usize which = 0;
+                while (which < 4 && !rest.StartsWith(names[which]))
+                    ++which;
+                if (which < 4)
+                {
+                    expanded.Append(values[which]);
+                    i += names[which].Size();
+                }
+                else
+                {
+                    expanded.Append(rest.SubStr(0, 1));
+                    ++i;
+                }
+            }
+            part = Move(expanded);
+        }
+        return parts;
+    }
+
     // The editor's settings file, in the user-data dir (hand-editable XML, like the project files).
     inline constexpr StringView kEditorSettingsFile = u8"editor.settings.xml";
 
@@ -551,6 +685,8 @@ export namespace editor
         RegisterSerializable<GamePreviewSettings>();
         GlobalTypeRegistry().Register(GamePageSettings::StaticType(), TypeDomain(u8"Editor"));
         RegisterSerializable<GamePageSettings>();
+        GlobalTypeRegistry().Register(EditorCodeEditorSettings::StaticType(), TypeDomain(u8"Editor"));
+        RegisterSerializable<EditorCodeEditorSettings>();
     }
 
     // Load the editor settings store from `root` (XML). NotFound when the file is absent (on a first
@@ -644,4 +780,5 @@ export namespace editor
     RTTI_DEFINE_OBJECT_VERSIONED(EditorShortcutSettings, "rtti::editor::editor", 1)
     RTTI_DEFINE_OBJECT_VERSIONED(GamePreviewSettings, "rtti::editor::editor", 1)
     RTTI_DEFINE_OBJECT_VERSIONED(GamePageSettings, "rtti::editor::editor", 1)
+    RTTI_DEFINE_OBJECT_VERSIONED(EditorCodeEditorSettings, "rtti::editor::editor", 1)
 }

@@ -44,7 +44,7 @@ export namespace editor::app
 {
     namespace gui = foundation::gui;
 
-    class CodeAssetPage : public AssetObjectPage
+    class CodeAssetPage : public AssetObjectPage, public ICodePage
     {
     public:
         /// How long the code must go unedited before it is checked, in seconds.
@@ -55,6 +55,7 @@ export namespace editor::app
             : AssetObjectPage(context, Move(services), instance, type, markupPath), m_problemsFound(context.Allocator())
         {
             m_code = Find<gui::CodeEditor>(u8"page-code");
+            Provide<ICodePage>(*this);
             if (auto* host = Find<gui::UIWidget>(u8"page-problems"))
             {
                 m_problems = MakeUnique<ProblemsList>(Allocator(), Allocator(), *host);
@@ -262,6 +263,15 @@ export namespace editor::app
             if (m_code == nullptr || !problem.file.IsEmpty())
                 return;
             m_code->SetCaret(gui::CodePosition{problem.line, problem.atColumn ? problem.column : 0});
+            m_code->ScrollToCaret();
+            m_code->RequestFocus();
+        }
+
+        void ShowLine(u32 line, u32 column) override
+        {
+            if (m_code == nullptr)
+                return;
+            m_code->SetCaret(gui::CodePosition{line > 0 ? line - 1 : 0, column > 0 ? column - 1 : 0});
             m_code->ScrollToCaret();
             m_code->RequestFocus();
         }

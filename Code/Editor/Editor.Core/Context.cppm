@@ -156,6 +156,11 @@ export namespace editor
         /// (callers check).
         Function<void(const Guid&)> OpenAsset;
 
+        /// Opens a code file (a path on disk) at a 1-based line and column (0: the start) where the
+        /// user's Code Editor preference says: an outside editor, or the built-in page. An empty
+        /// file opens the project's Code/ folder. Bound by the application; may be unset.
+        Function<void(StringView file, u32 line, u32 column)> OpenCode;
+
         /// Asset-open interception: a claimant (such as the scene page, which takes animation clips
         /// into its animation bar) sees an OpenAsset before it routes to a page, and returning true
         /// claims it. Claimants are consulted newest first, so the most recently opened one wins;

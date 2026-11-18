@@ -34,6 +34,7 @@ import pipeline.core; // AssetCreator (New)
 import :name_prompt;         // NameRequest (a new group's or asset's name, asked up front)
 import :asset_create_dialog; // AssetNames (the names a group or an asset may take)
 import :group_picker_dialog; // GroupPicker::ShownName
+import :code_opener;         // EditorCodeOpener::IsCode (Open in Built-in Editor)
 
 using namespace foundation::core;
 
@@ -248,6 +249,9 @@ export namespace editor::app
             editor::EditorCookService* cook = nullptr;  // the badges; null: none
             editor::EditorIcons* icons = nullptr;       // a type's glyph; null: generic ones
             Function<void(content::Instance&)> open;    // opens an asset (its page)
+            /// Opens a code asset in the built-in editor, whichever editor the user prefers; unset:
+            /// no Open in Built-in Editor item.
+            Function<void(content::Instance&)> openBuiltIn;
             AssetOperations* operations = nullptr;      // rename, duplicate, delete, cook; null: no menus
             /// An asset's thumbnail, null while there is none; unset: glyphs only. A picture that
             /// arrives later is announced through the context's thumbnail listeners.
@@ -1127,6 +1131,11 @@ export namespace editor::app
             AssetOperations& ops = *m_services.operations;
             m_menu = MakeRef<gui::Menu>(m_allocator);
             (void)m_menu->AddItem(u8"Open", [self, row]() { self->OpenRow(row); });
+            if (m_services.openBuiltIn && EditorCodeOpener::IsCode(instance))
+            {
+                content::Instance* code = &instance;
+                (void)m_menu->AddItem(u8"Open in Built-in Editor", [self, code]() { self->m_services.openBuiltIn(*code); });
+            }
             m_menu->AddSeparator();
             (void)m_menu->AddItem(u8"Rename", [self, row]() { self->BeginRename(row); })->SetShortcut(u8"F2");
             (void)m_menu->AddItem(u8"Duplicate", [&ops, id]() { (void)ops.Duplicate(id); });

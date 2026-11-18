@@ -35,6 +35,7 @@ import :window_capture;   // EditorWindowCapture (View > Screenshot, --screensho
 import :editor_window;
 import :editor_dock;
 import :pages;
+import :code_opener;
 import :action_menus;
 import :action_shortcuts;
 import :command_palette;
@@ -273,6 +274,7 @@ export namespace editor::app
         CodeLanguages m_codeLanguages;          // read through the window's resources (made in the constructor)
         EditorDock m_dock{m_editorAllocator};
         UniquePtr<EditorPages> m_pages; // made with the dock, in OnStartup
+        UniquePtr<EditorCodeOpener> m_codeOpener; // where code opens (the Code Editor preference); made with the pages
         UniquePtr<ActionMenuBar> m_menus; // the frame's menu bar, from the actions
         UniquePtr<ActionShortcuts> m_shortcuts; // the actions' keys in the GUI's keymap
         UniquePtr<CommandPalette> m_palette;    // every action by name (View > Command Palette)

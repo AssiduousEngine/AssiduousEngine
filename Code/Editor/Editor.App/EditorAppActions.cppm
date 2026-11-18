@@ -142,6 +142,7 @@ export namespace editor::app
     {
         const EditorContext* context = nullptr;
         Function<void()> settings;
+        Function<void()> openCodeFolder;
         Function<void()> addNativeCode;
         Function<void()> buildPlugins;
         Function<void()> reloadPlugins;
@@ -155,6 +156,15 @@ export namespace editor::app
                     detail::NeedsProject(context, detail::Declare(u8"project.settings", u8"Project Settings...", u8"Open the project settings",
                                                                   u8"Project/Project Settings...", 100)),
                     Move(run.settings));
+        {
+            EditorActionDeclaration d = detail::NeedsProject(
+                context, detail::Declare(u8"project.openCodeFolder", u8"Open Code Folder",
+                                         u8"Open the project's Code folder in the outside code editor chosen in Preferences, "
+                                         u8"else in the system's file manager",
+                                         u8"Project/Open Code Folder", 150));
+            d.readOnly = true;
+            detail::Add(actions, Move(d), Move(run.openCodeFolder));
+        }
         detail::Add(actions,
                     detail::NeedsProject(context, detail::Declare(u8"project.addNativeCode", u8"Add Native Code...",
                                                                   u8"Scaffold the game's native code, a plugin package under Plugins/",

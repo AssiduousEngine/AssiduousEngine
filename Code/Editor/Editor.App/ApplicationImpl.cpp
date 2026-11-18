@@ -67,7 +67,12 @@ namespace editor::app
         services.cook = &m_cookService;
         services.builders = &m_builders;
         EditorApplication* self = this;
-        services.openPage = [self](foundation::content::Instance& instance) { (void)self->m_pages->Open(instance); };
+        // New code opens where the Code Editor preference says, like code opened from the browser.
+        services.openPage = [self](foundation::content::Instance& instance)
+        {
+            if (!self->m_codeOpener || !self->m_codeOpener->OpenAsset(instance))
+                (void)self->m_pages->Open(instance);
+        };
         return services;
     }
 
@@ -403,6 +408,7 @@ namespace editor::app
             (void)RefServices(); // the type icons
             assets.icons = m_typeIcons.Get();
             assets.open = [self](foundation::content::Instance& instance) { (void)self->m_pages->OpenForUser(instance.Id()); };
+            assets.openBuiltIn = [self](foundation::content::Instance& instance) { (void)self->m_codeOpener->OpenAsset(instance, true); };
             assets.picture = [self](const Guid& id) { return self->m_thumbnailService.Get(id); };
             assets.operations = m_assetOps.Get();
             assets.import = [self](foundation::content::Group& group)
@@ -519,6 +525,20 @@ namespace editor::app
         services.dialogRoot = [self]() { return self->m_window.Root(); };
         services.loadMarkup = [self](StringView path) { return self->m_window.LoadMarkup(path); };
         m_pages = MakeUnique<EditorPages>(m_editorAllocator, m_editorAllocator, Move(services));
+
+        // Code the user opens goes where the Code Editor preference says; a code asset opened
+        // from the browser or a slot takes that way too (page_open opens Pages directly).
+        EditorCodeOpener::Services code;
+        code.context = &m_context;
+        code.openPage = [self](foundation::content::Instance& instance) -> editor::EditorPage* { return self->m_pages->Open(instance); };
+        code.showFolder = [self](StringView folder)
+        {
+            if (foundation::shell::IDialogService* dialogs = self->ShellDialogs())
+                dialogs->OpenPath(folder);
+        };
+        m_codeOpener = MakeUnique<EditorCodeOpener>(m_editorAllocator, Move(code));
+        m_context.OpenCode = [self](StringView file, u32 line, u32 column) { (void)self->m_codeOpener->Open(file, line, column); };
+        (void)m_context.AddOpenAssetInterceptor([self](foundation::content::Instance& instance) { return self->m_codeOpener->OpenAsset(instance); });
     }
 
     // A project's first open: its default scene, by guid (else by path, for a manifest without one).
@@ -1145,6 +1165,7 @@ namespace editor::app
         project.context = &m_context;
         project.settings = [self]() { self->OpenProjectSettings(); };
         project.exportPresets = [self]() { self->OpenExport(); };
+        project.openCodeFolder = [self]() { (void)self->m_codeOpener->Open(StringView{}, 0, 0); };
         project.addNativeCode = [self]() { self->AddNativeCode(); };
         project.buildPlugins = [self]() { self->BuildProjectPlugins(); };
         project.reloadPlugins = [self]() { self->m_session.ReloadPlugins(); };

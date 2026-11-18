@@ -5,8 +5,8 @@
 // look in the user's store, each change shows at once, and Save writes the store and persists it,
 // while Cancel or closing puts the look back as it was. The Shortcuts tab stages its edits and
 // applies them on Save (a chord another action holds is refused, naming that action), and Reset
-// returns to the declared chord. Also covers the frame rate (the present mode), the orthographic check, the templates folder, the MCP
-// host's fields, the preview resolutions and a contributed category's tab.
+// returns to the declared chord. Also covers the frame rate (the present mode), the orthographic check, the templates folder, the code
+// editor, the MCP host's fields, the preview resolutions and a contributed category's tab.
 #include <doctest/doctest.h>
 #include "Core/Prelude.h"
 
@@ -296,7 +296,7 @@ TEST_CASE("preferences: the other tabs - axis views, templates, the Android SDK 
     gui::Window& window = bed.Window();
     auto* tabs = FindId<gui::TabView>(window, u8"pref-tabs");
     REQUIRE(tabs != nullptr);
-    CHECK(tabs->GetPageCount() == 6); // Appearance, Export, Agent access, Game preview, Shortcuts, Navigation
+    CHECK(tabs->GetPageCount() == 7); // Appearance, Export, Code, Agent access, Game preview, Shortcuts, Navigation
     auto* ortho = FindId<gui::CheckBox>(window, u8"pref-auto-ortho");
     auto* root = FindId<gui::TextField>(window, u8"pref-templates-root");
     auto* enabled = FindId<gui::CheckBox>(window, u8"pref-mcp-enabled");
@@ -378,4 +378,56 @@ TEST_CASE("preferences: the other tabs - axis views, templates, the Android SDK 
     CHECK(sizes->presets.Size() == 6u); // six, less the one removed, plus the new one
     CHECK(sizes->presets[0].name != String(u8"HD"));
     CHECK(sizes->presets.Back().name == String(u8"Custom"));
+}
+
+TEST_CASE("preferences: Code shows a preset's commands to read, keeps Command's own, and Save stores the choice")
+{
+    Bed bed;
+    editor::EditorCodeEditorSettings& stored = bed.store.Section<editor::EditorCodeEditorSettings>();
+    stored.fileCommand = String(u8"zed {file}:{line}");
+    REQUIRE(bed.dialog->Open(*bed.root));
+    gui::Window& window = bed.Window();
+    gui::Node* editors = FindId<gui::Node>(window, u8"pref-code-editors");
+    auto* file = FindId<gui::TextField>(window, u8"pref-code-file");
+    auto* folder = FindId<gui::TextField>(window, u8"pref-code-folder");
+    REQUIRE(editors != nullptr);
+    REQUIRE(file != nullptr);
+    REQUIRE(folder != nullptr);
+    gui::Button* builtIn = ButtonText(*editors, u8"Built-in");
+    gui::Button* vscode = ButtonText(*editors, u8"VS Code");
+    gui::Button* command = ButtonText(*editors, u8"Command");
+    REQUIRE(builtIn != nullptr);
+    REQUIRE(vscode != nullptr);
+    REQUIRE(command != nullptr);
+    CHECK(builtIn->IsChecked()); // the default
+    CHECK_FALSE(file->IsEnabled());
+
+    // A preset's commands show, not to be edited.
+    CHECK(vscode->HandleActivate());
+    CHECK(vscode->IsChecked());
+    CHECK_FALSE(builtIn->IsChecked());
+    CHECK(file->GetText().StartsWith(u8"code "));
+    CHECK(folder->GetText() == StringView(u8"code {folder}"));
+    CHECK_FALSE(file->IsEnabled());
+
+    // Command shows the user's own; what is typed survives a look at a preset.
+    CHECK(command->HandleActivate());
+    CHECK(file->IsEnabled());
+    CHECK(file->GetText() == StringView(u8"zed {file}:{line}"));
+    file->SetText(u8" subl {file}:{line}:{column} ");
+    CHECK(vscode->HandleActivate());
+    CHECK(command->HandleActivate());
+    CHECK(file->GetText() == StringView(u8" subl {file}:{line}:{column} "));
+    CHECK(bed.dialog->Save());
+    CHECK(stored.editor == StringView(u8"command"));
+    CHECK(stored.fileCommand == StringView(u8"subl {file}:{line}:{column}")); // trimmed
+    CHECK(stored.folderCommand.IsEmpty());
+
+    // Choosing a preset keeps the user's command for later.
+    REQUIRE(bed.dialog->Open(*bed.root));
+    CHECK(command->IsChecked());
+    CHECK(vscode->HandleActivate());
+    CHECK(bed.dialog->Save());
+    CHECK(stored.editor == StringView(u8"vscode"));
+    CHECK(stored.fileCommand == StringView(u8"subl {file}:{line}:{column}"));
 }
