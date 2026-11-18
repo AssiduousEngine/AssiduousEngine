@@ -4,7 +4,8 @@
 
 add_executable(Integration.ScriptScene TestsMain.cpp ScriptSceneBenchmarkTests.cpp)
 target_link_libraries(Integration.ScriptScene PRIVATE
-    Engine::Script Foundation::Script.Resource Foundation::Scene Foundation::Script doctest::doctest)
+    Engine::Script Engine::Spline Foundation::Script.Resource Foundation::Script.Facades Foundation::Scene Foundation::Script
+    doctest::doctest)
 
 # Each backend is independently switchable; include its leg only when the backend is built.
 if(TARGET ${SCRIPTLIB_ANGELSCRIPT})

@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// The script speed work's scene measures: script behaviours on a real scene, ticked through the
-// script subsystem, against the same work done by native components on the same scene.
+// The script speed work's measures, in every language against native code. Per call (the script
+// benchmark, Script.Tests/BackendBenchmark.h): a call into the engine, a value method, a string
+// argument and a handler call, with the language's loop alone to subtract. Per scene: script
+// behaviours on a real scene, ticked through the script subsystem, against the same work done by
+// native components on the same scene:
 //
 //   handler-dispatch  1,000 behaviours with an empty update;
 //   movers-<N>        N behaviours each reading its entity's position, moving it and writing it
 //                     back, N = 100, 1,000 and 5,000;
-//   component-fetch   one behaviour fetching a component of its entity 1,000 times a frame.
+//   component-fetch   one behaviour fetching its entity's PathFollowComponent 1,000 times a frame.
 //
 // Each runs 1,000 frames after a warm-up and prints `[bench] <language> <measure> <value> <unit>`
 // lines: the median and the 99th percentile frame, and the allocations a frame made through the
@@ -19,7 +22,7 @@
 
 #include "Core/Prelude.h"
 #include "Core/Log/Log.h"
-#include "Core/Reflection/Reflect.h"
+#include "Script.Tests/BackendBenchmark.h"
 
 import foundation.core;
 import foundation.run;
@@ -28,6 +31,7 @@ import foundation.script;
 import foundation.script.facades;
 import foundation.script.resource;
 import engine.script;
+import engine.spline; // PathFollowComponent: the component the fetch measure reaches
 #if defined(INTEGRATION_HAS_ANGELSCRIPT)
 import foundation.script.angelscript;
 #endif
@@ -48,19 +52,6 @@ namespace
     constexpr u32 kFetchesPerFrame = 1000;
     constexpr f32 kDelta = 1.0f / 60.0f;
 
-    // The component the fetch measure reaches from script: `BenchGadget.of(entity)`.
-    struct BenchGadget
-    {
-        f32 power = 1.0f;
-    };
-    class BenchGadgetManager final : public scene::ComponentManager<BenchGadget>
-    {
-    };
-}
-REFLECT_VALUE(BenchGadget, "rtti::tests::scriptscene")
-{
-    builder.Property<&BenchGadget::power>("power");
-    builder.Apply(&foundation::script::ComponentMethods<BenchGadget>);
 }
 
 namespace
@@ -71,7 +62,7 @@ namespace
     {
         Empty, // an empty update, called through a pointer as a handler is
         Move,  // read the position, move it, write it back
-        Fetch, // fetch BenchGadget from its entity kFetchesPerFrame times
+        Fetch, // fetch its entity's PathFollowComponent kFetchesPerFrame times
     };
     struct BenchNative
     {
@@ -83,7 +74,7 @@ namespace
     {
     public:
         NativeWork work = NativeWork::Empty;
-        BenchGadgetManager* gadgets = nullptr;
+        engine::spline::PathFollowComponentManager* follows = nullptr;
 
         void OnSceneCreate(scene::Scene& owner) override
         {
@@ -113,7 +104,7 @@ namespace
                 case NativeWork::Fetch:
                     for (u32 k = 0; k < kFetchesPerFrame; ++k)
                     {
-                        BenchGadget* volatile fetched = gadgets->Get(owners[i]);
+                        engine::spline::PathFollowComponent* volatile fetched = follows->Get(owners[i]);
                         (void)fetched;
                     }
                     break;
@@ -140,10 +131,7 @@ namespace
             RegisterCoreTypes();
             RegisterScriptComponentReflection();
             RegisterScriptFacadeReflection();
-            RttiRegisterValue_BenchGadget();
-            GlobalTypeRegistry().Register(TypeOf<BenchGadget>());
-            RegisterExtraScriptRootType(&TypeOf<BenchGadget>());
-            RegisterExtraFacadeName(u8"BenchGadget");
+            engine::spline::RegisterSplineScriptFacade(); // PathFollowComponent and its of()
             return true;
         }();
         (void)once;
@@ -159,7 +147,7 @@ namespace
         ScriptRunHost host{counted};
         ScriptComponentManager* components = nullptr;
         ScriptSceneSystem* scripts = nullptr;
-        BenchGadgetManager* gadgets = nullptr;
+        engine::spline::PathFollowComponentManager* follows = nullptr;
         BenchNativeManager* natives = nullptr;
 
         BenchScene()
@@ -168,9 +156,10 @@ namespace
             scene.SetRun(&run);
             components = scene.AddSystem<ScriptComponentManager>();
             scripts = scene.AddSystem<ScriptSceneSystem>();
-            gadgets = scene.AddSystem<BenchGadgetManager>();
+            engine::spline::AddSplineSceneManagers(scene);
+            follows = scene.GetSystem<engine::spline::PathFollowComponentManager>();
             natives = scene.AddSystem<BenchNativeManager>();
-            natives->gadgets = gadgets;
+            natives->follows = follows;
             components->SetScriptSystem(scripts);
             scripts->SetRunHost(&host);
         }
@@ -180,7 +169,7 @@ namespace
             for (u32 i = 0; i < count; ++i)
             {
                 const scene::EntityHandle e = scene.CreateEntity(u8"bench");
-                gadgets->Add(e);
+                follows->Add(e);
                 ScriptBehavior behavior;
                 behavior.script = cls;
                 components->Add(e).behaviors.PushBack(Move(behavior));
@@ -192,7 +181,7 @@ namespace
             for (u32 i = 0; i < count; ++i)
             {
                 const scene::EntityHandle e = scene.CreateEntity(u8"bench");
-                gadgets->Add(e);
+                follows->Add(e);
                 natives->Add(e);
             }
         }
@@ -287,6 +276,104 @@ namespace
     }
 }
 
+TEST_CASE("script per call: native, the baseline" * doctest::skip())
+{
+    foundation::script::benchmark::RunNativeBenchmark();
+}
+
+#if defined(INTEGRATION_HAS_ANGELSCRIPT)
+TEST_CASE("script per call: AngelScript" * doctest::skip())
+{
+    foundation::script::benchmark::Dialect dialect;
+    dialect.languageId = u8"angelscript";
+    dialect.benchClass = u8"class Holder { Float3 at; Holder@ self; }\n"
+                         u8"class Bench {\n"
+                         u8"  double total = 0;\n"
+                         u8"  void tick(double dt) { total += dt; }\n"
+                         u8"  double math(int n) {\n"
+                         u8"    Float3 a = Float3(1, 2, 3);\n"
+                         u8"    Float3 b = Float3(0.5f, 0.25f, 0.125f);\n"
+                         u8"    double sum = 0;\n"
+                         u8"    for (int i = 0; i < n; i++) {\n"
+                         u8"      Float3 d = a + b * 2.0f;\n"
+                         u8"      Color c = Color(d.x, d.y, d.z, 1);\n"
+                         u8"      sum += Float3::Dot(d, a) + c.r;\n"
+                         u8"    }\n"
+                         u8"    return sum;\n"
+                         u8"  }\n"
+                         u8"  void Sleeper() { wait(1000.0f); }\n"
+                         u8"  void spawn(int n) { for (int i = 0; i < n; i++) startCoroutine(ScriptCoroutine(this.Sleeper)); }\n"
+                         u8"  void churn(int n) {\n"
+                         u8"    for (int i = 0; i < n; i++) { Holder h; @h.self = h; h.at = Float3(1, 2, 3); }\n"
+                         u8"  }\n"
+                         u8"  double loops(int n) { double sum = 0; for (int i = 0; i < n; i++) sum += float(i); return sum; }\n"
+                         u8"  double calls(int n) { double sum = 0; for (int i = 0; i < n; i++) sum += Math::Abs(float(i)); return sum; }\n"
+                         u8"  double crosses(int n) {\n"
+                         u8"    Float3 a = Float3(1, 2, 3);\n"
+                         u8"    double sum = 0;\n"
+                         u8"    for (int i = 0; i < n; i++) sum += Float3::Cross(a, Float3(float(i), 0.5f, 0.25f)).x;\n"
+                         u8"    return sum;\n"
+                         u8"  }\n"
+                         u8"  double texts(int n, string s, Entity e) { for (int i = 0; i < n; i++) e.setName(s); return n; }\n"
+                         u8"}\n";
+    foundation::script::benchmark::RunScriptBackendBenchmark(
+        [](IAllocator& allocator) { return foundation::script::angelscript::CreateScriptManager(allocator); }, dialect);
+}
+#endif
+
+#if defined(INTEGRATION_HAS_LUAU)
+TEST_CASE("script per call: Luau" * doctest::skip())
+{
+    foundation::script::benchmark::Dialect dialect;
+    dialect.languageId = u8"luau";
+    dialect.benchClass = u8R"lua(
+Bench = {}
+Bench.__index = Bench
+function Bench.new() return setmetatable({ total = 0 }, Bench) end
+function Bench:tick(dt) self.total = self.total + dt end
+function Bench:math(n)
+    local a = Float3.new(1, 2, 3)
+    local b = Float3.new(0.5, 0.25, 0.125)
+    local sum = 0
+    for i = 1, n do
+        local d = a + b * 2
+        local c = Color.new(d.x, d.y, d.z, 1)
+        sum = sum + Float3.Dot(d, a) + c.r
+    end
+    return sum
+end
+function Bench:spawn(n)
+    for i = 1, n do startCoroutine(function() waitSeconds(1000) end, self) end
+end
+function Bench:churn(n)
+    for i = 1, n do local h = {}; h.self = h; h.at = Float3.new(1, 2, 3) end
+end
+function Bench:loops(n)
+    local sum = 0
+    for i = 1, n do sum = sum + i end
+    return sum
+end
+function Bench:calls(n)
+    local sum = 0
+    for i = 1, n do sum = sum + Math.Abs(i) end
+    return sum
+end
+function Bench:crosses(n)
+    local a = Float3.new(1, 2, 3)
+    local sum = 0
+    for i = 1, n do sum = sum + Float3.Cross(a, Float3.new(i, 0.5, 0.25)).x end
+    return sum
+end
+function Bench:texts(n, s, e)
+    for i = 1, n do e:setName(s) end
+    return n
+end
+)lua";
+    foundation::script::benchmark::RunScriptBackendBenchmark(
+        [](IAllocator& allocator) { return foundation::script::CreateLuauScriptManager(allocator); }, dialect);
+}
+#endif
+
 TEST_CASE("script scene: the scene measures in native components, the baseline" * doctest::skip())
 {
     {
@@ -332,7 +419,7 @@ TEST_CASE("script scene: the scene measures in AngelScript" * doctest::skip())
                  u8"    private Entity self;\n"
                  u8"    Fetcher(Entity entity) { self = entity; }\n"
                  u8"    void onUpdate(double dt) {\n"
-                 u8"        for (int i = 0; i < 1000; i++) { BenchGadget@ g = BenchGadget::of(self); }\n"
+                 u8"        for (int i = 0; i < 1000; i++) { PathFollowComponent@ f = PathFollowComponent::of(self); }\n"
                  u8"    }\n"
                  u8"}\n";
     RunSceneMeasures(in);
@@ -359,7 +446,7 @@ TEST_CASE("script scene: the scene measures in Luau" * doctest::skip())
                  u8"Fetcher.__index = Fetcher\n"
                  u8"function Fetcher.new(entity) return setmetatable({ entity = entity }, Fetcher) end\n"
                  u8"function Fetcher:onUpdate(dt)\n"
-                 u8"    for i = 1, 1000 do local g = BenchGadget.of(self.entity) end\n"
+                 u8"    for i = 1, 1000 do local f = PathFollowComponent.of(self.entity) end\n"
                  u8"end\n";
     RunSceneMeasures(in);
 }

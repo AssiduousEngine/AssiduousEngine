@@ -1903,46 +1903,6 @@ TEST_CASE("angelscript: a global initializer runs at load under the budget, neve
     CHECK(fine->Call(u8"read", Span<Variant>{}).Value().Get<f64>() == 7.0);
 }
 
-#include "../Script.Tests/BackendBenchmark.h"
-
-TEST_CASE("angelscript: benchmark of the call path" * doctest::skip())
-{
-    foundation::script::benchmark::Dialect dialect;
-    dialect.languageId = u8"angelscript";
-    dialect.benchClass = u8"class Holder { Float3 at; Holder@ self; }\n"
-                         u8"class Bench {\n"
-                         u8"  double total = 0;\n"
-                         u8"  void tick(double dt) { total += dt; }\n"
-                         u8"  double math(int n) {\n"
-                         u8"    Float3 a = Float3(1, 2, 3);\n"
-                         u8"    Float3 b = Float3(0.5f, 0.25f, 0.125f);\n"
-                         u8"    double sum = 0;\n"
-                         u8"    for (int i = 0; i < n; i++) {\n"
-                         u8"      Float3 d = a + b * 2.0f;\n"
-                         u8"      Color c = Color(d.x, d.y, d.z, 1);\n"
-                         u8"      sum += Float3::Dot(d, a) + c.r;\n"
-                         u8"    }\n"
-                         u8"    return sum;\n"
-                         u8"  }\n"
-                         u8"  void Sleeper() { wait(1000.0f); }\n"
-                         u8"  void spawn(int n) { for (int i = 0; i < n; i++) startCoroutine(ScriptCoroutine(this.Sleeper)); }\n"
-                         u8"  void churn(int n) {\n"
-                         u8"    for (int i = 0; i < n; i++) { Holder h; @h.self = h; h.at = Float3(1, 2, 3); }\n"
-                         u8"  }\n"
-                         u8"  double loops(int n) { double sum = 0; for (int i = 0; i < n; i++) sum += float(i); return sum; }\n"
-                         u8"  double calls(int n) { double sum = 0; for (int i = 0; i < n; i++) sum += BenchProbe::Twice(float(i)); return sum; }\n"
-                         u8"  double crosses(int n) {\n"
-                         u8"    Float3 a = Float3(1, 2, 3);\n"
-                         u8"    double sum = 0;\n"
-                         u8"    for (int i = 0; i < n; i++) sum += Float3::Cross(a, Float3(float(i), 0.5f, 0.25f)).x;\n"
-                         u8"    return sum;\n"
-                         u8"  }\n"
-                         u8"  double texts(int n, string s) { double sum = 0; for (int i = 0; i < n; i++) sum += BenchProbe::Length(s); return sum; }\n"
-                         u8"}\n";
-    foundation::script::benchmark::RunScriptBackendBenchmark(
-        [](IAllocator& allocator) { return foundation::script::angelscript::CreateScriptManager(allocator); }, dialect);
-}
-
 TEST_CASE("angelscript: a compiler warning reaches the error handler as a warning, and the load succeeds")
 {
     RefPtr<IScriptManager> manager = angelscript::CreateScriptManager(foundation::core::DefaultAllocator());

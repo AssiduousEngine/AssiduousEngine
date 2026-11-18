@@ -4,7 +4,9 @@
 // The script-backend benchmark: the same work in each language, timed, so a change to the call
 // path is measured before and after. Include from a doctest TU and call RunScriptBackendBenchmark
 // inside a TEST_CASE marked doctest::skip(); run it with --no-skip from an optimised build
-// (build/clang-reldbg), since a Debug build's times say little.
+// (build/clang-reldbg), since a Debug build's times say little. The calls it makes reach the
+// engine's facades (an Entity), so the including suite registers them and links Script.Facades:
+// Integration.ScriptScene runs it for every language.
 //
 // It prints one line per measure, `[bench] <language> <measure> <value> <unit>`, for the weekly.
 // RunNativeBenchmark does the per-call measures' work in C++, as `native`: the baseline each
@@ -13,27 +15,10 @@
 #include <doctest/doctest.h>
 #include <cstdio>
 #include "Core/Prelude.h"
-#include "Core/Reflection/Reflect.h"
 
 import foundation.core;
 import foundation.script;
-
-namespace foundation::script::benchmark
-{
-    /// What a script calls in the engine for the per-call measures: reflected statics, so every
-    /// language reaches them as `BenchProbe.Twice(x)` and the native baseline calls the same
-    /// functions.
-    struct BenchProbe
-    {
-        static foundation::core::f32 Twice(foundation::core::f32 x) { return x * 2.0f; }
-        static foundation::core::i32 Length(foundation::core::String text) { return static_cast<foundation::core::i32>(text.Size()); }
-    };
-
-    REFLECT_VALUE(BenchProbe, "rtti::tests::benchmark")
-    {
-        builder.Method<&BenchProbe::Twice>("Twice", {"x"}).Method<&BenchProbe::Length>("Length", {"text"});
-    }
-}
+import foundation.script.facades; // Entity: the string measure's call
 
 namespace foundation::script::benchmark
 {
@@ -55,10 +40,16 @@ namespace foundation::script::benchmark
         //   churn(n)   makes n script objects that each refer to themselves and hold a Float3,
         //              then drops them, leaving garbage only the collector frees;
         //   loops(n)   the per-call measures' loop with no call in it, summing its index;
-        //   calls(n)   n calls of BenchProbe.Twice, summing what they return;
+        //   calls(n)   n calls of Math.Abs, summing what they return;
         //   crosses(n) n calls of Float3.Cross, summing a component of the result;
-        //   texts(n, s) n calls of BenchProbe.Length(s), summing what they return.
+        //   texts(n, s, e) n calls of e.setName(s) on the Entity it is given (one with no scene,
+        //              so the call crosses and does nothing), returning n.
         StringView benchClass;
+        /// Loads the class where a language cannot load source (C#: its built assembly); unset,
+        /// the context loads `benchClass`.
+        Function<bool(IScriptContext&)> load;
+        /// Whether to run the coroutine and collector measures (spawn and churn).
+        bool collector = true;
     };
 
     namespace detail
@@ -74,14 +65,14 @@ namespace foundation::script::benchmark
     /// reported as `native`: what a call costs with no language in the way.
     inline void RunNativeBenchmark()
     {
-        f32 (*volatile twice)(f32) = &BenchProbe::Twice;
+        f32 (*volatile absolute)(f32) = &Abs;
         Float3 (*volatile cross)(Float3, Float3) = &Cross;
-        i32 (*volatile length)(String) = &BenchProbe::Length;
+        void (Entity::*volatile setName)(String) = &Entity::setName;
         {
             const Stopwatch clock = Stopwatch::StartNew();
             f32 sum = 0.0f;
             for (i32 i = 0; i < kCalls; ++i)
-                sum += twice(static_cast<f32>(i));
+                sum += absolute(static_cast<f32>(i));
             detail::Report(u8"native", "engine-call", clock.Elapsed().AsSeconds() * 1e9 / kCalls, "ns/call");
             CHECK(sum > 0.0f);
         }
@@ -96,12 +87,11 @@ namespace foundation::script::benchmark
         }
         {
             // A script passes its own string, so each call here makes one as well.
+            Entity none;
             const Stopwatch clock = Stopwatch::StartNew();
-            i64 sum = 0;
             for (i32 i = 0; i < kCalls; ++i)
-                sum += length(String(kSixteen));
+                (none.*setName)(String(kSixteen));
             detail::Report(u8"native", "string-argument", clock.Elapsed().AsSeconds() * 1e9 / kCalls, "ns/call");
-            CHECK(sum == static_cast<i64>(kCalls) * 16);
         }
     }
 
@@ -112,8 +102,7 @@ namespace foundation::script::benchmark
                                           const Dialect& dialect)
     {
         RegisterCoreTypes();
-        RttiRegisterValue_BenchProbe();
-        GlobalTypeRegistry().Register(TypeOf<BenchProbe>());
+        RegisterScriptFacadeReflection();
         TrackingAllocator counted(DefaultAllocator());
         RefPtr<IScriptManager> manager = factory(counted);
         REQUIRE(manager.Get() != nullptr);
@@ -132,7 +121,8 @@ namespace foundation::script::benchmark
         };
         Printer printer;
         scriptContext->SetErrorHandler(&printer);
-        REQUIRE(scriptContext->Load(dialect.benchClass, u8"bench").IsOk());
+        const bool loaded = dialect.load ? dialect.load(*scriptContext) : scriptContext->Load(dialect.benchClass, u8"bench").IsOk();
+        REQUIRE(loaded);
         RefPtr<ScriptObject> bench = scriptContext->CreateInstance(u8"Bench", Span<Variant>{});
         REQUIRE(bench.Get() != nullptr);
         const StringView language = dialect.languageId;
@@ -188,10 +178,12 @@ namespace foundation::script::benchmark
             measure(u8"loops", "loop-alone", Span<Variant>{n, 1}); // subtract it from the others for a call's own cost
             measure(u8"calls", "engine-call", Span<Variant>{n, 1});
             measure(u8"crosses", "value-method", Span<Variant>{n, 1});
-            Variant texts[] = {Variant::From<i32>(kCalls), Variant::From<String>(String(kSixteen))};
-            measure(u8"texts", "string-argument", Span<Variant>{texts, 2});
+            Variant texts[] = {Variant::From<i32>(kCalls), Variant::From<String>(String(kSixteen)), Variant::From(Entity{})};
+            measure(u8"texts", "string-argument", Span<Variant>{texts, 3});
         }
 
+        if (!dialect.collector)
+            return;
         // Waiting coroutines: what a frame's scheduler pays for them.
         {
             constexpr i32 kCoroutines = 100;
