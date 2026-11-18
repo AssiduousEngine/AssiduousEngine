@@ -3507,16 +3507,15 @@ namespace foundation::script::angelscript
             }
             return;
         }
-        core::Variant args[kMaxArgs];
+        core::InlineArray<core::Variant, kMaxArgs> args; // only those passed are made
         for (int i = 0; i < argc; ++i)
         {
             const core::ParamInfo& param = binding->constructor->params[i];
-            args[i] = binding->manager->ValueFromArg(
-                gen, static_cast<asUINT>(i), param.type != nullptr ? param.type() : nullptr);
+            args.Add(binding->manager->ValueFromArg(
+                gen, static_cast<asUINT>(i), param.type != nullptr ? param.type() : nullptr));
         }
         ReleaseHandleArgs(gen, binding->manager);
-        core::Result<core::Variant> created = binding->constructor->invoke(
-            core::Span<core::Variant>{args, static_cast<core::usize>(argc)});
+        core::Result<core::Variant> created = binding->constructor->invoke(args.AsSpan());
         if (!created.HasValue())
         {
             *static_cast<void**>(gen->GetAddressOfReturnLocation()) = nullptr;
@@ -3630,16 +3629,15 @@ namespace foundation::script::angelscript
             return;
         }
         const int argc = static_cast<int>(gen->GetArgCount());
-        core::Variant args[kMaxArgs];
+        core::InlineArray<core::Variant, kMaxArgs> args; // only those passed are made
         for (int i = 0; i < argc && i < kMaxArgs; ++i)
         {
             const core::ParamInfo& param = binding->constructor->params[i];
-            args[i] = binding->manager->ValueFromArg(gen, static_cast<asUINT>(i),
-                                                     param.type != nullptr ? param.type() : nullptr);
+            args.Add(binding->manager->ValueFromArg(gen, static_cast<asUINT>(i),
+                                                    param.type != nullptr ? param.type() : nullptr));
         }
         ReleaseHandleArgs(gen, binding->manager);
-        core::Result<core::Variant> made =
-            binding->constructor->invoke(core::Span<core::Variant>{args, static_cast<core::usize>(argc)});
+        core::Result<core::Variant> made = binding->constructor->invoke(args.AsSpan());
         if (!made.HasValue())
         {
             std::memset(self, 0, binding->type->size);
@@ -3895,17 +3893,17 @@ namespace foundation::script::angelscript
             RaiseCallFailed(method);
             return;
         }
-        core::Variant args[kMaxArgs];
+        core::InlineArray<core::Variant, kMaxArgs> args; // only those passed are made
         for (int i = 0; i < argc; ++i)
         {
             const core::TypeInfo* expected =
                 (i < static_cast<int>(method.paramCount) && method.params[i].type != nullptr)
                     ? method.params[i].type()
                     : nullptr;
-            args[i] = binding->manager->ValueFromArg(gen, static_cast<asUINT>(i), expected);
+            args.Add(binding->manager->ValueFromArg(gen, static_cast<asUINT>(i), expected));
         }
         ReleaseHandleArgs(gen, binding->manager);
-        const core::Span<core::Variant> argSpan{args, static_cast<core::usize>(argc)};
+        const core::Span<core::Variant> argSpan = args.AsSpan();
         core::Result<core::Variant> result = core::Err(core::ErrorCode::Internal);
         if (method.isStatic)
         {
