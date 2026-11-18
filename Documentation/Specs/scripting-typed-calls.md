@@ -311,8 +311,10 @@ interned name, which removes the string hash per call and keeps the lookup.
 Each step stands on its own and leaves the tree green.
 
 1. **Measure** (Step 1): the measures, native and every language, desktop and web.
-2. **Part 1 in Core**, with tests in Core.Tests that call every reflected method kind through
-   both entries and compare. Moves nothing by itself; measured with step 3.
+2. **Part 1 in Core** (built 2026-11-18), with tests in Core.Tests that call every reflected
+   method kind through both entries and compare. Moves nothing by itself; measured with step 3.
+   Beyond the sketch above: ParamInfo carries each parameter's form (ParamForm), since a
+   StringView parameter reads as String and a caller must know which to pass.
 3. **C# onto the typed entry**, with the C# items of Part 3. It has the most to gain and its
    bindings are generated, so the change is in one generator. Moves: Engine call, Value method,
    Object return, String argument (C#).

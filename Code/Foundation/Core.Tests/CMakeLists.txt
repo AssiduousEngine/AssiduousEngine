@@ -35,6 +35,7 @@ add_executable(Core.Tests
     LibraryTests.cpp
     AllocatorTripwireTests.cpp
     SharedLibTripwireTests.cpp
+    TypedCallTests.cpp
     SchemaRecorderTests.cpp
     Sha256Tests.cpp)
 

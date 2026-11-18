@@ -327,6 +327,11 @@ export namespace foundation::core
         // attached fluently via TypeBuilder::PropAttribute after Property().
         const Attribute* attributes = nullptr;
         u32 attributeCount = 0;
+        // The typed pair beside get and set: `read` constructs the value in `result` as a typed
+        // call's result is; `write` takes a pointer to a value of the property's type. Null for a
+        // property without one (a nested structure, a bounded array; `write` for a read-only one).
+        void (*read)(const void* self, void* result) = nullptr;
+        void (*write)(void* self, const void* value) = nullptr;
     };
 
     [[nodiscard]] inline Variant GetProperty(const PropertyInfo& property, const Instance& instance)
@@ -446,15 +451,36 @@ export namespace foundation::core
     }
 
     // =======================================================================
-    // Methods - instance, const, and static, via Variant args.
+    // Methods - instance, const, and static, via Variant args, and typed.
     // =======================================================================
+
+    /// What a typed call's argument slot points at for a parameter (MethodInfo::call): what the
+    /// caller puts there, decided by the parameter's C++ type.
+    enum class ParamForm : u8
+    {
+        Value,   // a value of the parameter's type (a number, an enum, a value struct, a String)
+        View,    // a StringView (the parameter takes a view; its type reads as String)
+        Object,  // a pointer to the object (a RefPtr<U>, U* or U& parameter): the slot holds a U*
+        Variant, // a Variant (the parameter takes any value)
+        List,    // an Array<E>: no single native form, so a method with one has no typed call
+    };
+
     struct ParamInfo
     {
         // Resolved lazily (a getter, not a pointer) so a type can reflect methods
         // that reference its own type without a recursive static-init.
         const TypeInfo* (*type)();
         const char* name; // optional; "" when unknown
+        ParamForm form = ParamForm::Value;
     };
+
+    /// A typed call (MethodInfo::call): args[i] points at the i-th argument in its parameter's
+    /// form (ParamInfo::form), `result` at storage for the return value. No Variant and no checks:
+    /// the caller has matched the signature. The result is constructed in place: a String for a
+    /// string, a value for a value; an object is written as a pointer with a reference already
+    /// added, which the caller releases. The caller destroys what was constructed. `self` is the
+    /// object for an instance method, null for a static.
+    using TypedCall = void (*)(void* self, void* const* args, void* result);
 
     /// The operator a reflected method implements, for consumers that spell operators (the
     /// scripting backends: AngelScript's opAdd, Luau's __add). Opaque authored metadata like
@@ -488,6 +514,10 @@ export namespace foundation::core
         const char* overloadedName = nullptr;
         // The operator this method implements (MethodOperator), None for a plain method.
         MethodOperator op = MethodOperator::None;
+        // The typed entry beside `invoke` (TypedCall): the same method with no Variant. Null where
+        // a parameter has no single native form (ParamForm::List) or the method returns through a
+        // Variant it checks (Method<Member, ReturnAs>): the caller uses `invoke` then.
+        TypedCall call = nullptr;
     };
 
     [[nodiscard]] inline Result<Variant> InvokeMethod(const MethodInfo& method,
@@ -551,6 +581,10 @@ export namespace foundation::core
         const ParamInfo* params;
         u32 paramCount;
         Result<Variant> (*invoke)(Span<Variant> args);
+        // The typed entry beside `invoke` (TypedCall, with no `self`): a value type is constructed
+        // in `result`; an object is made and written there as a pointer with a reference added.
+        // Null where a parameter has no single native form.
+        void (*construct)(void* const* args, void* result) = nullptr;
     };
 
     [[nodiscard]] inline Span<const ConstructorInfo> Constructors(const TypeInfo& type) noexcept
@@ -1662,6 +1696,117 @@ namespace foundation::core::detail
         }
     }
 
+    // The form a typed call passes a parameter of type A in (ParamForm).
+    template <typename A>
+    [[nodiscard]] constexpr ParamForm ParamFormOf() noexcept
+    {
+        using Bare = std::remove_cvref_t<A>;
+        if constexpr (std::is_same_v<Bare, Variant>)
+            return ParamForm::Variant;
+        else if constexpr (std::is_same_v<Bare, StringView>)
+            return ParamForm::View;
+        else if constexpr (ArgRefPtr<Bare>::value)
+            return ParamForm::Object;
+        else if constexpr (std::is_pointer_v<Bare> && std::is_base_of_v<Object, std::remove_cv_t<std::remove_pointer_t<Bare>>>)
+            return ParamForm::Object;
+        else if constexpr (std::is_class_v<Bare> && std::is_base_of_v<Object, Bare>)
+            return ParamForm::Object;
+        else if constexpr (ArgArray<Bare>::value)
+            return ParamForm::List;
+        else
+            return ParamForm::Value;
+    }
+
+    // Whether every parameter has a single native form, so the method has a typed call.
+    template <typename... A>
+    inline constexpr bool kTypedArgs = (... && (ParamFormOf<A>() != ParamForm::List));
+
+    // One argument read from its typed slot (ParamFormOf<A>), as ConvertArg reads it from a Variant.
+    template <typename A>
+    [[nodiscard]] decltype(auto) RawArg(void* slot) noexcept
+    {
+        using Bare = std::remove_cvref_t<A>;
+        if constexpr (ArgRefPtr<Bare>::value)
+        {
+            using U = typename ArgRefPtr<Bare>::Pointee;
+            return RefPtr<U>(*static_cast<U**>(slot));
+        }
+        else if constexpr (std::is_pointer_v<Bare> && std::is_base_of_v<Object, std::remove_cv_t<std::remove_pointer_t<Bare>>>)
+        {
+            return *static_cast<Bare*>(slot);
+        }
+        else if constexpr (std::is_class_v<Bare> && std::is_base_of_v<Object, Bare>)
+        {
+            return **static_cast<Bare**>(slot); // the object, by reference
+        }
+        else
+        {
+            return *static_cast<Bare*>(slot); // a value, a StringView or a Variant, by reference
+        }
+    }
+
+    // A typed call's result written into the caller's storage (TypedCall).
+    template <typename R, typename V>
+    void WriteResult(void* result, V&& value)
+    {
+        using Bare = std::remove_cvref_t<R>;
+        if constexpr (std::is_same_v<Bare, StringView>)
+        {
+            new (result) String(value);
+        }
+        else if constexpr (ArgRefPtr<Bare>::value)
+        {
+            using U = typename ArgRefPtr<Bare>::Pointee;
+            U* object = value.Get();
+            if (object != nullptr)
+                object->AddRef();
+            *static_cast<U**>(result) = object;
+        }
+        else if constexpr (std::is_reference_v<R> && std::is_base_of_v<Object, Bare>)
+        {
+            Bare* object = &value;
+            object->AddRef();
+            *static_cast<Bare**>(result) = object;
+        }
+        else if constexpr (std::is_pointer_v<Bare> && std::is_base_of_v<Object, std::remove_cv_t<std::remove_pointer_t<Bare>>>)
+        {
+            using U = std::remove_cv_t<std::remove_pointer_t<Bare>>;
+            U* object = const_cast<U*>(value);
+            if (object != nullptr)
+                object->AddRef();
+            *static_cast<U**>(result) = object;
+        }
+        else
+        {
+            new (result) Bare(std::forward<V>(value));
+        }
+    }
+
+    // A property's typed pair (PropertyInfo::read and write). A field reads as its value and is
+    // written from a value in its form (an object as a pointer to it, as a typed call's argument).
+    template <typename T, typename M, auto Member>
+    void FieldRead(const void* self, void* result)
+    {
+        WriteResult<const M&>(result, static_cast<const T*>(self)->*Member);
+    }
+    template <typename T, typename M, auto Member>
+    void FieldWrite(void* self, const void* value)
+    {
+        static_cast<T*>(self)->*Member = RawArg<M>(const_cast<void*>(value));
+    }
+    // A computed property reads through its getter; an accessor property writes through its
+    // setter, from a value in the setter's form (a StringView where it takes one).
+    template <typename T, typename R, auto Getter>
+    void GetterRead(const void* self, void* result)
+    {
+        WriteResult<R>(result, (static_cast<const T*>(self)->*Getter)());
+    }
+    template <typename T, typename R, auto Setter>
+    void SetterWrite(void* self, const void* value)
+    {
+        (static_cast<T*>(self)->*Setter)(RawArg<R>(const_cast<void*>(value)));
+    }
+
     template <typename... A>
     [[nodiscard]] Span<const ParamInfo> MakeParams()
     {
@@ -1671,7 +1816,7 @@ namespace foundation::core::detail
         }
         else
         {
-            static const ParamInfo params[] = {ParamInfo{&ParamTypeOf<A>, ""}...};
+            static const ParamInfo params[] = {ParamInfo{&ParamTypeOf<A>, "", ParamFormOf<A>()}...};
             return Span<const ParamInfo>{params, sizeof...(A)};
         }
     }
@@ -1707,6 +1852,38 @@ namespace foundation::core::detail
         else
         {
             return ToVariantValue<R>((object->*Member)(ConvertArg<A>(args[I])...));
+        }
+    }
+
+    template <auto Member, typename C, typename R, bool Const, typename... A, usize... I>
+    void CallMemberImpl(void* self, void* const* args, void* result, std::index_sequence<I...>)
+    {
+        (void)args;
+        using ObjectType = std::conditional_t<Const, const C, C>;
+        ObjectType* object = static_cast<ObjectType*>(self);
+        if constexpr (std::is_void_v<R>)
+        {
+            (void)result;
+            (object->*Member)(RawArg<A>(args[I])...);
+        }
+        else
+        {
+            WriteResult<R>(result, (object->*Member)(RawArg<A>(args[I])...));
+        }
+    }
+
+    template <auto Func, typename R, typename... A, usize... I>
+    void CallFreeImpl(void* const* args, void* result, std::index_sequence<I...>)
+    {
+        (void)args;
+        if constexpr (std::is_void_v<R>)
+        {
+            (void)result;
+            Func(RawArg<A>(args[I])...);
+        }
+        else
+        {
+            WriteResult<R>(result, Func(RawArg<A>(args[I])...));
         }
     }
 
@@ -1773,6 +1950,21 @@ namespace foundation::core::detail
         }
     }
 
+    template <typename T, typename... A, usize... I>
+    void ConstructCallImpl(void* const* args, void* result, std::index_sequence<I...>)
+    {
+        (void)args;
+        if constexpr (std::is_base_of_v<Object, T>)
+        {
+            RefPtr<T> made = MakeRef<T>(DefaultAllocator(), RawArg<A>(args[I])...);
+            WriteResult<RefPtr<T>>(result, made);
+        }
+        else
+        {
+            new (result) T(RawArg<A>(args[I])...);
+        }
+    }
+
     template <typename T, typename... A>
     struct ConstructorReflect
     {
@@ -1781,6 +1973,17 @@ namespace foundation::core::detail
         static Result<Variant> Invoke(Span<Variant> args)
         {
             return ConstructImpl<T, A...>(args, std::index_sequence_for<A...>{});
+        }
+        static void Construct(void* const* args, void* result)
+        {
+            ConstructCallImpl<T, A...>(args, result, std::index_sequence_for<A...>{});
+        }
+        static auto ConstructEntry() -> void (*)(void* const*, void*)
+        {
+            if constexpr (kTypedArgs<A...>)
+                return &Construct;
+            else
+                return nullptr;
         }
     };
 
@@ -1800,6 +2003,17 @@ namespace foundation::core::detail
             return InvokeMemberImpl<Member, C, R, false, A...>(i, a,
                                                                std::index_sequence_for<A...>{});
         }
+        static void Call(void* self, void* const* args, void* result)
+        {
+            CallMemberImpl<Member, C, R, false, A...>(self, args, result, std::index_sequence_for<A...>{});
+        }
+        static TypedCall CallEntry()
+        {
+            if constexpr (kTypedArgs<A...>)
+                return &Call;
+            else
+                return nullptr;
+        }
     };
 
     template <auto Member, typename C, typename R, typename... A> // const instance method
@@ -1815,6 +2029,17 @@ namespace foundation::core::detail
             return InvokeMemberImpl<Member, C, R, true, A...>(i, a,
                                                               std::index_sequence_for<A...>{});
         }
+        static void Call(void* self, void* const* args, void* result)
+        {
+            CallMemberImpl<Member, C, R, true, A...>(self, args, result, std::index_sequence_for<A...>{});
+        }
+        static TypedCall CallEntry()
+        {
+            if constexpr (kTypedArgs<A...>)
+                return &Call;
+            else
+                return nullptr;
+        }
     };
 
     template <auto Func, typename R, typename... A> // static / free function
@@ -1828,6 +2053,17 @@ namespace foundation::core::detail
         static Result<Variant> Invoke(const Instance&, Span<Variant> a)
         {
             return InvokeFreeImpl<Func, R, A...>(a, std::index_sequence_for<A...>{});
+        }
+        static void Call(void*, void* const* args, void* result)
+        {
+            CallFreeImpl<Func, R, A...>(args, result, std::index_sequence_for<A...>{});
+        }
+        static TypedCall CallEntry()
+        {
+            if constexpr (kTypedArgs<A...>)
+                return &Call;
+            else
+                return nullptr;
         }
     };
 
@@ -1846,6 +2082,17 @@ namespace foundation::core::detail
             return InvokeMemberImpl<Member, C, R, false, A...>(i, a,
                                                                std::index_sequence_for<A...>{});
         }
+        static void Call(void* self, void* const* args, void* result)
+        {
+            CallMemberImpl<Member, C, R, false, A...>(self, args, result, std::index_sequence_for<A...>{});
+        }
+        static TypedCall CallEntry()
+        {
+            if constexpr (kTypedArgs<A...>)
+                return &Call;
+            else
+                return nullptr;
+        }
     };
 
     template <auto Member, typename C, typename R,
@@ -1862,6 +2109,17 @@ namespace foundation::core::detail
             return InvokeMemberImpl<Member, C, R, true, A...>(i, a,
                                                               std::index_sequence_for<A...>{});
         }
+        static void Call(void* self, void* const* args, void* result)
+        {
+            CallMemberImpl<Member, C, R, true, A...>(self, args, result, std::index_sequence_for<A...>{});
+        }
+        static TypedCall CallEntry()
+        {
+            if constexpr (kTypedArgs<A...>)
+                return &Call;
+            else
+                return nullptr;
+        }
     };
 
     template <auto Func, typename R, typename... A> // static / free function (noexcept)
@@ -1875,6 +2133,17 @@ namespace foundation::core::detail
         static Result<Variant> Invoke(const Instance&, Span<Variant> a)
         {
             return InvokeFreeImpl<Func, R, A...>(a, std::index_sequence_for<A...>{});
+        }
+        static void Call(void*, void* const* args, void* result)
+        {
+            CallFreeImpl<Func, R, A...>(args, result, std::index_sequence_for<A...>{});
+        }
+        static TypedCall CallEntry()
+        {
+            if constexpr (kTypedArgs<A...>)
+                return &Call;
+            else
+                return nullptr;
         }
     };
 
@@ -1967,6 +2236,8 @@ export namespace foundation::core
             m_data.properties.PushBack(PropertyInfo{
                 name, &TypeOf<M>(), flags, &detail::PropertyGet<T, M, Member>,
                 &detail::PropertySet<T, M, Member>, &detail::PropertyAddress<T, M, Member>});
+            m_data.properties.Back().read = &detail::FieldRead<T, M, Member>;
+            m_data.properties.Back().write = &detail::FieldWrite<T, M, Member>;
             return *this;
         }
 
@@ -1984,6 +2255,7 @@ export namespace foundation::core
                                                     &detail::GetterPropertyGet<T, R, Getter>,
                                                     &detail::GetterPropertySet<T, R, Getter>,
                                                     nullptr});
+            m_data.properties.Back().read = &detail::GetterRead<T, R, Getter>;
             return *this;
         }
 
@@ -2003,6 +2275,8 @@ export namespace foundation::core
                                                     &detail::GetterPropertyGet<T, R, Getter>,
                                                     &detail::SetterPropertySet<T, R, Setter>,
                                                     nullptr});
+            m_data.properties.Back().read = &detail::GetterRead<T, R, Getter>;
+            m_data.properties.Back().write = &detail::SetterWrite<T, R, Setter>;
             return *this;
         }
 
@@ -2082,6 +2356,7 @@ export namespace foundation::core
             m_data.methods.PushBack(MethodInfo{name, &Reflect::ReturnType, params.Data(),
                                                static_cast<u32>(params.Size()), Reflect::isStatic,
                                                Reflect::isConst, &Reflect::Invoke});
+            m_data.methods.Back().call = Reflect::CallEntry();
             return *this;
         }
 
@@ -2125,6 +2400,7 @@ export namespace foundation::core
             m_data.methods.PushBack(MethodInfo{name, &Reflect::ReturnType, params,
                                                static_cast<u32>(N), Reflect::isStatic,
                                                Reflect::isConst, &Reflect::Invoke});
+            m_data.methods.Back().call = Reflect::CallEntry();
             return *this;
         }
 
@@ -2159,7 +2435,7 @@ export namespace foundation::core
             declared.Reserve(base.Size());
             for (const ParamInfo& param : base)
                 declared.PushBack(ParamInfo{param.type() == &TypeOf<Variant>() ? &detail::ReturnTypeInfo<ParamAs> : param.type,
-                                            param.name});
+                                            param.name, param.form});
             m_data.namedParams.PushBack(Move(declared));
             m_data.methods.PushBack(MethodInfo{name, &detail::ReturnTypeInfo<ReturnAs>, m_data.namedParams.Back().Data(),
                                                static_cast<u32>(base.Size()), Reflect::isStatic, Reflect::isConst,
@@ -2210,6 +2486,7 @@ export namespace foundation::core
             const Span<const ParamInfo> params = Reflect::Params();
             m_data.constructors.PushBack(
                 ConstructorInfo{params.Data(), static_cast<u32>(params.Size()), &Reflect::Invoke});
+            m_data.constructors.Back().construct = Reflect::ConstructEntry();
             return *this;
         }
 
@@ -2224,6 +2501,7 @@ export namespace foundation::core
             const ParamInfo* params = StoreNamedParams(Reflect::Params(), paramNames);
             m_data.constructors.PushBack(
                 ConstructorInfo{params, static_cast<u32>(N), &Reflect::Invoke});
+            m_data.constructors.Back().construct = Reflect::ConstructEntry();
             return *this;
         }
 
@@ -2291,7 +2569,7 @@ export namespace foundation::core
             named.Reserve(N);
             for (usize i = 0; i < N; ++i)
             {
-                named.PushBack(ParamInfo{base[i].type, names[i]});
+                named.PushBack(ParamInfo{base[i].type, names[i], base[i].form});
             }
             m_data.namedParams.PushBack(Move(named));
             return m_data.namedParams.Back().Data();
