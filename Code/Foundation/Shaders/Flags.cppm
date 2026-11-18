@@ -33,6 +33,9 @@ export namespace foundation::shaders
         Wind = 1u << 8,    // -> #define WIND (vertex sway from the material's Wind effect group)
         Holes = 1u << 9,   // -> #define HOLES (terrain: a holed chunk's rim, discarded by the bilinear hole mask)
         Dither = 1u << 10, // -> #define DITHER (a faded mesh or cutaway: discard by a screen-door pattern)
+        // -> #define DEPTH_STREAM (a depth-only pass reading the mesh's slim position + uv stream,
+        // VertexLayoutType::DepthStream, instead of the full 52-byte vertex)
+        DepthStream = 1u << 11,
     };
 
     [[nodiscard]] constexpr ShaderFlags operator|(ShaderFlags a, ShaderFlags b) noexcept
@@ -73,6 +76,7 @@ export namespace foundation::shaders
         {ShaderFlags::Wind, u8"WIND"},
         {ShaderFlags::Holes, u8"HOLES"},
         {ShaderFlags::Dither, u8"DITHER"},
+        {ShaderFlags::DepthStream, u8"DEPTH_STREAM"},
     };
 
     // Append a `#define NAME 1` for each set flag. The names are static literals, so they are

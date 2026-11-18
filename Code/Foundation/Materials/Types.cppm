@@ -138,6 +138,10 @@ export namespace foundation::materials
         Mesh,            // + color(ubyte4) + tangent(float4) (52 bytes)
         SkinnedMesh,     // Mesh, plus a joints(uint2) + weights(float4) stream (24 bytes)
         Custom,
+        // A mesh's depth-only stream: position (float3, location 0) + uv (float2, location 2), 20
+        // bytes, which the shadow and depth prepass draws read instead of the full vertex. Last, so
+        // the stored values of the others (a material's vertexLayout) keep their meaning.
+        DepthStream,
     };
 
     /// Reflects the render-state enums above (BlendMode/DepthMode/CullModeConfig/VertexLayoutType)

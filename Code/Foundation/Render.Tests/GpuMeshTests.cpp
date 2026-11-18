@@ -48,6 +48,49 @@ TEST_CASE("mesh GPU cache: uploads on first use, reuses after, frees on clear")
     CHECK(cache.Size() == 0);
 }
 
+TEST_CASE("mesh GPU cache: a static mesh has a depth stream of its positions and uvs, a skinned one none")
+{
+    rhi::null::NullDevice device{DefaultAllocator()};
+    GpuMeshCache cache(device);
+    RefPtr<geometry::StaticMesh> cube = geometry::Primitives::Cube(DefaultAllocator(), 1.0f);
+    const GpuMesh* g = cache.GetOrUpload(cube.Get());
+    REQUIRE(g != nullptr);
+    CHECK(g->depthBuffer != nullptr); // what its shadow and depth prepass draws read
+
+    // Each vertex's position then uv, packed: 20 bytes, not the full 52.
+    Array<u8> stream;
+    BuildDepthStream(Span<const geometry::StaticMeshVertex>(cube->vertices.Data(), cube->vertices.Size()), stream);
+    REQUIRE(stream.Size() == cube->VertexCount() * kDepthStreamStride);
+    const geometry::StaticMeshVertex& last = cube->vertices[cube->vertices.Size() - 1];
+    const u8* at = stream.Data() + (cube->vertices.Size() - 1) * kDepthStreamStride;
+    Float3 position{};
+    Float2 uv{};
+    MemCopy(&position, at, 12);
+    MemCopy(&uv, at + 12, 8);
+    CHECK(position.x == last.position.x);
+    CHECK(position.y == last.position.y);
+    CHECK(position.z == last.position.z);
+    CHECK(uv.x == last.texCoord.x);
+    CHECK(uv.y == last.texCoord.y);
+
+    // A skinned mesh's depth draws take its full stream and its skinning: no depth stream.
+    RefPtr<geometry::SkinnedMesh> skinned = MakeRef<geometry::SkinnedMesh>(DefaultAllocator());
+    for (u32 i = 0; i < 3; ++i)
+    {
+        skinned->vertices.PushBack(geometry::StaticMeshVertex{Float3{static_cast<f32>(i), 0, 0}, Float3{0, 1, 0},
+                                                              Float2{0, 0}, 0xFFFFFFFFu, Float3{1, 0, 0}});
+        geometry::VertexSkinning vs{};
+        vs.weights = Float4{1, 0, 0, 0};
+        skinned->skinning.PushBack(vs);
+    }
+    skinned->indices.Resize(3);
+    skinned->indices.AddTriangle(0, 1, 2);
+    const GpuMesh* sk = cache.GetOrUpload(skinned.Get());
+    REQUIRE(sk != nullptr);
+    CHECK(sk->depthBuffer == nullptr);
+    CHECK(sk->skinBuffer != nullptr);
+}
+
 TEST_CASE("mesh GPU cache: null + empty meshes upload nothing")
 {
     rhi::null::NullDevice device{DefaultAllocator()};

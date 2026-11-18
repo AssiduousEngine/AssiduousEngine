@@ -39,7 +39,28 @@ export namespace foundation::render
         rhi::IndexFormat indexFormat = rhi::IndexFormat::UInt32;
         rhi::Buffer* skinBuffer = nullptr; // skinning stream (null for a static mesh)
         u64 skinOffset = 0;
+        // The depth-only stream of a static mesh (position + uv, kDepthStreamStride bytes a vertex,
+        // VertexLayoutType::DepthStream): what its shadow and depth prepass draws read, a fraction
+        // of the full vertex. Null for a skinned mesh, whose depth draws take the full stream.
+        rhi::Buffer* depthBuffer = nullptr;
+        u64 depthOffset = 0;
     };
+
+    /// Bytes a vertex takes in a mesh's depth stream: float3 position, float2 uv.
+    inline constexpr u32 kDepthStreamStride = 20;
+
+    /// A static mesh's depth stream, built from its full vertices: each one's position and uv, packed.
+    inline void BuildDepthStream(Span<const geometry::StaticMeshVertex> vertices, Array<u8>& out)
+    {
+        out.Resize(vertices.Size() * kDepthStreamStride);
+        u8* p = out.Data();
+        for (const geometry::StaticMeshVertex& v : vertices)
+        {
+            MemCopy(p, &v.position, 12);
+            MemCopy(p + 12, &v.texCoord, 8);
+            p += kDepthStreamStride;
+        }
+    }
 
     class GpuMeshCache
     {
@@ -53,7 +74,9 @@ export namespace foundation::render
               m_indexPool(device, rhi::BufferUsage::Index | rhi::BufferUsage::CopyDst, kIndexChunk,
                           u8"mesh.indexPool"),
               m_skinPool(device, rhi::BufferUsage::Vertex | rhi::BufferUsage::CopyDst, kVertexChunk,
-                         u8"mesh.skinPool")
+                         u8"mesh.skinPool"),
+              m_depthPool(device, rhi::BufferUsage::Vertex | rhi::BufferUsage::CopyDst, kVertexChunk,
+                          u8"mesh.depthPool")
         {
         }
 
@@ -126,6 +149,19 @@ export namespace foundation::render
                 }
             }
 
+            // A static mesh's depth stream: what its shadow and depth prepass draws read.
+            Array<u8> depthStream;
+            GpuBufferPool::Alloc dp{};
+            if (!mesh->IsSkinned())
+            {
+                BuildDepthStream(Span<const geometry::StaticMeshVertex>(mesh->vertices.Data(), mesh->vertices.Size()), depthStream);
+                dp = m_depthPool.Allocate(depthStream.Size(), kVertexAlign);
+                if (!dp.ok)
+                {
+                    return nullptr;
+                }
+            }
+
             Entry entry;
             if (mesh->IsCounted()) // a mesh on the stack (a test's) is not watched: it stays until Clear
             {
@@ -142,6 +178,11 @@ export namespace foundation::render
                 entry.skin = sk;
                 entry.skinSize = skin.Size() * sizeof(geometry::VertexSkinning);
             }
+            if (dp.ok)
+            {
+                entry.depth = dp;
+                entry.depthSize = depthStream.Size();
+            }
             GpuMesh& g = entry.gpu;
             g.vertexBuffer = v.buffer;
             g.vertexOffset = v.offset;
@@ -155,6 +196,11 @@ export namespace foundation::render
             {
                 g.skinBuffer = sk.buffer;
                 g.skinOffset = sk.offset;
+            }
+            if (dp.ok)
+            {
+                g.depthBuffer = dp.buffer;
+                g.depthOffset = dp.offset;
             }
 
             if (m_queue != nullptr)
@@ -173,6 +219,11 @@ export namespace foundation::render
                             g.skinBuffer, g.skinOffset,
                             Span<const u8>{reinterpret_cast<const u8*>(skin.Data()),
                                            skin.Size() * sizeof(geometry::VertexSkinning)});
+                    }
+                    if (dp.ok)
+                    {
+                        tb->WriteBuffer(g.depthBuffer, g.depthOffset,
+                                        Span<const u8>{depthStream.Data(), depthStream.Size()});
                     }
                     (void)tb->Submit();
                     m_queue->DestroyTransferBatch(tb);
@@ -194,6 +245,7 @@ export namespace foundation::render
                     m_vertexPool.Free(r.vertex, r.vertexSize);
                     m_indexPool.Free(r.index, r.indexSize);
                     m_skinPool.Free(r.skin, r.skinSize);
+                    m_depthPool.Free(r.depth, r.depthSize);
                     m_retired.RemoveAtSwap(i);
                 }
                 else
@@ -223,6 +275,7 @@ export namespace foundation::render
             m_vertexPool.Clear();
             m_indexPool.Clear();
             m_skinPool.Clear();
+            m_depthPool.Clear();
             m_cache.Clear();
             m_retired.Clear();
         }
@@ -244,18 +297,19 @@ export namespace foundation::render
             WeakRefPtr<geometry::StaticMesh> mesh; // expired: the mesh is gone, its streams retire
             bool watched = false;                   // `mesh` holds it (a counted mesh)
             u32 version = 0;                        // the mesh's contentVersion uploaded
-            GpuBufferPool::Alloc vertex, index, skin;
-            u64 vertexSize = 0, indexSize = 0, skinSize = 0;
+            GpuBufferPool::Alloc vertex, index, skin, depth;
+            u64 vertexSize = 0, indexSize = 0, skinSize = 0, depthSize = 0;
         };
         struct Retired
         {
-            GpuBufferPool::Alloc vertex, index, skin;
-            u64 vertexSize = 0, indexSize = 0, skinSize = 0;
+            GpuBufferPool::Alloc vertex, index, skin, depth;
+            u64 vertexSize = 0, indexSize = 0, skinSize = 0, depthSize = 0;
             u32 framesLeft = 0;
         };
         void Retire(const Entry& e)
         {
-            m_retired.PushBack(Retired{e.vertex, e.index, e.skin, e.vertexSize, e.indexSize, e.skinSize, m_framesInFlight});
+            m_retired.PushBack(Retired{e.vertex, e.index, e.skin, e.depth, e.vertexSize, e.indexSize, e.skinSize,
+                                       e.depthSize, m_framesInFlight});
         }
 
         rhi::Queue* m_queue;
@@ -263,6 +317,7 @@ export namespace foundation::render
         GpuBufferPool m_vertexPool;
         GpuBufferPool m_indexPool;
         GpuBufferPool m_skinPool; // skinning streams (joints and weights) for skinned meshes
+        GpuBufferPool m_depthPool; // static meshes' depth streams (position + uv)
         // Keyed by StaticMesh::uid, not the pointer: freed addresses are reused, and a new mesh
         // landing on a dead mesh's address must not inherit its GPU geometry. A dead mesh's entry
         // retires at the next Tick; reloads re-upload under the new object's uid.

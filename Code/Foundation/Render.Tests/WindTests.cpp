@@ -6,6 +6,7 @@
 // the wind (the block is 64 bytes, with padding lanes).
 #include <doctest/doctest.h>
 #include "Core/Prelude.h"
+#include <initializer_list>
 
 import foundation.core;
 import foundation.shaders;
@@ -152,6 +153,44 @@ TEST_CASE("depth passes: a material's own depth and pick programs replace the bu
 
     // No material: the built-in.
     CHECK(MeshRenderer::DepthLikeFor(ctx, nullptr, false, true).config.shaderName == u8"pick_ids");
+}
+
+TEST_CASE("depth passes: the built-in shadow and prepass read a static mesh's slim depth stream")
+{
+    // A shadow pass of a forest is bound by the triangles it pushes: each vertex it reads from the
+    // depth stream (position + uv, 20 bytes) instead of the full 52-byte vertex.
+    RenderRecordContext ctx{};
+    RefPtr<materials::Material> leaves = materials::CreatePBR(u8"leaves");
+    leaves->pipeline.blendMode = materials::BlendMode::Masked; // a cut-out: it reads the uv too
+    for (const bool masked : {false, true})
+    {
+        materials::Material* material = masked ? leaves.Get() : nullptr;
+        materials::PipelineConfig shadow = MeshRenderer::DepthLikeFor(ctx, material, /*instanced*/ true, false).config;
+        CHECK(MeshRenderer::ChooseDepthLikeStream(shadow, /*skinned*/ false, /*depthStream*/ true, /*pick*/ false));
+        CHECK(shadow.vertexLayout == materials::VertexLayoutType::DepthStream);
+        CHECK(shaders::HasFlag(shadow.shaderFlags, shaders::ShaderFlags::DepthStream));
+        CHECK(materials::VertexLayoutHelper::Stride(shadow.vertexLayout) == kDepthStreamStride);
+    }
+
+    // A skinned mesh deforms from its full vertex and its skinning stream.
+    materials::PipelineConfig skinned = MeshRenderer::DepthLikeFor(ctx, nullptr, true, false).config;
+    CHECK_FALSE(MeshRenderer::ChooseDepthLikeStream(skinned, /*skinned*/ true, true, false));
+    CHECK(skinned.vertexLayout == materials::VertexLayoutType::SkinnedMesh);
+    CHECK_FALSE(shaders::HasFlag(skinned.shaderFlags, shaders::ShaderFlags::DepthStream));
+
+    // The pick, a material's own depth program (a surface shader reads the normal and tangent), and
+    // a mesh with no depth stream all take the full vertex.
+    materials::PipelineConfig pick = MeshRenderer::DepthLikeFor(ctx, nullptr, false, true).config;
+    CHECK_FALSE(MeshRenderer::ChooseDepthLikeStream(pick, false, true, /*pick*/ true));
+    CHECK(pick.vertexLayout == materials::VertexLayoutType::Mesh);
+    RefPtr<materials::Material> waves = materials::CreatePBR(u8"waves");
+    waves->depthShaderName = String(u8"waves.depth");
+    materials::PipelineConfig own = MeshRenderer::DepthLikeFor(ctx, waves.Get(), false, false).config;
+    CHECK_FALSE(MeshRenderer::ChooseDepthLikeStream(own, false, true, false));
+    CHECK(own.vertexLayout == materials::VertexLayoutType::Mesh);
+    materials::PipelineConfig none = MeshRenderer::DepthLikeFor(ctx, nullptr, false, false).config;
+    CHECK_FALSE(MeshRenderer::ChooseDepthLikeStream(none, false, /*depthStream*/ false, false));
+    CHECK(none.vertexLayout == materials::VertexLayoutType::Mesh);
 }
 
 TEST_CASE("depth passes: an active effect selects its variant and binds the material's set")

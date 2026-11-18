@@ -328,6 +328,14 @@ export namespace foundation::render
             materials::PipelineConfig config;
             bool materialSet = false;
         };
+        // The vertex stream a depth-like draw's pipeline reads, set on `config` (from DepthLikeFor): a
+        // skinned mesh's full stream and its skinning; else, when the mesh has a depth stream
+        // (`depthStream`), a shadow or depth prepass draw of the built-in program reads that slim
+        // stream (VertexLayoutType::DepthStream, the DEPTH_STREAM variant), since it uses only
+        // position and uv. A material's own program and the pick take the full vertex. True when
+        // the draw reads the depth stream, which the caller then binds.
+        [[nodiscard]] static bool ChooseDepthLikeStream(materials::PipelineConfig& config, bool skinned,
+                                                        bool depthStream, bool pick) noexcept;
         [[nodiscard]] static DepthLikeChoice DepthLikeFor(const RenderRecordContext& ctx,
                                                           const materials::Material* material,
                                                           bool instanced, bool pick);
@@ -530,9 +538,11 @@ export namespace foundation::render
         [[nodiscard]] Span<const geometry::SubMesh> DepthLikeSubMeshes(const RenderRecordContext& ctx,
                                                                        const MeshRenderData& md, bool chain);
         // The depth-like pipeline and material set (set 2) of a draw of `material` onto `d`; false
-        // when no pipeline is had.
+        // when no pipeline is had. With `depthStream` (the mesh has one), a shadow or depth prepass
+        // draw of the built-in program reads it (VertexLayoutType::DepthStream), and `usesDepthStream`
+        // says so: the caller binds the stream.
         bool DepthLikeDraw(const RenderRecordContext& ctx, materials::Material* material, bool instanced,
-                           bool pick, bool skinned, ResolvedDraw& d);
+                           bool pick, bool skinned, bool depthStream, ResolvedDraw& d, bool& usesDepthStream);
         // Pushes `base` once per range, each with its range's pipeline, material set and indices.
         void EmitDepthLike(const RenderRecordContext& ctx, const ResolvedDraw& base, const GpuMesh& mesh,
                            Span<const DepthLikeRange> ranges, bool instanced, bool pick, bool skinned,

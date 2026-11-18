@@ -59,6 +59,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- Rendering: shadow and depth prepass draws of a static mesh read a slim position-and-uv copy of
+  its vertices (20 bytes a vertex, beside the full 52), a few percent faster in a shadow pass bound
+  by its triangles. It takes about 19 MB of GPU memory per million unique vertices.
 - MCP `profiler_capture` gives each GPU pass the triangles, vertex shader runs and pixel shader runs
   it took over the capture, where the device counts them: a pass whose time follows its triangles
   and not its pixels is bound by its geometry, and a lower resolution will not speed it up.

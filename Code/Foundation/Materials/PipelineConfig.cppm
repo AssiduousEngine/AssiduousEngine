@@ -218,6 +218,8 @@ export namespace foundation::materials
                 return 52;
             case VertexLayoutType::Custom:
                 return 0;
+            case VertexLayoutType::DepthStream:
+                return 20;
             }
             return 0;
         }
@@ -237,6 +239,8 @@ export namespace foundation::materials
                 return {kMesh, 5};
             case VertexLayoutType::SkinnedMesh:
                 return {kMesh, 5}; // buffer 0 = static stream
+            case VertexLayoutType::DepthStream:
+                return {kDepthStream, 2};
             default:
                 return {};
             }
@@ -288,6 +292,9 @@ export namespace foundation::materials
         using VA = rhi::VertexAttribute;
         using VF = rhi::VertexFormat;
         static constexpr VA kPositionOnly[1] = {{VF::Float32x3, 0, 0}};
+        // Position at location 0 and uv at location 2, the full mesh layout's locations, so a depth
+        // shader reads them by the same semantics (TEXCOORD0, TEXCOORD2) from either stream.
+        static constexpr VA kDepthStream[2] = {{VF::Float32x3, 0, 0}, {VF::Float32x2, 12, 2}};
         static constexpr VA kPositionUVColor[3] = {
             {VF::Float32x3, 0, 0}, {VF::Float32x2, 12, 1}, {VF::Float32x4, 20, 2}};
         static constexpr VA kMeshNoTangent[3] = {

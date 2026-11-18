@@ -56,6 +56,7 @@ namespace foundation::materials
         builder.Value("Mesh", VertexLayoutType::Mesh);
         builder.Value("SkinnedMesh", VertexLayoutType::SkinnedMesh);
         builder.Value("Custom", VertexLayoutType::Custom);
+        builder.Value("DepthStream", VertexLayoutType::DepthStream);
     }
 
     void RegisterMaterialsTypeReflection()

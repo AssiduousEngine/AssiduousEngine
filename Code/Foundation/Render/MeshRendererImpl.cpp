@@ -2025,18 +2025,14 @@ namespace foundation::render
     }
 
     bool MeshRenderer::DepthLikeDraw(const RenderRecordContext& ctx, materials::Material* material,
-                                     bool instanced, bool pick, bool skinned, ResolvedDraw& d)
+                                     bool instanced, bool pick, bool skinned, bool depthStream, ResolvedDraw& d,
+                                     bool& usesDepthStream)
     {
         const DepthLikeChoice choice = DepthLikeFor(ctx, material, instanced, pick);
         materials::PipelineConfig config = choice.config;
-        const auto skin = [skinned](materials::PipelineConfig& c)
-        {
-            if (skinned)
-            {
-                c.vertexLayout = materials::VertexLayoutType::SkinnedMesh;
-                c.shaderFlags |= shaders::ShaderFlags::Skinned;
-            }
-        };
+        usesDepthStream = false;
+        const auto skin = [skinned, depthStream, pick, &usesDepthStream](materials::PipelineConfig& c)
+        { usesDepthStream = ChooseDepthLikeStream(c, skinned, depthStream, pick); };
         skin(config);
         rhi::PipelineLayout* const plain = instanced ? m_shadowPipelineLayoutInstanced : m_shadowPipelineLayoutSingle;
         rhi::PipelineLayout* layout = plain;
@@ -2069,11 +2065,18 @@ namespace foundation::render
                                      bool instanced, bool pick, bool skinned, Array<ResolvedDraw>& out)
     {
         const u64 stride = (mesh.indexFormat == rhi::IndexFormat::UInt16) ? 2u : 4u;
+        const bool depthStream = mesh.depthBuffer != nullptr;
         for (const DepthLikeRange& range : ranges)
         {
             ResolvedDraw d = base;
-            if (!DepthLikeDraw(ctx, range.material, instanced, pick, skinned, d))
+            bool usesDepthStream = false;
+            if (!DepthLikeDraw(ctx, range.material, instanced, pick, skinned, depthStream, d, usesDepthStream))
                 continue;
+            if (usesDepthStream)
+            {
+                d.vertexBuffer0 = mesh.depthBuffer;
+                d.vertexOffset0 = mesh.depthOffset;
+            }
             if (!range.whole)
             {
                 d.indexOffset = mesh.indexOffset + static_cast<u64>(range.startIndex) * stride;
@@ -2081,6 +2084,27 @@ namespace foundation::render
             }
             out.PushBack(d);
         }
+    }
+
+    bool MeshRenderer::ChooseDepthLikeStream(materials::PipelineConfig& config, bool skinned, bool depthStream,
+                                             bool pick) noexcept
+    {
+        if (skinned)
+        {
+            config.vertexLayout = materials::VertexLayoutType::SkinnedMesh;
+            config.shaderFlags |= shaders::ShaderFlags::Skinned;
+            return false;
+        }
+        // The built-in shadow and prepass program reads only position (and uv for a cut-out): given
+        // the mesh's slim stream, its vertex fetch is 20 bytes, not the full 52. A shadow pass of a
+        // forest is bound by the triangles it pushes, so what each vertex fetches counts.
+        if (!depthStream || pick || config.shaderName != StringView(u8"shadow_depth"))
+        {
+            return false;
+        }
+        config.vertexLayout = materials::VertexLayoutType::DepthStream;
+        config.shaderFlags |= shaders::ShaderFlags::DepthStream;
+        return true;
     }
 
     MeshRenderer::DepthLikeChoice MeshRenderer::DepthLikeFor(const RenderRecordContext& ctx,
