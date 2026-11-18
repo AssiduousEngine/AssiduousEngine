@@ -39,9 +39,94 @@ namespace foundation::script
 
     namespace
     {
-        // The tag on every engine box (a userdata holding a Variant); the destructor registered
-        // for it runs ~Variant. Tag 0 is what an untagged userdata has.
+        // The tag on an engine box holding a Variant (an object, a handle); the destructor
+        // registered for it runs ~Variant. Tag 0 is what an untagged userdata has.
         constexpr int kVariantTag = 1;
+        // The tag on an engine box holding a script value's own bytes (IsScriptValue: a Color, an
+        // Entity), after a header naming its type: nothing to destroy, and no Variant made or
+        // freed per value.
+        constexpr int kValueTag = 2;
+
+        struct ValueBoxHeader
+        {
+            const TypeInfo* type;
+        };
+
+        // Where a value box's bytes start: after the header, at the type's alignment.
+        [[nodiscard]] void* ValueBoxBytes(void* payload, const TypeInfo& type) noexcept
+        {
+            const uptr after = reinterpret_cast<uptr>(payload) + sizeof(ValueBoxHeader);
+            const uptr align = type.align > 0 ? type.align : 1;
+            return reinterpret_cast<void*>((after + align - 1) & ~(align - 1));
+        }
+
+        // A value in place, as a resolving Variant over its address (the value's own storage, no
+        // copy): what a method or property on a value box runs on, so a method that changes the
+        // value changes the box.
+        struct InPlaceAt
+        {
+            void* address;
+        };
+        void* ResolveInPlace(const Variant& view)
+        {
+            InPlaceAt at;
+            std::memcpy(&at, view.ResolveContext(), sizeof(at));
+            return at.address;
+        }
+        [[nodiscard]] Variant InPlaceView(const TypeInfo& type, void* address)
+        {
+            return Variant::Resolving(&type, &ResolveInPlace, InPlaceAt{address});
+        }
+
+        // The engine's box at `index`, or null for anything else: a Variant box as itself, a value
+        // box as a view over its bytes in `view` (valid while the box is on the stack, as it is for
+        // the call that asks). Only a userdata carrying an engine tag is one: a script's own userdata
+        // (Luau's newproxy, removed, made them) read as a box would have been whatever bytes it held.
+        [[nodiscard]] Variant* VariantAt(lua_State* state, int index, Variant& view)
+        {
+            if (auto* boxed = static_cast<Variant*>(lua_touserdatatagged(state, index, kVariantTag)))
+            {
+                return boxed;
+            }
+            if (void* payload = lua_touserdatatagged(state, index, kValueTag))
+            {
+                const TypeInfo& type = *static_cast<const ValueBoxHeader*>(payload)->type;
+                view = InPlaceView(type, ValueBoxBytes(payload, type));
+                return &view;
+            }
+            return nullptr;
+        }
+
+        // The type of the engine's box at `index`, or null for anything else.
+        [[nodiscard]] const TypeInfo* BoxedTypeAt(lua_State* state, int index)
+        {
+            if (const auto* boxed = static_cast<const Variant*>(lua_touserdatatagged(state, index, kVariantTag)))
+            {
+                return boxed->Type();
+            }
+            if (const void* payload = lua_touserdatatagged(state, index, kValueTag))
+            {
+                return static_cast<const ValueBoxHeader*>(payload)->type;
+            }
+            return nullptr;
+        }
+
+        // The engine's box at `index` as a value of its own: a Variant box's Variant, a value box's
+        // bytes copied (a view would point into a userdata the collector may free). Empty for
+        // anything else.
+        [[nodiscard]] Variant BoxedCopyAt(lua_State* state, int index)
+        {
+            if (const auto* boxed = static_cast<const Variant*>(lua_touserdatatagged(state, index, kVariantTag)))
+            {
+                return *boxed;
+            }
+            if (void* payload = lua_touserdatatagged(state, index, kValueTag))
+            {
+                const TypeInfo& type = *static_cast<const ValueBoxHeader*>(payload)->type;
+                return Variant::CopyOf(type, ValueBoxBytes(payload, type));
+            }
+            return Variant{};
+        }
 
         [[nodiscard]] const char* CStr(StringView view, String& storage)
         {
@@ -1081,8 +1166,9 @@ namespace foundation::script
                 break;
             case LUA_TUSERDATA:
             {
-                // The engine's userdata are Variant boxes, tagged kVariantTag; any other is opaque.
-                Variant* boxed = static_cast<Variant*>(lua_touserdatatagged(thread, index, kVariantTag));
+                // The engine's userdata are its boxes (a Variant, or a value's bytes); any other is opaque.
+                Variant view;
+                Variant* boxed = VariantAt(thread, index, view);
                 if (boxed != nullptr && boxed->Type() != nullptr)
                 {
                     DescribeVariant(variable, *boxed);
@@ -1132,20 +1218,32 @@ namespace foundation::script
         // any RefPtr the object mode holds, with no __gc plumbing.
         void DestroyVariantUserdata(lua_State*, void* payload) { static_cast<Variant*>(payload)->~Variant(); }
 
-        // The engine's box at `index`, or null for anything else. Only a userdata carrying
-        // kVariantTag is one: a script's own userdata (Luau's newproxy, removed, made them) read
-        // as a box would have been a Variant made of whatever bytes it held.
-        [[nodiscard]] Variant* VariantAt(lua_State* state, int index)
+        // A script value's bytes as a value box, with its type's dispatch metatable (none for a
+        // type that is not bound: an opaque handle).
+        void PushValueBox(lua_State* state, const TypeInfo& type, const void* bytes)
         {
-            return static_cast<Variant*>(lua_touserdatatagged(state, index, kVariantTag));
+            const usize align = type.align > 0 ? type.align : 1;
+            void* payload = lua_newuserdatatagged(state, sizeof(ValueBoxHeader) + align - 1 + type.size, kValueTag);
+            static_cast<ValueBoxHeader*>(payload)->type = &type;
+            std::memcpy(ValueBoxBytes(payload, type), bytes, type.size);
+            lua_pushlightuserdata(state, const_cast<TypeInfo*>(&type));
+            lua_rawget(state, LUA_REGISTRYINDEX);
+            if (lua_istable(state, -1))
+            {
+                lua_setmetatable(state, -2);
+            }
+            else
+            {
+                lua_pop(state, 1);
+            }
         }
 
         // The box at `index` when it is a `type` (or derives from it): the self of a method or
         // property bound on `type`. A method taken off one object and called on another
         // (`local f = a.m; f(b)`) would otherwise run on b's object as if it were a's type.
-        [[nodiscard]] Variant* SelfOf(lua_State* state, int index, const TypeInfo* type)
+        [[nodiscard]] Variant* SelfOf(lua_State* state, int index, const TypeInfo* type, Variant& view)
         {
-            Variant* boxed = VariantAt(state, index);
+            Variant* boxed = VariantAt(state, index, view);
             return boxed != nullptr && IsDerivedFrom(boxed->Type(), type) ? boxed : nullptr;
         }
     }
@@ -1212,11 +1310,22 @@ namespace foundation::script
             }
             return;
         }
-        // Everything else (objects, reflected values) travels as a boxed Variant with the
-        // dynamic type's dispatch metatable, so script sees properties and methods directly.
+        // Everything else (objects, reflected values) travels boxed with the dynamic type's
+        // dispatch metatable, so script sees properties and methods directly: a script value the
+        // Variant owns as its own bytes, anything else as a Variant. A handle over someone's value
+        // (a container's element, reached to be written through) stays a handle.
+        const TypeInfo* type = value.Type();
+        if (IsScriptValue(type) && !value.IsMember() && !value.IsBorrow() && !value.IsResolving())
+        {
+            Variant holder = value; // ToInstance needs a mutable lvalue; a value's copy is its bytes
+            if (const void* bytes = ToInstance(holder).Pointer())
+            {
+                PushValueBox(state, *type, bytes);
+                return;
+            }
+        }
         void* payload = lua_newuserdatatagged(state, sizeof(Variant), kVariantTag);
         new (payload) Variant(value);
-        const TypeInfo* type = value.Type();
         if (type != nullptr)
         {
             // The per-type metatable was created at emission when the type is bound; a
@@ -1260,11 +1369,7 @@ namespace foundation::script
         }
         case LUA_TUSERDATA:
         {
-            if (const Variant* boxed = VariantAt(state, index))
-            {
-                return *boxed;
-            }
-            return Variant{};
+            return BoxedCopyAt(state, index);
         }
         case LUA_TFUNCTION:
         {
@@ -1433,14 +1538,15 @@ namespace foundation::script
             // get and set thunks below), not a copy, so a mutating reflected method (such as
             // JsonValue.Set) persists to the script's value, matching the reference semantics
             // AngelScript gives asOBJ_REF reflected types. A copy would silently drop mutations.
+            Variant selfView; // a value box's self, in place (owns nothing: safe past lua_error)
             Variant* boxedSelf = nullptr;
             int firstArg = 1;
             if (!method.isStatic)
             {
-                boxedSelf = SelfOf(state, 1, selfType);
+                boxedSelf = SelfOf(state, 1, selfType, selfView);
                 if (boxedSelf == nullptr)
                 {
-                    lua_pushstring(state, VariantAt(state, 1) != nullptr
+                    lua_pushstring(state, BoxedTypeAt(state, 1) != nullptr
                                               ? "method called on a value of another type"
                                               : "method called without a bound self (use ':')");
                     lua_error(state);
@@ -1575,8 +1681,7 @@ namespace foundation::script
             auto* context = static_cast<LuauScriptContext*>(
                 lua_tolightuserdata(state, lua_upvalueindex(2)));
             const auto op = static_cast<MethodOperator>(lua_tointeger(state, lua_upvalueindex(3)));
-            Variant* left = VariantAt(state, 1);
-            if (left == nullptr || left->Type() != type)
+            if (BoxedTypeAt(state, 1) != type)
             {
                 lua_pushstring(state, "the left operand of this operator is not the type that "
                                       "defines it");
@@ -1596,8 +1701,8 @@ namespace foundation::script
                     break;
                 }
                 const TypeInfo* right = method.params[1].type();
-                const Variant* boxed = VariantAt(state, 2);
-                const bool fits = (boxed != nullptr) ? boxed->Type() == right
+                const TypeInfo* boxedType = BoxedTypeAt(state, 2);
+                const bool fits = (boxedType != nullptr) ? boxedType == right
                                                      : lua_isnumber(state, 2) &&
                                                            (right == &TypeOf<f32>() ||
                                                             right == &TypeOf<f64>());
@@ -1617,7 +1722,7 @@ namespace foundation::script
                 // What owns memory lives in this block alone: lua_error below jumps out of the
                 // frame without running destructors.
                 Variant args[2];
-                args[0] = *left;
+                args[0] = BoxedCopyAt(state, 1);
                 if (!unary)
                 {
                     args[1] = context->ToVariantForParam(state, 2, chosen->params[1].type());
@@ -1741,7 +1846,8 @@ namespace foundation::script
                 static_cast<ContainerOp>(lua_tointeger(state, lua_upvalueindex(3)));
             auto* type = static_cast<const TypeInfo*>(lua_tolightuserdata(state, lua_upvalueindex(4)));
 
-            Variant* self = SelfOf(state, 1, type);
+            Variant selfView;
+            Variant* self = SelfOf(state, 1, type, selfView);
             if (self == nullptr)
             {
                 lua_pushstring(state, "container op called without a bound self (use ':')");
@@ -1824,7 +1930,8 @@ namespace foundation::script
 
         int IsValidThunk(lua_State* state)
         {
-            Variant* boxed = VariantAt(state, 1);
+            Variant view;
+            Variant* boxed = VariantAt(state, 1, view);
             lua_pushboolean(state, boxed != nullptr && ToInstance(*boxed).Pointer() != nullptr ? 1 : 0);
             return 1;
         }
@@ -1847,7 +1954,8 @@ namespace foundation::script
             lua_pop(state, 1);
 
             const char* key = lua_tostring(state, 2);
-            Variant* boxed = SelfOf(state, 1, type);
+            Variant view;
+            Variant* boxed = SelfOf(state, 1, type, view);
             if (key == nullptr || boxed == nullptr)
             {
                 lua_pushnil(state);
@@ -1891,7 +1999,8 @@ namespace foundation::script
                 lua_tolightuserdata(state, lua_upvalueindex(DispatchUpvalues::kContext)));
 
             const char* key = lua_tostring(state, 2);
-            Variant* boxed = SelfOf(state, 1, type);
+            Variant view;
+            Variant* boxed = SelfOf(state, 1, type, view);
             const PropertyInfo* property =
                 (key != nullptr) ? FindPropertyInChain(type, key) : nullptr;
             if (boxed == nullptr || property == nullptr)
