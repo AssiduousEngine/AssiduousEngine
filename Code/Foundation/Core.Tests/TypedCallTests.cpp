@@ -84,6 +84,7 @@ REFLECT_VALUE(Probe, "rtti::tests::typed")
         .Method<&Probe::Read>("Read")
         .Method<&Probe::Label>("Label")
         .Method<&Probe::Sum>("Sum")
+        .Pure()
         .Method<&Probe::ShadeValue>("ShadeValue")
         .Method<&Probe::Length>("Length")
         .Method<&Probe::ByPointer>("ByPointer")
@@ -274,4 +275,17 @@ TEST_CASE("typed call: a constructor builds in the caller's storage, and propert
     CHECK(name.Value() == StringView(u8"renamed"));
     name.Value().~String();
     probe.~Probe();
+}
+
+TEST_CASE("typed call: a method marked pure says so; the core math is marked, the rest not")
+{
+    CHECK(Method("Sum").pure);
+    CHECK_FALSE(Method("Scale").pure);
+    RegisterCoreTypes();
+    const MethodInfo* cross = FindMethod(TypeOf<Float3>(), "Cross");
+    REQUIRE(cross != nullptr);
+    CHECK(cross->pure);
+    const MethodInfo* rotate = FindMethod(TypeOf<Quaternion>(), "RotateVector");
+    REQUIRE(rotate != nullptr);
+    CHECK_FALSE(rotate->pure);
 }

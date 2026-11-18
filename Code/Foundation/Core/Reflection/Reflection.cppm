@@ -518,6 +518,10 @@ export namespace foundation::core
         // a parameter has no single native form (ParamForm::List) or the method returns through a
         // Variant it checks (Method<Member, ReturnAs>): the caller uses `invoke` then.
         TypedCall call = nullptr;
+        // A pure function of its arguments: it reads no state beyond them and changes nothing (vector
+        // arithmetic, a square root). A language may then compute it in its own code rather than
+        // call the engine (C#'s bindings do). Authored with Pure().
+        bool pure = false;
     };
 
     [[nodiscard]] inline Result<Variant> InvokeMethod(const MethodInfo& method,
@@ -2372,6 +2376,15 @@ export namespace foundation::core
             DIAGNOSTIC_ASSERT(m_data.methods.Size() > 0 &&
                               "OverloadedName() must follow a Method()");
             m_data.methods[m_data.methods.Size() - 1].overloadedName = scriptName;
+            return *this;
+        }
+
+        /// Mark the last-added method as a pure function of its arguments (MethodInfo::pure). Call
+        /// fluently after Method(): `.Method<&Cross>("Cross").Pure()`.
+        TypeBuilder& Pure()
+        {
+            DIAGNOSTIC_ASSERT(m_data.methods.Size() > 0 && "Pure() must follow a Method()");
+            m_data.methods[m_data.methods.Size() - 1].pure = true;
             return *this;
         }
 
