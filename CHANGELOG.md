@@ -59,6 +59,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- MCP `profiler_capture` gives each GPU pass the triangles, vertex shader runs and pixel shader runs
+  it took over the capture, where the device counts them: a pass whose time follows its triangles
+  and not its pixels is bound by its geometry, and a lower resolution will not speed it up.
 - Rendering: the sun's shadows draw only the casters whose shadow can fall on what the view shows,
   and each cascade fits the part of its slice the scene fills, so a view turned to the sky or past
   the scene's edge no longer pays for the whole scene's shadows (a 40,000-mesh forest seen against

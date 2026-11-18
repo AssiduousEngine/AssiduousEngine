@@ -65,15 +65,30 @@ namespace
     }
 
     // One host frame: a scope, a counter, the end of the frame, and the recorder advanced.
-    void RunFrame(Profiler& profiler, CaptureRecorder& recorder, u32 counter, f64 value)
+    // One frame: a "Work" scope and the counter; with `gpu`, a "shadow.cascade" GPU pass whose
+    // pipeline statistics are 1000 triangles, 1500 vertex shader runs and 4096 pixel shader runs.
+    void RunFrame(Profiler& profiler, CaptureRecorder& recorder, u32 counter, f64 value, bool gpu = false)
     {
         profiler.BeginFrame();
+        const u64 frame = profiler.CurrentFrameNumber();
         if (profiler.BeginScope("Work"))
         {
             profiler.EndScope();
         }
         profiler.SetCounter(counter, value);
         profiler.EndFrame();
+        if (gpu)
+        {
+            GpuPassEvent pass;
+            pass.name = profiler.InternName(StringView(u8"shadow.cascade"));
+            pass.beginTick = 100;
+            pass.endTick = 200;
+            pass.hasCounts = true;
+            pass.counts.inputPrimitives = 1000;
+            pass.counts.vertexInvocations = 1500;
+            pass.counts.fragmentInvocations = 4096;
+            profiler.SubmitGpuPasses(frame, Span<const GpuPassEvent>(&pass, 1));
+        }
         (void)recorder.OnFrameEnd(profiler);
     }
 }
@@ -128,6 +143,42 @@ TEST_CASE("profiler_capture: waits for the capture, then answers its summary")
     CHECK(scopes.At(0).Get(u8"count").AsNumber() == doctest::Approx(got.payload.Get(u8"frames").AsNumber()));
     CHECK(got.payload.Get(u8"topGpuPasses").Count() == 0);
     CHECK(got.payload.Get(u8"counterAverages").Get(u8"Draws").AsNumber() == doctest::Approx(10.0));
+}
+
+TEST_CASE("profiler_capture: a GPU pass carries the triangles and shader runs it took")
+{
+    // What tells a pass limited by its triangles from one limited by its pixels: summed over the
+    // capture, beside its time.
+    Profiler profiler(DefaultAllocator());
+    CaptureRecorder recorder(DefaultAllocator());
+    recorder.SetApplication(StringView(u8"ToolProbe"));
+    const u32 draws = profiler.RegisterCounter(StringView(u8"Draws"), CounterUnit::Count);
+    McpServer server;
+    app::RegisterProfilerTools(server, SeamsFor(profiler, recorder, u8"scratch_profiler_tool_gpu"));
+
+    const StringView args = u8"{\"seconds\":0}";
+    REQUIRE(Pump(server, args).state == LineState::NotFinished);
+    LineOutcome outcome;
+    for (u32 frame = 0; frame < 20; ++frame)
+    {
+        RunFrame(profiler, recorder, draws, 10.0, /*gpu*/ true);
+        outcome = Pump(server, args);
+        if (outcome.state != LineState::NotFinished)
+        {
+            break;
+        }
+    }
+    const Answer got = AnswerOf(outcome);
+    REQUIRE(got.ok);
+    const JsonValue passes = got.payload.Get(u8"topGpuPasses");
+    REQUIRE(passes.Count() == 1);
+    const JsonValue cascade = passes.At(0);
+    CHECK(cascade.Get(u8"name").AsString() == StringView(u8"shadow.cascade"));
+    const f64 count = cascade.Get(u8"count").AsNumber();
+    REQUIRE(count >= 1.0);
+    CHECK(cascade.Get(u8"triangles").AsNumber() == doctest::Approx(1000.0 * count));
+    CHECK(cascade.Get(u8"vertexShaderRuns").AsNumber() == doctest::Approx(1500.0 * count));
+    CHECK(cascade.Get(u8"pixelShaderRuns").AsNumber() == doctest::Approx(4096.0 * count));
 }
 
 TEST_CASE("profiler_capture: names a capture already running and one that could not be written")

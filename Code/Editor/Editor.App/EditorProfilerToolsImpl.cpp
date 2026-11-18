@@ -54,6 +54,12 @@ namespace editor::app
             String name;
             f64 ms = 0.0;
             u64 count = 0;
+            // A GPU pass's pipeline statistics, summed over the capture, where the device counts
+            // them: what tells a pass limited by its triangles from one limited by its pixels.
+            bool hasCounts = false;
+            u64 triangles = 0;
+            u64 vertexShaderRuns = 0;
+            u64 pixelShaderRuns = 0;
         };
 
         void Add(Array<Total>& totals, StringView name, f64 ms)
@@ -68,6 +74,26 @@ namespace editor::app
                 }
             }
             totals.PushBack(Total{String(name), ms, 1});
+        }
+
+        void AddPass(Array<Total>& totals, StringView name, f64 ms, const profiler::GpuPassEvent& pass)
+        {
+            Add(totals, name, ms);
+            if (!pass.hasCounts)
+            {
+                return;
+            }
+            for (Total& t : totals)
+            {
+                if (t.name.AsView() == name)
+                {
+                    t.hasCounts = true;
+                    t.triangles += pass.counts.inputPrimitives;
+                    t.vertexShaderRuns += pass.counts.vertexInvocations;
+                    t.pixelShaderRuns += pass.counts.fragmentInvocations;
+                    return;
+                }
+            }
         }
 
         JsonValue Top(Array<Total>& totals)
@@ -91,6 +117,14 @@ namespace editor::app
                 row.Set(String(u8"name"), JsonValue::MakeString(totals[i].name));
                 row.Set(String(u8"totalMs"), JsonValue::MakeNumber(totals[i].ms));
                 row.Set(String(u8"count"), JsonValue::MakeNumber(static_cast<f64>(totals[i].count)));
+                if (totals[i].hasCounts)
+                {
+                    row.Set(String(u8"triangles"), JsonValue::MakeNumber(static_cast<f64>(totals[i].triangles)));
+                    row.Set(String(u8"vertexShaderRuns"),
+                            JsonValue::MakeNumber(static_cast<f64>(totals[i].vertexShaderRuns)));
+                    row.Set(String(u8"pixelShaderRuns"),
+                            JsonValue::MakeNumber(static_cast<f64>(totals[i].pixelShaderRuns)));
+                }
                 out.Add(Move(row));
             }
             return out;
@@ -130,7 +164,7 @@ namespace editor::app
                 }
                 for (const profiler::GpuPassEvent& pass : frame->gpu)
                 {
-                    Add(passes, capture.NameOf(pass.name), static_cast<f64>(pass.endTick - pass.beginTick) * toMs);
+                    AddPass(passes, capture.NameOf(pass.name), static_cast<f64>(pass.endTick - pass.beginTick) * toMs, pass);
                 }
                 for (const profiler::CounterValue& value : frame->counters)
                 {
@@ -188,7 +222,9 @@ namespace editor::app
             u8"profiler_capture",
             u8"Capture the next few seconds of the running editor (its pages and any Play-in-editor game) "
             u8"with the profiler, and answer a summary: frame times (min, median, max), the CPU scopes and "
-            u8"GPU passes that took longest over the capture, and each counter's average (draws, passes, "
+            u8"GPU passes that took longest over the capture (each GPU pass with the triangles, vertex and "
+            u8"pixel shader runs it took over the capture, where the device counts them), and each "
+            u8"counter's average (draws, passes, "
             u8"GPU memory). The capture is written as a .aeprofile (the editor's profiler panel opens it) "
             u8"and Chrome trace JSON beside it (Perfetto, chrome://tracing); both paths are in the answer. "
             u8"The call lasts the capture plus a few frames.",
