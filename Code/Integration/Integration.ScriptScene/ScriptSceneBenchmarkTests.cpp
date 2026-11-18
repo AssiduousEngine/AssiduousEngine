@@ -12,9 +12,9 @@
 //                     back, N = 100, 1,000 and 5,000;
 //   component-fetch   one behaviour fetching its entity's PathFollowComponent 1,000 times a frame.
 //
-// Each runs 1,000 frames after a warm-up and prints `[bench] <language> <measure> <value> <unit>`
-// lines: the median and the 99th percentile frame, and the allocations a frame made through the
-// language's allocator (the engine's default heap is not counted). The cases are skipped in a
+// Each runs 1,000 frames after a second's warm-up and prints `[bench] <language> <measure> <value>
+// <unit>` lines: the median and the 99th percentile frame, and the allocations a frame made through
+// the language's allocator (the engine's default heap is not counted). The cases are skipped in a
 // normal run; run them with --no-skip from an optimised build (build/clang-reldbg).
 
 #include <doctest/doctest.h>
@@ -46,7 +46,11 @@ namespace scene = foundation::scene;
 
 namespace
 {
+    // Frames before the timed ones: at least this many, for at least this long. A language that
+    // compiles as it runs (C#'s tiered JIT recompiles hot code in the background, after a delay)
+    // is timed warm, as a game runs after its first seconds.
     constexpr u32 kWarmUpFrames = 20;
+    constexpr f64 kWarmUpSeconds = 1.0;
     constexpr u32 kFrames = 1000;
     constexpr u32 kHandlers = 1000;
     constexpr u32 kFetchesPerFrame = 1000;
@@ -199,7 +203,8 @@ namespace
         {
             scene.Start();
             scene.SetSimulationEnabled(true);
-            for (u32 i = 0; i < kWarmUpFrames; ++i)
+            const Stopwatch warming = Stopwatch::StartNew();
+            for (u32 i = 0; i < kWarmUpFrames || warming.Elapsed().AsSeconds() < kWarmUpSeconds; ++i)
                 Frame();
             Array<f64> frames;
             frames.Reserve(kFrames);

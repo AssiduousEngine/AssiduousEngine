@@ -143,19 +143,58 @@ namespace foundation::script::benchmark
         REQUIRE(bench.Get() != nullptr);
         const StringView language = dialect.languageId;
 
+        // A measure runs for a second, then until two runs in a row agree, and the last is
+        // reported: a language that compiles as it runs (C#'s tiered JIT, which recompiles hot code
+        // in the background, after a delay) is timed as a game runs once warm, not while it warms
+        // up. Two runs before the recompile agree with each other, hence the second.
+        // `run` does the work once, false when it failed; the result is false when a run failed.
+        struct Steady
+        {
+            f64 seconds = 0.0;
+            u64 allocations = 0;
+        };
+        const auto steady = [&](const auto& run, Steady& out) -> bool
+        {
+            constexpr u32 kMostRuns = 30;
+            constexpr f64 kWarmSeconds = 1.0;
+            constexpr f64 kAgree = 0.03; // within 3% of the run before
+            f64 previous = -1.0;
+            const Stopwatch warming = Stopwatch::StartNew();
+            for (u32 i = 0; i < kMostRuns; ++i)
+            {
+                const u64 allocations = counted.TotalAllocations();
+                const Stopwatch clock = Stopwatch::StartNew();
+                if (!run())
+                    return false;
+                out.seconds = clock.Elapsed().AsSeconds();
+                out.allocations = counted.TotalAllocations() - allocations;
+                const bool agrees = previous > 0.0 && out.seconds >= previous * (1.0 - kAgree) &&
+                                    out.seconds <= previous * (1.0 + kAgree);
+                if (agrees && warming.Elapsed().AsSeconds() >= kWarmSeconds)
+                    break;
+                previous = out.seconds;
+            }
+            return true;
+        };
+
         // A handler call: the cost of crossing into script and back.
         {
             constexpr u32 kHandlerCalls = 100000;
             Variant dt[] = {Variant::From<f64>(0.016)};
-            const u64 allocations = counted.TotalAllocations();
-            const Stopwatch clock = Stopwatch::StartNew();
-            for (u32 i = 0; i < kHandlerCalls; ++i)
-            {
-                REQUIRE(bench->Invoke(u8"tick", Span<Variant>{dt, 1}).HasValue());
-            }
-            detail::Report(language, "handler-call", clock.Elapsed().AsSeconds() * 1e9 / kHandlerCalls, "ns/call");
-            detail::Report(language, "handler-call-allocations",
-                           static_cast<f64>(counted.TotalAllocations() - allocations) / kHandlerCalls, "per call");
+            Steady measured;
+            const bool ran = steady(
+                [&]()
+                {
+                    for (u32 i = 0; i < kHandlerCalls; ++i)
+                        if (!bench->Invoke(u8"tick", Span<Variant>{dt, 1}).HasValue())
+                            return false;
+                    return true;
+                },
+                measured);
+            REQUIRE(ran);
+            detail::Report(language, "handler-call", measured.seconds * 1e9 / kHandlerCalls, "ns/call");
+            detail::Report(language, "handler-call-allocations", static_cast<f64>(measured.allocations) / kHandlerCalls,
+                           "per call");
         }
 
         // Math: Float3 arithmetic and a Color, in a script loop.
@@ -163,12 +202,11 @@ namespace foundation::script::benchmark
         {
             constexpr i32 kIterations = 100000;
             Variant n[] = {Variant::From<i32>(kIterations)};
-            const u64 allocations = counted.TotalAllocations();
-            const Stopwatch clock = Stopwatch::StartNew();
-            REQUIRE(bench->Invoke(u8"math", Span<Variant>{n, 1}).HasValue());
-            detail::Report(language, "math-iteration", clock.Elapsed().AsSeconds() * 1e9 / kIterations, "ns/iteration");
-            detail::Report(language, "math-iteration-allocations",
-                           static_cast<f64>(counted.TotalAllocations() - allocations) / kIterations, "per iteration");
+            Steady measured;
+            REQUIRE(steady([&]() { return bench->Invoke(u8"math", Span<Variant>{n, 1}).HasValue(); }, measured));
+            detail::Report(language, "math-iteration", measured.seconds * 1e9 / kIterations, "ns/iteration");
+            detail::Report(language, "math-iteration-allocations", static_cast<f64>(measured.allocations) / kIterations,
+                           "per iteration");
         }
 
         // The per-call measures: one crossing from script into the engine, kCalls times in a
@@ -176,20 +214,16 @@ namespace foundation::script::benchmark
         {
             const auto measure = [&](StringView method, const char* name, Span<Variant> args)
             {
-                const u64 allocations = counted.TotalAllocations();
-                const Stopwatch clock = Stopwatch::StartNew();
-                const Result<Variant> ran = bench->Invoke(method, args);
-                const f64 seconds = clock.Elapsed().AsSeconds();
-                if (!ran.HasValue())
+                Steady measured;
+                if (!steady([&]() { return bench->Invoke(method, args).HasValue(); }, measured))
                 {
                     FAIL_CHECK(doctest::String(name) << " did not run"); // a failed call times nothing
                     return;
                 }
-                detail::Report(language, name, seconds * 1e9 / kCalls, "ns/call");
+                detail::Report(language, name, measured.seconds * 1e9 / kCalls, "ns/call");
                 char allocationsName[64];
                 std::snprintf(allocationsName, sizeof(allocationsName), "%s-allocations", name);
-                detail::Report(language, allocationsName, static_cast<f64>(counted.TotalAllocations() - allocations) / kCalls,
-                               "per call");
+                detail::Report(language, allocationsName, static_cast<f64>(measured.allocations) / kCalls, "per call");
             };
             Variant n[] = {Variant::From<i32>(kCalls)};
             measure(u8"loops", "loop-alone", Span<Variant>{n, 1}); // subtract it from the others for a call's own cost
