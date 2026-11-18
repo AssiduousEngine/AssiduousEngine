@@ -99,6 +99,7 @@ namespace foundation::script::dotnet
             Enum,
             Text,
             Class, // a handle to the engine's value
+            Component, // a scene component, held as a value: its entity (the engine finds it again)
             Any,   // a script value of any type (Variant): C# object, its form chosen at the call
             Handler, // a script delegate the engine calls back (IScriptDelegate): C# ScriptHandler
         };
@@ -216,8 +217,12 @@ namespace foundation::script::dotnet
                 Bound b;
                 b.type = type;
                 b.name = String(scriptName);
+                const Variant* marked = FindAttribute(*type, "sceneComponent");
+                const bool sceneComponent = marked != nullptr && marked->TryGet<bool>() != nullptr && *marked->TryGet<bool>();
                 if (type->enumeratorCount > 0)
                     b.shape = Shape::Enum;
+                else if (sceneComponent)
+                    b.shape = Shape::Component;
                 else if (IsScriptValue(type))
                     b.shape = Shape::Opaque; // a struct of fields when they measure (below)
                 else
@@ -277,6 +282,7 @@ namespace foundation::script::dotnet
             case Shape::Scalar:
             case Shape::Struct:
             case Shape::Opaque:
+            case Shape::Component:
                 AppendFormat(out, u8"        args[{}] = DotNetValue.OfBytes({}, &{}, sizeof({}));\n", index, TypeExpression(type), name,
                              surface.CSharpName(&type));
                 break;
@@ -319,6 +325,7 @@ namespace foundation::script::dotnet
             case Shape::Scalar:
             case Shape::Struct:
             case Shape::Opaque:
+            case Shape::Component:
                 AppendFormat(out,
                              u8"        {} returned = default;\n        DotNetValue result = DotNetValue.OfBytes(0, &returned, sizeof({}));\n"
                              u8"        {}&result);\n        return returned;\n",
@@ -373,7 +380,7 @@ namespace foundation::script::dotnet
             Array<String> signatures; // a C# method's name, parameter types and staticness: one each
             Array<String> memberNames;
             // Properties: on a class or an opaque value, through the bridge (a struct's are fields).
-            if (b.shape == Shape::Class || b.shape == Shape::Opaque)
+            if (b.shape == Shape::Class || b.shape == Shape::Opaque || b.shape == Shape::Component)
             {
                 for (u32 i = 0; i < type.propertyCount; ++i)
                 {
@@ -383,14 +390,17 @@ namespace foundation::script::dotnet
                     if (!IsIdentifier(rawName) || shape == Shape::None || shape == Shape::Void || rawName == b.name.AsView())
                         continue;
                     memberNames.PushBack(String(rawName));
-                    AppendFormat(out, u8"\n    static nint s_p{};\n    public {} {}\n    {{\n        get\n        {{\n", i,
+                    // A component's handle is a value whose property writes reach the engine, so a
+                    // setter changes nothing of it: readonly, which lets `X.of(e).speed = 4` compile.
+                    AppendFormat(out, u8"\n    static nint s_p{};\n    public {}{} {}\n    {{\n        get\n        {{\n", i,
+                                 b.shape == Shape::Component ? StringView(u8"readonly ") : StringView(u8""),
                                  surface.DeclaredName(property.type), Identifier(rawName));
                     AppendFormat(out, u8"        if (s_p{} == 0) s_p{} = Bridge.PropertyAt(EngineType, {});\n", i, i, i);
                     EmitSelf(out, b);
                     EmitCallAndReturn(out, surface, property.type, Format(u8"Bridge.GetProperty(s_p{}, &self, ", i).AsView());
                     out.Append(StringView(u8"        }\n"));
                     const bool readOnly = (static_cast<u32>(property.flags) & static_cast<u32>(PropertyFlags::ReadOnly)) != 0;
-                    if (!readOnly && b.shape == Shape::Class)
+                    if (!readOnly && (b.shape == Shape::Class || b.shape == Shape::Component))
                     {
                         AppendFormat(out, u8"        set\n        {{\n        if (s_p{} == 0) s_p{} = Bridge.PropertyAt(EngineType, {});\n", i,
                                      i, i);
@@ -601,6 +611,22 @@ namespace foundation::script::dotnet
                 out.Append(StringView(u8"}\n\n"));
                 break;
             }
+            case Shape::Component:
+            {
+                // Its entity: what the engine finds the component by, a value C# copies freely.
+                AppendFormat(out, u8"public unsafe partial struct {}\n{{\n", b.name);
+                AppendFormat(out, u8"    internal static nint EngineType => Types.Get(0x{}ul);\n", HexOf(type.id));
+                out.Append(StringView(u8"    readonly Entity m_entity;\n"));
+                AppendFormat(out,
+                             u8"    /// <summary>Whether its entity has the component: false for one fetched from an entity\n"
+                             u8"    /// without it, or whose entity or component has gone since.</summary>\n"
+                             u8"    public readonly bool isValid()\n    {{\n        {} copy = this;\n"
+                             u8"        return Bridge.ComponentAlive(EngineType, &copy);\n    }}\n",
+                             b.name);
+                EmitMembers(out, surface, b);
+                out.Append(StringView(u8"}\n\n"));
+                break;
+            }
             case Shape::Class:
             {
                 AppendFormat(out, u8"public sealed unsafe partial class {} : EngineObject\n{{\n", b.name);
@@ -623,7 +649,7 @@ namespace foundation::script::dotnet
                               u8"    public static readonly (ulong Id, System.Type Type, System.Func<nint, object> Read, "
                               u8"System.Action<object, nint> Write, int Size)[] Values =\n    {\n"));
         for (const Bound& b : surface.types)
-            if (b.shape == Shape::Struct || b.shape == Shape::Opaque)
+            if (b.shape == Shape::Struct || b.shape == Shape::Opaque || b.shape == Shape::Component)
                 AppendFormat(out, u8"        (0x{}ul, typeof({}), static p => *({}*)p, static (o, p) => *({}*)p = ({})o, sizeof({})),\n",
                              HexOf(b.type->id), b.name, b.name, b.name, b.name, b.name);
         out.Append(StringView(u8"    };\n\n    public static EngineObject? Wrap(ulong id, DotNetValue handle) => id switch\n    {\n"));

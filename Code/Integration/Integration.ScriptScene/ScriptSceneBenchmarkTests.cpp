@@ -562,6 +562,23 @@ TEST_CASE("script scene: each measure's scene runs its behaviours")
         CHECK(csharp.scripts->InstanceCount() == 3u);
         for (scene::EntityHandle root = csharp.scene.GetFirstRoot(); root.IsAssigned(); root = csharp.scene.GetNextSibling(root))
             CHECK(csharp.scene.GetLocalTransform(root).position.x == doctest::Approx(2.0f * 2.0f * kDelta));
+
+        // A component C# holds as a value: set through its handle, valid while the entity has it.
+        BenchScene components;
+        components.AddScripted(MakeClass(foundation::script::dotnet::kCSharpLanguage, u8"Pacer", u8"",
+                                         Span<const byte>{image.Data(), image.Size()}),
+                               1);
+        components.scene.Start();
+        components.scene.SetSimulationEnabled(true);
+        components.Frame();
+        const scene::EntityHandle paced = components.scene.GetFirstRoot();
+        REQUIRE(components.follows->Get(paced) != nullptr);
+        CHECK(components.follows->Get(paced)->speed == doctest::Approx(4.0f));
+        CHECK(components.scene.GetEntityName(paced) == StringView(u8"has it"));
+        CHECK(components.scene.RemoveComponent(*components.follows, paced));
+        components.Frame();
+        CHECK(components.follows->Get(paced) == nullptr);
+        CHECK(components.scene.GetEntityName(paced) == StringView(u8"has none"));
     }
 #endif
     BenchScene native;

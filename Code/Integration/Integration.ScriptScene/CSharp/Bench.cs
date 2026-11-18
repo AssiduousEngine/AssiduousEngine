@@ -94,7 +94,36 @@ public class Fetcher
     {
         for (int i = 0; i < 1000; i++)
         {
-            PathFollowComponent? follow = PathFollowComponent.of(m_entity);
+            PathFollowComponent follow = PathFollowComponent.of(m_entity);
+        }
+    }
+}
+
+// A component held as a value: a property set through a fetched handle reaches the engine, isValid
+// says whether the entity still has it, and a set on one gone is refused (the check reads the name).
+public class Pacer
+{
+    readonly Entity m_entity;
+
+    public Pacer(Entity entity) { m_entity = entity; }
+
+    public void onUpdate(float dt)
+    {
+        if (PathFollowComponent.of(m_entity).isValid())
+        {
+            PathFollowComponent.of(m_entity).speed = 4.0f;
+            m_entity.setName("has it");
+            return;
+        }
+        // Gone: a set through the handle is refused, not written anywhere.
+        try
+        {
+            PathFollowComponent.of(m_entity).speed = 4.0f;
+            m_entity.setName("set a gone component");
+        }
+        catch (EngineException)
+        {
+            m_entity.setName("has none");
         }
     }
 }

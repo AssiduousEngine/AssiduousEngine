@@ -11,6 +11,8 @@ module;
 module foundation.script.dotnet;
 
 import foundation.core;
+import foundation.scene;          // a component handle's scene and entity (ReadComponentRef)
+import foundation.script.facades; // Entity: what a scene component crosses to C# as
 
 using namespace foundation::core;
 
@@ -33,14 +35,61 @@ namespace foundation::script::dotnet
             return -static_cast<i32>(code);
         }
 
-        // The instance a call is made on: a value's bytes in place, or an object.
+        // A scene component type (the facades mark it, ComponentMethods): C# holds one of its
+        // handles as the entity's bytes, and the engine finds the component again by it.
+        bool IsSceneComponent(const TypeInfo* type)
+        {
+            if (type == nullptr || !type->hasIdentity)
+                return false;
+            const Variant* marked = FindAttribute(*type, "sceneComponent");
+            return marked != nullptr && marked->TryGet<bool>() != nullptr && *marked->TryGet<bool>();
+        }
+
+        // The component handle the bytes of a scene component held as a value stand for: empty when
+        // its entity or scene is gone.
+        Variant ComponentFromBytes(const TypeInfo& type, const void* bytes)
+        {
+            foundation::script::Entity entity;
+            std::memcpy(static_cast<void*>(&entity), bytes, sizeof(entity));
+            foundation::scene::Scene* scene = entity.scene.Get();
+            if (scene == nullptr || !scene->IsValid(entity.Handle()))
+                return Variant{};
+            return scene->MakeComponentRef(entity.Handle(), type);
+        }
+
+        // The instance a call is made on: a value's bytes in place, a scene component found again by
+        // its entity, or an object.
         Instance SelfOf(const DotNetValue* self)
         {
             if (self == nullptr || self->kind == DotNetValueKind::Empty)
                 return Instance{};
             if (self->kind == DotNetValueKind::Handle)
                 return self->data != nullptr ? ToInstance(*static_cast<Variant*>(self->data)) : Instance{};
+            if (IsSceneComponent(self->type) && self->data != nullptr)
+            {
+                // A resolving handle: the instance is the component's own storage, not the handle's.
+                // None (the entity is gone, or lacks it) is no instance: an empty Variant's would be
+                // its own inline storage.
+                Variant component = ComponentFromBytes(*self->type, self->data);
+                return component.IsEmpty() ? Instance{} : ToInstance(component);
+            }
             return Instance(self->data, self->type);
+        }
+
+        // A member reached through nothing: no object, or a component its entity no longer has
+        // (Core's calls take the instance as given, so the caller refuses).
+        i32 Gone(const char* member)
+        {
+            const StringView name(reinterpret_cast<const utf8char*>(member));
+            return Fail(ErrorCode::NotFound, Format(u8"{}: the object is gone", name).AsView());
+        }
+
+        i32 ComponentAlive(const TypeInfo* type, const void* data)
+        {
+            if (type == nullptr || data == nullptr)
+                return 0;
+            Variant component = ComponentFromBytes(*type, data);
+            return !component.IsEmpty() && ToInstance(component).Pointer() != nullptr ? 1 : 0;
         }
 
         // Registered types, and the scalars, which are not registered (the bindings name them by
@@ -222,7 +271,10 @@ namespace foundation::script::dotnet
                 if (values.Back().IsEmpty() && args[i].kind != DotNetValueKind::Empty)
                     return Fail(ErrorCode::InvalidArgument, Format(u8"argument {} has no value form", i).AsView());
             }
-            Result<Variant> returned = method->invoke(SelfOf(self), Span<Variant>{values.Data(), values.Size()});
+            const Instance instance = SelfOf(self);
+            if (!method->isStatic && instance.Pointer() == nullptr)
+                return Gone(method->name);
+            Result<Variant> returned = method->invoke(instance, Span<Variant>{values.Data(), values.Size()});
             if (!returned.HasValue())
                 return Fail(returned.Error(), Format(u8"{} failed", StringView(reinterpret_cast<const utf8char*>(method->name))).AsView());
             if (result == nullptr)
@@ -236,7 +288,10 @@ namespace foundation::script::dotnet
             t_error.Clear();
             if (property == nullptr || result == nullptr)
                 return Fail(ErrorCode::InvalidArgument, u8"no property");
-            const Status written = FromVariant(GetProperty(*property, SelfOf(self)), *result);
+            const Instance instance = SelfOf(self);
+            if (instance.Pointer() == nullptr)
+                return Gone(property->name);
+            const Status written = FromVariant(GetProperty(*property, instance), *result);
             return written.IsOk() ? 0 : -static_cast<i32>(written.Code());
         }
 
@@ -245,7 +300,10 @@ namespace foundation::script::dotnet
             t_error.Clear();
             if (property == nullptr || value == nullptr)
                 return Fail(ErrorCode::InvalidArgument, u8"no property");
-            const Status set = SetProperty(*property, SelfOf(self), ToVariant(*value));
+            const Instance instance = SelfOf(self);
+            if (instance.Pointer() == nullptr)
+                return Gone(property->name);
+            const Status set = SetProperty(*property, instance, ToVariant(*value));
             if (!set.IsOk())
                 return Fail(set.Code(), Format(u8"{} was not set", StringView(reinterpret_cast<const utf8char*>(property->name))).AsView());
             return 0;
@@ -297,6 +355,8 @@ namespace foundation::script::dotnet
         case DotNetValueKind::Bytes:
             if (value.type == nullptr || value.data == nullptr)
                 return Variant{};
+            if (IsSceneComponent(value.type))
+                return ComponentFromBytes(*value.type, value.data);
             if (Variant scalar = ScalarVariant(*value.type, value.data); !scalar.IsEmpty())
                 return scalar;
             // An enum crosses as its underlying integer, as from the other script languages: the
@@ -325,6 +385,24 @@ namespace foundation::script::dotnet
         {
             out.kind = DotNetValueKind::Empty;
             out.type = nullptr;
+            return Status{};
+        }
+        // A scene component's handle crosses as its entity under the component's type: C# holds it
+        // as a value, with no handle to allocate and none to give back.
+        foundation::scene::Scene* scene = nullptr;
+        foundation::scene::EntityHandle handle;
+        if (foundation::scene::ReadComponentRef(variant, scene, handle) && IsSceneComponent(variant.Type()))
+        {
+            if (out.data == nullptr || out.size < sizeof(foundation::script::Entity))
+                return Status{ErrorCode::OutOfRange};
+            foundation::script::Entity entity;
+            entity.scene = scene;
+            entity.entityIndex = handle.index;
+            entity.entityGeneration = handle.generation;
+            std::memcpy(out.data, static_cast<const void*>(&entity), sizeof(entity));
+            out.kind = DotNetValueKind::Bytes;
+            out.type = variant.Type();
+            out.size = sizeof(entity);
             return Status{};
         }
         if (const String* text = variant.TryGet<String>())
@@ -374,6 +452,20 @@ namespace foundation::script::dotnet
             return out;
         }
         const TypeInfo* type = variant.Type();
+        // A scene component lends its entity's bytes, from storage the thread keeps for the call's
+        // arguments (a handler takes a few; the ring is as long as the most one call lends).
+        foundation::scene::Scene* scene = nullptr;
+        foundation::scene::EntityHandle handle;
+        if (IsSceneComponent(type) && foundation::scene::ReadComponentRef(variant, scene, handle))
+        {
+            thread_local foundation::script::Entity lent[16];
+            thread_local u32 next = 0;
+            out.size = sizeof(foundation::script::Entity);
+            out.data = &lent[next];
+            next = (next + 1) % 16;
+            (void)FromVariant(variant, out); // a component: its entity's bytes, nothing allocated
+            return out;
+        }
         const bool plain = type != nullptr && type->trivialCopy && !type->hasIdentity && !variant.IsObject() && !variant.IsMember();
         out.type = type;
         if (plain)
@@ -410,6 +502,7 @@ namespace foundation::script::dotnet
             f.releaseHandle = &ReleaseHandle;
             f.typeIdOf = &TypeIdOf;
             f.lastError = &LastError;
+            f.componentAlive = &ComponentAlive;
             return f;
         }();
         return functions;
