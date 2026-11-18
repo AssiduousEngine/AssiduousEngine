@@ -40,6 +40,9 @@ import foundation.script.angelscript;
 #if defined(INTEGRATION_HAS_LUAU)
 import foundation.script.luau;
 #endif
+#if defined(INTEGRATION_HAS_DOTNET)
+import foundation.script.dotnet;
+#endif
 
 using namespace foundation::core;
 using namespace foundation::script;
@@ -197,6 +200,9 @@ namespace
 #if defined(INTEGRATION_HAS_LUAU)
             foundation::script::RegisterLuauScriptBackend();
 #endif
+#if defined(INTEGRATION_HAS_DOTNET)
+            foundation::script::dotnet::RegisterDotNetScriptBackend();
+#endif
             RegisterCoreTypes();
             RegisterBehaviorComponentReflection();
             RegisterScriptFacadeReflection();
@@ -204,6 +210,13 @@ namespace
             GlobalTypeRegistry().Register(benchnative::Empty::StaticType());
             GlobalTypeRegistry().Register(benchnative::Mover::StaticType());
             GlobalTypeRegistry().Register(benchnative::Fetcher::StaticType());
+#if defined(INTEGRATION_HAS_DOTNET)
+            // The process's C# runtime keeps the allocator it starts with for every object it hands
+            // C# later, so it starts on one that lives as long as the process, as a game's and the
+            // editor's do (the measures' managers each count over a shorter-lived one); and after
+            // the types are reflected, which it reads when it starts.
+            (void)foundation::script::dotnet::ProcessRuntime(DefaultAllocator());
+#endif
             return true;
         }();
         (void)once;
@@ -305,20 +318,26 @@ namespace
         }
     };
 
-    [[nodiscard]] RefPtr<BehaviorClass> MakeClass(StringView language, StringView className, StringView source)
+    /// A class from its source, or for a language that loads a built assembly (C#) from `image`.
+    [[nodiscard]] RefPtr<BehaviorClass> MakeClass(StringView language, StringView className, StringView source,
+                                                Span<const byte> image = {})
     {
         RefPtr<BehaviorClass> cls = MakeRef<BehaviorClass>(DefaultAllocator());
         cls->language = String(language);
         cls->className = String(className);
         cls->kind = BehaviorKind::Entity; // every measured behavior sits on an entity
         cls->source = String(source);
+        cls->sourceName = Format(u8"{}.bench", className);
+        for (const byte b : image)
+            cls->bytecode.PushBack(b);
         cls->handlers.PushBack(String(u8"onUpdate"));
         cls->BuildProfileName();
         return cls;
     }
 
     // The three behaviours in one language: each one's class name and source (the class names
-    // alone for native behaviors, which have no source), and the column they print as.
+    // alone for native behaviors, which have no source; C#'s built assembly holds all three), and
+    // the column they print as.
     struct Behaviours
     {
         StringView language;
@@ -329,27 +348,28 @@ namespace
         StringView empty;
         StringView mover;
         StringView fetcher;
+        Span<const byte> image; // C#: the built assembly holding all three
     };
 
     void RunSceneMeasures(const Behaviours& in)
     {
         {
             BenchScene bench;
-            bench.AddScripted(MakeClass(in.language, in.emptyClass, in.empty), kHandlers);
+            bench.AddScripted(MakeClass(in.language, in.emptyClass, in.empty, in.image), kHandlers);
             bench.Measure(in.column, "handler-dispatch");
         }
         const u32 sizes[] = {100, 1000, 5000};
         for (const u32 size : sizes)
         {
             BenchScene bench;
-            bench.AddScripted(MakeClass(in.language, in.moverClass, in.mover), size);
+            bench.AddScripted(MakeClass(in.language, in.moverClass, in.mover, in.image), size);
             char name[32];
             std::snprintf(name, sizeof(name), "movers-%u", size);
             bench.Measure(in.column, name);
         }
         {
             BenchScene bench;
-            bench.AddScripted(MakeClass(in.language, in.fetcherClass, in.fetcher), 1);
+            bench.AddScripted(MakeClass(in.language, in.fetcherClass, in.fetcher, in.image), 1);
             bench.Measure(in.column, "component-fetch");
         }
     }
@@ -546,8 +566,59 @@ TEST_CASE("script scene: the scene measures in Luau" * doctest::skip())
 }
 #endif
 
-// The suite's normal run checks that each scene runs: a frame of each in each language, so a change
-// that breaks a measure fails here rather than when someone next measures.
+#if defined(INTEGRATION_HAS_DOTNET)
+namespace
+{
+    // The C# measures' assembly, as the cook builds a game's (Debug) or optimised (Release).
+    [[nodiscard]] Array<byte> CSharpBench(const char* folder)
+    {
+        Result<Array<byte>> image = ReadFile(PathJoin(StringView(reinterpret_cast<const utf8char*>(folder)), u8"Bench.dll").AsView());
+        REQUIRE(image.HasValue());
+        return Move(image.Value());
+    }
+
+    void RunCSharpPerCall(const char* folder, StringView label)
+    {
+        EnsureRegistered(); // the C# runtime on a process-lived allocator first
+        const Array<byte> image = CSharpBench(folder);
+        foundation::script::benchmark::Dialect dialect;
+        dialect.languageId = label;
+        dialect.collector = false; // C#'s collector is .NET's; the run steps none
+        dialect.load = [&image](IScriptContext& context)
+        {
+            const BehaviorModuleClass bench{u8"Bench.cs", u8"", {}, Span<const byte>{image.Data(), image.Size()}};
+            return context.LoadBehaviorModule(Span<const BehaviorModuleClass>{&bench, 1}, u8"bench").IsOk();
+        };
+        foundation::script::benchmark::RunScriptBackendBenchmark(
+            [](IAllocator& allocator) { return foundation::script::dotnet::CreateDotNetScriptManager(allocator); }, dialect);
+    }
+}
+
+TEST_CASE("script per call: C#" * doctest::skip())
+{
+    RunCSharpPerCall(BENCH_CSHARP_DEBUG_DIR, u8"csharp-debug");
+    RunCSharpPerCall(BENCH_CSHARP_RELEASE_DIR, u8"csharp-release");
+}
+
+TEST_CASE("script scene: the scene measures in C#" * doctest::skip())
+{
+    const char* folders[] = {BENCH_CSHARP_DEBUG_DIR, BENCH_CSHARP_RELEASE_DIR};
+    const StringView labels[] = {u8"csharp-debug", u8"csharp-release"};
+    for (usize i = 0; i < 2; ++i)
+    {
+        const Array<byte> image = CSharpBench(folders[i]);
+        Behaviours in;
+        in.language = foundation::script::dotnet::kCSharpLanguage;
+        in.image = Span<const byte>{image.Data(), image.Size()};
+        in.column = labels[i];
+        RunSceneMeasures(in);
+    }
+}
+#endif
+
+// The suite's normal run checks that each scene runs: movers in Luau, as native behaviors, in C#
+// where it is built, and as native components, so a change that breaks a measure fails here rather
+// than when someone next measures.
 TEST_CASE("script scene: each measure's scene runs its behaviours")
 {
 #if defined(INTEGRATION_HAS_LUAU)
@@ -574,6 +645,20 @@ TEST_CASE("script scene: each measure's scene runs its behaviours")
     for (scene::EntityHandle root = behaviors.scene.GetFirstRoot(); root.IsAssigned(); root = behaviors.scene.GetNextSibling(root))
         CHECK(behaviors.scene.GetLocalTransform(root).position.x == doctest::Approx(2.0f * kDelta));
 
+#if defined(INTEGRATION_HAS_DOTNET)
+    {
+        const Array<byte> image = CSharpBench(BENCH_CSHARP_DEBUG_DIR);
+        BenchScene csharp;
+        csharp.AddScripted(MakeClass(foundation::script::dotnet::kCSharpLanguage, u8"Mover", u8"", Span<const byte>{image.Data(), image.Size()}), 3);
+        csharp.scene.Start();
+        csharp.scene.SetSimulationEnabled(true);
+        csharp.Frame();
+        csharp.Frame();
+        CHECK(csharp.scripts->InstanceCount() == 3u);
+        for (scene::EntityHandle root = csharp.scene.GetFirstRoot(); root.IsAssigned(); root = csharp.scene.GetNextSibling(root))
+            CHECK(csharp.scene.GetLocalTransform(root).position.x == doctest::Approx(2.0f * 2.0f * kDelta));
+    }
+#endif
     BenchScene native;
     native.AddNative(NativeWork::Move, 3);
     native.scene.Start();
