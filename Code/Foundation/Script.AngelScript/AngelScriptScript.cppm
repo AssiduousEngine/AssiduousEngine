@@ -39,6 +39,10 @@ export namespace foundation::script::angelscript
 {
     [[nodiscard]] core::RefPtr<IScriptManager> CreateScriptManager(core::IAllocator& allocator);
 
+    /// How many reflected method calls from AngelScript took the typed path (MethodInfo::call)
+    /// rather than Variants: what a test reads to know the path was taken.
+    [[nodiscard]] core::u64 TypedCallCount() noexcept;
+
     /// Registers AngelScript with the backend registry, which makes the language available;
     /// consumers resolve by extension (u8"as") or language id (u8"angelscript"), never by
     /// backend type. A game or project opts in by calling this from its entry point, as it

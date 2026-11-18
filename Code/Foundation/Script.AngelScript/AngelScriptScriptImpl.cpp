@@ -514,6 +514,9 @@ namespace foundation::script::angelscript
         const core::ConstructorInfo* constructor;
         const core::PropertyInfo* property;
         const core::MethodInfo* method;
+        // A method whose every parameter and return AngelScript holds in its native form: called
+        // through MethodInfo::call with AngelScript's own addresses, no Variant (TypedMethodCall).
+        bool typed = false;
     };
 
     void FactoryDispatch(asIScriptGeneric* gen);
@@ -527,6 +530,7 @@ namespace foundation::script::angelscript
     void IsValidDispatch(asIScriptGeneric* gen);
     void PropertySetDispatch(asIScriptGeneric* gen);
     void MethodDispatch(asIScriptGeneric* gen);
+    [[nodiscard]] bool CanCallTyped(const core::MethodInfo& method) noexcept; // MethodDispatch's typed path
     void OperatorDispatch(asIScriptGeneric* gen); // a reflected operator (Binding::Kind::Operator*)
     void CoroutineStartDispatch(asIScriptGeneric* gen); // startCoroutine(ScriptCoroutine@)
     void CoroutineWaitDispatch(asIScriptGeneric* gen);  // wait(float seconds)
@@ -3282,6 +3286,7 @@ namespace foundation::script::angelscript
                 }
                 Binding* binding = MakeBinding(
                     Binding{Binding::Kind::Method, this, &type, nullptr, nullptr, &method});
+                binding->typed = CanCallTyped(method);
                 int r;
                 if (method.isStatic)
                 {
@@ -3883,9 +3888,187 @@ namespace foundation::script::angelscript
         }
     }
 
+    core::Atomic<core::u64> g_typedCalls{0};
+
+    // Whether AngelScript holds a value of `type` in its native form where it passes one by value
+    // or `const &in` (AppendDeclType): a number or bool (declared with its own width), an enum
+    // whose native type is AngelScript's 32-bit int, or a script value (its bytes). A string is a
+    // std::string to AngelScript and a handle a box, so neither is.
+    [[nodiscard]] bool HeldNatively(const core::TypeInfo* type) noexcept
+    {
+        if (type == nullptr || type == &core::TypeOf<core::String>())
+        {
+            return false;
+        }
+        return PrimitiveDeclName(type) != nullptr || (type->enumeratorCount > 0 && type->size == 4) ||
+               IsScriptValue(type);
+    }
+
+    // Whether a method can take the typed call: it has one, and every parameter (a value) and its
+    // return (nothing, or a value) are held natively.
+    [[nodiscard]] bool CanCallTyped(const core::MethodInfo& method) noexcept
+    {
+        if (method.call == nullptr || method.paramCount > static_cast<core::u32>(kMaxArgs))
+        {
+            return false;
+        }
+        for (core::u32 i = 0; i < method.paramCount; ++i)
+        {
+            const core::ParamInfo& param = method.params[i];
+            if (param.form != core::ParamForm::Value || param.type == nullptr || !HeldNatively(param.type()))
+            {
+                return false;
+            }
+        }
+        const core::TypeInfo* returned = method.returnType != nullptr ? method.returnType() : nullptr;
+        return returned == nullptr || HeldNatively(returned);
+    }
+
+    // Aligned room for what a typed call cannot take where AngelScript keeps it: an argument or a
+    // `self` on AngelScript's 4-byte-aligned stack whose type needs more, and the result.
+    class TypedScratch
+    {
+    public:
+        // `size` bytes aligned for `align`, or null when they do not fit.
+        [[nodiscard]] void* Take(core::usize size, core::usize align) noexcept
+        {
+            const core::usize at = (m_used + align - 1) & ~(align - 1);
+            if (align > kMostAlign || at + size > sizeof(m_bytes))
+            {
+                return nullptr;
+            }
+            m_used = at + size;
+            return m_bytes + at;
+        }
+
+    private:
+        static constexpr core::usize kMostAlign = 16;
+        alignas(kMostAlign) core::byte m_bytes[512];
+        core::usize m_used = 0;
+    };
+
+    // `at` itself when aligned for `type`, else a copy of its bytes in `scratch`; null when the copy
+    // does not fit.
+    [[nodiscard]] void* AlignedFor(const core::TypeInfo& type, void* at, TypedScratch& scratch) noexcept
+    {
+        if (reinterpret_cast<core::uptr>(at) % type.align == 0)
+        {
+            return at;
+        }
+        void* copy = scratch.Take(type.size, type.align);
+        if (copy != nullptr)
+        {
+            std::memcpy(copy, at, type.size);
+        }
+        return copy;
+    }
+
+    // A method call with no Variant (Binding::typed): the arguments where AngelScript holds them,
+    // `self` in place, and the result straight into AngelScript's return. False, with nothing done,
+    // when it needs more aligned room than the scratch has: the Variant call then runs instead.
+    [[nodiscard]] bool TypedMethodCall(asIScriptGeneric* gen, const Binding& binding)
+    {
+        const core::MethodInfo& method = *binding.method;
+        TypedScratch scratch;
+        void* args[kMaxArgs];
+        for (core::u32 i = 0; i < method.paramCount; ++i)
+        {
+            const core::TypeInfo& type = *method.params[i].type();
+            // A script value is passed `const T &in`: its address. A number or enum by value: its slot.
+            void* at = IsScriptValue(&type) ? gen->GetArgAddress(i) : gen->GetAddressOfArg(i);
+            args[i] = at != nullptr ? AlignedFor(type, at, scratch) : nullptr;
+            if (args[i] == nullptr)
+            {
+                return false;
+            }
+        }
+
+        void* self = nullptr;
+        void* writeBack = nullptr; // a script value `self` moved for alignment goes back after
+        if (!method.isStatic)
+        {
+            if (IsScriptValue(binding.type))
+            {
+                void* at = gen->GetObject();
+                self = AlignedFor(*binding.type, at, scratch);
+                if (self == nullptr)
+                {
+                    return false;
+                }
+                writeBack = self != at ? at : nullptr;
+            }
+            else
+            {
+                const core::Instance instance = core::ToInstance(static_cast<BoxedVariant*>(gen->GetObject())->value);
+                if (RefuseGone(instance))
+                {
+                    return true; // the script's error is raised; nothing to fall back to
+                }
+                self = instance.Pointer();
+            }
+        }
+
+        const core::TypeInfo* returned = method.returnType != nullptr ? method.returnType() : nullptr;
+        void* result = returned != nullptr ? scratch.Take(returned->size, returned->align) : nullptr;
+        if (returned != nullptr && result == nullptr)
+        {
+            return false;
+        }
+        method.call(self, args, result);
+        g_typedCalls.fetch_add(1, core::MemoryOrder::Relaxed);
+        if (writeBack != nullptr)
+        {
+            std::memcpy(writeBack, self, binding.type->size);
+        }
+        if (returned == nullptr)
+        {
+            return true;
+        }
+        if (IsScriptValue(returned))
+        {
+            std::memcpy(gen->GetAddressOfReturnLocation(), result, returned->size); // returned by value
+        }
+        else if (returned == &core::TypeOf<core::f32>())
+        {
+            gen->SetReturnFloat(*static_cast<const core::f32*>(result));
+        }
+        else if (returned == &core::TypeOf<core::f64>())
+        {
+            gen->SetReturnDouble(*static_cast<const core::f64*>(result));
+        }
+        else
+        {
+            switch (returned->size) // an integer, a bool or a 32-bit enum: its bytes at its width
+            {
+            case 1:
+                gen->SetReturnByte(*static_cast<const asBYTE*>(result));
+                break;
+            case 2:
+                gen->SetReturnWord(*static_cast<const asWORD*>(result));
+                break;
+            case 4:
+                gen->SetReturnDWord(*static_cast<const asDWORD*>(result));
+                break;
+            default:
+                gen->SetReturnQWord(*static_cast<const asQWORD*>(result));
+                break;
+            }
+        }
+        return true;
+    }
+
+    core::u64 TypedCallCount() noexcept
+    {
+        return g_typedCalls.load(core::MemoryOrder::Relaxed);
+    }
+
     void MethodDispatch(asIScriptGeneric* gen)
     {
         const Binding* binding = static_cast<const Binding*>(gen->GetAuxiliary());
+        if (binding->typed && TypedMethodCall(gen, *binding))
+        {
+            return;
+        }
         const core::MethodInfo& method = *binding->method;
         const int argc = static_cast<int>(gen->GetArgCount());
         if (argc > kMaxArgs) // never bound (FitsCall); refused rather than called with arguments dropped

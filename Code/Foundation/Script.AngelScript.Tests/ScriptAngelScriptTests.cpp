@@ -766,6 +766,132 @@ TEST_CASE("angelscript: plain reflected-type members and globals read back as th
     CHECK(global.Get<Guid>() == track);
 }
 
+// The typed path (MethodInfo::call with AngelScript's own addresses): numbers of every width, an
+// enum of AngelScript's int width, a value argument and return, and a value `self` a method changes.
+// A string and a one-byte enum are not held natively, so their methods keep the Variant call.
+namespace
+{
+    enum class Gear : i32
+    {
+        Low,
+        High
+    };
+    enum class Notch : u8
+    {
+        Small,
+        Big
+    };
+    struct Tally
+    {
+        f64 total = 0.0;
+        i64 count = 0;
+        void Add(f64 v)
+        {
+            total += v;
+            ++count;
+        }
+        [[nodiscard]] f64 Mean() const { return count == 0 ? 0.0 : total / static_cast<f64>(count); }
+    };
+    class TypedProbe : public Object
+    {
+        RTTI_OBJECT(TypedProbe, Object)
+    public:
+        [[nodiscard]] f64 Mix(f64 a, i64 b, f32 c, i8 d, u16 e) const
+        {
+            return a + static_cast<f64>(b) + static_cast<f64>(c) + d + e;
+        }
+        [[nodiscard]] bool IsHigh(Gear g) const { return g == Gear::High; }
+        [[nodiscard]] Gear Flip(Gear g) const { return g == Gear::Low ? Gear::High : Gear::Low; }
+        [[nodiscard]] Tally Twice(Tally t) const
+        {
+            t.total *= 2.0;
+            t.count *= 2;
+            return t;
+        }
+        [[nodiscard]] i64 Big() const { return (i64{1} << 60) + 7; }
+        [[nodiscard]] i32 Length(String text) const { return static_cast<i32>(text.Size()); }
+        [[nodiscard]] Notch Grow(Notch) const { return Notch::Big; }
+    };
+}
+REFLECT_ENUM(Gear, "rtti::script::test")
+{
+    builder.Value("Low", Gear::Low);
+    builder.Value("High", Gear::High);
+}
+REFLECT_ENUM(Notch, "rtti::script::test")
+{
+    builder.Value("Small", Notch::Small);
+    builder.Value("Big", Notch::Big);
+}
+REFLECT_VALUE(Tally, "rtti::script::test")
+{
+    builder.Property<&Tally::total>("total");
+    builder.Property<&Tally::count>("count");
+    builder.Method<&Tally::Add>("Add");
+    builder.Method<&Tally::Mean>("Mean");
+    builder.Constructor();
+}
+REFLECT_MEMBERS(TypedProbe, "rtti::script::test")
+{
+    builder.Method<&TypedProbe::Mix>("Mix");
+    builder.Method<&TypedProbe::IsHigh>("IsHigh");
+    builder.Method<&TypedProbe::Flip>("Flip");
+    builder.Method<&TypedProbe::Twice>("Twice");
+    builder.Method<&TypedProbe::Big>("Big");
+    builder.Method<&TypedProbe::Length>("Length");
+    builder.Method<&TypedProbe::Grow>("Grow");
+    builder.Constructor();
+}
+
+TEST_CASE("angelscript: a method of natively held values takes the typed call, and agrees with the Variant one")
+{
+    static const bool registered = []
+    {
+        RttiRegisterEnum_Gear();
+        RttiRegisterEnum_Notch();
+        RttiRegisterValue_Tally();
+        return true;
+    }();
+    (void)registered;
+    RefPtr<IScriptManager> manager = angelscript::CreateScriptManager(foundation::core::DefaultAllocator());
+    manager->RegisterType(TypeOf<Gear>());
+    manager->RegisterType(TypeOf<Notch>());
+    manager->RegisterType(TypeOf<Tally>());
+    manager->RegisterType(TypedProbe::StaticType());
+    RefPtr<IScriptContext> scriptContext = manager->CreateContext();
+    REQUIRE(scriptContext->Load(u8"double M; bool H; int G; bool BigOk; int L; int N; double TT; int64 TC; double TM;\n"
+                                u8"void main() {\n"
+                                u8"  TypedProbe p;\n"
+                                u8"  M = p.Mix(1.5, 1099511627776, 2.25f, -3, 40000);\n"
+                                u8"  H = p.IsHigh(Gear::High);\n"
+                                u8"  G = int(p.Flip(Gear::Low));\n"
+                                u8"  BigOk = p.Big() == 1152921504606846983;\n" // 2^60 + 7, compared at 64 bits
+                                u8"  L = p.Length(\"four\");\n"
+                                u8"  N = int(p.Grow(Notch::Small));\n"
+                                u8"  Tally t;\n"
+                                u8"  t.Add(2.5);\n"
+                                u8"  t.Add(3.5);\n"
+                                u8"  Tally d = p.Twice(t);\n"
+                                u8"  TT = d.total; TC = d.count; TM = t.Mean();\n"
+                                u8"}\n",
+                                u8"main")
+                .IsOk());
+    const u64 before = angelscript::TypedCallCount();
+    REQUIRE(scriptContext->Call(u8"main", Span<Variant>{}).HasValue());
+    // Mix, IsHigh, Flip, Big, Add twice, Twice and Mean; Length (a string) and Grow (a one-byte
+    // enum) go by Variant.
+    CHECK(angelscript::TypedCallCount() - before == 8u);
+    CHECK(scriptContext->GetGlobal(u8"M").Get<f64>() == 1099511667776.75); // 8-byte arguments, misaligned or not
+    CHECK(scriptContext->GetGlobal(u8"H").Get<bool>());
+    CHECK(scriptContext->GetGlobal(u8"G").Get<f64>() == 1.0); // an int global reads as a number
+    CHECK(scriptContext->GetGlobal(u8"BigOk").Get<bool>()); // a global reads as a double: compared in script
+    CHECK(scriptContext->GetGlobal(u8"L").Get<f64>() == 4.0);
+    CHECK(scriptContext->GetGlobal(u8"N").Get<f64>() == 1.0);
+    CHECK(scriptContext->GetGlobal(u8"TT").Get<f64>() == 12.0); // a value in, a value out
+    CHECK(scriptContext->GetGlobal(u8"TC").Get<f64>() == 4.0);
+    CHECK(scriptContext->GetGlobal(u8"TM").Get<f64>() == 3.0); // the value `self` Add changed
+}
+
 TEST_CASE("angelscript: 64-bit integer facade args/returns round-trip exactly (no double funnel)")
 {
     RefPtr<IScriptManager> manager = angelscript::CreateScriptManager(foundation::core::DefaultAllocator());
