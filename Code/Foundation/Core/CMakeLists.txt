@@ -44,6 +44,7 @@ target_sources(Core
             Containers/Span.cppm
             Containers/Array.cppm
             Containers/FixedArray.cppm
+            Containers/InlineArray.cppm
             Containers/RingBuffer.cppm
             Containers/IntrusiveList.cppm
             Hash.cppm

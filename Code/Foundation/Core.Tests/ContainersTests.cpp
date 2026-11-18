@@ -842,3 +842,59 @@ TEST_CASE("unique ptr: a derived pointer converts only to a base with a virtual 
     UniquePtr<VirtualBase> held = MakeUnique<VirtualDerived>(DefaultAllocator());
     CHECK(held.Get() != nullptr);
 }
+
+namespace
+{
+    // Counts its constructions and destructions, to see which slots an InlineArray made.
+    struct Counted
+    {
+        static inline int made = 0;
+        static inline int destroyed = 0;
+        int value = 0;
+
+        explicit Counted(int v) : value(v) { ++made; }
+        Counted(const Counted& other) : value(other.value) { ++made; }
+        Counted(Counted&& other) noexcept : value(other.value)
+        {
+            other.value = -1;
+            ++made;
+        }
+        Counted& operator=(const Counted&) = default;
+        ~Counted() { ++destroyed; }
+    };
+}
+
+TEST_CASE("containers: InlineArray constructs only what is added and destroys it with itself")
+{
+    Counted::made = 0;
+    Counted::destroyed = 0;
+    {
+        InlineArray<Counted, 16> list;
+        CHECK(list.IsEmpty());
+        CHECK(Counted::made == 0); // no slot is made until it is added
+        Counted kept(7);
+        list.Add(kept);
+        list.Add(Counted(9));
+        CHECK(kept.value == 7);
+        REQUIRE(list.Size() == 2u);
+        CHECK(list[0].value == 7);
+        CHECK(list[1].value == 9);
+        int sum = 0;
+        for (const Counted& item : list)
+            sum += item.value;
+        CHECK(sum == 16);
+        CHECK(list.AsSpan().Size() == 2u);
+        CHECK(list.AsSpan()[1].value == 9);
+        CHECK(Counted::made == 4); // kept, the temporary, and the two in the list
+    }
+    CHECK(Counted::destroyed == Counted::made); // the list's two went with it
+
+    InlineArray<Counted, 2> full;
+    full.Add(Counted(1));
+    full.Add(Counted(2));
+    CHECK(full.IsFull());
+    full.Clear();
+    CHECK(full.IsEmpty());
+    full.Add(Counted(3));
+    CHECK(full[0].value == 3);
+}
