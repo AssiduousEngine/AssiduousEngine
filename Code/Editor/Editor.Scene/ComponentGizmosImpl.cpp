@@ -195,6 +195,64 @@ namespace editor
                 }
             });
     }
+
+    void GizmoRendererRegistry::DrawScene(scene::Scene& scene, Span<const Guid> selected, GizmoContext& ctx) const
+    {
+        if (ctx.debug == nullptr)
+        {
+            return;
+        }
+        ctx.scene = &scene;
+        // The selection: every component's gizmo, as DrawEntity draws one entity.
+        for (const Guid& id : selected)
+        {
+            const scene::EntityHandle entity = scene.FindEntity(id);
+            if (entity.IsAssigned())
+            {
+                DrawEntity(entity, true, ctx);
+            }
+        }
+        // The rest: only the renderers that draw unselected and are on, each over the owners of its
+        // own component. Asking every entity of every manager would cost a forty-thousand-mesh scene
+        // most of a frame to draw nothing.
+        HashSet<Guid> chosen;
+        bool selectionKnown = false;
+        for (const UniquePtr<IGizmoRenderer>& renderer : m_renderers)
+        {
+            if (!renderer->DrawWhenUnselected() || !renderer->IsOn(ctx))
+            {
+                continue;
+            }
+            scene::ComponentManagerBase* manager = scene.FindManagerByComponentType(*renderer->ComponentType());
+            if (manager == nullptr)
+            {
+                continue;
+            }
+            if (!selectionKnown)
+            {
+                for (const Guid& id : selected)
+                {
+                    chosen.Insert(id);
+                }
+                selectionKnown = true;
+            }
+            for (const scene::EntityHandle owner : manager->OwnerHandles())
+            {
+                // The raw pool holds components leaving this frame too: they are passed by.
+                if (!manager->HasComponent(owner) || chosen.Contains(scene.GetEntityId(owner)))
+                {
+                    continue;
+                }
+                const Instance component = manager->GetComponentInstance(owner);
+                if (!component.IsEmpty())
+                {
+                    ctx.entityEffectivelyActive = scene.IsEffectivelyActive(owner);
+                    renderer->Draw(component, owner, ctx);
+                }
+            }
+        }
+    }
+
     const TypeInfo* LightGizmoRenderer::ComponentType() const
     {
         return &TypeOf<engine::render::LightComponent>();

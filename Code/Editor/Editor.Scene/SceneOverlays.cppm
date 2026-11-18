@@ -159,29 +159,40 @@ export namespace editor
                 return;
             Selection<Guid>& selection = *frame.selection;
             foundation::scene::Scene& scene = *frame.scene;
-            scene.ForEachEntity(
-                [&](foundation::scene::EntityHandle e)
+            const auto mark = [&](foundation::scene::EntityHandle e, bool selected)
+            {
+                const Float4x4 world = scene.GetWorldMatrix(e);
+                const Float3 p{world.m[3][0], world.m[3][1], world.m[3][2]};
+                const f32 s = 0.25f;
+                const Color color = selected ? Color{1.0f, 0.85f, 0.25f, 1.0f} : Color{0.75f, 0.75f, 0.80f, 1.0f};
+                dd.DrawLine(p - Float3{s, 0, 0}, p + Float3{s, 0, 0}, color);
+                dd.DrawLine(p - Float3{0, s, 0}, p + Float3{0, s, 0}, color);
+                dd.DrawLine(p - Float3{0, 0, s}, p + Float3{0, 0, s}, color);
+                if (!selected)
+                    return;
+                AABB bounds;
+                if (foundation::scene::EntityWorldBounds(scene, e, bounds))
                 {
-                    const Float4x4 world = scene.GetWorldMatrix(e);
-                    const Float3 p{world.m[3][0], world.m[3][1], world.m[3][2]};
-                    const bool selected = selection.Contains(scene.GetEntityId(e));
-                    if (!selected && !settings.showMarkers)
-                        return; // the "Markers" toggle: unselected origins draw nothing
-                    const f32 s = 0.25f;
-                    const Color color = selected ? Color{1.0f, 0.85f, 0.25f, 1.0f} : Color{0.75f, 0.75f, 0.80f, 1.0f};
-                    dd.DrawLine(p - Float3{s, 0, 0}, p + Float3{s, 0, 0}, color);
-                    dd.DrawLine(p - Float3{0, s, 0}, p + Float3{0, s, 0}, color);
-                    dd.DrawLine(p - Float3{0, 0, s}, p + Float3{0, 0, s}, color);
-                    if (!selected)
-                        return;
-                    AABB bounds;
-                    if (foundation::scene::EntityWorldBounds(scene, e, bounds))
-                    {
-                        dd.DrawWireBoxCenter(bounds.Center(), bounds.Extents(), color);
-                        return;
-                    }
-                    dd.DrawWireBoxCenter(p, Float3{0.35f, 0.35f, 0.35f}, color);
-                });
+                    dd.DrawWireBoxCenter(bounds.Center(), bounds.Extents(), color);
+                    return;
+                }
+                dd.DrawWireBoxCenter(p, Float3{0.35f, 0.35f, 0.35f}, color);
+            };
+            if (!settings.showMarkers)
+            {
+                // The "Markers" toggle off: only the selection's, without visiting every entity.
+                for (const Guid& id : selection.Items())
+                {
+                    const foundation::scene::EntityHandle e = scene.FindEntity(id);
+                    if (e.IsAssigned())
+                        mark(e, true);
+                }
+                return;
+            }
+            HashSet<Guid> selected; // a large scene's whole selection, asked of every entity
+            for (const Guid& id : selection.Items())
+                selected.Insert(id);
+            scene.ForEachEntity([&](foundation::scene::EntityHandle e) { mark(e, selected.Contains(scene.GetEntityId(e))); });
         }
 
         void DrawGizmos(foundation::render::debug::DebugDraw& dd, const SceneOverlayFrame& frame) const
@@ -210,10 +221,7 @@ export namespace editor
             ctx.viewCamera = &gizmoCamera;
             ctx.lodOverlay = settings.showLodOverlay;
             ctx.showColliders = settings.showColliders;
-            Selection<Guid>& selection = *frame.selection;
-            foundation::scene::Scene& scene = *frame.scene;
-            scene.ForEachEntity([&](foundation::scene::EntityHandle e)
-                                { frame.componentGizmos->DrawEntity(e, selection.Contains(scene.GetEntityId(e)), ctx); });
+            frame.componentGizmos->DrawScene(*frame.scene, frame.selection->Items(), ctx);
         }
     };
 }

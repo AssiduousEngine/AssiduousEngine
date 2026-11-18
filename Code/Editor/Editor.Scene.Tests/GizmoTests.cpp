@@ -678,6 +678,68 @@ TEST_CASE("component-gizmo: an inactive entity's collider draws dimmed gray, not
     CHECK(((active & 0xFFu) != ((active >> 8) & 0xFFu))); // green: R != G
 }
 
+// DrawScene, what the viewport draws a scene's gizmos with: the selection's every gizmo, and the
+// rest's only from the renderers that draw unselected and are on, each over its own component's
+// owners. A renderer whose toggle is off is never asked, which is what keeps a scene of forty
+// thousand meshes from paying for gizmos it does not draw.
+TEST_CASE("component-gizmo: DrawScene draws each collider once, and none with Show Colliders off")
+{
+    foundation::scene::Scene scene{DefaultAllocator()};
+    auto* bodies = scene.AddSystem<engine::physics::RigidBodyComponentManager>();
+    Array<foundation::scene::EntityHandle> boxes;
+    for (int i = 0; i < 3; ++i)
+    {
+        const auto e = scene.CreateEntity(u8"Box");
+        engine::physics::RigidBodyComponent& body = bodies->Add(e);
+        body.shape = foundation::physics::ShapeKind::Box;
+        boxes.PushBack(e);
+    }
+    for (int i = 0; i < 50; ++i)
+    {
+        (void)scene.CreateEntity(u8"Empty"); // entities with nothing to draw
+    }
+    GizmoRendererRegistry registry;
+    RegisterBuiltinGizmoRenderers(registry);
+    GizmoContext ctx;
+    ctx.showColliders = true;
+
+    // One box's wireframe, as the selection path draws it.
+    foundation::render::debug::DebugDraw one;
+    ctx.scene = &scene;
+    ctx.debug = &one;
+    registry.DrawEntity(boxes[0], /*selected*/ true, ctx);
+    const usize perBox = one.LineVertices().Size();
+    REQUIRE(perBox > 0);
+
+    // Nothing selected: every box from the unselected pass.
+    foundation::render::debug::DebugDraw all;
+    ctx.debug = &all;
+    registry.DrawScene(scene, Span<const Guid>{}, ctx);
+    CHECK(all.LineVertices().Size() == 3 * perBox);
+
+    // One selected: drawn by the selection's pass and passed by in the other, so still once each.
+    const Guid chosen[] = {scene.GetEntityId(boxes[1])};
+    foundation::render::debug::DebugDraw withSelection;
+    ctx.debug = &withSelection;
+    registry.DrawScene(scene, Span<const Guid>{chosen, 1}, ctx);
+    CHECK(withSelection.LineVertices().Size() == 3 * perBox);
+
+    // An inactive one still draws (dimmed): the pass sets entityEffectivelyActive per owner.
+    scene.SetActive(boxes[2], false);
+    foundation::render::debug::DebugDraw dimmed;
+    ctx.debug = &dimmed;
+    registry.DrawScene(scene, Span<const Guid>{}, ctx);
+    CHECK(dimmed.LineVertices().Size() == 3 * perBox);
+    scene.SetActive(boxes[2], true);
+
+    // Show Colliders off: nothing, selected or not.
+    ctx.showColliders = false;
+    foundation::render::debug::DebugDraw none;
+    ctx.debug = &none;
+    registry.DrawScene(scene, Span<const Guid>{chosen, 1}, ctx);
+    CHECK_FALSE(none.HasAnyDraws());
+}
+
 // The capsule gizmo draws as a capsule (two cap spheres and four side lines), not as a sphere
 // inside a bounding box.
 TEST_CASE("component-gizmo: the capsule collider draws cap spheres + side lines, not a box")

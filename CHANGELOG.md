@@ -64,6 +64,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   the scene's edge no longer pays for the whole scene's shadows (a 40,000-mesh forest seen against
   the sky went from about 215 ms of shadow drawing a frame to 2 ms). What the shadows look like is
   unchanged.
+- Editor: a scene view's gizmos cost what they draw. Every frame asked every entity about every
+  component type, so a scene of 40,000 meshes spent about 29 ms a frame drawing nothing; with Show
+  Colliders, the LOD overlay and Entity Markers off it now costs well under a millisecond. The
+  Profiler shows each part of a scene page's update (`ScenePage.*`).
 - Export: a preset says its kind. A template export copies the template's player; a native export
   builds the game's own player from the engine checkout with its packages. A template export of a
   project that needs its own player is refused and says to make the preset native, where it used to

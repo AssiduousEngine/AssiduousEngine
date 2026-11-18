@@ -63,6 +63,9 @@ export namespace editor
         virtual void Draw(const Instance& component, scene::EntityHandle owner,
                           GizmoContext& ctx) = 0;
         [[nodiscard]] virtual bool DrawWhenUnselected() const { return false; }
+        // Whether it draws anything at all this frame: off, it is not asked for a single component
+        // (a toggle-driven overlay with its toggle off). The default is always on.
+        [[nodiscard]] virtual bool IsOn(const GizmoContext& /*ctx*/) const { return true; }
     };
 
     class GizmoRendererRegistry
@@ -75,6 +78,12 @@ export namespace editor
         /// Draw gizmos for `entity`'s components; when `selected` is false only renderers with
         /// DrawWhenUnselected participate.
         void DrawEntity(scene::EntityHandle entity, bool selected, GizmoContext& ctx) const;
+
+        /// Draw a scene's gizmos: every component's of the `selected` entities (by id), then, for
+        /// the rest, each renderer that draws unselected and is on, over its own component's
+        /// owners only. What it costs follows what is drawn, not every entity times every
+        /// component type: a scene of forty thousand meshes with no overlay on costs nothing.
+        void DrawScene(scene::Scene& scene, Span<const Guid> selected, GizmoContext& ctx) const;
 
         [[nodiscard]] usize Count() const noexcept { return m_renderers.Size(); }
 
@@ -165,6 +174,7 @@ export namespace editor
         [[nodiscard]] const TypeInfo* ComponentType() const override;
         void Draw(const Instance& component, scene::EntityHandle owner, GizmoContext& ctx) override;
         [[nodiscard]] bool DrawWhenUnselected() const override { return true; }
+        [[nodiscard]] bool IsOn(const GizmoContext& ctx) const override { return ctx.lodOverlay && ctx.viewCamera != nullptr; }
     };
 
     /// Edit-time physics collider wireframe, drawn from the RigidBodyComponent's shape and the
@@ -177,6 +187,7 @@ export namespace editor
         [[nodiscard]] const TypeInfo* ComponentType() const override;
         void Draw(const Instance& component, scene::EntityHandle owner, GizmoContext& ctx) override;
         [[nodiscard]] bool DrawWhenUnselected() const override { return true; }
+        [[nodiscard]] bool IsOn(const GizmoContext& ctx) const override { return ctx.showColliders; }
     };
 
     /// Edit-time compound-child collider wireframe (ColliderComponent). The runtime folds every
@@ -190,6 +201,7 @@ export namespace editor
         [[nodiscard]] const TypeInfo* ComponentType() const override;
         void Draw(const Instance& component, scene::EntityHandle owner, GizmoContext& ctx) override;
         [[nodiscard]] bool DrawWhenUnselected() const override { return true; }
+        [[nodiscard]] bool IsOn(const GizmoContext& ctx) const override { return ctx.showColliders; }
     };
 
     /// Edit-time character-controller capsule (CharacterComponent), from radius and halfHeight and
@@ -201,6 +213,7 @@ export namespace editor
         [[nodiscard]] const TypeInfo* ComponentType() const override;
         void Draw(const Instance& component, scene::EntityHandle owner, GizmoContext& ctx) override;
         [[nodiscard]] bool DrawWhenUnselected() const override { return true; }
+        [[nodiscard]] bool IsOn(const GizmoContext& ctx) const override { return ctx.showColliders; }
     };
 
     /// Edit-time joint constraint gizmo (JointComponent): the anchor cross, a link line to the
@@ -212,6 +225,7 @@ export namespace editor
         [[nodiscard]] const TypeInfo* ComponentType() const override;
         void Draw(const Instance& component, scene::EntityHandle owner, GizmoContext& ctx) override;
         [[nodiscard]] bool DrawWhenUnselected() const override { return true; }
+        [[nodiscard]] bool IsOn(const GizmoContext& ctx) const override { return ctx.showColliders; }
     };
 
     /// The authored spline curve and its control points, drawn whenever the owning entity is

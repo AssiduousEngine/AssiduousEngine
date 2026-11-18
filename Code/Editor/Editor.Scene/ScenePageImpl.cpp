@@ -6,10 +6,12 @@
 module;
 #include "Core/Prelude.h"
 #include "Core/Log/Log.h"
+#include "Profiler/Profiler.h" // PROFILE_SCOPE (compiles to nothing when disabled)
 
 module editor.scene;
 
 import foundation.core;
+import foundation.profiler;
 import foundation.content;
 import foundation.shell;
 import foundation.graphics;
@@ -506,6 +508,7 @@ namespace editor
 
         if (m_animation && m_animationShown)
             m_animation->Update(dt, m_simulation.IsRunning());
+        PROFILE_SCOPE("ScenePage.Update"); // the steps below each have their own: a large scene shows which costs
         m_viewport->AdvanceScripted(dt); // a playtest's frame (viewport_run), before the view's input is read
         // A modal tool (a brush) owns Shift and the wheel to size itself, so the camera leaves that
         // wheel to it; the bare wheel stays the camera's under a brush too.
@@ -515,11 +518,17 @@ namespace editor
         if (active && m_viewport->ZoomedThisFrame() && m_hud)
             m_hud->Zoomed();
         if (m_editContext)
+        {
+            PROFILE_SCOPE("ScenePage.Tools");
             UpdateTools(active, dt);
+        }
         // The page's run: its scripts' clock, and its bus drained once a frame (events a Simulate
         // tick emitted last frame arrive now).
-        m_simulation.Run().Scripts().Advance(dt);
-        m_simulation.Run().DrainEvents();
+        {
+            PROFILE_SCOPE("ScenePage.Run");
+            m_simulation.Run().Scripts().Advance(dt);
+            m_simulation.Run().DrainEvents();
+        }
         // Clicking into a simulating viewport makes its run the one heard, as with a Game tab.
         if (m_simulation.IsRunning() && m_services.runs != nullptr && m_viewport->IsFocused() &&
             m_services.runs->Focused() != &m_simulation.Run())
@@ -529,6 +538,7 @@ namespace editor
         // drawn again every frame); none on the frame a project picture is captured.
         if (foundation::render::debug::DebugDraw* dd = m_viewport->Overlay(); dd != nullptr && m_scene != nullptr && !m_viewport->CleanCaptureFrame())
         {
+            PROFILE_SCOPE("ScenePage.Overlays");
             SceneOverlayFrame frame;
             frame.scene = m_scene;
             frame.selection = m_editContext ? &m_editContext->EntitySelection() : nullptr;
@@ -542,20 +552,38 @@ namespace editor
             m_overlays.Draw(*dd, frame);
         }
         if (m_tools)
+        {
+            PROFILE_SCOPE("ScenePage.ToolsSync");
             m_tools->Sync();
+        }
         if (m_hud)
+        {
+            PROFILE_SCOPE("ScenePage.Hud");
             m_hud->Update(dt, m_viewport->View().RenderHeight());
+        }
         if (m_cameraPreview)
+        {
+            PROFILE_SCOPE("ScenePage.CameraPreview");
             m_cameraPreview->Update();
+        }
         if (m_hierarchy)
+        {
+            PROFILE_SCOPE("ScenePage.Hierarchy");
             m_hierarchy->Refresh(); // rebuilt when the scene changed
+        }
         if (m_inspector)
+        {
+            PROFILE_SCOPE("ScenePage.Inspector");
             m_inspector->Refresh(); // rebuilt when the selection or its components changed, else its values refresh
+        }
         // A move snapping by the grid's cell takes the cell where the camera is now.
         if (GizmoController* gizmos = Gizmos(); gizmos != nullptr && gizmos->MoveSnapsToGrid())
             gizmos->Gizmo().translateSnap = m_overlays.CurrentGridSpacing(m_viewport->Camera()).spacing;
         if (m_bar)
+        {
+            PROFILE_SCOPE("ScenePage.Bar");
             m_bar->Sync();
+        }
     }
 
     void SceneEditorPage::UpdateTools(bool viewportActive, f32 deltaSeconds)
