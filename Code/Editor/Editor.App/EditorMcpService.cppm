@@ -71,6 +71,9 @@ export namespace editor::app
             u32 port = 0;
             /// Set from the command line (--mcp-allow-path): folders the tools reach for this run only.
             Array<String> allowedFolders;
+            /// Asks the user about the project's MCP folders they have not answered (the host starting
+            /// over a project); RecordProjectFolders takes the answer. Null: nobody is asked.
+            Function<void(editor::EditorProject&, Array<String>)> askProjectFolders;
             /// The templates' folder the export operations use (read on the main thread).
             Function<String()> templatesRoot;
             /// What an agent's create, delete and import do beyond the store (updating the assets list).
@@ -306,6 +309,37 @@ export namespace editor::app
         /// The session the host's tools work over: the project, its plugins, their hooks.
         [[nodiscard]] const editor::mcp::ProjectSession& Session() const noexcept { return m_session; }
 
+        /// Records the user's answer on `folders` of `project` (yes lets the tools reach them, no
+        /// keeps them out; either is not asked again) in <user-data>/mcp-folders.xml, and applies it
+        /// to the running host. False when the answers could not be saved.
+        bool RecordProjectFolders(editor::EditorProject& project, Span<const String> folders, bool allowed)
+        {
+            foundation::vfs::NativeFileSystem root(UserData().AsView(), m_allocator);
+            foundation::settings::Settings store(m_allocator);
+            if (!editor::LoadMcpFolderAnswers(root, store).IsOk())
+            {
+                LOG_WARNING(u8"Editor", u8"MCP: {} does not read; the answer is not saved", editor::kMcpFoldersFile);
+                return false;
+            }
+            const String projectPath = PathNormalizeLexically(PathAbsolute(project.Directory()).AsView());
+            editor::McpFolderAnswers& answers = store.Section<editor::McpFolderAnswers>();
+            for (const String& folder : folders)
+                answers.Record(projectPath.AsView(), folder.AsView(), allowed);
+            if (!editor::SaveMcpFolderAnswers(root, store).IsOk())
+            {
+                LOG_WARNING(u8"Editor", u8"MCP: could not save {}", editor::kMcpFoldersFile);
+                return false;
+            }
+            if (m_host && m_session.project == &project)
+            {
+                const editor::McpFolderStanding standing =
+                    editor::StandMcpFolders(answers, project.Directory(), project.Settings());
+                m_host->Server().Paths().SetProject(
+                    project.Directory(), Span<const String>(standing.approved.Data(), standing.approved.Size()));
+            }
+            return true;
+        }
+
         /// The project's plugin host, which the session's plugin tools report and edit (null: none).
         void SetPlugins(foundation::runtime::PluginHost* plugins) noexcept { m_session.plugins = plugins; }
 
@@ -361,10 +395,12 @@ export namespace editor::app
                 allowed.SetProject(StringView{});
                 return;
             }
-            const editor::McpFolderStanding folders =
+            editor::McpFolderStanding folders =
                 editor::StandMcpFolders(UserData().AsView(), project->Directory(), project->Settings());
             allowed.SetProject(project->Directory(),
                                Span<const String>(folders.approved.Data(), folders.approved.Size()));
+            if (!folders.unanswered.IsEmpty() && m_services.askProjectFolders)
+                m_services.askProjectFolders(*project, Move(folders.unanswered));
         }
 
         [[nodiscard]] String UserData() const

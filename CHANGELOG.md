@@ -9,6 +9,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Added
 
+- Projects: `mcpFolders` lists folders outside the project that its MCP tools work in, such as a
+  game's sources beside it. The editor asks once per project and folder whether agents may reach
+  them and remembers the answer on this computer; `Tools.Mcp` reaches only folders approved there.
 - Editor: `--mcp-allow-path <dir>`, repeatable, lets the MCP tools reach a folder outside the
   project for that run, as `Tools.Mcp --allow-path` does, without adding it to Preferences.
 - Scripting: `Math::MinInt`, `MaxInt` and `ClampInt` (`Math.MinInt` and so on in Luau) take and

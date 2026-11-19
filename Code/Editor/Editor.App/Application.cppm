@@ -242,6 +242,7 @@ export namespace editor::app
         [[nodiscard]] Function<String(StringView)> ReleaseFiles();
         void OpenFromManager(StringView directory);
         void CreateFromManager(StringView directory, StringView name);
+        void AskMcpFolders(editor::EditorProject& project, const Array<String>& folders);
         bool OpenProject(StringView directory, bool seed);
         void CloseProjectToManager();
         void Later(Function<void()> work);

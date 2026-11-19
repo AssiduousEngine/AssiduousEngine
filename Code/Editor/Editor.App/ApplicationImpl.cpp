@@ -319,6 +319,10 @@ namespace editor::app
         mcp.forceEnabled = m_config.mcpEnabled;
         mcp.port = m_config.mcpPort;
         mcp.allowedFolders = m_config.mcpAllowedFolders;
+        // A project listing folders outside it for its tools: the user says once, per project and
+        // folder, whether an agent may reach them; until then it may not.
+        mcp.askProjectFolders = [self](editor::EditorProject& project, Array<String> folders)
+        { self->Later([self, project = &project, folders = Move(folders)]() { self->AskMcpFolders(*project, folders); }); };
         mcp.templatesRoot = [self]() { return self->m_export->TemplatesRoot(); };
         mcp.deleteAsset = [self](const Guid& id) { return self->m_assetOps->DeleteOne(id); }; // the browser's own delete
         mcp.created = [self](const pipeline::AssetCreator& creator, foundation::content::Instance& instance)
@@ -1132,6 +1136,42 @@ namespace editor::app
                                                         // once; one from a newer engine (Open Anyway) keeps its stamp.
                                                         if (self->OpenProject(path.AsView(), false) && restamp && self->m_session.Project() != nullptr)
                                                             (void)self->m_session.Project()->SaveSettings();
+                                                    });
+                                    });
+        box->OpenModal(*root);
+    }
+
+    // The open project lists folders outside it for its MCP tools that the user has not answered:
+    // asked once, per project and folder. Don't Allow is the default and is remembered too.
+    void EditorApplication::AskMcpFolders(editor::EditorProject& project, const Array<String>& folders)
+    {
+        gui::SceneRoot* root = m_window.Root();
+        if (root == nullptr || m_session.Project() != &project || !m_mcp)
+            return;
+        String body(u8"This project lets the MCP tools, the agents you connect, read and write these folders "
+                    u8"outside it:\n");
+        for (const String& folder : folders)
+            body.Append(Format(u8"\n    {}", folder).AsView());
+        body.Append(StringView(u8"\n\nAllow them? The answer is kept for this project on this computer."));
+        auto box = MakeRef<gui::MessageBox>(m_editorAllocator);
+        box->Configure(u8"Folders outside the project", body.AsView(), gui::MessageBox::Buttons::Ok);
+        box->ClearButtons();
+        (void)box->AddButton(u8"Don't Allow", u8"deny", gui::DialogRole::Cancel);
+        (void)box->AddButton(u8"Allow", u8"allow", gui::DialogRole::Primary);
+        EditorApplication* self = this;
+        gui::MessageBox* raw = box.Get();
+        editor::EditorProject* asked = &project;
+        Array<String> listed(folders);
+        (void)box->AddEventListener(gui::EventType::Changed, [self, raw, asked, listed](const gui::Event&)
+                                    {
+                                        const bool allowed = raw->GetResultName() == StringView(u8"allow");
+                                        self->Later([self, asked, listed, allowed]()
+                                                    {
+                                                        // Closed or switched while it was asked: it asks again next time.
+                                                        if (self->m_session.Project() != asked || !self->m_mcp)
+                                                            return;
+                                                        (void)self->m_mcp->RecordProjectFolders(
+                                                            *asked, Span<const String>(listed.Data(), listed.Size()), allowed);
                                                     });
                                     });
         box->OpenModal(*root);

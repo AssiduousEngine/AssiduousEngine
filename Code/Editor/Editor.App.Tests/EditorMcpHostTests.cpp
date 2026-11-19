@@ -416,7 +416,7 @@ TEST_CASE("editor-mcp-host: with no project the host serves the manager; the eng
 
 // A project lists the folders outside it its tools work in; the editor's host reaches those the
 // user approved for it, and not one the user refused or has not answered.
-TEST_CASE("editor-mcp-host: over a project, the tools reach the MCP folders the user approved for it")
+TEST_CASE("editor-mcp-host: over a project, the tools reach the MCP folders the user approved; the rest are asked once")
 {
     const String userData = PathJoin(GetCurrentDirectory().AsView(), u8"mcp_folders_userdata");
     (void)RemoveDirectoryRecursive(userData.AsView());
@@ -450,12 +450,29 @@ TEST_CASE("editor-mcp-host: over a project, the tools reach the MCP folders the 
     services.log = &logBuffer;
     services.forceEnabled = true;
     services.userDataDirectory = userData;
+    Array<String> asked;
+    u32 asks = 0;
+    services.askProjectFolders = [&](EditorProject&, Array<String> folders)
+    {
+        ++asks;
+        asked = Move(folders);
+    };
     app::EditorMcpService service(DefaultAllocator(), Move(services));
     REQUIRE(service.Start(*project));
     const foundation::mcp::McpPathPolicy& paths = service.Host()->Server().Paths();
     CHECK(paths.Check(PathJoin(listed[0].AsView(), u8"generated/Hud.xml").AsView()).HasValue());
     CHECK_FALSE(paths.Check(PathJoin(listed[1].AsView(), u8"Rock.glb").AsView()).HasValue());
 
+    // The user is asked about the one not yet answered; yes reaches it at once and is kept.
+    CHECK(asks == 1u);
+    REQUIRE(asked.Size() == 1u);
+    CHECK(asked[0] == listed[1]);
+    REQUIRE(service.RecordProjectFolders(*project, Span<const String>(asked.Data(), asked.Size()), true));
+    CHECK(service.Host()->Server().Paths().Check(PathJoin(listed[1].AsView(), u8"Rock.glb").AsView()).HasValue());
+    service.Stop();
+    REQUIRE(service.Start(*project)); // answered: not asked again, and both reached
+    CHECK(asks == 1u);
+    CHECK(service.Host()->Server().Paths().Check(PathJoin(listed[1].AsView(), u8"Rock.glb").AsView()).HasValue());
     service.Stop();
     project.Reset();
     (void)RemoveDirectoryRecursive(u8"mcp_folders_project");
