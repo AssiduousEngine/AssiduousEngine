@@ -37,6 +37,19 @@ export namespace editor
         bool userMay = false;
     };
 
+    /// Whether `pathInCode`, a path inside the Code folder ("engine.d.luau", ".vscode/settings.json"),
+    /// is a file this tooling writes for an outside editor: a language's declarations or a VS Code
+    /// file. Such a file is not code of the project's, however its extension reads.
+    [[nodiscard]] inline bool IsCodeToolingFile(StringView pathInCode)
+    {
+        if (pathInCode == StringView(u8".vscode/extensions.json") || pathInCode == StringView(u8".vscode/settings.json"))
+            return true;
+        for (const foundation::script::ScriptBackendDesc& backend : foundation::script::ScriptBackendRegistry::Get().All())
+            if (!backend.declarationsFile.IsEmpty() && pathInCode == backend.declarationsFile.AsView())
+                return true;
+        return false;
+    }
+
     /// The tooling files for the registered script languages: each one's declarations, and with
     /// `vscode` the two VS Code files. A language without a cook or declarations adds none.
     [[nodiscard]] inline Array<CodeToolingFile> CodeToolingFiles(bool vscode)

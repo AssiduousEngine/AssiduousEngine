@@ -255,6 +255,10 @@ namespace editor
             StringView rest;
             if (!foundation::vfs::AfterFolder(path.AsView(), code, rest) || rest.IsEmpty())
                 continue;
+            // The editor writes an outside editor's files here (the declarations, engine.d.luau
+            // among them, whose extension a script importer takes): they are not the project's code.
+            if (IsCodeToolingFile(rest))
+                continue;
             const String onDisk = SourceFile(path.AsView());
             if (!FileExists(onDisk.AsView()))
                 continue; // removed: its asset, if any, finds its file missing

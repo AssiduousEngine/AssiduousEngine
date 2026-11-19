@@ -23,6 +23,9 @@ import pipeline.importer; // ImporterRegistry (new code found under Code/)
 #ifdef OPTION_HAS_ANGELSCRIPT
 import foundation.script.angelscript; // a code language's backend for the adoption test
 #endif
+#ifdef OPTION_HAS_LUAU
+import foundation.script.luau; // a language whose declarations file has a script's extension
+#endif
 import editor.core;
 
 using namespace foundation::core;
@@ -1491,6 +1494,43 @@ TEST_CASE("editor-project: new code under Code becomes an asset where it lies")
     CHECK_FALSE(FileExists(project->SourceFile(u8"Code/Enemies/Boss.2.as").AsView())); // no copy beside it
     // Reported again: it is an asset's now.
     CHECK(project->AdoptNewCode(Span<const String>{changed, 4}, importers) == 0u);
+    project.Reset();
+    (void)RemoveDirectoryRecursive(dir);
+}
+#endif
+
+#ifdef OPTION_HAS_LUAU
+// The editor writes an outside editor's files into Code/ as a project opens: each language's
+// declarations (Luau's engine.d.luau, whose extension the script importer takes) and the VS Code
+// ones. They are not the project's code: the scan that adopts new code passes them by, and the
+// script beside them is adopted as before. The declarations used to become an asset that failed
+// its cook.
+TEST_CASE("editor-project: the files written for an outside editor are not adopted as code")
+{
+    foundation::script::RegisterLuauScriptBackend();
+    pipeline::RegisterScriptAssets();
+    const StringView dir = u8"scratch_editor_adopt_tooling";
+    (void)RemoveDirectoryRecursive(dir);
+    REQUIRE(EditorProject::Create(DefaultAllocator(), dir, u8"P").IsOk());
+    UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir);
+    REQUIRE(static_cast<bool>(project));
+    pipeline::ImporterRegistry importers(DefaultAllocator());
+    (void)importers.Register(MakeUnique<pipeline::ScriptFileImporter>(DefaultAllocator()));
+    const auto write = [&project](StringView path, StringView text)
+    {
+        const String full = project->SourceFile(path);
+        REQUIRE(CreateDirectories(PathParent(full.AsView())));
+        REQUIRE(WriteFile(full.AsView(), Span<const byte>(reinterpret_cast<const byte*>(text.Data()), text.Size())).IsOk());
+    };
+    CHECK(IsCodeToolingFile(u8"engine.d.luau"));
+    CHECK(IsCodeToolingFile(u8".vscode/settings.json"));
+    CHECK_FALSE(IsCodeToolingFile(u8"Wolf.luau"));
+    write(u8"Code/engine.d.luau", u8"declare class Entity end\n");
+    write(u8"Code/Wolf.luau", u8"Wolf = EntityBehavior.class()\nfunction Wolf.new(entity) return setmetatable({}, Wolf) end\n");
+    const String changed[] = {String(u8"Code/engine.d.luau"), String(u8"Code/Wolf.luau")};
+    CHECK(project->AdoptNewCode(Span<const String>{changed, 2}, importers) == 1u);
+    CHECK(project->SourceDb().RootGroup()->GetInstance(u8"Wolf") != nullptr);
+    CHECK(project->SourceDb().RootGroup()->GetInstance(u8"engine.d") == nullptr);
     project.Reset();
     (void)RemoveDirectoryRecursive(dir);
 }

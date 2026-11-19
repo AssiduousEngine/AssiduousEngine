@@ -45,6 +45,9 @@ namespace core = foundation::core;
 
 namespace foundation::script::angelscript
 {
+    // The declarations file an outside editor reads in a project's Code folder (Declarations).
+    inline constexpr core::StringView kAngelScriptDeclarationsFile = u8"as.predefined";
+
     inline const char* CStr(const core::String& s) noexcept
     {
         return reinterpret_cast<const char*>(s.CStr());
@@ -1081,7 +1084,7 @@ namespace foundation::script::angelscript
         [[nodiscard]] ScriptDeclarations Declarations() const override
         {
             ScriptDeclarations out;
-            out.fileName = core::String(u8"as.predefined");
+            out.fileName = core::String(kAngelScriptDeclarationsFile);
             if (m_engine == nullptr)
             {
                 return out;
@@ -6033,6 +6036,7 @@ namespace foundation::script::angelscript
         desc.displayName = core::String(u8"AngelScript");
         desc.fileExtensions.PushBack(core::String(u8"as"));
         desc.vscodeExtension = core::String(u8"sashi0034.angel-lsp"); // reads as.predefined beside the scripts
+        desc.declarationsFile = core::String(kAngelScriptDeclarationsFile);
         desc.create = [](core::IAllocator& allocator)
         { return CreateScriptManager(allocator); };
         ScriptBackendRegistry::Get().Register(core::Move(desc));

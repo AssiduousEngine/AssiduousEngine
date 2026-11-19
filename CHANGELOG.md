@@ -112,6 +112,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Editor: opening a project with code no longer adds a failing `engine.d` script. The Luau
+  declarations the editor writes into `Code/` for an outside editor were taken for a script.
 - Editor: dragging entities in the scene hierarchy moves them again: onto a row puts them under it,
   at a row's edge before or after it, onto the scene's row makes them roots.
 - A masked material's shadow, and its pick in the editor, cut out at the material's own Alpha

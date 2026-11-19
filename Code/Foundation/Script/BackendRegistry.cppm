@@ -36,6 +36,10 @@ export namespace foundation::script
         };
         String vscodeExtension;
         Array<EditorSetting> vscodeSettings;
+        // The file name its declarations take in a project's Code folder (IScriptManager::
+        // Declarations), so the editor knows that file for tooling and never imports it as a
+        // script. Empty: it writes none.
+        String declarationsFile;
         // The allocator becomes the manager's own (MakeRef records it; everything
         // the manager creates inherits via MemoryAllocator()).
         Function<RefPtr<IScriptManager>(IAllocator&)> create;

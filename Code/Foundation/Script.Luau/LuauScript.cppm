@@ -33,6 +33,9 @@ using namespace foundation::core;
 
 namespace foundation::script
 {
+    // The declarations file an outside editor reads in a project's Code folder (Declarations).
+    inline constexpr core::StringView kLuauDeclarationsFile = u8"engine.d.luau";
+
     class LuauScriptManager;
     class LuauScriptContext;
     class LuauDebugger;
@@ -3957,7 +3960,9 @@ export namespace foundation::script
         // luau-lsp reads the declarations from its settings; the engine is no Roblox place, so its
         // platform is the standard library and it looks for no Rojo sourcemap.
         desc.vscodeExtension = core::String(u8"JohnnyMorganz.luau-lsp");
-        desc.vscodeSettings.PushBack({core::String(u8"luau-lsp.types.definitionFiles"), core::String(u8"{ \"@engine\": \"engine.d.luau\" }")});
+        desc.declarationsFile = core::String(kLuauDeclarationsFile);
+        desc.vscodeSettings.PushBack({core::String(u8"luau-lsp.types.definitionFiles"),
+                                      core::Format(u8"{{ \"@engine\": \"{}\" }}", kLuauDeclarationsFile)});
         desc.vscodeSettings.PushBack({core::String(u8"luau-lsp.platform.type"), core::String(u8"\"standard\"")});
         desc.vscodeSettings.PushBack({core::String(u8"luau-lsp.sourcemap.enabled"), core::String(u8"false")});
         desc.create = [](core::IAllocator& allocator)
@@ -4145,7 +4150,7 @@ namespace foundation::script
     ScriptDeclarations LuauScriptManager::Declarations() const
     {
         ScriptDeclarations out;
-        out.fileName = core::String(u8"engine.d.luau");
+        out.fileName = core::String(kLuauDeclarationsFile);
         out.text = EmitLuauDeclarations(core::Span<const core::TypeInfo* const>{m_types.Data(), m_types.Size()});
         return out;
     }
