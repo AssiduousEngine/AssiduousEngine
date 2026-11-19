@@ -334,6 +334,7 @@ namespace editor::app
         };
         mcp.openPage = [self](const Guid& id) -> editor::EditorPage* { return self->m_pages->Open(id); };
         mcp.closePage = [self](editor::EditorPage* page) { self->m_pages->Close(page); };
+        mcp.openCode = [self](StringView file, u32 line, u32 column) { return self->m_codeOpener && self->m_codeOpener->Open(file, line, column); };
         mcp.windows.windows = [self]() { return self->CapturableWindows(); };
         mcp.windows.request = [self](Span<const WindowShotRequest> requests) { self->m_windowCapture.Request(requests); };
         mcp.windows.shots = [self]() { return self->m_windowCapture.Shots(); };

@@ -55,8 +55,8 @@ gives the wiring line with the token), or for one run: `Tools.Editor <project> -
   `newInstance`, then `panel_dock {panel: "game-page-1", position: "right", relativeTo:
   "game-page"}`; `pie_resolution` sets each tab's resolution dropdown (`1280x720`, a label or a
   key) and Phone toggle.
-- The page tools (`page_list` / `page_open` / `page_reload` / `page_close`) are the editor
-  host's alone, and so are the scene page's live tools (`selection_get` / `selection_set` /
+- The page tools (`page_list` / `page_open` / `page_reload` / `page_close`, and `code_open`,
+  which opens code where the user's Code Editor preference says) are the editor host's alone, and so are the scene page's live tools (`selection_get` / `selection_set` /
   `simulate_start` / `simulate_stop` / `entity_inspect`, each addressed by the page's asset
   guid). `entity_inspect` is the inspector's view of one entity: its hierarchy, transform and
   every component's reflected properties (asset references as guids, enums by name), the

@@ -243,3 +243,85 @@ TEST_CASE("page-tools: list, open, focus, the dirty refusals of reload and close
     project = nullptr;
     (void)RemoveDirectoryRecursive(u8"mcp_page_tools_project");
 }
+
+TEST_CASE("page-tools: code_open hands a code asset, a Code/ file or the Code folder to the code "
+          "opener at the line asked, and refuses what is not the project's code")
+{
+    (void)RemoveDirectoryRecursive(u8"mcp_code_open_project");
+    REQUIRE(EditorProject::Create(DefaultAllocator(), u8"mcp_code_open_project", u8"Code").IsOk());
+    UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), u8"mcp_code_open_project");
+    REQUIRE(project);
+    GlobalTypeRegistry().Register(PagedAsset::StaticType());
+    content::Instance* script = project->SourceDb().RootGroup()->CreateInstance(u8"Player", PagedAsset::StaticType());
+    content::Instance* level = project->SourceDb().RootGroup()->CreateInstance(u8"Level", PagedAsset::StaticType());
+    REQUIRE(script != nullptr);
+    REQUIRE(level != nullptr);
+    script->SetSourceName(u8"Code/Scripts/Player.as");
+    level->SetSourceName(u8"Levels/Level.scene");
+    const String file = project->SourceFile(u8"Code/Scripts/Player.as");
+    REQUIRE(CreateDirectories(PathParent(file.AsView())));
+    REQUIRE(WriteFile(file.AsView(), Span<const byte>(reinterpret_cast<const byte*>("void Main() {}"), 14)).IsOk());
+
+    struct Opened
+    {
+        String file;
+        u32 line = 0;
+        u32 column = 0;
+    };
+    Array<Opened> opened;
+    EditorContext context{DefaultAllocator()};
+    app::PageToolSeams seams;
+    seams.context = &context;
+    seams.openCode = [&](StringView path, u32 line, u32 column)
+    {
+        opened.PushBack(Opened{String(path), line, column});
+        return true;
+    };
+    McpServer server;
+    app::RegisterPageTools(server, Move(seams));
+
+    // With no project in the editor, nothing opens.
+    CHECK_FALSE(Call(server, u8"code_open", u8"{}").ok);
+    context.SetProject(project.Get());
+
+    // A code asset at a line and column: the opener gets its file on disk.
+    Answer answer = Call(server, u8"code_open",
+                         Format(u8"{{\"guid\":\"{}\",\"line\":12,\"column\":3}}", GuidText(script->Id()).AsView()).AsView());
+    REQUIRE(answer.ok);
+    CHECK(answer.payload.Get(u8"file").AsString() == StringView(u8"Code/Scripts/Player.as"));
+    REQUIRE(opened.Size() == 1u);
+    CHECK(opened[0].file == file);
+    CHECK(opened[0].line == 12u);
+    CHECK(opened[0].column == 3u);
+
+    // The same file by its path, at the start.
+    answer = Call(server, u8"code_open", u8"{\"path\":\"Code/Scripts/Player.as\"}");
+    REQUIRE(answer.ok);
+    REQUIRE(opened.Size() == 2u);
+    CHECK(opened[1].file == file);
+    CHECK(opened[1].line == 0u);
+
+    // Neither: the Code folder, as an empty file.
+    answer = Call(server, u8"code_open", u8"{}");
+    REQUIRE(answer.ok);
+    CHECK(answer.payload.Get(u8"file").AsString() == StringView(u8"Code"));
+    REQUIRE(opened.Size() == 3u);
+    CHECK(opened[2].file.IsEmpty());
+
+    // Refused, nothing opened: an asset that is not code, a path out of the Code folder or up
+    // from it, a file not there, an unknown guid, both at once, a negative line.
+    CHECK_FALSE(Call(server, u8"code_open", Format(u8"{{\"guid\":\"{}\"}}", GuidText(level->Id()).AsView()).AsView()).ok);
+    CHECK_FALSE(Call(server, u8"code_open", u8"{\"path\":\"Levels/Level.scene\"}").ok);
+    CHECK_FALSE(Call(server, u8"code_open", u8"{\"path\":\"Code/../project.json\"}").ok);
+    CHECK_FALSE(Call(server, u8"code_open", u8"{\"path\":\"Code/Missing.as\"}").ok);
+    CHECK_FALSE(Call(server, u8"code_open", Format(u8"{{\"guid\":\"{}\"}}", u8"00000000-0000-0000-0000-00000000c0de").AsView()).ok);
+    CHECK_FALSE(Call(server, u8"code_open",
+                     Format(u8"{{\"guid\":\"{}\",\"path\":\"Code/Scripts/Player.as\"}}", GuidText(script->Id()).AsView()).AsView())
+                    .ok);
+    CHECK_FALSE(Call(server, u8"code_open", u8"{\"path\":\"Code/Scripts/Player.as\",\"line\":-1}").ok);
+    CHECK(opened.Size() == 3u);
+
+    context.SetProject(nullptr); // before the project goes
+    project = nullptr;
+    (void)RemoveDirectoryRecursive(u8"mcp_code_open_project");
+}

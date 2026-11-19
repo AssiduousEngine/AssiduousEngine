@@ -4,7 +4,8 @@
 //
 // The MCP tools over the editor's open pages, which only the editor host can serve: page_list,
 // page_open, page_reload and page_close, over the context's page list and the two actions the
-// application owns (opening a source asset's page, closing a page with its panel). Reload and
+// application owns (opening a source asset's page, closing a page with its panel); and code_open,
+// which opens code where the user's Code Editor preference says. Reload and
 // close are refused while the page has unsaved changes unless the agent says so explicitly
 // (`force`, `discard`): a tool never waits for a human, so the destructive decision is an
 // argument, and the refusal tells the agent to ask the user.
@@ -31,11 +32,15 @@ export namespace editor::app
         Function<editor::EditorPage*(const Guid&)> openPage;
         /// Closes a page for good, panel and all.
         Function<void(editor::EditorPage*)> closePage;
+        /// Opens a file on disk at a line and column (1-based; 0 the start) where the Code Editor
+        /// preference says, the project's Code folder when the file is empty. False when nothing
+        /// opened.
+        Function<bool(StringView file, u32 line, u32 column)> openCode;
     };
 
-    /// The number of tools RegisterPageTools registers (page_list, page_open, page_reload and
-    /// page_close); a tripwire like kEngineToolCount.
-    inline constexpr usize kPageToolCount = 4;
+    /// The number of tools RegisterPageTools registers (page_list, page_open, page_reload,
+    /// page_close and code_open); a tripwire like kEngineToolCount.
+    inline constexpr usize kPageToolCount = 5;
 
     void RegisterPageTools(foundation::mcp::McpServer& server, PageToolSeams seams);
 }

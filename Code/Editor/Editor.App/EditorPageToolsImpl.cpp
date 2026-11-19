@@ -9,6 +9,7 @@ module editor.app;
 import foundation.core;
 import foundation.json;
 import foundation.mcp;
+import foundation.vfs;
 import editor.core;
 
 using namespace foundation::core;
@@ -205,6 +206,86 @@ namespace editor::app
                 JsonValue out = JsonValue::MakeObject();
                 out.Set(u8"closed", JsonValue::MakeBool(true));
                 out.Set(u8"guid", args.Get(u8"guid"));
+                return out;
+            });
+
+        server.RegisterTool(
+            u8"code_open",
+            u8"Open code where the user's Code Editor preference says (an outside editor such as VS "
+            u8"Code, or the built-in code page), as the Assets panel's Open does: a code asset by "
+            u8"`guid`, or a file by `path` in the project's Code folder (as `Code/...`), at `line` "
+            u8"and `column` (1-based; omitted: the start). With neither, opens the Code folder. Use "
+            u8"page_open to look at a script's page yourself. Returns {opened, file}.",
+            SchemaBuilder()
+                .Str(u8"guid", u8"a code asset")
+                .Str(u8"path", u8"a file in the project's Code folder, as Code/...")
+                .Integer(u8"line", u8"the line to open at, 1-based")
+                .Integer(u8"column", u8"the column to open at, 1-based")
+                .Build(),
+            ToolAnnotations::Adjusts(),
+            [state](const JsonValue& args) -> ToolResult
+            {
+                editor::EditorContext& context = *state->seams.context;
+                editor::EditorProject* project = context.Project();
+                if (project == nullptr)
+                {
+                    return Err(String(u8"no project is open (call project_open first)"));
+                }
+                const bool byGuid = !args.Get(u8"guid").AsString().IsEmpty();
+                const bool byPath = !args.Get(u8"path").AsString().IsEmpty();
+                if (byGuid && byPath)
+                {
+                    return Err(String(u8"give guid or path, not both"));
+                }
+                const i64 line = args.Get(u8"line").AsInt(0);
+                const i64 column = args.Get(u8"column").AsInt(0);
+                if (line < 0 || column < 0)
+                {
+                    return Err(String(u8"line and column are 1-based"));
+                }
+                // The source path (Code/...) the file has, which must be in the Code folder.
+                String source;
+                if (byGuid)
+                {
+                    Result<Guid, String> id = ParseGuidArgument(args);
+                    if (!id.HasValue())
+                    {
+                        return Err(Move(id.Error()));
+                    }
+                    const foundation::content::Instance* instance = project->SourceDb().GetInstance(id.Value());
+                    if (instance == nullptr)
+                    {
+                        return Err(Format(u8"no asset with guid '{}'", args.Get(u8"guid").AsString().AsView()));
+                    }
+                    source = String(instance->SourceName());
+                }
+                else if (byPath)
+                {
+                    source = args.Get(u8"path").AsString();
+                    (void)source.Replace(u8'\\', u8'/');
+                }
+                String file;
+                if (byGuid || byPath)
+                {
+                    StringView rest;
+                    if (!foundation::vfs::AfterFolder(source.AsView(), foundation::vfs::kSourcesCodeFolder, rest) || rest.IsEmpty() ||
+                        source.AsView().Contains(u8".."))
+                    {
+                        return Err(Format(u8"'{}' is not in the project's Code folder", source.AsView()));
+                    }
+                    file = project->SourceFile(source.AsView());
+                    if (!FileExists(file.AsView()))
+                    {
+                        return Err(Format(u8"no file '{}'", source.AsView()));
+                    }
+                }
+                if (!state->seams.openCode || !state->seams.openCode(file.AsView(), static_cast<u32>(line), static_cast<u32>(column)))
+                {
+                    return Err(String(u8"nothing opened (see log_read, category Editor)"));
+                }
+                JsonValue out = JsonValue::MakeObject();
+                out.Set(u8"opened", JsonValue::MakeBool(true));
+                out.Set(u8"file", JsonValue::MakeString(byGuid || byPath ? Move(source) : String(foundation::vfs::kSourcesCodeFolder)));
                 return out;
             });
     }

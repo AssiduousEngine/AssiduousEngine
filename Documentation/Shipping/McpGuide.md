@@ -14,7 +14,10 @@ writer - so an agent can work on what the user is looking at. Tell them apart by
 `project_create` / `project_open` (the editor's project is the editor's), and the editor's
 long tools (a cook) keep the call open until the editor's own background service finishes -
 give the client a generous timeout rather than polling. The editor adds the page tools
-(`page_list` / `page_open` / `page_reload` / `page_close`), the layout tools (`layout_get`, the
+(`page_list` / `page_open` / `page_reload` / `page_close`), `code_open` (opens a code asset by
+`guid`, or a file by `path` in the project's Code folder, at a `line` and `column`, where the user's
+Code Editor preference says: VS Code or another outside editor, or the built-in code page; with
+neither, the Code folder; `page_open` always shows the built-in page), the layout tools (`layout_get`, the
 dock's tree: a split is `{split, children, weights}` with any number of children, each weight its
 child's share, and a stack is `{tabs, active}`, every panel by id: a page's asset guid, a Game
 tab's PIE id, `welcome` for Project, `assets`, `console`, `mcp`, `profiler`, with the `floating` and
@@ -74,7 +77,7 @@ stopped by the user: ask before anything else.
 With no project open, the editor host serves the project manager (when enabled; `--mcp` turns it
 on for a run): `host_info.host.projectOpen` is false and `host_info.host.screen` is
 `projectManager` (else `editor`). The engine tools refuse as they do before `project_open` on the
-stdio host, `page_open` refuses, and `page_list` and `pie_list` answer empty; `log_read`, the
+stdio host, `page_open` and `code_open` refuse, and `page_list` and `pie_list` answer empty; `log_read`, the
 input tools, `editor_screenshot`, `layout_get` and the action bridge work on the manager as they
 are. To look at the Samples tab without a release: `scripts/pack-samples.py 0.1.0 <folder>`, then
 `Tools.Editor --mcp --release-files <folder>` (it opens on Samples) and `editor_screenshot`.

@@ -78,6 +78,8 @@ export namespace editor::app
             /// Opens the pages, the way the tabs open them.
             Function<editor::EditorPage*(const Guid&)> openPage;
             Function<void(editor::EditorPage*)> closePage;
+            /// Opens code where the Code Editor preference says (code_open).
+            Function<bool(StringView file, u32 line, u32 column)> openCode;
             /// The windows' screenshots (the application's capture).
             WindowToolSeams windows;
             /// The main window's GUI, which the input tools drive.
@@ -184,6 +186,8 @@ export namespace editor::app
                 if (self->m_services.closePage)
                     self->m_services.closePage(page);
             };
+            pages.openCode = [self](StringView file, u32 line, u32 column)
+            { return self->m_services.openCode && self->m_services.openCode(file, line, column); };
             RegisterPageTools(m_host->Server(), Move(pages));
             WindowToolSeams windows;
             windows.windows = [self]() { return self->m_services.windows.windows ? self->m_services.windows.windows() : Array<u32>{}; };

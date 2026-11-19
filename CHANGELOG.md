@@ -9,6 +9,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Added
 
+- MCP: `code_open` on the editor host opens a script, or a file in the project's `Code/` folder, at a
+  line and column where your Code Editor preference says, or the `Code/` folder itself.
 - Editor: Preferences, Code chooses where code opens: the built-in editor (the default), VS Code, or
   a command of your own with `{file}`, `{line}`, `{column}` and `{folder}`. Opening a script from the
   Assets panel follows it; its menu's Open in Built-in Editor always opens the editor's own page.
