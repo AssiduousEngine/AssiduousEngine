@@ -30,32 +30,25 @@ namespace foundation::script::dotnet
             ~DotNetScriptObject() override { m_runtime->Release(m_instance); }
 
             [[nodiscard]] Result<Variant> Invoke(StringView method, Span<Variant> args) override;
-            // A bound method is called by the name it was bound by: the handle's id is its index in
-            // m_bound plus one.
-            [[nodiscard]] BehaviorMethod Bind(StringView method, usize argCount) override
-            {
-                (void)argCount;
-                for (usize i = 0; i < m_bound.Size(); ++i)
-                    if (m_bound[i].AsView() == method)
-                        return BehaviorMethod{static_cast<u64>(i + 1)};
-                m_bound.PushBack(String(method));
-                return BehaviorMethod{static_cast<u64>(m_bound.Size())};
-            }
-            [[nodiscard]] Result<Variant> Invoke(BehaviorMethod method, Span<Variant> args) override
-            {
-                if (method.id == 0 || method.id > m_bound.Size())
-                    return Err(ErrorCode::NotFound);
-                const String name = m_bound[static_cast<usize>(method.id - 1)]; // a bind during the call may move the list
-                return Invoke(name.AsView(), args);
-            }
+            [[nodiscard]] BehaviorMethod Bind(StringView method, usize argCount) override;
+            [[nodiscard]] Result<Variant> Invoke(BehaviorMethod method, Span<Variant> args) override;
             [[nodiscard]] Result<Variant> GetProperty(StringView name) override;
             [[nodiscard]] Status SetProperty(StringView name, const Variant& value) override;
 
         private:
+            // A method as the runtime bound it (DotNetRuntime::Bind): its name, its argument count,
+            // and its id, or -1 when it is called by name. A BehaviorMethod's id is its index plus one.
+            struct Bound
+            {
+                String name;
+                u32 count = 0;
+                i32 id = -1;
+            };
+
             RefPtr<DotNetScriptContext> m_context;
             DotNetRuntime* m_runtime;
             u64 m_instance;
-            Array<String> m_bound;
+            Array<Bound> m_bound;
         };
 
         class DotNetScriptContext final : public IScriptContext
@@ -191,12 +184,39 @@ namespace foundation::script::dotnet
         // into the other languages does.
         Result<Variant> DotNetScriptObject::Invoke(StringView method, Span<Variant> args)
         {
+            // A method is bound the first time it is called with as many arguments, then called by
+            // its id; one it has not stays by name.
+            return Invoke(Bind(method, args.Size()), args);
+        }
+
+        BehaviorMethod DotNetScriptObject::Bind(StringView method, usize argCount)
+        {
+            for (usize i = 0; i < m_bound.Size(); ++i)
+                if (m_bound[i].count == argCount && m_bound[i].name.AsView() == method)
+                    return BehaviorMethod{static_cast<u64>(i + 1)};
             ScriptCallScope scope(m_context.Get());
-            Result<Variant> result = m_runtime->Invoke(m_instance, method, Span<const Variant>{args.Data(), args.Size()});
+            const Result<i32> id = m_runtime->Bind(m_instance, method, static_cast<u32>(argCount));
+            m_bound.PushBack(Bound{String(method), static_cast<u32>(argCount), id.HasValue() ? id.Value() : -1});
+            return BehaviorMethod{static_cast<u64>(m_bound.Size())};
+        }
+
+        Result<Variant> DotNetScriptObject::Invoke(BehaviorMethod method, Span<Variant> args)
+        {
+            if (method.id == 0 || method.id > m_bound.Size())
+                return Err(ErrorCode::NotFound);
+            ScriptCallScope scope(m_context.Get());
+            const usize index = static_cast<usize>(method.id - 1);
+            if (m_bound[index].count != args.Size())
+                return Err(ErrorCode::NotFound);
+            const i32 id = m_bound[index].id;
+            Result<Variant> result = id >= 0 ? m_runtime->InvokeBound(id, Span<const Variant>{args.Data(), args.Size()})
+                                             : m_runtime->Invoke(m_instance, m_bound[index].name.AsView(),
+                                                                 Span<const Variant>{args.Data(), args.Size()});
             // A member that is not there is the caller's to handle (a handler a class does not
-            // declare); a call that threw is a script fault.
+            // declare); a call that threw is a script fault. The name is read after the call: a
+            // bind during it may move the list.
             if (!result.HasValue() && result.Error() != ErrorCode::NotFound)
-                m_context->ReportFailure(method);
+                m_context->ReportFailure(m_bound[index].name.AsView());
             return result;
         }
 

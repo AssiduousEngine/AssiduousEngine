@@ -44,6 +44,10 @@ extern "C"
     i32 DOTNET_STAND_IN_NAME(DotNetRuntime_CreateInstance)(isize, const utf8char*, i32, void*, i32, isize*) { return -1; }
     DOTNET_STAND_IN(DotNetRuntime_Invoke)
     i32 DOTNET_STAND_IN_NAME(DotNetRuntime_Invoke)(isize, const utf8char*, i32, void*, i32, void*) { return -1; }
+    DOTNET_STAND_IN(DotNetRuntime_Bind)
+    i32 DOTNET_STAND_IN_NAME(DotNetRuntime_Bind)(isize, const utf8char*, i32, i32, i32*) { return -1; }
+    DOTNET_STAND_IN(DotNetRuntime_InvokeBound)
+    i32 DOTNET_STAND_IN_NAME(DotNetRuntime_InvokeBound)(i32, void*, i32, void*) { return -1; }
     DOTNET_STAND_IN(DotNetRuntime_GetField)
     i32 DOTNET_STAND_IN_NAME(DotNetRuntime_GetField)(isize, const utf8char*, i32, void*) { return -1; }
     DOTNET_STAND_IN(DotNetRuntime_Release)
@@ -89,6 +93,8 @@ namespace foundation::script::dotnet
         m_loadAssembly = reinterpret_cast<decltype(m_loadAssembly)>(&DotNetRuntime_LoadAssembly);
         m_createInstance = reinterpret_cast<decltype(m_createInstance)>(&DotNetRuntime_CreateInstance);
         m_getField = reinterpret_cast<decltype(m_getField)>(&DotNetRuntime_GetField);
+        m_bind = reinterpret_cast<decltype(m_bind)>(&DotNetRuntime_Bind);
+        m_invokeBound = reinterpret_cast<decltype(m_invokeBound)>(&DotNetRuntime_InvokeBound);
         m_release = reinterpret_cast<decltype(m_release)>(&DotNetRuntime_Release);
         m_releaseOwner = reinterpret_cast<decltype(m_releaseOwner)>(&DotNetRuntime_ReleaseOwner);
         m_loadedAssemblyCount = reinterpret_cast<decltype(m_loadedAssemblyCount)>(&DotNetRuntime_LoadedAssemblyCount);

@@ -71,6 +71,8 @@ namespace foundation::script::dotnet
         m_loadAssembly = reinterpret_cast<decltype(m_loadAssembly)>(find(u8"LoadAssembly"));
         m_createInstance = reinterpret_cast<decltype(m_createInstance)>(find(u8"CreateInstance"));
         m_getField = reinterpret_cast<decltype(m_getField)>(find(u8"GetField"));
+        m_bind = reinterpret_cast<decltype(m_bind)>(find(u8"Bind"));
+        m_invokeBound = reinterpret_cast<decltype(m_invokeBound)>(find(u8"InvokeBound"));
         m_release = reinterpret_cast<decltype(m_release)>(find(u8"Release"));
         m_releaseOwner = reinterpret_cast<decltype(m_releaseOwner)>(find(u8"ReleaseOwner"));
         m_loadedAssemblyCount = reinterpret_cast<decltype(m_loadedAssemblyCount)>(find(u8"LoadedAssemblyCount"));
@@ -79,6 +81,7 @@ namespace foundation::script::dotnet
         m_lastError = reinterpret_cast<decltype(m_lastError)>(find(u8"LastError"));
         auto* invoke = reinterpret_cast<decltype(m_invoke)>(find(u8"Invoke"));
         if (initialize == nullptr || m_loadAssembly == nullptr || m_createInstance == nullptr || m_getField == nullptr ||
+            m_bind == nullptr || m_invokeBound == nullptr ||
             m_release == nullptr || m_releaseOwner == nullptr || m_loadedAssemblyCount == nullptr || m_describeClass == nullptr || m_describeAssembly == nullptr || m_lastError == nullptr ||
             invoke == nullptr)
             return Fail(m_host.Failure());
@@ -121,6 +124,40 @@ namespace foundation::script::dotnet
         if (const i32 returnCode = m_invoke(static_cast<isize>(instance), method.Data(), SizeOf(method), values.Data(),
                                     static_cast<i32>(values.Size()), &result);
             returnCode != 0)
+            return Err(FailManaged(returnCode).Code());
+        return ToVariant(result);
+    }
+
+    Result<i32> DotNetRuntime::Bind(u64 instance, StringView method, u32 count)
+    {
+        if (!IsStarted())
+            return Err(Fail(u8"the runtime is not started").Code());
+        i32 id = -1;
+        if (const i32 returnCode = m_bind(static_cast<isize>(instance), method.Data(), SizeOf(method), static_cast<i32>(count), &id);
+            returnCode != 0)
+            return Err(FailManaged(returnCode).Code());
+        return id;
+    }
+
+    Result<Variant> DotNetRuntime::InvokeBound(i32 id, Span<const Variant> args)
+    {
+        if (!IsStarted())
+            return Err(Fail(u8"the runtime is not started").Code());
+        // A handler's few arguments on the stack; more than that, on the heap.
+        constexpr usize kOnStack = 8;
+        DotNetValue onStack[kOnStack];
+        Array<DotNetValue> onHeap;
+        DotNetValue* values = onStack;
+        if (args.Size() > kOnStack)
+        {
+            onHeap = Lend(args);
+            values = onHeap.Data();
+        }
+        else
+            for (usize i = 0; i < args.Size(); ++i)
+                onStack[i] = LendValue(args[i]);
+        DotNetValue result{};
+        if (const i32 returnCode = m_invokeBound(id, values, static_cast<i32>(args.Size()), &result); returnCode != 0)
             return Err(FailManaged(returnCode).Code());
         return ToVariant(result);
     }
