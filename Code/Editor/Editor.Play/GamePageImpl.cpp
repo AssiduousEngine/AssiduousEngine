@@ -437,7 +437,7 @@ namespace editor
         // m_pendingPlay gate), so the products bound below are fresh. The play bracket and game
         // script run on this tab's ApplicationRun, with its own scene pairing, run host and error
         // sink, so several tabs stay isolated. The game script launches first, as in Engine.Player:
-        // launch() and update(dt) run before any scene, so a script tested here boots exactly as in
+        // onStart() and onUpdate(dt) run before any scene, so a script tested here boots exactly as in
         // the player. The page only resolves the script's source (editor project layout) and
         // surfaces notices.
         m_frameCount = 0;
@@ -518,7 +518,7 @@ namespace editor
             m_pauseToggle->SetChecked(false);
         }
         // Adopt the instance's current scene as this tab's borrowed render and input pointer: the
-        // default scene just started, a scene the game script loaded during launch(), or null (a
+        // default scene just started, a scene the game script loaded during onStart(), or null (a
         // scripted boot that loads its first scene later). The follow-poll in OnUpdate tracks later
         // run.loadScene switches. Null is fine, since the render and overlay paths return early on a
         // null scene.

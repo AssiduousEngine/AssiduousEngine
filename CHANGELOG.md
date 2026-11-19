@@ -68,6 +68,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Editor and MCP: a script asset no longer has a Class setting, and `script_validate` no longer
   takes `className`: the class a script plays is the one deriving from a kind, and
   `script_validate` returns its `kind` beside its `className`.
+- Scripts: a run behavior's handlers take the names the other kinds use: `launch`, `update` and
+  `exit` are now `onStart`, `onUpdate` and `onStop`.
 - Rendering: each of the sun's shadow cascades draws only the casters whose shadow lands on what it
   shades, and a shadow ends at the scene's bounds (a tree's at the ground), so most casters are drawn
   into one cascade, not all four. Over a 40,000-mesh forest the shadows went from about 200 ms a

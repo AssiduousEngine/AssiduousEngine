@@ -162,7 +162,7 @@ TEST_CASE("luau.cook: the class's replicated list marks its properties; an unkno
                            u8"Guest.replicated = { 'activity', 'pace' }\n"
                            u8"function Guest.new(owner) local self = setmetatable({}, Guest)\n"
                            u8"  self.activity = 0; self.pace = 1.5; self.chatty = true; return self end\n"
-                           u8"function Guest:update(dt) end\n",
+                           u8"function Guest:onUpdate(dt) end\n",
                            u8"Guest.luau", sink, out));
         REQUIRE(out.properties.Size() == 3u); // the list itself is not a property
         for (const ScriptPropertyDesc& p : out.properties)

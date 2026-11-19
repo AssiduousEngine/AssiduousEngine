@@ -263,10 +263,10 @@ export namespace engine::runtime
         /// owns it.
         void OnSystemsReady(foundation::scene::Scene& scene) override;
 
-        // ---- the game script (a `Game` class: construct new(), launch(), update(dt),
-        // exit(), all optional except the class). Faults disable the script, not the game. ----
+        // ---- the game script (a `Game` class: construct new(), onStart(), onUpdate(dt),
+        // onStop(), all optional except the class). Faults disable the script, not the game. ----
 
-        /// The scene whose time scale the script's update(dt) follows. Set by the launch flow;
+        /// The scene whose time scale the behavior's onUpdate(dt) follows. Set by the launch flow;
         /// null means context time.
         void SetPrimaryScene(foundation::scene::Scene* scene) noexcept;
         [[nodiscard]] foundation::scene::Scene* PrimaryScene() const noexcept;
@@ -280,7 +280,7 @@ export namespace engine::runtime
         /// the class (the player: from its content DB).
         bool StartRunBehavior(const foundation::script::ScriptClass& scriptClass);
 
-        /// exit() and release (idempotent; the update fault path also lands here). The run host tears
+        /// onStop() and release (idempotent; the update fault path also lands here). The run host tears
         /// down via the scene-stop observer once the run's scene stops.
         void StopRunBehavior() { m_primaryRun.StopRunBehavior(); }
         [[nodiscard]] bool RunBehaviorRunning() const noexcept { return m_primaryRun.RunBehaviorRunning(); }

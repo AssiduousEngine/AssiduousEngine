@@ -352,8 +352,8 @@ namespace engine::player
             SetRenderResolution(m_settings.renderWidth, m_settings.renderHeight, m_settings.renderFit);
             SetOrientation(m_settings.orientation); // presented turned on a window of the other shape
 
-            // The game script launches first: its launch() and update(dt) run from frame 1, scene or
-            // none, with the engine-service bindings above already in place. A game whose launch()
+            // The game script launches first: its onStart() and onUpdate(dt) run from frame 1, scene or
+            // none, with the engine-service bindings above already in place. A game whose onStart()
             // needs a scene waits `while (!Game.sceneReady())`.
             // The player's one run plays one session, from here to OnExit.
             PrimaryRun().Start();

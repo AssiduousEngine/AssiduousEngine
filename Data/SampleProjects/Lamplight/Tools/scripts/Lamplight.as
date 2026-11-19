@@ -59,7 +59,7 @@ class Game : RunBehavior
     private float m_note = 0.0f; // how much longer the HUD's message shows
     private float m_controlsShow = 0.0f; // how much longer the controls panel shows
 
-    void launch()
+    void onStart()
     {
         showTitle();
     }
@@ -171,7 +171,7 @@ class Game : RunBehavior
         run::loadScene(levelScene(i));
     }
 
-    void update(float dt)
+    void onUpdate(float dt)
     {
         if (!m_inLevel)
         {

@@ -6,7 +6,7 @@
 // Runs a project with no native game code: engine subsystems, the project's content and the
 // default scene, simulating, and, when the manifest names one, the project's game script (the
 // scripted IApplication counterpart: a `Game` class in AngelScript or Luau with
-// launch/update(dt)/exit, orchestrating above scenes; the backend resolves by the script's
+// onStart/onUpdate(dt)/onStop, orchestrating above scenes; the backend resolves by the script's
 // language). With scripting, the player, scripts and cooked content are the game; projects that
 // outgrow scripts move to a native IApplication at the same point.
 //

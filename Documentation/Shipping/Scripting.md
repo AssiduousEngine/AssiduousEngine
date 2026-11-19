@@ -44,18 +44,28 @@ one with two behavior classes does not cook.
 
 ## Lifecycle and events
 
-Handlers dispatch **by presence** - implement only what you need:
+Handlers dispatch **by presence** - implement only what you need. Every kind shares the names; each
+has the ones its scope needs:
 
-- `onStart()` - after the entity/scene is live.
-- `onUpdate(dt)` - per frame, `dt` in seconds. (Levels also get `onFixedUpdate`.) Scripts update
+| Handler | RunBehavior | SceneBehavior | EntityBehavior |
+|---|---|---|---|
+| `onStart()` | yes | yes | yes |
+| `onUpdate(dt)` | yes | yes | yes |
+| `onFixedUpdate(dt)` | | yes | |
+| `onStop()` | yes | yes | |
+| `onEnable()`, `onDisable()`, `onDestroy()` | | | yes |
+| `on<Event>(...)` | yes | yes | yes |
+
+- `onStart()` - after the run, scene or entity is live.
+- `onUpdate(dt)` - per frame, `dt` in seconds. Scripts update
   before the systems that act on what they write (the navigation crowd, audio, animation), so a
   destination, a sound or a graph parameter set here takes effect this frame; positions read here
   are where those systems left things last frame. So a speed is not a moved position over `dt`:
   that move was made last frame, with last frame's time, and on uneven frames the quotient swings
   (a navigation agent's speed fed to its graph jerks its walk). Read the speed the system reports,
-  an agent's `velocityX()` / `velocityY()` / `velocityZ()` say. A scene's Level script updates
+  an agent's `velocityX()` / `velocityY()` / `velocityZ()` say. A scene's behavior updates
   before its entities' behaviors.
-- `onDestroy()` - before teardown.
+- `onStop()` - when the run or scene stops; `onDestroy()` - before an entity's behavior goes.
 - `on<Event>(...)` - named events: physics contacts, and any custom event another script
   sends. `entity.send("eventName", payload)` delivers to the target entity's behaviors.
 - Networked entities: gate on `NetworkComponent.of(self).authority` (Server or Client) - the

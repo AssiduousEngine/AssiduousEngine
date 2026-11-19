@@ -102,13 +102,13 @@ export namespace pipeline{
         u8"\n"
         u8"-- Runs once at start. Load the opening scene here via the run facade:\n"
         u8"--   run.loadScene(Guid.new(\"<the scene's id>\"))\n"
-        u8"function {ClassName}:launch()\n"
+        u8"function {ClassName}:onStart()\n"
         u8"    Log.info(\"Game launched\")\n"
         u8"end\n"
         u8"-- Game-wide update (context dt). Per-scene logic belongs in a Level.\n"
-        u8"function {ClassName}:update(dt)\n"
+        u8"function {ClassName}:onUpdate(dt)\n"
         u8"end\n"
-        u8"function {ClassName}:exit()\n"
+        u8"function {ClassName}:onStop()\n"
         u8"end\n";
 
     /// Registers the Luau cook (and, idempotently, the Luau backend it needs) so the neutral

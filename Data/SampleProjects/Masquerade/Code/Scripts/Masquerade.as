@@ -88,7 +88,7 @@ class Game : RunBehavior
     private float m_readyIn = -1.0f;     // joiner: time until it tells the host it is ready, once the host's map has loaded
     private float m_joinWait = -1.0f;    // joiner on the title: time left before it gives up on the host
 
-    void launch()
+    void onStart()
     {
         // A joiner learns the host's map from its welcome (sent by Ball.as in onJoined). The handler
         // lives here rather than in a scene script because the welcome arrives while the title's
@@ -342,7 +342,7 @@ class Game : RunBehavior
         }
     }
 
-    void update(float dt)
+    void onUpdate(float dt)
     {
         if (m_controlsOpen && Input::wasPressed("Pause"))
         {

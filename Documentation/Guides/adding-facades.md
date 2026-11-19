@@ -166,7 +166,7 @@ Add `Foundation::Script Foundation::Script.Facades` to the module's `target_link
 - **Facade numerics.** Method-path args narrow to the reflected C++ type, so write natural
   types: handles/tickets `i32`, progress/ratios `f64`. (A Luau global still reads back as `f64`,
   Lua's one number type, but method params do not.)
-- **Null-scene safety.** A facade may be called from the game orchestrator's `launch()` before
+- **Null-scene safety.** A facade may be called from the game orchestrator's `onStart()` before
   any scene exists (boot reorder, task #123). Guard anything scene-dependent
   (`currentScene == nullptr` -> safe default), and add a pre-scene battery.
 - **Callbacks = `RefPtr<IScriptDelegate>`.** A script fn parameter is spelled

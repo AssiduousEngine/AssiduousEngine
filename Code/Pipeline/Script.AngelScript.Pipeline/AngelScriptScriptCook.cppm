@@ -91,10 +91,10 @@ export namespace pipeline{
         u8"\n"
         u8"    // Runs once at start. Load the opening scene here via the run facade:\n"
         u8"    //   run::loadScene(Guid(\"<the scene's id>\"));\n"
-        u8"    void launch() { Log::info(\"Game launched\"); }\n"
+        u8"    void onStart() { Log::info(\"Game launched\"); }\n"
         u8"    // Game-wide update (context dt). Per-scene logic belongs in a Level.\n"
-        u8"    void update(double dt) {}\n"
-        u8"    void exit() {}\n"
+        u8"    void onUpdate(double dt) {}\n"
+        u8"    void onStop() {}\n"
         u8"}\n";
 
     /// Registers the AngelScript cook (and, idempotently, the AngelScript backend it

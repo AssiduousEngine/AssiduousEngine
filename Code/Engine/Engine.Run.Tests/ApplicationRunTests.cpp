@@ -482,9 +482,9 @@ TEST_CASE("game-instance: fallback path starts, ticks, and stops a Game script")
     engine::runtime::ApplicationRun gi;
     const bool ok = gi.StartRunBehavior(u8"class Game : RunBehavior {\n"
                                    u8"  Game() {}\n"
-                                   u8"  void launch() {}\n"
-                                   u8"  void update(double dt) {}\n"
-                                   u8"  void exit() {}\n"
+                                   u8"  void onStart() {}\n"
+                                   u8"  void onUpdate(double dt) {}\n"
+                                   u8"  void onStop() {}\n"
                                    u8"}\n",
                                    u8"game.as", u8"Game");
     REQUIRE(ok);
@@ -509,9 +509,9 @@ TEST_CASE("game-instance: starts, ticks, and stops a LUAU Game orchestrator (the
     const bool ok = gi.StartRunBehavior(u8"Game = {}\n"
                                    u8"Game.__index = Game\n"
                                    u8"function Game.new() return setmetatable({}, Game) end\n"
-                                   u8"function Game:launch() end\n"
-                                   u8"function Game:update(dt) end\n"
-                                   u8"function Game:exit() end\n",
+                                   u8"function Game:onStart() end\n"
+                                   u8"function Game:onUpdate(dt) end\n"
+                                   u8"function Game:onStop() end\n",
                                    u8"game.luau", u8"Game"); // the .luau extension resolves the Luau backend
     REQUIRE(ok);
     CHECK(gi.RunBehaviorRunning());
@@ -551,12 +551,12 @@ TEST_CASE("game-instance: a game script fetches over the run's HTTP client; stop
                                  u8"Game = {{}}\n"
                                  u8"Game.__index = Game\n"
                                  u8"function Game.new() return setmetatable({{}}, Game) end\n"
-                                 u8"function Game:launch()\n"
+                                 u8"function Game:onStart()\n"
                                  u8"  Http.get('http://127.0.0.1:{}/best', function(status, body, err) Got = status .. ' ' .. body end)\n"
                                  u8"  Http.get('http://127.0.0.1:{}/slow', function() Late = 1 end)\n"
                                  u8"end\n"
-                                 u8"function Game:update(dt) end\n"
-                                 u8"function Game:exit() end\n",
+                                 u8"function Game:onUpdate(dt) end\n"
+                                 u8"function Game:onStop() end\n",
                                  server.BoundPort(), server.BoundPort());
     REQUIRE(gi.StartRunBehavior(source.AsView(), u8"game.luau", u8"Game"));
     for (u32 i = 0; i < 5000 && gi.ScriptContext()->GetGlobal(u8"Got").Get<String>().IsEmpty(); ++i)
@@ -590,18 +590,18 @@ TEST_CASE("game-instance: Scene/run facades are null-scene-safe from a pre-scene
     const bool ok = gi.StartRunBehavior(
         u8"class Game : RunBehavior {\n"
         u8"  Game() {}\n"
-        u8"  void launch() {\n"
+        u8"  void onStart() {\n"
         u8"    run::currentScene().find(\"nobody\");\n"
         u8"    run::currentScene().findByPath(\"a/b\");\n"
         u8"    run::sceneReady();\n"
         u8"    run::loadComplete(0);\n"
         u8"    run::loadProgress(0);\n"
         u8"  }\n"
-        u8"  void update(double dt) {\n"
+        u8"  void onUpdate(double dt) {\n"
         u8"    run::currentScene().find(\"x\");\n"
         u8"    run::sceneReady();\n"
         u8"  }\n"
-        u8"  void exit() {}\n"
+        u8"  void onStop() {}\n"
         u8"}\n",
         u8"game.as", u8"Game");
     REQUIRE(ok); // compiled (no Game-name clash) and launch() ran the pre-scene facade calls, no fault
@@ -627,16 +627,16 @@ TEST_CASE("game-instance: Scene/run facades are null-scene-safe from a pre-scene
     const bool ok = gi.StartRunBehavior(
         u8"class Game : RunBehavior {\n"
         u8"  Game() {}\n"
-        u8"  void launch() {\n"
+        u8"  void onStart() {\n"
         u8"    run::currentScene().find(\"nobody\");\n"
         u8"    run::currentScene().findByPath(\"a/b\");\n"
         u8"    run::sceneReady();\n"
         u8"    run::loadComplete(0);\n"
         u8"    run::loadProgress(0);\n"
         u8"  }\n"
-        u8"  void update(double dt) { run::currentScene().find(\"x\"); "
+        u8"  void onUpdate(double dt) { run::currentScene().find(\"x\"); "
         u8"run::sceneReady(); }\n"
-        u8"  void exit() {}\n"
+        u8"  void onStop() {}\n"
         u8"}\n",
         u8"game.as", u8"Game");
     REQUIRE(ok);
@@ -831,12 +831,12 @@ TEST_CASE("game-instance: a debugger suspension in update is not a fault - the s
 
     engine::runtime::ApplicationRun gi;
     const bool ok = gi.StartRunBehavior(u8"class Game : RunBehavior {\n"               // 1
-                                   u8"  void launch() {}\n"         // 2
-                                   u8"  void update(double dt) {\n" // 3
+                                   u8"  void onStart() {}\n"         // 2
+                                   u8"  void onUpdate(double dt) {\n" // 3
                                    u8"    int a = 1;\n"             // 4  <- breakpoint
                                    u8"    int b = a + 1;\n"         // 5
                                    u8"  }\n"
-                                   u8"  void exit() {}\n"
+                                   u8"  void onStop() {}\n"
                                    u8"}\n",
                                    u8"game.as", u8"Game");
     REQUIRE(ok);
@@ -910,7 +910,7 @@ TEST_CASE("game-instance: two instances own separate, isolated run-host contexts
     foundation::script::angelscript::RegisterAngelScriptBackend();
 
     const char8_t* src =
-        u8"class Game { Game() {}\n void launch() {}\n void update(double dt) {}\n void exit() {}\n}\n";
+        u8"class Game { Game() {}\n void onStart() {}\n void onUpdate(double dt) {}\n void onStop() {}\n}\n";
     engine::runtime::ApplicationRun a;
     engine::runtime::ApplicationRun b;
     REQUIRE(a.StartRunBehavior(src, u8"game.as", u8"Game"));
@@ -986,9 +986,9 @@ TEST_CASE("game-instance: the Game tier's on<Event> inbox harvests the run bus (
     const bool ok = gi.StartRunBehavior(u8"double Pinged = 0;\n"
                                    u8"class Game : RunBehavior {\n"
                                    u8"  Game() {}\n"
-                                   u8"  void launch() {}\n"
-                                   u8"  void update(float dt) {}\n"
-                                   u8"  void exit() {}\n"
+                                   u8"  void onStart() {}\n"
+                                   u8"  void onUpdate(float dt) {}\n"
+                                   u8"  void onStop() {}\n"
                                    u8"  void onPing(int x) { Pinged = x; }\n"
                                    u8"}\n",
                                    u8"game.as", u8"Game", Span<const String>(handlers, 1));
@@ -1028,9 +1028,9 @@ TEST_CASE("game-instance: a Game started from its cooked class hears the run bus
     cooked.source = String(u8"double Reached = 0;\n"
                            u8"class Game : RunBehavior {\n"
                            u8"  Game() {}\n"
-                           u8"  void launch() {}\n"
-                           u8"  void update(float dt) {}\n"
-                           u8"  void exit() {}\n"
+                           u8"  void onStart() {}\n"
+                           u8"  void onUpdate(float dt) {}\n"
+                           u8"  void onStop() {}\n"
                            u8"  void onGoalReached(int x) { Reached = x + 1; }\n"
                            u8"}\n");
     cooked.handlers.PushBack(String(u8"onGoalReached"));
@@ -1056,9 +1056,9 @@ TEST_CASE("game-instance: the Game tier's on<Event> inbox harvests the run bus (
                                    u8"Game = {}\n"
                                    u8"Game.__index = Game\n"
                                    u8"function Game.new() return setmetatable({}, Game) end\n"
-                                   u8"function Game:launch() end\n"
-                                   u8"function Game:update(dt) end\n"
-                                   u8"function Game:exit() end\n"
+                                   u8"function Game:onStart() end\n"
+                                   u8"function Game:onUpdate(dt) end\n"
+                                   u8"function Game:onStop() end\n"
                                    u8"function Game:onPing(x) Pinged = x end\n",
                                    u8"game.luau", u8"Game", Span<const String>(handlers, 1));
     REQUIRE(ok);
@@ -1092,9 +1092,9 @@ TEST_CASE("game-instance: run.events().emit publishes on the run bus, round-trip
         u8"double Pinged = 0;\n"
         u8"class Game : RunBehavior {\n"
         u8"  Game() {}\n"
-        u8"  void launch() { run::events().emit(\"Ping\", 7); }\n" // publish on the run bus from script
-        u8"  void update(float dt) {}\n"
-        u8"  void exit() {}\n"
+        u8"  void onStart() { run::events().emit(\"Ping\", 7); }\n" // publish on the run bus from script
+        u8"  void onUpdate(float dt) {}\n"
+        u8"  void onStop() {}\n"
         u8"  void onPing(int x) { Pinged = x; }\n" // the Game's own inbox hears it
         u8"}\n",
         u8"game.as", u8"Game", Span<const String>(handlers, 1));
@@ -1120,9 +1120,9 @@ TEST_CASE("game-instance: run.setTimeScale routes from script to the run binding
     gi.Binding().setTimeScale = Function<void(f32)>{[&captured](f32 s) { captured = s; }};
     const bool ok = gi.StartRunBehavior(u8"class Game : RunBehavior {\n"
                                    u8"  Game() {}\n"
-                                   u8"  void launch() { run::setTimeScale(0.5f); }\n" // pause/slow-mo API
-                                   u8"  void update(float dt) {}\n"
-                                   u8"  void exit() {}\n"
+                                   u8"  void onStart() { run::setTimeScale(0.5f); }\n" // pause/slow-mo API
+                                   u8"  void onUpdate(float dt) {}\n"
+                                   u8"  void onStop() {}\n"
                                    u8"}\n",
                                    u8"game.as", u8"Game", Span<const String>{});
     REQUIRE(ok);
@@ -1143,9 +1143,9 @@ TEST_CASE("game-instance: the host's pause holds the Game class still: no update
     gi.Binding().setTimeScale = Function<void(f32)>{[&updates](f32) { ++updates; }};
     REQUIRE(gi.StartRunBehavior(u8"class Game : RunBehavior {\n"
                            u8"  Game() {}\n"
-                           u8"  void launch() {}\n"
-                           u8"  void update(float dt) { run::setTimeScale(1.0f); }\n"
-                           u8"  void exit() {}\n"
+                           u8"  void onStart() {}\n"
+                           u8"  void onUpdate(float dt) { run::setTimeScale(1.0f); }\n"
+                           u8"  void onStop() {}\n"
                            u8"}\n",
                            u8"game.as", u8"Game", Span<const String>{}));
     gi.Start();
@@ -1181,12 +1181,12 @@ TEST_CASE("game-instance: run.setTimeScale/timeScale route from script to the ru
                                    u8"Game = {}\n"
                                    u8"Game.__index = Game\n"
                                    u8"function Game.new() return setmetatable({}, Game) end\n"
-                                   u8"function Game:launch()\n"
+                                   u8"function Game:onStart()\n"
                                    u8"  run.setTimeScale(0.5)\n" // pause/slow-mo API
                                    u8"  Scale = run.timeScale()\n" // read it back through the binding
                                    u8"end\n"
-                                   u8"function Game:update(dt) end\n"
-                                   u8"function Game:exit() end\n",
+                                   u8"function Game:onUpdate(dt) end\n"
+                                   u8"function Game:onStop() end\n",
                                    u8"game.luau", u8"Game", Span<const String>{});
     REQUIRE(ok);
     CHECK(captured == doctest::Approx(0.5f)); // launch() -> run.setTimeScale -> binding (synchronous)
@@ -1208,9 +1208,9 @@ TEST_CASE("game-instance: run.setProfilerOverlay/profilerAvailable route to the 
     const char8_t* source = u8"bool Available = true;\n"
                             u8"class Game : RunBehavior {\n"
                             u8"  Game() {}\n"
-                            u8"  void launch() { Available = run::profilerAvailable(); run::setProfilerOverlay(true); }\n"
-                            u8"  void update(float dt) {}\n"
-                            u8"  void exit() { run::setProfilerOverlay(false); }\n"
+                            u8"  void onStart() { Available = run::profilerAvailable(); run::setProfilerOverlay(true); }\n"
+                            u8"  void onUpdate(float dt) {}\n"
+                            u8"  void onStop() { run::setProfilerOverlay(false); }\n"
                             u8"}\n";
 
     {
@@ -1249,12 +1249,12 @@ TEST_CASE("game-instance: run.setProfilerOverlay/profilerAvailable route to the 
                            u8"Game = {}\n"
                            u8"Game.__index = Game\n"
                            u8"function Game.new() return setmetatable({}, Game) end\n"
-                           u8"function Game:launch()\n"
+                           u8"function Game:onStart()\n"
                            u8"  Available = run.profilerAvailable()\n"
                            u8"  run.setProfilerOverlay(true)\n"
                            u8"end\n"
-                           u8"function Game:update(dt) end\n"
-                           u8"function Game:exit() end\n",
+                           u8"function Game:onUpdate(dt) end\n"
+                           u8"function Game:onStop() end\n",
                            u8"game.luau", u8"Game", Span<const String>{}));
     REQUIRE(gi.ScriptContext() != nullptr);
     CHECK(gi.ScriptContext()->GetGlobal(u8"Available").Get<bool>());
@@ -1292,9 +1292,9 @@ TEST_CASE("game-instance: run.events():emit publishes on the run bus, round-trip
         u8"Game = {}\n"
         u8"Game.__index = Game\n"
         u8"function Game.new() return setmetatable({}, Game) end\n"
-        u8"function Game:launch() run.events():emit(\"Ping\", 7) end\n" // publish on the run bus
-        u8"function Game:update(dt) end\n"
-        u8"function Game:exit() end\n"
+        u8"function Game:onStart() run.events():emit(\"Ping\", 7) end\n" // publish on the run bus
+        u8"function Game:onUpdate(dt) end\n"
+        u8"function Game:onStop() end\n"
         u8"function Game:onPing(x) Pinged = x end\n",
         u8"game.luau", u8"Game", Span<const String>(handlers, 1));
     REQUIRE(ok);
@@ -1724,12 +1724,12 @@ TEST_CASE("game-instance: a faulted game script says where and why, and the run 
     const StringView faulting = u8"Game = {}\n"
                                 u8"Game.__index = Game\n"
                                 u8"function Game.new() return setmetatable({ n = 0 }, Game) end\n"
-                                u8"function Game:launch() end\n"
-                                u8"function Game:update(dt)\n"
+                                u8"function Game:onStart() end\n"
+                                u8"function Game:onUpdate(dt)\n"
                                 u8"  self.n = self.n + 1\n"
                                 u8"  if self.n == 4 then error(\"boom\") end\n"
                                 u8"end\n"
-                                u8"function Game:exit() end\n";
+                                u8"function Game:onStop() end\n";
     REQUIRE(gi.StartRunBehavior(faulting, u8"game.luau", u8"Game"));
     CHECK(gi.RunBehaviorFault().IsEmpty());
     for (int i = 0; i < 4; ++i)
@@ -1737,7 +1737,7 @@ TEST_CASE("game-instance: a faulted game script says where and why, and the run 
         gi.TickRunBehavior(1.0f / 60.0f, 1.0f);
     }
     CHECK_FALSE(gi.RunBehaviorRunning());
-    CHECK(gi.RunBehaviorFault().StartsWith(u8"faulted in update"));
+    CHECK(gi.RunBehaviorFault().StartsWith(u8"faulted in onUpdate"));
     CHECK(gi.RunBehaviorFault().ContainsIgnoreCase(u8"boom"));
     CHECK(gi.RunTime() == doctest::Approx(4.0 / 60.0).epsilon(1e-5));
     gi.ResetRunClock();
@@ -1804,12 +1804,12 @@ TEST_CASE("game-instance: the run clock ignores time scale, and a game script's 
     const StringView game = u8"Game = {}\n"
                             u8"Game.__index = Game\n"
                             u8"function Game.new() return setmetatable({ score = 0, real = 0 }, Game) end\n"
-                            u8"function Game:launch() end\n"
-                            u8"function Game:update(dt)\n"
+                            u8"function Game:onStart() end\n"
+                            u8"function Game:onUpdate(dt)\n"
                             u8"  self.score = self.score + 1\n"
                             u8"  self.real = self.real + run.realDeltaTime()\n"
                             u8"end\n"
-                            u8"function Game:exit() end\n";
+                            u8"function Game:onStop() end\n";
     REQUIRE(gi.StartRunBehavior(game, u8"game.luau", u8"Game"));
     gi.SetInstanceTimeScale(0.0f); // the scene paused: the run clock still moves
     for (int i = 0; i < 3; ++i)
@@ -1903,7 +1903,7 @@ TEST_CASE("game-instance: a game keeps its values between runs through Save (Ang
     // first never calls flush: the run writes what changed as it stops.
     const StringView source = u8"class Game : RunBehavior {\n"
                               u8"  Game() {}\n"
-                              u8"  void launch() {\n"
+                              u8"  void onStart() {\n"
                               u8"    int runs = Save::getInt(\"runs\", 0);\n"
                               u8"    Save::setInt(\"runs\", runs + 1);\n"
                               u8"    if (Save::getFloat(\"best\", 999.0f) > 41.5f) Save::setFloat(\"best\", 41.5f);\n"
@@ -1912,8 +1912,8 @@ TEST_CASE("game-instance: a game keeps its values between runs through Save (Ang
                               u8"    Save::setInt(\"scratch\", 1);\n"
                               u8"    Save::remove(\"scratch\");\n"
                               u8"  }\n"
-                              u8"  void update(double dt) {}\n"
-                              u8"  void exit() {}\n"
+                              u8"  void onUpdate(double dt) {}\n"
+                              u8"  void onStop() {}\n"
                               u8"}\n";
     for (i32 run = 1; run <= 2; ++run)
     {
@@ -1949,15 +1949,15 @@ TEST_CASE("game-instance: a game keeps a list of numbers through Save (AngelScri
         gi.SetSaveFile(path.AsView());
         REQUIRE(gi.StartRunBehavior(u8"class Game : RunBehavior {\n"
                                u8"  Game() {}\n"
-                               u8"  void launch() {\n"
+                               u8"  void onStart() {\n"
                                u8"    array<float> samples = {0.5f, 1.25f, -3.0f};\n"
                                u8"    Save::setFloats(\"ghost\", samples);\n"
                                u8"    array<float>@ back = Save::getFloats(\"ghost\");\n"
                                u8"    Save::setInt(\"length\", back.length());\n"
                                u8"    Save::setInt(\"missing\", Save::getFloats(\"none\").length());\n"
                                u8"  }\n"
-                               u8"  void update(double dt) {}\n"
-                               u8"  void exit() {}\n"
+                               u8"  void onUpdate(double dt) {}\n"
+                               u8"  void onStop() {}\n"
                                u8"}\n",
                                u8"game.as", u8"Game"));
         CHECK(gi.Saves().Values().GetInt(u8"length", -1) == 3);
@@ -1979,13 +1979,13 @@ TEST_CASE("game-instance: a game keeps a list of numbers through Save (AngelScri
         REQUIRE(gi.StartRunBehavior(u8"Game = {}\n"
                                u8"Game.__index = Game\n"
                                u8"function Game.new() return setmetatable({}, Game) end\n"
-                               u8"function Game:launch()\n"
+                               u8"function Game:onStart()\n"
                                u8"  local g = Save.getFloats('ghost')\n"
                                u8"  Save.setFloat('sum', g[1] + g[2] + g[3])\n"
                                u8"  Save.setFloats('ghost', {7, 8})\n"
                                u8"end\n"
-                               u8"function Game:update(dt) end\n"
-                               u8"function Game:exit() end\n",
+                               u8"function Game:onUpdate(dt) end\n"
+                               u8"function Game:onStop() end\n",
                                u8"game.luau", u8"Game"));
         CHECK(gi.Saves().Values().GetFloat(u8"sum", 0.0f) == doctest::Approx(-1.25f));
         REQUIRE(gi.Saves().Values().GetFloats(u8"ghost").Size() == 2u);
@@ -2007,12 +2007,12 @@ TEST_CASE("game-instance: Save flushes on request and clears (Luau); a run with 
         REQUIRE(gi.StartRunBehavior(u8"Game = {}\n"
                                u8"Game.__index = Game\n"
                                u8"function Game.new() return setmetatable({}, Game) end\n"
-                               u8"function Game:launch()\n"
+                               u8"function Game:onStart()\n"
                                u8"  Save.setInt('coins', 37)\n"
                                u8"  self.flushed = Save.flush()\n"
                                u8"end\n"
-                               u8"function Game:update(dt) end\n"
-                               u8"function Game:exit() end\n",
+                               u8"function Game:onUpdate(dt) end\n"
+                               u8"function Game:onStop() end\n",
                                u8"game.luau", u8"Game"));
         // Written at the flush, while the run is still going.
         engine::runtime::RunSave reread(DefaultAllocator());
@@ -2026,9 +2026,9 @@ TEST_CASE("game-instance: Save flushes on request and clears (Luau); a run with 
         REQUIRE(gi.StartRunBehavior(u8"Game = {}\n"
                                u8"Game.__index = Game\n"
                                u8"function Game.new() return setmetatable({}, Game) end\n"
-                               u8"function Game:launch() Save.clear() end\n"
-                               u8"function Game:update(dt) end\n"
-                               u8"function Game:exit() end\n",
+                               u8"function Game:onStart() Save.clear() end\n"
+                               u8"function Game:onUpdate(dt) end\n"
+                               u8"function Game:onStop() end\n",
                                u8"game.luau", u8"Game"));
         gi.StopRunBehavior();
         engine::runtime::RunSave reread(DefaultAllocator());
@@ -2041,9 +2041,9 @@ TEST_CASE("game-instance: Save flushes on request and clears (Luau); a run with 
         REQUIRE(gi.StartRunBehavior(u8"Game = {}\n"
                                u8"Game.__index = Game\n"
                                u8"function Game.new() return setmetatable({}, Game) end\n"
-                               u8"function Game:launch() Save.setInt('coins', 5) end\n"
-                               u8"function Game:update(dt) end\n"
-                               u8"function Game:exit() end\n",
+                               u8"function Game:onStart() Save.setInt('coins', 5) end\n"
+                               u8"function Game:onUpdate(dt) end\n"
+                               u8"function Game:onStop() end\n",
                                u8"game.luau", u8"Game"));
         CHECK(gi.Saves().Values().GetInt(u8"coins", 0) == 5);
         gi.StopRunBehavior();
@@ -2197,9 +2197,9 @@ TEST_CASE("game-instance: a Game built into an assembly starts from it, not from
         gi.StopRunBehavior();
     }
     REQUIRE(g_assembled.calls.Size() >= 3u);
-    CHECK(g_assembled.calls[0] == StringView(u8"launch"));
-    CHECK(g_assembled.calls[1] == StringView(u8"update"));
-    CHECK(g_assembled.calls.Back() == StringView(u8"exit"));
+    CHECK(g_assembled.calls[0] == StringView(u8"onStart"));
+    CHECK(g_assembled.calls[1] == StringView(u8"onUpdate"));
+    CHECK(g_assembled.calls.Back() == StringView(u8"onStop"));
 }
 
 // The run's behavior is a RunBehavior: a class of another kind, or a script that declares none, is

@@ -97,7 +97,7 @@ export namespace engine::runtime
         core::Function<bool()> profilerAvailable;
         // This frame's seconds before any time scale, and the seconds of frames since the run
         // started (RunTime): what a pause menu, a banner or a fade times itself by, since
-        // update(dt) and coroutine waits stand still at time scale 0. The ApplicationRun writes them.
+        // onUpdate(dt) and coroutine waits stand still at time scale 0. The ApplicationRun writes them.
         f32 realDeltaSeconds = 0.0f;
         f64 realSeconds = 0.0;
         // This run's event bus; the same service carries the load controls and the run bus.
@@ -384,7 +384,7 @@ export namespace engine::runtime
         [[nodiscard]] f32 InstanceTimeScale() const noexcept { return m_instanceTimeScale; }
 
         /// Compile `source` and launch its class `className` as this run's behavior (a class with
-        /// launch()/update(dt)/exit()) on this instance's run host. The host must be configured
+        /// onStart()/onUpdate(dt)/onStop()) on this instance's run host. The host must be configured
         /// first (the app's ScriptSubsystem::ConfigureRunHost exposes the facades and routing); a
         /// bare test only needs a backend registered. Restarting stops a prior run first. Returns
         /// false if it fails to compile or `className` does not construct.
@@ -430,7 +430,7 @@ export namespace engine::runtime
                                                    : core::Span<const core::byte>{});
         }
 
-        /// exit() the `Game` and release the game-script hold (idempotent; the update-fault path
+        /// onStop() the `Game` and release the game-script hold (idempotent; the update-fault path
         /// lands here). The run host tears down when nothing else pins it (the scene-stop observer
         /// drives that).
         void StopRunBehavior();
@@ -560,7 +560,7 @@ export namespace engine::runtime
 
         /// run.sceneReady: this instance has a live current scene. A script on the app-driven
         /// boot path waits `while (!run.sceneReady()) yield` instead of assuming a scene at
-        /// launch().
+        /// onStart().
         [[nodiscard]] bool SceneReady() const noexcept { return m_scene != nullptr; }
 
         /// The run facade's per-context binding for this instance. The app fills its pointers

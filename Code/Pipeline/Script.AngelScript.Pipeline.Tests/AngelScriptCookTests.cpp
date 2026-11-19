@@ -375,13 +375,13 @@ TEST_CASE("as.cook: with the full engine surface registered, a Game using run:: 
     ScriptClassSource out;
     const bool ok = cook->Cook(u8"class Game : RunBehavior\n"
                                u8"{\n"
-                               u8"    void launch()\n"
+                               u8"    void onStart()\n"
                                u8"    {\n"
                                u8"        run::loadScene(Guid(1, 2));\n"
                                u8"        Node@ root = gui::root();\n"
                                u8"    }\n"
-                               u8"    void update(float dt) {}\n"
-                               u8"    void exit() {}\n"
+                               u8"    void onUpdate(float dt) {}\n"
+                               u8"    void onStop() {}\n"
                                u8"}\n",
                                u8"Game.as", sink, out);
     REQUIRE(ok); // an engine-level facade resolves only because the global registry is complete
@@ -546,9 +546,9 @@ namespace
 
     constexpr const char8_t* kUsesRun = u8"class Game : RunBehavior\n"
                                         u8"{\n"
-                                        u8"    void launch() { run::loadScene(Guid(1, 2)); }\n"
-                                        u8"    void update(float dt) {}\n"
-                                        u8"    void exit() {}\n"
+                                        u8"    void onStart() { run::loadScene(Guid(1, 2)); }\n"
+                                        u8"    void onUpdate(float dt) {}\n"
+                                        u8"    void onStop() {}\n"
                                         u8"}\n";
 }
 

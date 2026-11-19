@@ -221,14 +221,14 @@ class Game : RunBehavior
     private int m_tallyStep = 0;
     private bool m_tallyDone = false;
 
-    void launch()
+    void onStart()
     {
         // The default scene is the title's backdrop, frozen behind the menu.
         run::setTimeScale(0.0f);
         showTitle();
     }
 
-    void update(float dt)
+    void onUpdate(float dt)
     {
         float real = run::realDeltaTime();
         m_timer += real;
@@ -301,7 +301,7 @@ class Game : RunBehavior
         }
     }
 
-    void exit()
+    void onStop()
     {
         screens().clear();
     }

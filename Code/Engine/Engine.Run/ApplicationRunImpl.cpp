@@ -189,7 +189,7 @@ namespace engine::runtime
                                  { DispatchGameEvent(eventName, payload); }});
         m_gameEventSubs.EnsureFor(gameHandlers);
 
-        (void)m_runBehavior->Invoke(u8"launch", core::Span<core::Variant>{});
+        (void)m_runBehavior->Invoke(u8"onStart", core::Span<core::Variant>{});
         LOG_INFO(u8"App", u8"game script '{}' launched", name);
         return true;
     }
@@ -199,7 +199,7 @@ namespace engine::runtime
         m_gameEventSubs.Clear(); // unsubscribe the Game inbox from the run bus (bus outlives the game)
         if (m_runBehavior.Get() != nullptr)
         {
-            (void)m_runBehavior->Invoke(u8"exit", core::Span<core::Variant>{});
+            (void)m_runBehavior->Invoke(u8"onStop", core::Span<core::Variant>{});
             m_runBehavior = nullptr;
         }
         m_scriptContext = nullptr; // drop the game script's ref; the run host owns the context
@@ -501,7 +501,7 @@ namespace engine::runtime
         const scene::FrameTime frame(hostDeltaTime, contextTimeScale, m_instanceTimeScale,
                                      sceneScale);
         core::Variant dt = core::Variant::From(frame.SceneDt());
-        if (auto result = m_runBehavior->Invoke(u8"update", core::Span<core::Variant>{&dt, 1});
+        if (auto result = m_runBehavior->Invoke(u8"onUpdate", core::Span<core::Variant>{&dt, 1});
             !result.HasValue())
         {
             // A debugger suspension surfaces as an error result too (the suspended call unwinds to
@@ -511,8 +511,8 @@ namespace engine::runtime
             {
                 return;
             }
-            LOG_ERROR(u8"App", u8"game script update() faulted - stopping script");
-            FaultRunBehavior(u8"update");
+            LOG_ERROR(u8"App", u8"the run behavior's onUpdate faulted - stopping it");
+            FaultRunBehavior(u8"onUpdate");
         }
     }
 

@@ -72,7 +72,7 @@ runs a scene's behaviours on its run's host (the default host only for a scene o
 run). The host keeps its scripts' clock.
 
 - **Game** (project orchestrator, the scripted `IApplication` counterpart): a `Game` class
-  driven `new()` / `launch()` / `update(dt)` / `exit()`, coordinating ABOVE scenes.
+  driven `new()` / `onStart()` / `onUpdate(dt)` / `onStop()`, coordinating ABOVE scenes.
 - **Level** (per-scene): a `Level` class with `onStart`/`onUpdate`/`onFixedUpdate`/`onStop`,
   bound to a value-facade Scene.
 - **Behavior** (per-entity): scripts ticked under simulation. This is the main surface.

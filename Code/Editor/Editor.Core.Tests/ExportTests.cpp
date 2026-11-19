@@ -105,13 +105,13 @@ namespace
     {
 #ifdef OPTION_HAS_ANGELSCRIPT
         return {u8"angelscript", u8"game.as",
-                u8"class Game : RunBehavior {\n  Game() {}\n  void launch() {}\n  void update(double dt) {}\n"
-                u8"  void exit() {}\n}\n"};
+                u8"class Game : RunBehavior {\n  Game() {}\n  void onStart() {}\n  void onUpdate(double dt) {}\n"
+                u8"  void onStop() {}\n}\n"};
 #else
         return {u8"luau", u8"game.luau",
                 u8"Game = RunBehavior.class()\nfunction Game.new() return setmetatable({}, Game) "
-                u8"end\nfunction Game:launch() end\nfunction Game:update(dt) end\n"
-                u8"function Game:exit() end\n"};
+                u8"end\nfunction Game:onStart() end\nfunction Game:onUpdate(dt) end\n"
+                u8"function Game:onStop() end\n"};
 #endif
     }
 
@@ -200,8 +200,8 @@ TEST_CASE("export: an AngelScript startup script asset cooks into the dist pak a
     DriveStartupScriptExport(
         u8"scratch_export_script_as_project", u8"scratch_export_script_as_dist",
         {u8"angelscript", u8"game.as",
-         u8"class Game : RunBehavior {\n  Game() {}\n  void launch() {}\n  void update(double dt) {}\n"
-         u8"  void exit() {}\n}\n"});
+         u8"class Game : RunBehavior {\n  Game() {}\n  void onStart() {}\n  void onUpdate(double dt) {}\n"
+         u8"  void onStop() {}\n}\n"});
 }
 #endif // OPTION_HAS_ANGELSCRIPT
 
@@ -212,7 +212,7 @@ TEST_CASE("export: a Luau startup script asset cooks into the dist pak and binds
         u8"scratch_export_script_luau_project", u8"scratch_export_script_luau_dist",
         {u8"luau", u8"game.luau",
          u8"Game = RunBehavior.class()\nfunction Game.new() return setmetatable({}, Game) end\n"
-         u8"function Game:launch() end\nfunction Game:update(dt) end\nfunction Game:exit() end\n"});
+         u8"function Game:onStart() end\nfunction Game:onUpdate(dt) end\nfunction Game:onStop() end\n"});
 }
 #endif // OPTION_HAS_LUAU
 
