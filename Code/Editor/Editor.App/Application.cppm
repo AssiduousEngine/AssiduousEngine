@@ -112,10 +112,12 @@ export namespace editor::app
         // files instead of GitHub: a base URL, or a folder scripts/pack-samples.py wrote, served on
         // loopback (to try the tab before a release carries samples). Empty: the release itself.
         String releaseFiles;
-        // The MCP host for this run: `--mcp` enables it whatever the preference says and
-        // `--mcp-port <n>` picks its port (0 = the preference's).
+        // The MCP host for this run: `--mcp` enables it whatever the preference says,
+        // `--mcp-port <n>` picks its port (0 = the preference's), and each `--mcp-allow-path <dir>`
+        // lets its tools reach a folder for this run, beside the ones the preference allows.
         bool mcpEnabled = false;
         u32 mcpPort = 0;
+        Array<String> mcpAllowedFolders;
 
         // Assembly hooks. editor.app never links engine modules or the editor plugin modules;
         // the executable composes them through these.

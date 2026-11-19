@@ -317,6 +317,7 @@ namespace editor::app
         mcp.dataRoot = m_config.dataRoot;
         mcp.forceEnabled = m_config.mcpEnabled;
         mcp.port = m_config.mcpPort;
+        mcp.allowedFolders = m_config.mcpAllowedFolders;
         mcp.templatesRoot = [self]() { return self->m_export->TemplatesRoot(); };
         mcp.deleteAsset = [self](const Guid& id) { return self->m_assetOps->DeleteOne(id); }; // the browser's own delete
         mcp.created = [self](const pipeline::AssetCreator& creator, foundation::content::Instance& instance)

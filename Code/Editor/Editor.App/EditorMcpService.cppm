@@ -69,6 +69,8 @@ export namespace editor::app
             /// Set from the command line: enabled whatever the preference says, with a port of its own (0: the preference's).
             bool forceEnabled = false;
             u32 port = 0;
+            /// Set from the command line (--mcp-allow-path): folders the tools reach for this run only.
+            Array<String> allowedFolders;
             /// The templates' folder the export operations use (read on the main thread).
             Function<String()> templatesRoot;
             /// What an agent's create, delete and import do beyond the store (updating the assets list).
@@ -220,13 +222,16 @@ export namespace editor::app
                 m_services.pluginTools->AttachServer(m_host->Server(), m_session);
 
             // Where the tools may read and write by a path an agent gives: the project, the user-data
-            // and temp folders, the engine's data root, and the folders the user allowed in the settings.
+            // and temp folders, the engine's data root, the folders the user allowed in the settings,
+            // and those this run was started with.
             foundation::mcp::McpPathPolicy& allowed = m_host->Server().Paths();
             allowed.SetProject(project != nullptr ? project->Directory() : StringView{});
             allowed.AddStandardFolders();
             allowed.AddFolder(UserData().AsView());
             allowed.AddFolder(m_services.dataRoot.AsView()); // the engine's own data (its fonts, say)
             for (const String& folder : settings.allowedFolders)
+                allowed.AddFolder(folder.AsView());
+            for (const String& folder : m_services.allowedFolders)
                 allowed.AddFolder(folder.AsView());
 
             EditorMcpHostConfig config;

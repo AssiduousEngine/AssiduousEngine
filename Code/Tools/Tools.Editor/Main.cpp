@@ -14,6 +14,8 @@
 //   Smoke-test aids: [--exit-after <s>] [--rebuild-after <s>]
 //   [--mcp] [--mcp-port <n>] (serve MCP for this run, giving agents access to the open project
 //     over 127.0.0.1; the persistent setting is in Preferences)
+//   [--mcp-allow-path <dir>]... (each lets the MCP tools reach a folder outside the project for this
+//     run, beside the folders Preferences allows)
 //   [--screenshot <png> [--screenshot-after <s>] [--screenshot-exit]] (writes the main window,
 //   UI included, as a PNG; --screenshot-exit quits once it is written)
 //   [--release-files <url or folder>] (where the project manager's Samples tab reads this version's
@@ -259,6 +261,10 @@ int main(int argc, char** argv)
         {
             config.mcpPort = static_cast<u32>(std::atoi(argv[i + 1]));
             config.mcpEnabled = true; // naming a port means serving on it
+        }
+        if (std::strcmp(argv[i], "--mcp-allow-path") == 0)
+        {
+            config.mcpAllowedFolders.PushBack(String(StringView(reinterpret_cast<const utf8char*>(argv[i + 1]))));
         }
     }
     for (int i = 1; i < argc; ++i)

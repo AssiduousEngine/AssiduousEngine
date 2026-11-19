@@ -198,7 +198,8 @@ entity outside a run, each running behaviour's properties under `live` beside wh
   `source`, a screenshot's `path` or `screenshotDir`, project_create's and project_open's
   `directory`, script_declarations' `directory`) must be inside the open project, the user-data
   folder, the temp folder, the engine's data root, or a folder the user allowed: for `Tools.Mcp`, the folder it was
-  started in and each `--allow-path <dir>`; for the editor, the MCP settings' `allowedFolders`.
+  started in and each `--allow-path <dir>`; for the editor, the MCP settings' `allowedFolders` and,
+  for one run, each `--mcp-allow-path <dir>` it was started with.
   Anything else is refused, naming the folders that are allowed; ask the user to allow a folder
   (a downloads folder to import from) rather than copying the file around it. The tools that
   take such paths say so with `openWorldHint`.

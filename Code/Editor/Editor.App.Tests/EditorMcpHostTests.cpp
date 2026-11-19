@@ -252,6 +252,41 @@ TEST_CASE("editor-mcp-host: an empty token never serves")
     (void)RemoveDirectoryRecursive(u8"mcp_host_project2");
 }
 
+// The editor's allowed folders were a saved preference alone: a game's tools beside its project (its
+// sources in ../Game) could not reach them through the open editor for one session.
+TEST_CASE("editor-mcp-host: a folder this run was started with is in the tools' reach; one it was not is not")
+{
+    const String userData = PathJoin(GetCurrentDirectory().AsView(), u8"mcp_allow_userdata");
+    const String outside = PathJoin(GetCurrentDirectory().AsView(), u8"mcp_allow_outside");
+    const String other = PathJoin(GetCurrentDirectory().AsView(), u8"mcp_allow_other");
+    (void)RemoveDirectoryRecursive(userData.AsView());
+    RegisterEditorSettingsTypes();
+    EditorLogBuffer logBuffer{DefaultAllocator()};
+    pipeline::BuilderRegistry builders{DefaultAllocator()};
+    EditorContext context{DefaultAllocator()};
+    foundation::settings::Settings settings{DefaultAllocator()};
+    settings.Section<EditorMcpSettings>().token = String(u8"sekrit");
+
+    app::EditorMcpService::Services services;
+    services.context = &context;
+    services.builders = &builders;
+    services.userSettings = &settings;
+    services.log = &logBuffer;
+    services.forceEnabled = true;
+    services.screen = []() { return StringView(u8"projectManager"); };
+    services.userDataDirectory = userData;
+    services.allowedFolders.PushBack(outside); // --mcp-allow-path
+    app::EditorMcpService service(DefaultAllocator(), Move(services));
+    REQUIRE(service.EnsureRunning());
+    const foundation::mcp::McpPathPolicy& paths = service.Host()->Server().Paths();
+    CHECK(paths.Check(PathJoin(outside.AsView(), u8"generated/Hud.xml").AsView()).HasValue());
+    CHECK_FALSE(paths.Check(PathJoin(other.AsView(), u8"Hud.xml").AsView()).HasValue());
+    // The preference is untouched: the folder is this run's alone.
+    CHECK(settings.Section<EditorMcpSettings>().allowedFolders.IsEmpty());
+    service.Stop();
+    (void)RemoveDirectoryRecursive(userData.AsView());
+}
+
 TEST_CASE("editor-mcp-host: with no project the host serves the manager; the engine's tools refuse, host_info says so")
 {
     const String userData = PathJoin(GetCurrentDirectory().AsView(), u8"mcp_manager_userdata");
