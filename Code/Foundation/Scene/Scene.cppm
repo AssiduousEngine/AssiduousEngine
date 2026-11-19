@@ -16,6 +16,7 @@
 
 module;
 #include "Core/Prelude.h"
+#include "Core/Debug/Assert.h"
 #include <type_traits>
 
 export module foundation.scene:scene;
@@ -94,6 +95,29 @@ export namespace foundation::scene
     private:
         friend class Scene;
         Scene* m_scene;
+    };
+
+    /// Something that happened to one entity, told to whatever listens on its scene (the entity's
+    /// behaviors): a contact, an animation ending. `name` is the event's ("contactBegin",
+    /// "animationFinished") and `args` its values in order; an entity among them (a contact's other
+    /// side) is an EntityHandle, which a listener turns into its own kind of entity. Borrowed for the
+    /// post's length only.
+    struct EntityEvent
+    {
+        EntityHandle target;
+        StringView name;
+        Span<const Variant> args;
+    };
+
+    /// Listens to a scene's entity events (Scene::AddEntityEventSink). A domain posts to the scene
+    /// and knows nothing of who listens, so physics and animation need no behavior layer.
+    class IEntityEventSink
+    {
+    public:
+        virtual ~IEntityEventSink() = default;
+        /// Called during the post. Enqueue only: never call into a behavior from here, since the
+        /// poster may be mid-step (physics) and a behavior's call may change the scene under it.
+        virtual void OnEntityEvent(Scene& scene, const EntityEvent& event) = 0;
     };
 
     class Scene
@@ -536,6 +560,39 @@ export namespace foundation::scene
         // no-op, never a stale or cross-entity pointer. Defined in SceneImpl.cpp.
         [[nodiscard]] Variant MakeComponentRef(EntityHandle entity, const TypeInfo& componentType);
 
+        // ---- entity events ----
+        /// Adds a listener for this scene's entity events (borrowed; remove it before it goes). Not
+        /// during a post.
+        void AddEntityEventSink(IEntityEventSink& sink)
+        {
+            DIAGNOSTIC_ASSERT(!m_postingEntityEvent && "an entity event sink added during a post");
+            for (IEntityEventSink* existing : m_entityEventSinks)
+                if (existing == &sink)
+                    return;
+            m_entityEventSinks.PushBack(&sink);
+        }
+        void RemoveEntityEventSink(IEntityEventSink& sink)
+        {
+            DIAGNOSTIC_ASSERT(!m_postingEntityEvent && "an entity event sink removed during a post");
+            for (usize i = 0; i < m_entityEventSinks.Size(); ++i)
+                if (m_entityEventSinks[i] == &sink)
+                {
+                    m_entityEventSinks.RemoveAt(i);
+                    return;
+                }
+        }
+        /// Whether anything listens: a poster with nothing to tell builds no event.
+        [[nodiscard]] bool WantsEntityEvents() const noexcept { return !m_entityEventSinks.IsEmpty(); }
+        /// Tells every sink, at once and in the order they were added. The scene stores nothing; each
+        /// sink keeps its own queue and delivers at its own safe point.
+        void PostEntityEvent(const EntityEvent& event)
+        {
+            m_postingEntityEvent = true;
+            for (IEntityEventSink* sink : m_entityEventSinks)
+                sink->OnEntityEvent(*this, event);
+            m_postingEntityEvent = false;
+        }
+
         // ---- events ----
         /// This scene's event bus: its run's (IRun::Events()), so `scene.events.emit` and the run
         /// bus are one object. A scene has no bus of its own and never drains it; its run does.
@@ -701,6 +758,8 @@ export namespace foundation::scene
 
         // per-scene systems
         foundation::run::IRun* m_run = nullptr;     // the owning run (SetRun); null = none
+        Array<IEntityEventSink*> m_entityEventSinks; // borrowed, in the order added
+        bool m_postingEntityEvent = false;           // a post is calling the sinks
         Array<UniquePtr<SceneSystem>> m_systems;                // ownership
         HashMap<TypeId, SceneSystem*> m_systemsByType; // lookup by type (id: DLL-safe)
         Array<SceneSystem*> m_sortedSystems;                    // non-owning, UpdateOrder-sorted

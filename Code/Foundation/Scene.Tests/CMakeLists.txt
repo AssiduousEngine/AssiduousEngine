@@ -6,6 +6,7 @@ add_executable(Scene.Tests
     TransformTests.cpp
     ComponentTests.cpp
     SceneSystemTests.cpp
+    EntityEventTests.cpp
     SceneManagerTests.cpp
     SceneCompositionTests.cpp)
 
