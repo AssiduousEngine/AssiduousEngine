@@ -300,7 +300,25 @@ export namespace foundation::gui
                 return;
             }
 
-            const core::Float2 position{mouse->X(), mouse->Y()};
+            core::Float2 position{mouse->X(), mouse->Y()};
+            // While the pointer is locked (a viewport's mouselook: relative mode, the cursor hidden),
+            // the platform still moves the position it reports, though nothing is shown there. The
+            // GUI keeps the position where the lock began: what lies under the hidden pointer is
+            // neither hovered nor given the release's context menu.
+            if (mouse->RelativeMode())
+            {
+                if (!m_pointerLocked)
+                {
+                    m_pointerLocked = true;
+                    m_lockedAt = m_lastPointer;
+                }
+                position = m_lockedAt;
+            }
+            else
+            {
+                m_pointerLocked = false;
+                m_lastPointer = position;
+            }
             if (IsTouchCopy(position))
             {
                 SyncTextInput();
@@ -680,6 +698,9 @@ export namespace foundation::gui
         shell::IMouse* m_cursorTarget = nullptr; // mouse whose cursor follows the GUI's cursor (optional)
         shell::CursorType m_shownCursor = shell::CursorType::Count; // last applied (Count: none yet)
         bool m_cursorHidden = false; // the bridge hid the cursor (a pad in use)
+        core::Float2 m_lastPointer{};  // the polled pointer while it was free
+        core::Float2 m_lockedAt{};     // where it was when the lock began
+        bool m_pointerLocked = false;  // the polled mouse is in relative mode
         const foundation::input::InputKindTracker* m_inputKind = nullptr; // owned by the host (optional)
         foundation::input::InputKind m_passedKind = foundation::input::InputKind::Pointer; // the last kind passed on to the dispatcher
         core::ContentFit m_fit{};

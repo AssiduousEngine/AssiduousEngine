@@ -318,21 +318,29 @@ namespace
     {
     public:
         bool leftPressed = false;
-        core::f32 X() const override { return 0.0f; }
-        core::f32 Y() const override { return 0.0f; }
+        core::Float2 at{};
+        bool relative = false;
+        bool rightPressed = false;
+        bool rightDown = false;
+        bool rightReleased = false;
+        core::f32 X() const override { return at.x; }
+        core::f32 Y() const override { return at.y; }
         core::f32 GlobalX() const override { return 0.0f; }
         core::f32 GlobalY() const override { return 0.0f; }
         core::f32 DeltaX() const override { return 0.0f; }
         core::f32 DeltaY() const override { return 0.0f; }
         core::f32 ScrollX() const override { return 0.0f; }
         core::f32 ScrollY() const override { return 0.0f; }
-        bool IsButtonDown(shell::MouseButton) const override { return false; }
+        bool IsButtonDown(shell::MouseButton b) const override { return b == shell::MouseButton::Right && rightDown; }
         bool IsButtonPressed(shell::MouseButton b) const override
         {
-            return b == shell::MouseButton::Left && leftPressed;
+            return (b == shell::MouseButton::Left && leftPressed) || (b == shell::MouseButton::Right && rightPressed);
         }
-        bool IsButtonReleased(shell::MouseButton) const override { return false; }
-        bool RelativeMode() const override { return false; }
+        bool IsButtonReleased(shell::MouseButton b) const override
+        {
+            return b == shell::MouseButton::Right && rightReleased;
+        }
+        bool RelativeMode() const override { return relative; }
         void SetRelativeMode(bool) override {}
         bool CursorVisible() const override { return visible; }
         void SetCursorVisible(bool v) override
@@ -390,6 +398,53 @@ TEST_CASE("bridge: PumpFromSurface carries keyboard modifiers into a click (Shif
 
     bridge.PumpFromSurface(surface);
     CHECK((seenMods & KeyModShift) != 0u); // Shift reached the widget via the poll path
+}
+
+// A right drag in a viewport locks the pointer (relative mode, hidden), and the platform still moves
+// the position it reports. Polled as it was, the GUI hovered the panels under the hidden pointer and
+// the release brought up the context menu of whichever lay there (the hierarchy beside the viewport).
+TEST_CASE("bridge: while the pointer is locked the GUI keeps it where the lock began")
+{
+    auto root = MakeScene(core::Float2{400.0f, 200.0f});
+    auto beside = MakePanel(core::Float2{0.0f, 0.0f}, core::Float2{200.0f, 200.0f}); // the hierarchy
+    auto view = MakePanel(core::Float2{200.0f, 0.0f}, core::Float2{200.0f, 200.0f}); // the viewport
+    root->AddChild(beside.Get());
+    root->AddChild(view.Get());
+    GuiInputBridge bridge{root->GetEventDispatcher()};
+    int besideEntered = 0;
+    int besideMenus = 0;
+    int viewReleases = 0;
+    beside->AddEventListener(EventType::MouseEnter, [&](const Event&) { ++besideEntered; });
+    beside->AddEventListener(EventType::ContextMenu, [&](const Event&) { ++besideMenus; });
+    view->AddEventListener(EventType::MouseUp, [&](const Event&) { ++viewReleases; });
+
+    MockMouse mouse;
+    mouse.at = core::Float2{300.0f, 100.0f}; // the right button goes down over the viewport
+    mouse.rightPressed = true;
+    mouse.rightDown = true;
+    bridge.PumpDevices(&mouse, nullptr, nullptr);
+    mouse.rightPressed = false;
+
+    mouse.relative = true; // locked; the hidden pointer is dragged left over the hierarchy
+    const core::f32 dragged[] = {250.0f, 150.0f, 50.0f};
+    for (const core::f32 x : dragged)
+    {
+        mouse.at = core::Float2{x, 100.0f};
+        bridge.PumpDevices(&mouse, nullptr, nullptr);
+    }
+    CHECK(besideEntered == 0);
+
+    mouse.rightDown = false; // released there, still locked
+    mouse.rightReleased = true;
+    bridge.PumpDevices(&mouse, nullptr, nullptr);
+    CHECK(besideMenus == 0);
+    CHECK(viewReleases == 1);
+
+    // Unlocked, the pointer is the platform's again.
+    mouse.rightReleased = false;
+    mouse.relative = false;
+    bridge.PumpDevices(&mouse, nullptr, nullptr);
+    CHECK(besideEntered == 1);
 }
 
 namespace
