@@ -888,7 +888,7 @@ namespace foundation::scene
         RunPhase(ScenePhase::Update, deltaTime);
         RunPhase(ScenePhase::AsyncUpdate, deltaTime);
         RunPhase(ScenePhase::PostUpdate, deltaTime);
-        // The scene does not drain any event bus: only the owning run scope does (a GameInstance,
+        // The scene does not drain any event bus: only the owning run scope does (an ApplicationRun,
         // an editor page, a test fixture). Scene has no bus of its own.
         UpdateTransforms(); // ScenePhase::TransformUpdate (internal)
         RunPhase(ScenePhase::PostTransform, deltaTime);

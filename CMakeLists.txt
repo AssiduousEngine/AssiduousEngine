@@ -617,7 +617,7 @@ add_subdirectory(Code/Foundation/GUI.Resources) # cooked documents and themes
 if(OPTION_BUILD_TOOLS)
     add_subdirectory(Code/Pipeline/GUI.Pipeline) # cooking the GUI's documents and themes (tools only)
 endif()
-add_subdirectory(Code/Engine/Engine.GameInstance)
+add_subdirectory(Code/Engine/Engine.Run)
 # DefaultApplication, the IApplication that registers the standard engine subsystems; it links the
 # subsystem libraries above, Net.Manager among them.
 add_subdirectory(Code/Engine/Engine.DefaultApp)
@@ -798,7 +798,7 @@ if(OPTION_BUILD_TESTS)
     # Monolithic: its one test file exercises both backends, so it builds only when both
     # are on (a subset config drops it; the default all-on CI config runs it).
     if(OPTION_ENABLE_ANGELSCRIPT AND OPTION_ENABLE_LUAU)
-        util_test_suite(Code/Engine/Engine.GameInstance.Tests Engine::GameInstance)
+        util_test_suite(Code/Engine/Engine.Run.Tests Engine::Run)
     endif()
     util_test_suite(Code/Engine/Engine.Composition.Tests Engine::Composition)
     util_test_suite(Code/Engine/Engine.Integration.Tests            Engine::Integration)

@@ -21,7 +21,7 @@ import engine.defaultapp;
 import foundation.input; // IInputSourceProvider
 import engine.input;  // FittedInputSource (the render resolution's pointer)
 import engine.gui;    // the screen tier's resolution
-import engine.gameinstance;
+import engine.run;
 import foundation.run;
 
 using namespace foundation::core;
@@ -97,28 +97,28 @@ TEST_CASE("defaultapp: a render resolution fits the game's pointer and its scree
     REQUIRE(app.Input() != nullptr);
     REQUIRE(app.GUI() != nullptr);
     foundation::input::IInputSourceProvider* shell = &app.Input()->ShellSource();
-    CHECK(app.Instance().InputSource() == shell);
+    CHECK(app.PrimaryRun().InputSource() == shell);
     CHECK_FALSE(app.HasRenderResolution());
 
     app.SetRenderResolution(320, 180, FitMode::Letterbox);
     CHECK(app.HasRenderResolution());
     CHECK(app.GUI()->HasScreenResolution());
-    foundation::input::IInputSourceProvider* fitted = app.Instance().InputSource();
+    foundation::input::IInputSourceProvider* fitted = app.PrimaryRun().InputSource();
     REQUIRE(fitted != nullptr);
     CHECK(fitted != shell);
     CHECK(&app.Input()->ActiveSource() == fitted);
     // An instance made after reads the fitted source too.
-    engine::runtime::GameInstance* extra = app.CreateInstance();
+    engine::runtime::ApplicationRun* extra = app.CreateRun();
     REQUIRE(extra != nullptr);
     CHECK(extra->InputSource() == fitted);
 
     app.SetRenderResolution(0, 0, FitMode::Letterbox);
     CHECK_FALSE(app.HasRenderResolution());
     CHECK_FALSE(app.GUI()->HasScreenResolution());
-    CHECK(app.Instance().InputSource() == shell);
+    CHECK(app.PrimaryRun().InputSource() == shell);
     CHECK(extra->InputSource() == shell);
     CHECK(&app.Input()->ActiveSource() == shell);
-    app.ReleaseInstance(extra);
+    app.ReleaseRun(extra);
 }
 
 // The runs: the app's instances are its runs, listed by
@@ -142,10 +142,10 @@ TEST_CASE("defaultapp: its instances are the runs, on the subsystem manager for 
     foundation::run::IRunManager* runs = host.Subsystems().RunManager();
     REQUIRE(runs != nullptr);
     CHECK(runs == app.Runs());
-    CHECK(runs->Find(app.Instance().Id()) == &app.Instance()); // the primary instance is a run
+    CHECK(runs->Find(app.PrimaryRun().Id()) == &app.PrimaryRun()); // the primary instance is a run
 
     runs->Subscribe(heard);
-    engine::runtime::GameInstance* extra = app.CreateInstance();
+    engine::runtime::ApplicationRun* extra = app.CreateRun();
     REQUIRE(extra != nullptr);
     CHECK(heard.created == 1);
     CHECK(extra->Name() == StringView(u8"Game 2"));
@@ -153,16 +153,16 @@ TEST_CASE("defaultapp: its instances are the runs, on the subsystem manager for 
     CHECK(runs->Find(id) == extra);
     runs->SetFocused(extra);
 
-    app.ReleaseInstance(extra);
+    app.ReleaseRun(extra);
     CHECK(heard.destroyed == 1);
     CHECK(heard.focusCleared == 1);
     CHECK(runs->Find(id) == nullptr);
     CHECK(runs->Focused() == nullptr);
-    engine::runtime::GameInstance* next = app.CreateInstance();
+    engine::runtime::ApplicationRun* next = app.CreateRun();
     REQUIRE(next != nullptr);
     CHECK(next->Id() != id); // ids are not reused
     runs->Unsubscribe(heard);
-    app.ReleaseInstance(next);
+    app.ReleaseRun(next);
 }
 
 
@@ -175,8 +175,8 @@ TEST_CASE("defaultapp: going to the background writes what each run's game saved
     StubHost host;
     engine::runtime::DefaultApplication app;
     app.Configure(host);
-    engine::runtime::RunSave& save = app.Instance().Saves();
-    app.Instance().SetSaveFile(path.AsView());
+    engine::runtime::RunSave& save = app.PrimaryRun().Saves();
+    app.PrimaryRun().SetSaveFile(path.AsView());
     save.Values().SetInt(u8"stars", 3);
     save.MarkChanged();
     CHECK_FALSE(FileExists(path.AsView())); // the run is still going: nothing written yet
@@ -285,9 +285,9 @@ TEST_CASE("defaultapp: leaving play takes the runs' scenes while the subsystems 
     engine::runtime::DefaultApplication app;
     app.Configure(host);
     host.Subsystems().Startup();
-    REQUIRE(app.Instance().Scenes().CreateScene(u8"level") != nullptr);
+    REQUIRE(app.PrimaryRun().Scenes().CreateScene(u8"level") != nullptr);
     app.OnExit(host); // the host calls this before it shuts the subsystems down
-    CHECK(app.Instance().Scenes().SceneCount() == 0u);
+    CHECK(app.PrimaryRun().Scenes().SceneCount() == 0u);
     host.Subsystems().Shutdown();
     app.OnShutdown(host);
 }

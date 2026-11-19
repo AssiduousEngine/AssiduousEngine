@@ -3,7 +3,7 @@
 
 // foundation.scene :manager - SceneManager owns a group of scenes, assembles them through a
 // type-erased installer, tears them down through a type-erased uninstaller, and ticks its own group
-// (what a GameInstance owns).
+// (what an ApplicationRun owns).
 #include <doctest/doctest.h>
 #include "Core/Prelude.h"
 

@@ -46,7 +46,7 @@ import foundation.audio;
 import foundation.audio.resource;
 import engine.audio;
 import engine.defaultapp;
-import engine.gameinstance; // GameInstance: each tab drives its own run (several PIE instances)
+import engine.run; // ApplicationRun: each tab drives its own run (several PIE instances)
 import editor.core;
 import editor.app;
 
@@ -208,9 +208,9 @@ namespace editor
         changed = true;
     }
     GameEditorPage::GameEditorPage(EditorContext& context, runtime::IApplicationHost& host, Services services,
-                                   engine::runtime::DefaultApplication* embeddedApp, engine::runtime::GameInstance* instance, StringView pieId)
+                                   engine::runtime::DefaultApplication* embeddedApp, engine::runtime::ApplicationRun* instance, StringView pieId)
         : app::UIEditorPage(context.Allocator()), m_context(&context), m_host(&host), m_services(Move(services)), m_app(embeddedApp),
-          m_gameInstance(instance), m_pieId(pieId), m_title(TitleFor(pieId))
+          m_run(instance), m_pieId(pieId), m_title(TitleFor(pieId))
     {
         Provide<IPieInstancePage>(*this); // what the PIE tools act through
         Provide<IGameScenePage>(*this);   // what the scene tools read of the run
@@ -245,10 +245,10 @@ namespace editor
         // This instance's exit request stops this tab's run, whichever tab it is. The script's
         // request fires inside the embedded app's update, which runs before the pages, so the stop
         // waits for this page's next OnUpdate, with no script call on the stack.
-        if (m_gameInstance != nullptr)
+        if (m_run != nullptr)
         {
             GameEditorPage* self = this;
-            m_gameInstance->RunBinding().requestExit = Function<void(i32)>{[self](i32 code)
+            m_run->Binding().requestExit = Function<void(i32)>{[self](i32 code)
                                                                           {
                                                                               LOG_INFO(u8"Editor", u8"Game: '{}' requested exit({})", self->m_pieId, code);
                                                                               self->m_exitRequested = true;
@@ -257,7 +257,7 @@ namespace editor
             // user would; the player would keep it for the next run, the tab keeps it for the session.
             m_qualityChoice.choose = [self](const engine::render::OfferedQualityLevel& level)
             { (void)self->SelectQuality(Format(u8"{}", level.id).AsView()); };
-            m_gameInstance->Register<engine::render::RenderQualityChoice>(m_qualityChoice);
+            m_run->Register<engine::render::RenderQualityChoice>(m_qualityChoice);
         }
 
         // The tab is built from its markup: the bar over the stage, and the game beside the debugger.
@@ -377,7 +377,7 @@ namespace editor
 
     scene::SceneManager& GameEditorPage::SceneGroup() noexcept
     {
-        return (m_gameInstance != nullptr) ? m_gameInstance->Scenes() : m_fallbackScenes;
+        return (m_run != nullptr) ? m_run->Scenes() : m_fallbackScenes;
     }
 
     void GameEditorPage::Play()
@@ -435,20 +435,20 @@ namespace editor
 
         // The cook was requested at Play() and has finished by the time OnUpdate gets here (the
         // m_pendingPlay gate), so the products bound below are fresh. The play bracket and game
-        // script run on this tab's GameInstance, with its own scene pairing, run host and error
+        // script run on this tab's ApplicationRun, with its own scene pairing, run host and error
         // sink, so several tabs stay isolated. The game script launches first, as in Engine.Player:
         // launch() and update(dt) run before any scene, so a script tested here boots exactly as in
         // the player. The page only resolves the script's source (editor project layout) and
         // surfaces notices.
         m_frameCount = 0;
         m_stoppedRunTime = 0.0;
-        if (m_gameInstance != nullptr)
+        if (m_run != nullptr)
         {
-            m_gameInstance->ResetRunClock(); // run time counts from this start
+            m_run->ResetRunClock(); // run time counts from this start
             // The run's save, for every run and not only a game script's: a game whose scripts are
             // all on its scenes and entities saves through the same facade. Play in editor keeps its
             // own in the project's ignored Editor/ folder, so testing never touches a player's save.
-            m_gameInstance->SetSaveFile(
+            m_run->SetSaveFile(
                 PathJoin(project.EditorStateRoot().AsView(),
                          engine::project::SaveFileName(project.Settings().name.AsView(), Allocator()).AsView(),
                          Allocator())
@@ -458,7 +458,7 @@ namespace editor
                 (void)engine::runtime::OfferQualityLevels(m_qualityChoice, project.Settings(), *m_context->Resources(), Guid{});
             SyncQualityChoice();
             m_scriptErrors.context = m_context;
-            m_gameInstance->SetScriptErrorHandler(&m_scriptErrors);
+            m_run->SetRunBehaviorErrorHandler(&m_scriptErrors);
             EnableDebugging();
             StartGameScriptFromProject();
         }
@@ -470,8 +470,8 @@ namespace editor
         {
             // Create it through this tab's instance, not only SceneGroup, so behaviors bind to its
             // run host.
-            scene::Scene* startScene = (m_gameInstance != nullptr)
-                                           ? m_gameInstance->CreateScene(instance->Name())
+            scene::Scene* startScene = (m_run != nullptr)
+                                           ? m_run->CreateScene(instance->Name())
                                            : m_fallbackScenes.CreateScene(instance->Name());
             if (startScene == nullptr || !scene::LoadScene(*instance, *startScene).IsOk())
             {
@@ -498,9 +498,9 @@ namespace editor
             startScene->SetSimulationEnabled(true);
             // The script launched above, before the scene. Now make the new scene this instance's
             // current scene (its behaviors are already bound to its run host through CreateScene).
-            if (m_gameInstance != nullptr)
+            if (m_run != nullptr)
             {
-                m_gameInstance->SetScene(startScene);
+                m_run->SetScene(startScene);
             }
             else
             {
@@ -509,9 +509,9 @@ namespace editor
         }
 
         m_running = true;
-        if (m_gameInstance != nullptr)
+        if (m_run != nullptr)
         {
-            m_gameInstance->Start(); // starts the session the run's listeners hear
+            m_run->Start(); // starts the session the run's listeners hear
         }
         if (m_pauseToggle != nullptr)
         {
@@ -522,16 +522,16 @@ namespace editor
         // scripted boot that loads its first scene later). The follow-poll in OnUpdate tracks later
         // run.loadScene switches. Null is fine, since the render and overlay paths return early on a
         // null scene.
-        if (m_gameInstance != nullptr)
+        if (m_run != nullptr)
         {
-            m_scene = m_gameInstance->GetScene();
+            m_scene = m_run->GetScene();
         }
         m_sceneTitle = (m_scene != nullptr) ? String(m_scene->Name()) : String(u8"(no scene)");
         BindInput();
         BindBusLayout(*m_host);
-        if (m_app != nullptr && m_app->Runs() != nullptr && m_gameInstance != nullptr)
+        if (m_app != nullptr && m_app->Runs() != nullptr && m_run != nullptr)
         {
-            m_app->Runs()->SetFocused(m_gameInstance); // the tab Play was pressed in is the one played and heard
+            m_app->Runs()->SetFocused(m_run); // the tab Play was pressed in is the one played and heard
         }
         LOG_INFO(u8"Editor", u8"Game: running scene '{}'", m_sceneTitle);
         RefreshToolbar();
@@ -560,9 +560,9 @@ namespace editor
         }
         // Drop the debugger wiring before the run tears the debugger down: the panel holds a
         // borrowed pointer, and the run host owns the debugger and destroys it in OnExit.
-        if (m_gameInstance != nullptr)
+        if (m_run != nullptr)
         {
-            m_gameInstance->RunHost().SetExternalDebugListener(nullptr);
+            m_run->RunHost().SetExternalDebugListener(nullptr);
         }
         m_debuggerPanel.SetIdle();
         m_simPausedByDebugger = false;
@@ -570,15 +570,15 @@ namespace editor
         m_context->ScriptValueProbe = {};       // hover values end with the run
         m_context->OnBreakpointsChanged = {};   // live sync ends with the run
         m_appliedBreakpoints.Clear();
-        if (m_running && m_gameInstance != nullptr)
+        if (m_running && m_run != nullptr)
         {
-            m_stoppedRunTime = m_gameInstance->RunTime(); // pie_state still reads where it ended
+            m_stoppedRunTime = m_run->RunTime(); // pie_state still reads where it ended
         }
         // The script exits first, since it may still observe the world; then the scenes go.
-        if (m_gameInstance != nullptr)
+        if (m_run != nullptr)
         {
-            m_gameInstance->StopScript();
-            m_gameInstance->SetScriptErrorHandler(nullptr);
+            m_run->StopRunBehavior();
+            m_run->SetRunBehaviorErrorHandler(nullptr);
         }
         // The instance's SceneManager owns every scene this run created: the default scene and any
         // the game script loaded through run.loadScene. LoadScene and SetScene never destroy a
@@ -598,9 +598,9 @@ namespace editor
             {
                 s->Stop();
             }
-            if (m_gameInstance != nullptr)
+            if (m_run != nullptr)
             {
-                m_gameInstance->ClearScenes();
+                m_run->ClearScenes();
             }
             else
             {
@@ -610,9 +610,9 @@ namespace editor
         }
         // The run's session ends: its sound fades out and its screens go with it, as everything
         // following the run's lifecycle hears. Another tab's run, and the editor's own sound, play on.
-        if (m_gameInstance != nullptr)
+        if (m_run != nullptr)
         {
-            m_gameInstance->Stop();
+            m_run->Stop();
         }
         m_running = false;
         m_viewport->ClearPicture(); // the run's last frame does not linger
@@ -621,11 +621,11 @@ namespace editor
 
     void GameEditorPage::FollowInstanceScene()
     {
-        if (!m_running || m_gameInstance == nullptr)
+        if (!m_running || m_run == nullptr)
         {
             return;
         }
-        scene::Scene* current = m_gameInstance->GetScene();
+        scene::Scene* current = m_run->GetScene();
         if (current == m_scene)
         {
             return;
@@ -653,7 +653,7 @@ namespace editor
         for (scene::Scene* s : outgoing)
         {
             s->Stop();
-            m_gameInstance->DestroyScene(s); // drops any matching tracked load too, then frees the scene
+            m_run->DestroyScene(s); // drops any matching tracked load too, then frees the scene
         }
 
         // The adopted scene arrives already started and simulating (run.loadScene's activation
@@ -687,11 +687,11 @@ namespace editor
 
     void GameEditorPage::SyncRunAudio()
     {
-        if (m_audio == nullptr || m_gameInstance == nullptr)
+        if (m_audio == nullptr || m_run == nullptr)
         {
             return;
         }
-        const bool hearAll = HearAllGameInstances(*m_context);
+        const bool hearAll = HearAllRunsPreference(*m_context);
         if (m_audio->HearAllRuns() != hearAll)
         {
             m_audio->SetHearAllRuns(hearAll);
@@ -704,15 +704,15 @@ namespace editor
         // own pause menu uses time scale 0 and is the game's business, so its menu music plays on.
         const bool paused =
             m_simPausedByDebugger || (m_pauseToggle != nullptr && m_pauseToggle->IsChecked());
-        if (m_gameInstance != nullptr)
+        if (m_run != nullptr)
         {
-            m_gameInstance->SetPaused(paused); // the host's pause, heard once per change
+            m_run->SetPaused(paused); // the host's pause, heard once per change
         }
         // Clicking into this tab's viewport makes its run the one played, and the one heard.
         foundation::run::IRunManager* runs = m_app != nullptr ? m_app->Runs() : nullptr;
-        if (m_viewport->IsFocused() && runs != nullptr && m_gameInstance != nullptr && runs->Focused() != m_gameInstance)
+        if (m_viewport->IsFocused() && runs != nullptr && m_run != nullptr && runs->Focused() != m_run)
         {
-            runs->SetFocused(m_gameInstance);
+            runs->SetFocused(m_run);
         }
     }
 
@@ -887,9 +887,9 @@ namespace editor
         // its own render resolution (the shared tier's global overlays draw above it).
         if (m_app != nullptr && m_app->GUI() != nullptr)
         {
-            m_app->GUI()->SetScreenResolution(m_gameInstance, m_renderWidth, m_renderHeight, m_renderFit);
-            m_app->GUI()->SetScreenOrientation(m_gameInstance, m_orientation);
-            m_app->GUI()->SetRenderRun(m_gameInstance);
+            m_app->GUI()->SetScreenResolution(m_run, m_renderWidth, m_renderHeight, m_renderFit);
+            m_app->GUI()->SetScreenOrientation(m_run, m_orientation);
+            m_app->GUI()->SetRenderRun(m_run);
         }
         render->RenderOverlays(*frame.encoder, m_viewport->ColorView(),
                                m_viewport->ColorFormat(), w, h, frame.frameIndex,
@@ -932,20 +932,20 @@ namespace editor
         // once m_viewportSource is freed, and ReleaseInstance below does nothing for the primary
         // instance, so its DriveInput would dereference the freed source next frame. Revert it to
         // the shell.
-        if (m_gameInstance != nullptr)
+        if (m_run != nullptr)
         {
-            m_gameInstance->SetInputSource(m_input != nullptr ? &m_input->ShellSource() : nullptr);
-            m_gameInstance->RunBinding().requestExit = Function<void(i32)>{}; // it points at this page
-            m_gameInstance->Remove<engine::render::RenderQualityChoice>(); // this page's member
+            m_run->SetInputSource(m_input != nullptr ? &m_input->ShellSource() : nullptr);
+            m_run->Binding().requestExit = Function<void(i32)>{}; // it points at this page
+            m_run->Remove<engine::render::RenderQualityChoice>(); // this page's member
         }
         // Destroy this tab's extra instance (which unregisters its scene manager and tears down its
         // run host) so nothing dangling is ticked or rendered after the tab closes. Does nothing for
         // the primary instance.
-        if (m_app != nullptr && m_gameInstance != nullptr)
+        if (m_app != nullptr && m_run != nullptr)
         {
-            m_app->ReleaseInstance(m_gameInstance);
+            m_app->ReleaseRun(m_run);
         }
-        m_gameInstance = nullptr;
+        m_run = nullptr;
         if (m_host->Graphics() != nullptr)
         {
             // A copy recorded last frame completes first: freeing its buffer while the copy is in
@@ -979,9 +979,9 @@ namespace editor
         {
             m_input->SetSourceProvider(m_scripted.Get(), m_scene);
         }
-        if (m_gameInstance != nullptr)
+        if (m_run != nullptr)
         {
-            m_gameInstance->SetInputSource(m_scripted.Get());
+            m_run->SetInputSource(m_scripted.Get());
         }
     }
 
@@ -1023,9 +1023,9 @@ namespace editor
         {
             m_input->SetSourceProvider(&m_viewportSource, m_scene);
         }
-        if (m_gameInstance != nullptr)
+        if (m_run != nullptr)
         {
-            m_gameInstance->SetInputSource(&m_viewportSource);
+            m_run->SetInputSource(&m_viewportSource);
         }
         m_scripted.Reset();
         m_scriptedEnding = false;
@@ -1072,9 +1072,9 @@ namespace editor
         // Per-instance input: this tab's game reads its own viewport source through its own action
         // runtime, so two Game tabs never feed each other keys (only the focused tab's surface
         // reports them). The shared subsystem runtime is not the game's input.
-        if (m_gameInstance != nullptr)
+        if (m_run != nullptr)
         {
-            m_gameInstance->SetInputSource(ActiveSource());
+            m_run->SetInputSource(ActiveSource());
         }
         const Guid mapId = m_context->Project()->Settings().defaultInputMapId;
         if (mapId.IsNil() || m_context->Resources() == nullptr)
@@ -1084,9 +1084,9 @@ namespace editor
         auto proxy = m_context->Resources()->Bind<foundation::input::InputMapResource>(mapId);
         if (proxy)
         {
-            if (m_gameInstance != nullptr)
+            if (m_run != nullptr)
             {
-                m_gameInstance->SetInputMap(proxy->Map());
+                m_run->SetInputMap(proxy->Map());
             }
             LOG_INFO(u8"Editor", u8"Game: input map bound ({} set(s))",
                               proxy->Map().sets.Size());
@@ -1137,8 +1137,8 @@ namespace editor
             m_context->Notify(NoticeKind::Warning, u8"Game: startup script asset not found.");
             return;
         }
-        if (m_gameInstance == nullptr ||
-            !m_gameInstance->StartScript(*proxy))
+        if (m_run == nullptr ||
+            !m_run->StartRunBehavior(*proxy))
         {
             m_context->Notify(NoticeKind::Error,
                               u8"Game: startup script failed to start (see Console).");
@@ -1147,14 +1147,14 @@ namespace editor
 
     void GameEditorPage::EnableDebugging()
     {
-        if (m_gameInstance == nullptr)
+        if (m_run == nullptr)
         {
             return;
         }
-        m_gameInstance->RunHost().SetExternalDebugListener(&m_debugListener);
+        m_run->RunHost().SetExternalDebugListener(&m_debugListener);
         EditorContext* context = m_context;
         GameEditorPage* self = this;
-        m_gameInstance->RunHost().RequestDebugger(Function<void(script::IScriptDebugger&)>{
+        m_run->RunHost().RequestDebugger(Function<void(script::IScriptDebugger&)>{
             [context, self](script::IScriptDebugger& debugger)
             {
                 for (const EditorContext::ScriptBreakpoint& breakpoint : context->Breakpoints())
@@ -1173,8 +1173,8 @@ namespace editor
         // identifier resolves against the innermost frame's locals. Cleared on Stop.
         m_context->ScriptValueProbe = [self](StringView identifier) -> String
         {
-            if (self->m_gameInstance == nullptr || !self->m_running ||
-                !self->m_gameInstance->RunHost().IsDebugPaused())
+            if (self->m_run == nullptr || !self->m_running ||
+                !self->m_run->RunHost().IsDebugPaused())
             {
                 return String();
             }
@@ -1686,7 +1686,7 @@ namespace editor
         RegisterSerializable<GameAudioEditorSettings>();
     }
 
-    bool HearAllGameInstances(const EditorContext& context)
+    bool HearAllRunsPreference(const EditorContext& context)
     {
         foundation::settings::Settings* store = context.UserEditorSettings();
         const GameAudioEditorSettings* section =
@@ -1705,7 +1705,7 @@ namespace editor
         all.description = String(u8"With several Game tabs running, mix every instance's sound. Off "
                                  u8"(the default): only the focused tab is heard, the others run "
                                  u8"muted.");
-        all.get = [ctx]() { return HearAllGameInstances(*ctx); };
+        all.get = [ctx]() { return HearAllRunsPreference(*ctx); };
         all.set = [ctx](bool value)
         {
             if (foundation::settings::Settings* store = ctx->UserEditorSettings())

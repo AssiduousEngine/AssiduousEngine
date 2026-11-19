@@ -205,7 +205,7 @@ namespace foundation::script
     void RegisterExtraFacadeName(StringView name)
     {
         // Reserved class names, which a user's own script classes take: the game orchestrator is
-        // class `Game` (StartScript does CreateInstance("Game")), and the scene tier is class
+        // class `Game` (StartRunBehavior does CreateInstance("Game")), and the scene tier is class
         // `Level` (instantiated once per scene). A facade sharing either name would clash
         // (AngelScript "Name conflict") and the user's class could not compile, so refuse the
         // registration.

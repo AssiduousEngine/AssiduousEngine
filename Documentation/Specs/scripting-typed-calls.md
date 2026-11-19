@@ -191,7 +191,7 @@ ns), so C# is from the first two. "In C#" means C# computes it without calling t
 **Found while measuring (C#).** The process's C# runtime keeps the allocator its first script
 manager was made with, for every engine object it hands C# from then on (the bridge's
 `EngineFunctions`). A first manager with a shorter-lived allocator than the process leaves it
-dangling: the next object handed to C# crashes. The game instance and the editor make their run
+dangling: the next object handed to C# crashes. The application run and the editor make their run
 hosts over the process's root allocator, so they do not hit it today; the measures' suite starts
 the runtime on one before any manager. To decide: the allocator a process-wide runtime owns.
 

@@ -19,7 +19,7 @@ import foundation.shaders.system;      // ShaderSystem: the service the shader f
 import engine.project;                 // kEngineVersionString (what plugins are checked against)
 import foundation.runtime;              // PluginHost (the process's plugins, CreatePluginHost)
 import foundation.runtime.client;       // IApplication, IApplicationHost, ClientServices
-import engine.gameinstance; // GameInstance: this app's running game (scene and script bracket)
+import engine.run; // ApplicationRun: this app's running game (scene and script bracket)
 import foundation.shell;                // IShell, IKeyboard, KeyCode (the profile-dump hotkey)
 import foundation.graphics;             // GraphicsDevice, FrameContext
 import foundation.vfs;                  // ResolveDataRoot and NativeFileSystem (the data mount)
@@ -121,12 +121,12 @@ namespace engine::runtime
         // server). Their input was evaluated as the frame began (the input subsystem drives every
         // run's), so the game script sees this frame's keys; then the run host clock, then the tick.
         const core::f32 contextScale = host.Subsystems().TimeScale();
-        ForEachInstance(
-            [&](GameInstance& gi)
+        ForEachRun(
+            [&](ApplicationRun& gi)
             {
                 gi.PumpScriptLoads(); // activate any script-initiated load that finished (after Pump)
                 gi.RunHost().Advance(deltaTime); // its scripts' clock
-                gi.TickScript(deltaTime, contextScale);
+                gi.TickRunBehavior(deltaTime, contextScale);
                 gi.DrainRunEvents(); // deliver this frame's run-bus events (after the game script ticked)
             });
         IShell* plat = host.Shell();
@@ -178,9 +178,9 @@ namespace engine::runtime
         core::ConsoleWrite(profiler.BuildReport().AsView());
     }
 
-    void DefaultApplication::TickGameScript(IApplicationHost& host, core::f32 deltaTime)
+    void DefaultApplication::TickRunBehavior(IApplicationHost& host, core::f32 deltaTime)
     {
-        m_instance.TickScript(deltaTime, host.Subsystems().TimeScale());
+        m_primaryRun.TickRunBehavior(deltaTime, host.Subsystems().TimeScale());
     }
 
     void DefaultApplication::Configure(IApplicationHost& host)
@@ -189,7 +189,7 @@ namespace engine::runtime
         // The runs: the primary instance first, extra ones as CreateInstance makes them; every
         // subsystem finds them through the subsystem manager.
         m_runs = core::MakeUnique<foundation::run::RunRegistry>(host.Subsystems().Allocator(), host.Subsystems().Allocator());
-        m_runs->Add(m_instance);
+        m_runs->Add(m_primaryRun);
         host.Subsystems().SetRunManager(m_runs.Get());
 
         // The data root, resolved once: the explicit override (validated) or the discovery walk.
@@ -221,9 +221,9 @@ namespace engine::runtime
         // The scene-assembly blueprint: every registered manager's CreateScene assembles from the
         // full composition.
         m_scenes->SetComposition(engine::FullSceneComposition());
-        // The run's scene group lives on the GameInstance: register it so it ticks on the Context
+        // The run's scene group lives on the ApplicationRun: register it so it ticks on the Context
         // lane. Extra instances are registered the same way in CreateInstance.
-        m_scenes->RegisterManager(&m_instance.Scenes());
+        m_scenes->RegisterManager(&m_primaryRun.Scenes());
         // A script's scene.spawn reaches content through the scene's spawn system, which only the
         // app can point at the database and the manager, at every scene's SystemsReady.
         m_scenes->RegisterObserver(this, foundation::scene::SceneLifecycleStage::SystemsReady);
@@ -254,12 +254,12 @@ namespace engine::runtime
             host.Shell() != nullptr ? host.Shell()->Input() : nullptr);
         // The primary instance's per-instance input reads the shell devices by default (the player
         // path); the editor Game tab overrides this to its gated viewport source per tab.
-        m_instance.SetInputSource(&m_input->ShellSource());
+        m_primaryRun.SetInputSource(&m_input->ShellSource());
         // Every run's action runtime reaches the GUI's consumption and touch guide through the runs.
         // The engine's GUI: every game has it (its screen tier, its components, `gui` in its scripts).
         m_gui = host.Subsystems().AddSubsystem<engine::gui::GuiSubsystem>(host.Subsystems().Allocator(), *m_dataFileSystem);
         // Its prompts name the game's bindings: the primary instance's runtime, which the game runs on.
-        m_gui->SetPromptRuntime(&m_instance.InputRuntime());
+        m_gui->SetPromptRuntime(&m_primaryRun.InputRuntime());
 
         // Entity behaviors. Facade and backend registration is batteries-included here
         // (idempotent; entry points may register more). The subsystem creates the run context
@@ -268,8 +268,8 @@ namespace engine::runtime
         // The instance owns its run host; wire it with the app's facades, Scene.spawn and
         // entity.send routing so its context has them when the game script starts. (The
         // subsystem's own default host, for editor scenes, is wired in its OnReady.)
-        m_scripts->ConfigureRunHost(m_instance.RunHost());
-        InstallInstanceLoadFacade(m_instance, host); // run.* level-load facade for the primary instance
+        m_scripts->ConfigureRunHost(m_primaryRun.RunHost());
+        InstallRunLoadFacade(m_primaryRun, host); // run.* level-load facade for the primary instance
         // The complete facade surface via the composition root, never a hand-picked subset. A
         // hand-kept list here drifts, and a missing facade shows only in an exported player, whose
         // game scripts then compile against a prelude without it. The root keeps every host
@@ -286,14 +286,14 @@ namespace engine::runtime
         foundation::script::RegisterLuauScriptBackend();
 #endif
         // Networking: the Net facade type is registered by the surface root above. Each
-        // GameInstance owns its own endpoint and goes online at runtime via the facade
+        // ApplicationRun owns its own endpoint and goes online at runtime via the facade
         // (Net.startServer/connect from the game's menu); there is no app-owned socket. The primary
         // instance carries the online hook (the prefab net-spawn resolver) and the optional startup
-        // preset below; extras get the hook in CreateInstance. GameInstance installs the
+        // preset below; extras get the hook in CreateInstance. ApplicationRun installs the
         // per-instance net binding itself.
-        m_instance.Network().SetSpawnResolverFactory([this] { return MakeSpawnResolver(); });
+        m_primaryRun.Network().SetSpawnResolverFactory([this] { return MakeSpawnResolver(); });
         ApplyNetworkStartup(
-            m_instance); // enter a preset server/client role at startup (None = offline)
+            m_primaryRun); // enter a preset server/client role at startup (None = offline)
 
         DefaultApplication* self = this;
 
@@ -327,7 +327,7 @@ namespace engine::runtime
 
     foundation::scene::SceneManager& DefaultApplication::PrimaryScenes() noexcept
     {
-        return m_instance.Scenes();
+        return m_primaryRun.Scenes();
     }
 
     foundation::input::IInputSourceProvider* DefaultApplication::GameInputSource() noexcept
@@ -386,22 +386,22 @@ namespace engine::runtime
         else if (m_fittedInput)
         {
             m_input->ClearSourceProviderIf(m_fittedInput.Get());
-            ForEachInstance([this](GameInstance& instance) { instance.SetInputSource(&m_input->ShellSource()); });
+            ForEachRun([this](ApplicationRun& instance) { instance.SetInputSource(&m_input->ShellSource()); });
             m_fittedInput.Reset();
             return;
         }
-        ForEachInstance([this](GameInstance& instance) { instance.SetInputSource(GameInputSource()); });
+        ForEachRun([this](ApplicationRun& instance) { instance.SetInputSource(GameInputSource()); });
     }
 
-    GameInstance* DefaultApplication::CreateInstance(bool headless)
+    ApplicationRun* DefaultApplication::CreateRun(bool headless)
     {
         if (m_scenes == nullptr || m_scripts == nullptr || m_host == nullptr)
         {
             return nullptr;
         }
-        core::UniquePtr<GameInstance> owned =
-            core::MakeUnique<GameInstance>(core::DefaultAllocator());
-        GameInstance* gi = owned.Get();
+        core::UniquePtr<ApplicationRun> owned =
+            core::MakeUnique<ApplicationRun>(core::DefaultAllocator());
+        ApplicationRun* gi = owned.Get();
         gi->SetName(core::Format(u8"Game {}", ++m_runsMade).AsView());
         if (m_runs)
         {
@@ -410,26 +410,26 @@ namespace engine::runtime
         gi->SetHeadless(headless);
         m_scenes->RegisterManager(&gi->Scenes());
         m_scripts->ConfigureRunHost(gi->RunHost());
-        InstallInstanceLoadFacade(*gi, *m_host); // run.* level-load facade for this extra instance
+        InstallRunLoadFacade(*gi, *m_host); // run.* level-load facade for this extra instance
         gi->Network().SetSpawnResolverFactory( // its endpoints, wired like the primary
             [this] { return MakeSpawnResolver(); });
         if (m_input != nullptr)
         {
             gi->SetInputSource(GameInputSource());
         } // editor tabs override to their viewport
-        m_extraInstances.PushBack(Move(owned));
+        m_extraRuns.PushBack(Move(owned));
         return gi;
     }
 
-    void DefaultApplication::ReleaseInstance(GameInstance* instance)
+    void DefaultApplication::ReleaseRun(ApplicationRun* instance)
     {
-        if (instance == nullptr || instance == &m_instance)
+        if (instance == nullptr || instance == &m_primaryRun)
         {
             return;
         }
-        for (core::usize i = 0; i < m_extraInstances.Size(); ++i)
+        for (core::usize i = 0; i < m_extraRuns.Size(); ++i)
         {
-            if (m_extraInstances[i].Get() != instance)
+            if (m_extraRuns[i].Get() != instance)
             {
                 continue;
             }
@@ -439,7 +439,7 @@ namespace engine::runtime
             }
             instance->Scenes().Clear(); // destroy any remaining scenes (aware subsystems notified)
             instance->RunHost().Teardown();
-            m_extraInstances.RemoveAt(i); // frees the GameInstance: its run's end reaches every subsystem
+            m_extraRuns.RemoveAt(i); // frees the ApplicationRun: its run's end reaches every subsystem
             return;
         }
     }
@@ -454,10 +454,10 @@ namespace engine::runtime
         scene->SetSimulationEnabled(true);
     }
 
-    void DefaultApplication::InstallInstanceLoadFacade(GameInstance& gi, IApplicationHost& host)
+    void DefaultApplication::InstallRunLoadFacade(ApplicationRun& gi, IApplicationHost& host)
     {
         DefaultApplication* self = this;
-        GameInstance* instance = &gi;
+        ApplicationRun* instance = &gi;
 
         // The render and simulation policy PumpScriptLoads runs when a tracked load finishes
         // (SetScene is already done by then). Virtual, so the player seeds a camera; the base
@@ -469,7 +469,7 @@ namespace engine::runtime
         // an async load into this instance, and register it under a ticket. 0 means it could not
         // start (bad id, no DB). The prefabs it places come from the app's resources, as a spawn's
         // do, so a level and a spawn of one prefab agree.
-        gi.RunBinding().loadSceneAsync =
+        gi.Binding().loadSceneAsync =
             core::Function<core::i32(const core::Guid&)>{[self, instance](const core::Guid& sceneId) -> core::i32
             {
                 if (self->SceneDatabase() == nullptr || self->Resources() == nullptr)
@@ -485,19 +485,19 @@ namespace engine::runtime
                 return instance->TrackScriptLoad(core::Move(handle));
             }};
 
-        gi.RunBinding().loadProgress = core::Function<core::f64(core::i32)>{
+        gi.Binding().loadProgress = core::Function<core::f64(core::i32)>{
             [instance](core::i32 ticket) -> core::f64
             { return static_cast<core::f64>(instance->ScriptLoadProgress(ticket)); }};
-        gi.RunBinding().loadComplete = core::Function<bool(core::i32)>{
+        gi.Binding().loadComplete = core::Function<bool(core::i32)>{
             [instance](core::i32 ticket) -> bool { return instance->ScriptLoadComplete(ticket); }};
-        gi.RunBinding().loadFailed = core::Function<bool(core::i32)>{
+        gi.Binding().loadFailed = core::Function<bool(core::i32)>{
             [instance](core::i32 ticket) -> bool { return instance->ScriptLoadFailed(ticket); }};
 
         // run.loadScene(id): synchronous convenience for tiny scenes. Loads before the call
         // returns; PumpScriptLoads makes it the level (current, the activation policy, the old one
         // destroyed) at the next frame's top, where no script runs. false on a resolve or load
         // failure.
-        gi.RunBinding().loadScene =
+        gi.Binding().loadScene =
             core::Function<bool(const core::Guid&)>{[self, instance](const core::Guid& sceneId) -> bool
             {
                 if (self->SceneDatabase() == nullptr || self->Resources() == nullptr)
@@ -512,30 +512,30 @@ namespace engine::runtime
                 return instance->LoadSceneForScript(*sceneInst, *self->Resources());
             }};
 
-        gi.RunBinding().sceneReady =
+        gi.Binding().sceneReady =
             core::Function<bool()>{[instance]() -> bool { return instance->SceneReady(); }};
-        gi.RunBinding().currentScene = core::Function<scene::Scene*()>{
+        gi.Binding().currentScene = core::Function<scene::Scene*()>{
             [instance]() -> scene::Scene* { return instance->GetScene(); }};
 
         // run.requestExit(code): end the run through the app host. Standalone (ApplicationHost)
         // stops the loop; the editor's EmbeddedApplicationHost routes to the exit handler the editor
         // set, which stops the Game tab's play session. The host outlives the binding (app or
         // session lifetime), so a borrowed pointer is safe.
-        gi.RunBinding().requestExit = core::Function<void(core::i32)>{
+        gi.Binding().requestExit = core::Function<void(core::i32)>{
             [hostPtr = &host](core::i32 code) { hostPtr->RequestExit(code); }};
 
         // run.setTimeScale(scale): scale the run's gameplay time by setting the instance's scene
         // group time scale (SceneManager). 0 pauses the scene (behaviors and physics freeze); the
         // Game script tier keeps ticking so it can resume. Scoped to the run's scenes; the context
         // and editor are unaffected. Clamped to >= 0 (SceneManager also clamps).
-        gi.RunBinding().setTimeScale = core::Function<void(core::f32)>{
+        gi.Binding().setTimeScale = core::Function<void(core::f32)>{
             [instance](core::f32 scale) { instance->Scenes().SetTimeScale(scale < 0.0f ? 0.0f : scale); }};
-        gi.RunBinding().timeScale =
+        gi.Binding().timeScale =
             core::Function<core::f32()>{[instance]() -> core::f32 { return instance->Scenes().TimeScale(); }};
 
         // run.setProfilerOverlay / run.profilerAvailable: this app's overlay, the one F3 toggles. In
         // Shipping the host shows nothing and the profiler is unavailable; the call stays valid.
-        gi.RunBinding().setProfilerOverlay = core::Function<void(bool)>{[this](bool shown)
+        gi.Binding().setProfilerOverlay = core::Function<void(bool)>{[this](bool shown)
         {
             if (m_gui == nullptr)
             {
@@ -550,7 +550,7 @@ namespace engine::runtime
                 m_profilerOverlay->Hide();
             }
         }};
-        gi.RunBinding().profilerAvailable =
+        gi.Binding().profilerAvailable =
             core::Function<bool()>{[this]() -> bool { return BUILD_PROFILING != 0 && m_gui != nullptr; }};
     }
 
@@ -610,7 +610,7 @@ namespace engine::runtime
 
     void DefaultApplication::PointSpawnersAtScenes()
     {
-        ForEachInstance([this](GameInstance& gi)
+        ForEachRun([this](ApplicationRun& gi)
                         { gi.Scenes().ForEachScene([this](foundation::scene::Scene& scene) { OnSystemsReady(scene); }); });
     }
 
@@ -728,8 +728,8 @@ namespace engine::runtime
 
     void DefaultApplication::TearDownRuns()
     {
-        ForEachInstance(
-            [](GameInstance& gi)
+        ForEachRun(
+            [](ApplicationRun& gi)
             {
                 gi.StopNetworking();
                 gi.Scenes().Clear();
@@ -777,23 +777,23 @@ namespace engine::runtime
 
     void DefaultApplication::SetPrimaryScene(foundation::scene::Scene* scene) noexcept
     {
-        m_instance.SetScene(scene); // also repoints the instance's replicated scene when online
+        m_primaryRun.SetScene(scene); // also repoints the instance's replicated scene when online
     }
 
     foundation::scene::Scene* DefaultApplication::PrimaryScene() const noexcept
     {
-        return m_instance.GetScene();
+        return m_primaryRun.GetScene();
     }
 
-    void DefaultApplication::SetGameScriptErrorHandler(
+    void DefaultApplication::SetRunBehaviorErrorHandler(
         foundation::script::IScriptErrorHandler* handler) noexcept
     {
-        m_instance.SetScriptErrorHandler(handler);
+        m_primaryRun.SetRunBehaviorErrorHandler(handler);
     }
 
-    bool DefaultApplication::StartGameScript(const foundation::script::ScriptClass& scriptClass)
+    bool DefaultApplication::StartRunBehavior(const foundation::script::ScriptClass& scriptClass)
     {
-        return m_instance.StartScript(scriptClass);
+        return m_primaryRun.StartRunBehavior(scriptClass);
     }
 
     void DefaultApplication::OnRenderWindow(IApplicationHost& host, FrameContext& frame)
@@ -863,8 +863,8 @@ namespace engine::runtime
         }
         // Render every non-headless instance's scenes (a headless dedicated server simulates but
         // is not drawn) and the default group's loose scenes. Clear comes from the scene's camera.
-        ForEachInstance(
-            [&](GameInstance& gi)
+        ForEachRun(
+            [&](ApplicationRun& gi)
             {
                 if (gi.IsHeadless())
                 {
@@ -930,7 +930,7 @@ namespace engine::runtime
 
     void DefaultApplication::OnEnterBackground(IApplicationHost&)
     {
-        ForEachInstance([](GameInstance& instance) { (void)instance.Saves().Flush(); });
+        ForEachRun([](ApplicationRun& instance) { (void)instance.Saves().Flush(); });
     }
 
     void DefaultApplication::FinishFrame(IApplicationHost& host, FrameContext& frame)
@@ -985,7 +985,7 @@ namespace engine::runtime
             { return ResolveNetworkPrefab(self->Resources(), scene, prefabId); }};
     }
 
-    void DefaultApplication::ApplyNetworkStartup(GameInstance& instance)
+    void DefaultApplication::ApplyNetworkStartup(ApplicationRun& instance)
     {
         switch (m_netStartup.role)
         {

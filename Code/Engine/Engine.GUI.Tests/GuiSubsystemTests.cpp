@@ -1553,7 +1553,7 @@ TEST_CASE("engine.gui: a prompt names the game's binding with no host wiring, an
     (void)engine.gui->ScreenRoot()->UpdateLayout();
     CHECK(prompt->GetText() == StringView(u8"F"));
 
-    // The runtime the host names (a game instance's) replaces it.
+    // The runtime the host names (an application run's) replaces it.
     foundation::input::ActionRuntime game;
     game.SetMap(mapWith(static_cast<u32>(foundation::shell::KeyCode::G)));
     engine.gui->SetPromptRuntime(&game);

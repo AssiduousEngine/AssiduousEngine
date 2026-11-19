@@ -6,7 +6,7 @@
 /// A run is one running game: a player's game, each editor Game tab's game, an in-editor
 /// dedicated server. `IRun` is how anything reaches one (its id, name, state, event bus and the
 /// services it owns); `RunBase` implements it once, for a run to derive from (the engine's
-/// GameInstance does). `IRunManager` lists the live runs, holds the focused one and announces each
+/// ApplicationRun does). `IRunManager` lists the live runs, holds the focused one and announces each
 /// run's lifecycle to its `IRunListener`s; `RunRegistry` implements it, owned by whatever owns the
 /// runs (the engine's DefaultApplication), and the subsystem manager holds it for every subsystem.
 ///

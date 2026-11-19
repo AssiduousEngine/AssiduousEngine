@@ -563,7 +563,7 @@ export namespace editor
 
         /// Play in editor: creates a Game tab, which runs the player's behaviour in a tab.
         /// Registered by the scene editor plugin; when unset, the Game menu item shows a notice.
-        /// `newInstance` false reuses the application's primary GameInstance (the normal Play);
+        /// `newInstance` false reuses the application's primary ApplicationRun (the normal Play);
         /// true starts an additional instance (multi-instance play in editor).
         /// `pieId` names the tab: the id its dock panel persists under and the PIE tools address
         /// it by (`game-page`, then `game-page-1`, ...).

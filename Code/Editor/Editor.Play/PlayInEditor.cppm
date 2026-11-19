@@ -17,7 +17,7 @@ import foundation.core;
 import foundation.runtime;
 import foundation.mcp;
 import engine.defaultapp;
-import engine.gameinstance; // GameInstance (the Game tab's run; the factory makes extra instances)
+import engine.run; // ApplicationRun (the Game tab's run; the factory makes extra instances)
 import editor.core;
 import editor.app; // EditorApplication (its window: the GUI host, the markup)
 import :game_page;
@@ -41,7 +41,7 @@ export namespace editor
             if (embedded == nullptr)
                 return UniquePtr<EditorPage>{};
             // The primary instance for Play; another for Play New Instance.
-            engine::runtime::GameInstance* instance = newInstance ? embedded->CreateInstance() : &embedded->Instance();
+            engine::runtime::ApplicationRun* instance = newInstance ? embedded->CreateRun() : &embedded->PrimaryRun();
             GameEditorPage::Services services;
             services.gui = editor->Window().Host();
             app::EditorWindow* window = &editor->Window();

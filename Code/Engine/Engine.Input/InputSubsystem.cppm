@@ -75,7 +75,7 @@ export namespace engine::input
             }
         }
 
-        /// The raw shell devices as an input source. A host points a GameInstance's per-instance
+        /// The raw shell devices as an input source. A host points an ApplicationRun's per-instance
         /// input runtime here when there is no gated viewport (the standalone player reads the
         /// window directly).
         [[nodiscard]] IInputSourceProvider& ShellSource() noexcept { return m_shellSource; }

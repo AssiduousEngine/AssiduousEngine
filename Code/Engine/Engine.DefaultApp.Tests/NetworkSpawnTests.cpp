@@ -2,7 +2,7 @@
 // Copyright (c) 2026-Present Robert Campbell
 
 // The replicated-spawn resolver's body: a prefab id becomes a live prefab, loaded through the
-// app's resource manager. GameInstanceTests pins the wiring (the controller applies the resolver to every
+// app's resource manager. ApplicationRunTests pins the wiring (the controller applies the resolver to every
 // endpoint) and ReplicationTests the handler contract with a stand-in; neither reaches the body.
 #include <doctest/doctest.h>
 #include "Core/Prelude.h"

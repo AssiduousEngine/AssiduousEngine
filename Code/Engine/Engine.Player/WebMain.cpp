@@ -66,7 +66,7 @@ import foundation.physics.resource;
 import engine.physics;
 import foundation.input.resource;
 import engine.input;
-import engine.gameinstance; // SceneLoadHandle (PlayerApplication async level load)
+import engine.run; // SceneLoadHandle (PlayerApplication async level load)
 import engine.gui;                 // the engine GUI (its fonts, sheets and boot splash)
 import foundation.gui;           // the GUI's nodes and data (the splash's progress)
 import foundation.gui.resources; // GuiDocument (the GUI loading screen)

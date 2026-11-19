@@ -223,7 +223,7 @@ namespace engine::player
                     m_settings.defaultInputMapId);
                 if (mapProxy)
                 {
-                    Instance().SetInputMap(mapProxy->Map());
+                    PrimaryRun().SetInputMap(mapProxy->Map());
                     LOG_INFO(u8"Player", u8"input map bound ({} set(s))",
                                       mapProxy->Map().sets.Size());
                 }
@@ -245,7 +245,7 @@ namespace engine::player
             // (RenderQuality): a choice plays at once and is kept for the next run.
             if (auto* render = host.Subsystems().GetSubsystem<engine::render::RenderSubsystem>())
             {
-                auto& choice = Instance().Add<engine::render::RenderQualityChoice>();
+                auto& choice = PrimaryRun().Add<engine::render::RenderQualityChoice>();
                 Guid start = engine::runtime::OfferQualityLevels(
                     choice, m_settings, *Resources(), engine::runtime::SavedQualityLevel(m_userSettings));
                 // --quality: this run's level by its label, for measuring a level or trying it; a
@@ -356,15 +356,15 @@ namespace engine::player
             // none, with the engine-service bindings above already in place. A game whose launch()
             // needs a scene waits `while (!Game.sceneReady())`.
             // The player's one run plays one session, from here to OnExit.
-            Instance().Start();
+            PrimaryRun().Start();
             // The game's save lives beside the user's settings, read before anything launches: for
             // every game, not only one with a game script (scene and entity scripts save through the
             // same facade).
-            Instance().SetSaveFile(
+            PrimaryRun().SetSaveFile(
                 PathJoin(foundation::core::GetUserDataDirectory().AsView(),
                          project::SaveFileName(m_settings.name.AsView(), AppRoot()).AsView(), AppRoot())
                     .AsView());
-            LoadAndStartGameScript();
+            LoadAndStartRunBehavior();
 
             // Then, if a startup scene resolved, load it asynchronously behind a boot splash: push
             // the splash overlay first (synchronously: a small resident document or the engine's
@@ -374,7 +374,7 @@ namespace engine::player
             {
                 m_bootScenePath = String(instance->Path());
                 PushSplash();
-                m_bootLoad = Instance().LoadSceneAsync(*instance, *Resources()); // its prefabs through the resources
+                m_bootLoad = PrimaryRun().LoadSceneAsync(*instance, *Resources()); // its prefabs through the resources
                 if (m_bootLoad.Failed())
                 {
                     PopSplash();
@@ -451,8 +451,8 @@ namespace engine::player
 
         void OnExit(runtime::IApplicationHost&) override
         {
-            StopGameScript();
-            Instance().Stop(); // its session ends: whatever follows the run's lifecycle hears it
+            StopRunBehavior();
+            PrimaryRun().Stop(); // its session ends: whatever follows the run's lifecycle hears it
             SetPrimaryScene(nullptr);
             if (m_scene != nullptr)
             {
@@ -524,7 +524,7 @@ namespace engine::player
 
         // Resolves the startup script's source (project file or pak entry); the lifecycle
         // (facades, services, launch/update/exit) lives in DefaultApplication.
-        void LoadAndStartGameScript()
+        void LoadAndStartRunBehavior()
         {
             // The startup game script is a cooked ScriptClass asset, bound from the content DB by guid.
             const Guid scriptId = m_settings.startupScriptId;
@@ -538,7 +538,7 @@ namespace engine::player
                 LOG_ERROR(u8"Player", u8"startup script asset not found");
                 return;
             }
-            (void)StartGameScript(*proxy); // with its handlers: the game's on<Event> inbox
+            (void)StartRunBehavior(*proxy); // with its handlers: the game's on<Event> inbox
         }
 
         // ---- boot splash: the GUI's overlay shown while the default scene streams in.
@@ -554,7 +554,7 @@ namespace engine::player
                 return;
             }
             m_booting = false;
-            scene::Scene* activated = Instance().ActivateLoadedScene(m_bootLoad);
+            scene::Scene* activated = PrimaryRun().ActivateLoadedScene(m_bootLoad);
             PopSplash();
             if (activated == nullptr)
             {

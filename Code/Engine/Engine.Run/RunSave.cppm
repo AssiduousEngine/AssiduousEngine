@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Engine::GameInstance - :save partition.
+// Engine::Run - :save partition.
 //
 // A run's save: the values a game keeps between runs (a best time, an unlocked level, its own
 // options), the file they live in, and whether they changed since the last write. The host names
@@ -13,7 +13,7 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h" // the Save facade (RTTI_OBJECT)
 
-export module engine.gameinstance:save;
+export module engine.run:save;
 
 import foundation.core;
 import foundation.settings;

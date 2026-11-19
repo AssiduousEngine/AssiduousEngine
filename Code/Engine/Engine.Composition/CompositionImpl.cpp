@@ -30,7 +30,7 @@ import engine.script;
 import engine.net;
 import engine.spline;
 import engine.input;
-import engine.gameinstance;
+import engine.run;
 import engine.gui; // the engine's GUI on foundation.gui
 
 using namespace foundation::core;

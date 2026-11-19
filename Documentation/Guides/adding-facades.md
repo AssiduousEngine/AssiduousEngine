@@ -34,7 +34,7 @@ A script context asks its run host for a service by type, and the host answers i
 So a binding is offered in one of two places, and nothing lists them:
 
 - **Per-run** (the run's save, HTTP, networking, its own input runtime): the run holds it.
-  `GameInstance` registers its members on itself (`Register<RunSave>(m_save)`); a plugin adds
+  `ApplicationRun` registers its members on itself (`Register<RunSave>(m_save)`); a plugin adds
   one to each run from a run listener (`run.Add<T>(...)` in `OnRunCreated`).
 - **App-wide** (audio, render, GUI, the shared input runtime): the subsystem registers it with
   its manager while it is registered:
@@ -53,7 +53,7 @@ void OnUnregister() override
 }
 ```
 
-The run comes first, so a run can hold its own copy of an app-wide type: each `GameInstance`
+The run comes first, so a run can hold its own copy of an app-wide type: each `ApplicationRun`
 holds an `ActionRuntime`, and its scripts read that one rather than the shared runtime. A
 context outside every run (the editor's scenes) sees the application's services alone.
 
@@ -146,14 +146,14 @@ Add `Foundation::Script Foundation::Script.Facades` to the module's `target_link
 ## Rules & gotchas (learned the hard way)
 
 - **Reserved contract-class names: `Game` and `Level`.** These are names a user's own class
-  *mandatorily* takes - the game orchestrator class is `Game` (`StartScript` does
+  *mandatorily* takes - the game orchestrator class is `Game` (`StartRunBehavior` does
   `CreateInstance("Game")`), and the scene-scripting tier's class is `Level` (instantiated once
   per scene from `SceneScriptSettings::script`). A facade sharing either name is a hard
   AngelScript error (`Name conflict. '<name>' is an extended data type`) - the user's class
   can't compile. This is why the level-load facade is `run` (the `Run` class's script name), not
   `Game`. `RegisterExtraFacadeName` **refuses** either name (logs an error, adds nothing) so the
   user's class always wins; the guard is covered by `script.facades: reserved contract-class
-  names ...` in `Engine.GameInstance.Tests`. Avoid any other name a user's own class is likely
+  names ...` in `Engine.Run.Tests`. Avoid any other name a user's own class is likely
   to take.
 - **Register the TYPE *and* the NAME.** `GlobalTypeRegistry().Register(X::StaticType())` binds
   the type. `RegisterExtraFacadeName(u8"X")` adds it to the facade list, which the reserved-name
@@ -199,7 +199,7 @@ Add `Foundation::Script Foundation::Script.Facades` to the module's `target_link
 
 Battery lives in the **owner's** test project, raw-context Net-style, on **BOTH** backends
 (`Integration.ScriptFacades/NetFacadeScriptTests.cpp`, `Integration.ScriptFacades/
-AudioFacadeScriptTests.cpp`, and the `run` cases in `Engine.GameInstance.Tests` are the
+AudioFacadeScriptTests.cpp`, and the `run` cases in `Engine.Run.Tests` are the
 templates):
 
 ```cpp

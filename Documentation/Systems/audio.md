@@ -80,7 +80,7 @@ per-voice reverb sends route through a splitter to a wet-only second per-scene F
   the bus) pause, fading, while its simulation is off or no time passes in it (a game paused with
   `run.setTimeScale(0)`), and resume with time. A removed or destroyed source's voice stops at once
   (the scene's `AudioSceneSystem` is the manager's `IAudioReleaser`).
-- **Runs** - everything one running game plays (a `GameInstance`: the player's, each Game tab's) is
+- **Runs** - everything one running game plays (a `ApplicationRun`: the player's, each Game tab's) is
   a run group above its scenes' groups, keyed by the run (`Scene::Run`, the script binding's
   `CurrentRun`). A run has its own music slot and its own bus gains. The subsystem listens to the
   run manager: a run's stop or destruction fades its group out and frees it, the run's pause pauses

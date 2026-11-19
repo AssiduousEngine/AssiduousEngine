@@ -40,7 +40,7 @@ Not goals:
   running".
 
 **The Game orchestrator is a separate module.**
-- `GameInstance::StartScript` (`Code/Engine/Engine.GameInstance/GameInstanceImpl.cpp:95-148`)
+- `ApplicationRun::StartScript` (`Code/Engine/Engine.Run/ApplicationRunImpl.cpp:95-148`)
   calls `m_scriptContext->Load(source, name)` (119), not `LoadBehaviorModule`, then
   `NoteExternalLoad()` (120-121) and `CreateInstance("Game")` (128).
 - It always compiles from source, even in the player (`PlayerApplication.h:487-501`).
@@ -113,7 +113,7 @@ comments (`ScriptSubsystem.cppm:250`, `AngelScriptScriptImpl.cpp:2909`, `ScriptA
 
 ### D1. One module per run, compiled up front
 
-At run start (`GameInstance::StartScript` for a run, the editor's Play and Simulate brackets
+At run start (`ApplicationRun::StartScript` for a run, the editor's Play and Simulate brackets
 for the default host), the run host compiles the run's whole script set into one module:
 - the Game class;
 - every ScriptClass that can be instantiated in the run.

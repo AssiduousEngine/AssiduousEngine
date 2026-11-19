@@ -6,7 +6,7 @@
 /// The application-level scene driver: it owns the pure scene registry
 /// (foundation.scene:composition's `SceneRegistry`) and drives every registered manager's per-frame
 /// update and fixed update (UpdateOrder -500, so scenes tick before rendering reads them). It owns no
-/// scenes itself: there is no implicit "default" group. Every owner of scenes (a GameInstance, an
+/// scenes itself: there is no implicit "default" group. Every owner of scenes (an ApplicationRun, an
 /// editor page) creates its own SceneManager and registers it here. The scene lifecycle and tick logic
 /// live in SceneManager; this class only fans the Context time scale and fixed step to the managers
 /// (foundation.scene stays runtime-free: the manager takes those as parameters).
@@ -105,7 +105,7 @@ export namespace engine::scene
         /// Register a SceneManager (borrowed) so it ticks on the Context-driven lane. Wires the manager's
         /// install/uninstall hooks: CreateScene assembles from the live composition then fans SystemsReady;
         /// destroy and clear fan Destroying. The subsystem holds a `SceneManager*` (a scene-library type): it
-        /// never learns about its owner (a GameInstance or editor page), so the dependency stays down. The owner
+        /// never learns about its owner (an ApplicationRun or editor page), so the dependency stays down. The owner
         /// unregisters before destroying the manager.
         void RegisterManager(SceneManager* manager)
         {

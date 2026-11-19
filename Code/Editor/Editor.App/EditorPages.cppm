@@ -139,7 +139,7 @@ export namespace editor::app
             return page;
         }
 
-        /// Opens the Game tab (`newInstance`: another one beside it, with a game instance of its own).
+        /// Opens the Game tab (`newInstance`: another one beside it, with an application run of its own).
         void OpenGame(bool newInstance)
         {
             editor::EditorContext& context = *m_services.context;

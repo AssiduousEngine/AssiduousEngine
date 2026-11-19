@@ -103,7 +103,7 @@ construction.
   pad by index, `stopRumble()` every pad. A request waits for the runtime's next update and reaches
   the pad through that frame's devices, so a runtime holds no device and each run (an editor Game
   tab, the player) rumbles only its own; a later request for the same pad replaces it. A run's end
-  stops its pads (`GameInstance::StopScript`). Rumble is not gated on the Game tab's focus: asking
+  stops its pads (`ApplicationRun::StopRunBehavior`). Rumble is not gated on the Game tab's focus: asking
   an unfocused pad to stop has to work.
   **Pointer lock** (mouse look): `lockPointer(true)` hides the pointer and holds it in place, so
   only its movement is read (bind `MouseDelta` to a look action); `lockPointer(false)` frees it, and

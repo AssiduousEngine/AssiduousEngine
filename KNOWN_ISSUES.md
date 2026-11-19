@@ -351,7 +351,7 @@ verification path.
 **Where:** `Code/Samples/Sandbox/main.cpp` - a very large module TU (the resulting debug
 binary is ~60 MB from one TU). Same fragility the runtime-host work hit before, worked
 around via `DefaultApplication::PrimaryScenes()` returning `SceneManager&` to avoid
-materializing `GameInstance` in huge sample TUs. `Tools/Export/Main.cpp` (Draconic.Tools.Export)
+materializing `ApplicationRun` in huge sample TUs. `Tools/Export/Main.cpp` (Draconic.Tools.Export)
 is likely the same class of TU.
 
 **Impact:** intermittent - it compiled successfully earlier the same day (binary
@@ -364,7 +364,7 @@ module's own build + tests, so this does not gate it.
 1. **Reduce peak memory** on that TU: build samples with fewer parallel jobs (`-j2`) or
    split `Sandbox/main.cpp` into smaller TUs so the frontend's working set stays bounded.
 2. **Shrink the materialized surface** in the sample the way the runtime host did
-   (return references instead of by-value `GameInstance`-heavy types across the seam).
+   (return references instead of by-value `ApplicationRun`-heavy types across the seam).
 3. Upstream: a minimal reproducer for the LLVM frontend crash if it persists after (1).
 
 Recommendation: (1) first (cheap, likely sufficient), then (2) if it recurs.

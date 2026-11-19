@@ -12,7 +12,7 @@
 //
 // Context ownership: the subsystem's ScriptRunHost owns the run's single IScriptContext,
 // created lazily at first use (the first behavior instantiate, or the game script's
-// StartGameScript, which shares it) and torn down when the run ends (game script released,
+// StartRunBehavior, which shares it) and torn down when the run ends (game script released,
 // no live instances, nothing simulating). The backend is resolved through the
 // ScriptBackendRegistry by language; no backend type is ever named here.
 //
@@ -195,7 +195,7 @@ export namespace engine::script
 
     // Logs behavior errors (Script category) and forwards to an optional external sink
     // (the editor's console and notice path).
-    class RunScriptErrorSink final : public IScriptErrorHandler
+    class RunErrorSink final : public IScriptErrorHandler
     {
     public:
         IScriptErrorHandler* external = nullptr;
@@ -590,7 +590,7 @@ export namespace engine::script
         RefPtr<IScriptManager> m_manager;
         RefPtr<IScriptContext> m_scriptContext;
         String m_language;
-        RunScriptErrorSink m_errorSink;
+        RunErrorSink m_errorSink;
         ScriptRuntimeBinding m_binding;
         foundation::core::IAllocator* m_allocator;
         Function<void*(TypeId)> m_applicationServices; // SetApplicationServices
@@ -1755,7 +1755,7 @@ export namespace engine::script
     {
     public:
         /// The default run host: the one for the editor's editing and loose scenes.
-        /// A GameInstance owns its own run host for its game scenes and game script; this is not
+        /// An ApplicationRun owns its own run host for its game scenes and game script; this is not
         /// that. Editing-scene Simulate runs its behaviors on this host.
         [[nodiscard]] ScriptRunHost& RunHost() noexcept { return m_ownedRunHost; }
 
@@ -1773,7 +1773,7 @@ export namespace engine::script
             return &m_ownedRunHost;
         }
 
-        /// Wire a run host (this default or a GameInstance's) with the app services and routing so
+        /// Wire a run host (this default or an ApplicationRun's) with the app services and routing so
         /// its context, once created, has the facades, the Scene.spawn spawner, and entity.send
         /// routing. The wrappers read the subsystem manager, spawner and m_systems live, so one
         /// call per host suffices and the same message route serves every host. Call once per run
@@ -1810,7 +1810,7 @@ export namespace engine::script
         /// Tear down `host` if nothing pins it: no game-script hold, no scene bound to it simulating,
         /// no live behavior instances in those scenes. Per-host, so an
         /// instance's host and the editor's host tear down independently. Called by the scene-stop
-        /// observer, OnSceneDestroyed, and a GameInstance on its own host.
+        /// observer, OnSceneDestroyed, and an ApplicationRun on its own host.
         /// A host that stays collects in full instead: a scene stopped or went, so the frame is
         /// one where a pause is expected, and what it left is garbage now.
         void MaybeTeardownRunHost(ScriptRunHost& host)
@@ -1919,7 +1919,7 @@ export namespace engine::script
             m_resourcesGetter = Move(getter);
         }
         // The game-script run context is not acquired here: a
-        // GameInstance owns its run host and drives its own game script through it. This subsystem is
+        // ApplicationRun owns its run host and drives its own game script through it. This subsystem is
         // machinery (routing, ISceneObserver, reflection, ConfigureRunHost and MaybeTeardownRunHost).
 
         // ---- scene integration ----

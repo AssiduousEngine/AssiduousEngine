@@ -66,7 +66,7 @@ served that purpose - historical mentions in older specs refer to it.
 ## Tiers + the run host (`engine.script`)
 
 Three tiers, all built. The run host (`ScriptRunHost`) resolves the backend from
-`ScriptClass.language` - the whole stack is backend-neutral. A run (a `GameInstance`, or a scene
+`ScriptClass.language` - the whole stack is backend-neutral. A run (a `ApplicationRun`, or a scene
 page's Simulate, `SimulationRun`) registers its run host as a service, and the script subsystem
 runs a scene's behaviours on its run's host (the default host only for a scene outside every
 run). The host keeps its scripts' clock.

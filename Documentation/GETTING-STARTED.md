@@ -70,7 +70,7 @@ The roles, in dependency order (lower layers never know about higher ones):
   (cooked-format) siblings.
 - **Engine/**: the runtime that composes Foundation into a game: subsystems
   (`Engine.Render`, `Engine.Physics`, `Engine.Audio`, `Engine.Script`,
-  `Engine.GUI`, `Engine.Animation`, ...), `Engine.Scene`, `Engine.GameInstance`
+  `Engine.GUI`, `Engine.Animation`, ...), `Engine.Scene`, `Engine.Run`
   (a running game as a first-class object), `Engine.DefaultApp` (the standard
   application that both the player and the editor's embedded runtime use), and
   `Engine.Player` (the shipped game executable).
@@ -121,7 +121,7 @@ from (engine-composition.md).
   nesting and overrides.
 - **Runtime**: `Shell` is the platform layer (windows/input/loop);
   `DefaultApplication` (`engine.defaultapp`) owns subsystem setup; a
-  `GameInstance` bundles the scenes, networking and input of one running game.
+  `ApplicationRun` bundles the scenes, networking and input of one running game.
   The player runs one; the editor hosts them for play in editor.
 - **Scripting**: one registry describes the reflected surface; each backend
   (AngelScript, Luau) emits its bindings from it. Behaviors attach to

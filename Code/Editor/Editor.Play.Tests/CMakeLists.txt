@@ -2,7 +2,7 @@
 # the Game tab's bar from its markup.
 add_executable(Editor.Play.Tests TestsMain.cpp PieMcpToolsTests.cpp GameResolutionTests.cpp GamePageTests.cpp)
 target_link_libraries(Editor.Play.Tests PRIVATE
-    Editor::Play Editor::Scene Editor::Core Engine::Project Engine::Scene Engine::GameInstance Foundation::Input Foundation::Shell
+    Editor::Play Editor::Scene Editor::Core Engine::Project Engine::Scene Engine::Run Foundation::Input Foundation::Shell
     Foundation::Scene Foundation::Mcp Foundation::Json Foundation::Runtime Foundation::Runtime.Client Foundation::Graphics
     Foundation::Settings Foundation::GUI Foundation::GUI.Toolkit Foundation::GUI.Viewport
     Engine::Render Foundation::VFS Foundation::Content Foundation::Resource doctest::doctest)

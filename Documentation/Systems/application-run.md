@@ -1,4 +1,4 @@
-# GameInstance
+# ApplicationRun
 
 > Status: CURRENT
 > Verified: 2026-11-15 @ c18ee48f5
@@ -6,8 +6,8 @@
 
 "A running game" is a first-class object. The standalone player and the editor's Game tab share ONE
 run bracket, and the editor can host more than one simultaneously (multi-instance play-in-editor + an
-in-editor headless dedicated server). Run ownership lives on `GameInstance`, with a `SceneManager`
-owning each group of scenes, and a `GameInstance` is a **run**: it derives from `RunBase`.
+in-editor headless dedicated server). Run ownership lives on `ApplicationRun`, with a `SceneManager`
+owning each group of scenes, and an `ApplicationRun` is a **run**: it derives from `RunBase`.
 
 Related: [[runtime-host]], [[scripting]] (the one-context rule, now per instance), [[networking]]
 (headless PIE), [[editor-track]].
@@ -30,7 +30,7 @@ runtime and the scenes depend on it, never the reverse) defines:
   (`SetRunManager`), so every subsystem finds the runs there: audio and the GUI subscribe to keep
   per-run state; input and networking visit the runs each frame.
 - **`RunMutations`**: what a run defers while its scripts run. Whoever runs a run's scripts (the
-  scene lanes, `TickScript`, the run bus drain) opens a `Scope`; an entity destroy, a component
+  scene lanes, `TickRunBehavior`, the run bus drain) opens a `Scope`; an entity destroy, a component
   removal, a scene destroy or a networking stop asked for meanwhile is queued under its owner and
   done at `Flush`, between the frame's phases. An owner that goes away first cancels its work.
 
@@ -41,11 +41,11 @@ The editor's scene page has its own `SimulationRun` (`Editor.Scene/SceneSimulati
 
 - **Engine host** (`IApplication` / `DefaultApplication`) - "the engine is running": the subsystem
   manager + subsystems + resource infra + shell/graphics, configured ONCE. It owns the primary
-  `GameInstance` (`Instance()`) and the extra ones (`CreateInstance(headless)` /
-  `ReleaseInstance`), registers each with its `RunRegistry` (`Runs()`), and exposes
+  `ApplicationRun` (`PrimaryRun()`) and the extra ones (`CreateRun(headless)` /
+  `ReleaseRun`), registers each with its `RunRegistry` (`Runs()`), and exposes
   `PrimaryScenes()` (a `SceneManager&`, so callers reach the primary group without naming
-  `GameInstance`).
-- **`GameInstance`** (`engine.gameinstance`, `Code/Engine/Engine.GameInstance`) - "a game is running":
+  `ApplicationRun`).
+- **`ApplicationRun`** (`engine.run`, `Code/Engine/Engine.Run`) - "a game is running":
   0..N, owned by the host. Each instance OWNS its `ScriptRunHost` (its script context + `Game`
   object + error sink), its `SceneManager` (its scenes + current scene + group time scale), its
   `NetworkController` (`Network()`: the `INetworkController` + the endpoint it owns, null =
@@ -57,8 +57,8 @@ The editor's scene page has its own `SimulationRun` (`Editor.Scene/SceneSimulati
   engine libraries below it reach them. It BORROWS everything shared (subsystems, resource manager
   / content DB, factories, reflection registries).
 
-The dependency arrow points DOWN (runtime -> scene): `GameInstance` owns a `SceneManager`; the scene
-lib never references `GameInstance` (a scene knows only its `IRun`).
+The dependency arrow points DOWN (runtime -> scene): `ApplicationRun` owns a `SceneManager`; the scene
+lib never references `ApplicationRun` (a scene knows only its `IRun`).
 
 ## `SceneManager` (scene lib)
 
@@ -78,7 +78,7 @@ staged `ISceneObserver` list, the registered `SceneManager*` list it ticks (buil
 sees the type), and the read-only sweeps (`ForEachManager`, registry-wide `ForEachScene` for
 prefab-rebuild / export scans). It owns no scenes. Every owner of scenes creates its own plain
 `SceneManager` and registers it (`scenes->RegisterManager(&mgr)` wires the install/uninstall
-hooks): a `GameInstance` owns one; each editor scene page owns one, as do the preview viewport and
+hooks): a `ApplicationRun` owns one; each editor scene page owns one, as do the preview viewport and
 the thumbnail stage.
 
 ## Time model
@@ -110,7 +110,7 @@ is one game, one context).
 
 ## The `run` facade
 
-`run` (the `Run` facade, backed by the run's `RunScriptBinding` service, which the app fills per
+`run` (the `Run` facade, backed by the run's `RunBinding` service, which the app fills per
 instance) gives scripts the run tier: `run.events()` publishes onto the run bus;
 `run.loadSceneAsync(id)` starts an async level load and returns a ticket (`loadComplete(t)`,
 `loadProgress(t)`, `loadFailed(t)` polled from a coroutine); `loadScene(id)` is a sync convenience;
@@ -127,7 +127,7 @@ the editor's Game tab `<project>/Editor/<project>.save.xml` (ignored per-user st
 never touches a player's save); both name it with `engine::project::SaveFileName`. An unreadable
 file is set aside as `<path>.unreadable` before anything writes. The run's contexts reach it through
 the `Save` facade (`Save::setInt("best.level2", 4210)`, `Save::getInt(key, fallback)`, the same for
-float, bool and string, a float list, plus `has`, `remove`, `clear` and `flush`). `StopScript`
+float, bool and string, a float list, plus `has`, `remove`, `clear` and `flush`). `StopRunBehavior`
 writes whatever changed; `flush` writes at once; and when the app goes to the background
 (`DefaultApplication::OnEnterBackground`, a phone's home button) every instance's save is written,
 since the platform may end the app there without asking. Writes are whole and atomic
@@ -138,7 +138,7 @@ since the platform may end the app there without asking. Writes are whole and at
 
 - **Player**: exactly one instance, created + started at launch: the N=1 case.
 - **Editor**: 0..N instances (Play uses the primary; Play New Instance opens another Game tab on a
-  fresh instance). A scene page is NOT a `GameInstance`: its Simulate runs on its own
+  fresh instance). A scene page is NOT a `ApplicationRun`: its Simulate runs on its own
   `SimulationRun` (snapshot->simulate->restore, not fresh-from-cooked->teardown) with no input map,
   save, network or `run` facade.
 - **Headless instances** (simulate, don't render, no listener) are the in-editor dedicated server for

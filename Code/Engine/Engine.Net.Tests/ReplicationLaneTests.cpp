@@ -184,7 +184,7 @@ TEST_CASE("net-subsystem: the transport pump drives every enumerated endpoint pe
     server.StartServer(/*dedicated=*/true);
     (void)client.ConnectTo(sv->LocalEndpoint());
 
-    // Two runs, each with a network controller holding its endpoint, as a GameInstance has.
+    // Two runs, each with a network controller holding its endpoint, as an ApplicationRun has.
     struct Controller final : net::INetworkController
     {
         explicit Controller(net::NetworkManager& endpoint) : endpoint(&endpoint) {}

@@ -9,7 +9,7 @@
 /// hooks the driver (SceneSubsystem) wires: assembly instantiates from a declarative composition,
 /// teardown notifies observers. SceneManager itself stays composition- and runtime-agnostic.
 ///
-/// A `GameInstance` (runtime layer) owns a SceneManager, so the dependency points down: the scene
+/// A `ApplicationRun` (runtime layer) owns a SceneManager, so the dependency points down: the scene
 /// library never learns about the runtime layer. A SceneManager reads only its own group config and
 /// never reaches up to an instance; the driver passes the context time scale and fixed step in, so
 /// foundation.scene stays runtime-free.

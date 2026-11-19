@@ -28,7 +28,7 @@ import foundation.core;
 import foundation.rhi;
 import foundation.runtime;              // PluginHost (the process's plugins, CreatePluginHost)
 import foundation.runtime.client;       // IApplication, IApplicationHost, ClientServices
-import engine.gameinstance; // GameInstance: this app's running game (scene and script bracket)
+import engine.run; // ApplicationRun: this app's running game (scene and script bracket)
 import foundation.shell;                // IShell, IKeyboard, KeyCode (the profile-dump hotkey)
 import foundation.graphics;             // GraphicsDevice, FrameContext
 import foundation.vfs;                  // the data root: ResolveDataRoot and the NativeFileSystem mounted over it
@@ -42,7 +42,7 @@ import engine.physics;   // PhysicsSubsystem (Jolt worlds and interpolation)
 import foundation.input;               // the action model/runtime
 import engine.input;     // InputSubsystem and the Input facade
 import foundation.script;              // IScriptManager/Context (the game script)
-import foundation.script.resource;     // ScriptClass (the cooked game class StartGameScript takes)
+import foundation.script.resource;     // ScriptClass (the cooked game class StartRunBehavior takes)
 #ifdef OPTION_HAS_ANGELSCRIPT
 import foundation.script.angelscript; // the AngelScript backend (OPTION_ENABLE_ANGELSCRIPT)
 #endif
@@ -88,7 +88,7 @@ export namespace engine::runtime
         // Ticks the game script with gameplay time: dt x the context scale x the primary scene's
         // scale (per-scene time). Subclasses overriding OnUpdate call the base to keep the script
         // (and the profile hotkey) alive.
-        void TickGameScript(IApplicationHost& host, core::f32 deltaTime);
+        void TickRunBehavior(IApplicationHost& host, core::f32 deltaTime);
 
         // Registers all standard engine subsystems. A game subclass overrides this, calls
         // DefaultApplication::Configure(host) first, then adds its own. Entry points (player,
@@ -99,27 +99,27 @@ export namespace engine::runtime
 
         /// The app's primary running game. The launch flow creates the game scene in its
         /// Scenes() manager so it groups, ticks and renders as this run's scenes.
-        [[nodiscard]] GameInstance& Instance() noexcept { return m_instance; }
+        [[nodiscard]] ApplicationRun& PrimaryRun() noexcept { return m_primaryRun; }
         /// The live runs (null before Configure); also on the subsystem manager, for subsystems. A
         /// run the app does not make (an editor scene page's) joins them here.
         [[nodiscard]] foundation::run::RunRegistry* Runs() noexcept { return m_runs.Get(); }
 
         /// The primary instance's scene group: a scene created here renders (the app renders
         /// instance scenes; there is no default manager). Returns SceneManager& directly so callers
-        /// need not name GameInstance.
+        /// need not name ApplicationRun.
         [[nodiscard]] foundation::scene::SceneManager& PrimaryScenes() noexcept;
 
         /// Create an additional running game (multi-instance play in editor, an in-editor headless
         /// dedicated server). Wired like the primary: its scene group ticks on the Context lane and
         /// its run host gets the app services. Stable address (UniquePtr), so the SceneSubsystem's
         /// borrowed manager pointer stays valid. Returns null before Configure ran.
-        [[nodiscard]] GameInstance* CreateInstance(bool headless = false);
+        [[nodiscard]] ApplicationRun* CreateRun(bool headless = false);
 
         /// Destroy an extra instance (a "Play New Instance" tab closing). Unregisters its scene
         /// manager from the SceneSubsystem (else a dangling borrowed pointer is ticked and
         /// rendered), tears down its run host, and frees it. The primary instance is permanent (a
         /// member), so this is a no-op for it.
-        void ReleaseInstance(GameInstance* instance);
+        void ReleaseRun(ApplicationRun* instance);
 
         [[nodiscard]] engine::input::InputSubsystem* Input() const noexcept { return m_input; }
         [[nodiscard]] engine::physics::PhysicsSubsystem* Physics() const noexcept;
@@ -130,7 +130,7 @@ export namespace engine::runtime
         /// fill this from project settings. Extra instances go online at runtime via the Net facade.
         void SetNetworkStartup(const net::NetworkStartup& startup) { m_netStartup = startup; }
         /// The primary instance's live endpoint (null when offline or single-player).
-        [[nodiscard]] net::NetworkManager* Net() const noexcept { return m_instance.NetEndpoint(); }
+        [[nodiscard]] net::NetworkManager* Net() const noexcept { return m_primaryRun.NetEndpoint(); }
 
         // Networking's per-frame transport pump lives in engine::net::NetworkSubsystem::PostUpdate;
         // the app does not override OnFixedUpdate for it (the base app-level fixed hook stays
@@ -272,18 +272,18 @@ export namespace engine::runtime
         [[nodiscard]] foundation::scene::Scene* PrimaryScene() const noexcept;
 
         /// Optional per-run error sink (the editor surfaces notices); set before
-        /// StartGameScript, cleared automatically on StopGameScript.
-        void SetGameScriptErrorHandler(foundation::script::IScriptErrorHandler* handler) noexcept;
+        /// StartRunBehavior, cleared automatically on StopRunBehavior.
+        void SetRunBehaviorErrorHandler(foundation::script::IScriptErrorHandler* handler) noexcept;
 
-        /// Compiles and launches the cooked game class, delegated to the run's GameInstance, with
+        /// Compiles and launches the cooked game class, delegated to the run's ApplicationRun, with
         /// the class's declared handlers so its on<Event> inbox hears the run bus. The caller binds
         /// the class (the player: from its content DB).
-        bool StartGameScript(const foundation::script::ScriptClass& scriptClass);
+        bool StartRunBehavior(const foundation::script::ScriptClass& scriptClass);
 
         /// exit() and release (idempotent; the update fault path also lands here). The run host tears
         /// down via the scene-stop observer once the run's scene stops.
-        void StopGameScript() { m_instance.StopScript(); }
-        [[nodiscard]] bool GameScriptRunning() const noexcept { return m_instance.ScriptRunning(); }
+        void StopRunBehavior() { m_primaryRun.StopRunBehavior(); }
+        [[nodiscard]] bool RunBehaviorRunning() const noexcept { return m_primaryRun.RunBehaviorRunning(); }
 
         // Default render: draw every active scene into the window via the RenderSubsystem.
         // A game overrides this for custom rendering. (Single scene: multiple active scenes
@@ -294,7 +294,7 @@ export namespace engine::runtime
         // The render and simulation policy applied to a scene the moment an async load completes
         // (Game.loadSceneAsync). The base starts it and enables simulation (the generic half). The
         // player overrides it to seed a default camera first (EnsureCamera) so a script-loaded
-        // level renders. GameInstance::PumpScriptLoads does SetScene (current-scene bookkeeping)
+        // level renders. ApplicationRun::PumpScriptLoads does SetScene (current-scene bookkeeping)
         // before this.
         virtual void ApplyLoadedSceneActivation(foundation::scene::Scene* scene);
 
@@ -305,7 +305,7 @@ export namespace engine::runtime
         // capturing the specific instance (the orchestrator script has no scene to route by). The
         // host is threaded in so run.requestExit routes to it (standalone stops the loop; the
         // editor stops the Game tab's session). Borrowed pointer: the host outlives the binding.
-        void InstallInstanceLoadFacade(GameInstance& gi, IApplicationHost& host);
+        void InstallRunLoadFacade(ApplicationRun& gi, IApplicationHost& host);
 
         // The standard factory set, the composition's, created with this host's services and
         // registered into whichever manager the app uses (preset at OnStartup or late-attached by
@@ -350,7 +350,7 @@ export namespace engine::runtime
         // The fitted input while a render resolution or an orientation may move the game's frame
         // off the window's; the shell's devices directly otherwise.
         void UpdateFittedInput();
-        // The source a game instance reads: the fitted one with a render resolution, else the shell's.
+        // The source an application run reads: the fitted one with a render resolution, else the shell's.
         [[nodiscard]] foundation::input::IInputSourceProvider* GameInputSource() noexcept;
         core::String m_dataRootOverride; // preset (SetDataRoot); empty = discover
         core::String m_dataRoot;         // resolved in Configure
@@ -367,7 +367,7 @@ export namespace engine::runtime
         net::NetworkStartup m_netStartup; // preset before Configure (default = single-player)
         engine::script::ScriptSubsystem* m_scripts = nullptr;
         // The app host, captured in Configure (stable for the app's lifetime). Used to route
-        // run.requestExit through a GameInstance's load facade when an extra instance is created
+        // run.requestExit through an ApplicationRun's load facade when an extra instance is created
         // outside a host-bearing call (CreateInstance). Borrowed: the host outlives the app.
         IApplicationHost* m_host = nullptr;
         // Every running game: the primary (a stable member) and any extras (stable UniquePtr
@@ -375,16 +375,16 @@ export namespace engine::runtime
         // Every run's networking, scenes and scripts stopped and gone (leaving play).
         void TearDownRuns();
         template <typename Fn>
-        void ForEachInstance(Fn&& fn)
+        void ForEachRun(Fn&& fn)
         {
-            fn(m_instance);
-            for (core::UniquePtr<GameInstance>& gi : m_extraInstances)
+            fn(m_primaryRun);
+            for (core::UniquePtr<ApplicationRun>& gi : m_extraRuns)
             {
                 fn(*gi);
             }
         }
 
-        // The client-side prefab net-spawn resolver injected onto every GameInstance's
+        // The client-side prefab net-spawn resolver injected onto every ApplicationRun's
         // NetworkController: it turns a replicated prefab id into a live prefab from the content DB
         // (replication then applies the transform and fields on top). The server assigns ids; game
         // rules set relevancy. The controller applies it to each endpoint, so reconnecting keeps
@@ -405,7 +405,7 @@ export namespace engine::runtime
         // Enter the preset startup role on the primary instance (None = single-player, no-op). The
         // reliable-config tuning uses the endpoint defaults here; the preset path is the CLI or
         // dedicated launch (scripts go online via the Net facade instead).
-        void ApplyNetworkStartup(GameInstance& instance);
+        void ApplyNetworkStartup(ApplicationRun& instance);
 
         /// Re-points every live scene's spawn system at the resource manager its prefabs load
         /// through: the manager's creation or attachment can land after scenes exist, and one left
@@ -424,13 +424,13 @@ export namespace engine::runtime
         core::f32 m_runSeconds = 0.0f;
 
         engine::scene::SceneSubsystem* m_scenes = nullptr;
-        // The live runs (every GameInstance), handed to the subsystem manager for every subsystem.
+        // The live runs (every ApplicationRun), handed to the subsystem manager for every subsystem.
         // Made in Configure; declared before the instances so it outlives them and hears each one
         // go.
         core::UniquePtr<foundation::run::RunRegistry> m_runs;
         core::u32 m_runsMade = 1; // names the extra instances' runs ("Game 2", ...)
-        GameInstance m_instance; // the primary running game (app-level ops target this one)
-        core::Array<core::UniquePtr<GameInstance>>
-            m_extraInstances; // multi-instance play in editor / headless server
+        ApplicationRun m_primaryRun; // the primary running game (app-level ops target this one)
+        core::Array<core::UniquePtr<ApplicationRun>>
+            m_extraRuns; // multi-instance play in editor / headless server
     };
 }

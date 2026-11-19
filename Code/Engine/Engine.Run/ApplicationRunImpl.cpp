@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Engine::GameInstance - the script-bracket bodies.
+// Engine::Run - the script-bracket bodies.
 
 module;
 #include "Core/Prelude.h"
 #include "Core/Log/Log.h"
 #include "Core/Reflection/Reflect.h" // the run facade reflection body
 
-module engine.gameinstance;
+module engine.run;
 import engine.domain;
 
 import foundation.core;
@@ -101,7 +101,7 @@ namespace engine::runtime
         (void)once;
     }
 
-    foundation::net::ITlsBackend* GameInstance::TlsBackend()
+    foundation::net::ITlsBackend* ApplicationRun::TlsBackend()
     {
 #if !PLATFORM_WEB
         if (!m_tls)
@@ -112,13 +112,13 @@ namespace engine::runtime
         return m_tls.Get();
     }
 
-    bool GameInstance::StartScript(core::StringView source, core::StringView name,
+    bool ApplicationRun::StartRunBehavior(core::StringView source, core::StringView name,
                                    core::Span<const core::String> gameHandlers,
                                    core::Span<const script::ScriptSection> includes,
                                    core::Span<const core::byte> assembly, core::Span<const core::byte> symbols)
     {
-        StopScript();
-        m_scriptFault = core::String{};
+        StopRunBehavior();
+        m_runBehaviorFault = core::String{};
         // This instance's run host is the game's context. The app configured the host
         // (ConfigureRunHost) with the facades and the Scene.spawn and entity.send routing.
         m_runHost.SetExternalErrorSink(m_errorHandler); // before the context is created
@@ -126,7 +126,7 @@ namespace engine::runtime
         if (scriptContext == nullptr)
         {
             LOG_ERROR(u8"App", u8"no script backend for '{}'", name);
-            m_scriptFault = Format(u8"no script backend runs '{}'", name);
+            m_runBehaviorFault = Format(u8"no script backend runs '{}'", name);
             return false;
         }
         m_scriptContext = core::RefPtr<script::IScriptContext>(scriptContext);
@@ -147,20 +147,20 @@ namespace engine::runtime
         if (!loaded)
         {
             LOG_ERROR(u8"App", u8"game script '{}' failed to compile", name);
-            StopScript();
+            StopRunBehavior();
             const core::String why = m_runHost.TakeLastError();
-            m_scriptFault = why.IsEmpty() ? Format(u8"the game script '{}' did not compile", name)
+            m_runBehaviorFault = why.IsEmpty() ? Format(u8"the game script '{}' did not compile", name)
                                           : Format(u8"the game script '{}' did not compile: {}",
                                                    name, why.AsView());
             return false;
         }
-        m_game = m_scriptContext->CreateInstance(u8"Game", core::Span<core::Variant>{});
-        if (m_game.Get() == nullptr)
+        m_runBehavior = m_scriptContext->CreateInstance(u8"Game", core::Span<core::Variant>{});
+        if (m_runBehavior.Get() == nullptr)
         {
             LOG_ERROR(u8"App", u8"game script '{}' has no `Game` class (construct new())",
                                name);
-            StopScript();
-            m_scriptFault = Format(u8"the game script '{}' did not instantiate (log_read, "
+            StopRunBehavior();
+            m_runBehaviorFault = Format(u8"the game script '{}' did not instantiate (log_read, "
                                    u8"category Script, has why)",
                                    name);
             return false;
@@ -175,18 +175,18 @@ namespace engine::runtime
                                  { DispatchGameEvent(eventName, payload); }});
         m_gameEventSubs.EnsureFor(gameHandlers);
 
-        (void)m_game->Invoke(u8"launch", core::Span<core::Variant>{});
+        (void)m_runBehavior->Invoke(u8"launch", core::Span<core::Variant>{});
         LOG_INFO(u8"App", u8"game script '{}' launched", name);
         return true;
     }
 
-    void GameInstance::StopScript()
+    void ApplicationRun::StopRunBehavior()
     {
         m_gameEventSubs.Clear(); // unsubscribe the Game inbox from the run bus (bus outlives the game)
-        if (m_game.Get() != nullptr)
+        if (m_runBehavior.Get() != nullptr)
         {
-            (void)m_game->Invoke(u8"exit", core::Span<core::Variant>{});
-            m_game = nullptr;
+            (void)m_runBehavior->Invoke(u8"exit", core::Span<core::Variant>{});
+            m_runBehavior = nullptr;
         }
         m_scriptContext = nullptr; // drop the game script's ref; the run host owns the context
         m_runHost.SetGameScriptHold(false);
@@ -212,9 +212,9 @@ namespace engine::runtime
     }
 
     // Networking role bodies (StartServer/Connect/StopNetworking) and the script binding live on
-    // NetworkController (NetworkControllerImpl.cpp); GameInstance forwards inline.
+    // NetworkController (NetworkControllerImpl.cpp); ApplicationRun forwards inline.
 
-    void GameInstance::DriveInput(f32 deltaTime, f32 contextTimeScale)
+    void ApplicationRun::DriveInput(f32 deltaTime, f32 contextTimeScale)
     {
         if (m_inputSource == nullptr)
         {
@@ -225,7 +225,7 @@ namespace engine::runtime
         TraceInput();
     }
 
-    void GameInstance::TraceInput()
+    void ApplicationRun::TraceInput()
     {
         // ENV_INPUT_TRACE set: twice a second, log what the input path saw (each pad's left stick
         // and south button as the device reports them) and what the actions made of it. For a
@@ -259,7 +259,7 @@ namespace engine::runtime
         LOG_INFO(u8"Input", u8"{}", line.AsView());
     }
 
-    scene::Scene* GameInstance::CreateScene(core::StringView name, bool activate)
+    scene::Scene* ApplicationRun::CreateScene(core::StringView name, bool activate)
     {
         // The group gives the scene this run and its bus before it assembles, so the
         // ScriptSubsystem binds its behaviours to this run's host (the one registered on it) and
@@ -267,7 +267,7 @@ namespace engine::runtime
         return m_sceneManager.CreateScene(name, activate);
     }
 
-    scene::Scene* GameInstance::LoadScene(content::Instance& sceneInstance, resource::ResourceManager& resources)
+    scene::Scene* ApplicationRun::LoadScene(content::Instance& sceneInstance, resource::ResourceManager& resources)
     {
         scene::Scene* scene = CreateScene(sceneInstance.Name()); // active (the sync path)
         if (scene == nullptr || !scene::LoadScene(sceneInstance, *scene).IsOk())
@@ -287,7 +287,7 @@ namespace engine::runtime
         return scene;
     }
 
-    bool GameInstance::LoadSceneForScript(content::Instance& sceneInstance, resource::ResourceManager& resources)
+    bool ApplicationRun::LoadSceneForScript(content::Instance& sceneInstance, resource::ResourceManager& resources)
     {
         scene::Scene* scene = CreateScene(sceneInstance.Name(), /*activate*/ false);
         if (scene == nullptr || !scene::LoadScene(sceneInstance, *scene).IsOk())
@@ -310,7 +310,7 @@ namespace engine::runtime
         return true;
     }
 
-    SceneLoadHandle GameInstance::LoadSceneAsync(content::Instance& sceneInstance, resource::ResourceManager& resources)
+    SceneLoadHandle ApplicationRun::LoadSceneAsync(content::Instance& sceneInstance, resource::ResourceManager& resources)
     {
         SceneLoadHandle handle;
         handle.m_resources = &resources;
@@ -345,7 +345,7 @@ namespace engine::runtime
         return handle;
     }
 
-    scene::Scene* GameInstance::ActivateLoadedScene(SceneLoadHandle& handle)
+    scene::Scene* ApplicationRun::ActivateLoadedScene(SceneLoadHandle& handle)
     {
         if (handle.m_failed || handle.m_scene == nullptr || !handle.IsComplete())
         {
@@ -355,7 +355,7 @@ namespace engine::runtime
         return handle.m_scene;
     }
 
-    i32 GameInstance::TrackScriptLoad(SceneLoadHandle handle)
+    i32 ApplicationRun::TrackScriptLoad(SceneLoadHandle handle)
     {
         const i32 ticket = ++m_nextScriptTicket; // 1-based; 0 stays reserved for "did not start"
         TrackedScriptLoad tracked;
@@ -365,7 +365,7 @@ namespace engine::runtime
         return ticket;
     }
 
-    void GameInstance::PumpScriptLoads()
+    void ApplicationRun::PumpScriptLoads()
     {
         // Index walk, not range-for: a successful activation retires its entry in place, so the
         // array shrinks mid-loop. Failed and in-flight entries stay and we advance past them.
@@ -389,7 +389,7 @@ namespace engine::runtime
         }
     }
 
-    void GameInstance::AdoptLoadedScene(scene::Scene* activated)
+    void ApplicationRun::AdoptLoadedScene(scene::Scene* activated)
     {
         if (activated == nullptr)
         {
@@ -408,7 +408,7 @@ namespace engine::runtime
         }
     }
 
-    f32 GameInstance::ScriptLoadProgress(i32 ticket) const
+    f32 ApplicationRun::ScriptLoadProgress(i32 ticket) const
     {
         for (const TrackedScriptLoad& load : m_scriptLoads)
         {
@@ -420,7 +420,7 @@ namespace engine::runtime
         return 1.0f; // unknown/expired ticket (incl. a retired-on-activation load: complete)
     }
 
-    bool GameInstance::ScriptLoadComplete(i32 ticket) const
+    bool ApplicationRun::ScriptLoadComplete(i32 ticket) const
     {
         for (const TrackedScriptLoad& load : m_scriptLoads)
         {
@@ -432,7 +432,7 @@ namespace engine::runtime
         return true; // retired on activation (success) or a bad/expired ticket: never hang the yield loop
     }
 
-    bool GameInstance::ScriptLoadFailed(i32 ticket) const
+    bool ApplicationRun::ScriptLoadFailed(i32 ticket) const
     {
         for (const TrackedScriptLoad& load : m_scriptLoads)
         {
@@ -444,17 +444,17 @@ namespace engine::runtime
         return false;
     }
 
-    void GameInstance::TickScript(f32 hostDeltaTime, f32 contextTimeScale)
+    void ApplicationRun::TickRunBehavior(f32 hostDeltaTime, f32 contextTimeScale)
     {
         // What the game script asks to destroy or replace waits until its update returns.
         {
             foundation::run::RunMutations::Scope scripts(Mutations());
-            TickScriptDeferred(hostDeltaTime, contextTimeScale);
+            TickRunBehaviorDeferred(hostDeltaTime, contextTimeScale);
         }
         Mutations().Flush();
     }
 
-    void GameInstance::TickScriptDeferred(f32 hostDeltaTime, f32 contextTimeScale)
+    void ApplicationRun::TickRunBehaviorDeferred(f32 hostDeltaTime, f32 contextTimeScale)
     {
         // Debug-paused: the debugger holds a suspended update mid-call. Starting a new update each
         // frame would hit the breakpoint again every frame (pause-event spam, flickering locals)
@@ -479,7 +479,7 @@ namespace engine::runtime
         // Answers to the run's HTTP requests reach their handlers here, on the game's thread,
         // whether a game script or behaviours sent them.
         m_http.Pump();
-        if (m_game.Get() == nullptr)
+        if (m_runBehavior.Get() == nullptr)
         {
             return;
         }
@@ -487,7 +487,7 @@ namespace engine::runtime
         const scene::FrameTime frame(hostDeltaTime, contextTimeScale, m_instanceTimeScale,
                                      sceneScale);
         core::Variant dt = core::Variant::From(frame.SceneDt());
-        if (auto result = m_game->Invoke(u8"update", core::Span<core::Variant>{&dt, 1});
+        if (auto result = m_runBehavior->Invoke(u8"update", core::Span<core::Variant>{&dt, 1});
             !result.HasValue())
         {
             // A debugger suspension surfaces as an error result too (the suspended call unwinds to
@@ -498,21 +498,21 @@ namespace engine::runtime
                 return;
             }
             LOG_ERROR(u8"App", u8"game script update() faulted - stopping script");
-            FaultScript(u8"update");
+            FaultRunBehavior(u8"update");
         }
     }
 
-    void GameInstance::FaultScript(core::StringView handler)
+    void ApplicationRun::FaultRunBehavior(core::StringView handler)
     {
-        m_game = nullptr;
+        m_runBehavior = nullptr;
         const core::String why = m_runHost.TakeLastError();
-        m_scriptFault = why.IsEmpty() ? Format(u8"faulted in {}", handler)
+        m_runBehaviorFault = why.IsEmpty() ? Format(u8"faulted in {}", handler)
                                       : Format(u8"faulted in {}: {}", handler, why.AsView());
     }
 
-    void GameInstance::DispatchGameEvent(core::StringView eventName, const core::Variant& payload)
+    void ApplicationRun::DispatchGameEvent(core::StringView eventName, const core::Variant& payload)
     {
-        if (m_game.Get() == nullptr)
+        if (m_runBehavior.Get() == nullptr)
         {
             return;
         }
@@ -522,14 +522,14 @@ namespace engine::runtime
         const bool hasArg = !payload.IsEmpty();
         const core::Span<core::Variant> args =
             hasArg ? core::Span<core::Variant>{&arg, 1} : core::Span<core::Variant>{};
-        if (auto result = m_game->Invoke(handler.AsView(), args); !result.HasValue())
+        if (auto result = m_runBehavior->Invoke(handler.AsView(), args); !result.HasValue())
         {
             if (m_runHost.IsDebugPaused())
             {
                 return; // suspended at a breakpoint, not a fault (same as update())
             }
             LOG_ERROR(u8"App", u8"game script event handler {} faulted - stopping script", handler);
-            FaultScript(handler.AsView());
+            FaultRunBehavior(handler.AsView());
         }
     }
 

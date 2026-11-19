@@ -8,7 +8,7 @@ The host layer: a single `IApplication` IS the app/game; a generic `ApplicationH
 shared GPU device + N windows; the editor embeds the SAME application against a persistent runtime
 subsystem manager. Shipped (multi-window platform + graphics host + the inverted single-application
 model + the embedded host + the app lifecycle). Run ownership (scenes + script brain) lives one layer
-up in `GameInstance` and the runs - see [[game-instance-track]].
+up in `ApplicationRun` and the runs - see [[game-instance-track]].
 
 ## The inversion
 
@@ -21,7 +21,7 @@ window's descriptor), `OnCommandLine`, `Configure`, `OnStartup`, `OnLaunch`, `On
 
 `DefaultApplication` (`engine.defaultapp`) is the conventional `IApplication`: it registers all the
 standard engine subsystems, takes its scene composition from the one composition root
-(`engine::FullSceneComposition()`), owns the primary `GameInstance` plus any extra ones, and owns the
+(`engine::FullSceneComposition()`), owns the primary `ApplicationRun` plus any extra ones, and owns the
 `RunRegistry` it hands to the subsystem manager. The player is a thin subclass; the editor embeds
 the same class. A game `: DefaultApplication` gets the defaults + its own; a game `: IApplication`
 gets only what it declares.
@@ -133,7 +133,7 @@ Time is layered `host dt x context x group/instance x scene`; `SceneSubsystem` b
 `FrameTime` per frame from the subsystem manager's time scale and fixed step, each `SceneManager`
 adds its group term and each scene its own and owns its fixed-step accumulator (see
 [[game-instance-track]], [[scene-composition]]). Run ownership - the script brain, the scenes,
-per-instance net/input/save - lives in `GameInstance`, one run each; `ApplicationHost` and the
+per-instance net/input/save - lives in `ApplicationRun`, one run each; `ApplicationHost` and the
 subsystems hold no run state of their own beyond what they key by run.
 
 ---

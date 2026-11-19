@@ -173,7 +173,7 @@ namespace
     struct ScriptedScene
     {
         // The test fixture owns the scene's run (whose bus is the scene's), sets it before systems
-        // bind, and drains its bus at frame top as GameInstance and the editor page do.
+        // bind, and drains its bus at frame top as ApplicationRun and the editor page do.
         foundation::run::RunBase run{DefaultAllocator(), u8"script-test"};
         scene::Scene scene{DefaultAllocator(), u8"script-test"};
         ScriptRunHost host{DefaultAllocator()};
@@ -1374,7 +1374,7 @@ TEST_CASE("script.scene: the Roll Call sample game - orbs EMIT OrbCollected, the
 
     // Walk onto orb1: it collects itself and emits "OrbCollected". Delivery follows the run
     // scope's cadence: the scope drains at the next frame's top, so events emitted in frame N
-    // arrive in frame N+1, the cadence GameInstance has.
+    // arrive in frame N+1, the cadence ApplicationRun has.
     bed.scene.SetLocalPosition(player, Float3{0.0f, 0.0f, 0.0f});
     bed.Frame(); // orb1 onUpdate: proximity hit, emit("OrbCollected"), destroy
     CHECK_FALSE(bed.scene.IsValid(orb1));

@@ -5,7 +5,7 @@
 ///
 /// FrameTime: the one value type carrying the scene lane's time-scale chain
 /// (host x context x group x scene) plus the lane's configured fixed step.
-/// It centralizes the chain so SceneManager, GameInstance::TickScript and the
+/// It centralizes the chain so SceneManager, ApplicationRun::TickRunBehavior and the
 /// subsystem bridge do not each multiply it by hand and drift apart. The
 /// fixed-step accumulator stays per scene (each Scene owns its FixedStepper);
 /// `fixedStep` is configuration published alongside the scales. "Context" is

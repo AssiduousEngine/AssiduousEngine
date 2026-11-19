@@ -20,7 +20,7 @@ import foundation.gui;
 import foundation.gui.toolkit;
 import foundation.gui.viewport; // the game's view
 import engine.scene;        // a run needs the scenes
-import engine.gameinstance; // the run the tab plays
+import engine.run; // the run the tab plays
 import editor.core;
 import editor.play;
 import engine.project;      // ProjectSettings: the game's quality levels
@@ -277,7 +277,7 @@ TEST_CASE("game tab: a run with no game script still keeps its save, written to 
     context.SetProject(project.Get());
     context.SetProjectEditorSettings(&store);
     SceneHost host;
-    engine::runtime::GameInstance instance;
+    engine::runtime::ApplicationRun instance;
     {
         GameEditorPage::Services services;
         services.loadMarkup = [](StringView path) { return LoadMarkup(path); };
@@ -345,7 +345,7 @@ TEST_CASE("game tab: its run offers the project's levels to scripts; a script's 
         context.SetProjectEditorSettings(&store);
         context.SetResources(&resources);
         SceneHost host;
-        engine::runtime::GameInstance instance;
+        engine::runtime::ApplicationRun instance;
         {
             GameEditorPage::Services services;
             services.loadMarkup = [](StringView path) { return LoadMarkup(path); };
@@ -449,7 +449,7 @@ TEST_CASE("game tab: a start whose default scene does not load leaves nothing wi
     context.SetProject(project.Get());
     context.SetProjectEditorSettings(&store);
     SceneHost host;
-    engine::runtime::GameInstance instance;
+    engine::runtime::ApplicationRun instance;
     {
         GameEditorPage::Services services;
         services.loadMarkup = [](StringView path) { return LoadMarkup(path); };

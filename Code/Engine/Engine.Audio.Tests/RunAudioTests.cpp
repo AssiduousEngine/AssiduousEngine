@@ -25,7 +25,7 @@ namespace scene = foundation::scene;
 
 namespace
 {
-    // A run of its own (a GameInstance is the real one).
+    // A run of its own (an ApplicationRun is the real one).
     struct TestRun final : foundation::run::RunBase
     {
         TestRun() : RunBase(DefaultAllocator(), u8"test") {}

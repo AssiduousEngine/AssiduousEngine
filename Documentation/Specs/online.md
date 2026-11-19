@@ -33,7 +33,7 @@ purchases and stores, the platform's overlay UI, platforms other than Linux, Win
   `Object` type (`get`, `post`, `send`, `cancel`), each returning an id (0 when the run has no HTTP,
   its handler then never called), a handler `IScriptDelegate` called on the game's thread from the
   binding's `Pump`. The run holds an `HttpScriptBinding` among its services
-  (`GameInstance.cppm:340`, `Register<HttpScriptBinding>`); the facade finds it with
+  (`ApplicationRun.cppm:340`, `Register<HttpScriptBinding>`); the facade finds it with
   `script::CurrentService<T>()`, and the client is made on the first request. `Reset` drops every
   request when the run's scripts stop.
 - **Provider slots in the plugin manifest**: `PluginManifest::provides`
@@ -45,7 +45,7 @@ purchases and stores, the platform's overlay UI, platforms other than Linux, Win
   deploy files shipped beside the player (X6), and X7's rule: a platform service reaches scripts
   through an engine facade with per-platform providers, so a script never names a plugin's facade
   that a platform may lack.
-- **The `Save` facade** (`Code/Engine/Engine.GameInstance/RunSave.cppm`, `Documentation/Shipping/
+- **The `Save` facade** (`Code/Engine/Engine.Run/RunSave.cppm`, `Documentation/Shipping/
   Scripting.md`, "Saving"): typed values by key in one settings file the host names (the player
   in the user data directory, play in editor in the project's `Editor/` folder), written whole and
   atomically when the run ends or at `Save::flush()`. The web player mounts IndexedDB over the

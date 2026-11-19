@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Engine::GameInstance :networkcontroller partition - a running game's networking, held apart from
-// the GameInstance object. It owns the endpoint, the INetworkController implementation, the role
+// Engine::Run :networkcontroller partition - a running game's networking, held apart from
+// the ApplicationRun object. It owns the endpoint, the INetworkController implementation, the role
 // lifecycle (StartServer/Connect/Stop), the net script binding and the replicated-scene selection.
-// GameInstance composes one and forwards to it; it does not inherit net::INetworkController.
+// ApplicationRun composes one and forwards to it; it does not inherit net::INetworkController.
 //
 // This is a role separation only: the wire protocol, the replication model and the endpoint
-// factories live elsewhere. It sits in engine.gameinstance beside its owner; it could move to
+// factories live elsewhere. It sits in engine.run beside its owner; it could move to
 // engine.net if the script surface wants NetworkController.of(context).
 
-export module engine.gameinstance:networkcontroller;
+export module engine.run:networkcontroller;
 
 import foundation.core;
 import foundation.scene;        // scene::Scene (the replicated scene) and GetSystem
@@ -41,13 +41,13 @@ export namespace engine::runtime
     // A running game's networking. Owns the endpoint (null when offline), implements
     // INetworkController for the Net facade, and caches the current scene so a freshly created
     // endpoint replicates it. The controller outlives every endpoint it creates, so the script
-    // binding (controller=this) never dangles. A stable member of GameInstance, constructed and
+    // binding (controller=this) never dangles. A stable member of ApplicationRun, constructed and
     // destroyed with it.
     class NetworkController final : public net::INetworkController
     {
     public:
         /// The scene this run replicates. Cached so StartServer/Connect can set it on a fresh
-        /// endpoint; applied live when the endpoint already exists (GameInstance::SetScene calls
+        /// endpoint; applied live when the endpoint already exists (ApplicationRun::SetScene calls
         /// this on change). The old replicated scene's NetworkSceneSystem is detached (endpoint
         /// null) and the new one attached (endpoint live, or null offline), so only the replicated
         /// scene's fixed lane ever drives this endpoint's replication.

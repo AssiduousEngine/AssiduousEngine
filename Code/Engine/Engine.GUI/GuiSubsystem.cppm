@@ -566,7 +566,7 @@ export namespace engine::gui
         /// push it as a screen on Screens(). Returns null when the document does not build.
         [[nodiscard]] RefPtr<Node> BuildDocument(const GuiDocument& document);
         /// Sets the action runtime whose bindings the GUI's prompts (GUI.Gamekit's Prompt) name.
-        /// The default application sets the runtime of its primary game instance; null means the
+        /// The default application sets the runtime of its primary application run; null means the
         /// input subsystem's own runtime. Changes to its bindings (a map loaded, a rebinding, a set
         /// enabled) are seen at the next frame, and every prompt reads them again.
         void SetPromptRuntime(const foundation::input::ActionRuntime* runtime) noexcept { m_promptRuntime = runtime; }

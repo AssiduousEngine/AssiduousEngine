@@ -1400,7 +1400,7 @@ namespace editor::app
             m_runtimeContext.BeginFrame(dt);
             m_runtimeContext.Update(scaled);
             m_runtimeContext.PostUpdate(scaled);
-            // Every game instance's script ticks once a frame here, however many Game tabs.
+            // Every application run's script ticks once a frame here, however many Game tabs.
             m_embeddedApp->OnUpdate(*m_embeddedHost, dt);
         }
         {

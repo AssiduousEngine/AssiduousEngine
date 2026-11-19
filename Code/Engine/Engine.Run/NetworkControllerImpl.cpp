@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Engine::GameInstance :networkcontroller - the networking role bodies.
-// A second implementation unit of engine.gameinstance; it sees NetworkController through the
+// Engine::Run :networkcontroller - the networking role bodies.
+// A second implementation unit of engine.run; it sees NetworkController through the
 // primary interface's `export import :networkcontroller`.
 
 module;
 #include "Core/Prelude.h"
 #include "Core/Log/Log.h"
 
-module engine.gameinstance;
+module engine.run;
 
 import foundation.core;
 import foundation.net.manager; // NetworkManager factories (HostServer/JoinServer)

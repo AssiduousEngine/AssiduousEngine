@@ -105,18 +105,18 @@ The earlier design was correct at the layer level but strained at the integratio
    leaked into the unrelated `Subsystem::UpdateOrder()` axis.
 3. **`SceneSubsystem` did three jobs** (the observer list, the manager list, the lane driver).
 4. **The time model was implemented three times** (`SceneManager`'s two lanes and
-   `GameInstance::TickScript`), with a context-level fixed lane the scene lane never used.
+   `ApplicationRun::TickRunBehavior`), with a context-level fixed lane the scene lane never used.
 5. **Registration was raw-pointer + linear de-dup**, with a real dangling-pointer hazard.
 
 ## What stays (the kept invariants)
 
-- **Dependency direction points down.** `GameInstance` (runtime tier) owns a `SceneManager`; the scene
+- **Dependency direction points down.** `ApplicationRun` (runtime tier) owns a `SceneManager`; the scene
   library never references the runtime tier. The scene lib stays runtime-free and context-free.
 - **Per-scene systems as value-pool component managers.** Components are plain value data in sparse sets
   (`Component.cppm`); behavior lives on `SceneSystem`/`ComponentManager<T>`, not on components.
 - **Type-indexed, RTTI-free composition.** `SubsystemManager::GetSubsystem<T>()` and
   `Scene::GetSystem<T>()` resolve through reflected `TypeOf<T>()` (`-fno-rtti`).
-- **The multi-scene / multi-instance model.** `SceneManager` as a first-class *group*, `0..N GameInstance`
+- **The multi-scene / multi-instance model.** `SceneManager` as a first-class *group*, `0..N ApplicationRun`
   (play-in-editor + in-editor headless dedicated server).
 - **The time layering** host x context x group x scene, composed in one place (`FrameTime`).
 

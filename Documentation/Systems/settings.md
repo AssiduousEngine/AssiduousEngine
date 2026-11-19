@@ -63,7 +63,7 @@ the app's own storage.
 A game's save is one more: `SaveValues` (`SaveValues.cppm`), the open-ended section. Its fields are not
 known ahead, so it keeps typed values (bool, int, float, text) by key, sorted, with kinds written by
 name. A save file is an ordinary settings file holding that one section; the run that owns it, the
-`Save` script facade and where each host keeps the file are in `game-instance.md` and
+`Save` script facade and where each host keeps the file are in `application-run.md` and
 `Documentation/Archive/save-data-history.md`.
 
 ## Deferred

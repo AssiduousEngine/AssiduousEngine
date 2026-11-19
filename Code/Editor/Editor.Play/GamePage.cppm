@@ -51,7 +51,7 @@ import foundation.audio;
 import foundation.audio.resource;
 import engine.audio;
 import engine.defaultapp;
-import engine.gameinstance; // GameInstance: each tab drives its own run (several PIE instances)
+import engine.run; // ApplicationRun: each tab drives its own run (several PIE instances)
 import editor.core;
 import engine.project; // ProjectSettings: the game's scene-pass MSAA
 import :game_resolution;
@@ -113,7 +113,7 @@ export namespace editor
     /// Registers the Preferences contribution (needs the live context).
     void RegisterGameAudioEditorSettings(EditorContext& context);
     /// The preference's value (the default when no store or section exists).
-    [[nodiscard]] bool HearAllGameInstances(const EditorContext& context);
+    [[nodiscard]] bool HearAllRunsPreference(const EditorContext& context);
 
     namespace runtime = foundation::runtime;
     namespace scene = foundation::scene;
@@ -217,7 +217,7 @@ export namespace editor
         /// `pieId` names the tab: the id its dock panel persists under and the PIE tools address
         /// it by (`game-page`, then `game-page-1`, ...).
         GameEditorPage(EditorContext& context, runtime::IApplicationHost& host, Services services, engine::runtime::DefaultApplication* embeddedApp,
-                       engine::runtime::GameInstance* instance, StringView pieId);
+                       engine::runtime::ApplicationRun* instance, StringView pieId);
 
         [[nodiscard]] StringView Title() const override { return m_title.AsView(); }
         /// A Game tab's title from its play id: "Game" for the first, then "Game 2", "Game 3" for
@@ -226,7 +226,7 @@ export namespace editor
         [[nodiscard]] Status Save() override { return Status{}; } // nothing here is a document
         [[nodiscard]] RefPtr<foundation::gui::Node> Content() override { return m_content; }
 
-        // The scene group this tab's game scene belongs to: the embedded app's GameInstance manager,
+        // The scene group this tab's game scene belongs to: the embedded app's ApplicationRun manager,
         // so the game scene is grouped, ticked and bound to the instance's run host. Without an
         // embedded app it falls back to this page's own unregistered manager, a placeholder, since
         // without a runtime there is no game to run.
@@ -252,26 +252,26 @@ export namespace editor
         }
         [[nodiscard]] f64 RunTime() const noexcept override
         {
-            return (m_running && m_gameInstance != nullptr) ? m_gameInstance->RunTime()
+            return (m_running && m_run != nullptr) ? m_run->RunTime()
                                                             : m_stoppedRunTime;
         }
         [[nodiscard]] u64 FrameCount() const noexcept override { return m_frameCount; }
         [[nodiscard]] PieScriptState ScriptState() const noexcept override
         {
-            if (m_gameInstance == nullptr)
+            if (m_run == nullptr)
             {
                 return PieScriptState::None;
             }
-            if (m_gameInstance->ScriptRunning())
+            if (m_run->RunBehaviorRunning())
             {
                 return PieScriptState::Running;
             }
-            return m_gameInstance->ScriptFault().IsEmpty() ? PieScriptState::None
+            return m_run->RunBehaviorFault().IsEmpty() ? PieScriptState::None
                                                            : PieScriptState::Faulted;
         }
         [[nodiscard]] StringView ScriptFault() const noexcept override
         {
-            return m_gameInstance != nullptr ? m_gameInstance->ScriptFault() : StringView{};
+            return m_run != nullptr ? m_run->RunBehaviorFault() : StringView{};
         }
         void RequestViewportCapture(StringView path) override { m_capture.Request(path); }
         [[nodiscard]] const ViewportCapture& LastViewportCapture() const noexcept override
@@ -284,11 +284,11 @@ export namespace editor
         }
         [[nodiscard]] Result<Variant> GetScriptProperty(StringView name) const override
         {
-            if (m_gameInstance == nullptr)
+            if (m_run == nullptr)
             {
                 return Err(ErrorCode::NotFound);
             }
-            return m_gameInstance->GetScriptProperty(name);
+            return m_run->GetScriptProperty(name);
         }
         [[nodiscard]] Result<Variant> GetLevelProperty(StringView name) const override
         {
@@ -337,7 +337,7 @@ export namespace editor
 
     private:
         // Follows the instance's current scene. When a scripted switch (run.loadScene, or an async
-        // load that just activated) repoints m_gameInstance->GetScene(), adopt it as this tab's
+        // load that just activated) repoints m_run->GetScene(), adopt it as this tab's
         // borrowed render and input pointer and retire the scenes being left. Polled once per OnUpdate.
         void FollowInstanceScene();
 
@@ -425,7 +425,7 @@ export namespace editor
         void TearDownRun();
 
         // Scripted input (pie_run) installs a timeline source in place of the viewport's, on this
-        // tab's game instance and, while this tab holds it, on the input subsystem, so the other
+        // tab's application run and, while this tab holds it, on the input subsystem, so the other
         // tabs keep their own. ActiveSource is what this tab's game reads: the script while one
         // runs, otherwise the viewport.
         [[nodiscard]] foundation::input::IInputSourceProvider* ActiveSource() noexcept;
@@ -439,7 +439,7 @@ export namespace editor
         runtime::IApplicationHost* m_host = nullptr;
         Services m_services;
         engine::runtime::DefaultApplication* m_app = nullptr; // the embedded game application
-        engine::runtime::GameInstance* m_gameInstance =
+        engine::runtime::ApplicationRun* m_run =
             nullptr; // this tab's running game (its own run host and scenes)
         engine::scene::SceneSubsystem* m_scenes = nullptr;
         engine::render::RenderSubsystem* m_render = nullptr;

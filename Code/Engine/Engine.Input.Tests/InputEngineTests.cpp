@@ -501,7 +501,7 @@ TEST_CASE("input.subsystem: the subsystem tracks the input kind from its active 
 
 namespace
 {
-    // A run with input of its own, as a game instance has.
+    // A run with input of its own, as an application run has.
     struct InputRun final : foundation::run::RunBase, IRunInput
     {
         ActionRuntime runtime;

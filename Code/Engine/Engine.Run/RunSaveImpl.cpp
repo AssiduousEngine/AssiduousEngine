@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Engine::GameInstance - a run's save file and the `Save` facade.
+// Engine::Run - a run's save file and the `Save` facade.
 
 module;
 #include "Core/Prelude.h"
 #include "Core/Log/Log.h"
 #include "Core/Reflection/Reflect.h" // the Save facade reflection body
 
-module engine.gameinstance;
+module engine.run;
 
 import foundation.core;
 import foundation.settings;

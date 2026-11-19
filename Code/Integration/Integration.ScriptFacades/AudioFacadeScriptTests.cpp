@@ -221,7 +221,7 @@ namespace
             CHECK(controlled.volume == doctest::Approx(0.3f));
         }
 
-        // In a run, named by the context's runtime binding as a GameInstance's run host does, the
+        // In a run, named by the context's runtime binding as an ApplicationRun's run host does, the
         // script's music goes into the run's own group and its bus volumes belong to the run. The
         // run's Stop ends the music, and the run's sliders never move the editor's buses.
         {

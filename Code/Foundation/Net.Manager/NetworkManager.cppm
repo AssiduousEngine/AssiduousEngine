@@ -3,7 +3,7 @@
 
 /// Foundation::Net.Manager - the `foundation.net.manager` module.
 ///
-/// A networked endpoint for one running game (a GameInstance). NetworkManager owns a live
+/// A networked endpoint for one running game (an ApplicationRun). NetworkManager owns a live
 /// NetSession and RpcTable over an IDatagramSocket (real UDP or the simulator), is driven each
 /// fixed step, and installs a script service through which the `Net` facade queries the session
 /// and fires RPCs. It is not a subsystem: networking keeps no process-wide state, so each
@@ -41,7 +41,7 @@ export namespace foundation::net
 
     class NetworkManager; // defined below; the facade and binding reference it
 
-    // The owner of a running game's networking (a GameInstance). The Net facade drives roles (start
+    // The owner of a running game's networking (an ApplicationRun). The Net facade drives roles (start
     // server, connect, disconnect) and reaches the live endpoint through it. It is an interface so
     // foundation.net.manager does not depend on the runtime layer; the runtime implements it. The
     // controller outlives every endpoint it creates, so the binding never dangles.
@@ -57,7 +57,7 @@ export namespace foundation::net
     };
 
     // A run's script service for the Net facade (the run holds it; the facade finds it by type). It
-    // holds the controller (the GameInstance's), which is stable for the run's life: the endpoint may
+    // holds the controller (the ApplicationRun's), which is stable for the run's life: the endpoint may
     // come and go, but the binding itself cannot dangle.
     struct NetScriptBinding
     {
@@ -89,7 +89,7 @@ export namespace foundation::net
     };
 
     // A networked endpoint: owns the session and RPC table, driven each fixed step. Owned per running
-    // game (a GameInstance), not app-wide, so each instance holds an independent endpoint.
+    // game (an ApplicationRun), not app-wide, so each instance holds an independent endpoint.
     class NetworkManager
     {
     public:

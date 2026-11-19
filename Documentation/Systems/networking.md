@@ -5,7 +5,7 @@
 > Track: [[networking-track]] / [[game-instance-track]]
 
 Reflection-driven, server-authoritative networking, shipped end to end and wired into
-`DefaultApplication` per game instance. A game sets a role, marks component fields `Replicated`,
+`DefaultApplication` per application run. A game sets a role, marks component fields `Replicated`,
 and gets authoritative, fog-of-war-filtered, interpolated replication with prefab net-spawn +
 late-join - no hand-written per-component net code. First target is real-time strategy; the
 `IReplicationModel` seam keeps other genres open.
@@ -36,7 +36,7 @@ late-join - no hand-written per-component net code. First target is real-time st
   manifest asks for the `INTERNET` permission, without which every socket is refused.
 - **`foundation.net.tls.mbedtls`** - the first TLS backend, over Mbed TLS (built thread-safe):
   `CreateMbedTlsBackend`, plus `CreateSelfSignedCertificate` for tests and local hosts. The
-  `GameInstance` makes one on first use (`TlsBackend()`, none in a web build).
+  `ApplicationRun` makes one on first use (`TlsBackend()`, none in a web build).
 - **`foundation.net.websocket`** - WebSocket for browser players, who have no UDP. The
   `WebSocketServerGateway` accepts connections, upgrades them through `foundation.http`, and speaks
   RFC 6455 binary frames (no fragments, no text frames, a 1 MiB frame cap, deadlines for the
@@ -65,9 +65,9 @@ late-join - no hand-written per-component net code. First target is real-time st
   came). The run holds an `HttpScriptBinding` as a service; its client is made on the first
   request and pumped each frame. Registered by the run domain (`RegisterHttpScriptFacade`).
 - **`foundation.net.manager`** - `NetworkManager` (a session endpoint) + `INetworkController` +
-  the `Net` script-facade binding. A GameInstance owns its OWN networking and goes online at
+  the `Net` script-facade binding. An ApplicationRun owns its OWN networking and goes online at
   RUNTIME via the facade (no app-owned socket). The endpoint + role lifecycle + `INetworkController`
-  impl live on `engine::runtime::NetworkController` (`engine.gameinstance`), which the GameInstance
+  impl live on `engine::runtime::NetworkController` (`engine.run`), which the ApplicationRun
   COMPOSES and registers with its run as the `INetworkController` and `NetScriptBinding` services.
   `NetworkManager::HostServer` takes an optional WebSocket port (and `WebSocketTls`);
   `JoinServer` takes a bare host (UDP natively, a WebSocket in a browser) or a `ws://` / `wss://`
@@ -99,7 +99,7 @@ gateway is the usual way to serve browser players from an https page
 ## Roles + startup
 
 `NetworkStartup` carries the role (`NetworkRole` None/Server/Client) + preset; the app's role-preset
-startup is a thin call into the instance's controller. Per-instance: each `GameInstance` has its own
+startup is a thin call into the instance's controller. Per-instance: each `ApplicationRun` has its own
 endpoint and goes online at runtime via the `Net` facade (`Net.startServer` / `Net.connect`), so a
 single process can host multiple instances. The prefab net-spawn resolver is injected once as a factory
 onto each instance's `NetworkController` (`Network().SetSpawnResolverFactory`); the controller makes one per endpoint and installs it, so reconnect keeps it. The app provides only

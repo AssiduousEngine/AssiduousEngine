@@ -11,7 +11,7 @@
 /// This is the scene-integration half of networking, separate from the per-instance endpoint
 /// (foundation.net.manager's NetworkManager, one per running game). Injecting the component manager
 /// is a once-per-context concern (a Subsystem, like PhysicsSubsystem injecting its managers); the
-/// live endpoint (server or client) is per GameInstance. Replication runs per scene on the fixed
+/// live endpoint (server or client) is per ApplicationRun. Replication runs per scene on the fixed
 /// lane; this subsystem pumps the endpoints' transport each frame.
 
 module;

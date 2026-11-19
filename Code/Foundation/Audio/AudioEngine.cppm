@@ -376,7 +376,7 @@ export namespace foundation::audio
         void StopMusic(f32 fadeSeconds = 1.0f, u64 runGroup = 0);
         [[nodiscard]] VoiceHandle MusicVoice(u64 runGroup = 0) const;
 
-        // ---- run groups: everything one running game plays (a GameInstance: the player's, each
+        // ---- run groups: everything one running game plays (an ApplicationRun: the player's, each
         // play-in-editor Game tab's), one level above its scenes' groups. A run has its own
         // child group under each bus, carrying the run's own bus gains (a game's volume sliders
         // never touch the editor's or another run's buses), its music slot, and stop, pause,
