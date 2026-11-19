@@ -330,17 +330,14 @@ namespace pipeline{
 
     REFLECT_MEMBERS(ScriptClassAsset, "rtti::pipeline::script")
     {
-        // v1 adds "className"; v0 payloads still read (the legacy reader) and leave it empty.
-        builder.DataVersion(1)
+        // v1 added "className", v2 removed it (the class is the one deriving from a kind); v0 and v1
+        // payloads still read (the legacy reader).
+        builder.DataVersion(2)
             .ReadsDataVersionsFrom(0)
             .Attribute("displayName", String(u8"Script"))
             .Attribute("category", String(u8"Scripting"))
             .Property<&ScriptClassAsset::language>("language")
             .PropAttribute("displayName", String(u8"Language"))
-            .PropAttribute("description", String(u8"Backend id (e.g. \"angelscript\", \"luau\")"))
-            .Property<&ScriptClassAsset::className>("className")
-            .PropAttribute("displayName", String(u8"Class"))
-            .PropAttribute("description", String(u8"The class it plays when its file declares several (empty: the one "
-                                                 u8"named like its file, or its only one)"));
+            .PropAttribute("description", String(u8"Backend id (e.g. \"angelscript\", \"luau\")"));
     }
 }

@@ -314,7 +314,7 @@ namespace pipeline{
 
             // Compiles through the manager's Check, so unlike Cook nothing in the source runs; the
             // manager's Check also refuses a global naming a type it was not given (a hidden one).
-            [[nodiscard]] bool Check(StringView source, StringView assetName, StringView preferredClass,
+            [[nodiscard]] bool Check(StringView source, StringView assetName,
                                      CookScriptErrorSink& sink, String& className,
                                      Span<const TypeId> hidden, IScriptIncludeReader* includes = nullptr) override
             {
@@ -336,7 +336,6 @@ namespace pipeline{
                     RefPtr<IScriptManager> manager = CreateCookManager(assetName, hidden);
                     compiled = manager.Get() != nullptr && compile(*manager);
                 }
-                (void)preferredClass;
                 BehaviorKind kind = BehaviorKind::None;
                 return compiled && ChooseClass(source, assetName, sink, className, kind);
             }
@@ -353,7 +352,7 @@ namespace pipeline{
 
             using IScriptLanguageCook::Cook; // and the overload that prefers the file's stem
 
-            [[nodiscard]] bool Cook(StringView source, StringView assetName, StringView preferredClass,
+            [[nodiscard]] bool Cook(StringView source, StringView assetName,
                                     CookScriptErrorSink& sink, ScriptClassSource& out,
                                     IScriptIncludeReader* includes = nullptr) override
             {
@@ -388,7 +387,6 @@ namespace pipeline{
                     return false;
                 }
 
-                (void)preferredClass;
                 if (!ChooseClass(source, assetName, sink, out.className, out.kind))
                 {
                     return false;

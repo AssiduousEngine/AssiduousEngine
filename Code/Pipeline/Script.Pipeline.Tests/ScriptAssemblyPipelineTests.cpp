@@ -75,12 +75,12 @@ namespace
     {
     public:
         [[nodiscard]] String NewAssetTemplate(ScriptTier, StringView) const override { return String{}; }
-        [[nodiscard]] bool Cook(StringView, StringView, StringView, CookScriptErrorSink&, ScriptClassSource&,
+        [[nodiscard]] bool Cook(StringView, StringView, CookScriptErrorSink&, ScriptClassSource&,
                                 IScriptIncludeReader*) override
         {
             return false;
         }
-        [[nodiscard]] bool Check(StringView, StringView, StringView, CookScriptErrorSink&, String&, Span<const TypeId>,
+        [[nodiscard]] bool Check(StringView, StringView, CookScriptErrorSink&, String&, Span<const TypeId>,
                                  IScriptIncludeReader*) override
         {
             return true;
@@ -90,7 +90,7 @@ namespace
         [[nodiscard]] Array<ScriptApiType> DescribeApi() override { return {}; }
         [[nodiscard]] u32 CheckManagerBuildCount() const override { return 0; }
         [[nodiscard]] bool BuildsInAssembly() const override { return true; }
-        [[nodiscard]] bool CookFromAssembly(StringView source, StringView assetName, StringView, const ScriptAssemblySource& assembly,
+        [[nodiscard]] bool CookFromAssembly(StringView source, StringView assetName, const ScriptAssemblySource& assembly,
                                             CookScriptErrorSink& sink, ScriptClassSource& out) override
         {
             const StringView name = source.SubStr(6, source.Size() - 6);

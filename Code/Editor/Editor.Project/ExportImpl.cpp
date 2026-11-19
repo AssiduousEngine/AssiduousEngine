@@ -1173,7 +1173,7 @@ namespace editor
             pipeline::CookScriptErrorSink sink;
             String className;
             pipeline::FolderIncludeReader includes(project.SourcesRoot().AsView(), project.CodeRoot().AsView());
-            if (cook->Check(source, script->fileName.View(), pipeline::PreferredScriptClass(*script).AsView(), sink, className,
+            if (cook->Check(source, script->fileName.View(), sink, className,
                             Span<const TypeId>(hidden.Data(), hidden.Size()), &includes))
             {
                 continue;

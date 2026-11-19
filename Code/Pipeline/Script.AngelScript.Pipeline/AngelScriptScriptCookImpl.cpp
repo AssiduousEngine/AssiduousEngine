@@ -620,11 +620,11 @@ namespace pipeline{
 
             using IScriptLanguageCook::Cook; // and the overload that prefers the file's stem
 
-            [[nodiscard]] bool Cook(StringView source, StringView assetName, StringView preferredClass,
+            [[nodiscard]] bool Cook(StringView source, StringView assetName,
                                     CookScriptErrorSink& sink, ScriptClassSource& out,
                                     IScriptIncludeReader* includes = nullptr) override
             {
-                const bool ok = CookOnThisThread(source, assetName, preferredClass, sink, out, false, Span<const TypeId>{}, includes);
+                const bool ok = CookOnThisThread(source, assetName, sink, out, false, Span<const TypeId>{}, includes);
                 // AngelScript keeps per-thread local data (active-context stack, type-name
                 // scratch) that only asThreadCleanup releases. Cooks run on job workers that
                 // never exit through AngelScript's own teardown, so release it here, after
@@ -633,7 +633,7 @@ namespace pipeline{
                 return ok;
             }
 
-            [[nodiscard]] bool Check(StringView source, StringView assetName, StringView preferredClass,
+            [[nodiscard]] bool Check(StringView source, StringView assetName,
                                      CookScriptErrorSink& sink, String& className,
                                      Span<const TypeId> hidden, IScriptIncludeReader* includes = nullptr) override
             {
@@ -644,11 +644,11 @@ namespace pipeline{
                     // Every registered type: the cached check manager, the script in a module of its own,
                     // discarded after.
                     ok = m_checkManager.Run([&](IScriptManager& manager)
-                                     { return BuildOn(manager, source, assetName, preferredClass, sink, out, true, includes); });
+                                     { return BuildOn(manager, source, assetName, sink, out, true, includes); });
                 }
                 else
                 {
-                    ok = CookOnThisThread(source, assetName, preferredClass, sink, out, true, hidden, includes);
+                    ok = CookOnThisThread(source, assetName, sink, out, true, hidden, includes);
                 }
                 asThreadCleanup(); // as in Cook
                 className = Move(out.className);
@@ -671,20 +671,20 @@ namespace pipeline{
             // `checkOnly` stops after the build (Check): no harvest, no bytecode, and the build
             // leaves the global initializers unrun. The engine registers every type but `hidden`, so
             // a use of one is a compile error.
-            [[nodiscard]] bool CookOnThisThread(StringView source, StringView assetName, StringView preferredClass,
+            [[nodiscard]] bool CookOnThisThread(StringView source, StringView assetName,
                                                 CookScriptErrorSink& sink, ScriptClassSource& out,
                                                 bool checkOnly, Span<const TypeId> hidden,
                                                 IScriptIncludeReader* includes = nullptr)
             {
                 RefPtr<IScriptManager> manager = MakeCheckManager(DefaultAllocator(), u8"angelscript", assetName, hidden);
                 return manager.Get() != nullptr &&
-                       BuildOn(*manager, source, assetName, preferredClass, sink, out, checkOnly, includes);
+                       BuildOn(*manager, source, assetName, sink, out, checkOnly, includes);
             }
 
             // Builds `source` into a module of its own on `manager`'s engine, discarded when done,
             // then (unless `checkOnly`) harvests its properties and saves its bytecode into `out`.
             [[nodiscard]] static bool BuildOn(IScriptManager& manager, StringView source, StringView assetName,
-                                              StringView preferredClass, CookScriptErrorSink& sink,
+                                              CookScriptErrorSink& sink,
                                               ScriptClassSource& out, bool checkOnly,
                                               IScriptIncludeReader* includes = nullptr)
             {
@@ -786,7 +786,6 @@ namespace pipeline{
 
                 // The class it plays is the one deriving from a kind, read from the classes this file
                 // declares as compiled (an included file's classes are its own file's).
-                (void)preferredClass;
                 Array<DeclaredScriptClass> declared;
                 for (const String& name : ListScriptClassNames(source))
                 {

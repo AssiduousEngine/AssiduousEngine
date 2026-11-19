@@ -44,7 +44,6 @@ namespace pipeline
         ScriptClassAsset asset;
         asset.language = String(languageId);
         const String className = ClassNameFor(name.AsView(), baseName);
-        asset.className = className;
         const String starter = cook->NewAssetTemplate(tier, className.AsView());
         return CreateLinkedTextAsset(named, baseName, dottedExtension.AsView(), starter.AsView(),
                                      ScriptClassAsset::StaticType(), asset, foundation::vfs::kSourcesCodeFolder);

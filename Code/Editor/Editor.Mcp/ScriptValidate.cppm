@@ -63,7 +63,9 @@ export namespace editor::mcp
             u8"COMPILE-CHECK a script source against a backend without saving: the exact "
             u8"compile the asset cook would run. Returns compile errors with line numbers, and the "
             u8"compiler's warnings apart from them (`warnings`: compiled, but likely a mistake), "
-            u8"and on success the harvested metadata (className, handlers, properties, "
+            u8"and on success the harvested metadata (className and kind: the class deriving from "
+            u8"RunBehavior, SceneBehavior or EntityBehavior, empty and none for a module of helpers; "
+            u8"handlers, properties, "
             u8"usesCoroutines) - confirm the engine recognized what you wrote. Use as the "
             u8"validation loop while authoring scripts, BEFORE creating the asset. Limits: "
             u8"compile only - a misspelled engine method is a compile error only where the "
@@ -75,10 +77,7 @@ export namespace editor::mcp
                 .Enum(u8"language", detail::ScriptLanguageChoices(),
                       u8"the script backend to compile against", true)
                 .Str(u8"name", u8"a display name for error messages (e.g. the intended file "
-                               u8"name; default 'script'); its stem is the class it plays when "
-                               u8"the source declares several")
-                .Str(u8"className", u8"the class it plays when the source declares several (a "
-                                    u8"script asset's Class); default: the one named like `name`")
+                               u8"name; default 'script')")
                 .Str(u8"platform", Format(u8"also check it for this platform's plugins ({}); needs an open project",
                                           editor::ExportPlatformList()))
                 .Build(),
@@ -106,18 +105,13 @@ export namespace editor::mcp
                                       language.AsView()));
                 }
 
-                String preferred = args.Get(u8"className").AsString();
-                if (preferred.IsEmpty())
-                {
-                    preferred = String(pipeline::FileStemOf(pipeline::FileNameOf(name.AsView())));
-                }
                 const String source = args.Get(u8"source").AsString();
                 pipeline::CookScriptErrorSink sink;
                 foundation::script::ScriptClassSource harvested;
                 // The files it includes, from the open project's sources (`name` is its path there).
                 pipeline::FolderIncludeReader includes(session.project != nullptr ? session.project->SourcesRoot().AsView() : StringView{},
                                                        session.project != nullptr ? session.project->CodeRoot().AsView() : StringView{});
-                bool ok = cook->Cook(source.AsView(), name.AsView(), preferred.AsView(), sink, harvested, &includes);
+                bool ok = cook->Cook(source.AsView(), name.AsView(), sink, harvested, &includes);
                 // Then against the platform's surface, when one is asked for and lacks plugins.
                 String absent;
                 if (ok && !platform.IsEmpty() && session.plugins != nullptr)
@@ -128,7 +122,7 @@ export namespace editor::mcp
                     if (!hidden.IsEmpty())
                     {
                         String className;
-                        ok = cook->Check(source.AsView(), name.AsView(), preferred.AsView(), sink, className,
+                        ok = cook->Check(source.AsView(), name.AsView(), sink, className,
                                          Span<const TypeId>(hidden.Data(), hidden.Size()), &includes);
                     }
                 }
@@ -159,6 +153,7 @@ export namespace editor::mcp
                 if (ok)
                 {
                     out.Set(u8"className", JsonValue::MakeString(harvested.className));
+                    out.Set(u8"kind", JsonValue::MakeString(String(foundation::script::BehaviorKinds::TypeName(harvested.kind))));
                     JsonValue handlers = JsonValue::MakeArray();
                     for (const String& h : harvested.handlers)
                     {

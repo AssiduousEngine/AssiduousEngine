@@ -29,8 +29,7 @@ namespace editor
         HideAssetRows(); // the code fills the page, so no property grid
         if (const auto* asset = ObjectAs<pipeline::ScriptClassAsset>())
             m_doc.Bind(context.Project() != nullptr ? context.Project()->SourcesRoot().AsView() : StringView{}, asset->fileName.View(),
-                       asset->language.AsView(), pipeline::PreferredScriptClass(*asset).AsView(),
-                       context.Project() != nullptr ? context.Project()->CodeRoot().AsView() : StringView{});
+                       asset->language.AsView(), context.Project() != nullptr ? context.Project()->CodeRoot().AsView() : StringView{});
         m_surface.SetLanguage(m_doc.Language());
         const gui::CodeLanguage* language = Services().languages != nullptr ? Services().languages->Find(m_doc.Language()) : nullptr;
         m_service = MakeUnique<ScriptLanguageService>(Allocator(), m_surface, language);

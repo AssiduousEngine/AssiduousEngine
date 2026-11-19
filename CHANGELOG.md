@@ -65,6 +65,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   `RunBehavior` (`class Coin : EntityBehavior`; in Luau `Coin = EntityBehavior.class()`) - and may
   have any name. The reserved names `Game` and `Level` are gone: a project's scripts add the base
   their class needs, and a script without one is refused where a behavior is set.
+- Editor and MCP: a script asset no longer has a Class setting, and `script_validate` no longer
+  takes `className`: the class a script plays is the one deriving from a kind, and
+  `script_validate` returns its `kind` beside its `className`.
 - Rendering: each of the sun's shadow cascades draws only the casters whose shadow lands on what it
   shades, and a shadow ends at the scene's bounds (a tree's at the ground), so most casters are drawn
   into one cascade, not all four. Over a 40,000-mesh forest the shadows went from about 200 ms a

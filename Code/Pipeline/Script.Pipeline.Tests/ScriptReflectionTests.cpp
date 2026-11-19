@@ -10,12 +10,12 @@ import script.pipeline;
 
 using namespace foundation::core;
 
-TEST_CASE("reflection-p1: ScriptClassAsset exposes language and class, and round-trips")
+TEST_CASE("reflection-p1: ScriptClassAsset exposes its language, and round-trips")
 {
     pipeline::RegisterScriptAssets();
     const TypeInfo& type = pipeline::ScriptClassAsset::StaticType();
 
-    CHECK(PropertyCount(type) == 2u);
+    CHECK(PropertyCount(type) == 1u);
     const PropertyInfo* lang = FindProperty(type, "language");
     REQUIRE(lang != nullptr);
     CHECK(FindAttribute(*lang, u8"displayName") != nullptr);
@@ -25,10 +25,5 @@ TEST_CASE("reflection-p1: ScriptClassAsset exposes language and class, and round
     CHECK(SetProperty(*lang, inst, Variant::From(String(u8"angelscript"))).IsOk());
     CHECK(GetProperty(*lang, inst).Get<String>().AsView() == StringView(u8"angelscript"));
     CHECK(asset.language.AsView() == StringView(u8"angelscript"));
-
-    const PropertyInfo* cls = FindProperty(type, "className");
-    REQUIRE(cls != nullptr);
-    CHECK(FindAttribute(*cls, u8"displayName") != nullptr);
-    CHECK(SetProperty(*cls, inst, Variant::From(String(u8"Battle"))).IsOk());
-    CHECK(asset.className.AsView() == StringView(u8"Battle"));
+    CHECK(FindProperty(type, "className") == nullptr); // the class is the one deriving from a kind
 }

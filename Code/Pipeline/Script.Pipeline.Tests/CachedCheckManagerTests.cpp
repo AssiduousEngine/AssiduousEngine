@@ -52,7 +52,7 @@ namespace
     {
         String className;
         CookScriptErrorSink sink;
-        return cook.Check(StringView(source), u8"Gamma.script", u8"Gamma", sink, className, Span<const TypeId>{});
+        return cook.Check(StringView(source), u8"Gamma.script", sink, className, Span<const TypeId>{});
     }
 
     void CheckSharedEngine(const Language& language)

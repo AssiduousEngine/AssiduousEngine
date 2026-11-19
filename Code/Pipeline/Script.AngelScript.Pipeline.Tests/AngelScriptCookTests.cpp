@@ -565,12 +565,12 @@ TEST_CASE("as.cook: a check without a type fails the script that uses it, and on
 
     String className;
     CookScriptErrorSink full;
-    CHECK(cook->Check(kUsesRun, u8"Game.as", u8"Game", full, className, Span<const TypeId>{}));
+    CHECK(cook->Check(kUsesRun, u8"Game.as", full, className, Span<const TypeId>{}));
     CookScriptErrorSink without;
-    CHECK_FALSE(cook->Check(kUsesRun, u8"Game.as", u8"Game", without, className, Span<const TypeId>(hidden, 1)));
+    CHECK_FALSE(cook->Check(kUsesRun, u8"Game.as", without, className, Span<const TypeId>(hidden, 1)));
     CHECK_FALSE(without.errors.IsEmpty());
     CookScriptErrorSink unrelated;
-    CHECK(cook->Check(u8"double twice(double v) { return v * 2.0; }\n", u8"Twice.as", u8"Twice", unrelated, className,
+    CHECK(cook->Check(u8"double twice(double v) { return v * 2.0; }\n", u8"Twice.as", unrelated, className,
                       Span<const TypeId>(hidden, 1)));
 }
 
@@ -605,16 +605,16 @@ TEST_CASE("as.cook: checks share one manager, each script in a module of its own
     REQUIRE(cook != nullptr);
     String className;
     CookScriptErrorSink first;
-    REQUIRE(cook->Check(u8"class Alpha { int x; }\n", u8"Alpha.as", u8"Alpha", first, className, Span<const TypeId>{}));
+    REQUIRE(cook->Check(u8"class Alpha { int x; }\n", u8"Alpha.as", first, className, Span<const TypeId>{}));
     const u32 builds = cook->CheckManagerBuildCount();
     CHECK(builds >= 1u);
 
     // The next checks make no manager, and see nothing of the scripts checked before them.
     CookScriptErrorSink second;
-    CHECK_FALSE(cook->Check(u8"class Beta { Alpha@ a; }\n", u8"Beta.as", u8"Beta", second, className, Span<const TypeId>{}));
+    CHECK_FALSE(cook->Check(u8"class Beta { Alpha@ a; }\n", u8"Beta.as", second, className, Span<const TypeId>{}));
     CHECK_FALSE(second.errors.IsEmpty());
     CookScriptErrorSink third;
-    CHECK(cook->Check(u8"class Alpha { float y; }\n", u8"Alpha.as", u8"Alpha", third, className, Span<const TypeId>{}));
+    CHECK(cook->Check(u8"class Alpha { float y; }\n", u8"Alpha.as", third, className, Span<const TypeId>{}));
     CHECK(third.errors.IsEmpty());
     CHECK(cook->CheckManagerBuildCount() == builds);
 }
@@ -627,7 +627,7 @@ TEST_CASE("as.cook: a compiler warning is reported as a warning, and the check s
     const char8_t* hiding = u8"class Shade { int f() { int a = 1; { int a = 2; return a; } } }\n";
     String className;
     CookScriptErrorSink sink;
-    CHECK(cook->Check(hiding, u8"Shade.as", u8"Shade", sink, className, Span<const TypeId>{}));
+    CHECK(cook->Check(hiding, u8"Shade.as", sink, className, Span<const TypeId>{}));
     REQUIRE(sink.errors.Size() == 1u);
     CHECK(sink.errors[0].kind == ScriptErrorKind::Warning);
     CHECK(sink.errors[0].line == 1);
