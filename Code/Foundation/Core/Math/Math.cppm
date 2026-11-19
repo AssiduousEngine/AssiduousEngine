@@ -76,6 +76,14 @@ export namespace foundation::core
     {
         return x < lo ? lo : (hi < x ? hi : x);
     }
+    // The whole-number twins, so a script's integer arithmetic stays integer (the script Math binds
+    // them as MinInt, MaxInt and ClampInt).
+    [[nodiscard]] constexpr i32 Min(i32 a, i32 b) noexcept { return b < a ? b : a; }
+    [[nodiscard]] constexpr i32 Max(i32 a, i32 b) noexcept { return a < b ? b : a; }
+    [[nodiscard]] constexpr i32 Clamp(i32 x, i32 lo, i32 hi) noexcept
+    {
+        return x < lo ? lo : (hi < x ? hi : x);
+    }
 
     [[nodiscard]] inline bool NearlyEqual(f32 a, f32 b, f32 epsilon = kEpsilon) noexcept
     {

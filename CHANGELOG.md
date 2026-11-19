@@ -9,6 +9,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Added
 
+- Scripting: `Math::MinInt`, `MaxInt` and `ClampInt` (`Math.MinInt` and so on in Luau) take and
+  return whole numbers. `Min`, `Max` and `Clamp` are float only, so whole-number arithmetic through
+  them came back a float and warned when stored in an int.
 - MCP: `code_open` on the editor host opens a script, or a file in the project's `Code/` folder, at a
   line and column where your Code Editor preference says, or the `Code/` folder itself.
 - Editor: Preferences, Code chooses where code opens: the built-in editor (the default), VS Code, or

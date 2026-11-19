@@ -1364,6 +1364,26 @@ TEST_CASE("angelscript: reflected math ops (Math statics, Float3/Quaternion vect
     CHECK(scriptContext->GetGlobal(u8"RX").Get<f64>() == doctest::Approx(1.0));
 }
 
+// Math had only float Min, Max and Clamp: an int pair went in as floats and came back a float the
+// script truncated into its int, with a compiler warning on every such line.
+TEST_CASE("angelscript: Math's whole-number Min, Max and Clamp return int")
+{
+    RegisterCoreTypes();
+    RefPtr<IScriptManager> manager = angelscript::CreateScriptManager(foundation::core::DefaultAllocator());
+    RegisterReflectedTypes(*manager);
+    RefPtr<IScriptContext> scriptContext = manager->CreateContext();
+    REQUIRE(scriptContext->Load(u8"int K = 0;\n"
+                                u8"void main() {\n"
+                                u8"  int low = Math::MinInt(7, -3);\n"
+                                u8"  int high = Math::MaxInt(7, -3);\n"
+                                u8"  int held = Math::ClampInt(12, 1, 10);\n"
+                                u8"  K = low * 100 + high * 10 + held;\n" // -300 + 70 + 10
+                                u8"}\n",
+                                u8"main")
+                .IsOk());
+    CHECK(scriptContext->GetGlobal(u8"K").Get<i32>() == -220);
+}
+
 TEST_CASE("angelscript: bound-api signatures carry reflected parameter names")
 {
     RegisterCoreTypes();

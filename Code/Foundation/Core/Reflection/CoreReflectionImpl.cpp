@@ -287,6 +287,13 @@ namespace foundation::core
             .Method<static_cast<f32 (*)(f32, f32)>(&Min)>("Min", {"a", "b"}).Pure()
             .Method<static_cast<f32 (*)(f32, f32)>(&Max)>("Max", {"a", "b"}).Pure()
             .Method<static_cast<f32 (*)(f32, f32, f32)>(&Clamp)>("Clamp", {"x", "lo", "hi"}).Pure()
+            // Integer twins under names of their own: a number in Luau picks neither overload, and
+            // AngelScript would take an int pair into the float one and truncate what it returns.
+            .Method<static_cast<i32 (*)(i32, i32)>(&Min)>("Min", {"a", "b"}).Pure().OverloadedName("MinInt")
+            .Method<static_cast<i32 (*)(i32, i32)>(&Max)>("Max", {"a", "b"}).Pure().OverloadedName("MaxInt")
+            .Method<static_cast<i32 (*)(i32, i32, i32)>(&Clamp)>("Clamp", {"x", "lo", "hi"})
+            .Pure()
+            .OverloadedName("ClampInt")
             .Constant("Pi", kPi)
             .Constant("TwoPi", kTwoPi)
             .Constant("HalfPi", kHalfPi)

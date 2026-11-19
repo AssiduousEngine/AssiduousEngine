@@ -1678,6 +1678,9 @@ function Limits:high() return Math.Clamp(5, 0, 1) end
 function Limits:inside() return Math.Clamp(0.25, 0, 1) end
 function Limits:least() return Math.Min(2, -3) end
 function Limits:most() return Math.Max(2, -3) end
+function Limits:leastWhole() return Math.MinInt(7, -3) end
+function Limits:mostWhole() return Math.MaxInt(7, -3) end
+function Limits:heldWhole() return Math.ClampInt(12, 1, 10) end
 )lua",
                           u8"luau.limits")
                 .IsOk());
@@ -1689,6 +1692,9 @@ function Limits:most() return Math.Max(2, -3) end
     CHECK(call(u8"inside") == doctest::Approx(0.25));
     CHECK(call(u8"least") == doctest::Approx(-3.0));
     CHECK(call(u8"most") == doctest::Approx(2.0));
+    CHECK(call(u8"leastWhole") == doctest::Approx(-3.0));
+    CHECK(call(u8"mostWhole") == doctest::Approx(7.0));
+    CHECK(call(u8"heldWhole") == doctest::Approx(10.0));
 }
 
 TEST_CASE("script.luau: a coroutine that starts coroutines and cancels its own owner mid-schedule")
