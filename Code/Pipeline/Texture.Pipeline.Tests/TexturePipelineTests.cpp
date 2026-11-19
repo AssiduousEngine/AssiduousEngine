@@ -1399,6 +1399,58 @@ TEST_CASE("texture.pipeline: an alpha-tested texture's mipmaps keep its cutoff's
     CHECK(std::memcmp(solid.Data(), solidBefore.Data(), solid.Size()) == 0);
 }
 
+TEST_CASE("texture.pipeline: an alpha-tested texture's mipmaps keep its visible texels' color")
+{
+    // Leaves on a near-white background, as the forest's leaf atlas is: 61% of it is clear and
+    // near white. A plain average drags every smaller level toward the background, so distant
+    // leaves turn pale; weighted by alpha, each level is the leaves' own green.
+    constexpr u32 kSize = 64;
+    const auto leaves = [&]
+    {
+        Array<byte> pixels;
+        pixels.Resize(static_cast<usize>(kSize) * kSize * 4);
+        for (u32 y = 0; y < kSize; ++y)
+        {
+            for (u32 x = 0; x < kSize; ++x)
+            {
+                const bool leaf = ((x / 3) + (y / 5)) % 3 == 0; // about a third, in strokes
+                u8* p = reinterpret_cast<u8*>(pixels.Data()) + (static_cast<usize>(y) * kSize + x) * 4;
+                p[0] = leaf ? 60 : 236;
+                p[1] = leaf ? 150 : 222;
+                p[2] = leaf ? 40 : 215;
+                p[3] = leaf ? 255 : 0;
+            }
+        }
+        return pixels;
+    };
+    const auto lastTexel = [](const Array<byte>& pixels) { return reinterpret_cast<const u8*>(pixels.Data()) + pixels.Size() - 4; };
+
+    Array<byte> tested = leaves();
+    const u32 levels = TextureAssetBuilder::AppendMipChain(tested, kSize, kSize, true, nullptr, 0.45f);
+    REQUIRE(levels == 7);
+    const u8* green = lastTexel(tested); // the 1x1 level
+    CHECK(Abs(static_cast<i32>(green[0]) - 60) <= 2);
+    CHECK(Abs(static_cast<i32>(green[1]) - 150) <= 2);
+    CHECK(Abs(static_cast<i32>(green[2]) - 40) <= 2);
+
+    // No clear texel at any level, level 0 included, still holds the background: filtering at a
+    // leaf's edge blends in the leaves' color, not a white fringe.
+    const u8* texel = reinterpret_cast<const u8*>(tested.Data());
+    for (usize i = 0; i < tested.Size() / 4; ++i, texel += 4)
+    {
+        if (texel[3] == 0)
+        {
+            INFO("texel " << i);
+            CHECK(texel[0] < 120);
+        }
+    }
+
+    // A texture with no cutoff keeps the plain average: its alpha may not be opacity at all.
+    Array<byte> plain = leaves();
+    (void)TextureAssetBuilder::AppendMipChain(plain, kSize, kSize, true, nullptr, 0.0f);
+    CHECK(lastTexel(plain)[0] > 150);
+}
+
 TEST_CASE("texture.pipeline: an asset keeps its alpha coverage settings")
 {
     // Off by default: an opaque or blended texture's mipmaps are plain averages.

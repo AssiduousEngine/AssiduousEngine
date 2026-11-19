@@ -358,7 +358,9 @@ export namespace pipeline{
         // and target profile select it; resource.format then carries a BC format.
         // v4: Normal cooks BC7-linear, and the multichannel-Mask guard.
         // v5: HDR sources cook to BC6H on BC targets.
-        [[nodiscard]] u32 Version() const override { return 5; }
+        // v6: an alpha-tested texture's mipmaps average color weighted by alpha, clear texels
+        // filled from the level above.
+        [[nodiscard]] u32 Version() const override { return 6; }
 
         // Textures are the platform-variant producer: BC on desktop, ASTC on mobile-web from the same
         // source. The cook salts this builder's recipe by target and cooks per DB.
@@ -805,12 +807,15 @@ export namespace pipeline{
         };
 
 
+    public:
         /// Appends the full mip chain (levels 1..N, 2x2 box, clamped for odd dims) to
         /// `pixels`, which holds level 0 as tight RGBA8. Color channels of sRGB images
         /// filter in linear space; alpha (and everything in Linear images) averages
-        /// directly. With `coverageReference` above 0, each level's alpha is then scaled to
-        /// keep level 0's coverage of it (PreserveAlphaCoverage). Returns the total level count
-        /// including level 0.
+        /// directly. With `coverageReference` above 0 (an alpha-tested texture), the color
+        /// averages weighted by alpha instead, each fully clear texel then takes the color of
+        /// the level above it (FillClearTexels), and each level's alpha is scaled to keep level
+        /// 0's coverage of it (PreserveAlphaCoverage). Returns the total level count including
+        /// level 0.
         [[nodiscard]] static u32 AppendMipChain(Array<byte>& pixels, u32 width, u32 height,
                                                 bool srgb, JobSystem* jobs = nullptr,
                                                 f32 coverageReference = 0.0f)
@@ -819,6 +824,7 @@ export namespace pipeline{
             // cook's job system (a 4k chain takes seconds on one core in a Debug build); the
             // tables are hoisted out of the texel loop for the same reason.
             const SrgbTables tables;
+            const bool alphaWeighted = coverageReference > 0.0f;
             u32 levels = 1;
             usize srcOffset = 0;
             u32 srcW = width;
@@ -844,6 +850,34 @@ export namespace pipeline{
                         const u8* p10 = src + (static_cast<usize>(y1) * srcW + x0) * 4;
                         const u8* p11 = src + (static_cast<usize>(y1) * srcW + x1) * 4;
                         u8* out = dst + (static_cast<usize>(y) * dstW + x) * 4;
+                        // An alpha-tested texture's clear texels hold whatever color its image
+                        // has round the shapes (often near white): a plain average pulls every
+                        // smaller level toward it, so distant leaves wash out. Weighted by alpha,
+                        // a level's color is its visible texels' alone.
+                        const u32 alphaSum = static_cast<u32>(p00[3]) + p01[3] + p10[3] + p11[3];
+                        if (alphaWeighted && alphaSum > 0)
+                        {
+                            const f32 inv = 1.0f / static_cast<f32>(alphaSum);
+                            for (i32 c = 0; c < 3; ++c)
+                            {
+                                if (srgb)
+                                {
+                                    const f32 avg = (tables.toLinear[p00[c]] * p00[3] + tables.toLinear[p01[c]] * p01[3] +
+                                                     tables.toLinear[p10[c]] * p10[3] + tables.toLinear[p11[c]] * p11[3]) *
+                                                    inv;
+                                    out[c] = tables.toSrgb[static_cast<u32>(avg * 8191.0f + 0.5f)];
+                                }
+                                else
+                                {
+                                    const f32 avg = (static_cast<f32>(p00[c]) * p00[3] + static_cast<f32>(p01[c]) * p01[3] +
+                                                     static_cast<f32>(p10[c]) * p10[3] + static_cast<f32>(p11[c]) * p11[3]) *
+                                                    inv;
+                                    out[c] = static_cast<u8>(Min(255.0f, avg + 0.5f));
+                                }
+                            }
+                            out[3] = static_cast<u8>((alphaSum + 2) / 4);
+                            continue;
+                        }
                         for (i32 c = 0; c < 4; ++c)
                         {
                             if (srgb && c < 3) // color channels filter in linear space
@@ -878,14 +912,63 @@ export namespace pipeline{
                 srcH = dstH;
                 ++levels;
             }
-            if (coverageReference > 0.0f)
+            if (alphaWeighted)
             {
+                FillClearTexels(pixels, width, height, levels);
                 PreserveAlphaCoverage(pixels, width, height, levels, coverageReference);
             }
             return levels;
         }
 
-    public:
+        /// Gives each fully clear texel of a tight RGBA8 2D chain the color of its texel one level
+        /// up, coarsest level first, so every clear texel carries its neighbourhood's visible color.
+        /// A clear texel never shows, but filtering blends it into the visible texels beside it:
+        /// left as the image's background, it fringes every edge with that color, close up and far.
+        static void FillClearTexels(Array<byte>& pixels, u32 width, u32 height, u32 levels)
+        {
+            Array<usize> offsets;
+            Array<u32> widths;
+            Array<u32> heights;
+            usize offset = 0;
+            u32 w = width;
+            u32 h = height;
+            for (u32 level = 0; level < levels; ++level)
+            {
+                offsets.PushBack(offset);
+                widths.PushBack(w);
+                heights.PushBack(h);
+                offset += static_cast<usize>(w) * h * 4;
+                w = w > 1 ? w / 2 : 1;
+                h = h > 1 ? h / 2 : 1;
+            }
+            u8* base = reinterpret_cast<u8*>(pixels.Data());
+            for (u32 level = levels - 1; level-- > 0;)
+            {
+                const u32 lw = widths[level];
+                const u32 lh = heights[level];
+                const u32 pw = widths[level + 1];
+                const u32 ph = heights[level + 1];
+                u8* texels = base + offsets[level];
+                const u8* parent = base + offsets[level + 1];
+                for (u32 y = 0; y < lh; ++y)
+                {
+                    const u32 py = Min(y / 2, ph - 1);
+                    for (u32 x = 0; x < lw; ++x)
+                    {
+                        u8* t = texels + (static_cast<usize>(y) * lw + x) * 4;
+                        if (t[3] != 0)
+                        {
+                            continue;
+                        }
+                        const u8* from = parent + (static_cast<usize>(py) * pw + Min(x / 2, pw - 1)) * 4;
+                        t[0] = from[0];
+                        t[1] = from[1];
+                        t[2] = from[2];
+                    }
+                }
+            }
+        }
+
         /// The reference an asset's chain keeps the coverage of, or 0 when it keeps none.
         [[nodiscard]] static f32 CoverageReference(const TextureAsset& ta) noexcept
         {
