@@ -428,7 +428,7 @@ namespace foundation::script
         // LoadBehaviorModule, and LoadBlob, so one place owns the chunk name and error identity.
         Status LoadCompiledChunk(const byte* bytecode, usize size, StringView chunkName);
 
-        // Reconstruct a cooked blob from its serialized bytes (the pack's ScriptClass::bytecode,
+        // Reconstruct a cooked blob from its serialized bytes (the pack's BehaviorClass::bytecode,
         // written by CompileToBlob and Serialize) and load its bytecode as chunk `=chunkName`. The
         // per-class bytecode path in LoadBehaviorModule (the player: no luau_compile, per-class
         // identity).

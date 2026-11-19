@@ -75,7 +75,7 @@ namespace
     {
     public:
         [[nodiscard]] String NewAssetTemplate(ScriptTier, StringView) const override { return String{}; }
-        [[nodiscard]] bool Cook(StringView, StringView, CookScriptErrorSink&, ScriptClassSource&,
+        [[nodiscard]] bool Cook(StringView, StringView, CookScriptErrorSink&, BehaviorClassSource&,
                                 IScriptIncludeReader*) override
         {
             return false;
@@ -91,7 +91,7 @@ namespace
         [[nodiscard]] u32 CheckManagerBuildCount() const override { return 0; }
         [[nodiscard]] bool BuildsInAssembly() const override { return true; }
         [[nodiscard]] bool CookFromAssembly(StringView source, StringView assetName, const ScriptAssemblySource& assembly,
-                                            CookScriptErrorSink& sink, ScriptClassSource& out) override
+                                            CookScriptErrorSink& sink, BehaviorClassSource& out) override
         {
             const StringView name = source.SubStr(6, source.Size() - 6);
             const ScriptAssemblyClass* c = assembly.FindClass(name);
@@ -187,12 +187,12 @@ namespace
             return builder.Build(*Cast<ScriptAssemblyAsset>(object.Get()), ctx);
         }
 
-        Status CookClass(StringView file, ScriptClassSource& out, AssetDependencies* deps = nullptr)
+        Status CookClass(StringView file, BehaviorClassSource& out, AssetDependencies* deps = nullptr)
         {
             ScriptClassAsset asset;
             asset.fileName = foundation::vfs::SourcePath(file);
             asset.language = String(kLanguage);
-            content::Instance* product = outputDb->RootGroup()->CreateInstance(PathFilename(file), ScriptClassSource::StaticType());
+            content::Instance* product = outputDb->RootGroup()->CreateInstance(PathFilename(file), BehaviorClassSource::StaticType());
             AssetBuildContext ctx = Context(product);
             ScriptClassAssetBuilder builder;
             if (deps != nullptr)
@@ -207,7 +207,7 @@ namespace
             if (built.IsOk())
             {
                 RefPtr<ISerializable> record = product->ReadObject();
-                const ScriptClassSource& cooked = *Cast<ScriptClassSource>(record.Get());
+                const BehaviorClassSource& cooked = *Cast<BehaviorClassSource>(record.Get());
                 out.className = cooked.className;
                 out.handlers = cooked.handlers;
                 out.bytecode = cooked.bytecode;
@@ -263,7 +263,7 @@ TEST_CASE("script assembly: a project builds every source under its folder, and 
     }
 
     // A class reads its project (which cooks first) and names it; its description is the build's.
-    ScriptClassSource player;
+    BehaviorClassSource player;
     AssetDependencies deps;
     REQUIRE(bed.CookClass(u8"Game/Player.si", player, &deps).IsOk());
     REQUIRE(deps.reads.Size() == 1u);
@@ -276,16 +276,16 @@ TEST_CASE("script assembly: a project builds every source under its folder, and 
 
     // Nested projects: the nearest holds the file.
     REQUIRE(bed.BuildProject(inner).IsOk());
-    ScriptClassSource deep;
+    BehaviorClassSource deep;
     REQUIRE(bed.CookClass(u8"Tools/Inner/Deep.si", deep).IsOk());
     CHECK(deep.assembly == inner->Id());
     CHECK(deep.assembly != tools->Id());
 
     // In no project, or in one that has not built: the cook fails.
-    ScriptClassSource loose;
+    BehaviorClassSource loose;
     CHECK(bed.CookClass(u8"Loose.si", loose).Code() == ErrorCode::NotFound);
     bed.Write(u8"Tools/Tool.si", u8"class Tool");
-    ScriptClassSource tool;
+    BehaviorClassSource tool;
     CHECK(bed.CookClass(u8"Tools/Tool.si", tool).Code() == ErrorCode::NotFound);
 }
 

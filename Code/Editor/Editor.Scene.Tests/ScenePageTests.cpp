@@ -1444,10 +1444,10 @@ TEST_CASE("script behaviors: a list of behaviours, each its script, Enabled and 
     source.GetProperties(u8"behaviors.0", rows);
     REQUIRE(rows.Size() == 3u); // no script yet, so only the behaviour's own rows
     CHECK(rows[0].Kind == gui::PropertyKind::Reference);
-    REQUIRE(rows[0].ReferenceType == &foundation::script::ScriptClass::StaticType());
+    REQUIRE(rows[0].ReferenceType == &foundation::script::BehaviorClass::StaticType());
     // The reference type is the registered one, with its real name: the asset picker asks the
     // builders for it by name, and an unregistered TypeOf would be named "<value>".
-    CHECK(StringView(reinterpret_cast<const utf8char*>(rows[0].ReferenceType->name)) == StringView(u8"ScriptClass"));
+    CHECK(StringView(reinterpret_cast<const utf8char*>(rows[0].ReferenceType->name)) == StringView(u8"BehaviorClass"));
 
     gui::PropertyWrite off;
     off.Value = gui::Variant(false);
@@ -1637,19 +1637,19 @@ TEST_CASE("level script: the Level class's properties as rows; an edit an overri
     source.GetProperties(StringView{}, none);
     CHECK(none.IsEmpty()); // no Level class, so nothing to author
 
-    RefPtr<foundation::script::ScriptClass> level = MakeRef<foundation::script::ScriptClass>(DefaultAllocator());
+    RefPtr<foundation::script::BehaviorClass> level = MakeRef<foundation::script::BehaviorClass>(DefaultAllocator());
     level->className = String(u8"Level");
-    foundation::script::ScriptPropertyDesc speed;
+    foundation::script::BehaviorProperty speed;
     speed.name = String(u8"speed");
     speed.hash = 41;
-    speed.type = foundation::script::ScriptPropertyType::Float;
+    speed.type = foundation::script::BehaviorPropertyType::Float;
     speed.defaultValue.kind = speed.type;
     speed.defaultValue.number = 2.0;
     level->properties.PushBack(speed);
-    foundation::script::ScriptPropertyDesc spawn;
+    foundation::script::BehaviorProperty spawn;
     spawn.name = String(u8"spawn");
     spawn.hash = 42;
-    spawn.type = foundation::script::ScriptPropertyType::Vec3;
+    spawn.type = foundation::script::BehaviorPropertyType::Vec3;
     spawn.defaultValue.kind = spawn.type;
     level->properties.PushBack(spawn);
     settings()->behaviorClass.SetDirect(level);
@@ -2500,17 +2500,17 @@ TEST_CASE("scene page: a prefab page's save reloads its loaded prefab")
 TEST_CASE("script behaviours: an asset property's tag names the type the asset loads as, whatever its namespace")
 {
     engine::RegisterAllResourceTypes();
-    CHECK(ScriptPropertyRows::AssetType(u8"PrefabResource") == &scene::PrefabResource::StaticType());
-    CHECK(ScriptPropertyRows::AssetType(u8"ScriptClass") == &foundation::script::ScriptClass::StaticType());
+    CHECK(BehaviorPropertyRows::AssetType(u8"PrefabResource") == &scene::PrefabResource::StaticType());
+    CHECK(BehaviorPropertyRows::AssetType(u8"BehaviorClass") == &foundation::script::BehaviorClass::StaticType());
     // Or by its full name: its namespace, `::`, its own name.
     const TypeInfo& prefab = scene::PrefabResource::StaticType();
     String full(reinterpret_cast<const utf8char*>(prefab.namespaceName));
     full.Append(u8"::");
     full.Append(reinterpret_cast<const utf8char*>(prefab.name));
-    CHECK(ScriptPropertyRows::AssetType(full.AsView()) == &prefab);
-    CHECK(ScriptPropertyRows::AssetType(u8"rtti::nowhere::PrefabResource") == nullptr);
-    CHECK(ScriptPropertyRows::AssetType(u8"Prefab") == nullptr); // PrefabDocument's display name only
-    CHECK(ScriptPropertyRows::AssetType(u8"NothingIsCalledThis") == nullptr);
+    CHECK(BehaviorPropertyRows::AssetType(full.AsView()) == &prefab);
+    CHECK(BehaviorPropertyRows::AssetType(u8"rtti::nowhere::PrefabResource") == nullptr);
+    CHECK(BehaviorPropertyRows::AssetType(u8"Prefab") == nullptr); // PrefabDocument's display name only
+    CHECK(BehaviorPropertyRows::AssetType(u8"NothingIsCalledThis") == nullptr);
 }
 
 namespace

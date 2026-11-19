@@ -49,7 +49,7 @@ namespace engine::project
         builder.Property<&ProjectSettings::defaultSceneId>("defaultSceneId");
         asset(u8"Default scene", u8"SceneDocument", u8"(none)", u8"Startup");
         builder.PropAttribute(kSettingSummaryAttribute, String(u8"Default scene"));
-        // The cooked ScriptClass the player (and the Game tab) binds at startup.
+        // The cooked BehaviorClass the player (and the Game tab) binds at startup.
         builder.Property<&ProjectSettings::startupScriptId>("startupScriptId");
         asset(u8"Startup script", u8"ScriptClassAsset", u8"(none)", u8"Startup");
         builder.PropAttribute(kSettingSummaryAttribute, String(u8"Startup script"));

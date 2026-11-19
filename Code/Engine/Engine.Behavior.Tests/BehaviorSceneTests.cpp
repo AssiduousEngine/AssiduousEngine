@@ -105,13 +105,13 @@ namespace
 
 namespace
 {
-    // A cooked-product stand-in: samples and tests build ScriptClass products directly (the
+    // A cooked-product stand-in: samples and tests build BehaviorClass products directly (the
     // factory test covers the cooked path; here the runtime is under test).
-    [[nodiscard]] RefPtr<ScriptClass>
+    [[nodiscard]] RefPtr<BehaviorClass>
     MakeClass(StringView className, StringView source, std::initializer_list<StringView> handlers,
-              std::initializer_list<ScriptPropertyDesc> properties = {})
+              std::initializer_list<BehaviorProperty> properties = {})
     {
-        RefPtr<ScriptClass> cls = MakeRef<ScriptClass>(DefaultAllocator());
+        RefPtr<BehaviorClass> cls = MakeRef<BehaviorClass>(DefaultAllocator());
         cls->language = String(u8"angelscript");
         cls->className = String(className);
         cls->kind = BehaviorKind::Entity; // an entity's behavior; a test of a Level sets Scene
@@ -120,7 +120,7 @@ namespace
         {
             cls->handlers.PushBack(String(handler));
         }
-        for (const ScriptPropertyDesc& property : properties)
+        for (const BehaviorProperty& property : properties)
         {
             cls->properties.PushBack(property);
         }
@@ -129,12 +129,12 @@ namespace
     }
 
     // Same, but for an arbitrary backend language (the AngelScript behavior path).
-    [[nodiscard]] RefPtr<ScriptClass>
+    [[nodiscard]] RefPtr<BehaviorClass>
     MakeClassLang(StringView language, StringView className, StringView source,
                   std::initializer_list<StringView> handlers,
-                  std::initializer_list<ScriptPropertyDesc> properties = {})
+                  std::initializer_list<BehaviorProperty> properties = {})
     {
-        RefPtr<ScriptClass> cls = MakeRef<ScriptClass>(DefaultAllocator());
+        RefPtr<BehaviorClass> cls = MakeRef<BehaviorClass>(DefaultAllocator());
         cls->language = String(language);
         cls->className = String(className);
         cls->kind = BehaviorKind::Entity; // an entity's behavior; a test of a Level sets Scene
@@ -143,7 +143,7 @@ namespace
         {
             cls->handlers.PushBack(String(handler));
         }
-        for (const ScriptPropertyDesc& property : properties)
+        for (const BehaviorProperty& property : properties)
         {
             cls->properties.PushBack(property);
         }
@@ -151,24 +151,24 @@ namespace
         return cls;
     }
 
-    [[nodiscard]] ScriptPropertyDesc FloatProperty(StringView name, f64 defaultValue)
+    [[nodiscard]] BehaviorProperty FloatProperty(StringView name, f64 defaultValue)
     {
-        ScriptPropertyDesc desc;
+        BehaviorProperty desc;
         desc.name = String(name);
-        desc.hash = ScriptPropertyNameHash(name);
-        desc.type = ScriptPropertyType::Float;
-        desc.defaultValue.kind = ScriptPropertyType::Float;
+        desc.hash = BehaviorPropertyNameHash(name);
+        desc.type = BehaviorPropertyType::Float;
+        desc.defaultValue.kind = BehaviorPropertyType::Float;
         desc.defaultValue.number = defaultValue;
         return desc;
     }
 
-    [[nodiscard]] ScriptPropertyDesc EntityProperty(StringView name)
+    [[nodiscard]] BehaviorProperty EntityProperty(StringView name)
     {
-        ScriptPropertyDesc desc;
+        BehaviorProperty desc;
         desc.name = String(name);
-        desc.hash = ScriptPropertyNameHash(name);
-        desc.type = ScriptPropertyType::Entity;
-        desc.defaultValue.kind = ScriptPropertyType::Entity;
+        desc.hash = BehaviorPropertyNameHash(name);
+        desc.type = BehaviorPropertyType::Entity;
+        desc.defaultValue.kind = BehaviorPropertyType::Entity;
         return desc;
     }
 
@@ -212,7 +212,7 @@ namespace
                     { system->EnqueueMessage(target, message, args); }};
         }
 
-        scene::EntityHandle AddScripted(const RefPtr<ScriptClass>& cls, StringView name)
+        scene::EntityHandle AddScripted(const RefPtr<BehaviorClass>& cls, StringView name)
         {
             scene::EntityHandle e = scene.CreateEntity(name);
             BehaviorComponent& c = components->Add(e);
@@ -284,14 +284,14 @@ namespace
         }
 
         // The prefab's id as a behavior Asset property (the way a cooked script carries one).
-        [[nodiscard]] ScriptPropertyDesc Property() const
+        [[nodiscard]] BehaviorProperty Property() const
         {
-            ScriptPropertyDesc prefabProp;
+            BehaviorProperty prefabProp;
             prefabProp.name = String(u8"prefab");
-            prefabProp.hash = ScriptPropertyNameHash(u8"prefab");
-            prefabProp.type = ScriptPropertyType::Asset;
+            prefabProp.hash = BehaviorPropertyNameHash(u8"prefab");
+            prefabProp.type = BehaviorPropertyType::Asset;
             prefabProp.assetType = String(u8"PrefabResource");
-            prefabProp.defaultValue.kind = ScriptPropertyType::Asset;
+            prefabProp.defaultValue.kind = BehaviorPropertyType::Asset;
             prefabProp.defaultValue.guid = turret;
             return prefabProp;
         }
@@ -329,7 +329,7 @@ TEST_CASE("script.scene: lifecycle - onStart once (deferred to the first simulat
           "tick), onUpdate(dt) with real dt, gated to simulation")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> mover =
+    RefPtr<BehaviorClass> mover =
         MakeClass(u8"Mover",
                   u8"class Mover {\n"
                   u8"    private Entity self;\n"
@@ -370,7 +370,7 @@ TEST_CASE("script.scene: entity-active - starts-inactive never instantiates; act
           "delivers onStart on the first ACTIVE tick")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> mover =
+    RefPtr<BehaviorClass> mover =
         MakeClass(u8"Mover",
                   u8"class Mover {\n"
                   u8"    private Entity self;\n"
@@ -408,7 +408,7 @@ TEST_CASE("script.scene: entity-active - deactivation freezes updates with NO li
           "events; reactivation resumes without a second onStart")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> mover =
+    RefPtr<BehaviorClass> mover =
         MakeClass(u8"Mover",
                   u8"class Mover {\n"
                   u8"    private Entity self;\n"
@@ -455,7 +455,7 @@ TEST_CASE("script.scene: a component's script methods mark it a scene component"
 TEST_CASE("script.scene: the entity facade exposes active/setActive/activeInHierarchy")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> toggler =
+    RefPtr<BehaviorClass> toggler =
         MakeClass(u8"Toggler",
                   u8"class Toggler {\n"
                   u8"    private Entity self;\n"
@@ -495,7 +495,7 @@ TEST_CASE("script.scene: LUAU behavior lifecycle + property field-apply through 
     // The Luau idiom: a global class table, colon methods, plain instance fields for properties.
     // The run host resolves the Luau backend from the class's language and dispatches the same
     // onStart/onUpdate; ApplyProperties writes the `speed` field through the field setter.
-    RefPtr<ScriptClass> mover = MakeClassLang(
+    RefPtr<BehaviorClass> mover = MakeClassLang(
         u8"luau", u8"Mover",
         u8"Mover = {}\n"
         u8"Mover.__index = Mover\n"
@@ -524,7 +524,7 @@ TEST_CASE("script.scene: LUAU behavior lifecycle + property field-apply through 
 TEST_CASE("script.scene: LUAU hash-keyed property override wins over the harvested default")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> mover = MakeClassLang(
+    RefPtr<BehaviorClass> mover = MakeClassLang(
         u8"luau", u8"Mover",
         u8"Mover = {}\n"
         u8"Mover.__index = Mover\n"
@@ -541,10 +541,10 @@ TEST_CASE("script.scene: LUAU hash-keyed property override wins over the harvest
     const scene::EntityHandle e = bed.AddScripted(mover, u8"fast");
     {
         BehaviorComponent* c = bed.components->Get(e);
-        ScriptPropertyValue ten;
-        ten.kind = ScriptPropertyType::Float;
+        BehaviorPropertyValue ten;
+        ten.kind = BehaviorPropertyType::Float;
         ten.number = 10.0;
-        c->behaviors[0].SetOverride(ScriptPropertyNameHash(u8"speed"), ten);
+        c->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"speed"), ten);
     }
 
     bed.Start();
@@ -555,14 +555,14 @@ TEST_CASE("script.scene: LUAU hash-keyed property override wins over the harvest
 TEST_CASE("script.scene: LUAU entity.send invokes on<Message>(arg) on the target behavior")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> receiver = MakeClassLang(
+    RefPtr<BehaviorClass> receiver = MakeClassLang(
         u8"luau", u8"Receiver",
         u8"Receiver = {}\n"
         u8"Receiver.__index = Receiver\n"
         u8"function Receiver.new(entity) return setmetatable({ entity = entity }, Receiver) end\n"
         u8"function Receiver:onPing(amount) self.entity:setName(\"pinged:\" .. tostring(amount)) end\n",
         {u8"onPing"});
-    RefPtr<ScriptClass> sender = MakeClassLang(
+    RefPtr<BehaviorClass> sender = MakeClassLang(
         u8"luau", u8"Sender",
         u8"Sender = {}\n"
         u8"Sender.__index = Sender\n"
@@ -591,7 +591,7 @@ TEST_CASE("script.scene: LUAU entity.send invokes on<Message>(arg) on the target
 TEST_CASE("script.scene: LUAU updateInterval throttles onUpdate and delivers accumulated dt")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> ticker = MakeClassLang(
+    RefPtr<BehaviorClass> ticker = MakeClassLang(
         u8"luau", u8"Ticker",
         u8"Ticker = {}\n"
         u8"Ticker.__index = Ticker\n"
@@ -615,7 +615,7 @@ TEST_CASE("script.scene: LUAU updateInterval throttles onUpdate and delivers acc
 TEST_CASE("script.scene: LUAU coroutine waitSeconds(1.0) runs its body only after ~1s of ticks")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> waiter = MakeClassLang(
+    RefPtr<BehaviorClass> waiter = MakeClassLang(
         u8"luau", u8"Waiter",
         u8"Waiter = {}\n"
         u8"Waiter.__index = Waiter\n"
@@ -643,7 +643,7 @@ TEST_CASE("script.scene: LUAU coroutine waitSeconds(1.0) runs its body only afte
 TEST_CASE("script.scene: harvested defaults apply; hash-keyed overrides win")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> mover =
+    RefPtr<BehaviorClass> mover =
         MakeClass(u8"Mover",
                   u8"class Mover {\n"
                   u8"    private Entity self;\n"
@@ -663,10 +663,10 @@ TEST_CASE("script.scene: harvested defaults apply; hash-keyed overrides win")
     const scene::EntityHandle overridden = bed.AddScripted(mover, u8"overridden");
     {
         BehaviorComponent* c = bed.components->Get(overridden);
-        ScriptPropertyValue ten;
-        ten.kind = ScriptPropertyType::Float;
+        BehaviorPropertyValue ten;
+        ten.kind = BehaviorPropertyType::Float;
         ten.number = 10.0;
-        c->behaviors[0].SetOverride(ScriptPropertyNameHash(u8"speed"), ten);
+        c->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"speed"), ten);
     }
 
     bed.Start();
@@ -679,7 +679,7 @@ TEST_CASE("script.scene: enable/disable edges dispatch onEnable/onDisable; disab
           "behaviors do not tick")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> toggler =
+    RefPtr<BehaviorClass> toggler =
         MakeClass(u8"Toggler",
                   u8"class Toggler {\n"
                   u8"    private Entity self;\n"
@@ -716,7 +716,7 @@ TEST_CASE("script.scene: onDestroy fires on entity destroy AND on scene stop; st
           "releases every instance")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> counter =
+    RefPtr<BehaviorClass> counter =
         MakeClass(u8"Counter",
                   u8"double DestroyCount = 0;\n"
                   u8"class Counter {\n"
@@ -755,14 +755,14 @@ TEST_CASE("script.scene: a faulting behavior is disabled and logged; siblings ke
           "running")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> faulty = MakeClass(u8"Faulty",
+    RefPtr<BehaviorClass> faulty = MakeClass(u8"Faulty",
                                            u8"class Faulty {\n"
                                            u8"    private Entity self;\n"
                                            u8"    Faulty(Entity entity) { self = entity; }\n"
                                            u8"    void onUpdate(double dt) { int zero = 0; int boom = 10 / zero; }\n"
                                            u8"}\n",
                                            {u8"onUpdate"});
-    RefPtr<ScriptClass> steady = MakeClass(u8"Steady",
+    RefPtr<BehaviorClass> steady = MakeClass(u8"Steady",
                                            u8"class Steady {\n"
                                            u8"    private Entity self;\n"
                                            u8"    Steady(Entity entity) { self = entity; }\n"
@@ -799,7 +799,7 @@ TEST_CASE("script.scene: lifecycle handlers dispatch by their bound methods; a d
           "the wrong parameters faults")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> mover = MakeClass(u8"Mover",
+    RefPtr<BehaviorClass> mover = MakeClass(u8"Mover",
                                           u8"class Mover {\n"
                                           u8"    private Entity self;\n"
                                           u8"    Mover(Entity entity) { self = entity; }\n"
@@ -810,7 +810,7 @@ TEST_CASE("script.scene: lifecycle handlers dispatch by their bound methods; a d
                                           u8"    }\n"
                                           u8"}\n",
                                           {u8"onStart", u8"onUpdate"});
-    RefPtr<ScriptClass> wrong = MakeClass(u8"Wrong",
+    RefPtr<BehaviorClass> wrong = MakeClass(u8"Wrong",
                                           u8"class Wrong {\n"
                                           u8"    private Entity self;\n"
                                           u8"    Wrong(Entity entity) { self = entity; }\n"
@@ -879,15 +879,15 @@ TEST_CASE("script.scene: hot reload - product swap re-instantiates, re-applies "
                              u8"    }\n"
                              u8"}\n";
 
-    RefPtr<ScriptClass> v1 =
+    RefPtr<BehaviorClass> v1 =
         MakeClass(u8"Mover", moverV1, {u8"onStart", u8"onUpdate"}, {FloatProperty(u8"speed", 1.0)});
 
     const scene::EntityHandle e = bed.AddScripted(v1, u8"m");
     {
-        ScriptPropertyValue three;
-        three.kind = ScriptPropertyType::Float;
+        BehaviorPropertyValue three;
+        three.kind = BehaviorPropertyType::Float;
         three.number = 3.0;
-        bed.components->Get(e)->behaviors[0].SetOverride(ScriptPropertyNameHash(u8"speed"), three);
+        bed.components->Get(e)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"speed"), three);
     }
     bed.Start();
     bed.Frame(); // dt 0.5: x = 1.5 (override 3)
@@ -895,7 +895,7 @@ TEST_CASE("script.scene: hot reload - product swap re-instantiates, re-applies "
     CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 1.5f));
 
     // The cook swaps the product (here: the Ref's direct object). Same class name.
-    RefPtr<ScriptClass> v2 =
+    RefPtr<BehaviorClass> v2 =
         MakeClass(u8"Mover", moverV2, {u8"onStart", u8"onUpdate"}, {FloatProperty(u8"speed", 1.0)});
     bed.components->Get(e)->behaviors[0].behaviorClass = v2;
 
@@ -909,7 +909,7 @@ TEST_CASE("script.scene: entity-typed properties resolve guids to live entity ha
           "(the facade crosses the boundary)")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> chaser = MakeClass(u8"Chaser",
+    RefPtr<BehaviorClass> chaser = MakeClass(u8"Chaser",
                                            u8"class Chaser {\n"
                                            u8"    private Entity self;\n"
                                            u8"    Entity target;\n"
@@ -929,10 +929,10 @@ TEST_CASE("script.scene: entity-typed properties resolve guids to live entity ha
     bed.scene.SetLocalPosition(goal, Float3{7.0f, 8.0f, 9.0f});
     const scene::EntityHandle e = bed.AddScripted(chaser, u8"chaser");
     {
-        ScriptPropertyValue target;
-        target.kind = ScriptPropertyType::Entity;
+        BehaviorPropertyValue target;
+        target.kind = BehaviorPropertyType::Entity;
         target.guid = bed.scene.GetEntityId(goal);
-        bed.components->Get(e)->behaviors[0].SetOverride(ScriptPropertyNameHash(u8"target"),
+        bed.components->Get(e)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"target"),
                                                          target);
     }
     bed.Start();
@@ -944,7 +944,7 @@ TEST_CASE("script.scene: entity-typed properties resolve guids to live entity ha
 TEST_CASE("script.scene: Log/Time/Random facades are callable (service-bound per run)")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> user = MakeClass(
+    RefPtr<BehaviorClass> user = MakeClass(
         u8"FacadeUser",
         u8"class FacadeUser {\n"
         u8"    private Entity self;\n"
@@ -988,30 +988,30 @@ TEST_CASE("script.scene: component wire round-trips through SerializeScene (scri
         AttachedBehavior first;
         first.behaviorClass.SetId(Guid{0x11, 0x22});
         first.enabled = false;
-        ScriptPropertyValue speed;
-        speed.kind = ScriptPropertyType::Float;
+        BehaviorPropertyValue speed;
+        speed.kind = BehaviorPropertyType::Float;
         speed.number = 12.5;
-        first.SetOverride(ScriptPropertyNameHash(u8"speed"), speed);
-        ScriptPropertyValue label;
-        label.kind = ScriptPropertyType::String;
+        first.SetOverride(BehaviorPropertyNameHash(u8"speed"), speed);
+        BehaviorPropertyValue label;
+        label.kind = BehaviorPropertyType::String;
         label.text = String(u8"hello");
-        first.SetOverride(ScriptPropertyNameHash(u8"label"), label);
-        ScriptPropertyValue tint;
-        tint.kind = ScriptPropertyType::Color;
+        first.SetOverride(BehaviorPropertyNameHash(u8"label"), label);
+        BehaviorPropertyValue tint;
+        tint.kind = BehaviorPropertyType::Color;
         tint.color = Color{0.1f, 0.2f, 0.3f, 0.4f};
-        first.SetOverride(ScriptPropertyNameHash(u8"tint"), tint);
+        first.SetOverride(BehaviorPropertyNameHash(u8"tint"), tint);
         c.behaviors.PushBack(Move(first));
 
         AttachedBehavior second;
         second.behaviorClass.SetId(Guid{0x33, 0x44});
-        ScriptPropertyValue target;
-        target.kind = ScriptPropertyType::Entity;
+        BehaviorPropertyValue target;
+        target.kind = BehaviorPropertyType::Entity;
         target.guid = Guid{0x55, 0x66};
-        second.SetOverride(ScriptPropertyNameHash(u8"target"), target);
-        ScriptPropertyValue vec;
-        vec.kind = ScriptPropertyType::Vec3;
+        second.SetOverride(BehaviorPropertyNameHash(u8"target"), target);
+        BehaviorPropertyValue vec;
+        vec.kind = BehaviorPropertyType::Vec3;
         vec.vector = Float3{1, 2, 3};
-        second.SetOverride(ScriptPropertyNameHash(u8"offset"), vec);
+        second.SetOverride(BehaviorPropertyNameHash(u8"offset"), vec);
         c.behaviors.PushBack(Move(second));
     }
     const Guid entityId = scene.GetEntityId(e);
@@ -1041,24 +1041,24 @@ TEST_CASE("script.scene: component wire round-trips through SerializeScene (scri
     CHECK(b0.behaviorClass.id == (Guid{0x11, 0x22}));
     CHECK_FALSE(b0.enabled);
     REQUIRE(b0.overrides.Size() == 3u);
-    const ScriptPropertyOverride* speed = b0.FindOverride(ScriptPropertyNameHash(u8"speed"));
+    const BehaviorPropertyOverride* speed = b0.FindOverride(BehaviorPropertyNameHash(u8"speed"));
     REQUIRE(speed != nullptr);
-    CHECK(speed->value.kind == ScriptPropertyType::Float);
+    CHECK(speed->value.kind == BehaviorPropertyType::Float);
     CHECK(speed->value.number == doctest::Approx(12.5));
-    const ScriptPropertyOverride* label = b0.FindOverride(ScriptPropertyNameHash(u8"label"));
+    const BehaviorPropertyOverride* label = b0.FindOverride(BehaviorPropertyNameHash(u8"label"));
     REQUIRE(label != nullptr);
     CHECK(label->value.text == u8"hello");
-    const ScriptPropertyOverride* tint = b0.FindOverride(ScriptPropertyNameHash(u8"tint"));
+    const BehaviorPropertyOverride* tint = b0.FindOverride(BehaviorPropertyNameHash(u8"tint"));
     REQUIRE(tint != nullptr);
     CHECK(tint->value.color.b == doctest::Approx(0.3f));
 
     const AttachedBehavior& b1 = lc->behaviors[1];
     CHECK(b1.behaviorClass.id == (Guid{0x33, 0x44}));
     CHECK(b1.enabled);
-    const ScriptPropertyOverride* target = b1.FindOverride(ScriptPropertyNameHash(u8"target"));
+    const BehaviorPropertyOverride* target = b1.FindOverride(BehaviorPropertyNameHash(u8"target"));
     REQUIRE(target != nullptr);
     CHECK(target->value.guid == (Guid{0x55, 0x66}));
-    const ScriptPropertyOverride* offset = b1.FindOverride(ScriptPropertyNameHash(u8"offset"));
+    const BehaviorPropertyOverride* offset = b1.FindOverride(BehaviorPropertyNameHash(u8"offset"));
     REQUIRE(offset != nullptr);
     CHECK(offset->value.vector.y == doctest::Approx(2.0f));
 
@@ -1097,10 +1097,10 @@ TEST_CASE("script.scene: a prefab-instance override on a behavior property round
     REQUIRE(inst1.IsAssigned());
     REQUIRE(inst2.IsAssigned());
     {
-        ScriptPropertyValue nine;
-        nine.kind = ScriptPropertyType::Float;
+        BehaviorPropertyValue nine;
+        nine.kind = BehaviorPropertyType::Float;
         nine.number = 9.0;
-        levelScripts->Get(inst1)->behaviors[0].SetOverride(ScriptPropertyNameHash(u8"speed"), nine);
+        levelScripts->Get(inst1)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"speed"), nine);
     }
     const Guid inst1Id = level.GetEntityId(inst1);
     const Guid inst2Id = level.GetEntityId(inst2);
@@ -1148,8 +1148,8 @@ TEST_CASE("script.scene: a prefab-instance override on a behavior property round
     REQUIRE(c2->behaviors.Size() == 1u);
 
     // The override survived on instance 1; instance 2 still tracks the template.
-    const ScriptPropertyOverride* over =
-        c1->behaviors[0].FindOverride(ScriptPropertyNameHash(u8"speed"));
+    const BehaviorPropertyOverride* over =
+        c1->behaviors[0].FindOverride(BehaviorPropertyNameHash(u8"speed"));
     REQUIRE(over != nullptr);
     CHECK(over->value.number == doctest::Approx(9.0));
     CHECK(c2->behaviors[0].overrides.IsEmpty());
@@ -1160,7 +1160,7 @@ TEST_CASE("script.scene: run-host teardown after stop releases the context; a la
           "without a backend refuses cleanly")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> noop = MakeClass(u8"Noop",
+    RefPtr<BehaviorClass> noop = MakeClass(u8"Noop",
                                          u8"class Noop {\n"
                                          u8"    private Entity self;\n"
                                          u8"    Noop(Entity entity) { self = entity; }\n"
@@ -1177,7 +1177,7 @@ TEST_CASE("script.scene: run-host teardown after stop releases the context; a la
     CHECK_FALSE(bed.host.IsActive());
 
     // Behaviors in an unregistered language stay disabled with a clean error.
-    RefPtr<ScriptClass> alien = MakeClass(u8"Alien", u8"whatever", {u8"onUpdate"});
+    RefPtr<BehaviorClass> alien = MakeClass(u8"Alien", u8"whatever", {u8"onUpdate"});
     alien->language = String(u8"nolang");
     BehaviorRunHost host(DefaultAllocator());
     CHECK(host.EnsureContext(u8"nolang") == nullptr);
@@ -1196,7 +1196,7 @@ TEST_CASE("script.scene: a run host's Advance counts its scripts' clock, with a 
 
     // With a context, the same clock and a collector step.
     ScriptedScene bed;
-    RefPtr<ScriptClass> noop = MakeClass(u8"Noop",
+    RefPtr<BehaviorClass> noop = MakeClass(u8"Noop",
                                          u8"class Noop {\n"
                                          u8"    private Entity self;\n"
                                          u8"    Noop(Entity entity) { self = entity; }\n"
@@ -1220,7 +1220,7 @@ TEST_CASE("script.scene: entity.send invokes on<Message>(arg) on every declaring
 
     // Receiver at index 0 so it is instantiated before the sender (index 1) fires its onStart
     // send this same tick: dispatch skips instances that are not live yet.
-    RefPtr<ScriptClass> receiver =
+    RefPtr<BehaviorClass> receiver =
         MakeClass(u8"Receiver",
                   u8"class Receiver {\n"
                   u8"    private Entity self;\n"
@@ -1228,7 +1228,7 @@ TEST_CASE("script.scene: entity.send invokes on<Message>(arg) on every declaring
                   u8"    void onPing(int amount) { self.setName(\"pinged:\" + amount); }\n"
                   u8"}\n",
                   {u8"onPing"});
-    RefPtr<ScriptClass> sender = MakeClass(u8"Sender",
+    RefPtr<BehaviorClass> sender = MakeClass(u8"Sender",
                                            u8"class Sender {\n"
                                            u8"    private Entity self;\n"
                                            u8"    Sender(Entity entity) { self = entity; }\n"
@@ -1259,7 +1259,7 @@ TEST_CASE("script.scene: entity.send to a target with no matching handler is a s
           "no-op (P2 messaging)")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> sender = MakeClass(u8"LoneSender",
+    RefPtr<BehaviorClass> sender = MakeClass(u8"LoneSender",
                                            u8"class LoneSender {\n"
                                            u8"    private Entity self;\n"
                                            u8"    LoneSender(Entity entity) { self = entity; }\n"
@@ -1291,7 +1291,7 @@ TEST_CASE("script.scene: the Roll Call sample game - orbs EMIT OrbCollected, the
     // The Level: the scene's rules tier, total 2 for a short round. Score lives in per-instance
     // fields; onOrbCollected mirrors it onto the Scoreboard transform so the test can observe it.
     // It receives events by declaring on<Event>, with no wiring and no manager entity.
-    RefPtr<ScriptClass> levelClass =
+    RefPtr<BehaviorClass> levelClass =
         MakeClass(u8"Level",
                   u8"class Level {\n"
                   u8"    private Scene scene;\n"
@@ -1327,7 +1327,7 @@ TEST_CASE("script.scene: the Roll Call sample game - orbs EMIT OrbCollected, the
     level->Settings().behaviorClass = levelClass;
 
     // Pickup: near "Player", emit "OrbCollected" and remove itself.
-    RefPtr<ScriptClass> pickup =
+    RefPtr<BehaviorClass> pickup =
         MakeClass(u8"Pickup",
                   u8"class Pickup {\n"
                   u8"    private Entity self;\n"
@@ -1400,7 +1400,7 @@ TEST_CASE("script.scene: the Roll Call sample game runs on a LUAU Level")
     SceneBehaviorSystem* level = bed.scene.AddSystem<SceneBehaviorSystem>();
     level->SetRunHost(&bed.host);
 
-    RefPtr<ScriptClass> levelClass = MakeClassLang(
+    RefPtr<BehaviorClass> levelClass = MakeClassLang(
         u8"luau", u8"Level",
         u8"Level = {}\n"
         u8"Level.__index = Level\n"
@@ -1420,7 +1420,7 @@ TEST_CASE("script.scene: the Roll Call sample game runs on a LUAU Level")
     levelClass->kind = BehaviorKind::Scene; // a Level is a scene behavior
     level->Settings().behaviorClass = levelClass;
 
-    RefPtr<ScriptClass> pickup = MakeClassLang(
+    RefPtr<BehaviorClass> pickup = MakeClassLang(
         u8"luau", u8"Pickup",
         u8"Pickup = {}\n"
         u8"Pickup.__index = Pickup\n"
@@ -1479,7 +1479,7 @@ TEST_CASE("script.scene: bus token teardown - a destroyed subscriber is never to
     // drain time: a behaviour whose entity died between emit and drain is not found (no dispatch
     // to a dead instance, no crash). This is lifetime-sensitive, so it matters under ASAN.
     ScriptedScene bed;
-    RefPtr<ScriptClass> listener =
+    RefPtr<BehaviorClass> listener =
         MakeClass(u8"Listener",
                   u8"class Listener {\n"
                   u8"    private Entity self;\n"
@@ -1504,7 +1504,7 @@ TEST_CASE("script.scene: updateInterval throttles onUpdate and delivers the accu
           "dt (P3)")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> ticker = MakeClass(
+    RefPtr<BehaviorClass> ticker = MakeClass(
         u8"Ticker",
         u8"class Ticker {\n"
         u8"    private Entity self;\n"
@@ -1566,7 +1566,7 @@ TEST_CASE("script.scene: updateInterval survives the SerializeScene wire")
 TEST_CASE("script.scene: LUAU enable/disable edges dispatch onEnable/onDisable; disabled skips tick")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> toggler = MakeClassLang(
+    RefPtr<BehaviorClass> toggler = MakeClassLang(
         u8"luau", u8"Toggler",
         u8"Toggler = {}\n"
         u8"Toggler.__index = Toggler\n"
@@ -1599,7 +1599,7 @@ TEST_CASE("script.scene: LUAU enable/disable edges dispatch onEnable/onDisable; 
 TEST_CASE("script.scene: LUAU onDestroy fires on entity destroy AND on scene stop")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> counter = MakeClassLang(
+    RefPtr<BehaviorClass> counter = MakeClassLang(
         u8"luau", u8"Counter",
         u8"DestroyCount = 0\n"
         u8"Counter = {}\n"
@@ -1636,14 +1636,14 @@ TEST_CASE("script.scene: LUAU onDestroy fires on entity destroy AND on scene sto
 TEST_CASE("script.scene: LUAU a faulting behavior is disabled; siblings keep running")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> faulty = MakeClassLang(
+    RefPtr<BehaviorClass> faulty = MakeClassLang(
         u8"luau", u8"Faulty",
         u8"Faulty = {}\n"
         u8"Faulty.__index = Faulty\n"
         u8"function Faulty.new(entity) return setmetatable({ entity = entity }, Faulty) end\n"
         u8"function Faulty:onUpdate(dt) error(\"boom\") end\n",
         {u8"onUpdate"});
-    RefPtr<ScriptClass> steady = MakeClassLang(
+    RefPtr<BehaviorClass> steady = MakeClassLang(
         u8"luau", u8"Steady",
         u8"Steady = {}\n"
         u8"Steady.__index = Steady\n"
@@ -1696,22 +1696,22 @@ TEST_CASE("script.scene: LUAU hot reload - product swap re-instantiates + re-app
         u8"    self.entity:setPosition(p.x + 2 * self.speed * dt, p.y, p.z)\n"
         u8"end\n";
 
-    RefPtr<ScriptClass> v1 =
+    RefPtr<BehaviorClass> v1 =
         MakeClassLang(u8"luau", u8"Mover", moverV1, {u8"onStart", u8"onUpdate"},
                       {FloatProperty(u8"speed", 1.0)});
     const scene::EntityHandle e = bed.AddScripted(v1, u8"m");
     {
-        ScriptPropertyValue three;
-        three.kind = ScriptPropertyType::Float;
+        BehaviorPropertyValue three;
+        three.kind = BehaviorPropertyType::Float;
         three.number = 3.0;
-        bed.components->Get(e)->behaviors[0].SetOverride(ScriptPropertyNameHash(u8"speed"), three);
+        bed.components->Get(e)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"speed"), three);
     }
     bed.Start();
     bed.Frame(); // dt 0.5: x = 1.5 (override 3)
     CHECK(bed.scene.GetEntityName(e) == StringView(u8"m+start"));
     CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 1.5f));
 
-    RefPtr<ScriptClass> v2 =
+    RefPtr<BehaviorClass> v2 =
         MakeClassLang(u8"luau", u8"Mover", moverV2, {u8"onStart", u8"onUpdate"},
                       {FloatProperty(u8"speed", 1.0)});
     bed.components->Get(e)->behaviors[0].behaviorClass = v2;
@@ -1742,7 +1742,7 @@ TEST_CASE("script.scene: an unset entity property is an invalid Entity in both l
     // AngelScript: the member is a value, so the unset entity must arrive as one.
     {
         ScriptedScene bed;
-        RefPtr<ScriptClass> watcher = MakeClassLang(
+        RefPtr<BehaviorClass> watcher = MakeClassLang(
             u8"angelscript", u8"Watcher",
             u8"class Watcher {\n"
             u8"    private Entity self;\n"
@@ -1764,7 +1764,7 @@ TEST_CASE("script.scene: an unset entity property is an invalid Entity in both l
     // Luau: an Entity too, not nil, which says isValid() false; so is a lookup that finds nothing.
     {
         ScriptedScene bed;
-        RefPtr<ScriptClass> watcher = MakeClassLang(
+        RefPtr<BehaviorClass> watcher = MakeClassLang(
             u8"luau", u8"Watcher",
             u8"Watcher = {}\n"
             u8"Watcher.__index = Watcher\n"
@@ -1779,10 +1779,10 @@ TEST_CASE("script.scene: an unset entity property is an invalid Entity in both l
         const scene::EntityHandle e = bed.AddScripted(watcher, u8"watcher");
         {
             // A guid that names no entity in the scene reads the same as an unset one.
-            ScriptPropertyValue gone;
-            gone.kind = ScriptPropertyType::Entity;
+            BehaviorPropertyValue gone;
+            gone.kind = BehaviorPropertyType::Entity;
             gone.guid = Guid{0x7a7a, 0x7b7b};
-            bed.components->Get(e)->behaviors[0].SetOverride(ScriptPropertyNameHash(u8"target"), gone);
+            bed.components->Get(e)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"target"), gone);
         }
         bed.Start();
         bed.Frame();
@@ -1793,7 +1793,7 @@ TEST_CASE("script.scene: an unset entity property is an invalid Entity in both l
 TEST_CASE("script.scene: LUAU entity-typed property resolves a guid to a live entity handle")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> chaser = MakeClassLang(
+    RefPtr<BehaviorClass> chaser = MakeClassLang(
         u8"luau", u8"Chaser",
         u8"Chaser = {}\n"
         u8"Chaser.__index = Chaser\n"
@@ -1810,10 +1810,10 @@ TEST_CASE("script.scene: LUAU entity-typed property resolves a guid to a live en
     bed.scene.SetLocalPosition(goal, Float3{7.0f, 8.0f, 9.0f});
     const scene::EntityHandle e = bed.AddScripted(chaser, u8"chaser");
     {
-        ScriptPropertyValue target;
-        target.kind = ScriptPropertyType::Entity;
+        BehaviorPropertyValue target;
+        target.kind = BehaviorPropertyType::Entity;
         target.guid = bed.scene.GetEntityId(goal);
-        bed.components->Get(e)->behaviors[0].SetOverride(ScriptPropertyNameHash(u8"target"), target);
+        bed.components->Get(e)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"target"), target);
     }
     bed.Start();
     bed.Frame();
@@ -1824,7 +1824,7 @@ TEST_CASE("script.scene: LUAU entity-typed property resolves a guid to a live en
 TEST_CASE("script.scene: LUAU Log/Time/Random facades are callable (service-bound per run)")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> user = MakeClassLang(
+    RefPtr<BehaviorClass> user = MakeClassLang(
         u8"luau", u8"FacadeUser",
         u8"FacadeUser = {}\n"
         u8"FacadeUser.__index = FacadeUser\n"
@@ -1857,7 +1857,7 @@ TEST_CASE("script.scene: Scene.spawn reaches the scene's PrefabSpawnSystem and r
     PrefabSource prefabs(bed);
 
     // The behavior spawns on start using a prefab id delivered as an asset property.
-    RefPtr<ScriptClass> spawner =
+    RefPtr<BehaviorClass> spawner =
         MakeClass(u8"Spawner",
                   u8"class Spawner {\n"
                   u8"    private Entity self;\n"
@@ -1894,7 +1894,7 @@ TEST_CASE("script.scene: LUAU Scene.spawn reaches the scene's PrefabSpawnSystem 
 
     // The prefab id crosses as an Asset property (a Guid), is stored on the instance field, then
     // read back and passed to spawn, exercising Guid marshalling both ways through the Luau VM.
-    RefPtr<ScriptClass> spawner = MakeClassLang(
+    RefPtr<BehaviorClass> spawner = MakeClassLang(
         u8"luau", u8"Spawner",
         u8"Spawner = {}\n"
         u8"Spawner.__index = Spawner\n"
@@ -1929,7 +1929,7 @@ TEST_CASE("script.scene: Scene.find / Scene.findByPath resolve entities in the c
     bed.scene.SetParent(weapon, player);
     (void)target;
 
-    RefPtr<ScriptClass> finder =
+    RefPtr<BehaviorClass> finder =
         MakeClass(u8"Finder",
                   u8"class Finder {\n"
                   u8"    private Entity self;\n"
@@ -1962,7 +1962,7 @@ TEST_CASE("script.scene: entity handles compare with == and !=")
     scene::EntityHandle other = bed.scene.CreateEntity(u8"Other");
     (void)other;
 
-    RefPtr<ScriptClass> comparer =
+    RefPtr<BehaviorClass> comparer =
         MakeClass(u8"Comparer",
                   u8"class Comparer {\n"
                   u8"    private Entity self;\n"
@@ -1993,7 +1993,7 @@ TEST_CASE("script.scene: worldPosition is current inside onUpdate after a move")
     bed.scene.SetParent(child, parent);
     bed.scene.SetLocalPosition(child, Float3{5.0f, 0.0f, 0.0f});
 
-    RefPtr<ScriptClass> mover =
+    RefPtr<BehaviorClass> mover =
         MakeClass(u8"Mover",
                   u8"class Mover {\n"
                   u8"    private Entity self;\n"
@@ -2032,7 +2032,7 @@ TEST_CASE("script.scene: worldRotation composes the ancestors' turns, worldScale
     c.scale = Float3{1.5f, 1.5f, 1.5f};
     bed.scene.SetLocalTransform(child, c);
 
-    RefPtr<ScriptClass> reader =
+    RefPtr<BehaviorClass> reader =
         MakeClass(u8"Reader",
                   u8"class Reader {\n"
                   u8"    private Entity self;\n"
@@ -2068,7 +2068,7 @@ TEST_CASE("script.scene: an AngelScript behavior runs the neutral lifecycle path
 {
     foundation::script::angelscript::RegisterAngelScriptBackend();
     ScriptedScene bed;
-    RefPtr<ScriptClass> mover =
+    RefPtr<BehaviorClass> mover =
         MakeClassLang(u8"angelscript", u8"Mover",
                       u8"class Mover {\n"
                       u8"    private Entity self;\n"
@@ -2104,7 +2104,7 @@ TEST_CASE("script.scene: a breakpoint in a behavior handler pauses the game and 
     foundation::script::angelscript::RegisterAngelScriptBackend();
     ScriptedScene bed;
     // Line-numbered so the breakpoint below lands inside onUpdate before x is incremented.
-    RefPtr<ScriptClass> breaker =
+    RefPtr<BehaviorClass> breaker =
         MakeClassLang(u8"angelscript", u8"Breaker",
                       u8"class Breaker {\n"                                           // 1
                       u8"    private Entity self;\n"                                 // 2
@@ -2182,7 +2182,7 @@ TEST_CASE("script.scene: a breakpoint in a behavior handler pauses the game and 
 TEST_CASE("script.scene: LUAU a breakpoint in a behavior handler pauses the game and resumes clean")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> breaker = MakeClassLang(
+    RefPtr<BehaviorClass> breaker = MakeClassLang(
         u8"luau", u8"Breaker",
         u8"Breaker = {}\n"                                                            // 1
         u8"Breaker.__index = Breaker\n"                                               // 2
@@ -2242,7 +2242,7 @@ TEST_CASE("script.scene: LUAU a breakpoint in a behavior handler pauses the game
 TEST_CASE("script.scene: LUAU a breakpoint in a nested entity.send handler pauses on a second thread")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> receiver = MakeClassLang(
+    RefPtr<BehaviorClass> receiver = MakeClassLang(
         u8"luau", u8"Receiver",
         u8"Receiver = {}\n"                                                              // 1
         u8"Receiver.__index = Receiver\n"                                                // 2
@@ -2254,7 +2254,7 @@ TEST_CASE("script.scene: LUAU a breakpoint in a nested entity.send handler pause
         u8"end\n",                                                     // 8
         {u8"onPing"});
     receiver->sourceName = String(u8"Receiver.luau");
-    RefPtr<ScriptClass> sender = MakeClassLang(
+    RefPtr<BehaviorClass> sender = MakeClassLang(
         u8"luau", u8"Sender",
         u8"Sender = {}\n"
         u8"Sender.__index = Sender\n"
@@ -2304,15 +2304,15 @@ TEST_CASE("script.scene: LUAU a breakpoint in a nested entity.send handler pause
     CHECK(bed.scene.GetEntityName(target) == StringView(u8"pinged:8"));
 }
 
-// Bytecode consumption end to end through the run host: a behaviour ScriptClass carrying only
+// Bytecode consumption end to end through the run host: a behaviour BehaviorClass carrying only
 // cooked bytecode (source stripped, as the player has it) instantiates and ticks. The run host
-// threads ScriptClass::bytecode into LoadBehaviorModule and the backend loads it with no compiler.
+// threads BehaviorClass::bytecode into LoadBehaviorModule and the backend loads it with no compiler.
 TEST_CASE("script.scene: LUAU a behavior runs from cooked bytecode with no source (player path)")
 {
     foundation::script::RegisterLuauScriptBackend();
     ScriptedScene bed;
 
-    RefPtr<ScriptClass> mover = MakeClassLang(
+    RefPtr<BehaviorClass> mover = MakeClassLang(
         u8"luau", u8"Mover",
         u8"Mover = {}\n"
         u8"Mover.__index = Mover\n"
@@ -2386,7 +2386,7 @@ TEST_CASE("script.scene: ANGELSCRIPT a behavior runs from cooked bytecode with n
     }
     const Span<const byte> bytes = cooked.Bytes();
 
-    RefPtr<ScriptClass> mover = MakeClassLang(u8"angelscript", u8"Mover", u8"", {u8"onUpdate"});
+    RefPtr<BehaviorClass> mover = MakeClassLang(u8"angelscript", u8"Mover", u8"", {u8"onUpdate"});
     mover->sourceName = String(u8"Mover.as");
     mover->bytecode.Reserve(bytes.Size());
     for (usize i = 0; i < bytes.Size(); ++i)
@@ -2434,7 +2434,7 @@ TEST_CASE("script.scene: ANGELSCRIPT a breakpoint works on a behavior loaded fro
     }
     const Span<const byte> bytes = cooked.Bytes();
 
-    RefPtr<ScriptClass> breaker = MakeClassLang(u8"angelscript", u8"Breaker", u8"", {u8"onUpdate"});
+    RefPtr<BehaviorClass> breaker = MakeClassLang(u8"angelscript", u8"Breaker", u8"", {u8"onUpdate"});
     breaker->sourceName = String(u8"Breaker.as");
     breaker->bytecode.Reserve(bytes.Size());
     for (usize i = 0; i < bytes.Size(); ++i)
@@ -2502,10 +2502,10 @@ TEST_CASE("script.scene: an AngelScript harvested float property applies (defaul
     {
         ScriptedScene bed;
         const scene::EntityHandle e = bed.AddScripted(makeSpeeder(), u8"runner");
-        ScriptPropertyValue five;
-        five.kind = ScriptPropertyType::Float;
+        BehaviorPropertyValue five;
+        five.kind = BehaviorPropertyType::Float;
         five.number = 5.0;
-        bed.components->Get(e)->behaviors[0].SetOverride(ScriptPropertyNameHash(u8"speed"), five);
+        bed.components->Get(e)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"speed"), five);
         bed.Start();
         bed.Frame(); // override speed 5.0: x = 5.0 * 0.5
         CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 2.5f));
@@ -2519,7 +2519,7 @@ TEST_CASE("script.scene: an AngelScript harvested float property applies (defaul
 TEST_CASE("script.scene: a coroutine wait(1.0) runs its body only after ~1s of ticks")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> waiter = MakeClass(u8"Waiter",
+    RefPtr<BehaviorClass> waiter = MakeClass(u8"Waiter",
                                            u8"class Waiter {\n"
                                            u8"    private Entity self;\n"
                                            u8"    Waiter(Entity entity) { self = entity; }\n"
@@ -2545,7 +2545,7 @@ TEST_CASE("script.scene: a coroutine wait(1.0) runs its body only after ~1s of t
 TEST_CASE("script.scene: a coroutine waitUntil resumes when the predicate flips")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> gater = MakeClass(u8"Gater",
+    RefPtr<BehaviorClass> gater = MakeClass(u8"Gater",
                                           u8"class Gater {\n"
                                           u8"    private Entity self;\n"
                                           u8"    private bool open;\n"
@@ -2581,7 +2581,7 @@ TEST_CASE("script.scene: a coroutine waitUntil resumes when the predicate flips"
 TEST_CASE("script.scene: destroying a behavior cancels its pending coroutine (never fires)")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> ghost = MakeClass(u8"Ghost",
+    RefPtr<BehaviorClass> ghost = MakeClass(u8"Ghost",
                                           u8"double GhostFired = 0;\n"
                                           u8"class Ghost {\n"
                                           u8"    private Entity self;\n"
@@ -2612,7 +2612,7 @@ TEST_CASE("script.scene: destroying a behavior cancels its pending coroutine (ne
 TEST_CASE("script.scene: disabling a behavior cancels its pending coroutine (never fires)")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> ghost = MakeClass(u8"Sleeper",
+    RefPtr<BehaviorClass> ghost = MakeClass(u8"Sleeper",
                                           u8"double SleeperFired = 0;\n"
                                           u8"class Sleeper {\n"
                                           u8"    private Entity self;\n"
@@ -2715,7 +2715,7 @@ namespace
             return e;
         }
 
-        void Attach(scene::EntityHandle e, const RefPtr<ScriptClass>& cls)
+        void Attach(scene::EntityHandle e, const RefPtr<BehaviorClass>& cls)
         {
             auto& component = scene->GetSystem<BehaviorComponentManager>()->Add(e);
             AttachedBehavior behavior;
@@ -2749,7 +2749,7 @@ TEST_CASE("script.scene: a physics collision dispatches onContactBegin(other, po
 
     // Records the other entity's name only if speed is non-negative and the normal is about unit
     // length, so all four arguments crossed the boundary intact.
-    RefPtr<ScriptClass> bumper = MakeClass(
+    RefPtr<BehaviorClass> bumper = MakeClass(
         u8"Bumper",
         u8"class Bumper {\n"
         u8"    private Entity self;\n"
@@ -2777,7 +2777,7 @@ TEST_CASE("script.scene: RigidBodyComponent::addTo builds a body; removeFrom tak
     (void)world.AddBody(u8"floor", Float3{0, -0.5f, 0}, physics::MotionKind::Static, Float3{50, 0.5f, 50});
     const scene::EntityHandle post = world.scene->CreateEntity(u8"post");
     world.scene->SetLocalPosition(post, Float3{3.0f, 1.0f, 0.0f});
-    RefPtr<ScriptClass> builder = MakeClass(
+    RefPtr<BehaviorClass> builder = MakeClass(
         u8"Builder",
         u8"class Builder {\n"
         u8"    private Entity self;\n"
@@ -2831,7 +2831,7 @@ TEST_CASE("script.scene: a physics trigger dispatches onTriggerEnter(other) to a
         u8"faller", Float3{0, 6.0f, 0}, physics::MotionKind::Dynamic, Float3{0.5f, 0.5f, 0.5f});
     (void)faller;
 
-    RefPtr<ScriptClass> sensor =
+    RefPtr<BehaviorClass> sensor =
         MakeClass(u8"Sensor",
                   u8"class Sensor {\n"
                   u8"    private Entity self;\n"
@@ -2858,7 +2858,7 @@ TEST_CASE("script.scene: LUAU physics onContactBegin(other, point, normal, speed
 
     // `normal` and `point` are Float3 native vectors; `other` is an Entity handle; `speed` an f64.
     // The whole four-argument contact payload marshals through the Luau metatable dispatch.
-    RefPtr<ScriptClass> bumper = MakeClassLang(
+    RefPtr<BehaviorClass> bumper = MakeClassLang(
         u8"luau", u8"Bumper",
         u8"Bumper = {}\n"
         u8"Bumper.__index = Bumper\n"
@@ -2897,7 +2897,7 @@ TEST_CASE("script.scene: behaviors tick without error when no physics subsystem 
     ctx.Startup(); // OnReady must not crash resolving the (absent) physics subsystem
 
     scene::Scene* scene = sm.CreateScene(u8"no-physics");
-    RefPtr<ScriptClass> mover = MakeClass(u8"Mover",
+    RefPtr<BehaviorClass> mover = MakeClass(u8"Mover",
                                           u8"class Mover {\n"
                                           u8"    private Entity self;\n"
                                           u8"    Mover(Entity entity) { self = entity; }\n"
@@ -2972,7 +2972,7 @@ TEST_CASE("script.scene: a scene's behaviours run on its run's script host; a sc
     CHECK(outside->GetSystem<SceneBehaviorSystem>()->Host() == &scripts->RunHost());
 
     // A behaviour in the run's scene makes the run's context, not the default host's.
-    RefPtr<ScriptClass> mover = MakeClass(u8"Mover",
+    RefPtr<BehaviorClass> mover = MakeClass(u8"Mover",
                                           u8"class Mover {\n"
                                           u8"    private Entity self;\n"
                                           u8"    Mover(Entity entity) { self = entity; }\n"
@@ -3063,7 +3063,7 @@ TEST_CASE("script.scene: entity.scene.spawn works from onDestroy - a FORMER foot
     ScriptedScene bed;
     PrefabSource prefabs(bed);
 
-    RefPtr<ScriptClass> dier =
+    RefPtr<BehaviorClass> dier =
         MakeClass(u8"Dier",
                   u8"class Dier {\n"
                   u8"    private Entity self;\n"
@@ -3092,7 +3092,7 @@ TEST_CASE("script.scene: entity.scene.spawn works from a resumed coroutine - a F
     ScriptedScene bed;
     PrefabSource prefabs(bed);
 
-    RefPtr<ScriptClass> spawner =
+    RefPtr<BehaviorClass> spawner =
         MakeClass(u8"CoroSpawner",
                   u8"class CoroSpawner {\n"
                   u8"    private Entity self;\n"
@@ -3134,7 +3134,7 @@ TEST_CASE("script.scene: an AngelScript behavior spawns through self.scene() (bo
                   u8"    void onStart() { self.scene.spawn(");
     source.Append(StringView(reinterpret_cast<const utf8char*>(literal)));
     source.Append(u8", 1.0f, 0.0f, 0.0f); }\n}\n");
-    RefPtr<ScriptClass> spawner =
+    RefPtr<BehaviorClass> spawner =
         MakeClassLang(u8"angelscript", u8"Spawner", source.AsView(), {u8"onStart"});
 
     (void)bed.AddScripted(spawner, u8"as");
@@ -3158,7 +3158,7 @@ TEST_CASE("script.scene: a Level runs onStart/onUpdate/onStop through its bound 
     const scene::EntityHandle flag = bed.scene.CreateEntity(u8"flag");
     const scene::EntityHandle ticker = bed.scene.CreateEntity(u8"ticker"); // x = onUpdate count
 
-    RefPtr<ScriptClass> levelClass =
+    RefPtr<BehaviorClass> levelClass =
         MakeClass(u8"Level",
                   u8"class Level {\n"
                   u8"    private Scene scene;\n"
@@ -3205,7 +3205,7 @@ TEST_CASE("script.scene: a Level's harvested property default is applied before 
 
     // The Level reads its declared `timeLimit` in onStart and stamps it into a bound-scene entity,
     // so the test can read back the applied value. With no override the harvested default (90) applies.
-    RefPtr<ScriptClass> levelClass =
+    RefPtr<BehaviorClass> levelClass =
         MakeClass(u8"Level",
                   u8"class Level {\n"
                   u8"    private Scene scene;\n"
@@ -3229,7 +3229,7 @@ TEST_CASE("script.scene: a Level's hash-keyed property override wins over the ha
     level->SetRunHost(&bed.host);
     const scene::EntityHandle probe = bed.scene.CreateEntity(u8"probe");
 
-    RefPtr<ScriptClass> levelClass =
+    RefPtr<BehaviorClass> levelClass =
         MakeClass(u8"Level",
                   u8"class Level {\n"
                   u8"    private Scene scene;\n"
@@ -3242,10 +3242,10 @@ TEST_CASE("script.scene: a Level's hash-keyed property override wins over the ha
     level->Settings().behaviorClass = levelClass;
 
     // The scene-settings override (the inspector-authored value) wins over the class default.
-    ScriptPropertyValue five;
-    five.kind = ScriptPropertyType::Float;
+    BehaviorPropertyValue five;
+    five.kind = BehaviorPropertyType::Float;
     five.number = 5.0;
-    level->Settings().SetOverride(ScriptPropertyNameHash(u8"timeLimit"), five);
+    level->Settings().SetOverride(BehaviorPropertyNameHash(u8"timeLimit"), five);
 
     bed.Start();
     CHECK(Near(bed.scene.GetLocalTransform(probe).position.x, 5.0f)); // override reached the field
@@ -3260,10 +3260,10 @@ TEST_CASE("script.scene: SceneBehaviorSettings overrides round-trip through a v2
 
     SceneBehaviorSettings out;
     out.enabled = true;
-    ScriptPropertyValue value;
-    value.kind = ScriptPropertyType::Float;
+    BehaviorPropertyValue value;
+    value.kind = BehaviorPropertyType::Float;
     value.number = 42.0;
-    out.SetOverride(ScriptPropertyNameHash(u8"timeLimit"), value);
+    out.SetOverride(BehaviorPropertyNameHash(u8"timeLimit"), value);
 
     MemoryStream buffer;
     {
@@ -3282,7 +3282,7 @@ TEST_CASE("script.scene: SceneBehaviorSettings overrides round-trip through a v2
         EndVersionedPayload(r);
         REQUIRE(r.IsOk());
     }
-    const ScriptPropertyOverride* over = in.FindOverride(ScriptPropertyNameHash(u8"timeLimit"));
+    const BehaviorPropertyOverride* over = in.FindOverride(BehaviorPropertyNameHash(u8"timeLimit"));
     REQUIRE(over != nullptr);
     CHECK(over->value.number == doctest::Approx(42.0));
     CHECK(in.enabled);
@@ -3295,7 +3295,7 @@ TEST_CASE("script.scene: a Level receives onFixedUpdate on the fixed lane")
     level->SetRunHost(&bed.host);
     const scene::EntityHandle f = bed.scene.CreateEntity(u8"f");
 
-    RefPtr<ScriptClass> levelClass =
+    RefPtr<BehaviorClass> levelClass =
         MakeClass(u8"Level",
                   u8"class Level {\n"
                   u8"    private Scene scene;\n"
@@ -3327,7 +3327,7 @@ TEST_CASE("script.scene: a faulting Level handler disables THAT scene's level on
     level->SetRunHost(&bed.host);
     const scene::EntityHandle t = bed.scene.CreateEntity(u8"t");
 
-    RefPtr<ScriptClass> levelClass =
+    RefPtr<BehaviorClass> levelClass =
         MakeClass(u8"Level",
                   u8"class Level {\n"
                   u8"    private Scene scene;\n"
@@ -3354,7 +3354,7 @@ TEST_CASE("script.scene: a faulting Level handler disables THAT scene's level on
 
 TEST_CASE("script.scene: two scenes sharing one Level class get INDEPENDENT objects (additive)")
 {
-    RefPtr<ScriptClass> levelClass =
+    RefPtr<BehaviorClass> levelClass =
         MakeClass(u8"Level",
                   u8"class Level {\n"
                   u8"    private Scene scene;\n"
@@ -3396,7 +3396,7 @@ TEST_CASE("script.scene: an AngelScript Level runs the tier (2nd backend)")
     level->SetRunHost(&bed.host);
     const scene::EntityHandle flag = bed.scene.CreateEntity(u8"flag");
 
-    RefPtr<ScriptClass> levelClass = MakeClassLang(
+    RefPtr<BehaviorClass> levelClass = MakeClassLang(
         u8"angelscript", u8"Level",
         u8"class Level {\n"
         u8"    private Scene scene;\n"
@@ -3447,7 +3447,7 @@ TEST_CASE("script.scene: OPTION 1 - Component.of(entity).field mutates the live 
     ScriptedScene bed;
     GadgetManager* gadgets = bed.scene.AddSystem<GadgetManager>();
 
-    RefPtr<ScriptClass> setter = MakeClass(u8"Setter",
+    RefPtr<BehaviorClass> setter = MakeClass(u8"Setter",
                                            u8"class Setter {\n"
                                            u8"    private Entity self;\n"
                                            u8"    Setter(Entity entity) { self = entity; }\n"
@@ -3479,7 +3479,7 @@ TEST_CASE("script.scene: OPTION 1 - Component::of(entity).field mutates the live
     ScriptedScene bed;
     GadgetManager* gadgets = bed.scene.AddSystem<GadgetManager>();
 
-    RefPtr<ScriptClass> setter =
+    RefPtr<BehaviorClass> setter =
         MakeClassLang(u8"angelscript", u8"Setter",
                       u8"class Setter {\n"
                       u8"    private Entity self;\n"
@@ -3508,7 +3508,7 @@ TEST_CASE("script.scene: Component::addTo adds and hands back, removeFrom takes 
     EnsureGadgetRegistered();
     ScriptedScene bed;
     GadgetManager* gadgets = bed.scene.AddSystem<GadgetManager>();
-    RefPtr<ScriptClass> maker =
+    RefPtr<BehaviorClass> maker =
         MakeClassLang(u8"angelscript", u8"Maker",
                       u8"class Maker {\n"
                       u8"    private Entity self;\n"
@@ -3544,7 +3544,7 @@ TEST_CASE("script.scene: LUAU Component.addTo adds and hands back, removeFrom ta
     EnsureGadgetRegistered();
     ScriptedScene bed;
     GadgetManager* gadgets = bed.scene.AddSystem<GadgetManager>();
-    RefPtr<ScriptClass> maker = MakeClassLang(
+    RefPtr<BehaviorClass> maker = MakeClassLang(
         u8"luau", u8"Maker",
         u8"Maker = {}\n"
         u8"Maker.__index = Maker\n"
@@ -3584,7 +3584,7 @@ TEST_CASE("script.scene: Component::of is null without the component, and a gone
 
     ScriptedScene bed;
     GadgetManager* gadgets = bed.scene.AddSystem<GadgetManager>();
-    RefPtr<ScriptClass> probe =
+    RefPtr<BehaviorClass> probe =
         MakeClassLang(u8"angelscript", u8"Probe",
                       u8"class Probe {\n"
                       u8"    private Entity self;\n"
@@ -3623,7 +3623,7 @@ TEST_CASE("script.scene: Component.of is nil without the component (Luau)")
 
     ScriptedScene bed;
     GadgetManager* gadgets = bed.scene.AddSystem<GadgetManager>();
-    RefPtr<ScriptClass> probe =
+    RefPtr<BehaviorClass> probe =
         MakeClassLang(u8"luau", u8"Probe",
                       u8"Probe = {}\n"
                       u8"Probe.__index = Probe\n"
@@ -3665,7 +3665,7 @@ TEST_CASE("script.scene: PathFollowComponent.of(entity) sets a follower's speed 
     spline.curve.UpdateAutoHandles();
     spline.curve.RebuildArcLength();
 
-    RefPtr<ScriptClass> pacer = MakeClass(u8"Pacer",
+    RefPtr<BehaviorClass> pacer = MakeClass(u8"Pacer",
                                           u8"class Pacer {\n"
                                           u8"    private Entity self;\n"
                                           u8"    Pacer(Entity entity) { self = entity; }\n"
@@ -3708,7 +3708,7 @@ TEST_CASE("script.scene: OPTION 1 - RigidBodyComponent.of(entity).friction mutat
     REQUIRE(bodies->Get(e) != nullptr);
     bodies->Get(e)->friction = 0.1f;
 
-    RefPtr<ScriptClass> setter = MakeClass(u8"Setter",
+    RefPtr<BehaviorClass> setter = MakeClass(u8"Setter",
                                            u8"class Setter {\n"
                                            u8"    private Entity self;\n"
                                            u8"    Setter(Entity entity) { self = entity; }\n"
@@ -3734,7 +3734,7 @@ TEST_CASE("script.scene: scene.physics reads + writes gravity on THIS scene's wo
     ContactWorld world; // the world is created on scene Start (inside Play), not before
 
     const scene::EntityHandle e = world.scene->CreateEntity(u8"driver");
-    RefPtr<ScriptClass> driver =
+    RefPtr<BehaviorClass> driver =
         MakeClass(u8"Driver",
                   u8"class Driver {\n"
                   u8"    private Entity self;\n"
@@ -3763,7 +3763,7 @@ TEST_CASE("script.scene: scene.debugDraw is script-callable + null-safe without 
 {
     engine::render::RegisterRenderScriptFacade(); // registers the DebugDraw facade type + prelude name
     ScriptedScene bed;
-    RefPtr<ScriptClass> gizmo =
+    RefPtr<BehaviorClass> gizmo =
         MakeClass(u8"Gizmo",
                   u8"class Gizmo {\n"
                   u8"    private Entity self;\n"
@@ -3805,7 +3805,7 @@ TEST_CASE("script.scene: scene.debugDraw appends to THIS scene's list on the rea
     ScriptedScene bed;
     bed.host.SetApplicationServices(Function<void*(TypeId)>{[&app](TypeId type) { return app.FindService(type); }});
 
-    RefPtr<ScriptClass> gizmo =
+    RefPtr<BehaviorClass> gizmo =
         MakeClass(u8"Gizmo",
                   u8"class Gizmo {\n"
                   u8"    private Entity self;\n"
@@ -3846,7 +3846,7 @@ TEST_CASE("script.scene: scene.physics reads + writes gravity on THIS scene's wo
     ContactWorld world;
 
     const scene::EntityHandle e = world.scene->CreateEntity(u8"driver");
-    RefPtr<ScriptClass> driver =
+    RefPtr<BehaviorClass> driver =
         MakeClassLang(u8"angelscript", u8"Driver",
                       u8"class Driver {\n"
                       u8"    private Entity self;\n"
@@ -3878,7 +3878,7 @@ TEST_CASE("script.scene: CharacterComponent.of(entity).move/jump - per-entity co
     ScriptedScene bed;
     auto* characters = bed.scene.AddSystem<engine::physics::CharacterComponentManager>();
 
-    RefPtr<ScriptClass> driver = MakeClass(u8"Driver",
+    RefPtr<BehaviorClass> driver = MakeClass(u8"Driver",
                                            u8"class Driver {\n"
                                            u8"    private Entity self;\n"
                                            u8"    Driver(Entity entity) { self = entity; }\n"
@@ -3907,7 +3907,7 @@ TEST_CASE("script.scene: CharacterComponent.of(entity).move/jump - per-entity co
     ScriptedScene bed;
     auto* characters = bed.scene.AddSystem<engine::physics::CharacterComponentManager>();
 
-    RefPtr<ScriptClass> driver =
+    RefPtr<BehaviorClass> driver =
         MakeClassLang(u8"angelscript", u8"Driver",
                       u8"class Driver {\n"
                       u8"    private Entity self;\n"
@@ -3942,7 +3942,7 @@ TEST_CASE("script.scene: CharacterComponent velocity, groundNormal and drive (An
     ScriptedScene bed;
     auto* characters = bed.scene.AddSystem<engine::physics::CharacterComponentManager>();
 
-    RefPtr<ScriptClass> board =
+    RefPtr<BehaviorClass> board =
         MakeClassLang(u8"angelscript", u8"Board",
                       u8"class Board {\n"
                       u8"    private Entity self;\n"
@@ -3977,7 +3977,7 @@ TEST_CASE("script.scene: scene.physics.applyImpulse(entity, ...) - scriptable im
     ContactWorld world;
     const scene::EntityHandle e = world.AddBody(u8"ball", Float3{0, 5, 0},
                                                 physics::MotionKind::Dynamic, Float3{0.5f, 0.5f, 0.5f});
-    RefPtr<ScriptClass> pusher = MakeClass(u8"Pusher",
+    RefPtr<BehaviorClass> pusher = MakeClass(u8"Pusher",
                                            u8"class Pusher {\n"
                                            u8"    private Entity self;\n"
                                            u8"    Pusher(Entity entity) { self = entity; }\n"
@@ -4009,7 +4009,7 @@ TEST_CASE("script.scene: ScenePhysics.overlapSphere returns a native array - beh
     const scene::EntityHandle b = world.AddBody(u8"right", Float3{1.5f, 0, 0},
                                                 physics::MotionKind::Dynamic, Float3{0.5f, 0.5f, 0.5f});
     const scene::EntityHandle scanner = world.scene->CreateEntity(u8"scanner");
-    RefPtr<ScriptClass> sweep = MakeClass(
+    RefPtr<BehaviorClass> sweep = MakeClass(
         u8"Scanner",
         u8"class Scanner {\n"
         u8"    private Entity self;\n"
@@ -4048,7 +4048,7 @@ TEST_CASE("script.scene: LUAU ScenePhysics.overlapSphere returns a Lua table - a
     const scene::EntityHandle b = world.AddBody(u8"right", Float3{1.5f, 0, 0},
                                                 physics::MotionKind::Dynamic, Float3{0.5f, 0.5f, 0.5f});
     const scene::EntityHandle scanner = world.scene->CreateEntity(u8"scanner");
-    RefPtr<ScriptClass> sweep = MakeClassLang(
+    RefPtr<BehaviorClass> sweep = MakeClassLang(
         u8"luau", u8"Scanner",
         u8"Scanner = {}\n"
         u8"Scanner.__index = Scanner\n"
@@ -4085,7 +4085,7 @@ TEST_CASE("script.scene: scene.events.emit reaches a sibling behavior AND the Le
     SceneBehaviorSystem* level = bed.scene.AddSystem<SceneBehaviorSystem>();
     level->SetRunHost(&bed.host);
 
-    RefPtr<ScriptClass> emitter =
+    RefPtr<BehaviorClass> emitter =
         MakeClass(u8"Emitter",
                   u8"class Emitter {\n"
                   u8"    private Entity self;\n"
@@ -4102,7 +4102,7 @@ TEST_CASE("script.scene: scene.events.emit reaches a sibling behavior AND the Le
                   u8"    }\n"
                   u8"}\n",
                   {u8"onUpdate"});
-    RefPtr<ScriptClass> receiver =
+    RefPtr<BehaviorClass> receiver =
         MakeClass(u8"Receiver",
                   u8"class Receiver {\n"
                   u8"    private Entity self;\n"
@@ -4110,7 +4110,7 @@ TEST_CASE("script.scene: scene.events.emit reaches a sibling behavior AND the Le
                   u8"    void onOrbCollected(int n) { self.setName(\"got:\" + n); }\n"
                   u8"}\n",
                   {u8"onOrbCollected"});
-    RefPtr<ScriptClass> levelClass =
+    RefPtr<BehaviorClass> levelClass =
         MakeClass(u8"Level",
                   u8"class Level {\n"
                   u8"    private Scene scene;\n"
@@ -4143,7 +4143,7 @@ TEST_CASE("script.scene: scene.events.emit reaches a sibling behavior AND the Le
     SceneBehaviorSystem* level = bed.scene.AddSystem<SceneBehaviorSystem>();
     level->SetRunHost(&bed.host);
 
-    RefPtr<ScriptClass> emitter = MakeClassLang(
+    RefPtr<BehaviorClass> emitter = MakeClassLang(
         u8"angelscript", u8"Emitter",
         u8"class Emitter {\n"
         u8"    private Entity self;\n"
@@ -4154,7 +4154,7 @@ TEST_CASE("script.scene: scene.events.emit reaches a sibling behavior AND the Le
         u8"    }\n"
         u8"}\n",
         {u8"onUpdate"});
-    RefPtr<ScriptClass> receiver = MakeClassLang(
+    RefPtr<BehaviorClass> receiver = MakeClassLang(
         u8"angelscript", u8"Receiver",
         u8"class Receiver {\n"
         u8"    private Entity self;\n"
@@ -4162,7 +4162,7 @@ TEST_CASE("script.scene: scene.events.emit reaches a sibling behavior AND the Le
         u8"    void onOrbCollected(float n) { if (n > 4.5f) self.setName(\"got5\"); }\n"
         u8"}\n",
         {u8"onOrbCollected"});
-    RefPtr<ScriptClass> levelClass = MakeClassLang(
+    RefPtr<BehaviorClass> levelClass = MakeClassLang(
         u8"angelscript", u8"Level",
         u8"class Level {\n"
         u8"    private Scene scene;\n"
@@ -4194,7 +4194,7 @@ TEST_CASE("script.scene: LUAU scene.events.emit reaches a sibling behavior AND t
 
     // The emitter reaches the bus through the facade chain: self.entity.scene (Entity computed
     // property) .events (Scene computed property) :emit(name, payload) (method, colon call).
-    RefPtr<ScriptClass> emitter = MakeClassLang(
+    RefPtr<BehaviorClass> emitter = MakeClassLang(
         u8"luau", u8"Emitter",
         u8"Emitter = {}\n"
         u8"Emitter.__index = Emitter\n"
@@ -4208,7 +4208,7 @@ TEST_CASE("script.scene: LUAU scene.events.emit reaches a sibling behavior AND t
         u8"    end\n"
         u8"end\n",
         {u8"onUpdate"});
-    RefPtr<ScriptClass> receiver = MakeClassLang(
+    RefPtr<BehaviorClass> receiver = MakeClassLang(
         u8"luau", u8"Receiver",
         u8"Receiver = {}\n"
         u8"Receiver.__index = Receiver\n"
@@ -4217,7 +4217,7 @@ TEST_CASE("script.scene: LUAU scene.events.emit reaches a sibling behavior AND t
         u8"    if n > 4.5 then self.entity:setName(\"got5\") end\n"
         u8"end\n",
         {u8"onOrbCollected"});
-    RefPtr<ScriptClass> levelClass = MakeClassLang(
+    RefPtr<BehaviorClass> levelClass = MakeClassLang(
         u8"luau", u8"Level",
         u8"Level = {}\n"
         u8"Level.__index = Level\n"
@@ -4246,7 +4246,7 @@ TEST_CASE("script.scene: a destroyed subscriber stops receiving bus events; the 
 {
     ScriptedScene bed;
 
-    RefPtr<ScriptClass> emitter =
+    RefPtr<BehaviorClass> emitter =
         MakeClass(u8"Bumper",
                   u8"class Bumper {\n"
                   u8"    private Entity self;\n"
@@ -4254,7 +4254,7 @@ TEST_CASE("script.scene: a destroyed subscriber stops receiving bus events; the 
                   u8"    void onUpdate(double dt) { self.scene.events.emit(\"Bump\", 1); }\n"
                   u8"}\n",
                   {u8"onUpdate"});
-    RefPtr<ScriptClass> receiver =
+    RefPtr<BehaviorClass> receiver =
         MakeClass(u8"Counter",
                   u8"class Counter {\n"
                   u8"    private Entity self;\n"
@@ -4299,7 +4299,7 @@ TEST_CASE("script.scene: scene.events.emit carries a reflected component handle 
     ScriptedScene bed;
     GadgetManager* gadgets = bed.scene.AddSystem<GadgetManager>();
 
-    RefPtr<ScriptClass> producer =
+    RefPtr<BehaviorClass> producer =
         MakeClass(u8"Producer",
                   u8"class Producer {\n"
                   u8"    private Entity self;\n"
@@ -4307,7 +4307,7 @@ TEST_CASE("script.scene: scene.events.emit carries a reflected component handle 
                   u8"    void onStart() { self.scene.events.emit(\"Configured\", Gadget::of(self)); }\n"
                   u8"}\n",
                   {u8"onStart"});
-    RefPtr<ScriptClass> consumer =
+    RefPtr<BehaviorClass> consumer =
         MakeClass(u8"Consumer",
                   u8"class Consumer {\n"
                   u8"    private Entity self;\n"
@@ -4335,7 +4335,7 @@ TEST_CASE("script.scene: an event's reflected value reaches a handler that takes
           "as one that takes a handle")
 {
     ScriptedScene bed;
-    RefPtr<ScriptClass> producer =
+    RefPtr<BehaviorClass> producer =
         MakeClass(u8"Producer",
                   u8"class Producer {\n"
                   u8"    private Entity self;\n"
@@ -4344,7 +4344,7 @@ TEST_CASE("script.scene: an event's reflected value reaches a handler that takes
                   u8"}\n",
                   {u8"onStart"});
     // The same Float3 payload reaches a handler taking it by value (`Float3 at`) and one taking a handle.
-    RefPtr<ScriptClass> byValue =
+    RefPtr<BehaviorClass> byValue =
         MakeClass(u8"ByValue",
                   u8"class ByValue {\n"
                   u8"    private Entity self;\n"
@@ -4352,7 +4352,7 @@ TEST_CASE("script.scene: an event's reflected value reaches a handler that takes
                   u8"    void onSpotted(Float3 at) { if (at.y == 2.0f && at.z == 3.0f) self.setName(\"seen\"); }\n"
                   u8"}\n",
                   {u8"onSpotted"});
-    RefPtr<ScriptClass> byHandle =
+    RefPtr<BehaviorClass> byHandle =
         MakeClass(u8"ByHandle",
                   u8"class ByHandle {\n"
                   u8"    private Entity self;\n"
@@ -4383,7 +4383,7 @@ TEST_CASE("script.scene: MeshComponent.of / LightComponent.of set live render pr
     auto* meshes = bed.scene.AddSystem<engine::render::MeshComponentManager>();
     auto* lights = bed.scene.AddSystem<engine::render::LightComponentManager>();
 
-    RefPtr<ScriptClass> tweaker =
+    RefPtr<BehaviorClass> tweaker =
         MakeClass(u8"Tweaker",
                   u8"class Tweaker {\n"
                   u8"    private Entity self;\n"
@@ -4421,7 +4421,7 @@ TEST_CASE("script.scene: a behaviour sets its member's clip and its crowd's pose
     ScriptedScene bed;
     auto* sets = bed.scene.AddSystem<engine::render::InstancedMeshComponentManager>();
     auto* members = bed.scene.AddSystem<engine::render::InstanceMemberComponentManager>();
-    RefPtr<ScriptClass> dancer =
+    RefPtr<BehaviorClass> dancer =
         MakeClass(u8"Dancer",
                   u8"class Dancer {\n"
                   u8"    private Entity self;\n"
@@ -4449,7 +4449,7 @@ TEST_CASE("script.scene: MeshComponent::of / LightComponent::of set live render 
     auto* meshes = bed.scene.AddSystem<engine::render::MeshComponentManager>();
     auto* lights = bed.scene.AddSystem<engine::render::LightComponentManager>();
 
-    RefPtr<ScriptClass> tweaker = MakeClassLang(
+    RefPtr<BehaviorClass> tweaker = MakeClassLang(
         u8"angelscript", u8"Tweaker",
         u8"class Tweaker {\n"
         u8"    private Entity self;\n"
@@ -4487,7 +4487,7 @@ TEST_CASE("script.scene: a light's colour is written whole and from another ligh
     engine::render::RegisterRenderScriptFacade();
     ScriptedScene bed;
     auto* lights = bed.scene.AddSystem<engine::render::LightComponentManager>();
-    RefPtr<ScriptClass> painter = MakeClassLang(
+    RefPtr<BehaviorClass> painter = MakeClassLang(
         u8"angelscript", u8"Painter",
         u8"class Painter {\n"
         u8"    private Entity self;\n"
@@ -4527,7 +4527,7 @@ TEST_CASE("script.scene: LUAU a light's colour is written whole and from another
     engine::render::RegisterRenderScriptFacade();
     ScriptedScene bed;
     auto* lights = bed.scene.AddSystem<engine::render::LightComponentManager>();
-    RefPtr<ScriptClass> painter = MakeClassLang(
+    RefPtr<BehaviorClass> painter = MakeClassLang(
         u8"luau", u8"Painter",
         u8"Painter = {}\n"
         u8"Painter.__index = Painter\n"
@@ -4572,7 +4572,7 @@ TEST_CASE("script.scene: SceneRender.setMesh / setMaterial swap a component's re
     ScriptedScene bed;
     auto* meshes = bed.scene.AddSystem<engine::render::MeshComponentManager>();
 
-    RefPtr<ScriptClass> swapper =
+    RefPtr<BehaviorClass> swapper =
         MakeClass(u8"Swapper",
                   u8"class Swapper {\n"
                   u8"    private Entity self;\n"
@@ -4592,20 +4592,20 @@ TEST_CASE("script.scene: SceneRender.setMesh / setMaterial swap a component's re
                   {u8"onStart"});
     const Guid meshId{0x1111, 0x2222};
     const Guid matId{0x3333, 0x4444};
-    ScriptPropertyDesc meshProp;
+    BehaviorProperty meshProp;
     meshProp.name = String(u8"meshRes");
-    meshProp.hash = ScriptPropertyNameHash(u8"meshRes");
-    meshProp.type = ScriptPropertyType::Asset;
+    meshProp.hash = BehaviorPropertyNameHash(u8"meshRes");
+    meshProp.type = BehaviorPropertyType::Asset;
     meshProp.assetType = String(u8"Mesh");
-    meshProp.defaultValue.kind = ScriptPropertyType::Asset;
+    meshProp.defaultValue.kind = BehaviorPropertyType::Asset;
     meshProp.defaultValue.guid = meshId;
     swapper->properties.PushBack(meshProp);
-    ScriptPropertyDesc matProp;
+    BehaviorProperty matProp;
     matProp.name = String(u8"matRes");
-    matProp.hash = ScriptPropertyNameHash(u8"matRes");
-    matProp.type = ScriptPropertyType::Asset;
+    matProp.hash = BehaviorPropertyNameHash(u8"matRes");
+    matProp.type = BehaviorPropertyType::Asset;
     matProp.assetType = String(u8"Material");
-    matProp.defaultValue.kind = ScriptPropertyType::Asset;
+    matProp.defaultValue.kind = BehaviorPropertyType::Asset;
     matProp.defaultValue.guid = matId;
     swapper->properties.PushBack(matProp);
 
@@ -4637,7 +4637,7 @@ namespace
         engine::render::RegisterRenderScriptFacade();
         ScriptedScene bed;
         auto* meshes = bed.scene.AddSystem<engine::render::MeshComponentManager>();
-        RefPtr<ScriptClass> tinter = MakeClassLang(language, className, source, {u8"onStart"});
+        RefPtr<BehaviorClass> tinter = MakeClassLang(language, className, source, {u8"onStart"});
         const scene::EntityHandle e = bed.AddScripted(tinter, u8"e");
         meshes->Add(e);
         bed.Start();
@@ -4716,7 +4716,7 @@ TEST_CASE("script.scene: SceneRender.lightAt reads how lit a place is, with and 
     lamp.intensity = 4.0f;
     lamp.range = 0.0f; // no falloff: the full 4 arrives anywhere
 
-    RefPtr<ScriptClass> meter =
+    RefPtr<BehaviorClass> meter =
         MakeClass(u8"Meter",
                   u8"class Meter {\n"
                   u8"    private Entity self;\n"
@@ -4744,7 +4744,7 @@ TEST_CASE("script.scene: SceneRender.setCameraTarget points a camera at a render
     ScriptedScene bed;
     auto* cameras = bed.scene.AddSystem<engine::render::CameraComponentManager>();
 
-    RefPtr<ScriptClass> minimap =
+    RefPtr<BehaviorClass> minimap =
         MakeClass(u8"Minimap",
                   u8"class Minimap {\n"
                   u8"    private Entity self;\n"
@@ -4765,12 +4765,12 @@ TEST_CASE("script.scene: SceneRender.setCameraTarget points a camera at a render
                   u8"}\n",
                   {u8"onStart", u8"onUpdate"});
     const Guid textureId{0x5555, 0x6666};
-    ScriptPropertyDesc textureProp;
+    BehaviorProperty textureProp;
     textureProp.name = String(u8"texture");
-    textureProp.hash = ScriptPropertyNameHash(u8"texture");
-    textureProp.type = ScriptPropertyType::Asset;
+    textureProp.hash = BehaviorPropertyNameHash(u8"texture");
+    textureProp.type = BehaviorPropertyType::Asset;
     textureProp.assetType = String(u8"RenderTexture");
-    textureProp.defaultValue.kind = ScriptPropertyType::Asset;
+    textureProp.defaultValue.kind = BehaviorPropertyType::Asset;
     textureProp.defaultValue.guid = textureId;
     minimap->properties.PushBack(textureProp);
 
@@ -4803,7 +4803,7 @@ TEST_CASE("script.scene: AudioSourceComponent.of props + scene.audio play/stop/p
     auto* sources = bed.scene.AddSystem<engine::audio::AudioSourceComponentManager>();
     (void)bed.scene.AddSystem<engine::audio::AudioSceneSystem>(); // no engine set: the ops are safe no-ops
 
-    RefPtr<ScriptClass> tweaker =
+    RefPtr<BehaviorClass> tweaker =
         MakeClass(u8"AudioTweaker",
                   u8"class AudioTweaker {\n"
                   u8"    private Entity self;\n"
@@ -4824,12 +4824,12 @@ TEST_CASE("script.scene: AudioSourceComponent.of props + scene.audio play/stop/p
                   u8"}\n",
                   {u8"onStart"});
     const Guid clipId{0xAA11, 0xBB22};
-    ScriptPropertyDesc clipProp;
+    BehaviorProperty clipProp;
     clipProp.name = String(u8"clipRes");
-    clipProp.hash = ScriptPropertyNameHash(u8"clipRes");
-    clipProp.type = ScriptPropertyType::Asset;
+    clipProp.hash = BehaviorPropertyNameHash(u8"clipRes");
+    clipProp.type = BehaviorPropertyType::Asset;
     clipProp.assetType = String(u8"AudioClip");
-    clipProp.defaultValue.kind = ScriptPropertyType::Asset;
+    clipProp.defaultValue.kind = BehaviorPropertyType::Asset;
     clipProp.defaultValue.guid = clipId;
     tweaker->properties.PushBack(clipProp);
 
@@ -4859,7 +4859,7 @@ TEST_CASE("script.scene: AudioSourceComponent::of props + scene.audio play/stop/
     auto* sources = bed.scene.AddSystem<engine::audio::AudioSourceComponentManager>();
     (void)bed.scene.AddSystem<engine::audio::AudioSceneSystem>();
 
-    RefPtr<ScriptClass> tweaker = MakeClassLang(
+    RefPtr<BehaviorClass> tweaker = MakeClassLang(
         u8"angelscript", u8"AudioTweaker",
         u8"class AudioTweaker {\n"
         u8"    private Entity self;\n"
@@ -4903,7 +4903,7 @@ TEST_CASE("script.scene: Guid constructs from its canonical string in AngelScrip
 
     // Guid("...") parses the canonical spelling, so an id copies straight out of an .xasset
     // instead of being split into Guid(high, low) halves. Malformed input yields Nil (IsNil).
-    RefPtr<ScriptClass> writer = MakeClassLang(
+    RefPtr<BehaviorClass> writer = MakeClassLang(
         u8"angelscript", u8"GuidWriter",
         u8"class GuidWriter {\n"
         u8"    private Entity self;\n"
@@ -4948,7 +4948,7 @@ TEST_CASE("script.scene: Guid.new constructs from its canonical string in Luau")
                   u8"        self.entity.scene:spawn(id, 1.0, 2.0, 3.0)\n"
                   u8"    end\n"
                   u8"end\n");
-    RefPtr<ScriptClass> spawner = MakeClassLang(u8"luau", u8"Spawner", source.AsView(), {u8"onStart"});
+    RefPtr<BehaviorClass> spawner = MakeClassLang(u8"luau", u8"Spawner", source.AsView(), {u8"onStart"});
 
     (void)bed.AddScripted(spawner, u8"spawner");
     bed.Start();
@@ -4965,7 +4965,7 @@ TEST_CASE("script.scene: an asset (Guid) editor property applies to an AngelScri
 {
     foundation::script::angelscript::RegisterAngelScriptBackend();
     ScriptedScene bed;
-    RefPtr<ScriptClass> cls = MakeClassLang(
+    RefPtr<BehaviorClass> cls = MakeClassLang(
         u8"angelscript", u8"Holder",
         u8"class Holder {\n"
         u8"    private Entity self;\n"
@@ -4974,12 +4974,12 @@ TEST_CASE("script.scene: an asset (Guid) editor property applies to an AngelScri
         u8"    void onStart() { if (res.high == 0xEE55) self.setName(\"applied\"); }\n"
         u8"}\n",
         {u8"onStart"});
-    ScriptPropertyDesc p;
+    BehaviorProperty p;
     p.name = String(u8"res");
-    p.hash = ScriptPropertyNameHash(u8"res");
-    p.type = ScriptPropertyType::Asset;
+    p.hash = BehaviorPropertyNameHash(u8"res");
+    p.type = BehaviorPropertyType::Asset;
     p.assetType = String(u8"Mesh");
-    p.defaultValue.kind = ScriptPropertyType::Asset;
+    p.defaultValue.kind = BehaviorPropertyType::Asset;
     p.defaultValue.guid = Guid{0xEE55, 0xFF66};
     cls->properties.PushBack(p);
     const scene::EntityHandle e = bed.AddScripted(cls, u8"h");
@@ -4997,7 +4997,7 @@ TEST_CASE("script.scene: CameraComponent.of / SpriteComponent.of set live props"
     auto* cameras = bed.scene.AddSystem<engine::render::CameraComponentManager>();
     auto* sprites = bed.scene.AddSystem<engine::render::SpriteComponentManager>();
 
-    RefPtr<ScriptClass> tweaker =
+    RefPtr<BehaviorClass> tweaker =
         MakeClass(u8"ViewTweaker",
                   u8"class ViewTweaker {\n"
                   u8"    private Entity self;\n"
@@ -5040,7 +5040,7 @@ TEST_CASE("script.scene: SkeletalAnimation/AnimationGraph .of + SceneAnimation o
     auto* skel = bed.scene.AddSystem<engine::animation::SkeletalAnimationComponentManager>();
     auto* graph = bed.scene.AddSystem<engine::animation::AnimationGraphComponentManager>();
 
-    RefPtr<ScriptClass> tweaker =
+    RefPtr<BehaviorClass> tweaker =
         MakeClass(u8"AnimTweaker",
                   u8"class AnimTweaker {\n"
                   u8"    private Entity self;\n"
@@ -5062,12 +5062,12 @@ TEST_CASE("script.scene: SkeletalAnimation/AnimationGraph .of + SceneAnimation o
                   u8"}\n",
                   {u8"onStart"});
     const Guid clipId{0x9911, 0x8822};
-    ScriptPropertyDesc clipProp;
+    BehaviorProperty clipProp;
     clipProp.name = String(u8"clipRes");
-    clipProp.hash = ScriptPropertyNameHash(u8"clipRes");
-    clipProp.type = ScriptPropertyType::Asset;
+    clipProp.hash = BehaviorPropertyNameHash(u8"clipRes");
+    clipProp.type = BehaviorPropertyType::Asset;
     clipProp.assetType = String(u8"AnimationClip");
-    clipProp.defaultValue.kind = ScriptPropertyType::Asset;
+    clipProp.defaultValue.kind = BehaviorPropertyType::Asset;
     clipProp.defaultValue.guid = clipId;
     tweaker->properties.PushBack(clipProp);
 
@@ -5097,7 +5097,7 @@ TEST_CASE("script.scene: SkeletalAnimation::of + SceneAnimation ops are bound (A
     auto* skel = bed.scene.AddSystem<engine::animation::SkeletalAnimationComponentManager>();
     (void)bed.scene.AddSystem<engine::animation::AnimationGraphComponentManager>();
 
-    RefPtr<ScriptClass> tweaker = MakeClassLang(
+    RefPtr<BehaviorClass> tweaker = MakeClassLang(
         u8"angelscript", u8"AnimTweaker",
         u8"class AnimTweaker {\n"
         u8"    private Entity self;\n"
@@ -5143,7 +5143,7 @@ TEST_CASE("script.scene: scene.environment / scene.postProcess edit the scene's 
     auto* envSys = bed.scene.AddSystem<engine::render::EnvironmentSystem>();
     auto* postSys = bed.scene.AddSystem<engine::render::PostProcessSystem>();
 
-    RefPtr<ScriptClass> tweaker =
+    RefPtr<BehaviorClass> tweaker =
         MakeClass(u8"EnvTweaker",
                   u8"class EnvTweaker {\n"
                   u8"    private Entity self;\n"
@@ -5181,7 +5181,7 @@ TEST_CASE("script.scene: scene.environment / scene.postProcess edit the scene's 
     auto* envSys = bed.scene.AddSystem<engine::render::EnvironmentSystem>();
     auto* postSys = bed.scene.AddSystem<engine::render::PostProcessSystem>();
 
-    RefPtr<ScriptClass> tweaker = MakeClassLang(
+    RefPtr<BehaviorClass> tweaker = MakeClassLang(
         u8"angelscript", u8"EnvTweaker",
         u8"class EnvTweaker {\n"
         u8"    private Entity self;\n"
@@ -5217,7 +5217,7 @@ TEST_CASE("script.scene: ParticleEffectComponent.of + scene.particles ops are bo
     ScriptedScene bed;
     auto* fx = bed.scene.AddSystem<engine::particles::ParticleEffectComponentManager>();
 
-    RefPtr<ScriptClass> tweaker =
+    RefPtr<BehaviorClass> tweaker =
         MakeClass(u8"FxTweaker",
                   u8"class FxTweaker {\n"
                   u8"    private Entity self;\n"
@@ -5238,12 +5238,12 @@ TEST_CASE("script.scene: ParticleEffectComponent.of + scene.particles ops are bo
                   u8"}\n",
                   {u8"onStart"});
     const Guid fxId{0x7711, 0x6622};
-    ScriptPropertyDesc effectProp;
+    BehaviorProperty effectProp;
     effectProp.name = String(u8"effectRes");
-    effectProp.hash = ScriptPropertyNameHash(u8"effectRes");
-    effectProp.type = ScriptPropertyType::Asset;
+    effectProp.hash = BehaviorPropertyNameHash(u8"effectRes");
+    effectProp.type = BehaviorPropertyType::Asset;
     effectProp.assetType = String(u8"ParticleEffect");
-    effectProp.defaultValue.kind = ScriptPropertyType::Asset;
+    effectProp.defaultValue.kind = BehaviorPropertyType::Asset;
     effectProp.defaultValue.guid = fxId;
     tweaker->properties.PushBack(effectProp);
 
@@ -5270,7 +5270,7 @@ TEST_CASE("script.scene: ParticleEffectComponent::of + scene.particles ops are b
     ScriptedScene bed;
     auto* fx = bed.scene.AddSystem<engine::particles::ParticleEffectComponentManager>();
 
-    RefPtr<ScriptClass> tweaker = MakeClassLang(
+    RefPtr<BehaviorClass> tweaker = MakeClassLang(
         u8"angelscript", u8"FxTweaker",
         u8"class FxTweaker {\n"
         u8"    private Entity self;\n"
@@ -5310,7 +5310,7 @@ TEST_CASE("script.scene: an enum component property reads/writes as an int")
     ScriptedScene bed;
     auto* lights = bed.scene.AddSystem<engine::render::LightComponentManager>();
 
-    RefPtr<ScriptClass> tweaker =
+    RefPtr<BehaviorClass> tweaker =
         MakeClass(u8"EnumTest",
                   u8"class EnumTest {\n"
                   u8"    private Entity self;\n"
@@ -5340,7 +5340,7 @@ TEST_CASE("script.scene: an enum component property reads/writes as a native enu
     ScriptedScene bed;
     auto* lights = bed.scene.AddSystem<engine::render::LightComponentManager>();
 
-    RefPtr<ScriptClass> tweaker = MakeClassLang(
+    RefPtr<BehaviorClass> tweaker = MakeClassLang(
         u8"angelscript", u8"EnumTest",
         u8"class EnumTest {\n"
         u8"    private Entity self;\n"
@@ -5373,7 +5373,7 @@ TEST_CASE("script.scene: NetworkComponent.of exposes replication authority - Ang
     ScriptedScene bed;
     auto* net = bed.scene.AddSystem<foundation::net::NetworkComponentManager>();
 
-    RefPtr<ScriptClass> tweaker = MakeClassLang(
+    RefPtr<BehaviorClass> tweaker = MakeClassLang(
         u8"angelscript", u8"NetTweaker",
         u8"class NetTweaker {\n"
         u8"    private Entity self;\n"
@@ -5403,7 +5403,7 @@ TEST_CASE("script.scene: a script that assigns NetworkComponent.authority never 
     ScriptedScene bed;
     auto* net = bed.scene.AddSystem<foundation::net::NetworkComponentManager>();
 
-    RefPtr<ScriptClass> tweaker = MakeClassLang(
+    RefPtr<BehaviorClass> tweaker = MakeClassLang(
         u8"angelscript", u8"NetWriter",
         u8"class NetWriter {\n"
         u8"    private Entity self;\n"
@@ -5415,7 +5415,7 @@ TEST_CASE("script.scene: a script that assigns NetworkComponent.authority never 
         u8"}\n",
         {u8"onStart"});
     // The id too: assigning it to itself is only refused because no setter exists.
-    RefPtr<ScriptClass> renamer = MakeClassLang(
+    RefPtr<BehaviorClass> renamer = MakeClassLang(
         u8"angelscript", u8"IdWriter",
         u8"class IdWriter {\n"
         u8"    private Entity self;\n"
@@ -5449,7 +5449,7 @@ TEST_CASE("script.scene: NetworkComponent.of authority crosses as an int")
     ScriptedScene bed;
     auto* net = bed.scene.AddSystem<foundation::net::NetworkComponentManager>();
 
-    RefPtr<ScriptClass> tweaker =
+    RefPtr<BehaviorClass> tweaker =
         MakeClass(u8"NetTweaker",
                   u8"class NetTweaker {\n"
                   u8"    private Entity self;\n"
@@ -5480,7 +5480,7 @@ namespace
     void CheckEntityHierarchyScript(StringView language, StringView className, StringView source)
     {
         ScriptedScene bed;
-        RefPtr<ScriptClass> walker = MakeClassLang(language, className, source, {u8"onStart"});
+        RefPtr<BehaviorClass> walker = MakeClassLang(language, className, source, {u8"onStart"});
         const scene::EntityHandle root = bed.AddScripted(walker, u8"root");
         const scene::EntityHandle a = bed.scene.CreateEntity(u8"a");
         const scene::EntityHandle b = bed.scene.CreateEntity(u8"b");
@@ -5578,7 +5578,7 @@ namespace
         String source(prefix);
         source.Append(prefabs.Canonical().AsView());
         source.Append(suffix);
-        RefPtr<ScriptClass> spawner = MakeClassLang(language, className, source.AsView(), {u8"onStart"});
+        RefPtr<BehaviorClass> spawner = MakeClassLang(language, className, source.AsView(), {u8"onStart"});
         const scene::EntityHandle holder = bed.AddScripted(spawner, u8"holder");
 
         bed.Start();
@@ -5659,8 +5659,8 @@ namespace
         engine::behavior::RegisterBehaviorSceneFacade();
         ScriptedScene bed;
         const Guid added{0xAB12, 0xCD34};
-        RefPtr<ScriptClass> boss = MakeClassLang(language, u8"Boss", bossSource, {u8"onStart", u8"onUpdate"});
-        RefPtr<ScriptClass> receiver =
+        RefPtr<BehaviorClass> boss = MakeClassLang(language, u8"Boss", bossSource, {u8"onStart", u8"onUpdate"});
+        RefPtr<BehaviorClass> receiver =
             MakeClassLang(language, u8"Receiver", receiverSource, {u8"onPing", u8"onHello"});
         const scene::EntityHandle target = bed.AddScripted(receiver, u8"target");
         const scene::EntityHandle bossEntity = bed.AddScripted(boss, u8"boss");
@@ -5761,7 +5761,7 @@ namespace
     void CheckSceneEntitiesScript(StringView language, StringView source)
     {
         ScriptedScene bed;
-        RefPtr<ScriptClass> maker = MakeClassLang(language, u8"Maker", source, {u8"onStart"});
+        RefPtr<BehaviorClass> maker = MakeClassLang(language, u8"Maker", source, {u8"onStart"});
         const scene::EntityHandle holder = bed.AddScripted(maker, u8"holder");
         const u32 before = bed.scene.EntityCount();
 
@@ -5926,7 +5926,7 @@ TEST_CASE("script.scene: ScenePhysics drives an entity's character, as Sedulous'
     engine::physics::RegisterPhysicsScriptFacade();
     ScriptedScene bed;
     auto* characters = bed.scene.AddSystem<engine::physics::CharacterComponentManager>();
-    RefPtr<ScriptClass> driver =
+    RefPtr<BehaviorClass> driver =
         MakeClassLang(u8"angelscript", u8"Driver",
                       u8"class Driver {\n"
                       u8"    private Entity self;\n"
@@ -5972,7 +5972,7 @@ TEST_CASE("script.scene: DebugDraw draws by Float3 and Color, over the scene wit
     ScriptedScene bed;
     bed.host.SetApplicationServices(Function<void*(TypeId)>{[&app](TypeId type) { return app.FindService(type); }});
 
-    RefPtr<ScriptClass> gizmo =
+    RefPtr<BehaviorClass> gizmo =
         MakeClass(u8"Gizmo",
                   u8"class Gizmo {\n"
                   u8"    private Entity self;\n"
@@ -6012,16 +6012,16 @@ TEST_CASE("script.scene: DebugDraw draws by Float3 and Color, over the scene wit
 
 namespace
 {
-    [[nodiscard]] ScriptPropertyDesc Replicated(ScriptPropertyDesc desc)
+    [[nodiscard]] BehaviorProperty Replicated(BehaviorProperty desc)
     {
         desc.replicated = true;
         return desc;
     }
 
-    [[nodiscard]] ScriptPropertyValue Number(f64 value)
+    [[nodiscard]] BehaviorPropertyValue Number(f64 value)
     {
-        ScriptPropertyValue v;
-        v.kind = ScriptPropertyType::Float;
+        BehaviorPropertyValue v;
+        v.kind = BehaviorPropertyType::Float;
         v.number = value;
         return v;
     }
@@ -6031,18 +6031,18 @@ namespace
     // drives (`driver` 1, set as an override: local-only); `activity` is replicated, `chatty` not.
     void ReplicateBehaviourState(StringView language, StringView source, StringView otherSource)
     {
-        const RefPtr<ScriptClass> guest =
+        const RefPtr<BehaviorClass> guest =
             MakeClassLang(language, u8"Guest", source, {u8"onUpdate"},
                           {Replicated(FloatProperty(u8"activity", 0.0)), FloatProperty(u8"chatty", 5.0),
                            FloatProperty(u8"driver", 0.0)});
-        const RefPtr<ScriptClass> other =
+        const RefPtr<BehaviorClass> other =
             MakeClassLang(language, u8"Other", otherSource, {u8"onUpdate"}, {Replicated(FloatProperty(u8"activity", 0.0))});
         foundation::net::RegisterReplicationComponents();
 
         ScriptedScene host;
         foundation::net::AddNetworkSceneManagers(host.scene);
         const scene::EntityHandle onHost = host.AddScripted(guest, u8"Guest");
-        host.components->Get(onHost)->behaviors[0].SetOverride(ScriptPropertyNameHash(u8"driver"),
+        host.components->Get(onHost)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"driver"),
                                                                Number(1.0));
         host.Start();
         foundation::net::StateReplication rep;
@@ -6053,7 +6053,7 @@ namespace
         client.Start();
         foundation::net::StateReplication crep;
         ScriptedScene* clientScene = &client;
-        RefPtr<ScriptClass> spawnClass = guest;
+        RefPtr<BehaviorClass> spawnClass = guest;
         crep.SetSpawnHandler( // the prefab brings the same behaviour
             [clientScene, &spawnClass](scene::Scene&, const Guid&, foundation::net::NetworkId) -> scene::EntityHandle
             { return clientScene->AddScripted(spawnClass, u8"Guest"); });
@@ -6087,7 +6087,7 @@ namespace
         // A different class in that slot (not the behaviour the host meant) is left alone.
         spawnClass = other;
         const scene::EntityHandle onHost2 = host.AddScripted(guest, u8"Second");
-        host.components->Get(onHost2)->behaviors[0].SetOverride(ScriptPropertyNameHash(u8"driver"),
+        host.components->Get(onHost2)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"driver"),
                                                                 Number(1.0));
         rep.AssignNetworkId(host.scene, onHost2, Guid{6, 6});
         host.Frame();
@@ -6101,7 +6101,7 @@ namespace
                 if (c.behaviors[0].behaviorClass.Get() == other.Get())
                 {
                     sawOther = true;
-                    const ScriptPropertyOverride* over = c.behaviors[0].FindOverride(ScriptPropertyNameHash(u8"activity"));
+                    const BehaviorPropertyOverride* over = c.behaviors[0].FindOverride(BehaviorPropertyNameHash(u8"activity"));
                     CHECK(over == nullptr); // the Guest's value never reached an Other
                 }
             });
@@ -6208,7 +6208,7 @@ TEST_CASE("script.scene: a one-shot that ends calls the entity's behaviours' onA
     auto& animator = world.scene->GetSystem<engine::animation::SkeletalAnimationComponentManager>()->Add(pet);
     animator.skeleton.SetDirect(skeleton);
     animator.clip.SetDirect(stand);
-    RefPtr<ScriptClass> watcher = MakeClass(u8"Watcher",
+    RefPtr<BehaviorClass> watcher = MakeClass(u8"Watcher",
                                             u8"class Watcher {\n"
                                             u8"    private Entity self;\n"
                                             u8"    Watcher(Entity entity) { self = entity; }\n"
@@ -6249,7 +6249,7 @@ TEST_CASE("script.scene: a clip's event calls the entity's behaviours' onAnimati
     auto& animator = world.scene->GetSystem<engine::animation::SkeletalAnimationComponentManager>()->Add(pet);
     animator.skeleton.SetDirect(skeleton);
     animator.clip.SetDirect(walk);
-    RefPtr<ScriptClass> listener = MakeClass(u8"Listener",
+    RefPtr<BehaviorClass> listener = MakeClass(u8"Listener",
                                              u8"class Listener {\n"
                                              u8"    private Entity self;\n"
                                              u8"    Listener(Entity entity) { self = entity; }\n"
@@ -6286,9 +6286,9 @@ TEST_CASE("script.scene: a class that fails to load fails no class after it, in 
     {
         INFO(reinterpret_cast<const char*>(language.id));
         ScriptedScene bed;
-        RefPtr<ScriptClass> good = MakeClassLang(language.id, u8"Good", language.good, {});
-        RefPtr<ScriptClass> broken = MakeClassLang(language.id, u8"Broken", language.broken, {});
-        RefPtr<ScriptClass> later = MakeClassLang(language.id, u8"Later", language.later, {});
+        RefPtr<BehaviorClass> good = MakeClassLang(language.id, u8"Good", language.good, {});
+        RefPtr<BehaviorClass> broken = MakeClassLang(language.id, u8"Broken", language.broken, {});
+        RefPtr<BehaviorClass> later = MakeClassLang(language.id, u8"Later", language.later, {});
         CHECK(bed.host.Instantiate(*good, Span<Variant>{}, BehaviorKind::Entity).Get() != nullptr);
         CHECK(bed.host.Instantiate(*broken, Span<Variant>{}, BehaviorKind::Entity).Get() == nullptr);
         CHECK(bed.host.Instantiate(*later, Span<Variant>{}, BehaviorKind::Entity).Get() != nullptr);
@@ -6300,7 +6300,7 @@ TEST_CASE("script.scene: a new class loads alone, never every known class again"
     // Each new class reloaded every class before it: N classes cost about N^2/2 loads, and a Luau
     // class's top level ran again each time.
     ScriptedScene bed;
-    RefPtr<ScriptClass> counted = MakeClassLang(
+    RefPtr<BehaviorClass> counted = MakeClassLang(
         u8"luau", u8"Counted",
         u8"Loads = (Loads or 0) + 1\nCounted = {}\nCounted.__index = Counted\n"
         u8"function Counted.new() return setmetatable({}, Counted) end\n",
@@ -6311,7 +6311,7 @@ TEST_CASE("script.scene: a new class loads alone, never every known class again"
         const String name = Format(u8"Other{}", i);
         const String source = Format(u8"{} = {{}}\n{}.__index = {}\nfunction {}.new() return setmetatable({{}}, {}) end\n",
                                      name, name, name, name, name);
-        RefPtr<ScriptClass> other = MakeClassLang(u8"luau", name.AsView(), source.AsView(), {});
+        RefPtr<BehaviorClass> other = MakeClassLang(u8"luau", name.AsView(), source.AsView(), {});
         REQUIRE(bed.host.Instantiate(*other, Span<Variant>{}, BehaviorKind::Entity).Get() != nullptr);
     }
     bool numeric = false;

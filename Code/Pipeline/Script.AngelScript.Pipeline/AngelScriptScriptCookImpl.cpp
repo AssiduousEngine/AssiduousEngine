@@ -7,7 +7,7 @@
 // built through the vendored CScriptBuilder add-on, which pre-processes `[metadata]`
 // declarations; the cook then walks the behavior class's member fields and, for every
 // field with metadata, resolves the field's declared type, the metadata default and the
-// description into a ScriptPropertyDesc (the same metadata shape across backends).
+// description into a BehaviorProperty (the same metadata shape across backends).
 //
 // The AngelScript editor-property convention (typed member field + [metadata]):
 //     class Mover {
@@ -15,7 +15,7 @@
 //         [null]                     Entity  target;    // Entity, default none
 //         ["asset:AudioClip"]        Guid    clip;      // Asset(AudioClip)
 //     }
-// The field's declared type picks the ScriptPropertyType (float->Float, int->Int,
+// The field's declared type picks the BehaviorPropertyType (float->Float, int->Int,
 // bool->Bool, string->String, Color->Color, Float3->Vec3, Entity->Entity); a Guid field
 // with an `asset:<TypeName>` metadata tag is an Asset. A field with no metadata is not a
 // property: properties are declared explicitly.
@@ -183,7 +183,7 @@ namespace pipeline{
             return count;
         }
 
-        // ---- AngelScript field type -> ScriptPropertyType -------------------------
+        // ---- AngelScript field type -> BehaviorPropertyType -------------------------
 
         // The declared field type, normalised: trailing `@`/spaces and a leading `const `
         // stripped (so `const Guid` reduces to `Guid`).
@@ -210,47 +210,47 @@ namespace pipeline{
                    t == u8"uint32" || t == u8"uint64";
         }
 
-        // Resolves the ScriptPropertyType for a field of declared type `typeName` whose
+        // Resolves the BehaviorPropertyType for a field of declared type `typeName` whose
         // metadata's first token is `firstToken`. Returns false when the field type is not
         // a supported editor-property type (a metadata'd field of an unsupported type is a
         // cook error, surfaced by the caller). `outAssetType` is filled for Asset only.
         [[nodiscard]] bool ResolvePropertyType(StringView typeName, StringView firstToken,
-                                               ScriptPropertyType& outKind, String& outAssetType)
+                                               BehaviorPropertyType& outKind, String& outAssetType)
         {
             outAssetType = String{};
             if (typeName == u8"float" || typeName == u8"double")
             {
-                outKind = ScriptPropertyType::Float;
+                outKind = BehaviorPropertyType::Float;
                 return true;
             }
             if (IsIntTypeName(typeName))
             {
-                outKind = ScriptPropertyType::Int;
+                outKind = BehaviorPropertyType::Int;
                 return true;
             }
             if (typeName == u8"bool")
             {
-                outKind = ScriptPropertyType::Bool;
+                outKind = BehaviorPropertyType::Bool;
                 return true;
             }
             if (typeName == u8"string")
             {
-                outKind = ScriptPropertyType::String;
+                outKind = BehaviorPropertyType::String;
                 return true;
             }
             if (typeName == u8"Color")
             {
-                outKind = ScriptPropertyType::Color;
+                outKind = BehaviorPropertyType::Color;
                 return true;
             }
             if (typeName == u8"Float3")
             {
-                outKind = ScriptPropertyType::Vec3;
+                outKind = BehaviorPropertyType::Vec3;
                 return true;
             }
             if (typeName == u8"Entity")
             {
-                outKind = ScriptPropertyType::Entity;
+                outKind = BehaviorPropertyType::Entity;
                 return true;
             }
             if (typeName == u8"Guid")
@@ -264,7 +264,7 @@ namespace pipeline{
                     if (tag.Size() > prefix.Size() &&
                         tag.AsView().SubStr(0, prefix.Size()) == prefix)
                     {
-                        outKind = ScriptPropertyType::Asset;
+                        outKind = BehaviorPropertyType::Asset;
                         outAssetType =
                             String(tag.AsView().SubStr(prefix.Size(), tag.Size() - prefix.Size()));
                         return true;
@@ -278,7 +278,7 @@ namespace pipeline{
         // Fills the default value for a resolved property from the metadata's first token.
         // Only what the language can express literally: scalars, bool, string, Color/Vec3
         // numeric lists, and `null` for entity/asset refs (which leaves the nil default).
-        void ParseDefault(ScriptPropertyType type, StringView firstToken, ScriptPropertyValue& out)
+        void ParseDefault(BehaviorPropertyType type, StringView firstToken, BehaviorPropertyValue& out)
         {
             out.kind = type;
             const StringView token = Trim(firstToken);
@@ -288,19 +288,19 @@ namespace pipeline{
             }
             switch (type)
             {
-            case ScriptPropertyType::Float:
+            case BehaviorPropertyType::Float:
                 out.number = ParseNumber(token);
                 break;
-            case ScriptPropertyType::Int:
+            case BehaviorPropertyType::Int:
                 out.number = static_cast<f64>(static_cast<i64>(ParseNumber(token)));
                 break;
-            case ScriptPropertyType::Bool:
+            case BehaviorPropertyType::Bool:
                 out.boolean = (token == u8"true");
                 break;
-            case ScriptPropertyType::String:
+            case BehaviorPropertyType::String:
                 out.text = Unquote(token);
                 break;
-            case ScriptPropertyType::Color:
+            case BehaviorPropertyType::Color:
             {
                 f32 n[4] = {1.0f, 1.0f, 1.0f, 1.0f};
                 if (ParseNumberList(token, n) >= 3)
@@ -309,7 +309,7 @@ namespace pipeline{
                 }
                 break;
             }
-            case ScriptPropertyType::Vec3:
+            case BehaviorPropertyType::Vec3:
             {
                 f32 n[4] = {};
                 if (ParseNumberList(token, n) >= 3)
@@ -318,9 +318,9 @@ namespace pipeline{
                 }
                 break;
             }
-            case ScriptPropertyType::Entity:
-            case ScriptPropertyType::Asset:
-            case ScriptPropertyType::None:
+            case BehaviorPropertyType::Entity:
+            case BehaviorPropertyType::Asset:
+            case BehaviorPropertyType::None:
             default:
                 break; // only null defaults are expressible; overrides carry guids
             }
@@ -498,13 +498,13 @@ namespace pipeline{
             return -1;
         }
 
-        // Walks the behavior class's member fields and appends one ScriptPropertyDesc per
+        // Walks the behavior class's member fields and appends one BehaviorProperty per
         // field with metadata. Returns false (a cook error, reported to `sink`) when a metadata'd
         // field has an unsupported type. Fields without metadata are simply not properties.
         [[nodiscard]] bool HarvestProperties(CScriptBuilder& builder, asIScriptEngine* engine,
                                              StringView className, StringView assetName,
                                              CookScriptErrorSink& sink,
-                                             Array<ScriptPropertyDesc>& out)
+                                             Array<BehaviorProperty>& out)
         {
             asIScriptModule* module = builder.GetModule();
             if (module == nullptr)
@@ -541,9 +541,9 @@ namespace pipeline{
                 const StringView typeName =
                     NormalizeTypeName(ViewOfCStr(engine->GetTypeDeclaration(fieldTypeId, false)));
 
-                ScriptPropertyDesc desc;
+                BehaviorProperty desc;
                 desc.name = String(ViewOfCStr(fieldName));
-                desc.hash = ScriptPropertyNameHash(desc.name.AsView());
+                desc.hash = BehaviorPropertyNameHash(desc.name.AsView());
                 if (!ResolvePropertyType(typeName, firstToken, desc.type, desc.assetType))
                 {
                     ReportCookProblem(
@@ -578,7 +578,7 @@ namespace pipeline{
                     }
                 }
                 if (desc.replicated &&
-                    (desc.type == ScriptPropertyType::Entity || desc.type == ScriptPropertyType::Asset))
+                    (desc.type == BehaviorPropertyType::Entity || desc.type == BehaviorPropertyType::Asset))
                 {
                     ReportCookProblem(sink, assetName,
                                       Format(u8"property '{}' cannot be replicated: an entity or asset "
@@ -621,7 +621,7 @@ namespace pipeline{
             using IScriptLanguageCook::Cook; // and the overload that prefers the file's stem
 
             [[nodiscard]] bool Cook(StringView source, StringView assetName,
-                                    CookScriptErrorSink& sink, ScriptClassSource& out,
+                                    CookScriptErrorSink& sink, BehaviorClassSource& out,
                                     IScriptIncludeReader* includes = nullptr) override
             {
                 const bool ok = CookOnThisThread(source, assetName, sink, out, false, Span<const TypeId>{}, includes);
@@ -637,7 +637,7 @@ namespace pipeline{
                                      CookScriptErrorSink& sink, String& className,
                                      Span<const TypeId> hidden, IScriptIncludeReader* includes = nullptr) override
             {
-                ScriptClassSource out;
+                BehaviorClassSource out;
                 bool ok = false;
                 if (hidden.IsEmpty())
                 {
@@ -672,7 +672,7 @@ namespace pipeline{
             // leaves the global initializers unrun. The engine registers every type but `hidden`, so
             // a use of one is a compile error.
             [[nodiscard]] bool CookOnThisThread(StringView source, StringView assetName,
-                                                CookScriptErrorSink& sink, ScriptClassSource& out,
+                                                CookScriptErrorSink& sink, BehaviorClassSource& out,
                                                 bool checkOnly, Span<const TypeId> hidden,
                                                 IScriptIncludeReader* includes = nullptr)
             {
@@ -685,7 +685,7 @@ namespace pipeline{
             // then (unless `checkOnly`) harvests its properties and saves its bytecode into `out`.
             [[nodiscard]] static bool BuildOn(IScriptManager& manager, StringView source, StringView assetName,
                                               CookScriptErrorSink& sink,
-                                              ScriptClassSource& out, bool checkOnly,
+                                              BehaviorClassSource& out, bool checkOnly,
                                               IScriptIncludeReader* includes = nullptr)
             {
                 out.language = String(u8"angelscript");

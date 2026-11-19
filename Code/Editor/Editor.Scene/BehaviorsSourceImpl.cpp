@@ -40,12 +40,12 @@ namespace editor
             id.ToChars(chars);
             return String(StringView(chars, 36));
         }
-        String RowOf(const script::ScriptPropertyDesc& property) { return Format(u8"p{}", property.hash); }
+        String RowOf(const script::BehaviorProperty& property) { return Format(u8"p{}", property.hash); }
     }
 
-    void ScriptPropertyRows::Describe(const script::ScriptClass& type, Array<gui::PropertyInfo>& out)
+    void BehaviorPropertyRows::Describe(const script::BehaviorClass& type, Array<gui::PropertyInfo>& out)
     {
-        for (const script::ScriptPropertyDesc& property : type.properties)
+        for (const script::BehaviorProperty& property : type.properties)
         {
             gui::PropertyInfo info;
             info.Name = RowOf(property);
@@ -53,21 +53,21 @@ namespace editor
             info.Description = property.description;
             switch (property.type)
             {
-            case script::ScriptPropertyType::Float: info.Kind = gui::PropertyKind::Float; break;
-            case script::ScriptPropertyType::Int: info.Kind = gui::PropertyKind::Integer; break;
-            case script::ScriptPropertyType::Bool: info.Kind = gui::PropertyKind::Bool; break;
-            case script::ScriptPropertyType::String: info.Kind = gui::PropertyKind::String; break;
-            case script::ScriptPropertyType::Color: info.Kind = gui::PropertyKind::Color; break;
-            case script::ScriptPropertyType::Vec3:
+            case script::BehaviorPropertyType::Float: info.Kind = gui::PropertyKind::Float; break;
+            case script::BehaviorPropertyType::Int: info.Kind = gui::PropertyKind::Integer; break;
+            case script::BehaviorPropertyType::Bool: info.Kind = gui::PropertyKind::Bool; break;
+            case script::BehaviorPropertyType::String: info.Kind = gui::PropertyKind::String; break;
+            case script::BehaviorPropertyType::Color: info.Kind = gui::PropertyKind::Color; break;
+            case script::BehaviorPropertyType::Vec3:
                 info.Kind = gui::PropertyKind::Group;
                 info.Hint = String(u8"Float3");
                 break;
-            case script::ScriptPropertyType::Entity:
+            case script::BehaviorPropertyType::Entity:
                 info.Kind = gui::PropertyKind::Reference;
                 info.Hint = String(EntityRefEditor::kHint);
                 info.ReferenceType = &TypeOf<foundation::scene::EntityRef>();
                 break;
-            case script::ScriptPropertyType::Asset:
+            case script::BehaviorPropertyType::Asset:
                 info.Kind = gui::PropertyKind::Reference;
                 info.ReferenceType = AssetType(property.assetType.AsView());
                 break;
@@ -77,7 +77,7 @@ namespace editor
         }
     }
 
-    const TypeInfo* ScriptPropertyRows::AssetType(StringView typeName)
+    const TypeInfo* BehaviorPropertyRows::AssetType(StringView typeName)
     {
         // By its own name (`PrefabResource`) or its full one (`rtti::scene::PrefabResource`): a
         // script author writes the short name, and the full one tells apart two that share it.
@@ -101,9 +101,9 @@ namespace editor
         return nullptr;
     }
 
-    void ScriptPropertyRows::Parts(const script::ScriptPropertyDesc& property, Array<gui::PropertyInfo>& out)
+    void BehaviorPropertyRows::Parts(const script::BehaviorProperty& property, Array<gui::PropertyInfo>& out)
     {
-        if (property.type != script::ScriptPropertyType::Vec3)
+        if (property.type != script::BehaviorPropertyType::Vec3)
             return;
         for (const char8_t* part : kParts)
         {
@@ -114,15 +114,15 @@ namespace editor
         }
     }
 
-    const script::ScriptPropertyDesc* ScriptPropertyRows::Find(const script::ScriptClass& type, StringView row)
+    const script::BehaviorProperty* BehaviorPropertyRows::Find(const script::BehaviorClass& type, StringView row)
     {
-        for (const script::ScriptPropertyDesc& property : type.properties)
+        for (const script::BehaviorProperty& property : type.properties)
             if (RowOf(property).AsView() == row)
                 return &property;
         return nullptr;
     }
 
-    void ScriptPropertyRows::ParseRow(StringView rest, String& row, i32& part)
+    void BehaviorPropertyRows::ParseRow(StringView rest, String& row, i32& part)
     {
         usize dot = 0;
         while (dot < rest.Size() && rest[dot] != u8'.')
@@ -138,35 +138,35 @@ namespace editor
         }
     }
 
-    gui::Variant ScriptPropertyRows::ToGrid(const script::ScriptPropertyValue& value, script::ScriptPropertyType type, i32 part)
+    gui::Variant BehaviorPropertyRows::ToGrid(const script::BehaviorPropertyValue& value, script::BehaviorPropertyType type, i32 part)
     {
         switch (type)
         {
-        case script::ScriptPropertyType::Float: return gui::Variant(value.number);
-        case script::ScriptPropertyType::Int: return gui::Variant(static_cast<i64>(value.number));
-        case script::ScriptPropertyType::Bool: return gui::Variant(value.boolean);
-        case script::ScriptPropertyType::String: return gui::Variant(value.text.AsView());
-        case script::ScriptPropertyType::Color: return gui::Variant(value.color);
-        case script::ScriptPropertyType::Vec3:
+        case script::BehaviorPropertyType::Float: return gui::Variant(value.number);
+        case script::BehaviorPropertyType::Int: return gui::Variant(static_cast<i64>(value.number));
+        case script::BehaviorPropertyType::Bool: return gui::Variant(value.boolean);
+        case script::BehaviorPropertyType::String: return gui::Variant(value.text.AsView());
+        case script::BehaviorPropertyType::Color: return gui::Variant(value.color);
+        case script::BehaviorPropertyType::Vec3:
             return part == 0 ? gui::Variant(static_cast<f64>(value.vector.x)) : part == 1 ? gui::Variant(static_cast<f64>(value.vector.y))
                              : part == 2 ? gui::Variant(static_cast<f64>(value.vector.z)) : gui::Variant{};
-        case script::ScriptPropertyType::Entity:
-        case script::ScriptPropertyType::Asset: return gui::Variant(GuidText(value.guid).AsView());
+        case script::BehaviorPropertyType::Entity:
+        case script::BehaviorPropertyType::Asset: return gui::Variant(GuidText(value.guid).AsView());
         default: return gui::Variant{};
         }
     }
 
-    script::ScriptPropertyValue ScriptPropertyRows::FromGrid(script::ScriptPropertyValue old, script::ScriptPropertyType type, i32 part, const gui::Variant& write)
+    script::BehaviorPropertyValue BehaviorPropertyRows::FromGrid(script::BehaviorPropertyValue old, script::BehaviorPropertyType type, i32 part, const gui::Variant& write)
     {
         old.kind = type;
         switch (type)
         {
-        case script::ScriptPropertyType::Float: old.number = write.AsFloat(); break;
-        case script::ScriptPropertyType::Int: old.number = static_cast<f64>(write.AsInt()); break;
-        case script::ScriptPropertyType::Bool: old.boolean = write.AsBool(); break;
-        case script::ScriptPropertyType::String: old.text = String(write.AsString()); break;
-        case script::ScriptPropertyType::Color: old.color = write.AsColor(); break;
-        case script::ScriptPropertyType::Vec3:
+        case script::BehaviorPropertyType::Float: old.number = write.AsFloat(); break;
+        case script::BehaviorPropertyType::Int: old.number = static_cast<f64>(write.AsInt()); break;
+        case script::BehaviorPropertyType::Bool: old.boolean = write.AsBool(); break;
+        case script::BehaviorPropertyType::String: old.text = String(write.AsString()); break;
+        case script::BehaviorPropertyType::Color: old.color = write.AsColor(); break;
+        case script::BehaviorPropertyType::Vec3:
             if (part == 0)
                 old.vector.x = static_cast<f32>(write.AsFloat());
             else if (part == 1)
@@ -174,8 +174,8 @@ namespace editor
             else if (part == 2)
                 old.vector.z = static_cast<f32>(write.AsFloat());
             break;
-        case script::ScriptPropertyType::Entity:
-        case script::ScriptPropertyType::Asset:
+        case script::BehaviorPropertyType::Entity:
+        case script::BehaviorPropertyType::Asset:
         {
             Guid id;
             (void)Guid::TryParse(Trim(write.AsString()), id);
@@ -237,22 +237,22 @@ namespace editor
         return count == ~usize{0} ? 0u : count;
     }
 
-    const script::ScriptClass* BehaviorsSource::ClassOf(const engine::behavior::AttachedBehavior& behavior) const
+    const script::BehaviorClass* BehaviorsSource::ClassOf(const engine::behavior::AttachedBehavior& behavior) const
     {
         if (behavior.behaviorClass.Get() != nullptr)
             return behavior.behaviorClass.Get();
         if (behavior.behaviorClass.id.IsNil() || m_context == nullptr || m_context->Resources() == nullptr)
             return nullptr;
-        return m_context->Resources()->Bind<script::ScriptClass>(behavior.behaviorClass.id).Get();
+        return m_context->Resources()->Bind<script::BehaviorClass>(behavior.behaviorClass.id).Get();
     }
 
-    const script::ScriptPropertyDesc* BehaviorsSource::PropertyOf(usize behavior, StringView row) const
+    const script::BehaviorProperty* BehaviorsSource::PropertyOf(usize behavior, StringView row) const
     {
         const engine::behavior::BehaviorComponent* component = Component(0);
         if (component == nullptr || behavior >= component->behaviors.Size())
             return nullptr;
-        const script::ScriptClass* type = ClassOf(component->behaviors[behavior]);
-        return type != nullptr ? ScriptPropertyRows::Find(*type, row) : nullptr;
+        const script::BehaviorClass* type = ClassOf(component->behaviors[behavior]);
+        return type != nullptr ? BehaviorPropertyRows::Find(*type, row) : nullptr;
     }
 
     u64 BehaviorsSource::Signature() const
@@ -295,7 +295,7 @@ namespace editor
         if (at == rest.Size())
             return where;
         rest = rest.SubStr(at + 1, rest.Size() - at - 1);
-        ScriptPropertyRows::ParseRow(rest, where.row, where.part);
+        BehaviorPropertyRows::ParseRow(rest, where.row, where.part);
         return where;
     }
 
@@ -321,7 +321,7 @@ namespace editor
                 gui::PropertyInfo behavior;
                 behavior.Name = Format(u8"{}", i);
                 behavior.Kind = gui::PropertyKind::Group;
-                const script::ScriptClass* type = first != nullptr ? ClassOf(first->behaviors[i]) : nullptr;
+                const script::BehaviorClass* type = first != nullptr ? ClassOf(first->behaviors[i]) : nullptr;
                 const bool none = first == nullptr || first->behaviors[i].behaviorClass.id.IsNil();
                 behavior.DisplayName = none ? Format(u8"Behavior {}", i + 1)
                                             : type != nullptr ? Format(u8"Behavior {}: {}", i + 1, type->className)
@@ -335,16 +335,16 @@ namespace editor
         if (!where.row.IsEmpty())
         {
             // A vector property's parts.
-            const script::ScriptPropertyDesc* property = PropertyOf(static_cast<usize>(where.behavior), where.row.AsView());
+            const script::BehaviorProperty* property = PropertyOf(static_cast<usize>(where.behavior), where.row.AsView());
             if (property != nullptr && where.part < 0)
-                ScriptPropertyRows::Parts(*property, out);
+                BehaviorPropertyRows::Parts(*property, out);
             return;
         }
         gui::PropertyInfo script;
         script.Name = String(u8"class");
         script.DisplayName = String(u8"Class");
         script.Kind = gui::PropertyKind::Reference;
-        script.ReferenceType = &script::ScriptClass::StaticType(); // its registered type: TypeOf names an unregistered one "<value>"
+        script.ReferenceType = &script::BehaviorClass::StaticType(); // its registered type: TypeOf names an unregistered one "<value>"
         out.PushBack(Move(script));
         gui::PropertyInfo enabled;
         enabled.Name = String(u8"enabled");
@@ -361,8 +361,8 @@ namespace editor
         interval.Max = 3600.0;
         interval.Step = 0.05;
         out.PushBack(Move(interval));
-        if (const script::ScriptClass* type = ClassOf(first->behaviors[static_cast<usize>(where.behavior)]))
-            ScriptPropertyRows::Describe(*type, out);
+        if (const script::BehaviorClass* type = ClassOf(first->behaviors[static_cast<usize>(where.behavior)]))
+            BehaviorPropertyRows::Describe(*type, out);
     }
 
     gui::Variant BehaviorsSource::GetValue(StringView path, usize object) const
@@ -380,11 +380,11 @@ namespace editor
             return gui::Variant(behavior.enabled);
         if (where.row == StringView(u8"interval"))
             return gui::Variant(static_cast<f64>(behavior.updateInterval));
-        const script::ScriptPropertyDesc* property = PropertyOf(static_cast<usize>(where.behavior), where.row.AsView());
+        const script::BehaviorProperty* property = PropertyOf(static_cast<usize>(where.behavior), where.row.AsView());
         if (property == nullptr)
             return gui::Variant{};
-        const engine::behavior::ScriptPropertyOverride* over = behavior.FindOverride(property->hash);
-        return ScriptPropertyRows::ToGrid(over != nullptr ? over->value : property->defaultValue, property->type, where.part);
+        const engine::behavior::BehaviorPropertyOverride* over = behavior.FindOverride(property->hash);
+        return BehaviorPropertyRows::ToGrid(over != nullptr ? over->value : property->defaultValue, property->type, where.part);
     }
 
     gui::Variant BehaviorsSource::GetDefault(StringView path, usize object) const
@@ -399,8 +399,8 @@ namespace editor
             return gui::Variant(0.0);
         if (where.row == StringView(u8"class"))
             return gui::Variant{};
-        const script::ScriptPropertyDesc* property = PropertyOf(static_cast<usize>(where.behavior), where.row.AsView());
-        return property != nullptr ? ScriptPropertyRows::ToGrid(property->defaultValue, property->type, where.part) : gui::Variant{};
+        const script::BehaviorProperty* property = PropertyOf(static_cast<usize>(where.behavior), where.row.AsView());
+        return property != nullptr ? BehaviorPropertyRows::ToGrid(property->defaultValue, property->type, where.part) : gui::Variant{};
     }
 
     void BehaviorsSource::Mutate(StringView words, const Function<void(engine::behavior::BehaviorComponent&)>& mutate)
@@ -428,7 +428,7 @@ namespace editor
                    {
                        if (index >= c.behaviors.Size())
                            return;
-                       c.behaviors[index].behaviorClass = foundation::resource::Ref<script::ScriptClass>{};
+                       c.behaviors[index].behaviorClass = foundation::resource::Ref<script::BehaviorClass>{};
                        c.behaviors[index].behaviorClass.SetId(id);
                        c.behaviors[index].overrides.Clear(); // another script's properties
                    });
@@ -454,10 +454,10 @@ namespace editor
                    });
             return;
         }
-        const script::ScriptPropertyDesc* property = PropertyOf(index, where.row.AsView());
+        const script::BehaviorProperty* property = PropertyOf(index, where.row.AsView());
         if (property == nullptr)
             return;
-        const script::ScriptPropertyDesc desc = *property;
+        const script::BehaviorProperty desc = *property;
         const i32 part = where.part;
         const gui::Variant value = write.Value;
         Mutate(desc.name.AsView(), [index, desc, part, value](engine::behavior::BehaviorComponent& c)
@@ -465,8 +465,8 @@ namespace editor
                    if (index >= c.behaviors.Size())
                        return;
                    engine::behavior::AttachedBehavior& behavior = c.behaviors[index];
-                   const engine::behavior::ScriptPropertyOverride* over = behavior.FindOverride(desc.hash);
-                   behavior.SetOverride(desc.hash, ScriptPropertyRows::FromGrid(over != nullptr ? over->value : desc.defaultValue, desc.type, part, value));
+                   const engine::behavior::BehaviorPropertyOverride* over = behavior.FindOverride(desc.hash);
+                   behavior.SetOverride(desc.hash, BehaviorPropertyRows::FromGrid(over != nullptr ? over->value : desc.defaultValue, desc.type, part, value));
                });
     }
 
@@ -505,7 +505,7 @@ namespace editor
         if (where.behavior < 0 || where.row.IsEmpty())
             return false;
         const usize index = static_cast<usize>(where.behavior);
-        const script::ScriptPropertyDesc* property = PropertyOf(index, where.row.AsView());
+        const script::BehaviorProperty* property = PropertyOf(index, where.row.AsView());
         if (property == nullptr)
         {
             // Its own rows revert to their defaults.

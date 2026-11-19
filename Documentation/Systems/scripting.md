@@ -66,7 +66,7 @@ served that purpose - historical mentions in older specs refer to it.
 ## Tiers + the run host (`engine.script`)
 
 Three tiers, all built. The run host (`ScriptRunHost`) resolves the backend from
-`ScriptClass.language` - the whole stack is backend-neutral. A run (a `ApplicationRun`, or a scene
+`BehaviorClass.language` - the whole stack is backend-neutral. A run (a `ApplicationRun`, or a scene
 page's Simulate, `SimulationRun`) registers its run host as a service, and the script subsystem
 runs a scene's behaviours on its run's host (the default host only for a scene outside every
 run). The host keeps its scripts' clock.
@@ -94,7 +94,7 @@ level load reads null rather than a freed scene.
 ## Entity behaviors
 
 - **`ScriptComponent`** (serializable, value-pool, one per entity): an ordered array of
-  `Behavior{ script: Ref<ScriptClass>, enabled, updateInterval, overrides: [{nameHash, Variant}] }`
+  `Behavior{ script: Ref<BehaviorClass>, enabled, updateInterval, overrides: [{nameHash, Variant}] }`
   plus a runtime `ScriptObject` instance. Execution order = array order; cross-entity order is
   unspecified. Prefab members work via the component-granular delta machinery (overrides
   live in the payload).
@@ -159,7 +159,7 @@ the composition root for the complete bound surface (engine-composition.md).
 
 ## Cook + runtime resources
 
-- **`ScriptClass`** (cooked product, `foundation.script.resource`): source text + harvested
+- **`BehaviorClass`** (cooked product, `foundation.script.resource`): source text + harvested
   metadata (className, properties, declared handler set, `sourceName`, version) + the sources
   of the files it includes + optional cooked **bytecode**. The class a script plays is the one its
   asset records (`className`), else the one named like its file, else its only class

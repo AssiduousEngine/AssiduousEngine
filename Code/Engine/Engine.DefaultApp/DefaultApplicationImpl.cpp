@@ -791,7 +791,7 @@ namespace engine::runtime
         m_primaryRun.SetRunBehaviorErrorHandler(handler);
     }
 
-    bool DefaultApplication::StartRunBehavior(const foundation::script::ScriptClass& scriptClass)
+    bool DefaultApplication::StartRunBehavior(const foundation::script::BehaviorClass& scriptClass)
     {
         return m_primaryRun.StartRunBehavior(scriptClass);
     }

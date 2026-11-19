@@ -1088,7 +1088,7 @@ TEST_CASE("script.luau: LoadBehaviorModule consumes cooked bytecode with NO sour
     RefPtr<IScriptManager> manager = CreateLuauScriptManager(DefaultAllocator());
 
     // Cook: compile the class to a blob and serialize it as the cook stores
-    // ScriptClass::bytecode (CompileToBlob, then Serialize, gives the pack bytes).
+    // BehaviorClass::bytecode (CompileToBlob, then Serialize, gives the pack bytes).
     Result<RefPtr<IScriptBlob>> blob = manager->CompileToBlob(
         u8"Widget = {}\n"
         u8"Widget.__index = Widget\n"

@@ -87,20 +87,20 @@ TEST_CASE("engine.composition: the scan reaches the assets a script's properties
         engine::behavior::BehaviorComponent& scripts = author.GetSystem<engine::behavior::BehaviorComponentManager>()->Add(spawner);
         engine::behavior::AttachedBehavior behavior;
         behavior.behaviorClass.SetId(dropper);
-        foundation::script::ScriptPropertyValue drop;
-        drop.kind = foundation::script::ScriptPropertyType::Asset;
+        foundation::script::BehaviorPropertyValue drop;
+        drop.kind = foundation::script::BehaviorPropertyType::Asset;
         drop.guid = pickup;
-        behavior.SetOverride(foundation::script::ScriptPropertyNameHash(u8"drop"), drop);
-        foundation::script::ScriptPropertyValue target;
-        target.kind = foundation::script::ScriptPropertyType::Entity;
+        behavior.SetOverride(foundation::script::BehaviorPropertyNameHash(u8"drop"), drop);
+        foundation::script::BehaviorPropertyValue target;
+        target.kind = foundation::script::BehaviorPropertyType::Entity;
         target.guid = unused;
-        behavior.SetOverride(foundation::script::ScriptPropertyNameHash(u8"target"), target);
+        behavior.SetOverride(foundation::script::BehaviorPropertyNameHash(u8"target"), target);
         scripts.behaviors.PushBack(Move(behavior));
-        foundation::script::ScriptPropertyValue music;
-        music.kind = foundation::script::ScriptPropertyType::Asset;
+        foundation::script::BehaviorPropertyValue music;
+        music.kind = foundation::script::BehaviorPropertyType::Asset;
         music.guid = theme;
         author.GetSystem<engine::behavior::SceneBehaviorSystem>()->Settings().SetOverride(
-            foundation::script::ScriptPropertyNameHash(u8"music"), music);
+            foundation::script::BehaviorPropertyNameHash(u8"music"), music);
         REQUIRE(scene::SaveScene(author, *level).IsOk());
     }
 
@@ -139,11 +139,11 @@ TEST_CASE("engine.composition: the scan reaches the assets a placed prefab's ove
     const Guid dropper(StringView(u8"8b1c0de4-2f3a-4c6e-9d10-7a8b9c0d1e01"));
     const Guid inPrefab(StringView(u8"8b1c0de4-2f3a-4c6e-9d10-7a8b9c0d1e02"));
     const Guid onPlacement(StringView(u8"8b1c0de4-2f3a-4c6e-9d10-7a8b9c0d1e03"));
-    const u64 drop = foundation::script::ScriptPropertyNameHash(u8"drop");
+    const u64 drop = foundation::script::BehaviorPropertyNameHash(u8"drop");
     const auto asset = [](const Guid& id)
     {
-        foundation::script::ScriptPropertyValue v;
-        v.kind = foundation::script::ScriptPropertyType::Asset;
+        foundation::script::BehaviorPropertyValue v;
+        v.kind = foundation::script::BehaviorPropertyType::Asset;
         v.guid = id;
         return v;
     };
@@ -176,7 +176,7 @@ TEST_CASE("engine.composition: the scan reaches the assets a placed prefab's ove
         REQUIRE(authored.PrefabInstanceCount() == 1u);
         engine::behavior::AttachedBehavior& behavior =
             authored.GetSystem<engine::behavior::BehaviorComponentManager>()->Get(placed)->behaviors[0];
-        const engine::behavior::ScriptPropertyOverride* inherited = behavior.FindOverride(drop);
+        const engine::behavior::BehaviorPropertyOverride* inherited = behavior.FindOverride(drop);
         REQUIRE(inherited != nullptr);
         CHECK(inherited->value.guid == inPrefab); // the placement starts as the prefab
         behavior.SetOverride(drop, asset(onPlacement));

@@ -4705,7 +4705,7 @@ namespace foundation::script::angelscript
             return core::Status{};
         }
 
-        // Reconstruct a cooked AngelScript blob from its serialized bytes (ScriptClass::bytecode,
+        // Reconstruct a cooked AngelScript blob from its serialized bytes (BehaviorClass::bytecode,
         // written by AngelScriptBlobFromModule and Serialize) and LoadByteCode it into its own
         // module, as LoadBlob does: a unique module name lets hot reload keep old generations
         // alive, and main() runs. The player path for a single behavior class.

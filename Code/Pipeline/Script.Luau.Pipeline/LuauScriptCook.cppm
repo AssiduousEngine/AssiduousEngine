@@ -20,7 +20,7 @@ export module script.luau.pipeline;
 
 import foundation.core;
 import foundation.script;         // registry, IScriptManager/IScriptContext, RegisterReflectedTypes
-import foundation.script.resource; // ScriptClassSource and ScriptPropertyDesc
+import foundation.script.resource; // BehaviorClassSource and BehaviorProperty
 import foundation.script.facades;  // RegisterScriptFacadeReflection (the cook VM's global surface)
 import script.pipeline;   // IScriptLanguageCook, registry, shared cook helpers
 import foundation.script.luau;     // ensures the Luau backend is available to the registry

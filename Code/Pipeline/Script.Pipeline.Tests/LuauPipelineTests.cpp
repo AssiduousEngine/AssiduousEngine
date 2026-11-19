@@ -47,52 +47,52 @@ TEST_CASE("script.pipeline: full harvest round-trip (luau) - source -> cook -> f
     content::Instance* instance = nullptr;
     REQUIRE(bed.Cook(u8"multi.luau", u8"luau", instance).IsOk());
 
-    ScriptClassFactory factory(DefaultAllocator());
+    BehaviorClassFactory factory(DefaultAllocator());
     foundation::resource::ResourceManager manager(foundation::core::DefaultAllocator(), *bed.outputDb);
     manager.AddFactory(&factory);
-    foundation::resource::Proxy<ScriptClass> product = manager.Bind<ScriptClass>(instance->Id());
+    foundation::resource::Proxy<BehaviorClass> product = manager.Bind<BehaviorClass>(instance->Id());
     REQUIRE(product);
     CHECK(product->language == u8"luau");
     CHECK(product->className == u8"Multi");
 
     // Four scalars harvested (speed/enabled/label/offset); `data` (table) and `owner` (nil) skipped.
     // Non-scalar/typed properties (Int, Color, Entity, Asset) have no Luau harvest form.
-    const ScriptPropertyDesc* speed = product->FindProperty(ScriptPropertyNameHash(u8"speed"));
+    const BehaviorProperty* speed = product->FindProperty(BehaviorPropertyNameHash(u8"speed"));
     REQUIRE(speed != nullptr);
-    CHECK(speed->type == ScriptPropertyType::Float);
+    CHECK(speed->type == BehaviorPropertyType::Float);
     CHECK(speed->defaultValue.number == doctest::Approx(2.5));
 
-    const ScriptPropertyDesc* enabled = product->FindProperty(ScriptPropertyNameHash(u8"enabled"));
+    const BehaviorProperty* enabled = product->FindProperty(BehaviorPropertyNameHash(u8"enabled"));
     REQUIRE(enabled != nullptr);
-    CHECK(enabled->type == ScriptPropertyType::Bool);
+    CHECK(enabled->type == BehaviorPropertyType::Bool);
     CHECK(enabled->defaultValue.boolean);
 
-    const ScriptPropertyDesc* label = product->FindProperty(ScriptPropertyNameHash(u8"label"));
+    const BehaviorProperty* label = product->FindProperty(BehaviorPropertyNameHash(u8"label"));
     REQUIRE(label != nullptr);
-    CHECK(label->type == ScriptPropertyType::String);
+    CHECK(label->type == BehaviorPropertyType::String);
     CHECK(label->defaultValue.text == u8"hello");
 
-    const ScriptPropertyDesc* offset = product->FindProperty(ScriptPropertyNameHash(u8"offset"));
+    const BehaviorProperty* offset = product->FindProperty(BehaviorPropertyNameHash(u8"offset"));
     REQUIRE(offset != nullptr);
-    CHECK(offset->type == ScriptPropertyType::Vec3);
+    CHECK(offset->type == BehaviorPropertyType::Vec3);
     CHECK(offset->defaultValue.vector.z == doctest::Approx(3.0f));
 
-    CHECK(product->FindProperty(ScriptPropertyNameHash(u8"data")) == nullptr);  // table skipped
-    CHECK(product->FindProperty(ScriptPropertyNameHash(u8"owner")) == nullptr); // nil skipped
+    CHECK(product->FindProperty(BehaviorPropertyNameHash(u8"data")) == nullptr);  // table skipped
+    CHECK(product->FindProperty(BehaviorPropertyNameHash(u8"owner")) == nullptr); // nil skipped
 
     CHECK(product->HasHandler(u8"onStart"));
     CHECK(product->HasHandler(u8"onUpdate"));
     CHECK(product->HasHandler(u8"onDestroy"));
 }
 
-TEST_CASE("script.pipeline: a ScriptClass-less utility module cooks with empty metadata (luau)")
+TEST_CASE("script.pipeline: a BehaviorClass-less utility module cooks with empty metadata (luau)")
 {
     CookBed bed(u8"luau_util");
     bed.WriteSource(u8"util.luau", u8"local Helper = 42\nreturn Helper\n");
     content::Instance* instance = nullptr;
     REQUIRE(bed.Cook(u8"util.luau", u8"luau", instance).IsOk());
     RefPtr<ISerializable> object = instance->ReadObject();
-    ScriptClassSource* cooked = Cast<ScriptClassSource>(object.Get());
+    BehaviorClassSource* cooked = Cast<BehaviorClassSource>(object.Get());
     REQUIRE(cooked != nullptr);
     CHECK(cooked->className.IsEmpty());
     CHECK(cooked->properties.IsEmpty());
@@ -112,7 +112,7 @@ TEST_CASE("script.pipeline: compile errors FAIL the cook and the last good recor
     CHECK_FALSE(bed.Cook(u8"multi.luau", u8"luau", instance).IsOk());
 
     RefPtr<ISerializable> object = instance->ReadObject();
-    ScriptClassSource* cooked = Cast<ScriptClassSource>(object.Get());
+    BehaviorClassSource* cooked = Cast<BehaviorClassSource>(object.Get());
     REQUIRE(cooked != nullptr); // the last good record
     CHECK(cooked->className == u8"Multi");
     CHECK(cooked->properties.Size() == 4u);
@@ -135,12 +135,12 @@ function NewBehavior:onDestroy() end
     content::Instance* instance = nullptr;
     REQUIRE(bed.Cook(u8"starter.luau", u8"luau", instance).IsOk());
     RefPtr<ISerializable> object = instance->ReadObject();
-    ScriptClassSource* cooked = Cast<ScriptClassSource>(object.Get());
+    BehaviorClassSource* cooked = Cast<BehaviorClassSource>(object.Get());
     REQUIRE(cooked != nullptr);
     CHECK(cooked->className == u8"NewBehavior");
     REQUIRE(cooked->properties.Size() == 1u);
     CHECK(cooked->properties[0].name == u8"speed");
-    CHECK(cooked->properties[0].type == ScriptPropertyType::Float);
+    CHECK(cooked->properties[0].type == BehaviorPropertyType::Float);
     CHECK(cooked->handlers.Size() == 3u); // onStart, onUpdate, onDestroy
 }
 
@@ -172,12 +172,12 @@ function Mover:onUpdate(dt) end
     CHECK(doc.ClassName() == u8"Mover");
     CHECK(doc.Errors().Size() == 0u);
 
-    // The recook (the builder over the saved file) produces an updated cooked ScriptClass.
+    // The recook (the builder over the saved file) produces an updated cooked BehaviorClass.
     content::Instance* product = nullptr;
     REQUIRE(bed.Cook(u8"mover.luau", u8"luau", product).IsOk());
     {
         RefPtr<ISerializable> object = product->ReadObject();
-        ScriptClassSource* cooked = Cast<ScriptClassSource>(object.Get());
+        BehaviorClassSource* cooked = Cast<BehaviorClassSource>(object.Get());
         REQUIRE(cooked != nullptr);
         CHECK(cooked->className == u8"Mover");
     }
@@ -205,7 +205,7 @@ function Mover:onUpdate(dt) end
     CHECK_FALSE(bed.Cook(u8"mover.luau", u8"luau", product).IsOk());
     {
         RefPtr<ISerializable> object = product->ReadObject();
-        ScriptClassSource* cooked = Cast<ScriptClassSource>(object.Get());
+        BehaviorClassSource* cooked = Cast<BehaviorClassSource>(object.Get());
         REQUIRE(cooked != nullptr);
         CHECK(cooked->className == u8"Mover"); // unchanged: the failed cook never wrote
     }
@@ -255,7 +255,7 @@ function Mover:onUpdate(dt) end
     content::Instance* chosen = nullptr;
     REQUIRE(bed.Cook(u8"Mover.2.luau", u8"luau", chosen).IsOk());
     RefPtr<ISerializable> object = chosen->ReadObject();
-    ScriptClassSource* cooked = Cast<ScriptClassSource>(object.Get());
+    BehaviorClassSource* cooked = Cast<BehaviorClassSource>(object.Get());
     REQUIRE(cooked != nullptr);
     CHECK(cooked->className == u8"Mover");
     CHECK(cooked->kind == BehaviorKind::Entity);

@@ -12,7 +12,7 @@
 // field an inspector property (a field with no metadata is not one). The cook builds the
 // behavior through the vendored CScriptBuilder add-on (which pre-processes `[metadata]`)
 // and walks the class's fields, mapping each metadata'd field's declared type, default and
-// description into the same ScriptPropertyDesc metadata other backends produce. All the
+// description into the same BehaviorProperty metadata other backends produce. All the
 // AngelScript and scriptbuilder contact lives in the implementation unit.
 //
 // No AngelScript SDK header appears in this interface unit; the implementation unit reaches the

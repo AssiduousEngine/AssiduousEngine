@@ -140,7 +140,7 @@ namespace pipeline{
         }
 
         // Sort harvested props by name (pairs() order is unspecified) for deterministic bytes.
-        void SortPropertiesByName(Array<ScriptPropertyDesc>& properties)
+        void SortPropertiesByName(Array<BehaviorProperty>& properties)
         {
             auto lessThan = [](StringView a, StringView b)
             {
@@ -160,7 +160,7 @@ namespace pipeline{
                                                     properties[j - 1].name.AsView());
                      --j)
                 {
-                    ScriptPropertyDesc tmp = Move(properties[j]);
+                    BehaviorProperty tmp = Move(properties[j]);
                     properties[j] = Move(properties[j - 1]);
                     properties[j - 1] = Move(tmp);
                 }
@@ -169,7 +169,7 @@ namespace pipeline{
 
         // Marks the properties the class's `replicated` list names. False, with the problem in
         // `error`, for a name that is not one of its properties (a typo must not do nothing).
-        [[nodiscard]] bool MarkLuauReplicated(IScriptContext& scriptContext, Array<ScriptPropertyDesc>& properties,
+        [[nodiscard]] bool MarkLuauReplicated(IScriptContext& scriptContext, Array<BehaviorProperty>& properties,
                                               String& error)
         {
             const Variant listVariant = scriptContext.GetGlobal(u8"drReplicated");
@@ -189,7 +189,7 @@ namespace pipeline{
                 const StringView name = text.SubStr(begin, i - begin);
                 begin = i + 1;
                 bool found = false;
-                for (ScriptPropertyDesc& property : properties)
+                for (BehaviorProperty& property : properties)
                 {
                     if (property.name.AsView() == name)
                     {
@@ -210,7 +210,7 @@ namespace pipeline{
         // constructor that faults on the nil owner is not a cook error (the class is valid at
         // runtime with a real owner); it just yields no editor properties, with a note.
         void HarvestLuauProperties(IScriptContext& scriptContext, StringView fileName,
-                                   StringView className, Array<ScriptPropertyDesc>& outProperties)
+                                   StringView className, Array<BehaviorProperty>& outProperties)
         {
             const String probe = BuildLuauPropertyProbe(className);
             if (!scriptContext.Load(probe.AsView(), fileName).IsOk())
@@ -251,7 +251,7 @@ namespace pipeline{
                 {
                     continue;
                 }
-                ScriptPropertyDesc desc;
+                BehaviorProperty desc;
                 String error;
                 if (!ParseHarvestRecord(record, desc, error))
                 {
@@ -353,7 +353,7 @@ namespace pipeline{
             using IScriptLanguageCook::Cook; // and the overload that prefers the file's stem
 
             [[nodiscard]] bool Cook(StringView source, StringView assetName,
-                                    CookScriptErrorSink& sink, ScriptClassSource& out,
+                                    CookScriptErrorSink& sink, BehaviorClassSource& out,
                                     IScriptIncludeReader* includes = nullptr) override
             {
                 (void)includes; // Luau has no include directive

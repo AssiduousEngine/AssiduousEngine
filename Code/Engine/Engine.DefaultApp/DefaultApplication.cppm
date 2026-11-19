@@ -42,7 +42,7 @@ import engine.physics;   // PhysicsSubsystem (Jolt worlds and interpolation)
 import foundation.input;               // the action model/runtime
 import engine.input;     // InputSubsystem and the Input facade
 import foundation.script;              // IScriptManager/Context (the game script)
-import foundation.script.resource;     // ScriptClass (the cooked game class StartRunBehavior takes)
+import foundation.script.resource;     // BehaviorClass (the cooked game class StartRunBehavior takes)
 #ifdef OPTION_HAS_ANGELSCRIPT
 import foundation.script.angelscript; // the AngelScript backend (OPTION_ENABLE_ANGELSCRIPT)
 #endif
@@ -278,7 +278,7 @@ export namespace engine::runtime
         /// Compiles and launches the cooked game class, delegated to the run's ApplicationRun, with
         /// the class's declared handlers so its on<Event> inbox hears the run bus. The caller binds
         /// the class (the player: from its content DB).
-        bool StartRunBehavior(const foundation::script::ScriptClass& scriptClass);
+        bool StartRunBehavior(const foundation::script::BehaviorClass& scriptClass);
 
         /// onStop() and release (idempotent; the update fault path also lands here). The run host tears
         /// down via the scene-stop observer once the run's scene stops.

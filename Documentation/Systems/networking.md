@@ -164,7 +164,7 @@ join once welcomed, and the host leave as 0). On a client a `Net.on` handler's s
 host. Orders are RPCs the host checks itself (it knows the sender); who leaves and what happens to
 their entities is the game's call in its `onLeave`.
 Script behaviour properties replicate when marked:
-`ScriptPropertyDesc::replicated`, from AngelScript's `replicated` metadata word or a Luau class's
+`BehaviorProperty::replicated`, from AngelScript's `replicated` metadata word or a Luau class's
 `replicated` list (the cook refuses an unknown word or name, and an entity or asset property).
 Replication reaches them through `scene::IReplicatedStateSource`, a component manager's own state
 beside reflected `net.replicated` fields: `ScriptComponentManager` writes each networked entity's

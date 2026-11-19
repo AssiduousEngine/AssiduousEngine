@@ -300,7 +300,7 @@ namespace editor
     }
 
     // The Level class bound, through the editor's resources while the reference has not resolved.
-    const script::ScriptClass* LevelScriptSource::Class() const
+    const script::BehaviorClass* LevelScriptSource::Class() const
     {
         const SceneBehaviorSettings* settings = Settings();
         if (settings == nullptr)
@@ -309,7 +309,7 @@ namespace editor
             return settings->behaviorClass.Get();
         if (settings->behaviorClass.id.IsNil() || m_context == nullptr || m_context->Resources() == nullptr)
             return nullptr;
-        return m_context->Resources()->Bind<script::ScriptClass>(settings->behaviorClass.id).Get();
+        return m_context->Resources()->Bind<script::BehaviorClass>(settings->behaviorClass.id).Get();
     }
 
     u64 LevelScriptSource::Signature() const
@@ -345,81 +345,81 @@ namespace editor
 
     void LevelScriptSource::GetProperties(StringView parent, Array<gui::PropertyInfo>& out) const
     {
-        const script::ScriptClass* type = Class();
+        const script::BehaviorClass* type = Class();
         if (type == nullptr)
             return;
         if (parent.IsEmpty())
         {
-            ScriptPropertyRows::Describe(*type, out);
+            BehaviorPropertyRows::Describe(*type, out);
             return;
         }
         String row;
         i32 part = -1;
-        ScriptPropertyRows::ParseRow(parent, row, part);
-        const script::ScriptPropertyDesc* property = ScriptPropertyRows::Find(*type, row.AsView());
+        BehaviorPropertyRows::ParseRow(parent, row, part);
+        const script::BehaviorProperty* property = BehaviorPropertyRows::Find(*type, row.AsView());
         if (property != nullptr && part < 0)
-            ScriptPropertyRows::Parts(*property, out);
+            BehaviorPropertyRows::Parts(*property, out);
     }
 
     gui::Variant LevelScriptSource::GetValue(StringView path, usize object) const
     {
         (void)object;
-        const script::ScriptClass* type = Class();
+        const script::BehaviorClass* type = Class();
         const SceneBehaviorSettings* settings = Settings();
         if (type == nullptr || settings == nullptr)
             return gui::Variant{};
         String row;
         i32 part = -1;
-        ScriptPropertyRows::ParseRow(path, row, part);
-        const script::ScriptPropertyDesc* property = ScriptPropertyRows::Find(*type, row.AsView());
+        BehaviorPropertyRows::ParseRow(path, row, part);
+        const script::BehaviorProperty* property = BehaviorPropertyRows::Find(*type, row.AsView());
         if (property == nullptr)
             return gui::Variant{};
-        const engine::behavior::ScriptPropertyOverride* over = settings->FindOverride(property->hash);
-        return ScriptPropertyRows::ToGrid(over != nullptr ? over->value : property->defaultValue, property->type, part);
+        const engine::behavior::BehaviorPropertyOverride* over = settings->FindOverride(property->hash);
+        return BehaviorPropertyRows::ToGrid(over != nullptr ? over->value : property->defaultValue, property->type, part);
     }
 
     gui::Variant LevelScriptSource::GetDefault(StringView path, usize object) const
     {
         (void)object;
-        const script::ScriptClass* type = Class();
+        const script::BehaviorClass* type = Class();
         if (type == nullptr)
             return gui::Variant{};
         String row;
         i32 part = -1;
-        ScriptPropertyRows::ParseRow(path, row, part);
-        const script::ScriptPropertyDesc* property = ScriptPropertyRows::Find(*type, row.AsView());
-        return property != nullptr ? ScriptPropertyRows::ToGrid(property->defaultValue, property->type, part) : gui::Variant{};
+        BehaviorPropertyRows::ParseRow(path, row, part);
+        const script::BehaviorProperty* property = BehaviorPropertyRows::Find(*type, row.AsView());
+        return property != nullptr ? BehaviorPropertyRows::ToGrid(property->defaultValue, property->type, part) : gui::Variant{};
     }
 
     void LevelScriptSource::CommitEdit(StringView path, const gui::PropertyWrite& write)
     {
-        const script::ScriptClass* type = Class();
+        const script::BehaviorClass* type = Class();
         if (type == nullptr)
             return;
         String row;
         i32 part = -1;
-        ScriptPropertyRows::ParseRow(path, row, part);
-        const script::ScriptPropertyDesc* property = ScriptPropertyRows::Find(*type, row.AsView());
+        BehaviorPropertyRows::ParseRow(path, row, part);
+        const script::BehaviorProperty* property = BehaviorPropertyRows::Find(*type, row.AsView());
         if (property == nullptr)
             return;
-        const script::ScriptPropertyDesc desc = *property;
+        const script::BehaviorProperty desc = *property;
         const gui::Variant value = write.Value;
         Mutate([desc, part, value](SceneBehaviorSettings& settings)
                {
-                   const engine::behavior::ScriptPropertyOverride* over = settings.FindOverride(desc.hash);
-                   settings.SetOverride(desc.hash, ScriptPropertyRows::FromGrid(over != nullptr ? over->value : desc.defaultValue, desc.type, part, value));
+                   const engine::behavior::BehaviorPropertyOverride* over = settings.FindOverride(desc.hash);
+                   settings.SetOverride(desc.hash, BehaviorPropertyRows::FromGrid(over != nullptr ? over->value : desc.defaultValue, desc.type, part, value));
                });
     }
 
     bool LevelScriptSource::Revert(StringView path)
     {
-        const script::ScriptClass* type = Class();
+        const script::BehaviorClass* type = Class();
         if (type == nullptr)
             return false;
         String row;
         i32 part = -1;
-        ScriptPropertyRows::ParseRow(path, row, part);
-        const script::ScriptPropertyDesc* property = ScriptPropertyRows::Find(*type, row.AsView());
+        BehaviorPropertyRows::ParseRow(path, row, part);
+        const script::BehaviorProperty* property = BehaviorPropertyRows::Find(*type, row.AsView());
         if (property == nullptr)
             return false;
         const u64 hash = property->hash;

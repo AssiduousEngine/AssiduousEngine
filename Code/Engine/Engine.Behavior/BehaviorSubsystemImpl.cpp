@@ -21,7 +21,7 @@ import foundation.script;
 import foundation.script.resource;
 
 using namespace foundation::core;
-using namespace foundation::script; // ScriptPropertyDesc, ScriptPropertyValue, ScriptClass (the replicated state)
+using namespace foundation::script; // BehaviorProperty, BehaviorPropertyValue, BehaviorClass (the replicated state)
 
 namespace engine::behavior
 {
@@ -77,14 +77,14 @@ namespace engine::behavior
     namespace
     {
         // A script's live property value, as the property's own kind (numbers come back as f64).
-        [[nodiscard]] bool VariantToPropertyValue(const Variant& value, ScriptPropertyType type,
-                                                  ScriptPropertyValue& out)
+        [[nodiscard]] bool VariantToPropertyValue(const Variant& value, BehaviorPropertyType type,
+                                                  BehaviorPropertyValue& out)
         {
             out.kind = type;
             switch (type)
             {
-            case ScriptPropertyType::Float:
-            case ScriptPropertyType::Int:
+            case BehaviorPropertyType::Float:
+            case BehaviorPropertyType::Int:
                 if (const f64* n = value.TryGet<f64>())
                 {
                     out.number = *n;
@@ -101,28 +101,28 @@ namespace engine::behavior
                     return true;
                 }
                 return false;
-            case ScriptPropertyType::Bool:
+            case BehaviorPropertyType::Bool:
                 if (const bool* b = value.TryGet<bool>())
                 {
                     out.boolean = *b;
                     return true;
                 }
                 return false;
-            case ScriptPropertyType::String:
+            case BehaviorPropertyType::String:
                 if (const String* t = value.TryGet<String>())
                 {
                     out.text = *t;
                     return true;
                 }
                 return false;
-            case ScriptPropertyType::Color:
+            case BehaviorPropertyType::Color:
                 if (const Color* c = value.TryGet<Color>())
                 {
                     out.color = *c;
                     return true;
                 }
                 return false;
-            case ScriptPropertyType::Vec3:
+            case BehaviorPropertyType::Vec3:
                 if (const Float3* v = value.TryGet<Float3>())
                 {
                     out.vector = *v;
@@ -140,7 +140,7 @@ namespace engine::behavior
             u32 behavior = 0;
             u64 classHash = 0; // which class the behaviour was, so a mismatch is never applied
             u64 property = 0;
-            ScriptPropertyValue value;
+            BehaviorPropertyValue value;
         };
 
         void Serialize(ISerializer& ar, ReplicatedEntry& e)
@@ -163,12 +163,12 @@ namespace engine::behavior
         for (usize b = 0; b < component->behaviors.Size(); ++b)
         {
             const AttachedBehavior& behavior = component->behaviors[b];
-            const ScriptClass* scriptClass = behavior.behaviorClass.Get();
+            const BehaviorClass* scriptClass = behavior.behaviorClass.Get();
             if (scriptClass == nullptr)
             {
                 continue;
             }
-            for (const ScriptPropertyDesc& property : scriptClass->properties)
+            for (const BehaviorProperty& property : scriptClass->properties)
             {
                 if (!property.replicated)
                 {
@@ -176,7 +176,7 @@ namespace engine::behavior
                 }
                 ReplicatedEntry entry;
                 entry.behavior = static_cast<u32>(b);
-                entry.classHash = ScriptPropertyNameHash(scriptClass->className.AsView());
+                entry.classHash = BehaviorPropertyNameHash(scriptClass->className.AsView());
                 entry.property = property.hash;
                 // The live value when the script runs; else what it would start with.
                 bool live = false;
@@ -187,7 +187,7 @@ namespace engine::behavior
                 }
                 if (!live)
                 {
-                    const ScriptPropertyOverride* over = behavior.FindOverride(property.hash);
+                    const BehaviorPropertyOverride* over = behavior.FindOverride(property.hash);
                     entry.value = over != nullptr ? over->value : property.defaultValue;
                     entry.value.kind = property.type;
                 }
@@ -233,13 +233,13 @@ namespace engine::behavior
                 continue;
             }
             AttachedBehavior& behavior = component->behaviors[entry.behavior];
-            const ScriptClass* scriptClass = behavior.behaviorClass.Get();
+            const BehaviorClass* scriptClass = behavior.behaviorClass.Get();
             if (scriptClass == nullptr ||
-                ScriptPropertyNameHash(scriptClass->className.AsView()) != entry.classHash)
+                BehaviorPropertyNameHash(scriptClass->className.AsView()) != entry.classHash)
             {
                 continue; // not the behaviour the host meant
             }
-            for (const ScriptPropertyDesc& property : scriptClass->properties)
+            for (const BehaviorProperty& property : scriptClass->properties)
             {
                 if (property.hash != entry.property || !property.replicated)
                 {

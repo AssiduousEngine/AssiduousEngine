@@ -321,7 +321,7 @@ export namespace pipeline{
         // lifecycle set (onStart/onUpdate/...), the reserved event handlers
         // (onContactBegin, onTriggerEnter, ...), and user message handlers reached by
         // `entity.send("heal", ...)`, which calls `onHeal(...)`. The runtime dispatch gate is
-        // ScriptClass::HasHandler, so harvesting the whole convention here is what makes
+        // BehaviorClass::HasHandler, so harvesting the whole convention here is what makes
         // custom messages and events cost nothing per frame. A lowercase letter after
         // `on` (e.g. `onlyOnce`) is not a handler; nor is a getter (`onFoo {`, no parens):
         // handlers take an argument list.
@@ -445,7 +445,7 @@ export namespace pipeline{
 
     /// One harvest record as a property desc. Record layout: name \x1F typeString \x1F default
     /// \x1F description. Returns false (with outError set) on a malformed record or unknown type.
-    [[nodiscard]] inline bool ParseHarvestRecord(StringView record, ScriptPropertyDesc& out,
+    [[nodiscard]] inline bool ParseHarvestRecord(StringView record, BehaviorProperty& out,
                                                  String& outError)
     {
         StringView fields[4];
@@ -465,7 +465,7 @@ export namespace pipeline{
             return false;
         }
         out.name = String(fields[0]);
-        out.hash = ScriptPropertyNameHash(fields[0]);
+        out.hash = BehaviorPropertyNameHash(fields[0]);
         out.description = fieldCount > 3 ? String(fields[3]) : String{};
         if (!ParseScriptPropertyType(fields[1], out.type, out.assetType))
         {
@@ -479,7 +479,7 @@ export namespace pipeline{
         }
 
         // Default value: typed from the serialized payload; "~" is the type's default.
-        ScriptPropertyValue& value = out.defaultValue;
+        BehaviorPropertyValue& value = out.defaultValue;
         value.kind = out.type;
         const StringView payload = fieldCount > 2 ? fields[2] : StringView(u8"~");
         if (payload == u8"~" || payload.Size() < 2)
@@ -490,31 +490,31 @@ export namespace pipeline{
         const StringView body = payload.SubStr(2, payload.Size() - 2);
         switch (out.type)
         {
-        case ScriptPropertyType::Float:
-        case ScriptPropertyType::Int:
+        case BehaviorPropertyType::Float:
+        case BehaviorPropertyType::Int:
             if (tag == u8'n')
             {
                 f32 numbers[4] = {};
                 if (ParseFloatList(body, numbers) > 0)
                 {
                     value.number = static_cast<f64>(numbers[0]);
-                    if (out.type == ScriptPropertyType::Int)
+                    if (out.type == BehaviorPropertyType::Int)
                     {
                         value.number = static_cast<f64>(static_cast<i64>(value.number));
                     }
                 }
             }
             break;
-        case ScriptPropertyType::Bool:
+        case BehaviorPropertyType::Bool:
             value.boolean = (tag == u8'b' && body == u8"true");
             break;
-        case ScriptPropertyType::String:
+        case BehaviorPropertyType::String:
             if (tag == u8's')
             {
                 value.text = String(body);
             }
             break;
-        case ScriptPropertyType::Color:
+        case BehaviorPropertyType::Color:
             if (tag == u8'l')
             {
                 f32 numbers[4] = {1.0f, 1.0f, 1.0f, 1.0f};
@@ -526,7 +526,7 @@ export namespace pipeline{
                 }
             }
             break;
-        case ScriptPropertyType::Vec3:
+        case BehaviorPropertyType::Vec3:
             if (tag == u8'l')
             {
                 f32 numbers[4] = {};
@@ -536,11 +536,11 @@ export namespace pipeline{
                 }
             }
             break;
-        case ScriptPropertyType::Entity:
-        case ScriptPropertyType::Asset:
+        case BehaviorPropertyType::Entity:
+        case BehaviorPropertyType::Asset:
             // Only null defaults are expressible in script; guids come from overrides.
             break;
-        case ScriptPropertyType::None:
+        case BehaviorPropertyType::None:
         default:
             break;
         }
@@ -733,7 +733,7 @@ export namespace pipeline{
         /// The files a language includes are read through `includes` (null: none can be read, so a
         /// script that includes fails), and recorded in `out.includes`.
         [[nodiscard]] virtual bool Cook(StringView source, StringView assetName, CookScriptErrorSink& sink,
-                                        ScriptClassSource& out, IScriptIncludeReader* includes = nullptr) = 0;
+                                        BehaviorClassSource& out, IScriptIncludeReader* includes = nullptr) = 0;
 
         /// Compile-check `source` as Cook would, without running any of it and without the
         /// harvest: errors to `sink`, the class it plays (chosen as Cook chooses it; empty when it
@@ -774,7 +774,7 @@ export namespace pipeline{
         /// project's built assembly: its handlers and properties into `out`. Errors to `sink`.
         [[nodiscard]] virtual bool CookFromAssembly(StringView source, StringView assetName,
                                                     const ScriptAssemblySource& assembly, CookScriptErrorSink& sink,
-                                                    ScriptClassSource& out)
+                                                    BehaviorClassSource& out)
         {
             (void)source;
             (void)assetName;
@@ -970,7 +970,7 @@ export namespace pipeline{
     /// build and plugins. Defined in ScriptAssetImpl.cpp.
     [[nodiscard]] u64 ScriptSurfaceHash(const TypeRegistry& registry);
 
-    // Cooks a ScriptClassAsset to a ScriptClassSource by delegating to the language cook the
+    // Cooks a ScriptClassAsset to a BehaviorClassSource by delegating to the language cook the
     // asset's language resolves to. A thin shell: it reads the source, resolves the
     // cook, and delegates, with no language syntax and no VM handling.
     class ScriptClassAssetBuilder final : public pipeline::DefaultAssetBuilder
@@ -982,17 +982,18 @@ export namespace pipeline{
         }
         [[nodiscard]] const TypeInfo* ProductType() const override
         {
-            return &ScriptClassSource::StaticType();
+            return &BehaviorClassSource::StaticType();
         }
         [[nodiscard]] u32 Version() const override
         {
             // Base cook-logic version (2: the cooked record gained a bytecode field; 3: each
             // property a replicated flag; 4: the record carries data version 1, so the reader
             // refuses one from before the flag; 5: the class is the asset's choice, never a guess
-            // among several; 6: the record carries the included files; 7: the behavior kind), plus
+            // among several; 6: the record carries the included files; 7: the behavior kind; 8: the
+            // record is BehaviorClassSource, its type id renamed), plus
             // every language cook's compiler version, so a Luau (or other bytecode) vendor bump
             // recooks every script pack automatically.
-            return 7 + ScriptLanguageCookRegistry::Get().CombinedCookVersion();
+            return 8 + ScriptLanguageCookRegistry::Get().CombinedCookVersion();
         }
 
         // The script surface the products compile against and their bytecode binds to.
@@ -1093,7 +1094,7 @@ export namespace pipeline{
                 return Status{ErrorCode::NotSupported};
             }
 
-            ScriptClassSource cooked;
+            BehaviorClassSource cooked;
             CookScriptErrorSink sink;
             if (cook->BuildsInAssembly())
             {
@@ -1132,7 +1133,7 @@ export namespace pipeline{
         // A class of a language that builds per project: its description from the project's cooked
         // assembly, and the record naming that assembly.
         [[nodiscard]] static Status CookFromProject(IScriptLanguageCook& cook, const ScriptClassAsset& scriptAsset, StringView source,
-                                                    pipeline::AssetBuildContext& ctx, CookScriptErrorSink& sink, ScriptClassSource& cooked)
+                                                    pipeline::AssetBuildContext& ctx, CookScriptErrorSink& sink, BehaviorClassSource& cooked)
         {
             const StringView file = scriptAsset.fileName.View();
             content::Instance* project =
@@ -1415,7 +1416,7 @@ export namespace pipeline{
     /// takes). Validate() compile-checks the current buffer through the language cook's Check,
     /// which compiles as the product build does but runs none of the source: it captures the
     /// ScriptError file/line/column and message for inline surfacing but never writes a product,
-    /// so a failing edit leaves the last-good cooked ScriptClass untouched (live instances keep
+    /// so a failing edit leaves the last-good cooked BehaviorClass untouched (live instances keep
     /// running the old class).
     class ScriptSourceDocument
     {

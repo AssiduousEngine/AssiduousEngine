@@ -36,9 +36,9 @@ import shaders.pipeline;            // ShaderAsset and its compiling cook
 // backend-neutral and build with no script backend at all. The script imports (and the tests that
 // need them) are guarded, so the file always compiles.
 #if defined(OPTION_HAS_ANGELSCRIPT) || defined(OPTION_HAS_LUAU)
-import foundation.script;          // the backend registries and ScriptClassFactory namespace
+import foundation.script;          // the backend registries and BehaviorClassFactory namespace
 import script.pipeline;            // ScriptClassAsset, ScriptClassAssetBuilder
-import foundation.script.resource; // RegisterScriptResource, ScriptClass, ScriptClassFactory
+import foundation.script.resource; // RegisterScriptResource, BehaviorClass, BehaviorClassFactory
 #endif
 #ifdef OPTION_HAS_ANGELSCRIPT
 import foundation.script.angelscript; // the AngelScript backend (the cook compile-checks against it)
@@ -116,7 +116,7 @@ namespace
     }
 
     // Authors a project with a startup script asset in sample.language, exports it, and consumes the
-    // dist the way Engine.Player does (manifest guid -> Bind<ScriptClass> from the pak). The export,
+    // dist the way Engine.Player does (manifest guid -> Bind<BehaviorClass> from the pak). The export,
     // cook, pak and bind path is backend-generic, so both languages take it identically.
     void DriveStartupScriptExport(StringView projectDir, StringView distDir, ScriptSample sample)
     {
@@ -167,7 +167,7 @@ namespace
             CHECK(stats.cooked >= 1u); // the script cooked
         }
 
-        // Consume the dist as the player does: manifest guid -> Bind<ScriptClass> from the pak.
+        // Consume the dist as the player does: manifest guid -> Bind<BehaviorClass> from the pak.
         foundation::vfs::NativeFileSystem distRoot(distDir, foundation::core::DefaultAllocator());
         engine::project::ProjectSettings manifest;
         REQUIRE(project::LoadProjectSettings(distRoot, manifest, project::kDistManifestFile).IsOk());
@@ -178,11 +178,11 @@ namespace
         foundation::content::ContentDatabase db(foundation::core::DefaultAllocator(), pak, BinarySerializerFactory(),
                                               project::kCookedAssetExtension);
         foundation::resource::ResourceManager resources(foundation::core::DefaultAllocator(), db);
-        script::ScriptClassFactory scriptFactory(DefaultAllocator());
+        script::BehaviorClassFactory scriptFactory(DefaultAllocator());
         resources.AddFactory(&scriptFactory);
 
-        foundation::resource::Proxy<script::ScriptClass> proxy =
-            resources.Bind<script::ScriptClass>(manifest.startupScriptId);
+        foundation::resource::Proxy<script::BehaviorClass> proxy =
+            resources.Bind<script::BehaviorClass>(manifest.startupScriptId);
         REQUIRE(static_cast<bool>(proxy));
         CHECK(proxy->className == u8"Game"); // the cook harvested the class
         CHECK(proxy->source.Size() > 0u);    // the source is in the pak
@@ -267,7 +267,7 @@ TEST_CASE("export: project -> dist pak -> player-style load-back (versioned form
             REQUIRE(scene::SaveScene(scene, *sceneInstance).IsOk());
         }
 
-        // The startup script is a ScriptClass asset named by guid (the player binds it from the
+        // The startup script is a BehaviorClass asset named by guid (the player binds it from the
         // content DB). This test only checks that the manifest carries the guid; the full export and
         // bind of a script asset is DriveStartupScriptExport above.
         project->Settings().defaultSceneId = sceneId;

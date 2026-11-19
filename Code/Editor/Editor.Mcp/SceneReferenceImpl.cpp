@@ -501,38 +501,38 @@ namespace
         HashMap<u64, scene::EntityHandle> entityByManager; // the entity carrying each manager's component
     };
 
-    script::ScriptPropertyValue SampleValue(script::ScriptPropertyType kind, const Guid& child,
+    script::BehaviorPropertyValue SampleValue(script::BehaviorPropertyType kind, const Guid& child,
                                             Random& rng)
     {
-        script::ScriptPropertyValue value;
+        script::BehaviorPropertyValue value;
         value.kind = kind;
         switch (kind)
         {
-        case script::ScriptPropertyType::Float:
+        case script::BehaviorPropertyType::Float:
             value.number = 1.5;
             break;
-        case script::ScriptPropertyType::Int:
+        case script::BehaviorPropertyType::Int:
             value.number = 3.0;
             break;
-        case script::ScriptPropertyType::Bool:
+        case script::BehaviorPropertyType::Bool:
             value.boolean = true;
             break;
-        case script::ScriptPropertyType::String:
+        case script::BehaviorPropertyType::String:
             value.text = String(u8"hello");
             break;
-        case script::ScriptPropertyType::Color:
+        case script::BehaviorPropertyType::Color:
             value.color = Color{1.0f, 0.5f, 0.25f, 1.0f};
             break;
-        case script::ScriptPropertyType::Vec3:
+        case script::BehaviorPropertyType::Vec3:
             value.vector = Float3{1.0f, 2.0f, 3.0f};
             break;
-        case script::ScriptPropertyType::Entity:
+        case script::BehaviorPropertyType::Entity:
             value.guid = child;
             break;
-        case script::ScriptPropertyType::Asset:
+        case script::BehaviorPropertyType::Asset:
             value.guid = Guid::Generate(rng);
             break;
-        case script::ScriptPropertyType::None:
+        case script::BehaviorPropertyType::None:
             break;
         }
         return value;
@@ -585,10 +585,10 @@ namespace
         const Guid childId = world.GetEntityId(example.child);
         engine::behavior::AttachedBehavior behaviour;
         behaviour.behaviorClass.SetId(Guid::Generate(rng));
-        for (const script::ScriptPropertyTypeEntry& entry : script::ScriptPropertyTypeNames())
+        for (const script::BehaviorPropertyTypeEntry& entry : script::ScriptPropertyTypeNames())
         {
             const String name = Format(u8"{}Value", entry.name);
-            behaviour.SetOverride(script::ScriptPropertyNameHash(name.AsView()),
+            behaviour.SetOverride(script::BehaviorPropertyNameHash(name.AsView()),
                                   SampleValue(entry.kind, childId, rng));
         }
         component->behaviors.PushBack(Move(behaviour));
@@ -848,7 +848,7 @@ namespace
         // The override record as the BehaviorComponent writes it.
         {
             SchemaRecorder recorder(allocator);
-            engine::behavior::ScriptPropertyOverride record;
+            engine::behavior::BehaviorPropertyOverride record;
             Serialize(recorder, record);
             out.Set(u8"record", FieldsJson(recorder.Root(), nullptr, ctx));
         }
@@ -868,7 +868,7 @@ namespace
             JsonValue example = JsonValue::MakeObject();
             example.Set(u8"name", JsonValue::MakeString(String(exampleName)));
             example.Set(u8"nameHash",
-                        JsonValue::MakeString(Decimal(script::ScriptPropertyNameHash(exampleName))));
+                        JsonValue::MakeString(Decimal(script::BehaviorPropertyNameHash(exampleName))));
             hash.Set(u8"example", Move(example));
             out.Set(u8"hash", Move(hash));
         }
@@ -876,16 +876,16 @@ namespace
         // value uses, taken from the value's own Serialize one kind at a time.
         {
             JsonValue kinds = JsonValue::MakeArray();
-            for (const script::ScriptPropertyTypeEntry& entry : script::ScriptPropertyTypeNames())
+            for (const script::BehaviorPropertyTypeEntry& entry : script::ScriptPropertyTypeNames())
             {
-                script::ScriptPropertyValue value;
+                script::BehaviorPropertyValue value;
                 value.kind = entry.kind;
                 SchemaRecorder recorder(allocator);
                 Serialize(recorder, value);
                 JsonValue kind = JsonValue::MakeObject();
                 kind.Set(u8"kind", JsonValue::MakeNumber(static_cast<f64>(static_cast<u8>(entry.kind))));
                 kind.Set(u8"name", JsonValue::MakeString(String(entry.name)));
-                if (entry.kind == script::ScriptPropertyType::Asset)
+                if (entry.kind == script::BehaviorPropertyType::Asset)
                 {
                     kind.Set(u8"authoredAs",
                              JsonValue::MakeString(Format(u8"{}<TypeName>", script::kScriptAssetTypePrefix)));

@@ -168,7 +168,7 @@ namespace
             scripts->SetRunHost(&host);
         }
 
-        void AddScripted(const RefPtr<ScriptClass>& cls, u32 count)
+        void AddScripted(const RefPtr<BehaviorClass>& cls, u32 count)
         {
             for (u32 i = 0; i < count; ++i)
             {
@@ -237,9 +237,9 @@ namespace
         }
     };
 
-    [[nodiscard]] RefPtr<ScriptClass> MakeClass(StringView language, StringView className, StringView source)
+    [[nodiscard]] RefPtr<BehaviorClass> MakeClass(StringView language, StringView className, StringView source)
     {
-        RefPtr<ScriptClass> cls = MakeRef<ScriptClass>(DefaultAllocator());
+        RefPtr<BehaviorClass> cls = MakeRef<BehaviorClass>(DefaultAllocator());
         cls->language = String(language);
         cls->className = String(className);
         cls->kind = BehaviorKind::Entity; // every measured behavior sits on an entity

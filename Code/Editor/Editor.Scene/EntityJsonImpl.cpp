@@ -11,7 +11,7 @@ import foundation.json;
 import foundation.scene;
 import foundation.scene.resource;
 import foundation.resource;
-import foundation.script.resource; // ScriptClass, ScriptPropertyValue (a behaviour's overrides)
+import foundation.script.resource; // BehaviorClass, BehaviorPropertyValue (a behaviour's overrides)
 import engine.behavior;              // BehaviorComponent (its behaviours, a hidden list)
 
 using namespace foundation::core;
@@ -222,26 +222,26 @@ namespace editor
 
     namespace
     {
-        JsonValue ScriptValueJson(const foundation::script::ScriptPropertyValue& value)
+        JsonValue ScriptValueJson(const foundation::script::BehaviorPropertyValue& value)
         {
-            using foundation::script::ScriptPropertyType;
+            using foundation::script::BehaviorPropertyType;
             switch (value.kind)
             {
-            case ScriptPropertyType::Float:
-            case ScriptPropertyType::Int:
+            case BehaviorPropertyType::Float:
+            case BehaviorPropertyType::Int:
                 return JsonValue::MakeNumber(value.number);
-            case ScriptPropertyType::Bool:
+            case BehaviorPropertyType::Bool:
                 return JsonValue::MakeBool(value.boolean);
-            case ScriptPropertyType::String:
+            case BehaviorPropertyType::String:
                 return JsonValue::MakeString(value.text);
-            case ScriptPropertyType::Vec3:
+            case BehaviorPropertyType::Vec3:
                 return Float3Json(value.vector);
-            case ScriptPropertyType::Color:
+            case BehaviorPropertyType::Color:
                 return QuadJson(value.color.r, value.color.g, value.color.b, value.color.a);
-            case ScriptPropertyType::Entity:
-            case ScriptPropertyType::Asset:
+            case BehaviorPropertyType::Entity:
+            case BehaviorPropertyType::Asset:
                 return value.guid.IsNil() ? JsonValue::MakeNull() : GuidJson(value.guid);
-            case ScriptPropertyType::None:
+            case BehaviorPropertyType::None:
                 break;
             }
             return JsonValue::MakeNull();
@@ -258,19 +258,19 @@ namespace editor
                 JsonValue entry = JsonValue::MakeObject();
                 const Guid id = behavior.behaviorClass.id;
                 entry.Set(u8"class", id.IsNil() ? JsonValue::MakeNull() : GuidJson(id));
-                const foundation::script::ScriptClass* scriptClass = behavior.behaviorClass.Get();
+                const foundation::script::BehaviorClass* scriptClass = behavior.behaviorClass.Get();
                 if (scriptClass == nullptr && resources != nullptr && !id.IsNil())
                 {
-                    scriptClass = resources->Bind<foundation::script::ScriptClass>(id).Get();
+                    scriptClass = resources->Bind<foundation::script::BehaviorClass>(id).Get();
                 }
                 entry.Set(u8"className", scriptClass != nullptr
                                              ? JsonValue::MakeString(scriptClass->className)
                                              : JsonValue::MakeNull());
                 entry.Set(u8"enabled", JsonValue::MakeBool(behavior.enabled));
                 JsonValue properties = JsonValue::MakeObject();
-                for (const engine::behavior::ScriptPropertyOverride& o : behavior.overrides)
+                for (const engine::behavior::BehaviorPropertyOverride& o : behavior.overrides)
                 {
-                    const foundation::script::ScriptPropertyDesc* desc =
+                    const foundation::script::BehaviorProperty* desc =
                         scriptClass != nullptr ? scriptClass->FindProperty(o.nameHash) : nullptr;
                     properties.Set(desc != nullptr ? desc->name : Format(u8"#{}", o.nameHash),
                                    ScriptValueJson(o.value));
@@ -281,7 +281,7 @@ namespace editor
                 if (behavior.instance.Get() != nullptr && scriptClass != nullptr)
                 {
                     JsonValue live = JsonValue::MakeObject();
-                    for (const foundation::script::ScriptPropertyDesc& desc : scriptClass->properties)
+                    for (const foundation::script::BehaviorProperty& desc : scriptClass->properties)
                     {
                         Result<Variant> value = behavior.instance->GetProperty(desc.name.AsView());
                         if (value.HasValue())

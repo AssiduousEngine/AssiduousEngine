@@ -35,7 +35,7 @@ import foundation.gui;
 import foundation.gui.hosting;
 import foundation.gui.viewport;
 import foundation.script;
-import foundation.script.resource;  // ScriptClass (the cooked game script, bound from the content DB)
+import foundation.script.resource;  // BehaviorClass (the cooked game script, bound from the content DB)
 import engine.behavior; // BehaviorSubsystem and BehaviorRunHost (debugger wiring)
 import foundation.shell;
 import foundation.input;
@@ -1124,14 +1124,14 @@ namespace editor
 
     void GameEditorPage::StartGameScriptFromProject()
     {
-        // The startup script is a cooked ScriptClass asset, identified by its guid and bound from
+        // The startup script is a cooked BehaviorClass asset, identified by its guid and bound from
         // the content DB like every other asset, never from a raw source path.
         const Guid scriptId = m_context->Project()->Settings().startupScriptId;
         if (scriptId.IsNil() || m_context->Resources() == nullptr)
         {
             return;
         }
-        auto proxy = m_context->Resources()->Bind<foundation::script::ScriptClass>(scriptId);
+        auto proxy = m_context->Resources()->Bind<foundation::script::BehaviorClass>(scriptId);
         if (!proxy || proxy->source.IsEmpty())
         {
             m_context->Notify(NoticeKind::Warning, u8"Game: startup script asset not found.");

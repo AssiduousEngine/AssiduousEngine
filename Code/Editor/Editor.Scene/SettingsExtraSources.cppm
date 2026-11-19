@@ -11,7 +11,7 @@
 //     since a body keeps its group by index (removing another would renumber the ones after it, a
 //     remap of every body this source does not make). A scene without groups shows one, Default.
 //   - the scene script block's level properties: its Level class's properties by their kinds, as
-//     a behaviour's are (ScriptPropertyRows), each an override on the block while it differs.
+//     a behaviour's are (BehaviorPropertyRows), each an override on the block while it differs.
 // Every edit is the edit context's MutateSceneSettings, so one undo step.
 
 module;
@@ -113,7 +113,7 @@ export namespace editor
 
     private:
         [[nodiscard]] const engine::behavior::SceneBehaviorSettings* Settings() const;
-        [[nodiscard]] const foundation::script::ScriptClass* Class() const;
+        [[nodiscard]] const foundation::script::BehaviorClass* Class() const;
         [[nodiscard]] u64 Signature() const;
         void Mutate(const Function<void(engine::behavior::SceneBehaviorSettings&)>& mutate);
 

@@ -4,7 +4,7 @@
 // ScriptPlayground - a foundation.script entity-behaviors consumer: a scene of cubes carrying
 // script behaviors (AngelScript or Luau, chosen with --script=<lang>) ticked by the BehaviorSubsystem
 // under simulation. Both behaviors ship a source in each language, and the run resolves the context
-// by the ScriptClass language, so the model is backend-neutral. Two behaviors demonstrate the model
+// by the BehaviorClass language, so the model is backend-neutral. Two behaviors demonstrate the model
 // end to end:
 //   * Mover - reads a `speed` float property and a `target` entity property; walks toward the
 //     target (or drifts +X when unset), using the `entity` facade's transform get/set and
@@ -12,7 +12,7 @@
 //   * Spinner - reads a `speed` float; rotates about Y every frame (Time.delta()).
 // Behavior instances are created in the run's one gameplay context, defaults applied and then
 // per-behavior overrides, and lifecycle handlers (onStart/onUpdate) dispatched, as for a cooked
-// ScriptClass; here the ScriptClass products are built in code (the pipeline tests cover the cook
+// BehaviorClass; here the BehaviorClass products are built in code (the pipeline tests cover the cook
 // path).
 //
 // The same behaviors run in Engine.Player: point a project's scene at a BehaviorComponent with these
@@ -74,7 +74,7 @@ using core::f32;
 namespace
 {
     // ---- the two behavior classes (the cook harvests these `static properties`; here
-    // we build the ScriptClass metadata by hand, since the sample links no cooker) ----
+    // we build the BehaviorClass metadata by hand, since the sample links no cooker) ----
 
     // AngelScript behaviors. The harvested editor properties are plain public member fields (the
     // neutral property-apply writes `speed`/`target` by name); handlers are onStart/onUpdate. The
@@ -159,31 +159,31 @@ namespace
     core::String g_scriptLanguage = core::String(u8"angelscript");
     [[nodiscard]] bool UseLuau() { return g_scriptLanguage.AsView() == core::StringView(u8"luau"); }
 
-    [[nodiscard]] script::ScriptPropertyDesc FloatProp(core::StringView name, f32 value,
+    [[nodiscard]] script::BehaviorProperty FloatProp(core::StringView name, f32 value,
                                                        core::StringView description)
     {
-        script::ScriptPropertyDesc desc;
+        script::BehaviorProperty desc;
         desc.name = core::String(name);
-        desc.hash = script::ScriptPropertyNameHash(name);
-        desc.type = script::ScriptPropertyType::Float;
-        desc.defaultValue.kind = script::ScriptPropertyType::Float;
+        desc.hash = script::BehaviorPropertyNameHash(name);
+        desc.type = script::BehaviorPropertyType::Float;
+        desc.defaultValue.kind = script::BehaviorPropertyType::Float;
         desc.defaultValue.number = static_cast<core::f64>(value);
         desc.description = core::String(description);
         return desc;
     }
 
-    [[nodiscard]] core::RefPtr<script::ScriptClass> MakeMover()
+    [[nodiscard]] core::RefPtr<script::BehaviorClass> MakeMover()
     {
-        auto cls = core::MakeRef<script::ScriptClass>(AppRoot());
+        auto cls = core::MakeRef<script::BehaviorClass>(AppRoot());
         cls->language = g_scriptLanguage;
         cls->className = core::String(u8"Mover");
         cls->source = core::String(UseLuau() ? kMoverSourceLuau : kMoverSource);
         cls->properties.PushBack(FloatProp(u8"speed", 2.0f, u8"units per second"));
-        script::ScriptPropertyDesc target;
+        script::BehaviorProperty target;
         target.name = core::String(u8"target");
-        target.hash = script::ScriptPropertyNameHash(u8"target");
-        target.type = script::ScriptPropertyType::Entity;
-        target.defaultValue.kind = script::ScriptPropertyType::Entity;
+        target.hash = script::BehaviorPropertyNameHash(u8"target");
+        target.type = script::BehaviorPropertyType::Entity;
+        target.defaultValue.kind = script::BehaviorPropertyType::Entity;
         cls->properties.PushBack(core::Move(target));
         cls->handlers.PushBack(core::String(u8"onStart"));
         cls->handlers.PushBack(core::String(u8"onUpdate"));
@@ -191,9 +191,9 @@ namespace
         return cls;
     }
 
-    [[nodiscard]] core::RefPtr<script::ScriptClass> MakeSpinner()
+    [[nodiscard]] core::RefPtr<script::BehaviorClass> MakeSpinner()
     {
-        auto cls = core::MakeRef<script::ScriptClass>(AppRoot());
+        auto cls = core::MakeRef<script::BehaviorClass>(AppRoot());
         cls->language = g_scriptLanguage;
         cls->className = core::String(u8"Spinner");
         cls->source = core::String(UseLuau() ? kSpinnerSourceLuau : kSpinnerSource);
@@ -331,22 +331,22 @@ namespace
                 // Behavior 1: Mover with a per-instance speed override and the target entity.
                 engine::behavior::AttachedBehavior mover;
                 mover.behaviorClass.SetDirect(m_mover);
-                script::ScriptPropertyValue speed;
-                speed.kind = script::ScriptPropertyType::Float;
+                script::BehaviorPropertyValue speed;
+                speed.kind = script::BehaviorPropertyType::Float;
                 speed.number = 0.6 + 0.25 * i; // distinct speeds
-                mover.SetOverride(script::ScriptPropertyNameHash(u8"speed"), speed);
-                script::ScriptPropertyValue target;
-                target.kind = script::ScriptPropertyType::Entity;
+                mover.SetOverride(script::BehaviorPropertyNameHash(u8"speed"), speed);
+                script::BehaviorPropertyValue target;
+                target.kind = script::BehaviorPropertyType::Entity;
                 target.guid = m_scene->GetEntityId(m_beacon);
-                mover.SetOverride(script::ScriptPropertyNameHash(u8"target"), target);
+                mover.SetOverride(script::BehaviorPropertyNameHash(u8"target"), target);
                 sc.behaviors.PushBack(core::Move(mover));
                 // Behavior 2 (ordered after the mover): Spinner, slower.
                 engine::behavior::AttachedBehavior spin;
                 spin.behaviorClass.SetDirect(m_spinner);
-                script::ScriptPropertyValue spinSpeed;
-                spinSpeed.kind = script::ScriptPropertyType::Float;
+                script::BehaviorPropertyValue spinSpeed;
+                spinSpeed.kind = script::BehaviorPropertyType::Float;
                 spinSpeed.number = 45.0;
-                spin.SetOverride(script::ScriptPropertyNameHash(u8"speed"), spinSpeed);
+                spin.SetOverride(script::BehaviorPropertyNameHash(u8"speed"), spinSpeed);
                 sc.behaviors.PushBack(core::Move(spin));
             }
         }
@@ -366,8 +366,8 @@ namespace
         scene::Scene* m_scene = nullptr;
         scene::EntityHandle m_camera{};
         scene::EntityHandle m_beacon{};
-        core::RefPtr<script::ScriptClass> m_mover;
-        core::RefPtr<script::ScriptClass> m_spinner;
+        core::RefPtr<script::BehaviorClass> m_mover;
+        core::RefPtr<script::BehaviorClass> m_spinner;
         core::ConsoleSink m_consoleSink;
         samples::FlyCamera m_fly;
     };

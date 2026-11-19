@@ -113,7 +113,7 @@ namespace engine::runtime
         return m_tls.Get();
     }
 
-    bool ApplicationRun::RefuseRunBehavior(const foundation::script::ScriptClass& scriptClass)
+    bool ApplicationRun::RefuseRunBehavior(const foundation::script::BehaviorClass& scriptClass)
     {
         StopRunBehavior();
         m_runBehaviorFault =
@@ -180,7 +180,7 @@ namespace engine::runtime
             return false;
         }
         // Wire the Game tier's on<Event> inbox to this run's bus: the shared bridge subscribes the
-        // run bus to the Game class's declared handlers (threaded in from the cooked ScriptClass),
+        // run bus to the Game class's declared handlers (threaded in from the cooked BehaviorClass),
         // fanning each through DispatchGameEvent to the Game object. There is no implicit
         // scene-to-run relay.
         m_gameEventSubs.Bind(&Events(),

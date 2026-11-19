@@ -252,7 +252,7 @@ TEST_CASE("integration.mcp: scene reference - an EntityRef field is `ref: entity
 }
 
 TEST_CASE("integration.mcp: scene reference - the script override section's worked hash is "
-          "ScriptPropertyNameHash of its name, and every authored kind names its payload key")
+          "BehaviorPropertyNameHash of its name, and every authored kind names its payload key")
 {
     Fixture f;
     const editor::mcp::SceneReference reference = f.Generate();
@@ -262,7 +262,7 @@ TEST_CASE("integration.mcp: scene reference - the script override section's work
     const String name = example.Get(u8"name").AsString();
     CHECK_FALSE(name.IsEmpty());
     CHECK(example.Get(u8"nameHash").AsString() ==
-          Format(u8"{}", foundation::script::ScriptPropertyNameHash(name.AsView())).AsView());
+          Format(u8"{}", foundation::script::BehaviorPropertyNameHash(name.AsView())).AsView());
     // The hash also matches when computed from the documented numbers alone, as an agent reading
     // the reference would compute it, so the documented basis and prime are the ones the code uses.
     {
@@ -313,7 +313,7 @@ TEST_CASE("integration.mcp: scene reference - the script override section's work
     CHECK(record.At(1).Get(u8"kind").AsString() == StringView(u8"u8"));
     // The example's behaviour carries one override per kind, hashed from "<kind>Value".
     CHECK(reference.exampleXml.AsView().ContainsIgnoreCase(
-        Format(u8"{}", foundation::script::ScriptPropertyNameHash(u8"floatValue")).AsView()));
+        Format(u8"{}", foundation::script::BehaviorPropertyNameHash(u8"floatValue")).AsView()));
 }
 
 TEST_CASE("integration.mcp: scene reference - the example loads through LoadScene into the full "

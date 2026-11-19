@@ -184,11 +184,11 @@ namespace editor
         }
 
         /// The cooked class, whose properties are the source of truth for a behaviour's.
-        Result<script::ScriptClass*, String> CookedClass(EditorContext& context, const Guid& id)
+        Result<script::BehaviorClass*, String> CookedClass(EditorContext& context, const Guid& id)
         {
-            script::ScriptClass* scriptClass =
+            script::BehaviorClass* scriptClass =
                 context.Resources() != nullptr
-                    ? context.Resources()->Bind<script::ScriptClass>(id).Get()
+                    ? context.Resources()->Bind<script::BehaviorClass>(id).Get()
                     : nullptr;
             if (scriptClass == nullptr || scriptClass->className.IsEmpty())
             {
@@ -204,13 +204,13 @@ namespace editor
         struct PropertyChange
         {
             u64 hash = 0;
-            script::ScriptPropertyValue value;
+            script::BehaviorPropertyValue value;
         };
 
         /// Each named property's value, typed by the class's description of it; all checked
         /// before anything changes.
         Result<Array<PropertyChange>, String> ReadProperties(const AddressedPage& addressed,
-                                                             const script::ScriptClass& scriptClass,
+                                                             const script::BehaviorClass& scriptClass,
                                                              const JsonValue& args)
         {
             Array<PropertyChange> out;
@@ -227,12 +227,12 @@ namespace editor
             {
                 const String name = properties.KeyAt(i);
                 const JsonValue value = properties.Get(name);
-                const script::ScriptPropertyDesc* desc =
-                    scriptClass.FindProperty(script::ScriptPropertyNameHash(name.AsView()));
+                const script::BehaviorProperty* desc =
+                    scriptClass.FindProperty(script::BehaviorPropertyNameHash(name.AsView()));
                 if (desc == nullptr)
                 {
                     String names;
-                    for (const script::ScriptPropertyDesc& p : scriptClass.properties)
+                    for (const script::BehaviorProperty& p : scriptClass.properties)
                     {
                         names += names.IsEmpty() ? u8"" : u8", ";
                         names += p.name;
@@ -247,25 +247,25 @@ namespace editor
                 bool fits = false;
                 switch (desc->type)
                 {
-                case script::ScriptPropertyType::Float:
-                case script::ScriptPropertyType::Int:
+                case script::BehaviorPropertyType::Float:
+                case script::BehaviorPropertyType::Int:
                     fits = value.IsNumber();
-                    change.value.number = desc->type == script::ScriptPropertyType::Int
+                    change.value.number = desc->type == script::BehaviorPropertyType::Int
                                               ? static_cast<f64>(value.AsInt())
                                               : value.AsNumber();
                     break;
-                case script::ScriptPropertyType::Bool:
+                case script::BehaviorPropertyType::Bool:
                     fits = value.IsBool();
                     change.value.boolean = value.AsBool();
                     break;
-                case script::ScriptPropertyType::String:
+                case script::BehaviorPropertyType::String:
                     fits = value.IsString();
                     change.value.text = value.AsString();
                     break;
-                case script::ScriptPropertyType::Vec3:
+                case script::BehaviorPropertyType::Vec3:
                     fits = ReadFloat3(value, change.value.vector);
                     break;
-                case script::ScriptPropertyType::Color:
+                case script::BehaviorPropertyType::Color:
                     fits = value.IsArray() && value.Count() == 4;
                     if (fits)
                     {
@@ -275,7 +275,7 @@ namespace editor
                                                    static_cast<f32>(value.At(3).AsNumber())};
                     }
                     break;
-                case script::ScriptPropertyType::Entity:
+                case script::BehaviorPropertyType::Entity:
                     if (value.IsNull())
                     {
                         fits = true;
@@ -292,12 +292,12 @@ namespace editor
                         fits = true;
                     }
                     break;
-                case script::ScriptPropertyType::Asset:
+                case script::BehaviorPropertyType::Asset:
                     fits = value.IsNull() ||
                            (value.IsString() &&
                             Guid::TryParse(value.AsString().AsView(), change.value.guid));
                     break;
-                case script::ScriptPropertyType::None:
+                case script::BehaviorPropertyType::None:
                     break;
                 }
                 if (!fits)
@@ -591,7 +591,7 @@ namespace editor
             {
                 return Err(Move(scriptId.Error()));
             }
-            Result<script::ScriptClass*, String> scriptClass = CookedClass(context, scriptId.Value());
+            Result<script::BehaviorClass*, String> scriptClass = CookedClass(context, scriptId.Value());
             if (!scriptClass.HasValue())
             {
                 return Err(Move(scriptClass.Error()));
@@ -670,7 +670,7 @@ namespace editor
                                   u8"component's)",
                                   edit.Scene().GetEntityName(handle), index));
             }
-            Result<script::ScriptClass*, String> scriptClass = CookedClass(
+            Result<script::BehaviorClass*, String> scriptClass = CookedClass(
                 context, component->behaviors[static_cast<usize>(index)].behaviorClass.id);
             if (!scriptClass.HasValue())
             {

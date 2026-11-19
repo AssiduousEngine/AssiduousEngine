@@ -358,7 +358,7 @@ namespace editor
 
         add(settings.defaultSceneId, ExportRootReason::DefaultScene);
 
-        // The startup game script is a cooked ScriptClass asset, identified by guid. Seed it as a
+        // The startup game script is a cooked BehaviorClass asset, identified by guid. Seed it as a
         // reachability root so it, and the assets it loads through the normal AssetRef contract, ship.
         add(settings.startupScriptId, ExportRootReason::StartupScript);
 
@@ -758,7 +758,7 @@ namespace editor
                 effectiveVariants.PushBack(Move(copy));
             }
         }
-        // The startup game script needs no special staging: it is a cooked ScriptClass asset in the
+        // The startup game script needs no special staging: it is a cooked BehaviorClass asset in the
         // reachability closure, so it is already in the content DB pak like every other asset. The
         // dist manifest carries its guid (below); the player binds it from the content DB.
         for (const ContentVariant& v : effectiveVariants)

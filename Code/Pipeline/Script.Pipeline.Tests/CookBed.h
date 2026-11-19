@@ -111,7 +111,7 @@ namespace scriptpipe
             if (outInstance == nullptr)
             {
                 outInstance = outputDb->RootGroup()->CreateInstance(
-                    u8"cooked", ScriptClassSource::StaticType());
+                    u8"cooked", BehaviorClassSource::StaticType());
             }
             ctx.output = outInstance;
             return builder.Build(asset, ctx);

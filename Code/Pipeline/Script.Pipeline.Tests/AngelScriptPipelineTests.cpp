@@ -49,10 +49,10 @@ TEST_CASE("script.pipeline: full harvest round-trip (angelscript) - source -> co
     content::Instance* instance = nullptr;
     REQUIRE(bed.Cook(u8"mover.as", u8"angelscript", instance).IsOk());
 
-    ScriptClassFactory factory(DefaultAllocator());
+    BehaviorClassFactory factory(DefaultAllocator());
     foundation::resource::ResourceManager manager(foundation::core::DefaultAllocator(), *bed.outputDb);
     manager.AddFactory(&factory);
-    foundation::resource::Proxy<ScriptClass> product = manager.Bind<ScriptClass>(instance->Id());
+    foundation::resource::Proxy<BehaviorClass> product = manager.Bind<BehaviorClass>(instance->Id());
     REQUIRE(product);
     CHECK(product->language == u8"angelscript");
     CHECK(product->className == u8"Mover");
@@ -61,45 +61,45 @@ TEST_CASE("script.pipeline: full harvest round-trip (angelscript) - source -> co
 
     // Every declared property is present and typed (looked up by hash, so declaration order is
     // irrelevant to the record's contents).
-    const ScriptPropertyDesc* speed = product->FindProperty(ScriptPropertyNameHash(u8"speed"));
+    const BehaviorProperty* speed = product->FindProperty(BehaviorPropertyNameHash(u8"speed"));
     REQUIRE(speed != nullptr);
-    CHECK(speed->type == ScriptPropertyType::Float);
+    CHECK(speed->type == BehaviorPropertyType::Float);
     CHECK(speed->defaultValue.number == doctest::Approx(4.5));
     CHECK(speed->description == u8"units per second");
 
-    const ScriptPropertyDesc* count = product->FindProperty(ScriptPropertyNameHash(u8"count"));
+    const BehaviorProperty* count = product->FindProperty(BehaviorPropertyNameHash(u8"count"));
     REQUIRE(count != nullptr);
-    CHECK(count->type == ScriptPropertyType::Int);
+    CHECK(count->type == BehaviorPropertyType::Int);
     CHECK(count->defaultValue.number == doctest::Approx(3.0));
 
-    const ScriptPropertyDesc* active = product->FindProperty(ScriptPropertyNameHash(u8"active"));
+    const BehaviorProperty* active = product->FindProperty(BehaviorPropertyNameHash(u8"active"));
     REQUIRE(active != nullptr);
-    CHECK(active->type == ScriptPropertyType::Bool);
+    CHECK(active->type == BehaviorPropertyType::Bool);
     CHECK(active->defaultValue.boolean);
 
-    const ScriptPropertyDesc* label = product->FindProperty(ScriptPropertyNameHash(u8"label"));
+    const BehaviorProperty* label = product->FindProperty(BehaviorPropertyNameHash(u8"label"));
     REQUIRE(label != nullptr);
-    CHECK(label->type == ScriptPropertyType::String);
+    CHECK(label->type == BehaviorPropertyType::String);
     CHECK(label->defaultValue.text == u8"hi");
 
-    const ScriptPropertyDesc* tint = product->FindProperty(ScriptPropertyNameHash(u8"tint"));
+    const BehaviorProperty* tint = product->FindProperty(BehaviorPropertyNameHash(u8"tint"));
     REQUIRE(tint != nullptr);
-    CHECK(tint->type == ScriptPropertyType::Color);
+    CHECK(tint->type == BehaviorPropertyType::Color);
     CHECK(tint->defaultValue.color.g == doctest::Approx(0.5f));
 
-    const ScriptPropertyDesc* offset = product->FindProperty(ScriptPropertyNameHash(u8"offset"));
+    const BehaviorProperty* offset = product->FindProperty(BehaviorPropertyNameHash(u8"offset"));
     REQUIRE(offset != nullptr);
-    CHECK(offset->type == ScriptPropertyType::Vec3);
+    CHECK(offset->type == BehaviorPropertyType::Vec3);
     CHECK(offset->defaultValue.vector.z == doctest::Approx(3.0f));
 
-    const ScriptPropertyDesc* target = product->FindProperty(ScriptPropertyNameHash(u8"target"));
+    const BehaviorProperty* target = product->FindProperty(BehaviorPropertyNameHash(u8"target"));
     REQUIRE(target != nullptr);
-    CHECK(target->type == ScriptPropertyType::Entity);
+    CHECK(target->type == BehaviorPropertyType::Entity);
     CHECK(target->defaultValue.guid.IsNil());
 
-    const ScriptPropertyDesc* clip = product->FindProperty(ScriptPropertyNameHash(u8"clip"));
+    const BehaviorProperty* clip = product->FindProperty(BehaviorPropertyNameHash(u8"clip"));
     REQUIRE(clip != nullptr);
-    CHECK(clip->type == ScriptPropertyType::Asset);
+    CHECK(clip->type == BehaviorPropertyType::Asset);
     CHECK(clip->assetType == u8"AudioClip");
 
     CHECK(product->HasHandler(u8"onStart"));
@@ -127,14 +127,14 @@ TEST_CASE("script.pipeline: facade-using behaviors compile at cook (the cook VM 
     CHECK(bed.Cook(u8"mover.as", u8"angelscript", instance).IsOk());
 }
 
-TEST_CASE("script.pipeline: a ScriptClass-less utility module cooks with empty metadata")
+TEST_CASE("script.pipeline: a BehaviorClass-less utility module cooks with empty metadata")
 {
     CookBed bed(u8"as_util");
     bed.WriteSource(u8"util.as", u8"int Helper = 42;\n");
     content::Instance* instance = nullptr;
     REQUIRE(bed.Cook(u8"util.as", u8"angelscript", instance).IsOk());
     RefPtr<ISerializable> object = instance->ReadObject();
-    ScriptClassSource* cooked = Cast<ScriptClassSource>(object.Get());
+    BehaviorClassSource* cooked = Cast<BehaviorClassSource>(object.Get());
     REQUIRE(cooked != nullptr);
     CHECK(cooked->className.IsEmpty());
     CHECK(cooked->properties.IsEmpty());
@@ -154,7 +154,7 @@ TEST_CASE("script.pipeline: compile errors FAIL the cook and the last good recor
     CHECK_FALSE(bed.Cook(u8"mover.as", u8"angelscript", instance).IsOk());
 
     RefPtr<ISerializable> object = instance->ReadObject();
-    ScriptClassSource* cooked = Cast<ScriptClassSource>(object.Get());
+    BehaviorClassSource* cooked = Cast<BehaviorClassSource>(object.Get());
     REQUIRE(cooked != nullptr); // the last good record
     CHECK(cooked->className == u8"Mover");
     CHECK(cooked->source == kMoverSource);
@@ -174,7 +174,7 @@ TEST_CASE("script.pipeline: B3 - the neutral builder resolves a per-language COO
             return String(u8"// fake\n");
         }
         [[nodiscard]] bool Cook(StringView source, StringView, CookScriptErrorSink&,
-                                ScriptClassSource& out, IScriptIncludeReader* = nullptr) override
+                                BehaviorClassSource& out, IScriptIncludeReader* = nullptr) override
         {
             ++cooked;
             out.language = String(u8"faketest");
@@ -210,14 +210,14 @@ TEST_CASE("script.pipeline: B3 - the neutral builder resolves a per-language COO
     CHECK(cooked == 1); // the cook came from the registry, by language
 
     RefPtr<ISerializable> object = instance->ReadObject();
-    ScriptClassSource* record = Cast<ScriptClassSource>(object.Get());
+    BehaviorClassSource* record = Cast<BehaviorClassSource>(object.Get());
     REQUIRE(record != nullptr);
     CHECK(record->language == u8"faketest");
     CHECK(record->properties.IsEmpty()); // the fake cook harvests nothing
 
     // An asset naming an unregistered language fails the cook cleanly (no cook resolves).
     content::Instance* second =
-        bed.outputDb->RootGroup()->CreateInstance(u8"cooked2", ScriptClassSource::StaticType());
+        bed.outputDb->RootGroup()->CreateInstance(u8"cooked2", BehaviorClassSource::StaticType());
     ScriptClassAsset asset;
     asset.fileName = foundation::vfs::SourcePath(u8"fake.ftl");
     asset.language = String(u8"nosuchlang");
@@ -249,12 +249,12 @@ TEST_CASE("script.pipeline: the New Asset starter template cooks with its declar
     content::Instance* instance = nullptr;
     REQUIRE(bed.Cook(u8"starter.as", u8"angelscript", instance).IsOk());
     RefPtr<ISerializable> object = instance->ReadObject();
-    ScriptClassSource* cooked = Cast<ScriptClassSource>(object.Get());
+    BehaviorClassSource* cooked = Cast<BehaviorClassSource>(object.Get());
     REQUIRE(cooked != nullptr);
     CHECK(cooked->className == u8"NewBehavior");
     REQUIRE(cooked->properties.Size() == 1u);
     CHECK(cooked->properties[0].name == u8"speed");
-    CHECK(cooked->properties[0].type == ScriptPropertyType::Float);
+    CHECK(cooked->properties[0].type == BehaviorPropertyType::Float);
     CHECK(cooked->handlers.Size() == 3u); // onStart, onUpdate, onDestroy
 }
 
@@ -278,12 +278,12 @@ TEST_CASE("script.pipeline: ScriptSourceDocument is the ScriptPage save->recook 
     CHECK(doc.ClassName() == u8"Mover");
     CHECK(doc.Errors().Size() == 0u);
 
-    // The recook (the builder over the saved file) produces an updated cooked ScriptClass.
+    // The recook (the builder over the saved file) produces an updated cooked BehaviorClass.
     content::Instance* product = nullptr;
     REQUIRE(bed.Cook(u8"mover.as", u8"angelscript", product).IsOk());
     {
         RefPtr<ISerializable> object = product->ReadObject();
-        ScriptClassSource* cooked = Cast<ScriptClassSource>(object.Get());
+        BehaviorClassSource* cooked = Cast<BehaviorClassSource>(object.Get());
         REQUIRE(cooked != nullptr);
         CHECK(cooked->className == u8"Mover");
     }
@@ -312,7 +312,7 @@ TEST_CASE("script.pipeline: ScriptSourceDocument is the ScriptPage save->recook 
     CHECK_FALSE(bed.Cook(u8"mover.as", u8"angelscript", product).IsOk());
     {
         RefPtr<ISerializable> object = product->ReadObject();
-        ScriptClassSource* cooked = Cast<ScriptClassSource>(object.Get());
+        BehaviorClassSource* cooked = Cast<BehaviorClassSource>(object.Get());
         REQUIRE(cooked != nullptr);
         CHECK(cooked->className == u8"Mover"); // unchanged: the failed cook never wrote
     }
@@ -412,14 +412,14 @@ TEST_CASE("script.pipeline: an imported script plays its class deriving from a k
     {
         content::Instance* out = bed.outputDb->RootGroup()->GetInstance(u8"cooked");
         if (out == nullptr)
-            out = bed.outputDb->RootGroup()->CreateInstance(u8"cooked", ScriptClassSource::StaticType());
+            out = bed.outputDb->RootGroup()->CreateInstance(u8"cooked", BehaviorClassSource::StaticType());
         ScriptClassAssetBuilder builder;
         pipeline::AssetBuildContext ctx{DefaultAllocator()};
         ctx.sources = &sourcesMount;
         ctx.output = out;
         const bool ok = builder.Build(asset, ctx).IsOk();
         RefPtr<ISerializable> object = out->ReadObject();
-        if (const ScriptClassSource* cooked = Cast<ScriptClassSource>(object.Get()); ok && cooked != nullptr)
+        if (const BehaviorClassSource* cooked = Cast<BehaviorClassSource>(object.Get()); ok && cooked != nullptr)
             className = cooked->className;
         return ok;
     };
@@ -526,10 +526,10 @@ TEST_CASE("script.pipeline: an included file is a cook input and travels in the 
 
     content::Instance* instance = nullptr;
     REQUIRE(bed.Cook(u8"Game/Boot.as", u8"angelscript", instance).IsOk());
-    ScriptClassFactory factory(DefaultAllocator());
+    BehaviorClassFactory factory(DefaultAllocator());
     foundation::resource::ResourceManager manager(DefaultAllocator(), *bed.outputDb);
     manager.AddFactory(&factory);
-    foundation::resource::Proxy<ScriptClass> product = manager.Bind<ScriptClass>(instance->Id());
+    foundation::resource::Proxy<BehaviorClass> product = manager.Bind<BehaviorClass>(instance->Id());
     REQUIRE(product);
     REQUIRE(product->includes.Size() == 2u);
     CHECK(product->includes[0].path == u8"Game/Rules.as");
@@ -605,7 +605,7 @@ TEST_CASE("script.pipeline: a class's handlers come from the compiled class, a b
     REQUIRE(cook != nullptr);
     FolderIncludeReader reader(bed.srcDir.AsView());
     CookScriptErrorSink sink;
-    ScriptClassSource out;
+    BehaviorClassSource out;
     REQUIRE(cook->Cook(u8"#include \"Base.as\"\n"
                        u8"void onPing(int n) {}\n"
                        u8"class Mover : Base, EntityBehavior {\n"

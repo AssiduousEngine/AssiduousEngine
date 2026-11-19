@@ -107,7 +107,7 @@ export namespace editor::mcp
 
                 const String source = args.Get(u8"source").AsString();
                 pipeline::CookScriptErrorSink sink;
-                foundation::script::ScriptClassSource harvested;
+                foundation::script::BehaviorClassSource harvested;
                 // The files it includes, from the open project's sources (`name` is its path there).
                 pipeline::FolderIncludeReader includes(session.project != nullptr ? session.project->SourcesRoot().AsView() : StringView{},
                                                        session.project != nullptr ? session.project->CodeRoot().AsView() : StringView{});
@@ -161,7 +161,7 @@ export namespace editor::mcp
                     }
                     out.Set(u8"handlers", Move(handlers));
                     JsonValue properties = JsonValue::MakeArray();
-                    for (const foundation::script::ScriptPropertyDesc& p : harvested.properties)
+                    for (const foundation::script::BehaviorProperty& p : harvested.properties)
                     {
                         properties.Add(JsonValue::MakeString(p.name));
                     }

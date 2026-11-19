@@ -16,7 +16,7 @@ import foundation.resource;          // ResourceManager
 import foundation.vfs;               // NativeFileSystem
 import foundation.script;
 import foundation.script.facades; // RegisterScriptFacadeReflection (the Scene facade)
-import foundation.script.resource; // ScriptClass (the cooked Game class a run starts from)
+import foundation.script.resource; // BehaviorClass (the cooked Game class a run starts from)
 import foundation.script.angelscript;
 import foundation.script.luau;
 import foundation.net;         // NetSession queries (IsServer/PeerCount)
@@ -982,7 +982,7 @@ TEST_CASE("game-instance: the Game tier's on<Event> inbox harvests the run bus (
     foundation::script::angelscript::RegisterAngelScriptBackend();
 
     engine::runtime::ApplicationRun gi;
-    const String handlers[] = {String(u8"onPing")}; // the cooked ScriptClass's handler list
+    const String handlers[] = {String(u8"onPing")}; // the cooked BehaviorClass's handler list
     const bool ok = gi.StartRunBehavior(u8"double Pinged = 0;\n"
                                    u8"class Game : RunBehavior {\n"
                                    u8"  Game() {}\n"
@@ -1020,7 +1020,7 @@ TEST_CASE("game-instance: a Game started from its cooked class hears the run bus
     engine::runtime::RegisterRunScriptFacade();
     foundation::script::angelscript::RegisterAngelScriptBackend();
 
-    foundation::script::ScriptClass cooked;
+    foundation::script::BehaviorClass cooked;
     cooked.language = String(u8"angelscript");
     cooked.className = String(u8"Game");
     cooked.kind = foundation::script::BehaviorKind::Run;
@@ -2176,7 +2176,7 @@ TEST_CASE("game-instance: a Game built into an assembly starts from it, not from
     foundation::script::ScriptBackendRegistry::Get().Register(Move(backend));
     g_assembled = AssembledSeen{};
 
-    foundation::script::ScriptClass cooked;
+    foundation::script::BehaviorClass cooked;
     cooked.language = String(u8"assembled");
     cooked.className = String(u8"Game");
     cooked.kind = foundation::script::BehaviorKind::Run;
@@ -2208,7 +2208,7 @@ TEST_CASE("game-instance: a cooked class that is not a RunBehavior is refused as
 {
     RegisterCoreTypes();
     foundation::script::angelscript::RegisterAngelScriptBackend();
-    foundation::script::ScriptClass cooked;
+    foundation::script::BehaviorClass cooked;
     cooked.language = String(u8"angelscript");
     cooked.sourceName = String(u8"mover.as");
     cooked.className = String(u8"Mover");

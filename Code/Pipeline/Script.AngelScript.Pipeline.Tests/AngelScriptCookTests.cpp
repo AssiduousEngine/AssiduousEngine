@@ -56,14 +56,14 @@ TEST_CASE("as.cook: the scene and run behavior starters cook to a class named af
 
     {
         CookScriptErrorSink sink;
-        ScriptClassSource out;
+        BehaviorClassSource out;
         REQUIRE(cook->Cook(level, u8"Arena.as", sink, out));
         CHECK(out.className == u8"Arena");
         CHECK(out.kind == BehaviorKind::Scene);
     }
     {
         CookScriptErrorSink sink;
-        ScriptClassSource out;
+        BehaviorClassSource out;
         REQUIRE(cook->Cook(game, u8"Heist.as", sink, out));
         CHECK(out.className == u8"Heist");
         CHECK(out.kind == BehaviorKind::Run);
@@ -77,7 +77,7 @@ TEST_CASE("as.cook: an AngelScript behavior compile-checks, scans its on<Upper>(
     REQUIRE(cook != nullptr);
 
     CookScriptErrorSink sink;
-    ScriptClassSource out;
+    BehaviorClassSource out;
     const bool ok = cook->Cook(u8"class Bouncer : EntityBehavior\n"
                                u8"{\n"
                                u8"    private Entity self;\n"
@@ -111,9 +111,9 @@ TEST_CASE("as.cook: an AngelScript behavior compile-checks, scans its on<Upper>(
 namespace
 {
     // Finds a harvested property by name (order-independent assertions).
-    [[nodiscard]] const ScriptPropertyDesc* FindProp(const ScriptClassSource& out, StringView name)
+    [[nodiscard]] const BehaviorProperty* FindProp(const BehaviorClassSource& out, StringView name)
     {
-        for (const ScriptPropertyDesc& p : out.properties)
+        for (const BehaviorProperty& p : out.properties)
         {
             if (p.name.AsView() == name)
             {
@@ -126,13 +126,13 @@ namespace
 }
 
 TEST_CASE("as.cook: harvests [metadata] member fields of every supported type into "
-          "ScriptPropertyDesc (name, type, default, description, asset type)")
+          "BehaviorProperty (name, type, default, description, asset type)")
 {
     IScriptLanguageCook* cook = AngelScriptCook();
     REQUIRE(cook != nullptr);
 
     CookScriptErrorSink sink;
-    ScriptClassSource out;
+    BehaviorClassSource out;
     const bool ok = cook->Cook(u8"class Kitchen : EntityBehavior\n"
                                u8"{\n"
                                u8"    [4.0, \"units per second\"] float   speed;\n"
@@ -152,56 +152,56 @@ TEST_CASE("as.cook: harvests [metadata] member fields of every supported type in
     CHECK(out.properties.Size() == 8u); // noMeta is not a property
     CHECK(FindProp(out, u8"noMeta") == nullptr);
 
-    const ScriptPropertyDesc* speed = FindProp(out, u8"speed");
+    const BehaviorProperty* speed = FindProp(out, u8"speed");
     REQUIRE(speed != nullptr);
-    CHECK(speed->type == ScriptPropertyType::Float);
-    CHECK(speed->hash == ScriptPropertyNameHash(u8"speed"));
+    CHECK(speed->type == BehaviorPropertyType::Float);
+    CHECK(speed->hash == BehaviorPropertyNameHash(u8"speed"));
     CHECK(Near(speed->defaultValue.number, 4.0));
     CHECK(speed->description == u8"units per second");
 
-    const ScriptPropertyDesc* hp = FindProp(out, u8"hp");
+    const BehaviorProperty* hp = FindProp(out, u8"hp");
     REQUIRE(hp != nullptr);
-    CHECK(hp->type == ScriptPropertyType::Int);
+    CHECK(hp->type == BehaviorPropertyType::Int);
     CHECK(Near(hp->defaultValue.number, 7.0));
     CHECK(hp->description == u8"hit points");
 
-    const ScriptPropertyDesc* active = FindProp(out, u8"active");
+    const BehaviorProperty* active = FindProp(out, u8"active");
     REQUIRE(active != nullptr);
-    CHECK(active->type == ScriptPropertyType::Bool);
+    CHECK(active->type == BehaviorPropertyType::Bool);
     CHECK(active->defaultValue.boolean == true);
     CHECK(active->description.IsEmpty());
 
-    const ScriptPropertyDesc* greeting = FindProp(out, u8"greeting");
+    const BehaviorProperty* greeting = FindProp(out, u8"greeting");
     REQUIRE(greeting != nullptr);
-    CHECK(greeting->type == ScriptPropertyType::String);
+    CHECK(greeting->type == BehaviorPropertyType::String);
     CHECK(greeting->defaultValue.text == u8"hello");
     CHECK(greeting->description == u8"greeting");
 
-    const ScriptPropertyDesc* tint = FindProp(out, u8"tint");
+    const BehaviorProperty* tint = FindProp(out, u8"tint");
     REQUIRE(tint != nullptr);
-    CHECK(tint->type == ScriptPropertyType::Color);
+    CHECK(tint->type == BehaviorPropertyType::Color);
     CHECK(Near(tint->defaultValue.color.r, 1.0));
     CHECK(Near(tint->defaultValue.color.g, 0.5));
     CHECK(Near(tint->defaultValue.color.b, 0.25));
     CHECK(Near(tint->defaultValue.color.a, 1.0));
     CHECK(tint->description == u8"tint");
 
-    const ScriptPropertyDesc* dir = FindProp(out, u8"dir");
+    const BehaviorProperty* dir = FindProp(out, u8"dir");
     REQUIRE(dir != nullptr);
-    CHECK(dir->type == ScriptPropertyType::Vec3);
+    CHECK(dir->type == BehaviorPropertyType::Vec3);
     CHECK(Near(dir->defaultValue.vector.x, 0.0));
     CHECK(Near(dir->defaultValue.vector.y, 1.0));
     CHECK(Near(dir->defaultValue.vector.z, 0.0));
 
-    const ScriptPropertyDesc* target = FindProp(out, u8"target");
+    const BehaviorProperty* target = FindProp(out, u8"target");
     REQUIRE(target != nullptr);
-    CHECK(target->type == ScriptPropertyType::Entity);
+    CHECK(target->type == BehaviorPropertyType::Entity);
     CHECK(target->defaultValue.guid.IsNil()); // null default
     CHECK(target->description == u8"the target");
 
-    const ScriptPropertyDesc* clip = FindProp(out, u8"clip");
+    const BehaviorProperty* clip = FindProp(out, u8"clip");
     REQUIRE(clip != nullptr);
-    CHECK(clip->type == ScriptPropertyType::Asset);
+    CHECK(clip->type == BehaviorPropertyType::Asset);
     CHECK(clip->assetType == u8"AudioClip");
     CHECK(clip->description == u8"sfx");
 }
@@ -211,7 +211,7 @@ TEST_CASE("as.cook: a metadata'd field of an unsupported type FAILS the cook")
     IScriptLanguageCook* cook = AngelScriptCook();
     REQUIRE(cook != nullptr);
     CookScriptErrorSink sink;
-    ScriptClassSource out;
+    BehaviorClassSource out;
     // A Guid without the asset:<TypeName> tag is not a resolvable property type.
     CHECK_FALSE(cook->Cook(u8"class Bad : EntityBehavior { [42] Guid mystery; void onUpdate(double dt) {} }\n",
                            u8"bad.as", sink, out));
@@ -226,7 +226,7 @@ TEST_CASE("as.cook: a `replicated` word marks a property; a stray word or a repl
     REQUIRE(cook != nullptr);
     {
         CookScriptErrorSink sink;
-        ScriptClassSource out;
+        BehaviorClassSource out;
         REQUIRE(cook->Cook(u8"class Guest : EntityBehavior {\n"
                            u8"  [0, \"What the guest is doing\", replicated] int activity;\n"
                            u8"  [1.5, replicated] float pace;\n"
@@ -234,7 +234,7 @@ TEST_CASE("as.cook: a `replicated` word marks a property; a stray word or a repl
                            u8"  void onUpdate(double dt) {} }\n",
                            u8"Guest.as", sink, out));
         REQUIRE(out.properties.Size() == 3u);
-        for (const ScriptPropertyDesc& p : out.properties)
+        for (const BehaviorProperty& p : out.properties)
         {
             if (p.name == u8"activity")
             {
@@ -254,7 +254,7 @@ TEST_CASE("as.cook: a `replicated` word marks a property; a stray word or a repl
     }
     {
         CookScriptErrorSink sink;
-        ScriptClassSource out;
+        BehaviorClassSource out;
         CHECK_FALSE(cook->Cook(u8"class Guest : EntityBehavior { [0, replicate] int activity; void onUpdate(double dt) {} }\n",
                                u8"Guest.as", sink, out));
         REQUIRE(sink.errors.Size() == 1u);
@@ -262,7 +262,7 @@ TEST_CASE("as.cook: a `replicated` word marks a property; a stray word or a repl
     }
     {
         CookScriptErrorSink sink;
-        ScriptClassSource out;
+        BehaviorClassSource out;
         CHECK_FALSE(cook->Cook(u8"class Guest : EntityBehavior { [null, replicated] Entity partner; void onUpdate(double dt) {} }\n",
                                u8"Guest.as", sink, out));
         REQUIRE(sink.errors.Size() == 1u);
@@ -278,14 +278,14 @@ TEST_CASE("as.cook: a plain property is a value member; one declared as a handle
     REQUIRE(cook != nullptr);
     {
         CookScriptErrorSink sink;
-        ScriptClassSource out;
+        BehaviorClassSource out;
         CHECK(cook->Cook(u8"class Good : EntityBehavior { [\"asset:Mesh\"] Guid mesh; [(1,1,1,1)] Color tint; [null] Entity target;\n"
                          u8"  void onUpdate(double dt){} }\n",
                          u8"good.as", sink, out));
         CHECK(out.properties.Size() == 3u);
     }
     CookScriptErrorSink sink;
-    ScriptClassSource out;
+    BehaviorClassSource out;
     CHECK_FALSE(cook->Cook(u8"class Old : EntityBehavior { [(1,1,1,1)] Color@ tint; void onUpdate(double dt){} }\n",
                            u8"old.as", sink, out));
     REQUIRE_FALSE(sink.errors.IsEmpty());
@@ -297,7 +297,7 @@ TEST_CASE("as.cook: the starter template itself compiles clean")
     IScriptLanguageCook* cook = AngelScriptCook();
     REQUIRE(cook != nullptr);
     CookScriptErrorSink sink;
-    ScriptClassSource out;
+    BehaviorClassSource out;
     CHECK(cook->Cook(cook->NewAssetTemplate(ScriptTier::Behavior, {}), u8"NewBehavior.as", sink, out));
     CHECK(out.className == u8"NewBehavior");
     CHECK(out.kind == BehaviorKind::Entity);
@@ -308,7 +308,7 @@ TEST_CASE("as.cook: a compile error FAILS the cook (the last good record is unto
     IScriptLanguageCook* cook = AngelScriptCook();
     REQUIRE(cook != nullptr);
     CookScriptErrorSink sink;
-    ScriptClassSource out;
+    BehaviorClassSource out;
     CHECK_FALSE(cook->Cook(u8"class Broken { void foo( }\n", u8"broken.as", sink, out));
 }
 
@@ -317,7 +317,7 @@ TEST_CASE("as.cook: the New-Asset starter template compiles clean (its example c
     IScriptLanguageCook* cook = AngelScriptCook();
     REQUIRE(cook != nullptr);
     CookScriptErrorSink sink;
-    ScriptClassSource out;
+    BehaviorClassSource out;
     const bool ok = cook->Cook(cook->NewAssetTemplate(ScriptTier::Behavior, {}), u8"NewBehavior.as", sink, out);
     REQUIRE(ok); // the starter has to compile: it teaches the API by example
     CHECK(out.className == u8"NewBehavior");
@@ -330,7 +330,7 @@ TEST_CASE("as.cook: the cook stores loadable bytecode in the pack (the player pa
 
     // A module-level function so the reloaded module is callable without instantiating a class.
     CookScriptErrorSink sink;
-    ScriptClassSource out;
+    BehaviorClassSource out;
     REQUIRE(cook->Cook(u8"double twice(double v) { return v * 2.0; }\n", u8"Twice.as", sink, out));
     REQUIRE_FALSE(out.bytecode.IsEmpty());
     CHECK_FALSE(out.source.IsEmpty());
@@ -372,7 +372,7 @@ TEST_CASE("as.cook: with the full engine surface registered, a Game using run:: 
     REQUIRE(cook != nullptr);
 
     CookScriptErrorSink sink;
-    ScriptClassSource out;
+    BehaviorClassSource out;
     const bool ok = cook->Cook(u8"class Game : RunBehavior\n"
                                u8"{\n"
                                u8"    void onStart()\n"
@@ -400,7 +400,7 @@ TEST_CASE("as.cook: the PaperKid Bike behavior cooks with tunable properties")
     REQUIRE(cook != nullptr);
 
     CookScriptErrorSink sink;
-    ScriptClassSource out;
+    BehaviorClassSource out;
     const bool ok = cook->Cook(
         u8"class Bike : EntityBehavior\n"
         u8"{\n"
@@ -438,9 +438,9 @@ TEST_CASE("as.cook: the PaperKid Bike behavior cooks with tunable properties")
     CHECK(out.className == u8"Bike");
     CHECK(out.properties.Size() == 7u); // self/m_heading/m_speed carry no metadata
 
-    const ScriptPropertyDesc* maxSpeed = FindProp(out, u8"maxSpeed");
+    const BehaviorProperty* maxSpeed = FindProp(out, u8"maxSpeed");
     REQUIRE(maxSpeed != nullptr);
-    CHECK(maxSpeed->type == ScriptPropertyType::Float);
+    CHECK(maxSpeed->type == BehaviorPropertyType::Float);
     CHECK(Near(maxSpeed->defaultValue.number, 9.0));
     CHECK(FindProp(out, u8"turnSpeedDegrees") != nullptr);
     CHECK(FindProp(out, u8"m_heading") == nullptr);
@@ -453,7 +453,7 @@ TEST_CASE("as.cook: the PaperKid FollowCamera behavior cooks with an Entity targ
     REQUIRE(cook != nullptr);
 
     CookScriptErrorSink sink;
-    ScriptClassSource out;
+    BehaviorClassSource out;
     const bool ok = cook->Cook(
         u8"class FollowCamera : EntityBehavior\n"
         u8"{\n"
@@ -486,9 +486,9 @@ TEST_CASE("as.cook: the PaperKid FollowCamera behavior cooks with an Entity targ
     CHECK(out.className == u8"FollowCamera");
     CHECK(out.properties.Size() == 5u);
 
-    const ScriptPropertyDesc* target = FindProp(out, u8"target");
+    const BehaviorProperty* target = FindProp(out, u8"target");
     REQUIRE(target != nullptr);
-    CHECK(target->type == ScriptPropertyType::Entity);
+    CHECK(target->type == BehaviorPropertyType::Entity);
     CHECK(target->defaultValue.guid.IsNil());
     CHECK(FindProp(out, u8"positionSmoothing") != nullptr);
 }
@@ -524,7 +524,7 @@ namespace
 
     // Cooked bytecode into a manager registered with every type but `hidden`, as a player on a
     // platform without a plugin registers its surface.
-    [[nodiscard]] Status LoadCookedWithout(const ScriptClassSource& cooked, Span<const TypeId> hidden)
+    [[nodiscard]] Status LoadCookedWithout(const BehaviorClassSource& cooked, Span<const TypeId> hidden)
     {
         RefPtr<IScriptManager> manager = foundation::script::angelscript::CreateScriptManager(DefaultAllocator());
         RegisterCoreTypes();
@@ -587,11 +587,11 @@ TEST_CASE("as.cook: host-cooked bytecode loads without a type it does not use, a
     const TypeId hidden[] = {run};
 
     CookScriptErrorSink sink;
-    ScriptClassSource unrelated;
+    BehaviorClassSource unrelated;
     REQUIRE(cook->Cook(u8"double twice(double v) { return v * 2.0; }\n", u8"Twice.as", sink, unrelated));
     CHECK(LoadCookedWithout(unrelated, Span<const TypeId>(hidden, 1)).IsOk());
 
-    ScriptClassSource usesRun;
+    BehaviorClassSource usesRun;
     REQUIRE(cook->Cook(kUsesRun, u8"Game.as", sink, usesRun));
     CHECK(LoadCookedWithout(usesRun, Span<const TypeId>{}).IsOk());
     CHECK_FALSE(LoadCookedWithout(usesRun, Span<const TypeId>(hidden, 1)).IsOk());
@@ -654,7 +654,7 @@ TEST_CASE("as.cook: a class records the kind it derives from; one deriving from 
     for (const Case& c : cases)
     {
         CookScriptErrorSink sink;
-        ScriptClassSource out;
+        BehaviorClassSource out;
         REQUIRE(cook->Cook(StringView(c.source), StringView(c.asset), sink, out));
         CHECK(out.kind == c.kind);
     }

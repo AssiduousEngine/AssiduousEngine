@@ -4,7 +4,7 @@
 // Engine::Behavior - the `engine.behavior` module.
 //
 // Entity behaviors: a EntityBehaviorSystem per scene instantiates each behavior's cooked
-// ScriptClass in the run's one gameplay script context, applies harvested defaults and
+// BehaviorClass in the run's one gameplay script context, applies harvested defaults and
 // hash-keyed overrides, and dispatches the declared lifecycle handlers (onStart through a
 // deferred start, onUpdate(dt), onEnable and onDisable, onDestroy), gated to simulation
 // (IsSimulationOnly: the editor's Simulate toggle and play-in-editor both count). A faulting
@@ -113,13 +113,13 @@ export namespace engine::behavior
         }
 
         /// Subscribe (deduped) to every non-reserved on<Event> handler `scriptClass` declares.
-        void EnsureFor(const ScriptClass& scriptClass)
+        void EnsureFor(const BehaviorClass& scriptClass)
         {
             EnsureFor(Span<const String>(scriptClass.handlers.Data(), scriptClass.handlers.Size()));
         }
 
         /// Subscribe (deduped) to every non-reserved on<Event> among `handlers`: the tier that has no
-        /// ScriptClass resource (the Game tier, whose handlers are threaded in) uses this directly.
+        /// BehaviorClass resource (the Game tier, whose handlers are threaded in) uses this directly.
         void EnsureFor(Span<const String> handlers)
         {
             if (m_bus == nullptr)
@@ -438,7 +438,7 @@ export namespace engine::behavior
         /// Instantiate a behavior class instance (loads or reloads the behaviors module as
         /// needed). Null on failure (logged), and for a class not of the kind `kind` the place it is
         /// set takes (a scene's Level slot a SceneBehavior, an entity's an EntityBehavior).
-        [[nodiscard]] RefPtr<ScriptObject> Instantiate(ScriptClass& scriptClass, Span<Variant> args, BehaviorKind kind)
+        [[nodiscard]] RefPtr<ScriptObject> Instantiate(BehaviorClass& scriptClass, Span<Variant> args, BehaviorKind kind)
         {
             if (scriptClass.kind != kind)
             {
@@ -469,7 +469,7 @@ export namespace engine::behavior
         /// reloaded product (the same class name) loads beside its predecessor, whose live instances
         /// keep running; each language finds a class in any module it loaded, newest first. False on
         /// a load failure or a language mismatch.
-        [[nodiscard]] bool EnsureClassLoaded(ScriptClass& scriptClass)
+        [[nodiscard]] bool EnsureClassLoaded(BehaviorClass& scriptClass)
         {
             const StringView language = scriptClass.language.IsEmpty()
                                             ? StringView(u8"angelscript")
@@ -481,7 +481,7 @@ export namespace engine::behavior
             usize replaced = m_loadedClasses.Size();
             for (usize i = 0; i < m_loadedClasses.Size(); ++i)
             {
-                ScriptClass* loaded = m_loadedClasses[i].Get();
+                BehaviorClass* loaded = m_loadedClasses[i].Get();
                 if (loaded == &scriptClass)
                 {
                     return true;
@@ -518,11 +518,11 @@ export namespace engine::behavior
             }
             if (replaced < m_loadedClasses.Size())
             {
-                m_loadedClasses[replaced] = RefPtr<ScriptClass>(&scriptClass);
+                m_loadedClasses[replaced] = RefPtr<BehaviorClass>(&scriptClass);
             }
             else
             {
-                m_loadedClasses.PushBack(RefPtr<ScriptClass>(&scriptClass));
+                m_loadedClasses.PushBack(RefPtr<BehaviorClass>(&scriptClass));
             }
             return true;
         }
@@ -604,7 +604,7 @@ export namespace engine::behavior
         ScriptRuntimeBinding m_binding;
         foundation::core::IAllocator* m_allocator;
         Function<void*(TypeId)> m_applicationServices; // SetApplicationServices
-        Array<RefPtr<ScriptClass>> m_loadedClasses; // the classes loaded into the context, one each
+        Array<RefPtr<BehaviorClass>> m_loadedClasses; // the classes loaded into the context, one each
         UniquePtr<IScriptDebugger> m_debugger; // the run's step debugger (opt-in)
         DebugPauseTracker m_debugTracker;      // the game-pause flag and external forward
         Function<void(IScriptDebugger&)> m_debuggerConfigurator;
@@ -619,26 +619,26 @@ export namespace engine::behavior
     /// Marshal one harvested property value into a Variant for the generated setter. Entity and Asset
     /// values resolve against `scene` (nullptr gives a null Variant, as an unresolved reference does).
     /// Shared so the behavior tier and the Level tier apply properties identically.
-    [[nodiscard]] inline Variant ScriptPropertyValueToVariant(const ScriptPropertyValue& value,
-                                                              ScriptPropertyType declaredType,
+    [[nodiscard]] inline Variant ScriptPropertyValueToVariant(const BehaviorPropertyValue& value,
+                                                              BehaviorPropertyType declaredType,
                                                               scene::Scene* scene)
     {
-        const ScriptPropertyType kind =
-            value.kind != ScriptPropertyType::None ? value.kind : declaredType;
+        const BehaviorPropertyType kind =
+            value.kind != BehaviorPropertyType::None ? value.kind : declaredType;
         switch (kind)
         {
-        case ScriptPropertyType::Float:
-        case ScriptPropertyType::Int:
+        case BehaviorPropertyType::Float:
+        case BehaviorPropertyType::Int:
             return Variant::From<f64>(value.number);
-        case ScriptPropertyType::Bool:
+        case BehaviorPropertyType::Bool:
             return Variant::From<bool>(value.boolean);
-        case ScriptPropertyType::String:
+        case BehaviorPropertyType::String:
             return Variant::From<String>(String(value.text.AsView()));
-        case ScriptPropertyType::Color:
+        case BehaviorPropertyType::Color:
             return Variant::From<Color>(value.color);
-        case ScriptPropertyType::Vec3:
+        case BehaviorPropertyType::Vec3:
             return Variant::From<Float3>(value.vector);
-        case ScriptPropertyType::Entity:
+        case BehaviorPropertyType::Entity:
         {
             // An entity that names none (unset, or not in this scene) is an invalid Entity in
             // either language, as a lookup that finds nothing is: a value, never nil or null.
@@ -657,9 +657,9 @@ export namespace engine::behavior
             handle.entityGeneration = target.generation;
             return Variant::From(handle);
         }
-        case ScriptPropertyType::Asset:
+        case BehaviorPropertyType::Asset:
             return Variant::From<Guid>(value.guid);
-        case ScriptPropertyType::None:
+        case BehaviorPropertyType::None:
         default:
             return Variant{};
         }
@@ -668,14 +668,14 @@ export namespace engine::behavior
     /// Push a class's harvested defaults, then hash-keyed overrides (overrides win), through each
     /// property's generated per-property setter ("<name>="). `contextName` names the owner in the
     /// no-setter warning (an entity name for a behavior, the scene name for a Level).
-    inline void ApplyScriptProperties(ScriptObject& instance, const ScriptClass& scriptClass,
-                                      Span<const ScriptPropertyOverride> overrides,
+    inline void ApplyScriptProperties(ScriptObject& instance, const BehaviorClass& scriptClass,
+                                      Span<const BehaviorPropertyOverride> overrides,
                                       scene::Scene* scene, StringView contextName)
     {
-        for (const ScriptPropertyDesc& property : scriptClass.properties)
+        for (const BehaviorProperty& property : scriptClass.properties)
         {
-            const ScriptPropertyValue* chosen = &property.defaultValue;
-            for (const ScriptPropertyOverride& over : overrides)
+            const BehaviorPropertyValue* chosen = &property.defaultValue;
+            for (const BehaviorPropertyOverride& over : overrides)
             {
                 if (over.nameHash == property.hash)
                 {
@@ -1082,7 +1082,7 @@ export namespace engine::behavior
             }
             behavior.entitySuspended = false;
 
-            ScriptClass* scriptClass = behavior.behaviorClass.Get();
+            BehaviorClass* scriptClass = behavior.behaviorClass.Get();
             if (scriptClass == nullptr)
             {
                 if (behavior.instance.Get() != nullptr)
@@ -1169,7 +1169,7 @@ export namespace engine::behavior
         }
 
         void InstantiateBehavior(AttachedBehavior& behavior, scene::EntityHandle entity,
-                                 ScriptClass& scriptClass)
+                                 BehaviorClass& scriptClass)
         {
             if (scriptClass.className.IsEmpty())
             {
@@ -1214,11 +1214,11 @@ export namespace engine::behavior
         }
 
         // Defaults first, then hash-keyed overrides win (shared with the Level tier).
-        void ApplyProperties(AttachedBehavior& behavior, const ScriptClass& scriptClass,
+        void ApplyProperties(AttachedBehavior& behavior, const BehaviorClass& scriptClass,
                              scene::EntityHandle entity)
         {
             ApplyScriptProperties(*behavior.instance, scriptClass,
-                                  Span<const ScriptPropertyOverride>{behavior.overrides.Data(),
+                                  Span<const BehaviorPropertyOverride>{behavior.overrides.Data(),
                                                                      behavior.overrides.Size()},
                                   m_scene, m_scene->GetEntityName(entity));
         }
@@ -1229,7 +1229,7 @@ export namespace engine::behavior
         // game is now paused and the debugger owns the mid-flight handler; on Continue it runs
         // to completion and normal flow resumes.
         [[nodiscard]] HandlerOutcome InvokeHandler(AttachedBehavior& behavior,
-                                                   const ScriptClass& scriptClass,
+                                                   const BehaviorClass& scriptClass,
                                                    scene::EntityHandle entity, StringView method,
                                                    Span<Variant> args)
         {
@@ -1246,7 +1246,7 @@ export namespace engine::behavior
         // the object lacks (the wrong parameters) faults as it always has, and an undeclared one
         // is skipped.
         [[nodiscard]] HandlerOutcome InvokeHandler(AttachedBehavior& behavior,
-                                                   const ScriptClass& scriptClass,
+                                                   const BehaviorClass& scriptClass,
                                                    scene::EntityHandle entity, ScriptMethod method,
                                                    StringView name, Span<Variant> args)
         {
@@ -1263,7 +1263,7 @@ export namespace engine::behavior
         }
 
         // What a handler's result means: a fault disables the behaviour; a debug pause is not one.
-        [[nodiscard]] HandlerOutcome HandlerResult(AttachedBehavior& behavior, const ScriptClass& scriptClass,
+        [[nodiscard]] HandlerOutcome HandlerResult(AttachedBehavior& behavior, const BehaviorClass& scriptClass,
                                                    scene::EntityHandle entity, StringView method,
                                                    const Result<Variant>& result)
         {
@@ -1470,15 +1470,15 @@ export namespace engine::behavior
     /// scene-settings inspector (reflected) with a script-asset Ref picker.
     struct SceneBehaviorSettings
     {
-        resource::Ref<ScriptClass> behaviorClass; // the scene behavior (a cooked script asset); nil means none
+        resource::Ref<BehaviorClass> behaviorClass; // the scene behavior (a cooked script asset); nil means none
         bool enabled = true;
         // Hash-keyed property overrides (values differing from the Level class's harvested
         // defaults): the same default-diff model as a behavior's overrides, one set per scene.
-        Array<ScriptPropertyOverride> overrides;
+        Array<BehaviorPropertyOverride> overrides;
 
-        [[nodiscard]] const ScriptPropertyOverride* FindOverride(u64 nameHash) const
+        [[nodiscard]] const BehaviorPropertyOverride* FindOverride(u64 nameHash) const
         {
-            for (const ScriptPropertyOverride& entry : overrides)
+            for (const BehaviorPropertyOverride& entry : overrides)
             {
                 if (entry.nameHash == nameHash)
                 {
@@ -1487,9 +1487,9 @@ export namespace engine::behavior
             }
             return nullptr;
         }
-        void SetOverride(u64 nameHash, const ScriptPropertyValue& value)
+        void SetOverride(u64 nameHash, const BehaviorPropertyValue& value)
         {
-            for (ScriptPropertyOverride& entry : overrides)
+            for (BehaviorPropertyOverride& entry : overrides)
             {
                 if (entry.nameHash == nameHash)
                 {
@@ -1497,7 +1497,7 @@ export namespace engine::behavior
                     return;
                 }
             }
-            overrides.PushBack(ScriptPropertyOverride{nameHash, value});
+            overrides.PushBack(BehaviorPropertyOverride{nameHash, value});
         }
         void RemoveOverride(u64 nameHash)
         {
@@ -1638,7 +1638,7 @@ export namespace engine::behavior
             {
                 return;
             }
-            ScriptClass* scriptClass = m_settings.behaviorClass.Get();
+            BehaviorClass* scriptClass = m_settings.behaviorClass.Get();
             if (scriptClass == nullptr)
             {
                 return; // no Level bound (or still pending on an async load): the system is inert
@@ -1659,7 +1659,7 @@ export namespace engine::behavior
             // so a Level's [metadata] properties are real inspector-authored values, not runtime
             // fallbacks. The scene name labels the no-setter warning.
             ApplyScriptProperties(*m_level, *scriptClass,
-                                  Span<const ScriptPropertyOverride>{m_settings.overrides.Data(),
+                                  Span<const BehaviorPropertyOverride>{m_settings.overrides.Data(),
                                                                      m_settings.overrides.Size()},
                                   m_scene, m_scene->Name());
             // Subscribe this scene's bus to the Level's on<Event> handlers (its named inbox).
@@ -1730,7 +1730,7 @@ export namespace engine::behavior
         BehaviorRunHost* m_host = nullptr;
         SceneBehaviorSettings m_settings;
         RefPtr<ScriptObject> m_level;
-        ScriptClass* m_boundClass = nullptr;
+        BehaviorClass* m_boundClass = nullptr;
         ScriptEventSubscriptions m_eventSubs; // this scene's bus subscriptions, sunk into DispatchEvent
         bool m_started = false;
         bool m_faulted = false;

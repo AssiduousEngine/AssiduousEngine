@@ -81,7 +81,7 @@ TEST_CASE("luau.cook: registered + resolvable by language; the Behavior starter 
     CHECK_FALSE(cook->NewAssetTemplate(ScriptTier::Behavior, {}).IsEmpty());
 
     CookScriptErrorSink sink;
-    ScriptClassSource out;
+    BehaviorClassSource out;
     REQUIRE(
         cook->Cook(cook->NewAssetTemplate(ScriptTier::Behavior, {}), u8"NewBehavior.luau", sink, out));
     CHECK(out.language == u8"luau");
@@ -91,7 +91,7 @@ TEST_CASE("luau.cook: registered + resolvable by language; the Behavior starter 
     // `speed` is the one scalar field; `entity` is nil at harvest so Lua drops it.
     REQUIRE(out.properties.Size() == 1u);
     CHECK(out.properties[0].name == u8"speed");
-    CHECK(out.properties[0].type == ScriptPropertyType::Float);
+    CHECK(out.properties[0].type == BehaviorPropertyType::Float);
     CHECK(out.properties[0].defaultValue.number == doctest::Approx(1.0));
     CHECK(out.handlers.Size() == 3u); // onStart, onUpdate, onDestroy
     CHECK_FALSE(out.usesCoroutines);
@@ -111,13 +111,13 @@ TEST_CASE("luau.cook: the scene and run behavior starters cook to a class named 
     CHECK(game != behavior);
 
     CookScriptErrorSink levelSink;
-    ScriptClassSource levelOut;
+    BehaviorClassSource levelOut;
     REQUIRE(cook->Cook(level, u8"Arena.luau", levelSink, levelOut));
     CHECK(levelOut.className == u8"Arena");
     CHECK(levelOut.kind == BehaviorKind::Scene);
 
     CookScriptErrorSink gameSink;
-    ScriptClassSource gameOut;
+    BehaviorClassSource gameOut;
     REQUIRE(cook->Cook(game, u8"Heist.luau", gameSink, gameOut));
     CHECK(gameOut.className == u8"Heist");
     CHECK(gameOut.kind == BehaviorKind::Run);
@@ -129,7 +129,7 @@ TEST_CASE("luau.cook: construct-and-walk harvest - each scalar kind, non-scalars
     REQUIRE(cook != nullptr);
 
     CookScriptErrorSink sink;
-    ScriptClassSource out;
+    BehaviorClassSource out;
     REQUIRE(cook->Cook(kMultiProp, u8"Multi.luau", sink, out));
     CHECK(out.className == u8"Multi");
 
@@ -137,17 +137,17 @@ TEST_CASE("luau.cook: construct-and-walk harvest - each scalar kind, non-scalars
     // pairs() order is unspecified, so the cook sorts by name: enabled, label, offset, speed.
     REQUIRE(out.properties.Size() == 4u);
     CHECK(out.properties[0].name == u8"enabled");
-    CHECK(out.properties[0].type == ScriptPropertyType::Bool);
+    CHECK(out.properties[0].type == BehaviorPropertyType::Bool);
     CHECK(out.properties[0].defaultValue.boolean == true);
     CHECK(out.properties[1].name == u8"label");
-    CHECK(out.properties[1].type == ScriptPropertyType::String);
+    CHECK(out.properties[1].type == BehaviorPropertyType::String);
     CHECK(out.properties[1].defaultValue.text == u8"hello");
     CHECK(out.properties[2].name == u8"offset");
-    CHECK(out.properties[2].type == ScriptPropertyType::Vec3);
+    CHECK(out.properties[2].type == BehaviorPropertyType::Vec3);
     CHECK(out.properties[2].defaultValue.vector.x == doctest::Approx(1.0f));
     CHECK(out.properties[2].defaultValue.vector.z == doctest::Approx(3.0f));
     CHECK(out.properties[3].name == u8"speed");
-    CHECK(out.properties[3].type == ScriptPropertyType::Float);
+    CHECK(out.properties[3].type == BehaviorPropertyType::Float);
     CHECK(out.properties[3].defaultValue.number == doctest::Approx(2.5));
 }
 
@@ -157,7 +157,7 @@ TEST_CASE("luau.cook: the class's replicated list marks its properties; an unkno
     REQUIRE(cook != nullptr);
     {
         CookScriptErrorSink sink;
-        ScriptClassSource out;
+        BehaviorClassSource out;
         REQUIRE(cook->Cook(u8"Guest = EntityBehavior.class()\n"
                            u8"Guest.replicated = { 'activity', 'pace' }\n"
                            u8"function Guest.new(owner) local self = setmetatable({}, Guest)\n"
@@ -165,14 +165,14 @@ TEST_CASE("luau.cook: the class's replicated list marks its properties; an unkno
                            u8"function Guest:onUpdate(dt) end\n",
                            u8"Guest.luau", sink, out));
         REQUIRE(out.properties.Size() == 3u); // the list itself is not a property
-        for (const ScriptPropertyDesc& p : out.properties)
+        for (const BehaviorProperty& p : out.properties)
         {
             CHECK(p.replicated == (p.name != u8"chatty"));
         }
     }
     {
         CookScriptErrorSink sink;
-        ScriptClassSource out;
+        BehaviorClassSource out;
         CHECK_FALSE(cook->Cook(u8"Guest = EntityBehavior.class()\n"
                                u8"Guest.replicated = { 'activty' }\n"
                                u8"function Guest.new(owner) local self = setmetatable({}, Guest)\n"
@@ -189,7 +189,7 @@ TEST_CASE("luau.cook: a constructor that faults on the nil owner cooks with no p
     REQUIRE(cook != nullptr);
 
     CookScriptErrorSink sink;
-    ScriptClassSource out;
+    BehaviorClassSource out;
     // The class compiles and loads fine; only the harvest construction faults, and the cook succeeds.
     REQUIRE(cook->Cook(kFaultyCtor, u8"Risky.luau", sink, out));
     CHECK(out.className == u8"Risky");
@@ -202,7 +202,7 @@ TEST_CASE("luau.cook: the shared startCoroutine opt-in is harvested")
     REQUIRE(cook != nullptr);
 
     CookScriptErrorSink sink;
-    ScriptClassSource out;
+    BehaviorClassSource out;
     REQUIRE(cook->Cook(kCoroutineUser, u8"Waiter.luau", sink, out));
     CHECK(out.usesCoroutines);
 }
@@ -213,7 +213,7 @@ TEST_CASE("luau.cook: a broken source fails the cook with a reported error")
     REQUIRE(cook != nullptr);
 
     CookScriptErrorSink sink;
-    ScriptClassSource out;
+    BehaviorClassSource out;
     CHECK_FALSE(cook->Cook(kBroken, u8"Broken.luau", sink, out));
     CHECK_FALSE(sink.errors.IsEmpty());
 }
@@ -224,7 +224,7 @@ TEST_CASE("luau.cook: the cook stores loadable bytecode in the pack (the player 
     REQUIRE(cook != nullptr);
 
     CookScriptErrorSink sink;
-    ScriptClassSource out;
+    BehaviorClassSource out;
     REQUIRE(
         cook->Cook(cook->NewAssetTemplate(ScriptTier::Behavior, {}), u8"NewBehavior.luau", sink, out));
     // Luau ships bytecode into the pack (source stays for dev-mode hot reload).
@@ -340,7 +340,7 @@ TEST_CASE("luau.cook: a class made from a kind records it and constructs as a cl
     for (const Case& c : cases)
     {
         CookScriptErrorSink sink;
-        ScriptClassSource out;
+        BehaviorClassSource out;
         REQUIRE(cook->Cook(StringView(c.source), StringView(c.asset), sink, out));
         CHECK(out.kind == c.kind);
         REQUIRE(out.properties.Size() == (c.constructs ? 1u : 0u));

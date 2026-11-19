@@ -36,23 +36,23 @@ export namespace editor
     /// A script class's properties as a grid's rows (for a behaviour or a level): each row is named
     /// `p<hash>` and takes its kind from the property's, a vector shows as its three parts, and
     /// values convert to and from the grid's.
-    struct ScriptPropertyRows
+    struct BehaviorPropertyRows
     {
         /// The rows of `type`'s properties.
-        static void Describe(const foundation::script::ScriptClass& type, Array<foundation::gui::PropertyInfo>& out);
+        static void Describe(const foundation::script::BehaviorClass& type, Array<foundation::gui::PropertyInfo>& out);
         /// The type an asset property's tag names (`asset:<Type>`, the type the asset loads as:
         /// `PrefabResource`, `Material`), found among the registered types by its own name, whatever
         /// its namespace, or by its full one (`rtti::scene::PrefabResource`); null when no
         /// registered type has that name.
         [[nodiscard]] static const TypeInfo* AssetType(StringView typeName);
         /// A vector property's parts (`x`, `y`, `z`), under its row; none for any other.
-        static void Parts(const foundation::script::ScriptPropertyDesc& property, Array<foundation::gui::PropertyInfo>& out);
+        static void Parts(const foundation::script::BehaviorProperty& property, Array<foundation::gui::PropertyInfo>& out);
         /// The property a row names (`p<hash>`); null when none.
-        [[nodiscard]] static const foundation::script::ScriptPropertyDesc* Find(const foundation::script::ScriptClass& type, StringView row);
+        [[nodiscard]] static const foundation::script::BehaviorProperty* Find(const foundation::script::BehaviorClass& type, StringView row);
         /// A row's value: `value` as the property's kind (`part` is the vector part, or -1).
-        [[nodiscard]] static foundation::gui::Variant ToGrid(const foundation::script::ScriptPropertyValue& value, foundation::script::ScriptPropertyType type, i32 part);
+        [[nodiscard]] static foundation::gui::Variant ToGrid(const foundation::script::BehaviorPropertyValue& value, foundation::script::BehaviorPropertyType type, i32 part);
         /// `write` applied over `old`, as the property's kind.
-        [[nodiscard]] static foundation::script::ScriptPropertyValue FromGrid(foundation::script::ScriptPropertyValue old, foundation::script::ScriptPropertyType type, i32 part,
+        [[nodiscard]] static foundation::script::BehaviorPropertyValue FromGrid(foundation::script::BehaviorPropertyValue old, foundation::script::BehaviorPropertyType type, i32 part,
                                                                               const foundation::gui::Variant& write);
         /// A row's name (`p<hash>`) and a part's index (`x`: 0) parsed from what follows a source's
         /// own path.
@@ -99,8 +99,8 @@ export namespace editor
         [[nodiscard]] static Where Parse(StringView path);
         [[nodiscard]] engine::behavior::BehaviorComponent* Component(usize object) const;
         [[nodiscard]] usize BehaviorCount() const;
-        [[nodiscard]] const foundation::script::ScriptClass* ClassOf(const engine::behavior::AttachedBehavior& behavior) const;
-        [[nodiscard]] const foundation::script::ScriptPropertyDesc* PropertyOf(usize behavior, StringView row) const;
+        [[nodiscard]] const foundation::script::BehaviorClass* ClassOf(const engine::behavior::AttachedBehavior& behavior) const;
+        [[nodiscard]] const foundation::script::BehaviorProperty* PropertyOf(usize behavior, StringView row) const;
         [[nodiscard]] u64 Signature() const;
         // Every selected entity's component mutated as one undo step.
         void Mutate(StringView words, const Function<void(engine::behavior::BehaviorComponent&)>& mutate);

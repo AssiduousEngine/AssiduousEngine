@@ -30,7 +30,7 @@ import foundation.scene.resource; // LoadScene / ResolveSceneResources / Resolve
 import foundation.content;        // content::Instance (the cooked scene record)
 import foundation.resource;       // ResourceManager and AsyncBindScope (async level load)
 import foundation.script;
-import foundation.script.resource; // ScriptClass (the cooked Game class a run starts from)
+import foundation.script.resource; // BehaviorClass (the cooked Game class a run starts from)
 import engine.behavior;
 import foundation.script.facades; // RegisterExtraFacadeName (the run behavior-prelude hook)
 import foundation.net.manager; // NetworkManager, INetworkController, NetScriptBinding
@@ -393,7 +393,7 @@ export namespace engine::runtime
             return StartRunBehavior(source, name, className, core::Span<const core::String>{});
         }
 
-        /// As above, plus the class's declared handler names (from the cooked ScriptClass) so the
+        /// As above, plus the class's declared handler names (from the cooked BehaviorClass) so the
         /// run behavior's on<Event> inbox can subscribe to the run bus. A caller with no handler
         /// list (raw-source tests) gets a run behavior with no inbox.
         /// `includes` are the files the source includes (the cook's record of them). `assembly` and
@@ -408,7 +408,7 @@ export namespace engine::runtime
         /// handlers, so its on<Event> inbox hears the run bus. Every host that starts a cooked game
         /// (the player, the editor's Game tab) starts it this way. A class of another kind is
         /// refused (RunBehaviorFault says which kind it is).
-        bool StartRunBehavior(const foundation::script::ScriptClass& scriptClass)
+        bool StartRunBehavior(const foundation::script::BehaviorClass& scriptClass)
         {
             if (scriptClass.kind != foundation::script::BehaviorKind::Run)
             {
@@ -584,7 +584,7 @@ export namespace engine::runtime
         void FaultRunBehavior(core::StringView handler);
         // Refuses a cooked class that is not a RunBehavior as the run's behavior: stops any running
         // one, keeps the reason (RunBehaviorFault), logs it, and returns false.
-        bool RefuseRunBehavior(const foundation::script::ScriptClass& scriptClass);
+        bool RefuseRunBehavior(const foundation::script::BehaviorClass& scriptClass);
 
     public:
 

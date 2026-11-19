@@ -81,7 +81,7 @@ import foundation.texture.resource;
 import foundation.image.resource;
 import foundation.model.resource;
 import foundation.script;
-import foundation.script.resource; // ScriptClass (the cooked game script, bound from the content DB)
+import foundation.script.resource; // BehaviorClass (the cooked game script, bound from the content DB)
 import foundation.input;
 import foundation.physics;
 import foundation.physics.resource;

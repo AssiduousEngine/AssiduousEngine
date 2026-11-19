@@ -4,7 +4,7 @@
 // Engine::Behavior - :components partition.
 //
 // The attachment model: one BehaviorComponent per entity holding an ordered array of
-// behaviors, each a cooked ScriptClass reference, an enabled flag, and property overrides
+// behaviors, each a cooked BehaviorClass reference, an enabled flag, and property overrides
 // keyed by name hash (only the values that differ from the class's harvested defaults).
 // Runtime fields (the live ScriptObject instance, dispatch state) are transient and
 // never serialized. Because overrides live in the component payload, the prefab delta
@@ -26,13 +26,13 @@ using namespace foundation::script;
 
 export namespace engine::behavior
 {
-    struct ScriptPropertyOverride
+    struct BehaviorPropertyOverride
     {
-        u64 nameHash = 0; // ScriptPropertyNameHash of the property's name
-        ScriptPropertyValue value;
+        u64 nameHash = 0; // BehaviorPropertyNameHash of the property's name
+        BehaviorPropertyValue value;
     };
 
-    inline void Serialize(ISerializer& ar, ScriptPropertyOverride& o)
+    inline void Serialize(ISerializer& ar, BehaviorPropertyOverride& o)
     {
         foundation::core::Serialize(ar, "nameHash", o.nameHash);
         foundation::core::Serialize(ar, "value", o.value);
@@ -41,11 +41,11 @@ export namespace engine::behavior
     /// The assets `overrides` name, appended to `outIds` once each: a nil one names nothing, and
     /// an entity reference is a guid of the scene's, not an asset. (A script class's asset
     /// property has no default naming an asset: only an override names one.)
-    inline void CollectOverrideAssetIds(Span<const ScriptPropertyOverride> overrides, Array<Guid>& outIds)
+    inline void CollectOverrideAssetIds(Span<const BehaviorPropertyOverride> overrides, Array<Guid>& outIds)
     {
-        for (const ScriptPropertyOverride& entry : overrides)
+        for (const BehaviorPropertyOverride& entry : overrides)
         {
-            if (entry.value.kind != ScriptPropertyType::Asset || entry.value.guid.IsNil())
+            if (entry.value.kind != BehaviorPropertyType::Asset || entry.value.guid.IsNil())
             {
                 continue;
             }
@@ -75,16 +75,16 @@ export namespace engine::behavior
     struct AttachedBehavior
     {
         // Authored:
-        foundation::resource::Ref<ScriptClass> behaviorClass;
+        foundation::resource::Ref<BehaviorClass> behaviorClass;
         bool enabled = true;
         f32 updateInterval = 0.0f; // seconds between onUpdate calls; <=0 means every tick.
                                    // The delivered dt is the accumulated time.
-        Array<ScriptPropertyOverride> overrides;
+        Array<BehaviorPropertyOverride> overrides;
 
         // Runtime (transient):
         RefPtr<ScriptObject> instance;
         BehaviorLifecycle lifecycle;        // bound with the instance, gone with it
-        const ScriptClass* boundClass = nullptr; // product the instance was built from
+        const BehaviorClass* boundClass = nullptr; // product the instance was built from
                                                  // (a reload swaps the product: re-instantiate)
         bool started = false;                    // onStart delivered
         bool active = false;          // last delivered enable state (onEnable/onDisable edges)
@@ -93,9 +93,9 @@ export namespace engine::behavior
         bool faulted = false;         // a fault disables the one behavior (cleared by reload)
         f32 updateAccumulator = 0.0f; // time banked toward the next throttled onUpdate
 
-        [[nodiscard]] const ScriptPropertyOverride* FindOverride(u64 nameHash) const
+        [[nodiscard]] const BehaviorPropertyOverride* FindOverride(u64 nameHash) const
         {
-            for (const ScriptPropertyOverride& entry : overrides)
+            for (const BehaviorPropertyOverride& entry : overrides)
             {
                 if (entry.nameHash == nameHash)
                 {
@@ -104,9 +104,9 @@ export namespace engine::behavior
             }
             return nullptr;
         }
-        void SetOverride(u64 nameHash, const ScriptPropertyValue& value)
+        void SetOverride(u64 nameHash, const BehaviorPropertyValue& value)
         {
-            for (ScriptPropertyOverride& entry : overrides)
+            for (BehaviorPropertyOverride& entry : overrides)
             {
                 if (entry.nameHash == nameHash)
                 {
@@ -114,7 +114,7 @@ export namespace engine::behavior
                     return;
                 }
             }
-            overrides.PushBack(ScriptPropertyOverride{nameHash, value});
+            overrides.PushBack(BehaviorPropertyOverride{nameHash, value});
         }
         void RemoveOverride(u64 nameHash)
         {
@@ -164,7 +164,7 @@ export namespace engine::behavior
     public:
         BehaviorComponentManager() : SerializableComponentManager<BehaviorComponent>(u8"behavior") {}
 
-        /// A networked entity's behaviours keep their replicated properties (ScriptPropertyDesc::
+        /// A networked entity's behaviours keep their replicated properties (BehaviorProperty::
         /// replicated) the same on every peer: the host writes their live values, a client writes
         /// them back in (and keeps them as overrides, for an instance made later). Bodies in
         /// BehaviorSubsystemImpl.cpp.

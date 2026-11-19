@@ -470,10 +470,10 @@ TEST_CASE("scene-mcp-tools: an entity by name or path, and a Script component's 
     engine::behavior::AttachedBehavior behavior;
     const Guid script = Guid::Generate(rng);
     behavior.behaviorClass.SetId(script);
-    foundation::script::ScriptPropertyValue speed;
-    speed.kind = foundation::script::ScriptPropertyType::Float;
+    foundation::script::BehaviorPropertyValue speed;
+    speed.kind = foundation::script::BehaviorPropertyType::Float;
     speed.number = 4.0;
-    behavior.SetOverride(foundation::script::ScriptPropertyNameHash(u8"speed"), speed);
+    behavior.SetOverride(foundation::script::BehaviorPropertyNameHash(u8"speed"), speed);
     component.behaviors.PushBack(Move(behavior));
 
     McpServer server;
@@ -540,12 +540,12 @@ TEST_CASE("scene-mcp-tools: a running behaviour's fields read by class name, and
     scene::Scene level(DefaultAllocator(), u8"run");
     auto* scripts = level.AddSystem<engine::behavior::BehaviorComponentManager>();
     const scene::EntityHandle hero = level.CreateEntity(u8"Hero");
-    RefPtr<foundation::script::ScriptClass> mover = MakeRef<foundation::script::ScriptClass>(DefaultAllocator());
+    RefPtr<foundation::script::BehaviorClass> mover = MakeRef<foundation::script::BehaviorClass>(DefaultAllocator());
     mover->className = String(u8"Mover");
-    foundation::script::ScriptPropertyDesc speed;
+    foundation::script::BehaviorProperty speed;
     speed.name = String(u8"speed");
-    speed.hash = foundation::script::ScriptPropertyNameHash(u8"speed");
-    speed.type = foundation::script::ScriptPropertyType::Float;
+    speed.hash = foundation::script::BehaviorPropertyNameHash(u8"speed");
+    speed.type = foundation::script::BehaviorPropertyType::Float;
     mover->properties.PushBack(Move(speed));
     engine::behavior::AttachedBehavior behavior;
     behavior.behaviorClass.SetDirect(mover);

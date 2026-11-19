@@ -168,7 +168,7 @@ export namespace engine::project
         Guid defaultSceneId;  // authoritative startup-scene reference (survives rename and move)
         String defaultScene;  // its source-DB path: the human-readable mirror, and the
                               // fallback when the guid does not resolve
-        Guid startupScriptId; // authoritative game-script reference (a cooked ScriptClass asset;
+        Guid startupScriptId; // authoritative game-script reference (a cooked BehaviorClass asset;
                               // launch/update/exit), bound from the content DB by the player and
         // play-in-editor. Nil: none.
         String

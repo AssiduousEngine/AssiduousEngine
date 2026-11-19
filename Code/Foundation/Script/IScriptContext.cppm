@@ -138,7 +138,7 @@ export namespace foundation::script
     };
 
     // One class in a structured behavior-module load. `name` is the class's source file
-    // identity (ScriptClass::sourceName, for example "Mover.as"): a debug-capable backend makes
+    // identity (BehaviorClass::sourceName, for example "Mover.as"): a debug-capable backend makes
     // it the class's own script section, so GetLineNumber reports (sourceFile, sourceLine)
     // and an editor breakpoint keyed on the file lines up. `source` is the class body.
     // A file a script includes (AngelScript's `#include`): its path in the project's sources,
@@ -156,7 +156,7 @@ export namespace foundation::script
         // The files `source` includes, as the cook recorded them (each already resolved); a backend
         // with an include directive compiles them beside `source` when it compiles from source.
         core::Span<const ScriptSection> includes = {};
-        // Optional precompiled bytecode for this class (ScriptClass::bytecode). When present and
+        // Optional precompiled bytecode for this class (BehaviorClass::bytecode). When present and
         // the backend has a stable per-class bytecode (ScriptCapabilities::Bytecode), the backend
         // loads it instead of compiling `source`, which is how the player runs without a compiler.
         // Empty means source-only. The default source-concatenating LoadBehaviorModule ignores it.

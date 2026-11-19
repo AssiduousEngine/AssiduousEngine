@@ -20,7 +20,7 @@ import pipeline.importer;
 import pipeline.registration;
 import engine.composition;
 import engine.behavior;                // BehaviorComponentManager: the behaviours a scene stores
-import foundation.script.resource;   // ScriptClassSource: what a cooked class declares
+import foundation.script.resource;   // BehaviorClassSource: what a cooked class declares
 import editor.project;
 import editor.mcp;
 
@@ -108,17 +108,17 @@ namespace
             // One check for both places an override lives: on a behaviour, and on the scene's
             // Level script (the sceneScript settings block).
             const auto check = [&](const Guid& scriptId,
-                                   Span<const engine::behavior::ScriptPropertyOverride> overrides)
+                                   Span<const engine::behavior::BehaviorPropertyOverride> overrides)
             {
                 foundation::content::Instance* cooked = project.CookedDb().GetInstance(scriptId);
                 REQUIRE_MESSAGE(cooked != nullptr, "the script is cooked: ", shown);
                 const RefPtr<ISerializable> object = cooked->ReadObject();
-                const auto* source = Cast<foundation::script::ScriptClassSource>(object.Get());
+                const auto* source = Cast<foundation::script::BehaviorClassSource>(object.Get());
                 REQUIRE_MESSAGE(source != nullptr, "the script is a class: ", shown);
-                for (const engine::behavior::ScriptPropertyOverride& o : overrides)
+                for (const engine::behavior::BehaviorPropertyOverride& o : overrides)
                 {
                     bool declared = false;
-                    for (const foundation::script::ScriptPropertyDesc& property : source->properties)
+                    for (const foundation::script::BehaviorProperty& property : source->properties)
                     {
                         declared = declared || property.hash == o.nameHash;
                     }
@@ -134,7 +134,7 @@ namespace
                 for (const engine::behavior::AttachedBehavior& behavior : scripts->Get(owner)->behaviors)
                 {
                     check(behavior.behaviorClass.id,
-                          Span<const engine::behavior::ScriptPropertyOverride>{
+                          Span<const engine::behavior::BehaviorPropertyOverride>{
                               behavior.overrides.Data(), behavior.overrides.Size()});
                 }
             }
@@ -142,7 +142,7 @@ namespace
                 level != nullptr && !level->Settings().behaviorClass.id.IsNil())
             {
                 const engine::behavior::SceneBehaviorSettings& settings = level->Settings();
-                check(settings.behaviorClass.id, Span<const engine::behavior::ScriptPropertyOverride>{
+                check(settings.behaviorClass.id, Span<const engine::behavior::BehaviorPropertyOverride>{
                                               settings.overrides.Data(), settings.overrides.Size()});
             }
         }

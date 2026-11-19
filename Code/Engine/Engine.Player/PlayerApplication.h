@@ -526,13 +526,13 @@ namespace engine::player
         // (facades, services, launch/update/exit) lives in DefaultApplication.
         void LoadAndStartRunBehavior()
         {
-            // The startup game script is a cooked ScriptClass asset, bound from the content DB by guid.
+            // The startup game script is a cooked BehaviorClass asset, bound from the content DB by guid.
             const Guid scriptId = m_settings.startupScriptId;
             if (scriptId.IsNil() || Resources() == nullptr)
             {
                 return;
             }
-            auto proxy = Resources()->Bind<foundation::script::ScriptClass>(scriptId);
+            auto proxy = Resources()->Bind<foundation::script::BehaviorClass>(scriptId);
             if (!proxy || proxy->source.IsEmpty())
             {
                 LOG_ERROR(u8"Player", u8"startup script asset not found");
