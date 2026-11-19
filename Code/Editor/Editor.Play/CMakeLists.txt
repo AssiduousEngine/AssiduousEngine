@@ -9,7 +9,7 @@ target_link_libraries(Editor.Play PUBLIC
     Foundation::Scene Foundation::Scene.Resource Engine::Scene Engine::Render Engine::DefaultApp
     Engine::Run Engine::Project Foundation::Audio Foundation::Audio.Resource Engine::Audio
     Foundation::Input Foundation::Input.Resource Engine::Input Engine::Physics Foundation::Script
-    Foundation::Script.Resource Engine::Script Foundation::GUI Foundation::GUI.Hosting
+    Foundation::Script.Resource Engine::Behavior Foundation::GUI Foundation::GUI.Hosting
     Foundation::GUI.Viewport Foundation::Mcp Foundation::Json Editor::Core Editor::App Editor::Scene
     Foundation::Policy)
 target_sources(Editor.Play

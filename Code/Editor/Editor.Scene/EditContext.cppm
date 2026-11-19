@@ -323,7 +323,7 @@ export namespace editor
         [[nodiscard]] scene::ComponentManagerBase* FindManager(const TypeInfo* type);
 
         /// One undoable mutation of `entity`'s component of `componentType`, whatever it holds (a
-        /// reflected list, or a hidden one like a Script component's behaviours). The live value is
+        /// reflected list, or a hidden one like a Behavior component's behaviours). The live value is
         /// mutated, captured and restored from its serialized form, then pasted, with the paste
         /// command keeping the value from before, so the whole change is one undo step. False when
         /// the entity has no such component.

@@ -11,7 +11,7 @@ import foundation.scene;
 import foundation.scene.resource;
 import engine.composition;
 import engine.render;
-import engine.script;
+import engine.behavior;
 import foundation.script.resource;
 using namespace foundation::core;
 namespace scene = foundation::scene;
@@ -84,9 +84,9 @@ TEST_CASE("engine.composition: the scan reaches the assets a script's properties
         scene::Scene author(DefaultAllocator(), u8"level");
         engine::AddAllSceneManagers(author);
         const scene::EntityHandle spawner = author.CreateEntity(u8"Spawner");
-        engine::script::ScriptComponent& scripts = author.GetSystem<engine::script::ScriptComponentManager>()->Add(spawner);
-        engine::script::ScriptBehavior behavior;
-        behavior.script.SetId(dropper);
+        engine::behavior::BehaviorComponent& scripts = author.GetSystem<engine::behavior::BehaviorComponentManager>()->Add(spawner);
+        engine::behavior::AttachedBehavior behavior;
+        behavior.behaviorClass.SetId(dropper);
         foundation::script::ScriptPropertyValue drop;
         drop.kind = foundation::script::ScriptPropertyType::Asset;
         drop.guid = pickup;
@@ -99,7 +99,7 @@ TEST_CASE("engine.composition: the scan reaches the assets a script's properties
         foundation::script::ScriptPropertyValue music;
         music.kind = foundation::script::ScriptPropertyType::Asset;
         music.guid = theme;
-        author.GetSystem<engine::script::SceneScriptSystem>()->Settings().SetOverride(
+        author.GetSystem<engine::behavior::SceneBehaviorSystem>()->Settings().SetOverride(
             foundation::script::ScriptPropertyNameHash(u8"music"), music);
         REQUIRE(scene::SaveScene(author, *level).IsOk());
     }
@@ -155,10 +155,10 @@ TEST_CASE("engine.composition: the scan reaches the assets a placed prefab's ove
         scene::Scene author(DefaultAllocator(), u8"crate");
         engine::AddAllSceneManagers(author);
         const scene::EntityHandle body = author.CreateEntity(u8"Body");
-        engine::script::ScriptBehavior behavior;
-        behavior.script.SetId(dropper);
+        engine::behavior::AttachedBehavior behavior;
+        behavior.behaviorClass.SetId(dropper);
         behavior.SetOverride(drop, asset(inPrefab));
-        author.GetSystem<engine::script::ScriptComponentManager>()->Add(body).behaviors.PushBack(Move(behavior));
+        author.GetSystem<engine::behavior::BehaviorComponentManager>()->Add(body).behaviors.PushBack(Move(behavior));
         MemoryStream payload;
         REQUIRE(scene::CapturePrefab(author, body, payload).IsOk());
         REQUIRE(crate->WriteData(u8"scene", payload.Bytes()).IsOk());
@@ -174,9 +174,9 @@ TEST_CASE("engine.composition: the scan reaches the assets a placed prefab's ove
         const scene::EntityHandle placed = scene::SpawnPrefab(authored, *payload, crate->Id());
         REQUIRE(placed.IsAssigned());
         REQUIRE(authored.PrefabInstanceCount() == 1u);
-        engine::script::ScriptBehavior& behavior =
-            authored.GetSystem<engine::script::ScriptComponentManager>()->Get(placed)->behaviors[0];
-        const engine::script::ScriptPropertyOverride* inherited = behavior.FindOverride(drop);
+        engine::behavior::AttachedBehavior& behavior =
+            authored.GetSystem<engine::behavior::BehaviorComponentManager>()->Get(placed)->behaviors[0];
+        const engine::behavior::ScriptPropertyOverride* inherited = behavior.FindOverride(drop);
         REQUIRE(inherited != nullptr);
         CHECK(inherited->value.guid == inPrefab); // the placement starts as the prefab
         behavior.SetOverride(drop, asset(onPlacement));

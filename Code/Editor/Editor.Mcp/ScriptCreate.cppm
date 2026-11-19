@@ -73,7 +73,7 @@ export namespace editor::mcp
             u8"Create a new script asset from the backend's starter template: writes "
             u8"Sources/<name>.<ext> with the tier's starter source and creates the script "
             u8"asset referencing it. Tiers: 'behavior' (per-entity, attach via a "
-            u8"ScriptComponent slot), 'level' (per-scene, reserved class Level), 'game' (the "
+            u8"BehaviorComponent slot), 'level' (per-scene, reserved class Level), 'game' (the "
             u8"project orchestrator, reserved class Game). Returns the asset guid and the "
             u8"source file path - edit the FILE to write your gameplay code, use "
             u8"script_validate as the loop, then asset_cook to make the class attachable.",

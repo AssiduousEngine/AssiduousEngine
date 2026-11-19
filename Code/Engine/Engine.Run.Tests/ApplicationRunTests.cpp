@@ -28,7 +28,7 @@ import foundation.shell;       // IKeyboard / KeyCode (a minimal fake device)
 import foundation.http;        // HttpServer (a local server the run's client fetches from)
 import foundation.http.script; // RegisterHttpScriptFacade (the run domain registers it in an app)
 import foundation.run;         // IRun (an ApplicationRun is one)
-import engine.script;          // ScriptRunHost (one of the run's services)
+import engine.behavior;          // BehaviorRunHost (one of the run's services)
 
 using namespace foundation::core;
 namespace script = foundation::script; // raw manager/context for the run facade battery
@@ -179,7 +179,7 @@ TEST_CASE("game-instance: the instance is an IRun, its scenes on the run's bus, 
     CHECK(run.Get<engine::runtime::NetworkController>() == &gi.Network());
     CHECK(run.Get<input::ActionRuntime>() == &gi.InputRuntime());
     CHECK(run.Get<engine::runtime::RunSave>() == &gi.Saves());
-    CHECK(run.Get<engine::script::ScriptRunHost>() == &gi.RunHost());
+    CHECK(run.Get<engine::behavior::BehaviorRunHost>() == &gi.RunHost());
     CHECK(run.Get<foundation::http::HttpScriptBinding>() == &gi.Http());
 
     gi.Start();
@@ -2071,7 +2071,7 @@ TEST_CASE("game-instance: script services resolve the run first, then the applic
     app.Add(appOnly);
     gi.RunHost().SetApplicationServices(Function<void*(TypeId)>{[&app](TypeId type) { return app.Find(type); }});
 
-    engine::script::ScriptRunHost& host = gi.RunHost();
+    engine::behavior::BehaviorRunHost& host = gi.RunHost();
     CHECK(host.FindService(TypeOf<foundation::input::ActionRuntime>().id) == &gi.InputRuntime()); // the run's
     CHECK(host.FindService(TypeOf<AppOnlyService>().id) == &appOnly);                           // the app's
     CHECK(host.FindService(TypeOf<foundation::script::ScriptRuntimeBinding>().id) == &host.Binding());

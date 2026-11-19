@@ -26,7 +26,7 @@ import engine.terrain;
 import engine.vegetation;
 import engine.navigation;
 import engine.audio;
-import engine.script;
+import engine.behavior;
 import engine.net;
 import engine.spline;
 import engine.input;
@@ -56,7 +56,7 @@ namespace
         &engine::particles::ParticleDomain(),    &engine::physics::PhysicsDomain(),
         &engine::terrain::TerrainDomain(),       &engine::vegetation::VegetationDomain(),
         &engine::navigation::NavigationDomain(), &engine::audio::AudioDomain(),
-        &engine::script::ScriptDomain(),         &engine::net::NetDomain(),
+        &engine::behavior::BehaviorDomain(),         &engine::net::NetDomain(),
         &engine::spline::SplineDomain(),         &kPrefabsDomain,
         &engine::input::InputDomain(),           &engine::runtime::RunDomain(),
         &engine::gui::GuiDomain(),

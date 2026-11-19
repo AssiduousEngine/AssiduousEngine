@@ -4,7 +4,7 @@
 // Editor::Script - the `editor.script` module.
 //
 // ScriptApiSurface implementation: the single bound-API build for a page. It replays the
-// runtime's registration sequence (as ScriptSubsystem runs it) against a throwaway manager. The
+// runtime's registration sequence (as BehaviorSubsystem runs it) against a throwaway manager. The
 // registries are idempotent and the manager is destroyed right after DescribeBoundApi; the result
 // is cached for the page's lifetime. Completion and the API browser both read it.
 

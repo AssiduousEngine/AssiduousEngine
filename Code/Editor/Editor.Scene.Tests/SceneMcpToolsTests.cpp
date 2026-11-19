@@ -18,7 +18,7 @@ import foundation.scene;
 import foundation.resource;
 import foundation.materials;
 import engine.render;
-import engine.script;
+import engine.behavior;
 import foundation.script;
 import foundation.script.resource;
 import editor.core;
@@ -463,13 +463,13 @@ TEST_CASE("scene-mcp-tools: an entity by name or path, and a Script component's 
         DefaultAllocator().New<HeadlessScenePage>(u8"Arena", arenaId), DefaultAllocator())));
     SceneEditContext& edit = page->EditContext();
     const String arena = GuidText(arenaId);
-    auto* scripts = edit.Scene().AddSystem<engine::script::ScriptComponentManager>();
+    auto* scripts = edit.Scene().AddSystem<engine::behavior::BehaviorComponentManager>();
     const Guid player = edit.CreateEntity(u8"Player");
     const Guid weapon = edit.CreateEntity(u8"Weapon", player);
-    engine::script::ScriptComponent& component = scripts->Add(edit.Resolve(weapon));
-    engine::script::ScriptBehavior behavior;
+    engine::behavior::BehaviorComponent& component = scripts->Add(edit.Resolve(weapon));
+    engine::behavior::AttachedBehavior behavior;
     const Guid script = Guid::Generate(rng);
-    behavior.script.SetId(script);
+    behavior.behaviorClass.SetId(script);
     foundation::script::ScriptPropertyValue speed;
     speed.kind = foundation::script::ScriptPropertyType::Float;
     speed.number = 4.0;
@@ -486,8 +486,8 @@ TEST_CASE("scene-mcp-tools: an entity by name or path, and a Script component's 
     const JsonValue scriptJson = got.payload.Get(u8"entity").Get(u8"components").At(0);
     const JsonValue behaviors = scriptJson.Get(u8"behaviors");
     REQUIRE(behaviors.Count() == 1);
-    CHECK(behaviors.At(0).Get(u8"script").AsString() == GuidText(script).AsView());
-    CHECK(behaviors.At(0).Get(u8"class").IsNull()); // not cooked here
+    CHECK(behaviors.At(0).Get(u8"class").AsString() == GuidText(script).AsView());
+    CHECK(behaviors.At(0).Get(u8"className").IsNull()); // not cooked here
     CHECK(behaviors.At(0).Get(u8"enabled").AsBool());
     const JsonValue properties = behaviors.At(0).Get(u8"properties");
     REQUIRE(properties.Count() == 1);
@@ -538,7 +538,7 @@ namespace
 TEST_CASE("scene-mcp-tools: a running behaviour's fields read by class name, and listed as live")
 {
     scene::Scene level(DefaultAllocator(), u8"run");
-    auto* scripts = level.AddSystem<engine::script::ScriptComponentManager>();
+    auto* scripts = level.AddSystem<engine::behavior::BehaviorComponentManager>();
     const scene::EntityHandle hero = level.CreateEntity(u8"Hero");
     RefPtr<foundation::script::ScriptClass> mover = MakeRef<foundation::script::ScriptClass>(DefaultAllocator());
     mover->className = String(u8"Mover");
@@ -547,8 +547,8 @@ TEST_CASE("scene-mcp-tools: a running behaviour's fields read by class name, and
     speed.hash = foundation::script::ScriptPropertyNameHash(u8"speed");
     speed.type = foundation::script::ScriptPropertyType::Float;
     mover->properties.PushBack(Move(speed));
-    engine::script::ScriptBehavior behavior;
-    behavior.script.SetDirect(mover);
+    engine::behavior::AttachedBehavior behavior;
+    behavior.behaviorClass.SetDirect(mover);
     behavior.boundClass = mover.Get();
     behavior.instance = MakeRef<FakeInstance>(DefaultAllocator());
     scripts->Add(hero).behaviors.PushBack(Move(behavior));

@@ -36,7 +36,7 @@ export namespace editor
                                                              const Instance& instance);
 
     /// The entity as the agent sees it: identity, hierarchy, transform, and every component the
-    /// scene holds for it with its reflected properties; a Script component also lists its
+    /// scene holds for it with its reflected properties; a Behavior component also lists its
     /// behaviours, each override named from its cooked class (bound through `resources` when the
     /// behaviour holds none; by hash, #n, when neither has it).
     [[nodiscard]] foundation::json::JsonValue

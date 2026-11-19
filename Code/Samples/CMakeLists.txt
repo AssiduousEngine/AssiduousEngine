@@ -26,7 +26,7 @@ add_subdirectory(NetEcho)
 # shell and the GPU factory.
 if(TARGET Foundation::Shell.SDL3 AND TARGET Foundation::Runtime.Desktop AND TARGET Foundation::Graphics.Gpu)
     add_subdirectory(HelloWindow)
-    add_subdirectory(ScriptPlayground)   # script consumer proof (Mover/Spinner behaviors on the ScriptSubsystem)
+    add_subdirectory(ScriptPlayground)   # script consumer proof (Mover/Spinner behaviors on the BehaviorSubsystem)
     add_subdirectory(MultiWindow)
     # Samples with an ImGui debug UI honor the plugin option, or an
     # -DOPTION_PLUGIN_IMGUI=OFF configure dies on util_link_plugins asking for a plugin not added.

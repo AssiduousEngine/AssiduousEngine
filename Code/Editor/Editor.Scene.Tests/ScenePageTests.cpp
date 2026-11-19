@@ -36,7 +36,7 @@ import engine.navigation;
 import engine.animation;
 import foundation.animation; // Skeleton (a bone name's choices)
 import foundation.physics;
-import engine.script;
+import engine.behavior;
 import foundation.run; // the page's run and the registry it joins
 import foundation.script.resource;
 import foundation.scene.resource;
@@ -68,7 +68,7 @@ namespace
             // The engine's full composition, so a scene's entities can take its components.
             engine::RegisterAllSceneComponentReflection(); // every component named, as in the editor
             m_context.AddSubsystem<engine::scene::SceneSubsystem>()->SetComposition(engine::FullSceneComposition());
-            m_context.AddSubsystem<engine::script::ScriptSubsystem>(); // binds a scene's behaviours to its run's host
+            m_context.AddSubsystem<engine::behavior::BehaviorSubsystem>(); // binds a scene's behaviours to its run's host
             m_context.Startup();
         }
         ~SceneHost() override { m_context.Shutdown(); }
@@ -442,11 +442,11 @@ TEST_CASE("scene page: the page is a run; its scene carries it and its script ho
     CHECK(runs.Find(run->Id()) == run);
     CHECK(run->Name() == StringView(u8"Level"));
     CHECK(run->State() == foundation::run::RunState::Idle); // editing is between sessions
-    auto* host = run->Get<engine::script::ScriptRunHost>();
+    auto* host = run->Get<engine::behavior::BehaviorRunHost>();
     REQUIRE(host != nullptr);
     CHECK(host->Binding().run == run);
-    CHECK(page->ScenePtr()->GetSystem<engine::script::ScriptSceneSystem>()->Host() == host);
-    CHECK(page->ScenePtr()->GetSystem<engine::script::SceneScriptSystem>()->Host() == host);
+    CHECK(page->ScenePtr()->GetSystem<engine::behavior::EntityBehaviorSystem>()->Host() == host);
+    CHECK(page->ScenePtr()->GetSystem<engine::behavior::SceneBehaviorSystem>()->Host() == host);
 
     page->StartSimulation();
     CHECK(run->State() == foundation::run::RunState::Running);
@@ -463,7 +463,7 @@ TEST_CASE("scene page: the page is a run; its scene carries it and its script ho
     UniquePtr<SceneEditorPage> other = bed.Open(*bed.barrel, &runs);
     REQUIRE(other->ScenePtr()->Run() != nullptr);
     CHECK(other->ScenePtr()->Run() != run);
-    CHECK(other->ScenePtr()->Run()->Get<engine::script::ScriptRunHost>() != host);
+    CHECK(other->ScenePtr()->Run()->Get<engine::behavior::BehaviorRunHost>() != host);
     CHECK(runs.Count() == 2u);
 
     // Closed mid-Simulate, the session ends with the close; the run leaves with the page.
@@ -1419,9 +1419,9 @@ TEST_CASE("script behaviors: a list of behaviours, each its script, Enabled and 
     Bed bed;
     UniquePtr<SceneEditorPage> page = bed.Open(*bed.level);
     SceneEditContext& edit = page->EditContext();
-    edit.AddComponent(bed.crate, &TypeOf<engine::script::ScriptComponent>());
-    ScriptBehaviorsSource source(edit, &bed.context, Span<const Guid>(&bed.crate, 1u));
-    auto* manager = page->ScenePtr()->GetSystem<engine::script::ScriptComponentManager>();
+    edit.AddComponent(bed.crate, &TypeOf<engine::behavior::BehaviorComponent>());
+    BehaviorsSource source(edit, &bed.context, Span<const Guid>(&bed.crate, 1u));
+    auto* manager = page->ScenePtr()->GetSystem<engine::behavior::BehaviorComponentManager>();
     REQUIRE(manager != nullptr);
     const auto component = [&]() { return manager->Get(page->ScenePtr()->FindEntity(bed.crate)); };
 
@@ -1629,9 +1629,9 @@ TEST_CASE("level script: the Level class's properties as rows; an edit an overri
     Bed bed;
     UniquePtr<SceneEditorPage> page = bed.Open(*bed.level);
     SceneEditContext& edit = page->EditContext();
-    using engine::script::SceneScriptSettings;
+    using engine::behavior::SceneBehaviorSettings;
     const auto settings = [&]()
-    { return static_cast<SceneScriptSettings*>(edit.FindSystemBySettingsType(&TypeOf<SceneScriptSettings>())->SettingsInstance()); };
+    { return static_cast<SceneBehaviorSettings*>(edit.FindSystemBySettingsType(&TypeOf<SceneBehaviorSettings>())->SettingsInstance()); };
     LevelScriptSource source(edit, &bed.context);
     Array<gui::PropertyInfo> none;
     source.GetProperties(StringView{}, none);
@@ -1652,7 +1652,7 @@ TEST_CASE("level script: the Level class's properties as rows; an edit an overri
     spawn.type = foundation::script::ScriptPropertyType::Vec3;
     spawn.defaultValue.kind = spawn.type;
     level->properties.PushBack(spawn);
-    settings()->script.SetDirect(level);
+    settings()->behaviorClass.SetDirect(level);
     source.Refresh();
 
     Array<gui::PropertyInfo> rows;

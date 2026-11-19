@@ -21,7 +21,7 @@ import foundation.scene;
 import foundation.scene.resource;
 import foundation.resource;
 import foundation.script.resource;
-import engine.script;
+import engine.behavior;
 import editor.core;
 
 using namespace foundation::core;
@@ -586,7 +586,7 @@ namespace editor
             {
                 return Err(Move(id.Error()));
             }
-            Result<Guid, String> scriptId = GuidArg(args, u8"script");
+            Result<Guid, String> scriptId = GuidArg(args, u8"class");
             if (!scriptId.HasValue())
             {
                 return Err(Move(scriptId.Error()));
@@ -602,7 +602,7 @@ namespace editor
             {
                 return Err(Move(changes.Error()));
             }
-            const TypeInfo* scriptType = &TypeOf<engine::script::ScriptComponent>();
+            const TypeInfo* scriptType = &TypeOf<engine::behavior::BehaviorComponent>();
             scene::ComponentManagerBase* scripts = edit.FindManager(scriptType);
             if (scripts == nullptr)
             {
@@ -617,12 +617,12 @@ namespace editor
                 }
                 const Guid script = scriptId.Value();
                 const Array<PropertyChange>& values = changes.Value();
-                (void)edit.MutateComponent<engine::script::ScriptComponent>(
+                (void)edit.MutateComponent<engine::behavior::BehaviorComponent>(
                     id.Value(),
-                    [&](engine::script::ScriptComponent& component)
+                    [&](engine::behavior::BehaviorComponent& component)
                     {
-                        engine::script::ScriptBehavior behavior;
-                        behavior.script.SetId(script);
+                        engine::behavior::AttachedBehavior behavior;
+                        behavior.behaviorClass.SetId(script);
                         for (const PropertyChange& change : values)
                         {
                             behavior.SetOverride(change.hash, change.value);
@@ -633,7 +633,7 @@ namespace editor
             }
             if (index < 0)
             {
-                return Err(String(u8"the behaviour was not added (the Script component would not "
+                return Err(String(u8"the behaviour was not added (the Behavior component would not "
                                   u8"take it)"));
             }
             JsonValue out = Answer(context, addressed.Value(), id.Value());
@@ -656,10 +656,10 @@ namespace editor
             }
             const scene::EntityHandle handle = edit.Resolve(id.Value());
             scene::ComponentManagerBase* scripts =
-                edit.FindManager(&TypeOf<engine::script::ScriptComponent>());
+                edit.FindManager(&TypeOf<engine::behavior::BehaviorComponent>());
             const auto* component =
                 (scripts != nullptr && scripts->HasComponent(handle))
-                    ? static_cast<const engine::script::ScriptComponent*>(
+                    ? static_cast<const engine::behavior::BehaviorComponent*>(
                           scripts->GetComponentInstance(handle).Pointer())
                     : nullptr;
             const i64 index = args.Get(u8"index").AsInt(0);
@@ -671,7 +671,7 @@ namespace editor
                                   edit.Scene().GetEntityName(handle), index));
             }
             Result<script::ScriptClass*, String> scriptClass = CookedClass(
-                context, component->behaviors[static_cast<usize>(index)].script.id);
+                context, component->behaviors[static_cast<usize>(index)].behaviorClass.id);
             if (!scriptClass.HasValue())
             {
                 return Err(Move(scriptClass.Error()));
@@ -687,15 +687,15 @@ namespace editor
             {
                 Step step(edit);
                 const Array<PropertyChange>& values = changes.Value();
-                (void)edit.MutateComponent<engine::script::ScriptComponent>(
+                (void)edit.MutateComponent<engine::behavior::BehaviorComponent>(
                     id.Value(),
-                    [&](engine::script::ScriptComponent& live)
+                    [&](engine::behavior::BehaviorComponent& live)
                     {
                         if (static_cast<usize>(index) >= live.behaviors.Size())
                         {
                             return;
                         }
-                        engine::script::ScriptBehavior& behavior =
+                        engine::behavior::AttachedBehavior& behavior =
                             live.behaviors[static_cast<usize>(index)];
                         for (const PropertyChange& change : values)
                         {
@@ -799,16 +799,16 @@ namespace editor
         }
         server.RegisterTool(
             u8"behavior_add",
-            u8"Attach a script behaviour to an entity on a scene page, adding its Script component "
-            u8"when it has none, with `properties` set over the class's defaults: one undo step. "
-            u8"The class must be cooked (asset_cook): its properties and their types come from "
-            u8"the cooked class. Returns the entity as entity_inspect shows it and the "
-            u8"behaviour's index.",
+            u8"Attach a behavior (an EntityBehavior class) to an entity on a scene page, adding its "
+            u8"Behavior component when it has none, with `properties` set over the class's defaults: "
+            u8"one undo step. The class must be cooked (asset_cook): its properties and their types "
+            u8"come from the cooked class. Returns the entity as entity_inspect shows it and the "
+            u8"behavior's index.",
             SchemaBuilder()
                 .Str(u8"page", kPage)
                 .Str(u8"entity", kEntity, true)
-                .Str(u8"script", u8"the script class asset's guid (asset_list: type "
-                                 u8"ScriptClassAsset); it must be cooked",
+                .Str(u8"class", u8"the behavior's script asset guid (asset_list: type "
+                                u8"ScriptClassAsset), an EntityBehavior; it must be cooked",
                      true)
                 .Property(u8"properties", PropertiesSchema())
                 .Build(),

@@ -35,7 +35,7 @@ export namespace pipeline{
     // instance. Reflected instance methods use a colon (self.entity:position()); static facades
     // use a dot (Log.info, Time.delta); Float3 is Luau's native vector (v.x, arithmetic).
     inline constexpr StringView kLuauBehaviorStarter =
-        u8"-- Behavior class - attach via a ScriptComponent behavior slot.\n"
+        u8"-- Behavior class - attach via a BehaviorComponent behavior slot.\n"
         u8"-- Luau OOP: a GLOBAL class table made from its kind; the engine calls {ClassName}.new(entity).\n"
         u8"-- Reflected engine types are globals: Float3 (native vector), Log, Time, Random.\n"
         u8"{ClassName} = EntityBehavior.class()\n"
@@ -70,7 +70,7 @@ export namespace pipeline{
     // presence). onUpdate/onFixedUpdate run only while the scene simulates.
     inline constexpr StringView kLuauLevelStarter =
         u8"-- A scene behavior - one per scene, constructed with the scene handle.\n"
-        u8"-- Set it on the scene's Scene Script settings.\n"
+        u8"-- Set it on the scene's Scene Behavior settings.\n"
         u8"{ClassName} = SceneBehavior.class()\n"
         u8"\n"
         u8"function {ClassName}.new(scene)\n"

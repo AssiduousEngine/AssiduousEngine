@@ -32,7 +32,7 @@ import engine.render;
 import engine.composition; // FullSceneComposition
 import engine.physics;
 import engine.navigation;
-import engine.script;
+import engine.behavior;
 import foundation.gui;
 import foundation.gui.toolkit;
 import pipeline.core;   // AssetCreatorRegistry
@@ -793,8 +793,8 @@ TEST_CASE("inspector: a scene settings section is titled with its type's display
     CHECK(inspector->SettingsOf(u8"Physics") != nullptr);
     REQUIRE(edit.FindSystemBySettingsType(&TypeOf<engine::navigation::NavigationSceneSettings>()) != nullptr);
     CHECK(inspector->SettingsOf(u8"Navigation") != nullptr);
-    REQUIRE(edit.FindSystemBySettingsType(&TypeOf<engine::script::SceneScriptSettings>()) != nullptr);
-    CHECK(inspector->SettingsOf(u8"Scene Script") != nullptr);
+    REQUIRE(edit.FindSystemBySettingsType(&TypeOf<engine::behavior::SceneBehaviorSettings>()) != nullptr);
+    CHECK(inspector->SettingsOf(u8"Scene Behavior") != nullptr);
     // No C++ name reads through.
     const String titles = inspector->SectionTitles();
     CHECK_FALSE(titles.AsView().ContainsIgnoreCase(u8"PostProcess"));

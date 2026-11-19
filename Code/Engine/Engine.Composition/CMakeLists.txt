@@ -10,7 +10,7 @@ target_link_libraries(Engine.Composition PUBLIC
     Foundation::Script.Facades
     Engine::Domain
     Engine::Render Engine::Animation Engine::Particles Engine::Physics Engine::Terrain Engine::Vegetation Engine::Spline Engine::Navigation
-    Engine::Audio Engine::Script Engine::Input Engine::Run
+    Engine::Audio Engine::Behavior Engine::Input Engine::Run
     Foundation::Net.Replication Foundation::Net.Manager Engine::Net
     Foundation::Policy)
 target_link_libraries(Engine.Composition PUBLIC Engine::GUI) # the GUI domain

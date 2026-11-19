@@ -13,14 +13,14 @@ module engine.integration;
 import foundation.core;
 import foundation.physics;
 import engine.physics;
-import engine.script;
+import engine.behavior;
 
 namespace engine::integration
 {
-    engine::script::ScriptContactKind
+    engine::behavior::ScriptContactKind
     ToScriptContactKind(foundation::physics::ContactKind kind) noexcept
     {
-        using SK = engine::script::ScriptContactKind;
+        using SK = engine::behavior::ScriptContactKind;
         switch (kind)
         {
         case foundation::physics::ContactKind::Begin:
@@ -51,7 +51,7 @@ namespace engine::integration
     }
 
     void ScriptPhysicsContactBridge::Install(engine::physics::PhysicsSubsystem& physics,
-                                             engine::script::ScriptSubsystem& scripts)
+                                             engine::behavior::BehaviorSubsystem& scripts)
     {
         Uninstall(); // drop any prior registration so a re-Install re-points cleanly
         m_listener.scripts = &scripts;

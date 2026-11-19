@@ -36,7 +36,7 @@ import foundation.gui.hosting;
 import foundation.gui.viewport;
 import foundation.script;
 import foundation.script.resource;  // ScriptClass (the cooked game script, bound from the content DB)
-import engine.script; // ScriptSubsystem and ScriptRunHost (debugger wiring)
+import engine.behavior; // BehaviorSubsystem and BehaviorRunHost (debugger wiring)
 import foundation.shell;
 import foundation.input;
 import foundation.input.resource;

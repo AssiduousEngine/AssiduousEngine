@@ -23,7 +23,7 @@ import foundation.scene.resource;
 import foundation.render;
 import engine.render;
 import engine.gui;
-import engine.script; // ScriptSubsystem: the page run's host is configured by it
+import engine.behavior; // BehaviorSubsystem: the page run's host is configured by it
 import foundation.run;
 import foundation.gui;
 import foundation.gui.hosting;
@@ -91,7 +91,7 @@ namespace editor
         if (m_services.runs != nullptr)
             m_services.runs->Add(run); // it leaves the registry as it is destroyed, with the page
         if (host != nullptr)
-            if (auto* scripts = host->Subsystems().GetSubsystem<engine::script::ScriptSubsystem>())
+            if (auto* scripts = host->Subsystems().GetSubsystem<engine::behavior::BehaviorSubsystem>())
                 scripts->ConfigureRunHost(run.Scripts()); // the facades and routing, before its first context
 
         // Its own live scene in its own scene manager, registered with the subsystem so it ticks.

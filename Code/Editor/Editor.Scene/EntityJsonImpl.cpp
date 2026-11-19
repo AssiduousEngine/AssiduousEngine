@@ -12,7 +12,7 @@ import foundation.scene;
 import foundation.scene.resource;
 import foundation.resource;
 import foundation.script.resource; // ScriptClass, ScriptPropertyValue (a behaviour's overrides)
-import engine.script;              // ScriptComponent (its behaviours, a hidden list)
+import engine.behavior;              // BehaviorComponent (its behaviours, a hidden list)
 
 using namespace foundation::core;
 using foundation::json::JsonValue;
@@ -247,28 +247,28 @@ namespace editor
             return JsonValue::MakeNull();
         }
 
-        /// A Script component's behaviours: each one's script (its guid, and its class when the
+        /// A Behavior component's behaviours: each one's script (its guid, and its class when the
         /// class is cooked), whether it runs, and its property overrides by name.
-        JsonValue BehaviorsJson(const engine::script::ScriptComponent& component,
+        JsonValue BehaviorsJson(const engine::behavior::BehaviorComponent& component,
                                 foundation::resource::ResourceManager* resources)
         {
             JsonValue list = JsonValue::MakeArray();
-            for (const engine::script::ScriptBehavior& behavior : component.behaviors)
+            for (const engine::behavior::AttachedBehavior& behavior : component.behaviors)
             {
                 JsonValue entry = JsonValue::MakeObject();
-                const Guid id = behavior.script.id;
-                entry.Set(u8"script", id.IsNil() ? JsonValue::MakeNull() : GuidJson(id));
-                const foundation::script::ScriptClass* scriptClass = behavior.script.Get();
+                const Guid id = behavior.behaviorClass.id;
+                entry.Set(u8"class", id.IsNil() ? JsonValue::MakeNull() : GuidJson(id));
+                const foundation::script::ScriptClass* scriptClass = behavior.behaviorClass.Get();
                 if (scriptClass == nullptr && resources != nullptr && !id.IsNil())
                 {
                     scriptClass = resources->Bind<foundation::script::ScriptClass>(id).Get();
                 }
-                entry.Set(u8"class", scriptClass != nullptr
-                                         ? JsonValue::MakeString(scriptClass->className)
-                                         : JsonValue::MakeNull());
+                entry.Set(u8"className", scriptClass != nullptr
+                                             ? JsonValue::MakeString(scriptClass->className)
+                                             : JsonValue::MakeNull());
                 entry.Set(u8"enabled", JsonValue::MakeBool(behavior.enabled));
                 JsonValue properties = JsonValue::MakeObject();
-                for (const engine::script::ScriptPropertyOverride& o : behavior.overrides)
+                for (const engine::behavior::ScriptPropertyOverride& o : behavior.overrides)
                 {
                     const foundation::script::ScriptPropertyDesc* desc =
                         scriptClass != nullptr ? scriptClass->FindProperty(o.nameHash) : nullptr;
@@ -300,14 +300,14 @@ namespace editor
     bool BehaviorField(scene::Scene& scene, scene::EntityHandle handle, StringView className,
                        StringView field, JsonValue& out)
     {
-        auto* scripts = scene.GetSystem<engine::script::ScriptComponentManager>();
-        const engine::script::ScriptComponent* component =
+        auto* scripts = scene.GetSystem<engine::behavior::BehaviorComponentManager>();
+        const engine::behavior::BehaviorComponent* component =
             scripts != nullptr ? scripts->Get(handle) : nullptr;
         if (component == nullptr)
         {
             return false;
         }
-        for (const engine::script::ScriptBehavior& behavior : component->behaviors)
+        for (const engine::behavior::AttachedBehavior& behavior : component->behaviors)
         {
             if (behavior.instance.Get() == nullptr || behavior.boundClass == nullptr ||
                 behavior.boundClass->className.AsView() != className)
@@ -376,11 +376,11 @@ namespace editor
                     component.Set(u8"properties", JsonValue::MakeNull()); // unreflected
                 }
                 // The behaviours are a hidden list the reflected properties leave out.
-                if (type == &TypeOf<engine::script::ScriptComponent>() &&
+                if (type == &TypeOf<engine::behavior::BehaviorComponent>() &&
                     instance.Pointer() != nullptr)
                 {
                     component.Set(u8"behaviors",
-                                  BehaviorsJson(*static_cast<const engine::script::ScriptComponent*>(
+                                  BehaviorsJson(*static_cast<const engine::behavior::BehaviorComponent*>(
                                                     instance.Pointer()),
                                                 resources));
                 }

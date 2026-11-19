@@ -364,14 +364,14 @@
 		</object>
 		<object>
 			<string name="owner">b71f04fa-740b-5665-9658-303563c2e1fa</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">a28076e4-d276-4b8b-9e81-3ba6ff72c108</string>
+					<string name="class">a28076e4-d276-4b8b-9e81-3ba6ff72c108</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="0"/>

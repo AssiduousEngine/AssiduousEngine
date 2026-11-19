@@ -715,14 +715,14 @@
 		</object>
 		<object>
 			<string name="owner">848dffcb-0530-4832-afe9-5758204bec3a</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">1daba6ea-a317-429b-b66e-18b401f79fc3</string>
+					<string name="class">1daba6ea-a317-429b-b66e-18b401f79fc3</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="1">
@@ -735,14 +735,14 @@
 		</object>
 		<object>
 			<string name="owner">6eec409e-f081-4a23-86a5-69ab25d9d64c</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">be9a0e18-f55f-42ef-952e-c4c8ae47817b</string>
+					<string name="class">be9a0e18-f55f-42ef-952e-c4c8ae47817b</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="1">
@@ -755,14 +755,14 @@
 		</object>
 		<object>
 			<string name="owner">fca5b8ea-5c83-52ce-becf-11919cfa5466</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
+					<string name="class">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="0"/>
@@ -771,14 +771,14 @@
 		</object>
 		<object>
 			<string name="owner">d9003cad-af2c-59ef-8e06-138625f59913</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
+					<string name="class">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="0"/>
@@ -787,14 +787,14 @@
 		</object>
 		<object>
 			<string name="owner">98304d19-d43a-5073-9b5f-7141ba06a800</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
+					<string name="class">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="0"/>
@@ -803,14 +803,14 @@
 		</object>
 		<object>
 			<string name="owner">b4b07443-c843-5555-890a-35e3ae896c32</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">3e307990-3624-4fe0-8da9-450eca299e8f</string>
+					<string name="class">3e307990-3624-4fe0-8da9-450eca299e8f</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="5">
@@ -835,14 +835,14 @@
 		</object>
 		<object>
 			<string name="owner">a1ac24f7-b954-5c22-b9c4-0f3b7676f606</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="2">
-					<string name="script">7c8974ee-9c3f-4f97-ad91-0a037f61212f</string>
+					<string name="class">7c8974ee-9c3f-4f97-ad91-0a037f61212f</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="4">
@@ -859,7 +859,7 @@
 						<u8 name="kind">1</u8>
 						<f64 name="number">7</f64>
 					</array>
-					<string name="script">48027c0b-7c5d-45b5-8e5b-e73d63ea04de</string>
+					<string name="class">48027c0b-7c5d-45b5-8e5b-e73d63ea04de</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="2">
@@ -875,14 +875,14 @@
 		</object>
 		<object>
 			<string name="owner">8d61ac7a-df7e-554a-b3d7-9c24a08df2b9</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
+					<string name="class">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="0"/>
@@ -891,14 +891,14 @@
 		</object>
 		<object>
 			<string name="owner">b94d5bf9-815b-5a80-9a49-0cc24903aa32</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
+					<string name="class">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="0"/>
@@ -907,14 +907,14 @@
 		</object>
 		<object>
 			<string name="owner">c54ea876-e8ef-5b0a-8987-48ac9e6dbe89</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
+					<string name="class">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="0"/>
@@ -923,14 +923,14 @@
 		</object>
 		<object>
 			<string name="owner">1b1f78eb-6a26-5fbd-8b7a-eda31eee7fdf</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
+					<string name="class">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="0"/>
@@ -939,14 +939,14 @@
 		</object>
 		<object>
 			<string name="owner">fa8ec8cf-e05d-5034-9720-92a93d1653c4</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">3e307990-3624-4fe0-8da9-450eca299e8f</string>
+					<string name="class">3e307990-3624-4fe0-8da9-450eca299e8f</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="3">
@@ -965,14 +965,14 @@
 		</object>
 		<object>
 			<string name="owner">4139ee07-cf95-596c-ba52-a02bca483852</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">783164e8-8d4d-437e-ad93-ed92f8affbbb</string>
+					<string name="class">783164e8-8d4d-437e-ad93-ed92f8affbbb</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="1">
@@ -985,14 +985,14 @@
 		</object>
 		<object>
 			<string name="owner">454288d8-c738-5ba8-9e33-7ecd58559be1</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">783164e8-8d4d-437e-ad93-ed92f8affbbb</string>
+					<string name="class">783164e8-8d4d-437e-ad93-ed92f8affbbb</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="2">
@@ -1008,14 +1008,14 @@
 		</object>
 		<object>
 			<string name="owner">6bf78e40-6f2a-587f-b3b8-cf4e20aac262</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
+					<string name="class">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="0"/>
@@ -1024,14 +1024,14 @@
 		</object>
 		<object>
 			<string name="owner">80b11fad-528b-5030-b2ba-e8e1b93fbf48</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
+					<string name="class">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="0"/>
@@ -1040,14 +1040,14 @@
 		</object>
 		<object>
 			<string name="owner">7a657c7a-ce2d-5666-ab80-fa963a7e8ee2</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
+					<string name="class">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="0"/>
@@ -1056,14 +1056,14 @@
 		</object>
 		<object>
 			<string name="owner">da348eaf-0cdf-58b5-8f93-352dc790b945</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">3e307990-3624-4fe0-8da9-450eca299e8f</string>
+					<string name="class">3e307990-3624-4fe0-8da9-450eca299e8f</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="5">
@@ -1088,14 +1088,14 @@
 		</object>
 		<object>
 			<string name="owner">a11f7612-92ac-5395-833f-6738a123a2ff</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">3e307990-3624-4fe0-8da9-450eca299e8f</string>
+					<string name="class">3e307990-3624-4fe0-8da9-450eca299e8f</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="5">
@@ -1120,14 +1120,14 @@
 		</object>
 		<object>
 			<string name="owner">fae10607-38ed-5387-8b5b-861d708b6fcf</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
+					<string name="class">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="0"/>
@@ -1136,14 +1136,14 @@
 		</object>
 		<object>
 			<string name="owner">ecbdc789-7f78-5b8e-93c2-2153d3c68840</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
+					<string name="class">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="0"/>
@@ -1152,14 +1152,14 @@
 		</object>
 		<object>
 			<string name="owner">20fc3e38-35b2-5d4b-bac9-7f02a9361934</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
+					<string name="class">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="0"/>
@@ -1168,14 +1168,14 @@
 		</object>
 		<object>
 			<string name="owner">100e918d-0f28-52be-aac8-1afaa976a298</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
+					<string name="class">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="0"/>
@@ -1184,14 +1184,14 @@
 		</object>
 		<object>
 			<string name="owner">f3f9a15a-57bb-5f9e-abc8-43391f355da9</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">3e307990-3624-4fe0-8da9-450eca299e8f</string>
+					<string name="class">3e307990-3624-4fe0-8da9-450eca299e8f</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="3">
@@ -1210,14 +1210,14 @@
 		</object>
 		<object>
 			<string name="owner">ee32260e-d059-5bb3-9d1a-3e8bd90531d2</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
+					<string name="class">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="0"/>
@@ -1226,14 +1226,14 @@
 		</object>
 		<object>
 			<string name="owner">165a164f-e39f-51b9-81d7-02f9b44f07f1</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
+					<string name="class">2b5347d1-2037-4ed0-83b3-facb25b3158b</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="0"/>
@@ -1242,14 +1242,14 @@
 		</object>
 		<object>
 			<string name="owner">df073c30-3c32-50b3-97f6-779e3646d3ae</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">57076cdb-e80b-4ae5-8155-213082a52498</string>
+					<string name="class">57076cdb-e80b-4ae5-8155-213082a52498</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="0"/>
@@ -1259,13 +1259,13 @@
 	</array>
 	<array name="systemSettings" count="5">
 		<object>
-			<string name="system">sceneScript</string>
+			<string name="system">sceneBehavior</string>
 			<array name="dataVersions" count="1">
-				<u64 name="type">17871001856427645353</u64>
+				<u64 name="type">7942436008690084579</u64>
 				<u32 name="version">2</u32>
 			</array>
 			<object name="settings">
-				<string name="script">00000000-0000-0000-0000-000000000000</string>
+				<string name="class">00000000-0000-0000-0000-000000000000</string>
 				<bool name="enabled">true</bool>
 				<array name="overrides" count="0"/>
 			</object>

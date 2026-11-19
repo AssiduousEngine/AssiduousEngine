@@ -2065,14 +2065,14 @@
 		</object>
 		<object>
 			<string name="owner">4689cda4-76dd-54d6-a916-6bd13cd3e35f</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">d07094c2-cd3f-4ea0-b1c4-546e80b80a2a</string>
+					<string name="class">d07094c2-cd3f-4ea0-b1c4-546e80b80a2a</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="2">
@@ -2089,13 +2089,13 @@
 	</array>
 	<array name="systemSettings" count="5">
 		<object>
-			<string name="system">sceneScript</string>
+			<string name="system">sceneBehavior</string>
 			<array name="dataVersions" count="1">
-				<u64 name="type">17871001856427645353</u64>
+				<u64 name="type">7942436008690084579</u64>
 				<u32 name="version">2</u32>
 			</array>
 			<object name="settings">
-				<string name="script">00000000-0000-0000-0000-000000000000</string>
+				<string name="class">00000000-0000-0000-0000-000000000000</string>
 				<bool name="enabled">true</bool>
 				<array name="overrides" count="0"/>
 			</object>

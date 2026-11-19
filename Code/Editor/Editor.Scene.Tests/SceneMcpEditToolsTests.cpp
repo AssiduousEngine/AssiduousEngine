@@ -13,7 +13,7 @@ import foundation.mcp;
 import foundation.scene;
 import foundation.scene.resource;
 import engine.render;
-import engine.script;
+import engine.behavior;
 import editor.core;
 import editor.scene;
 import editor.viewporttools;
@@ -40,7 +40,7 @@ namespace
             SetInstanceId(asset);
             Provide<ISceneEditorPage>(*this);
             m_scene.AddSystem<engine::render::LightComponentManager>();
-            m_scene.AddSystem<engine::script::ScriptComponentManager>();
+            m_scene.AddSystem<engine::behavior::BehaviorComponentManager>();
             // The prefab: one "Crate" entity.
             scene::Scene author(DefaultAllocator(), u8"author");
             const scene::EntityHandle crate = author.CreateEntity(u8"Crate");
@@ -245,15 +245,15 @@ TEST_CASE("scene-edit-tools: an agent builds a level one undo step at a time")
     const Guid script = Guid::Generate(rng);
     Guid platform;
     REQUIRE(Guid::TryParse(platformId.AsView(), platform));
-    REQUIRE(page->EditContext().MutateComponent<engine::script::ScriptComponent>(platform, [](engine::script::ScriptComponent&) {}) ==
+    REQUIRE(page->EditContext().MutateComponent<engine::behavior::BehaviorComponent>(platform, [](engine::behavior::BehaviorComponent&) {}) ==
             false); // no Script component yet
-    page->EditContext().AddComponent(platform, &TypeOf<engine::script::ScriptComponent>());
-    REQUIRE(page->EditContext().MutateComponent<engine::script::ScriptComponent>(
+    page->EditContext().AddComponent(platform, &TypeOf<engine::behavior::BehaviorComponent>());
+    REQUIRE(page->EditContext().MutateComponent<engine::behavior::BehaviorComponent>(
         platform,
-        [&](engine::script::ScriptComponent& component)
+        [&](engine::behavior::BehaviorComponent& component)
         {
-            engine::script::ScriptBehavior behavior;
-            behavior.script.SetId(script);
+            engine::behavior::AttachedBehavior behavior;
+            behavior.behaviorClass.SetId(script);
             component.behaviors.PushBack(Move(behavior));
         }));
     Answer inspected = Call(server, u8"entity_inspect", u8"{\"entity\":\"Platform\"}");
@@ -268,9 +268,9 @@ TEST_CASE("scene-edit-tools: an agent builds a level one undo step at a time")
         }
     }
     REQUIRE(behaviors.Count() == 1);
-    CHECK(behaviors.At(0).Get(u8"script").AsString() == GuidText(script).AsView());
+    CHECK(behaviors.At(0).Get(u8"class").AsString() == GuidText(script).AsView());
     Answer refused = Call(server, u8"behavior_add",
-                          Format(u8"{{\"entity\":\"Platform\",\"script\":\"{}\"}}",
+                          Format(u8"{{\"entity\":\"Platform\",\"class\":\"{}\"}}",
                                  GuidText(script).AsView())
                               .AsView());
     CHECK(refused.error.AsView().ContainsIgnoreCase(u8"is not a cooked script class"));

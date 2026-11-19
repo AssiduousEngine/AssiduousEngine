@@ -15,7 +15,7 @@ export module engine.integration:animation;
 
 import foundation.core;
 import engine.animation; // AnimationSubsystem, IAnimationListener, AnimationOneShotEnded
-import engine.script;    // ScriptSubsystem
+import engine.behavior;    // BehaviorSubsystem
 
 export namespace engine::integration
 {
@@ -32,7 +32,7 @@ export namespace engine::integration
         ScriptAnimationBridge& operator=(const ScriptAnimationBridge&) = delete;
 
         /// Point `animation`'s events at `scripts`. Calling again re-points cleanly.
-        void Install(engine::animation::AnimationSubsystem& animation, engine::script::ScriptSubsystem& scripts);
+        void Install(engine::animation::AnimationSubsystem& animation, engine::behavior::BehaviorSubsystem& scripts);
 
         /// Unregister from the animation subsystem. Idempotent.
         void Uninstall();
@@ -42,7 +42,7 @@ export namespace engine::integration
     private:
         struct Listener final : public engine::animation::IAnimationListener
         {
-            engine::script::ScriptSubsystem* scripts = nullptr;
+            engine::behavior::BehaviorSubsystem* scripts = nullptr;
             void OnOneShotEnded(const engine::animation::AnimationOneShotEnded& ended) override;
             void OnClipEvent(const engine::animation::AnimationClipEvent& event) override;
         };

@@ -11,7 +11,7 @@
 // DeliverContact entry point. Physics exposes IContactListener and knows nothing about scripts; the
 // script subsystem exposes DeliverContact in its own vocabulary and knows nothing about physics.
 // This bridge is the one place that names both and translates between them, so engine.physics and
-// engine.script stay independent of each other. ScriptAnimationBridge (:animation) does the same
+// engine.behavior stay independent of each other. ScriptAnimationBridge (:animation) does the same
 // for the animation's events.
 
 module;
@@ -23,13 +23,13 @@ export import :animation; // ScriptAnimationBridge
 import foundation.core;
 import foundation.physics;        // ContactKind (the foundation contact enum)
 import engine.physics; // PhysicsSubsystem, IContactListener, EntityContact
-import engine.script;  // ScriptSubsystem, ScriptContactKind
+import engine.behavior;  // BehaviorSubsystem, ScriptContactKind
 
 export namespace engine::integration
 {
     /// Maps the physics contact vocabulary onto the script subsystem's neutral one. Free and pure
     /// so it is testable without either subsystem.
-    [[nodiscard]] engine::script::ScriptContactKind
+    [[nodiscard]] engine::behavior::ScriptContactKind
     ToScriptContactKind(foundation::physics::ContactKind kind) noexcept;
 
     /// Registers a physics contact listener that forwards resolved contacts to a script subsystem,
@@ -48,7 +48,7 @@ export namespace engine::integration
         /// Point `physics` contacts at `scripts`. Calling again re-points cleanly (it
         /// Uninstall()s the prior registration first), so it is safe to re-wire.
         void Install(engine::physics::PhysicsSubsystem& physics,
-                     engine::script::ScriptSubsystem& scripts);
+                     engine::behavior::BehaviorSubsystem& scripts);
 
         /// Unregister from the physics subsystem. Idempotent; a no-op when not installed.
         void Uninstall();
@@ -58,7 +58,7 @@ export namespace engine::integration
     private:
         struct Listener final : public engine::physics::IContactListener
         {
-            engine::script::ScriptSubsystem* scripts = nullptr;
+            engine::behavior::BehaviorSubsystem* scripts = nullptr;
             void OnContact(const engine::physics::EntityContact& contact) override;
         };
 

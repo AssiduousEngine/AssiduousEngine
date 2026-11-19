@@ -10,7 +10,7 @@
 // write.
 //
 // It owns the script run state, its bracket and the instance time-scale term. The caller creates
-// the scene and pairs it in with SetScene. The ScriptSubsystem and the app's subsystems are
+// the scene and pairs it in with SetScene. The BehaviorSubsystem and the app's subsystems are
 // borrowed, never owned.
 
 module;
@@ -31,7 +31,7 @@ import foundation.content;        // content::Instance (the cooked scene record)
 import foundation.resource;       // ResourceManager and AsyncBindScope (async level load)
 import foundation.script;
 import foundation.script.resource; // ScriptClass (the cooked Game class a run starts from)
-import engine.script;
+import engine.behavior;
 import foundation.script.facades; // RegisterExtraFacadeName (the run behavior-prelude hook)
 import foundation.net.manager; // NetworkManager, INetworkController, NetScriptBinding
 import foundation.input;       // ActionRuntime, IInputSourceProvider, InputMap (per-instance input)
@@ -337,7 +337,7 @@ export namespace engine::runtime
             Register<input::ActionRuntime>(m_inputRuntime);
             Register<input::IRunInput>(*this); // the input subsystem drives it as the frame begins
             Register<RunSave>(m_save);
-            Register<engine::script::ScriptRunHost>(m_runHost);
+            Register<engine::behavior::BehaviorRunHost>(m_runHost);
             Register<foundation::http::HttpScriptBinding>(m_http);
             Register<RunBinding>(m_runBinding);
             Register<foundation::net::NetScriptBinding>(m_network.ScriptBinding());
@@ -385,7 +385,7 @@ export namespace engine::runtime
 
         /// Compile `source` and launch its class `className` as this run's behavior (a class with
         /// onStart()/onUpdate(dt)/onStop()) on this instance's run host. The host must be configured
-        /// first (the app's ScriptSubsystem::ConfigureRunHost exposes the facades and routing); a
+        /// first (the app's BehaviorSubsystem::ConfigureRunHost exposes the facades and routing); a
         /// bare test only needs a backend registered. Restarting stops a prior run first. Returns
         /// false if it fails to compile or `className` does not construct.
         bool StartRunBehavior(core::StringView source, core::StringView name, core::StringView className)
@@ -622,8 +622,8 @@ export namespace engine::runtime
 
         /// This run's script host: the gameplay context shared by the game script and this
         /// instance's scenes' behaviors (one gameplay context per instance). Owned here; the
-        /// ScriptSubsystem borrows it, so each instance in an Array<ApplicationRun> runs its own.
-        [[nodiscard]] engine::script::ScriptRunHost& RunHost() noexcept { return m_runHost; }
+        /// BehaviorSubsystem borrows it, so each instance in an Array<ApplicationRun> runs its own.
+        [[nodiscard]] engine::behavior::BehaviorRunHost& RunHost() noexcept { return m_runHost; }
 
         /// This run's scene group: the set of scenes the run manages and its current scene, ticked
         /// on the Context lane once registered with the SceneSubsystem. Wire its aware-registry
@@ -704,7 +704,7 @@ export namespace engine::runtime
         /// suspension is not a fault.
         void DispatchGameEvent(core::StringView eventName, const core::Variant& payload);
 
-        engine::script::ScriptRunHost m_runHost{
+        engine::behavior::BehaviorRunHost m_runHost{
             foundation::core::DefaultAllocator()}; // owned: the game's script context (from the
                                                    // process root allocator)
         scene::SceneManager m_sceneManager{DefaultAllocator()}; // owned; registered with the SceneSubsystem to tick
@@ -717,7 +717,7 @@ export namespace engine::runtime
         core::RefPtr<script::ScriptObject> m_runBehavior;
         core::String m_runBehaviorFault; // why the game script stopped on its own (ScriptFault)
         f64 m_runTime = 0.0;        // unscaled seconds of the run's frames, game script or not (RunTime)
-        engine::script::ScriptEventSubscriptions m_gameEventSubs; // Game tier's run-bus on<Event> inbox
+        engine::behavior::ScriptEventSubscriptions m_gameEventSubs; // Game tier's run-bus on<Event> inbox
 
         core::IAllocator* m_allocator = &DefaultAllocator(); // what the run's TLS and HTTP are made from
         // Before the networking and the HTTP binding, so it outlives every session they made from it.

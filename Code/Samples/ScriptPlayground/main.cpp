@@ -2,7 +2,7 @@
 // Copyright (c) 2026-Present Robert Campbell
 
 // ScriptPlayground - a foundation.script entity-behaviors consumer: a scene of cubes carrying
-// script behaviors (AngelScript or Luau, chosen with --script=<lang>) ticked by the ScriptSubsystem
+// script behaviors (AngelScript or Luau, chosen with --script=<lang>) ticked by the BehaviorSubsystem
 // under simulation. Both behaviors ship a source in each language, and the run resolves the context
 // by the ScriptClass language, so the model is backend-neutral. Two behaviors demonstrate the model
 // end to end:
@@ -15,9 +15,9 @@
 // ScriptClass; here the ScriptClass products are built in code (the pipeline tests cover the cook
 // path).
 //
-// The same behaviors run in Engine.Player: point a project's scene at a ScriptComponent with these
+// The same behaviors run in Engine.Player: point a project's scene at a BehaviorComponent with these
 // classes and it ticks identically (the player and this sample share the DefaultApplication
-// ScriptSubsystem).
+// BehaviorSubsystem).
 //
 // Fly with WASD and hold RMB to look. No input is needed: the cubes move themselves.
 
@@ -44,7 +44,7 @@ import foundation.materials;
 import foundation.materials.resource;
 import foundation.script;
 import foundation.script.resource;
-import engine.script;
+import engine.behavior;
 
 #include "../Common/FlyCamera.h"
 
@@ -242,7 +242,7 @@ namespace
 
         void OnUpdate(runtime::IApplicationHost& host, f32 dt) override
         {
-            engine::runtime::DefaultApplication::OnUpdate(host, dt); // ticks the ScriptSubsystem
+            engine::runtime::DefaultApplication::OnUpdate(host, dt); // ticks the BehaviorSubsystem
             m_fly.Update(host, dt);
             PushCameraToEntity();
             auto* input = host.Shell() != nullptr ? host.Shell()->Input() : nullptr;
@@ -273,7 +273,7 @@ namespace
         void BuildWorld()
         {
             auto* meshes = m_scene->GetSystem<engine::render::MeshComponentManager>();
-            auto* scripts = m_scene->GetSystem<engine::script::ScriptComponentManager>();
+            auto* scripts = m_scene->GetSystem<engine::behavior::BehaviorComponentManager>();
             if (meshes == nullptr || scripts == nullptr)
             {
                 return;
@@ -306,9 +306,9 @@ namespace
                                                     0.0f, 0.3f));
                 mc.color = core::Color{1.0f, 0.85f, 0.2f, 1.0f};
                 // The beacon spins (Spinner behavior, default 90 deg/s).
-                engine::script::ScriptComponent& sc = scripts->Add(m_beacon);
-                engine::script::ScriptBehavior spin;
-                spin.script.SetDirect(m_spinner);
+                engine::behavior::BehaviorComponent& sc = scripts->Add(m_beacon);
+                engine::behavior::AttachedBehavior spin;
+                spin.behaviorClass.SetDirect(m_spinner);
                 sc.behaviors.PushBack(core::Move(spin));
             }
 
@@ -327,10 +327,10 @@ namespace
                     u8"lit", core::Float4{0.3f + 0.6f * hue, 0.4f, 1.0f - 0.6f * hue, 1.0f}, 0.0f,
                     0.4f));
 
-                engine::script::ScriptComponent& sc = scripts->Add(e);
+                engine::behavior::BehaviorComponent& sc = scripts->Add(e);
                 // Behavior 1: Mover with a per-instance speed override and the target entity.
-                engine::script::ScriptBehavior mover;
-                mover.script.SetDirect(m_mover);
+                engine::behavior::AttachedBehavior mover;
+                mover.behaviorClass.SetDirect(m_mover);
                 script::ScriptPropertyValue speed;
                 speed.kind = script::ScriptPropertyType::Float;
                 speed.number = 0.6 + 0.25 * i; // distinct speeds
@@ -341,8 +341,8 @@ namespace
                 mover.SetOverride(script::ScriptPropertyNameHash(u8"target"), target);
                 sc.behaviors.PushBack(core::Move(mover));
                 // Behavior 2 (ordered after the mover): Spinner, slower.
-                engine::script::ScriptBehavior spin;
-                spin.script.SetDirect(m_spinner);
+                engine::behavior::AttachedBehavior spin;
+                spin.behaviorClass.SetDirect(m_spinner);
                 script::ScriptPropertyValue spinSpeed;
                 spinSpeed.kind = script::ScriptPropertyType::Float;
                 spinSpeed.number = 45.0;

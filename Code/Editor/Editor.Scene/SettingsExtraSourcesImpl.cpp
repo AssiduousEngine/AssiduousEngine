@@ -17,17 +17,17 @@ import foundation.script.resource;
 import foundation.gui;
 import foundation.gui.toolkit;
 import engine.physics;
-import engine.script;
+import engine.behavior;
 import editor.core;
 import :edit;
-import :script_behaviors_source;
+import :behaviors_source;
 import :settings_extra_sources;
 
 using namespace foundation::core;
 namespace gui = foundation::gui;
 namespace script = foundation::script;
 using engine::physics::PhysicsSceneSettings;
-using engine::script::SceneScriptSettings;
+using engine::behavior::SceneBehaviorSettings;
 
 namespace editor
 {
@@ -293,36 +293,36 @@ namespace editor
 
     LevelScriptSource::LevelScriptSource(SceneEditContext& edit, EditorContext* context) : m_edit(&edit), m_context(context) { m_signature = Signature(); }
 
-    const SceneScriptSettings* LevelScriptSource::Settings() const
+    const SceneBehaviorSettings* LevelScriptSource::Settings() const
     {
-        foundation::scene::SceneSystem* system = m_edit->FindSystemBySettingsType(&TypeOf<SceneScriptSettings>());
-        return system != nullptr ? static_cast<const SceneScriptSettings*>(system->SettingsInstance()) : nullptr;
+        foundation::scene::SceneSystem* system = m_edit->FindSystemBySettingsType(&TypeOf<SceneBehaviorSettings>());
+        return system != nullptr ? static_cast<const SceneBehaviorSettings*>(system->SettingsInstance()) : nullptr;
     }
 
     // The Level class bound, through the editor's resources while the reference has not resolved.
     const script::ScriptClass* LevelScriptSource::Class() const
     {
-        const SceneScriptSettings* settings = Settings();
+        const SceneBehaviorSettings* settings = Settings();
         if (settings == nullptr)
             return nullptr;
-        if (settings->script.Get() != nullptr)
-            return settings->script.Get();
-        if (settings->script.id.IsNil() || m_context == nullptr || m_context->Resources() == nullptr)
+        if (settings->behaviorClass.Get() != nullptr)
+            return settings->behaviorClass.Get();
+        if (settings->behaviorClass.id.IsNil() || m_context == nullptr || m_context->Resources() == nullptr)
             return nullptr;
-        return m_context->Resources()->Bind<script::ScriptClass>(settings->script.id).Get();
+        return m_context->Resources()->Bind<script::ScriptClass>(settings->behaviorClass.id).Get();
     }
 
     u64 LevelScriptSource::Signature() const
     {
-        const SceneScriptSettings* settings = Settings();
-        u64 hash = Mix(1469598103934665603ull, settings != nullptr ? Hash<Guid>{}(settings->script.id) : 0u);
+        const SceneBehaviorSettings* settings = Settings();
+        u64 hash = Mix(1469598103934665603ull, settings != nullptr ? Hash<Guid>{}(settings->behaviorClass.id) : 0u);
         return Mix(hash, Class() != nullptr ? 1u : 0u);
     }
 
     void LevelScriptSource::Refresh()
     {
         // Called every frame while the scene is selected: the grid hears of it only when a value moved.
-        const bool moved = m_shown.Take([this](ISerializer& ar) { WriteBlock(*m_edit, TypeOf<SceneScriptSettings>(), ar); });
+        const bool moved = m_shown.Take([this](ISerializer& ar) { WriteBlock(*m_edit, TypeOf<SceneBehaviorSettings>(), ar); });
         const u64 signature = Signature();
         if (signature != m_signature)
         {
@@ -333,11 +333,11 @@ namespace editor
             NotifyValuesChanged();
     }
 
-    void LevelScriptSource::Mutate(const Function<void(SceneScriptSettings&)>& mutate)
+    void LevelScriptSource::Mutate(const Function<void(SceneBehaviorSettings&)>& mutate)
     {
-        (void)m_edit->MutateSceneSettings(&TypeOf<SceneScriptSettings>(), [&](foundation::scene::SceneSystem& system)
+        (void)m_edit->MutateSceneSettings(&TypeOf<SceneBehaviorSettings>(), [&](foundation::scene::SceneSystem& system)
                                           {
-                                              if (auto* settings = static_cast<SceneScriptSettings*>(system.SettingsInstance()))
+                                              if (auto* settings = static_cast<SceneBehaviorSettings*>(system.SettingsInstance()))
                                                   mutate(*settings);
                                           });
         Refresh();
@@ -365,7 +365,7 @@ namespace editor
     {
         (void)object;
         const script::ScriptClass* type = Class();
-        const SceneScriptSettings* settings = Settings();
+        const SceneBehaviorSettings* settings = Settings();
         if (type == nullptr || settings == nullptr)
             return gui::Variant{};
         String row;
@@ -374,7 +374,7 @@ namespace editor
         const script::ScriptPropertyDesc* property = ScriptPropertyRows::Find(*type, row.AsView());
         if (property == nullptr)
             return gui::Variant{};
-        const engine::script::ScriptPropertyOverride* over = settings->FindOverride(property->hash);
+        const engine::behavior::ScriptPropertyOverride* over = settings->FindOverride(property->hash);
         return ScriptPropertyRows::ToGrid(over != nullptr ? over->value : property->defaultValue, property->type, part);
     }
 
@@ -404,9 +404,9 @@ namespace editor
             return;
         const script::ScriptPropertyDesc desc = *property;
         const gui::Variant value = write.Value;
-        Mutate([desc, part, value](SceneScriptSettings& settings)
+        Mutate([desc, part, value](SceneBehaviorSettings& settings)
                {
-                   const engine::script::ScriptPropertyOverride* over = settings.FindOverride(desc.hash);
+                   const engine::behavior::ScriptPropertyOverride* over = settings.FindOverride(desc.hash);
                    settings.SetOverride(desc.hash, ScriptPropertyRows::FromGrid(over != nullptr ? over->value : desc.defaultValue, desc.type, part, value));
                });
     }
@@ -423,7 +423,7 @@ namespace editor
         if (property == nullptr)
             return false;
         const u64 hash = property->hash;
-        Mutate([hash](SceneScriptSettings& settings) { settings.RemoveOverride(hash); });
+        Mutate([hash](SceneBehaviorSettings& settings) { settings.RemoveOverride(hash); });
         return true;
     }
 }

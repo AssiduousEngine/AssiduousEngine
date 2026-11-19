@@ -7,7 +7,7 @@
 // into the inspector's registry by RegisterSceneEditor:
 //   - a rigid body whose shape is Cooked with no collision shape set has no collider, and a note
 //     under its header says so while that holds (it follows an edit, not only a rebuild);
-//   - a script component's behaviours, as a source of their own (ScriptBehaviorsSource);
+//   - a script component's behaviours, as a source of their own (BehaviorsSource);
 //   - a navigation zone's Bake, which bakes the static geometry inside the zone, writes it into
 //     the zone's asset and reports the outcome. It runs at once on the main thread, as the bake's
 //     interface is one call; running it as a job needs that call split (collect here, bake on a
@@ -32,9 +32,9 @@ import editor.navigation;
 import :edit;
 import :inspector_extras;
 import :scene_page_interface; // the animation panel an animator's clip opens in
-import :script_behaviors_source;
+import :behaviors_source;
 import :settings_extra_sources;
-import engine.script;
+import engine.behavior;
 
 using namespace foundation::core;
 
@@ -56,9 +56,9 @@ export namespace editor
         {
             registry.Register(TypeOf<engine::physics::RigidBodyComponent>(), [](InspectorExtras& extras) { AddNoCollider(extras); });
             registry.Register(TypeOf<engine::navigation::NavMeshZoneComponent>(), [](InspectorExtras& extras) { AddBake(extras); });
-            registry.Register(TypeOf<engine::script::ScriptComponent>(), [](InspectorExtras& extras) { AddBehaviors(extras); });
+            registry.Register(TypeOf<engine::behavior::BehaviorComponent>(), [](InspectorExtras& extras) { AddBehaviors(extras); });
             registry.Register(TypeOf<engine::physics::PhysicsSceneSettings>(), [](InspectorExtras& extras) { AddCollisionGroups(extras); });
-            registry.Register(TypeOf<engine::script::SceneScriptSettings>(), [](InspectorExtras& extras) { AddLevelProperties(extras); });
+            registry.Register(TypeOf<engine::behavior::SceneBehaviorSettings>(), [](InspectorExtras& extras) { AddLevelProperties(extras); });
             registry.Register(TypeOf<engine::animation::PropertyAnimatorComponent>(), [](InspectorExtras& extras) { AddEditClip(extras); });
         }
 
@@ -66,8 +66,8 @@ export namespace editor
         // A script component's behaviours: a source of their own (reflection does not show them).
         static void AddBehaviors(InspectorExtras& extras)
         {
-            auto source = MakeUnique<ScriptBehaviorsSource>(EditorRootAllocator(), extras.Edit(), extras.Context(), extras.Entities());
-            ScriptBehaviorsSource* raw = source.Get();
+            auto source = MakeUnique<BehaviorsSource>(EditorRootAllocator(), extras.Edit(), extras.Context(), extras.Entities());
+            BehaviorsSource* raw = source.Get();
             extras.AddSection(Move(source), [raw]() { raw->Refresh(); });
         }
         // The physics block's collision groups (reflection does not show them).

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Editor::Scene - :script_behaviors_source partition.
+// Editor::Scene - :behaviors_source partition.
 //
 // A script component's behaviours as a property source, under its header in the inspector.
 // Reflection does not show them (a behaviour's properties belong to its script, from the cooked
@@ -16,13 +16,13 @@
 module;
 #include "Core/Prelude.h"
 
-export module editor.scene:script_behaviors_source;
+export module editor.scene:behaviors_source;
 
 import foundation.core;
 import foundation.resource;
 import foundation.scene;
 import foundation.script.resource;
-import engine.script;
+import engine.behavior;
 import foundation.gui;
 import foundation.gui.toolkit;
 import editor.core;
@@ -59,10 +59,10 @@ export namespace editor
         static void ParseRow(StringView rest, String& row, i32& part);
     };
 
-    class ScriptBehaviorsSource final : public foundation::gui::IPropertySource
+    class BehaviorsSource final : public foundation::gui::IPropertySource
     {
     public:
-        ScriptBehaviorsSource(SceneEditContext& edit, EditorContext* context, Span<const Guid> entities);
+        BehaviorsSource(SceneEditContext& edit, EditorContext* context, Span<const Guid> entities);
 
         /// Tells the grid when the behaviours changed outside it (an undo, a pick elsewhere): their
         /// rows when the behaviours or their classes did, their values when only a value did.
@@ -97,13 +97,13 @@ export namespace editor
             i32 part = -1; // a vector property's x, y or z
         };
         [[nodiscard]] static Where Parse(StringView path);
-        [[nodiscard]] engine::script::ScriptComponent* Component(usize object) const;
+        [[nodiscard]] engine::behavior::BehaviorComponent* Component(usize object) const;
         [[nodiscard]] usize BehaviorCount() const;
-        [[nodiscard]] const foundation::script::ScriptClass* ClassOf(const engine::script::ScriptBehavior& behavior) const;
+        [[nodiscard]] const foundation::script::ScriptClass* ClassOf(const engine::behavior::AttachedBehavior& behavior) const;
         [[nodiscard]] const foundation::script::ScriptPropertyDesc* PropertyOf(usize behavior, StringView row) const;
         [[nodiscard]] u64 Signature() const;
         // Every selected entity's component mutated as one undo step.
-        void Mutate(StringView words, const Function<void(engine::script::ScriptComponent&)>& mutate);
+        void Mutate(StringView words, const Function<void(engine::behavior::BehaviorComponent&)>& mutate);
 
         SceneEditContext* m_edit;
         EditorContext* m_context;

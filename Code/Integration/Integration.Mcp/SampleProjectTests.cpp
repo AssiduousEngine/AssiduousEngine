@@ -19,7 +19,7 @@ import pipeline.core;
 import pipeline.importer;
 import pipeline.registration;
 import engine.composition;
-import engine.script;                // ScriptComponentManager: the behaviours a scene stores
+import engine.behavior;                // BehaviorComponentManager: the behaviours a scene stores
 import foundation.script.resource;   // ScriptClassSource: what a cooked class declares
 import editor.project;
 import editor.mcp;
@@ -108,14 +108,14 @@ namespace
             // One check for both places an override lives: on a behaviour, and on the scene's
             // Level script (the sceneScript settings block).
             const auto check = [&](const Guid& scriptId,
-                                   Span<const engine::script::ScriptPropertyOverride> overrides)
+                                   Span<const engine::behavior::ScriptPropertyOverride> overrides)
             {
                 foundation::content::Instance* cooked = project.CookedDb().GetInstance(scriptId);
                 REQUIRE_MESSAGE(cooked != nullptr, "the script is cooked: ", shown);
                 const RefPtr<ISerializable> object = cooked->ReadObject();
                 const auto* source = Cast<foundation::script::ScriptClassSource>(object.Get());
                 REQUIRE_MESSAGE(source != nullptr, "the script is a class: ", shown);
-                for (const engine::script::ScriptPropertyOverride& o : overrides)
+                for (const engine::behavior::ScriptPropertyOverride& o : overrides)
                 {
                     bool declared = false;
                     for (const foundation::script::ScriptPropertyDesc& property : source->properties)
@@ -127,22 +127,22 @@ namespace
                     ++count;
                 }
             };
-            auto* scripts = scratch.GetSystem<engine::script::ScriptComponentManager>();
+            auto* scripts = scratch.GetSystem<engine::behavior::BehaviorComponentManager>();
             REQUIRE(scripts != nullptr);
             for (const foundation::scene::EntityHandle owner : scripts->Owners())
             {
-                for (const engine::script::ScriptBehavior& behavior : scripts->Get(owner)->behaviors)
+                for (const engine::behavior::AttachedBehavior& behavior : scripts->Get(owner)->behaviors)
                 {
-                    check(behavior.script.id,
-                          Span<const engine::script::ScriptPropertyOverride>{
+                    check(behavior.behaviorClass.id,
+                          Span<const engine::behavior::ScriptPropertyOverride>{
                               behavior.overrides.Data(), behavior.overrides.Size()});
                 }
             }
-            if (auto* level = scratch.GetSystem<engine::script::SceneScriptSystem>();
-                level != nullptr && !level->Settings().script.id.IsNil())
+            if (auto* level = scratch.GetSystem<engine::behavior::SceneBehaviorSystem>();
+                level != nullptr && !level->Settings().behaviorClass.id.IsNil())
             {
-                const engine::script::SceneScriptSettings& settings = level->Settings();
-                check(settings.script.id, Span<const engine::script::ScriptPropertyOverride>{
+                const engine::behavior::SceneBehaviorSettings& settings = level->Settings();
+                check(settings.behaviorClass.id, Span<const engine::behavior::ScriptPropertyOverride>{
                                               settings.overrides.Data(), settings.overrides.Size()});
             }
         }

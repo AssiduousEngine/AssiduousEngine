@@ -11,7 +11,7 @@
 
 import foundation.core;
 import foundation.physics;         // ContactKind
-import engine.script;   // ScriptContactKind
+import engine.behavior;   // ScriptContactKind
 import engine.integration;
 import engine.animation; // AnimationSubsystem (the animation bridge)
 
@@ -19,7 +19,7 @@ using namespace foundation::core;
 using engine::integration::ScriptPhysicsContactBridge;
 using engine::integration::ToScriptContactKind;
 using CK = foundation::physics::ContactKind;
-using SK = engine::script::ScriptContactKind;
+using SK = engine::behavior::ScriptContactKind;
 
 TEST_CASE("integration: ToScriptContactKind maps every physics contact kind onto its script kind")
 {
@@ -45,7 +45,7 @@ TEST_CASE("integration: the animation bridge installs on the animation subsystem
     CHECK_FALSE(bridge.Installed());
     bridge.Uninstall(); // idempotent when never installed
     engine::animation::AnimationSubsystem animation;
-    engine::script::ScriptSubsystem scripts;
+    engine::behavior::BehaviorSubsystem scripts;
     bridge.Install(animation, scripts);
     CHECK(bridge.Installed());
     bridge.Install(animation, scripts); // re-points cleanly

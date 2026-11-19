@@ -22,7 +22,7 @@ target_link_libraries(Editor.Scene
         Foundation::Materials Foundation::Materials.Resource Pipeline::Materials
         Foundation::Shaders Foundation::Shaders.Resource
         Pipeline::Render # the render profile assets (SettingsProfileAsset)
-        Foundation::Script Foundation::Script.Resource Foundation::Script.Facades Engine::Script
+        Foundation::Script Foundation::Script.Resource Foundation::Script.Facades Engine::Behavior
         Foundation::Input Foundation::Input.Resource Engine::Input
         Engine::Composition # the full manager set for the export's scratch scenes
         Editor::Core Editor::Camera Editor::ViewportTools Editor::PropertyAnimation Foundation::Policy
@@ -41,7 +41,7 @@ target_sources(Editor.Scene
         HierarchyViewImpl.cpp
         InspectorViewImpl.cpp
         EntityRefEditorImpl.cpp
-        ScriptBehaviorsSourceImpl.cpp
+        BehaviorsSourceImpl.cpp
         SceneSettingsSourceImpl.cpp
         SettingsExtraSourcesImpl.cpp
         SceneHudImpl.cpp
@@ -84,7 +84,7 @@ target_sources(Editor.Scene
             CollisionMatrixEditor.cppm
             InspectorExtras.cppm
             ShownState.cppm
-            ScriptBehaviorsSource.cppm
+            BehaviorsSource.cppm
             SceneSettingsSource.cppm
             SettingsExtraSources.cppm
             BuiltinInspectorExtras.cppm

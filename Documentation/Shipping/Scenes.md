@@ -71,7 +71,7 @@ what the engine writes.
   fails the WHOLE scene load, not one record, so a scene written against an older build must
   be re-saved by the build that wrote it.
 - **Settings blocks**, one per scene system that has settings: `physics`, `environment`,
-  `postprocess`, `navigation` and `sceneScript` (the Level script and its overrides, see
+  `postprocess`, `navigation` and `sceneBehavior` (the scene behavior and its overrides, see
   Scripting.md).
 - **Prefab instances**, appended after the settings: which prefab, where, and the deltas
   the instance applies over its source.

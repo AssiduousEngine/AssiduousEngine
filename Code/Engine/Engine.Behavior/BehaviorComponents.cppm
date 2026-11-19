@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Engine::Script - :components partition.
+// Engine::Behavior - :components partition.
 //
-// The attachment model: one ScriptComponent per entity holding an ordered array of
+// The attachment model: one BehaviorComponent per entity holding an ordered array of
 // behaviors, each a cooked ScriptClass reference, an enabled flag, and property overrides
 // keyed by name hash (only the values that differ from the class's harvested defaults).
 // Runtime fields (the live ScriptObject instance, dispatch state) are transient and
@@ -13,7 +13,7 @@
 module;
 #include "Core/Prelude.h"
 
-export module engine.script:components;
+export module engine.behavior:components;
 
 import foundation.core;
 import foundation.scene;
@@ -24,7 +24,7 @@ import foundation.script.resource;
 using namespace foundation::core;
 using namespace foundation::script;
 
-export namespace engine::script
+export namespace engine::behavior
 {
     struct ScriptPropertyOverride
     {
@@ -63,7 +63,7 @@ export namespace engine::script
 
     /// A behaviour's lifecycle handlers as its instance bound them, once, when it was made: an
     /// invalid one is a handler its class does not declare.
-    struct ScriptLifecycleMethods
+    struct BehaviorLifecycle
     {
         ScriptMethod enable;
         ScriptMethod start;
@@ -72,10 +72,10 @@ export namespace engine::script
         ScriptMethod destroy;
     };
 
-    struct ScriptBehavior
+    struct AttachedBehavior
     {
         // Authored:
-        foundation::resource::Ref<ScriptClass> script;
+        foundation::resource::Ref<ScriptClass> behaviorClass;
         bool enabled = true;
         f32 updateInterval = 0.0f; // seconds between onUpdate calls; <=0 means every tick.
                                    // The delivered dt is the accumulated time.
@@ -83,7 +83,7 @@ export namespace engine::script
 
         // Runtime (transient):
         RefPtr<ScriptObject> instance;
-        ScriptLifecycleMethods lifecycle;        // bound with the instance, gone with it
+        BehaviorLifecycle lifecycle;        // bound with the instance, gone with it
         const ScriptClass* boundClass = nullptr; // product the instance was built from
                                                  // (a reload swaps the product: re-instantiate)
         bool started = false;                    // onStart delivered
@@ -129,45 +129,45 @@ export namespace engine::script
         }
     };
 
-    inline void Serialize(ISerializer& ar, ScriptBehavior& b)
+    inline void Serialize(ISerializer& ar, AttachedBehavior& b)
     {
-        foundation::core::Serialize(ar, "script", b.script);
+        foundation::core::Serialize(ar, "class", b.behaviorClass);
         foundation::core::Serialize(ar, "enabled", b.enabled);
         foundation::core::Serialize(ar, "updateInterval", b.updateInterval);
         foundation::core::Serialize(ar, "overrides", b.overrides); // count-prefixed array scope
     }
 
-    struct ScriptComponent
+    struct BehaviorComponent
     {
-        Array<ScriptBehavior> behaviors; // execution order = array order
+        Array<AttachedBehavior> behaviors; // execution order = array order
     };
 
-    inline void Serialize(ISerializer& ar, ScriptComponent& c)
+    inline void Serialize(ISerializer& ar, BehaviorComponent& c)
     {
         foundation::core::Serialize(ar, "behaviors", c.behaviors);
     }
 
-    inline void ResolveResources(foundation::resource::ResourceManager& manager, ScriptComponent& c)
+    inline void ResolveResources(foundation::resource::ResourceManager& manager, BehaviorComponent& c)
     {
-        for (ScriptBehavior& behavior : c.behaviors)
+        for (AttachedBehavior& behavior : c.behaviors)
         {
-            behavior.script.Bind(manager);
+            behavior.behaviorClass.Bind(manager);
         }
     }
 
-    class ScriptSceneSystem; // forward (:subsystem); the destroy hook dispatches onDestroy
+    class EntityBehaviorSystem; // forward (:subsystem); the destroy hook dispatches onDestroy
 
-    class ScriptComponentManager final
-        : public foundation::scene::SerializableComponentManager<ScriptComponent>,
+    class BehaviorComponentManager final
+        : public foundation::scene::SerializableComponentManager<BehaviorComponent>,
           public foundation::scene::IReplicatedStateSource
     {
     public:
-        ScriptComponentManager() : SerializableComponentManager<ScriptComponent>(u8"script") {}
+        BehaviorComponentManager() : SerializableComponentManager<BehaviorComponent>(u8"behavior") {}
 
         /// A networked entity's behaviours keep their replicated properties (ScriptPropertyDesc::
         /// replicated) the same on every peer: the host writes their live values, a client writes
         /// them back in (and keeps them as overrides, for an instance made later). Bodies in
-        /// ScriptSubsystemImpl.cpp.
+        /// BehaviorSubsystemImpl.cpp.
         [[nodiscard]] foundation::scene::IReplicatedStateSource* AsReplicatedStateSource() noexcept override
         {
             return this;
@@ -177,9 +177,9 @@ export namespace engine::script
         /// binds itself, so the post-load pass leaves it unbound.
         void CollectUnboundReferences(Array<Guid>& outIds) override
         {
-            ForEach([&outIds](ScriptComponent& component, foundation::scene::EntityHandle)
+            ForEach([&outIds](BehaviorComponent& component, foundation::scene::EntityHandle)
                     {
-                        for (const ScriptBehavior& behavior : component.behaviors)
+                        for (const AttachedBehavior& behavior : component.behaviors)
                         {
                             CollectOverrideAssetIds(behavior.overrides.AsSpan(), outIds);
                         }
@@ -190,19 +190,19 @@ export namespace engine::script
 
         /// The per-scene script system, wired by the subsystem right after AddSystem;
         /// entity and component destruction route onDestroy through it.
-        void SetScriptSystem(ScriptSceneSystem* system) noexcept { m_scriptSystem = system; }
-        [[nodiscard]] ScriptSceneSystem* ScriptSystem() const noexcept { return m_scriptSystem; }
+        void SetScriptSystem(EntityBehaviorSystem* system) noexcept { m_scriptSystem = system; }
+        [[nodiscard]] EntityBehaviorSystem* ScriptSystem() const noexcept { return m_scriptSystem; }
 
     protected:
-        // Defined in the :subsystem partition's implementation (needs ScriptSceneSystem).
-        void OnComponentDestroyed(ScriptComponent& component,
+        // Defined in the :subsystem partition's implementation (needs EntityBehaviorSystem).
+        void OnComponentDestroyed(BehaviorComponent& component,
                                   foundation::scene::EntityHandle entity) override;
 
     private:
-        ScriptSceneSystem* m_scriptSystem = nullptr;
+        EntityBehaviorSystem* m_scriptSystem = nullptr;
     };
 
-    // Defined in ScriptSubsystemImpl.cpp (REFLECT_* bodies never sit in a module
+    // Defined in BehaviorSubsystemImpl.cpp (REFLECT_* bodies never sit in a module
     // interface unit: GCC emits a gcm cluster for them).
-    void RegisterScriptComponentReflection();
+    void RegisterBehaviorComponentReflection();
 }

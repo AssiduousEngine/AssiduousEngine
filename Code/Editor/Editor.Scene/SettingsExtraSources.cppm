@@ -25,7 +25,7 @@ import foundation.script.resource;
 import foundation.gui;
 import foundation.gui.toolkit;
 import engine.physics;
-import engine.script;
+import engine.behavior;
 import editor.core;
 import :edit;
 import :shown_state;
@@ -112,10 +112,10 @@ export namespace editor
         }
 
     private:
-        [[nodiscard]] const engine::script::SceneScriptSettings* Settings() const;
+        [[nodiscard]] const engine::behavior::SceneBehaviorSettings* Settings() const;
         [[nodiscard]] const foundation::script::ScriptClass* Class() const;
         [[nodiscard]] u64 Signature() const;
-        void Mutate(const Function<void(engine::script::SceneScriptSettings&)>& mutate);
+        void Mutate(const Function<void(engine::behavior::SceneBehaviorSettings&)>& mutate);
 
         SceneEditContext* m_edit;
         EditorContext* m_context;

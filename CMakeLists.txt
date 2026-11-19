@@ -628,7 +628,7 @@ else()
     add_subdirectory(Code/Foundation/Runtime.Desktop)
 endif()
 add_subdirectory(Code/Engine/Engine.Input)  # input runtime hookup (the tick and the device provider) over Runtime
-add_subdirectory(Code/Engine/Engine.Script) # entity behaviors (ScriptComponent and the run's single gameplay script context) over Runtime
+add_subdirectory(Code/Engine/Engine.Behavior) # entity behaviors (BehaviorComponent and the run's single gameplay script context) over Runtime
 add_subdirectory(Code/Engine/Engine.Integration) # cross-subsystem composition helpers (the bridge from physics contacts to scripts) over Physics and Script
 add_subdirectory(Code/Engine/Engine.GUI) # the engine's GUI on foundation.gui
 add_subdirectory(Code/Engine/Engine.Composition) # the composition root: the one list of domains and the facets built from it on demand (scene, reflection, resource types, factories, facades)
@@ -814,7 +814,7 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Engine/Engine.Scene.Tests                  Engine::Scene)
     # Monolithic: one test file exercises both backends, so it builds only when both are on.
     if(OPTION_ENABLE_ANGELSCRIPT AND OPTION_ENABLE_LUAU)
-        util_test_suite(Code/Engine/Engine.Script.Tests Engine::Script)
+        util_test_suite(Code/Engine/Engine.Behavior.Tests Engine::Behavior)
     endif()
     util_test_suite(Code/Foundation/GUI.Shell.Tests               Foundation::GUI.Shell)
     util_test_suite(Code/Foundation/GUI.Inspector.Tests           Foundation::GUI.Inspector)
@@ -957,7 +957,7 @@ if(OPTION_BUILD_TESTS)
     endif()
     # Script behaviours on a scene measured against native components (the script speed work).
     if(OPTION_ENABLE_ANGELSCRIPT OR OPTION_ENABLE_LUAU)
-        util_test_suite(Code/Integration/Integration.ScriptScene       Engine::Script)
+        util_test_suite(Code/Integration/Integration.ScriptScene       Engine::Behavior)
     endif()
     # The GUI (foundation.gui) and its satellites from scripts, the engine's GUI among them.
     if(OPTION_ENABLE_ANGELSCRIPT OR OPTION_ENABLE_LUAU)

@@ -20,7 +20,7 @@ holds one behavior class, of any name; other classes beside it are its helpers.
 
 - **EntityBehavior** - attached to an entity through a ScriptComponent behavior slot; the engine
   constructs it with its entity. This is where most gameplay lives.
-- **SceneBehavior** - one per scene, set in the scene's Scene Script settings, constructed with
+- **SceneBehavior** - one per scene, set in the scene's Scene Behavior settings, constructed with
   its scene. Use it for scene-wide orchestration: spawning, win conditions, sequencing.
 - **RunBehavior** - the project's startup script, set in project settings. Runs for the whole
   game run, across scene loads.
@@ -98,7 +98,7 @@ What acts on a whole scene is a property of the scene: `scene.physics.rayCast(fr
   light at a point.
 - `scene.particles` - play, stop and swap effects.
 - `scene.splines` - a spline's length, its points, a point along it, the point nearest.
-- `scene.scripts` - the scene's script time, messages to behaviors, a behavior added to an entity.
+- `scene.behaviors` - the scene's script time, messages to behaviors, a behavior added to an entity.
 - `scene.debugDraw` - lines, arrows, spheres, boxes and text, cleared each frame: draw them every
   update.
 - `scene.environment`, `scene.postProcess` - the scene's live sky, fog and ambient, and its

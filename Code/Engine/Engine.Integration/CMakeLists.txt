@@ -4,7 +4,7 @@
 util_add_engine_library(Engine.Integration ALIAS Engine::Integration)
 target_link_libraries(Engine.Integration
     PUBLIC Foundation::Core Foundation::Scene Foundation::Physics
-           Engine::Physics Engine::Animation Engine::Script Foundation::Policy)
+           Engine::Physics Engine::Animation Engine::Behavior Foundation::Policy)
 
 target_sources(Engine.Integration
     PRIVATE

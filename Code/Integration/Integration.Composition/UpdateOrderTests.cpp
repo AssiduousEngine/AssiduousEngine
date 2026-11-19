@@ -11,7 +11,7 @@
 import foundation.core;
 import foundation.scene;
 import engine.composition;
-import engine.script;
+import engine.behavior;
 import engine.navigation;
 
 using namespace foundation::core;
@@ -21,8 +21,8 @@ TEST_CASE("integration.composition: scripts update before the crowd and every sy
 {
     scene::Scene level(DefaultAllocator(), u8"level");
     engine::AddAllSceneManagers(level);
-    auto* behaviors = level.GetSystem<engine::script::ScriptSceneSystem>();
-    auto* levelScript = level.GetSystem<engine::script::SceneScriptSystem>();
+    auto* behaviors = level.GetSystem<engine::behavior::EntityBehaviorSystem>();
+    auto* levelScript = level.GetSystem<engine::behavior::SceneBehaviorSystem>();
     auto* crowd = level.GetSystem<engine::navigation::NavigationSceneSystem>();
     REQUIRE(behaviors != nullptr);
     REQUIRE(levelScript != nullptr);

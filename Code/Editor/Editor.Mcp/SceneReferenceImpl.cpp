@@ -19,7 +19,7 @@ import foundation.script.resource;
 import foundation.mcp;
 import pipeline.core;
 import engine.composition; // the full composition: every manager and settings system
-import engine.script;      // the example's script behaviour with one override per kind
+import engine.behavior;      // the example's script behaviour with one override per kind
 
 using namespace foundation::core;
 using foundation::json::JsonValue;
@@ -569,22 +569,22 @@ namespace
     // override encoding the scriptOverrides section describes.
     void FillScriptBehaviour(scene::Scene& world, const Example& example, Random& rng)
     {
-        auto* scripts = world.GetSystem<engine::script::ScriptComponentManager>();
+        auto* scripts = world.GetSystem<engine::behavior::BehaviorComponentManager>();
         if (scripts == nullptr)
         {
             return;
         }
         const scene::EntityHandle* entity =
             example.entityByManager.Find(scripts->ComponentType()->id);
-        engine::script::ScriptComponent* component =
+        engine::behavior::BehaviorComponent* component =
             entity != nullptr ? scripts->Get(*entity) : nullptr;
         if (component == nullptr)
         {
             return;
         }
         const Guid childId = world.GetEntityId(example.child);
-        engine::script::ScriptBehavior behaviour;
-        behaviour.script.SetId(Guid::Generate(rng));
+        engine::behavior::AttachedBehavior behaviour;
+        behaviour.behaviorClass.SetId(Guid::Generate(rng));
         for (const script::ScriptPropertyTypeEntry& entry : script::ScriptPropertyTypeNames())
         {
             const String name = Format(u8"{}Value", entry.name);
@@ -845,10 +845,10 @@ namespace
         Array<String> ignored;
         FieldContext ctx{&none, &ignored};
 
-        // The override record as the ScriptComponent writes it.
+        // The override record as the BehaviorComponent writes it.
         {
             SchemaRecorder recorder(allocator);
-            engine::script::ScriptPropertyOverride record;
+            engine::behavior::ScriptPropertyOverride record;
             Serialize(recorder, record);
             out.Set(u8"record", FieldsJson(recorder.Root(), nullptr, ctx));
         }

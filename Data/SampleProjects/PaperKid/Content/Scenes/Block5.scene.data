@@ -694,14 +694,14 @@
 		</object>
 		<object>
 			<string name="owner">b1ce0000-0000-4000-8000-00000000b1ce</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">e87eab36-b412-428f-b80f-e02824afc77f</string>
+					<string name="class">e87eab36-b412-428f-b80f-e02824afc77f</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="0"/>
@@ -710,14 +710,14 @@
 		</object>
 		<object>
 			<string name="owner">acc1b10e-6077-5a97-a467-8e164e1d120a</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">59e55aac-0dad-439b-8c52-2aa9193bb384</string>
+					<string name="class">59e55aac-0dad-439b-8c52-2aa9193bb384</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="1">
@@ -730,14 +730,14 @@
 		</object>
 		<object>
 			<string name="owner">cca65f0b-7d0f-54c4-a697-3505b8a4c5a8</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">16924efd-1ef2-47c5-bd1d-cb21f1fc4b92</string>
+					<string name="class">16924efd-1ef2-47c5-bd1d-cb21f1fc4b92</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="2">
@@ -754,13 +754,13 @@
 	</array>
 	<array name="systemSettings" count="5">
 		<object>
-			<string name="system">sceneScript</string>
+			<string name="system">sceneBehavior</string>
 			<array name="dataVersions" count="1">
-				<u64 name="type">17871001856427645353</u64>
+				<u64 name="type">7942436008690084579</u64>
 				<u32 name="version">2</u32>
 			</array>
 			<object name="settings">
-				<string name="script">5f1df4cb-479a-4199-bb8e-ba03d9e7424b</string>
+				<string name="class">5f1df4cb-479a-4199-bb8e-ba03d9e7424b</string>
 				<bool name="enabled">true</bool>
 				<array name="overrides" count="7">
 					<u64 name="nameHash">12852231136807574283</u64>

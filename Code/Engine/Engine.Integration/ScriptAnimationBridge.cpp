@@ -11,7 +11,7 @@ module engine.integration;
 
 import foundation.core;
 import engine.animation;
-import engine.script;
+import engine.behavior;
 
 using namespace foundation::core;
 
@@ -45,7 +45,7 @@ namespace engine::integration
     }
 
     void ScriptAnimationBridge::Install(engine::animation::AnimationSubsystem& animation,
-                                        engine::script::ScriptSubsystem& scripts)
+                                        engine::behavior::BehaviorSubsystem& scripts)
     {
         Uninstall();
         m_listener.scripts = &scripts;

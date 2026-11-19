@@ -40,7 +40,7 @@ export import :bone_name_editor;
 export import :collision_matrix_editor;
 export import :shown_state;
 export import :inspector_extras;
-export import :script_behaviors_source;
+export import :behaviors_source;
 export import :scene_settings_source;
 export import :settings_extra_sources;
 export import :builtin_inspector_extras;

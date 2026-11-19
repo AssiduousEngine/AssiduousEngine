@@ -70,6 +70,11 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   `script_validate` returns its `kind` beside its `className`.
 - Scripts: a run behavior's handlers take the names the other kinds use: `launch`, `update` and
   `exit` are now `onStart`, `onUpdate` and `onStop`.
+- Scripts: `scene.scripts` is `scene.behaviors` (`SceneBehaviors`), and `addBehavior` takes a
+  `behaviorClass`. Editor: the Script component is the Behavior component, with a Class row, and
+  the scene's Scene Script settings are Scene Behavior settings. MCP: `behavior_add` takes `class`,
+  and an entity's behaviors show their `class` asset and `className`. A scene stores the component
+  as `behavior` and the settings as `sceneBehavior`; the sample projects are migrated.
 - Rendering: each of the sun's shadow cascades draws only the casters whose shadow lands on what it
   shades, and a shadow ends at the scene's bounds (a tree's at the ground), so most casters are drawn
   into one cascade, not all four. Over a 40,000-mesh forest the shadows went from about 200 ms a

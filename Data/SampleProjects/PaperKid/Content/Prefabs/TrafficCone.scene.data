@@ -79,14 +79,14 @@
 		</object>
 		<object>
 			<string name="owner">25cb0bab-1e9a-5a95-93bb-c21aae1de451</string>
-			<string name="type">script</string>
+			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
-					<u64 name="type">10795854242375899641</u64>
+					<u64 name="type">16490444935376574941</u64>
 					<u32 name="version">1</u32>
 				</array>
 				<array name="behaviors" count="1">
-					<string name="script">f5940241-9ef7-4c00-8eb3-02bc0a2292e9</string>
+					<string name="class">f5940241-9ef7-4c00-8eb3-02bc0a2292e9</string>
 					<bool name="enabled">true</bool>
 					<f32 name="updateInterval">0</f32>
 					<array name="overrides" count="1">

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Editor::Scene - :script_behaviors_source partition, its body. See ScriptBehaviorsSource.cppm.
+// Editor::Scene - :behaviors_source partition, its body. See BehaviorsSource.cppm.
 
 module;
 #include "Core/Prelude.h"
@@ -13,13 +13,13 @@ import foundation.core;
 import foundation.resource;
 import foundation.scene;
 import foundation.script.resource;
-import engine.script;
+import engine.behavior;
 import foundation.gui;
 import foundation.gui.toolkit;
 import editor.core;
 import :edit;
 import :entity_ref_editor;
-import :script_behaviors_source;
+import :behaviors_source;
 
 using namespace foundation::core;
 namespace gui = foundation::gui;
@@ -187,7 +187,7 @@ namespace editor
         return old;
     }
 
-    ScriptBehaviorsSource::ScriptBehaviorsSource(SceneEditContext& edit, EditorContext* context, Span<const Guid> entities)
+    BehaviorsSource::BehaviorsSource(SceneEditContext& edit, EditorContext* context, Span<const Guid> entities)
         : m_edit(&edit), m_context(context)
     {
         for (const Guid& id : entities)
@@ -195,7 +195,7 @@ namespace editor
         m_signature = Signature();
     }
 
-    void ScriptBehaviorsSource::Refresh()
+    void BehaviorsSource::Refresh()
     {
         // Called every frame while the entities are selected: the grid hears of it only when the
         // components' values moved.
@@ -203,8 +203,8 @@ namespace editor
             [this](ISerializer& ar)
             {
                 for (usize o = 0; o < m_entities.Size(); ++o)
-                    if (engine::script::ScriptComponent* component = Component(o))
-                        engine::script::Serialize(ar, *component);
+                    if (engine::behavior::BehaviorComponent* component = Component(o))
+                        engine::behavior::Serialize(ar, *component);
             });
         const u64 signature = Signature();
         if (signature != m_signature)
@@ -216,62 +216,62 @@ namespace editor
             NotifyValuesChanged();
     }
 
-    engine::script::ScriptComponent* ScriptBehaviorsSource::Component(usize object) const
+    engine::behavior::BehaviorComponent* BehaviorsSource::Component(usize object) const
     {
         if (object >= m_entities.Size())
             return nullptr;
-        auto* manager = m_edit->Scene().GetSystem<engine::script::ScriptComponentManager>();
+        auto* manager = m_edit->Scene().GetSystem<engine::behavior::BehaviorComponentManager>();
         const foundation::scene::EntityHandle e = m_edit->Resolve(m_entities[object]);
         return manager != nullptr && e.IsAssigned() ? manager->Get(e) : nullptr;
     }
 
     // The fewest any entity has, since a list shows what every object holds.
-    usize ScriptBehaviorsSource::BehaviorCount() const
+    usize BehaviorsSource::BehaviorCount() const
     {
         usize count = ~usize{0};
         for (usize o = 0; o < m_entities.Size(); ++o)
         {
-            const engine::script::ScriptComponent* component = Component(o);
+            const engine::behavior::BehaviorComponent* component = Component(o);
             count = Min(count, component != nullptr ? component->behaviors.Size() : usize{0});
         }
         return count == ~usize{0} ? 0u : count;
     }
 
-    const script::ScriptClass* ScriptBehaviorsSource::ClassOf(const engine::script::ScriptBehavior& behavior) const
+    const script::ScriptClass* BehaviorsSource::ClassOf(const engine::behavior::AttachedBehavior& behavior) const
     {
-        if (behavior.script.Get() != nullptr)
-            return behavior.script.Get();
-        if (behavior.script.id.IsNil() || m_context == nullptr || m_context->Resources() == nullptr)
+        if (behavior.behaviorClass.Get() != nullptr)
+            return behavior.behaviorClass.Get();
+        if (behavior.behaviorClass.id.IsNil() || m_context == nullptr || m_context->Resources() == nullptr)
             return nullptr;
-        return m_context->Resources()->Bind<script::ScriptClass>(behavior.script.id).Get();
+        return m_context->Resources()->Bind<script::ScriptClass>(behavior.behaviorClass.id).Get();
     }
 
-    const script::ScriptPropertyDesc* ScriptBehaviorsSource::PropertyOf(usize behavior, StringView row) const
+    const script::ScriptPropertyDesc* BehaviorsSource::PropertyOf(usize behavior, StringView row) const
     {
-        const engine::script::ScriptComponent* component = Component(0);
+        const engine::behavior::BehaviorComponent* component = Component(0);
         if (component == nullptr || behavior >= component->behaviors.Size())
             return nullptr;
         const script::ScriptClass* type = ClassOf(component->behaviors[behavior]);
         return type != nullptr ? ScriptPropertyRows::Find(*type, row) : nullptr;
     }
 
-    u64 ScriptBehaviorsSource::Signature() const
+    u64 BehaviorsSource::Signature() const
     {
         u64 hash = 1469598103934665603ull;
         for (usize o = 0; o < m_entities.Size(); ++o)
-            if (const engine::script::ScriptComponent* component = Component(o))
+            if (const engine::behavior::BehaviorComponent* component = Component(o))
             {
                 hash = (hash ^ component->behaviors.Size()) * 1099511628211ull;
-                for (const engine::script::ScriptBehavior& behavior : component->behaviors)
+                for (const engine::behavior::AttachedBehavior& behavior : component->behaviors)
                 {
-                    hash = (hash ^ Hash<Guid>{}(behavior.script.id)) * 1099511628211ull;
+                    hash = (hash ^ Hash<Guid>{}(behavior.behaviorClass.id)) * 1099511628211ull;
                     hash = (hash ^ (ClassOf(behavior) != nullptr ? 1u : 0u)) * 1099511628211ull;
                 }
             }
         return hash;
     }
 
-    ScriptBehaviorsSource::Where ScriptBehaviorsSource::Parse(StringView path)
+    BehaviorsSource::Where BehaviorsSource::Parse(StringView path)
     {
         Where where;
         if (!path.StartsWith(kList))
@@ -299,7 +299,7 @@ namespace editor
         return where;
     }
 
-    void ScriptBehaviorsSource::GetProperties(StringView parent, Array<gui::PropertyInfo>& out) const
+    void BehaviorsSource::GetProperties(StringView parent, Array<gui::PropertyInfo>& out) const
     {
         if (parent.IsEmpty())
         {
@@ -312,7 +312,7 @@ namespace editor
             return;
         }
         const Where where = Parse(parent);
-        const engine::script::ScriptComponent* first = Component(0);
+        const engine::behavior::BehaviorComponent* first = Component(0);
         if (where.list)
         {
             const usize count = BehaviorCount();
@@ -322,7 +322,7 @@ namespace editor
                 behavior.Name = Format(u8"{}", i);
                 behavior.Kind = gui::PropertyKind::Group;
                 const script::ScriptClass* type = first != nullptr ? ClassOf(first->behaviors[i]) : nullptr;
-                const bool none = first == nullptr || first->behaviors[i].script.id.IsNil();
+                const bool none = first == nullptr || first->behaviors[i].behaviorClass.id.IsNil();
                 behavior.DisplayName = none ? Format(u8"Behavior {}", i + 1)
                                             : type != nullptr ? Format(u8"Behavior {}: {}", i + 1, type->className)
                                                               : Format(u8"Behavior {}: (not cooked)", i + 1);
@@ -341,8 +341,8 @@ namespace editor
             return;
         }
         gui::PropertyInfo script;
-        script.Name = String(u8"script");
-        script.DisplayName = String(u8"Script");
+        script.Name = String(u8"class");
+        script.DisplayName = String(u8"Class");
         script.Kind = gui::PropertyKind::Reference;
         script.ReferenceType = &script::ScriptClass::StaticType(); // its registered type: TypeOf names an unregistered one "<value>"
         out.PushBack(Move(script));
@@ -365,17 +365,17 @@ namespace editor
             ScriptPropertyRows::Describe(*type, out);
     }
 
-    gui::Variant ScriptBehaviorsSource::GetValue(StringView path, usize object) const
+    gui::Variant BehaviorsSource::GetValue(StringView path, usize object) const
     {
         const Where where = Parse(path);
         if (where.list)
             return gui::Variant(static_cast<i64>(BehaviorCount()));
-        const engine::script::ScriptComponent* component = Component(object);
+        const engine::behavior::BehaviorComponent* component = Component(object);
         if (component == nullptr || where.behavior < 0 || static_cast<usize>(where.behavior) >= component->behaviors.Size() || where.row.IsEmpty())
             return gui::Variant{};
-        const engine::script::ScriptBehavior& behavior = component->behaviors[static_cast<usize>(where.behavior)];
-        if (where.row == StringView(u8"script"))
-            return gui::Variant(GuidText(behavior.script.id).AsView());
+        const engine::behavior::AttachedBehavior& behavior = component->behaviors[static_cast<usize>(where.behavior)];
+        if (where.row == StringView(u8"class"))
+            return gui::Variant(GuidText(behavior.behaviorClass.id).AsView());
         if (where.row == StringView(u8"enabled"))
             return gui::Variant(behavior.enabled);
         if (where.row == StringView(u8"interval"))
@@ -383,11 +383,11 @@ namespace editor
         const script::ScriptPropertyDesc* property = PropertyOf(static_cast<usize>(where.behavior), where.row.AsView());
         if (property == nullptr)
             return gui::Variant{};
-        const engine::script::ScriptPropertyOverride* over = behavior.FindOverride(property->hash);
+        const engine::behavior::ScriptPropertyOverride* over = behavior.FindOverride(property->hash);
         return ScriptPropertyRows::ToGrid(over != nullptr ? over->value : property->defaultValue, property->type, where.part);
     }
 
-    gui::Variant ScriptBehaviorsSource::GetDefault(StringView path, usize object) const
+    gui::Variant BehaviorsSource::GetDefault(StringView path, usize object) const
     {
         (void)object;
         const Where where = Parse(path);
@@ -397,39 +397,39 @@ namespace editor
             return gui::Variant(true);
         if (where.row == StringView(u8"interval"))
             return gui::Variant(0.0);
-        if (where.row == StringView(u8"script"))
+        if (where.row == StringView(u8"class"))
             return gui::Variant{};
         const script::ScriptPropertyDesc* property = PropertyOf(static_cast<usize>(where.behavior), where.row.AsView());
         return property != nullptr ? ScriptPropertyRows::ToGrid(property->defaultValue, property->type, where.part) : gui::Variant{};
     }
 
-    void ScriptBehaviorsSource::Mutate(StringView words, const Function<void(engine::script::ScriptComponent&)>& mutate)
+    void BehaviorsSource::Mutate(StringView words, const Function<void(engine::behavior::BehaviorComponent&)>& mutate)
     {
         const String group = Format(u8"inspector.behaviors.{}", ++m_groups); // never coalesced with the last
         m_edit->Commands().BeginGroup(group.AsView());
         for (const Guid& entity : m_entities)
-            (void)m_edit->MutateComponent<engine::script::ScriptComponent>(entity, mutate);
+            (void)m_edit->MutateComponent<engine::behavior::BehaviorComponent>(entity, mutate);
         m_edit->Commands().EndGroup();
         (void)words;
         Refresh();
     }
 
-    void ScriptBehaviorsSource::CommitEdit(StringView path, const gui::PropertyWrite& write)
+    void BehaviorsSource::CommitEdit(StringView path, const gui::PropertyWrite& write)
     {
         const Where where = Parse(path);
         if (where.behavior < 0 || where.row.IsEmpty())
             return;
         const usize index = static_cast<usize>(where.behavior);
-        if (where.row == StringView(u8"script"))
+        if (where.row == StringView(u8"class"))
         {
             Guid id;
             (void)Guid::TryParse(Trim(write.Value.AsString()), id);
-            Mutate(u8"script", [index, id](engine::script::ScriptComponent& c)
+            Mutate(u8"class", [index, id](engine::behavior::BehaviorComponent& c)
                    {
                        if (index >= c.behaviors.Size())
                            return;
-                       c.behaviors[index].script = foundation::resource::Ref<script::ScriptClass>{};
-                       c.behaviors[index].script.SetId(id);
+                       c.behaviors[index].behaviorClass = foundation::resource::Ref<script::ScriptClass>{};
+                       c.behaviors[index].behaviorClass.SetId(id);
                        c.behaviors[index].overrides.Clear(); // another script's properties
                    });
             return;
@@ -437,7 +437,7 @@ namespace editor
         if (where.row == StringView(u8"enabled"))
         {
             const bool enabled = write.Value.AsBool();
-            Mutate(u8"enabled", [index, enabled](engine::script::ScriptComponent& c)
+            Mutate(u8"enabled", [index, enabled](engine::behavior::BehaviorComponent& c)
                    {
                        if (index < c.behaviors.Size())
                            c.behaviors[index].enabled = enabled;
@@ -447,7 +447,7 @@ namespace editor
         if (where.row == StringView(u8"interval"))
         {
             const f32 interval = static_cast<f32>(Max(0.0, write.Value.AsFloat()));
-            Mutate(u8"interval", [index, interval](engine::script::ScriptComponent& c)
+            Mutate(u8"interval", [index, interval](engine::behavior::BehaviorComponent& c)
                    {
                        if (index < c.behaviors.Size())
                            c.behaviors[index].updateInterval = interval;
@@ -460,27 +460,27 @@ namespace editor
         const script::ScriptPropertyDesc desc = *property;
         const i32 part = where.part;
         const gui::Variant value = write.Value;
-        Mutate(desc.name.AsView(), [index, desc, part, value](engine::script::ScriptComponent& c)
+        Mutate(desc.name.AsView(), [index, desc, part, value](engine::behavior::BehaviorComponent& c)
                {
                    if (index >= c.behaviors.Size())
                        return;
-                   engine::script::ScriptBehavior& behavior = c.behaviors[index];
-                   const engine::script::ScriptPropertyOverride* over = behavior.FindOverride(desc.hash);
+                   engine::behavior::AttachedBehavior& behavior = c.behaviors[index];
+                   const engine::behavior::ScriptPropertyOverride* over = behavior.FindOverride(desc.hash);
                    behavior.SetOverride(desc.hash, ScriptPropertyRows::FromGrid(over != nullptr ? over->value : desc.defaultValue, desc.type, part, value));
                });
     }
 
-    bool ScriptBehaviorsSource::EditList(StringView path, const gui::ListEdit& edit)
+    bool BehaviorsSource::EditList(StringView path, const gui::ListEdit& edit)
     {
         if (!Parse(path).list)
             return false;
         const gui::ListEdit change = edit;
-        Mutate(u8"behaviors", [change](engine::script::ScriptComponent& c)
+        Mutate(u8"behaviors", [change](engine::behavior::BehaviorComponent& c)
                {
                    switch (change.Kind)
                    {
                    case gui::ListEdit::Op::Insert:
-                       c.behaviors.Insert(Min(change.Index, c.behaviors.Size()), engine::script::ScriptBehavior{});
+                       c.behaviors.Insert(Min(change.Index, c.behaviors.Size()), engine::behavior::AttachedBehavior{});
                        break;
                    case gui::ListEdit::Op::Remove:
                        if (change.Index < c.behaviors.Size())
@@ -489,7 +489,7 @@ namespace editor
                    case gui::ListEdit::Op::Move:
                        if (change.Index < c.behaviors.Size() && change.To < c.behaviors.Size() && change.Index != change.To)
                        {
-                           engine::script::ScriptBehavior moved = Move(c.behaviors[change.Index]);
+                           engine::behavior::AttachedBehavior moved = Move(c.behaviors[change.Index]);
                            c.behaviors.RemoveAt(change.Index);
                            c.behaviors.Insert(change.To, Move(moved));
                        }
@@ -499,7 +499,7 @@ namespace editor
         return true;
     }
 
-    bool ScriptBehaviorsSource::Revert(StringView path)
+    bool BehaviorsSource::Revert(StringView path)
     {
         const Where where = Parse(path);
         if (where.behavior < 0 || where.row.IsEmpty())
@@ -512,7 +512,7 @@ namespace editor
             if (where.row == StringView(u8"enabled") || where.row == StringView(u8"interval"))
             {
                 const bool enabled = where.row == StringView(u8"enabled");
-                Mutate(u8"revert", [index, enabled](engine::script::ScriptComponent& c)
+                Mutate(u8"revert", [index, enabled](engine::behavior::BehaviorComponent& c)
                        {
                            if (index >= c.behaviors.Size())
                                return;
@@ -526,7 +526,7 @@ namespace editor
             return false;
         }
         const u64 hash = property->hash;
-        Mutate(u8"revert", [index, hash](engine::script::ScriptComponent& c)
+        Mutate(u8"revert", [index, hash](engine::behavior::BehaviorComponent& c)
                {
                    if (index < c.behaviors.Size())
                        c.behaviors[index].RemoveOverride(hash);

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Engine::Script - implementation unit: the reflection bodies and the
+// Engine::Behavior - implementation unit: the reflection bodies and the
 // component-destroy hook. They live outside the interface for GCC: REFLECT_*
 // bodies in a module interface make GCC emit an unreadable gcm cluster for
 // -fno-module-lazy consumers (and a cross-partition inline virtual is not reliably
@@ -11,23 +11,23 @@ module;
 #include "Core/Prelude.h"
 #include "Core/Reflection/Reflect.h"
 
-module engine.script;
+module engine.behavior;
 import engine.domain;
 
 import foundation.core;
 import foundation.scene;
-import foundation.resource; // resource::Ref (SceneScriptSettings.script)
+import foundation.resource; // resource::Ref (SceneBehaviorSettings.script)
 import foundation.script;
 import foundation.script.resource;
 
 using namespace foundation::core;
 using namespace foundation::script; // ScriptPropertyDesc, ScriptPropertyValue, ScriptClass (the replicated state)
 
-namespace engine::script
+namespace engine::behavior
 {
     // Destroying an entity (or removing the component) delivers onDestroy through the
     // scene's script system before the instances are dropped.
-    void ScriptComponentManager::OnComponentDestroyed(ScriptComponent& component,
+    void BehaviorComponentManager::OnComponentDestroyed(BehaviorComponent& component,
                                                       foundation::scene::EntityHandle entity)
     {
         if (m_scriptSystem != nullptr)
@@ -36,7 +36,7 @@ namespace engine::script
         }
         else
         {
-            for (ScriptBehavior& behavior : component.behaviors)
+            for (AttachedBehavior& behavior : component.behaviors)
             {
                 behavior.instance = nullptr;
                 behavior.boundClass = nullptr;
@@ -48,29 +48,29 @@ namespace engine::script
     // behavior array renders through the bespoke inspector section), but it must be
     // reflected so the Add Component menu lists it and versioned payloads carry a
     // data version.
-    REFLECT_VALUE(ScriptComponent, "rtti::engine::script")
+    REFLECT_VALUE(BehaviorComponent, "rtti::engine::behavior")
     {
-        builder.Attribute("displayName", String(u8"Script"))
+        builder.Attribute("displayName", String(u8"Behavior"))
             .Attribute("category", String(u8"Scripting"))
             .Attribute("description",
-                       String(u8"Runs scripts on the entity, in order, each with its own "
+                       String(u8"Runs behaviors on the entity, in order, each with its own "
                               u8"property values."))
             .DataVersion(1);
     }
 
-    // The scene-root script block (one per scene). Reflected so the scene-settings inspector renders
-    // its Level-script Ref picker and enable toggle, and so versioned payloads carry a data version.
-    REFLECT_VALUE(SceneScriptSettings, "rtti::engine::script")
+    // The scene's behavior block (one per scene). Reflected so the scene-settings inspector renders
+    // its behavior picker and enable toggle, and so versioned payloads carry a data version.
+    REFLECT_VALUE(SceneBehaviorSettings, "rtti::engine::behavior")
     {
-        builder.Attribute("displayName", String(u8"Scene Script"))
+        builder.Attribute("displayName", String(u8"Scene Behavior"))
             .Attribute("category", String(u8"Scripting"))
             .DataVersion(2) // v2: hash-keyed Level property overrides
-            .Property<&SceneScriptSettings::script>("script")
-            .PropAttribute("displayName", String(u8"Level Script"))
+            .Property<&SceneBehaviorSettings::behaviorClass>("class")
+            .PropAttribute("displayName", String(u8"Behavior"))
             .PropAttribute("description",
-                           String(u8"A script class with onStart/onUpdate/onFixedUpdate/onStop, "
-                                  u8"instantiated once per scene"))
-            .Property<&SceneScriptSettings::enabled>("enabled")
+                           String(u8"A SceneBehavior class (onStart, onUpdate, onFixedUpdate, onStop), "
+                                  u8"one per scene"))
+            .Property<&SceneBehaviorSettings::enabled>("enabled")
             .PropAttribute("displayName", String(u8"Enabled"));
     }
 
@@ -152,9 +152,9 @@ namespace engine::script
         }
     }
 
-    bool ScriptComponentManager::WriteReplicatedState(foundation::scene::EntityHandle entity, Array<byte>& out)
+    bool BehaviorComponentManager::WriteReplicatedState(foundation::scene::EntityHandle entity, Array<byte>& out)
     {
-        const ScriptComponent* component = Get(entity);
+        const BehaviorComponent* component = Get(entity);
         if (component == nullptr)
         {
             return false;
@@ -162,8 +162,8 @@ namespace engine::script
         Array<ReplicatedEntry> entries;
         for (usize b = 0; b < component->behaviors.Size(); ++b)
         {
-            const ScriptBehavior& behavior = component->behaviors[b];
-            const ScriptClass* scriptClass = behavior.script.Get();
+            const AttachedBehavior& behavior = component->behaviors[b];
+            const ScriptClass* scriptClass = behavior.behaviorClass.Get();
             if (scriptClass == nullptr)
             {
                 continue;
@@ -211,9 +211,9 @@ namespace engine::script
         return true;
     }
 
-    void ScriptComponentManager::ReadReplicatedState(foundation::scene::EntityHandle entity, Span<const byte> state)
+    void BehaviorComponentManager::ReadReplicatedState(foundation::scene::EntityHandle entity, Span<const byte> state)
     {
-        ScriptComponent* component = Get(entity);
+        BehaviorComponent* component = Get(entity);
         if (component == nullptr)
         {
             return;
@@ -232,8 +232,8 @@ namespace engine::script
             {
                 continue;
             }
-            ScriptBehavior& behavior = component->behaviors[entry.behavior];
-            const ScriptClass* scriptClass = behavior.script.Get();
+            AttachedBehavior& behavior = component->behaviors[entry.behavior];
+            const ScriptClass* scriptClass = behavior.behaviorClass.Get();
             if (scriptClass == nullptr ||
                 ScriptPropertyNameHash(scriptClass->className.AsView()) != entry.classHash)
             {
@@ -257,63 +257,63 @@ namespace engine::script
         }
     }
 
-    void RegisterScriptComponentReflection()
+    void RegisterBehaviorComponentReflection()
     {
         static const bool once = []()
         {
-            RttiRegisterValue_ScriptComponent();
-            GlobalTypeRegistry().Register(TypeOf<ScriptComponent>());
-            RttiRegisterValue_SceneScriptSettings();
-            GlobalTypeRegistry().Register(TypeOf<SceneScriptSettings>());
+            RttiRegisterValue_BehaviorComponent();
+            GlobalTypeRegistry().Register(TypeOf<BehaviorComponent>());
+            RttiRegisterValue_SceneBehaviorSettings();
+            GlobalTypeRegistry().Register(TypeOf<SceneBehaviorSettings>());
             return true;
         }();
         (void)once;
     }
 }
 
-namespace engine::script
+namespace engine::behavior
 {
-    REFLECT_VALUE(SceneScriptsFacade, "rtti::engine::script")
+    REFLECT_VALUE(SceneBehaviorsFacade, "rtti::engine::behavior")
     {
-        builder.Attribute("scriptName", "SceneScripts");
-        builder.Method<&SceneScriptsFacade::deltaTime>("deltaTime");
-        builder.Method<&SceneScriptsFacade::elapsed>("elapsed");
+        builder.Attribute("scriptName", "SceneBehaviors");
+        builder.Method<&SceneBehaviorsFacade::deltaTime>("deltaTime");
+        builder.Method<&SceneBehaviorsFacade::elapsed>("elapsed");
         // send and emit: arity families with a Variant payload, as entity.send and scene.events.emit.
-        builder.Method<static_cast<void (SceneScriptsFacade::*)(foundation::script::Entity, String) const>(&SceneScriptsFacade::send)>(
+        builder.Method<static_cast<void (SceneBehaviorsFacade::*)(foundation::script::Entity, String) const>(&SceneBehaviorsFacade::send)>(
             "send", {"target", "message"});
-        builder.Method<static_cast<void (SceneScriptsFacade::*)(foundation::script::Entity, String, Variant) const>(
-            &SceneScriptsFacade::send)>("send", {"target", "message", "payload"});
-        builder.Method<static_cast<void (SceneScriptsFacade::*)(String) const>(&SceneScriptsFacade::emit)>(
+        builder.Method<static_cast<void (SceneBehaviorsFacade::*)(foundation::script::Entity, String, Variant) const>(
+            &SceneBehaviorsFacade::send)>("send", {"target", "message", "payload"});
+        builder.Method<static_cast<void (SceneBehaviorsFacade::*)(String) const>(&SceneBehaviorsFacade::emit)>(
             "emit", {"name"});
-        builder.Method<static_cast<void (SceneScriptsFacade::*)(String, Variant) const>(&SceneScriptsFacade::emit)>(
+        builder.Method<static_cast<void (SceneBehaviorsFacade::*)(String, Variant) const>(&SceneBehaviorsFacade::emit)>(
             "emit", {"name", "payload"});
-        builder.Method<&SceneScriptsFacade::addBehavior>("addBehavior", {"entity", "scriptClass"});
+        builder.Method<&SceneBehaviorsFacade::addBehavior>("addBehavior", {"entity", "behaviorClass"});
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
 
-    void RegisterScriptSceneFacade()
+    void RegisterBehaviorSceneFacade()
     {
         static const bool once = []()
         {
-            RttiRegisterValue_SceneScriptsFacade();
-            GlobalTypeRegistry().Register(TypeOf<SceneScriptsFacade>());
-            foundation::script::RegisterExtraScriptRootType(&TypeOf<SceneScriptsFacade>());
-            foundation::script::RegisterExtraFacadeName(u8"SceneScripts");
-            foundation::script::ExtendScene<&SceneScriptsFacade::ForScene>("scripts"); // scene.scripts
+            RttiRegisterValue_SceneBehaviorsFacade();
+            GlobalTypeRegistry().Register(TypeOf<SceneBehaviorsFacade>());
+            foundation::script::RegisterExtraScriptRootType(&TypeOf<SceneBehaviorsFacade>());
+            foundation::script::RegisterExtraFacadeName(u8"SceneBehaviors");
+            foundation::script::ExtendScene<&SceneBehaviorsFacade::ForScene>("behaviors"); // scene.behaviors
             return true;
         }();
         (void)once;
     }
 
-    const engine::DomainModule& ScriptDomain() noexcept
+    const engine::DomainModule& BehaviorDomain() noexcept
     {
         static const foundation::resource::ResourceModule* const kResources[] = {
             &foundation::script::kScriptResourceModule};
         static const engine::DomainModule kModule{
-            .id = u8"script",
-            .installScene = &AddScriptSceneManagers,
-            .registerReflection = &RegisterScriptComponentReflection,
-            .registerScriptFacade = &RegisterScriptSceneFacade,
+            .id = u8"behavior",
+            .installScene = &AddBehaviorSceneManagers,
+            .registerReflection = &RegisterBehaviorComponentReflection,
+            .registerScriptFacade = &RegisterBehaviorSceneFacade,
             .resources = foundation::core::Span<const foundation::resource::ResourceModule* const>{
                 kResources, sizeof(kResources) / sizeof(kResources[0])}};
         return kModule;

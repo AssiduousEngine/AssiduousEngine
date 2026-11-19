@@ -30,7 +30,7 @@ import foundation.scene;
 import foundation.script;
 import foundation.script.facades;
 import foundation.script.resource;
-import engine.script;
+import engine.behavior;
 import engine.spline; // PathFollowComponent: the component the fetch measure reaches
 #if defined(INTEGRATION_HAS_ANGELSCRIPT)
 import foundation.script.angelscript;
@@ -41,7 +41,7 @@ import foundation.script.luau;
 
 using namespace foundation::core;
 using namespace foundation::script;
-using namespace engine::script;
+using namespace engine::behavior;
 namespace scene = foundation::scene;
 
 namespace
@@ -133,7 +133,7 @@ namespace
             foundation::script::RegisterLuauScriptBackend();
 #endif
             RegisterCoreTypes();
-            RegisterScriptComponentReflection();
+            RegisterBehaviorComponentReflection();
             RegisterScriptFacadeReflection();
             engine::spline::RegisterSplineScriptFacade(); // PathFollowComponent and its of()
             return true;
@@ -148,9 +148,9 @@ namespace
         TrackingAllocator counted{DefaultAllocator()};
         foundation::run::RunBase run{DefaultAllocator(), u8"script-bench"};
         scene::Scene scene{DefaultAllocator(), u8"script-bench"};
-        ScriptRunHost host{counted};
-        ScriptComponentManager* components = nullptr;
-        ScriptSceneSystem* scripts = nullptr;
+        BehaviorRunHost host{counted};
+        BehaviorComponentManager* components = nullptr;
+        EntityBehaviorSystem* scripts = nullptr;
         engine::spline::PathFollowComponentManager* follows = nullptr;
         BenchNativeManager* natives = nullptr;
 
@@ -158,8 +158,8 @@ namespace
         {
             EnsureRegistered();
             scene.SetRun(&run);
-            components = scene.AddSystem<ScriptComponentManager>();
-            scripts = scene.AddSystem<ScriptSceneSystem>();
+            components = scene.AddSystem<BehaviorComponentManager>();
+            scripts = scene.AddSystem<EntityBehaviorSystem>();
             engine::spline::AddSplineSceneManagers(scene);
             follows = scene.GetSystem<engine::spline::PathFollowComponentManager>();
             natives = scene.AddSystem<BenchNativeManager>();
@@ -174,8 +174,8 @@ namespace
             {
                 const scene::EntityHandle e = scene.CreateEntity(u8"bench");
                 follows->Add(e);
-                ScriptBehavior behavior;
-                behavior.script = cls;
+                AttachedBehavior behavior;
+                behavior.behaviorClass = cls;
                 components->Add(e).behaviors.PushBack(Move(behavior));
             }
         }

@@ -19,7 +19,7 @@ import foundation.net.replication;
 import engine.composition;
 import engine.render;
 import engine.animation;
-import engine.script;
+import engine.behavior;
 import engine.terrain;
 import engine.vegetation;
 import engine.spline;
@@ -50,7 +50,7 @@ TEST_CASE("engine.composition: the one list covers every domain, and the scene f
     engine::AddAllSceneManagers(scratch);
     CHECK(scratch.HasSystem<engine::animation::PropertyAnimatorComponentManager>());
     CHECK(scratch.HasSystem<engine::render::PostProcessSystem>());
-    CHECK(scratch.HasSystem<engine::script::ScriptComponentManager>());
+    CHECK(scratch.HasSystem<engine::behavior::BehaviorComponentManager>());
     CHECK(scratch.HasSystem<engine::audio::AudioSourceComponentManager>());
     CHECK(scratch.HasSystem<foundation::net::NetworkComponentManager>());
     CHECK(scratch.HasSystem<engine::terrain::TerrainComponentManager>());

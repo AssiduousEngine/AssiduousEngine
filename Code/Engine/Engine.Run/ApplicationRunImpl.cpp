@@ -17,7 +17,7 @@ import foundation.scene.resource; // LoadScene / ResolveSceneResources / Resolve
 import foundation.content;        // content::Instance
 import foundation.resource;       // ResourceManager and AsyncBindScope (async level load)
 import foundation.script;
-import engine.script;
+import engine.behavior;
 import foundation.script.facades; // RegisterExtraFacadeName (run behavior-prelude hook)
 import foundation.net.manager; // NetworkManager factories + InstallNetScriptService
 import foundation.input;       // ActionRuntime (the per-instance runtime)
@@ -221,7 +221,7 @@ namespace engine::runtime
         }
         m_inputRuntime.ResetPointerLock();
         // The run host tears down when nothing else pins it, driven by the scene-stop observer
-        // (ScriptSubsystem::MaybeTeardownRunHost). A bare instance (no scenes) keeps it until
+        // (BehaviorSubsystem::MaybeTeardownRunHost). A bare instance (no scenes) keeps it until
         // destruction.
     }
 
@@ -276,7 +276,7 @@ namespace engine::runtime
     scene::Scene* ApplicationRun::CreateScene(core::StringView name, bool activate)
     {
         // The group gives the scene this run and its bus before it assembles, so the
-        // ScriptSubsystem binds its behaviours to this run's host (the one registered on it) and
+        // BehaviorSubsystem binds its behaviours to this run's host (the one registered on it) and
         // scene.events and the run bus are one object.
         return m_sceneManager.CreateScene(name, activate);
     }

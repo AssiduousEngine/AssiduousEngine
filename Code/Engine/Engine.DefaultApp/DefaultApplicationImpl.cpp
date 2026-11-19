@@ -43,7 +43,7 @@ import foundation.script.angelscript; // the AngelScript backend (OPTION_ENABLE_
 #ifdef OPTION_HAS_LUAU
 import foundation.script.luau;         // the Luau backend (OPTION_ENABLE_LUAU)
 #endif
-import engine.script;    // ScriptSubsystem (behaviors and the run's shared context)
+import engine.behavior;    // BehaviorSubsystem (behaviors and the run's shared context)
 import foundation.resource;            // ResourceManager (owned or borrowed: see the infrastructure preset)
 import foundation.content;             // IContentDatabase (preset by the entry point)
 import foundation.scene.resource;      // SceneDocument (product-type registration)
@@ -264,7 +264,7 @@ namespace engine::runtime
         // Entity behaviors. Facade and backend registration is batteries-included here
         // (idempotent; entry points may register more). The subsystem creates the run context
         // lazily and shares it with the game script: one gameplay context per run.
-        m_scripts = host.Subsystems().AddSubsystem<engine::script::ScriptSubsystem>();
+        m_scripts = host.Subsystems().AddSubsystem<engine::behavior::BehaviorSubsystem>();
         // The instance owns its run host; wire it with the app's facades, Scene.spawn and
         // entity.send routing so its context has them when the game script starts. (The
         // subsystem's own default host, for editor scenes, is wired in its OnReady.)
@@ -320,7 +320,7 @@ namespace engine::runtime
         }
     }
 
-    engine::script::ScriptSubsystem* DefaultApplication::Scripts() const noexcept
+    engine::behavior::BehaviorSubsystem* DefaultApplication::Scripts() const noexcept
     {
         return m_scripts;
     }

@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// Engine::Script - the `engine.script` module.
+// Engine::Behavior - the `engine.behavior` module.
 //
-// Entity behaviors: a ScriptSceneSystem per scene instantiates each behavior's cooked
+// Entity behaviors: a EntityBehaviorSystem per scene instantiates each behavior's cooked
 // ScriptClass in the run's one gameplay script context, applies harvested defaults and
 // hash-keyed overrides, and dispatches the declared lifecycle handlers (onStart through a
 // deferred start, onUpdate(dt), onEnable and onDisable, onDestroy), gated to simulation
 // (IsSimulationOnly: the editor's Simulate toggle and play-in-editor both count). A faulting
 // behavior is disabled and logged; scripting keeps running.
 //
-// Context ownership: the subsystem's ScriptRunHost owns the run's single IScriptContext,
+// Context ownership: the subsystem's BehaviorRunHost owns the run's single IScriptContext,
 // created lazily at first use (the first behavior instantiate, or the game script's
 // StartRunBehavior, which shares it) and torn down when the run ends (game script released,
 // no live instances, nothing simulating). The backend is resolved through the
@@ -26,7 +26,7 @@ module;
 #include "Core/Log/Log.h"
 #include "Profiler/Profiler.h"
 
-export module engine.script;
+export module engine.behavior;
 
 export import :components;
 export import foundation.script.facades; // Entity, Log, Time, Random and the run-service binding
@@ -48,7 +48,7 @@ using namespace foundation::script;
 namespace core = foundation::core;
 namespace resource = foundation::resource;
 
-export namespace engine::script
+export namespace engine::behavior
 {
     // Foundation aliases (sibling engine::* namespaces would otherwise shadow these).
     namespace scene = foundation::scene;
@@ -259,19 +259,19 @@ export namespace engine::script
     /// load gives hot reload clean semantics (live instances of the replaced class keep
     /// running on its old module until they end).
     /// Plain class (no runtime deps) so headless tests drive it directly.
-    class ScriptRunHost
+    class BehaviorRunHost
     {
     public:
         // The allocator (required: the owner decides) becomes the run's script
         // manager tree root: every context, object and blob inherits it through
         // MemoryAllocator().
-        explicit ScriptRunHost(foundation::core::IAllocator& allocator) noexcept
+        explicit BehaviorRunHost(foundation::core::IAllocator& allocator) noexcept
             : m_allocator(&allocator)
         {
         }
 
         /// Where this host's context finds the application's services by type (the app's
-        /// subsystem manager, wired by ScriptSubsystem::ConfigureRunHost): what the context's
+        /// subsystem manager, wired by BehaviorSubsystem::ConfigureRunHost): what the context's
         /// resolver asks after this host's own binding and its run's services.
         void SetApplicationServices(Function<void*(TypeId)> services) { m_applicationServices = Move(services); }
 
@@ -396,7 +396,7 @@ export namespace engine::script
             m_binding.deltaSeconds = 0.0f;
             m_binding.random = core::Random{}; // fresh per-run RNG
             m_scriptContext->SetErrorHandler(&m_errorSink);
-            const ScriptRunHost* self = this;
+            const BehaviorRunHost* self = this;
             m_scriptContext->SetServiceResolver(
                 IScriptContext::ServiceResolver{[self](TypeId type) { return self->FindService(type); }});
             EnsureDebugger(); // a debugger requested before the context existed attaches now
@@ -706,7 +706,7 @@ export namespace engine::script
     /// just before the behaviors.
     inline constexpr i32 kScriptUpdateOrder = -110;
 
-    class ScriptSceneSystem final : public scene::SceneSystem
+    class EntityBehaviorSystem final : public scene::SceneSystem
     {
     public:
         [[nodiscard]] i32 UpdateOrder() const noexcept override { return kScriptUpdateOrder; }
@@ -720,8 +720,8 @@ export namespace engine::script
         }
 
         /// The subsystem (or a headless test) wires the shared run host in.
-        void SetRunHost(ScriptRunHost* host) noexcept { m_host = host; }
-        [[nodiscard]] ScriptRunHost* Host() const noexcept { return m_host; }
+        void SetRunHost(BehaviorRunHost* host) noexcept { m_host = host; }
+        [[nodiscard]] BehaviorRunHost* Host() const noexcept { return m_host; }
         /// Optional: the subsystem hears about run-participation changes (teardown check).
         void SetRunObserver(Function<void()> observer) { m_runObserver = Move(observer); }
 
@@ -766,7 +766,7 @@ export namespace engine::script
             m_elapsed += static_cast<f64>(deltaTime);
             TickBehaviors(deltaTime);
             DrainMessages(); // deferred entity.send delivery: same frame, never nested
-            AddPendingBehaviors(); // SceneScripts.addBehavior: started on the next tick
+            AddPendingBehaviors(); // SceneBehaviors.addBehavior: started on the next tick
             // Resume due coroutines once per simulated frame, at the tick's top level (no
             // VM call active, so the backend's resume is safe here). Gated to a backend that
             // actually has the scheduler; a non-supporting one no-ops anyway.
@@ -780,7 +780,7 @@ export namespace engine::script
         }
 
         /// The scene's last delivered frame time and its simulated seconds since it started
-        /// (scene.scripts.deltaTime and elapsed): scaled time, so both stand still at time scale 0.
+        /// (scene.behaviors.deltaTime and elapsed): scaled time, so both stand still at time scale 0.
         [[nodiscard]] f32 DeltaTime() const noexcept { return m_deltaTime; }
         [[nodiscard]] f64 Elapsed() const noexcept { return m_elapsed; }
 
@@ -803,16 +803,16 @@ export namespace engine::script
         [[nodiscard]] u32 InstanceCount() const
         {
             auto* components =
-                m_scene != nullptr ? m_scene->GetSystem<ScriptComponentManager>() : nullptr;
+                m_scene != nullptr ? m_scene->GetSystem<BehaviorComponentManager>() : nullptr;
             if (components == nullptr)
             {
                 return 0;
             }
             u32 count = 0;
             components->ForEach(
-                [&count](ScriptComponent& component, scene::EntityHandle)
+                [&count](BehaviorComponent& component, scene::EntityHandle)
                 {
-                    for (const ScriptBehavior& behavior : component.behaviors)
+                    for (const AttachedBehavior& behavior : component.behaviors)
                     {
                         if (behavior.instance.Get() != nullptr)
                         {
@@ -824,9 +824,9 @@ export namespace engine::script
         }
 
         /// onDestroy and release for one component's behaviors (entity or component removal).
-        void ReleaseComponentInstances(ScriptComponent& component, scene::EntityHandle entity)
+        void ReleaseComponentInstances(BehaviorComponent& component, scene::EntityHandle entity)
         {
-            for (ScriptBehavior& behavior : component.behaviors)
+            for (AttachedBehavior& behavior : component.behaviors)
             {
                 StopBehavior(behavior, entity, true);
             }
@@ -884,7 +884,7 @@ export namespace engine::script
                 return;
             }
             auto* components =
-                m_scene != nullptr ? m_scene->GetSystem<ScriptComponentManager>() : nullptr;
+                m_scene != nullptr ? m_scene->GetSystem<BehaviorComponentManager>() : nullptr;
             usize delivered = 0;
             for (usize m = 0; m < m_messages.Size(); ++m)
             {
@@ -911,12 +911,12 @@ export namespace engine::script
                 const Span<Variant> argSpan{args.Data(), args.Size()};
                 for (usize i = 0;; ++i)
                 {
-                    ScriptComponent* component = components->Get(target);
+                    BehaviorComponent* component = components->Get(target);
                     if (component == nullptr || i >= component->behaviors.Size())
                     {
                         break;
                     }
-                    ScriptBehavior& behavior = component->behaviors[i];
+                    AttachedBehavior& behavior = component->behaviors[i];
                     if (!behavior.enabled || behavior.faulted ||
                         behavior.instance.Get() == nullptr || behavior.boundClass == nullptr)
                     {
@@ -949,7 +949,7 @@ export namespace engine::script
             {
                 return;
             }
-            auto* components = m_scene->GetSystem<ScriptComponentManager>();
+            auto* components = m_scene->GetSystem<BehaviorComponentManager>();
             if (components == nullptr || components->Count() == 0)
             {
                 return;
@@ -972,12 +972,12 @@ export namespace engine::script
                 }
                 for (usize i = 0;; ++i)
                 {
-                    ScriptComponent* component = components->Get(entity);
+                    BehaviorComponent* component = components->Get(entity);
                     if (component == nullptr || i >= component->behaviors.Size())
                     {
                         break;
                     }
-                    ScriptBehavior& behavior = component->behaviors[i];
+                    AttachedBehavior& behavior = component->behaviors[i];
                     if (!behavior.enabled || behavior.faulted ||
                         behavior.instance.Get() == nullptr || behavior.boundClass == nullptr)
                     {
@@ -1026,7 +1026,7 @@ export namespace engine::script
 
         void TickBehaviors(f32 deltaTime)
         {
-            auto* components = m_scene->GetSystem<ScriptComponentManager>();
+            auto* components = m_scene->GetSystem<BehaviorComponentManager>();
             if (components == nullptr || components->Count() == 0)
             {
                 return;
@@ -1046,7 +1046,7 @@ export namespace engine::script
             {
                 // A dispatch can add or remove script components, moving the pool: the component
                 // is looked up again after one only when it did.
-                ScriptComponent* component = components->Get(entity);
+                BehaviorComponent* component = components->Get(entity);
                 for (usize i = 0; component != nullptr && i < component->behaviors.Size(); ++i)
                 {
                     const u64 storage = components->StorageRevision();
@@ -1065,7 +1065,7 @@ export namespace engine::script
             }
         }
 
-        void TickBehavior(ScriptBehavior& behavior, scene::EntityHandle entity, f32 deltaTime)
+        void TickBehavior(AttachedBehavior& behavior, scene::EntityHandle entity, f32 deltaTime)
         {
             // An effectively-inactive entity's behaviors freeze: no lifecycle events fire,
             // onStart waits for the first active tick (so an entity that loads inactive behaves
@@ -1082,7 +1082,7 @@ export namespace engine::script
             }
             behavior.entitySuspended = false;
 
-            ScriptClass* scriptClass = behavior.script.Get();
+            ScriptClass* scriptClass = behavior.behaviorClass.Get();
             if (scriptClass == nullptr)
             {
                 if (behavior.instance.Get() != nullptr)
@@ -1168,7 +1168,7 @@ export namespace engine::script
             }
         }
 
-        void InstantiateBehavior(ScriptBehavior& behavior, scene::EntityHandle entity,
+        void InstantiateBehavior(AttachedBehavior& behavior, scene::EntityHandle entity,
                                  ScriptClass& scriptClass)
         {
             if (scriptClass.className.IsEmpty())
@@ -1214,7 +1214,7 @@ export namespace engine::script
         }
 
         // Defaults first, then hash-keyed overrides win (shared with the Level tier).
-        void ApplyProperties(ScriptBehavior& behavior, const ScriptClass& scriptClass,
+        void ApplyProperties(AttachedBehavior& behavior, const ScriptClass& scriptClass,
                              scene::EntityHandle entity)
         {
             ApplyScriptProperties(*behavior.instance, scriptClass,
@@ -1228,7 +1228,7 @@ export namespace engine::script
         // that debug-suspended (hit a breakpoint) is reported as Suspended, not a fault: the
         // game is now paused and the debugger owns the mid-flight handler; on Continue it runs
         // to completion and normal flow resumes.
-        [[nodiscard]] HandlerOutcome InvokeHandler(ScriptBehavior& behavior,
+        [[nodiscard]] HandlerOutcome InvokeHandler(AttachedBehavior& behavior,
                                                    const ScriptClass& scriptClass,
                                                    scene::EntityHandle entity, StringView method,
                                                    Span<Variant> args)
@@ -1245,7 +1245,7 @@ export namespace engine::script
         // the instance could not bind goes by `name`, which also names a fault: a declared handler
         // the object lacks (the wrong parameters) faults as it always has, and an undeclared one
         // is skipped.
-        [[nodiscard]] HandlerOutcome InvokeHandler(ScriptBehavior& behavior,
+        [[nodiscard]] HandlerOutcome InvokeHandler(AttachedBehavior& behavior,
                                                    const ScriptClass& scriptClass,
                                                    scene::EntityHandle entity, ScriptMethod method,
                                                    StringView name, Span<Variant> args)
@@ -1263,7 +1263,7 @@ export namespace engine::script
         }
 
         // What a handler's result means: a fault disables the behaviour; a debug pause is not one.
-        [[nodiscard]] HandlerOutcome HandlerResult(ScriptBehavior& behavior, const ScriptClass& scriptClass,
+        [[nodiscard]] HandlerOutcome HandlerResult(AttachedBehavior& behavior, const ScriptClass& scriptClass,
                                                    scene::EntityHandle entity, StringView method,
                                                    const Result<Variant>& result)
         {
@@ -1286,7 +1286,7 @@ export namespace engine::script
         // Stop every coroutine the behavior's instance started (disable, destroy,
         // reload). Gated to a coroutine-capable backend and a class that opted in
         // (usesCoroutines): a backend or class without coroutines pays nothing.
-        void CancelCoroutines(ScriptBehavior& behavior)
+        void CancelCoroutines(AttachedBehavior& behavior)
         {
             if (behavior.instance.Get() == nullptr || behavior.boundClass == nullptr ||
                 !behavior.boundClass->usesCoroutines || m_host == nullptr)
@@ -1302,7 +1302,7 @@ export namespace engine::script
             manager->CancelCoroutinesFor(*behavior.instance);
         }
 
-        void StopBehavior(ScriptBehavior& behavior, scene::EntityHandle entity, bool invokeDestroy)
+        void StopBehavior(AttachedBehavior& behavior, scene::EntityHandle entity, bool invokeDestroy)
         {
             if (behavior.instance.Get() != nullptr && invokeDestroy && behavior.started &&
                 behavior.boundClass != nullptr && !behavior.faulted)
@@ -1311,7 +1311,7 @@ export namespace engine::script
             }
             CancelCoroutines(behavior); // drop pending coroutines before releasing the instance
             behavior.instance = nullptr;
-            behavior.lifecycle = ScriptLifecycleMethods{};
+            behavior.lifecycle = BehaviorLifecycle{};
             behavior.boundClass = nullptr;
             behavior.started = false;
             behavior.active = false;
@@ -1320,12 +1320,12 @@ export namespace engine::script
         void DestroyAllInstances()
         {
             auto* components =
-                m_scene != nullptr ? m_scene->GetSystem<ScriptComponentManager>() : nullptr;
+                m_scene != nullptr ? m_scene->GetSystem<BehaviorComponentManager>() : nullptr;
             if (components == nullptr)
             {
                 return;
             }
-            components->ForEach([this](ScriptComponent& component, scene::EntityHandle entity)
+            components->ForEach([this](BehaviorComponent& component, scene::EntityHandle entity)
                                 { ReleaseComponentInstances(component, entity); });
         }
 
@@ -1349,7 +1349,7 @@ export namespace engine::script
             }
             Array<PendingBehavior> pending = Move(m_pendingBehaviors);
             m_pendingBehaviors = Array<PendingBehavior>{};
-            auto* components = m_scene->GetSystem<ScriptComponentManager>();
+            auto* components = m_scene->GetSystem<BehaviorComponentManager>();
             if (components == nullptr)
             {
                 return;
@@ -1364,16 +1364,16 @@ export namespace engine::script
                 {
                     continue; // destroyed in the meantime
                 }
-                ScriptComponent* component = components->Get(request.entity);
+                BehaviorComponent* component = components->Get(request.entity);
                 if (component == nullptr)
                 {
                     component = &components->Add(request.entity);
                 }
-                ScriptBehavior behavior;
-                behavior.script.SetId(request.scriptClass);
+                AttachedBehavior behavior;
+                behavior.behaviorClass.SetId(request.scriptClass);
                 if (resources != nullptr)
                 {
-                    behavior.script.Bind(*resources);
+                    behavior.behaviorClass.Bind(*resources);
                 }
                 component->behaviors.PushBack(Move(behavior));
             }
@@ -1381,38 +1381,38 @@ export namespace engine::script
         static constexpr usize kMaxMessagesPerDrain = 4096;
 
         scene::Scene* m_scene = nullptr;
-        ScriptRunHost* m_host = nullptr;
+        BehaviorRunHost* m_host = nullptr;
         Function<void()> m_runObserver;
         Array<scene::EntityHandle> m_tickOwners; // per-tick snapshot (reused)
         Array<PendingMessage> m_messages;        // deferred entity.send queue
-        Array<PendingBehavior> m_pendingBehaviors; // SceneScripts.addBehavior, after the tick
+        Array<PendingBehavior> m_pendingBehaviors; // SceneBehaviors.addBehavior, after the tick
         ScriptEventSubscriptions m_eventSubs;    // this scene's bus subscriptions, sunk into BroadcastEvent
         f32 m_deltaTime = 0.0f;
         f64 m_elapsed = 0.0;
         bool m_started = false;
     };
 
-    /// The scene's scripting, a property of the scene: `scene.scripts`. The scene's script time
+    /// The scene's scripting, a property of the scene: `scene.behaviors`. The scene's script time
     /// (scaled: it stands still at time scale 0), the messages between behaviours (`send`, as `entity.send` on the target), the events
     /// on the scene's bus (`emit`, as `scene.events.emit`), and a behaviour added at runtime by
     /// its class's asset id. A value type; a null scene makes every call a safe no-op.
-    struct SceneScriptsFacade
+    struct SceneBehaviorsFacade
     {
         scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
 
-        [[nodiscard]] ScriptSceneSystem* System() const
+        [[nodiscard]] EntityBehaviorSystem* System() const
         {
-            return scene != nullptr ? scene->GetSystem<ScriptSceneSystem>() : nullptr;
+            return scene != nullptr ? scene->GetSystem<EntityBehaviorSystem>() : nullptr;
         }
 
         [[nodiscard]] f32 deltaTime() const
         {
-            ScriptSceneSystem* system = System();
+            EntityBehaviorSystem* system = System();
             return system != nullptr ? system->DeltaTime() : 0.0f;
         }
         [[nodiscard]] f64 elapsed() const
         {
-            ScriptSceneSystem* system = System();
+            EntityBehaviorSystem* system = System();
             return system != nullptr ? system->Elapsed() : 0.0;
         }
         /// Queues `on<Message>(...)` for every behaviour of `target` that declares it.
@@ -1446,21 +1446,21 @@ export namespace engine::script
         /// A behaviour of the class (a script asset id) on the entity, started on the next tick.
         bool addBehavior(Entity entity, Guid scriptClass) const
         {
-            ScriptSceneSystem* system = System();
+            EntityBehaviorSystem* system = System();
             return system != nullptr && entity.scene == scene &&
                    system->QueueBehavior(entity.Handle(), scriptClass);
         }
 
         // The scene's own, read by scripts as a property of the scene (ExtendScene).
-        [[nodiscard]] static SceneScriptsFacade ForScene(const foundation::script::Scene& sceneHandle)
+        [[nodiscard]] static SceneBehaviorsFacade ForScene(const foundation::script::Scene& sceneHandle)
         {
-            SceneScriptsFacade scripts;
+            SceneBehaviorsFacade scripts;
             scripts.scene = sceneHandle.scene;
             return scripts;
         }
     };
 
-    void RegisterScriptSceneFacade();
+    void RegisterBehaviorSceneFacade();
 
     // ---- scene-level scripting (the third tier): one `Level` script object per scene ----
 
@@ -1468,9 +1468,9 @@ export namespace engine::script
     /// the scene (as SceneSystem settings), resolved on the async level-load path
     /// (ResolveResources rides ResolveSceneResources' AsyncBindScope), and rendered in the
     /// scene-settings inspector (reflected) with a script-asset Ref picker.
-    struct SceneScriptSettings
+    struct SceneBehaviorSettings
     {
-        resource::Ref<ScriptClass> script; // the Level class (a cooked script asset); nil means none
+        resource::Ref<ScriptClass> behaviorClass; // the scene behavior (a cooked script asset); nil means none
         bool enabled = true;
         // Hash-keyed property overrides (values differing from the Level class's harvested
         // defaults): the same default-diff model as a behavior's overrides, one set per scene.
@@ -1512,9 +1512,9 @@ export namespace engine::script
         }
     };
 
-    inline void SerializeSceneScriptSettings(ISerializer& ar, SceneScriptSettings& s)
+    inline void SerializeSceneScriptSettings(ISerializer& ar, SceneBehaviorSettings& s)
     {
-        foundation::core::Serialize(ar, "script", s.script);
+        foundation::core::Serialize(ar, "class", s.behaviorClass);
         foundation::core::Serialize(ar, "enabled", s.enabled);
         // Level property overrides (when empty, the class defaults apply).
         foundation::core::Serialize(ar, "overrides", s.overrides); // count-prefixed array scope
@@ -1525,7 +1525,7 @@ export namespace engine::script
     /// before the entity behaviors of its scene (UpdateOrder). `onStart`, `onUpdate(dt)`,
     /// `onFixedUpdate(dt)` and `onStop` are all optional (dispatch by presence). A faulting handler
     /// disables this scene's level only.
-    class SceneScriptSystem final : public scene::SceneSystem
+    class SceneBehaviorSystem final : public scene::SceneSystem
     {
     public:
         void OnSceneCreate(scene::Scene& scene) override
@@ -1538,9 +1538,9 @@ export namespace engine::script
                                                   { DispatchEvent(eventName, payload); }});
         }
 
-        void SetRunHost(ScriptRunHost* host) noexcept { m_host = host; }
-        [[nodiscard]] ScriptRunHost* Host() const noexcept { return m_host; }
-        [[nodiscard]] SceneScriptSettings& Settings() noexcept { return m_settings; }
+        void SetRunHost(BehaviorRunHost* host) noexcept { m_host = host; }
+        [[nodiscard]] BehaviorRunHost* Host() const noexcept { return m_host; }
+        [[nodiscard]] SceneBehaviorSettings& Settings() noexcept { return m_settings; }
         /// True once a Level object is live (test/inspection).
         [[nodiscard]] bool LevelActive() const noexcept { return m_level.Get() != nullptr; }
         [[nodiscard]] bool LevelFaulted() const noexcept { return m_faulted; }
@@ -1563,10 +1563,10 @@ export namespace engine::script
 
         [[nodiscard]] const TypeInfo* SettingsType() const noexcept override
         {
-            return &TypeOf<SceneScriptSettings>();
+            return &TypeOf<SceneBehaviorSettings>();
         }
         [[nodiscard]] void* SettingsInstance() noexcept override { return &m_settings; }
-        [[nodiscard]] StringView SettingsId() const noexcept override { return u8"sceneScript"; }
+        [[nodiscard]] StringView SettingsId() const noexcept override { return u8"sceneBehavior"; }
         void SerializeSettings(ISerializer& ar) override
         {
             SerializeSceneScriptSettings(ar, m_settings);
@@ -1580,7 +1580,7 @@ export namespace engine::script
 
         void ResolveResources(resource::ResourceManager& manager) override
         {
-            m_settings.script.Bind(manager);
+            m_settings.behaviorClass.Bind(manager);
         }
 
         void OnSceneStarted() override
@@ -1638,7 +1638,7 @@ export namespace engine::script
             {
                 return;
             }
-            ScriptClass* scriptClass = m_settings.script.Get();
+            ScriptClass* scriptClass = m_settings.behaviorClass.Get();
             if (scriptClass == nullptr)
             {
                 return; // no Level bound (or still pending on an async load): the system is inert
@@ -1727,8 +1727,8 @@ export namespace engine::script
         }
 
         scene::Scene* m_scene = nullptr;
-        ScriptRunHost* m_host = nullptr;
-        SceneScriptSettings m_settings;
+        BehaviorRunHost* m_host = nullptr;
+        SceneBehaviorSettings m_settings;
         RefPtr<ScriptObject> m_level;
         ScriptClass* m_boundClass = nullptr;
         ScriptEventSubscriptions m_eventSubs; // this scene's bus subscriptions, sunk into DispatchEvent
@@ -1753,29 +1753,29 @@ export namespace engine::script
     // scene consumers (Engine.Composition), so a manager added here reaches both. The cross-link
     // between manager and system is in-scene wiring and belongs here; run-host binding is
     // runtime-only and stays with the subsystem (the systems are inert without a host).
-    inline void AddScriptSceneManagers(scene::Scene& scene)
+    inline void AddBehaviorSceneManagers(scene::Scene& scene)
     {
-        auto* components = scene.AddSystem<ScriptComponentManager>();
-        ScriptSceneSystem* system = scene.AddSystem<ScriptSceneSystem>();
+        auto* components = scene.AddSystem<BehaviorComponentManager>();
+        EntityBehaviorSystem* system = scene.AddSystem<EntityBehaviorSystem>();
         components->SetScriptSystem(system);
-        scene.AddSystem<SceneScriptSystem>(); // scene-root script (the Level tier)
+        scene.AddSystem<SceneBehaviorSystem>(); // scene-root script (the Level tier)
     }
 
-    class ScriptSubsystem final : public foundation::runtime::Subsystem, public scene::ISceneObserver
+    class BehaviorSubsystem final : public foundation::runtime::Subsystem, public scene::ISceneObserver
     {
     public:
         /// The default run host: the one for the editor's editing and loose scenes.
         /// An ApplicationRun owns its own run host for its game scenes and game script; this is not
         /// that. Editing-scene Simulate runs its behaviors on this host.
-        [[nodiscard]] ScriptRunHost& RunHost() noexcept { return m_ownedRunHost; }
+        [[nodiscard]] BehaviorRunHost& RunHost() noexcept { return m_ownedRunHost; }
 
         /// The host `scene`'s scripts run on: the one its run holds (a run registers its
-        /// ScriptRunHost as a service), else the default host.
-        [[nodiscard]] ScriptRunHost* RunHostFor(const scene::Scene& scene) noexcept
+        /// BehaviorRunHost as a service), else the default host.
+        [[nodiscard]] BehaviorRunHost* RunHostFor(const scene::Scene& scene) noexcept
         {
             if (foundation::run::IRun* run = scene.Run())
             {
-                if (ScriptRunHost* host = run->Get<ScriptRunHost>())
+                if (BehaviorRunHost* host = run->Get<BehaviorRunHost>())
                 {
                     return host;
                 }
@@ -1788,9 +1788,9 @@ export namespace engine::script
         /// routing. The wrappers read the subsystem manager, spawner and m_systems live, so one
         /// call per host suffices and the same message route serves every host. Call once per run
         /// host before its first context is created.
-        void ConfigureRunHost(ScriptRunHost& host)
+        void ConfigureRunHost(BehaviorRunHost& host)
         {
-            ScriptSubsystem* self = this;
+            BehaviorSubsystem* self = this;
             // The application's services are its subsystem manager's, read at each call, so a
             // subsystem registered after this host was configured is still found.
             host.SetApplicationServices(Function<void*(TypeId)>{
@@ -1823,7 +1823,7 @@ export namespace engine::script
         /// observer, OnSceneDestroyed, and an ApplicationRun on its own host.
         /// A host that stays collects in full instead: a scene stopped or went, so the frame is
         /// one where a pause is expected, and what it left is garbage now.
-        void MaybeTeardownRunHost(ScriptRunHost& host)
+        void MaybeTeardownRunHost(BehaviorRunHost& host)
         {
             if (!host.IsActive())
             {
@@ -1837,7 +1837,7 @@ export namespace engine::script
             host.Teardown();
         }
 
-        [[nodiscard]] bool RunHostPinned(ScriptRunHost& host) const
+        [[nodiscard]] bool RunHostPinned(BehaviorRunHost& host) const
         {
             if (host.HasGameScriptHold())
             {
@@ -1895,7 +1895,7 @@ export namespace engine::script
                 trigger = true;
                 break;
             }
-            ScriptSceneSystem* system = SystemForScene(scene);
+            EntityBehaviorSystem* system = SystemForScene(scene);
             if (system == nullptr)
             {
                 return;
@@ -1911,7 +1911,7 @@ export namespace engine::script
         /// script-agnostic).
         void DeliverEvent(scene::Scene* scene, scene::EntityHandle target, StringView handler, Array<Variant> args)
         {
-            ScriptSceneSystem* system = SystemForScene(scene);
+            EntityBehaviorSystem* system = SystemForScene(scene);
             if (system == nullptr || !target.IsAssigned())
             {
                 return;
@@ -1936,14 +1936,14 @@ export namespace engine::script
 
         void OnSystemsReady(scene::Scene& scene) override
         {
-            ScriptSceneSystem* system = scene.GetSystem<ScriptSceneSystem>();
+            EntityBehaviorSystem* system = scene.GetSystem<EntityBehaviorSystem>();
             // The scene's run's host, so its behaviours share that run's context (a game's, an
             // editor page's Simulate); a scene outside every run uses the default host. A scene's
             // run is set before its systems assemble. The teardown observer checks the system's
             // current host.
-            ScriptRunHost* host = RunHostFor(scene);
+            BehaviorRunHost* host = RunHostFor(scene);
             system->SetRunHost(host);
-            ScriptSubsystem* self = this;
+            BehaviorSubsystem* self = this;
             system->SetRunObserver(Function<void()>{[self, system]()
                                                     {
                                                         if (system->Host() != nullptr)
@@ -1955,11 +1955,11 @@ export namespace engine::script
             m_systems.PushBack(SceneEntry{&scene, system});
 
             // The scene-root script (the Level tier) shares the same run host.
-            scene.GetSystem<SceneScriptSystem>()->SetRunHost(host);
+            scene.GetSystem<SceneBehaviorSystem>()->SetRunHost(host);
         }
         void OnDestroying(scene::Scene& scene) override
         {
-            ScriptRunHost* host = nullptr;
+            BehaviorRunHost* host = nullptr;
             for (usize i = 0; i < m_systems.Size(); ++i)
             {
                 if (m_systems[i].scene == &scene)
@@ -1984,7 +1984,7 @@ export namespace engine::script
     protected:
         void OnInit() override
         {
-            RegisterScriptComponentReflection();
+            RegisterBehaviorComponentReflection();
             RegisterScriptFacadeReflection();
         }
         void OnReady() override
@@ -2023,10 +2023,10 @@ export namespace engine::script
         struct SceneEntry
         {
             scene::Scene* scene = nullptr;
-            ScriptSceneSystem* system = nullptr;
+            EntityBehaviorSystem* system = nullptr;
         };
 
-        [[nodiscard]] ScriptSceneSystem* SystemForScene(scene::Scene* scene)
+        [[nodiscard]] EntityBehaviorSystem* SystemForScene(scene::Scene* scene)
         {
             for (const SceneEntry& entry : m_systems)
             {
@@ -2041,7 +2041,7 @@ export namespace engine::script
         // Enqueue one side of a contact: `self` receives the handler with `other` marshalled as
         // an Entity (collision handlers also get point/normal/speed). Skips a side whose entity
         // didn't resolve (invalid `self`); a stale `other` marshals to a safe no-op Entity.
-        void DeliverContactSide(ScriptSceneSystem& system, scene::Scene* scene,
+        void DeliverContactSide(EntityBehaviorSystem& system, scene::Scene* scene,
                                 scene::EntityHandle self, scene::EntityHandle other,
                                 StringView handler, const Float3& point, const Float3& normal,
                                 f32 speed, bool trigger)
@@ -2065,7 +2065,7 @@ export namespace engine::script
             system.EnqueueHandler(self, handler, Move(args));
         }
 
-        ScriptRunHost m_ownedRunHost{
+        BehaviorRunHost m_ownedRunHost{
             foundation::core::DefaultAllocator()}; // the default run host (editor and editing
                                                    // scenes), on the process root allocator
         Array<SceneEntry> m_systems;
@@ -2074,10 +2074,10 @@ export namespace engine::script
     };
 }
 
-export namespace engine::script
+export namespace engine::behavior
 {
     /// This domain's declaration: what it brings to a scene, to
     /// reflection, to the script surface and which resource modules come with it. Defined in the
     /// implementation unit (one instance per process); Engine.Composition lists it once.
-    [[nodiscard]] const engine::DomainModule& ScriptDomain() noexcept;
+    [[nodiscard]] const engine::DomainModule& BehaviorDomain() noexcept;
 }

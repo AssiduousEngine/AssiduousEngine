@@ -73,7 +73,7 @@ class Coin : EntityBehavior
         {
             return;
         }
-        double frame = self.scene.scripts.elapsed();
+        double frame = self.scene.behaviors.elapsed();
         if (frame != g_lookFrame)
         {
             g_lookFrame = frame;

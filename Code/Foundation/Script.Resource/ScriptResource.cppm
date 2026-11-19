@@ -15,7 +15,7 @@
 // Property values (float, int, bool, string, color, vec3, entity, asset:<TypeName>) are
 // carried by ScriptPropertyValue, a small tagged value that is the serialized form of
 // both harvested defaults and per-behavior overrides (the
-// ScriptComponent's hash-keyed override blobs). Entity references are Guids, remapped
+// BehaviorComponent's hash-keyed override blobs). Entity references are Guids, remapped
 // by the prefab machinery like every other entity ref in a payload.
 
 module;

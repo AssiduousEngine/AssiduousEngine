@@ -31,7 +31,7 @@ export namespace pipeline{
     // The New Asset starter for AngelScript: a behavior class whose constructor takes the
     // entity handle, with the lifecycle handlers stubbed. No properties.
     inline constexpr StringView kAngelScriptBehaviorStarter =
-        u8"// Behavior class - attach via a ScriptComponent behavior slot.\n"
+        u8"// Behavior class - attach via a BehaviorComponent behavior slot.\n"
         u8"// Reflected engine facades are visible globally (no import). In AngelScript the\n"
         u8"// static facades are NAMESPACED and lowercase - Log::info, Time::delta,\n"
         u8"// Random::value - and the entity handle uses '.' (self.setName, ...). The scene is\n"
@@ -63,7 +63,7 @@ export namespace pipeline{
     // scene handle, its class named after the asset. All handlers optional. onUpdate and
     // onFixedUpdate run only while the scene simulates.
     inline constexpr StringView kAngelScriptLevelStarter =
-        u8"// A scene behavior - one per scene. Set it on the scene's Scene Script settings.\n"
+        u8"// A scene behavior - one per scene. Set it on the scene's Scene Behavior settings.\n"
         u8"// One instance per scene, constructed with the scene handle. In AngelScript the\n"
         u8"// static facades are NAMESPACED and lowercase - Log::info, Time::delta - and the\n"
         u8"// scene handle uses '.': scene.find(\"name\"), scene.spawn(...).\n"

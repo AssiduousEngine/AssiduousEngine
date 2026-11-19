@@ -27,7 +27,7 @@ import foundation.resource;
 import foundation.run; // RunBase: the page's run
 import foundation.scene;
 import foundation.scene.resource;
-import engine.script; // ScriptRunHost: the run's scripts
+import engine.behavior; // BehaviorRunHost: the run's scripts
 import editor.core;
 
 using namespace foundation::core;
@@ -42,7 +42,7 @@ export namespace editor
     public:
         SimulationRun(IAllocator& allocator, StringView name) : RunBase(allocator, name), m_scripts(allocator)
         {
-            Register<engine::script::ScriptRunHost>(m_scripts);
+            Register<engine::behavior::BehaviorRunHost>(m_scripts);
             m_scripts.Binding().run = this; // its scripts find this run (gui::root, Audio)
         }
         // Disposed while the host it registered still exists; the host's context goes after.
@@ -52,10 +52,10 @@ export namespace editor
             m_scripts.Teardown();
         }
 
-        [[nodiscard]] engine::script::ScriptRunHost& Scripts() noexcept { return m_scripts; }
+        [[nodiscard]] engine::behavior::BehaviorRunHost& Scripts() noexcept { return m_scripts; }
 
     private:
-        engine::script::ScriptRunHost m_scripts;
+        engine::behavior::BehaviorRunHost m_scripts;
     };
 
     class SceneSimulation

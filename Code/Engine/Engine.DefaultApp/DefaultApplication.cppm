@@ -49,7 +49,7 @@ import foundation.script.angelscript; // the AngelScript backend (OPTION_ENABLE_
 #ifdef OPTION_HAS_LUAU
 import foundation.script.luau;         // the Luau backend (OPTION_ENABLE_LUAU)
 #endif
-import engine.script;    // ScriptSubsystem (behaviors and the run's shared context)
+import engine.behavior;    // BehaviorSubsystem (behaviors and the run's shared context)
 import engine.integration; // ScriptPhysicsContactBridge (physics contacts to script ingress)
 import foundation.resource;            // ResourceManager (owned or borrowed: see the infrastructure preset)
 import foundation.content;             // IContentDatabase (preset by the entry point)
@@ -95,7 +95,7 @@ export namespace engine::runtime
         // editor) do not register gameplay subsystems; this is the one place.
         void Configure(IApplicationHost& host) override;
 
-        [[nodiscard]] engine::script::ScriptSubsystem* Scripts() const noexcept;
+        [[nodiscard]] engine::behavior::BehaviorSubsystem* Scripts() const noexcept;
 
         /// The app's primary running game. The launch flow creates the game scene in its
         /// Scenes() manager so it groups, ticks and renders as this run's scenes.
@@ -365,7 +365,7 @@ export namespace engine::runtime
         engine::render::RenderSubsystem* m_render = nullptr; // for the `scene.debugDraw` service
 
         net::NetworkStartup m_netStartup; // preset before Configure (default = single-player)
-        engine::script::ScriptSubsystem* m_scripts = nullptr;
+        engine::behavior::BehaviorSubsystem* m_scripts = nullptr;
         // The app host, captured in Configure (stable for the app's lifetime). Used to route
         // run.requestExit through an ApplicationRun's load facade when an extra instance is created
         // outside a host-bearing call (CreateInstance). Borrowed: the host outlives the app.
