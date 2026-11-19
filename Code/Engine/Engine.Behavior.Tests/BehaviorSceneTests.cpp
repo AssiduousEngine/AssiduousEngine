@@ -33,7 +33,6 @@ import foundation.script.resource;
 import engine.behavior;
 import foundation.physics;
 import engine.physics;
-import engine.integration; // ScriptPhysicsContactBridge (the composition-root adapter)
 import engine.render;      // MeshComponent/LightComponent .of (render surface)
 import foundation.render;             // debug::DebugDraw accessors (the DebugDraw real-effect test)
 import foundation.rhi;                // rhi::Device (base of the headless NullDevice)
@@ -55,7 +54,6 @@ using namespace engine::scene;
 using namespace engine::render;
 using namespace engine::physics;
 using namespace engine::particles;
-using namespace engine::integration;
 using namespace engine::audio;
 using namespace engine::animation;
 using namespace foundation::script;
@@ -2643,19 +2641,16 @@ TEST_CASE("script.scene: disabling a behavior cancels its pending coroutine (nev
 
 // ---- Physics contact events reach behaviours (end to end, real Jolt and a real Scene) ----
 // A full subsystem manager wiring SceneSubsystem, PhysicsSubsystem and BehaviorSubsystem: the
-// physics tick resolves contacts to entities and pushes them to the script subsystem (registered
-// as an IContactListener at OnReady), which enqueues them onto the owning scene's deferred queue;
-// the scene tick drains them and dispatches the on<Event> handler.
+// physics tick resolves contacts to entities and posts them to the scene as entity events, which
+// the scene's behavior system queues; the scene tick drains them and dispatches the on<Event>
+// handler. Nothing joins physics to the behaviors but the scene.
 
 namespace
 {
     namespace runtime = foundation::runtime;
 
     // Builds a SubsystemManager with all three subsystems started and a live scene, and returns the
-    // scene. It acts as its own composition root: it bridges physics contacts to the script
-    // subsystem's neutral DeliverContact ingress with the same adapter DefaultApplication uses in a
-    // real run (engine.integration), so these contact tests also exercise that bridge, and the
-    // script subsystem itself keeps no physics dependency.
+    // scene, as a run has them.
     struct ContactWorld
     {
         runtime::SubsystemManager ctx{DefaultAllocator()};
@@ -2664,7 +2659,6 @@ namespace
         BehaviorSubsystem* scripts = nullptr;
         scene::Scene* scene = nullptr;
         UniquePtr<scene::SceneManager> sm; // this bed's scene group (subsystem owns none)
-        engine::integration::ScriptPhysicsContactBridge bridge; // the composition-root adapter
 
         ContactWorld()
         {
@@ -2688,16 +2682,11 @@ namespace
                 scenes->SetComposition(scene::SceneComposition::Build(modules));
             }
             ctx.Startup();
-            bridge.Install(*physics, *scripts); // the real composition-root adapter
             sm = MakeUnique<scene::SceneManager>(DefaultAllocator(), DefaultAllocator());
             scenes->RegisterManager(sm.Get());
             scene = sm->CreateScene(u8"level");
         }
-        ~ContactWorld()
-        {
-            bridge.Uninstall(); // before ctx.Shutdown destroys the physics subsystem
-            ctx.Shutdown();
-        }
+        ~ContactWorld() { ctx.Shutdown(); }
 
         scene::EntityHandle AddBody(StringView name, Float3 position, physics::MotionKind motion,
                                     Float3 halfExtents, bool trigger = false)
@@ -6138,9 +6127,9 @@ TEST_CASE("script.scene: a Luau behaviour's replicated property reaches the clie
                                       u8"function Other:onUpdate(dt) end\n");
 }
 
-// An animation's events reach behaviours through the composition root's ScriptAnimationBridge, as
-// physics contacts do through theirs: a one-shot that ends on an entity calls its behaviours'
-// onAnimationFinished(clip) at the next scene tick.
+// An animation's events reach behaviours as entity events: the animation posts "animationFinished"
+// to the scene and the scene's behavior system queues it, so a one-shot that ends on an entity
+// calls its behaviours' onAnimationFinished(clip) at the next scene tick, with no bridge between.
 namespace
 {
     struct AnimationWorld
@@ -6151,7 +6140,6 @@ namespace
         BehaviorSubsystem* scripts = nullptr;
         scene::Scene* scene = nullptr;
         UniquePtr<scene::SceneManager> sm;
-        engine::integration::ScriptAnimationBridge bridge;
 
         AnimationWorld()
         {
@@ -6169,17 +6157,12 @@ namespace
                 scenes->SetComposition(scene::SceneComposition::Build(modules));
             }
             ctx.Startup();
-            bridge.Install(*animations, *scripts);
             sm = MakeUnique<scene::SceneManager>(DefaultAllocator(), DefaultAllocator());
             scenes->RegisterManager(sm.Get());
             scene = sm->CreateScene(u8"level");
             scene->AddSystem<engine::render::MeshComponentManager>(); // the animators feed meshes
         }
-        ~AnimationWorld()
-        {
-            bridge.Uninstall();
-            ctx.Shutdown();
-        }
+        ~AnimationWorld() { ctx.Shutdown(); }
         void Play(int frames)
         {
             scene->Start();

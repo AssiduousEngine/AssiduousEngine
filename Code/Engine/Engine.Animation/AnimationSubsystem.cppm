@@ -42,45 +42,19 @@ export namespace engine::animation
         scene.AddSystem<BoneAttachmentComponentManager>(); // entities that follow a bone
     }
 
-    // A one-shot that ended on an entity (SceneAnimation.playOneShot): the scene, the entity and the
-    // clip.
-    struct AnimationOneShotEnded
-    {
-        foundation::scene::Scene* scene = nullptr;
-        foundation::scene::EntityHandle entity;
-        Guid clip;
-    };
+    // The entity events an animation posts to its scene (Scene::PostEntityEvent), which an entity's
+    // behaviors hear as on<Name>: a one-shot that ended (SceneAnimation.playOneShot), with its clip's
+    // id, and a clip event the animation passed, with the event's name.
+    inline constexpr StringView kAnimationFinishedEvent = u8"animationFinished";
+    inline constexpr StringView kAnimationClipEvent = u8"animationEvent";
 
-    // A clip event an entity's animation passed: the scene, the entity and the event's name.
-    struct AnimationClipEvent
-    {
-        foundation::scene::Scene* scene = nullptr;
-        foundation::scene::EntityHandle entity;
-        StringView name;
-    };
-
-    // A consumer of the animation's events: the host bridges them to scripts (Engine.Integration's
-    // ScriptAnimationBridge), so the animation stays script-agnostic, as physics contacts do.
-    class IAnimationListener
-    {
-    public:
-        virtual ~IAnimationListener() = default;
-        virtual void OnOneShotEnded(const AnimationOneShotEnded& ended) = 0;
-        virtual void OnClipEvent(const AnimationClipEvent& event) = 0;
-    };
-
-    // Registers the reflection, tells its listeners of the one-shots that ended in each running
-    // scene, and draws the IK components that ask for it (debugDraw) into each running scene's
-    // debug list, as navigation and physics do.
+    // Registers the reflection, posts each running scene's ended one-shots and passed clip events to
+    // their entities, and draws the IK components that ask for it (debugDraw) into each running
+    // scene's debug list, as navigation and physics do.
     class AnimationSubsystem final : public foundation::runtime::Subsystem,
                                      public foundation::scene::ISceneObserver
     {
     public:
-        // Listeners are borrowed and must unregister before they go; registering twice is once.
-        // Defined in the implementation unit.
-        void RegisterListener(IAnimationListener* listener);
-        void UnregisterListener(IAnimationListener* listener);
-
         void OnSystemsReady(foundation::scene::Scene& scene) override { m_scenes.PushBack(&scene); }
         void OnDestroying(foundation::scene::Scene& scene) override
         {
@@ -124,10 +98,9 @@ export namespace engine::animation
         }
 
     private:
-        void TellOneShotsEnded();
+        void PostAnimationEvents();
 
         Array<foundation::scene::Scene*> m_scenes;
-        Array<IAnimationListener*> m_listeners;
         Array<OneShotEnded> m_ended; // scratch: one scene's, drained from its managers
         Array<ClipEventFired> m_events; // scratch: one scene's clip events
     };

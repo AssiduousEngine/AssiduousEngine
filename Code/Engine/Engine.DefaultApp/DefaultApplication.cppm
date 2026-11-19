@@ -37,7 +37,6 @@ import engine.scene;      // SceneSubsystem (the standard scene driver)
 import engine.render;     // RenderSubsystem (the standard renderer)
 import engine.animation; // AnimationSubsystem (drives skeletal animation from the scene)
 import engine.particles; // ParticleSubsystem (scene-driven CPU sim)
-import foundation.physics;             // ContactKind/EntityContact (the contact bridge)
 import engine.physics;   // PhysicsSubsystem (Jolt worlds and interpolation)
 import foundation.input;               // the action model/runtime
 import engine.input;     // InputSubsystem and the Input facade
@@ -50,7 +49,6 @@ import foundation.script.angelscript; // the AngelScript backend (OPTION_ENABLE_
 import foundation.script.luau;         // the Luau backend (OPTION_ENABLE_LUAU)
 #endif
 import engine.behavior;    // BehaviorSubsystem (behaviors and the run's shared context)
-import engine.integration; // ScriptPhysicsContactBridge (physics contacts to script ingress)
 import foundation.resource;            // ResourceManager (owned or borrowed: see the infrastructure preset)
 import foundation.content;             // IContentDatabase (preset by the entry point)
 import foundation.scene.resource;      // SceneDocument (product-type registration)
@@ -313,11 +311,6 @@ export namespace engine::runtime
         void RegisterStandardFactories(foundation::resource::ResourceManager& resources,
                                        IApplicationHost& host);
 
-        // Bridges physics contacts to the script subsystem's neutral ingress. The one place
-        // physics and script meet for contacts; the adapter itself lives out-of-tree in
-        // engine.integration so the two subsystems stay mutually independent.
-        engine::integration::ScriptPhysicsContactBridge m_contactBridge;
-        engine::integration::ScriptAnimationBridge m_animationBridge; // one-shots ended, to behaviours
 
         // Every scene manager of the composition, plugins' included, for a factory that reads scene
         // data it does not own: the prefab factory turns a text prefab into the binary wire with

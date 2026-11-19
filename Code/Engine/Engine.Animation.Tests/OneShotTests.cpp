@@ -2,10 +2,10 @@
 // Copyright (c) 2026-Present Robert Campbell
 
 // One-shots and crossfades on the animated entities: a one-shot asked for on an animator starts
-// over its clip, plays and ends, and its end reaches the animation subsystem's listeners with the
-// entity and the clip; SceneAnimation says it plays and stops it; a clip changed with a fade time
-// eases in; a graph's entity takes a one-shot too. (The script side, onAnimationFinished, is the
-// bridge's: Engine.Integration.)
+// over its clip, plays and ends, and its end is posted to the entity as "animationFinished" with
+// the clip; SceneAnimation says it plays and stops it; a clip changed with a fade time eases in; a
+// graph's entity takes a one-shot too. (Behaviors hear the posted events as on<Name>:
+// Integration.ScriptScene.)
 
 #include <doctest/doctest.h>
 
@@ -33,15 +33,29 @@ namespace
         return clip;
     }
 
-    struct Listener final : engine::animation::IAnimationListener
+    // The entity events the scene was told, as the behavior system hears them.
+    struct Listener final : scene::IEntityEventSink
     {
-        Array<engine::animation::AnimationOneShotEnded> ended;
-        Array<String> events; // clip events heard, by name
-        void OnOneShotEnded(const engine::animation::AnimationOneShotEnded& e) override { ended.PushBack(e); }
-        void OnClipEvent(const engine::animation::AnimationClipEvent& e) override
+        struct Ended
         {
-            CHECK(e.entity.index != scene::kEntityHandleInvalidIndex);
-            events.PushBack(String(e.name));
+            scene::Scene* scene = nullptr;
+            scene::EntityHandle entity;
+            Guid clip;
+        };
+        Array<Ended> ended;
+        Array<String> events; // clip events heard, by name
+        void OnEntityEvent(scene::Scene& at, const scene::EntityEvent& e) override
+        {
+            REQUIRE(e.args.Size() == 1u);
+            if (e.name == engine::animation::kAnimationFinishedEvent)
+            {
+                ended.PushBack(Ended{&at, e.target, e.args[0].Get<Guid>()});
+            }
+            else if (e.name == engine::animation::kAnimationClipEvent)
+            {
+                CHECK(e.target.index != scene::kEntityHandleInvalidIndex);
+                events.PushBack(e.args[0].Get<String>());
+            }
         }
     };
 
@@ -86,7 +100,7 @@ namespace
     }
 }
 
-TEST_CASE("animation: a one-shot asked of an animator plays over its clip, ends, and its listeners hear it")
+TEST_CASE("animation: a one-shot asked of an animator plays over its clip, ends, and its end is posted to the entity")
 {
     Stage stage;
     auto& a = stage.Animator(Holding(u8"Stand", 0.0f));
@@ -102,7 +116,7 @@ TEST_CASE("animation: a one-shot asked of an animator plays over its clip, ends,
 
     engine::animation::AnimationSubsystem subsystem;
     Listener listener;
-    subsystem.RegisterListener(&listener);
+    stage.level.AddEntityEventSink(listener);
     subsystem.OnSystemsReady(stage.level);
 
     stage.Run(0.25f);
@@ -132,7 +146,7 @@ TEST_CASE("animation: a one-shot asked of an animator plays over its clip, ends,
     CHECK_FALSE(animations.isPlayingOneShot(stage.Entity()));
     subsystem.Update(0.0f);
     CHECK(listener.ended.Size() == 2);
-    subsystem.UnregisterListener(&listener);
+    stage.level.RemoveEntityEventSink(listener);
     subsystem.OnDestroying(stage.level);
 }
 
@@ -181,7 +195,7 @@ TEST_CASE("animation: a graph's entity takes a one-shot over its graph")
     CHECK(ended.Size() == 1);
 }
 
-TEST_CASE("animation: a clip's events reach the animation subsystem's listeners")
+TEST_CASE("animation: a clip's events are posted to the entity")
 {
     // The player fired its events into a handler nobody set: an authored footstep or hit marker
     // reached nothing, and scripts never heard onAnimationEvent.
@@ -193,7 +207,7 @@ TEST_CASE("animation: a clip's events reach the animation subsystem's listeners"
 
     engine::animation::AnimationSubsystem subsystem;
     Listener listener;
-    subsystem.RegisterListener(&listener);
+    stage.level.AddEntityEventSink(listener);
     subsystem.OnSystemsReady(stage.level);
 
     stage.Run(0.5f);
@@ -208,6 +222,6 @@ TEST_CASE("animation: a clip's events reach the animation subsystem's listeners"
     subsystem.Update(0.0f);
     CHECK(listener.events.Size() == 2); // told once
 
-    subsystem.UnregisterListener(&listener);
+    stage.level.RemoveEntityEventSink(listener);
     subsystem.OnDestroying(stage.level);
 }

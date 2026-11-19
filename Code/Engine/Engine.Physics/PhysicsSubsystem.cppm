@@ -93,30 +93,15 @@ export namespace engine::physics
     [[nodiscard]] bool DescribeBody(scene::Scene& scene, RigidBodyComponent& c, scene::EntityHandle entity,
                                     BodyDesc& out, BodyBuffers& buffers);
 
-    /// A contact whose bodies have been resolved back to scene entities (invalid handles for a side
-    /// whose body no longer maps to a live entity, such as an End event after a body was
-    /// destroyed). Delivered by the physics subsystem to every registered IContactListener at the
-    /// physics tick (a safe top level, never nested inside a script call).
-    struct EntityContact
-    {
-        ContactKind kind = ContactKind::Begin;
-        scene::Scene* scene = nullptr;
-        scene::EntityHandle a;
-        scene::EntityHandle b;
-        Float3 point{0, 0, 0};
-        Float3 normal{0, 0, 0};
-        f32 speed = 0.0f;
-    };
-
-    /// A consumer of resolved contacts (the script subsystem implements this to route contacts into
-    /// behavior handlers). Called at the physics tick, once per drained contact per registered
-    /// listener; implementations must only enqueue (no re-entrant script calls).
-    class IContactListener
-    {
-    public:
-        virtual ~IContactListener() = default;
-        virtual void OnContact(const EntityContact& contact) = 0;
-    };
+    /// The entity events physics posts to its scene (Scene::PostEntityEvent), one to each side of a
+    /// contact, which an entity's behaviors hear as on<Name>. A collision's arguments are the other
+    /// entity, the point, the normal and the speed (an f64); a trigger's, the other entity alone. The
+    /// other entity is an EntityHandle, unassigned when its body no longer maps to a live entity
+    /// (an end after the body was destroyed).
+    inline constexpr StringView kContactBeginEvent = u8"contactBegin";
+    inline constexpr StringView kContactEndEvent = u8"contactEnd";
+    inline constexpr StringView kTriggerEnterEvent = u8"triggerEnter";
+    inline constexpr StringView kTriggerExitEvent = u8"triggerExit";
 
     class PhysicsSceneSystem final : public scene::SceneSystem, public scene::ISceneRayQuery, public IPhysicsReleaser
     {
@@ -167,14 +152,6 @@ export namespace engine::physics
             return Span<const ContactEvent>{m_events.Data(), m_events.Size()};
         }
 
-
-        /// The subsystem points this at its listener list (stable address); each drained contact
-        /// batch is resolved to entities and pushed to every listener. Null means no dispatch (a
-        /// bare scene-system harness with no subsystem driving it).
-        void SetContactListeners(const Array<IContactListener*>* listeners) noexcept
-        {
-            m_listeners = listeners;
-        }
 
         // ---- play lifecycle ----
 
@@ -336,11 +313,10 @@ export namespace engine::physics
 
             m_events.Clear();
             m_world->DrainContacts(m_events);
-            // Push each drained batch at the physics tick: m_events is cleared every substep, so a
-            // frame with several substeps would lose all but the last if listeners only pulled
-            // Events() once per frame. Dispatch here (a safe top level, not nested in any script
-            // call); listeners only enqueue.
-            DispatchContacts();
+            // Post each drained batch at the physics tick: m_events is cleared every substep, so a
+            // frame with several substeps would lose all but the last if they were read once per
+            // frame. Posted here (a safe top level, not nested in any script call); sinks only queue.
+            PostContacts();
 
             // Characters: the standard velocity recipe (grounded: planar move and a one-shot jump;
             // airborne: keep the gravity-integrated fall, steer planar), then sweep.
@@ -1133,38 +1109,42 @@ export namespace engine::physics
             }
         }
 
-        // Resolve every drained contact's packed user words back to live entities and push the
-        // result to each registered listener. A side that does not resolve (destroyed body, stale
-        // slot) is delivered as an invalid handle; a contact with neither side live is dropped.
-        void DispatchContacts()
+        // Resolves every drained contact's packed user words back to live entities and posts it to
+        // each side as an entity event. A side that does not resolve (destroyed body, stale slot)
+        // gets none and is the other side's unassigned entity; a contact with neither side live is
+        // dropped. At the physics tick, a safe top level: the sinks only queue.
+        void PostContacts()
         {
-            if (m_listeners == nullptr || m_listeners->IsEmpty() || m_scene == nullptr)
+            if (m_scene == nullptr || !m_scene->WantsEntityEvents())
             {
                 return;
             }
             for (const ContactEvent& event : m_events)
             {
-                const scene::EntityHandle a = UnpackEntity(event.userA);
-                const scene::EntityHandle b = UnpackEntity(event.userB);
-                EntityContact contact;
-                contact.kind = event.kind;
-                contact.scene = m_scene;
-                contact.a = m_scene->IsValid(a) ? a : scene::EntityHandle::Invalid();
-                contact.b = m_scene->IsValid(b) ? b : scene::EntityHandle::Invalid();
-                if (!contact.a.IsAssigned() && !contact.b.IsAssigned())
+                const scene::EntityHandle unpackedA = UnpackEntity(event.userA);
+                const scene::EntityHandle unpackedB = UnpackEntity(event.userB);
+                const scene::EntityHandle a = m_scene->IsValid(unpackedA) ? unpackedA : scene::EntityHandle::Invalid();
+                const scene::EntityHandle b = m_scene->IsValid(unpackedB) ? unpackedB : scene::EntityHandle::Invalid();
+                StringView name;
+                bool trigger = false;
+                switch (event.kind)
                 {
-                    continue;
+                case ContactKind::Begin: name = kContactBeginEvent; break;
+                case ContactKind::End: name = kContactEndEvent; break;
+                case ContactKind::TriggerEnter: name = kTriggerEnterEvent; trigger = true; break;
+                case ContactKind::TriggerExit: name = kTriggerExitEvent; trigger = true; break;
                 }
-                contact.point = event.point;
-                contact.normal = event.normal;
-                contact.speed = event.speed;
-                for (IContactListener* listener : *m_listeners)
+                const auto post = [&](scene::EntityHandle self, scene::EntityHandle other)
                 {
-                    if (listener != nullptr)
-                    {
-                        listener->OnContact(contact);
-                    }
-                }
+                    if (!self.IsAssigned())
+                        return;
+                    const Variant args[] = {Variant::From<scene::EntityHandle>(other), Variant::From<Float3>(event.point),
+                                            Variant::From<Float3>(event.normal),
+                                            Variant::From<f64>(static_cast<f64>(event.speed))};
+                    m_scene->PostEntityEvent(scene::EntityEvent{self, name, Span<const Variant>(args, trigger ? 1u : 4u)});
+                };
+                post(a, b);
+                post(b, a);
             }
         }
 
@@ -1178,7 +1158,6 @@ export namespace engine::physics
         Array<scene::IStaticColliderSource*> m_pendingCapsuleSources; // not ready at the last ask
         f32 m_capsuleWait = 0.0f;   // how long they have been waited for (s)
         bool m_warnedCapsules = false;
-        const Array<IContactListener*>* m_listeners = nullptr; // owned by the subsystem
     };
 
     // The physics manager set for a scene, injected by the subsystem at runtime and by headless
@@ -1198,35 +1177,6 @@ export namespace engine::physics
     class PhysicsSubsystem final : public foundation::runtime::Subsystem, public scene::ISceneObserver
     {
     public:
-        /// Register a consumer of resolved contacts (the script subsystem). Duplicates are
-        /// ignored; every per-scene world dispatches to the shared list at its physics tick.
-        void RegisterContactListener(IContactListener* listener)
-        {
-            if (listener == nullptr)
-            {
-                return;
-            }
-            for (IContactListener* existing : m_contactListeners)
-            {
-                if (existing == listener)
-                {
-                    return;
-                }
-            }
-            m_contactListeners.PushBack(listener);
-        }
-        void UnregisterContactListener(IContactListener* listener)
-        {
-            for (usize i = 0; i < m_contactListeners.Size(); ++i)
-            {
-                if (m_contactListeners[i] == listener)
-                {
-                    m_contactListeners.RemoveAt(i);
-                    return;
-                }
-            }
-        }
-
         // Before the scene subsystem (-500): the interpolation's local-transform writes must land
         // before Scene::Update recomputes world matrices, or rendering (which extracts world
         // matrices) would lag the physics poses by a frame.
@@ -1235,7 +1185,6 @@ export namespace engine::physics
         void OnSystemsReady(scene::Scene& scene) override
         {
             PhysicsSceneSystem* system = scene.GetSystem<PhysicsSceneSystem>();
-            system->SetContactListeners(&m_contactListeners); // shared list, stable address
             m_systems.PushBack(SceneEntry{&scene, system});
         }
         void OnDestroying(scene::Scene& scene) override
@@ -1290,7 +1239,6 @@ export namespace engine::physics
 
     private:
         Array<SceneEntry> m_systems;
-        Array<IContactListener*> m_contactListeners; // consumers of resolved contacts
     };
 
     // An explicit ray-hit result: it travels by value from the rayCast that produced it, like every

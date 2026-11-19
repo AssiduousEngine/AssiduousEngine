@@ -495,71 +495,36 @@ namespace engine::animation
         return worst;
     }
 
-    void AnimationSubsystem::RegisterListener(IAnimationListener* listener)
-    {
-        if (listener == nullptr)
-        {
-            return;
-        }
-        for (IAnimationListener* existing : m_listeners)
-        {
-            if (existing == listener)
-            {
-                return;
-            }
-        }
-        m_listeners.PushBack(listener);
-    }
-
-    void AnimationSubsystem::UnregisterListener(IAnimationListener* listener)
-    {
-        for (usize i = 0; i < m_listeners.Size(); ++i)
-        {
-            if (m_listeners[i] == listener)
-            {
-                m_listeners.RemoveAt(i);
-                return;
-            }
-        }
-    }
-
-    void AnimationSubsystem::TellOneShotsEnded()
+    void AnimationSubsystem::PostAnimationEvents()
     {
         for (foundation::scene::Scene* scene : m_scenes)
         {
+            // Drained whether or not anything listens, so the managers' lists never grow.
             m_ended.Clear();
-            if (auto* graphs = scene->GetSystem<AnimationGraphComponentManager>())
-            {
-                graphs->DrainEnded(m_ended);
-            }
-            if (auto* clips = scene->GetSystem<SkeletalAnimationComponentManager>())
-            {
-                clips->DrainEnded(m_ended);
-            }
-            for (const OneShotEnded& e : m_ended)
-            {
-                const AnimationOneShotEnded ended{scene, e.entity, e.clip};
-                for (IAnimationListener* listener : m_listeners)
-                {
-                    listener->OnOneShotEnded(ended);
-                }
-            }
             m_events.Clear();
             if (auto* graphs = scene->GetSystem<AnimationGraphComponentManager>())
             {
+                graphs->DrainEnded(m_ended);
                 graphs->DrainEvents(m_events);
             }
             if (auto* clips = scene->GetSystem<SkeletalAnimationComponentManager>())
             {
+                clips->DrainEnded(m_ended);
                 clips->DrainEvents(m_events);
+            }
+            if (!scene->WantsEntityEvents())
+            {
+                continue;
+            }
+            for (const OneShotEnded& e : m_ended)
+            {
+                const Variant clip = Variant::From<Guid>(e.clip);
+                scene->PostEntityEvent(foundation::scene::EntityEvent{e.entity, kAnimationFinishedEvent, Span<const Variant>(&clip, 1)});
             }
             for (const ClipEventFired& e : m_events)
             {
-                const AnimationClipEvent event{scene, e.entity, e.name.AsView()};
-                for (IAnimationListener* listener : m_listeners)
-                {
-                    listener->OnClipEvent(event);
-                }
+                const Variant name = Variant::From<String>(String(e.name));
+                scene->PostEntityEvent(foundation::scene::EntityEvent{e.entity, kAnimationClipEvent, Span<const Variant>(&name, 1)});
             }
         }
         m_ended.Clear();
@@ -568,7 +533,7 @@ namespace engine::animation
 
     void AnimationSubsystem::Update(f32)
     {
-        TellOneShotsEnded(); // headless too: before the debug drawing, which needs a renderer
+        PostAnimationEvents(); // headless too: before the debug drawing, which needs a renderer
         foundation::runtime::SubsystemManager* context = Manager();
         auto* render = context != nullptr ? context->GetSubsystem<engine::render::RenderSubsystem>() : nullptr;
         if (render == nullptr)

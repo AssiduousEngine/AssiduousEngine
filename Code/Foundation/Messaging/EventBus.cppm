@@ -6,8 +6,9 @@
 // A native, name-keyed event bus in its own leaf module. It is a run-scope facility (a scene's,
 // or a whole run's), with no scripting and no scene dependency: C++ systems Publish and Subscribe
 // directly with native callbacks, so a C++-only game is a first-class participant. Script reaches
-// it through a bridge (as ScriptPhysicsContactBridge does), never the reverse: the bus never
-// delivers to script itself.
+// it through the behavior layer's subscriptions, never the reverse: the bus never delivers to
+// script itself. (What happens to one entity, a contact or an animation ending, is not the bus's:
+// it is an entity event, posted to the entity's scene, Scene::PostEntityEvent.)
 //
 // Delivery is deferred: Publish enqueues, and Drain (called at the scope tick's top level, with no
 // VM call active) delivers every queued event to its subscribers in subscription order. A handler

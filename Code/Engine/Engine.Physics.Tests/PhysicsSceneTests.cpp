@@ -228,12 +228,36 @@ TEST_CASE("physics.scene: a scaled body's child colliders keep their world place
 
 namespace
 {
-    // Records resolved contacts (the PhysicsSubsystem plays this role in a real run; the bare
-    // scene-system harness wires it in directly via SetContactListeners).
-    struct RecordingListener final : IContactListener
+    // Records the contacts physics posts to the scene, one event to each side.
+    struct RecordingListener final : scene::IEntityEventSink
     {
-        Array<EntityContact> contacts;
-        void OnContact(const EntityContact& contact) override { contacts.PushBack(contact); }
+        struct Heard
+        {
+            scene::Scene* scene = nullptr;
+            String name;
+            scene::EntityHandle self;
+            scene::EntityHandle other;
+            usize argCount = 0;
+            Float3 normal{0, 0, 0};
+            f64 speed = 0.0;
+        };
+        Array<Heard> contacts;
+        void OnEntityEvent(scene::Scene& at, const scene::EntityEvent& e) override
+        {
+            Heard h;
+            h.scene = &at;
+            h.name = String(e.name);
+            h.self = e.target;
+            h.argCount = e.args.Size();
+            REQUIRE(!e.args.IsEmpty());
+            h.other = e.args[0].Get<scene::EntityHandle>();
+            if (e.args.Size() == 4u)
+            {
+                h.normal = e.args[2].Get<Float3>();
+                h.speed = e.args[3].Get<f64>();
+            }
+            contacts.PushBack(Move(h));
+        }
     };
 }
 
@@ -249,28 +273,30 @@ TEST_CASE("physics.scene: trigger components raise enter events resolved to enti
     play.Start();
 
     RecordingListener recorder;
-    Array<IContactListener*> listeners;
-    listeners.PushBack(&recorder);
-    play.physics->SetContactListeners(&listeners); // packed userData resolves to entities
+    play.scene.AddEntityEventSink(recorder); // packed userData resolves to entities
 
-    bool entered = false;
-    for (int i = 0; i < 240 && !entered; ++i)
+    // Each side is told, with the other as its argument, and nothing more.
+    bool volumeTold = false;
+    bool fallerTold = false;
+    for (int i = 0; i < 240 && !(volumeTold && fallerTold); ++i)
     {
         play.Step(1);
-        for (const EntityContact& c : recorder.contacts)
+        for (const RecordingListener::Heard& c : recorder.contacts)
         {
-            if (c.kind == ContactKind::TriggerEnter &&
-                ((c.a == volume && c.b == faller) || (c.a == faller && c.b == volume)))
-            {
-                entered = true;
-            }
+            if (c.name != StringView(kTriggerEnterEvent))
+                continue;
+            CHECK(c.argCount == 1u);
+            volumeTold = volumeTold || (c.self == volume && c.other == faller);
+            fallerTold = fallerTold || (c.self == faller && c.other == volume);
         }
     }
-    CHECK(entered);
+    CHECK(volumeTold);
+    CHECK(fallerTold);
+    play.scene.RemoveEntityEventSink(recorder);
 }
 
-TEST_CASE("physics.scene: a real Jolt collision reaches a registered listener with resolved "
-          "entities + geometry")
+TEST_CASE("physics.scene: a real Jolt collision is posted to both entities with the other, the point, "
+          "the normal and the speed")
 {
     PlayScene play;
     const scene::EntityHandle floor = play.AddFloor();
@@ -278,31 +304,31 @@ TEST_CASE("physics.scene: a real Jolt collision reaches a registered listener wi
     play.Start();
 
     RecordingListener recorder;
-    Array<IContactListener*> listeners;
-    listeners.PushBack(&recorder);
-    play.physics->SetContactListeners(&listeners);
+    play.scene.AddEntityEventSink(recorder);
 
     bool sawBegin = false;
     for (int i = 0; i < 120 && !sawBegin; ++i)
     {
         play.Step(1);
-        for (const EntityContact& c : recorder.contacts)
+        for (const RecordingListener::Heard& c : recorder.contacts)
         {
-            if (c.kind != ContactKind::Begin)
+            if (c.name != StringView(kContactBeginEvent))
             {
                 continue;
             }
-            if ((c.a == box && c.b == floor) || (c.a == floor && c.b == box))
+            if ((c.self == box && c.other == floor) || (c.self == floor && c.other == box))
             {
                 sawBegin = true;
                 CHECK(c.scene == &play.scene);
-                CHECK(c.speed >= 0.0f); // approach speed, never negative
+                CHECK(c.argCount == 4u);
+                CHECK(c.speed >= 0.0); // approach speed, never negative
                 const f32 normalLength = Length(c.normal);
                 CHECK(normalLength == doctest::Approx(1.0f).epsilon(0.02)); // unit normal
             }
         }
     }
     CHECK(sawBegin);
+    play.scene.RemoveEntityEventSink(recorder);
 }
 
 TEST_CASE("physics.scene: cooked collision shape drives a body via the component ref")
@@ -1250,30 +1276,30 @@ TEST_CASE("physics.scene: a CharacterComponent walking into a trigger raises Tri
     play.Step(20); // settle
 
     RecordingListener recorder;
-    Array<IContactListener*> listeners;
-    listeners.PushBack(&recorder);
-    play.physics->SetContactListeners(&listeners);
+    play.scene.AddEntityEventSink(recorder);
 
-    // Walk the character straight through where the sensor is (x 2.3..3.7) and out past it.
+    // Walk the character straight through where the sensor is (x 2.3..3.7) and out past it. Each
+    // side is told; the hero's side is counted.
     character.moveVelocity = Float3{3.0f, 0.0f, 0.0f};
     i32 entered = 0, exited = 0;
     f32 enteredAt = 0.0f;
     for (int i = 0; i < 240; ++i)
     {
         play.Step(1);
-        for (const EntityContact& c : recorder.contacts)
+        for (const RecordingListener::Heard& c : recorder.contacts)
         {
-            if ((c.a == volume && c.b == hero) || (c.a == hero && c.b == volume))
+            if (c.self == hero && c.other == volume)
             {
-                if (c.kind == ContactKind::TriggerEnter && entered++ == 0)
+                if (c.name == StringView(kTriggerEnterEvent) && entered++ == 0)
                 {
                     enteredAt = character.currPosition.x;
                 }
-                exited += c.kind == ContactKind::TriggerExit ? 1 : 0;
+                exited += c.name == StringView(kTriggerExitEvent) ? 1 : 0;
             }
         }
         recorder.contacts.Clear();
     }
+    play.scene.RemoveEntityEventSink(recorder);
     CHECK(character.currPosition.x > 4.5f); // it really did walk through the volume and out
     CHECK(entered == 1);                    // once in...
     CHECK(exited == 1);                     // ...and once out

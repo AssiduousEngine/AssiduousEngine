@@ -8,7 +8,7 @@ add_executable(Engine.Behavior.Tests TestsMain.cpp BehaviorSceneTests.cpp)
 target_link_libraries(Engine.Behavior.Tests PRIVATE
     Engine::Behavior Foundation::Script.Resource Foundation::Scene Foundation::Scene.Resource
     Foundation::Content Foundation::Resource Foundation::VFS
-    Foundation::Physics Engine::Physics Engine::Integration
+    Foundation::Physics Engine::Physics
     Engine::Render Foundation::RHI.Null Foundation::Audio Engine::Audio
     Foundation::Animation Engine::Animation
     Foundation::Particles Engine::Particles

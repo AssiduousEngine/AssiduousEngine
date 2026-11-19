@@ -863,25 +863,6 @@ export namespace engine::behavior
             m_messages.PushBack(Move(pending));
         }
 
-        /// An engine event's handler call (physics contacts, an animation's one-shot ending): the
-        /// handler name is already the final `on<Event>`, e.g. "onContactBegin", not a message to
-        /// convert, with pre-marshalled args. Reuses the same deferred queue as entity.send so it
-        /// drains at the tick's top level: the subsystems push their events from their own ticks
-        /// (never nested in a script call), and delivery is gated by HasHandler in InvokeHandler
-        /// exactly like messages.
-        void EnqueueHandler(scene::EntityHandle target, StringView handler, Array<Variant> args)
-        {
-            if (handler.IsEmpty())
-            {
-                return;
-            }
-            PendingMessage pending;
-            pending.target = target;
-            pending.handler = String(handler);
-            pending.args = Move(args);
-            m_messages.PushBack(Move(pending));
-        }
-
         /// An entity event for this scene's behaviors: queued as `on<Name>` (the send() rule:
         /// "contactBegin" calls onContactBegin) with its arguments, each EntityHandle among them made
         /// the Entity a behavior is given. Only queued, onto the same deferred queue as entity.send,
@@ -1777,17 +1758,6 @@ export namespace engine::behavior
 
     // ---- the runtime subsystem ----
 
-    /// The neutral contact vocabulary the script layer speaks. A producer (physics, via a
-    /// composition-root bridge) maps its own kind onto this; the script subsystem never
-    /// names a physics type, so it does not depend on the physics library.
-    enum class ScriptContactKind : u8
-    {
-        Begin,
-        End,
-        TriggerEnter,
-        TriggerExit
-    };
-
     // The script manager set for a scene, injected by the subsystem at runtime and by headless
     // scene consumers (Engine.Composition), so a manager added here reaches both. The cross-link
     // between manager and system is in-scene wiring and belongs here; run-host binding is
@@ -1906,58 +1876,6 @@ export namespace engine::behavior
 
         // ---- contact events (neutral ingress) ----
 
-        /// Deliver a resolved contact to both entities' declared handlers (each sees the
-        /// other as an Entity). Collision kinds get (other, point, normal, speed); trigger
-        /// kinds get (other). Physics-agnostic: the host bridges physics contacts to this.
-        /// Only enqueues onto the owning scene's deferred queue, drained at the scene
-        /// tick's top level, so no re-entrancy even though physics stepped this frame.
-        void DeliverContact(scene::Scene* scene, scene::EntityHandle a, scene::EntityHandle b,
-                            ScriptContactKind kind, const Float3& point, const Float3& normal,
-                            f32 speed)
-        {
-            StringView handler;
-            bool trigger = false;
-            switch (kind)
-            {
-            case ScriptContactKind::Begin:
-                handler = u8"onContactBegin";
-                break;
-            case ScriptContactKind::End:
-                handler = u8"onContactEnd";
-                break;
-            case ScriptContactKind::TriggerEnter:
-                handler = u8"onTriggerEnter";
-                trigger = true;
-                break;
-            case ScriptContactKind::TriggerExit:
-                handler = u8"onTriggerExit";
-                trigger = true;
-                break;
-            }
-            EntityBehaviorSystem* system = SystemForScene(scene);
-            if (system == nullptr)
-            {
-                return;
-            }
-            DeliverContactSide(*system, scene, a, b, handler, point, normal, speed, trigger);
-            DeliverContactSide(*system, scene, b, a, handler, point, normal, speed, trigger);
-        }
-
-        /// An engine event for an entity's behaviours: `handler` (the final `on<Event>` name, such as
-        /// "onAnimationFinished") called with `args` on each of the entity's behaviours that has it.
-        /// As DeliverContact, it only enqueues onto the scene's deferred queue, drained at the scene
-        /// tick's top level; a host bridges a subsystem's events to it (the subsystem stays
-        /// script-agnostic).
-        void DeliverEvent(scene::Scene* scene, scene::EntityHandle target, StringView handler, Array<Variant> args)
-        {
-            EntityBehaviorSystem* system = SystemForScene(scene);
-            if (system == nullptr || !target.IsAssigned())
-            {
-                return;
-            }
-            system->EnqueueHandler(target, handler, Move(args));
-        }
-
         /// Host-app wiring: a getter for the run's resource manager, behind the resource-swap
         /// operations (SceneRender.setMesh, ...). A getter, not a pointer, because the app's manager
         /// is created after Configure runs: resolveResources reads it per call, so it sees the
@@ -2064,45 +1982,6 @@ export namespace engine::behavior
             scene::Scene* scene = nullptr;
             EntityBehaviorSystem* system = nullptr;
         };
-
-        [[nodiscard]] EntityBehaviorSystem* SystemForScene(scene::Scene* scene)
-        {
-            for (const SceneEntry& entry : m_systems)
-            {
-                if (entry.scene == scene)
-                {
-                    return entry.system;
-                }
-            }
-            return nullptr;
-        }
-
-        // Enqueue one side of a contact: `self` receives the handler with `other` marshalled as
-        // an Entity (collision handlers also get point/normal/speed). Skips a side whose entity
-        // didn't resolve (invalid `self`); a stale `other` marshals to a safe no-op Entity.
-        void DeliverContactSide(EntityBehaviorSystem& system, scene::Scene* scene,
-                                scene::EntityHandle self, scene::EntityHandle other,
-                                StringView handler, const Float3& point, const Float3& normal,
-                                f32 speed, bool trigger)
-        {
-            if (!self.IsAssigned())
-            {
-                return;
-            }
-            Entity otherEntity;
-            otherEntity.scene = scene;
-            otherEntity.entityIndex = other.index;
-            otherEntity.entityGeneration = other.generation;
-            Array<Variant> args;
-            args.PushBack(Variant::From<Entity>(otherEntity));
-            if (!trigger)
-            {
-                args.PushBack(Variant::From<Float3>(point));
-                args.PushBack(Variant::From<Float3>(normal));
-                args.PushBack(Variant::From<f64>(static_cast<f64>(speed)));
-            }
-            system.EnqueueHandler(self, handler, Move(args));
-        }
 
         BehaviorRunHost m_ownedRunHost{
             foundation::core::DefaultAllocator()}; // the default run host (editor and editing

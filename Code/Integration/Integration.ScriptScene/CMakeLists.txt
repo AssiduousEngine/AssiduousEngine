@@ -5,7 +5,7 @@
 
 add_executable(Integration.ScriptScene TestsMain.cpp ScriptSceneBenchmarkTests.cpp EntityEventTests.cpp)
 target_link_libraries(Integration.ScriptScene PRIVATE
-    Engine::Behavior Engine::Spline Foundation::Script.Resource Foundation::Script.Facades Foundation::Scene Foundation::Script
+    Engine::Behavior Engine::Spline Engine::Physics Engine::Animation Foundation::Script.Resource Foundation::Script.Facades Foundation::Scene Foundation::Script
     doctest::doctest)
 
 # Each backend is independently switchable; include its leg only when the backend is built.

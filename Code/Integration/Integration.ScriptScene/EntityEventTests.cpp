@@ -15,6 +15,8 @@ import foundation.script;
 import foundation.script.facades;
 import foundation.script.resource;
 import engine.behavior;
+import engine.physics;   // the contact events it posts
+import engine.animation; // the animation events it posts
 #if defined(INTEGRATION_HAS_ANGELSCRIPT)
 import foundation.script.angelscript;
 #endif
@@ -134,3 +136,15 @@ TEST_CASE("entity events: a posted event calls on<Name> on a Luau behavior, the 
     CHECK(s.scene.GetEntityName(target) == StringView(u8"hit by rock"));
 }
 #endif
+
+// The names a domain posts are behavior API: a game's behaviors declare onContactBegin and the rest.
+// Renaming one in its domain fails here first, before it silently stops a game's handler.
+TEST_CASE("entity events: the names physics and animation post are the handlers games declare")
+{
+    CHECK(engine::physics::kContactBeginEvent == StringView(u8"contactBegin"));
+    CHECK(engine::physics::kContactEndEvent == StringView(u8"contactEnd"));
+    CHECK(engine::physics::kTriggerEnterEvent == StringView(u8"triggerEnter"));
+    CHECK(engine::physics::kTriggerExitEvent == StringView(u8"triggerExit"));
+    CHECK(engine::animation::kAnimationFinishedEvent == StringView(u8"animationFinished"));
+    CHECK(engine::animation::kAnimationClipEvent == StringView(u8"animationEvent"));
+}

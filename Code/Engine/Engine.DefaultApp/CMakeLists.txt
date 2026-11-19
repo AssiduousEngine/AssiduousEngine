@@ -13,7 +13,7 @@ target_link_libraries(Engine.DefaultApp
            Foundation::Audio Foundation::Audio.Resource Engine::Audio
            Foundation::Fonts.Resource
            Foundation::Input Engine::Input Foundation::Script
-           Foundation::Script.Resource Engine::Behavior Engine::Integration
+           Foundation::Script.Resource Engine::Behavior
            Foundation::Resource Foundation::Content Foundation::Scene.Resource
            Foundation::Geometry.Resource Foundation::Materials.Resource Foundation::Animation.Resource
            Foundation::PropertyAnimation.Resource

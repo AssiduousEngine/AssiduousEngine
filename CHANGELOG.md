@@ -69,6 +69,11 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- Engine: a domain tells an entity's behaviors what happened to it by posting an entity event to the
+  scene (`Scene::PostEntityEvent`); native code listens with `IEntityEventSink`. Physics posts
+  contacts and triggers, animation its ended one-shots and clip events. `IContactListener`,
+  `IAnimationListener` and the `Engine.Integration` bridges are gone; behaviors' handlers are
+  unchanged.
 - Scripts: a behavior declares its kind by deriving from it - `EntityBehavior`, `SceneBehavior` or
   `RunBehavior` (`class Coin : EntityBehavior`; in Luau `Coin = EntityBehavior.class()`) - and may
   have any name. The reserved names `Game` and `Level` are gone: a project's scripts add the base

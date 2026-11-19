@@ -629,7 +629,6 @@ else()
 endif()
 add_subdirectory(Code/Engine/Engine.Input)  # input runtime hookup (the tick and the device provider) over Runtime
 add_subdirectory(Code/Engine/Engine.Behavior) # entity behaviors (BehaviorComponent and the run's single gameplay script context) over Runtime
-add_subdirectory(Code/Engine/Engine.Integration) # cross-subsystem composition helpers (the bridge from physics contacts to scripts) over Physics and Script
 add_subdirectory(Code/Engine/Engine.GUI) # the engine's GUI on foundation.gui
 add_subdirectory(Code/Engine/Engine.Composition) # the composition root: the one list of domains and the facets built from it on demand (scene, reflection, resource types, factories, facades)
 if(OPTION_PLUGIN_IMGUI)
@@ -801,7 +800,6 @@ if(OPTION_BUILD_TESTS)
         util_test_suite(Code/Engine/Engine.Run.Tests Engine::Run)
     endif()
     util_test_suite(Code/Engine/Engine.Composition.Tests Engine::Composition)
-    util_test_suite(Code/Engine/Engine.Integration.Tests            Engine::Integration)
     util_test_suite(Code/Engine/Engine.Net.Tests                    Engine::Net)
     util_test_suite(Code/Engine/Engine.Physics.Tests                Engine::Physics)
     util_test_suite(Code/Engine/Engine.Project.Tests                Engine::Project)

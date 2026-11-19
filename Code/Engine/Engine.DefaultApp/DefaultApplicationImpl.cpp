@@ -31,7 +31,6 @@ import engine.animation; // AnimationSubsystem (drives skeletal animation from t
 import engine.particles; // ParticleSubsystem (scene-driven CPU sim)
 import engine.terrain;   // TerrainSubsystem (chunked geo-mipmap terrain renderer)
 import engine.vegetation; // VegetationSubsystem (per-chunk instanced grass/props over the terrain)
-import foundation.physics;             // ContactKind/EntityContact (the contact bridge)
 import engine.physics;   // PhysicsSubsystem (Jolt worlds and interpolation)
 import engine.navigation; // NavigationSubsystem and its script facade
 import foundation.input;               // the action model/runtime
@@ -306,18 +305,6 @@ namespace engine::runtime
         m_scripts->SetResourceManager(core::Function<foundation::resource::ResourceManager*()>{
             [self]() -> foundation::resource::ResourceManager* { return self->Resources(); }});
 
-        // Composition-root bridge: forward physics contacts to the script subsystem's neutral
-        // ingress. Neither subsystem depends on the other for scripting; the wiring lives here,
-        // where integration belongs.
-        if (m_physics != nullptr && m_scripts != nullptr)
-        {
-            m_contactBridge.Install(*m_physics, *m_scripts);
-        }
-        // The same for the animation's events (a one-shot ended: onAnimationFinished).
-        if (m_animation != nullptr && m_scripts != nullptr)
-        {
-            m_animationBridge.Install(*m_animation, *m_scripts);
-        }
     }
 
     engine::behavior::BehaviorSubsystem* DefaultApplication::Scripts() const noexcept
@@ -761,8 +748,6 @@ namespace engine::runtime
         // The runs' scenes: gone already in the player (OnExit). The editor calls this before it
         // shuts its runtime's subsystems down and never calls OnExit, so for it they go here.
         TearDownRuns();
-        m_contactBridge.Uninstall();
-        m_animationBridge.Uninstall();
         if (auto* gfx = host.Graphics(); gfx != nullptr && gfx->Raw() != nullptr)
         {
             m_screenshot.Release(*gfx->Raw());
