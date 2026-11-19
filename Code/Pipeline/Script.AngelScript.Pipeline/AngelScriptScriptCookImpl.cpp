@@ -353,6 +353,22 @@ namespace pipeline{
             forward->sink->OnError(error);
         }
 
+        // The kind `type` derives from: the kind interface it implements (one at most; the first in
+        // Run, Scene, Entity order should it implement several). None when it implements none.
+        [[nodiscard]] BehaviorKind KindOf(asIScriptEngine& engine, const asITypeInfo& type)
+        {
+            for (const BehaviorKind kind : BehaviorKinds::kAll)
+            {
+                const String name(BehaviorKinds::TypeName(kind));
+                const asITypeInfo* base = engine.GetTypeInfoByName(reinterpret_cast<const char*>(name.CStr()));
+                if (base != nullptr && type.Implements(base))
+                {
+                    return kind;
+                }
+            }
+            return BehaviorKind::None;
+        }
+
         // The handlers of a compiled class: its methods named on<Upper> (onStart, onHit, a message's
         // onHeal), inherited ones included, each name once.
         [[nodiscard]] Array<String> ClassHandlers(asITypeInfo& type)
@@ -787,6 +803,7 @@ namespace pipeline{
                                             ? nullptr
                                             : builder.GetModule()->GetTypeInfoByName(
                                                   reinterpret_cast<const char*>(out.className.CStr()));
+                out.kind = compiled != nullptr ? KindOf(*engine, *compiled) : BehaviorKind::None;
                 out.handlers = compiled != nullptr ? ClassHandlers(*compiled) : ScanScriptHandlers(source);
                 out.usesCoroutines = ScriptReferencesCoroutineStart(source);
 

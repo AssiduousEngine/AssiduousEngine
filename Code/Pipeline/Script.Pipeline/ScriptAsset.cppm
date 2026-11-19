@@ -998,10 +998,10 @@ export namespace pipeline{
             // Base cook-logic version (2: the cooked record gained a bytecode field; 3: each
             // property a replicated flag; 4: the record carries data version 1, so the reader
             // refuses one from before the flag; 5: the class is the asset's choice, never a guess
-            // among several; 6: the record carries the included files), plus every language cook's
-            // compiler version, so a Luau (or other
-            // bytecode) vendor bump recooks every script pack automatically.
-            return 6 + ScriptLanguageCookRegistry::Get().CombinedCookVersion();
+            // among several; 6: the record carries the included files; 7: the behavior kind), plus
+            // every language cook's compiler version, so a Luau (or other bytecode) vendor bump
+            // recooks every script pack automatically.
+            return 7 + ScriptLanguageCookRegistry::Get().CombinedCookVersion();
         }
 
         // The script surface the products compile against and their bytecode binds to.

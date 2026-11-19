@@ -25,6 +25,7 @@ module;
 export module foundation.script.resource;
 
 import foundation.core;
+import foundation.script; // BehaviorKind
 import foundation.resource;
 import foundation.content;
 
@@ -247,6 +248,7 @@ export namespace foundation::script
     public:
         String language;   // backend id ("angelscript"); resolved via the ScriptBackendRegistry
         String className;  // empty = a ScriptClass-less utility module
+        BehaviorKind kind = BehaviorKind::None; // the kind `className` derives from
         String sourceName; // the source file identity ("Mover.as"): the AngelScript section
                            // name and the editor's breakpoint key; the cook stamps the asset fileName
         String source;     // full script source text (kept for dev-mode hot reload)
@@ -268,6 +270,9 @@ export namespace foundation::script
         {
             foundation::core::Serialize(ar, "language", language);
             foundation::core::Serialize(ar, "className", className);
+            u8 kindValue = static_cast<u8>(kind);
+            foundation::core::Serialize(ar, "kind", kindValue);
+            kind = static_cast<BehaviorKind>(kindValue);
             foundation::core::Serialize(ar, "sourceName", sourceName);
             foundation::core::Serialize(ar, "source", source);
             foundation::core::Serialize(ar, "includes", includes);
@@ -369,6 +374,7 @@ export namespace foundation::script
     public:
         String language;
         String className;
+        BehaviorKind kind = BehaviorKind::None; // the kind the class derives from
         String sourceName; // the source file identity: the AngelScript section name a
                            // breakpoint keys on (== EditorContext::ScriptBreakpoint.file)
         String source;
@@ -454,6 +460,7 @@ export namespace foundation::script
             if (!source->assembly.IsNil())
                 product->assembly = RefPtr<ScriptAssembly>(manager.Bind<ScriptAssembly>(source->assembly).Get());
             product->properties = source->properties;
+            product->kind = source->kind;
             product->handlers = source->handlers;
             product->usesCoroutines = source->usesCoroutines;
             product->BuildProfileName();
@@ -468,10 +475,10 @@ export namespace foundation::script
     inline void RegisterScriptResource()
     {
         // Data version 1: each property's replicated flag; 2: the included files; 3: the assembly a
-        // class is built into. A record cooked
+        // class is built into; 4: the behavior kind its class derives from. A record cooked
         // before is in another layout; the strict reader refuses it and the script recooks. No
         // REFLECT block owns this type, so the version is patched on the TypeInfo.
-        const_cast<TypeInfo&>(ScriptClassSource::StaticType()).dataVersion = 3;
+        const_cast<TypeInfo&>(ScriptClassSource::StaticType()).dataVersion = 4;
         GlobalTypeRegistry().Register(ScriptClassSource::StaticType());
         RegisterSerializable<ScriptClassSource>();
         GlobalTypeRegistry().Register(ScriptClass::StaticType());

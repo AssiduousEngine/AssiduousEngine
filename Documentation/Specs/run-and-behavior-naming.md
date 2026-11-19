@@ -118,11 +118,12 @@ kind is needed.
   methods: a marker, since handlers stay optional. To check: that the cook can read which
   interface a class implements (`asITypeInfo::Implements`).
 - **Luau:** Luau has no class syntax; a class is a table with a metatable. The kinds are tables
-  the engine provides, and a class is made from one:
-  `Game = RunBehavior.class("Game")`, which returns the class table with its metatable set and
-  records the kind and the name. The cook runs the file (it already does, to harvest properties)
-  and reads what was declared. To check: that a class declared this way is found by the cook and
-  by the runtime as a global class table is found today.
+  the engine provides, and a class is made from one: `Game = RunBehavior.class()`, which returns
+  a class table that is its instances' metatable and looks up what it lacks in its kind. The
+  script assigns it, which is what makes it the global the runtime finds; a name argument would
+  be a second copy of the name that could disagree. The cook reads the kind from that line, as it
+  reads the class from its `function Game.new` (a check does not run the script). A `local` class
+  is not found by the runtime and declares no kind.
 - **Native C++:** a class derives from `engine::RunBehavior` (or the other two) and is registered
   by its plugin's Engine part. How its handlers are found (virtual methods or reflected methods
   found by name) is open in [script-backends-as-plugins.md](script-backends-as-plugins.md).

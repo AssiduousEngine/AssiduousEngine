@@ -481,6 +481,9 @@ namespace foundation::script
         // A reflected enum as a named constant table: _G[EnumName] = { ValueName = <int>, ... }.
         void EmitEnum(const TypeInfo& type);
         void InstallCoroutineApi();
+        // The behavior kinds as globals (RunBehavior, SceneBehavior, EntityBehavior), each with the
+        // `class()` a script makes its class from: `Game = RunBehavior.class()`.
+        void InstallBehaviorKinds();
 
         RefPtr<LuauScriptManager> m_manager;
         lua_State* m_state = nullptr;
@@ -2689,6 +2692,36 @@ namespace foundation::script
         lua_setglobal(m_state, "waitUntil");
     }
 
+    namespace
+    {
+        // `<Kind>.class()`: a new class table that is its instances' metatable (`__index` itself)
+        // and looks up what it lacks in its kind (the upvalue), as a class derives from its base.
+        int BehaviorClassThunk(lua_State* state)
+        {
+            lua_newtable(state);
+            lua_pushvalue(state, -1);
+            lua_setfield(state, -2, "__index");
+            lua_pushvalue(state, lua_upvalueindex(1));
+            lua_setmetatable(state, -2);
+            return 1;
+        }
+    }
+
+    void LuauScriptContext::InstallBehaviorKinds()
+    {
+        for (const BehaviorKind kind : BehaviorKinds::kAll)
+        {
+            const String name(BehaviorKinds::TypeName(kind));
+            lua_newtable(m_state);
+            lua_pushvalue(m_state, -1);
+            lua_setfield(m_state, -2, "__index");
+            lua_pushvalue(m_state, -1);
+            lua_pushcclosure(m_state, BehaviorClassThunk, "class", 1);
+            lua_setfield(m_state, -2, "class");
+            lua_setglobal(m_state, reinterpret_cast<const char*>(name.CStr()));
+        }
+    }
+
     bool LuauScriptManager::ProcessCoroutineResume(Coroutine& entry, int status)
     {
         switch (ClassifyResume(status))
@@ -3007,6 +3040,7 @@ namespace foundation::script
         lua_pushnil(m_state);
         lua_setglobal(m_state, "newproxy");
         InstallCoroutineApi();
+        InstallBehaviorKinds();
         EmitRegisteredTypes();
         m_manager->TrackContext(this);
     }

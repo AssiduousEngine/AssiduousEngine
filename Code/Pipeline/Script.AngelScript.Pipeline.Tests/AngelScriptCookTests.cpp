@@ -629,3 +629,30 @@ TEST_CASE("as.cook: a compiler warning is reported as a warning, and the check s
     CHECK(sink.errors[0].kind == ScriptErrorKind::Warning);
     CHECK(sink.errors[0].line == 1);
 }
+
+TEST_CASE("as.cook: a class records the kind it derives from; one deriving from none records None")
+{
+    IScriptLanguageCook* cook = AngelScriptCook();
+    REQUIRE(cook != nullptr);
+    struct Case
+    {
+        const char8_t* source;
+        const char8_t* asset;
+        BehaviorKind kind;
+    };
+    const Case cases[] = {
+        {u8"class Game : RunBehavior { void onStart() {} }", u8"Game.as", BehaviorKind::Run},
+        {u8"class Arena : SceneBehavior { void onUpdate(float dt) {} }", u8"Arena.as", BehaviorKind::Scene},
+        {u8"interface Hurtable { void hurt(); }\n"
+         u8"class Mover : EntityBehavior, Hurtable { void hurt() {} void onUpdate(float dt) {} }",
+         u8"Mover.as", BehaviorKind::Entity},
+        {u8"class Helper { int twice(int x) { return x * 2; } }", u8"Helper.as", BehaviorKind::None},
+    };
+    for (const Case& c : cases)
+    {
+        CookScriptErrorSink sink;
+        ScriptClassSource out;
+        REQUIRE(cook->Cook(StringView(c.source), StringView(c.asset), sink, out));
+        CHECK(out.kind == c.kind);
+    }
+}

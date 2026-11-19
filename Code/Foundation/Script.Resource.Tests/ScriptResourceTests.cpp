@@ -14,6 +14,7 @@ import foundation.core;
 import foundation.vfs;
 import foundation.content;
 import foundation.resource;
+import foundation.script; // BehaviorKind
 import foundation.script.resource;
 
 using namespace foundation::core;
@@ -150,6 +151,7 @@ namespace
         ScriptClassSource cooked;
         cooked.language = String(language);
         cooked.className = String(u8"Mover");
+        cooked.kind = BehaviorKind::Entity;
         cooked.sourceName = String(sourceName); // the source-file identity (breakpoint key)
         cooked.source = String(source);         // stored verbatim, never compiled here
         {
@@ -187,6 +189,7 @@ namespace
         REQUIRE(product);
         CHECK(product->language == language);
         CHECK(product->className == u8"Mover");
+        CHECK(product->kind == BehaviorKind::Entity);
         CHECK(product->sourceName == sourceName); // travels the cooked wire (symmetric)
         CHECK(product->source == source);
         REQUIRE(product->properties.Size() == 2u);
@@ -250,15 +253,15 @@ TEST_CASE("script.resource: cooked record -> factory -> runtime product, luau la
 }
 
 // A record cooked before each property carried its replicated flag (data version 0), before it
-// carried its included files (version 1), or before it named its assembly (version 2), is in
-// another layout. Read as this one it would misread
+// carried its included files (version 1), before it named its assembly (version 2), or before it
+// recorded its behavior kind (version 3), is in another layout. Read as this one it would misread
 // its counts; the data version refuses it, and the script recooks.
-TEST_CASE("script.resource: a record cooked before the replicated flag, the included files or the assembly is refused")
+TEST_CASE("script.resource: a record cooked before the replicated flag, the included files, the assembly or the kind is refused")
 {
     RegisterScriptResource();
     TypeInfo& type = const_cast<TypeInfo&>(ScriptClassSource::StaticType());
     const u32 current = type.dataVersion;
-    CHECK(current == 3u);
+    CHECK(current == 4u);
 
     for (u32 stale = 0; stale < current; ++stale)
     {

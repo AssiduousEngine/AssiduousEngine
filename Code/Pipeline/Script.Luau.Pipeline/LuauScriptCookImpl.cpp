@@ -131,6 +131,54 @@ namespace pipeline{
             return found;
         }
 
+        // The kind class `className` is made from: its `<className> = <Kind>.class(` line (a global
+        // assignment; a local class is not found by the runtime, so it declares no kind). None when
+        // the source has no such line. Comments are stripped first.
+        [[nodiscard]] BehaviorKind LuauClassKind(StringView source, StringView className)
+        {
+            if (className.IsEmpty())
+            {
+                return BehaviorKind::None;
+            }
+            const String stripped = StripScriptComments(source);
+            const StringView text = stripped.AsView();
+            const auto skipSpaces = [&](usize at)
+            {
+                while (at < text.Size() && (text[at] == u8' ' || text[at] == u8'\t'))
+                {
+                    ++at;
+                }
+                return at;
+            };
+            for (usize i = 0; i + className.Size() <= text.Size(); ++i)
+            {
+                // `className` as a whole word at the start of a line.
+                const bool lineStart = i == 0 || text[i - 1] == u8'\n';
+                if (!lineStart || text.SubStr(i, className.Size()) != className)
+                {
+                    continue;
+                }
+                usize at = skipSpaces(i + className.Size());
+                if (at >= text.Size() || text[at] != u8'=' || (at + 1 < text.Size() && text[at + 1] == u8'='))
+                {
+                    continue;
+                }
+                at = skipSpaces(at + 1);
+                usize end = at;
+                while (end < text.Size() && detail::IsIdentChar(text[end]))
+                {
+                    ++end;
+                }
+                const BehaviorKind kind = BehaviorKinds::FromTypeName(text.SubStr(at, end - at));
+                const StringView call = u8".class(";
+                if (kind != BehaviorKind::None && end + call.Size() <= text.Size() && text.SubStr(end, call.Size()) == call)
+                {
+                    return kind;
+                }
+            }
+            return BehaviorKind::None;
+        }
+
         // Sort harvested props by name (pairs() order is unspecified) for deterministic bytes.
         void SortPropertiesByName(Array<ScriptPropertyDesc>& properties)
         {
@@ -382,6 +430,7 @@ namespace pipeline{
                 {
                     return false;
                 }
+                out.kind = LuauClassKind(source, out.className.AsView());
                 out.handlers = ScanScriptHandlers(source);
                 out.usesCoroutines = ScriptReferencesCoroutineStart(source);
 

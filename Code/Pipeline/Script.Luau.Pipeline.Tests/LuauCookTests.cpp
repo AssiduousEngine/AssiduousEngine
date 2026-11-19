@@ -306,3 +306,49 @@ TEST_CASE("luau.cook: a check without a type fails a script naming it as a globa
                       className, Span<const TypeId>(hidden, 1)));
     GlobalTypeRegistry().Unregister(probe.id);
 }
+
+TEST_CASE("luau.cook: a class made from a kind records it and constructs as a class; a plain table records None")
+{
+    IScriptLanguageCook* cook = LuauCook();
+    REQUIRE(cook != nullptr);
+    struct Case
+    {
+        const char8_t* source;
+        const char8_t* asset;
+        BehaviorKind kind;
+        bool constructs = true; // the runtime finds the class and its constructor runs
+    };
+    // Each class sets a field in its constructor, which the harvest reads by constructing it: the
+    // class made by `<Kind>.class()` is a working metatable for its instances.
+    const Case cases[] = {
+        {u8"Game = RunBehavior.class()\n"
+         u8"function Game.new() return setmetatable({ lives = 3 }, Game) end\n",
+         u8"Game.luau", BehaviorKind::Run},
+        {u8"-- a comment first\nArena  =  SceneBehavior.class()\n"
+         u8"function Arena.new(scene) return setmetatable({ lives = 3 }, Arena) end\n",
+         u8"Arena.luau", BehaviorKind::Scene},
+        {u8"Mover = EntityBehavior.class()\n"
+         u8"function Mover.new(entity) return setmetatable({ lives = 3 }, Mover) end\n"
+         u8"function Mover:onUpdate(dt) end\n",
+         u8"Mover.luau", BehaviorKind::Entity},
+        {u8"Helper = {}\nHelper.__index = Helper\n"
+         u8"function Helper.new() return setmetatable({ lives = 3 }, Helper) end\n",
+         u8"Helper.luau", BehaviorKind::None},
+        // A local class is not one the runtime finds: it declares no kind.
+        {u8"local Hidden = EntityBehavior.class()\n"
+         u8"function Hidden.new(entity) return setmetatable({ lives = 3 }, Hidden) end\n",
+         u8"Hidden.luau", BehaviorKind::None, false},
+    };
+    for (const Case& c : cases)
+    {
+        CookScriptErrorSink sink;
+        ScriptClassSource out;
+        REQUIRE(cook->Cook(StringView(c.source), StringView(c.asset), sink, out));
+        CHECK(out.kind == c.kind);
+        REQUIRE(out.properties.Size() == (c.constructs ? 1u : 0u));
+        if (c.constructs)
+        {
+            CHECK(out.properties[0].name == u8"lives");
+        }
+    }
+}

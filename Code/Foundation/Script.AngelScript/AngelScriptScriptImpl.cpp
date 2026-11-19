@@ -680,6 +680,14 @@ namespace foundation::script::angelscript
             RegisterScriptArray(m_engine, true);
             RegisterCoroutineSurface();
             RegisterDelegateSurface();
+            // The behavior kinds a class derives from (`class Game : RunBehavior`). A script class
+            // cannot derive from a class the application registers, so each kind is an interface
+            // with no methods: a marker, since every handler is optional.
+            for (const BehaviorKind kind : BehaviorKinds::kAll)
+            {
+                const core::String name(BehaviorKinds::TypeName(kind));
+                (void)m_engine->RegisterInterface(reinterpret_cast<const char*>(name.CStr()));
+            }
             // A call takes a context and gives it back; without these the library makes and frees
             // one per call.
             (void)m_engine->SetContextCallbacks(&AngelScriptManager::RequestPooledContext,

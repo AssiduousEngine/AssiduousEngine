@@ -18,3 +18,4 @@ export import :script_manager;
 export import :script_register;
 export import :backend_registry;
 export import :script_numbers;
+export import :behavior_kind;
