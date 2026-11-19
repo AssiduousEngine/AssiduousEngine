@@ -220,9 +220,10 @@ rule.
   and slots. `ShipMain.cpp` becomes the generated registry plus `PlayerMain`. A part's source
   writes its entry as `PLUGIN_PART(&Load, &Unload)` (`Runtime/PluginEntry.h`); the build supplies
   the symbol, id and kind from the manifest, and the plugin ABI stamp (`util_plugin_abi`: the
-  engine version, compiler and its version, configuration).
+  engine version, compiler and its version, configuration, static or shared linkage).
 - **Shared (desktop development):** the host loads a part's library and resolves the same symbol;
-  a part whose stamp is not the host's (`PluginAbiStamp`) is refused before its load runs.
+  a part whose stamp (exported beside the entry as `<entry>_Abi`) is missing or not the host's
+  (`PluginAbiStamp`) is refused before its entry runs.
 - **Linked is not enabled.** The registry lists what is compiled in; the plugin host activates
   only the plugins the project enables for the running platform. A dormant plugin registers
   nothing, so it costs nothing at run time.

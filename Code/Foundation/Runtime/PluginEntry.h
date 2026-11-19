@@ -10,8 +10,10 @@
 //
 // util_add_plugin_part (cmake/Plugins.cmake) gives each part's sources the manifest's names, so
 // the entry is `PluginPart_<id>_<Kind>` and its record carries the id and kind without the
-// source writing either, and the plugin ABI stamp of the engine it is compiled against. The record is constant: linking a part does no work until a host
-// loads it. `unload` may be nullptr.
+// source writing either. Beside the entry it exports `<entry>_Abi`, the plugin ABI stamp of the
+// engine it is compiled against, which a host loading the part from a shared library checks before
+// it calls the entry. The record is constant: linking a part does no work until a host loads it.
+// `unload` may be nullptr.
 //
 // Use it once per part, in a translation unit that imports foundation.runtime.
 
@@ -29,12 +31,18 @@
 #define PLUGIN_PART_EXPORT __attribute__((visibility("default")))
 #endif
 
+#define PLUGIN_PART_PASTE_(a, b) a##b
+#define PLUGIN_PART_PASTE(a, b) PLUGIN_PART_PASTE_(a, b)
+
 #define PLUGIN_PART(loadFn, unloadFn)                                                                    \
+    extern "C" PLUGIN_PART_EXPORT const char8_t* PLUGIN_PART_PASTE(PLUGIN_PART_ENTRY_NAME, _Abi)()      \
+    {                                                                                                    \
+        return PLUGIN_ABI_STAMP;                                                                         \
+    }                                                                                                    \
     extern "C" PLUGIN_PART_EXPORT const ::foundation::runtime::PluginPart* PLUGIN_PART_ENTRY_NAME()      \
     {                                                                                                    \
         static constexpr ::foundation::runtime::PluginPart part{                                         \
-            PLUGIN_PART_ID, ::foundation::runtime::PluginPartKind::PLUGIN_PART_KIND, loadFn, unloadFn,  \
-            PLUGIN_ABI_STAMP};                                                                           \
+            PLUGIN_PART_ID, ::foundation::runtime::PluginPartKind::PLUGIN_PART_KIND, loadFn, unloadFn}; \
         return &part;                                                                                    \
     }
 

@@ -10,6 +10,11 @@ add_library(Runtime.TestPluginPartOtherAbi MODULE TestPluginPart.cpp)
 set_target_properties(Runtime.TestPluginPartOtherAbi PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(Runtime.TestPluginPartOtherAbi PRIVATE Foundation::Runtime Foundation::Policy)
 target_compile_definitions(Runtime.TestPluginPartOtherAbi PRIVATE "PLUGIN_ABI_STAMP=u8\"another-engine\"")
+# The same part as an engine built before parts carried a stamp: it exports no stamp at all.
+add_library(Runtime.TestPluginPartNoAbi MODULE TestPluginPart.cpp)
+set_target_properties(Runtime.TestPluginPartNoAbi PROPERTIES POSITION_INDEPENDENT_CODE ON)
+target_link_libraries(Runtime.TestPluginPartNoAbi PRIVATE Foundation::Runtime Foundation::Policy)
+target_compile_definitions(Runtime.TestPluginPartNoAbi PRIVATE TEST_PLUGIN_PART_NO_ABI)
 
 add_executable(Runtime.Tests
     TestsMain.cpp
@@ -21,12 +26,14 @@ add_executable(Runtime.Tests
 target_link_libraries(Runtime.Tests PRIVATE Foundation::Runtime Foundation::Runtime.Client
     Foundation::Scene Foundation::Scene.Resource # the cross-boundary scene-contribution case
     doctest::doctest)
-add_dependencies(Runtime.Tests Runtime.TestPluginPart Runtime.TestPluginPartOtherAbi)
+add_dependencies(Runtime.Tests Runtime.TestPluginPart Runtime.TestPluginPartOtherAbi Runtime.TestPluginPartNoAbi)
 
 target_compile_definitions(Runtime.Tests PRIVATE
     DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
     TEST_PLUGIN_PART_PATH="$<IF:$<BOOL:${ANDROID}>,$<TARGET_FILE_NAME:Runtime.TestPluginPart>,$<TARGET_FILE:Runtime.TestPluginPart>>"
     TEST_PLUGIN_PART_OTHER_ABI_PATH="$<IF:$<BOOL:${ANDROID}>,$<TARGET_FILE_NAME:Runtime.TestPluginPartOtherAbi>,$<TARGET_FILE:Runtime.TestPluginPartOtherAbi>>"
+    TEST_ENGINE_LINKAGE="${UTIL_PLUGIN_ABI_LINKAGE}"
+    TEST_PLUGIN_PART_NO_ABI_PATH="$<IF:$<BOOL:${ANDROID}>,$<TARGET_FILE_NAME:Runtime.TestPluginPartNoAbi>,$<TARGET_FILE:Runtime.TestPluginPartNoAbi>>"
     PLUGIN_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Fixtures"
     PLUGIN_MANIFESTS_READ="${UTIL_PLUGIN_MANIFESTS_READ}"
     PLUGIN_ROLES_FILE="${UTIL_PLUGIN_ROLES_FILE}")

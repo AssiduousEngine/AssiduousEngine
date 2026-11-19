@@ -17,14 +17,22 @@ set(UTIL_PLUGIN_MANIFESTS_READ "${CMAKE_BINARY_DIR}/plugin-manifests-read.txt")
 file(WRITE "${UTIL_PLUGIN_MANIFESTS_READ}" "")
 
 # The plugin ABI stamp: what a part is compiled against (the engine's version, the compiler and
-# its version, and the configuration). A part loaded from a shared library carries its own and
-# loads only where it is the host's: a Debug part in a Release host, or one from another compiler
-# or engine release, would run against types laid out otherwise. The source revision is left out:
+# its version, the configuration, and whether the engine is linked static or shared). A part
+# loaded from a shared library carries its own and loads only where it is the host's: a Debug part
+# in a Release host, or one from another compiler or engine release, would run against types laid
+# out otherwise, and a part built over a shared engine in a static host would register into its
+# own copy of the engine, which the host never sees. The source revision is left out:
 # the editor's tree and a project's development build are configured apart, often at different
 # commits of the same source. It is given to the loader's one implementation file and to each part,
 # never to a module interface.
+if(ENGINE_SHARED_LIBS)
+    set(UTIL_PLUGIN_ABI_LINKAGE Shared)
+else()
+    set(UTIL_PLUGIN_ABI_LINKAGE Static)
+endif()
 set(UTIL_PLUGIN_ABI "${PROJECT_VERSION}+${CMAKE_CXX_COMPILER_ID}-${CMAKE_CXX_COMPILER_VERSION}")
-set(UTIL_PLUGIN_ABI_DEFINITION "PLUGIN_ABI_STAMP=u8\"${UTIL_PLUGIN_ABI}+$<CONFIG>\"")
+set(UTIL_PLUGIN_ABI_DEFINITION
+    "PLUGIN_ABI_STAMP=u8\"${UTIL_PLUGIN_ABI}+$<CONFIG>+${UTIL_PLUGIN_ABI_LINKAGE}\"")
 
 # util_plugin_abi(<target>): the target's sources are compiled with the stamp (PLUGIN_ABI_STAMP).
 function(util_plugin_abi target)

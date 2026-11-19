@@ -238,8 +238,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 - Networking: a player who joins late no longer sees scene objects that were destroyed before they
   joined.
 - Plugins: a plugin part loaded from a shared library that was built for another engine version,
-  compiler or configuration (a Debug part in a Release editor) is refused with the reason, rather
-  than loaded and run against types laid out otherwise.
+  compiler or configuration (a Debug part in a Release editor), or over a shared engine when the
+  editor's is static, is refused with the reason, rather than loaded and run against types laid
+  out otherwise or registered where the editor never sees it. A part built before parts carried a stamp
+  is refused as built by an older engine; rebuild the project's plugins.
 - Runs: events a game posted just before it stopped no longer reach the next play. A game's scenes
   are stopped and torn down while the engine's systems are still running when the player quits,
   and the app's `maxFixedStepsPerFrame` setting now applies to scenes (it was always 4).

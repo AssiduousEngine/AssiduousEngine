@@ -26,10 +26,15 @@ namespace
     void Unload(PluginContext&) { --g_loads; }
 }
 
+// The stamp from the build (util_plugin_abi): this engine's, or another's for the refused copy. The
+// copy built as an older engine's part has none, as a part built before stamps existed.
+#if !defined(TEST_PLUGIN_PART_NO_ABI)
+extern "C" PLUGIN_EXPORT const char8_t* PluginPart_shared_probe_Engine_Abi() { return PLUGIN_ABI_STAMP; }
+#endif
+
 extern "C" PLUGIN_EXPORT const PluginPart* PluginPart_shared_probe_Engine()
 {
-    // The stamp from the build (util_plugin_abi): this engine's, or another's for the refused copy.
-    static constexpr PluginPart part{u8"shared_probe", PluginPartKind::Engine, &Load, &Unload, PLUGIN_ABI_STAMP};
+    static constexpr PluginPart part{u8"shared_probe", PluginPartKind::Engine, &Load, &Unload};
     return &part;
 }
 

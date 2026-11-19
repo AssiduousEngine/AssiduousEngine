@@ -1076,6 +1076,32 @@ TEST_CASE("plugin host: a shared part built against another engine is refused be
 
     auto same = loader.LoadPart(PartLibraryPath().AsView(), entry, context); // built against this one
     REQUIRE(same.HasValue());
-    CHECK(StringView(same.Value()->abi) == PluginAbiStamp());
+    CHECK(loader.Count() == 1u);
     loader.UnloadAll();
+}
+
+TEST_CASE("plugin host: the ABI stamp says whether the engine is linked static or shared")
+{
+    // A part built over a shared engine loaded into a static editor, reported itself loaded, and
+    // registered its components into its own copy of the engine, which the editor never saw. With
+    // the linkage in the stamp, such a part is refused as built for another engine.
+    const StringView stamp = PluginAbiStamp();
+    CHECK(stamp.EndsWith(StringView(u8"+" TEST_ENGINE_LINKAGE)));
+}
+
+TEST_CASE("plugin host: a shared part built before parts carried a stamp is refused, saying so")
+{
+    // The stamp was a field at the end of the part's record, so a part built before it had none
+    // and the loader read past its record: the refusal printed whatever bytes lay there. The stamp
+    // is a symbol of its own now, and its absence names the cause.
+    SubsystemManager subsystems(DefaultAllocator());
+    PluginLoader loader;
+    PluginContext context(HostRole::Player, subsystems, u8"shared_probe", Span<const PluginService>{},
+                          Span<const u8>{}, DefaultAllocator());
+    auto old = loader.LoadPart(PartLibraryPath(TEST_PLUGIN_PART_NO_ABI_PATH).AsView(),
+                               u8"PluginPart_shared_probe_Engine", context);
+    REQUIRE_FALSE(old.HasValue());
+    CHECK(old.Error().AsView().Contains(u8"carries no ABI stamp"));
+    CHECK(old.Error().AsView().Contains(PluginAbiStamp()));
+    CHECK(loader.Count() == 0u);
 }

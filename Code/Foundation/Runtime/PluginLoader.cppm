@@ -63,10 +63,11 @@ export namespace foundation::runtime
             return Admit(core::Move(entry));
         }
 
-        // Loads a part from a shared library: resolves `symbol` (PluginPartSymbol), takes the part
-        // it returns and loads it as AddPart does. The library is closed when the loader unloads.
-        // The error says why: the library or its entry is missing, the entry gave no part, or the
-        // part was refused as AddPart's is.
+        // Loads a part from a shared library: checks its stamp (`<symbol>_Abi`), resolves `symbol`
+        // (PluginPartSymbol), takes the part it returns and loads it as AddPart does. The library is
+        // closed when the loader unloads. The error says why: the library or its entry is missing,
+        // it was built for another engine or carries no stamp, the entry gave no part, or the part
+        // was refused as AddPart's is.
         core::Result<const PluginPart*, core::String> LoadPart(core::StringView path, core::StringView symbol,
                                                                PluginContext& context)
         {
@@ -80,18 +81,28 @@ export namespace foundation::runtime
             {
                 return core::Err(core::Format(u8"did not load from '{}' (no entry {})", path, symbol));
             }
-            const PluginPart* part = entryPoint();
-            if (part == nullptr || part->load == nullptr)
+            // Built against another engine (another version, compiler or configuration), its code
+            // would run against types it does not know, its part record among them: the stamp is
+            // read from a symbol of its own, and a mismatch refused before the entry runs at all.
+            const core::String abiSymbol = core::Format(u8"{}_Abi", symbol);
+            const auto abiFn = library.GetSymbol<PluginAbiFn>(abiSymbol.AsView());
+            if (abiFn == nullptr)
             {
-                return core::Err(core::Format(u8"did not load from '{}' (its entry gave no part)", path));
+                return core::Err(core::Format(u8"did not load from '{}' (it carries no ABI stamp, so it was built "
+                                              u8"by an older engine; this engine is {})",
+                                              path, PluginAbiStamp()));
             }
-            // Built against another engine (another version, compiler or configuration),
-            // its code would run against types it does not know: refused before it runs at all.
-            const core::StringView abi = part->abi != nullptr ? core::StringView(part->abi) : core::StringView{};
+            const char8_t* stamp = abiFn();
+            const core::StringView abi = stamp != nullptr ? core::StringView(stamp) : core::StringView{};
             if (abi != PluginAbiStamp())
             {
                 return core::Err(core::Format(u8"did not load from '{}' (built for {}, this engine is {})", path,
                                               abi.IsEmpty() ? core::StringView(u8"no stamp") : abi, PluginAbiStamp()));
+            }
+            const PluginPart* part = entryPoint();
+            if (part == nullptr || part->load == nullptr)
+            {
+                return core::Err(core::Format(u8"did not load from '{}' (its entry gave no part)", path));
             }
             Entry entry{part, &context, core::Move(library), {}, {}, {}};
             return Admit(core::Move(entry));

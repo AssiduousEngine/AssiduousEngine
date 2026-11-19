@@ -54,10 +54,12 @@ namespace
     }
 } // namespace
 
-// The part's entry, named as a package's Engine part of id cross_probe would be.
+// The part's stamp and entry, named as a package's Engine part of id cross_probe would name them.
+extern "C" PLUGIN_EXPORT const char8_t* PluginPart_cross_probe_Engine_Abi() { return PLUGIN_ABI_STAMP; }
+
 extern "C" PLUGIN_EXPORT const PluginPart* PluginPart_cross_probe_Engine()
 {
-    static constexpr PluginPart part{u8"cross_probe", PluginPartKind::Engine, &Load, nullptr, PLUGIN_ABI_STAMP};
+    static constexpr PluginPart part{u8"cross_probe", PluginPartKind::Engine, &Load, nullptr};
     return &part;
 }
 
