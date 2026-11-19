@@ -1,0 +1,15 @@
+<root>
+	<string name="guid">7a243c32-0a66-4881-9912-09b7cdc54635</string>
+	<string name="typeNamespace">rtti::pipeline::script</string>
+	<string name="typeName">ScriptClassAsset</string>
+	<string name="source">Code/Scripts/Barrel.cs</string>
+	<array name="dataVersions" count="1">
+		<u64 name="type">1265517353284495090</u64>
+		<u32 name="version">1</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName">Code/Scripts/Barrel.cs</string>
+		<string name="language">csharp</string>
+		<string name="className">Barrel</string>
+	</object>
+</root>

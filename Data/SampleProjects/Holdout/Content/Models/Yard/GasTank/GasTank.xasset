@@ -1,0 +1,77 @@
+<root>
+	<string name="guid">ea5c8a8f-3e16-43e0-9f01-36c9fdf4ba19</string>
+	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
+	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Yard/GasTank/GasTank.gltf</string>
+	<array name="dataVersions" count="1">
+		<u64 name="type">2440385714661564817</u64>
+		<u32 name="version">3</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName">Models/Yard/GasTank/GasTank.gltf</string>
+		<array name="meshGuids" count="1">
+			<string>962b5080-f53a-4977-a7ca-1c933dfacf6a</string>
+		</array>
+		<array name="meshSkinned" count="1">
+			<u8>0</u8>
+		</array>
+		<array name="meshMaterial" count="1">
+			<i32>0</i32>
+		</array>
+		<array name="meshMaterialSlots" count="1">
+			<object>
+				<array name="slots" count="3">
+					<i32>0</i32>
+					<i32>1</i32>
+					<i32>2</i32>
+				</array>
+			</object>
+		</array>
+		<array name="collisionGuids" count="0"/>
+		<array name="materialGuids" count="3">
+			<string>03c69d00-c6e1-414b-b2e9-b7ca57db97e8</string>
+			<string>43402c5f-5b31-48d7-96ca-10d6d11df6b1</string>
+			<string>b1788154-ccc5-47cf-9e66-746f65f934e7</string>
+		</array>
+		<array name="materialAlbedo" count="3">
+			<string>00000000-0000-0000-0000-000000000000</string>
+			<string>00000000-0000-0000-0000-000000000000</string>
+			<string>00000000-0000-0000-0000-000000000000</string>
+		</array>
+		<array name="nodes" count="1">
+			<string name="name">GasTank</string>
+			<i32 name="parent">-1</i32>
+			<object name="t">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+			</object>
+			<object name="r">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">1</f32>
+			</object>
+			<object name="s">
+				<f32 name="x">0.4832618</f32>
+				<f32 name="y">0.4029302</f32>
+				<f32 name="z">0.4832618</f32>
+			</object>
+			<i32 name="mesh">0</i32>
+		</array>
+		<string name="skeletonGuid">00000000-0000-0000-0000-000000000000</string>
+		<i32 name="skeletonParentNode">-2</i32>
+		<array name="animationGuids" count="0"/>
+		<object name="boundsMin">
+			<f32 name="x">-1.041067</f32>
+			<f32 name="y">-0.0029804707</f32>
+			<f32 name="z">-1.0410671</f32>
+		</object>
+		<object name="boundsMax">
+			<f32 name="x">1.041067</f32>
+			<f32 name="y">3.4399076</f32>
+			<f32 name="z">1.0410669</f32>
+		</object>
+		<array name="entries" count="0"/>
+	</object>
+</root>

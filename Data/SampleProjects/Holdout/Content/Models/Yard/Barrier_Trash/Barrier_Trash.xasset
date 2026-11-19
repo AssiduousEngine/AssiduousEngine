@@ -1,0 +1,86 @@
+<root>
+	<string name="guid">1ca478c5-0f30-4468-968a-56f6490854b1</string>
+	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
+	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Yard/Barrier_Trash/Barrier_Trash.gltf</string>
+	<array name="dataVersions" count="1">
+		<u64 name="type">2440385714661564817</u64>
+		<u32 name="version">3</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName">Models/Yard/Barrier_Trash/Barrier_Trash.gltf</string>
+		<array name="meshGuids" count="1">
+			<string>9360bed0-be7b-4de2-bcf1-223f01d947db</string>
+		</array>
+		<array name="meshSkinned" count="1">
+			<u8>0</u8>
+		</array>
+		<array name="meshMaterial" count="1">
+			<i32>0</i32>
+		</array>
+		<array name="meshMaterialSlots" count="1">
+			<object>
+				<array name="slots" count="6">
+					<i32>0</i32>
+					<i32>1</i32>
+					<i32>2</i32>
+					<i32>3</i32>
+					<i32>4</i32>
+					<i32>5</i32>
+				</array>
+			</object>
+		</array>
+		<array name="collisionGuids" count="0"/>
+		<array name="materialGuids" count="6">
+			<string>bc91dfa8-49cd-4f0d-9376-229879ba0073</string>
+			<string>0035b2f0-a851-4a45-9312-264ef4beadec</string>
+			<string>77c7179d-e60f-43bd-95ee-0001632d8fd8</string>
+			<string>16397b15-d1fe-45eb-90d6-b8593d25002d</string>
+			<string>ea66eb6c-883d-40f4-b969-9ea168d1430d</string>
+			<string>5bcfad1e-8c51-4179-8720-38b0371ab567</string>
+		</array>
+		<array name="materialAlbedo" count="6">
+			<string>00000000-0000-0000-0000-000000000000</string>
+			<string>00000000-0000-0000-0000-000000000000</string>
+			<string>00000000-0000-0000-0000-000000000000</string>
+			<string>00000000-0000-0000-0000-000000000000</string>
+			<string>00000000-0000-0000-0000-000000000000</string>
+			<string>00000000-0000-0000-0000-000000000000</string>
+		</array>
+		<array name="nodes" count="1">
+			<string name="name">Barrier_Trash</string>
+			<i32 name="parent">-1</i32>
+			<object name="t">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+			</object>
+			<object name="r">
+				<f32 name="x">0.7071068</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">0.7071068</f32>
+			</object>
+			<object name="s">
+				<f32 name="x">0.5884222</f32>
+				<f32 name="y">0.5884222</f32>
+				<f32 name="z">0.5884222</f32>
+			</object>
+			<i32 name="mesh">0</i32>
+		</array>
+		<string name="skeletonGuid">00000000-0000-0000-0000-000000000000</string>
+		<i32 name="skeletonParentNode">-2</i32>
+		<array name="animationGuids" count="0"/>
+		<object name="boundsMin">
+			<f32 name="x">-3.9483953</f32>
+			<f32 name="y">-0.87688506</f32>
+			<f32 name="z">-4.2319326</f32>
+		</object>
+		<object name="boundsMax">
+			<f32 name="x">3.6794913</f32>
+			<f32 name="y">1.3489448</f32>
+			<f32 name="z">0.03281665</f32>
+		</object>
+		<array name="entries" count="0"/>
+	</object>
+</root>

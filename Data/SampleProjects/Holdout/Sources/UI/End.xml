@@ -1,0 +1,17 @@
+<!-- The end of a run (Game.cs): whether the yard was held, the score and the best, and the choices:
+     play again, or back to the title. Styled by HoldoutSheet.css. -->
+<Screen class="menu-screen" nav-default="end-again" back="none">
+  <Panel class="centre">
+    <Panel class="card">
+      <Panel class="stripes"/>
+      <Label id="end-heading" class="title-name" text="Overrun"/>
+      <Label id="end-waves" class="title-lead" text=""/>
+      <Label id="end-score" class="end-score" text="0"/>
+      <Label id="end-best" class="title-best" text=""/>
+      <Panel class="menu">
+        <Button id="end-again" class="menu-button" text="Play again"/>
+        <Button id="end-title" class="menu-button" text="Title"/>
+      </Panel>
+    </Panel>
+  </Panel>
+</Screen>

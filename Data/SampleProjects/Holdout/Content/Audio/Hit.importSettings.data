@@ -1,0 +1,5 @@
+stream=false
+forceMono=false
+loop=false
+trimTrailingSilence=false
+normalize=false

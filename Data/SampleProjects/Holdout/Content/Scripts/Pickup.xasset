@@ -1,0 +1,15 @@
+<root>
+	<string name="guid">95ff50ce-f58b-4bcd-8f60-f7e9d169019b</string>
+	<string name="typeNamespace">rtti::pipeline::script</string>
+	<string name="typeName">ScriptClassAsset</string>
+	<string name="source">Code/Scripts/Pickup.cs</string>
+	<array name="dataVersions" count="1">
+		<u64 name="type">1265517353284495090</u64>
+		<u32 name="version">1</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName">Code/Scripts/Pickup.cs</string>
+		<string name="language">csharp</string>
+		<string name="className">Pickup</string>
+	</object>
+</root>

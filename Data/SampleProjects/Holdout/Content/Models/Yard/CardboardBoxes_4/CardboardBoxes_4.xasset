@@ -1,0 +1,74 @@
+<root>
+	<string name="guid">f708d309-90ee-4885-95da-264bb6bb51c9</string>
+	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
+	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Yard/CardboardBoxes_4/CardboardBoxes_4.gltf</string>
+	<array name="dataVersions" count="1">
+		<u64 name="type">2440385714661564817</u64>
+		<u32 name="version">3</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName">Models/Yard/CardboardBoxes_4/CardboardBoxes_4.gltf</string>
+		<array name="meshGuids" count="1">
+			<string>90e9cccd-c617-4e9a-bfef-3da77eacd270</string>
+		</array>
+		<array name="meshSkinned" count="1">
+			<u8>0</u8>
+		</array>
+		<array name="meshMaterial" count="1">
+			<i32>0</i32>
+		</array>
+		<array name="meshMaterialSlots" count="1">
+			<object>
+				<array name="slots" count="2">
+					<i32>0</i32>
+					<i32>1</i32>
+				</array>
+			</object>
+		</array>
+		<array name="collisionGuids" count="0"/>
+		<array name="materialGuids" count="2">
+			<string>d1826dff-ac4c-4f8b-b75c-76c1dba0797d</string>
+			<string>7df353cb-9c64-4bba-95b1-96a74e15e3e8</string>
+		</array>
+		<array name="materialAlbedo" count="2">
+			<string>00000000-0000-0000-0000-000000000000</string>
+			<string>00000000-0000-0000-0000-000000000000</string>
+		</array>
+		<array name="nodes" count="1">
+			<string name="name">CardboardBoxes_4</string>
+			<i32 name="parent">-1</i32>
+			<object name="t">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+			</object>
+			<object name="r">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">-0.7071067</f32>
+				<f32 name="w">0.7071068</f32>
+			</object>
+			<object name="s">
+				<f32 name="x">0.3632734</f32>
+				<f32 name="y">0.3632734</f32>
+				<f32 name="z">0.3632734</f32>
+			</object>
+			<i32 name="mesh">0</i32>
+		</array>
+		<string name="skeletonGuid">00000000-0000-0000-0000-000000000000</string>
+		<i32 name="skeletonParentNode">-2</i32>
+		<array name="animationGuids" count="0"/>
+		<object name="boundsMin">
+			<f32 name="x">-4.8608236</f32>
+			<f32 name="y">-1.8693544</f32>
+			<f32 name="z">-1.2917039</f32>
+		</object>
+		<object name="boundsMax">
+			<f32 name="x">-0.051706076</f32>
+			<f32 name="y">2.0259895</f32>
+			<f32 name="z">1.4233899</f32>
+		</object>
+		<array name="entries" count="0"/>
+	</object>
+</root>

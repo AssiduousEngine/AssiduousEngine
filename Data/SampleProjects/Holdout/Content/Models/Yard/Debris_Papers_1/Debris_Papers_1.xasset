@@ -1,0 +1,71 @@
+<root>
+	<string name="guid">b1af8686-50fd-4b4d-bdfd-cc32326f3a60</string>
+	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
+	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Yard/Debris_Papers_1/Debris_Papers_1.gltf</string>
+	<array name="dataVersions" count="1">
+		<u64 name="type">2440385714661564817</u64>
+		<u32 name="version">3</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName">Models/Yard/Debris_Papers_1/Debris_Papers_1.gltf</string>
+		<array name="meshGuids" count="1">
+			<string>213a0d3e-6cb0-4b24-8585-227886b17947</string>
+		</array>
+		<array name="meshSkinned" count="1">
+			<u8>0</u8>
+		</array>
+		<array name="meshMaterial" count="1">
+			<i32>0</i32>
+		</array>
+		<array name="meshMaterialSlots" count="1">
+			<object>
+				<array name="slots" count="1">
+					<i32>0</i32>
+				</array>
+			</object>
+		</array>
+		<array name="collisionGuids" count="0"/>
+		<array name="materialGuids" count="1">
+			<string>44ceb44f-15f7-4e06-a4fa-63c5a0acfccd</string>
+		</array>
+		<array name="materialAlbedo" count="1">
+			<string>00000000-0000-0000-0000-000000000000</string>
+		</array>
+		<array name="nodes" count="1">
+			<string name="name">Debris_Papers_1</string>
+			<i32 name="parent">-1</i32>
+			<object name="t">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+			</object>
+			<object name="r">
+				<f32 name="x">0</f32>
+				<f32 name="y">0.15319628</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">0.9881958</f32>
+			</object>
+			<object name="s">
+				<f32 name="x">0.114112414</f32>
+				<f32 name="y">0.11411242</f32>
+				<f32 name="z">0.114112414</f32>
+			</object>
+			<i32 name="mesh">0</i32>
+		</array>
+		<string name="skeletonGuid">00000000-0000-0000-0000-000000000000</string>
+		<i32 name="skeletonParentNode">-2</i32>
+		<array name="animationGuids" count="0"/>
+		<object name="boundsMin">
+			<f32 name="x">-2.9669142</f32>
+			<f32 name="y">0.011879548</f32>
+			<f32 name="z">-4.9553447</f32>
+		</object>
+		<object name="boundsMax">
+			<f32 name="x">5.147431</f32>
+			<f32 name="y">0.053457968</f32>
+			<f32 name="z">3.7750473</f32>
+		</object>
+		<array name="entries" count="0"/>
+	</object>
+</root>

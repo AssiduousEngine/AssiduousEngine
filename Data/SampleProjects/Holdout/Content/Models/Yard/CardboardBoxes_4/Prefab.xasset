@@ -1,0 +1,13 @@
+<root>
+	<string name="guid">aa50c5f8-cbc7-49dc-a8a8-a658ca50de86</string>
+	<string name="typeNamespace">rtti::scene</string>
+	<string name="typeName">PrefabDocument</string>
+	<string name="source"/>
+	<array name="dataVersions" count="1">
+		<u64 name="type">3442582207943668603</u64>
+		<u32 name="version">0</u32>
+	</array>
+	<object name="payload">
+		<string name="name">CardboardBoxes_4</string>
+	</object>
+</root>

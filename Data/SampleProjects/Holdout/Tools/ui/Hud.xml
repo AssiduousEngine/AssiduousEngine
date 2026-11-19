@@ -1,0 +1,42 @@
+<!-- The HUD over the yard: the wave top left and the score top right, with a word between them as a
+     wave comes; the crosshair in the middle, with a hit marker round it for a moment when a shot
+     lands; the player's health bottom left and the weapon with its rounds bottom right; and the
+     screen's edges flashing red when the player is hurt. It takes none of the game's input. Styled
+     by HoldoutSheet.css; Game.cs fills it. The screen stack's back (Escape, East) is off: the
+     player's Pause action takes its place. -->
+<Screen blocks="false" back="none">
+  <Panel class="hud">
+    <Panel id="hud-hurt" class="hurt"/>
+    <Panel class="hud-top">
+      <Panel class="hud-card">
+        <Label class="hud-caption" text="WAVE"/>
+        <Label id="hud-wave" class="hud-number" text="1"/>
+      </Panel>
+      <Label id="hud-note" class="hud-note" text=""/>
+      <Panel class="hud-card">
+        <Label class="hud-caption" text="SCORE"/>
+        <Label id="hud-score" class="hud-number" text="0"/>
+      </Panel>
+    </Panel>
+    <Panel class="hud-middle">
+      <Panel class="crosshair">
+        <Panel id="hud-hit" class="hit-marker"/>
+        <Panel class="cross-bar cross-up"/>
+        <Panel class="cross-bar cross-down"/>
+        <Panel class="cross-bar cross-left"/>
+        <Panel class="cross-bar cross-right"/>
+        <Panel class="crosshair-dot"/>
+      </Panel>
+    </Panel>
+    <Panel class="hud-foot">
+      <Panel class="hud-card">
+        <Label class="hud-caption" text="HEALTH"/>
+        <Label id="hud-health" class="hud-number" text="100"/>
+      </Panel>
+      <Panel class="hud-card">
+        <Label id="hud-weapon" class="hud-caption" text="Pistol"/>
+        <Label id="hud-ammo" class="hud-number" text="12"/>
+      </Panel>
+    </Panel>
+  </Panel>
+</Screen>

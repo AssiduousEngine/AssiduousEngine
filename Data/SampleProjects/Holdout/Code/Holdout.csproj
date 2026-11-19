@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The project's C#: every .cs in this folder and below builds into one assembly. -->
+  <!-- Where this machine's engine runtime is, for an IDE: written by the engine's cook. -->
+  <Import Project="obj/Engine.props" Condition="Exists('obj/Engine.props')" />
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Holdout</AssemblyName>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Engine.Runtime">
+      <HintPath>$(EngineRuntime)</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>
