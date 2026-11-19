@@ -377,6 +377,39 @@ namespace foundation::script::angelscript
         }
     }
 
+    // What a script call's arguments borrow for the length of the call: a std::string per string
+    // argument, a box per reflected value (its reference released after). Only those a call passes
+    // are made: a call made sixteen strings and walked sixteen box slots, whatever it passed.
+    struct CallTemps
+    {
+        core::InlineArray<std::string, kMaxArgs> strings; // never moved: the context keeps their addresses
+        core::InlineArray<BoxedVariant*, kMaxArgs> boxes;
+
+        CallTemps() = default;
+        CallTemps(const CallTemps&) = delete;
+        CallTemps& operator=(const CallTemps&) = delete;
+        ~CallTemps() { ReleaseBoxes(); }
+
+        [[nodiscard]] std::string* AddString(std::string&& text)
+        {
+            strings.Add(core::Move(text));
+            return &strings[strings.Size() - 1];
+        }
+        [[nodiscard]] BoxedVariant* AddBox(BoxedVariant* box)
+        {
+            boxes.Add(box);
+            return box;
+        }
+        void ReleaseBoxes() noexcept
+        {
+            for (BoxedVariant* box : boxes)
+            {
+                ReleaseBox(box);
+            }
+            boxes.Clear();
+        }
+    };
+
     // A script value (IsScriptValue: a Float3, a Color, the script Entity) is held in AngelScript as
     // its own bytes, asOBJ_VALUE | asOBJ_POD; every other reflected type crosses as a box (asOBJ_REF).
 
@@ -1291,9 +1324,8 @@ namespace foundation::script::angelscript
                 (void)executor->SetObject(object);
             }
 
-            std::string stringTemps[kMaxArgs];
-            BoxedVariant* boxTemps[kMaxArgs] = {};
-            if (!BindArgsInto(executor, func, args, stringTemps, boxTemps))
+            CallTemps temps; // what the arguments borrow for the call
+            if (!BindArgsInto(executor, func, args, temps))
             {
                 m_engine->ReturnContext(executor);
                 core::ConsoleWriteError(TooManyParametersMessage(func).AsView());
@@ -1310,10 +1342,7 @@ namespace foundation::script::angelscript
             {
                 core::ConsoleWriteError(BudgetStopMessage().AsView());
             }
-            for (BoxedVariant* box : boxTemps)
-            {
-                ReleaseBox(box);
-            }
+            temps.ReleaseBoxes();
 
             core::Result<core::Variant> outcome = core::Err(core::ErrorCode::Internal);
             if (result == asEXECUTION_FINISHED)
@@ -2320,11 +2349,10 @@ namespace foundation::script::angelscript
 
         // Marshals `args` into a prepared context's argument slots against `function`'s
         // declared parameters. Used by ExecuteDelegate (and follows the context's own
-        // BindArgs); boxTemps hold object references released by the caller after Execute.
+        // BindArgs); `temps` holds the boxes' references, which the caller releases after Execute.
         // False, binding nothing, for a function with more parameters than a call carries.
         [[nodiscard]] bool BindArgsInto(asIScriptContext* executor, asIScriptFunction* function,
-                                        core::Span<core::Variant> args, std::string* stringTemps,
-                                        BoxedVariant** boxTemps)
+                                        core::Span<core::Variant> args, CallTemps& temps)
         {
             const core::usize limit = function->GetParamCount();
             if (limit > static_cast<core::usize>(kMaxArgs))
@@ -2376,8 +2404,7 @@ namespace foundation::script::angelscript
                 }
                 if (typeId == m_stringTypeId)
                 {
-                    stringTemps[i] = StdFromVariantString(value);
-                    (void)executor->SetArgObject(arg, &stringTemps[i]);
+                    (void)executor->SetArgObject(arg, temps.AddString(StdFromVariantString(value)));
                     continue;
                 }
                 // A script value parameter: AngelScript copies the bytes in (an empty value as zeros).
@@ -2392,8 +2419,7 @@ namespace foundation::script::angelscript
                     reflected != nullptr && reflected->enumeratorCount == 0 && !IsFuncdefTypeId(typeId) &&
                     !value.IsEmpty())
                 {
-                    boxTemps[i] = NewBox(MemoryAllocator(), value);
-                    (void)executor->SetArgObject(arg, boxTemps[i]);
+                    (void)executor->SetArgObject(arg, temps.AddBox(NewBox(MemoryAllocator(), value)));
                     continue;
                 }
             }
@@ -4722,9 +4748,8 @@ namespace foundation::script::angelscript
                 (void)executor->SetObject(object);
             }
 
-            std::string stringTemps[kMaxArgs];
-            BoxedVariant* boxTemps[kMaxArgs] = {};
-            if (!BindArgs(executor, function, args, stringTemps, boxTemps))
+            CallTemps temps; // what the arguments borrow for the call
+            if (!BindArgs(executor, function, args, temps))
             {
                 engine->ReturnContext(executor);
                 ReportCallError(m_manager->TooManyParametersMessage(function));
@@ -4759,16 +4784,10 @@ namespace foundation::script::angelscript
             if (result == asEXECUTION_SUSPENDED && debugger != nullptr &&
                 AdoptDebuggerSuspension(*debugger, executor))
             {
-                for (BoxedVariant* box : boxTemps)
-                {
-                    ReleaseBox(box);
-                }
+                temps.ReleaseBoxes();
                 return core::Err(core::ErrorCode::Internal);
             }
-            for (BoxedVariant* box : boxTemps)
-            {
-                ReleaseBox(box);
-            }
+            temps.ReleaseBoxes();
 
             core::Result<core::Variant> outcome = core::Err(core::ErrorCode::Internal);
             if (result == asEXECUTION_FINISHED)
@@ -4849,8 +4868,7 @@ namespace foundation::script::angelscript
 
         // False, binding nothing, for a function with more parameters than a call carries.
         [[nodiscard]] bool BindArgs(asIScriptContext* executor, asIScriptFunction* function,
-                                    core::Span<core::Variant> args, std::string* stringTemps,
-                                    BoxedVariant** boxTemps)
+                                    core::Span<core::Variant> args, CallTemps& temps)
         {
             const core::usize limit = function->GetParamCount();
             if (limit > static_cast<core::usize>(kMaxArgs))
@@ -4902,10 +4920,9 @@ namespace foundation::script::angelscript
                 }
                 if (typeId == m_manager->StringTypeId())
                 {
-                    stringTemps[i] = StdFromVariantString(value);
                     // Copied for by-value params; referenced (temps outlive Execute)
                     // for &in params.
-                    (void)executor->SetArgObject(arg, &stringTemps[i]);
+                    (void)executor->SetArgObject(arg, temps.AddString(StdFromVariantString(value)));
                     continue;
                 }
                 // A script value parameter: its bytes copied in (BindArgsInto's rule).
@@ -4919,9 +4936,8 @@ namespace foundation::script::angelscript
                     reflected != nullptr && reflected->enumeratorCount == 0 &&
                     !m_manager->IsFuncdefTypeId(typeId) && !value.IsEmpty())
                 {
-                    boxTemps[i] =
-                        NewBox(m_manager->MemoryAllocator(), value); // SetArgObject AddRefs; ours released after Execute
-                    (void)executor->SetArgObject(arg, boxTemps[i]);
+                    // SetArgObject AddRefs; ours is released after Execute
+                    (void)executor->SetArgObject(arg, temps.AddBox(NewBox(m_manager->MemoryAllocator(), value)));
                     continue;
                 }
             }
@@ -5867,9 +5883,8 @@ namespace foundation::script::angelscript
             }
             return nullptr;
         }
-        std::string stringTemps[kMaxArgs];
-        BoxedVariant* boxTemps[kMaxArgs] = {};
-        if (!BindArgs(executor, factory, args, stringTemps, boxTemps))
+        CallTemps temps; // what the arguments borrow for the call
+        if (!BindArgs(executor, factory, args, temps))
         {
             engine->ReturnContext(executor);
             ReportCallError(m_manager->TooManyParametersMessage(factory));
@@ -5883,10 +5898,7 @@ namespace foundation::script::angelscript
             result = executor->Execute();
         }
         executor->ClearLineCallback();
-        for (BoxedVariant* box : boxTemps)
-        {
-            ReleaseBox(box);
-        }
+        temps.ReleaseBoxes();
         asIScriptObject* instance = nullptr;
         if (result == asEXECUTION_FINISHED)
         {
