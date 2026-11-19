@@ -874,7 +874,7 @@ export namespace foundation::gui
 
         /// Returns the cursor to show now: the nearest `cursor` set on the node under the pointer or
         /// its ancestors (starting from the captured node while one holds the pointer, so a drag
-        /// keeps its cursor), else Default. The host (the shell bridge) shows it.
+        /// keeps its cursor), else Default; over a scroll container's bars, Default. The host (the shell bridge) shows it.
         [[nodiscard]] Cursor GetCursor() const
         {
             if (m_dragActive) // a drag's cursor shows what a drop would do
@@ -884,8 +884,12 @@ export namespace foundation::gui
                 return Cursor::None; // a pad is in use, so the pointer is hidden
             Node* from = m_captureNode != nullptr ? m_captureNode : m_downNode != nullptr ? m_downNode : m_overNode;
             for (Node* n = from; n != nullptr; n = n->GetParent())
+            {
+                if (n->IsPointerOnBars())
+                    return Cursor::Default; // a scroll bar is not its content (a code editor's text)
                 if (const Cursor cursor = n->GetCursorNow(); cursor != Cursor::Auto)
                     return cursor;
+            }
             return Cursor::Default;
         }
 

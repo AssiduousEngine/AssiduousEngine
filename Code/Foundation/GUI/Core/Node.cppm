@@ -500,6 +500,9 @@ export namespace foundation::gui
         /// CSS `pointer-events`: `none` means SetHitTestVisible(false), and `auto` is the default.
         [[nodiscard]] core::String GetPointerEvents() const { return core::String(m_hitTestVisible ? u8"auto" : u8"none"); }
         void SetPointerEvents(const core::String& value) { SetHitTestVisible(value.AsView() != core::StringView(u8"none")); }
+        /// Whether the pointer is on this scroll container's bars, or dragging one's thumb: the bars
+        /// show the default cursor whatever the content's `cursor` is.
+        [[nodiscard]] bool IsPointerOnBars() const noexcept { return m_scrollHover != 0 || m_scrollDragAxis <= 1; }
         /// Sets the pointer's look over this node (CSS `cursor`); Auto uses the parent's.
         void SetCursor(Cursor cursor) noexcept { m_cursor = cursor; }
         [[nodiscard]] Cursor GetCursor() const noexcept { return m_cursor; }
@@ -2913,6 +2916,20 @@ export namespace foundation::gui
         // The widget's own handler for an input event.
         void InvokeInputHandler(const Event& event)
         {
+            // A scroll container's bars are its own: a press on one, the drag it starts and the pointer
+            // moving over them go to the bars and not to the widget, which takes presses and moves as
+            // its content's (a code editor placing its caret took every press, and its bars could not
+            // be dragged). Which bar part the pointer is over is tracked for every move, whatever the
+            // widget does with it, for the bars' hover look and the cursor.
+            const bool container = IsScrollContainer();
+            if (container && IsBarPointerEvent(event))
+            {
+                ScrollDefaultAction(event);
+                return;
+            }
+            const bool hover = container && IsHoverEvent(event);
+            if (hover)
+                ScrollDefaultAction(event);
             switch (event.Type)
             {
             case EventType::MouseDown: OnMouseDown(static_cast<const MouseEvent&>(event)); break;
@@ -2931,12 +2948,44 @@ export namespace foundation::gui
             case EventType::PointerCancel: OnPointerCancel(static_cast<const MouseEvent&>(event)); break;
             default: break;
             }
-            if (!event.Handled && IsScrollContainer())
+            if (!event.Handled && container && !hover)
                 ScrollDefaultAction(event);
+        }
+        [[nodiscard]] static bool IsHoverEvent(const Event& event) noexcept
+        {
+            return event.Type == EventType::MouseMove || event.Type == EventType::MouseEnter ||
+                   event.Type == EventType::MouseLeave;
         }
         // A scroll container's own handling, after its widget's: the wheel (taken when it scrolled),
         // the keys while it is focused, and its bars (a press on one drags its thumb or pages).
         void ScrollDefaultAction(const Event& event);
+        // Whether `event` is the bars' before the widget's: a left press on a bar, a move over one,
+        // or the pointer while a thumb is dragged (its moves, its release, its cancel).
+        [[nodiscard]] bool IsBarPointerEvent(const Event& event) const
+        {
+            switch (event.Type)
+            {
+            case EventType::MouseDown:
+            {
+                const MouseEvent& mouse = static_cast<const MouseEvent&>(event);
+                if (mouse.Button != MouseButton::Left)
+                    return false;
+                const core::Float2 p = ConvertToNodeSpace(mouse.Position);
+                return ScrollBarTrack(0).Contains(p) || ScrollBarTrack(1).Contains(p);
+            }
+            case EventType::MouseMove:
+            {
+                if (m_scrollDragAxis <= 1)
+                    return true;
+                const core::Float2 p = ConvertToNodeSpace(static_cast<const MouseEvent&>(event).Position);
+                return ScrollBarTrack(0).Contains(p) || ScrollBarTrack(1).Contains(p);
+            }
+            case EventType::MouseUp:
+            case EventType::PointerCancel:
+            case EventType::PointerCaptureLost: return m_scrollDragAxis <= 1;
+            default: return false;
+            }
+        }
         /// Moves the offset (clamped as SetScrollOffset describes) and reports the scroll. A smooth
         /// scroll's steps come here without ending it.
         void ApplyScrollOffset(core::Float2 offset)

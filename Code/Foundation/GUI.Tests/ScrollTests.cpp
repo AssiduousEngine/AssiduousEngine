@@ -228,6 +228,71 @@ TEST_CASE("scroll: its bar lies over the content; the thumb drags, the track pag
     s.D().InjectMouseUp(core::Float2{96.0f, 90.0f}, MouseButton::Left);
 }
 
+namespace
+{
+    // A scroller whose widget takes every press and move as its content's, as a code editor does
+    // (placing a caret, selecting by drag).
+    class PressTakingView final : public ScrollView
+    {
+    public:
+        int presses = 0;
+        int moves = 0;
+        void OnMouseDown(const MouseEvent& event) override
+        {
+            ++presses;
+            event.Handled = true;
+        }
+        void OnMouseMove(const MouseEvent& event) override
+        {
+            ++moves;
+            event.Handled = true;
+        }
+    };
+}
+
+// The bars' handling ran only when the widget left the event unhandled, so a widget that takes every
+// press (the code editor) left its bars undraggable.
+TEST_CASE("scroll: a widget that takes every press still lets its bars be dragged, with the arrow over them")
+{
+    Scroller s;
+    auto view = Make<PressTakingView>();
+    view->SetPosition(core::Float2{150.0f, 0.0f});
+    view->SetSize(core::Float2{100.0f, 100.0f});
+    s.root->AddChild(view.Get());
+    for (int i = 0; i < 6; ++i)
+    {
+        auto row = Make<Panel>();
+        row->EditLayoutStyle([](LayoutStyle& st) { st.Height = LayoutLength::Px(50.0f); });
+        view->AddChild(row.Get());
+    }
+    view->SetCursor(Cursor::Text); // its content takes text, as the code editor's does
+    s.root->UpdateLayout();
+    const Rect thumb = view->ScrollBarThumb(1);
+    REQUIRE(thumb.height > 0.0f);
+    const core::Float2 grab{150.0f + 96.0f, thumb.y + 5.0f};
+    // Over the content the text cursor shows; over the bar, the arrow, and the move is the bar's.
+    s.D().InjectMouseMove(core::Float2{160.0f, 50.0f});
+    CHECK(s.D().GetCursor() == Cursor::Text);
+    CHECK(view->moves == 1);
+    s.D().InjectMouseMove(grab);
+    CHECK(s.D().GetCursor() == Cursor::Default);
+    CHECK(view->moves == 1);
+    view->moves = 0;
+    s.D().InjectMouseDown(grab, MouseButton::Left);
+    CHECK(view->presses == 0); // the bar's press, not the content's
+    s.D().InjectMouseMove(core::Float2{grab.x, grab.y + (100.0f - thumb.height) * 0.5f});
+    CHECK(view->GetScrollOffset().y == doctest::Approx(100.0f));
+    CHECK(view->moves == 0);
+    CHECK(s.D().GetCursor() == Cursor::Default); // the thumb's drag keeps the arrow
+    s.D().InjectMouseUp(core::Float2{grab.x, 90.0f}, MouseButton::Left);
+    s.D().InjectMouseMove(core::Float2{160.0f, 50.0f}); // back over the content
+    CHECK(s.D().GetCursor() == Cursor::Text);
+    // Off the bars, the widget has its presses as before.
+    s.D().InjectMouseDown(core::Float2{160.0f, 50.0f}, MouseButton::Left);
+    CHECK(view->presses == 1);
+    s.D().InjectMouseUp(core::Float2{160.0f, 50.0f}, MouseButton::Left);
+}
+
 TEST_CASE("scroll: a focused descendant comes into view, by the least that shows it")
 {
     Scroller s;
