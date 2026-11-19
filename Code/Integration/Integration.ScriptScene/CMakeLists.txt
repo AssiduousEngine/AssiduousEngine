@@ -1,8 +1,9 @@
-# Integration.ScriptScene - script behaviours on a real scene through the script subsystem, measured
-# against the same work done by native components (the script speed work's scene measures). The
-# measures are skipped in a normal run; run them with --no-skip from an optimised build.
+# Integration.ScriptScene - script behaviours on a real scene through the script subsystem: entity
+# events reaching them in every language, and the script speed work's scene measures against the
+# same work done by native components. The measures are skipped in a normal run; run them with
+# --no-skip from an optimised build.
 
-add_executable(Integration.ScriptScene TestsMain.cpp ScriptSceneBenchmarkTests.cpp)
+add_executable(Integration.ScriptScene TestsMain.cpp ScriptSceneBenchmarkTests.cpp EntityEventTests.cpp)
 target_link_libraries(Integration.ScriptScene PRIVATE
     Engine::Behavior Engine::Spline Foundation::Script.Resource Foundation::Script.Facades Foundation::Scene Foundation::Script
     doctest::doctest)

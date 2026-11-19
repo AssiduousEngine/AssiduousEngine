@@ -706,13 +706,21 @@ export namespace engine::behavior
     /// just before the behaviors.
     inline constexpr i32 kScriptUpdateOrder = -110;
 
-    class EntityBehaviorSystem final : public scene::SceneSystem
+    class EntityBehaviorSystem final : public scene::SceneSystem, public scene::IEntityEventSink
     {
     public:
+        ~EntityBehaviorSystem() override
+        {
+            if (m_scene != nullptr)
+                m_scene->RemoveEntityEventSink(*this);
+        }
         [[nodiscard]] i32 UpdateOrder() const noexcept override { return kScriptUpdateOrder; }
         void OnSceneCreate(scene::Scene& scene) override
         {
             m_scene = &scene;
+            // What happens to an entity (a contact, an animation ending), posted by the domain to
+            // the scene, reaches the entity's behaviors as on<Event>.
+            scene.AddEntityEventSink(*this);
             // Route this scene's bus events to the entity behaviors that declare on<Event>.
             m_eventSubs.Bind(scene.Events(), Function<void(StringView, const Variant&)>{
                                                   [this](StringView eventName, const Variant& payload)
@@ -871,6 +879,37 @@ export namespace engine::behavior
             pending.target = target;
             pending.handler = String(handler);
             pending.args = Move(args);
+            m_messages.PushBack(Move(pending));
+        }
+
+        /// An entity event for this scene's behaviors: queued as `on<Name>` (the send() rule:
+        /// "contactBegin" calls onContactBegin) with its arguments, each EntityHandle among them made
+        /// the Entity a behavior is given. Only queued, onto the same deferred queue as entity.send,
+        /// drained at the tick's top level: the domain posts from its own step, and delivery is
+        /// gated by HasHandler in InvokeHandler, as messages are.
+        void OnEntityEvent(scene::Scene& scene, const scene::EntityEvent& event) override
+        {
+            if (!event.target.IsAssigned() || event.name.IsEmpty())
+                return;
+            PendingMessage pending;
+            pending.target = event.target;
+            pending.handler = BuildMessageHandlerName(event.name);
+            pending.args.Reserve(event.args.Size());
+            for (const Variant& arg : event.args)
+            {
+                if (const scene::EntityHandle* entity = arg.TryGet<scene::EntityHandle>())
+                {
+                    Entity facade;
+                    facade.scene = &scene;
+                    facade.entityIndex = entity->index;
+                    facade.entityGeneration = entity->generation;
+                    pending.args.PushBack(Variant::From<Entity>(facade));
+                }
+                else
+                {
+                    pending.args.PushBack(arg);
+                }
+            }
             m_messages.PushBack(Move(pending));
         }
 
