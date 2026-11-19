@@ -391,13 +391,9 @@ namespace editor
         m_view.m_edit->RenameEntity(entity, name.AsView());
         return true;
     }
-    gui::DropEffect SceneHierarchyView::Model::CanDrop(const gui::ModelDrop& drop, String& reason) const
+    bool SceneHierarchyView::Model::MovedEntities(const gui::ModelDrop& drop, Array<Guid>& out, String& reason) const
     {
-        Guid parent;
-        Guid before;
-        if (!m_view.DropTarget(drop, parent, before))
-            return gui::DropEffect::None;
-        // The hierarchy's own rows move: never inside themselves.
+        out.Clear();
         if (drop.Source == this && !drop.Ids.IsEmpty())
         {
             for (const gui::ItemId id : drop.Ids)
@@ -406,8 +402,38 @@ namespace editor
                 if (entity.IsNil())
                 {
                     reason = String(u8"The scene stays where it is");
-                    return gui::DropEffect::None;
+                    return false;
                 }
+                out.PushBack(entity);
+            }
+            return true;
+        }
+        if (drop.Payload == nullptr || !EntityDrag::Read(*drop.Payload, out) || out.IsEmpty())
+            return false;
+        scene::Scene& scene = m_view.m_edit->Scene();
+        for (const Guid& entity : out)
+        {
+            if (!scene.IsValid(scene.FindEntity(entity)))
+            {
+                reason = String(u8"These entities are in another scene");
+                return false;
+            }
+        }
+        return true;
+    }
+
+    gui::DropEffect SceneHierarchyView::Model::CanDrop(const gui::ModelDrop& drop, String& reason) const
+    {
+        Guid parent;
+        Guid before;
+        if (!m_view.DropTarget(drop, parent, before))
+            return gui::DropEffect::None;
+        // The scene's own entities move: never inside themselves.
+        Array<Guid> moved(m_view.m_allocator);
+        if (MovedEntities(drop, moved, reason))
+        {
+            for (const Guid& entity : moved)
+            {
                 if (!parent.IsNil() && m_view.m_edit->IsSelfOrAncestor(parent, entity))
                 {
                     reason = String(u8"An entity cannot go inside itself");
@@ -416,6 +442,8 @@ namespace editor
             }
             return gui::DropEffect::Move;
         }
+        if (!reason.IsEmpty())
+            return gui::DropEffect::None;
         // Prefabs dragged from the assets: an instance of each is spawned at the drop.
         Array<app::AssetDrag> assets;
         if (drop.Payload != nullptr && app::AssetDrag::ReadAll(*drop.Payload, assets) && m_view.m_services.spawnPrefab)
@@ -439,11 +467,11 @@ namespace editor
         Guid before;
         (void)m_view.DropTarget(drop, parent, before);
         SceneEditContext& edit = *m_view.m_edit;
-        if (drop.Source == this && !drop.Ids.IsEmpty())
+        Array<Guid> moved(m_view.m_allocator);
+        if (MovedEntities(drop, moved, reason))
         {
-            for (const gui::ItemId id : drop.Ids)
+            for (const Guid& entity : moved)
             {
-                const Guid entity = EntityOfId(id);
                 if (entity == before || entity == parent)
                     continue;
                 if (!before.IsNil() || parent.IsNil())

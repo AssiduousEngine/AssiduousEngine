@@ -147,6 +147,12 @@ export namespace editor
             bool Drop(const foundation::gui::ModelDrop& drop) override;
 
         private:
+            // The entities a drop moves within the scene, in order: this tree's rows, whether the
+            // drop names them (its ids) or carries them (an entity drag, which is what the rows'
+            // own drag carries: the view no longer knows its rows then). False when it moves none;
+            // `reason` says why when that is a refusal, not another kind of drop.
+            [[nodiscard]] bool MovedEntities(const foundation::gui::ModelDrop& drop, Array<Guid>& out, String& reason) const;
+
             SceneHierarchyView& m_view;
         };
 

@@ -668,6 +668,29 @@ namespace
             root->GetEventDispatcher()->InjectMouseDown(at, gui::MouseButton::Left, modifiers);
             root->GetEventDispatcher()->InjectMouseUp(at, gui::MouseButton::Left, modifiers);
         }
+        // Presses row `item`, drags it past the threshold and over row `onto` at `down` of its
+        // height (0 its top edge, 0.5 its middle), and leaves it held there for the test to look
+        // at before Release.
+        void Drag(gui::TreeView& tree, i32 item, i32 onto, f32 down)
+        {
+            (void)root->UpdateLayout();
+            gui::ItemRow* from = tree.RowForItem(item);
+            gui::ItemRow* to = tree.RowForItem(onto);
+            REQUIRE(from != nullptr);
+            REQUIRE(to != nullptr);
+            const gui::Rect a = from->GetScreenBounds();
+            const gui::Rect b = to->GetScreenBounds();
+            const Float2 press{a.x + a.width * 0.5f, a.y + a.height * 0.5f};
+            m_held = Float2{b.x + b.width * 0.5f, b.y + b.height * down};
+            gui::EventDispatcher& d = *root->GetEventDispatcher();
+            d.InjectMouseDown(press, gui::MouseButton::Left);
+            d.InjectMouseMove(Float2{press.x + 12.0f, press.y + 4.0f});
+            d.InjectMouseMove(m_held);
+        }
+        void Release() { root->GetEventDispatcher()->InjectMouseUp(m_held, gui::MouseButton::Left); }
+
+    private:
+        Float2 m_held{};
     };
 }
 
@@ -776,6 +799,56 @@ TEST_CASE("hierarchy: a row dropped onto another goes under it, between two move
     CHECK(EntityDrag::Read(payload, carried));
     REQUIRE(carried.Size() == 1u);
     CHECK(carried[0] == lid);
+    page->OnClose();
+}
+
+// The rows' own drag carries their entities (the payload an entity slot takes), not the view: the
+// hierarchy takes that as a move of its own rows. A drop it was handed directly passed while a real
+// drag was refused.
+TEST_CASE("hierarchy: a row dragged with the mouse goes under the row it lands on, before one at its edge, or to the roots")
+{
+    Bed bed;
+    UniquePtr<SceneEditorPage> page = bed.Open(*bed.level);
+    SceneHierarchyView* tree = page->Hierarchy();
+    REQUIRE(tree != nullptr);
+    const Guid barrel = page->EditContext().CreateEntity(u8"Barrel");
+    const Guid lid = page->EditContext().CreateEntity(u8"Lid", bed.crate);
+    page->OnUpdate(bed.host, 1.0f / 60.0f);
+    REQUIRE(tree->Rows() == String(u8"Level |   Crate |     Lid |   Barrel"));
+    Shown shown(*page);
+    gui::TreeView& view = *tree->Tree();
+    const auto settle = [&]()
+    {
+        page->OnUpdate(bed.host, 1.0f / 60.0f);
+        (void)shown.root->UpdateLayout();
+    };
+
+    // Onto Crate's middle: under it, after Lid.
+    shown.Drag(view, tree->ItemOf(barrel), tree->ItemOf(bed.crate), 0.5f);
+    CHECK(shown.root->GetEventDispatcher()->GetDragPayload().Type == EntityDrag::kType);
+    CHECK(shown.root->GetEventDispatcher()->GetDropEffect() == gui::DropEffect::Move);
+    shown.Release();
+    settle();
+    CHECK(tree->Rows() == String(u8"Level |   Crate |     Lid |     Barrel"));
+
+    // At Lid's top edge: before it.
+    shown.Drag(view, tree->ItemOf(barrel), tree->ItemOf(lid), 0.1f);
+    shown.Release();
+    settle();
+    CHECK(tree->Rows() == String(u8"Level |   Crate |     Barrel |     Lid"));
+
+    // Onto the scene's row: a root again.
+    shown.Drag(view, tree->ItemOf(barrel), 0, 0.5f); // the scene's row is the first
+    shown.Release();
+    settle();
+    CHECK(tree->Rows() == String(u8"Level |   Crate |     Lid |   Barrel"));
+
+    // Onto itself's child: refused, nothing moves.
+    shown.Drag(view, tree->ItemOf(bed.crate), tree->ItemOf(lid), 0.5f);
+    CHECK(shown.root->GetEventDispatcher()->GetDropEffect() == gui::DropEffect::None);
+    shown.Release();
+    settle();
+    CHECK(tree->Rows() == String(u8"Level |   Crate |     Lid |   Barrel"));
     page->OnClose();
 }
 
