@@ -242,6 +242,7 @@ namespace
         RefPtr<ScriptClass> cls = MakeRef<ScriptClass>(DefaultAllocator());
         cls->language = String(language);
         cls->className = String(className);
+        cls->kind = BehaviorKind::Entity; // every measured behavior sits on an entity
         cls->source = String(source);
         cls->handlers.PushBack(String(u8"onUpdate"));
         cls->BuildProfileName();
@@ -291,8 +292,8 @@ TEST_CASE("script per call: AngelScript" * doctest::skip())
 {
     foundation::script::benchmark::Dialect dialect;
     dialect.languageId = u8"angelscript";
-    dialect.benchClass = u8"class Holder { Float3 at; Holder@ self; }\n"
-                         u8"class Bench {\n"
+    dialect.benchClass = u8"class Holder : EntityBehavior { Float3 at; Holder@ self; }\n"
+                         u8"class Bench : EntityBehavior {\n"
                          u8"  double total = 0;\n"
                          u8"  void tick(double dt) { total += dt; }\n"
                          u8"  double math(int n) {\n"
@@ -333,8 +334,7 @@ TEST_CASE("script per call: Luau" * doctest::skip())
     foundation::script::benchmark::Dialect dialect;
     dialect.languageId = u8"luau";
     dialect.benchClass = u8R"lua(
-Bench = {}
-Bench.__index = Bench
+Bench = EntityBehavior.class()
 function Bench.new() return setmetatable({ total = 0 }, Bench) end
 function Bench:tick(dt) self.total = self.total + dt end
 function Bench:math(n)
@@ -413,11 +413,11 @@ TEST_CASE("script scene: the scene measures in AngelScript" * doctest::skip())
 {
     Behaviours in;
     in.language = u8"angelscript";
-    in.empty = u8"class Empty {\n"
+    in.empty = u8"class Empty : EntityBehavior {\n"
                u8"    Empty(Entity entity) {}\n"
                u8"    void onUpdate(double dt) {}\n"
                u8"}\n";
-    in.mover = u8"class Mover {\n"
+    in.mover = u8"class Mover : EntityBehavior {\n"
                u8"    private Entity self;\n"
                u8"    float speed = 2.0f;\n"
                u8"    Mover(Entity entity) { self = entity; }\n"
@@ -426,7 +426,7 @@ TEST_CASE("script scene: the scene measures in AngelScript" * doctest::skip())
                u8"        self.setPosition(p.x + speed * float(dt), p.y, p.z);\n"
                u8"    }\n"
                u8"}\n";
-    in.fetcher = u8"class Fetcher {\n"
+    in.fetcher = u8"class Fetcher : EntityBehavior {\n"
                  u8"    private Entity self;\n"
                  u8"    Fetcher(Entity entity) { self = entity; }\n"
                  u8"    void onUpdate(double dt) {\n"
@@ -442,19 +442,16 @@ TEST_CASE("script scene: the scene measures in Luau" * doctest::skip())
 {
     Behaviours in;
     in.language = u8"luau";
-    in.empty = u8"Empty = {}\n"
-               u8"Empty.__index = Empty\n"
+    in.empty = u8"Empty = EntityBehavior.class()\n"
                u8"function Empty.new(entity) return setmetatable({}, Empty) end\n"
                u8"function Empty:onUpdate(dt) end\n";
-    in.mover = u8"Mover = {}\n"
-               u8"Mover.__index = Mover\n"
+    in.mover = u8"Mover = EntityBehavior.class()\n"
                u8"function Mover.new(entity) return setmetatable({ entity = entity, speed = 2.0 }, Mover) end\n"
                u8"function Mover:onUpdate(dt)\n"
                u8"    local p = self.entity:position()\n"
                u8"    self.entity:setPosition(p.x + self.speed * dt, p.y, p.z)\n"
                u8"end\n";
-    in.fetcher = u8"Fetcher = {}\n"
-                 u8"Fetcher.__index = Fetcher\n"
+    in.fetcher = u8"Fetcher = EntityBehavior.class()\n"
                  u8"function Fetcher.new(entity) return setmetatable({ entity = entity }, Fetcher) end\n"
                  u8"function Fetcher:onUpdate(dt)\n"
                  u8"    for i = 1, 1000 do local f = PathFollowComponent.of(self.entity) end\n"
@@ -470,7 +467,7 @@ TEST_CASE("script scene: each measure's scene runs its behaviours")
 #if defined(INTEGRATION_HAS_LUAU)
     BenchScene bench;
     bench.AddScripted(MakeClass(u8"luau", u8"Mover",
-                                u8"Mover = {}\nMover.__index = Mover\n"
+                                u8"Mover = EntityBehavior.class()\n"
                                 u8"function Mover.new(entity) return setmetatable({ entity = entity }, Mover) end\n"
                                 u8"function Mover:onUpdate(dt) local p = self.entity:position(); self.entity:setPosition(p.x + 1, p.y, p.z) end\n"),
                       3);

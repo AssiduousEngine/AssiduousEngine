@@ -114,6 +114,7 @@ namespace
         RefPtr<ScriptClass> cls = MakeRef<ScriptClass>(DefaultAllocator());
         cls->language = String(u8"angelscript");
         cls->className = String(className);
+        cls->kind = BehaviorKind::Entity; // an entity's behavior; a test of a Level sets Scene
         cls->source = String(source);
         for (StringView handler : handlers)
         {
@@ -136,6 +137,7 @@ namespace
         RefPtr<ScriptClass> cls = MakeRef<ScriptClass>(DefaultAllocator());
         cls->language = String(language);
         cls->className = String(className);
+        cls->kind = BehaviorKind::Entity; // an entity's behavior; a test of a Level sets Scene
         cls->source = String(source);
         for (StringView handler : handlers)
         {
@@ -1321,6 +1323,7 @@ TEST_CASE("script.scene: the Roll Call sample game - orbs EMIT OrbCollected, the
                   u8"    void onPlayerFell() { won = true; }\n"
                   u8"}\n",
                   {u8"onStart", u8"onOrbCollected", u8"onPlayerFell"});
+    levelClass->kind = BehaviorKind::Scene; // a Level is a scene behavior
     level->Settings().script = levelClass;
 
     // Pickup: near "Player", emit "OrbCollected" and remove itself.
@@ -1414,6 +1417,7 @@ TEST_CASE("script.scene: the Roll Call sample game runs on a LUAU Level")
         u8"end\n"
         u8"function Level:onPlayerFell() self.won = true end\n",
         {u8"onStart", u8"onOrbCollected", u8"onPlayerFell"});
+    levelClass->kind = BehaviorKind::Scene; // a Level is a scene behavior
     level->Settings().script = levelClass;
 
     RefPtr<ScriptClass> pickup = MakeClassLang(
@@ -3168,6 +3172,7 @@ TEST_CASE("script.scene: a Level runs onStart/onUpdate/onStop through its bound 
                   u8"    void onStop() { scene.find(\"started\").setName(\"stopped\"); }\n"
                   u8"}\n",
                   {u8"onStart", u8"onUpdate", u8"onStop"});
+    levelClass->kind = BehaviorKind::Scene; // a Level is a scene behavior
     level->Settings().script = levelClass;
 
     bed.Start(); // OnSceneStarted: construct new(scene), then onStart
@@ -3209,6 +3214,7 @@ TEST_CASE("script.scene: a Level's harvested property default is applied before 
                   u8"    void onStart() { scene.find(\"probe\").setPosition(timeLimit, 0.0f, 0.0f); }\n"
                   u8"}\n",
                   {u8"onStart"}, {FloatProperty(u8"timeLimit", 90.0)});
+    levelClass->kind = BehaviorKind::Scene; // a Level is a scene behavior
     level->Settings().script = levelClass;
 
     bed.Start(); // construct, apply timeLimit=90 (default), onStart
@@ -3232,6 +3238,7 @@ TEST_CASE("script.scene: a Level's hash-keyed property override wins over the ha
                   u8"    void onStart() { scene.find(\"probe\").setPosition(timeLimit, 0.0f, 0.0f); }\n"
                   u8"}\n",
                   {u8"onStart"}, {FloatProperty(u8"timeLimit", 90.0)});
+    levelClass->kind = BehaviorKind::Scene; // a Level is a scene behavior
     level->Settings().script = levelClass;
 
     // The scene-settings override (the inspector-authored value) wins over the class default.
@@ -3299,6 +3306,7 @@ TEST_CASE("script.scene: a Level receives onFixedUpdate on the fixed lane")
                   u8"    }\n"
                   u8"}\n",
                   {u8"onFixedUpdate"});
+    levelClass->kind = BehaviorKind::Scene; // a Level is a scene behavior
     level->Settings().script = levelClass;
 
     bed.Start();
@@ -3330,6 +3338,7 @@ TEST_CASE("script.scene: a faulting Level handler disables THAT scene's level on
                   u8"    }\n"
                   u8"}\n",
                   {u8"onUpdate"});
+    levelClass->kind = BehaviorKind::Scene; // a Level is a scene behavior
     level->Settings().script = levelClass;
 
     bed.Start();
@@ -3365,7 +3374,9 @@ TEST_CASE("script.scene: two scenes sharing one Level class get INDEPENDENT obje
     lb->SetRunHost(&b.host);
     const scene::EntityHandle ta = a.scene.CreateEntity(u8"ticker");
     const scene::EntityHandle tb = b.scene.CreateEntity(u8"ticker");
+    levelClass->kind = BehaviorKind::Scene; // a Level is a scene behavior
     la->Settings().script = levelClass;
+    levelClass->kind = BehaviorKind::Scene; // a Level is a scene behavior
     lb->Settings().script = levelClass;
 
     a.Start();
@@ -3393,6 +3404,7 @@ TEST_CASE("script.scene: an AngelScript Level runs the tier (2nd backend)")
         u8"    void onStart() { scene.find(\"flag\").setName(\"started\"); }\n"
         u8"}\n",
         {u8"onStart"});
+    levelClass->kind = BehaviorKind::Scene; // a Level is a scene behavior
     level->Settings().script = levelClass;
 
     bed.Start();
@@ -4106,6 +4118,7 @@ TEST_CASE("script.scene: scene.events.emit reaches a sibling behavior AND the Le
                   u8"    void onOrbCollected(int n) { scene.find(\"levelmark\").setName(\"level:\" + n); }\n"
                   u8"}\n",
                   {u8"onOrbCollected"});
+    levelClass->kind = BehaviorKind::Scene; // a Level is a scene behavior
     level->Settings().script = levelClass;
 
     const scene::EntityHandle listener = bed.AddScripted(receiver, u8"listener");
@@ -4157,6 +4170,7 @@ TEST_CASE("script.scene: scene.events.emit reaches a sibling behavior AND the Le
         u8"    void onOrbCollected(float n) { if (n > 4.5f) scene.find(\"levelmark\").setName(\"level5\"); }\n"
         u8"}\n",
         {u8"onOrbCollected"});
+    levelClass->kind = BehaviorKind::Scene; // a Level is a scene behavior
     level->Settings().script = levelClass;
 
     const scene::EntityHandle listener = bed.AddScripted(receiver, u8"listener");
@@ -4212,6 +4226,7 @@ TEST_CASE("script.scene: LUAU scene.events.emit reaches a sibling behavior AND t
         u8"    if n > 4.5 then self.scene:find(\"levelmark\"):setName(\"level5\") end\n"
         u8"end\n",
         {u8"onOrbCollected"});
+    levelClass->kind = BehaviorKind::Scene; // a Level is a scene behavior
     level->Settings().script = levelClass;
 
     const scene::EntityHandle listener = bed.AddScripted(receiver, u8"listener");
@@ -6274,9 +6289,9 @@ TEST_CASE("script.scene: a class that fails to load fails no class after it, in 
         RefPtr<ScriptClass> good = MakeClassLang(language.id, u8"Good", language.good, {});
         RefPtr<ScriptClass> broken = MakeClassLang(language.id, u8"Broken", language.broken, {});
         RefPtr<ScriptClass> later = MakeClassLang(language.id, u8"Later", language.later, {});
-        CHECK(bed.host.Instantiate(*good, Span<Variant>{}).Get() != nullptr);
-        CHECK(bed.host.Instantiate(*broken, Span<Variant>{}).Get() == nullptr);
-        CHECK(bed.host.Instantiate(*later, Span<Variant>{}).Get() != nullptr);
+        CHECK(bed.host.Instantiate(*good, Span<Variant>{}, BehaviorKind::Entity).Get() != nullptr);
+        CHECK(bed.host.Instantiate(*broken, Span<Variant>{}, BehaviorKind::Entity).Get() == nullptr);
+        CHECK(bed.host.Instantiate(*later, Span<Variant>{}, BehaviorKind::Entity).Get() != nullptr);
     }
 }
 
@@ -6290,14 +6305,14 @@ TEST_CASE("script.scene: a new class loads alone, never every known class again"
         u8"Loads = (Loads or 0) + 1\nCounted = {}\nCounted.__index = Counted\n"
         u8"function Counted.new() return setmetatable({}, Counted) end\n",
         {});
-    REQUIRE(bed.host.Instantiate(*counted, Span<Variant>{}).Get() != nullptr);
+    REQUIRE(bed.host.Instantiate(*counted, Span<Variant>{}, BehaviorKind::Entity).Get() != nullptr);
     for (int i = 0; i < 3; ++i)
     {
         const String name = Format(u8"Other{}", i);
         const String source = Format(u8"{} = {{}}\n{}.__index = {}\nfunction {}.new() return setmetatable({{}}, {}) end\n",
                                      name, name, name, name, name);
         RefPtr<ScriptClass> other = MakeClassLang(u8"luau", name.AsView(), source.AsView(), {});
-        REQUIRE(bed.host.Instantiate(*other, Span<Variant>{}).Get() != nullptr);
+        REQUIRE(bed.host.Instantiate(*other, Span<Variant>{}, BehaviorKind::Entity).Get() != nullptr);
     }
     bool numeric = false;
     CHECK(ScriptNumbers::Of(bed.host.ScriptContext()->GetGlobal(u8"Loads"), numeric) == doctest::Approx(1.0));

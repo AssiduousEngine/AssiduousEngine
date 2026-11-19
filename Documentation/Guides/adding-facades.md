@@ -151,19 +151,13 @@ Add `Foundation::Script Foundation::Script.Facades` to the module's `target_link
 
 ## Rules & gotchas (learned the hard way)
 
-- **Reserved contract-class names: `Game` and `Level`.** These are names a user's own class
-  *mandatorily* takes - the game orchestrator class is `Game` (`StartRunBehavior` does
-  `CreateInstance("Game")`), and the scene-scripting tier's class is `Level` (instantiated once
-  per scene from `SceneScriptSettings::script`). A facade sharing either name is a hard
-  AngelScript error (`Name conflict. '<name>' is an extended data type`) - the user's class
-  can't compile. This is why the level-load facade is `run` (the `Run` class's script name), not
-  `Game`. `RegisterExtraFacadeName` **refuses** either name (logs an error, adds nothing) so the
-  user's class always wins; the guard is covered by `script.facades: reserved contract-class
-  names ...` in `Engine.Run.Tests`. Avoid any other name a user's own class is likely
-  to take.
+- **A facade's script name shares the global names with a user's classes.** One sharing a name
+  is a hard AngelScript error (`Name conflict. '<name>' is an extended data type`) and the
+  user's class cannot compile, so avoid a name a user's own class is likely to take (`Game`,
+  `Level`, `Player`): this is why the level-load facade is `run`.
 - **Register the TYPE *and* the NAME.** `GlobalTypeRegistry().Register(X::StaticType())` binds
-  the type. `RegisterExtraFacadeName(u8"X")` adds it to the facade list, which the reserved-name
-  guard and the facade surface tests check (no backend reads the list to bind). Do both in the
+  the type. `RegisterExtraFacadeName(u8"X")` adds it to the facade list, which the facade surface
+  tests check (no backend reads the list to bind). Do both in the
   same `Register<X>ScriptFacade` (idempotent). The impl unit needs
   `import foundation.script.facades` + the `Foundation::Script.Facades` CMake link dep.
 - **Every method must guard.** An unwired binding (bare cook VM, no host, or pre-install) must

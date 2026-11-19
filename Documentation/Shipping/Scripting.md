@@ -13,15 +13,34 @@ game's scripts in one language. The bound engine surface is the same across back
 and idioms differ (e.g. Luau uses colon calls for instance methods, dot calls for static
 facades).
 
-## The three script tiers
+## The three kinds of behavior
 
-- **Behavior** - attached to an entity through a ScriptComponent behavior slot. One class per
-  script; the engine constructs it with its entity. This is where most gameplay lives.
-- **Level** - the per-scene script (reserved class name `Level`), set in the scene's Scene
-  Script settings. One instance per scene, constructed with its scene. Use it for
-  scene-wide orchestration: spawning, win conditions, sequencing.
-- **Game** - the project's startup script (reserved class name `Game`), set in project
-  settings. Runs for the whole game run, across scene loads.
+A class the engine runs is a **behavior**, and declares its kind by deriving from it. A script
+holds one behavior class, of any name; other classes beside it are its helpers.
+
+- **EntityBehavior** - attached to an entity through a ScriptComponent behavior slot; the engine
+  constructs it with its entity. This is where most gameplay lives.
+- **SceneBehavior** - one per scene, set in the scene's Scene Script settings, constructed with
+  its scene. Use it for scene-wide orchestration: spawning, win conditions, sequencing.
+- **RunBehavior** - the project's startup script, set in project settings. Runs for the whole
+  game run, across scene loads.
+
+```angelscript
+class Coin : EntityBehavior
+{
+    Coin(Entity e) {}
+}
+```
+
+```lua
+Coin = EntityBehavior.class()
+function Coin.new(entity) return setmetatable({ entity = entity }, Coin) end
+```
+
+In AngelScript a behavior can also derive from a base class of its own (`class Mover : Base,
+EntityBehavior`). In Luau the class is a global made from its kind (`local` is not found). A
+script whose class derives from no kind is not a behavior, and is refused where a behavior is set;
+one with two behavior classes does not cook.
 
 ## Lifecycle and events
 
@@ -222,8 +241,6 @@ Http.post("https://example.com/scores", "application/json", '{"score":9}',      
 
 ## Gotchas
 
-- Class names `Game` and `Level` are reserved for their tiers - do not use them for
-  behaviors.
 - A behavior constructor runs at cook time too; side effects beyond field init will
   misbehave.
 - Some engine properties are read-only on purpose (a network identity's `authority`, for

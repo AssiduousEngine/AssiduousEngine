@@ -59,19 +59,19 @@ export namespace pipeline{
         u8"    void onDestroy() {}\n"
         u8"}\n";
 
-    // The New Asset starter for a Level (the scene-scripting tier): one object per scene,
-    // constructed with the scene handle. All handlers optional. onUpdate/onFixedUpdate run
-    // only while the scene simulates.
+    // The New Asset starter for a scene behavior: one object per scene, constructed with the
+    // scene handle, its class named after the asset. All handlers optional. onUpdate and
+    // onFixedUpdate run only while the scene simulates.
     inline constexpr StringView kAngelScriptLevelStarter =
-        u8"// Level class - the per-scene script. Set it on the scene's Scene Script settings.\n"
+        u8"// A scene behavior - one per scene. Set it on the scene's Scene Script settings.\n"
         u8"// One instance per scene, constructed with the scene handle. In AngelScript the\n"
         u8"// static facades are NAMESPACED and lowercase - Log::info, Time::delta - and the\n"
         u8"// scene handle uses '.': scene.find(\"name\"), scene.spawn(...).\n"
-        u8"class Level : SceneBehavior\n"
+        u8"class {ClassName} : SceneBehavior\n"
         u8"{\n"
         u8"    private Scene scene;\n"
         u8"\n"
-        u8"    Level(Scene s) { scene = s; }\n"
+        u8"    {ClassName}(Scene s) { scene = s; }\n"
         u8"\n"
         u8"    void onStart() { Log::info(\"Level started\"); }\n"
         u8"    // Gameplay dt; runs only while the scene simulates.\n"
@@ -81,13 +81,13 @@ export namespace pipeline{
         u8"    void onStop() {}\n"
         u8"}\n";
 
-    // The New Asset starter for the game orchestrator: the mandatory class `Game`. One per
-    // run; drives scene loading (through the run facade) and the game-wide update.
+    // The New Asset starter for a run behavior, the game orchestrator: one per run, its class
+    // named after the asset; drives scene loading (through the run facade) and the game-wide update.
     inline constexpr StringView kAngelScriptGameStarter =
-        u8"// Game class - the game orchestrator (mandatory name `Game`). One per run.\n"
-        u8"class Game : RunBehavior\n"
+        u8"// A run behavior - the game orchestrator, one per run. Set it as the project's.\n"
+        u8"class {ClassName} : RunBehavior\n"
         u8"{\n"
-        u8"    Game() {}\n"
+        u8"    {ClassName}() {}\n"
         u8"\n"
         u8"    // Runs once at start. Load the opening scene here via the run facade:\n"
         u8"    //   run::loadScene(Guid(\"<the scene's id>\"));\n"

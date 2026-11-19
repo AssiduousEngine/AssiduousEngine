@@ -99,6 +99,20 @@ export namespace pipeline{
     /// choose. None at all is a utility module: empty, no problem.
     [[nodiscard]] inline String ChooseScriptClass(Span<const String> declared, StringView preferred, String& problem);
 
+    /// A class a script declares, with the kind it derives from (None: it derives from no kind).
+    struct DeclaredScriptClass
+    {
+        String name;
+        foundation::script::BehaviorKind kind = foundation::script::BehaviorKind::None;
+    };
+
+    /// The behavior class a script plays: the one class among `declared` that derives from a kind,
+    /// its kind in `kind`. A script whose classes derive from none is a module of helpers: empty,
+    /// kind None, no problem. Several that derive from a kind is no guess: empty, with `problem`
+    /// naming them, since a file holds one behavior class.
+    [[nodiscard]] inline String ChooseBehaviorClass(Span<const DeclaredScriptClass> declared,
+                                                    foundation::script::BehaviorKind& kind, String& problem);
+
     /// The declared lifecycle/event/message handlers out of the `on<Upper>(...)` naming
     /// convention, by source scan (comments stripped). Both languages use it, so it is a
     /// shared cook helper, not language syntax.
@@ -302,6 +316,43 @@ export namespace pipeline{
                              names.AsView(), preferred);
         }
         return {};
+    }
+
+    inline String ChooseBehaviorClass(Span<const DeclaredScriptClass> declared, foundation::script::BehaviorKind& kind,
+                                      String& problem)
+    {
+        problem = String{};
+        kind = foundation::script::BehaviorKind::None;
+        const DeclaredScriptClass* chosen = nullptr;
+        String names;
+        usize count = 0;
+        for (const DeclaredScriptClass& entry : declared)
+        {
+            if (entry.kind == foundation::script::BehaviorKind::None)
+            {
+                continue;
+            }
+            chosen = &entry;
+            ++count;
+            if (!names.IsEmpty())
+            {
+                names.Append(u8", ");
+            }
+            names.Append(entry.name.AsView());
+        }
+        if (count > 1)
+        {
+            problem = Format(u8"it declares the behavior classes {}: a script holds one, so move the others "
+                             u8"to scripts of their own",
+                             names.AsView());
+            return {};
+        }
+        if (chosen == nullptr)
+        {
+            return {};
+        }
+        kind = chosen->kind;
+        return chosen->name;
     }
 
     /// The class a script asset prefers: the one it records, else the one named like its file.
@@ -1642,22 +1693,6 @@ export namespace pipeline{
         case ScriptTier::Behavior:
         default:
             return u8"NewBehavior";
-        }
-    }
-
-    /// The class a new script's starter declares: a behaviour's is named after its asset
-    /// (`behaviourClass`, ClassNameFor's), the level and game tiers' are reserved.
-    [[nodiscard]] inline StringView ScriptStarterClassName(ScriptTier tier, StringView behaviourClass) noexcept
-    {
-        switch (tier)
-        {
-        case ScriptTier::Level:
-            return u8"Level";
-        case ScriptTier::Game:
-            return u8"Game";
-        case ScriptTier::Behavior:
-        default:
-            return behaviourClass;
         }
     }
 

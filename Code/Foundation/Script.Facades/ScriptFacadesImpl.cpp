@@ -209,24 +209,6 @@ namespace foundation::script
 
     void RegisterExtraFacadeName(StringView name)
     {
-        // Reserved class names, which a user's own script classes take: the game orchestrator is
-        // class `Game` (StartRunBehavior does CreateInstance("Game")), and the scene tier is class
-        // `Level` (instantiated once per scene). A facade sharing either name would clash
-        // (AngelScript "Name conflict") and the user's class could not compile, so refuse the
-        // registration.
-        const StringView kReservedNames[] = {StringView(u8"Game"), StringView(u8"Level")};
-        for (StringView reserved : kReservedNames)
-        {
-            if (name == reserved)
-            {
-                LOG_ERROR(
-                    u8"Script",
-                    u8"facade name '{}' is reserved for a user contract class - registration refused",
-                    name);
-                return; // refuse: the name is never added, so the user's class always wins
-
-            }
-        }
         for (const String& existing : ExtraFacadeStorage())
         {
             if (existing.AsView() == name)

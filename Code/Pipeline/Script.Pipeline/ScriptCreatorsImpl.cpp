@@ -35,7 +35,7 @@ namespace pipeline
         {
             return nullptr;
         }
-        // The name first: a behaviour's class is named after the asset that holds it.
+        // The name first: a script's class is named after the asset that holds it, whatever its kind.
         const String name = target->UniqueInstanceName(context.NameOr(baseName));
         AssetCreationContext named = context;
         named.name = name.AsView();
@@ -44,7 +44,7 @@ namespace pipeline
         ScriptClassAsset asset;
         asset.language = String(languageId);
         const String className = ClassNameFor(name.AsView(), baseName);
-        asset.className = String(ScriptStarterClassName(tier, className.AsView()));
+        asset.className = className;
         const String starter = cook->NewAssetTemplate(tier, className.AsView());
         return CreateLinkedTextAsset(named, baseName, dottedExtension.AsView(), starter.AsView(),
                                      ScriptClassAsset::StaticType(), asset, foundation::vfs::kSourcesCodeFolder);

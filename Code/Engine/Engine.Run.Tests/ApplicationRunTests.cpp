@@ -121,29 +121,6 @@ namespace
     }
 }
 
-TEST_CASE("script.facades: reserved contract-class names (Game/Level) are refused as facades")
-{
-    // A user's own class has to take these names (the game orchestrator is `Game`, the scene tier
-    // is `Level`), so a facade sharing one would clash. Registration must be refused.
-    script::RegisterExtraFacadeName(u8"Game");
-    script::RegisterExtraFacadeName(u8"Level");
-    // A non-reserved name still registers (idempotently): the control.
-    script::RegisterExtraFacadeName(u8"run");
-
-    bool sawGame = false;
-    bool sawLevel = false;
-    bool sawRun = false;
-    for (StringView facade : script::ExtraFacadeNames())
-    {
-        sawGame = sawGame || facade == StringView(u8"Game");
-        sawLevel = sawLevel || facade == StringView(u8"Level");
-        sawRun = sawRun || facade == StringView(u8"run");
-    }
-    CHECK_FALSE(sawGame);  // refused
-    CHECK_FALSE(sawLevel); // refused
-    CHECK(sawRun);         // registered
-}
-
 TEST_CASE("game-instance: instance time scale defaults to 1 and is settable; fresh instance idle")
 {
     engine::runtime::ApplicationRun gi;
@@ -503,13 +480,13 @@ TEST_CASE("game-instance: fallback path starts, ticks, and stops a Game script")
     foundation::script::angelscript::RegisterAngelScriptBackend();
 
     engine::runtime::ApplicationRun gi;
-    const bool ok = gi.StartRunBehavior(u8"class Game {\n"
+    const bool ok = gi.StartRunBehavior(u8"class Game : RunBehavior {\n"
                                    u8"  Game() {}\n"
                                    u8"  void launch() {}\n"
                                    u8"  void update(double dt) {}\n"
                                    u8"  void exit() {}\n"
                                    u8"}\n",
-                                   u8"game.as");
+                                   u8"game.as", u8"Game");
     REQUIRE(ok);
     CHECK(gi.RunBehaviorRunning());
     CHECK(gi.ScriptContext() != nullptr);
@@ -535,7 +512,7 @@ TEST_CASE("game-instance: starts, ticks, and stops a LUAU Game orchestrator (the
                                    u8"function Game:launch() end\n"
                                    u8"function Game:update(dt) end\n"
                                    u8"function Game:exit() end\n",
-                                   u8"game.luau"); // the .luau extension resolves the Luau backend
+                                   u8"game.luau", u8"Game"); // the .luau extension resolves the Luau backend
     REQUIRE(ok);
     CHECK(gi.RunBehaviorRunning());
     CHECK(gi.ScriptContext() != nullptr);
@@ -581,7 +558,7 @@ TEST_CASE("game-instance: a game script fetches over the run's HTTP client; stop
                                  u8"function Game:update(dt) end\n"
                                  u8"function Game:exit() end\n",
                                  server.BoundPort(), server.BoundPort());
-    REQUIRE(gi.StartRunBehavior(source.AsView(), u8"game.luau"));
+    REQUIRE(gi.StartRunBehavior(source.AsView(), u8"game.luau", u8"Game"));
     for (u32 i = 0; i < 5000 && gi.ScriptContext()->GetGlobal(u8"Got").Get<String>().IsEmpty(); ++i)
     {
         (void)server.Pump();
@@ -611,7 +588,7 @@ TEST_CASE("game-instance: Scene/run facades are null-scene-safe from a pre-scene
     engine::runtime::ApplicationRun gi;
     CHECK_FALSE(gi.SceneReady()); // no scene yet: the orchestrator-first condition
     const bool ok = gi.StartRunBehavior(
-        u8"class Game {\n"
+        u8"class Game : RunBehavior {\n"
         u8"  Game() {}\n"
         u8"  void launch() {\n"
         u8"    run::currentScene().find(\"nobody\");\n"
@@ -626,7 +603,7 @@ TEST_CASE("game-instance: Scene/run facades are null-scene-safe from a pre-scene
         u8"  }\n"
         u8"  void exit() {}\n"
         u8"}\n",
-        u8"game.as");
+        u8"game.as", u8"Game");
     REQUIRE(ok); // compiled (no Game-name clash) and launch() ran the pre-scene facade calls, no fault
     CHECK(gi.RunBehaviorRunning());
     gi.RunHost().Advance(0.016f);
@@ -648,7 +625,7 @@ TEST_CASE("game-instance: Scene/run facades are null-scene-safe from a pre-scene
     // binding the load facade in lowercase as `run` is what lets this `class Game` compile beside
     // it.
     const bool ok = gi.StartRunBehavior(
-        u8"class Game {\n"
+        u8"class Game : RunBehavior {\n"
         u8"  Game() {}\n"
         u8"  void launch() {\n"
         u8"    run::currentScene().find(\"nobody\");\n"
@@ -661,7 +638,7 @@ TEST_CASE("game-instance: Scene/run facades are null-scene-safe from a pre-scene
         u8"run::sceneReady(); }\n"
         u8"  void exit() {}\n"
         u8"}\n",
-        u8"game.as");
+        u8"game.as", u8"Game");
     REQUIRE(ok);
     CHECK(gi.RunBehaviorRunning());
     gi.RunHost().Advance(0.016f);
@@ -853,7 +830,7 @@ TEST_CASE("game-instance: a debugger suspension in update is not a fault - the s
     foundation::script::angelscript::RegisterAngelScriptBackend();
 
     engine::runtime::ApplicationRun gi;
-    const bool ok = gi.StartRunBehavior(u8"class Game {\n"               // 1
+    const bool ok = gi.StartRunBehavior(u8"class Game : RunBehavior {\n"               // 1
                                    u8"  void launch() {}\n"         // 2
                                    u8"  void update(double dt) {\n" // 3
                                    u8"    int a = 1;\n"             // 4  <- breakpoint
@@ -861,7 +838,7 @@ TEST_CASE("game-instance: a debugger suspension in update is not a fault - the s
                                    u8"  }\n"
                                    u8"  void exit() {}\n"
                                    u8"}\n",
-                                   u8"game.as");
+                                   u8"game.as", u8"Game");
     REQUIRE(ok);
     REQUIRE(gi.RunBehaviorRunning());
 
@@ -936,8 +913,8 @@ TEST_CASE("game-instance: two instances own separate, isolated run-host contexts
         u8"class Game { Game() {}\n void launch() {}\n void update(double dt) {}\n void exit() {}\n}\n";
     engine::runtime::ApplicationRun a;
     engine::runtime::ApplicationRun b;
-    REQUIRE(a.StartRunBehavior(src, u8"game.as"));
-    REQUIRE(b.StartRunBehavior(src, u8"game.as"));
+    REQUIRE(a.StartRunBehavior(src, u8"game.as", u8"Game"));
+    REQUIRE(b.StartRunBehavior(src, u8"game.as", u8"Game"));
 
     REQUIRE(a.RunHost().ScriptContext() != nullptr);
     REQUIRE(b.RunHost().ScriptContext() != nullptr);
@@ -1007,14 +984,14 @@ TEST_CASE("game-instance: the Game tier's on<Event> inbox harvests the run bus (
     engine::runtime::ApplicationRun gi;
     const String handlers[] = {String(u8"onPing")}; // the cooked ScriptClass's handler list
     const bool ok = gi.StartRunBehavior(u8"double Pinged = 0;\n"
-                                   u8"class Game {\n"
+                                   u8"class Game : RunBehavior {\n"
                                    u8"  Game() {}\n"
                                    u8"  void launch() {}\n"
                                    u8"  void update(float dt) {}\n"
                                    u8"  void exit() {}\n"
                                    u8"  void onPing(int x) { Pinged = x; }\n"
                                    u8"}\n",
-                                   u8"game.as", Span<const String>(handlers, 1));
+                                   u8"game.as", u8"Game", Span<const String>(handlers, 1));
     REQUIRE(ok);
     auto* scriptContext = gi.RunHost().ScriptContext();
     REQUIRE(scriptContext != nullptr);
@@ -1046,9 +1023,10 @@ TEST_CASE("game-instance: a Game started from its cooked class hears the run bus
     foundation::script::ScriptClass cooked;
     cooked.language = String(u8"angelscript");
     cooked.className = String(u8"Game");
+    cooked.kind = foundation::script::BehaviorKind::Run;
     cooked.sourceName = String(u8"game.as");
     cooked.source = String(u8"double Reached = 0;\n"
-                           u8"class Game {\n"
+                           u8"class Game : RunBehavior {\n"
                            u8"  Game() {}\n"
                            u8"  void launch() {}\n"
                            u8"  void update(float dt) {}\n"
@@ -1082,7 +1060,7 @@ TEST_CASE("game-instance: the Game tier's on<Event> inbox harvests the run bus (
                                    u8"function Game:update(dt) end\n"
                                    u8"function Game:exit() end\n"
                                    u8"function Game:onPing(x) Pinged = x end\n",
-                                   u8"game.luau", Span<const String>(handlers, 1));
+                                   u8"game.luau", u8"Game", Span<const String>(handlers, 1));
     REQUIRE(ok);
     auto* scriptContext = gi.ScriptContext();
     REQUIRE(scriptContext != nullptr);
@@ -1112,14 +1090,14 @@ TEST_CASE("game-instance: run.events().emit publishes on the run bus, round-trip
     const String handlers[] = {String(u8"onPing")};
     const bool ok = gi.StartRunBehavior(
         u8"double Pinged = 0;\n"
-        u8"class Game {\n"
+        u8"class Game : RunBehavior {\n"
         u8"  Game() {}\n"
         u8"  void launch() { run::events().emit(\"Ping\", 7); }\n" // publish on the run bus from script
         u8"  void update(float dt) {}\n"
         u8"  void exit() {}\n"
         u8"  void onPing(int x) { Pinged = x; }\n" // the Game's own inbox hears it
         u8"}\n",
-        u8"game.as", Span<const String>(handlers, 1));
+        u8"game.as", u8"Game", Span<const String>(handlers, 1));
     REQUIRE(ok);
     auto* scriptContext = gi.RunHost().ScriptContext();
     REQUIRE(scriptContext != nullptr);
@@ -1140,13 +1118,13 @@ TEST_CASE("game-instance: run.setTimeScale routes from script to the run binding
     engine::runtime::ApplicationRun gi;
     f32 captured = -1.0f;
     gi.Binding().setTimeScale = Function<void(f32)>{[&captured](f32 s) { captured = s; }};
-    const bool ok = gi.StartRunBehavior(u8"class Game {\n"
+    const bool ok = gi.StartRunBehavior(u8"class Game : RunBehavior {\n"
                                    u8"  Game() {}\n"
                                    u8"  void launch() { run::setTimeScale(0.5f); }\n" // pause/slow-mo API
                                    u8"  void update(float dt) {}\n"
                                    u8"  void exit() {}\n"
                                    u8"}\n",
-                                   u8"game.as", Span<const String>{});
+                                   u8"game.as", u8"Game", Span<const String>{});
     REQUIRE(ok);
     CHECK(captured == doctest::Approx(0.5f)); // launch() -> run::setTimeScale -> binding (synchronous)
     gi.StopRunBehavior();
@@ -1163,13 +1141,13 @@ TEST_CASE("game-instance: the host's pause holds the Game class still: no update
     int updates = 0;
     // Each update reports itself through the binding (run::setTimeScale), so the test counts them.
     gi.Binding().setTimeScale = Function<void(f32)>{[&updates](f32) { ++updates; }};
-    REQUIRE(gi.StartRunBehavior(u8"class Game {\n"
+    REQUIRE(gi.StartRunBehavior(u8"class Game : RunBehavior {\n"
                            u8"  Game() {}\n"
                            u8"  void launch() {}\n"
                            u8"  void update(float dt) { run::setTimeScale(1.0f); }\n"
                            u8"  void exit() {}\n"
                            u8"}\n",
-                           u8"game.as", Span<const String>{}));
+                           u8"game.as", u8"Game", Span<const String>{}));
     gi.Start();
     gi.TickRunBehavior(0.016f, 1.0f);
     CHECK(updates == 1);
@@ -1209,7 +1187,7 @@ TEST_CASE("game-instance: run.setTimeScale/timeScale route from script to the ru
                                    u8"end\n"
                                    u8"function Game:update(dt) end\n"
                                    u8"function Game:exit() end\n",
-                                   u8"game.luau", Span<const String>{});
+                                   u8"game.luau", u8"Game", Span<const String>{});
     REQUIRE(ok);
     CHECK(captured == doctest::Approx(0.5f)); // launch() -> run.setTimeScale -> binding (synchronous)
     auto* scriptContext = gi.ScriptContext();
@@ -1228,7 +1206,7 @@ TEST_CASE("game-instance: run.setProfilerOverlay/profilerAvailable route to the 
     engine::runtime::RegisterRunScriptFacade();
     foundation::script::angelscript::RegisterAngelScriptBackend();
     const char8_t* source = u8"bool Available = true;\n"
-                            u8"class Game {\n"
+                            u8"class Game : RunBehavior {\n"
                             u8"  Game() {}\n"
                             u8"  void launch() { Available = run::profilerAvailable(); run::setProfilerOverlay(true); }\n"
                             u8"  void update(float dt) {}\n"
@@ -1237,7 +1215,7 @@ TEST_CASE("game-instance: run.setProfilerOverlay/profilerAvailable route to the 
 
     {
         engine::runtime::ApplicationRun unwired;
-        REQUIRE(unwired.StartRunBehavior(source, u8"game.as", Span<const String>{}));
+        REQUIRE(unwired.StartRunBehavior(source, u8"game.as", u8"Game", Span<const String>{}));
         REQUIRE(unwired.ScriptContext() != nullptr);
         CHECK_FALSE(unwired.ScriptContext()->GetGlobal(u8"Available").Get<bool>());
         unwired.StopRunBehavior();
@@ -1247,7 +1225,7 @@ TEST_CASE("game-instance: run.setProfilerOverlay/profilerAvailable route to the 
     Array<bool> calls(DefaultAllocator());
     gi.Binding().setProfilerOverlay = Function<void(bool)>{[&calls](bool shown) { calls.PushBack(shown); }};
     gi.Binding().profilerAvailable = Function<bool()>{[]() { return true; }};
-    REQUIRE(gi.StartRunBehavior(source, u8"game.as", Span<const String>{}));
+    REQUIRE(gi.StartRunBehavior(source, u8"game.as", u8"Game", Span<const String>{}));
     CHECK(gi.ScriptContext()->GetGlobal(u8"Available").Get<bool>());
     REQUIRE(calls.Size() == 1);
     CHECK(calls[0]);
@@ -1277,7 +1255,7 @@ TEST_CASE("game-instance: run.setProfilerOverlay/profilerAvailable route to the 
                            u8"end\n"
                            u8"function Game:update(dt) end\n"
                            u8"function Game:exit() end\n",
-                           u8"game.luau", Span<const String>{}));
+                           u8"game.luau", u8"Game", Span<const String>{}));
     REQUIRE(gi.ScriptContext() != nullptr);
     CHECK(gi.ScriptContext()->GetGlobal(u8"Available").Get<bool>());
     REQUIRE(calls.Size() == 1);
@@ -1318,7 +1296,7 @@ TEST_CASE("game-instance: run.events():emit publishes on the run bus, round-trip
         u8"function Game:update(dt) end\n"
         u8"function Game:exit() end\n"
         u8"function Game:onPing(x) Pinged = x end\n",
-        u8"game.luau", Span<const String>(handlers, 1));
+        u8"game.luau", u8"Game", Span<const String>(handlers, 1));
     REQUIRE(ok);
     auto* scriptContext = gi.ScriptContext();
     REQUIRE(scriptContext != nullptr);
@@ -1334,7 +1312,7 @@ TEST_CASE("game-instance: a missing Game class fails to start cleanly")
     foundation::script::angelscript::RegisterAngelScriptBackend();
 
     engine::runtime::ApplicationRun gi;
-    const bool ok = gi.StartRunBehavior(u8"int X = 1;\n", u8"game.as");
+    const bool ok = gi.StartRunBehavior(u8"int X = 1;\n", u8"game.as", u8"Game");
     CHECK_FALSE(ok); // no `Game` class
     CHECK_FALSE(gi.RunBehaviorRunning());
 }
@@ -1752,7 +1730,7 @@ TEST_CASE("game-instance: a faulted game script says where and why, and the run 
                                 u8"  if self.n == 4 then error(\"boom\") end\n"
                                 u8"end\n"
                                 u8"function Game:exit() end\n";
-    REQUIRE(gi.StartRunBehavior(faulting, u8"game.luau"));
+    REQUIRE(gi.StartRunBehavior(faulting, u8"game.luau", u8"Game"));
     CHECK(gi.RunBehaviorFault().IsEmpty());
     for (int i = 0; i < 4; ++i)
     {
@@ -1766,7 +1744,7 @@ TEST_CASE("game-instance: a faulted game script says where and why, and the run 
     CHECK(gi.RunTime() == 0.0);
 
     // A new start clears it; a clean stop is not a fault.
-    REQUIRE(gi.StartRunBehavior(faulting, u8"game.luau"));
+    REQUIRE(gi.StartRunBehavior(faulting, u8"game.luau", u8"Game"));
     CHECK(gi.RunBehaviorFault().IsEmpty());
     gi.StopRunBehavior();
     CHECK(gi.RunBehaviorFault().IsEmpty());
@@ -1775,7 +1753,7 @@ TEST_CASE("game-instance: a faulted game script says where and why, and the run 
     // keeps the one script context it made).
     foundation::script::angelscript::RegisterAngelScriptBackend();
     engine::runtime::ApplicationRun other;
-    CHECK_FALSE(other.StartRunBehavior(u8"class Other { Other() {} }\n", u8"game.as"));
+    CHECK_FALSE(other.StartRunBehavior(u8"class Other { Other() {} }\n", u8"game.as", u8"Game"));
     CHECK(other.RunBehaviorFault().ContainsIgnoreCase(u8"did not instantiate"));
 }
 
@@ -1832,7 +1810,7 @@ TEST_CASE("game-instance: the run clock ignores time scale, and a game script's 
                             u8"  self.real = self.real + run.realDeltaTime()\n"
                             u8"end\n"
                             u8"function Game:exit() end\n";
-    REQUIRE(gi.StartRunBehavior(game, u8"game.luau"));
+    REQUIRE(gi.StartRunBehavior(game, u8"game.luau", u8"Game"));
     gi.SetInstanceTimeScale(0.0f); // the scene paused: the run clock still moves
     for (int i = 0; i < 3; ++i)
     {
@@ -1923,7 +1901,7 @@ TEST_CASE("game-instance: a game keeps its values between runs through Save (Ang
 
     // Each run counts itself and keeps a best time; the second sees the first's values. The
     // first never calls flush: the run writes what changed as it stops.
-    const StringView source = u8"class Game {\n"
+    const StringView source = u8"class Game : RunBehavior {\n"
                               u8"  Game() {}\n"
                               u8"  void launch() {\n"
                               u8"    int runs = Save::getInt(\"runs\", 0);\n"
@@ -1941,7 +1919,7 @@ TEST_CASE("game-instance: a game keeps its values between runs through Save (Ang
     {
         engine::runtime::ApplicationRun gi;
         gi.SetSaveFile(path.AsView());
-        REQUIRE(gi.StartRunBehavior(source, u8"game.as"));
+        REQUIRE(gi.StartRunBehavior(source, u8"game.as", u8"Game"));
         CHECK(gi.Saves().Values().GetInt(u8"runs", 0) == run);
         gi.StopRunBehavior();
     }
@@ -1969,7 +1947,7 @@ TEST_CASE("game-instance: a game keeps a list of numbers through Save (AngelScri
     {
         engine::runtime::ApplicationRun gi;
         gi.SetSaveFile(path.AsView());
-        REQUIRE(gi.StartRunBehavior(u8"class Game {\n"
+        REQUIRE(gi.StartRunBehavior(u8"class Game : RunBehavior {\n"
                                u8"  Game() {}\n"
                                u8"  void launch() {\n"
                                u8"    array<float> samples = {0.5f, 1.25f, -3.0f};\n"
@@ -1981,7 +1959,7 @@ TEST_CASE("game-instance: a game keeps a list of numbers through Save (AngelScri
                                u8"  void update(double dt) {}\n"
                                u8"  void exit() {}\n"
                                u8"}\n",
-                               u8"game.as"));
+                               u8"game.as", u8"Game"));
         CHECK(gi.Saves().Values().GetInt(u8"length", -1) == 3);
         CHECK(gi.Saves().Values().GetInt(u8"missing", -1) == 0);
         gi.StopRunBehavior();
@@ -2008,7 +1986,7 @@ TEST_CASE("game-instance: a game keeps a list of numbers through Save (AngelScri
                                u8"end\n"
                                u8"function Game:update(dt) end\n"
                                u8"function Game:exit() end\n",
-                               u8"game.luau"));
+                               u8"game.luau", u8"Game"));
         CHECK(gi.Saves().Values().GetFloat(u8"sum", 0.0f) == doctest::Approx(-1.25f));
         REQUIRE(gi.Saves().Values().GetFloats(u8"ghost").Size() == 2u);
         CHECK(gi.Saves().Values().GetFloats(u8"ghost")[1] == 8.0f);
@@ -2035,7 +2013,7 @@ TEST_CASE("game-instance: Save flushes on request and clears (Luau); a run with 
                                u8"end\n"
                                u8"function Game:update(dt) end\n"
                                u8"function Game:exit() end\n",
-                               u8"game.luau"));
+                               u8"game.luau", u8"Game"));
         // Written at the flush, while the run is still going.
         engine::runtime::RunSave reread(DefaultAllocator());
         reread.Open(path.AsView());
@@ -2051,7 +2029,7 @@ TEST_CASE("game-instance: Save flushes on request and clears (Luau); a run with 
                                u8"function Game:launch() Save.clear() end\n"
                                u8"function Game:update(dt) end\n"
                                u8"function Game:exit() end\n",
-                               u8"game.luau"));
+                               u8"game.luau", u8"Game"));
         gi.StopRunBehavior();
         engine::runtime::RunSave reread(DefaultAllocator());
         reread.Open(path.AsView());
@@ -2066,7 +2044,7 @@ TEST_CASE("game-instance: Save flushes on request and clears (Luau); a run with 
                                u8"function Game:launch() Save.setInt('coins', 5) end\n"
                                u8"function Game:update(dt) end\n"
                                u8"function Game:exit() end\n",
-                               u8"game.luau"));
+                               u8"game.luau", u8"Game"));
         CHECK(gi.Saves().Values().GetInt(u8"coins", 0) == 5);
         gi.StopRunBehavior();
     }
@@ -2201,6 +2179,7 @@ TEST_CASE("game-instance: a Game built into an assembly starts from it, not from
     foundation::script::ScriptClass cooked;
     cooked.language = String(u8"assembled");
     cooked.className = String(u8"Game");
+    cooked.kind = foundation::script::BehaviorKind::Run;
     cooked.sourceName = String(u8"Game.asm");
     cooked.source = String(u8"(the source, never compiled)");
     cooked.assembly = MakeRef<foundation::script::ScriptAssembly>(DefaultAllocator());
@@ -2221,4 +2200,28 @@ TEST_CASE("game-instance: a Game built into an assembly starts from it, not from
     CHECK(g_assembled.calls[0] == StringView(u8"launch"));
     CHECK(g_assembled.calls[1] == StringView(u8"update"));
     CHECK(g_assembled.calls.Back() == StringView(u8"exit"));
+}
+
+// The run's behavior is a RunBehavior: a class of another kind, or a script that declares none, is
+// refused before anything compiles, and the fault says what it is and what it needs.
+TEST_CASE("game-instance: a cooked class that is not a RunBehavior is refused as the run's behavior")
+{
+    RegisterCoreTypes();
+    foundation::script::angelscript::RegisterAngelScriptBackend();
+    foundation::script::ScriptClass cooked;
+    cooked.language = String(u8"angelscript");
+    cooked.sourceName = String(u8"mover.as");
+    cooked.className = String(u8"Mover");
+    cooked.kind = foundation::script::BehaviorKind::Entity;
+    cooked.source = String(u8"class Mover : EntityBehavior { Mover() {} }\n");
+
+    engine::runtime::ApplicationRun gi;
+    CHECK_FALSE(gi.StartRunBehavior(cooked));
+    CHECK_FALSE(gi.RunBehaviorRunning());
+    CHECK(gi.RunBehaviorFault().ContainsIgnoreCase(u8"derives from EntityBehavior"));
+
+    cooked.className = String{};
+    cooked.kind = foundation::script::BehaviorKind::None;
+    CHECK_FALSE(gi.StartRunBehavior(cooked));
+    CHECK(gi.RunBehaviorFault().ContainsIgnoreCase(u8"declares no behavior class"));
 }

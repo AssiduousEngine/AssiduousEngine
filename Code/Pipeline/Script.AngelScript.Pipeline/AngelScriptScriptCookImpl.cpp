@@ -600,9 +600,9 @@ namespace pipeline{
                 switch (tier)
                 {
                 case ScriptTier::Level:
-                    return String(kAngelScriptLevelStarter);
+                    return FillStarterClassName(kAngelScriptLevelStarter, className);
                 case ScriptTier::Game:
-                    return String(kAngelScriptGameStarter);
+                    return FillStarterClassName(kAngelScriptGameStarter, className);
                 case ScriptTier::Behavior:
                 default:
                     return FillStarterClassName(kAngelScriptBehaviorStarter, className);
@@ -784,9 +784,17 @@ namespace pipeline{
                     return false;
                 }
 
-                const Array<String> declared = ListScriptClassNames(source);
+                // The class it plays is the one deriving from a kind, read from the classes this file
+                // declares as compiled (an included file's classes are its own file's).
+                (void)preferredClass;
+                Array<DeclaredScriptClass> declared;
+                for (const String& name : ListScriptClassNames(source))
+                {
+                    const asITypeInfo* type = builder.GetModule()->GetTypeInfoByName(reinterpret_cast<const char*>(name.CStr()));
+                    declared.PushBack(DeclaredScriptClass{name, type != nullptr ? KindOf(*engine, *type) : BehaviorKind::None});
+                }
                 String problem;
-                out.className = ChooseScriptClass(Span<const String>(declared.Data(), declared.Size()), preferredClass, problem);
+                out.className = ChooseBehaviorClass(Span<const DeclaredScriptClass>(declared.Data(), declared.Size()), out.kind, problem);
                 if (!problem.IsEmpty())
                 {
                     ReportCookProblem(sink, assetName, problem);
@@ -803,7 +811,6 @@ namespace pipeline{
                                             ? nullptr
                                             : builder.GetModule()->GetTypeInfoByName(
                                                   reinterpret_cast<const char*>(out.className.CStr()));
-                out.kind = compiled != nullptr ? KindOf(*engine, *compiled) : BehaviorKind::None;
                 out.handlers = compiled != nullptr ? ClassHandlers(*compiled) : ScanScriptHandlers(source);
                 out.usesCoroutines = ScriptReferencesCoroutineStart(source);
 

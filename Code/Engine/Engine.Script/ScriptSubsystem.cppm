@@ -436,9 +436,19 @@ export namespace engine::script
         }
 
         /// Instantiate a behavior class instance (loads or reloads the behaviors module as
-        /// needed). Null on failure (logged).
-        [[nodiscard]] RefPtr<ScriptObject> Instantiate(ScriptClass& scriptClass, Span<Variant> args)
+        /// needed). Null on failure (logged), and for a class not of the kind `kind` the place it is
+        /// set takes (a scene's Level slot a SceneBehavior, an entity's an EntityBehavior).
+        [[nodiscard]] RefPtr<ScriptObject> Instantiate(ScriptClass& scriptClass, Span<Variant> args, BehaviorKind kind)
         {
+            if (scriptClass.kind != kind)
+            {
+                const String is = scriptClass.kind == BehaviorKind::None
+                                      ? String(u8"declares no behavior class")
+                                      : Format(u8"derives from {}", BehaviorKinds::TypeName(scriptClass.kind));
+                LOG_ERROR(u8"Script", u8"'{}' {}: it is set where a class deriving from {} goes", scriptClass.sourceName, is,
+                          BehaviorKinds::TypeName(kind));
+                return nullptr;
+            }
             if (!EnsureClassLoaded(scriptClass))
             {
                 return nullptr;
@@ -1173,7 +1183,7 @@ export namespace engine::script
             handle.entityIndex = entity.index;
             handle.entityGeneration = entity.generation;
             Variant arg = Variant::From(handle);
-            behavior.instance = m_host->Instantiate(scriptClass, Span<Variant>{&arg, 1});
+            behavior.instance = m_host->Instantiate(scriptClass, Span<Variant>{&arg, 1}, BehaviorKind::Entity);
             behavior.boundClass = &scriptClass;
             behavior.started = false;
             behavior.active = false;
@@ -1637,7 +1647,7 @@ export namespace engine::script
             handle.scene = m_scene;
             Variant arg = Variant::From(handle);
             m_boundClass = scriptClass;
-            m_level = m_host->Instantiate(*scriptClass, Span<Variant>{&arg, 1});
+            m_level = m_host->Instantiate(*scriptClass, Span<Variant>{&arg, 1}, BehaviorKind::Scene);
             if (m_level.Get() == nullptr)
             {
                 m_faulted = true;

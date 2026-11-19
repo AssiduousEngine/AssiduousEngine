@@ -40,14 +40,14 @@ TEST_CASE("as.cook: registered + resolvable by language; supplies a starter temp
     CHECK_FALSE(cook->NewAssetTemplate(ScriptTier::Behavior, {}).IsEmpty());
 }
 
-TEST_CASE("as.cook: the Level + Game tier starters cook to their contract classes")
+TEST_CASE("as.cook: the scene and run behavior starters cook to a class named after the asset, of their kind")
 {
     IScriptLanguageCook* cook = AngelScriptCook();
     REQUIRE(cook != nullptr);
 
     const String behavior = cook->NewAssetTemplate(ScriptTier::Behavior, {});
-    const String level = cook->NewAssetTemplate(ScriptTier::Level, {});
-    const String game = cook->NewAssetTemplate(ScriptTier::Game, {});
+    const String level = cook->NewAssetTemplate(ScriptTier::Level, u8"Arena");
+    const String game = cook->NewAssetTemplate(ScriptTier::Game, u8"Heist");
     CHECK_FALSE(level.IsEmpty());
     CHECK_FALSE(game.IsEmpty());
     CHECK(level != behavior);
@@ -57,15 +57,15 @@ TEST_CASE("as.cook: the Level + Game tier starters cook to their contract classe
     {
         CookScriptErrorSink sink;
         ScriptClassSource out;
-        REQUIRE(cook->Cook(level, u8"NewLevel.as", sink, out));
-        CHECK(out.className == u8"Level");
+        REQUIRE(cook->Cook(level, u8"Arena.as", sink, out));
+        CHECK(out.className == u8"Arena");
         CHECK(out.kind == BehaviorKind::Scene);
     }
     {
         CookScriptErrorSink sink;
         ScriptClassSource out;
-        REQUIRE(cook->Cook(game, u8"Game.as", sink, out));
-        CHECK(out.className == u8"Game");
+        REQUIRE(cook->Cook(game, u8"Heist.as", sink, out));
+        CHECK(out.className == u8"Heist");
         CHECK(out.kind == BehaviorKind::Run);
     }
 }
@@ -78,7 +78,7 @@ TEST_CASE("as.cook: an AngelScript behavior compile-checks, scans its on<Upper>(
 
     CookScriptErrorSink sink;
     ScriptClassSource out;
-    const bool ok = cook->Cook(u8"class Bouncer\n"
+    const bool ok = cook->Cook(u8"class Bouncer : EntityBehavior\n"
                                u8"{\n"
                                u8"    private Entity self;\n"
                                u8"    Bouncer(Entity e) { self = e; }\n"
@@ -133,7 +133,7 @@ TEST_CASE("as.cook: harvests [metadata] member fields of every supported type in
 
     CookScriptErrorSink sink;
     ScriptClassSource out;
-    const bool ok = cook->Cook(u8"class Kitchen\n"
+    const bool ok = cook->Cook(u8"class Kitchen : EntityBehavior\n"
                                u8"{\n"
                                u8"    [4.0, \"units per second\"] float   speed;\n"
                                u8"    [7, \"hit points\"]         int     hp;\n"
@@ -213,7 +213,7 @@ TEST_CASE("as.cook: a metadata'd field of an unsupported type FAILS the cook")
     CookScriptErrorSink sink;
     ScriptClassSource out;
     // A Guid without the asset:<TypeName> tag is not a resolvable property type.
-    CHECK_FALSE(cook->Cook(u8"class Bad { [42] Guid mystery; void onUpdate(double dt) {} }\n",
+    CHECK_FALSE(cook->Cook(u8"class Bad : EntityBehavior { [42] Guid mystery; void onUpdate(double dt) {} }\n",
                            u8"bad.as", sink, out));
     // The reason reaches the sink, so script_validate (and the asset cook) can say why.
     REQUIRE(sink.errors.Size() == 1u);
@@ -227,7 +227,7 @@ TEST_CASE("as.cook: a `replicated` word marks a property; a stray word or a repl
     {
         CookScriptErrorSink sink;
         ScriptClassSource out;
-        REQUIRE(cook->Cook(u8"class Guest {\n"
+        REQUIRE(cook->Cook(u8"class Guest : EntityBehavior {\n"
                            u8"  [0, \"What the guest is doing\", replicated] int activity;\n"
                            u8"  [1.5, replicated] float pace;\n"
                            u8"  [true, \"Local only\"] bool chatty;\n"
@@ -255,7 +255,7 @@ TEST_CASE("as.cook: a `replicated` word marks a property; a stray word or a repl
     {
         CookScriptErrorSink sink;
         ScriptClassSource out;
-        CHECK_FALSE(cook->Cook(u8"class Guest { [0, replicate] int activity; void onUpdate(double dt) {} }\n",
+        CHECK_FALSE(cook->Cook(u8"class Guest : EntityBehavior { [0, replicate] int activity; void onUpdate(double dt) {} }\n",
                                u8"Guest.as", sink, out));
         REQUIRE(sink.errors.Size() == 1u);
         CHECK(sink.errors[0].message.AsView().ContainsIgnoreCase(u8"unknown word 'replicate'"));
@@ -263,7 +263,7 @@ TEST_CASE("as.cook: a `replicated` word marks a property; a stray word or a repl
     {
         CookScriptErrorSink sink;
         ScriptClassSource out;
-        CHECK_FALSE(cook->Cook(u8"class Guest { [null, replicated] Entity partner; void onUpdate(double dt) {} }\n",
+        CHECK_FALSE(cook->Cook(u8"class Guest : EntityBehavior { [null, replicated] Entity partner; void onUpdate(double dt) {} }\n",
                                u8"Guest.as", sink, out));
         REQUIRE(sink.errors.Size() == 1u);
         CHECK(sink.errors[0].message.AsView().ContainsIgnoreCase(u8"cannot be replicated"));
@@ -279,14 +279,14 @@ TEST_CASE("as.cook: a plain property is a value member; one declared as a handle
     {
         CookScriptErrorSink sink;
         ScriptClassSource out;
-        CHECK(cook->Cook(u8"class Good { [\"asset:Mesh\"] Guid mesh; [(1,1,1,1)] Color tint; [null] Entity target;\n"
+        CHECK(cook->Cook(u8"class Good : EntityBehavior { [\"asset:Mesh\"] Guid mesh; [(1,1,1,1)] Color tint; [null] Entity target;\n"
                          u8"  void onUpdate(double dt){} }\n",
                          u8"good.as", sink, out));
         CHECK(out.properties.Size() == 3u);
     }
     CookScriptErrorSink sink;
     ScriptClassSource out;
-    CHECK_FALSE(cook->Cook(u8"class Old { [(1,1,1,1)] Color@ tint; void onUpdate(double dt){} }\n",
+    CHECK_FALSE(cook->Cook(u8"class Old : EntityBehavior { [(1,1,1,1)] Color@ tint; void onUpdate(double dt){} }\n",
                            u8"old.as", sink, out));
     REQUIRE_FALSE(sink.errors.IsEmpty());
     CHECK(sink.errors[0].message.AsView().ContainsIgnoreCase(u8"not 'Color@ tint'"));
@@ -373,7 +373,7 @@ TEST_CASE("as.cook: with the full engine surface registered, a Game using run:: 
 
     CookScriptErrorSink sink;
     ScriptClassSource out;
-    const bool ok = cook->Cook(u8"class Game\n"
+    const bool ok = cook->Cook(u8"class Game : RunBehavior\n"
                                u8"{\n"
                                u8"    void launch()\n"
                                u8"    {\n"
@@ -402,7 +402,7 @@ TEST_CASE("as.cook: the PaperKid Bike behavior cooks with tunable properties")
     CookScriptErrorSink sink;
     ScriptClassSource out;
     const bool ok = cook->Cook(
-        u8"class Bike\n"
+        u8"class Bike : EntityBehavior\n"
         u8"{\n"
         u8"    private Entity self;\n"
         u8"    [9.0, \"Top forward speed (m/s)\"]           float maxSpeed;\n"
@@ -455,7 +455,7 @@ TEST_CASE("as.cook: the PaperKid FollowCamera behavior cooks with an Entity targ
     CookScriptErrorSink sink;
     ScriptClassSource out;
     const bool ok = cook->Cook(
-        u8"class FollowCamera\n"
+        u8"class FollowCamera : EntityBehavior\n"
         u8"{\n"
         u8"    private Entity self;\n"
         u8"    [null, \"The entity to follow (the bike)\"] Entity target;\n"
@@ -544,7 +544,7 @@ namespace
         return scriptContext->LoadBlob(*blob);
     }
 
-    constexpr const char8_t* kUsesRun = u8"class Game\n"
+    constexpr const char8_t* kUsesRun = u8"class Game : RunBehavior\n"
                                         u8"{\n"
                                         u8"    void launch() { run::loadScene(Guid(1, 2)); }\n"
                                         u8"    void update(float dt) {}\n"

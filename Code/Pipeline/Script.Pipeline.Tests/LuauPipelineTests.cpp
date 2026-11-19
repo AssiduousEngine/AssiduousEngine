@@ -22,8 +22,7 @@ namespace
     // A behavior whose constructor sets one field of each harvestable scalar kind plus two that must
     // be skipped (a table, and the nil owner Lua drops from the instance).
     constexpr StringView kMultiSource = u8R"lua(
-Multi = {}
-Multi.__index = Multi
+Multi = EntityBehavior.class()
 function Multi.new(entity)
     local self = setmetatable({}, Multi)
     self.speed = 2.5
@@ -123,8 +122,7 @@ TEST_CASE("script.pipeline: a starter behavior cooks with its declared property 
 {
     CookBed bed(u8"luau_starter");
     bed.WriteSource(u8"starter.luau", u8R"lua(
-NewBehavior = {}
-NewBehavior.__index = NewBehavior
+NewBehavior = EntityBehavior.class()
 function NewBehavior.new(entity)
     local self = setmetatable({}, NewBehavior)
     self.speed = 1.0
@@ -150,8 +148,7 @@ TEST_CASE("script.pipeline: ScriptSourceDocument save->recook seam (luau) - roun
           "validates, and surfaces compile errors while the last-good product survives")
 {
     constexpr StringView kMover = u8R"lua(
-Mover = {}
-Mover.__index = Mover
+Mover = EntityBehavior.class()
 function Mover.new(entity)
     return setmetatable({}, Mover)
 end
@@ -220,8 +217,7 @@ TEST_CASE("script.pipeline: luau ScriptSourceDocument::Validate compiles without
     CookBed bed(u8"luau_validate_check");
     // Cook loads (runs) the chunk, so this fails at cook; the check never runs it.
     constexpr StringView kRaising = u8"error(\"ran\")\n"
-                                    u8"Mover = {}\n"
-                                    u8"Mover.__index = Mover\n"
+                                    u8"Mover = EntityBehavior.class()\n"
                                     u8"function Mover.new(entity)\n"
                                     u8"    return setmetatable({}, Mover)\n"
                                     u8"end\n";
@@ -242,28 +238,36 @@ TEST_CASE("script.pipeline: luau ScriptSourceDocument::Validate compiles without
     CHECK(doc.Errors().Data()[0].column == 11);
 }
 
-// A Luau script with several classes (constructors) plays the one its asset prefers: the recorded
-// class, else the one named like its file; several and none so named fails the cook, never a guess.
-TEST_CASE("script.pipeline: a Luau script with several classes plays the one its asset prefers")
+// A Luau script's helper tables are not classes it plays: it plays the one class made from a kind.
+// Two made from a kind is no guess, since a script holds one behavior class.
+TEST_CASE("script.pipeline: a Luau script plays its one class made from a kind; two fail the cook")
 {
     CookBed bed(u8"luau_classes");
-    constexpr StringView kTwo = u8R"lua(
+    constexpr StringView kHelperBeside = u8R"lua(
 Helper = {}
 Helper.__index = Helper
 function Helper.new() return setmetatable({}, Helper) end
-Mover = {}
-Mover.__index = Mover
+Mover = EntityBehavior.class()
 function Mover.new(entity) return setmetatable({}, Mover) end
 function Mover:onUpdate(dt) end
 )lua";
-    bed.WriteSource(u8"Mover.2.luau", kTwo);
-    content::Instance* instance = nullptr;
-    CHECK_FALSE(bed.Cook(u8"Mover.2.luau", u8"luau", instance).IsOk()); // "Mover.2" names neither
+    bed.WriteSource(u8"Mover.2.luau", kHelperBeside);
     content::Instance* chosen = nullptr;
-    REQUIRE(bed.Cook(u8"Mover.2.luau", u8"luau", chosen, u8"Mover").IsOk());
+    REQUIRE(bed.Cook(u8"Mover.2.luau", u8"luau", chosen).IsOk());
     RefPtr<ISerializable> object = chosen->ReadObject();
     ScriptClassSource* cooked = Cast<ScriptClassSource>(object.Get());
     REQUIRE(cooked != nullptr);
     CHECK(cooked->className == u8"Mover");
+    CHECK(cooked->kind == BehaviorKind::Entity);
     CHECK(cooked->handlers.Size() == 1u);
+
+    constexpr StringView kTwo = u8R"lua(
+Mover = EntityBehavior.class()
+function Mover.new(entity) return setmetatable({}, Mover) end
+Spinner = EntityBehavior.class()
+function Spinner.new(entity) return setmetatable({}, Spinner) end
+)lua";
+    bed.WriteSource(u8"Two.luau", kTwo);
+    content::Instance* refused = nullptr;
+    CHECK_FALSE(bed.Cook(u8"Two.luau", u8"luau", refused).IsOk());
 }

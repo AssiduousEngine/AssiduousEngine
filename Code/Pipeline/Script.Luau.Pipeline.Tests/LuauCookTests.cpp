@@ -34,8 +34,7 @@ namespace
     // A class whose constructor sets one field of each harvestable kind plus two that must be
     // skipped (a table, and the nil owner, which Lua drops from the instance entirely).
     constexpr StringView kMultiProp = u8R"lua(
-Multi = {}
-Multi.__index = Multi
+Multi = EntityBehavior.class()
 function Multi.new(entity)
     local self = setmetatable({}, Multi)
     self.speed = 2.5
@@ -52,8 +51,7 @@ function Multi:onStart() end
     // A class whose constructor dereferences the entity. The harvest constructs with a nil owner,
     // so this faults; the cook must still succeed (valid at runtime) with no properties.
     constexpr StringView kFaultyCtor = u8R"lua(
-Risky = {}
-Risky.__index = Risky
+Risky = EntityBehavior.class()
 function Risky.new(entity)
     local self = setmetatable({}, Risky)
     self.name = entity:name()
@@ -63,8 +61,7 @@ function Risky:onStart() end
 )lua";
 
     constexpr StringView kCoroutineUser = u8R"lua(
-Waiter = {}
-Waiter.__index = Waiter
+Waiter = EntityBehavior.class()
 function Waiter.new(entity)
     return setmetatable({ entity = entity }, Waiter)
 end
@@ -100,14 +97,14 @@ TEST_CASE("luau.cook: registered + resolvable by language; the Behavior starter 
     CHECK_FALSE(out.usesCoroutines);
 }
 
-TEST_CASE("luau.cook: the Level + Game tier starters cook to their contract classes")
+TEST_CASE("luau.cook: the scene and run behavior starters cook to a class named after the asset, of their kind")
 {
     IScriptLanguageCook* cook = LuauCook();
     REQUIRE(cook != nullptr);
 
     const String behavior = cook->NewAssetTemplate(ScriptTier::Behavior, {});
-    const String level = cook->NewAssetTemplate(ScriptTier::Level, {});
-    const String game = cook->NewAssetTemplate(ScriptTier::Game, {});
+    const String level = cook->NewAssetTemplate(ScriptTier::Level, u8"Arena");
+    const String game = cook->NewAssetTemplate(ScriptTier::Game, u8"Heist");
     CHECK_FALSE(level.IsEmpty());
     CHECK_FALSE(game.IsEmpty());
     CHECK(level != behavior);
@@ -115,14 +112,14 @@ TEST_CASE("luau.cook: the Level + Game tier starters cook to their contract clas
 
     CookScriptErrorSink levelSink;
     ScriptClassSource levelOut;
-    REQUIRE(cook->Cook(level, u8"NewLevel.luau", levelSink, levelOut));
-    CHECK(levelOut.className == u8"Level");
+    REQUIRE(cook->Cook(level, u8"Arena.luau", levelSink, levelOut));
+    CHECK(levelOut.className == u8"Arena");
     CHECK(levelOut.kind == BehaviorKind::Scene);
 
     CookScriptErrorSink gameSink;
     ScriptClassSource gameOut;
-    REQUIRE(cook->Cook(game, u8"NewGame.luau", gameSink, gameOut));
-    CHECK(gameOut.className == u8"Game");
+    REQUIRE(cook->Cook(game, u8"Heist.luau", gameSink, gameOut));
+    CHECK(gameOut.className == u8"Heist");
     CHECK(gameOut.kind == BehaviorKind::Run);
 }
 
@@ -161,8 +158,7 @@ TEST_CASE("luau.cook: the class's replicated list marks its properties; an unkno
     {
         CookScriptErrorSink sink;
         ScriptClassSource out;
-        REQUIRE(cook->Cook(u8"Guest = {}\n"
-                           u8"Guest.__index = Guest\n"
+        REQUIRE(cook->Cook(u8"Guest = EntityBehavior.class()\n"
                            u8"Guest.replicated = { 'activity', 'pace' }\n"
                            u8"function Guest.new(owner) local self = setmetatable({}, Guest)\n"
                            u8"  self.activity = 0; self.pace = 1.5; self.chatty = true; return self end\n"
@@ -177,8 +173,7 @@ TEST_CASE("luau.cook: the class's replicated list marks its properties; an unkno
     {
         CookScriptErrorSink sink;
         ScriptClassSource out;
-        CHECK_FALSE(cook->Cook(u8"Guest = {}\n"
-                               u8"Guest.__index = Guest\n"
+        CHECK_FALSE(cook->Cook(u8"Guest = EntityBehavior.class()\n"
                                u8"Guest.replicated = { 'activty' }\n"
                                u8"function Guest.new(owner) local self = setmetatable({}, Guest)\n"
                                u8"  self.activity = 0; return self end\n",
@@ -336,7 +331,7 @@ TEST_CASE("luau.cook: a class made from a kind records it and constructs as a cl
          u8"Mover.luau", BehaviorKind::Entity},
         {u8"Helper = {}\nHelper.__index = Helper\n"
          u8"function Helper.new() return setmetatable({ lives = 3 }, Helper) end\n",
-         u8"Helper.luau", BehaviorKind::None},
+         u8"Helper.luau", BehaviorKind::None, false},
         // A local class is not one the runtime finds: it declares no kind.
         {u8"local Hidden = EntityBehavior.class()\n"
          u8"function Hidden.new(entity) return setmetatable({ lives = 3 }, Hidden) end\n",

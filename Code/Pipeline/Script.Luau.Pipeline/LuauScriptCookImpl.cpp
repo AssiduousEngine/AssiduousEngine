@@ -90,56 +90,12 @@ namespace pipeline{
             return p;
         }
 
-        // Luau has no `class` keyword (so the shared ListScriptClassNames does not apply): a
-        // class is a global table with a `function <Name>.new(...)` constructor, the same table
-        // the runtime instantiates. Every such name, in order (the shared ChooseScriptClass picks
-        // the one it plays). Comments are stripped first.
-        [[nodiscard]] Array<String> ListLuauClassNames(StringView source)
+        // Luau has no `class` keyword (so the shared ListScriptClassNames does not apply): a class
+        // is a global table made from its kind, `<Name> = <Kind>.class()`, at the start of a line (a
+        // local class is not one the runtime finds). Every such class, in order, with its kind (the
+        // shared ChooseBehaviorClass picks the one it plays). Comments are stripped first.
+        [[nodiscard]] Array<DeclaredScriptClass> ListLuauBehaviorClasses(StringView source)
         {
-            const String stripped = StripScriptComments(source);
-            const StringView text = stripped.AsView();
-            const StringView keyword = u8"function ";
-            const StringView dotNew = u8".new";
-            Array<String> found;
-            for (usize i = 0; i + keyword.Size() < text.Size(); ++i)
-            {
-                if (text.SubStr(i, keyword.Size()) != keyword)
-                {
-                    continue;
-                }
-                usize begin = i + keyword.Size();
-                while (begin < text.Size() && (text[begin] == u8' ' || text[begin] == u8'\t'))
-                {
-                    ++begin;
-                }
-                usize end = begin;
-                while (end < text.Size() && detail::IsIdentChar(text[end]))
-                {
-                    ++end;
-                }
-                if (end == begin)
-                {
-                    continue;
-                }
-                // The constructor is `<Name>.new` (static, dot); instance methods use a colon.
-                if (end + dotNew.Size() > text.Size() || text.SubStr(end, dotNew.Size()) != dotNew)
-                {
-                    continue;
-                }
-                found.PushBack(String(text.SubStr(begin, end - begin)));
-            }
-            return found;
-        }
-
-        // The kind class `className` is made from: its `<className> = <Kind>.class(` line (a global
-        // assignment; a local class is not found by the runtime, so it declares no kind). None when
-        // the source has no such line. Comments are stripped first.
-        [[nodiscard]] BehaviorKind LuauClassKind(StringView source, StringView className)
-        {
-            if (className.IsEmpty())
-            {
-                return BehaviorKind::None;
-            }
             const String stripped = StripScriptComments(source);
             const StringView text = stripped.AsView();
             const auto skipSpaces = [&](usize at)
@@ -150,33 +106,37 @@ namespace pipeline{
                 }
                 return at;
             };
-            for (usize i = 0; i + className.Size() <= text.Size(); ++i)
+            const auto identifierEnd = [&](usize at)
             {
-                // `className` as a whole word at the start of a line.
-                const bool lineStart = i == 0 || text[i - 1] == u8'\n';
-                if (!lineStart || text.SubStr(i, className.Size()) != className)
+                while (at < text.Size() && detail::IsIdentChar(text[at]))
                 {
-                    continue;
+                    ++at;
                 }
-                usize at = skipSpaces(i + className.Size());
-                if (at >= text.Size() || text[at] != u8'=' || (at + 1 < text.Size() && text[at + 1] == u8'='))
+                return at;
+            };
+            Array<DeclaredScriptClass> found;
+            for (usize line = 0; line < text.Size();)
+            {
+                const usize nameEnd = identifierEnd(line);
+                usize at = skipSpaces(nameEnd);
+                if (nameEnd > line && at < text.Size() && text[at] == u8'=' && (at + 1 >= text.Size() || text[at + 1] != u8'='))
                 {
-                    continue;
+                    at = skipSpaces(at + 1);
+                    const usize kindEnd = identifierEnd(at);
+                    const BehaviorKind kind = BehaviorKinds::FromTypeName(text.SubStr(at, kindEnd - at));
+                    const StringView call = u8".class(";
+                    if (kind != BehaviorKind::None && kindEnd + call.Size() <= text.Size() && text.SubStr(kindEnd, call.Size()) == call)
+                    {
+                        found.PushBack(DeclaredScriptClass{String(text.SubStr(line, nameEnd - line)), kind});
+                    }
                 }
-                at = skipSpaces(at + 1);
-                usize end = at;
-                while (end < text.Size() && detail::IsIdentChar(text[end]))
+                while (line < text.Size() && text[line] != u8'\n')
                 {
-                    ++end;
+                    ++line;
                 }
-                const BehaviorKind kind = BehaviorKinds::FromTypeName(text.SubStr(at, end - at));
-                const StringView call = u8".class(";
-                if (kind != BehaviorKind::None && end + call.Size() <= text.Size() && text.SubStr(end, call.Size()) == call)
-                {
-                    return kind;
-                }
+                ++line;
             }
-            return BehaviorKind::None;
+            return found;
         }
 
         // Sort harvested props by name (pairs() order is unspecified) for deterministic bytes.
@@ -323,9 +283,9 @@ namespace pipeline{
                 switch (tier)
                 {
                 case ScriptTier::Level:
-                    return String(kLuauLevelStarter);
+                    return FillStarterClassName(kLuauLevelStarter, className);
                 case ScriptTier::Game:
-                    return String(kLuauGameStarter);
+                    return FillStarterClassName(kLuauGameStarter, className);
                 case ScriptTier::Behavior:
                 default:
                     return FillStarterClassName(kLuauBehaviorStarter, className);
@@ -336,14 +296,14 @@ namespace pipeline{
             // fingerprint so a vendor bump recooks every Luau script pack.
             [[nodiscard]] u32 CookVersion() const override { return LuauBytecodeVersion(); }
 
-            // The class it plays among its constructors (ChooseScriptClass); several and none
-            // preferred is a cook problem, reported, and false.
-            [[nodiscard]] static bool ChooseClass(StringView source, StringView assetName, StringView preferredClass,
-                                                  CookScriptErrorSink& sink, String& className)
+            // The class it plays among those made from a kind (ChooseBehaviorClass), with its kind;
+            // several is a cook problem, reported, and false.
+            [[nodiscard]] static bool ChooseClass(StringView source, StringView assetName, CookScriptErrorSink& sink,
+                                                  String& className, BehaviorKind& kind)
             {
-                const Array<String> declared = ListLuauClassNames(source);
+                const Array<DeclaredScriptClass> declared = ListLuauBehaviorClasses(source);
                 String problem;
-                className = ChooseScriptClass(Span<const String>(declared.Data(), declared.Size()), preferredClass, problem);
+                className = ChooseBehaviorClass(Span<const DeclaredScriptClass>(declared.Data(), declared.Size()), kind, problem);
                 if (!problem.IsEmpty())
                 {
                     ReportCookProblem(sink, assetName, problem);
@@ -376,7 +336,9 @@ namespace pipeline{
                     RefPtr<IScriptManager> manager = CreateCookManager(assetName, hidden);
                     compiled = manager.Get() != nullptr && compile(*manager);
                 }
-                return compiled && ChooseClass(source, assetName, preferredClass, sink, className);
+                (void)preferredClass;
+                BehaviorKind kind = BehaviorKind::None;
+                return compiled && ChooseClass(source, assetName, sink, className, kind);
             }
 
             void PrepareCheck() override { m_checkManager.Prepare(); }
@@ -426,11 +388,11 @@ namespace pipeline{
                     return false;
                 }
 
-                if (!ChooseClass(source, assetName, preferredClass, sink, out.className))
+                (void)preferredClass;
+                if (!ChooseClass(source, assetName, sink, out.className, out.kind))
                 {
                     return false;
                 }
-                out.kind = LuauClassKind(source, out.className.AsView());
                 out.handlers = ScanScriptHandlers(source);
                 out.usesCoroutines = ScriptReferencesCoroutineStart(source);
 

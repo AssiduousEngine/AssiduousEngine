@@ -24,7 +24,7 @@ namespace
 {
     constexpr StringView kMoverSource =
         u8"// A behavior with the full property spread.\n"
-        u8"class Mover\n"
+        u8"class Mover : EntityBehavior\n"
         u8"{\n"
         u8"    [4.5, \"units per second\"] float   speed;\n"
         u8"    [3]                        int     count;\n"
@@ -112,7 +112,7 @@ TEST_CASE("script.pipeline: facade-using behaviors compile at cook (the cook VM 
           "mirrors the runtime's \"main\" surface, prelude included)")
 {
     CookBed bed(u8"as_facades");
-    bed.WriteSource(u8"mover.as", u8"class Mover {\n"
+    bed.WriteSource(u8"mover.as", u8"class Mover : EntityBehavior {\n"
                                     u8"    Entity self;\n"
                                     u8"    Mover(Entity entity) { self = entity; }\n"
                                     u8"    void onUpdate(double dt) {\n"
@@ -150,7 +150,7 @@ TEST_CASE("script.pipeline: compile errors FAIL the cook and the last good recor
     REQUIRE(bed.Cook(u8"mover.as", u8"angelscript", instance).IsOk());
 
     // Break the source; the rebuild must fail without touching the cooked record.
-    bed.WriteSource(u8"mover.as", u8"class Mover {\n  this is not valid code at all(\n");
+    bed.WriteSource(u8"mover.as", u8"class Mover : EntityBehavior {\n  this is not valid code at all(\n");
     CHECK_FALSE(bed.Cook(u8"mover.as", u8"angelscript", instance).IsOk());
 
     RefPtr<ISerializable> object = instance->ReadObject();
@@ -239,7 +239,7 @@ TEST_CASE("script.pipeline: the New Asset starter template cooks with its declar
           "property + handlers")
 {
     CookBed bed(u8"as_starter");
-    bed.WriteSource(u8"starter.as", u8"class NewBehavior {\n"
+    bed.WriteSource(u8"starter.as", u8"class NewBehavior : EntityBehavior {\n"
                                     u8"    [1.0, \"units per second\"] float speed;\n"
                                     u8"    Entity self;\n"
                                     u8"    NewBehavior(Entity entity) { self = entity; }\n"
@@ -290,7 +290,7 @@ TEST_CASE("script.pipeline: ScriptSourceDocument is the ScriptPage save->recook 
     }
 
     // Edit to a broken script through the document and save it to disk.
-    constexpr StringView kBroken = u8"class Mover {\n"
+    constexpr StringView kBroken = u8"class Mover : EntityBehavior {\n"
                                    u8"    onStart() { this is not valid code )( }\n";
     doc.SetSource(kBroken);
     CHECK(doc.IsModified());
@@ -338,7 +338,7 @@ TEST_CASE("script.pipeline: ScriptSourceDocument::Validate compiles without runn
     // when it loads the script, under the call budget.
     constexpr StringView kFaulting = u8"int Zero() { return 0; }\n"
                                      u8"int boom = 10 / Zero();\n"
-                                     u8"class Mover\n"
+                                     u8"class Mover : EntityBehavior\n"
                                      u8"{\n"
                                      u8"    [4.5] float speed;\n"
                                      u8"    Mover(Entity entity) {}\n"
@@ -353,7 +353,7 @@ TEST_CASE("script.pipeline: ScriptSourceDocument::Validate compiles without runn
     content::Instance* product = nullptr;
     CHECK(bed.Cook(u8"mover.as", u8"angelscript", product).IsOk());
 
-    doc.SetSource(u8"class Mover\n"
+    doc.SetSource(u8"class Mover : EntityBehavior\n"
                   u8"{\n"
                   u8"    void onStart() { int b = ; }\n"
                   u8"}\n");
@@ -386,8 +386,8 @@ TEST_CASE("script.pipeline: an imported script plays the class its file is named
         REQUIRE(WriteFile(path.AsView(), Span<const byte>(reinterpret_cast<const byte*>(text.Data()), text.Size())).IsOk());
         return path;
     };
-    const String first = write(one, u8"class EffectDef { int turns; }\nclass Battle { void onStart() {} }\n");
-    const String second = write(two, u8"class EffectDef { int turns; }\nclass Fighter { int hp; }\nclass Battle { void onUpdate(double dt) {} }\n");
+    const String first = write(one, u8"class EffectDef { int turns; }\nclass Battle : EntityBehavior { void onStart() {} }\n");
+    const String second = write(two, u8"class EffectDef { int turns; }\nclass Fighter { int hp; }\nclass Battle : EntityBehavior { void onUpdate(double dt) {} }\n");
 
     foundation::vfs::NativeFileSystem mount(db.AsView(), DefaultAllocator());
     content::ContentDatabase sourceDb(DefaultAllocator(), mount, BinarySerializerFactory(), u8".asset");
@@ -449,12 +449,13 @@ TEST_CASE("script.pipeline: an imported script plays the class its file is named
     REQUIRE(cookClass(kept, played));
     CHECK(played == u8"Battle");
 
-    // Nothing recorded: Battle.2 names no class of the three, and the cook says so.
+    // Nothing recorded: it plays the one class of the three that derives from a kind.
     ScriptClassAsset unrecorded;
     copyOf(kept, unrecorded);
     unrecorded.className = String{};
-    String none;
-    CHECK_FALSE(cookClass(unrecorded, none));
+    String byKind;
+    REQUIRE(cookClass(unrecorded, byKind));
+    CHECK(byKind == u8"Battle");
 
     // A class chosen by hand survives a re-import of the same file (under its asset's name, as the
     // editor's reimport asks for it).
@@ -611,7 +612,7 @@ TEST_CASE("script.pipeline: an error inside an included file names that file and
     FolderIncludeReader reader(bed.srcDir.AsView());
     String className;
     CookScriptErrorSink sink;
-    CHECK_FALSE(cook->Check(u8"#include \"Lib.as\"\nclass User { int f() { return ok(); } }\n", u8"User.as", u8"User",
+    CHECK_FALSE(cook->Check(u8"#include \"Lib.as\"\nclass User : EntityBehavior { int f() { return ok(); } }\n", u8"User.as", u8"User",
                             sink, className, Span<const TypeId>{}, &reader));
     bool named = false;
     for (const CookScriptErrorSink::Entry& e : sink.errors)
@@ -634,7 +635,7 @@ TEST_CASE("script.pipeline: a class's handlers come from the compiled class, a b
     ScriptClassSource out;
     REQUIRE(cook->Cook(u8"#include \"Base.as\"\n"
                        u8"void onPing(int n) {}\n"
-                       u8"class Mover : Base {\n"
+                       u8"class Mover : Base, EntityBehavior {\n"
                        u8"  void onStart() { onPing(1); }\n"
                        u8"}\n",
                        u8"Mover.as", u8"Mover", sink, out, &reader));

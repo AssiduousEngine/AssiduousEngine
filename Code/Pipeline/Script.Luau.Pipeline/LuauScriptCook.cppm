@@ -65,50 +65,50 @@ export namespace pipeline{
         u8"function {ClassName}:onDestroy()\n"
         u8"end\n";
 
-    // The New Asset starter for a Level (the scene-scripting tier): one object per scene,
-    // constructed with the scene's bound handle. All handlers optional (dispatch by presence).
-    // onUpdate/onFixedUpdate run only while the scene simulates.
+    // The New Asset starter for a scene behavior: one object per scene, constructed with the
+    // scene's bound handle, its class named after the asset. All handlers optional (dispatch by
+    // presence). onUpdate/onFixedUpdate run only while the scene simulates.
     inline constexpr StringView kLuauLevelStarter =
-        u8"-- Level class - the per-scene script. Set it on the scene's Scene Script settings.\n"
-        u8"-- One instance per scene, constructed with the scene handle (reserved name `Level`).\n"
-        u8"Level = SceneBehavior.class()\n"
+        u8"-- A scene behavior - one per scene, constructed with the scene handle.\n"
+        u8"-- Set it on the scene's Scene Script settings.\n"
+        u8"{ClassName} = SceneBehavior.class()\n"
         u8"\n"
-        u8"function Level.new(scene)\n"
-        u8"    return setmetatable({ scene = scene }, Level)\n"
+        u8"function {ClassName}.new(scene)\n"
+        u8"    return setmetatable({ scene = scene }, {ClassName})\n"
         u8"end\n"
         u8"\n"
         u8"-- Static facades use DOT (Log.info); the scene handle uses COLON: self.scene:find(\"name\").\n"
-        u8"function Level:onStart()\n"
+        u8"function {ClassName}:onStart()\n"
         u8"    Log.info(\"Level started\")\n"
         u8"end\n"
         u8"-- Gameplay dt; runs only while the scene simulates.\n"
-        u8"function Level:onUpdate(dt)\n"
+        u8"function {ClassName}:onUpdate(dt)\n"
         u8"end\n"
         u8"-- Fixed-step dt (physics lane); runs only while the scene simulates.\n"
-        u8"function Level:onFixedUpdate(dt)\n"
+        u8"function {ClassName}:onFixedUpdate(dt)\n"
         u8"end\n"
-        u8"function Level:onStop()\n"
+        u8"function {ClassName}:onStop()\n"
         u8"end\n";
 
-    // The New Asset starter for the game orchestrator: the mandatory class `Game`. One per
-    // run; drives scene loading (through the run facade) and the game-wide update.
+    // The New Asset starter for a run behavior, the game orchestrator: one per run, its class
+    // named after the asset; drives scene loading (through the run facade) and the game-wide update.
     inline constexpr StringView kLuauGameStarter =
-        u8"-- Game class - the game orchestrator (mandatory name `Game`). One per run.\n"
-        u8"Game = RunBehavior.class()\n"
+        u8"-- A run behavior - the game orchestrator, one per run. Set it as the project's.\n"
+        u8"{ClassName} = RunBehavior.class()\n"
         u8"\n"
-        u8"function Game.new()\n"
-        u8"    return setmetatable({}, Game)\n"
+        u8"function {ClassName}.new()\n"
+        u8"    return setmetatable({}, {ClassName})\n"
         u8"end\n"
         u8"\n"
         u8"-- Runs once at start. Load the opening scene here via the run facade:\n"
         u8"--   run.loadScene(Guid.new(\"<the scene's id>\"))\n"
-        u8"function Game:launch()\n"
+        u8"function {ClassName}:launch()\n"
         u8"    Log.info(\"Game launched\")\n"
         u8"end\n"
         u8"-- Game-wide update (context dt). Per-scene logic belongs in a Level.\n"
-        u8"function Game:update(dt)\n"
+        u8"function {ClassName}:update(dt)\n"
         u8"end\n"
-        u8"function Game:exit()\n"
+        u8"function {ClassName}:exit()\n"
         u8"end\n";
 
     /// Registers the Luau cook (and, idempotently, the Luau backend it needs) so the neutral

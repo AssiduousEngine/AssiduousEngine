@@ -61,6 +61,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- Scripts: a behavior declares its kind by deriving from it - `EntityBehavior`, `SceneBehavior` or
+  `RunBehavior` (`class Coin : EntityBehavior`; in Luau `Coin = EntityBehavior.class()`) - and may
+  have any name. The reserved names `Game` and `Level` are gone: a project's scripts add the base
+  their class needs, and a script without one is refused where a behavior is set.
 - Rendering: each of the sun's shadow cascades draws only the casters whose shadow lands on what it
   shades, and a shadow ends at the scene's bounds (a tree's at the ground), so most casters are drawn
   into one cascade, not all four. Over a 40,000-mesh forest the shadows went from about 200 ms a

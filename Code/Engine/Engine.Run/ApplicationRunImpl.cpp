@@ -113,7 +113,21 @@ namespace engine::runtime
         return m_tls.Get();
     }
 
-    bool ApplicationRun::StartRunBehavior(core::StringView source, core::StringView name,
+    bool ApplicationRun::RefuseRunBehavior(const foundation::script::ScriptClass& scriptClass)
+    {
+        StopRunBehavior();
+        m_runBehaviorFault =
+            scriptClass.kind == foundation::script::BehaviorKind::None
+                ? Format(u8"'{}' declares no behavior class: the run behavior derives from RunBehavior "
+                         u8"(class Game : RunBehavior)",
+                         scriptClass.sourceName.AsView())
+                : Format(u8"'{}' derives from {}: the run behavior derives from RunBehavior", scriptClass.className.AsView(),
+                         foundation::script::BehaviorKinds::TypeName(scriptClass.kind));
+        LOG_ERROR(u8"App", u8"{}", m_runBehaviorFault);
+        return false;
+    }
+
+    bool ApplicationRun::StartRunBehavior(core::StringView source, core::StringView name, core::StringView className,
                                    core::Span<const core::String> gameHandlers,
                                    core::Span<const script::ScriptSection> includes,
                                    core::Span<const core::byte> assembly, core::Span<const core::byte> symbols)
@@ -155,11 +169,10 @@ namespace engine::runtime
                                                    name, why.AsView());
             return false;
         }
-        m_runBehavior = m_scriptContext->CreateInstance(u8"Game", core::Span<core::Variant>{});
+        m_runBehavior = m_scriptContext->CreateInstance(className, core::Span<core::Variant>{});
         if (m_runBehavior.Get() == nullptr)
         {
-            LOG_ERROR(u8"App", u8"game script '{}' has no `Game` class (construct new())",
-                               name);
+            LOG_ERROR(u8"App", u8"game script '{}': class '{}' did not construct", name, className);
             StopRunBehavior();
             m_runBehaviorFault = Format(u8"the game script '{}' did not instantiate (log_read, "
                                    u8"category Script, has why)",

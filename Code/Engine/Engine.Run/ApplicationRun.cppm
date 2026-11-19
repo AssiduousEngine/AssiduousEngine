@@ -383,39 +383,44 @@ export namespace engine::runtime
         void SetInstanceTimeScale(f32 scale) noexcept { m_instanceTimeScale = scale; }
         [[nodiscard]] f32 InstanceTimeScale() const noexcept { return m_instanceTimeScale; }
 
-        /// Compile and launch the `Game` script (a class with launch()/update(dt)/exit()) on this
-        /// instance's run host. The host must be configured first (the app's
-        /// ScriptSubsystem::ConfigureRunHost exposes the facades and routing); a bare test only
-        /// needs a backend registered. Restarting stops a prior run first. Returns false if it
-        /// fails to compile or has no `Game`.
-        bool StartRunBehavior(core::StringView source, core::StringView name)
+        /// Compile `source` and launch its class `className` as this run's behavior (a class with
+        /// launch()/update(dt)/exit()) on this instance's run host. The host must be configured
+        /// first (the app's ScriptSubsystem::ConfigureRunHost exposes the facades and routing); a
+        /// bare test only needs a backend registered. Restarting stops a prior run first. Returns
+        /// false if it fails to compile or `className` does not construct.
+        bool StartRunBehavior(core::StringView source, core::StringView name, core::StringView className)
         {
-            return StartRunBehavior(source, name, core::Span<const core::String>{});
+            return StartRunBehavior(source, name, className, core::Span<const core::String>{});
         }
 
-        /// As above, plus the Game class's declared handler names (from the cooked ScriptClass) so
-        /// the Game tier's on<Event> inbox can subscribe to the run bus. A caller with no handler
-        /// list (raw-source tests) gets a Game with no inbox.
+        /// As above, plus the class's declared handler names (from the cooked ScriptClass) so the
+        /// run behavior's on<Event> inbox can subscribe to the run bus. A caller with no handler
+        /// list (raw-source tests) gets a run behavior with no inbox.
         /// `includes` are the files the source includes (the cook's record of them). `assembly` and
         /// `symbols`, when given, are the assembly the Game class is built into (C#): it loads in
         /// place of compiling the source, which such a language does not do at run time.
-        bool StartRunBehavior(core::StringView source, core::StringView name,
+        bool StartRunBehavior(core::StringView source, core::StringView name, core::StringView className,
                          core::Span<const core::String> gameHandlers,
                          core::Span<const foundation::script::ScriptSection> includes = {},
                          core::Span<const core::byte> assembly = {}, core::Span<const core::byte> symbols = {});
 
-        /// The cooked `Game` class: its source, its file identity and its declared handlers, so its
-        /// on<Event> inbox hears the run bus. Every host that starts a cooked game (the player, the
-        /// editor's Game tab) starts it this way.
+        /// The cooked run behavior: its source, its file identity, its class and its declared
+        /// handlers, so its on<Event> inbox hears the run bus. Every host that starts a cooked game
+        /// (the player, the editor's Game tab) starts it this way. A class of another kind is
+        /// refused (RunBehaviorFault says which kind it is).
         bool StartRunBehavior(const foundation::script::ScriptClass& scriptClass)
         {
+            if (scriptClass.kind != foundation::script::BehaviorKind::Run)
+            {
+                return RefuseRunBehavior(scriptClass);
+            }
             core::Array<foundation::script::ScriptSection> includes; // the files its source includes
             for (const foundation::script::ScriptIncludedSource& included : scriptClass.includes)
             {
                 includes.PushBack(foundation::script::ScriptSection{included.path.AsView(), included.source.AsView()});
             }
             const foundation::script::ScriptAssembly* assembly = scriptClass.assembly.Get();
-            return StartRunBehavior(scriptClass.source.AsView(), scriptClass.sourceName.AsView(),
+            return StartRunBehavior(scriptClass.source.AsView(), scriptClass.sourceName.AsView(), scriptClass.className.AsView(),
                                core::Span<const core::String>(scriptClass.handlers.Data(),
                                                               scriptClass.handlers.Size()),
                                core::Span<const foundation::script::ScriptSection>(includes.Data(), includes.Size()),
@@ -577,6 +582,9 @@ export namespace engine::runtime
     private:
         // A fault in `handler`: the script stops, and the reason is kept (ScriptFault).
         void FaultRunBehavior(core::StringView handler);
+        // Refuses a cooked class that is not a RunBehavior as the run's behavior: stops any running
+        // one, keeps the reason (RunBehaviorFault), logs it, and returns false.
+        bool RefuseRunBehavior(const foundation::script::ScriptClass& scriptClass);
 
     public:
 
