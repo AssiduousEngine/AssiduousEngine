@@ -152,6 +152,10 @@ export namespace foundation::render
         rhi::TextureView* sceneDepthView = nullptr;
         bool depthPrepass =
             false; // camera depth-only prepass: no depth bias (match forward exactly)
+        // A directional cascade's shadow pass: casters past its near plane are clamped onto it, so a
+        // tall caster toward the light still shadows. Never a spot's or point's: there what surrounds
+        // the light itself (a lamp's housing) would land on the near plane and shadow its whole cone.
+        bool clampShadowCasters = false;
         bool probesEnabled =
             true; // false during probe capture: reflect the sky IBL, not the probe being captured
         bool needsMotion =
@@ -784,7 +788,7 @@ export namespace foundation::render
                                  Float3 cullCenter = {}, f32 cullRadius = 0.0f,
                                  bool frustumCull = false, Span<const Float4> cullBounds = {},
                                  const RenderView* lodView = nullptr,
-                                 const ExtractedScene* scene = nullptr);
+                                 const ExtractedScene* scene = nullptr, bool clampCasters = false);
 
         // Build the camera-independent shadow-caster list from a scene (opaque and masked meshes), grouped
         // by (mesh, material) so the depth pass batches them. Used by both the directional cascades and the

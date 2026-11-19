@@ -811,7 +811,7 @@ export namespace engine::terrain
             m_depthFormat = ctx.depthFormat;
             rhi::RenderPipeline* pso =
                 pick ? EnsurePickPipeline(ctx.colorFormat, ctx.depthFormat)
-                     : EnsureDepthPipeline(ctx.depthFormat, /*biased*/ !ctx.depthPrepass);
+                     : EnsureDepthPipeline(ctx.depthFormat, /*biased*/ !ctx.depthPrepass, ctx.clampShadowCasters);
             // The depth-pass group binds the dummy shadow view, not the live cascade being written:
             // a cascade-cast pass would otherwise sample its own render attachment (a WebGPU hazard).
             rhi::BindGroup* viewBg = EnsureDepthViewBindGroup();
@@ -894,7 +894,7 @@ export namespace engine::terrain
                 {
                     holePso = pick ? EnsurePickPipeline(ctx.colorFormat, ctx.depthFormat, /*holes*/ true)
                                    : EnsureDepthPipeline(ctx.depthFormat, /*biased*/ !ctx.depthPrepass,
-                                                         /*holes*/ true);
+                                                         ctx.clampShadowCasters, /*holes*/ true);
                     holeBg = EnsureHeightHoleBindGroup(data->heightView, data->holeView);
                 }
                 if (heightBg == nullptr)
@@ -1465,14 +1465,14 @@ export namespace engine::terrain
         // cascades (terrain_depth.ps's input is terrain.vs's VSOut; holed chunks are rare, so the
         // cascade's extra interpolants cost little) with terrain_depth's fragment stage discarding
         // by the hole mask, so the prepass depth and the cascades open with the colour pass.
-        rhi::RenderPipeline* EnsureDepthPipeline(rhi::TextureFormat depthFormat, bool biased,
+        rhi::RenderPipeline* EnsureDepthPipeline(rhi::TextureFormat depthFormat, bool biased, bool clamped,
                                                  bool holes = false)
         {
             // The HOLES twin always takes the "terrain" VS module: terrain_depth.ps declares
             // terrain.vs's full VSOut (the stage interface is matched by location), and a holed
             // chunk's prepass and cascades then share the colour pass's vertex bytecode.
             const StringView shaderName = (biased && !holes) ? u8"terrain_depth" : u8"terrain";
-            DepthPso& p = (holes ? m_holeDepthPso : m_depthPso)[biased ? 1u : 0u];
+            DepthPso& p = (holes ? m_holeDepthPso : m_depthPso)[!biased ? 0u : clamped ? 1u : 2u];
             const u64 shaderVersion = m_shaders->Version(shaderName);
             if (p.pso != nullptr && p.format == depthFormat && p.shaderVersion == shaderVersion)
             {
@@ -1511,9 +1511,10 @@ export namespace engine::terrain
             }
 
             rhi::RenderPipelineDesc pd{};
-            // A shadow pass clamps depth where the device can: terrain rising toward the light past
-            // the cascade's near plane still casts (the mesh renderer's casters do the same).
-            pd.primitive.depthClipEnabled = !(biased && m_device->features.depthClamp);
+            // A cascade's shadow pass clamps depth where the device can: terrain rising toward the
+            // light past the cascade's near plane still casts (the mesh renderer's casters do the
+            // same). A spot's or point's does not (RenderRecordContext::clampShadowCasters).
+            pd.primitive.depthClipEnabled = !(clamped && m_device->features.depthClamp);
             pd.layout = holes ? m_holeDepthPipelineLayout : m_depthPipelineLayout; // 3 sets (no material)
             pd.vertex.shader = rhi::StageOf(vs, rhi::ShaderStage::Vertex);
             pd.vertex.buffers = Span<const rhi::VertexBufferLayout>{&vbl, 1};
@@ -1648,7 +1649,7 @@ export namespace engine::terrain
             }
             for (DepthPso* dps : {m_depthPso, m_holeDepthPso})
             {
-                for (u32 i = 0; i < 2; ++i)
+                for (u32 i = 0; i < 3; ++i)
                 {
                     if (dps[i].pso != nullptr)
                     {
@@ -1916,8 +1917,9 @@ export namespace engine::terrain
         u64 m_viewBgShadowGen = 0;
         ColorPso m_colorPso;     // the colour pass
         ColorPso m_holeColorPso; // its HOLES twin (holed chunks: the hole-mask discard)
-        DepthPso m_depthPso[2]; // [0] = prepass (no bias), [1] = shadow cascade (biased)
-        DepthPso m_holeDepthPso[2];
+        DepthPso m_depthPso[3]; // [0] = prepass (no bias), [1] = shadow cascade (biased, clamped),
+                                // [2] = a local light's shadow (biased, not clamped)
+        DepthPso m_holeDepthPso[3];
         PickPso m_pickPso;      // the GPU-pick id pass
         PickPso m_holePickPso;
         rhi::TextureFormat m_depthFormat = rhi::TextureFormat::Undefined;

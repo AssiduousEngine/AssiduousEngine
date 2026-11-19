@@ -843,9 +843,10 @@ namespace foundation::render
                                           const Float4x4& lightViewProj, Float3 cullCenter,
                                           f32 cullRadius, bool frustumCull,
                                           Span<const Float4> cullBounds, const RenderView* lodView,
-                                          const ExtractedScene* scene)
+                                          const ExtractedScene* scene, bool clampCasters)
     {
         RenderRecordContext ctx{};
+        ctx.clampShadowCasters = clampCasters;
         ctx.timeSeconds = m_timeSeconds; // the WIND clock: the casters' scene's, else the frame's
         ctx.prevTimeSeconds = m_prevTimeSeconds;
         if (scene != nullptr && scene->HasTime())
@@ -1766,7 +1767,7 @@ namespace foundation::render
                                     // the shadow matches what the view draws.
                                     RecordShadowCasters(rp, casters, *reg, cascadeVP, {}, 0.0f,
                                                         /*frustumCull*/ true, bounds, v,
-                                                        sctx->scene);
+                                                        sctx->scene, /*clampCasters*/ true);
                                 });
                         });
                 }

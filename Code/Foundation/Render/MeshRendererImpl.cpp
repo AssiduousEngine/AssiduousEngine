@@ -2226,8 +2226,9 @@ namespace foundation::render
             c.depthBiasSlopeScale = rhi::depth::SlopeBiasAwayFromViewer(1.5f);
             // The cascade fit bounds the receivers the camera sees; a tall caster toward the light
             // reaches past its near plane and was clipped away, its shadow with it. Clamped, it
-            // lands on the near plane and still occludes everything behind it.
-            c.depthClamp = true;
+            // lands on the near plane and still occludes everything behind it. Only a directional
+            // cascade's pass clamps: a spot's or point's would clamp its own lamp's housing.
+            c.depthClamp = ctx.clampShadowCasters;
         }
         return c;
     }

@@ -112,6 +112,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Spot and point lights light their whole cone again. Their shadow pass clamped casters onto its
+  near plane as the sun's does, so a lamp's own housing shadowed what it lit: a dark square under
+  each post lamp, and a lantern lighting only a small patch.
 - Playing a game whose characters animate through a blend tree no longer crashes about ten seconds
   after its assets load. Unused resources were released even while an animation graph still used
   its clips.

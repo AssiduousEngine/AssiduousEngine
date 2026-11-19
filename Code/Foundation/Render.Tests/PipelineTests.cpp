@@ -653,6 +653,92 @@ TEST_CASE("RenderFrame: a view's cascades draw only the casters whose shadow can
     CHECK(frame.ViewShadowInfo()[0].directionalCasters == 0u);
 }
 
+namespace
+{
+    // An external Opaque renderer that notes each shadow pass it is asked to draw: whether the pass
+    // clamps its casters' depth, and whether it is a cascade's (which follows its view's LOD, so it
+    // carries the view) or a local light's tile (which carries none).
+    class ClampRecordingRenderer final : public Renderer
+    {
+    public:
+        struct Pass
+        {
+            bool cascade = false;
+            bool clamp = false;
+        };
+        Array<Pass> passes;
+
+        [[nodiscard]] Span<const RenderCategory> SupportedCategories() const override
+        {
+            static const RenderCategory kCats[] = {RenderCategories::Opaque};
+            return Span<const RenderCategory>{kCats, 1};
+        }
+        void Resolve(const RenderRecordContext&, Span<const DrawItem>, Array<ResolvedDraw>&) override {}
+        void ResolveDepthOnly(const RenderRecordContext& ctx, Span<const DrawItem>, Array<ResolvedDraw>&) override
+        {
+            if (!ctx.depthPrepass)
+            {
+                passes.PushBack(Pass{ctx.view != nullptr, ctx.clampShadowCasters});
+            }
+        }
+    };
+}
+
+// Clamping a caster's depth onto the near plane suits a cascade: a tall caster toward the sun past
+// it still shadows. A spot's shadow clamped too, and a lamp's own housing around its light landed on
+// the near plane and shadowed the whole cone: a square under each post lamp in Lamplight.
+TEST_CASE("RenderFrame: the sun's cascades clamp their casters' depth; a spot's shadow does not")
+{
+    RenderHarness h;
+    if (!h.Init(128, 128))
+    {
+        MESSAGE("DXC/Null unavailable; skipping");
+        return;
+    }
+    ClampRecordingRenderer recorder;
+    RendererRegistry registry;
+    registry.Register(&recorder);
+    ShadowSystem shadows(h.device, 2);
+    REQUIRE(shadows.Initialize().IsOk());
+    RenderFrame frame(DefaultAllocator(), h.device, registry, 2, nullptr, nullptr, &shadows);
+
+    ExtractedScene scene{DefaultAllocator()};
+    JunkRenderData* caster = scene.Add<JunkRenderData>();
+    caster->category = RenderCategories::Opaque;
+    caster->rendererId = recorder.RendererId();
+    caster->worldCenter = Float3{0, 0, 0};
+    caster->worldRadius = 1.0f;
+    DirectionalShadow ds;
+    ds.direction = Float3{0.0f, -1.0f, 0.0f};
+    ds.valid = true;
+    scene.SetDirectionalShadow(ds);
+    LocalShadowCaster lamp;
+    lamp.type = 2;
+    lamp.positionWS = Float3{0, 3, 0};
+    lamp.directionWS = Float3{0, -1, 0};
+    lamp.range = 8.0f;
+    lamp.outerAngle = 0.6f;
+    scene.AddLocalShadowCaster(lamp);
+
+    ViewCamera camera;
+    camera.view = Float4x4::LookAtRH(Float3{0, 2, 6}, Float3{0, 0, 0}, Float3{0, 1, 0});
+    camera.projection = Float4x4::PerspectiveFovRH(1.0472f, 1.0f, 0.1f, 100.0f);
+    ViewSettings settings;
+    frame.Begin(*h.encoder, 0);
+    frame.AddView(scene, camera, settings, h.colorView, rhi::TextureFormat::BGRA8Unorm, 128, 128);
+    frame.End();
+
+    u32 cascades = 0;
+    u32 locals = 0;
+    for (const ClampRecordingRenderer::Pass& pass : recorder.passes)
+    {
+        CHECK(pass.clamp == pass.cascade);
+        (pass.cascade ? cascades : locals) += 1;
+    }
+    CHECK(cascades >= 1u);
+    CHECK(locals == 1u);
+}
+
 TEST_CASE("RenderFrame: each cascade draws only the casters whose shadow lands on its slice")
 {
     // A camera looking down -Z over 100 m (its far plane cuts the 300 m default shadow reach), the sun
