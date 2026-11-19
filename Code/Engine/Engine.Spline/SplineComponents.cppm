@@ -157,7 +157,7 @@ export namespace engine::spline
     /// The scene-bound spline facade (scene.splines, shaped like ScenePhysics): all
     /// queries take the entity carrying the SplineComponent and answer in world space (the
     /// entity transform places the curve; points are stored entity-local).
-    struct SceneSplines
+    struct SceneSplinesFacade
     {
         foundation::scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
 
@@ -179,9 +179,9 @@ export namespace engine::spline
         }
 
         // The scene's own, read by scripts as a property of the scene (ExtendScene).
-        [[nodiscard]] static SceneSplines ForScene(const foundation::script::Scene& sceneHandle)
+        [[nodiscard]] static SceneSplinesFacade ForScene(const foundation::script::Scene& sceneHandle)
         {
-            return SceneSplines{sceneHandle.scene};
+            return SceneSplinesFacade{sceneHandle.scene};
         }
 
     private:

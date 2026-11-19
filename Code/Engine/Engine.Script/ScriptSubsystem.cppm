@@ -1386,7 +1386,7 @@ export namespace engine::script
     /// (scaled: it stands still at time scale 0), the messages between behaviours (`send`, as `entity.send` on the target), the events
     /// on the scene's bus (`emit`, as `scene.events.emit`), and a behaviour added at runtime by
     /// its class's asset id. A value type; a null scene makes every call a safe no-op.
-    struct SceneScripts
+    struct SceneScriptsFacade
     {
         scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
 
@@ -1423,13 +1423,13 @@ export namespace engine::script
         /// Publishes on the scene's bus: every behaviour and the Level declaring `on<Event>`.
         void emit(String name) const
         {
-            SceneEvents events;
+            SceneEventsFacade events;
             events.scene = scene;
             events.emit(Move(name));
         }
         void emit(String name, Variant payload) const
         {
-            SceneEvents events;
+            SceneEventsFacade events;
             events.scene = scene;
             events.emit(Move(name), Move(payload));
         }
@@ -1442,9 +1442,9 @@ export namespace engine::script
         }
 
         // The scene's own, read by scripts as a property of the scene (ExtendScene).
-        [[nodiscard]] static SceneScripts ForScene(const foundation::script::Scene& sceneHandle)
+        [[nodiscard]] static SceneScriptsFacade ForScene(const foundation::script::Scene& sceneHandle)
         {
-            SceneScripts scripts;
+            SceneScriptsFacade scripts;
             scripts.scene = sceneHandle.scene;
             return scripts;
         }

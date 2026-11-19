@@ -1158,9 +1158,9 @@ export namespace engine::render
     /// The `RenderQuality` script facade over the calling run's RenderQualityChoice:
     /// `RenderQuality.levels()`, `.current()` and `.set(label)` in Luau, `RenderQuality::` in
     /// AngelScript. A run that offers no levels lists none, reads an empty label and refuses a set.
-    class RenderQuality final : public Object
+    class RenderQualityFacade final : public Object
     {
-        RTTI_OBJECT(RenderQuality, Object)
+        RTTI_OBJECT(RenderQualityFacade, Object)
     public:
         [[nodiscard]] static RenderQualityChoice* Resolve();
         /// The levels' labels, in the project's order.
@@ -1510,7 +1510,7 @@ export namespace engine::render
     // resource::Ref by id (mesh, material slot). Keyed by entity, like ScenePhysics (the component is
     // auto-reflected data; the scene handle does world operations keyed by entity). A value type
     // carrying the scene pointer.
-    struct SceneRender
+    struct SceneRenderFacade
     {
         scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
 
@@ -1627,9 +1627,9 @@ export namespace engine::render
         }
 
         // The scene's own, read by scripts as a property of the scene (ExtendScene).
-        [[nodiscard]] static SceneRender ForScene(const foundation::script::Scene& sceneHandle)
+        [[nodiscard]] static SceneRenderFacade ForScene(const foundation::script::Scene& sceneHandle)
         {
-            return SceneRender{sceneHandle.scene};
+            return SceneRenderFacade{sceneHandle.scene};
         }
 
     private:
@@ -1652,7 +1652,7 @@ export namespace engine::render
     // (alpha 1); world units.
     // Methods are defined in RenderComponentsImpl.cpp (the impl unit can see :subsystem's
     // RenderSubsystem; this :components interface cannot).
-    struct DebugDraw
+    struct DebugDrawFacade
     {
         scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
 
@@ -1687,9 +1687,9 @@ export namespace engine::render
         void screenText(f32 x, f32 y, String label, Color color, f32 scale) const;
 
         // The scene's own, read by scripts as a property of the scene (ExtendScene).
-        [[nodiscard]] static DebugDraw ForScene(const foundation::script::Scene& sceneHandle)
+        [[nodiscard]] static DebugDrawFacade ForScene(const foundation::script::Scene& sceneHandle)
         {
-            return DebugDraw{sceneHandle.scene};
+            return DebugDrawFacade{sceneHandle.scene};
         }
     };
 

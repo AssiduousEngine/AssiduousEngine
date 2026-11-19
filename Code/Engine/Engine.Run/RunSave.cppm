@@ -70,9 +70,9 @@ export namespace engine::runtime
     // The `Save` script facade: a static facade over the calling context's run save, the same
     // shape on both backends (`Save::setInt("best.level2", 4210)`, `Save.getInt(...)` in Luau). A
     // context with no run save (an editor tool) reads every fallback and writes nowhere.
-    class Save final : public Object
+    class SaveFacade final : public Object
     {
-        RTTI_OBJECT(Save, Object)
+        RTTI_OBJECT(SaveFacade, Object)
     public:
         [[nodiscard]] static RunSave* Resolve()
         {

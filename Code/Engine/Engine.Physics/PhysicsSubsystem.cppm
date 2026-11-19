@@ -1356,7 +1356,7 @@ export namespace engine::physics
     // scene's world (its PhysicsSceneSystem), not the first started scene. A plain value carrying
     // the scene pointer (returned by value: a concrete type, cross-backend, no hook slot); a null
     // scene, or a scene with no physics system, is a safe no-op.
-    struct ScenePhysics
+    struct ScenePhysicsFacade
     {
         scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
 
@@ -1746,9 +1746,9 @@ export namespace engine::physics
         }
 
         // The scene's own, read by scripts as a property of the scene (ExtendScene).
-        [[nodiscard]] static ScenePhysics ForScene(const foundation::script::Scene& sceneHandle)
+        [[nodiscard]] static ScenePhysicsFacade ForScene(const foundation::script::Scene& sceneHandle)
         {
-            return ScenePhysics{sceneHandle.scene};
+            return ScenePhysicsFacade{sceneHandle.scene};
         }
     };
 

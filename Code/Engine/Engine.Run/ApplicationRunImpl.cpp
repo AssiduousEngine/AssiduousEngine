@@ -41,14 +41,14 @@ namespace engine::runtime
     // ---- run.* facade: reflection bodies and registration, kept out of the interface unit to keep
     // GCC's gcm cluster small. Bound to scripts in lowercase as `run` through ScriptName; includes
     // the running instance's level-load control.
-    void RunEvents::emit(core::String name) const
+    void RunEventsFacade::emit(core::String name) const
     {
         if (bus != nullptr)
         {
             bus->Publish(core::StringHash(name.AsView()), core::Variant{});
         }
     }
-    void RunEvents::emit(core::String name, core::Variant payload) const
+    void RunEventsFacade::emit(core::String name, core::Variant payload) const
     {
         if (bus != nullptr)
         {
@@ -56,35 +56,36 @@ namespace engine::runtime
         }
     }
 
-    REFLECT_VALUE(RunEvents, "rtti::engine::runtime")
+    REFLECT_VALUE(RunEventsFacade, "rtti::engine::runtime")
     {
+        builder.Attribute("scriptName", "RunEvents");
         // emit as an arity family, as SceneEvents does: emit(name) and emit(name, payload:Variant).
-        builder.Method<static_cast<void (RunEvents::*)(core::String) const>(&RunEvents::emit)>("emit");
-        builder.Method<static_cast<void (RunEvents::*)(core::String, core::Variant) const>(
-            &RunEvents::emit)>("emit", {"name", "payload"});
+        builder.Method<static_cast<void (RunEventsFacade::*)(core::String) const>(&RunEventsFacade::emit)>("emit");
+        builder.Method<static_cast<void (RunEventsFacade::*)(core::String, core::Variant) const>(
+            &RunEventsFacade::emit)>("emit", {"name", "payload"});
         builder.Constructor();
     }
 
-    REFLECT_MEMBERS(Run, "rtti::engine::runtime")
+    REFLECT_MEMBERS(RunFacade, "rtti::engine::runtime")
     {
         builder.Attribute("scriptName", "run"); // the reserved lowercase `run` (ScriptName alias)
-        builder.Method<&Run::events>("events");  // run.events() -> the run-bus handle
-        builder.Method<&Run::loadSceneAsync>("loadSceneAsync");
-        builder.Method<&Run::loadProgress>("loadProgress");
-        builder.Method<&Run::loadComplete>("loadComplete");
-        builder.Method<&Run::loadFailed>("loadFailed");
-        builder.Method<&Run::loadScene>("loadScene");
-        builder.Method<&Run::sceneReady>("sceneReady");
-        builder.Method<&Run::currentScene>("currentScene"); // -> bound Scene (orchestrator)
+        builder.Method<&RunFacade::events>("events");  // run.events() -> the run-bus handle
+        builder.Method<&RunFacade::loadSceneAsync>("loadSceneAsync");
+        builder.Method<&RunFacade::loadProgress>("loadProgress");
+        builder.Method<&RunFacade::loadComplete>("loadComplete");
+        builder.Method<&RunFacade::loadFailed>("loadFailed");
+        builder.Method<&RunFacade::loadScene>("loadScene");
+        builder.Method<&RunFacade::sceneReady>("sceneReady");
+        builder.Method<&RunFacade::currentScene>("currentScene"); // -> bound Scene (orchestrator)
         // requestExit as an arity family, like emit: requestExit() and requestExit(code:int).
-        builder.Method<static_cast<void (*)()>(&Run::requestExit)>("requestExit");
-        builder.Method<static_cast<void (*)(i32)>(&Run::requestExit)>("requestExit", {"code"});
-        builder.Method<&Run::setTimeScale>("setTimeScale", {"scale"}); // 0 = pause gameplay, 0.5 slow-mo
-        builder.Method<&Run::timeScale>("timeScale");
-        builder.Method<&Run::realDeltaTime>("realDeltaTime"); // unscaled: runs while paused
-        builder.Method<&Run::realTime>("realTime");
-        builder.Method<&Run::setProfilerOverlay>("setProfilerOverlay", {"shown"}); // the app's overlay
-        builder.Method<&Run::profilerAvailable>("profilerAvailable");             // false in Shipping
+        builder.Method<static_cast<void (*)()>(&RunFacade::requestExit)>("requestExit");
+        builder.Method<static_cast<void (*)(i32)>(&RunFacade::requestExit)>("requestExit", {"code"});
+        builder.Method<&RunFacade::setTimeScale>("setTimeScale", {"scale"}); // 0 = pause gameplay, 0.5 slow-mo
+        builder.Method<&RunFacade::timeScale>("timeScale");
+        builder.Method<&RunFacade::realDeltaTime>("realDeltaTime"); // unscaled: runs while paused
+        builder.Method<&RunFacade::realTime>("realTime");
+        builder.Method<&RunFacade::setProfilerOverlay>("setProfilerOverlay", {"shown"}); // the app's overlay
+        builder.Method<&RunFacade::profilerAvailable>("profilerAvailable");             // false in Shipping
         builder.Constructor();
     }
 
@@ -92,9 +93,9 @@ namespace engine::runtime
     {
         static const bool once = []()
         {
-            RttiRegisterValue_RunEvents(); // the run.events() handle (a bound value type)
-            GlobalTypeRegistry().Register(TypeOf<RunEvents>());
-            GlobalTypeRegistry().Register(Run::StaticType()); // binds as `run` (its scriptName alias)
+            RttiRegisterValue_RunEventsFacade(); // the run.events() handle (a bound value type)
+            GlobalTypeRegistry().Register(TypeOf<RunEventsFacade>());
+            GlobalTypeRegistry().Register(RunFacade::StaticType()); // binds as `run` (its scriptName alias)
             foundation::script::RegisterExtraFacadeName(u8"run"); // the prelude imports the alias, not Run
             return true;
         }();

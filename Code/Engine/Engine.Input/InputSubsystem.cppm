@@ -199,9 +199,9 @@ export namespace engine::input
     // a call from outside any script, reads released. Some backends cannot inject host
     // objects as module globals, which is why the API is static methods on a foreign class rather
     // than a passed object.
-    class Input final : public Object
+    class InputFacade final : public Object
     {
-        RTTI_OBJECT(Input, Object)
+        RTTI_OBJECT(InputFacade, Object)
     public:
         /// The calling script's runtime: its run's, else the application's.
         [[nodiscard]] static ActionRuntime* Resolve() { return foundation::script::CurrentService<ActionRuntime>(); }

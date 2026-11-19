@@ -6318,5 +6318,5 @@ TEST_CASE("script.scene: the script Entity and the scene facades are plain bytes
     CHECK(TypeOf<foundation::script::Entity>().trivialCopy);
     CHECK_FALSE(TypeOf<foundation::script::Entity>().hasIdentity);
     CHECK(TypeOf<foundation::script::Scene>().trivialCopy);
-    CHECK(TypeOf<foundation::script::SceneEvents>().trivialCopy);
+    CHECK(TypeOf<foundation::script::SceneEventsFacade>().trivialCopy);
 }

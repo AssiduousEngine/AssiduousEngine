@@ -512,7 +512,7 @@ TEST_CASE("physics.scene: ScenePhysics.rayCast returns an EXPLICIT RayCastHit (n
     play.Start();
     play.Step(10);
 
-    ScenePhysics physics{&play.scene};
+    ScenePhysicsFacade physics{&play.scene};
     // A downward ray from above hits the box top (~y=1.0), so distance ~4 from y=5.
     const RayCastHit hit = physics.rayCast(0, 5, 0, 0, -1, 0, 20);
     CHECK(hit.hit);
@@ -535,7 +535,7 @@ TEST_CASE("physics.scene: ScenePhysics.rayCast returns an EXPLICIT RayCastHit (n
     CHECK(miss.distance == doctest::Approx(-1.0f));
     CHECK(miss.entity().Handle() == scene::EntityHandle{});
     miss.impulse(8000, 0, 0); // no-op, no crash
-    CHECK_FALSE(ScenePhysics{nullptr}.rayCast(0, 5, 0, 0, -1, 0, 20).hit);
+    CHECK_FALSE(ScenePhysicsFacade{nullptr}.rayCast(0, 5, 0, 0, -1, 0, 20).hit);
 }
 
 TEST_CASE("physics.scene: RayCastHit.material names the hit body's physical material (a game's surface)")
@@ -550,7 +550,7 @@ TEST_CASE("physics.scene: RayCastHit.material names the hit body's physical mate
     play.Start();
     play.Step(10);
 
-    ScenePhysics physics{&play.scene};
+    ScenePhysicsFacade physics{&play.scene};
     const RayCastHit onFloor = physics.rayCast(3, 5, 0, 0, -1, 0, 20);
     REQUIRE(onFloor.hit);
     CHECK(onFloor.material() == wood);
@@ -568,7 +568,7 @@ TEST_CASE("physics.scene: ScenePhysics.sphereCast sweeps a sphere (hits earlier 
     play.Start();
     play.Step(10);
 
-    ScenePhysics physics{&play.scene};
+    ScenePhysicsFacade physics{&play.scene};
     // A downward sphere (r=0.5) touches the box top (y=1.0) when its centre reaches y=1.5, a
     // distance of 3.5 from y=5. A point ray reaches y=1.0 at 4.0, so the volume hits earlier.
     const RayCastHit swept = physics.sphereCast(0, 5, 0, 0, -1, 0, 20, 0.5f);
@@ -580,7 +580,7 @@ TEST_CASE("physics.scene: ScenePhysics.sphereCast sweeps a sphere (hits earlier 
 
     // A clear sweep misses; a null scene is safe.
     CHECK_FALSE(physics.sphereCast(0, 100, 0, 0, 1, 0, 1, 0.5f).hit);
-    CHECK_FALSE(ScenePhysics{nullptr}.sphereCast(0, 5, 0, 0, -1, 0, 20, 0.5f).hit);
+    CHECK_FALSE(ScenePhysicsFacade{nullptr}.sphereCast(0, 5, 0, 0, -1, 0, 20, 0.5f).hit);
 }
 
 TEST_CASE("physics.scene: ScenePhysics.nearestOverlap picks the nearest overlapping body + group mask")
@@ -603,7 +603,7 @@ TEST_CASE("physics.scene: ScenePhysics.nearestOverlap picks the nearest overlapp
     play.Start();
     play.Step(1);
 
-    ScenePhysics physics{&play.scene};
+    ScenePhysicsFacade physics{&play.scene};
     // A big sphere at the origin overlaps both; the nearest body origin (x=2) wins.
     const RayCastHit h = physics.nearestOverlap(0, 0, 0, 8.0f, ~0);
     CHECK(h.hit);
@@ -615,7 +615,7 @@ TEST_CASE("physics.scene: ScenePhysics.nearestOverlap picks the nearest overlapp
     CHECK_FALSE(physics.nearestOverlap(0, 0, 0, 8.0f, ~(1 << 3)).hit);
     // A small sphere reaching neither misses; a null scene is safe.
     CHECK_FALSE(physics.nearestOverlap(0, 0, 0, 1.0f, ~0).hit);
-    CHECK_FALSE(ScenePhysics{nullptr}.nearestOverlap(0, 0, 0, 8.0f, ~0).hit);
+    CHECK_FALSE(ScenePhysicsFacade{nullptr}.nearestOverlap(0, 0, 0, 8.0f, ~0).hit);
 }
 
 TEST_CASE("physics.scene: ScenePhysics.overlapSphere returns the FULL set as Array<Entity>")
@@ -638,7 +638,7 @@ TEST_CASE("physics.scene: ScenePhysics.overlapSphere returns the FULL set as Arr
     play.Start();
     play.Step(1);
 
-    ScenePhysics physics{&play.scene};
+    ScenePhysicsFacade physics{&play.scene};
     const Array<foundation::script::Entity> all = physics.overlapSphere(0.0f, 0.0f, 0.0f, 8.0f, ~0);
     CHECK(all.Size() == 2);
     // Both entities present (order not guaranteed); each element is a resolved, live Entity.
@@ -651,7 +651,7 @@ TEST_CASE("physics.scene: ScenePhysics.overlapSphere returns the FULL set as Arr
 
     // A group mask excluding group 3 gives an empty result; a null scene is safe.
     CHECK(physics.overlapSphere(0.0f, 0.0f, 0.0f, 8.0f, ~(1 << 3)).Size() == 0);
-    CHECK(ScenePhysics{nullptr}.overlapSphere(0.0f, 0.0f, 0.0f, 8.0f, ~0).Size() == 0);
+    CHECK(ScenePhysicsFacade{nullptr}.overlapSphere(0.0f, 0.0f, 0.0f, 8.0f, ~0).Size() == 0);
 }
 
 TEST_CASE("physics.scene: applyImpulse before the body exists is queued + flushed at body creation")
@@ -665,7 +665,7 @@ TEST_CASE("physics.scene: applyImpulse before the body exists is queued + flushe
     // Launch it along +Z now: the world exists but this body is not built yet, so the impulse
     // queues on the component (spawning an object and throwing it in the same frame). Without the
     // queue the impulse would be dropped and the object would just fall.
-    ScenePhysics physics{&play.scene};
+    ScenePhysicsFacade physics{&play.scene};
     physics.applyImpulse(foundation::script::WrapEntity(&play.scene, box), 0.0f, 0.0f, 5000.0f);
     play.Step(1); // assembly builds the body and flushes the queued impulse
     auto* bodies = play.scene.GetSystem<RigidBodyComponentManager>();
@@ -684,7 +684,7 @@ TEST_CASE("physics.scene: the impulse queue is RUN-scoped and cannot accumulate 
     const scene::EntityHandle box = play.AddBox(5.0f);
     play.Start();
     auto* bodies = play.scene.GetSystem<RigidBodyComponentManager>();
-    ScenePhysics physics{&play.scene};
+    ScenePhysicsFacade physics{&play.scene};
 
     // Stop clears a pending queue (queued in the last frame before Stop).
     play.scene.SetActive(box, false);
@@ -701,7 +701,7 @@ TEST_CASE("physics.scene: the impulse queue is RUN-scoped and cannot accumulate 
     play2.Start();
     play2.scene.SetActive(box2, false);
     play2.Step(1); // body destroyed, and the queue cleared where it is destroyed
-    ScenePhysics physics2{&play2.scene};
+    ScenePhysicsFacade physics2{&play2.scene};
     for (int i = 0; i < 60; ++i) // a script spamming applyImpulse on a disabled entity
     {
         physics2.applyImpulse(foundation::script::WrapEntity(&play2.scene, box2), 0.0f, 0.0f,
@@ -722,7 +722,7 @@ TEST_CASE("physics.scene: setVelocity sets a body moving now, or as soon as it i
     PlayScene play;
     const scene::EntityHandle box = play.AddBox(5.0f);
     play.Start();
-    ScenePhysics physics{&play.scene};
+    ScenePhysicsFacade physics{&play.scene};
     physics.setGravity(0.0f, 0.0f, 0.0f);
     const foundation::script::Entity entity = foundation::script::WrapEntity(&play.scene, box);
 
@@ -750,7 +750,7 @@ TEST_CASE("physics.scene: setForce holds a force on the body every step until re
     PlayScene play;
     const scene::EntityHandle box = play.AddBox(5.0f); // a 1 m cube of 1000 kg
     play.Start();
-    ScenePhysics physics{&play.scene};
+    ScenePhysicsFacade physics{&play.scene};
     physics.setGravity(0.0f, 0.0f, 0.0f);
     const foundation::script::Entity entity = foundation::script::WrapEntity(&play.scene, box);
 
@@ -782,7 +782,7 @@ TEST_CASE("physics.scene: shape queries reject non-positive sizes as a clean mis
     play.Start();
     play.Step(10);
 
-    ScenePhysics physics{&play.scene};
+    ScenePhysicsFacade physics{&play.scene};
     CHECK_FALSE(physics.sphereCast(0, 5, 0, 0, -1, 0, 20, 0.0f).hit);
     CHECK_FALSE(physics.sphereCast(0, 5, 0, 0, -1, 0, 20, -1.0f).hit);
     CHECK_FALSE(physics.nearestOverlap(0, 0.5f, 0, 0.0f, -1).hit);
@@ -1623,7 +1623,7 @@ TEST_CASE("physics.scene: a source's static capsules are solid, in their group, 
     play.Step(30); // settles on the floor
 
     // The overlap in the trunks' group finds it: no entity, its centre (foot + height / 2).
-    ScenePhysics physics{&play.scene};
+    ScenePhysicsFacade physics{&play.scene};
     const RayCastHit found = physics.nearestOverlap(6.0f, 1.0f, 0.0f, 1.0f, 1 << 2);
     CHECK(found.hit);
     CHECK_FALSE(found.entity().isValid());
@@ -1662,7 +1662,7 @@ TEST_CASE("physics.scene: a source not ready at the start is asked again, and it
     source->ready = false;
     play.Start();
     play.Step(3);
-    ScenePhysics physics{&play.scene};
+    ScenePhysicsFacade physics{&play.scene};
     CHECK_FALSE(physics.nearestOverlap(0.0f, 0.5f, 0.0f, 0.3f, ~0).hit);
     CHECK(source->asked >= 3u);
 

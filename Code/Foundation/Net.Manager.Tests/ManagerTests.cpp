@@ -178,7 +178,7 @@ TEST_CASE("net-manager: an endpoint that closes tells its peers at once")
 TEST_CASE("net-manager: the Net facade type registers")
 {
     net::RegisterNetScriptFacade(); // idempotent; registers the reflected type
-    const TypeInfo& ti = net::Net::StaticType();
+    const TypeInfo& ti = net::NetFacade::StaticType();
     CHECK(PropertyCount(ti) == 0u); // a facade has methods, not properties
     // (End-to-end script binding on both backends is exercised in NetFacadeScriptTests.cpp.)
 }

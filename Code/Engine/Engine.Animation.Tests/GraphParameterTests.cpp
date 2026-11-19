@@ -40,7 +40,7 @@ TEST_CASE("animation: SceneAnimation sets a graph's Float, Int, Bool and Trigger
     animation::AnimationGraphPlayer& player = *component.player;
 
     const foundation::script::Entity entity{&level, hero.index, hero.generation};
-    const engine::animation::SceneAnimation animations{&level};
+    const engine::animation::SceneAnimationFacade animations{&level};
     animations.setFloat(entity, String(u8"Speed"), 3.5f);
     animations.setInt(entity, String(u8"Weapon"), 2);
     animations.setBool(entity, String(u8"Grounded"), true);

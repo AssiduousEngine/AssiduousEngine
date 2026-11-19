@@ -115,7 +115,7 @@ TEST_CASE("spline facade: world-space queries through SceneSplines")
     sceneObj.UpdateTransforms();
 
     foundation::script::Entity scriptEntity{&sceneObj, entity.index, entity.generation};
-    engine::spline::SceneSplines splines{&sceneObj};
+    engine::spline::SceneSplinesFacade splines{&sceneObj};
 
     CHECK(splines.pointCount(scriptEntity) == 2);
     CHECK(!splines.isClosed(scriptEntity));

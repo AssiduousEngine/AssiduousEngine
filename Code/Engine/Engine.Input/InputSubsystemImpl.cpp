@@ -23,36 +23,37 @@ using namespace foundation::input;
 
 namespace engine::input
 {
-    REFLECT_MEMBERS(Input, "rtti::engine::input")
+    REFLECT_MEMBERS(InputFacade, "rtti::engine::input")
     {
-        builder.Method<&Input::isDown>("isDown");
-        builder.Method<&Input::wasPressed>("wasPressed");
-        builder.Method<&Input::wasReleased>("wasReleased");
-        builder.Method<&Input::value>("value");
-        builder.Method<&Input::valueX>("valueX");
-        builder.Method<&Input::valueY>("valueY");
-        builder.Method<&Input::value2D>("value2D", {"action"});
-        builder.Method<&Input::pushSet>("pushSet");
-        builder.Method<&Input::popSet>("popSet");
-        builder.Method<&Input::enableSet>("enableSet");
+        builder.Attribute("scriptName", "Input");
+        builder.Method<&InputFacade::isDown>("isDown");
+        builder.Method<&InputFacade::wasPressed>("wasPressed");
+        builder.Method<&InputFacade::wasReleased>("wasReleased");
+        builder.Method<&InputFacade::value>("value");
+        builder.Method<&InputFacade::valueX>("valueX");
+        builder.Method<&InputFacade::valueY>("valueY");
+        builder.Method<&InputFacade::value2D>("value2D", {"action"});
+        builder.Method<&InputFacade::pushSet>("pushSet");
+        builder.Method<&InputFacade::popSet>("popSet");
+        builder.Method<&InputFacade::enableSet>("enableSet");
         // Rumble, by arity: gamepad 0, or a pad by index; stopRumble stops every pad.
-        builder.Method<static_cast<void (*)(f32, f32, f32)>(&Input::rumble)>("rumble",
+        builder.Method<static_cast<void (*)(f32, f32, f32)>(&InputFacade::rumble)>("rumble",
                                                                             {"low", "high", "seconds"});
-        builder.Method<static_cast<void (*)(i32, f32, f32, f32)>(&Input::rumble)>(
+        builder.Method<static_cast<void (*)(i32, f32, f32, f32)>(&InputFacade::rumble)>(
             "rumble", {"gamepad", "low", "high", "seconds"});
-        builder.Method<&Input::stopRumble>("stopRumble");
-        builder.Method<&Input::lockPointer>("lockPointer", {"locked"});
-        builder.Method<&Input::pointerLocked>("pointerLocked");
+        builder.Method<&InputFacade::stopRumble>("stopRumble");
+        builder.Method<&InputFacade::lockPointer>("lockPointer", {"locked"});
+        builder.Method<&InputFacade::pointerLocked>("pointerLocked");
         // The control an action takes on the device in hand, by arity: the action, or it in a set.
-        builder.Method<static_cast<String (*)(String)>(&Input::describe)>("describe", {"action"});
-        builder.Method<static_cast<String (*)(String, String)>(&Input::describe)>("describe", {"action", "set"});
+        builder.Method<static_cast<String (*)(String)>(&InputFacade::describe)>("describe", {"action"});
+        builder.Method<static_cast<String (*)(String, String)>(&InputFacade::describe)>("describe", {"action", "set"});
         // Some backends only materialize constructible types as foreign classes.
         builder.Constructor();
     }
 
     void RegisterInputScriptFacade()
     {
-        GlobalTypeRegistry().Register(Input::StaticType());
+        GlobalTypeRegistry().Register(InputFacade::StaticType());
         // So the behavior and Level prelude imports `Input` too (AngelScript binds by registry).
         // Without this only top-level `main` and Game scripts can see it. Idempotent.
         foundation::script::RegisterExtraFacadeName(u8"Input");

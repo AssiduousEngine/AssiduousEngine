@@ -39,9 +39,9 @@ export namespace foundation::gui
     };
 
     /// The `gui` facade, with static members only (script name `gui`).
-    class Gui : public Object
+    class GuiFacade : public Object
     {
-        RTTI_OBJECT(Gui, Object)
+        RTTI_OBJECT(GuiFacade, Object)
     public:
         /// Returns the calling script's root (a Node handle), or null when its host installed none.
         [[nodiscard]] static Variant Root();

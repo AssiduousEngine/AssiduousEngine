@@ -133,7 +133,7 @@ TEST_CASE("root motion: Ignore leaves the entity where it was; Manual holds the 
     script.Run(0.5f, 0.1f);
     CHECK(Length(script.level.GetWorldPosition(script.walker) - still) < 1.0e-6f); // moved nothing
     const foundation::script::Entity entity{&script.level, script.walker.index, script.walker.generation};
-    const engine::animation::SceneAnimation animation{&script.level};
+    const engine::animation::SceneAnimationFacade animation{&script.level};
     const Float3 tick = animation.rootMotionTranslation(entity);
     CHECK(tick.x == doctest::Approx(0.3f).epsilon(1e-3)); // 3 m/s for 0.1 s, the parent turning +Z to +X
     CHECK(Abs(tick.z) < 1.0e-4f);

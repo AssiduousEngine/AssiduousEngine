@@ -523,20 +523,20 @@ namespace foundation::gui
         }
     }
 
-    f64 Gui::GetNumber(StringView name)
+    f64 GuiFacade::GetNumber(StringView name)
     {
         DataModel* data = ScriptDataModel();
         const core::Variant value = data != nullptr ? ConvertVariant(data->Get(name), TypeOf<f64>()) : core::Variant{};
         return value.IsEmpty() ? 0.0 : value.Get<f64>();
     }
 
-    core::String Gui::GetText(StringView name)
+    core::String GuiFacade::GetText(StringView name)
     {
         DataModel* data = ScriptDataModel();
         return data != nullptr ? FormatVariant(data->Get(name)) : core::String{};
     }
 
-    bool Gui::GetBool(StringView name)
+    bool GuiFacade::GetBool(StringView name)
     {
         DataModel* data = ScriptDataModel();
         const core::Variant value = data != nullptr ? ConvertVariant(data->Get(name), TypeOf<bool>()) : core::Variant{};
@@ -552,33 +552,33 @@ namespace foundation::gui
         }
     }
 
-    void Gui::DefineCommand(StringView id, StringView label)
+    void GuiFacade::DefineCommand(StringView id, StringView label)
     {
         if (SceneRoot* root = ScriptRoot())
             root->GetContext().DefineCommand(id).SetLabel(label.Size() != 0 ? label : id);
     }
-    void Gui::SetCommandEnabled(StringView id, bool enabled)
+    void GuiFacade::SetCommandEnabled(StringView id, bool enabled)
     {
         if (SceneRoot* root = ScriptRoot())
             root->GetContext().DefineCommand(id).SetEnabled(enabled);
     }
-    void Gui::SetCommandChecked(StringView id, bool checked)
+    void GuiFacade::SetCommandChecked(StringView id, bool checked)
     {
         if (SceneRoot* root = ScriptRoot())
             root->GetContext().DefineCommand(id).SetChecked(checked);
     }
-    void Gui::SetCommandDisabledReason(StringView id, StringView reason)
+    void GuiFacade::SetCommandDisabledReason(StringView id, StringView reason)
     {
         if (SceneRoot* root = ScriptRoot())
             root->GetContext().DefineCommand(id).SetDisabledReason(reason);
     }
-    bool Gui::IsCommandChecked(StringView id)
+    bool GuiFacade::IsCommandChecked(StringView id)
     {
         SceneRoot* root = ScriptRoot();
         const Command* command = root != nullptr ? root->GetContext().GetCommands().Find(id) : nullptr;
         return command != nullptr && command->IsChecked();
     }
-    bool Gui::RunCommand(StringView id)
+    bool GuiFacade::RunCommand(StringView id)
     {
         SceneRoot* root = ScriptRoot();
         return root != nullptr && root->RunCommand(id);
@@ -599,13 +599,13 @@ namespace foundation::gui
         return true;
     }
 
-    bool Gui::BindKey(StringView keys, StringView command, StringView context)
+    bool GuiFacade::BindKey(StringView keys, StringView command, StringView context)
     {
         SceneRoot* root = ScriptRoot();
         return root != nullptr && root->GetContext().GetKeymap().Bind(keys, command, context);
     }
 
-    void Gui::CaptureKey(RefPtr<foundation::script::IScriptDelegate> handler)
+    void GuiFacade::CaptureKey(RefPtr<foundation::script::IScriptDelegate> handler)
     {
         SceneRoot* root = ScriptRoot();
         if (root == nullptr || !handler)
@@ -619,7 +619,7 @@ namespace foundation::gui
                                                    [deliver] { deliver(StringView{}); });
     }
 
-    core::String Gui::KeyText(StringView keys)
+    core::String GuiFacade::KeyText(StringView keys)
     {
         const Optional<Keystroke> stroke = ParseKeystroke(keys);
         return stroke.HasValue() ? KeystrokeText(stroke.Value()) : core::String{};
@@ -671,13 +671,13 @@ namespace foundation::gui
         }
     }
 
-    core::String Gui::Translate(StringView key)
+    core::String GuiFacade::Translate(StringView key)
     {
         foundation::i18n::Localization* localization = ScriptLocalization();
         return localization != nullptr ? localization->TextString(key) : core::String(key);
     }
 
-    core::String Gui::TranslateCount(StringView key, i32 count)
+    core::String GuiFacade::TranslateCount(StringView key, i32 count)
     {
         foundation::i18n::Localization* localization = ScriptLocalization();
         if (localization == nullptr)
@@ -686,37 +686,37 @@ namespace foundation::gui
         return localization->FormatPlural(key, count, Span<const core::Variant>(args, 1));
     }
 
-    core::String Gui::Language()
+    core::String GuiFacade::Language()
     {
         foundation::i18n::Localization* localization = ScriptLocalization();
         return localization != nullptr ? core::String(localization->Language()) : core::String{};
     }
 
-    void Gui::Set(StringView name, const core::Variant& value)
+    void GuiFacade::Set(StringView name, const core::Variant& value)
     {
         if (DataModel* data = ScriptDataModel())
             data->Set(name, value);
     }
 
-    RefPtr<Tween> Gui::TweenData(StringView name, f64 to, f32 seconds, StringView easing)
+    RefPtr<Tween> GuiFacade::TweenData(StringView name, f64 to, f32 seconds, StringView easing)
     {
         SceneRoot* root = ScriptRoot();
         return root != nullptr ? root->GetContext().AnimateData(name, to, seconds, easing) : RefPtr<Tween>{};
     }
 
-    RefPtr<Tween> Gui::CreateDataTween(StringView name, f64 to, f32 seconds, StringView easing)
+    RefPtr<Tween> GuiFacade::CreateDataTween(StringView name, f64 to, f32 seconds, StringView easing)
     {
         SceneRoot* root = ScriptRoot();
         return root != nullptr ? root->GetContext().CreateDataTween(name, to, seconds, easing) : RefPtr<Tween>{};
     }
 
-    core::String Gui::InputKindNow()
+    core::String GuiFacade::InputKindNow()
     {
         SceneRoot* root = ScriptRoot();
         return core::String(root != nullptr ? InputKindName(root->GetEventDispatcher()->ObserveInputKind()) : core::StringView(u8"pointer"));
     }
 
-    core::Variant Gui::Root()
+    core::Variant GuiFacade::Root()
     {
         const auto* binding = foundation::script::CurrentService<GuiScriptBinding>();
         SceneRoot* root = binding != nullptr ? binding->Root() : nullptr;
@@ -799,7 +799,7 @@ namespace foundation::gui
             registry.Register(SceneRoot::StaticType());
             registry.Register(UINode::StaticType());
             registry.Register(UIWidget::StaticType());
-            registry.Register(Gui::StaticType()); // binds as `gui` (its scriptName)
+            registry.Register(GuiFacade::StaticType()); // binds as `gui` (its scriptName)
             registry.Register(Tween::StaticType()); // the type node.animate returns
             registry.Register(TweenGroup::StaticType());
             registry.Register(TweenSequence::StaticType());
@@ -1597,28 +1597,28 @@ namespace foundation::gui
         builder.Creator();
     }
 
-    REFLECT_MEMBERS(Gui, "rtti::gui")
+    REFLECT_MEMBERS(GuiFacade, "rtti::gui")
     {
         builder.Attribute("scriptName", "gui");
-        builder.Method<&Gui::Root, Node>("root");
-        builder.Method<&Gui::GetNumber>("getNumber");
-        builder.Method<&Gui::GetText>("getText");
-        builder.Method<&Gui::Translate>("tr"); // translates a localization key
-        builder.Method<&Gui::TranslateCount>("trCount");
-        builder.Method<&Gui::Language>("language");
-        builder.Method<&Gui::GetBool>("getBool");
-        builder.Method<&Gui::Set>("set");
-        builder.Method<&Gui::InputKindNow>("inputKind");
-        builder.Method<&Gui::TweenData>("tween"); // animates a data value
-        builder.Method<&Gui::CreateDataTween>("createTween");
-        builder.Method<&Gui::DefineCommand>("defineCommand");
-        builder.Method<&Gui::SetCommandEnabled>("setCommandEnabled");
-        builder.Method<&Gui::SetCommandChecked>("setCommandChecked");
-        builder.Method<&Gui::SetCommandDisabledReason>("setCommandDisabledReason");
-        builder.Method<&Gui::IsCommandChecked>("isCommandChecked");
-        builder.Method<&Gui::RunCommand>("runCommand");
-        builder.Method<&Gui::BindKey>("bindKey");
-        builder.Method<&Gui::CaptureKey>("captureKey");
-        builder.Method<&Gui::KeyText>("keyText");
+        builder.Method<&GuiFacade::Root, Node>("root");
+        builder.Method<&GuiFacade::GetNumber>("getNumber");
+        builder.Method<&GuiFacade::GetText>("getText");
+        builder.Method<&GuiFacade::Translate>("tr"); // translates a localization key
+        builder.Method<&GuiFacade::TranslateCount>("trCount");
+        builder.Method<&GuiFacade::Language>("language");
+        builder.Method<&GuiFacade::GetBool>("getBool");
+        builder.Method<&GuiFacade::Set>("set");
+        builder.Method<&GuiFacade::InputKindNow>("inputKind");
+        builder.Method<&GuiFacade::TweenData>("tween"); // animates a data value
+        builder.Method<&GuiFacade::CreateDataTween>("createTween");
+        builder.Method<&GuiFacade::DefineCommand>("defineCommand");
+        builder.Method<&GuiFacade::SetCommandEnabled>("setCommandEnabled");
+        builder.Method<&GuiFacade::SetCommandChecked>("setCommandChecked");
+        builder.Method<&GuiFacade::SetCommandDisabledReason>("setCommandDisabledReason");
+        builder.Method<&GuiFacade::IsCommandChecked>("isCommandChecked");
+        builder.Method<&GuiFacade::RunCommand>("runCommand");
+        builder.Method<&GuiFacade::BindKey>("bindKey");
+        builder.Method<&GuiFacade::CaptureKey>("captureKey");
+        builder.Method<&GuiFacade::KeyText>("keyText");
     }
 }

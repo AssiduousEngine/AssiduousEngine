@@ -71,7 +71,7 @@ TEST_CASE("lightAt sums each enabled light by the renderer's range falloff, plus
     lamp.intensity = 4.0f;
     lamp.range = 10.0f;
     s.UpdateTransforms();
-    const SceneRender render{&s};
+    const SceneRenderFacade render{&s};
 
     // 2 m below a lamp of range 10: d = 0.2, window (1 - d^4)^2 = 0.99680256, over 4 m^2.
     const f32 expected = 4.0f * 0.99680256f / (4.0f + 1e-4f) + 0.1f;
@@ -99,7 +99,7 @@ TEST_CASE("lightAt follows a spot's cone: full inside the inner angle, nothing p
     spot.innerAngle = 0.3f;
     spot.outerAngle = 0.5f;
     s.UpdateTransforms();
-    const SceneRender render{&s};
+    const SceneRenderFacade render{&s};
 
     CHECK(Near(render.lightAt(Float3{0.0f, -2.0f, 0.0f}).x, 1.0f));                    // on the axis
     CHECK(Near(render.lightAt(Float3{2.0f * Tan(0.7f), -2.0f, 0.0f}).x, 0.0f));        // outside
@@ -118,7 +118,7 @@ TEST_CASE("lightAt: a wall stops a shadow-casting light, by its shadow strength;
     lamp.range = 0.0f; // no range: the shader applies no falloff at all, so 4 arrives
     lamp.intensity = 4.0f;
     s.UpdateTransforms();
-    const SceneRender render{&s};
+    const SceneRenderFacade render{&s};
     const Float3 here{0.0f, 0.0f, 0.0f};
 
     // No shadows: the wall does not matter, as it does not on screen.
@@ -147,7 +147,7 @@ TEST_CASE("lightAt: a directional light reaches everywhere unless something is o
     sun.intensity = 0.5f;
     sun.castsShadows = true;
     s.UpdateTransforms();
-    const SceneRender render{&s};
+    const SceneRenderFacade render{&s};
 
     wall->wallX = 5.0f; // behind, along the light: no matter
     CHECK(Near(render.lightAt(Float3{0.0f, 0.0f, 0.0f}).x, 0.5f));

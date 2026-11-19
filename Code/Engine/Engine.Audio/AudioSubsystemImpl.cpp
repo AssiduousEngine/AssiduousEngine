@@ -224,76 +224,78 @@ namespace engine::audio
 
     RTTI_DEFINE_OBJECT(AudioUserSettings, "rtti::engine::audio")
 
-    REFLECT_MEMBERS(Audio, "rtti::engine::audio")
+    REFLECT_MEMBERS(AudioFacade, "rtti::engine::audio")
     {
+        builder.Attribute("scriptName", "Audio");
         // By asset id and AudioBus: each is an arity family.
-        builder.Method<static_cast<VoiceHandle (*)(Guid)>(&Audio::playOneShot)>("playOneShot", {"clip"});
-        builder.Method<static_cast<VoiceHandle (*)(Guid, AudioBus)>(&Audio::playOneShot)>(
+        builder.Method<static_cast<VoiceHandle (*)(Guid)>(&AudioFacade::playOneShot)>("playOneShot", {"clip"});
+        builder.Method<static_cast<VoiceHandle (*)(Guid, AudioBus)>(&AudioFacade::playOneShot)>(
             "playOneShot", {"clip", "bus"});
-        builder.Method<static_cast<VoiceHandle (*)(Guid, AudioBus, f32)>(&Audio::playOneShot)>(
+        builder.Method<static_cast<VoiceHandle (*)(Guid, AudioBus, f32)>(&AudioFacade::playOneShot)>(
             "playOneShot", {"clip", "bus", "volume"});
-        builder.Method<static_cast<VoiceHandle (*)(Guid, AudioBus, f32, f32)>(&Audio::playOneShot)>(
+        builder.Method<static_cast<VoiceHandle (*)(Guid, AudioBus, f32, f32)>(&AudioFacade::playOneShot)>(
             "playOneShot", {"clip", "bus", "volume", "pitch"});
-        builder.Method<&Audio::playOneShot3D>("playOneShot3D", {"clip", "position"});
-        builder.Method<static_cast<VoiceHandle (*)(Guid)>(&Audio::playCue)>("playCue", {"cue"});
-        builder.Method<static_cast<VoiceHandle (*)(Guid, AudioBus)>(&Audio::playCue)>("playCue",
+        builder.Method<&AudioFacade::playOneShot3D>("playOneShot3D", {"clip", "position"});
+        builder.Method<static_cast<VoiceHandle (*)(Guid)>(&AudioFacade::playCue)>("playCue", {"cue"});
+        builder.Method<static_cast<VoiceHandle (*)(Guid, AudioBus)>(&AudioFacade::playCue)>("playCue",
                                                                                      {"cue", "bus"});
-        builder.Method<&Audio::playCue3D>("playCue3D", {"cue", "position"});
-        builder.Method<static_cast<VoiceHandle (*)(Guid)>(&Audio::playMusic)>("playMusic", {"clip"});
-        builder.Method<static_cast<VoiceHandle (*)(Guid, f32)>(&Audio::playMusic)>(
+        builder.Method<&AudioFacade::playCue3D>("playCue3D", {"cue", "position"});
+        builder.Method<static_cast<VoiceHandle (*)(Guid)>(&AudioFacade::playMusic)>("playMusic", {"clip"});
+        builder.Method<static_cast<VoiceHandle (*)(Guid, f32)>(&AudioFacade::playMusic)>(
             "playMusic", {"clip", "crossFadeSeconds"});
-        builder.Method<static_cast<VoiceHandle (*)(Guid, f32, f32)>(&Audio::playMusic)>(
+        builder.Method<static_cast<VoiceHandle (*)(Guid, f32, f32)>(&AudioFacade::playMusic)>(
             "playMusic", {"clip", "crossFadeSeconds", "volume"});
-        builder.Method<&Audio::setBusVolume>("setBusVolume", {"bus", "volume"});
-        builder.Method<&Audio::busVolume>("busVolume", {"bus"});
+        builder.Method<&AudioFacade::setBusVolume>("setBusVolume", {"bus", "volume"});
+        builder.Method<&AudioFacade::busVolume>("busVolume", {"bus"});
         // Beside them: a bus by name (the layout's custom buses too), muting, the music stop.
-        builder.Method<&Audio::setNamedBusVolume>("setNamedBusVolume", {"bus", "volume"});
-        builder.Method<&Audio::namedBusVolume>("namedBusVolume", {"bus"});
-        builder.Method<&Audio::setBusMuted>("setBusMuted");
-        builder.Method<&Audio::busMuted>("busMuted");
-        builder.Method<&Audio::stopMusic>("stopMusic");
+        builder.Method<&AudioFacade::setNamedBusVolume>("setNamedBusVolume", {"bus", "volume"});
+        builder.Method<&AudioFacade::namedBusVolume>("namedBusVolume", {"bus"});
+        builder.Method<&AudioFacade::setBusMuted>("setBusMuted");
+        builder.Method<&AudioFacade::busMuted>("busMuted");
+        builder.Method<&AudioFacade::stopMusic>("stopMusic");
         // A playing voice: the run's music, or what a play returned.
-        builder.Method<&Audio::musicVoice>("musicVoice");
-        builder.Method<&Audio::isVoicePlaying>("isVoicePlaying", {"voice"});
-        builder.Method<static_cast<void (*)(VoiceHandle)>(&Audio::stopVoice)>("stopVoice", {"voice"});
-        builder.Method<static_cast<void (*)(VoiceHandle, f32)>(&Audio::stopVoice)>(
+        builder.Method<&AudioFacade::musicVoice>("musicVoice");
+        builder.Method<&AudioFacade::isVoicePlaying>("isVoicePlaying", {"voice"});
+        builder.Method<static_cast<void (*)(VoiceHandle)>(&AudioFacade::stopVoice)>("stopVoice", {"voice"});
+        builder.Method<static_cast<void (*)(VoiceHandle, f32)>(&AudioFacade::stopVoice)>(
             "stopVoice", {"voice", "fadeSeconds"});
-        builder.Method<&Audio::setVoicePaused>("setVoicePaused", {"voice", "paused"});
-        builder.Method<static_cast<void (*)(VoiceHandle, f32)>(&Audio::setVoiceVolume)>(
+        builder.Method<&AudioFacade::setVoicePaused>("setVoicePaused", {"voice", "paused"});
+        builder.Method<static_cast<void (*)(VoiceHandle, f32)>(&AudioFacade::setVoiceVolume)>(
             "setVoiceVolume", {"voice", "volume"});
-        builder.Method<static_cast<void (*)(VoiceHandle, f32, f32)>(&Audio::setVoiceVolume)>(
+        builder.Method<static_cast<void (*)(VoiceHandle, f32, f32)>(&AudioFacade::setVoiceVolume)>(
             "setVoiceVolume", {"voice", "volume", "seconds"});
-        builder.Method<static_cast<void (*)(VoiceHandle, f32)>(&Audio::setVoicePitch)>(
+        builder.Method<static_cast<void (*)(VoiceHandle, f32)>(&AudioFacade::setVoicePitch)>(
             "setVoicePitch", {"voice", "pitch"});
-        builder.Method<static_cast<void (*)(VoiceHandle, f32, f32)>(&Audio::setVoicePitch)>(
+        builder.Method<static_cast<void (*)(VoiceHandle, f32, f32)>(&AudioFacade::setVoicePitch)>(
             "setVoicePitch", {"voice", "pitch", "seconds"});
         // Content-path playback: the path is the editor's source-DB content path.
-        builder.Method<&Audio::playOneShotPath>("playOneShotPath");
-        builder.Method<&Audio::playOneShot3DPath>("playOneShot3DPath");
-        builder.Method<&Audio::playCuePath>("playCuePath");
-        builder.Method<&Audio::playMusicPath>("playMusicPath");
+        builder.Method<&AudioFacade::playOneShotPath>("playOneShotPath");
+        builder.Method<&AudioFacade::playOneShot3DPath>("playOneShot3DPath");
+        builder.Method<&AudioFacade::playCuePath>("playCuePath");
+        builder.Method<&AudioFacade::playMusicPath>("playMusicPath");
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
 
     // The scene-bound audio handle: scene.audio.play(entity) / stop / pause / isPlaying /
     // setClip(entity, id). `of` returns SceneAudio by value (a concrete cross-backend return), like
     // ScenePhysics. All world ops are keyed by entity, since they reach the scene's AudioEngine.
-    REFLECT_VALUE(SceneAudio, "rtti::engine::audio")
+    REFLECT_VALUE(SceneAudioFacade, "rtti::engine::audio")
     {
-        builder.Method<&SceneAudio::play>("play", {"entity"});
-        builder.Method<&SceneAudio::stop>("stop", {"entity"});
-        builder.Method<&SceneAudio::pause>("pause", {"entity", "paused"});
-        builder.Method<&SceneAudio::isPlaying>("isPlaying", {"entity"});
-        builder.Method<&SceneAudio::setVolume>("setVolume", {"entity", "volume", "seconds"});
-        builder.Method<&SceneAudio::setPitch>("setPitch", {"entity", "pitch", "seconds"});
-        builder.Method<&SceneAudio::setClip>("setClip", {"entity", "resourceId"});
+        builder.Attribute("scriptName", "SceneAudio");
+        builder.Method<&SceneAudioFacade::play>("play", {"entity"});
+        builder.Method<&SceneAudioFacade::stop>("stop", {"entity"});
+        builder.Method<&SceneAudioFacade::pause>("pause", {"entity", "paused"});
+        builder.Method<&SceneAudioFacade::isPlaying>("isPlaying", {"entity"});
+        builder.Method<&SceneAudioFacade::setVolume>("setVolume", {"entity", "volume", "seconds"});
+        builder.Method<&SceneAudioFacade::setPitch>("setPitch", {"entity", "pitch", "seconds"});
+        builder.Method<&SceneAudioFacade::setClip>("setClip", {"entity", "resourceId"});
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
 
     void RegisterAudioScriptFacade()
     {
         RegisterAudioComponentReflection(); // ensure component TypeData (incl `of`) is built first
-        GlobalTypeRegistry().Register(Audio::StaticType());
+        GlobalTypeRegistry().Register(AudioFacade::StaticType());
         // So the behavior/Level prelude imports `Audio` too (AngelScript binds by registry).
         // Without this only top-level `main`/Game scripts can see it. Idempotent.
         foundation::script::RegisterExtraFacadeName(u8"Audio");
@@ -310,11 +312,11 @@ namespace engine::audio
         foundation::script::RegisterExtraFacadeName(u8"AudioSourceComponent");
 
         // The scene-bound audio handle (scene.audio): reflect, register, seed and name it.
-        RttiRegisterValue_SceneAudio();
-        GlobalTypeRegistry().Register(core::TypeOf<SceneAudio>());
-        foundation::script::RegisterExtraScriptRootType(&core::TypeOf<SceneAudio>());
+        RttiRegisterValue_SceneAudioFacade();
+        GlobalTypeRegistry().Register(core::TypeOf<SceneAudioFacade>());
+        foundation::script::RegisterExtraScriptRootType(&core::TypeOf<SceneAudioFacade>());
         foundation::script::RegisterExtraFacadeName(u8"SceneAudio");
-        foundation::script::ExtendScene<&SceneAudio::ForScene>("audio"); // scene.audio
+        foundation::script::ExtendScene<&SceneAudioFacade::ForScene>("audio"); // scene.audio
     }
 
     REFLECT_VALUE(AudioReverbZoneComponent, "rtti::engine::audio")

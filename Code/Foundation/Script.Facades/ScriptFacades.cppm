@@ -110,8 +110,8 @@ export namespace foundation::script
     // in the Audio and Input facades) ----
 
     struct Scene;        // bound scene handle (defined below); Entity.scene returns one
-    struct SceneEvents;  // the scene event-bus handle (defined below); Scene.events returns one
-    struct ScenePrefabs; // the scene's prefab spawning (defined below); Scene.prefabs returns one
+    struct SceneEventsFacade;  // the scene event-bus handle (defined below); Scene.events returns one
+    struct ScenePrefabsFacade; // the scene's prefab spawning (defined below); Scene.prefabs returns one
 
     /// The per-entity handle behaviors receive as their constructor argument: transform
     /// get and set, name, destroy. A value type, so the VM instance carries a copy; on a stale
@@ -331,9 +331,9 @@ export namespace foundation::script
     };
 
     /// Log.info, warn and error write to the engine log, Script category.
-    class Log final : public Object
+    class LogFacade final : public Object
     {
-        RTTI_OBJECT(Log, Object)
+        RTTI_OBJECT(LogFacade, Object)
     public:
         static void info(String message) { LOG_INFO(u8"Script", u8"{}", message); }
         static void warn(String message) { LOG_WARNING(u8"Script", u8"{}", message); }
@@ -341,9 +341,9 @@ export namespace foundation::script
     };
 
     /// Time.now() (seconds since the run started) and Time.delta() (last frame dt).
-    class Time final : public Object
+    class TimeFacade final : public Object
     {
-        RTTI_OBJECT(Time, Object)
+        RTTI_OBJECT(TimeFacade, Object)
     public:
         [[nodiscard]] static ScriptRuntimeBinding* Resolve() { return CurrentService<ScriptRuntimeBinding>(); }
         [[nodiscard]] static f64 now()
@@ -359,36 +359,36 @@ export namespace foundation::script
     };
 
     /// Random.value() in [0,1), Random.range(min,max) and Random.intRange(min,max).
-    class Random final : public Object
+    class RandomFacade final : public Object
     {
-        RTTI_OBJECT(Random, Object)
+        RTTI_OBJECT(RandomFacade, Object)
     public:
         [[nodiscard]] static f32 value()
         {
-            ScriptRuntimeBinding* binding = Time::Resolve();
+            ScriptRuntimeBinding* binding = TimeFacade::Resolve();
             return binding != nullptr ? binding->random.NextFloat() : 0.0f;
         }
         [[nodiscard]] static f32 range(f32 min, f32 max)
         {
-            ScriptRuntimeBinding* binding = Time::Resolve();
+            ScriptRuntimeBinding* binding = TimeFacade::Resolve();
             return binding != nullptr ? binding->random.NextFloat(min, max) : min;
         }
         [[nodiscard]] static i32 intRange(i32 min, i32 max)
         {
-            ScriptRuntimeBinding* binding = Time::Resolve();
+            ScriptRuntimeBinding* binding = TimeFacade::Resolve();
             return (binding != nullptr && max >= min) ? binding->random.NextInt(min, max) : min;
         }
         /// Restarts the run's sequence from `seed`: the same seed, the same draws after it.
         static void seed(i64 seed)
         {
-            if (ScriptRuntimeBinding* binding = Time::Resolve())
+            if (ScriptRuntimeBinding* binding = TimeFacade::Resolve())
             {
                 binding->random = core::Random(static_cast<u64>(seed));
             }
         }
         [[nodiscard]] static bool boolean()
         {
-            ScriptRuntimeBinding* binding = Time::Resolve();
+            ScriptRuntimeBinding* binding = TimeFacade::Resolve();
             return binding != nullptr && binding->random.NextBool();
         }
     };
@@ -431,11 +431,11 @@ export namespace foundation::script
         /// This scene's event-bus handle: `scene.events.emit(name, payload)`. A computed property
         /// (parens-less), so scripts write `scene.events.emit(...)` without call parens. Defined
         /// out of line (SceneEvents is completed below).
-        [[nodiscard]] SceneEvents eventsHandle() const;
+        [[nodiscard]] SceneEventsFacade eventsHandle() const;
         /// This scene's prefab spawning: `scene.prefabs.spawn(prefab, position)`. A computed
         /// property, as `events` is; the engine domains add theirs beside it (`scene.physics`,
         /// see ExtendScene). Defined out of line (ScenePrefabs is completed below).
-        [[nodiscard]] ScenePrefabs prefabsHandle() const;
+        [[nodiscard]] ScenePrefabsFacade prefabsHandle() const;
     };
 
     /// A bound scene event-bus handle: `scene.events.emit("OrbCollected", 1)`. Publishes a named
@@ -445,7 +445,7 @@ export namespace foundation::script
     /// `entity.send` is. A value type (the VM carries a copy); on a null or stale scene emit does
     /// nothing. Grouping event operations under `.events` leaves room for `subscribe` and
     /// `unsubscribe` to join it.
-    struct SceneEvents
+    struct SceneEventsFacade
     {
         scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
 
@@ -460,7 +460,7 @@ export namespace foundation::script
     /// the parent's space. Invalid Entity when the scene has no spawn system or content source, or
     /// the prefab is nil or unknown; never a partial spawn. A value type; on a null scene every
     /// call does nothing.
-    struct ScenePrefabs
+    struct ScenePrefabsFacade
     {
         scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
 
@@ -540,15 +540,15 @@ export namespace foundation::script
         return WrapEntity(scene, spawner->Spawn(prefab, Float3{x, y, z}));
     }
 
-    inline Entity ScenePrefabs::spawn(Guid prefab, Float3 position) const
+    inline Entity ScenePrefabsFacade::spawn(Guid prefab, Float3 position) const
     {
         return spawn(prefab, position, Quaternion::Identity, Entity{});
     }
-    inline Entity ScenePrefabs::spawn(Guid prefab, Float3 position, Quaternion rotation) const
+    inline Entity ScenePrefabsFacade::spawn(Guid prefab, Float3 position, Quaternion rotation) const
     {
         return spawn(prefab, position, rotation, Entity{});
     }
-    inline Entity ScenePrefabs::spawn(Guid prefab, Float3 position, Quaternion rotation,
+    inline Entity ScenePrefabsFacade::spawn(Guid prefab, Float3 position, Quaternion rotation,
                                       Entity parent) const
     {
         if (scene == nullptr || prefab.IsNil())
@@ -595,16 +595,16 @@ export namespace foundation::script
                                   : Entity{};
     }
 
-    inline SceneEvents Scene::eventsHandle() const
+    inline SceneEventsFacade Scene::eventsHandle() const
     {
-        SceneEvents handle;
+        SceneEventsFacade handle;
         handle.scene = scene; // this scene's bus, never ambient
         return handle;
     }
 
-    inline ScenePrefabs Scene::prefabsHandle() const
+    inline ScenePrefabsFacade Scene::prefabsHandle() const
     {
-        ScenePrefabs handle;
+        ScenePrefabsFacade handle;
         handle.scene = scene;
         return handle;
     }
@@ -614,7 +614,7 @@ export namespace foundation::script
     // reaches an Engine-owned content DB): the call is a direct, host-independent Publish. Delivery
     // to scripts is the engine's job (the script event bridge drains the bus and dispatches
     // on<Name>). An empty name or a null scene does nothing.
-    inline void SceneEvents::emit(String name) const
+    inline void SceneEventsFacade::emit(String name) const
     {
         if (scene != nullptr && !name.IsEmpty())
         {
@@ -624,7 +624,7 @@ export namespace foundation::script
             }
         }
     }
-    inline void SceneEvents::emit(String name, Variant payload) const
+    inline void SceneEventsFacade::emit(String name, Variant payload) const
     {
         // Already a Variant (the backend boxed whatever the script passed); publish it verbatim.
         if (scene != nullptr && !name.IsEmpty())

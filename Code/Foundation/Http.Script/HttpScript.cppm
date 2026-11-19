@@ -63,9 +63,9 @@ export namespace foundation::http
         UniquePtr<IHttpClient> m_client;
     };
 
-    class Http final : public Object
+    class HttpFacade final : public Object
     {
-        RTTI_OBJECT(Http, Object)
+        RTTI_OBJECT(HttpFacade, Object)
     public:
         /// The current script's run's binding (the run holds it), or null outside every run.
         [[nodiscard]] static HttpScriptBinding* Resolve() { return script::CurrentService<HttpScriptBinding>(); }

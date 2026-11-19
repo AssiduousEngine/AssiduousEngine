@@ -273,20 +273,21 @@ namespace engine::script
 
 namespace engine::script
 {
-    REFLECT_VALUE(SceneScripts, "rtti::engine::script")
+    REFLECT_VALUE(SceneScriptsFacade, "rtti::engine::script")
     {
-        builder.Method<&SceneScripts::deltaTime>("deltaTime");
-        builder.Method<&SceneScripts::elapsed>("elapsed");
+        builder.Attribute("scriptName", "SceneScripts");
+        builder.Method<&SceneScriptsFacade::deltaTime>("deltaTime");
+        builder.Method<&SceneScriptsFacade::elapsed>("elapsed");
         // send and emit: arity families with a Variant payload, as entity.send and scene.events.emit.
-        builder.Method<static_cast<void (SceneScripts::*)(foundation::script::Entity, String) const>(&SceneScripts::send)>(
+        builder.Method<static_cast<void (SceneScriptsFacade::*)(foundation::script::Entity, String) const>(&SceneScriptsFacade::send)>(
             "send", {"target", "message"});
-        builder.Method<static_cast<void (SceneScripts::*)(foundation::script::Entity, String, Variant) const>(
-            &SceneScripts::send)>("send", {"target", "message", "payload"});
-        builder.Method<static_cast<void (SceneScripts::*)(String) const>(&SceneScripts::emit)>(
+        builder.Method<static_cast<void (SceneScriptsFacade::*)(foundation::script::Entity, String, Variant) const>(
+            &SceneScriptsFacade::send)>("send", {"target", "message", "payload"});
+        builder.Method<static_cast<void (SceneScriptsFacade::*)(String) const>(&SceneScriptsFacade::emit)>(
             "emit", {"name"});
-        builder.Method<static_cast<void (SceneScripts::*)(String, Variant) const>(&SceneScripts::emit)>(
+        builder.Method<static_cast<void (SceneScriptsFacade::*)(String, Variant) const>(&SceneScriptsFacade::emit)>(
             "emit", {"name", "payload"});
-        builder.Method<&SceneScripts::addBehavior>("addBehavior", {"entity", "scriptClass"});
+        builder.Method<&SceneScriptsFacade::addBehavior>("addBehavior", {"entity", "scriptClass"});
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
 
@@ -294,11 +295,11 @@ namespace engine::script
     {
         static const bool once = []()
         {
-            RttiRegisterValue_SceneScripts();
-            GlobalTypeRegistry().Register(TypeOf<SceneScripts>());
-            foundation::script::RegisterExtraScriptRootType(&TypeOf<SceneScripts>());
+            RttiRegisterValue_SceneScriptsFacade();
+            GlobalTypeRegistry().Register(TypeOf<SceneScriptsFacade>());
+            foundation::script::RegisterExtraScriptRootType(&TypeOf<SceneScriptsFacade>());
             foundation::script::RegisterExtraFacadeName(u8"SceneScripts");
-            foundation::script::ExtendScene<&SceneScripts::ForScene>("scripts"); // scene.scripts
+            foundation::script::ExtendScene<&SceneScriptsFacade::ForScene>("scripts"); // scene.scripts
             return true;
         }();
         (void)once;

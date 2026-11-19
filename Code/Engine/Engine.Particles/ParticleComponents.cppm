@@ -797,7 +797,7 @@ export namespace engine::particles
     // handle does world operations). The manager builds the instance lazily when the effect
     // resolves, so control from onUpdate sees it; a call before the effect is attached is a safe
     // no-op.
-    struct SceneParticles
+    struct SceneParticlesFacade
     {
         scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
 
@@ -855,9 +855,9 @@ export namespace engine::particles
         }
 
         // The scene's own, read by scripts as a property of the scene (ExtendScene).
-        [[nodiscard]] static SceneParticles ForScene(const foundation::script::Scene& sceneHandle)
+        [[nodiscard]] static SceneParticlesFacade ForScene(const foundation::script::Scene& sceneHandle)
         {
-            return SceneParticles{sceneHandle.scene};
+            return SceneParticlesFacade{sceneHandle.scene};
         }
 
     private:

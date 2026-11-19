@@ -85,29 +85,32 @@ namespace foundation::script
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
 
-    REFLECT_MEMBERS(Log, "rtti::script")
+    REFLECT_MEMBERS(LogFacade, "rtti::script")
     {
-        builder.Method<&Log::info>("info");
-        builder.Method<&Log::warn>("warn");
-        builder.Method<&Log::error>("error");
+        builder.Attribute("scriptName", "Log");
+        builder.Method<&LogFacade::info>("info");
+        builder.Method<&LogFacade::warn>("warn");
+        builder.Method<&LogFacade::error>("error");
         builder.Constructor();
     }
 
-    REFLECT_MEMBERS(Time, "rtti::script")
+    REFLECT_MEMBERS(TimeFacade, "rtti::script")
     {
-        builder.Method<&Time::now>("now");
-        builder.Method<&Time::delta>("delta");
+        builder.Attribute("scriptName", "Time");
+        builder.Method<&TimeFacade::now>("now");
+        builder.Method<&TimeFacade::delta>("delta");
         builder.Constructor();
     }
 
-    REFLECT_MEMBERS(Random, "rtti::script")
+    REFLECT_MEMBERS(RandomFacade, "rtti::script")
     {
-        builder.Method<&Random::value>("value");
-        builder.Method<&Random::range>("range");
-        builder.Method<&Random::intRange>("intRange");
-        builder.Method<&Random::seed>("seed", {"seed"});
+        builder.Attribute("scriptName", "Random");
+        builder.Method<&RandomFacade::value>("value");
+        builder.Method<&RandomFacade::range>("range");
+        builder.Method<&RandomFacade::intRange>("intRange");
+        builder.Method<&RandomFacade::seed>("seed", {"seed"});
         // Not `bool`: lowercase `bool` is a keyword in AngelScript (and C++).
-        builder.Method<&Random::boolean>("boolean");
+        builder.Method<&RandomFacade::boolean>("boolean");
         builder.Constructor();
     }
 
@@ -131,25 +134,27 @@ namespace foundation::script
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
 
-    REFLECT_VALUE(SceneEvents, "rtti::script")
+    REFLECT_VALUE(SceneEventsFacade, "rtti::script")
     {
+        builder.Attribute("scriptName", "SceneEvents");
         // emit is one method as an arity family, like Entity::send: emit(name) and
         // emit(name, payload:Variant), dispatched by argument count; the Variant carries any value.
-        builder.Method<static_cast<void (SceneEvents::*)(String) const>(&SceneEvents::emit)>("emit");
-        builder.Method<static_cast<void (SceneEvents::*)(String, Variant) const>(&SceneEvents::emit)>(
+        builder.Method<static_cast<void (SceneEventsFacade::*)(String) const>(&SceneEventsFacade::emit)>("emit");
+        builder.Method<static_cast<void (SceneEventsFacade::*)(String, Variant) const>(&SceneEventsFacade::emit)>(
             "emit", {"name", "payload"});
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
 
-    REFLECT_VALUE(ScenePrefabs, "rtti::script")
+    REFLECT_VALUE(ScenePrefabsFacade, "rtti::script")
     {
+        builder.Attribute("scriptName", "ScenePrefabs");
         // spawn is an arity family: (prefab, position), then with rotation, then with parent.
-        builder.Method<static_cast<Entity (ScenePrefabs::*)(Guid, Float3) const>(&ScenePrefabs::spawn)>(
+        builder.Method<static_cast<Entity (ScenePrefabsFacade::*)(Guid, Float3) const>(&ScenePrefabsFacade::spawn)>(
             "spawn", {"prefab", "position"});
-        builder.Method<static_cast<Entity (ScenePrefabs::*)(Guid, Float3, Quaternion) const>(
-            &ScenePrefabs::spawn)>("spawn", {"prefab", "position", "rotation"});
-        builder.Method<static_cast<Entity (ScenePrefabs::*)(Guid, Float3, Quaternion, Entity) const>(
-            &ScenePrefabs::spawn)>("spawn", {"prefab", "position", "rotation", "parent"});
+        builder.Method<static_cast<Entity (ScenePrefabsFacade::*)(Guid, Float3, Quaternion) const>(
+            &ScenePrefabsFacade::spawn)>("spawn", {"prefab", "position", "rotation"});
+        builder.Method<static_cast<Entity (ScenePrefabsFacade::*)(Guid, Float3, Quaternion, Entity) const>(
+            &ScenePrefabsFacade::spawn)>("spawn", {"prefab", "position", "rotation", "parent"});
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
 
@@ -247,15 +252,15 @@ namespace foundation::script
         {
             RttiRegisterValue_Entity();
             GlobalTypeRegistry().Register(TypeOf<Entity>());
-            GlobalTypeRegistry().Register(Log::StaticType());
-            GlobalTypeRegistry().Register(Time::StaticType());
-            GlobalTypeRegistry().Register(Random::StaticType());
+            GlobalTypeRegistry().Register(LogFacade::StaticType());
+            GlobalTypeRegistry().Register(TimeFacade::StaticType());
+            GlobalTypeRegistry().Register(RandomFacade::StaticType());
             RttiRegisterValue_Scene(); // a bound value type, like Entity
             GlobalTypeRegistry().Register(TypeOf<Scene>());
-            RttiRegisterValue_SceneEvents(); // the scene.events handle, like Scene
-            GlobalTypeRegistry().Register(TypeOf<SceneEvents>());
-            RttiRegisterValue_ScenePrefabs(); // scene.prefabs
-            GlobalTypeRegistry().Register(TypeOf<ScenePrefabs>());
+            RttiRegisterValue_SceneEventsFacade(); // the scene.events handle, like Scene
+            GlobalTypeRegistry().Register(TypeOf<SceneEventsFacade>());
+            RttiRegisterValue_ScenePrefabsFacade(); // scene.prefabs
+            GlobalTypeRegistry().Register(TypeOf<ScenePrefabsFacade>());
             return true;
         }();
         (void)once;

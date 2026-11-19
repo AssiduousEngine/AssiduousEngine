@@ -233,20 +233,21 @@ namespace engine::render
     // `of` returns SceneRender by value (a concrete cross-backend return, no ReturnType override),
     // like ScenePhysics. setMesh and setMaterial are world operations keyed by entity that swap a
     // resource::Ref by id.
-    REFLECT_VALUE(SceneRender, "rtti::engine::render")
+    REFLECT_VALUE(SceneRenderFacade, "rtti::engine::render")
     {
-        builder.Method<&SceneRender::setMesh>("setMesh", {"entity", "resourceId"});
-        builder.Method<static_cast<bool (SceneRender::*)(foundation::script::Entity, Guid) const>(
-            &SceneRender::setMaterial)>("setMaterial", {"entity", "resourceId"});
-        builder.Method<static_cast<bool (SceneRender::*)(foundation::script::Entity, Guid, i32) const>(
-            &SceneRender::setMaterial)>("setMaterial", {"entity", "resourceId", "slot"});
-        builder.Method<&SceneRender::setMaterialFloat>("setMaterialFloat", {"entity", "slot", "name", "value"});
-        builder.Method<&SceneRender::setMaterialFloat4>("setMaterialFloat4", {"entity", "slot", "name", "value"});
-        builder.Method<&SceneRender::clearMaterialProperty>("clearMaterialProperty", {"entity", "slot", "name"});
-        builder.Method<&SceneRender::setCameraTarget>("setCameraTarget", {"entity", "textureId"});
-        builder.Method<static_cast<Float3 (SceneRender::*)(Float3) const>(&SceneRender::lightAt)>(
+        builder.Attribute("scriptName", "SceneRender");
+        builder.Method<&SceneRenderFacade::setMesh>("setMesh", {"entity", "resourceId"});
+        builder.Method<static_cast<bool (SceneRenderFacade::*)(foundation::script::Entity, Guid) const>(
+            &SceneRenderFacade::setMaterial)>("setMaterial", {"entity", "resourceId"});
+        builder.Method<static_cast<bool (SceneRenderFacade::*)(foundation::script::Entity, Guid, i32) const>(
+            &SceneRenderFacade::setMaterial)>("setMaterial", {"entity", "resourceId", "slot"});
+        builder.Method<&SceneRenderFacade::setMaterialFloat>("setMaterialFloat", {"entity", "slot", "name", "value"});
+        builder.Method<&SceneRenderFacade::setMaterialFloat4>("setMaterialFloat4", {"entity", "slot", "name", "value"});
+        builder.Method<&SceneRenderFacade::clearMaterialProperty>("clearMaterialProperty", {"entity", "slot", "name"});
+        builder.Method<&SceneRenderFacade::setCameraTarget>("setCameraTarget", {"entity", "textureId"});
+        builder.Method<static_cast<Float3 (SceneRenderFacade::*)(Float3) const>(&SceneRenderFacade::lightAt)>(
             "lightAt", {"position"});
-        builder.Method<static_cast<Float3 (SceneRender::*)(Float3, u32) const>(&SceneRender::lightAt)>(
+        builder.Method<static_cast<Float3 (SceneRenderFacade::*)(Float3, u32) const>(&SceneRenderFacade::lightAt)>(
             "lightAt", {"position", "groupMask"});
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
@@ -268,42 +269,42 @@ namespace engine::render
         }
     }
 
-    void DebugDraw::line(f32 x0, f32 y0, f32 z0, f32 x1, f32 y1, f32 z1, f32 r, f32 g, f32 b) const
+    void DebugDrawFacade::line(f32 x0, f32 y0, f32 z0, f32 x1, f32 y1, f32 z1, f32 r, f32 g, f32 b) const
     {
         if (debug::DebugDraw* d = SceneDebug(scene))
         {
             d->DrawLine(Float3(x0, y0, z0), Float3(x1, y1, z1), Color(r, g, b, 1.0f));
         }
     }
-    void DebugDraw::ray(f32 x, f32 y, f32 z, f32 dx, f32 dy, f32 dz, f32 r, f32 g, f32 b) const
+    void DebugDrawFacade::ray(f32 x, f32 y, f32 z, f32 dx, f32 dy, f32 dz, f32 r, f32 g, f32 b) const
     {
         if (debug::DebugDraw* d = SceneDebug(scene))
         {
             d->DrawRay(Float3(x, y, z), Float3(dx, dy, dz), Color(r, g, b, 1.0f));
         }
     }
-    void DebugDraw::arrow(f32 x0, f32 y0, f32 z0, f32 x1, f32 y1, f32 z1, f32 r, f32 g, f32 b) const
+    void DebugDrawFacade::arrow(f32 x0, f32 y0, f32 z0, f32 x1, f32 y1, f32 z1, f32 r, f32 g, f32 b) const
     {
         if (debug::DebugDraw* d = SceneDebug(scene))
         {
             d->DrawArrow(Float3(x0, y0, z0), Float3(x1, y1, z1), Color(r, g, b, 1.0f));
         }
     }
-    void DebugDraw::sphere(f32 x, f32 y, f32 z, f32 radius, f32 r, f32 g, f32 b) const
+    void DebugDrawFacade::sphere(f32 x, f32 y, f32 z, f32 radius, f32 r, f32 g, f32 b) const
     {
         if (debug::DebugDraw* d = SceneDebug(scene))
         {
             d->DrawWireSphere(Float3(x, y, z), radius, Color(r, g, b, 1.0f));
         }
     }
-    void DebugDraw::cross(f32 x, f32 y, f32 z, f32 size, f32 r, f32 g, f32 b) const
+    void DebugDrawFacade::cross(f32 x, f32 y, f32 z, f32 size, f32 r, f32 g, f32 b) const
     {
         if (debug::DebugDraw* d = SceneDebug(scene))
         {
             d->DrawCross(Float3(x, y, z), size, Color(r, g, b, 1.0f));
         }
     }
-    void DebugDraw::text(f32 x, f32 y, f32 z, String label, f32 r, f32 g, f32 b) const
+    void DebugDrawFacade::text(f32 x, f32 y, f32 z, String label, f32 r, f32 g, f32 b) const
     {
         if (debug::DebugDraw* d = SceneDebug(scene))
         {
@@ -311,68 +312,68 @@ namespace engine::render
         }
     }
 
-    void DebugDraw::line(Float3 from, Float3 to, Color color) const { line(from, to, color, false); }
-    void DebugDraw::line(Float3 from, Float3 to, Color color, bool overlay) const
+    void DebugDrawFacade::line(Float3 from, Float3 to, Color color) const { line(from, to, color, false); }
+    void DebugDrawFacade::line(Float3 from, Float3 to, Color color, bool overlay) const
     {
         if (debug::DebugDraw* d = SceneDebug(scene))
         {
             d->DrawLine(from, to, color, overlay);
         }
     }
-    void DebugDraw::ray(Float3 origin, Float3 direction, Color color) const
+    void DebugDrawFacade::ray(Float3 origin, Float3 direction, Color color) const
     {
         ray(origin, direction, color, false);
     }
-    void DebugDraw::ray(Float3 origin, Float3 direction, Color color, bool overlay) const
+    void DebugDrawFacade::ray(Float3 origin, Float3 direction, Color color, bool overlay) const
     {
         if (debug::DebugDraw* d = SceneDebug(scene))
         {
             d->DrawRay(origin, direction, color, overlay);
         }
     }
-    void DebugDraw::wireBox(Float3 min, Float3 max, Color color) const { wireBox(min, max, color, false); }
-    void DebugDraw::wireBox(Float3 min, Float3 max, Color color, bool overlay) const
+    void DebugDrawFacade::wireBox(Float3 min, Float3 max, Color color) const { wireBox(min, max, color, false); }
+    void DebugDrawFacade::wireBox(Float3 min, Float3 max, Color color, bool overlay) const
     {
         if (debug::DebugDraw* d = SceneDebug(scene))
         {
             d->DrawWireBox(min, max, color, overlay);
         }
     }
-    void DebugDraw::wireSphere(Float3 center, f32 radius, Color color) const
+    void DebugDrawFacade::wireSphere(Float3 center, f32 radius, Color color) const
     {
         if (debug::DebugDraw* d = SceneDebug(scene))
         {
             d->DrawWireSphere(center, radius, color);
         }
     }
-    void DebugDraw::cross(Float3 center, f32 size, Color color) const { cross(center, size, color, false); }
-    void DebugDraw::cross(Float3 center, f32 size, Color color, bool overlay) const
+    void DebugDrawFacade::cross(Float3 center, f32 size, Color color) const { cross(center, size, color, false); }
+    void DebugDrawFacade::cross(Float3 center, f32 size, Color color, bool overlay) const
     {
         if (debug::DebugDraw* d = SceneDebug(scene))
         {
             d->DrawCross(center, size, color, overlay);
         }
     }
-    void DebugDraw::arrow(Float3 start, Float3 end, Color color) const { arrow(start, end, color, 0.1f); }
-    void DebugDraw::arrow(Float3 start, Float3 end, Color color, f32 headSize) const
+    void DebugDrawFacade::arrow(Float3 start, Float3 end, Color color) const { arrow(start, end, color, 0.1f); }
+    void DebugDrawFacade::arrow(Float3 start, Float3 end, Color color, f32 headSize) const
     {
         if (debug::DebugDraw* d = SceneDebug(scene))
         {
             d->DrawArrow(start, end, color, headSize);
         }
     }
-    void DebugDraw::text(Float3 worldPosition, String label, Color color) const
+    void DebugDrawFacade::text(Float3 worldPosition, String label, Color color) const
     {
         if (debug::DebugDraw* d = SceneDebug(scene))
         {
             d->DrawText3D(worldPosition, label.AsView(), color);
         }
     }
-    void DebugDraw::screenText(f32 x, f32 y, String label, Color color) const
+    void DebugDrawFacade::screenText(f32 x, f32 y, String label, Color color) const
     {
         screenText(x, y, Move(label), color, 1.0f);
     }
-    void DebugDraw::screenText(f32 x, f32 y, String label, Color color, f32 scale) const
+    void DebugDrawFacade::screenText(f32 x, f32 y, String label, Color color, f32 scale) const
     {
         if (debug::DebugDraw* d = SceneDebug(scene))
         {
@@ -380,49 +381,50 @@ namespace engine::render
         }
     }
 
-    REFLECT_VALUE(DebugDraw, "rtti::engine::render")
+    REFLECT_VALUE(DebugDrawFacade, "rtti::engine::render")
     {
-        using Numbers9 = void (DebugDraw::*)(f32, f32, f32, f32, f32, f32, f32, f32, f32) const;
-        using Numbers7 = void (DebugDraw::*)(f32, f32, f32, f32, f32, f32, f32) const;
-        using Segment = void (DebugDraw::*)(Float3, Float3, Color) const;
-        using SegmentOverlay = void (DebugDraw::*)(Float3, Float3, Color, bool) const;
-        using Marker = void (DebugDraw::*)(Float3, f32, Color) const;
-        using MarkerOverlay = void (DebugDraw::*)(Float3, f32, Color, bool) const;
+        builder.Attribute("scriptName", "DebugDraw");
+        using Numbers9 = void (DebugDrawFacade::*)(f32, f32, f32, f32, f32, f32, f32, f32, f32) const;
+        using Numbers7 = void (DebugDrawFacade::*)(f32, f32, f32, f32, f32, f32, f32) const;
+        using Segment = void (DebugDrawFacade::*)(Float3, Float3, Color) const;
+        using SegmentOverlay = void (DebugDrawFacade::*)(Float3, Float3, Color, bool) const;
+        using Marker = void (DebugDrawFacade::*)(Float3, f32, Color) const;
+        using MarkerOverlay = void (DebugDrawFacade::*)(Float3, f32, Color, bool) const;
         // Ours by the numbers (r, g, b; depth tested).
-        builder.Method<static_cast<Numbers9>(&DebugDraw::line)>(
+        builder.Method<static_cast<Numbers9>(&DebugDrawFacade::line)>(
             "line", {"x0", "y0", "z0", "x1", "y1", "z1", "r", "g", "b"});
-        builder.Method<static_cast<Numbers9>(&DebugDraw::ray)>(
+        builder.Method<static_cast<Numbers9>(&DebugDrawFacade::ray)>(
             "ray", {"x", "y", "z", "dx", "dy", "dz", "r", "g", "b"});
-        builder.Method<static_cast<Numbers9>(&DebugDraw::arrow)>(
+        builder.Method<static_cast<Numbers9>(&DebugDrawFacade::arrow)>(
             "arrow", {"x0", "y0", "z0", "x1", "y1", "z1", "r", "g", "b"});
-        builder.Method<&DebugDraw::sphere>("sphere", {"x", "y", "z", "radius", "r", "g", "b"});
-        builder.Method<static_cast<Numbers7>(&DebugDraw::cross)>(
+        builder.Method<&DebugDrawFacade::sphere>("sphere", {"x", "y", "z", "radius", "r", "g", "b"});
+        builder.Method<static_cast<Numbers7>(&DebugDrawFacade::cross)>(
             "cross", {"x", "y", "z", "size", "r", "g", "b"});
-        builder.Method<static_cast<void (DebugDraw::*)(f32, f32, f32, String, f32, f32, f32) const>(
-            &DebugDraw::text)>("text", {"x", "y", "z", "label", "r", "g", "b"});
+        builder.Method<static_cast<void (DebugDrawFacade::*)(f32, f32, f32, String, f32, f32, f32) const>(
+            &DebugDrawFacade::text)>("text", {"x", "y", "z", "label", "r", "g", "b"});
         // By Float3 and Color, with overlay; each forms an arity family with the numeric forms.
-        builder.Method<static_cast<Segment>(&DebugDraw::line)>("line", {"from", "to", "color"});
-        builder.Method<static_cast<SegmentOverlay>(&DebugDraw::line)>("line",
+        builder.Method<static_cast<Segment>(&DebugDrawFacade::line)>("line", {"from", "to", "color"});
+        builder.Method<static_cast<SegmentOverlay>(&DebugDrawFacade::line)>("line",
                                                                       {"from", "to", "color", "overlay"});
-        builder.Method<static_cast<Segment>(&DebugDraw::ray)>("ray", {"origin", "direction", "color"});
-        builder.Method<static_cast<SegmentOverlay>(&DebugDraw::ray)>(
+        builder.Method<static_cast<Segment>(&DebugDrawFacade::ray)>("ray", {"origin", "direction", "color"});
+        builder.Method<static_cast<SegmentOverlay>(&DebugDrawFacade::ray)>(
             "ray", {"origin", "direction", "color", "overlay"});
-        builder.Method<static_cast<Segment>(&DebugDraw::wireBox)>("wireBox", {"min", "max", "color"});
-        builder.Method<static_cast<SegmentOverlay>(&DebugDraw::wireBox)>(
+        builder.Method<static_cast<Segment>(&DebugDrawFacade::wireBox)>("wireBox", {"min", "max", "color"});
+        builder.Method<static_cast<SegmentOverlay>(&DebugDrawFacade::wireBox)>(
             "wireBox", {"min", "max", "color", "overlay"});
-        builder.Method<&DebugDraw::wireSphere>("wireSphere", {"center", "radius", "color"});
-        builder.Method<static_cast<Marker>(&DebugDraw::cross)>("cross", {"center", "size", "color"});
-        builder.Method<static_cast<MarkerOverlay>(&DebugDraw::cross)>(
+        builder.Method<&DebugDrawFacade::wireSphere>("wireSphere", {"center", "radius", "color"});
+        builder.Method<static_cast<Marker>(&DebugDrawFacade::cross)>("cross", {"center", "size", "color"});
+        builder.Method<static_cast<MarkerOverlay>(&DebugDrawFacade::cross)>(
             "cross", {"center", "size", "color", "overlay"});
-        builder.Method<static_cast<Segment>(&DebugDraw::arrow)>("arrow", {"start", "end", "color"});
-        builder.Method<static_cast<void (DebugDraw::*)(Float3, Float3, Color, f32) const>(
-            &DebugDraw::arrow)>("arrow", {"start", "end", "color", "headSize"});
-        builder.Method<static_cast<void (DebugDraw::*)(Float3, String, Color) const>(&DebugDraw::text)>(
+        builder.Method<static_cast<Segment>(&DebugDrawFacade::arrow)>("arrow", {"start", "end", "color"});
+        builder.Method<static_cast<void (DebugDrawFacade::*)(Float3, Float3, Color, f32) const>(
+            &DebugDrawFacade::arrow)>("arrow", {"start", "end", "color", "headSize"});
+        builder.Method<static_cast<void (DebugDrawFacade::*)(Float3, String, Color) const>(&DebugDrawFacade::text)>(
             "text", {"worldPosition", "label", "color"});
-        builder.Method<static_cast<void (DebugDraw::*)(f32, f32, String, Color) const>(
-            &DebugDraw::screenText)>("screenText", {"x", "y", "label", "color"});
-        builder.Method<static_cast<void (DebugDraw::*)(f32, f32, String, Color, f32) const>(
-            &DebugDraw::screenText)>("screenText", {"x", "y", "label", "color", "scale"});
+        builder.Method<static_cast<void (DebugDrawFacade::*)(f32, f32, String, Color) const>(
+            &DebugDrawFacade::screenText)>("screenText", {"x", "y", "label", "color"});
+        builder.Method<static_cast<void (DebugDrawFacade::*)(f32, f32, String, Color, f32) const>(
+            &DebugDrawFacade::screenText)>("screenText", {"x", "y", "label", "color", "scale"});
         builder.Constructor();
     }
 
@@ -931,12 +933,12 @@ namespace engine::render
         (void)once;
     }
 
-    RenderQualityChoice* RenderQuality::Resolve()
+    RenderQualityChoice* RenderQualityFacade::Resolve()
     {
         return foundation::script::CurrentService<RenderQualityChoice>(); // the calling script's run's
     }
 
-    Array<String> RenderQuality::levels()
+    Array<String> RenderQualityFacade::levels()
     {
         Array<String> labels;
         if (const RenderQualityChoice* choice = Resolve())
@@ -945,24 +947,25 @@ namespace engine::render
         return labels;
     }
 
-    String RenderQuality::current()
+    String RenderQualityFacade::current()
     {
         const RenderQualityChoice* choice = Resolve();
         const OfferedQualityLevel* level = choice != nullptr ? choice->Find(choice->current) : nullptr;
         return level != nullptr ? level->values.label : String{};
     }
 
-    bool RenderQuality::set(String label)
+    bool RenderQualityFacade::set(String label)
     {
         RenderQualityChoice* choice = Resolve();
         return choice != nullptr && choice->Choose(label.AsView());
     }
 
-    REFLECT_MEMBERS(RenderQuality, "rtti::engine::render")
+    REFLECT_MEMBERS(RenderQualityFacade, "rtti::engine::render")
     {
-        builder.Method<&RenderQuality::levels>("levels");
-        builder.Method<&RenderQuality::current>("current");
-        builder.Method<&RenderQuality::set>("set", {"label"});
+        builder.Attribute("scriptName", "RenderQuality");
+        builder.Method<&RenderQualityFacade::levels>("levels");
+        builder.Method<&RenderQualityFacade::current>("current");
+        builder.Method<&RenderQualityFacade::set>("set", {"label"});
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
 
@@ -996,19 +999,19 @@ namespace engine::render
 
         // The scene-bound render handle (scene.render): reflect it, register it, seed the
         // emission root (nothing else reaches it), and make the class name prelude-visible.
-        RttiRegisterValue_SceneRender();
-        GlobalTypeRegistry().Register(core::TypeOf<SceneRender>());
-        foundation::script::RegisterExtraScriptRootType(&core::TypeOf<SceneRender>());
+        RttiRegisterValue_SceneRenderFacade();
+        GlobalTypeRegistry().Register(core::TypeOf<SceneRenderFacade>());
+        foundation::script::RegisterExtraScriptRootType(&core::TypeOf<SceneRenderFacade>());
         foundation::script::RegisterExtraFacadeName(u8"SceneRender");
-        foundation::script::ExtendScene<&SceneRender::ForScene>("render"); // scene.render
+        foundation::script::ExtendScene<&SceneRenderFacade::ForScene>("render"); // scene.render
 
         // scene.debugDraw: immediate-mode debug draw into the scene's per-scene gizmo list
         // (reaches RenderSubsystem::DebugScene via the per-context render service the app installs).
-        RttiRegisterValue_DebugDraw();
-        GlobalTypeRegistry().Register(core::TypeOf<DebugDraw>());
-        foundation::script::RegisterExtraScriptRootType(&core::TypeOf<DebugDraw>());
+        RttiRegisterValue_DebugDrawFacade();
+        GlobalTypeRegistry().Register(core::TypeOf<DebugDrawFacade>());
+        foundation::script::RegisterExtraScriptRootType(&core::TypeOf<DebugDrawFacade>());
         foundation::script::RegisterExtraFacadeName(u8"DebugDraw");
-        foundation::script::ExtendScene<&DebugDraw::ForScene>("debugDraw"); // scene.debugDraw
+        foundation::script::ExtendScene<&DebugDrawFacade::ForScene>("debugDraw"); // scene.debugDraw
 
         // The render scene systems' settings handles (scene.environment and
         // scene.postProcess): register, seed the emission root and name for the prelude.
@@ -1028,7 +1031,7 @@ namespace engine::render
 
         // The quality levels the run offers (RenderQuality.levels() lists them as array<string>).
         RegisterArrayType<String>();
-        GlobalTypeRegistry().Register(RenderQuality::StaticType());
+        GlobalTypeRegistry().Register(RenderQualityFacade::StaticType());
         foundation::script::RegisterExtraFacadeName(u8"RenderQuality");
     }
 } // namespace engine::render

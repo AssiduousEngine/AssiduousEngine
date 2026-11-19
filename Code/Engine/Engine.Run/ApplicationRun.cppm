@@ -115,7 +115,7 @@ export namespace engine::runtime
     // onto this run's bus (deferred; delivered at the next run-bus drain). Shaped like SceneEvents;
     // the payload is a Variant, the one type that crosses between C++ and script and between
     // AngelScript and Luau. A value type.
-    struct RunEvents
+    struct RunEventsFacade
     {
         messaging::EventBus* bus = nullptr; // not reflected; resolved from the run context at run.events()
         void emit(core::String name) const;
@@ -130,18 +130,18 @@ export namespace engine::runtime
     /// through CurrentScriptContext), bound to scripts as `run` through ScriptName. It resolves its
     /// own per-context service; unwired, every call is a safe no-op (an empty RunEvents whose emit
     /// does nothing; loadComplete returns true so a poll never hangs).
-    class Run final : public Object
+    class RunFacade final : public Object
     {
-        RTTI_OBJECT(Run, Object)
+        RTTI_OBJECT(RunFacade, Object)
     public:
         [[nodiscard]] static RunBinding* Resolve()
         {
             return script::CurrentService<RunBinding>();
         }
-        [[nodiscard]] static RunEvents events()
+        [[nodiscard]] static RunEventsFacade events()
         {
             RunBinding* b = Resolve();
-            RunEvents handle;
+            RunEventsFacade handle;
             handle.bus = (b != nullptr) ? b->runEvents : nullptr;
             return handle;
         }

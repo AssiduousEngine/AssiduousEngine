@@ -90,40 +90,41 @@ namespace engine::animation
     // setFloat/setInt/setBool/setTrigger (graph params). `of` returns SceneAnimation by value
     // (a concrete cross-backend return), like ScenePhysics. All world ops are keyed by entity, since
     // they reach the manager-owned runtime player.
-    REFLECT_VALUE(SceneAnimation, "rtti::engine::animation")
+    REFLECT_VALUE(SceneAnimationFacade, "rtti::engine::animation")
     {
-        builder.Method<&SceneAnimation::play>("play", {"entity"});
-        builder.Method<&SceneAnimation::stop>("stop", {"entity"});
-        builder.Method<&SceneAnimation::pause>("pause", {"entity"});
-        builder.Method<&SceneAnimation::resume>("resume", {"entity"});
-        builder.Method<&SceneAnimation::isPlaying>("isPlaying", {"entity"});
-        builder.Method<&SceneAnimation::time>("time", {"entity"});
-        builder.Method<&SceneAnimation::setTime>("setTime", {"entity", "seconds"});
+        builder.Attribute("scriptName", "SceneAnimation");
+        builder.Method<&SceneAnimationFacade::play>("play", {"entity"});
+        builder.Method<&SceneAnimationFacade::stop>("stop", {"entity"});
+        builder.Method<&SceneAnimationFacade::pause>("pause", {"entity"});
+        builder.Method<&SceneAnimationFacade::resume>("resume", {"entity"});
+        builder.Method<&SceneAnimationFacade::isPlaying>("isPlaying", {"entity"});
+        builder.Method<&SceneAnimationFacade::time>("time", {"entity"});
+        builder.Method<&SceneAnimationFacade::setTime>("setTime", {"entity", "seconds"});
         // setClip by arity: at once, or easing from the pose shown now over blendSeconds.
-        builder.Method<static_cast<void (SceneAnimation::*)(foundation::script::Entity, Guid) const>(&SceneAnimation::setClip)>(
+        builder.Method<static_cast<void (SceneAnimationFacade::*)(foundation::script::Entity, Guid) const>(&SceneAnimationFacade::setClip)>(
             "setClip", {"entity", "resourceId"});
-        builder.Method<static_cast<void (SceneAnimation::*)(foundation::script::Entity, Guid, f32) const>(&SceneAnimation::setClip)>(
+        builder.Method<static_cast<void (SceneAnimationFacade::*)(foundation::script::Entity, Guid, f32) const>(&SceneAnimationFacade::setClip)>(
             "setClip", {"entity", "resourceId", "blendSeconds"});
         // One-shots: a clip once over whatever the entity animates, ending in onAnimationFinished.
-        builder.Method<&SceneAnimation::clipLength>("clipLength", {"clip"});
-        builder.Method<static_cast<void (SceneAnimation::*)(foundation::script::Entity, Guid) const>(&SceneAnimation::playOneShot)>(
+        builder.Method<&SceneAnimationFacade::clipLength>("clipLength", {"clip"});
+        builder.Method<static_cast<void (SceneAnimationFacade::*)(foundation::script::Entity, Guid) const>(&SceneAnimationFacade::playOneShot)>(
             "playOneShot", {"entity", "clip"});
-        builder.Method<static_cast<void (SceneAnimation::*)(foundation::script::Entity, Guid, f32, f32, f32, i32) const>(
-            &SceneAnimation::playOneShot)>("playOneShot", {"entity", "clip", "speed", "blendIn", "blendOut", "loops"});
-        builder.Method<static_cast<void (SceneAnimation::*)(foundation::script::Entity) const>(&SceneAnimation::stopOneShot)>(
+        builder.Method<static_cast<void (SceneAnimationFacade::*)(foundation::script::Entity, Guid, f32, f32, f32, i32) const>(
+            &SceneAnimationFacade::playOneShot)>("playOneShot", {"entity", "clip", "speed", "blendIn", "blendOut", "loops"});
+        builder.Method<static_cast<void (SceneAnimationFacade::*)(foundation::script::Entity) const>(&SceneAnimationFacade::stopOneShot)>(
             "stopOneShot", {"entity"});
-        builder.Method<static_cast<void (SceneAnimation::*)(foundation::script::Entity, f32) const>(&SceneAnimation::stopOneShot)>(
+        builder.Method<static_cast<void (SceneAnimationFacade::*)(foundation::script::Entity, f32) const>(&SceneAnimationFacade::stopOneShot)>(
             "stopOneShot", {"entity", "blendOut"});
-        builder.Method<&SceneAnimation::isPlayingOneShot>("isPlayingOneShot", {"entity"});
-        builder.Method<&SceneAnimation::setFloat>("setFloat", {"entity", "name", "value"});
-        builder.Method<&SceneAnimation::setInt>("setInt", {"entity", "name", "value"});
-        builder.Method<&SceneAnimation::setBool>("setBool", {"entity", "name", "value"});
-        builder.Method<&SceneAnimation::setTrigger>("setTrigger", {"entity", "name"});
-        builder.Method<&SceneAnimation::setIkTarget>("setIkTarget", {"entity", "worldPosition"});
-        builder.Method<&SceneAnimation::ikReached>("ikReached", {"entity"});
-        builder.Method<&SceneAnimation::ikError>("ikError", {"entity"});
-        builder.Method<&SceneAnimation::rootMotionTranslation>("rootMotionTranslation", {"entity"});
-        builder.Method<&SceneAnimation::rootMotionYaw>("rootMotionYaw", {"entity"});
+        builder.Method<&SceneAnimationFacade::isPlayingOneShot>("isPlayingOneShot", {"entity"});
+        builder.Method<&SceneAnimationFacade::setFloat>("setFloat", {"entity", "name", "value"});
+        builder.Method<&SceneAnimationFacade::setInt>("setInt", {"entity", "name", "value"});
+        builder.Method<&SceneAnimationFacade::setBool>("setBool", {"entity", "name", "value"});
+        builder.Method<&SceneAnimationFacade::setTrigger>("setTrigger", {"entity", "name"});
+        builder.Method<&SceneAnimationFacade::setIkTarget>("setIkTarget", {"entity", "worldPosition"});
+        builder.Method<&SceneAnimationFacade::ikReached>("ikReached", {"entity"});
+        builder.Method<&SceneAnimationFacade::ikError>("ikError", {"entity"});
+        builder.Method<&SceneAnimationFacade::rootMotionTranslation>("rootMotionTranslation", {"entity"});
+        builder.Method<&SceneAnimationFacade::rootMotionYaw>("rootMotionYaw", {"entity"});
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
 
@@ -412,11 +413,11 @@ namespace engine::animation
         }
 
         // The scene-bound animation handle (scene.animation): reflect, register, seed and name it.
-        RttiRegisterValue_SceneAnimation();
-        GlobalTypeRegistry().Register(core::TypeOf<SceneAnimation>());
-        foundation::script::RegisterExtraScriptRootType(&core::TypeOf<SceneAnimation>());
+        RttiRegisterValue_SceneAnimationFacade();
+        GlobalTypeRegistry().Register(core::TypeOf<SceneAnimationFacade>());
+        foundation::script::RegisterExtraScriptRootType(&core::TypeOf<SceneAnimationFacade>());
         foundation::script::RegisterExtraFacadeName(u8"SceneAnimation");
-        foundation::script::ExtendScene<&SceneAnimation::ForScene>("animation"); // scene.animation
+        foundation::script::ExtendScene<&SceneAnimationFacade::ForScene>("animation"); // scene.animation
     }
 }
 
@@ -456,7 +457,7 @@ namespace engine::animation
         }
     }
 
-    void SceneAnimation::setIkTarget(foundation::script::Entity entity, Float3 worldPosition) const
+    void SceneAnimationFacade::setIkTarget(foundation::script::Entity entity, Float3 worldPosition) const
     {
         ForEachIk(scene, entity.Handle(),
                   [&](IkRuntime& rt)
@@ -466,7 +467,7 @@ namespace engine::animation
                   });
     }
 
-    bool SceneAnimation::ikReached(foundation::script::Entity entity) const
+    bool SceneAnimationFacade::ikReached(foundation::script::Entity entity) const
     {
         bool any = false;
         bool all = true;
@@ -480,7 +481,7 @@ namespace engine::animation
         return any && all;
     }
 
-    f32 SceneAnimation::ikError(foundation::script::Entity entity) const
+    f32 SceneAnimationFacade::ikError(foundation::script::Entity entity) const
     {
         f32 worst = 0.0f;
         ForEachIk(scene, entity.Handle(),

@@ -148,7 +148,7 @@ namespace engine::spline
         (void)once;
     }
 
-    const SplineComponent* SceneSplines::Component(foundation::script::Entity entity) const
+    const SplineComponent* SceneSplinesFacade::Component(foundation::script::Entity entity) const
     {
         if (scene == nullptr || entity.scene != scene)
         {
@@ -158,19 +158,19 @@ namespace engine::spline
         return (manager != nullptr) ? manager->Get(entity.Handle()) : nullptr;
     }
 
-    f32 SceneSplines::length(foundation::script::Entity entity) const
+    f32 SceneSplinesFacade::length(foundation::script::Entity entity) const
     {
         const SplineComponent* component = Component(entity);
         return (component != nullptr) ? component->curve.Length() : 0.0f;
     }
 
-    i32 SceneSplines::pointCount(foundation::script::Entity entity) const
+    i32 SceneSplinesFacade::pointCount(foundation::script::Entity entity) const
     {
         const SplineComponent* component = Component(entity);
         return (component != nullptr) ? static_cast<i32>(component->curve.points.Size()) : 0;
     }
 
-    bool SceneSplines::isClosed(foundation::script::Entity entity) const
+    bool SceneSplinesFacade::isClosed(foundation::script::Entity entity) const
     {
         const SplineComponent* component = Component(entity);
         return component != nullptr && component->curve.closed;
@@ -191,7 +191,7 @@ namespace engine::spline
         }
     }
 
-    SplineHit SceneSplines::sampleAt(foundation::script::Entity entity, f32 t) const
+    SplineHit SceneSplinesFacade::sampleAt(foundation::script::Entity entity, f32 t) const
     {
         const SplineComponent* component = Component(entity);
         if (component == nullptr)
@@ -201,7 +201,7 @@ namespace engine::spline
         return MakeHit(component->curve, t, scene->GetWorldMatrix(entity.Handle()));
     }
 
-    SplineHit SceneSplines::sampleAtDistance(foundation::script::Entity entity,
+    SplineHit SceneSplinesFacade::sampleAtDistance(foundation::script::Entity entity,
                                              f32 distance) const
     {
         const SplineComponent* component = Component(entity);
@@ -213,7 +213,7 @@ namespace engine::spline
                        scene->GetWorldMatrix(entity.Handle()));
     }
 
-    SplineHit SceneSplines::closestPoint(foundation::script::Entity entity, f32 x, f32 y,
+    SplineHit SceneSplinesFacade::closestPoint(foundation::script::Entity entity, f32 x, f32 y,
                                          f32 z) const
     {
         const SplineComponent* component = Component(entity);
@@ -238,19 +238,20 @@ namespace engine::spline
         builder.Property<&SplineHit::tangent>("tangent");
     }
 
-    REFLECT_VALUE(SceneSplines, "rtti::engine::spline")
+    REFLECT_VALUE(SceneSplinesFacade, "rtti::engine::spline")
     {
-        builder.Method<&SceneSplines::length>("length", {"entity"});
-        builder.Method<&SceneSplines::pointCount>("pointCount", {"entity"});
-        builder.Method<&SceneSplines::isClosed>("isClosed", {"entity"});
-        builder.Method<&SceneSplines::sampleAt>("sampleAt", {"entity", "t"});
-        builder.Method<&SceneSplines::sampleAtDistance>("sampleAtDistance",
+        builder.Attribute("scriptName", "SceneSplines");
+        builder.Method<&SceneSplinesFacade::length>("length", {"entity"});
+        builder.Method<&SceneSplinesFacade::pointCount>("pointCount", {"entity"});
+        builder.Method<&SceneSplinesFacade::isClosed>("isClosed", {"entity"});
+        builder.Method<&SceneSplinesFacade::sampleAt>("sampleAt", {"entity", "t"});
+        builder.Method<&SceneSplinesFacade::sampleAtDistance>("sampleAtDistance",
                                                         {"entity", "distance"});
-        builder.Method<static_cast<SplineHit (SceneSplines::*)(foundation::script::Entity, f32, f32, f32)
-                                      const>(&SceneSplines::closestPoint)>("closestPoint",
+        builder.Method<static_cast<SplineHit (SceneSplinesFacade::*)(foundation::script::Entity, f32, f32, f32)
+                                      const>(&SceneSplinesFacade::closestPoint)>("closestPoint",
                                                                            {"entity", "x", "y", "z"});
-        builder.Method<static_cast<SplineHit (SceneSplines::*)(foundation::script::Entity, Float3) const>(
-            &SceneSplines::closestPoint)>("closestPoint", {"entity", "world"});
+        builder.Method<static_cast<SplineHit (SceneSplinesFacade::*)(foundation::script::Entity, Float3) const>(
+            &SceneSplinesFacade::closestPoint)>("closestPoint", {"entity", "world"});
     }
 
     void RegisterSplineScriptFacade()
@@ -267,11 +268,11 @@ namespace engine::spline
             GlobalTypeRegistry().Register(TypeOf<PathFollowComponent>());
             foundation::script::RegisterExtraScriptRootType(&TypeOf<PathFollowComponent>());
             foundation::script::RegisterExtraFacadeName(u8"PathFollowComponent");
-            RttiRegisterValue_SceneSplines();
-            GlobalTypeRegistry().Register(TypeOf<SceneSplines>());
-            foundation::script::RegisterExtraScriptRootType(&TypeOf<SceneSplines>());
+            RttiRegisterValue_SceneSplinesFacade();
+            GlobalTypeRegistry().Register(TypeOf<SceneSplinesFacade>());
+            foundation::script::RegisterExtraScriptRootType(&TypeOf<SceneSplinesFacade>());
             foundation::script::RegisterExtraFacadeName(u8"SceneSplines");
-            foundation::script::ExtendScene<&SceneSplines::ForScene>("splines"); // scene.splines
+            foundation::script::ExtendScene<&SceneSplinesFacade::ForScene>("splines"); // scene.splines
             return true;
         }();
         (void)once;

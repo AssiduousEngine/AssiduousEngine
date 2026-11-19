@@ -824,73 +824,74 @@ namespace engine::physics
         builder.Method<&RayCastHit::impulse>("impulse", {"x", "y", "z"});
     }
 
-    REFLECT_VALUE(ScenePhysics, "rtti::engine::physics")
+    REFLECT_VALUE(ScenePhysicsFacade, "rtti::engine::physics")
     {
+        builder.Attribute("scriptName", "ScenePhysics");
         using Entity = foundation::script::Entity;
         using Entities = Array<Entity>;
         // Each query is an arity family: the Float3 forms (with an optional group mask), and the
         // forms taking separate numbers.
-        builder.Method<static_cast<RayCastHit (ScenePhysics::*)(Float3, Float3, f32) const>(
-            &ScenePhysics::rayCast)>("rayCast", {"from", "direction", "maxDistance"});
-        builder.Method<static_cast<RayCastHit (ScenePhysics::*)(Float3, Float3, f32, u32) const>(
-            &ScenePhysics::rayCast)>("rayCast", {"from", "direction", "maxDistance", "groupMask"});
-        builder.Method<static_cast<RayCastHit (ScenePhysics::*)(Float3, Float3, f32, u32, Entity) const>(
-            &ScenePhysics::rayCast)>("rayCast", {"from", "direction", "maxDistance", "groupMask", "ignore"});
-        builder.Method<static_cast<RayCastHit (ScenePhysics::*)(f32, f32, f32, f32, f32, f32, f32) const>(
-            &ScenePhysics::rayCast)>(
+        builder.Method<static_cast<RayCastHit (ScenePhysicsFacade::*)(Float3, Float3, f32) const>(
+            &ScenePhysicsFacade::rayCast)>("rayCast", {"from", "direction", "maxDistance"});
+        builder.Method<static_cast<RayCastHit (ScenePhysicsFacade::*)(Float3, Float3, f32, u32) const>(
+            &ScenePhysicsFacade::rayCast)>("rayCast", {"from", "direction", "maxDistance", "groupMask"});
+        builder.Method<static_cast<RayCastHit (ScenePhysicsFacade::*)(Float3, Float3, f32, u32, Entity) const>(
+            &ScenePhysicsFacade::rayCast)>("rayCast", {"from", "direction", "maxDistance", "groupMask", "ignore"});
+        builder.Method<static_cast<RayCastHit (ScenePhysicsFacade::*)(f32, f32, f32, f32, f32, f32, f32) const>(
+            &ScenePhysicsFacade::rayCast)>(
             "rayCast", {"fromX", "fromY", "fromZ", "dirX", "dirY", "dirZ", "maxDistance"});
-        builder.Method<static_cast<RayCastHit (ScenePhysics::*)(Float3, Float3, f32, f32) const>(
-            &ScenePhysics::sphereCast)>("sphereCast", {"from", "direction", "maxDistance", "radius"});
-        builder.Method<static_cast<RayCastHit (ScenePhysics::*)(Float3, Float3, f32, f32, u32) const>(
-            &ScenePhysics::sphereCast)>("sphereCast",
+        builder.Method<static_cast<RayCastHit (ScenePhysicsFacade::*)(Float3, Float3, f32, f32) const>(
+            &ScenePhysicsFacade::sphereCast)>("sphereCast", {"from", "direction", "maxDistance", "radius"});
+        builder.Method<static_cast<RayCastHit (ScenePhysicsFacade::*)(Float3, Float3, f32, f32, u32) const>(
+            &ScenePhysicsFacade::sphereCast)>("sphereCast",
                                         {"from", "direction", "maxDistance", "radius", "groupMask"});
-        builder.Method<static_cast<RayCastHit (ScenePhysics::*)(Float3, Float3, f32, f32, u32, Entity) const>(
-            &ScenePhysics::sphereCast)>(
+        builder.Method<static_cast<RayCastHit (ScenePhysicsFacade::*)(Float3, Float3, f32, f32, u32, Entity) const>(
+            &ScenePhysicsFacade::sphereCast)>(
             "sphereCast", {"from", "direction", "maxDistance", "radius", "groupMask", "ignore"});
-        builder.Method<static_cast<RayCastHit (ScenePhysics::*)(f32, f32, f32, f32, f32, f32, f32, f32)
-                                       const>(&ScenePhysics::sphereCast)>(
+        builder.Method<static_cast<RayCastHit (ScenePhysicsFacade::*)(f32, f32, f32, f32, f32, f32, f32, f32)
+                                       const>(&ScenePhysicsFacade::sphereCast)>(
             "sphereCast",
             {"fromX", "fromY", "fromZ", "dirX", "dirY", "dirZ", "maxDistance", "radius"});
-        builder.Method<static_cast<RayCastHit (ScenePhysics::*)(Float3, f32) const>(
-            &ScenePhysics::nearestOverlap)>("nearestOverlap", {"center", "radius"});
-        builder.Method<static_cast<RayCastHit (ScenePhysics::*)(Float3, f32, u32) const>(
-            &ScenePhysics::nearestOverlap)>("nearestOverlap", {"center", "radius", "groupMask"});
-        builder.Method<static_cast<RayCastHit (ScenePhysics::*)(f32, f32, f32, f32, i32) const>(
-            &ScenePhysics::nearestOverlap)>("nearestOverlap", {"x", "y", "z", "radius", "groupMask"});
-        builder.Method<static_cast<Entities (ScenePhysics::*)(Float3, f32) const>(
-            &ScenePhysics::overlapSphere)>("overlapSphere", {"center", "radius"});
-        builder.Method<static_cast<Entities (ScenePhysics::*)(Float3, f32, u32) const>(
-            &ScenePhysics::overlapSphere)>("overlapSphere", {"center", "radius", "groupMask"});
-        builder.Method<static_cast<Entities (ScenePhysics::*)(f32, f32, f32, f32, i32) const>(
-            &ScenePhysics::overlapSphere)>("overlapSphere", {"x", "y", "z", "radius", "groupMask"});
-        builder.Method<static_cast<void (ScenePhysics::*)(Float3)>(&ScenePhysics::setGravity)>(
+        builder.Method<static_cast<RayCastHit (ScenePhysicsFacade::*)(Float3, f32) const>(
+            &ScenePhysicsFacade::nearestOverlap)>("nearestOverlap", {"center", "radius"});
+        builder.Method<static_cast<RayCastHit (ScenePhysicsFacade::*)(Float3, f32, u32) const>(
+            &ScenePhysicsFacade::nearestOverlap)>("nearestOverlap", {"center", "radius", "groupMask"});
+        builder.Method<static_cast<RayCastHit (ScenePhysicsFacade::*)(f32, f32, f32, f32, i32) const>(
+            &ScenePhysicsFacade::nearestOverlap)>("nearestOverlap", {"x", "y", "z", "radius", "groupMask"});
+        builder.Method<static_cast<Entities (ScenePhysicsFacade::*)(Float3, f32) const>(
+            &ScenePhysicsFacade::overlapSphere)>("overlapSphere", {"center", "radius"});
+        builder.Method<static_cast<Entities (ScenePhysicsFacade::*)(Float3, f32, u32) const>(
+            &ScenePhysicsFacade::overlapSphere)>("overlapSphere", {"center", "radius", "groupMask"});
+        builder.Method<static_cast<Entities (ScenePhysicsFacade::*)(f32, f32, f32, f32, i32) const>(
+            &ScenePhysicsFacade::overlapSphere)>("overlapSphere", {"x", "y", "z", "radius", "groupMask"});
+        builder.Method<static_cast<void (ScenePhysicsFacade::*)(Float3)>(&ScenePhysicsFacade::setGravity)>(
             "setGravity", {"gravity"});
-        builder.Method<static_cast<void (ScenePhysics::*)(f32, f32, f32)>(&ScenePhysics::setGravity)>(
+        builder.Method<static_cast<void (ScenePhysicsFacade::*)(f32, f32, f32)>(&ScenePhysicsFacade::setGravity)>(
             "setGravity", {"x", "y", "z"});
-        builder.Method<&ScenePhysics::gravity>("gravity");
-        builder.Method<&ScenePhysics::gravityY>("gravityY");
-        builder.Method<&ScenePhysics::bodyCount>("bodyCount");
-        builder.Method<static_cast<void (ScenePhysics::*)(Entity, Float3)>(&ScenePhysics::applyImpulse)>(
+        builder.Method<&ScenePhysicsFacade::gravity>("gravity");
+        builder.Method<&ScenePhysicsFacade::gravityY>("gravityY");
+        builder.Method<&ScenePhysicsFacade::bodyCount>("bodyCount");
+        builder.Method<static_cast<void (ScenePhysicsFacade::*)(Entity, Float3)>(&ScenePhysicsFacade::applyImpulse)>(
             "applyImpulse", {"entity", "impulse"});
-        builder.Method<static_cast<void (ScenePhysics::*)(Entity, f32, f32, f32)>(
-            &ScenePhysics::applyImpulse)>("applyImpulse", {"entity", "x", "y", "z"});
-        builder.Method<static_cast<void (ScenePhysics::*)(Entity, Float3)>(&ScenePhysics::setVelocity)>(
+        builder.Method<static_cast<void (ScenePhysicsFacade::*)(Entity, f32, f32, f32)>(
+            &ScenePhysicsFacade::applyImpulse)>("applyImpulse", {"entity", "x", "y", "z"});
+        builder.Method<static_cast<void (ScenePhysicsFacade::*)(Entity, Float3)>(&ScenePhysicsFacade::setVelocity)>(
             "setVelocity", {"entity", "velocity"});
-        builder.Method<static_cast<void (ScenePhysics::*)(Entity, f32, f32, f32)>(
-            &ScenePhysics::setVelocity)>("setVelocity", {"entity", "x", "y", "z"});
-        builder.Method<&ScenePhysics::velocity>("velocity", {"entity"});
-        builder.Method<static_cast<void (ScenePhysics::*)(Entity, Float3)>(&ScenePhysics::setForce)>(
+        builder.Method<static_cast<void (ScenePhysicsFacade::*)(Entity, f32, f32, f32)>(
+            &ScenePhysicsFacade::setVelocity)>("setVelocity", {"entity", "x", "y", "z"});
+        builder.Method<&ScenePhysicsFacade::velocity>("velocity", {"entity"});
+        builder.Method<static_cast<void (ScenePhysicsFacade::*)(Entity, Float3)>(&ScenePhysicsFacade::setForce)>(
             "setForce", {"entity", "force"});
-        builder.Method<static_cast<void (ScenePhysics::*)(Entity, f32, f32, f32)>(
-            &ScenePhysics::setForce)>("setForce", {"entity", "x", "y", "z"});
+        builder.Method<static_cast<void (ScenePhysicsFacade::*)(Entity, f32, f32, f32)>(
+            &ScenePhysicsFacade::setForce)>("setForce", {"entity", "x", "y", "z"});
         // The entity's character operations (the same as CharacterComponent.of(entity)).
-        builder.Method<&ScenePhysics::moveCharacter>("moveCharacter",
+        builder.Method<&ScenePhysicsFacade::moveCharacter>("moveCharacter",
                                                      {"entity", "velocityX", "velocityZ"});
-        builder.Method<&ScenePhysics::jumpCharacter>("jumpCharacter", {"entity", "speed"});
-        builder.Method<&ScenePhysics::launchCharacter>("launchCharacter", {"entity", "speed"});
-        builder.Method<&ScenePhysics::setCharacterPosition>("setCharacterPosition",
+        builder.Method<&ScenePhysicsFacade::jumpCharacter>("jumpCharacter", {"entity", "speed"});
+        builder.Method<&ScenePhysicsFacade::launchCharacter>("launchCharacter", {"entity", "speed"});
+        builder.Method<&ScenePhysicsFacade::setCharacterPosition>("setCharacterPosition",
                                                             {"entity", "position"});
-        builder.Method<&ScenePhysics::isCharacterGrounded>("isCharacterGrounded", {"entity"});
+        builder.Method<&ScenePhysicsFacade::isCharacterGrounded>("isCharacterGrounded", {"entity"});
     }
 
     void RegisterPhysicsScriptFacade()
@@ -920,11 +921,11 @@ namespace engine::physics
         // or a Lua table. Patch the container TypeInfo so the backend renders it; no script root or
         // facade name, since a native array is not a boxed handle type.
         core::RegisterArrayType<foundation::script::Entity>();
-        RttiRegisterValue_ScenePhysics();
-        GlobalTypeRegistry().Register(core::TypeOf<ScenePhysics>());
-        foundation::script::RegisterExtraScriptRootType(&core::TypeOf<ScenePhysics>());
+        RttiRegisterValue_ScenePhysicsFacade();
+        GlobalTypeRegistry().Register(core::TypeOf<ScenePhysicsFacade>());
+        foundation::script::RegisterExtraScriptRootType(&core::TypeOf<ScenePhysicsFacade>());
         foundation::script::RegisterExtraFacadeName(u8"ScenePhysics");
-        foundation::script::ExtendScene<&ScenePhysics::ForScene>("physics"); // scene.physics
+        foundation::script::ExtendScene<&ScenePhysicsFacade::ForScene>("physics"); // scene.physics
     }
 
     void RegisterPhysicsComponentReflection()

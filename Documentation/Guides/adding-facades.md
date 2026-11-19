@@ -80,10 +80,15 @@ void RegisterUiScriptFacade(); // decl; body in the impl unit
 
 ### b. Facade class (interface unit)
 
+A facade's C++ name ends in `Facade`: a static facade (`SaveFacade`, `RunFacade`) and a handle
+scripts hold over a scene's or run's system (`ScenePhysicsFacade`, `SceneEventsFacade`) alike. The
+script name is the plain one, set in the reflection body (c). Components, results such as
+`RayCastHit`, and `Entity` and `Scene` are the engine's own types, not facades, and keep their names.
+
 ```cpp
-class Ui final : public Object
+class UiFacade final : public Object
 {
-    RTTI_OBJECT(Ui, Object)                        // needs Reflect.h in the module fragment
+    RTTI_OBJECT(UiFacade, Object)                  // needs Reflect.h in the module fragment
 public:
     [[nodiscard]] static UiScriptBinding* Resolve() { return script::CurrentService<UiScriptBinding>(); }
     [[nodiscard]] static i32 pushOverlay(core::Guid doc)
@@ -101,9 +106,10 @@ Kept out of the interface unit - the GCC gcm-cluster rule (`REFLECT_*` bodies ne
 `.cppm`).
 
 ```cpp
-REFLECT_MEMBERS(Ui, "rtti::ui")
+REFLECT_MEMBERS(UiFacade, "rtti::ui")
 {
-    builder.Method<&Ui::pushOverlay>("pushOverlay");
+    builder.Attribute("scriptName", "Ui");        // what scripts call it; the C++ name keeps Facade
+    builder.Method<&UiFacade::pushOverlay>("pushOverlay");
     // ... one Method<> per surface entry ...
     builder.Constructor(); // the bound surface starts from constructible types (CollectEmittableTypes)
 }
@@ -112,8 +118,8 @@ void RegisterUiScriptFacade()
 {
     static const bool once = []()
     {
-        GlobalTypeRegistry().Register(Ui::StaticType());
-        foundation::script::RegisterExtraFacadeName(u8"Ui"); // the facade list (reserved-name guard)
+        GlobalTypeRegistry().Register(UiFacade::StaticType());
+        foundation::script::RegisterExtraFacadeName(u8"Ui"); // the script name (the prelude's list)
         return true;
     }();
     (void)once;

@@ -24,7 +24,7 @@ namespace foundation::http
         // Sends `request`; the handler hears (status, body, error) when it is answered.
         i32 Send(HttpClientRequest request, RefPtr<script::IScriptDelegate> handler)
         {
-            HttpScriptBinding* binding = Http::Resolve();
+            HttpScriptBinding* binding = HttpFacade::Resolve();
             IHttpClient* client = binding != nullptr ? binding->Client() : nullptr;
             if (client == nullptr)
                 return 0;
@@ -48,17 +48,17 @@ namespace foundation::http
         }
     }
 
-    i32 Http::get(String url, RefPtr<script::IScriptDelegate> handler)
+    i32 HttpFacade::get(String url, RefPtr<script::IScriptDelegate> handler)
     {
         return Send(HttpClientRequest::Get(url.AsView()), Move(handler));
     }
 
-    i32 Http::post(String url, String contentType, String body, RefPtr<script::IScriptDelegate> handler)
+    i32 HttpFacade::post(String url, String contentType, String body, RefPtr<script::IScriptDelegate> handler)
     {
         return Send(HttpClientRequest::Post(url.AsView(), contentType.AsView(), body.AsView()), Move(handler));
     }
 
-    i32 Http::send(String method, String url, String headers, String body, RefPtr<script::IScriptDelegate> handler)
+    i32 HttpFacade::send(String method, String url, String headers, String body, RefPtr<script::IScriptDelegate> handler)
     {
         HttpClientRequest request;
         request.method = Move(method);
@@ -89,7 +89,7 @@ namespace foundation::http
         return Send(Move(request), Move(handler));
     }
 
-    void Http::cancel(i32 id)
+    void HttpFacade::cancel(i32 id)
     {
         HttpScriptBinding* binding = Resolve();
         if (binding != nullptr && id > 0)
@@ -97,12 +97,13 @@ namespace foundation::http
                 client->Cancel(static_cast<HttpRequestId>(id));
     }
 
-    REFLECT_MEMBERS(Http, "rtti::http")
+    REFLECT_MEMBERS(HttpFacade, "rtti::http")
     {
-        builder.Method<&Http::get>("get", {"url", "handler"});
-        builder.Method<&Http::post>("post", {"url", "contentType", "body", "handler"});
-        builder.Method<&Http::send>("send", {"method", "url", "headers", "body", "handler"});
-        builder.Method<&Http::cancel>("cancel", {"id"});
+        builder.Attribute("scriptName", "Http");
+        builder.Method<&HttpFacade::get>("get", {"url", "handler"});
+        builder.Method<&HttpFacade::post>("post", {"url", "contentType", "body", "handler"});
+        builder.Method<&HttpFacade::send>("send", {"method", "url", "headers", "body", "handler"});
+        builder.Method<&HttpFacade::cancel>("cancel", {"id"});
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
 
@@ -110,7 +111,7 @@ namespace foundation::http
     {
         static const bool once = []()
         {
-            GlobalTypeRegistry().Register(Http::StaticType());
+            GlobalTypeRegistry().Register(HttpFacade::StaticType());
             // The handler's shape, so an AngelScript game passes one without declaring it.
             script::RegisterDelegateShape(u8"void HttpHandler(int status, const string &in body, const string &in error)");
             script::RegisterExtraFacadeName(u8"Http"); // so the behavior prelude imports it

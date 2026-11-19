@@ -25,34 +25,35 @@ namespace core = foundation::core;
 
 namespace foundation::net
 {
-    REFLECT_MEMBERS(Net, "rtti::net")
+    REFLECT_MEMBERS(NetFacade, "rtti::net")
     {
-        builder.Method<&Net::isServer>("isServer");
-        builder.Method<&Net::isClient>("isClient");
-        builder.Method<&Net::peerCount>("peerCount");
-        builder.Method<&Net::networkTick>("networkTick");
-        builder.Method<&Net::networkTimeMs>("networkTimeMs");
-        builder.Method<&Net::canHost>("canHost"); // false in a browser: offer no Host there
-        builder.Method<&Net::startServer>("startServer");
-        builder.Method<&Net::startDedicatedServer>("startDedicatedServer");
-        builder.Method<&Net::connect>("connect");
-        builder.Method<&Net::disconnect>("disconnect");
-        builder.Method<&Net::waitForReady>("waitForReady", {"wait"}); // host: joiners wait for ready()
-        builder.Method<&Net::ready>("ready");                         // client: its scene is the host's
-        builder.Method<&Net::setRelevanceRadius>("setRelevanceRadius", {"radius"}); // host: 0 sends all
-        builder.Method<&Net::rpc>("rpc");
-        builder.Method<&Net::rpcNumber>("rpcNumber");
-        builder.Method<&Net::rpcText>("rpcText");
-        builder.Method<&Net::on>("on", {"name", "handler"}); // receive: handler(sender[, value])
-        builder.Method<&Net::spawn>("spawn", {"prefab", "x", "y", "z"}); // host: a prefab every peer sees
-        builder.Method<&Net::spawnFor>("spawnFor", {"player", "prefab", "x", "y", "z"}); // owned by a player
-        builder.Method<&Net::rpcTo>("rpcTo", {"player", "name"});                         // host: one player
-        builder.Method<&Net::rpcNumberTo>("rpcNumberTo", {"player", "name", "value"});
-        builder.Method<&Net::rpcTextTo>("rpcTextTo", {"player", "name", "text"});
-        builder.Method<&Net::localPlayer>("localPlayer"); // 0 = the host, -1 offline or not yet welcomed
-        builder.Method<&Net::isMine>("isMine", {"entity"});
-        builder.Method<&Net::onJoin>("onJoin", {"handler"});
-        builder.Method<&Net::onLeave>("onLeave", {"handler"});
+        builder.Attribute("scriptName", "Net");
+        builder.Method<&NetFacade::isServer>("isServer");
+        builder.Method<&NetFacade::isClient>("isClient");
+        builder.Method<&NetFacade::peerCount>("peerCount");
+        builder.Method<&NetFacade::networkTick>("networkTick");
+        builder.Method<&NetFacade::networkTimeMs>("networkTimeMs");
+        builder.Method<&NetFacade::canHost>("canHost"); // false in a browser: offer no Host there
+        builder.Method<&NetFacade::startServer>("startServer");
+        builder.Method<&NetFacade::startDedicatedServer>("startDedicatedServer");
+        builder.Method<&NetFacade::connect>("connect");
+        builder.Method<&NetFacade::disconnect>("disconnect");
+        builder.Method<&NetFacade::waitForReady>("waitForReady", {"wait"}); // host: joiners wait for ready()
+        builder.Method<&NetFacade::ready>("ready");                         // client: its scene is the host's
+        builder.Method<&NetFacade::setRelevanceRadius>("setRelevanceRadius", {"radius"}); // host: 0 sends all
+        builder.Method<&NetFacade::rpc>("rpc");
+        builder.Method<&NetFacade::rpcNumber>("rpcNumber");
+        builder.Method<&NetFacade::rpcText>("rpcText");
+        builder.Method<&NetFacade::on>("on", {"name", "handler"}); // receive: handler(sender[, value])
+        builder.Method<&NetFacade::spawn>("spawn", {"prefab", "x", "y", "z"}); // host: a prefab every peer sees
+        builder.Method<&NetFacade::spawnFor>("spawnFor", {"player", "prefab", "x", "y", "z"}); // owned by a player
+        builder.Method<&NetFacade::rpcTo>("rpcTo", {"player", "name"});                         // host: one player
+        builder.Method<&NetFacade::rpcNumberTo>("rpcNumberTo", {"player", "name", "value"});
+        builder.Method<&NetFacade::rpcTextTo>("rpcTextTo", {"player", "name", "text"});
+        builder.Method<&NetFacade::localPlayer>("localPlayer"); // 0 = the host, -1 offline or not yet welcomed
+        builder.Method<&NetFacade::isMine>("isMine", {"entity"});
+        builder.Method<&NetFacade::onJoin>("onJoin", {"handler"});
+        builder.Method<&NetFacade::onLeave>("onLeave", {"handler"});
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
 
@@ -60,7 +61,7 @@ namespace foundation::net
     {
         static const bool once = []()
         {
-            GlobalTypeRegistry().Register(Net::StaticType());
+            GlobalTypeRegistry().Register(NetFacade::StaticType());
             // Net.on's handler shapes, so an AngelScript game passes one without declaring it.
             RegisterDelegateShape(u8"void NetHandler(int sender)"); // onJoin and onLeave take one too (the player)
             RegisterDelegateShape(u8"void NetNumberHandler(int sender, double value)");

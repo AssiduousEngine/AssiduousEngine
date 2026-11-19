@@ -97,7 +97,7 @@ TEST_CASE("animation: a one-shot asked of an animator plays over its clip, ends,
     a.oneShot.clip.SetId(hopId);
     a.oneShot.settings = animation::OneShotSettings{1.0f, 0.1f, 0.1f, 0};
     a.oneShot.pending = true; // what SceneAnimation.playOneShot asks for
-    const engine::animation::SceneAnimation animations{&stage.level};
+    const engine::animation::SceneAnimationFacade animations{&stage.level};
     CHECK(animations.isPlayingOneShot(stage.Entity())); // asked for counts as playing
 
     engine::animation::AnimationSubsystem subsystem;
@@ -169,7 +169,7 @@ TEST_CASE("animation: a graph's entity takes a one-shot over its graph")
     g.oneShot.clip.SetDirect(Holding(u8"Wave", 1.0f, 0.3f, false));
     g.oneShot.settings = animation::OneShotSettings{1.0f, 0.0f, 0.0f, 0};
     g.oneShot.pending = true;
-    const engine::animation::SceneAnimation animations{&stage.level};
+    const engine::animation::SceneAnimationFacade animations{&stage.level};
     stage.Run(0.1f);
     CHECK(animations.isPlayingOneShot(stage.Entity()));
     CHECK(g.player->GetLocalPoses()[0].position.y == doctest::Approx(1.0f));

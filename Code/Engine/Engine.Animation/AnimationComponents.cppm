@@ -875,7 +875,7 @@ export namespace engine::animation
     // is auto-reflected data (speed, autoPlay, active) and the scene handle carries the world ops.
     // The managers build the players in PostUpdate, so control from a behavior's onUpdate sees them;
     // a call before the first animation tick (e.g. onStart) is a safe no-op.
-    struct SceneAnimation
+    struct SceneAnimationFacade
     {
         scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
 
@@ -1072,9 +1072,9 @@ export namespace engine::animation
         }
 
         // The scene's own, read by scripts as a property of the scene (ExtendScene).
-        [[nodiscard]] static SceneAnimation ForScene(const foundation::script::Scene& sceneHandle)
+        [[nodiscard]] static SceneAnimationFacade ForScene(const foundation::script::Scene& sceneHandle)
         {
-            return SceneAnimation{sceneHandle.scene};
+            return SceneAnimationFacade{sceneHandle.scene};
         }
 
     private:

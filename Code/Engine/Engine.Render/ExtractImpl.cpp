@@ -635,12 +635,12 @@ namespace engine::render
         constexpr f32 kLightClearance = 0.05f;
     }
 
-    Float3 SceneRender::lightAt(Float3 position) const
+    Float3 SceneRenderFacade::lightAt(Float3 position) const
     {
         return lightAt(position, 0xFFFFFFFFu);
     }
 
-    Float3 SceneRender::lightAt(Float3 position, u32 groupMask) const
+    Float3 SceneRenderFacade::lightAt(Float3 position, u32 groupMask) const
     {
         Float3 total{0.0f, 0.0f, 0.0f};
         if (scene == nullptr)

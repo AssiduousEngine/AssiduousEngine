@@ -303,9 +303,9 @@ namespace
         CHECK(aId != bId);
         {
             ScriptCallScope scope(p.hostCtx.Get());
-            CHECK(net::Net::localPlayer() == 0);
+            CHECK(net::NetFacade::localPlayer() == 0);
             // A number to client a alone, from the host (player 0).
-            net::Net::rpcNumberTo(static_cast<i32>(aId), String(u8"secret"), 7.0);
+            net::NetFacade::rpcNumberTo(static_cast<i32>(aId), String(u8"secret"), 7.0);
         }
         p.Pump(30);
         CHECK(p.aCtx->GetGlobal(u8"Told").Get<f64>() == doctest::Approx(7.0));
@@ -316,9 +316,9 @@ namespace
         foundation::script::Entity onHost;
         {
             ScriptCallScope scope(p.hostCtx.Get());
-            onHost = net::Net::spawnFor(static_cast<i32>(aId), p.prefab.guest, 1, 0, 0);
+            onHost = net::NetFacade::spawnFor(static_cast<i32>(aId), p.prefab.guest, 1, 0, 0);
             REQUIRE(onHost.Live());
-            CHECK_FALSE(net::Net::isMine(onHost));
+            CHECK_FALSE(net::NetFacade::isMine(onHost));
         }
         p.Pump(40);
         auto guestIn = [](foundation::scene::Scene& scene)
@@ -336,11 +336,11 @@ namespace
         REQUIRE(onB.Live());
         {
             ScriptCallScope scope(p.aCtx.Get());
-            CHECK(net::Net::isMine(onA));
+            CHECK(net::NetFacade::isMine(onA));
         }
         {
             ScriptCallScope scope(p.bCtx.Get());
-            CHECK_FALSE(net::Net::isMine(onB));
+            CHECK_FALSE(net::NetFacade::isMine(onB));
         }
         CHECK(p.bScene.GetSystem<net::NetworkComponentManager>()->Get(onB.Handle())->owner ==
               static_cast<u32>(aId)); // b sees whose it is
@@ -535,7 +535,7 @@ TEST_CASE("net-facade: a truncated script RPC never reaches the handler")
     };
     RefPtr<Counting> counting = MakeRef<Counting>(DefaultAllocator());
     fx.Open();
-    net::Net::InstallScriptRpcHandler(fx.host, u8"score", RefPtr<IScriptDelegate>(counting.Get()));
+    net::NetFacade::InstallScriptRpcHandler(fx.host, u8"score", RefPtr<IScriptDelegate>(counting.Get()));
     fx.client.Rpc().Call(fx.client.Session(), fx.client.Session().ServerPeer(), u8"score",
                          [](net::BitWriter& w) { w.WriteU8(static_cast<u8>(net::ScriptRpcKind::Number)); });
     fx.Pump(40);

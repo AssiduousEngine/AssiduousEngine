@@ -45,14 +45,15 @@ namespace engine::particles
 
     // The scene-bound particles handle: scene.particles.play/stop/restart/pause/isPlaying/
     // setEffect. `of` returns SceneParticles by value (concrete cross-backend return), like ScenePhysics.
-    REFLECT_VALUE(SceneParticles, "rtti::engine::particles")
+    REFLECT_VALUE(SceneParticlesFacade, "rtti::engine::particles")
     {
-        builder.Method<&SceneParticles::play>("play", {"entity"});
-        builder.Method<&SceneParticles::stop>("stop", {"entity"});
-        builder.Method<&SceneParticles::restart>("restart", {"entity"});
-        builder.Method<&SceneParticles::pause>("pause", {"entity", "paused"});
-        builder.Method<&SceneParticles::isPlaying>("isPlaying", {"entity"});
-        builder.Method<&SceneParticles::setEffect>("setEffect", {"entity", "resourceId"});
+        builder.Attribute("scriptName", "SceneParticles");
+        builder.Method<&SceneParticlesFacade::play>("play", {"entity"});
+        builder.Method<&SceneParticlesFacade::stop>("stop", {"entity"});
+        builder.Method<&SceneParticlesFacade::restart>("restart", {"entity"});
+        builder.Method<&SceneParticlesFacade::pause>("pause", {"entity", "paused"});
+        builder.Method<&SceneParticlesFacade::isPlaying>("isPlaying", {"entity"});
+        builder.Method<&SceneParticlesFacade::setEffect>("setEffect", {"entity", "resourceId"});
         builder.Constructor(); // some backends only materialize constructible foreign classes
     }
 
@@ -77,11 +78,11 @@ namespace engine::particles
 
         // The scene-bound particles handle (scene.particles): reflect, register, seed,
         // name.
-        RttiRegisterValue_SceneParticles();
-        GlobalTypeRegistry().Register(core::TypeOf<SceneParticles>());
-        foundation::script::RegisterExtraScriptRootType(&core::TypeOf<SceneParticles>());
+        RttiRegisterValue_SceneParticlesFacade();
+        GlobalTypeRegistry().Register(core::TypeOf<SceneParticlesFacade>());
+        foundation::script::RegisterExtraScriptRootType(&core::TypeOf<SceneParticlesFacade>());
         foundation::script::RegisterExtraFacadeName(u8"SceneParticles");
-        foundation::script::ExtendScene<&SceneParticles::ForScene>("particles"); // scene.particles
+        foundation::script::ExtendScene<&SceneParticlesFacade::ForScene>("particles"); // scene.particles
     }
 }
 

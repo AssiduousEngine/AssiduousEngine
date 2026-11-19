@@ -81,13 +81,13 @@ namespace engine::runtime
         return true;
     }
 
-    bool Save::has(core::String key)
+    bool SaveFacade::has(core::String key)
     {
         RunSave* save = Resolve();
         return save != nullptr && save->Values().Has(key.AsView());
     }
 
-    void Save::remove(core::String key)
+    void SaveFacade::remove(core::String key)
     {
         if (RunSave* save = Resolve(); save != nullptr && save->Values().Remove(key.AsView()))
         {
@@ -95,7 +95,7 @@ namespace engine::runtime
         }
     }
 
-    void Save::clear()
+    void SaveFacade::clear()
     {
         if (RunSave* save = Resolve(); save != nullptr && save->Values().Clear())
         {
@@ -103,13 +103,13 @@ namespace engine::runtime
         }
     }
 
-    i32 Save::getInt(core::String key, i32 fallback)
+    i32 SaveFacade::getInt(core::String key, i32 fallback)
     {
         RunSave* save = Resolve();
         return save != nullptr ? save->Values().GetInt(key.AsView(), fallback) : fallback;
     }
 
-    void Save::setInt(core::String key, i32 value)
+    void SaveFacade::setInt(core::String key, i32 value)
     {
         if (RunSave* save = Resolve(); save != nullptr && save->Values().SetInt(key.AsView(), value))
         {
@@ -117,13 +117,13 @@ namespace engine::runtime
         }
     }
 
-    f32 Save::getFloat(core::String key, f32 fallback)
+    f32 SaveFacade::getFloat(core::String key, f32 fallback)
     {
         RunSave* save = Resolve();
         return save != nullptr ? save->Values().GetFloat(key.AsView(), fallback) : fallback;
     }
 
-    void Save::setFloat(core::String key, f32 value)
+    void SaveFacade::setFloat(core::String key, f32 value)
     {
         if (RunSave* save = Resolve(); save != nullptr && save->Values().SetFloat(key.AsView(), value))
         {
@@ -131,13 +131,13 @@ namespace engine::runtime
         }
     }
 
-    bool Save::getBool(core::String key, bool fallback)
+    bool SaveFacade::getBool(core::String key, bool fallback)
     {
         RunSave* save = Resolve();
         return save != nullptr ? save->Values().GetBool(key.AsView(), fallback) : fallback;
     }
 
-    void Save::setBool(core::String key, bool value)
+    void SaveFacade::setBool(core::String key, bool value)
     {
         if (RunSave* save = Resolve(); save != nullptr && save->Values().SetBool(key.AsView(), value))
         {
@@ -145,13 +145,13 @@ namespace engine::runtime
         }
     }
 
-    core::String Save::getString(core::String key, core::String fallback)
+    core::String SaveFacade::getString(core::String key, core::String fallback)
     {
         RunSave* save = Resolve();
         return save != nullptr ? save->Values().GetText(key.AsView(), fallback.AsView()) : fallback;
     }
 
-    void Save::setString(core::String key, core::String value)
+    void SaveFacade::setString(core::String key, core::String value)
     {
         if (RunSave* save = Resolve();
             save != nullptr && save->Values().SetText(key.AsView(), value.AsView()))
@@ -160,13 +160,13 @@ namespace engine::runtime
         }
     }
 
-    core::Array<f32> Save::getFloats(core::String key)
+    core::Array<f32> SaveFacade::getFloats(core::String key)
     {
         RunSave* save = Resolve();
         return save != nullptr ? save->Values().GetFloats(key.AsView()) : core::Array<f32>{};
     }
 
-    void Save::setFloats(core::String key, core::Array<f32> values)
+    void SaveFacade::setFloats(core::String key, core::Array<f32> values)
     {
         if (RunSave* save = Resolve(); save != nullptr &&
                                        save->Values().SetFloats(key.AsView(), Span<const f32>(values.Data(), values.Size())))
@@ -175,28 +175,29 @@ namespace engine::runtime
         }
     }
 
-    bool Save::flush()
+    bool SaveFacade::flush()
     {
         RunSave* save = Resolve();
         return save != nullptr && save->Flush();
     }
 
-    REFLECT_MEMBERS(Save, "rtti::engine::runtime")
+    REFLECT_MEMBERS(SaveFacade, "rtti::engine::runtime")
     {
-        builder.Method<&Save::has>("has", {"key"});
-        builder.Method<&Save::remove>("remove", {"key"});
-        builder.Method<&Save::clear>("clear");
-        builder.Method<&Save::getInt>("getInt", {"key", "fallback"});
-        builder.Method<&Save::setInt>("setInt", {"key", "value"});
-        builder.Method<&Save::getFloat>("getFloat", {"key", "fallback"});
-        builder.Method<&Save::setFloat>("setFloat", {"key", "value"});
-        builder.Method<&Save::getBool>("getBool", {"key", "fallback"});
-        builder.Method<&Save::setBool>("setBool", {"key", "value"});
-        builder.Method<&Save::getString>("getString", {"key", "fallback"});
-        builder.Method<&Save::setString>("setString", {"key", "value"});
-        builder.Method<&Save::getFloats>("getFloats", {"key"});
-        builder.Method<&Save::setFloats>("setFloats", {"key", "values"});
-        builder.Method<&Save::flush>("flush");
+        builder.Attribute("scriptName", "Save");
+        builder.Method<&SaveFacade::has>("has", {"key"});
+        builder.Method<&SaveFacade::remove>("remove", {"key"});
+        builder.Method<&SaveFacade::clear>("clear");
+        builder.Method<&SaveFacade::getInt>("getInt", {"key", "fallback"});
+        builder.Method<&SaveFacade::setInt>("setInt", {"key", "value"});
+        builder.Method<&SaveFacade::getFloat>("getFloat", {"key", "fallback"});
+        builder.Method<&SaveFacade::setFloat>("setFloat", {"key", "value"});
+        builder.Method<&SaveFacade::getBool>("getBool", {"key", "fallback"});
+        builder.Method<&SaveFacade::setBool>("setBool", {"key", "value"});
+        builder.Method<&SaveFacade::getString>("getString", {"key", "fallback"});
+        builder.Method<&SaveFacade::setString>("setString", {"key", "value"});
+        builder.Method<&SaveFacade::getFloats>("getFloats", {"key"});
+        builder.Method<&SaveFacade::setFloats>("setFloats", {"key", "values"});
+        builder.Method<&SaveFacade::flush>("flush");
         builder.Constructor();
     }
 
@@ -206,7 +207,7 @@ namespace engine::runtime
         {
             settings::RegisterSaveValuesType(); // reading a save file instantiates the section by name
             RegisterArrayType<f32>();           // getFloats/setFloats: a list crosses as array<float>
-            GlobalTypeRegistry().Register(Save::StaticType());
+            GlobalTypeRegistry().Register(SaveFacade::StaticType());
             foundation::script::RegisterExtraFacadeName(u8"Save");
             return true;
         }();

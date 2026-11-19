@@ -406,9 +406,9 @@ export namespace foundation::net
     // Static methods resolve the calling script's run's NetScriptBinding, then its controller, then the live
     // endpoint (null-safe when offline). Ports are i32 in script. Both script backends bind it
     // through reflection. Defined after NetworkManager so the read paths see the full type.
-    class Net final : public Object
+    class NetFacade final : public Object
     {
-        RTTI_OBJECT(Net, Object)
+        RTTI_OBJECT(NetFacade, Object)
     public:
         [[nodiscard]] static NetScriptBinding* Resolve()
         {
@@ -812,9 +812,9 @@ export namespace foundation::net
         endpoint.Replication().SetRelevanceRadius(binding.relevanceRadius); // the script's, if it set one
         for (const NetScriptBinding::ScriptRpcHandler& entry : binding.rpcHandlers)
         {
-            Net::InstallScriptRpcHandler(endpoint, entry.name.AsView(), entry.handler);
+            NetFacade::InstallScriptRpcHandler(endpoint, entry.name.AsView(), entry.handler);
         }
-        Net::InstallPlayerHandlers(endpoint, binding);
+        NetFacade::InstallPlayerHandlers(endpoint, binding);
     }
 
     /// Register the Net facade type (call before a script manager is created, like

@@ -601,7 +601,7 @@ export namespace engine::audio
     // ScenePhysics and SceneRender: the component is auto-reflected data (volume, pitch, loop) and
     // the scene handle carries the world ops. The pure playback intent (autoPlay, loop, volume)
     // stays on AudioSourceComponent; starting a voice now is an engine op, so it lives here.
-    struct SceneAudio
+    struct SceneAudioFacade
     {
         scene::WeakSceneRef scene; // read through the scene's life: null once it is gone
 
@@ -679,9 +679,9 @@ export namespace engine::audio
         }
 
         // The scene's own, read by scripts as a property of the scene (ExtendScene).
-        [[nodiscard]] static SceneAudio ForScene(const foundation::script::Scene& sceneHandle)
+        [[nodiscard]] static SceneAudioFacade ForScene(const foundation::script::Scene& sceneHandle)
         {
-            return SceneAudio{sceneHandle.scene};
+            return SceneAudioFacade{sceneHandle.scene};
         }
     };
 
@@ -1296,9 +1296,9 @@ export namespace engine::audio
     // in the editor), and setNamedBusVolume / namedBusVolume reach a bus by name
     // ("master"/"effects"/"music"/"ui" and the layout's custom buses; unknown names no-op or read
     // neutral). Missing content warns once and no-ops.
-    class Audio final : public Object
+    class AudioFacade final : public Object
     {
-        RTTI_OBJECT(Audio, Object)
+        RTTI_OBJECT(AudioFacade, Object)
     public:
         [[nodiscard]] static AudioScriptBinding* ResolveBinding()
         {

@@ -259,7 +259,7 @@ TEST_CASE("ik component: setIkTarget gives a point, the result reads, and remova
     (void)s.Leg(u8"LegIk", scene::EntityHandle::Invalid()); // no target entity: the script's point
     const scene::EntityHandle owner = OwnerOf(s, u8"LegIk");
     const foundation::script::Entity entity{&s.level, owner.index, owner.generation};
-    const engine::animation::SceneAnimation animation{&s.level};
+    const engine::animation::SceneAnimationFacade animation{&s.level};
     animation.setIkTarget(entity, Float3{6, 4, 0});
     s.Tick();
     s.Tick();
@@ -593,7 +593,7 @@ TEST_CASE("ik component: a chain whose end is a detached IK-target bone moves it
     const Float3 tip = TransformPoint(Float3{0, -0.45f, -0.02f}, cache.At(3));
     CHECK(Length(tip - at.position) < 1.0e-3f);
     const foundation::script::Entity entity{&level, legIk.index, legIk.generation};
-    CHECK(engine::animation::SceneAnimation{&level}.ikReached(entity));
+    CHECK(engine::animation::SceneAnimationFacade{&level}.ikReached(entity));
 }
 
 TEST_CASE("ik component: on a gameplay root, it drives the first animator below it")
