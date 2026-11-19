@@ -415,6 +415,23 @@ safepoint (a quarter of Luau's time, and its loops too), each behaviour's compon
 twice, AngelScript built sixteen Variants per call and C# sixteen Strings per call whatever they
 passed.
 
+## What remains
+
+Steps 1 to 6 are built (2026-11-18). Left, each for its own decision:
+
+- **Handler calls in AngelScript and Luau** (about 220 and 140 ns, against C#'s 60) are now the
+  interpreters' own work. AngelScript: Prepare and Unprepare and the reference counts of every
+  call; keeping a context prepared per handler function would skip them. Luau: a resume on a pooled
+  thread, which the debugger relies on to break inside a handler; a plain pcall when no debugger is
+  attached would be cheaper. Both change what the debugger depends on.
+- **Luau's per-call method lookup** stays: it is what lets a script replace its own handler
+  (`self.onUpdate = walking`).
+- **Strings** cross by copy into a String in every language.
+- **The behaviour list's memory**: each entity's behaviours are a heap array of their own, a cache
+  miss each when a frame walks them; storing them contiguously would remove it.
+- **The C# runtime's allocator** (Found while measuring (C#), above) is undecided.
+- **The web**: the measures have not run there.
+
 ## The Beef mirror
 
 Sedulous binds its scripts through compile-time reflection, so its calls are typed when they
