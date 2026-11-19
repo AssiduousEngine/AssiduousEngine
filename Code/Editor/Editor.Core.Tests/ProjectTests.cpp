@@ -718,6 +718,44 @@ TEST_CASE("project: the quality levels are an appended list with a default among
     (void)FileDelete(PathJoin(dir, u8"Project.xml"));
 }
 
+// A project names the folders outside it that its MCP tools work in (a game's sources beside it).
+// Appended, so a manifest saved before it opens with none; set, it round-trips.
+TEST_CASE("project: the MCP folders are an appended list an older manifest reads as none")
+{
+    const StringView dir = u8"scratch_project_mcp_folders_test";
+    (void)FileDelete(PathJoin(dir, u8"Project.xml"));
+    (void)RemoveDirectory(dir);
+    REQUIRE(EditorProject::Create(DefaultAllocator(), dir, u8"P").IsOk());
+    {
+        // Saved before it: no key.
+        Result<Array<byte>> bytes = ReadFile(PathJoin(dir, u8"Project.xml").AsView());
+        REQUIRE(bytes.HasValue());
+        String older(StringView(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size()));
+        const usize start = older.AsView().Find(u8"<array name=\"mcpFolders\"");
+        REQUIRE(start != StringView::kNotFound);
+        const usize close = older.AsView().Find(u8"/>", start);
+        REQUIRE(close != StringView::kNotFound);
+        older.Remove(start, close + 2 - start);
+        foundation::vfs::NativeFileSystem root(dir, foundation::core::DefaultAllocator());
+        REQUIRE(root.AsWritable()
+                    ->Save(u8"Project.xml", Span<const byte>(reinterpret_cast<const byte*>(older.Data()), older.Size()))
+                    .IsOk());
+    }
+    {
+        UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir);
+        REQUIRE(static_cast<bool>(project)); // an older manifest still opens
+        CHECK(project->Settings().mcpFolders.IsEmpty());
+        project->Settings().mcpFolders.PushBack(String(u8"../Game"));
+        REQUIRE(project->SaveSettings().IsOk());
+    }
+    UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir);
+    REQUIRE(static_cast<bool>(project));
+    REQUIRE(project->Settings().mcpFolders.Size() == 1u);
+    CHECK(project->Settings().mcpFolders[0] == u8"../Game");
+    project.Reset();
+    (void)FileDelete(PathJoin(dir, u8"Project.xml"));
+}
+
 // The display settings (render resolution and fit, the player's window) are appended, so a
 // manifest without them opens with their defaults; once set, they round-trip and the dist copy
 // carries them.

@@ -221,6 +221,13 @@ export namespace engine::project
         Array<Guid> qualityLevelIds;
         Guid defaultQualityId;
 
+        // Folders outside the project its MCP tools work in (a game's sources beside it, "../Game"),
+        // relative to the project's folder. Listing one grants nothing by itself: a host lets its
+        // tools reach a listed folder only once the user has approved it for this project, a record
+        // kept in the user's data, never in the project. Appended: a manifest saved before it reads
+        // none.
+        Array<String> mcpFolders;
+
         // The scene-pass MSAA count a manifest of version 11 or before carried, before the count
         // was a quality level's: what the editor's upgrade gives the project's first level. Read
         // from such a manifest alone, never written (so a copy of the settings carries none); 0
@@ -361,6 +368,7 @@ export namespace engine::project
                 ar.Key("defaultQualityId");
                 ar.GuidValue(defaultQualityId);
             }
+            SerializeAppended(ar, "mcpFolders", mcpFolders);
             if (!nativeModule.IsEmpty())
             {
                 foundation::runtime::EnabledPlugin entry = NativeModulePackageEntry(nativeModule.AsView());

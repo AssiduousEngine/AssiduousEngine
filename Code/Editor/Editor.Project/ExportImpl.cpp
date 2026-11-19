@@ -796,6 +796,7 @@ namespace editor
                 LOG_ERROR(u8"Export", u8"failed to copy the project manifest for the dist");
                 return Status{ErrorCode::Internal};
             }
+            dist.mcpFolders.Clear(); // the authoring machine's folders: nothing a player reads
             if (!engine::project::SaveProjectSettings(*outMount.AsWritable(), dist,
                                                         engine::project::kDistManifestFile)
                      .IsOk())

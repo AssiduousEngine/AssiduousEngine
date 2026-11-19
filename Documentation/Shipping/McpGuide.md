@@ -225,7 +225,8 @@ display: `renderWidth`/`renderHeight`, the resolution the game draws at, 0 for i
 `renderFit`, and the player's `windowWidth`, `windowHeight`, `windowMode` and `windowResizable`,
 and the quality: `qualityLevelIds`, the game's `Render Quality` levels in the order an options menu
 lists them, and `defaultQualityId`, the one it starts at where no export preset picks another, null
-for the list's last), and `settingCategories`, how they group: the Project Settings dialog's tabs in
+for the list's last, and `mcpFolders`, the folders outside the project its MCP tools work in, each
+reached once the user approves it; an export leaves them out), and `settingCategories`, how they group: the Project Settings dialog's tabs in
 order (General, Startup, Audio, UI, Display, Quality), each with the names of its settings.
 `project_settings_set` changes them, by the names `project_info` reports: each asset setting must
 name an asset of its type, `""` clears it, `uiFontIds`, `guiStyleSheetIds` and `qualityLevelIds`

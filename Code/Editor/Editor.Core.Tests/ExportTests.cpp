@@ -276,6 +276,7 @@ TEST_CASE("export: project -> dist pak -> player-style load-back (versioned form
         project->Settings().guiLoadingDocumentId = sceneId; // any guid: the dist must carry it
         project->Settings().qualityLevelIds.PushBack(sceneId); // any guid: the manifest copies the list
         project->Settings().uiFontIds.PushBack(sceneId); // any guid: the dist must carry the list
+        project->Settings().mcpFolders.PushBack(String(u8"../Game")); // the authoring machine's: dropped
         REQUIRE(project->SaveSettings().IsOk());
 
         // --- export ---
@@ -323,6 +324,7 @@ TEST_CASE("export: project -> dist pak -> player-style load-back (versioned form
     CHECK(manifest.qualityLevelIds[0] == sceneId);
     REQUIRE(manifest.uiFontIds.Size() == 1u); // the other UI fonts
     CHECK(manifest.uiFontIds[0] == sceneId);
+    CHECK(manifest.mcpFolders.IsEmpty()); // the MCP folders stay with the project
 
     foundation::vfs::PakFileSystem pak(PathJoin(distDir, project::kDistContentPak).AsView());
     REQUIRE(pak.IsValid());
