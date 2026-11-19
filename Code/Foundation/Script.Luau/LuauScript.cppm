@@ -465,7 +465,12 @@ namespace foundation::script
         // and args from m_state to a thread, resumes, and on success brings the single result back
         // to m_state.
         [[nodiscard]] lua_State* AcquireThread();
+        // Back to the pool after anything (an error, a debugger's held thread): fully reset.
         void ReleaseThread(lua_State* thread);
+        // Back to the pool after a call that returned: it is already at its base frame with only
+        // its results on the stack, so emptying the stack is all it needs (resetting it every call
+        // was a tenth of a handler call).
+        void ReleaseFinishedThread(lua_State* thread);
         // `total` is the callable and its args, currently on top of m_state. Returns the lua_resume
         // status: LUA_OK leaves the result on m_state; an error leaves the message on m_state.
         [[nodiscard]] int RunCallable(int total);
@@ -3327,6 +3332,12 @@ namespace foundation::script
         m_freeThreads.PushBack(thread);
     }
 
+    void LuauScriptContext::ReleaseFinishedThread(lua_State* thread)
+    {
+        lua_settop(thread, 0);
+        m_freeThreads.PushBack(thread);
+    }
+
     int LuauScriptContext::RunCallable(int total)
     {
         // `total` is the callable and its args on top of m_state; move them to a pooled thread and
@@ -3384,7 +3395,14 @@ namespace foundation::script
                 lua_pushnil(m_state);
             }
         }
-        ReleaseThread(thread);
+        if (status == LUA_OK)
+        {
+            ReleaseFinishedThread(thread);
+        }
+        else
+        {
+            ReleaseThread(thread);
+        }
         return status;
     }
 
