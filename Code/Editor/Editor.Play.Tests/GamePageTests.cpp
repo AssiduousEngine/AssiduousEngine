@@ -271,7 +271,7 @@ TEST_CASE("game tab: a run with no game script still keeps its save, written to 
     REQUIRE(EditorProject::Create(DefaultAllocator(), dir.AsView(), u8"P").IsOk());
     UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir.AsView());
     REQUIRE(static_cast<bool>(project));
-    REQUIRE(project->Settings().startupScriptId.IsNil());
+    REQUIRE(project->Settings().runBehaviorId.IsNil());
     foundation::settings::Settings store{DefaultAllocator()};
     EditorContext context{DefaultAllocator()};
     context.SetProject(project.Get());

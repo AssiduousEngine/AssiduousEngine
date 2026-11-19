@@ -360,7 +360,7 @@ namespace editor
 
         // The startup game script is a cooked BehaviorClass asset, identified by guid. Seed it as a
         // reachability root so it, and the assets it loads through the normal AssetRef contract, ship.
-        add(settings.startupScriptId, ExportRootReason::StartupScript);
+        add(settings.runBehaviorId, ExportRootReason::StartupScript);
 
         // Every other asset the player binds at startup must ship, or the binding fails silently
         // in a pruned dist: each reflected asset setting, lists included (the other UI fonts). The

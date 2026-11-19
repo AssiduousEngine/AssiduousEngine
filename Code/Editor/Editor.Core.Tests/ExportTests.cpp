@@ -151,7 +151,7 @@ namespace
             REQUIRE(scriptAsset->WriteObject(asset).IsOk());
             scriptId = scriptAsset->Id();
 
-            project->Settings().startupScriptId = scriptId;
+            project->Settings().runBehaviorId = scriptId;
             REQUIRE(project->SaveSettings().IsOk());
         }
 
@@ -171,7 +171,7 @@ namespace
         foundation::vfs::NativeFileSystem distRoot(distDir, foundation::core::DefaultAllocator());
         engine::project::ProjectSettings manifest;
         REQUIRE(project::LoadProjectSettings(distRoot, manifest, project::kDistManifestFile).IsOk());
-        CHECK(manifest.startupScriptId == scriptId);
+        CHECK(manifest.runBehaviorId == scriptId);
 
         foundation::vfs::PakFileSystem pak(PathJoin(distDir, project::kDistContentPak).AsView());
         REQUIRE(pak.IsValid());
@@ -182,7 +182,7 @@ namespace
         resources.AddFactory(&scriptFactory);
 
         foundation::resource::Proxy<script::BehaviorClass> proxy =
-            resources.Bind<script::BehaviorClass>(manifest.startupScriptId);
+            resources.Bind<script::BehaviorClass>(manifest.runBehaviorId);
         REQUIRE(static_cast<bool>(proxy));
         CHECK(proxy->className == u8"Game"); // the cook harvested the class
         CHECK(proxy->source.Size() > 0u);    // the source is in the pak
@@ -272,7 +272,7 @@ TEST_CASE("export: project -> dist pak -> player-style load-back (versioned form
         // bind of a script asset is DriveStartupScriptExport above.
         project->Settings().defaultSceneId = sceneId;
         project->Settings().defaultScene = String(u8"Scenes/Main");
-        project->Settings().startupScriptId = scriptId;
+        project->Settings().runBehaviorId = scriptId;
         project->Settings().guiLoadingDocumentId = sceneId; // any guid: the dist must carry it
         project->Settings().qualityLevelIds.PushBack(sceneId); // any guid: the manifest copies the list
         project->Settings().uiFontIds.PushBack(sceneId); // any guid: the dist must carry the list
@@ -315,7 +315,7 @@ TEST_CASE("export: project -> dist pak -> player-style load-back (versioned form
     REQUIRE(project::LoadProjectSettings(distRoot, manifest, project::kDistManifestFile).IsOk());
     CHECK(manifest.defaultScene == u8"Scenes/Main");
     CHECK(manifest.defaultSceneId == sceneId); // dist manifest carries the guid too
-    CHECK(manifest.startupScriptId ==
+    CHECK(manifest.runBehaviorId ==
           scriptId); // the startup script is carried as a guid (bound from the DB)
     // The player reads the loading screen and the MSAA from the dist manifest too.
     CHECK(manifest.guiLoadingDocumentId == sceneId);
@@ -3006,7 +3006,7 @@ TEST_CASE("export: desktop Content.pak is byte-identical with a sibling target D
         asset.fileName = foundation::vfs::SourcePath(sample.file);
         asset.language = String(sample.language);
         REQUIRE(s->WriteObject(asset).IsOk());
-        project->Settings().startupScriptId = s->Id();
+        project->Settings().runBehaviorId = s->Id();
         REQUIRE(project->SaveSettings().IsOk());
     }
 

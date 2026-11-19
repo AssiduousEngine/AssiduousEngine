@@ -458,7 +458,7 @@ read the file before trusting it, and leave the judgement of how it looks to the
   1280 x 720 for a README) and put it back after (0 / 0 when it was unset); the PNG is scaled to
   the tab when the tab is smaller (the answer's `scale`). Reach a screen by playing to it: a
   menu by a timeline (`Right`, `Return`), a level by a scene override (`project_settings_set`
-  `defaultSceneId` to the level and `startupScriptId` to `""`, restored after, in a `finally`),
+  `defaultSceneId` to the level and `runBehaviorId` to `""`, restored after, in a `finally`),
   a late moment by the game's own playtest switch (Snowline's `course.py <course> autopilot`,
   regenerated without it after) or a scripted route, and a results screen by finishing a run.
   Take a few times around the moment (`[23.9, 24.3, 24.7, 25.1]`) and pick one. A run that

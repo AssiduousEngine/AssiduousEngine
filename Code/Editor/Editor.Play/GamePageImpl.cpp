@@ -1126,7 +1126,7 @@ namespace editor
     {
         // The startup script is a cooked BehaviorClass asset, identified by its guid and bound from
         // the content DB like every other asset, never from a raw source path.
-        const Guid scriptId = m_context->Project()->Settings().startupScriptId;
+        const Guid scriptId = m_context->Project()->Settings().runBehaviorId;
         if (scriptId.IsNil() || m_context->Resources() == nullptr)
         {
             return;

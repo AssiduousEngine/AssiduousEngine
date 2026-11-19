@@ -28,8 +28,9 @@ namespace engine::project
     {
         // 9 carried two settings of a removed UI library; 9 and 10 named the native game module by
         // its library path, which reads as the entry of the game's package; 9 to 11 carried the
-        // scene-pass MSAA count, which is a quality level's now.
-        builder.DataVersion(12).ReadsDataVersionsFrom(9);
+        // scene-pass MSAA count, which is a quality level's now; 9 to 12 named the run behavior
+        // startupScript and startupScriptId.
+        builder.DataVersion(13).ReadsDataVersionsFrom(9);
         // The enums the display settings take (their enumerators name the dialog's and the MCP
         // tools' choices): FitMode is the core's.
         RegisterCoreTypes();
@@ -49,10 +50,10 @@ namespace engine::project
         builder.Property<&ProjectSettings::defaultSceneId>("defaultSceneId");
         asset(u8"Default scene", u8"SceneDocument", u8"(none)", u8"Startup");
         builder.PropAttribute(kSettingSummaryAttribute, String(u8"Default scene"));
-        // The cooked BehaviorClass the player (and the Game tab) binds at startup.
-        builder.Property<&ProjectSettings::startupScriptId>("startupScriptId");
-        asset(u8"Startup script", u8"ScriptClassAsset", u8"(none)", u8"Startup");
-        builder.PropAttribute(kSettingSummaryAttribute, String(u8"Startup script"));
+        // The run behavior the player (and the Game tab) starts: a script asset deriving from RunBehavior.
+        builder.Property<&ProjectSettings::runBehaviorId>("runBehaviorId");
+        asset(u8"Run behavior", u8"ScriptClassAsset", u8"(none)", u8"Startup");
+        builder.PropAttribute(kSettingSummaryAttribute, String(u8"Run behavior"));
         // The cooked map the player (and the Game tab) binds at startup.
         builder.Property<&ProjectSettings::defaultInputMapId>("defaultInputMapId");
         asset(u8"Default input map", u8"InputMapAsset", u8"(none)", u8"Startup");

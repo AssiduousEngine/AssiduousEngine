@@ -527,7 +527,7 @@ namespace engine::player
         void LoadAndStartRunBehavior()
         {
             // The startup game script is a cooked BehaviorClass asset, bound from the content DB by guid.
-            const Guid scriptId = m_settings.startupScriptId;
+            const Guid scriptId = m_settings.runBehaviorId;
             if (scriptId.IsNil() || Resources() == nullptr)
             {
                 return;

@@ -92,7 +92,7 @@ TEST_CASE("project page: the summary, the buttons, and the scenes as cards that 
     CHECK(rows[0].AsView().StartsWith(u8"Location: "));
     CHECK(rows[1] == Format(u8"Engine version: {}", project->Settings().engineVersion));
     CHECK(rows[2] == StringView(u8"Default scene: Docks"));
-    CHECK(rows[3] == StringView(u8"Startup script: (none)"));
+    CHECK(rows[3] == StringView(u8"Run behavior: (none)"));
     CHECK(rows[4] == StringView(u8"Input map: (none)"));
     CHECK(rows[5].AsView().StartsWith(u8"UI font: "));
     CHECK(rows[6] == StringView(u8"Window: 1280 × 720, windowed"));

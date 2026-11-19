@@ -168,11 +168,10 @@ export namespace engine::project
         Guid defaultSceneId;  // authoritative startup-scene reference (survives rename and move)
         String defaultScene;  // its source-DB path: the human-readable mirror, and the
                               // fallback when the guid does not resolve
-        Guid startupScriptId; // authoritative game-script reference (a cooked BehaviorClass asset;
-                              // launch/update/exit), bound from the content DB by the player and
-        // play-in-editor. Nil: none.
-        String
-            startupScript; // its source-DB path: the human-readable mirror
+        Guid runBehaviorId; // the run behavior (a script asset whose class derives from
+                            // RunBehavior), bound from the content DB by the player and play in
+                            // editor. Nil: none.
+        String runBehavior; // its source-DB path: the human-readable mirror
         Guid defaultInputMapId; // the input map the player binds at startup (nil: none)
         Guid defaultBusLayoutId; // the audio mixer layout applied at startup (nil: built-in)
         Guid defaultUiFontId; // the cooked FontResource the game UI defaults to (nil: the dev
@@ -284,26 +283,28 @@ export namespace engine::project
             return qualityLevelIds.IsEmpty() ? Guid{} : qualityLevelIds[qualityLevelIds.Size() - 1];
         }
 
-        /// Re-derives the human-readable path mirrors (defaultScene, startupScript) from their
+        /// Re-derives the human-readable path mirrors (defaultScene, runBehavior) from their
         /// guids after a change: `pathOf` answers an asset's source-DB path, empty when unknown.
         void RefreshPathMirrors(const Function<String(const Guid&)>& pathOf)
         {
             defaultScene = defaultSceneId.IsNil() ? String() : pathOf(defaultSceneId);
-            startupScript = startupScriptId.IsNil() ? String() : pathOf(startupScriptId);
+            runBehavior = runBehaviorId.IsNil() ? String() : pathOf(runBehaviorId);
         }
 
-        // The current data version's layout (REFLECT_MEMBERS' DataVersion, 12). Versions 9 to 11
-        // still read: they carry the scene-pass MSAA count the quality levels now hold
-        // (msaaSamplesBeforeLevels); 9 and 10 name the native game module by its library path
-        // (nativeModule), which becomes the entry of the game's package (NativeModulePackageEntry);
-        // version 9 also carries a theme and loading document for a UI library the engine no
-        // longer has, read and dropped. Older versions are refused by the versioned-payload reader; outside a payload
+        // The current data version's layout (REFLECT_MEMBERS' DataVersion, 13). Versions 9 to 12
+        // still read: they name the run behavior startupScript and startupScriptId; 9 to 11 also
+        // carry the scene-pass MSAA count the quality levels now hold (msaaSamplesBeforeLevels); 9
+        // and 10 name the native game module by its library path (nativeModule), which becomes the
+        // entry of the game's package (NativeModulePackageEntry); version 9 also carries a theme and
+        // loading document for a UI library the engine no longer has, read and dropped. Older
+        // versions are refused by the versioned-payload reader; outside a payload
         // (CopyProjectSettings) the version reads 0, the current layout.
         void Serialize(ISerializer& ar) override
         {
             const bool reading = ar.Mode() == SerializeMode::Read;
             const bool v9 = reading && ar.Version() == 9;
             const bool hasNativeModule = reading && (ar.Version() == 9 || ar.Version() == 10);
+            const bool startupScriptKeys = reading && ar.Version() >= 9 && ar.Version() <= 12;
             Guid dropped;
             String nativeModule;
             foundation::core::Serialize(ar, "name", name);
@@ -311,7 +312,7 @@ export namespace engine::project
             ar.Key("defaultSceneId");
             ar.GuidValue(defaultSceneId);
             foundation::core::Serialize(ar, "defaultScene", defaultScene);
-            foundation::core::Serialize(ar, "startupScript", startupScript);
+            foundation::core::Serialize(ar, startupScriptKeys ? "startupScript" : "runBehavior", runBehavior);
             if (hasNativeModule)
             {
                 foundation::core::Serialize(ar, "nativeModule", nativeModule);
@@ -325,8 +326,8 @@ export namespace engine::project
                 ar.Key("defaultUiThemeId");
                 ar.GuidValue(dropped);
             }
-            ar.Key("startupScriptId");
-            ar.GuidValue(startupScriptId);
+            ar.Key(startupScriptKeys ? "startupScriptId" : "runBehaviorId");
+            ar.GuidValue(runBehaviorId);
             ar.Key("defaultUiFontId");
             ar.GuidValue(defaultUiFontId);
             if (v9)

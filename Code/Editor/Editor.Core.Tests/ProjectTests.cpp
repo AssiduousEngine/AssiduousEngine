@@ -296,14 +296,14 @@ TEST_CASE("project: manifest round-trips the startup-script asset guid under a v
     {
         UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir);
         REQUIRE(static_cast<bool>(project));
-        CHECK(project->Settings().startupScriptId.IsNil());
-        project->Settings().startupScriptId = scriptId;
+        CHECK(project->Settings().runBehaviorId.IsNil());
+        project->Settings().runBehaviorId = scriptId;
         REQUIRE(project->SaveSettings().IsOk());
     }
     {
         UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), dir);
         REQUIRE(static_cast<bool>(project));
-        CHECK(project->Settings().startupScriptId == scriptId);
+        CHECK(project->Settings().runBehaviorId == scriptId);
     }
 
     (void)FileDelete(PathJoin(dir, u8"Project.xml"));
@@ -476,7 +476,7 @@ TEST_CASE("project: a version 9 manifest opens without the old UI's two settings
 TEST_CASE("editor-project: the settings describe themselves, and the path mirrors follow the guids")
 {
     const TypeInfo& type = engine::project::ProjectSettings::StaticType();
-    CHECK(type.dataVersion == 12u); // version 12 drops the MSAA count for the quality levels
+    CHECK(type.dataVersion == 13u); // version 12 drops the MSAA count for the quality levels
     CHECK(type.minReadDataVersion == 9u); // a version 9 manifest still reads
     u32 assets = 0;
     u32 lists = 0;
@@ -507,7 +507,7 @@ TEST_CASE("editor-project: the settings describe themselves, and the path mirror
     settings.defaultSceneId = Guid::Generate(rng);
     settings.RefreshPathMirrors([](const Guid&) { return String(u8"Scenes/Arena"); });
     CHECK(settings.defaultScene == u8"Scenes/Arena");
-    CHECK(settings.startupScript.IsEmpty()); // no script: no mirror
+    CHECK(settings.runBehavior.IsEmpty()); // no script: no mirror
 }
 
 // The other UI fonts are a list appended to the manifest. A manifest without it (no uiFontIds
@@ -852,7 +852,7 @@ TEST_CASE("project settings: the window in a few words, and the settings that su
             summary.PushBack(*label);
     REQUIRE(summary.Size() == 4u);
     CHECK(summary[0] == StringView(u8"Default scene"));
-    CHECK(summary[1] == StringView(u8"Startup script"));
+    CHECK(summary[1] == StringView(u8"Run behavior"));
     CHECK(summary[2] == StringView(u8"Input map"));
     CHECK(summary[3] == StringView(u8"UI font"));
 }
@@ -1089,7 +1089,9 @@ TEST_CASE("project: a version 10 manifest's native module becomes the entry of t
         REQUIRE(saved.HasValue());
         const StringView savedText(reinterpret_cast<const utf8char*>(saved.Value().Data()), saved.Value().Size());
         CHECK_FALSE(savedText.Contains(u8"\"nativeModule\""));
-        CHECK(savedText.Contains(u8"<u32 name=\"version\">12</u32>"));
+        CHECK(savedText.Contains(u8"<u32 name=\"version\">13</u32>"));
+    CHECK(savedText.Contains(u8"name=\"runBehaviorId\"")); // the old key reads, the new one is written
+    CHECK_FALSE(savedText.Contains(u8"startupScript"));
         project.Reset();
         UniquePtr<EditorProject> again = EditorProject::Open(DefaultAllocator(), dir);
         REQUIRE(static_cast<bool>(again));
