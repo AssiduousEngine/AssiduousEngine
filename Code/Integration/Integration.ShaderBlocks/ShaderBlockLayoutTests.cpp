@@ -398,6 +398,12 @@ namespace
         FIELD(render::GpuGtaoPush, vpMin, "VpMin"),
         FIELD(render::GpuGtaoPush, vpSize, "VpSize"),
     };
+    const FieldRow kCutoutPush[] = {
+        FIELD(render::GpuCutoutPush, alphaThreshold, "AlphaThreshold"),
+        FIELD(render::GpuCutoutPush, _pad0, "_cutoutPad0"),
+        FIELD(render::GpuCutoutPush, _pad1, "_cutoutPad1"),
+        FIELD(render::GpuCutoutPush, _pad2, "_cutoutPad2"),
+    };
     const FieldRow kSsaoPush[] = {
         FIELD(render::GpuSsaoPush, invProj, "InvProj"),
         FIELD(render::GpuSsaoPush, texelSize, "TexelSize"),
@@ -725,6 +731,8 @@ namespace
         {u8"cluster_build", ShaderStage::Compute, ShaderFlags::None, u8"type.ClusterBuildParams", Span<const FieldRow>(kClusterBuildParams)},
         {u8"ao_gtao", ShaderStage::Fragment, ShaderFlags::None, u8"type.ConstantBuffer.GtaoPush", Span<const FieldRow>(kGtaoPush)},
         {u8"ao_ssao", ShaderStage::Fragment, ShaderFlags::None, u8"type.ConstantBuffer.SsaoPush", Span<const FieldRow>(kSsaoPush)},
+        {u8"shadow_depth", ShaderStage::Fragment, ShaderFlags::None, u8"type.ConstantBuffer.CutoutPush", Span<const FieldRow>(kCutoutPush)},
+        {u8"pick_ids", ShaderStage::Fragment, ShaderFlags::AlphaTest, u8"type.ConstantBuffer.CutoutPush", Span<const FieldRow>(kCutoutPush)},
         {u8"ao_blur", ShaderStage::Fragment, ShaderFlags::None, u8"type.ConstantBuffer.BlurPush", Span<const FieldRow>(kAoBlurPush)},
         {u8"ao_apply", ShaderStage::Fragment, ShaderFlags::None, u8"type.ConstantBuffer.ApplyPush", Span<const FieldRow>(kAoApplyPush)},
         {u8"bloom_ds", ShaderStage::Fragment, ShaderFlags::None, u8"type.ConstantBuffer.BloomPush", Span<const FieldRow>(kBloomPush)},

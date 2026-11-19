@@ -2024,6 +2024,38 @@ namespace foundation::render
         }
     }
 
+    namespace
+    {
+        // A float of an instance's uniform block, by property name, or `fallback` where the material
+        // has no such property (a custom shader that declares none).
+        [[nodiscard]] f32 UniformFloat(const materials::MaterialInstance& instance, StringView name,
+                                       usize component, f32 fallback) noexcept
+        {
+            const materials::Material* material = instance.GetMaterial();
+            const materials::MaterialPropertyDef* def = material != nullptr ? material->FindProperty(name) : nullptr;
+            const Span<const u8> values = instance.UniformData();
+            const usize at = def != nullptr ? static_cast<usize>(def->offset) + component * sizeof(f32) : 0;
+            if (def == nullptr || !def->IsUniform() || (component + 1) * sizeof(f32) > def->size ||
+                at + sizeof(f32) > values.Size())
+            {
+                return fallback;
+            }
+            f32 value = fallback;
+            MemCopy(&value, values.Data() + at, sizeof(f32));
+            return value;
+        }
+    }
+
+    // The threshold a built-in depth-like program tests the albedo's alpha against: the forward
+    // cuts out where albedo alpha x base colour alpha falls below AlphaCutoff, so the albedo alone
+    // is tested against AlphaCutoff over the base alpha (a clear base colour cuts out everything).
+    f32 MeshRenderer::CutoutThreshold(const materials::MaterialInstance& instance) noexcept
+    {
+        const f32 cutoff = Clamp(UniformFloat(instance, u8"AlphaCutoff", 0, 0.5f), 0.0f, 1.0f);
+        const f32 baseAlpha = Clamp(UniformFloat(instance, u8"BaseColor", 3, 1.0f), 0.0f, 1.0f);
+        return baseAlpha > 0.0f ? Min(cutoff / baseAlpha, 2.0f) : 2.0f;
+    }
+
     bool MeshRenderer::DepthLikeDraw(const RenderRecordContext& ctx, materials::Material* material,
                                      bool instanced, bool pick, bool skinned, bool depthStream, ResolvedDraw& d,
                                      bool& usesDepthStream)
@@ -2031,6 +2063,7 @@ namespace foundation::render
         const DepthLikeChoice choice = DepthLikeFor(ctx, material, instanced, pick);
         materials::PipelineConfig config = choice.config;
         usesDepthStream = false;
+        d.alphaThreshold = -1.0f;
         const auto skin = [skinned, depthStream, pick, &usesDepthStream](materials::PipelineConfig& c)
         { usesDepthStream = ChooseDepthLikeStream(c, skinned, depthStream, pick); };
         skin(config);
@@ -2041,12 +2074,21 @@ namespace foundation::render
         {
             rhi::BindGroupLayout* set2 = m_materials->GetOrCreateLayout(*material);
             layout = GetOrCreateShadowMaskedLayout(set2, instanced);
-            matSet = m_materials->PrepareInstance(*InstanceFor(material), set2);
+            materials::MaterialInstance* const instance = InstanceFor(material);
+            matSet = m_materials->PrepareInstance(*instance, set2);
+            // A built-in program cuts out at the material's own threshold, as its forward draw
+            // does; a material's own program reads its cutoff itself.
+            if (shaders::HasFlag(config.shaderFlags, shaders::ShaderFlags::AlphaTest) &&
+                (config.shaderName == StringView(u8"shadow_depth") || config.shaderName == StringView(u8"pick_ids")))
+            {
+                d.alphaThreshold = CutoutThreshold(*instance);
+            }
             if (layout == nullptr)
             {
                 // No layout over the material's set: the built-in program, without it.
                 layout = plain;
                 matSet = nullptr;
+                d.alphaThreshold = -1.0f;
                 config = pick ? PickConfigFor(ctx, instanced, false) : ShadowConfigFor(ctx, instanced, false);
                 skin(config);
             }
@@ -2348,8 +2390,18 @@ namespace foundation::render
             return *cached;
         }
         rhi::BindGroupLayout* set1 = instanced ? m_instanceLayout : m_objectLayout;
+        // The built-in programs' cut-out threshold (GpuCutoutPush) is the fragment's push block; a
+        // material's own program ignores it.
+        rhi::BindGroupLayout* layouts[] = {m_shadowViewLayout, set1, set2};
+        rhi::PushConstantRange cutout{};
+        cutout.stages = rhi::ShaderStage::Fragment;
+        cutout.offset = 0;
+        cutout.size = sizeof(GpuCutoutPush);
+        rhi::PipelineLayoutDesc pld{};
+        pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{layouts, 3};
+        pld.pushConstantRanges = Span<const rhi::PushConstantRange>{&cutout, 1};
         rhi::PipelineLayout* layout = nullptr;
-        if (!MakePipelineLayout3(m_shadowViewLayout, set1, set2, layout))
+        if (!m_device->CreatePipelineLayout(pld, layout).IsOk())
         {
             return nullptr;
         }

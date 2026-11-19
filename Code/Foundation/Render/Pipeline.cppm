@@ -182,6 +182,19 @@ export namespace foundation::render
     // emit phase is renderer-agnostic.
     // Bind groups are named by the engine's set-frequency convention (set 0 view and per frame,
     // set 1 per-draw object or instance, set 2 material), which every renderer follows.
+    // The built-in depth-like programs' cut-out (shadow_depth.ps, pick_ids.ps under ALPHA_TEST): the
+    // threshold the albedo's alpha is tested against, the material's AlphaCutoff over its base
+    // colour's alpha, so a caster cuts out where its forward draw does. A push block in the space
+    // after the pass's three sets (space3), padded to a row for the browser's uniform emulation.
+    struct GpuCutoutPush
+    {
+        f32 alphaThreshold = 0.5f;
+        f32 _pad0 = 0.0f;
+        f32 _pad1 = 0.0f;
+        f32 _pad2 = 0.0f;
+    };
+    static_assert(sizeof(GpuCutoutPush) == 16, "CutoutPush layout drift");
+
     struct ResolvedDraw
     {
         rhi::RenderPipeline* pso = nullptr;
@@ -204,6 +217,8 @@ export namespace foundation::render
         rhi::IndexFormat indexFormat = rhi::IndexFormat::UInt32;
         u32 indexCount = 0;
         u32 instanceCount = 1;
+        // A built-in depth-like program's cut-out (GpuCutoutPush), pushed when 0 or above.
+        f32 alphaThreshold = -1.0f;
     };
 
     // What the directional shadow pass exposes to the forward pass: the depth map's sample view (bound
@@ -269,6 +284,12 @@ export namespace foundation::render
         {
             enc.SetBindGroup(2, d.materialSet, Span<const u32>{});
         } // material
+        if (d.alphaThreshold >= 0.0f)
+        {
+            GpuCutoutPush push{};
+            push.alphaThreshold = d.alphaThreshold;
+            enc.SetPushConstants(rhi::ShaderStage::Fragment, 0, sizeof(push), &push);
+        }
         if (d.clusterSet != nullptr)
         {
             enc.SetBindGroup(3, d.clusterSet, Span<const u32>{});

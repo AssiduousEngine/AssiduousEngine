@@ -336,6 +336,9 @@ export namespace foundation::render
         // the draw reads the depth stream, which the caller then binds.
         [[nodiscard]] static bool ChooseDepthLikeStream(materials::PipelineConfig& config, bool skinned,
                                                         bool depthStream, bool pick) noexcept;
+        // The threshold the built-in shadow and pick programs test a cut-out's albedo alpha against
+        // (GpuCutoutPush): AlphaCutoff over the base colour's alpha, as the forward tests.
+        [[nodiscard]] static f32 CutoutThreshold(const materials::MaterialInstance& instance) noexcept;
         [[nodiscard]] static DepthLikeChoice DepthLikeFor(const RenderRecordContext& ctx,
                                                           const materials::Material* material,
                                                           bool instanced, bool pick);

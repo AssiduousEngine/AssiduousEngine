@@ -193,6 +193,34 @@ TEST_CASE("depth passes: the built-in shadow and prepass read a static mesh's sl
     CHECK(none.vertexLayout == materials::VertexLayoutType::Mesh);
 }
 
+TEST_CASE("depth passes: a cut-out's shadow and pick test its albedo at the material's own threshold")
+{
+    // The forward cuts out where albedo alpha x base colour alpha falls below AlphaCutoff; the
+    // built-in shadow and pick programs read the albedo alone, against the threshold pushed for them.
+    RefPtr<materials::Material> leaves = materials::CreatePBR(u8"leaves");
+    leaves->pipeline.blendMode = materials::BlendMode::Masked;
+    materials::MaterialInstance plain(leaves.Get());
+    CHECK(MeshRenderer::CutoutThreshold(plain) == doctest::Approx(0.5f)); // the default cutoff
+
+    materials::MaterialInstance forest(leaves.Get());
+    forest.SetFloat(u8"AlphaCutoff", 0.45f); // the forest's leaves: not the 0.5 the shadow assumed
+    CHECK(MeshRenderer::CutoutThreshold(forest) == doctest::Approx(0.45f));
+
+    materials::MaterialInstance faded(leaves.Get());
+    faded.SetFloat(u8"AlphaCutoff", 0.4f);
+    faded.SetColor(u8"BaseColor", Float4{1.0f, 1.0f, 1.0f, 0.5f}); // half the albedo's alpha survives
+    CHECK(MeshRenderer::CutoutThreshold(faded) == doctest::Approx(0.8f));
+
+    materials::MaterialInstance clear(leaves.Get());
+    clear.SetColor(u8"BaseColor", Float4{1.0f, 1.0f, 1.0f, 0.0f}); // nothing passes, as in the forward
+    CHECK(MeshRenderer::CutoutThreshold(clear) > 1.0f);
+
+    // A material with no such properties (a custom shader's own block) keeps the spec's default.
+    RefPtr<materials::Material> bare = materials::MaterialBuilder(u8"bare").Float(u8"Glow", 1.0f).Build();
+    materials::MaterialInstance custom(bare.Get());
+    CHECK(MeshRenderer::CutoutThreshold(custom) == doctest::Approx(0.5f));
+}
+
 TEST_CASE("depth passes: an active effect selects its variant and binds the material's set")
 {
     // The effect's block is in the material's set (b1), so the shadow and the pick of a swaying
