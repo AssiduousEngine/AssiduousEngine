@@ -36,10 +36,9 @@ export namespace pipeline{
     // use a dot (Log.info, Time.delta); Float3 is Luau's native vector (v.x, arithmetic).
     inline constexpr StringView kLuauBehaviorStarter =
         u8"-- Behavior class - attach via a ScriptComponent behavior slot.\n"
-        u8"-- Luau OOP: a GLOBAL class table + metatable; the engine calls {ClassName}.new(entity).\n"
+        u8"-- Luau OOP: a GLOBAL class table made from its kind; the engine calls {ClassName}.new(entity).\n"
         u8"-- Reflected engine types are globals: Float3 (native vector), Log, Time, Random.\n"
-        u8"{ClassName} = {}\n"
-        u8"{ClassName}.__index = {ClassName}\n"
+        u8"{ClassName} = EntityBehavior.class()\n"
         u8"\n"
         u8"function {ClassName}.new(entity)\n"
         u8"    local self = setmetatable({}, {ClassName})\n"
@@ -72,8 +71,7 @@ export namespace pipeline{
     inline constexpr StringView kLuauLevelStarter =
         u8"-- Level class - the per-scene script. Set it on the scene's Scene Script settings.\n"
         u8"-- One instance per scene, constructed with the scene handle (reserved name `Level`).\n"
-        u8"Level = {}\n"
-        u8"Level.__index = Level\n"
+        u8"Level = SceneBehavior.class()\n"
         u8"\n"
         u8"function Level.new(scene)\n"
         u8"    return setmetatable({ scene = scene }, Level)\n"
@@ -96,8 +94,7 @@ export namespace pipeline{
     // run; drives scene loading (through the run facade) and the game-wide update.
     inline constexpr StringView kLuauGameStarter =
         u8"-- Game class - the game orchestrator (mandatory name `Game`). One per run.\n"
-        u8"Game = {}\n"
-        u8"Game.__index = Game\n"
+        u8"Game = RunBehavior.class()\n"
         u8"\n"
         u8"function Game.new()\n"
         u8"    return setmetatable({}, Game)\n"

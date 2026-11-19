@@ -1,7 +1,7 @@
 // Checkpoint: a trigger volume. When the thief walks into it, it emits a Checkpoint event with the
 // position to stand at; Thief.as keeps it, and from then on a catch sends him back here. Each
 // checkpoint fires once.
-class Checkpoint
+class Checkpoint : EntityBehavior
 {
     private Entity self;
 

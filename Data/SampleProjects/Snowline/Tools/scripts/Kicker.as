@@ -10,7 +10,7 @@
 // "KickerLaunch" (the speed in cm/s). The speed is the entry speed minus what the climb takes
 // (v^2 = v0^2 - 2 g h), launched at the lip's angle.
 
-class Kicker
+class Kicker : EntityBehavior
 {
     private Entity@ self;
 

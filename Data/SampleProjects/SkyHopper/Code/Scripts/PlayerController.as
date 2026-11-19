@@ -33,7 +33,7 @@ Guid kJumpSound = Guid("5469a0b2-67e2-44e1-ba92-8d9e4704bb4f");
 Guid kHurtSound = Guid("cff3d6f1-4a6a-44e3-8a80-c0ebca52913a");
 Guid kFallSound = Guid("b002f30b-91a4-42a5-9ee7-34755d09b468");
 
-class PlayerController
+class PlayerController : EntityBehavior
 {
     private Entity self;
 

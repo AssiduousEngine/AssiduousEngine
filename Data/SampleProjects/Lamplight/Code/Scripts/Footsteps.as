@@ -3,7 +3,7 @@
 // physical material from RayCastHit.material) and emits a Noise for the guards to hear: a Float4
 // of the position and the loudness, 0 to 1. Sneaking is silent and a run is louder than a walk;
 // gravel is louder than boards, and grass is softer.
-class Footsteps
+class Footsteps : EntityBehavior
 {
     private Entity self;
 

@@ -41,7 +41,7 @@ Guid kLandSound = Guid("73acb3f2-1241-47c2-9101-5680a9f40548");    // Audio/Land
 Guid kCrashSound = Guid("d03eb225-103d-4ba3-bd28-e0fde147e313");   // Audio/Crash
 Guid kTreeHitSound = Guid("a3179659-c479-447f-af6b-74ea09672ca8"); // Audio/TreeHit
 
-class Board
+class Board : EntityBehavior
 {
     private Entity self;
 

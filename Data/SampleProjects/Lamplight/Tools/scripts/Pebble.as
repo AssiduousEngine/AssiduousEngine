@@ -1,6 +1,6 @@
 // Pebble: a stone thrown by Thief.as. Its first hard landing clacks and emits a Noise there, loud
 // enough to draw away a guard who hears it (Guard.as) to look. It disappears a while later.
-class Pebble
+class Pebble : EntityBehavior
 {
     private Entity@ self;
 

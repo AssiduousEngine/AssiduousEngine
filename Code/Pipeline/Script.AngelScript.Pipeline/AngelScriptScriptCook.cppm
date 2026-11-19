@@ -36,7 +36,7 @@ export namespace pipeline{
         u8"// static facades are NAMESPACED and lowercase - Log::info, Time::delta,\n"
         u8"// Random::value - and the entity handle uses '.' (self.setName, ...). The scene is\n"
         u8"// reached THROUGH the entity: self.scene.find(\"name\"), self.scene.spawn(...).\n"
-        u8"class {ClassName}\n"
+        u8"class {ClassName} : EntityBehavior\n"
         u8"{\n"
         u8"    private Entity self;\n"
         u8"\n"
@@ -67,7 +67,7 @@ export namespace pipeline{
         u8"// One instance per scene, constructed with the scene handle. In AngelScript the\n"
         u8"// static facades are NAMESPACED and lowercase - Log::info, Time::delta - and the\n"
         u8"// scene handle uses '.': scene.find(\"name\"), scene.spawn(...).\n"
-        u8"class Level\n"
+        u8"class Level : SceneBehavior\n"
         u8"{\n"
         u8"    private Scene scene;\n"
         u8"\n"
@@ -85,7 +85,7 @@ export namespace pipeline{
     // run; drives scene loading (through the run facade) and the game-wide update.
     inline constexpr StringView kAngelScriptGameStarter =
         u8"// Game class - the game orchestrator (mandatory name `Game`). One per run.\n"
-        u8"class Game\n"
+        u8"class Game : RunBehavior\n"
         u8"{\n"
         u8"    Game() {}\n"
         u8"\n"

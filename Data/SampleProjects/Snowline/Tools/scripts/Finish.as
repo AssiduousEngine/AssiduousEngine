@@ -4,7 +4,7 @@
 // judge a run by. Tools/course.py places it at the end of the course line, facing up the course,
 // with that course's times.
 
-class Finish
+class Finish : EntityBehavior
 {
     private Entity@ self;
 

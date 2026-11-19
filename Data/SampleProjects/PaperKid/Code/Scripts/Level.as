@@ -35,7 +35,7 @@ Node@ hud(string id)
     return n !is null ? n : gui::root().find(id);
 }
 
-class Level
+class Level : SceneBehavior
 {
     private Scene scene;
 

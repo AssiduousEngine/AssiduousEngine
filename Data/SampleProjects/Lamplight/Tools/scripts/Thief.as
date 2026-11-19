@@ -7,7 +7,7 @@
 
 const float kPi = 3.14159265f;
 
-class Thief
+class Thief : EntityBehavior
 {
     private Entity@ self;
 

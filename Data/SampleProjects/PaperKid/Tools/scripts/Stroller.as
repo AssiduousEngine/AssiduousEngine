@@ -6,7 +6,7 @@
 // metres the clip covers at speed 1); a car has none.
 
 
-class Stroller
+class Stroller : EntityBehavior
 {
     private Entity@ self;
 

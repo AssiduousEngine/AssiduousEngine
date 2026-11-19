@@ -2,7 +2,7 @@
 // FX/FxConfetti: the celebration at the flag.
 Guid kConfetti = Guid("b9828141-6700-49dd-bb97-1947a7ce2d82");
 
-class Goal
+class Goal : EntityBehavior
 {
     private Entity self;
 

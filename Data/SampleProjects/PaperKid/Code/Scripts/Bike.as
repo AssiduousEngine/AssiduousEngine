@@ -39,7 +39,7 @@ Guid kThrowRightClip = Guid("644becf9-ccd7-4cea-9409-cf4262aac508");
 const float kRideMetres = 4.4f;
 Guid kCrashSound = Guid("a677830b-3ddd-40af-8849-54aa97fc91b2");
 
-class Bike
+class Bike : EntityBehavior
 {
     private Entity self;
 

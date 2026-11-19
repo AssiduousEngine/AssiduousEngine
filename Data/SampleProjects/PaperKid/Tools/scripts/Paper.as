@@ -5,7 +5,7 @@
 
 Guid kFxPuff = Guid("{{Prefab:FxPuff}}");
 
-class Paper
+class Paper : EntityBehavior
 {
     private Entity@ self;
 

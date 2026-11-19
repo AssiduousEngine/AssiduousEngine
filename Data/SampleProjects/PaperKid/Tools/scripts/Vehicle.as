@@ -2,7 +2,7 @@
 // the ring it is placed on (its distance from the middle along the nearer axis), so one prefab
 // drives any block's ring. Inner lanes lap clockwise and outer ones anticlockwise (`direction`).
 // The Level sets the speed ("TrafficSpeed").
-class Vehicle
+class Vehicle : EntityBehavior
 {
     private Entity@ self;
 

@@ -1,7 +1,7 @@
 // Loot: something to take. When the thief walks over it, it emits a Loot event with its value,
 // plays a chime and disappears. The level's target is taken the same way but emits Taken instead,
 // so the game script (Lamplight.as) knows the thief may now leave by the exit.
-class Loot
+class Loot : EntityBehavior
 {
     private Entity self;
 

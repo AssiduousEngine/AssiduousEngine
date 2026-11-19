@@ -2,7 +2,7 @@
 // Interact will do. When the lamp is out its light is off and its flame and chimney stop glowing
 // (their materials are swapped for dark ones), so the room really goes dark for both the renderer
 // and the light meter. It starts lit unless `lit` is off.
-class Lamp
+class Lamp : EntityBehavior
 {
     private Entity self;
 

@@ -3,7 +3,7 @@
 // a little lag so that a single step does not jolt the view.
 const float kPi = 3.14159265f;
 
-class CameraRig
+class CameraRig : EntityBehavior
 {
     private Entity self;
 

@@ -11,7 +11,7 @@
 
 const int kSampleSize = 4; // x, y, z, yaw
 
-class PlayerGhost
+class PlayerGhost : EntityBehavior
 {
     private Entity self;
 

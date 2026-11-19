@@ -4,7 +4,7 @@
 // ground a step ahead stay visible. The fade uses the renderer's screen-door dither
 // (MeshComponent.fade), eased in and out. The piece keeps casting its whole shadow, so the area
 // behind it stays as dark as before.
-class CutawayWall
+class CutawayWall : EntityBehavior
 {
     private Entity@ self;
 

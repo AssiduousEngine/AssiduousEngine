@@ -14,7 +14,7 @@ Guid kCoinSound = Guid("6d963695-67f8-4b7f-9cf4-d234f8034116");
 double g_lookFrame = -1.0;
 float g_lookNearest = 0.0f;
 
-class Coin
+class Coin : EntityBehavior
 {
     private Entity self;
 

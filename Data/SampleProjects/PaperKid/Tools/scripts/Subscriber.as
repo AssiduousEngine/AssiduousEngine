@@ -11,7 +11,7 @@ Guid kLandSound = Guid("{{PaperLand}}");
 Guid kDeliveredSound = Guid("{{Delivered}}");
 Guid kFxSparkle = Guid("{{Prefab:FxSparkle}}");
 
-class Subscriber
+class Subscriber : EntityBehavior
 {
     private Entity@ self;
 

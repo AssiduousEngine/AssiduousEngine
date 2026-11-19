@@ -69,7 +69,7 @@ Node@ find(string id)
 void wire(string id, EventHandler@ handler) { find(id).on("click", handler); } // handlers are named on*, like the engine's event handlers
 void setText(string id, string text) { Label::of(find(id)).text = text; }
 
-class Game
+class Game : RunBehavior
 {
     private bool m_inRound = false;
     private bool m_paused = false;

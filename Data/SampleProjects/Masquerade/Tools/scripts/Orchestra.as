@@ -13,7 +13,7 @@ Guid kWaltz = Guid("{{Audio:Waltz}}");
 Guid kAir = Guid("{{Audio:Air}}");
 Guid kDanceMusic = Guid("{{Audio:Dance}}");
 
-class Orchestra
+class Orchestra : EntityBehavior
 {
     private Entity@ self;
 

@@ -8,7 +8,7 @@
 // snow is also short, once past the crevasse's wall. A rider flying over is judged where they
 // touch down, so the distance is the one actually flown.
 
-class Gap
+class Gap : EntityBehavior
 {
     private Entity self;
 

@@ -10,7 +10,7 @@ Guid kGemSparkle = Guid("4aa1e781-c982-4a98-952a-551a1aa43865");
 // Audio/GemChime (sounds.py): the chime of a gem taken.
 Guid kGemChime = Guid("c47f1131-6df4-49ea-b2c7-6e3b3316a3ce");
 
-class Gem
+class Gem : EntityBehavior
 {
     private Entity@ self;
 

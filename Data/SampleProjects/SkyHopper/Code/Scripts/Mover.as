@@ -3,7 +3,7 @@
 // placed, `distance` either side along `axis`; the spin is about `spinAxis`. With a Hazard on the
 // same entity, the hazard hurts wherever the mover has taken it.
 
-class Mover
+class Mover : EntityBehavior
 {
     private Entity self;
 

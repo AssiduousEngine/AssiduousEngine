@@ -173,7 +173,7 @@ enum Phase
     Victory
 }
 
-class Game
+class Game : RunBehavior
 {
     private Phase m_phase = Phase::Title;
     /// Real seconds in the current phase.

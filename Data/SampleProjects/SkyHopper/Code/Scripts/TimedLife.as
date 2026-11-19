@@ -1,6 +1,6 @@
 // TimedLife: removes its entity a while after it appears. One-shot effect prefabs carry it, so
 // whoever spawns one can forget about it.
-class TimedLife
+class TimedLife : EntityBehavior
 {
     private Entity self;
 

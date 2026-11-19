@@ -1,7 +1,7 @@
 // Flicker: makes a flame's light waver. Its intensity wanders around the authored value, following
 // two slow waves and a quick one, so a torch breathes rather than burns flat. A light that is off
 // (a torch put out through Lamp.as) stays off.
-class Flicker
+class Flicker : EntityBehavior
 {
     private Entity self;
 

@@ -24,7 +24,7 @@ const int kStroll = 0;
 const int kGather = 1;
 const int kDanceCue = 2;
 
-class Guest
+class Guest : EntityBehavior
 {
     private Entity self;
 

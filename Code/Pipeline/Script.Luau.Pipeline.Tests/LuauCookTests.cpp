@@ -89,6 +89,7 @@ TEST_CASE("luau.cook: registered + resolvable by language; the Behavior starter 
         cook->Cook(cook->NewAssetTemplate(ScriptTier::Behavior, {}), u8"NewBehavior.luau", sink, out));
     CHECK(out.language == u8"luau");
     CHECK(out.className == u8"NewBehavior");
+    CHECK(out.kind == BehaviorKind::Entity);
     CHECK(out.sourceName == u8"NewBehavior.luau");
     // `speed` is the one scalar field; `entity` is nil at harvest so Lua drops it.
     REQUIRE(out.properties.Size() == 1u);
@@ -116,11 +117,13 @@ TEST_CASE("luau.cook: the Level + Game tier starters cook to their contract clas
     ScriptClassSource levelOut;
     REQUIRE(cook->Cook(level, u8"NewLevel.luau", levelSink, levelOut));
     CHECK(levelOut.className == u8"Level");
+    CHECK(levelOut.kind == BehaviorKind::Scene);
 
     CookScriptErrorSink gameSink;
     ScriptClassSource gameOut;
     REQUIRE(cook->Cook(game, u8"NewGame.luau", gameSink, gameOut));
     CHECK(gameOut.className == u8"Game");
+    CHECK(gameOut.kind == BehaviorKind::Run);
 }
 
 TEST_CASE("luau.cook: construct-and-walk harvest - each scalar kind, non-scalars skipped, sorted")

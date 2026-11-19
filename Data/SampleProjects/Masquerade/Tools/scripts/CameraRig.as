@@ -6,7 +6,7 @@
 // the sweep runs on the time the game script passes in.
 const float kPi = 3.14159265f;
 
-class CameraRig
+class CameraRig : EntityBehavior
 {
     private Entity@ self;
 

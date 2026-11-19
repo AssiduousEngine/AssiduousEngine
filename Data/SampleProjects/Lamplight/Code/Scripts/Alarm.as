@@ -2,7 +2,7 @@
 // emits a Noise where the thief was seen, loud enough for every guard on the floor to hear and come
 // to look; a guard who is already chasing keeps chasing. It also emits Alarm so the game can tell
 // the player. After ringing it rests for `rest` seconds before it can ring again.
-class Alarm
+class Alarm : EntityBehavior
 {
     private Entity self;
 

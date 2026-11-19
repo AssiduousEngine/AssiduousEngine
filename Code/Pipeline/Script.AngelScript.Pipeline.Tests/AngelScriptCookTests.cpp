@@ -59,12 +59,14 @@ TEST_CASE("as.cook: the Level + Game tier starters cook to their contract classe
         ScriptClassSource out;
         REQUIRE(cook->Cook(level, u8"NewLevel.as", sink, out));
         CHECK(out.className == u8"Level");
+        CHECK(out.kind == BehaviorKind::Scene);
     }
     {
         CookScriptErrorSink sink;
         ScriptClassSource out;
         REQUIRE(cook->Cook(game, u8"Game.as", sink, out));
         CHECK(out.className == u8"Game");
+        CHECK(out.kind == BehaviorKind::Run);
     }
 }
 
@@ -298,6 +300,7 @@ TEST_CASE("as.cook: the starter template itself compiles clean")
     ScriptClassSource out;
     CHECK(cook->Cook(cook->NewAssetTemplate(ScriptTier::Behavior, {}), u8"NewBehavior.as", sink, out));
     CHECK(out.className == u8"NewBehavior");
+    CHECK(out.kind == BehaviorKind::Entity);
 }
 
 TEST_CASE("as.cook: a compile error FAILS the cook (the last good record is untouched)")

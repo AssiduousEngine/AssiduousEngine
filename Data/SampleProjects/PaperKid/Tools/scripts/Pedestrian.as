@@ -7,7 +7,7 @@
 // snapping, and its Walk clip (two 0.65 m steps a second) plays at the pace it walks.
 
 
-class Pedestrian
+class Pedestrian : EntityBehavior
 {
     private Entity@ self;
 

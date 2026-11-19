@@ -15,7 +15,7 @@ Node@ hud(string id)
     return n !is null ? n : gui::root().find(id);
 }
 
-class MapMarkers
+class MapMarkers : EntityBehavior
 {
     private Entity self;
 

@@ -11,7 +11,7 @@
 // each flag back toward its rest angle as a damped spring; otherwise a brushed flag would stay
 // turned into the next run.
 
-class Gate
+class Gate : EntityBehavior
 {
     private Entity self;
 

@@ -12,7 +12,7 @@
 // turning.
 
 
-class Pet
+class Pet : EntityBehavior
 {
     private Entity@ self;
 

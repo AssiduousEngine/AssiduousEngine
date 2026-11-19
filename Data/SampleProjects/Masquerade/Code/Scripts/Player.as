@@ -20,7 +20,7 @@ const int kWalk = 1;
 const int kTalk = 2;
 const int kDance = 3;
 
-class Player
+class Player : EntityBehavior
 {
     private Entity self;
 

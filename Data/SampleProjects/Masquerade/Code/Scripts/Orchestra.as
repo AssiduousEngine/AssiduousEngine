@@ -13,7 +13,7 @@ Guid kWaltz = Guid("febd3172-573f-4a03-94f5-ea13be4fd39d");
 Guid kAir = Guid("9c5be81f-7ad4-4dea-9e1c-3e314b5f05f3");
 Guid kDanceMusic = Guid("b4c895e7-ec44-4f83-86c2-4af3dc963fb8");
 
-class Orchestra
+class Orchestra : EntityBehavior
 {
     private Entity self;
 

@@ -17,7 +17,7 @@ Guid kStompStars = Guid("ab197a34-58e6-4f23-add1-0f2a90f00ca6");
 // Audio/impactSoft_heavy_000 (Kenney Impact Sounds, CC0): an enemy stomped flat.
 Guid kSquashSound = Guid("134e50c9-8003-4065-a81f-69cf5e0d9dc7");
 
-class Enemy
+class Enemy : EntityBehavior
 {
     private Entity self;
 

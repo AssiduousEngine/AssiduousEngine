@@ -5,7 +5,7 @@
 
 Guid kFxPuff = Guid("9f997649-9c7f-48ed-99c4-6465890a41e9");
 
-class Paper
+class Paper : EntityBehavior
 {
     private Entity self;
 

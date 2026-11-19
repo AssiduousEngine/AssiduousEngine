@@ -11,7 +11,7 @@ Guid kLandSound = Guid("5ac330ab-7693-43a0-85ed-7b89d8a484e9");
 Guid kDeliveredSound = Guid("0357e902-2dcc-4003-bd4e-340c6f8fb268");
 Guid kFxSparkle = Guid("e362b75b-f227-4a33-b093-26e485cd3cd0");
 
-class Subscriber
+class Subscriber : EntityBehavior
 {
     private Entity self;
 

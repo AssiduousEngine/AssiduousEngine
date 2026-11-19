@@ -9,7 +9,7 @@ Guid kTakenSparkle = Guid("245b459c-4b93-4876-9496-6e4eb3daa145");
 // Audio/powerUp7 (Kenney Digital Audio, CC0), played higher than a coin's.
 Guid kTakenSound = Guid("6d963695-67f8-4b7f-9cf4-d234f8034116");
 
-class Pickup
+class Pickup : EntityBehavior
 {
     private Entity self;
 

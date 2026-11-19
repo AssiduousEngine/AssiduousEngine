@@ -4,7 +4,7 @@
 // same light. In the dark the player would lose sight of him too, so as the meter empties his
 // figure takes on a faint cold glow (the EmissiveColor of its materials, set for this mesh alone).
 // The glow is seen by the camera but lights nothing, so the meter and the guards still read dark.
-class LightMeter
+class LightMeter : EntityBehavior
 {
     private Entity@ self;
 

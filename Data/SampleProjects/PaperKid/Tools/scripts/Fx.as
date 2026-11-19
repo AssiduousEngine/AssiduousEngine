@@ -2,7 +2,7 @@
 // script removes the entity once the burst has played out. The scripts spawn these where things
 // happen: confetti over a cleared block, a sparkle on a delivery, dust from a crash, a puff where a
 // paper lands.
-class Fx
+class Fx : EntityBehavior
 {
     private Entity@ self;
 

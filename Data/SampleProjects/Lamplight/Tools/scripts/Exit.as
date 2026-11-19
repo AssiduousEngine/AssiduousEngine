@@ -1,6 +1,6 @@
 // Exit: the way out of a level, a trigger volume. When the thief walks in it emits Escaped; the
 // game script (Lamplight.as) ends the level if he carries the target, or tells him to find it.
-class Exit
+class Exit : EntityBehavior
 {
     private Entity@ self;
 

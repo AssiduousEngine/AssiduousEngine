@@ -41,7 +41,7 @@ const int kNoteTagged = 3;     // your hunter tagged you; you respawn elsewhere 
 const int kNoteFlare = 4;      // someone's mask flares, revealing a hunter
 const int kNoteFull = 6;       // every seat is taken by a player, so you watch
 
-class Ball
+class Ball : EntityBehavior
 {
     private Entity self;
 
