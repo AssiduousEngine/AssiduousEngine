@@ -100,8 +100,8 @@ instance), default the primary. `pie_start` cooks, opens and runs the primary (o
 `newInstance` another tab, a host and a client say) and answers once the first frame has
 rendered; `pie_state` reports whether it runs, its scene, `runTime` (seconds of frames since
 the start, unscaled, so it keeps going while the game pauses its scene at time scale 0, as
-behind a menu), the frames rendered and the startup script (`running`, or `faulted` with the
-reason); `pie_list` shows every instance, the ones the user started too; `pie_stop` stops one (or
+behind a menu), the frames rendered and the run behavior (`runBehavior`: `running`, or `faulted`
+with the reason); `pie_list` shows every instance, the ones the user started too; `pie_stop` stops one (or
 `all`), its tab staying open and the others running. `pie_screenshot` writes what an
 instance's tab renders, the game through its own camera with its UI, as `viewport_screenshot`
 does for a scene page: the pixels the tab drew, without the bars. A tab smaller than the game's
@@ -141,8 +141,8 @@ you want from there.
 `probes` read entities (by guid, name or slash path) at field paths (`worldPosition`,
 `position`, `rotation`, `scale`, `active`, `<component>.<property>` as `entity_inspect` names
 them, or `<BehaviorClass>.<field>` for a behaviour running on the entity, private fields too,
-then `.x`/`.y`/`.z` or a key or an index), the game script's fields (`{"script":
-"score"}`) and the scene's level script's (`{"level": "m_round"}`, private fields too), sampled
+then `.x`/`.y`/`.z` or a key or an index), the run behavior's fields (`{"runBehavior":
+"score"}`) and the scene behavior's (`{"sceneBehavior": "m_round"}`, private fields too), sampled
 `every` N seconds (0.5 by default) or at `sampleAt` times; each row is `{t, frame, values}`, the
 last one at the end, and an entity gone by then reads null. `screenshots` writes the tab at those
 run times. `until` ends the run early, on a death or a win: `{"entity": "Player", "field":

@@ -77,6 +77,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   as `behavior` and the settings as `sceneBehavior`; the sample projects are migrated.
 - Project settings: the Startup script is the Run behavior (`runBehaviorId` for MCP's
   `project_settings_set`). A project file saved by an earlier release still opens.
+- MCP: `pie_state` reports the run behavior as `runBehavior` (was `script`), and `pie_run` probes
+  and `until` take `runBehavior` and `sceneBehavior` (were `script` and `level`).
 - Rendering: each of the sun's shadow cascades draws only the casters whose shadow lands on what it
   shades, and a shadow ends at the scene's bounds (a tree's at the ground), so most casters are drawn
   into one cascade, not all four. Over a 40,000-mesh forest the shadows went from about 200 ms a

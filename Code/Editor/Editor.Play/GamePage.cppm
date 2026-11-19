@@ -256,20 +256,20 @@ export namespace editor
                                                             : m_stoppedRunTime;
         }
         [[nodiscard]] u64 FrameCount() const noexcept override { return m_frameCount; }
-        [[nodiscard]] PieScriptState ScriptState() const noexcept override
+        [[nodiscard]] PieRunBehaviorState RunBehaviorState() const noexcept override
         {
             if (m_run == nullptr)
             {
-                return PieScriptState::None;
+                return PieRunBehaviorState::None;
             }
             if (m_run->RunBehaviorRunning())
             {
-                return PieScriptState::Running;
+                return PieRunBehaviorState::Running;
             }
-            return m_run->RunBehaviorFault().IsEmpty() ? PieScriptState::None
-                                                           : PieScriptState::Faulted;
+            return m_run->RunBehaviorFault().IsEmpty() ? PieRunBehaviorState::None
+                                                           : PieRunBehaviorState::Faulted;
         }
-        [[nodiscard]] StringView ScriptFault() const noexcept override
+        [[nodiscard]] StringView RunBehaviorFault() const noexcept override
         {
             return m_run != nullptr ? m_run->RunBehaviorFault() : StringView{};
         }
@@ -282,13 +282,13 @@ export namespace editor
         {
             return m_running ? m_scene : nullptr;
         }
-        [[nodiscard]] Result<Variant> GetScriptProperty(StringView name) const override
+        [[nodiscard]] Result<Variant> GetRunBehaviorProperty(StringView name) const override
         {
             if (m_run == nullptr)
             {
                 return Err(ErrorCode::NotFound);
             }
-            return m_run->GetScriptProperty(name);
+            return m_run->GetRunBehaviorProperty(name);
         }
         [[nodiscard]] Result<Variant> GetLevelProperty(StringView name) const override
         {

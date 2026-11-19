@@ -535,7 +535,7 @@ namespace engine::player
             auto proxy = Resources()->Bind<foundation::script::BehaviorClass>(scriptId);
             if (!proxy || proxy->source.IsEmpty())
             {
-                LOG_ERROR(u8"Player", u8"startup script asset not found");
+                LOG_ERROR(u8"Player", u8"the run behavior asset was not found");
                 return;
             }
             (void)StartRunBehavior(*proxy); // with its handlers: the game's on<Event> inbox

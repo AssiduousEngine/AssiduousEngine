@@ -55,8 +55,8 @@ namespace
         [[nodiscard]] StringView SceneName() const noexcept override { return scene.AsView(); }
         [[nodiscard]] f64 RunTime() const noexcept override { return runTime; }
         [[nodiscard]] u64 FrameCount() const noexcept override { return frames; }
-        [[nodiscard]] PieScriptState ScriptState() const noexcept override { return script; }
-        [[nodiscard]] StringView ScriptFault() const noexcept override { return fault.AsView(); }
+        [[nodiscard]] PieRunBehaviorState RunBehaviorState() const noexcept override { return script; }
+        [[nodiscard]] StringView RunBehaviorFault() const noexcept override { return fault.AsView(); }
         void RequestViewportCapture(StringView path) override
         {
             ++captureRequests;
@@ -74,7 +74,7 @@ namespace
         {
             return running ? &level : nullptr;
         }
-        [[nodiscard]] Result<Variant> GetScriptProperty(StringView name) const override
+        [[nodiscard]] Result<Variant> GetRunBehaviorProperty(StringView name) const override
         {
             if (!running || name != u8"score")
             {
@@ -191,7 +191,7 @@ namespace
         f64 scriptStart = 0.0;
         bool scriptEnding = false;
         u32 scriptsBegun = 0;
-        PieScriptState script = PieScriptState::Running;
+        PieRunBehaviorState script = PieRunBehaviorState::Running;
         String fault;
         ViewportCapture capture;
         u32 captureRequests = 0;
@@ -363,12 +363,12 @@ TEST_CASE("pie-tools: start waits for the first frame, a running primary answers
     // The list has both; the state of one by id carries a faulted script's reason.
     got = Pump(rig.server, u8"pie_list", u8"{}");
     CHECK(got.payload.Get(u8"count").AsNumber() == doctest::Approx(2.0));
-    second->script = PieScriptState::Faulted;
+    second->script = PieRunBehaviorState::Faulted;
     second->fault = String(u8"faulted in update: boom");
     got = Pump(rig.server, u8"pie_state", u8"{\"pie\":\"game-page-1\"}");
     REQUIRE(got.ok);
-    CHECK(got.payload.Get(u8"script").Get(u8"state").AsString() == StringView(u8"faulted"));
-    CHECK(got.payload.Get(u8"script").Get(u8"fault").AsString() ==
+    CHECK(got.payload.Get(u8"runBehavior").Get(u8"state").AsString() == StringView(u8"faulted"));
+    CHECK(got.payload.Get(u8"runBehavior").Get(u8"fault").AsString() ==
           StringView(u8"faulted in update: boom"));
     CHECK(got.payload.Get(u8"runTime").AsNumber() == doctest::Approx(0.5));
     got = Pump(rig.server, u8"pie_state", u8"{\"pie\":\"game-page-9\"}");
@@ -603,8 +603,8 @@ TEST_CASE("pie-tools: a run plays its timeline, samples, shoots, and ends")
     CHECK(got.error.AsView().StartsWith(u8"entity 'Player' has no field 'light.intensity'"));
     got = Pump(rig.server, u8"pie_run", u8"{\"duration\":1,\"probes\":[{\"entity\":\"Ghost\"}]}");
     CHECK(got.error.AsView().StartsWith(u8"no entity 'Ghost' in PIE instance 'game-page''s scene 'Level1'"));
-    got = Pump(rig.server, u8"pie_run", u8"{\"duration\":1,\"probes\":[{\"script\":\"lives\"}]}");
-    CHECK(got.error.AsView().StartsWith(u8"the game script of PIE instance 'game-page' has no property 'lives'"));
+    got = Pump(rig.server, u8"pie_run", u8"{\"duration\":1,\"probes\":[{\"runBehavior\":\"lives\"}]}");
+    CHECK(got.error.AsView().StartsWith(u8"the run behavior of PIE instance 'game-page' has no field 'lives'"));
     got = Pump(rig.server, u8"pie_run", u8"{\"duration\":0}");
     CHECK(got.error.AsView().StartsWith(u8"`duration` takes run seconds"));
     CHECK(host->scriptsBegun == 0u);
@@ -613,7 +613,7 @@ TEST_CASE("pie-tools: a run plays its timeline, samples, shoots, and ends")
     // second, with a screenshot at one second.
     const StringView args =
         u8"{\"duration\":2,\"input\":[{\"at\":0,\"key\":\"D\"},{\"at\":1,\"key\":\"d\",\"down\":false}],"
-        u8"\"probes\":[{\"entity\":\"Player\",\"fields\":[\"position.x\"]},{\"script\":\"score\"}],"
+        u8"\"probes\":[{\"entity\":\"Player\",\"fields\":[\"position.x\"]},{\"runBehavior\":\"score\"}],"
         u8"\"every\":0.5,\"screenshots\":[1],\"screenshotDir\":\"shots\"}";
     got = Pump(rig.server, u8"pie_run", args);
     CHECK_FALSE(got.finished);
@@ -640,7 +640,7 @@ TEST_CASE("pie-tools: a run plays its timeline, samples, shoots, and ends")
     // The player walked while D was held (a second, give or take a frame), then stood still.
     const f64 x = samples.At(4).Get(u8"values").Get(u8"Player.position.x").AsNumber();
     CHECK(x == doctest::Approx(1.0).epsilon(0.1));
-    CHECK(samples.At(4).Get(u8"values").Get(u8"script.score").AsNumber() == doctest::Approx(7.0));
+    CHECK(samples.At(4).Get(u8"values").Get(u8"runBehavior.score").AsNumber() == doctest::Approx(7.0));
     const JsonValue shots = result.Get(u8"screenshots");
     REQUIRE(shots.Count() == 1);
     CHECK(shots.At(0).Get(u8"at").AsNumber() == doctest::Approx(1.0));
@@ -671,9 +671,9 @@ TEST_CASE("pie-tools: until ends a run, and a stop ends it too")
     CHECK(got.payload.Get(u8"runTime").AsNumber() < 2.0);
     CHECK(got.payload.Get(u8"samples").Count() == 0); // no probes, no rows
 
-    got = Pump(rig.server, u8"pie_run", u8"{\"duration\":1,\"until\":{\"script\":\"score\",\"op\":\"~\",\"value\":1}}");
+    got = Pump(rig.server, u8"pie_run", u8"{\"duration\":1,\"until\":{\"runBehavior\":\"score\",\"op\":\"~\",\"value\":1}}");
     CHECK(got.error.AsView().StartsWith(u8"`until.op` takes"));
-    got = Pump(rig.server, u8"pie_run", u8"{\"duration\":1,\"until\":{\"script\":\"score\",\"op\":\"<\",\"value\":\"a\"}}");
+    got = Pump(rig.server, u8"pie_run", u8"{\"duration\":1,\"until\":{\"runBehavior\":\"score\",\"op\":\"<\",\"value\":\"a\"}}");
     CHECK(got.error.AsView().StartsWith(u8"`until` compares a boolean or a string with == or != only"));
 
     // A stop mid-run answers what it had, and says so.
@@ -698,28 +698,28 @@ TEST_CASE("pie-tools: a run reads the scene's level script, and ends on it")
     HeadlessGamePage* host = RunningPie(rig, u8"game-page");
 
     // A property the level script does not have is refused before the run starts.
-    Answer got = Pump(rig.server, u8"pie_run", u8"{\"duration\":1,\"probes\":[{\"level\":\"lives\"}]}");
+    Answer got = Pump(rig.server, u8"pie_run", u8"{\"duration\":1,\"probes\":[{\"sceneBehavior\":\"lives\"}]}");
     CHECK(got.error.AsView().StartsWith(u8"the level script of PIE instance 'game-page' has no property 'lives'"));
     CHECK(host->scriptsBegun == 0u);
 
     // Its property is sampled as `level.<name>`.
-    const StringView sample = u8"{\"duration\":1,\"probes\":[{\"level\":\"wave\"}],\"every\":0.5}";
+    const StringView sample = u8"{\"duration\":1,\"probes\":[{\"sceneBehavior\":\"wave\"}],\"every\":0.5}";
     host->wave = 2.0;
     got = RunToEnd(rig, sample, *host, 0.05);
     REQUIRE(got.ok);
     const JsonValue samples = got.payload.Get(u8"samples");
     REQUIRE(samples.Count() > 0);
-    CHECK(samples.At(samples.Count() - 1).Get(u8"values").Get(u8"level.wave").AsNumber() == doctest::Approx(2.0));
+    CHECK(samples.At(samples.Count() - 1).Get(u8"values").Get(u8"sceneBehavior.wave").AsNumber() == doctest::Approx(2.0));
 
     // And `until` ends the run when it crosses.
     PlayFrame(*host, 0.1);
-    const StringView until = u8"{\"duration\":10,\"until\":{\"level\":\"wave\",\"op\":\">=\",\"value\":3}}";
+    const StringView until = u8"{\"duration\":10,\"until\":{\"sceneBehavior\":\"wave\",\"op\":\">=\",\"value\":3}}";
     CHECK_FALSE(Pump(rig.server, u8"pie_run", until).finished);
     host->wave = 3.0;
     got = RunToEnd(rig, until, *host, 0.05);
     REQUIRE(got.ok);
     CHECK(got.payload.Get(u8"endedBy").AsString() == StringView(u8"until"));
-    CHECK(got.payload.Get(u8"until").Get(u8"probe").AsString() == StringView(u8"level.wave"));
+    CHECK(got.payload.Get(u8"until").Get(u8"probe").AsString() == StringView(u8"sceneBehavior.wave"));
 }
 
 TEST_CASE("pie-tools: two instances run side by side, and only the scripted one moves")

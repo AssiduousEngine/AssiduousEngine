@@ -137,11 +137,11 @@ namespace editor
         {
             if (!probe.script.IsEmpty())
             {
-                Result<Variant, ErrorCode> value = pie.GetScriptProperty(probe.script.AsView());
+                Result<Variant, ErrorCode> value = pie.GetRunBehaviorProperty(probe.script.AsView());
                 if (!value.HasValue())
                 {
-                    return Err(Format(u8"the game script of PIE instance '{}' has no property "
-                                      u8"'{}' (or no script runs)",
+                    return Err(Format(u8"the run behavior of PIE instance '{}' has no field "
+                                      u8"'{}' (or none runs)",
                                       pie.PieId(), probe.script.AsView()));
                 }
                 return ValueJson(value.Value());
@@ -178,19 +178,19 @@ namespace editor
                 error = Format(u8"probes[{}]: an object", i);
                 return ErrorCode::InvalidArgument;
             }
-            if (entry.Has(u8"script"))
+            if (entry.Has(u8"runBehavior"))
             {
                 Probe probe;
-                probe.script = entry.Get(u8"script").AsString();
-                probe.label = Format(u8"script.{}", probe.script.AsView());
+                probe.script = entry.Get(u8"runBehavior").AsString();
+                probe.label = Format(u8"runBehavior.{}", probe.script.AsView());
                 out.PushBack(Move(probe));
                 return Status{};
             }
-            if (entry.Has(u8"level"))
+            if (entry.Has(u8"sceneBehavior"))
             {
                 Probe probe;
-                probe.level = entry.Get(u8"level").AsString();
-                probe.label = Format(u8"level.{}", probe.level.AsView());
+                probe.level = entry.Get(u8"sceneBehavior").AsString();
+                probe.label = Format(u8"sceneBehavior.{}", probe.level.AsView());
                 out.PushBack(Move(probe));
                 return Status{};
             }
@@ -231,15 +231,15 @@ namespace editor
             }
             Probe& probe = run.until;
             run.hasUntil = true;
-            if (until.Has(u8"script"))
+            if (until.Has(u8"runBehavior"))
             {
-                probe.script = until.Get(u8"script").AsString();
-                probe.label = Format(u8"script.{}", probe.script.AsView());
+                probe.script = until.Get(u8"runBehavior").AsString();
+                probe.label = Format(u8"runBehavior.{}", probe.script.AsView());
             }
-            else if (until.Has(u8"level"))
+            else if (until.Has(u8"sceneBehavior"))
             {
-                probe.level = until.Get(u8"level").AsString();
-                probe.label = Format(u8"level.{}", probe.level.AsView());
+                probe.level = until.Get(u8"sceneBehavior").AsString();
+                probe.label = Format(u8"sceneBehavior.{}", probe.level.AsView());
             }
             else
             {
@@ -665,8 +665,8 @@ namespace editor
         until.Str(u8"entity", u8"the entity, by guid, name or slash path")
             .Str(u8"field", u8"its field path, as in probes (default worldPosition; worldPosition.y "
                             u8"for the height)")
-            .Str(u8"script", u8"or a game script property")
-            .Str(u8"level", u8"or a property of the scene's level script")
+            .Str(u8"runBehavior", u8"or a field of the run behavior")
+            .Str(u8"sceneBehavior", u8"or a field of the scene's behavior")
             .Str(u8"op", u8"<, <=, >, >=, == or !=")
             .Any(u8"value", u8"what it is compared with: a number, or with == and != a boolean or a "
                             u8"string");
@@ -684,8 +684,8 @@ namespace editor
         SchemaBuilder probe;
         probe.Str(u8"entity", u8"the entity, by guid, name or slash path")
             .Arr(u8"fields", u8"string", u8"its field paths (default [\"worldPosition\"])")
-            .Str(u8"script", u8"or a game script property")
-            .Str(u8"level", u8"or a property of the scene's level script");
+            .Str(u8"runBehavior", u8"or a field of the run behavior")
+            .Str(u8"sceneBehavior", u8"or a field of the scene's behavior");
         JsonValue schema =
             SchemaBuilder()
                 .Str(u8"pie", u8"the PIE instance's id, as pie_list reports it (default: the "
@@ -699,8 +699,8 @@ namespace editor
                            u8"render-resolution pixels (a scaled screenshot's divided by its scale)")
                 .ObjectArr(u8"probes", probe,
                            u8"what to read: {entity, fields} (entity by guid, name or slash path; "
-                           u8"fields default [\"worldPosition\"]), {script: \"<game script "
-                           u8"property>\"} or {level: \"<the scene's level script property>\"}")
+                           u8"fields default [\"worldPosition\"]), {runBehavior: \"<a field of the run "
+                           u8"behavior>\"} or {sceneBehavior: \"<a field of the scene's behavior>\"}")
                 .Number(u8"every", u8"sample the probes every N run seconds (default 0.5)")
                 .Arr(u8"sampleAt", u8"number", u8"or sample at these run times instead")
                 .Arr(u8"screenshots", u8"number", u8"run times at which to write a PNG of the tab")
@@ -727,8 +727,8 @@ namespace editor
             u8"\"LeftX\"). Held keys are let go when the run ends. `probes` read entity fields "
             u8"(`worldPosition`, `position`, `rotation`, `scale`, `active`, or "
             u8"`<component>.<property>` as entity_inspect names them, then `.x`/`.y`/`.z` or a "
-            u8"key or index to go inside), game script properties and the scene's level script's "
-            u8"(`level`), sampled `every` N seconds "
+            u8"key or index to go inside), the run behavior's fields (`runBehavior`) and the scene "
+            u8"behavior's (`sceneBehavior`), sampled `every` N seconds "
             u8"or at `sampleAt` times, one row per sample {t, frame, values} with a final row at "
             u8"the end; an entity missing at a sample reads null. `screenshots` writes the tab at "
             u8"those run times. `until` ends the run when its value crosses (\"Player "

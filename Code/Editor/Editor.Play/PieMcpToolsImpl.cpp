@@ -330,20 +330,20 @@ namespace editor
         out.Set(u8"runTime", JsonValue::MakeNumber(pie.RunTime()));
         out.Set(u8"frames", JsonValue::MakeNumber(static_cast<f64>(pie.FrameCount())));
         JsonValue script = JsonValue::MakeObject();
-        switch (pie.ScriptState())
+        switch (pie.RunBehaviorState())
         {
-        case PieScriptState::None:
+        case PieRunBehaviorState::None:
             script.Set(u8"state", JsonValue::MakeString(u8"none"));
             break;
-        case PieScriptState::Running:
+        case PieRunBehaviorState::Running:
             script.Set(u8"state", JsonValue::MakeString(u8"running"));
             break;
-        case PieScriptState::Faulted:
+        case PieRunBehaviorState::Faulted:
             script.Set(u8"state", JsonValue::MakeString(u8"faulted"));
-            script.Set(u8"fault", JsonValue::MakeString(String(pie.ScriptFault())));
+            script.Set(u8"fault", JsonValue::MakeString(String(pie.RunBehaviorFault())));
             break;
         }
-        out.Set(u8"script", Move(script));
+        out.Set(u8"runBehavior", Move(script));
         return out;
     }
 
@@ -370,7 +370,7 @@ namespace editor
             u8"pie_start",
             u8"Start playing the project in the editor (PIE): the primary Game tab, or with "
             u8"`newInstance` another tab running an instance of its own - a host and a client, "
-            u8"say. Cooks first, as Play does, loads the default scene and the startup script, and "
+            u8"say. Cooks first, as Play does, loads the default scene and the run behavior, and "
             u8"answers once the instance's first frame has rendered, with its state as pie_state "
             u8"gives it; `pie` is the id every other PIE tool takes. A primary already running is "
             u8"answered as it is, with `alreadyRunning`. A run that fails to start (a default "
@@ -432,7 +432,7 @@ namespace editor
             u8"One PIE instance's state: whether it is running (or starting, waiting on the cook), "
             u8"the scene it is in, `runTime`, the seconds of frames since it started (unscaled: it "
             u8"keeps going while the game pauses its scene at time scale 0, as behind a menu), the "
-            u8"frames rendered since, and its startup script's state (`none`, `running`, or "
+            u8"frames rendered since, and its run behavior's state, `runBehavior` (`none`, `running`, or "
             u8"`faulted` with the reason).",
             SchemaBuilder().Str(u8"pie", kPieArgument).Build(), ToolAnnotations::ReadOnly(),
             [ctx](const JsonValue& args) -> ToolOutcome

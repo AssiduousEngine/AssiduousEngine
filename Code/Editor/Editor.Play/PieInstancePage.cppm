@@ -24,7 +24,7 @@ using namespace foundation::core;
 export namespace editor
 {
     /// Where a PIE instance's startup script stands.
-    enum class PieScriptState : u8
+    enum class PieRunBehaviorState : u8
     {
         None,    ///< the project has no startup script, or the run has not started one
         Running,
@@ -52,8 +52,8 @@ export namespace editor
         /// Frames rendered since the run started.
         [[nodiscard]] virtual u64 FrameCount() const noexcept = 0;
         /// The startup script's state, and the reason a faulted one stopped.
-        [[nodiscard]] virtual PieScriptState ScriptState() const noexcept = 0;
-        [[nodiscard]] virtual StringView ScriptFault() const noexcept = 0;
+        [[nodiscard]] virtual PieRunBehaviorState RunBehaviorState() const noexcept = 0;
+        [[nodiscard]] virtual StringView RunBehaviorFault() const noexcept = 0;
 
         /// Asks for the viewport's next rendered frame, after the game's own UI and overlays, as
         /// a PNG at `path` (its directory must exist), replacing a pending request.
@@ -63,7 +63,7 @@ export namespace editor
 
         /// Reads a property of the running game script; NotFound without a script or with no
         /// such property.
-        [[nodiscard]] virtual Result<Variant> GetScriptProperty(StringView name) const = 0;
+        [[nodiscard]] virtual Result<Variant> GetRunBehaviorProperty(StringView name) const = 0;
         /// Reads a property of the running scene's level script; NotFound without one or with no
         /// such property.
         [[nodiscard]] virtual Result<Variant> GetLevelProperty(StringView name) const = 0;

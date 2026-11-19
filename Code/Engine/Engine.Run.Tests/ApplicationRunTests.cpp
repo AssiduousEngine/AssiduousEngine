@@ -1800,7 +1800,7 @@ TEST_CASE("game-instance: the run clock ignores time scale, and a game script's 
     foundation::script::RegisterLuauScriptBackend();
 
     engine::runtime::ApplicationRun gi;
-    CHECK_FALSE(gi.GetScriptProperty(u8"score").HasValue()); // no script running
+    CHECK_FALSE(gi.GetRunBehaviorProperty(u8"score").HasValue()); // no script running
     const StringView game = u8"Game = {}\n"
                             u8"Game.__index = Game\n"
                             u8"function Game.new() return setmetatable({ score = 0, real = 0 }, Game) end\n"
@@ -1818,16 +1818,16 @@ TEST_CASE("game-instance: the run clock ignores time scale, and a game script's 
     }
     CHECK(gi.RunTime() == doctest::Approx(3.0 / 60.0).epsilon(1e-5));
 
-    auto score = gi.GetScriptProperty(u8"score");
+    auto score = gi.GetRunBehaviorProperty(u8"score");
     REQUIRE(score.HasValue());
     CHECK(score.Value().Get<f64>() == doctest::Approx(3.0));
-    CHECK_FALSE(gi.GetScriptProperty(u8"lives").HasValue());
+    CHECK_FALSE(gi.GetRunBehaviorProperty(u8"lives").HasValue());
     // A script reads the real clock too, for a pause menu to time by.
-    CHECK(gi.GetScriptProperty(u8"real").Value().Get<f64>() == doctest::Approx(3.0 / 60.0).epsilon(1e-4));
+    CHECK(gi.GetRunBehaviorProperty(u8"real").Value().Get<f64>() == doctest::Approx(3.0 / 60.0).epsilon(1e-4));
     CHECK(gi.Binding().realSeconds == doctest::Approx(3.0 / 60.0).epsilon(1e-5));
-    CHECK_FALSE(gi.GetScriptProperty(u8"update").HasValue()); // a method is not a property
+    CHECK_FALSE(gi.GetRunBehaviorProperty(u8"update").HasValue()); // a method is not a property
     gi.StopRunBehavior();
-    CHECK_FALSE(gi.GetScriptProperty(u8"score").HasValue());
+    CHECK_FALSE(gi.GetRunBehaviorProperty(u8"score").HasValue());
 }
 
 // ---- save data: the values a game keeps between runs ----

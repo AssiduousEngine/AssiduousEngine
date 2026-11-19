@@ -591,7 +591,7 @@ export namespace engine::runtime
         [[nodiscard]] bool RunBehaviorRunning() const noexcept { return m_runBehavior.Get() != nullptr; }
         /// Reads a property of the running game script (a score, a lives count). NotFound with
         /// no script running or no such property.
-        [[nodiscard]] core::Result<core::Variant> GetScriptProperty(core::StringView name) const
+        [[nodiscard]] core::Result<core::Variant> GetRunBehaviorProperty(core::StringView name) const
         {
             if (m_runBehavior.Get() == nullptr)
             {

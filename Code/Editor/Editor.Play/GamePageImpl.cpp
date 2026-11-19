@@ -430,7 +430,7 @@ namespace editor
             // it renders nothing until the game loads its first scene through run.loadScene, which
             // the follow-poll in OnUpdate then adopts. A project with neither a default scene nor a
             // startup script shows nothing.
-            LOG_INFO(u8"Editor", u8"Game: no default scene - the game script owns boot.");
+            LOG_INFO(u8"Editor", u8"Game: no default scene - the run behavior owns boot.");
         }
 
         // The cook was requested at Play() and has finished by the time OnUpdate gets here (the
@@ -1134,14 +1134,14 @@ namespace editor
         auto proxy = m_context->Resources()->Bind<foundation::script::BehaviorClass>(scriptId);
         if (!proxy || proxy->source.IsEmpty())
         {
-            m_context->Notify(NoticeKind::Warning, u8"Game: startup script asset not found.");
+            m_context->Notify(NoticeKind::Warning, u8"Game: the run behavior asset was not found.");
             return;
         }
         if (m_run == nullptr ||
             !m_run->StartRunBehavior(*proxy))
         {
             m_context->Notify(NoticeKind::Error,
-                              u8"Game: startup script failed to start (see Console).");
+                              u8"Game: the run behavior did not start (see Console).");
         }
     }
 
@@ -1601,7 +1601,7 @@ namespace editor
         // The kit's transport: Play while stopped, Pause and Stop while running, and Restart in
         // either state, with the state named beside it (Playing, Paused, a script fault) and the
         // scene it runs.
-        const bool faulted = m_running && ScriptState() == PieScriptState::Faulted;
+        const bool faulted = m_running && RunBehaviorState() == PieRunBehaviorState::Faulted;
         const bool paused = m_running && (m_simPausedByDebugger || (m_pauseToggle != nullptr && m_pauseToggle->IsChecked()));
         if (m_playButton != nullptr)
             m_playButton->SetEnabled(!m_running && !m_pendingPlay);
@@ -1622,7 +1622,7 @@ namespace editor
                 for (const StringView old : kinds)
                     m_stateLabel->RemoveClass(old);
                 m_stateLabel->AddClass(kind);
-                m_stateLabel->SetTooltip(faulted ? ScriptFault() : StringView{});
+                m_stateLabel->SetTooltip(faulted ? RunBehaviorFault() : StringView{});
             }
         }
         if (m_sceneLabel != nullptr)
@@ -1635,7 +1635,7 @@ namespace editor
         {
             return;
         }
-        String message(u8"Game script error: ");
+        String message(u8"Run behavior error: ");
         message += error.message;
         context->Notify(NoticeKind::Error, message.AsView());
     }
