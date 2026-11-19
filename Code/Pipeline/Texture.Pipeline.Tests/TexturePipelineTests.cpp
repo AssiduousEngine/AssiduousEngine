@@ -1427,8 +1427,8 @@ TEST_CASE("texture.pipeline: an alpha-tested texture's mipmaps keep its visible 
 
     Array<byte> tested = leaves();
     const u32 levels = TextureAssetBuilder::AppendMipChain(tested, kSize, kSize, true, nullptr, 0.45f);
-    REQUIRE(levels == 7);
-    const u8* green = lastTexel(tested); // the 1x1 level
+    REQUIRE(levels == 5); // 64 down to 4x4: the alpha-tested chain stops there
+    const u8* green = lastTexel(tested); // the 4x4 level's last texel
     CHECK(Abs(static_cast<i32>(green[0]) - 60) <= 2);
     CHECK(Abs(static_cast<i32>(green[1]) - 150) <= 2);
     CHECK(Abs(static_cast<i32>(green[2]) - 40) <= 2);
@@ -1445,10 +1445,41 @@ TEST_CASE("texture.pipeline: an alpha-tested texture's mipmaps keep its visible 
         }
     }
 
-    // A texture with no cutoff keeps the plain average: its alpha may not be opacity at all.
+    // A texture with no cutoff keeps the plain average and the full chain: its alpha may not be
+    // opacity at all.
     Array<byte> plain = leaves();
-    (void)TextureAssetBuilder::AppendMipChain(plain, kSize, kSize, true, nullptr, 0.0f);
+    CHECK(TextureAssetBuilder::AppendMipChain(plain, kSize, kSize, true, nullptr, 0.0f) == 7);
     CHECK(lastTexel(plain)[0] > 150);
+}
+
+TEST_CASE("texture.pipeline: an alpha-tested texture's chain stops where it can still hold its coverage")
+{
+    // Below 4x4 a level cannot hold a cutoff's coverage: at 1x1 the whole texture is one alpha, so
+    // a distant card wholly passes or wholly fails. The chain stops at 4 texels across, short side.
+    constexpr u32 kSize = 256;
+    constexpr u32 kCut = 115;
+    u32 fullLevels = 0;
+    const Array<byte> full = FoliageChain(kSize, fullLevels);
+    REQUIRE(fullLevels == 9);
+    Array<byte> chain;
+    chain.Resize(static_cast<usize>(kSize) * kSize * 4);
+    std::memcpy(chain.Data(), full.Data(), chain.Size()); // level 0 alone
+    const u32 levels = TextureAssetBuilder::AppendMipChain(chain, kSize, kSize, true, nullptr, static_cast<f32>(kCut) / 255.0f);
+    CHECK(levels == 7); // 256 .. 4
+    CHECK(chain.Size() == (256u * 256 + 128 * 128 + 64 * 64 + 32 * 32 + 16 * 16 + 8 * 8 + 4 * 4) * 4u);
+
+    // Every level kept still holds level 0's coverage, the last one included.
+    const Array<f32> coverage = CoverageByLevel(chain, kSize, levels, kCut);
+    CHECK(Abs(coverage[levels - 1] - coverage[0]) < 0.1f);
+
+    // A non-square texture stops on its short side: 64x16 keeps 64x16, 32x8 and 16x4.
+    Array<byte> wide;
+    wide.Resize(64u * 16 * 4);
+    for (usize i = 0; i < wide.Size(); ++i)
+    {
+        wide[i] = static_cast<byte>((i % 4) == 3 ? ((i / 4) % 3 == 0 ? 255 : 0) : 100);
+    }
+    CHECK(TextureAssetBuilder::AppendMipChain(wide, 64, 16, true, nullptr, 0.5f) == 3);
 }
 
 TEST_CASE("texture.pipeline: an asset keeps its alpha coverage settings")

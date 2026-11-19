@@ -359,8 +359,8 @@ export namespace pipeline{
         // v4: Normal cooks BC7-linear, and the multichannel-Mask guard.
         // v5: HDR sources cook to BC6H on BC targets.
         // v6: an alpha-tested texture's mipmaps average color weighted by alpha, clear texels
-        // filled from the level above.
-        [[nodiscard]] u32 Version() const override { return 6; }
+        // filled from the level above. v7: its chain stops at 4 texels across.
+        [[nodiscard]] u32 Version() const override { return 7; }
 
         // Textures are the platform-variant producer: BC on desktop, ASTC on mobile-web from the same
         // source. The cook salts this builder's recipe by target and cooks per DB.
@@ -808,14 +808,17 @@ export namespace pipeline{
 
 
     public:
+        /// The smallest level an alpha-tested texture's chain keeps, texels across its short side.
+        static constexpr u32 kAlphaTestedMinMipSize = 4;
+
         /// Appends the full mip chain (levels 1..N, 2x2 box, clamped for odd dims) to
         /// `pixels`, which holds level 0 as tight RGBA8. Color channels of sRGB images
         /// filter in linear space; alpha (and everything in Linear images) averages
         /// directly. With `coverageReference` above 0 (an alpha-tested texture), the color
-        /// averages weighted by alpha instead, each fully clear texel then takes the color of
-        /// the level above it (FillClearTexels), and each level's alpha is scaled to keep level
-        /// 0's coverage of it (PreserveAlphaCoverage). Returns the total level count including
-        /// level 0.
+        /// averages weighted by alpha instead, the chain stops at kAlphaTestedMinMipSize, each
+        /// fully clear texel takes the color of the level above it (FillClearTexels), and each
+        /// level's alpha is scaled to keep level 0's coverage of it (PreserveAlphaCoverage).
+        /// Returns the total level count including level 0.
         [[nodiscard]] static u32 AppendMipChain(Array<byte>& pixels, u32 width, u32 height,
                                                 bool srgb, JobSystem* jobs = nullptr,
                                                 f32 coverageReference = 0.0f)
@@ -833,6 +836,14 @@ export namespace pipeline{
             {
                 const u32 dstW = srcW > 1 ? srcW / 2 : 1;
                 const u32 dstH = srcH > 1 ? srcH / 2 : 1;
+                // An alpha-tested chain stops at 4 texels across. A smaller level cannot hold a
+                // cutoff's coverage: at 1x1 a whole card is one alpha, and every card passes or
+                // every card fails (the forest's trees went bare past 60 m). Sampling past the
+                // last level clamps to it, which keeps the coverage at any distance.
+                if (alphaWeighted && Min(dstW, dstH) < kAlphaTestedMinMipSize)
+                {
+                    break;
+                }
                 const usize dstOffset = pixels.Size();
                 pixels.Resize(dstOffset + static_cast<usize>(dstW) * dstH * 4);
                 const u8* src = reinterpret_cast<const u8*>(pixels.Data() + srcOffset);
