@@ -207,6 +207,120 @@ TEST_CASE("terrain renderer: visible chunks draw (extract -> Resolve -> per-LOD 
     heightCache.Clear(harness.device); // GPU objects back to the device before it dies
 }
 
+namespace
+{
+    // A Null device that notes each terrain pipeline it builds: its label and its sample count.
+    class PipelineRecordingDevice final : public rhi::null::NullDevice
+    {
+    public:
+        struct Built
+        {
+            String label;
+            u32 samples = 1;
+        };
+        Array<Built> built;
+
+        PipelineRecordingDevice() : rhi::null::NullDevice(DefaultAllocator()) {}
+
+        Status CreateRenderPipeline(const rhi::RenderPipelineDesc& desc, rhi::RenderPipeline*& out) override
+        {
+            if (StringView(desc.label).StartsWith(StringView(u8"terrain")))
+            {
+                built.PushBack(Built{String(StringView(desc.label)), desc.multisample.count});
+            }
+            return rhi::null::NullDevice::CreateRenderPipeline(desc, out);
+        }
+    };
+}
+
+// The terrain built every pipeline single-sample, so in a view with scene-pass MSAA its prepass and
+// colour draws went into 4x targets through 1x pipelines (Vulkan: "rasterizationSamples does not
+// match"): Snowline at its High level drew no terrain in the view and a small copy in a corner.
+TEST_CASE("terrain renderer: in a multisampled view its prepass and colour pipelines take the view's samples")
+{
+    PipelineRecordingDevice device;
+    shaders::Compiler* compiler = nullptr;
+    if (!shaders::createCompiler(shaders::CompilerDesc{}, compiler).IsOk())
+    {
+        MESSAGE("DXC unavailable; skipping");
+        return;
+    }
+    rhi::Texture* color = nullptr;
+    rhi::TextureView* colorView = nullptr;
+    rhi::CommandPool* pool = nullptr;
+    rhi::CommandEncoder* encoder = nullptr;
+    REQUIRE(device.CreateTexture(rhi::TextureDesc::RenderTarget(rhi::TextureFormat::BGRA8Unorm, 256, 256), color)
+                .IsOk());
+    rhi::TextureViewDesc cvd{};
+    cvd.format = rhi::TextureFormat::BGRA8Unorm;
+    REQUIRE(device.CreateTextureView(color, cvd, colorView).IsOk());
+    REQUIRE(device.CreateCommandPool(rhi::QueueType::Graphics, pool).IsOk());
+    REQUIRE(pool->CreateEncoder(encoder).IsOk());
+    {
+        shaders::ShaderSystem shaderSystem(*compiler, device);
+        WireEngineShaders(shaderSystem);
+        engine::terrain::TerrainRenderer renderer(device, shaderSystem, /*framesInFlight*/ 2);
+        REQUIRE(renderer.Initialize().IsOk());
+        RendererRegistry registry;
+        registry.Register(&renderer);
+        // The scene pass multisamples only on the HDR path, which resolves before the post stack.
+        TonemapPass tonemap(device, shaderSystem, 2);
+        REQUIRE(tonemap.Initialize().IsOk());
+        MsaaResolvePass msaaResolve(device, shaderSystem);
+        REQUIRE(msaaResolve.Initialize().IsOk());
+        RenderFrame frame(DefaultAllocator(), device, registry, /*framesInFlight*/ 2, /*clusters*/ nullptr, &tonemap);
+        frame.SetMsaaResolve(&msaaResolve);
+
+        RefPtr<hf::Heightfield> h = MakeRampX();
+        Array<tmodel::TerrainChunk> chunks;
+        tmodel::BuildChunks(*h, chunks);
+        tmodel::TerrainQuadtree tree;
+        tree.Build(Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()},
+                   tmodel::ChunksPerSide(h->Size()));
+        engine::terrain::TerrainHeightTextureCache heightCache;
+        rhi::TextureView* heightView = heightCache.GetOrCreate(device, *h, 1);
+        REQUIRE(heightView != nullptr);
+        ExtractedScene scene{DefaultAllocator()};
+        engine::terrain::TerrainRenderData* rd = scene.Add<engine::terrain::TerrainRenderData>();
+        FillTerrainRenderData(*rd, *h, Span<const tmodel::TerrainChunk>{chunks.Data(), chunks.Size()}, tree,
+                              heightView, renderer.RendererId());
+
+        ViewCamera camera;
+        camera.view = Float4x4::LookAtRH(Float3{0.0f, 300.0f, 0.1f}, Float3{0.0f, 0.0f, 0.0f},
+                                         Float3{0.0f, 0.0f, 1.0f});
+        camera.projection = Float4x4::PerspectiveFovRH(1.2f, 1.0f, 1.0f, 2000.0f);
+        ViewSettings settings;
+        settings.post.msaaSamples = 4;
+        frame.Begin(*encoder, 0);
+        frame.AddView(scene, camera, settings, colorView, rhi::TextureFormat::BGRA8Unorm, 256, 256);
+        frame.End();
+
+        CHECK(renderer.MaxChunksDrawn() == 4u);
+        u32 colorPipelines = 0;
+        u32 prepassPipelines = 0;
+        for (const PipelineRecordingDevice::Built& b : device.built)
+        {
+            if (b.label.AsView() == StringView(u8"terrain"))
+            {
+                CHECK(b.samples == 4u);
+                ++colorPipelines;
+            }
+            else if (b.label.AsView() == StringView(u8"terrain.depth"))
+            {
+                CHECK(b.samples == 4u); // no shadow system here: every depth pass is the prepass
+                ++prepassPipelines;
+            }
+        }
+        CHECK(colorPipelines >= 1u);
+        CHECK(prepassPipelines >= 1u);
+        heightCache.Clear(device);
+    }
+    device.DestroyTextureView(colorView);
+    device.DestroyTexture(color);
+    device.DestroyCommandPool(pool);
+    compiler->Destroy();
+}
+
 TEST_CASE("terrain renderer: a frame that outgrows the view ring draws everything from the next frame")
 {
     // The rings were sized from the allocations that fit, so a full ring stayed full and the

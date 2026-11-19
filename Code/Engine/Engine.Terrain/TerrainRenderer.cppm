@@ -586,7 +586,7 @@ export namespace engine::terrain
                 return;
             }
             m_depthFormat = ctx.depthFormat;
-            rhi::RenderPipeline* pso = EnsurePipeline(ctx.colorFormat);
+            rhi::RenderPipeline* pso = EnsurePipeline(ctx.colorFormat, ctx.sampleCount);
             if (pso == nullptr)
             {
                 return;
@@ -723,7 +723,8 @@ export namespace engine::terrain
                 rhi::BindGroup* materialBg = EnsureMaterialBindGroup(*data);
                 // A terrain with holes: the HOLES twin and the mask bind group for its holed chunks.
                 rhi::RenderPipeline* holePso =
-                    data->holeView != nullptr ? EnsurePipeline(ctx.colorFormat, /*holes*/ true) : nullptr;
+                    data->holeView != nullptr ? EnsurePipeline(ctx.colorFormat, ctx.sampleCount, /*holes*/ true)
+                                              : nullptr;
                 rhi::BindGroup* holeBg = data->holeView != nullptr
                                              ? EnsureHeightHoleBindGroup(data->heightView, data->holeView)
                                              : nullptr;
@@ -811,7 +812,8 @@ export namespace engine::terrain
             m_depthFormat = ctx.depthFormat;
             rhi::RenderPipeline* pso =
                 pick ? EnsurePickPipeline(ctx.colorFormat, ctx.depthFormat)
-                     : EnsureDepthPipeline(ctx.depthFormat, /*biased*/ !ctx.depthPrepass, ctx.clampShadowCasters);
+                     : EnsureDepthPipeline(ctx.depthFormat, /*biased*/ !ctx.depthPrepass, ctx.clampShadowCasters,
+                                           DepthSamples(ctx));
             // The depth-pass group binds the dummy shadow view, not the live cascade being written:
             // a cascade-cast pass would otherwise sample its own render attachment (a WebGPU hazard).
             rhi::BindGroup* viewBg = EnsureDepthViewBindGroup();
@@ -894,7 +896,8 @@ export namespace engine::terrain
                 {
                     holePso = pick ? EnsurePickPipeline(ctx.colorFormat, ctx.depthFormat, /*holes*/ true)
                                    : EnsureDepthPipeline(ctx.depthFormat, /*biased*/ !ctx.depthPrepass,
-                                                         ctx.clampShadowCasters, /*holes*/ true);
+                                                         ctx.clampShadowCasters, DepthSamples(ctx),
+                                                         /*holes*/ true);
                     holeBg = EnsureHeightHoleBindGroup(data->heightView, data->holeView);
                 }
                 if (heightBg == nullptr)
@@ -1060,12 +1063,14 @@ export namespace engine::terrain
         {
             rhi::RenderPipeline* pso = nullptr;
             rhi::TextureFormat format = rhi::TextureFormat::Undefined;
+            u32 samples = 1;
             u64 shaderVersion = 0;
         };
         struct ColorPso
         {
             rhi::RenderPipeline* pso = nullptr;
             rhi::TextureFormat format = rhi::TextureFormat::Undefined;
+            u32 samples = 1;
             u64 shaderVersion = 0;
         };
 
@@ -1375,11 +1380,20 @@ export namespace engine::terrain
         }
 
         // `holes` = the HOLES twin for holed chunks (the hole-mask discard; set 2 carries the mask).
-        rhi::RenderPipeline* EnsurePipeline(rhi::TextureFormat colorFormat, bool holes = false)
+        // The depth pass's sample count: the camera prepass is multisampled with the scene pass (its
+        // depth is the forward's), shadow maps never are.
+        [[nodiscard]] static u32 DepthSamples(const render::RenderRecordContext& ctx) noexcept
+        {
+            return ctx.depthPrepass ? Max<u32>(ctx.sampleCount, 1u) : 1u;
+        }
+
+        // `samples` is the scene pass's MSAA count: the pipeline's must equal its targets'.
+        rhi::RenderPipeline* EnsurePipeline(rhi::TextureFormat colorFormat, u32 samples, bool holes = false)
         {
             const u64 shaderVersion = m_shaders->Version(u8"terrain");
             ColorPso& cp = holes ? m_holeColorPso : m_colorPso;
-            if (cp.pso != nullptr && cp.format == colorFormat && cp.shaderVersion == shaderVersion)
+            if (cp.pso != nullptr && cp.format == colorFormat && cp.samples == samples &&
+                cp.shaderVersion == shaderVersion)
             {
                 return cp.pso;
             }
@@ -1437,6 +1451,7 @@ export namespace engine::terrain
             // surface is the front face: cull backs. Verified by the Vulkan pixel probe (a wrong
             // choice culls the top surface and the frame goes black).
             pd.primitive.cullMode = rhi::CullMode::Back;
+            pd.multisample.count = samples;
             pd.label = holes ? u8"terrain.holes" : u8"terrain";
             rhi::RenderPipeline* pso = nullptr;
             if (!m_device->CreateRenderPipeline(pd, pso).IsOk())
@@ -1445,6 +1460,7 @@ export namespace engine::terrain
             }
             cp.pso = pso;
             cp.format = colorFormat;
+            cp.samples = samples;
             cp.shaderVersion = shaderVersion;
             return pso;
         }
@@ -1466,7 +1482,7 @@ export namespace engine::terrain
         // cascade's extra interpolants cost little) with terrain_depth's fragment stage discarding
         // by the hole mask, so the prepass depth and the cascades open with the colour pass.
         rhi::RenderPipeline* EnsureDepthPipeline(rhi::TextureFormat depthFormat, bool biased, bool clamped,
-                                                 bool holes = false)
+                                                 u32 samples, bool holes = false)
         {
             // The HOLES twin always takes the "terrain" VS module: terrain_depth.ps declares
             // terrain.vs's full VSOut (the stage interface is matched by location), and a holed
@@ -1474,7 +1490,8 @@ export namespace engine::terrain
             const StringView shaderName = (biased && !holes) ? u8"terrain_depth" : u8"terrain";
             DepthPso& p = (holes ? m_holeDepthPso : m_depthPso)[!biased ? 0u : clamped ? 1u : 2u];
             const u64 shaderVersion = m_shaders->Version(shaderName);
-            if (p.pso != nullptr && p.format == depthFormat && p.shaderVersion == shaderVersion)
+            if (p.pso != nullptr && p.format == depthFormat && p.samples == samples &&
+                p.shaderVersion == shaderVersion)
             {
                 return p.pso;
             }
@@ -1529,6 +1546,7 @@ export namespace engine::terrain
             pd.depthStencil = ds;
             pd.primitive.topology = rhi::PrimitiveTopology::TriangleList;
             pd.primitive.cullMode = rhi::CullMode::Back;
+            pd.multisample.count = samples;
             pd.label = holes ? u8"terrain.depth.holes" : u8"terrain.depth";
             rhi::RenderPipeline* pso = nullptr;
             if (!m_device->CreateRenderPipeline(pd, pso).IsOk())
@@ -1537,6 +1555,7 @@ export namespace engine::terrain
             }
             p.pso = pso;
             p.format = depthFormat;
+            p.samples = samples;
             p.shaderVersion = shaderVersion;
             return pso;
         }
