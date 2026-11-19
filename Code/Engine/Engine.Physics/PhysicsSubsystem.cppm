@@ -798,7 +798,7 @@ export namespace engine::physics
                     {
                         const bool eff = scene.IsEffectivelyActive(e);
                         if (eff == c.simActive && c.body.IsValid() &&
-                            BuiltSignature(scene, c, e) != c.builtSignature)
+                            (BuiltSignature(c) != c.builtSignature || Rescaled(scene, c, e)))
                         {
                             // Edited while live (an inspector field, a script, a rescale): built
                             // again from what it is now, keeping its motion. A joint holding it lets
@@ -1036,9 +1036,27 @@ export namespace engine::physics
         // One entity's body build (shared by scene start and the activation edge). Reads the
         // entity's current world transform: a body re-created on reactivation starts from where the
         // entity is now, with zero velocity.
-        // What a body is built from: its authored fields, its resources and its entity's scale.
-        [[nodiscard]] static u64 BuiltSignature(scene::Scene& scene, const RigidBodyComponent& c,
-                                                scene::EntityHandle e)
+        // The entity's world scale, the body built at.
+        [[nodiscard]] static Float3 WorldScale(scene::Scene& scene, scene::EntityHandle e)
+        {
+            Float3 position, scale;
+            Quaternion rotation;
+            return Decompose(scene.GetWorldMatrix(e), position, rotation, scale) ? scale : Float3{1, 1, 1};
+        }
+
+        // Whether the entity's scale moved off the one the body was built at. Compared with a
+        // tolerance: a decomposed matrix's scale wavers in its last bits from frame to frame (1.0, then
+        // 0.9999999), and a body rebuilt for that lost its joints, made again at the body's pose then,
+        // so a hinged flag slid down its pole a little each time.
+        [[nodiscard]] static bool Rescaled(scene::Scene& scene, const RigidBodyComponent& c, scene::EntityHandle e)
+        {
+            const Float3 scale = WorldScale(scene, e);
+            const auto moved = [](f32 now, f32 built) { return Abs(now - built) > 1e-4f * Max(Abs(built), 1.0f); };
+            return moved(scale.x, c.builtScale.x) || moved(scale.y, c.builtScale.y) || moved(scale.z, c.builtScale.z);
+        }
+
+        // What a body is built from besides its entity's scale: its authored fields and resources.
+        [[nodiscard]] static u64 BuiltSignature(const RigidBodyComponent& c)
         {
             u64 h = 1469598103934665603ull;
             const auto mix = [&h](const void* data, usize size)
@@ -1067,15 +1085,6 @@ export namespace engine::physics
             value(c.collisionGroup);
             const void* resources[] = {c.collisionShape.Get(), c.heightfield.Get(), c.material.Get()};
             mix(resources, sizeof(resources));
-            Float3 position, scale;
-            Quaternion rotation;
-            if (Decompose(scene.GetWorldMatrix(e), position, rotation, scale))
-            {
-                // Rounded, so the drift of a decomposed matrix does not read as a new scale.
-                const i32 rounded[] = {static_cast<i32>(scale.x * 1000.0f), static_cast<i32>(scale.y * 1000.0f),
-                                       static_cast<i32>(scale.z * 1000.0f)};
-                mix(rounded, sizeof(rounded));
-            }
             return h;
         }
 
@@ -1098,7 +1107,8 @@ export namespace engine::physics
                     c.effectiveMotion = m_world->MotionOf(c.body); // static for a moving body over a static-only shape
                     c.prevPosition = c.currPosition = c.writtenPosition = position;
                     c.prevRotation = c.currRotation = c.writtenRotation = rotation;
-                    c.builtSignature = BuiltSignature(scene, c, e);
+                    c.builtSignature = BuiltSignature(c);
+                    c.builtScale = WorldScale(scene, e);
                     // Flush an impulse queued before the body existed (spawn, then launch, such as
                     // a thrown paper): applyImpulse accumulated it on the component; apply it once
                     // now.

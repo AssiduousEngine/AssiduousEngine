@@ -865,6 +865,52 @@ TEST_CASE("physics.scene: a motorized hinge joint spins a door to the world")
     CHECK((rotation.w > 0 ? rotation.w : -rotation.w) < 0.99f);
 }
 
+// Snowline's slalom flags: a panel on an upright hinge to the world, a child of its gate, turned to
+// face back up the course, its gate pushing it back to rest every frame. Run as frames run (a step,
+// the interpolated pose written, transforms updated), the scale decomposed from its world matrix
+// wavered between 1.0 and 0.9999999, which read as a rescale: its body was rebuilt and its hinge
+// made again at the sagged pose, and the flags slid down their poles and through the ground.
+TEST_CASE("physics.scene: a flag hinged to the world holds its height as frames run")
+{
+    PlayScene play;
+    play.scene.AddSystem<JointComponentManager>();
+    scene::EntityHandle gate = play.scene.CreateEntity(u8"gate");
+    play.scene.SetLocalPosition(gate, Float3{10.0f, 3.0f, -4.0f});
+    scene::EntityHandle flag = play.scene.CreateEntity(u8"flag");
+    play.scene.SetParent(flag, gate);
+    // Half a turn about up.
+    play.scene.SetLocalTransform(flag, Transform{Float3{-4.33f, 1.55f, 0.0f}, Quaternion{0.0f, 1.0f, 0.0f, 0.0f},
+                                                 Float3{1.0f, 1.0f, 1.0f}});
+    {
+        RigidBodyComponent& body = play.scene.GetSystem<RigidBodyComponentManager>()->Add(flag);
+        body.halfExtents = Float3{0.275f, 0.225f, 0.01f};
+        body.mass = 0.3f;
+        body.linearDamping = 0.6f;
+        body.angularDamping = 3.0f;
+        JointComponent& joint = play.scene.GetSystem<JointComponentManager>()->Add(flag);
+        joint.kind = JointKind::Hinge; // no ancestor body: the world
+        joint.localAnchor = Float3{-0.3f, 0.0f, 0.0f};
+        joint.localAxis = Float3{0.0f, 1.0f, 0.0f};
+        joint.limitMin = -1.3f;
+        joint.limitMax = 1.3f;
+    }
+    play.Start();
+    const f32 startY = play.scene.GetWorldPosition(flag).y;
+    RigidBodyComponent* flagBody = play.scene.GetSystem<RigidBodyComponentManager>()->Get(flag);
+    for (int frame = 0; frame < 600; ++frame)
+    {
+        // The gate's spring back to rest: a small push across the panel every frame.
+        play.physics->World()->AddImpulse(flagBody->body,
+                                          Float3{0.0f, 0.0f, (frame % 2 == 0) ? 0.002f : -0.002f});
+        play.Step();
+        play.physics->ApplyInterpolation(0.5f);
+        play.scene.UpdateTransforms();
+    }
+    play.physics->ApplyInterpolation(1.0f);
+    play.scene.UpdateTransforms();
+    CHECK(play.scene.GetWorldPosition(flag).y == doctest::Approx(startY).epsilon(0.01));
+}
+
 // A setup trap: enabling the motor without a target velocity holds the hinge at 0 rad/s (a motor
 // actively holding still), which reads as "the joint does nothing". A spinning hinge needs
 // kind=Hinge, motorEnabled=true and motorTargetVelocity > 0.

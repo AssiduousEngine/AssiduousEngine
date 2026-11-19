@@ -90,9 +90,10 @@ export namespace engine::physics
         // written by someone else (a script, the editor), and the body is moved there.
         Float3 writtenPosition{0, 0, 0};
         Quaternion writtenRotation = Quaternion::Identity;
-        // What the body was built from (the authored fields and the entity's scale): a change
-        // rebuilds it.
+        // What the body was built from: its authored fields and resources, and its entity's scale. A
+        // change rebuilds it.
         u64 builtSignature = 0;
+        Float3 builtScale{1, 1, 1};
     };
 
     // An extra shape on a descendant entity, folded into the ancestor body's compound at
