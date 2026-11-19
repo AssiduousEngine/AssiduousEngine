@@ -2047,6 +2047,14 @@ TEST_CASE("angelscript: a call past its time budget is stopped, and the context 
     CHECK(errors.Any(u8"budget"));
     CHECK(probe->Invoke(u8"fine", Span<Variant>{}).Value().Get<f64>() == 7.0); // the context goes on
 
+    // Again, on a pooled context that keeps the budget's line callback from the calls before (it
+    // is set once per context, not per call): still stopped.
+    const Stopwatch again = Stopwatch::StartNew();
+    CHECK_FALSE(probe->Invoke(u8"forever", Span<Variant>{}).HasValue());
+    CHECK(again.Elapsed().AsSeconds() >= 0.5);
+    CHECK(again.Elapsed().AsSeconds() < 2.0);
+    CHECK(probe->Invoke(u8"fine", Span<Variant>{}).Value().Get<f64>() == 7.0);
+
     // Recursion that never ends fails its call at the stack limit instead of taking memory. The time
     // budget is raised first: a sanitizer build is slow enough to reach it before the limit.
     budget.callSeconds = 60.0;

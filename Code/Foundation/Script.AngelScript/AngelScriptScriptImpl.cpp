@@ -872,6 +872,9 @@ namespace foundation::script::angelscript
         // The context pool behind RequestContext and ReturnContext. A returned context is kept only
         // when it unprepares (it is not still running, as a nested call's caller is), cleared of
         // its line callback and any budget stop, and while the pool is under its cap.
+        // A pooled context carries the budget's line callback from when it is made, and keeps it:
+        // setting one costs every call (AngelScript works out its calling convention each time).
+        // Only the debugger replaces it (TrackDebuggerLineCallback), and the pool puts it back.
         static asIScriptContext* RequestPooledContext(asIScriptEngine* engine, void* param)
         {
             auto* self = static_cast<AngelScriptManager*>(param);
@@ -881,7 +884,12 @@ namespace foundation::script::angelscript
                 self->m_contextPool.PopBack();
                 return ctx;
             }
-            return engine->CreateContext();
+            asIScriptContext* ctx = engine->CreateContext();
+            if (ctx != nullptr)
+            {
+                self->ArmBudget(ctx);
+            }
+            return ctx;
         }
         static void ReturnPooledContext(asIScriptEngine*, asIScriptContext* ctx, void* param)
         {
@@ -894,7 +902,16 @@ namespace foundation::script::angelscript
             {
                 self->m_budgetStopped = nullptr;
             }
-            ctx->ClearLineCallback();
+            // Back to the budget's callback where the debugger put its own.
+            for (core::usize i = 0; i < self->m_debuggerLineCallback.Size(); ++i)
+            {
+                if (self->m_debuggerLineCallback[i] == ctx)
+                {
+                    self->m_debuggerLineCallback.RemoveAt(i);
+                    self->ArmBudget(ctx);
+                    break;
+                }
+            }
             if (self->m_contextPool.Size() >= kMaxPooledContexts || ctx->Unprepare() < 0)
             {
                 ctx->Release();
@@ -904,9 +921,34 @@ namespace foundation::script::angelscript
         }
 
         // Puts the budget's line callback on `ctx` (a debugger's, armed instead, checks it too).
+        // A pooled context has it already (RequestPooledContext); a coroutine's is set per run.
         void ArmBudget(asIScriptContext* ctx)
         {
             (void)ctx->SetLineCallback(asFUNCTION(BudgetLineCallback), this, asCALL_CDECL);
+        }
+        // `ctx` carries the debugger's line callback instead of the budget's: a pooled one
+        // gets the budget's back when it returns to the pool.
+        void TrackDebuggerLineCallback(asIScriptContext* ctx)
+        {
+            for (asIScriptContext* tracked : m_debuggerLineCallback)
+            {
+                if (tracked == ctx)
+                {
+                    return;
+                }
+            }
+            m_debuggerLineCallback.PushBack(ctx);
+        }
+        void UntrackDebuggerLineCallback(asIScriptContext* ctx)
+        {
+            for (core::usize i = 0; i < m_debuggerLineCallback.Size(); ++i)
+            {
+                if (m_debuggerLineCallback[i] == ctx)
+                {
+                    m_debuggerLineCallback.RemoveAt(i);
+                    return;
+                }
+            }
         }
         // Aborts `ctx` when the running call has used its seconds; true then. The clock is read
         // every kLinesPerCheck lines: one read a script line would cost more than the lines.
@@ -1331,13 +1373,11 @@ namespace foundation::script::angelscript
                 core::ConsoleWriteError(TooManyParametersMessage(func).AsView());
                 return core::Err(core::ErrorCode::InvalidArgument);
             }
-            ArmBudget(executor);
-            int result;
+            int result; // a pooled context carries the budget's line callback (RequestPooledContext)
             {
                 const ExecuteClock clock(*this);
                 result = executor->Execute();
             }
-            executor->ClearLineCallback();
             if (result == asEXECUTION_ABORTED && TakeBudgetStop(executor))
             {
                 core::ConsoleWriteError(BudgetStopMessage().AsView());
@@ -2553,6 +2593,7 @@ namespace foundation::script::angelscript
             if (m_debugger != nullptr)
             {
                 ArmDebugger(*m_debugger, ctx, home);
+                UntrackDebuggerLineCallback(ctx); // not pooled: armed afresh on every run
             }
             else
             {
@@ -2656,6 +2697,7 @@ namespace foundation::script::angelscript
         core::u32 m_executeDepth = 0;     // nested Executes (ExecuteClock)
         core::u64 m_executeStartTicks = 0; // when the outermost's clock started (0: not yet)
         core::u32 m_linesSinceCheck = 0;
+        core::Array<asIScriptContext*> m_debuggerLineCallback; // pooled contexts the debugger armed
 
         struct RegisteredType
         {
@@ -4763,10 +4805,7 @@ namespace foundation::script::angelscript
             {
                 ArmDebugger(*debugger, executor, this); // its line callback checks the budget too
             }
-            else
-            {
-                m_manager->ArmBudget(executor);
-            }
+            // Else the budget's line callback, which a pooled context carries (RequestPooledContext).
 
             int result;
             {
@@ -4806,8 +4845,7 @@ namespace foundation::script::angelscript
             {
                 ReportBudgetStop();
             }
-            // Never return a context to the pool carrying a stale line callback.
-            executor->ClearLineCallback();
+            // The pool puts the budget's line callback back where the debugger's replaced it.
             engine->ReturnContext(executor);
             return outcome;
         }
@@ -4977,8 +5015,7 @@ namespace foundation::script::angelscript
             {
                 return asERROR;
             }
-            m_manager->ArmBudget(ctx);
-            int result;
+            int result; // a pooled context carries the budget's line callback (RequestPooledContext)
             {
                 ScriptCallScope scope(this);
                 const AngelScriptManager::ExecuteClock clock(*m_manager);
@@ -4988,7 +5025,6 @@ namespace foundation::script::angelscript
             {
                 ReportBudgetStop();
             }
-            ctx->ClearLineCallback();
             engine->ReturnContext(ctx);
             return result;
         }
@@ -5530,6 +5566,10 @@ namespace foundation::script::angelscript
         {
             m_owner = owner;
             (void)ctx->SetLineCallback(asFUNCTION(DebuggerLineCallback), this, asCALL_CDECL);
+            if (m_manager != nullptr)
+            {
+                m_manager->TrackDebuggerLineCallback(ctx); // a pooled one gets the budget's back on return
+            }
         }
 
         // Lets go of `ctx` if it is the held one (its coroutine was cancelled under the debugger).
@@ -5890,14 +5930,12 @@ namespace foundation::script::angelscript
             ReportCallError(m_manager->TooManyParametersMessage(factory));
             return nullptr;
         }
-        m_manager->ArmBudget(executor); // a constructor can loop as well as a method
-        int result;
+        int result; // a constructor can loop as well as a method: the pooled context's budget covers it
         {
             ScriptCallScope scope(this);
             const AngelScriptManager::ExecuteClock clock(*m_manager);
             result = executor->Execute();
         }
-        executor->ClearLineCallback();
         temps.ReleaseBoxes();
         asIScriptObject* instance = nullptr;
         if (result == asEXECUTION_FINISHED)
