@@ -1000,9 +1000,11 @@ export namespace foundation::resource
         }
 
         // Releases what nothing outside the manager holds (its handle and its product held by the
-        // manager alone) once it has gone unused for m_unusedFrames collections. Its product is
-        // parked for the frames in flight; releasing a product drops its own proxies, so its
-        // children go in later collections.
+        // manager alone, and no loaded resource depending on it) once it has gone unused for
+        // m_unusedFrames collections. Its product is parked for the frames in flight; releasing a
+        // product drops its own proxies and its dependency edges, so its children go in later
+        // collections. A dependency holds: a parent may keep only a pointer to what it bound while
+        // it was built (an animation graph its clips), trusting the edge to keep it alive.
         void ReleaseUnused()
         {
             if (m_unusedFrames == 0)
@@ -1012,9 +1014,10 @@ export namespace foundation::resource
             Array<Guid> release;
             for (auto& [id, handle] : m_handles)
             {
+                const Array<Guid>* dependents = m_dependents.Find(id);
                 const bool held = handle->RefCount() > 1 || handle->State() == ResourceState::Pending ||
                                   (handle->Get() != nullptr && handle->Get()->RefCount() > 1) ||
-                                  m_pending.Find(id) != nullptr;
+                                  m_pending.Find(id) != nullptr || (dependents != nullptr && !dependents->IsEmpty());
                 if (held)
                 {
                     (void)m_unused.Remove(id);

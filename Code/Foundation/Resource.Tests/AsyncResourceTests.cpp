@@ -1050,3 +1050,57 @@ TEST_CASE("resource: what nothing holds is released after its unused collections
     CHECK(manager.LoadedCount() == 2u);
     CleanDir(u8"scratch_unused_db");
 }
+
+// A parent may keep only a pointer to a child it bound while it was built, and drop the proxy (an
+// animation graph keeps its clips so), trusting the dependency edge to keep the child alive. The
+// collection released such a child as unheld while its parent was held, and the graph sampled a
+// freed clip. A child stays while what depends on it is loaded; once the parent goes, it follows.
+TEST_CASE("resource: a child a held parent depends on is never released; after the parent goes, it follows")
+{
+    RegisterAsyncTypes();
+    GlobalTypeRegistry().Register(ParentProduct::StaticType());
+    CleanDir(u8"scratch_unused_deps_db");
+    NativeFileSystem mount(u8"scratch_unused_deps_db", DefaultAllocator());
+    foundation::content::ContentDatabase db(foundation::core::DefaultAllocator(), mount,
+                                            foundation::core::BinarySerializerFactory(), u8".rasset");
+    AsyncFactory factory;
+    factory.supportsAsync = false;
+    ResourceManager manager(DefaultAllocator(), db, nullptr);
+    manager.AddFactory(&factory);
+    ParentFactory parentFactory;
+    parentFactory.childId = MakeInstance(db, factory, u8"child", 7, 0);
+    manager.AddFactory(&parentFactory);
+    auto* parentInst = db.RootGroup()->CreateInstance(u8"parent", ParentProduct::StaticType());
+    manager.SetUnusedFrames(3);
+
+    {
+        Proxy<ParentProduct> parent = manager.Bind<ParentProduct>(parentInst->Id());
+        REQUIRE(parent);
+        CHECK(parent->childValue == 7); // built while its child was bound, then the proxy dropped
+        REQUIRE(manager.LoadedCount() == 2u);
+        const int created = factory.createCalls.load();
+        for (int i = 0; i < 10; ++i)
+        {
+            manager.CollectGarbage();
+        }
+        CHECK(manager.LoadedCount() == 2u); // the child stays: its parent is held and depends on it
+        Proxy<AsyncProduct> child = manager.Bind<AsyncProduct>(parentFactory.childId);
+        REQUIRE(child);
+        CHECK(child->value == 7);
+        CHECK(factory.createCalls.load() == created); // the same product, never rebuilt
+    }
+
+    // The parent dropped: it goes after its unused collections, and the child after its own.
+    for (int i = 0; i < 3; ++i)
+    {
+        manager.CollectGarbage();
+    }
+    CHECK(manager.LoadedCount() == 1u);
+    for (int i = 0; i < 3; ++i)
+    {
+        manager.CollectGarbage();
+    }
+    CHECK(manager.LoadedCount() == 0u);
+    CleanDir(u8"scratch_unused_deps_db");
+}
+

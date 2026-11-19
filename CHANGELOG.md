@@ -112,6 +112,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Playing a game whose characters animate through a blend tree no longer crashes about ten seconds
+  after its assets load. Unused resources were released even while an animation graph still used
+  its clips.
 - Editor: opening a project with code no longer adds a failing `engine.d` script. The Luau
   declarations the editor writes into `Code/` for an outside editor were taken for a script.
 - Editor: dragging entities in the scene hierarchy moves them again: onto a row puts them under it,
