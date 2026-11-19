@@ -1,0 +1,13 @@
+<root>
+	<string name="guid">7a5a6ba2-0731-4f86-8509-687c377851a0</string>
+	<string name="typeNamespace">rtti::scene</string>
+	<string name="typeName">PrefabDocument</string>
+	<string name="source"/>
+	<array name="dataVersions" count="1">
+		<u64 name="type">3442582207943668603</u64>
+		<u32 name="version">0</u32>
+	</array>
+	<object name="payload">
+		<string name="name">WaterTank_Floor</string>
+	</object>
+</root>

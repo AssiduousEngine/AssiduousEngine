@@ -1,0 +1,15 @@
+<root>
+	<string name="guid">2a5288ff-8a4b-4bb1-8b2e-44a314b59b4a</string>
+	<string name="typeNamespace">rtti::pipeline::script</string>
+	<string name="typeName">ScriptClassAsset</string>
+	<string name="source">Code/Scripts/Game.cs</string>
+	<array name="dataVersions" count="1">
+		<u64 name="type">1265517353284495090</u64>
+		<u32 name="version">1</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName">Code/Scripts/Game.cs</string>
+		<string name="language">csharp</string>
+		<string name="className">Game</string>
+	</object>
+</root>

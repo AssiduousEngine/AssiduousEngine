@@ -1,0 +1,13 @@
+<root>
+	<string name="guid">2f377ba9-ba65-48b4-87e6-4fba2e1cea35</string>
+	<string name="typeNamespace">rtti::pipeline::gui</string>
+	<string name="typeName">GuiDocumentAsset</string>
+	<string name="source">UI/Hud.xml</string>
+	<array name="dataVersions" count="1">
+		<u64 name="type">4454064819806775415</u64>
+		<u32 name="version">0</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName">UI/Hud.xml</string>
+	</object>
+</root>

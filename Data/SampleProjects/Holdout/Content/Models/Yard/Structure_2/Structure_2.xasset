@@ -1,0 +1,92 @@
+<root>
+	<string name="guid">56fb87b5-b6e0-4e8d-96b3-46f915bfd7e2</string>
+	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
+	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Yard/Structure_2/Structure_2.gltf</string>
+	<array name="dataVersions" count="1">
+		<u64 name="type">2440385714661564817</u64>
+		<u32 name="version">3</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName">Models/Yard/Structure_2/Structure_2.gltf</string>
+		<array name="meshGuids" count="1">
+			<string>1e8bfabe-ec66-4f3b-8086-772cb56d62ac</string>
+		</array>
+		<array name="meshSkinned" count="1">
+			<u8>0</u8>
+		</array>
+		<array name="meshMaterial" count="1">
+			<i32>0</i32>
+		</array>
+		<array name="meshMaterialSlots" count="1">
+			<object>
+				<array name="slots" count="8">
+					<i32>0</i32>
+					<i32>1</i32>
+					<i32>2</i32>
+					<i32>3</i32>
+					<i32>4</i32>
+					<i32>5</i32>
+					<i32>6</i32>
+					<i32>7</i32>
+				</array>
+			</object>
+		</array>
+		<array name="collisionGuids" count="0"/>
+		<array name="materialGuids" count="8">
+			<string>c41f0f00-1485-418c-8506-2f8589238d00</string>
+			<string>b93c0b3a-9bcd-4025-99fd-daf0e944ffa4</string>
+			<string>453fc865-77a2-402a-8dec-d52ac016d112</string>
+			<string>cdd56ce2-de26-4f1f-944d-340a0d4687ad</string>
+			<string>1c0bc4d5-56ac-4856-87d3-0c7d06c3ec49</string>
+			<string>be28580c-76dd-470c-960c-ab2d0fd4d966</string>
+			<string>35300bac-9baa-49d4-98d9-aaeb4c5fcc03</string>
+			<string>4acfaae7-82a6-4fd8-bd5e-8f5dbb48b9e1</string>
+		</array>
+		<array name="materialAlbedo" count="8">
+			<string>00000000-0000-0000-0000-000000000000</string>
+			<string>00000000-0000-0000-0000-000000000000</string>
+			<string>00000000-0000-0000-0000-000000000000</string>
+			<string>00000000-0000-0000-0000-000000000000</string>
+			<string>00000000-0000-0000-0000-000000000000</string>
+			<string>00000000-0000-0000-0000-000000000000</string>
+			<string>00000000-0000-0000-0000-000000000000</string>
+			<string>00000000-0000-0000-0000-000000000000</string>
+		</array>
+		<array name="nodes" count="1">
+			<string name="name">Structure_2</string>
+			<i32 name="parent">-1</i32>
+			<object name="t">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+			</object>
+			<object name="r">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">1</f32>
+			</object>
+			<object name="s">
+				<f32 name="x">0.586</f32>
+				<f32 name="y">0.586</f32>
+				<f32 name="z">0.586</f32>
+			</object>
+			<i32 name="mesh">0</i32>
+		</array>
+		<string name="skeletonGuid">00000000-0000-0000-0000-000000000000</string>
+		<i32 name="skeletonParentNode">-2</i32>
+		<array name="animationGuids" count="0"/>
+		<object name="boundsMin">
+			<f32 name="x">-6.820751</f32>
+			<f32 name="y">-0.2693733</f32>
+			<f32 name="z">-3.4801664</f32>
+		</object>
+		<object name="boundsMax">
+			<f32 name="x">11.240966</f32>
+			<f32 name="y">13.020827</f32>
+			<f32 name="z">10.124386</f32>
+		</object>
+		<array name="entries" count="0"/>
+	</object>
+</root>

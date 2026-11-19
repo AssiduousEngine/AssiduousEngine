@@ -1,0 +1,10 @@
+Toon Shooter Game Kit (December 2022 release), by Quaternius
+https://quaternius.com/packs/toonshootergamekit.html
+
+Licensed CC0 1.0 Universal (public domain dedication): https://creativecommons.org/publicdomain/zero/1.0/
+The pack ships no licence file; its page states the CC0 licence ("free to use in personal and
+commercial projects"). Downloaded 2026-11-17.
+
+Used unchanged: the characters (Character_Enemy, Character_Hazmat, Character_Soldier), the
+weapons (Pistol, SMG, Shotgun) and the yard's pieces, imported from the pack's glTF files
+(Sources/*.gltf).

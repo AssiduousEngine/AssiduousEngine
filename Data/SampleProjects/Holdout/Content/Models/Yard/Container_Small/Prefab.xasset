@@ -1,0 +1,13 @@
+<root>
+	<string name="guid">ac96acf7-4264-44f0-a616-111fca07c596</string>
+	<string name="typeNamespace">rtti::scene</string>
+	<string name="typeName">PrefabDocument</string>
+	<string name="source"/>
+	<array name="dataVersions" count="1">
+		<u64 name="type">3442582207943668603</u64>
+		<u32 name="version">0</u32>
+	</array>
+	<object name="payload">
+		<string name="name">Container_Small</string>
+	</object>
+</root>

@@ -1,0 +1,13 @@
+<root>
+	<string name="guid">5dcc919d-2b8a-4bc0-9453-ee75a9a4129e</string>
+	<string name="typeNamespace">rtti::pipeline::geometry</string>
+	<string name="typeName">StaticMeshAsset</string>
+	<string name="source"/>
+	<array name="dataVersions" count="1">
+		<u64 name="type">2902198860942581667</u64>
+		<u32 name="version">5</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName"/>
+	</object>
+</root>

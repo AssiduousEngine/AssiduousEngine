@@ -1,0 +1,78 @@
+<root>
+	<u32 name="magic">3586350318</u32>
+	<u32 name="version">3</u32>
+	<string name="name">WaterTank_Floor</string>
+	<array name="entities" count="2">
+		<string name="id">bf9d4538-56bd-446b-9f62-79f253136538</string>
+		<string name="name">WaterTank_Floor</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">1</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">1</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">1</f32>
+		</object>
+		<string name="id">1df010c0-6b33-4c87-8428-52352c5c221d</string>
+		<string name="name">WaterTank_Floor</string>
+		<u8 name="active">1</u8>
+		<string name="parent">bf9d4538-56bd-446b-9f62-79f253136538</string>
+		<object name="position">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0.50000006</f32>
+			<f32 name="y">-0.5</f32>
+			<f32 name="z">-0.5</f32>
+			<f32 name="w">0.5000001</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">0.8800933</f32>
+			<f32 name="y">0.8800933</f32>
+			<f32 name="z">0.8800933</f32>
+		</object>
+	</array>
+	<array name="components" count="1">
+		<object>
+			<string name="owner">1df010c0-6b33-4c87-8428-52352c5c221d</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">35860879-14f0-4f22-a579-861c59c88aae</string>
+				<array name="materials" count="3">
+					<string>0eec94ba-b520-4009-beac-e0e49cb67df4</string>
+					<string>4653df95-ccf2-49cb-905d-ba14b8dcc932</string>
+					<string>f0b314e8-0fe9-4275-b99d-a06df70deb2f</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+	</array>
+	<array name="systemSettings" count="0"/>
+	<u8 name="prefabMode">4</u8>
+	<array name="prefabInstances" count="0"/>
+</root>

@@ -1,0 +1,61 @@
+/* Holdout's look over the engine GUI's theme: the yard's hazard yellow on soot black, the barriers'
+   diagonal stripes, chunky edges and Russo One (the project's UI font) in white with a dark outline,
+   so every word reads over the bright sky and the dark concrete alike.
+
+   Sizes are in vh (a hundredth of the screen's height), designed at 1080 lines (1vh is 10.8 pixels
+   there), so the HUD and the menus keep their share of the screen at any resolution while the yard
+   renders at the screen's own. */
+
+/* ---- the HUD: fills the screen and passes every pointer through ---- */
+.hud { flex-grow: 1; flex-direction: column; pointer-events: none; }
+.hud-middle { flex-grow: 1; align-items: center; justify-content: center; }
+.hud-top { flex-direction: row; justify-content: space-between; align-items: start; padding: 2.2vh 2.6vh; }
+.hud-foot { flex-direction: row; justify-content: space-between; align-items: end; padding: 2.2vh 2.6vh; }
+
+/* A HUD card: soot black, a hazard-yellow edge on its left, a caption over a big number. */
+.hud-card { flex-direction: column; align-items: start; min-width: 13vh; padding: 0.9vh 1.8vh 1.1vh 1.6vh;
+            background-color: rgba(18, 16, 14, 0.78); border-left: 0.7vh solid #F2B233; border-radius: 0.6vh;
+            box-shadow: 0 0.4vh 1.2vh rgba(0, 0, 0, 0.45); }
+.hud-caption { font-size: 2.2vh; letter-spacing: 0.15vh; color: #F2B233; text-outline: 0.18vh #120F0C; }
+.hud-number { font-size: 5.6vh; color: #FFFFFF; text-outline: 0.3vh #120F0C; }
+.hud-note { font-size: 6vh; color: #FFFFFF; margin-top: 4vh; text-outline: 0.4vh #120F0C;
+            text-shadow: 0 0.4vh 1vh rgba(0, 0, 0, 0.6); }
+
+/* The crosshair: four short bars round a gap and a dot in the middle, white with a dark rim. */
+.crosshair { width: 4.6vh; height: 4.6vh; align-items: center; justify-content: center; }
+.crosshair-dot { width: 0.5vh; height: 0.5vh; border-radius: 0.25vh; background-color: #FFFFFF;
+                 border: 1px solid rgba(0, 0, 0, 0.8); }
+.cross-bar { position: absolute; background-color: #FFFFFF; border: 1px solid rgba(0, 0, 0, 0.8); border-radius: 1px; }
+.cross-up { left: 2.05vh; top: 0.3vh; width: 0.5vh; height: 1.3vh; }
+.cross-down { left: 2.05vh; top: 3vh; width: 0.5vh; height: 1.3vh; }
+.cross-left { left: 0.3vh; top: 2.05vh; width: 1.3vh; height: 0.5vh; }
+.cross-right { left: 3vh; top: 2.05vh; width: 1.3vh; height: 0.5vh; }
+
+/* The hit marker: a red ring round the crosshair for a moment when a shot lands (Game.cs fades it). */
+.hit-marker { position: absolute; width: 3.6vh; height: 3.6vh; border-radius: 1.8vh;
+              border: 0.3vh solid #FF5A3C; opacity: 0; }
+
+/* Hurt: the screen's edges flash red (Game.cs fades it). */
+.hurt { position: absolute; left: 0; top: 0; right: 0; bottom: 0; border: 5vh solid rgba(200, 20, 10, 0.8); opacity: 0; }
+
+/* ---- the menus: a card in the middle over the held yard ---- */
+.menu-screen { background-color: rgba(10, 8, 6, 0.5); }
+.centre { flex-grow: 1; align-items: center; justify-content: center; }
+.card { flex-direction: column; align-items: center; min-width: 52vh; padding: 0 0 3.6vh 0; border-radius: 1vh;
+        background-color: rgba(20, 17, 14, 0.94); border: 0.5vh solid #F2B233;
+        box-shadow: 0 1vh 3vh rgba(0, 0, 0, 0.6); }
+/* The barriers' stripes along the card's top (a gradient's stops take percentages of its length). */
+.stripes { align-self: stretch; height: 2.2vh; margin-bottom: 2.6vh; border-radius: 0.5vh 0.5vh 0 0;
+           background-image: repeating-linear-gradient(45deg, #F2B233 0%, #F2B233 4%, #18140F 4%, #18140F 8%); }
+.title-name { font-size: 10vh; color: #F2B233; text-outline: 0.5vh #120F0C; text-shadow: 0 0.6vh 0 #000000; }
+.title-lead { font-size: 2.8vh; color: #FFFFFF; margin-top: 0.4vh; text-outline: 0.2vh #120F0C; }
+.title-best { font-size: 2.4vh; color: #F2B233; margin-top: 1vh; }
+.end-score { font-size: 8vh; color: #FFFFFF; margin-top: 1vh; text-outline: 0.4vh #120F0C; }
+.menu { flex-direction: column; align-items: stretch; row-gap: 1.4vh; margin-top: 3.2vh; width: 36vh; }
+
+/* The buttons: hazard yellow with soot-black words, brighter when hovered or focused, darker pressed. */
+button.menu-button { height: 6.6vh; font-size: 3.4vh; color: #18140F; background-color: #F2B233;
+                     border: 0.4vh solid #18140F; border-radius: 0.8vh; }
+button.menu-button:hover { background-color: #FFC94D; }
+button.menu-button:focus-visible { background-color: #FFC94D; box-shadow: 0 0 0 0.45vh #FFFFFF; }
+button.menu-button:active { background-color: #C98F22; }

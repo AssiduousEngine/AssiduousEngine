@@ -1,0 +1,80 @@
+<root>
+	<u32 name="magic">3586350318</u32>
+	<u32 name="version">3</u32>
+	<string name="name">TrashContainer_Open</string>
+	<array name="entities" count="2">
+		<string name="id">a5bee7f8-6805-41c5-9403-d40ac6180778</string>
+		<string name="name">TrashContainer_Open</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">1</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">1</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">1</f32>
+		</object>
+		<string name="id">83e9356d-7017-40b5-b5df-63bbc926e5ca</string>
+		<string name="name">TrashContainer_Open</string>
+		<u8 name="active">1</u8>
+		<string name="parent">a5bee7f8-6805-41c5-9403-d40ac6180778</string>
+		<object name="position">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">1</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">0.586</f32>
+			<f32 name="y">0.586</f32>
+			<f32 name="z">0.586</f32>
+		</object>
+	</array>
+	<array name="components" count="1">
+		<object>
+			<string name="owner">83e9356d-7017-40b5-b5df-63bbc926e5ca</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">d1087b0d-7e9b-4c26-8ba4-40c99ee85f31</string>
+				<array name="materials" count="5">
+					<string>e2dfef5f-6323-4d7b-a7b4-a4e39b621601</string>
+					<string>d17575c2-c3d9-4686-a239-23f1053cdb3b</string>
+					<string>0687a815-757c-46e4-962c-54b93a245b3a</string>
+					<string>aaa8d905-ac98-48a5-a2d1-349f47f7c5d3</string>
+					<string>8f5439f9-812b-41e0-acc4-560eba56f3d3</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+	</array>
+	<array name="systemSettings" count="0"/>
+	<u8 name="prefabMode">4</u8>
+	<array name="prefabInstances" count="0"/>
+</root>

@@ -1,0 +1,161 @@
+<root>
+	<u32 name="magic">3586350318</u32>
+	<u32 name="version">3</u32>
+	<string name="name">Hazmat</string>
+	<array name="entities" count="2">
+		<string name="id">3ef88ec1-0b91-522e-a0bd-2b20ec357d9b</string>
+		<string name="name">Hazmat</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">1</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">1</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">1</f32>
+		</object>
+		<string name="id">9907f5a1-cf0b-5b56-b3b4-90052c204774</string>
+		<string name="name">Body</string>
+		<u8 name="active">1</u8>
+		<string name="parent">3ef88ec1-0b91-522e-a0bd-2b20ec357d9b</string>
+		<object name="position">
+			<f32 name="x">0</f32>
+			<f32 name="y">1.035</f32>
+			<f32 name="z">0</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">1</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">1</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">1</f32>
+		</object>
+	</array>
+	<array name="components" count="3">
+		<object>
+			<string name="owner">9907f5a1-cf0b-5b56-b3b4-90052c204774</string>
+			<string name="type">physics.RigidBody</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17846367354606235997</u64>
+					<u32 name="version">3</u32>
+				</array>
+				<u8 name="motion">1</u8>
+				<u8 name="layer">2</u8>
+				<u8 name="shape">2</u8>
+				<object name="halfExtents">
+					<f32 name="x">0.5</f32>
+					<f32 name="y">0.5</f32>
+					<f32 name="z">0.5</f32>
+				</object>
+				<f32 name="radius">0.4025</f32>
+				<f32 name="halfHeight">0.6325</f32>
+				<f32 name="planeHalfExtent">1000</f32>
+				<f32 name="friction">0.5</f32>
+				<f32 name="restitution">0</f32>
+				<f32 name="linearDamping">0.05</f32>
+				<f32 name="angularDamping">0.05</f32>
+				<bool name="isTrigger">false</bool>
+				<u8 name="collisionGroup">0</u8>
+				<string name="collisionShape">00000000-0000-0000-0000-000000000000</string>
+				<string name="material">00000000-0000-0000-0000-000000000000</string>
+				<string name="heightfield">00000000-0000-0000-0000-000000000000</string>
+				<bool name="continuousCollision">false</bool>
+				<f32 name="mass">0</f32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">3ef88ec1-0b91-522e-a0bd-2b20ec357d9b</string>
+			<string name="type">navigation.Agent</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">9101614852607320285</u64>
+					<u32 name="version">3</u32>
+				</array>
+				<f32 name="radius">0.46</f32>
+				<f32 name="height">2.07</f32>
+				<f32 name="maxSpeed">4</f32>
+				<f32 name="maxAcceleration">12</f32>
+				<bool name="moveEntity">true</bool>
+				<f32 name="stopDistance">0</f32>
+				<bool name="avoidOthers">true</bool>
+			</object>
+		</object>
+		<object>
+			<string name="owner">3ef88ec1-0b91-522e-a0bd-2b20ec357d9b</string>
+			<string name="type">script</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">10795854242375899641</u64>
+					<u32 name="version">1</u32>
+				</array>
+				<array name="behaviors" count="1">
+					<string name="script">0a215471-e0bb-4b61-98e1-69e8bc0c885f</string>
+					<bool name="enabled">true</bool>
+					<f32 name="updateInterval">0</f32>
+					<array name="overrides" count="5">
+						<u64 name="nameHash">11377574333308104762</u64>
+						<u8 name="kind">2</u8>
+						<f64 name="number">1</f64>
+						<u64 name="nameHash">9181103189905877455</u64>
+						<u8 name="kind">1</u8>
+						<f64 name="number">170</f64>
+						<u64 name="nameHash">2486349329025994304</u64>
+						<u8 name="kind">1</u8>
+						<f64 name="number">2.6</f64>
+						<u64 name="nameHash">17349796334802534354</u64>
+						<u8 name="kind">1</u8>
+						<f64 name="number">22</f64>
+						<u64 name="nameHash">1818936560641024330</u64>
+						<u8 name="kind">1</u8>
+						<f64 name="number">1.6</f64>
+					</array>
+				</array>
+			</object>
+		</object>
+	</array>
+	<array name="systemSettings" count="0"/>
+	<u8 name="prefabMode">4</u8>
+	<array name="prefabInstances" count="1">
+		<string name="prefab">21b4c5da-d753-4f6c-bef1-598ce0f06819</string>
+		<string name="parent">3ef88ec1-0b91-522e-a0bd-2b20ec357d9b</string>
+		<object name="position">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">6.123234e-17</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">0.92</f32>
+			<f32 name="y">0.92</f32>
+			<f32 name="z">0.92</f32>
+		</object>
+		<string name="rootLive">1f6d873b-fe24-5f04-aedf-cd1a319a84df</string>
+		<string name="owner">00000000-0000-0000-0000-000000000000</string>
+		<string name="nestedSrcRoot">00000000-0000-0000-0000-000000000000</string>
+		<string name="nextSibling">00000000-0000-0000-0000-000000000000</string>
+		<u8 name="placement">1</u8>
+		<array name="members" count="0"/>
+		<array name="destroyed" count="0"/>
+		<array name="transformOverrides" count="0"/>
+		<array name="componentOps" count="0"/>
+	</array>
+</root>

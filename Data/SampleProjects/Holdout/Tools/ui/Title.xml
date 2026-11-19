@@ -1,0 +1,17 @@
+<!-- The title (Game.cs): the game's name over the yard, held still behind it, and the choices: play,
+     or quit. Styled by HoldoutSheet.css. Back does nothing here: the title is the bottom of the
+     stack. -->
+<Screen class="menu-screen" nav-default="title-play" back="none">
+  <Panel class="centre">
+    <Panel class="card">
+      <Panel class="stripes"/>
+      <Label class="title-name" text="Holdout"/>
+      <Label class="title-lead" text="Hold the yard against every wave"/>
+      <Label id="title-best" class="title-best" text=""/>
+      <Panel class="menu">
+        <Button id="title-play" class="menu-button" text="Play"/>
+        <Button id="title-quit" class="menu-button" text="Quit"/>
+      </Panel>
+    </Panel>
+  </Panel>
+</Screen>

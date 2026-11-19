@@ -1,0 +1,77 @@
+<root>
+	<string name="guid">ed197510-f16d-4a5e-b008-3a2e2a24579b</string>
+	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
+	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Yard/Debris_Pile/Debris_Pile.gltf</string>
+	<array name="dataVersions" count="1">
+		<u64 name="type">2440385714661564817</u64>
+		<u32 name="version">3</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName">Models/Yard/Debris_Pile/Debris_Pile.gltf</string>
+		<array name="meshGuids" count="1">
+			<string>5469f7c0-e522-47d1-bca6-100e8ab75bd0</string>
+		</array>
+		<array name="meshSkinned" count="1">
+			<u8>0</u8>
+		</array>
+		<array name="meshMaterial" count="1">
+			<i32>0</i32>
+		</array>
+		<array name="meshMaterialSlots" count="1">
+			<object>
+				<array name="slots" count="3">
+					<i32>0</i32>
+					<i32>1</i32>
+					<i32>2</i32>
+				</array>
+			</object>
+		</array>
+		<array name="collisionGuids" count="0"/>
+		<array name="materialGuids" count="3">
+			<string>fe6ce812-967b-4a57-9c4f-d97b06c90424</string>
+			<string>d7adce06-32a2-4634-888a-ec8823e1fa2f</string>
+			<string>d99ad5b0-e46f-4975-aa6e-ad0a304db467</string>
+		</array>
+		<array name="materialAlbedo" count="3">
+			<string>00000000-0000-0000-0000-000000000000</string>
+			<string>00000000-0000-0000-0000-000000000000</string>
+			<string>00000000-0000-0000-0000-000000000000</string>
+		</array>
+		<array name="nodes" count="1">
+			<string name="name">Debris_Pile</string>
+			<i32 name="parent">-1</i32>
+			<object name="t">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+			</object>
+			<object name="r">
+				<f32 name="x">0.7071068</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">0.7071068</f32>
+			</object>
+			<object name="s">
+				<f32 name="x">0.5884222</f32>
+				<f32 name="y">0.5884222</f32>
+				<f32 name="z">0.5884222</f32>
+			</object>
+			<i32 name="mesh">0</i32>
+		</array>
+		<string name="skeletonGuid">00000000-0000-0000-0000-000000000000</string>
+		<i32 name="skeletonParentNode">-2</i32>
+		<array name="animationGuids" count="0"/>
+		<object name="boundsMin">
+			<f32 name="x">-1.7205894</f32>
+			<f32 name="y">-2.008411</f32>
+			<f32 name="z">-0.30053723</f32>
+		</object>
+		<object name="boundsMax">
+			<f32 name="x">1.8754779</f32>
+			<f32 name="y">2.4538395</f32>
+			<f32 name="z">-0.022758238</f32>
+		</object>
+		<array name="entries" count="0"/>
+	</object>
+</root>

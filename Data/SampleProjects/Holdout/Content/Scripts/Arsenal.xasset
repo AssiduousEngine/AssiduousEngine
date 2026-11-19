@@ -1,0 +1,15 @@
+<root>
+	<string name="guid">edae21a6-57f0-44a8-89bb-ff1b33eaa880</string>
+	<string name="typeNamespace">rtti::pipeline::script</string>
+	<string name="typeName">ScriptClassAsset</string>
+	<string name="source">Code/Scripts/Arsenal.cs</string>
+	<array name="dataVersions" count="1">
+		<u64 name="type">1265517353284495090</u64>
+		<u32 name="version">1</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName">Code/Scripts/Arsenal.cs</string>
+		<string name="language">csharp</string>
+		<string name="className">Arsenal</string>
+	</object>
+</root>

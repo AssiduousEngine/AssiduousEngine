@@ -1,0 +1,15 @@
+<!-- Paused (Game.cs): the yard held still behind it and the pointer free; Escape or Resume carries
+     on, Restart starts the run again, Title gives it up. Styled by HoldoutSheet.css. -->
+<Screen class="menu-screen" nav-default="pause-resume" back="none">
+  <Panel class="centre">
+    <Panel class="card">
+      <Panel class="stripes"/>
+      <Label class="title-name" text="Paused"/>
+      <Panel class="menu">
+        <Button id="pause-resume" class="menu-button" text="Resume"/>
+        <Button id="pause-restart" class="menu-button" text="Restart"/>
+        <Button id="pause-title" class="menu-button" text="Title"/>
+      </Panel>
+    </Panel>
+  </Panel>
+</Screen>

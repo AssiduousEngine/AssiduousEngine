@@ -1,0 +1,15 @@
+<root>
+	<string name="guid">4d8ac126-a97b-40ec-b3b9-7385ed51c2b8</string>
+	<string name="typeNamespace">rtti::pipeline::script</string>
+	<string name="typeName">ScriptClassAsset</string>
+	<string name="source">Code/Scripts/Weapon.cs</string>
+	<array name="dataVersions" count="1">
+		<u64 name="type">1265517353284495090</u64>
+		<u32 name="version">1</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName">Code/Scripts/Weapon.cs</string>
+		<string name="language">csharp</string>
+		<string name="className">Weapon</string>
+	</object>
+</root>
