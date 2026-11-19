@@ -14,6 +14,7 @@ import foundation.json;
 import foundation.mcp;
 import foundation.mcp.http;
 import foundation.settings;
+import foundation.vfs;
 import pipeline.core;
 import editor.core;
 import pipeline.importer; // the import framework (a consumer imports it itself)
@@ -410,6 +411,54 @@ TEST_CASE("editor-mcp-host: with no project the host serves the manager; the eng
     // The user's Stop holds even over --mcp.
     service.StopByUser();
     CHECK_FALSE(service.EnsureRunning());
+    (void)RemoveDirectoryRecursive(userData.AsView());
+}
+
+// A project lists the folders outside it its tools work in; the editor's host reaches those the
+// user approved for it, and not one the user refused or has not answered.
+TEST_CASE("editor-mcp-host: over a project, the tools reach the MCP folders the user approved for it")
+{
+    const String userData = PathJoin(GetCurrentDirectory().AsView(), u8"mcp_folders_userdata");
+    (void)RemoveDirectoryRecursive(userData.AsView());
+    REQUIRE(CreateDirectories(userData.AsView()));
+    (void)RemoveDirectoryRecursive(u8"mcp_folders_project");
+    REQUIRE(EditorProject::Create(DefaultAllocator(), u8"mcp_folders_project", u8"Folders").IsOk());
+    UniquePtr<EditorProject> project = EditorProject::Open(DefaultAllocator(), u8"mcp_folders_project");
+    REQUIRE(project);
+    project->Settings().mcpFolders.PushBack(String(u8"../mcp_folders_game"));
+    project->Settings().mcpFolders.PushBack(String(u8"../mcp_folders_art"));
+    RegisterEditorSettingsTypes();
+    RegisterMcpFolderTypes();
+    const Array<String> listed = ResolveMcpFolders(project->Directory(), project->Settings());
+    REQUIRE(listed.Size() == 2u);
+    {
+        foundation::settings::Settings store(DefaultAllocator());
+        const String projectPath = PathNormalizeLexically(PathAbsolute(project->Directory()).AsView());
+        store.Section<McpFolderAnswers>().Record(projectPath.AsView(), listed[0].AsView(), true); // the game: yes
+        foundation::vfs::NativeFileSystem root(userData.AsView(), DefaultAllocator());
+        REQUIRE(SaveMcpFolderAnswers(root, store).IsOk()); // the art: not answered
+    }
+    EditorLogBuffer logBuffer{DefaultAllocator()};
+    pipeline::BuilderRegistry builders{DefaultAllocator()};
+    EditorContext context{DefaultAllocator()};
+    foundation::settings::Settings settings{DefaultAllocator()};
+    settings.Section<EditorMcpSettings>().token = String(u8"sekrit");
+    app::EditorMcpService::Services services;
+    services.context = &context;
+    services.builders = &builders;
+    services.userSettings = &settings;
+    services.log = &logBuffer;
+    services.forceEnabled = true;
+    services.userDataDirectory = userData;
+    app::EditorMcpService service(DefaultAllocator(), Move(services));
+    REQUIRE(service.Start(*project));
+    const foundation::mcp::McpPathPolicy& paths = service.Host()->Server().Paths();
+    CHECK(paths.Check(PathJoin(listed[0].AsView(), u8"generated/Hud.xml").AsView()).HasValue());
+    CHECK_FALSE(paths.Check(PathJoin(listed[1].AsView(), u8"Rock.glb").AsView()).HasValue());
+
+    service.Stop();
+    project.Reset();
+    (void)RemoveDirectoryRecursive(u8"mcp_folders_project");
     (void)RemoveDirectoryRecursive(userData.AsView());
 }
 

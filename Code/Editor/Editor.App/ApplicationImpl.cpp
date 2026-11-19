@@ -215,6 +215,7 @@ namespace editor::app
     {
         editor::RegisterEditorSettingsTypes();
         editor::RegisterProjectRegistryTypes(); // the manager's recent projects
+        editor::RegisterMcpFolderTypes();       // the user's answers on a project's MCP folders
         RegisterEditorProjectSettingsTypes();   // the per-project store's sections
         // NotFound is a first run; a file that does not read is set aside and logged by the load.
         (void)editor::LoadEditorSettingsFromUserData(m_editorSettings);

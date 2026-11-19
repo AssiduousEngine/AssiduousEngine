@@ -158,16 +158,25 @@ export namespace foundation::mcp
     };
 
     /// The folders a tool may read or write a file in by a path an agent gives it: the open
-    /// project, the user's data folder, the temp folder, and folders the user named (the host's
-    /// start folder, --allow-path, the editor's MCP folders). A path anywhere else is refused, so
+    /// project and the folders outside it the user approved for it, the user's data folder, the
+    /// temp folder, and folders the user named (the host's start folder, --allow-path, the
+    /// editor's MCP folders). A path anywhere else is refused, so
     /// an agent cannot be led to write over, or read, a file the user never put in its reach.
     /// Paths are compared by their text (PathNormalizeLexically): a link inside an allowed folder
     /// can still lead out of it.
     class McpPathPolicy
     {
     public:
-        /// The open project's folder; empty when none is open.
-        void SetProject(StringView folder) { m_project = folder.IsEmpty() ? String{} : PathNormalizeLexically(PathAbsolute(folder).AsView()); }
+        /// The open project's folder, empty when none is open, and the folders outside it the user
+        /// approved for it (they go with it when another opens).
+        void SetProject(StringView folder, Span<const String> projectFolders = {})
+        {
+            m_project = folder.IsEmpty() ? String{} : PathNormalizeLexically(PathAbsolute(folder).AsView());
+            m_projectFolders.Clear();
+            for (const String& extra : projectFolders)
+                if (!extra.IsEmpty())
+                    m_projectFolders.PushBack(PathNormalizeLexically(PathAbsolute(extra.AsView()).AsView()));
+        }
         void AddFolder(StringView folder)
         {
             if (!folder.IsEmpty())
@@ -189,10 +198,19 @@ export namespace foundation::mcp
             const String resolved = PathNormalizeLexically(PathAbsolute(path).AsView());
             if (!m_project.IsEmpty() && PathIsInside(resolved.AsView(), m_project.AsView()))
                 return resolved;
+            for (const String& folder : m_projectFolders)
+                if (PathIsInside(resolved.AsView(), folder.AsView()))
+                    return resolved;
             for (const String& folder : m_folders)
                 if (PathIsInside(resolved.AsView(), folder.AsView()))
                     return resolved;
             String allowed = m_project.IsEmpty() ? String{} : m_project;
+            for (const String& folder : m_projectFolders)
+            {
+                if (!allowed.IsEmpty())
+                    allowed.Append(StringView(u8", "));
+                allowed.Append(folder.AsView());
+            }
             for (const String& folder : m_folders)
             {
                 if (!allowed.IsEmpty())
@@ -200,7 +218,8 @@ export namespace foundation::mcp
                 allowed.Append(folder.AsView());
             }
             return Err(Format(u8"'{}' is outside the folders this host allows ({}); the user can allow a folder "
-                              u8"(Tools.Mcp --allow-path, or the editor's MCP folders setting)",
+                              u8"(Tools.Mcp --allow-path, the editor's --mcp-allow-path or its MCP folders setting, "
+                              u8"or the project's mcpFolders once the user approves them in the editor)",
                               path, allowed));
         }
 
@@ -216,6 +235,7 @@ export namespace foundation::mcp
 
     private:
         String m_project;
+        Array<String> m_projectFolders;
         Array<String> m_folders;
     };
 

@@ -72,6 +72,7 @@ int main(int argc, char** argv)
     RegisterCoreTypes();
     foundation::json::RegisterJsonTypes();
     pipeline::RegisterPipelineTypes();
+    editor::RegisterMcpFolderTypes(); // the user's answers on a project's MCP folders
     // The complete engine script surface (every subsystem facade), so script_api reports the whole
     // bound API rather than only core. This registers metadata only and instantiates no subsystem.
     // RegisterPipelineTypes above already registered every enabled backend (AngelScript, Luau, each
@@ -155,7 +156,8 @@ int main(int argc, char** argv)
         server, session, owner, &creators, dataRoot.AsView(),
         editor::mcp::ProjectPlugins{foundation::runtime::LinkedPluginList(),
                                     pipeline::PipelineRegistries{&builders, &importers, &creators}, &pluginTools,
-                                    &exportHooks});
+                                    &exportHooks},
+        GetUserDataDirectory().AsView()); // the user's answers on a project's MCP folders
     // host_info: the process id, build stamp, versions and open-project state.
     RegisterHostInfoTool(
         server, String(reinterpret_cast<const char8_t*>(BuildStamp())),

@@ -23,4 +23,5 @@ export import :export_pipeline;
 export import :tool_plugins;
 export import :export_hooks;
 export import :code_tooling;
+export import :mcp_folders;
 export import :log_references;

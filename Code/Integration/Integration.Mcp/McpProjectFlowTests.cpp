@@ -31,6 +31,7 @@ import foundation.script.luau;
 #endif
 import editor.mcp;
 import editor.project;  // the seeded project, opened to check it
+import foundation.settings; // the user's answers on a project's MCP folders
 import fonts.pipeline;  // FontAsset (the seeded default UI font)
 
 using namespace foundation::core;
@@ -154,6 +155,54 @@ TEST_CASE("integration.mcp: an agent creates, opens, and inspects a project via 
 // project_create seeds the editor's starter content. A project made over MCP needs the default UI
 // font as an asset: the engine's built-in font is not in a dist, so without it an exported game
 // shows no text.
+// A project lists folders outside it for its tools (a game's sources beside it). Opened by an agent
+// through the headless host, which has no one to ask, it reaches only those the user approved in
+// the editor, and says which it does not.
+TEST_CASE("integration.mcp: project_open reaches the MCP folders the user approved, and names the rest")
+{
+    editor::RegisterMcpFolderTypes();
+    const String answersDir = PathJoin(GetCurrentDirectory().AsView(), u8"mcp_open_folders_answers");
+    (void)RemoveDirectoryRecursive(answersDir.AsView());
+    REQUIRE(CreateDirectories(answersDir.AsView()));
+    (void)RemoveDirectoryRecursive(u8"mcp_open_folders_project");
+    REQUIRE(editor::EditorProject::Create(DefaultAllocator(), u8"mcp_open_folders_project", u8"Folders").IsOk());
+    Array<String> listed;
+    {
+        UniquePtr<editor::EditorProject> project = editor::EditorProject::Open(DefaultAllocator(), u8"mcp_open_folders_project");
+        REQUIRE(project);
+        project->Settings().mcpFolders.PushBack(String(u8"../mcp_open_folders_game"));
+        project->Settings().mcpFolders.PushBack(String(u8"../mcp_open_folders_art"));
+        REQUIRE(project->SaveSettings().IsOk());
+        listed = editor::ResolveMcpFolders(project->Directory(), project->Settings());
+        foundation::settings::Settings store(DefaultAllocator());
+        const String projectPath = PathNormalizeLexically(PathAbsolute(project->Directory()).AsView());
+        store.Section<editor::McpFolderAnswers>().Record(projectPath.AsView(), listed[0].AsView(), true);
+        foundation::vfs::NativeFileSystem root(answersDir.AsView(), DefaultAllocator());
+        REQUIRE(editor::SaveMcpFolderAnswers(root, store).IsOk());
+    }
+    REQUIRE(listed.Size() == 2u);
+
+    McpServer server;
+    server.Paths().AddFolder(PathJoin(GetCurrentDirectory().AsView(), u8"mcp_open_folders_project").AsView());
+    editor::mcp::ProjectSession session;
+    editor::mcp::ProjectOwner owner;
+    editor::mcp::RegisterProjectOpenTools(server, session, owner, nullptr, {}, {}, answersDir.AsView());
+    const JsonValue opened = CallOk(server, u8"project_open", With(Obj(), u8"directory", u8"mcp_open_folders_project"));
+    REQUIRE(opened.Get(u8"mcpFolders").Count() == 1u);
+    CHECK(opened.Get(u8"mcpFolders").At(0).AsString() == listed[0]);
+    REQUIRE(opened.Get(u8"mcpFoldersNotApproved").Count() == 1u);
+    CHECK(opened.Get(u8"mcpFoldersNotApproved").At(0).AsString() == listed[1]);
+    CHECK(server.Paths().Check(PathJoin(listed[0].AsView(), u8"generated/Hud.xml").AsView()).HasValue());
+    CHECK_FALSE(server.Paths().Check(PathJoin(listed[1].AsView(), u8"Rock.glb").AsView()).HasValue());
+
+    session.plugins = nullptr; // the project's plugins go before it
+    owner.plugins.Reset();
+    session.project = nullptr;
+    owner.project.Reset();
+    (void)RemoveDirectoryRecursive(u8"mcp_open_folders_project");
+    (void)RemoveDirectoryRecursive(answersDir.AsView());
+}
+
 TEST_CASE("integration.mcp: project_create seeds the default UI font, the sky and the primitives")
 {
     pipeline::RegisterPipelineTypes();

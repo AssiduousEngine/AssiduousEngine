@@ -753,6 +753,19 @@ TEST_CASE("mcp: the path policy allows the project and the named folders, nothin
     CHECK_FALSE(policy.CheckArgument(args, u8"path").HasValue());
 }
 
+// A project's folders outside it that the user approved belong to that project: opening another
+// takes them away.
+TEST_CASE("mcp: the path policy allows a project's approved folders while that project is open")
+{
+    foundation::mcp::McpPathPolicy policy;
+    const String game(u8"/home/someone/game/Game");
+    policy.SetProject(u8"/home/someone/game/Project", Span<const String>(&game, 1));
+    CHECK(policy.Check(u8"/home/someone/game/Game/generated/Hud.xml").HasValue());
+    CHECK_FALSE(policy.Check(u8"/home/someone/game/Tools/x.py").HasValue());
+    policy.SetProject(u8"/home/someone/other");
+    CHECK_FALSE(policy.Check(u8"/home/someone/game/Game/generated/Hud.xml").HasValue());
+}
+
 // A tool whose call changes the tool table (project_open loading a project's plugins registers
 // and unregisters theirs): the changes wait until it returns. Registered in place, the table
 // grew under the running handler, which went on from freed memory (ASAN), and a removal shifted

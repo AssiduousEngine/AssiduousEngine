@@ -11,6 +11,7 @@ if(OPTION_ENABLE_LUAU)
 endif()
 add_executable(Editor.Core.Tests TestsMain.cpp CommandTests.cpp ActionsTests.cpp ProjectTests.cpp CookServiceTests.cpp
     ProjectRegistryTests.cpp
+    McpFoldersTests.cpp
     ExportTests.cpp ThumbnailServiceTests.cpp ContextTests.cpp LogBufferTests.cpp
     EditorResourcesTests.cpp ContentWatcherTests.cpp AuthoredResourceNotifyTests.cpp CodeEditorTests.cpp CodeToolingTests.cpp)
 target_link_libraries(Editor.Core.Tests PRIVATE Editor::Core Pipeline::Geometry Foundation::Geometry.Resource

@@ -221,11 +221,11 @@ export namespace editor::app
             if (m_services.pluginTools != nullptr)
                 m_services.pluginTools->AttachServer(m_host->Server(), m_session);
 
-            // Where the tools may read and write by a path an agent gives: the project, the user-data
-            // and temp folders, the engine's data root, the folders the user allowed in the settings,
-            // and those this run was started with.
+            // Where the tools may read and write by a path an agent gives: the project and the folders
+            // outside it the user approved for it, the user-data and temp folders, the engine's data
+            // root, the folders the user allowed in the settings, and those this run was started with.
             foundation::mcp::McpPathPolicy& allowed = m_host->Server().Paths();
-            allowed.SetProject(project != nullptr ? project->Directory() : StringView{});
+            ApplyProjectPaths(project);
             allowed.AddStandardFolders();
             allowed.AddFolder(UserData().AsView());
             allowed.AddFolder(m_services.dataRoot.AsView()); // the engine's own data (its fonts, say)
@@ -351,6 +351,22 @@ export namespace editor::app
             const i64 now = GetUnixTime();
             return now + GetLocalTimeOffset(now);
         }
+        // The open project's folder and the folders outside it the user approved for it (the
+        // project's mcpFolders, as answered in <user-data>/mcp-folders.xml).
+        void ApplyProjectPaths(editor::EditorProject* project)
+        {
+            foundation::mcp::McpPathPolicy& allowed = m_host->Server().Paths();
+            if (project == nullptr)
+            {
+                allowed.SetProject(StringView{});
+                return;
+            }
+            const editor::McpFolderStanding folders =
+                editor::StandMcpFolders(UserData().AsView(), project->Directory(), project->Settings());
+            allowed.SetProject(project->Directory(),
+                               Span<const String>(folders.approved.Data(), folders.approved.Size()));
+        }
+
         [[nodiscard]] String UserData() const
         {
             return m_services.userDataDirectory.IsEmpty() ? GetUserDataDirectory() : m_services.userDataDirectory;

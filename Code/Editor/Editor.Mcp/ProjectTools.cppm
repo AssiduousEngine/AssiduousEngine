@@ -105,11 +105,14 @@ export namespace editor::mcp
     // host, whose project is the editor's own, registers neither.
     // `creators` and `dataRoot` let project_create seed the new project's starter content as the
     // editor's New Project does (SeedStarterContent: the default UI font, the sky, the primitives);
-    // a host that passes none creates the bare project.
+    // a host that passes none creates the bare project. `answersDirectory` holds the user's
+    // answers on a project's MCP folders (McpFolderAnswers, the user's data folder): project_open lets
+    // the tools reach those the user approved; none when it is empty.
     inline void RegisterProjectOpenTools(foundation::mcp::McpServer& server,
                                          ProjectSession& session, ProjectOwner& owner,
                                          const pipeline::AssetCreatorRegistry* creators = nullptr,
-                                         StringView dataRoot = {}, ProjectPlugins plugins = {})
+                                         StringView dataRoot = {}, ProjectPlugins plugins = {},
+                                         StringView answersDirectory = {})
     {
         using foundation::mcp::SchemaBuilder;
         using foundation::mcp::ToolResult;
@@ -117,6 +120,7 @@ export namespace editor::mcp
         ProjectOwner* o = &owner;
         foundation::mcp::McpPathPolicy* paths = &server.Paths();
         const String seedRoot(dataRoot);
+        const String answers(answersDirectory);
 
         server.RegisterTool(
             u8"project_create",
@@ -171,7 +175,7 @@ export namespace editor::mcp
             u8"current project.",
             SchemaBuilder().Str(u8"directory", u8"the project directory", true).Build(),
             foundation::mcp::ToolAnnotations::Rebuilds().OpenWorld(),
-            [s, o, plugins, paths](const JsonValue& args) -> ToolResult
+            [s, o, plugins, paths, answers](const JsonValue& args) -> ToolResult
             {
                 Result<String, String> allowed = paths->Check(args.Get(u8"directory").AsString().AsView());
                 if (!allowed.HasValue())
@@ -196,7 +200,28 @@ export namespace editor::mcp
                 s->project = nullptr;
                 o->project = Move(opened);
                 s->project = o->project.Get();
-                paths->SetProject(o->project->Directory());
+                // The folders outside it the project lists reach the tools only once the user approved
+                // them in the editor: opening a project must not widen what an agent may touch.
+                McpFolderStanding folders;
+                if (!answers.IsEmpty())
+                    folders = editor::StandMcpFolders(answers.AsView(), o->project->Directory(), o->project->Settings());
+                paths->SetProject(o->project->Directory(),
+                                  Span<const String>(folders.approved.Data(), folders.approved.Size()));
+                const Array<String> listed = editor::ResolveMcpFolders(o->project->Directory(), o->project->Settings());
+                if (!listed.IsEmpty())
+                {
+                    JsonValue reached = JsonValue::MakeArray();
+                    JsonValue unreached = JsonValue::MakeArray();
+                    for (const String& folder : listed)
+                    {
+                        bool approved = false;
+                        for (const String& a : folders.approved)
+                            approved = approved || a == folder;
+                        (approved ? reached : unreached).Add(JsonValue::MakeString(folder));
+                    }
+                    out.Set(u8"mcpFolders", Move(reached));
+                    out.Set(u8"mcpFoldersNotApproved", Move(unreached)); // the user approves them in the editor
+                }
                 // The plugins this project enables that this host links, with their parts for MCP.
                 McpPluginServices* tools = plugins.tools;
                 editor::ExportPluginServices* exportHooks = plugins.exportHooks;
