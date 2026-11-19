@@ -242,3 +242,58 @@ TEST_CASE("dotnet runtime: each owner has its own copy of the game, statics and 
     runtime.ReleaseOwner(kRunB);
     CHECK(runtime.LoadedAssemblyCount() == base);
 }
+
+TEST_CASE("dotnet runtime: a method bound once is called by its id, as by name; an instance let go frees its ids")
+{
+    RegisterCoreTypes();
+    foundation::script::RegisterScriptFacadeReflection();
+    DotNetRuntime runtime;
+    REQUIRE(runtime.Start(DefaultAllocator(), StringView(reinterpret_cast<const utf8char*>(RUNTIME_DIR))).IsOk());
+    const Result<Array<byte>> image =
+        ReadFile(PathJoin(StringView(reinterpret_cast<const utf8char*>(TESTGAME_DIR)), u8"TestGame.dll").AsView());
+    REQUIRE(image.HasValue());
+    REQUIRE(runtime.LoadAssembly(kOwner, Span<const byte>{image.Value().Data(), image.Value().Size()}).IsOk());
+    const Variant entity[1] = {Variant::From(foundation::script::Entity{})};
+    const Result<u64> mover = runtime.CreateInstance(kOwner, u8"Mover", Span<const Variant>{entity, 1});
+    REQUIRE(mover.HasValue());
+
+    // onUpdate(float): a delegate over the instance, given an f32 or an f64 alike.
+    const Result<i32> update = runtime.Bind(mover.Value(), u8"onUpdate", 1);
+    REQUIRE(update.HasValue());
+    const Variant half[1] = {Variant::From<f32>(0.5f)};
+    const Variant whole[1] = {Variant::From<f64>(1.0)};
+    REQUIRE(runtime.InvokeBound(update.Value(), Span<const Variant>{half, 1}).HasValue());
+    REQUIRE(runtime.InvokeBound(update.Value(), Span<const Variant>{whole, 1}).HasValue());
+    CHECK(*runtime.GetField(mover.Value(), u8"updates").Value().TryGet<i32>() == 2);
+    CHECK(*runtime.GetField(mover.Value(), u8"travelled").Value().TryGet<f32>() == doctest::Approx(2.5f * 1.5f));
+
+    // A method with a result goes through its method, and gives it.
+    const Result<i32> greet = runtime.Bind(mover.Value(), u8"greet", 1);
+    REQUIRE(greet.HasValue());
+    const Variant who[1] = {Variant::From<String>(String(u8"you"))};
+    const Result<Variant> greeting = runtime.InvokeBound(greet.Value(), Span<const Variant>{who, 1});
+    REQUIRE(greeting.HasValue());
+    CHECK(greeting.Value().Get<String>() == StringView(u8"hello you from mover"));
+
+    // What it does not have, and a field's setter, are not bound: NotFound, called by name instead.
+    const Result<i32> missing = runtime.Bind(mover.Value(), u8"onStart", 0);
+    REQUIRE_FALSE(missing.HasValue());
+    CHECK(missing.Error() == ErrorCode::NotFound);
+    CHECK(runtime.Bind(mover.Value(), u8"speed=", 1).Error() == ErrorCode::NotFound);
+
+    // A fault in a bound method is a failure with its reason.
+    const Result<i32> fail = runtime.Bind(mover.Value(), u8"fail", 0);
+    REQUIRE(fail.HasValue());
+    CHECK_FALSE(runtime.InvokeBound(fail.Value(), Span<const Variant>{}).HasValue());
+    CHECK(runtime.Failure().Contains(u8"failed on purpose"));
+
+    // The instance let go, its ids go back to be bound again.
+    runtime.Release(mover.Value());
+    const Result<u64> next = runtime.CreateInstance(kOwner, u8"Mover", Span<const Variant>{entity, 1});
+    REQUIRE(next.HasValue());
+    const Result<i32> again = runtime.Bind(next.Value(), u8"onUpdate", 1);
+    REQUIRE(again.HasValue());
+    CHECK((again.Value() == update.Value() || again.Value() == greet.Value() || again.Value() == fail.Value()));
+    runtime.Release(next.Value());
+    runtime.ReleaseOwner(kOwner);
+}

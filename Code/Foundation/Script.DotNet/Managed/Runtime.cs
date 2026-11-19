@@ -260,6 +260,129 @@ public static unsafe class Runtime
         }
     }
 
+    // A method bound once for one instance, which the engine then calls by its id: no name to look
+    // up, no parameters to fetch and no array to box into on each call. A handler with no argument
+    // or one number is a delegate over its instance; any other goes through its method, with the
+    // parameter types read once.
+    sealed class BoundMethod
+    {
+        public required nint Instance;
+        public required MethodInfo Method;
+        public required ParameterInfo[] Parameters;
+        public Action? Plain;
+        public Action<float>? Single;
+        public Action<double>? Double;
+    }
+    static readonly List<BoundMethod?> s_bound = new();
+    static readonly Stack<int> s_freeBound = new();
+    static readonly Dictionary<nint, List<int>> s_boundOf = new(); // each instance's, let go with it
+    static nint s_f32Type;
+    static nint s_f64Type;
+
+    /// <summary>Binds the instance's public method `name` of `count` parameters for InvokeBound,
+    /// writing its id. Not found (a member it does not have, a field's "x=", a handler object) when
+    /// the engine must call it by name.</summary>
+    [UnmanagedCallersOnly(EntryPoint = "DotNetRuntime_Bind")]
+    public static int Bind(nint instance, byte* name, int nameLength, int count, int* id)
+    {
+        try
+        {
+            *id = -1;
+            object target = GCHandle.FromIntPtr(instance).Target!;
+            string member = Utf8(name, nameLength);
+            if (target is ScriptHandler || member.EndsWith('='))
+                return Missing($"{member} is called by name");
+            MethodInfo? method = FindMethod(target.GetType(), member, count);
+            if (method == null)
+                return Missing($"{target.GetType().Name} has no public method {member} of {count} parameters");
+            var bound = new BoundMethod { Instance = instance, Method = method, Parameters = method.GetParameters() };
+            if (method.ReturnType == typeof(void))
+            {
+                if (count == 0)
+                    bound.Plain = method.CreateDelegate<Action>(target);
+                else if (count == 1 && bound.Parameters[0].ParameterType == typeof(float))
+                    bound.Single = method.CreateDelegate<Action<float>>(target);
+                else if (count == 1 && bound.Parameters[0].ParameterType == typeof(double))
+                    bound.Double = method.CreateDelegate<Action<double>>(target);
+            }
+            int slot;
+            if (s_freeBound.Count > 0)
+            {
+                slot = s_freeBound.Pop();
+                s_bound[slot] = bound;
+            }
+            else
+            {
+                slot = s_bound.Count;
+                s_bound.Add(bound);
+            }
+            if (!s_boundOf.TryGetValue(instance, out List<int>? ids))
+                s_boundOf[instance] = ids = new List<int>();
+            ids.Add(slot);
+            *id = slot;
+            return 0;
+        }
+        catch (Exception e)
+        {
+            return Fail(Describe(e));
+        }
+    }
+
+    /// <summary>Calls a method Bind bound, as Invoke calls it by name.</summary>
+    [UnmanagedCallersOnly(EntryPoint = "DotNetRuntime_InvokeBound")]
+    public static int InvokeBound(int id, DotNetValue* args, int count, DotNetValue* result)
+    {
+        try
+        {
+            Bridge.ReleaseQueuedHandles();
+            *result = default;
+            BoundMethod bound = s_bound[id]!;
+            if (bound.Plain != null && count == 0)
+            {
+                bound.Plain();
+                return 0;
+            }
+            if ((bound.Single != null || bound.Double != null) && count == 1 && args[0].Kind == ValueKind.Bytes)
+            {
+                double number = NumberOf(args[0]);
+                if (bound.Single != null)
+                    bound.Single((float)number);
+                else
+                    bound.Double!(number);
+                return 0;
+            }
+            object target = GCHandle.FromIntPtr(bound.Instance).Target!;
+            object? returned = bound.Method.Invoke(target, Arguments(bound.Parameters, args, count));
+            if (bound.Method.ReturnType != typeof(void))
+                ToEngine(returned, result);
+            return 0;
+        }
+        catch (TargetInvocationException e) when (e.InnerException != null)
+        {
+            return Fail(Describe(e.InnerException));
+        }
+        catch (Exception e)
+        {
+            return Fail(Describe(e));
+        }
+    }
+
+    // A number the engine passes (a frame's time) without boxing it: f32 and f64 by their type,
+    // anything else through the general reading.
+    static double NumberOf(in DotNetValue value)
+    {
+        if (s_f32Type == 0)
+        {
+            s_f32Type = Bridge.TypeById(Types.F32Id);
+            s_f64Type = Bridge.TypeById(Types.F64Id);
+        }
+        if (value.Type == s_f64Type)
+            return *(double*)value.Data;
+        if (value.Type == s_f32Type)
+            return *(float*)value.Data;
+        return Convert.ToDouble(Bridge.AnyOf(value), System.Globalization.CultureInfo.InvariantCulture);
+    }
+
     /// <summary>Reads the instance's public field or property `name`.</summary>
     [UnmanagedCallersOnly(EntryPoint = "DotNetRuntime_GetField")]
     public static int GetField(nint instance, byte* name, int nameLength, DotNetValue* result)
@@ -295,6 +418,12 @@ public static unsafe class Runtime
         if (instance == 0)
             return;
         GCHandle.FromIntPtr(instance).Free();
+        if (s_boundOf.Remove(instance, out List<int>? ids))
+            foreach (int id in ids)
+            {
+                s_bound[id] = null;
+                s_freeBound.Push(id);
+            }
         if (s_instances.Remove(instance, out ApplicationAssembly? from))
         {
             from.Instances -= 1;

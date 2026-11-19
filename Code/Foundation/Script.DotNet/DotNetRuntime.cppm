@@ -52,6 +52,11 @@ export namespace foundation::script::dotnet
         [[nodiscard]] Result<u64> CreateInstance(u64 owner, StringView className, Span<const Variant> args);
         /// Calls `method` on `instance`; "x=" sets its field x. The result, empty for none.
         [[nodiscard]] Result<Variant> Invoke(u64 instance, StringView method, Span<const Variant> args);
+        /// Binds `instance`'s public method `method` of `count` parameters, for InvokeBound: its id.
+        /// NotFound when it has no such method, or `method` is one called by name (a field's "x=").
+        [[nodiscard]] Result<i32> Bind(u64 instance, StringView method, u32 count);
+        /// Calls a method Bind bound: what Invoke does, without finding it by name each time.
+        [[nodiscard]] Result<Variant> InvokeBound(i32 id, Span<const Variant> args);
         /// Reads `instance`'s public field `name`.
         [[nodiscard]] Result<Variant> GetField(u64 instance, StringView name);
         void Release(u64 instance);
@@ -89,6 +94,8 @@ export namespace foundation::script::dotnet
         i32 (*m_createInstance)(isize, const utf8char*, i32, DotNetValue*, i32, isize*) = nullptr;
         i32 (*m_invoke)(isize, const utf8char*, i32, DotNetValue*, i32, DotNetValue*) = nullptr;
         i32 (*m_getField)(isize, const utf8char*, i32, DotNetValue*) = nullptr;
+        i32 (*m_bind)(isize, const utf8char*, i32, i32, i32*) = nullptr;
+        i32 (*m_invokeBound)(i32, DotNetValue*, i32, DotNetValue*) = nullptr;
         void (*m_release)(isize) = nullptr;
         void (*m_releaseOwner)(isize) = nullptr;
         i32 (*m_loadedAssemblyCount)() = nullptr;

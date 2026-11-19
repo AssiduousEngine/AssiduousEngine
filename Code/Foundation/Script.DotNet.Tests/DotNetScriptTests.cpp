@@ -91,8 +91,22 @@ TEST_CASE("dotnet backend: a behaviour runs through the script interfaces")
     CHECK(missing.Error() == ErrorCode::NotFound);
     CHECK(errors.kinds.IsEmpty());
 
-    // A C# exception: a runtime error carrying its message.
-    CHECK_FALSE(instance->Invoke(u8"fail", Span<Variant>{}).HasValue());
+    // A method bound once and called by its handle: the same as by name, and the same handle for
+    // the same name and count; a handle called with another count, or none, is NotFound.
+    {
+        const ScriptMethod update = instance->Bind(u8"onUpdate", 1);
+        REQUIRE(update.IsValid());
+        CHECK(instance->Bind(u8"onUpdate", 1).id == update.id);
+        CHECK(instance->Invoke(update, Span<Variant>{dt, 1}).HasValue());
+        CHECK(*instance->GetProperty(u8"travelled").Value().TryGet<f32>() == doctest::Approx(12.0f));
+        CHECK(instance->Invoke(update, Span<Variant>{}).Error() == ErrorCode::NotFound);
+        CHECK(instance->Invoke(ScriptMethod{}, Span<Variant>{}).Error() == ErrorCode::NotFound);
+        CHECK(instance->Invoke(instance->Bind(u8"onStart", 0), Span<Variant>{}).Error() == ErrorCode::NotFound);
+        CHECK(errors.kinds.IsEmpty());
+    }
+
+    // A C# exception: a runtime error carrying its message, through a handle as by name.
+    CHECK_FALSE(instance->Invoke(instance->Bind(u8"fail", 0), Span<Variant>{}).HasValue());
     REQUIRE(errors.kinds.Size() == 1);
     CHECK(errors.kinds[0] == ScriptErrorKind::Runtime);
     CHECK(errors.messages[0].AsView().Contains(u8"failed on purpose"));
