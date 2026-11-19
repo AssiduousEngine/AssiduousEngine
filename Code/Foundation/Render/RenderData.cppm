@@ -592,7 +592,8 @@ export namespace foundation::render
     // texel (for normal-offset bias).
     struct ShadowCascades
     {
-        static constexpr u32 kCount = kShadowCascadesCount;
+        // ENGINE_EXPORT_DATA: odr-used from another library.
+        static constexpr ENGINE_EXPORT_DATA u32 kCount = kShadowCascadesCount;
         Float4x4 viewProj[kCount] = {Float4x4::Identity(), Float4x4::Identity(),
                                      Float4x4::Identity(), Float4x4::Identity()};
         f32 splitFar[kCount] = {0.0f, 0.0f, 0.0f, 0.0f}; // view-space far depth of each cascade

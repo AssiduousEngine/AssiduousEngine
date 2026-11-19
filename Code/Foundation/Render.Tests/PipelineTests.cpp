@@ -642,10 +642,7 @@ TEST_CASE("RenderFrame: a view's cascades draw only the casters whose shadow can
     // The scene lies within a few metres of the camera along its view: the nearer cascades hold it,
     // the furthest slices are past it and draw nothing.
     CHECK(info[0].cascadesWithReceivers >= 1u);
-    // By value: a CHECK binds its operands by reference, and the shared build's test has no
-    // address for a constant the render library defines.
-    const u32 cascadeCount = ShadowCascades::kCount;
-    CHECK(info[0].cascadesWithReceivers < cascadeCount);
+    CHECK(info[0].cascadesWithReceivers < ShadowCascades::kCount);
 
     // Turned to the sky from just above them, the view keeps none of the casters below it.
     camera.view = Float4x4::LookAtRH(Float3{0, 3, 0}, Float3{0, 4, 0}, Float3{0, 0, -1});

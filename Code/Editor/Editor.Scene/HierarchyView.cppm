@@ -42,7 +42,8 @@ export namespace editor
     /// What a drag of entities carries (a hierarchy's rows), for an entity slot to take.
     struct EntityDrag
     {
-        static constexpr StringView kType = u8"scene/entity";
+        // ENGINE_EXPORT_DATA: odr-used from another library.
+        static constexpr ENGINE_EXPORT_DATA StringView kType = u8"scene/entity";
 
         /// A payload carrying `entities`, labelled by `name` (the first entity's) or by their
         /// count.
