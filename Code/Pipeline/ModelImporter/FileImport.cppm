@@ -1145,8 +1145,8 @@ export namespace pipeline
             // The .gltf sidecar pass already copies every relative uri (the same bytes to the
             // same place), and copying again here would double a large package's IO. Only what
             // it did not cover is copied: an absolute reference, or a container with no sidecar pass.
-            const bool copy = nameSuffix.IsEmpty(); // a copy's file came in with the texture's own asset
-            if (copy && !(relative && sidecarsCopied))
+            const bool copiesFile = nameSuffix.IsEmpty(); // a copy's file came in with the texture's own asset
+            if (copiesFile && !(relative && sidecarsCopied))
             {
                 if (deferredWrites != nullptr)
                 {
