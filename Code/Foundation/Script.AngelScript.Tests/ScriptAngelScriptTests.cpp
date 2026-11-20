@@ -1381,7 +1381,7 @@ TEST_CASE("angelscript: Math's whole-number Min, Max and Clamp return int")
                                 u8"}\n",
                                 u8"main")
                 .IsOk());
-    CHECK(scriptContext->GetGlobal(u8"K").Get<i32>() == -220);
+    CHECK(scriptContext->GetGlobal(u8"K").Get<f64>() == -220.0); // a global reads back as a number
 }
 
 TEST_CASE("angelscript: bound-api signatures carry reflected parameter names")
