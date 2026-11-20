@@ -128,7 +128,7 @@ class Yard:
         d = self.d
         body = d.entity("Player", (0.0, 0.9, 11.0))
         d.add(body, "physics.Character", radius=0.35, halfHeight=0.55, maxSlopeDegrees=45.0, stepUp=0.35)
-        d.script(body, (script("Player"), {}), (script("Weapon"), {}))
+        d.behavior(body, (script("Player"), {}), (script("Weapon"), {}))
         eye = d.entity("Eye", (0.0, 0.7, 0.0), parent=body)
         d.add(eye, "camera", fovYRadians=math.radians(70.0), nearZ=0.05)
         gun = d.entity("Gun", (0.22, -0.2, -0.42), parent=eye)
@@ -150,7 +150,7 @@ class Yard:
             e = self.d.entity("Target%d" % n, (x, y + half, z), yaw(10.0 * n))
             self.d.add(e, "physics.RigidBody", motion=2, layer=1, shape=0, mass=15.0,
                        halfExtents={"x": half, "y": half, "z": half})
-            self.d.script(e, (script("Target"), {}))
+            self.d.behavior(e, (script("Target"), {}))
             self.d.instance(prefab_of("Crate"), (0.0, -half, 0.0), parent=e)
 
     def barrel(self, n, x, z):
@@ -159,7 +159,7 @@ class Yard:
         d = self.d
         lo, hi = SIZES["ExplodingBarrel"]["min"], SIZES["ExplodingBarrel"]["max"]
         e = d.entity("Barrel%d" % n, (x, 0.0, z))
-        d.script(e, (script("Barrel"), {}))
+        d.behavior(e, (script("Barrel"), {}))
         body = d.entity("Body", (0.0, (lo[1] + hi[1]) / 2, 0.0), parent=e)
         d.add(body, "physics.RigidBody", motion=0, layer=0, shape=0,
               halfExtents={"x": (hi[0] - lo[0]) / 2, "y": (hi[1] - lo[1]) / 2, "z": (hi[2] - lo[2]) / 2})
@@ -175,14 +175,14 @@ class Yard:
         health packs, each turning over the ground (Pickup.cs gives it, and brings it back later)."""
         for name, weapon, x, z in (("SMG", 1, -8.5, 2.0), ("Shotgun", 2, 8.5, 6.0)):
             e = self.d.entity("Pickup" + name, (x, 0.6, z))
-            self.d.script(e, (script("Pickup"), {"weapon": weapon}))
+            self.d.behavior(e, (script("Pickup"), {"weapon": weapon}))
             self.d.instance(prefab_of(name), (0.0, 0.0, 0.0), yaw(-90.0), (0.6, 0.6, 0.6), parent=e)
             glow = self.d.entity(name + "Glow", (0.0, 0.3, 0.0), parent=e)
             self.d.add(glow, "light", type=1, color=colour(1.0, 0.85, 0.5), intensity=3.0, range=2.5)
         # Health packs: one by each side's cover and one at the north, out where it costs to reach.
         for n, (x, z) in enumerate(((-11.0, -1.0), (11.0, 1.0), (0.0, -9.5)), 1):
             e = self.d.entity("PickupHealth%d" % n, (x, 0.5, z))
-            self.d.script(e, (script("Pickup"), {"heal": 35.0}))
+            self.d.behavior(e, (script("Pickup"), {"heal": 35.0}))
             self.d.instance(prefab_of("Health"), (0.0, -0.3, 0.0), parent=e)
             glow = self.d.entity("HealthGlow%d" % n, (0.0, 0.3, 0.0), parent=e)
             self.d.add(glow, "light", type=1, color=colour(0.5, 1.0, 0.6), intensity=3.0, range=2.5)

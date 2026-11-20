@@ -41,7 +41,7 @@ def enemy(name, character, overrides, size=1.0):
     root = d.entity(name)
     d.add(root, "navigation.Agent", radius=0.4 * size, height=1.8 * size, maxSpeed=4.0, maxAcceleration=12.0,
           avoidOthers=True)
-    d.script(root, (need(asset("ScriptClassAsset", "Enemy"), "Enemy"), overrides))
+    d.behavior(root, (need(asset("ScriptClassAsset", "Enemy"), "Enemy"), overrides))
     body = d.entity("Body", (0.0, 0.9 * size, 0.0), parent=root)
     d.add(body, "physics.RigidBody", motion=1, layer=2, shape=2, radius=0.35 * size, halfHeight=0.55 * size)
     d.instance(model, (0.0, 0.0, 0.0), yaw(180.0), (CHARACTER_SCALE * size,) * 3, parent=root)
@@ -54,7 +54,7 @@ def shot():
     d = Doc("Shot")
     root = d.entity("Shot", scale=(0.16, 0.16, 0.16))
     d.add(root, "mesh", mesh=sphere, color=colour(1.0, 0.6, 0.2))
-    d.script(root, (need(asset("ScriptClassAsset", "Projectile"), "Projectile"), {}))
+    d.behavior(root, (need(asset("ScriptClassAsset", "Projectile"), "Projectile"), {}))
     glow = d.entity("Glow", parent=root)
     d.add(glow, "light", type=1, color=colour(1.0, 0.55, 0.2), intensity=4.0, range=3.0)
     print("Shot", d.write(asset("PrefabDocument", "Shot"), prefab=True, group="Prefabs"))

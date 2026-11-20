@@ -69,7 +69,7 @@ def vec(name, xyz, keys="xyz"):
 
 
 def fnv(name):
-    """ScriptPropertyNameHash: FNV-1a 64 over the property's name."""
+    """BehaviorPropertyNameHash: FNV-1a 64 over the property's name."""
     h = 14695981039346656037
     for b in name.encode():
         h ^= b
@@ -78,7 +78,7 @@ def fnv(name):
 
 
 def override(name, value):
-    """A script property override: a bool, a float, an int, a str, or ('entity'|'asset', guid)."""
+    """A behavior property override: a bool, a float, an int, a str, or ('entity'|'asset', guid)."""
     h = fnv(name)
     if isinstance(value, tuple):
         kind = {"entity": 7, "asset": 8}[value[0]]
@@ -127,15 +127,15 @@ class Doc:
     def add(self, owner, wire, **values):
         self.components.append(record(owner, wire, **values))
 
-    def script(self, owner, *behaviors):
-        """behaviors: (script guid, {property: value}) pairs."""
-        items = ['<string name="script">%s</string><bool name="enabled">true</bool><f32 name="updateInterval">0</f32>'
+    def behavior(self, owner, *behaviors):
+        """behaviors: (behavior class guid, {property: value}) pairs."""
+        items = ['<string name="class">%s</string><bool name="enabled">true</bool><f32 name="updateInterval">0</f32>'
                  '<array name="overrides" count="%d">%s</array>' % (g, len(o), "".join(override(k, v) for k, v in o.items()))
                  for g, o in behaviors]
-        self.components.append(record(owner, "script", behaviors=items))
+        self.components.append(record(owner, "behavior", behaviors=items))
 
-    def level_script(self, guid, **overrides):
-        self.settings.append(settings("sceneScript", script=guid,
+    def scene_behavior(self, guid, **overrides):
+        self.settings.append(settings("sceneBehavior", **{"class": guid},
                                       overrides=[override(k, v) for k, v in overrides.items()]))
 
     def instance(self, prefab, pos=(0, 0, 0), rot=(0, 0, 0, 1), scale=(1, 1, 1), parent=None, ops=()):

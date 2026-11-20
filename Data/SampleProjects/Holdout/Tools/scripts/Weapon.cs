@@ -7,7 +7,7 @@ using Engine;
 // empty one does by itself, the gun dipping meanwhile. 1 to 3 (or the pad's North for the next)
 // choose among the weapons carried; the pistol is always carried and never runs out of spare
 // rounds, the others are found in the yard (Pickup). The HUD shows the weapon and its rounds.
-public class Weapon
+public class Weapon : EntityBehavior
 {
     sealed class Carried
     {

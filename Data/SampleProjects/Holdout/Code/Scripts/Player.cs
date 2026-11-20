@@ -5,7 +5,7 @@ using Engine;
 // or the keys point, quick on the ground and loose in the air, with a jump that forgives a late
 // press and a step off a ledge. It acts only while the game is being played (Game.Playing: not
 // behind a menu, paused included), which locks the pointer for mouse look.
-public class Player : IDamageable
+public class Player : EntityBehavior, IDamageable
 {
     readonly Entity m_entity;
     Entity m_eye;
