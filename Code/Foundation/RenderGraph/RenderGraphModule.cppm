@@ -4,8 +4,9 @@
 // Foundation::RenderGraph - the `foundation.rendergraph` module.
 //
 // A render graph over the RHI: passes declare resource accesses, the graph
-// resolves dependencies, allocates/aliases transient resources, and inserts the
-// right barriers automatically. One named module composed of partitions,
+// resolves dependencies, allocates transient resources from a pool reused across
+// frames (no two transients in a frame share memory), and inserts the right
+// barriers automatically. One named module composed of partitions,
 // re-exported here.
 
 export module foundation.rendergraph;

@@ -1488,7 +1488,7 @@ namespace foundation::render
         }
 
         // Declare every view's forward pass into the one frame graph, then let the graph compile
-        // (barriers, transient depth allocation and aliasing) and execute. One graph serves all views.
+        // (barriers, transient depth allocation) and execute. One graph serves all views.
         {
             PROFILE_SCOPE(
                 "Compose.Declare"); // build the frame graph (pass and resource declarations)

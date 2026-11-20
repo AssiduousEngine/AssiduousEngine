@@ -26,7 +26,9 @@ export namespace foundation::scene
         Initialize,      // run pending component initialization (deferred from Add)
         PreUpdate,       // physics readback, input application
         Update,          // main gameplay / AI (sequential; cross-component reads safe)
-        AsyncUpdate,     // parallel per-system; a system may touch only its own data
+        // After Update, for work that touches only its own system's data, so that it may run in
+        // parallel. It runs in order like every phase. TODO(scene): run its systems in parallel.
+        AsyncUpdate,
         PostUpdate,      // animation, constraints, late logic
         TransformUpdate, // (internal) dirty transform propagation, Scene-driven
         PostTransform,   // render extraction, spatial index update (final transforms ready)
