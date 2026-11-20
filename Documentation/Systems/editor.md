@@ -687,12 +687,12 @@ already anchor unselected entities).
 ## 9. Headless flags (Tools.Editor)
 
 `Tools.Editor [<projectDir>] [--project <dir>] [--exit-after <s>] [--rebuild-after <s>]
-[--mcp] [--mcp-port <n>] [--seed] [--seed-primitives] [--data-root <dir>] [--version]
+[--mcp] [--mcp-port <n>] [--seed] [--data-root <dir>] [--version]
 [--vulkan|--webgpu|--dx12|--null-gpu] [--gpu-validation|--no-gpu-validation]`. Without a project
 the editor starts on the project manager. A bare directory scaffolds a fresh project (the
 manager's New Project flow seeds starter content; a CLI scaffold does not, unless `--seed` =
-font/sky/three primitives, or `--seed-primitives` = the same plus every primitive creator).
-`--seed-primitives` + `--exit-after` is the headless way to regenerate primitive meshes at the
+font, sky and every primitive creator).
+`--seed` + `--exit-after` is the headless way to regenerate primitive meshes at the
 current source version (paperkid.md, upgrade recipe). `--mcp` serves the open project over MCP for
 this run (`--mcp-port` picks the port; the persistent setting is Preferences > MCP). GPU validation
 defaults to on in Debug and off in RelWithDebInfo and Release.

@@ -20,7 +20,7 @@
 //   UI included, as a PNG; --screenshot-exit quits once it is written)
 //   [--release-files <url or folder>] (where the project manager's Samples tab reads this version's
 //   release files instead of GitHub: a base URL, or a folder scripts/pack-samples.py wrote)
-//   [--seed] [--seed-primitives] [--version].
+//   [--seed] [--version].
 //   GPU: [--vulkan|--dx12|--webgpu|--null-gpu] [--gpu-validation|--no-gpu-validation]
 //   (validation defaults to on in Debug, off in RelWithDebInfo and Release).
 
@@ -158,11 +158,6 @@ namespace
         engine::RegisterAllScriptFacades();
     }
 
-    // `--seed-primitives`: the headless seed also creates every primitive the creator table offers
-    // (Cylinder, Cone and Torus beyond the starter three), which regenerates a project's primitive
-    // meshes at the current source version without opening the editor UI.
-    bool g_seedAllPrimitives = false;
-
     // The data root for this process, resolved once in main (an explicit --data-root, else the
     // Data/.dataroot walk up from the executable), the same way every executable finds it. The
     // editor refuses to start without one; there is no compile-time path fallback.
@@ -174,7 +169,7 @@ namespace
     void SeedNewProject(editor::EditorContext& ctx, editor::EditorProject& project)
     {
         // The same seeding function MCP's project_create runs (editor.project).
-        editor::SeedStarterContent(AppRoot(), project, ctx.Creators(), EditorDataRoot(), g_seedAllPrimitives);
+        editor::SeedStarterContent(AppRoot(), project, ctx.Creators(), EditorDataRoot());
     }
 }
 namespace graphics = foundation::graphics;
@@ -280,11 +275,6 @@ int main(int argc, char** argv)
         if (std::strcmp(argv[i], "--mcp") == 0)
         {
             config.mcpEnabled = true; // the MCP host for this run, whatever the preference says
-        }
-        if (std::strcmp(argv[i], "--seed-primitives") == 0)
-        {
-            config.seedOnScaffold = true;
-            g_seedAllPrimitives = true; // and every primitive creator, not just the three
         }
     }
     config.startInProjectManager = config.projectDirectory.IsEmpty();

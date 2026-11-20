@@ -126,7 +126,7 @@ export namespace editor::mcp
             u8"project_create",
             u8"Scaffold a new project (Project.xml manifest + the standard directory layout) at a "
             u8"directory, seeded with the editor's starter content (Roboto as the default UI font, "
-            u8"the default sky, the cube, sphere and plane). Does not open it - call project_open "
+            u8"the default sky, every primitive). Does not open it - call project_open "
             u8"next.",
             SchemaBuilder()
                 .Str(u8"directory", u8"path to create the project at", true)

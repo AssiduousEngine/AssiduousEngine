@@ -380,8 +380,7 @@ namespace editor
     }
 
     void SeedStarterContent(IAllocator& allocator, EditorProject& project,
-                            const pipeline::AssetCreatorRegistry& creators, StringView dataRoot,
-                            bool allPrimitives)
+                            const pipeline::AssetCreatorRegistry& creators, StringView dataRoot)
     {
         foundation::content::Group* root = project.SourceDb().RootGroup();
         pipeline::ImportContext import{allocator, project.SourcesRoot()};
@@ -438,8 +437,7 @@ namespace editor
             }
         }
 
-        // 3. Primitive meshes: the creators File > New > Primitives runs (the cube, sphere and
-        //    plane; every one with allPrimitives).
+        // 3. Primitive meshes: every creator File > New > Primitives runs.
         const String sourcesRoot(project.SourcesRoot().AsView());
         const String codeRoot(project.CodeRoot().AsView());
         for (const pipeline::AssetCreator& creator : creators.All())
@@ -448,16 +446,9 @@ namespace editor
             {
                 continue;
             }
-            const StringView label = creator.label.AsView();
-            const bool starter = label == StringView(u8"Cube") || label == StringView(u8"Sphere") ||
-                                 label == StringView(u8"Plane");
-            if (starter || allPrimitives)
-            {
-                (void)creator.Create(nullptr, root, sourcesRoot.AsView(), {}, codeRoot.AsView());
-            }
+            (void)creator.Create(nullptr, root, sourcesRoot.AsView(), {}, codeRoot.AsView());
         }
 
-        LOG_INFO(u8"Editor", u8"starter content seeded (font/sky/primitives{})",
-                 allPrimitives ? u8", all primitives" : u8"");
+        LOG_INFO(u8"Editor", u8"starter content seeded (font/sky/primitives)");
     }
 }
