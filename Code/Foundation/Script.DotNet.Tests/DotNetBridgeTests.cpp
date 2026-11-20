@@ -76,7 +76,8 @@ TEST_CASE("dotnet bridge: reflected methods and properties called through the ta
     // A wrong argument count is refused, saying so; a result too small for the value likewise.
     CHECK(engine.invoke(dotMethod, nullptr, args, 1, &result) < 0);
     u64 length = 0;
-    CHECK(StringView(engine.lastError(&length), static_cast<usize>(length)).Contains(u8"takes 2 arguments"));
+    const utf8char* said = engine.lastError(&length); // first: it sets the length the view reads
+    CHECK(StringView(said, static_cast<usize>(length)).Contains(u8"takes 2 arguments"));
     u8 tiny = 0;
     DotNetValue small;
     small.data = &tiny;
