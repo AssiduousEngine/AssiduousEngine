@@ -349,6 +349,31 @@ TEST_CASE("input: a fitted source reads the pointer in render pixels, through th
     CHECK(fitted.Mouse() == nullptr);
 }
 
+TEST_CASE("input: on a scaled display the pointer's window units become the window's pixels")
+{
+    // A window of 800x450 units holding 1200x675 pixels (150%), the game drawn at its pixels: the
+    // pointer at the units' centre is the pixels' centre, and motion scales the same way.
+    PointSource inner;
+    FittedInputSource fitted(inner);
+    fitted.fit = ContentFit{Rectangle{0, 0, 1200, 675}, Float2{1200, 675}, FitMode::Stretch};
+    fitted.pixelsPerUnit = Float2{1.5f, 1.5f};
+    foundation::shell::IMouse* mouse = fitted.Mouse();
+    REQUIRE(mouse != nullptr);
+    inner.mouse.x = 400.0f;
+    inner.mouse.y = 225.0f;
+    CHECK(mouse->X() == doctest::Approx(600.0f));
+    CHECK(mouse->Y() == doctest::Approx(337.5f));
+    inner.mouse.dx = 10.0f;
+    CHECK(mouse->DeltaX() == doctest::Approx(15.0f));
+    foundation::shell::ITouch* touch = fitted.Touch();
+    REQUIRE(touch != nullptr);
+    inner.touch.points.PushBack(foundation::shell::TouchPoint{3, 0.25f, 0.5f, 1.0f, 200.0f, 225.0f});
+    foundation::shell::TouchPoint point;
+    REQUIRE(touch->GetTouchPoint(0, point));
+    CHECK(point.pointerX == doctest::Approx(300.0f));
+    CHECK(point.x == doctest::Approx(0.25f));
+}
+
 TEST_CASE("input: a fitted source maps the fingers as it maps the mouse")
 {
     // The same letterboxed 320x180 game: a finger at the window's centre is the render's centre,

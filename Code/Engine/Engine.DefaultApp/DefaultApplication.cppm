@@ -340,6 +340,9 @@ export namespace engine::runtime
         // The window's safe area is less than the window (a phone's bars, its camera's cutout): the
         // game's frame is fitted into it, and the pointer through that fit.
         bool m_inset = false;
+        // The window's units are not its pixels (a scaled display): the pointer, which arrives in
+        // units, goes through the fit, which scales it to pixels.
+        bool m_scaledPointer = false;
         // The fitted input while a render resolution or an orientation may move the game's frame
         // off the window's; the shell's devices directly otherwise.
         void UpdateFittedInput();

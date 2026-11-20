@@ -93,6 +93,10 @@ export namespace engine::input
         /// The window region (the region) and the render resolution (the content) with the fit.
         /// The owner keeps the region current as the window resizes.
         ContentFit fit{};
+        /// The window's pixels per window unit, across and down. The pointer arrives in window
+        /// units and the fit's region is in pixels, so the pointer is scaled first: 1 except on a
+        /// scaled display (a desktop at 150%, a Retina screen).
+        Float2 pixelsPerUnit{1.0f, 1.0f};
 
         [[nodiscard]] foundation::input::IInputSourceProvider& Inner() const noexcept { return *m_inner; }
 
@@ -105,7 +109,15 @@ export namespace engine::input
 
         /// A window point in render pixels, through the fit (its turn included) and without the
         /// bars' clamp.
-        [[nodiscard]] Float2 ToContent(Float2 point) const noexcept { return fit.ToContentUnclamped(point); }
+        [[nodiscard]] Float2 ToContent(Float2 point) const noexcept
+        {
+            return fit.ToContentUnclamped(Float2{point.x * pixelsPerUnit.x, point.y * pixelsPerUnit.y});
+        }
+        /// A pointer movement in window units, in render pixels.
+        [[nodiscard]] Float2 ToContentDelta(Float2 delta) const noexcept
+        {
+            return fit.ToContentDelta(Float2{delta.x * pixelsPerUnit.x, delta.y * pixelsPerUnit.y});
+        }
 
     private:
         foundation::input::IInputSourceProvider* m_inner;

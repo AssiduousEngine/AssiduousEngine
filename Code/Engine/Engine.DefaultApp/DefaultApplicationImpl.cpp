@@ -356,7 +356,7 @@ namespace engine::runtime
         {
             return;
         }
-        if (HasRenderResolution() || m_orientation != core::ScreenOrientation::Any || m_inset)
+        if (HasRenderResolution() || m_orientation != core::ScreenOrientation::Any || m_inset || m_scaledPointer)
         {
             if (!m_fittedInput)
             {
@@ -846,6 +846,19 @@ namespace engine::runtime
         {
             m_inset = inset;
             UpdateFittedInput(); // the pointer goes through the fit from now on, or no longer
+        }
+        const auto& os = frame.window->Window();
+        const core::Float2 pixelsPerUnit{os.Width() > 0 ? static_cast<core::f32>(os.PixelWidth()) / static_cast<core::f32>(os.Width()) : 1.0f,
+                                         os.Height() > 0 ? static_cast<core::f32>(os.PixelHeight()) / static_cast<core::f32>(os.Height()) : 1.0f};
+        const bool scaledPointer = pixelsPerUnit.x != 1.0f || pixelsPerUnit.y != 1.0f;
+        if (scaledPointer != m_scaledPointer)
+        {
+            m_scaledPointer = scaledPointer;
+            UpdateFittedInput();
+        }
+        if (m_fittedInput)
+        {
+            m_fittedInput->pixelsPerUnit = pixelsPerUnit;
         }
         // Render every non-headless instance's scenes (a headless dedicated server simulates but
         // is not drawn) and the default group's loose scenes. Clear comes from the scene's camera.

@@ -132,6 +132,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Windows: on a scaled display (Wayland or macOS at 125% and up) the editor and games draw at the
+  display's own pixels instead of being stretched by the system, and the pointer lands where it
+  points.
 - GUI: removing or resizing a world panel or render-texture canvas no longer waits for the GPU
   inside the frame, once per panel; on the web that wait could drop the frame.
 - GUI: a scroll bar can be dragged, and shows the arrow cursor, in a view that takes presses on its

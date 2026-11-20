@@ -33,11 +33,11 @@ namespace engine::input
     // window moves right across the game.
     f32 FittedMouse::DeltaX() const
     {
-        return m_source->fit.ToContentDelta(Float2{Raw().DeltaX(), Raw().DeltaY()}).x;
+        return m_source->ToContentDelta(Float2{Raw().DeltaX(), Raw().DeltaY()}).x;
     }
     f32 FittedMouse::DeltaY() const
     {
-        return m_source->fit.ToContentDelta(Float2{Raw().DeltaX(), Raw().DeltaY()}).y;
+        return m_source->ToContentDelta(Float2{Raw().DeltaX(), Raw().DeltaY()}).y;
     }
 
     i32 FittedTouch::TouchCount() const

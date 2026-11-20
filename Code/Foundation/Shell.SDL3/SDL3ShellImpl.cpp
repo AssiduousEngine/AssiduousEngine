@@ -75,7 +75,10 @@ namespace foundation::shell
 
     static SDL_WindowFlags Sdl3WindowFlags(const WindowSettings& settings) noexcept
     {
-        SDL_WindowFlags flags = 0;
+        // The display's own pixels: on a scaled display (Wayland or macOS at 150%) a window without
+        // it draws at one pixel per unit and the system stretches it, blurred. Window sizes and the
+        // pointer stay in units; PixelWidth and PixelHeight give the pixels.
+        SDL_WindowFlags flags = SDL_WINDOW_HIGH_PIXEL_DENSITY;
         if (settings.resizable)
         {
             flags |= SDL_WINDOW_RESIZABLE;
@@ -1274,6 +1277,15 @@ namespace foundation::shell
                     w->OnResized(nw, nh);
                     m_windows.PushEvent(WindowEvent{WindowEventType::Resized, id, nw, nh});
                 }
+                break;
+            }
+            case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+            {
+                // The pixels changed without the units (the window moved to a display of another
+                // scale, or the scale changed): a resize to whoever sizes by pixels.
+                const core::u32 id = static_cast<core::u32>(event.window.windowID);
+                if (SDL3Window* w = m_windows.Find(id))
+                    m_windows.PushEvent(WindowEvent{WindowEventType::Resized, id, w->Width(), w->Height()});
                 break;
             }
             case SDL_EVENT_WINDOW_MOVED:
