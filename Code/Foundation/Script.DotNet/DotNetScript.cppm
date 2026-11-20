@@ -24,7 +24,7 @@ using namespace foundation::core;
 
 export namespace foundation::script::dotnet
 {
-    /// The language's id, as a ScriptClass records it.
+    /// The language's id, as a BehaviorClass records it.
     inline constexpr StringView kCSharpLanguage = u8"csharp";
 
     /// The runtime every C# context in the process runs in (.NET starts once per process), started

@@ -287,10 +287,12 @@ export namespace foundation::script
     // ---- a project's assembly ----
 
     /// One class a project assembly declares, as its build described it: what the cook of the
-    /// class's own asset takes its handlers and inspector properties from.
+    /// class's own asset takes its kind (the one it derives from, through a base of its own too),
+    /// handlers and inspector properties from.
     struct ScriptAssemblyClass
     {
         String className;
+        BehaviorKind kind = BehaviorKind::None;
         Array<String> handlers;
         Array<BehaviorProperty> properties;
     };
@@ -300,6 +302,9 @@ export namespace foundation::script
         foundation::core::Serialize(ar, "className", c.className);
         foundation::core::Serialize(ar, "handlers", c.handlers);
         foundation::core::Serialize(ar, "properties", c.properties);
+        u8 kind = static_cast<u8>(c.kind);
+        SerializeAppended(ar, "kind", kind); // after the rest: a record from before kinds reads None
+        c.kind = static_cast<BehaviorKind>(kind);
     }
 
     /// The cooked record of a project's script assembly: a language whose classes build together

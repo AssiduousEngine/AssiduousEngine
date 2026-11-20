@@ -15,6 +15,7 @@
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Behaviors.cs" />
     <Compile Include="Bridge.cs" />
     <Compile Include="Runtime.cs" />
     <Compile Include="ValueMath.cs" />

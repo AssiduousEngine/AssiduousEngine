@@ -9,7 +9,7 @@ using Engine;
 
 namespace Bench;
 
-public class Bench
+public class Bench : EntityBehavior
 {
     double m_total;
 
@@ -73,13 +73,13 @@ public class Bench
     }
 }
 
-public class Empty
+public class Empty : EntityBehavior
 {
     public Empty(Entity entity) { }
     public void onUpdate(float dt) { }
 }
 
-public class Mover
+public class Mover : EntityBehavior
 {
     readonly Entity m_entity;
     public float speed = 2.0f;
@@ -93,7 +93,7 @@ public class Mover
     }
 }
 
-public class Fetcher
+public class Fetcher : EntityBehavior
 {
     readonly Entity m_entity;
 
@@ -110,7 +110,7 @@ public class Fetcher
 
 // A component held as a value: a property set through a fetched handle reaches the engine, isValid
 // says whether the entity still has it, and a set on one gone is refused (the check reads the name).
-public class Pacer
+public class Pacer : EntityBehavior
 {
     readonly Entity m_entity;
 
@@ -139,7 +139,7 @@ public class Pacer
 
 // Text arguments on both paths: one that surely fits the call's stack storage (85 three-byte
 // characters, its 255 bytes the most it holds) and one past it, in native memory; each read back.
-public class Namer
+public class Namer : EntityBehavior
 {
     readonly Entity m_entity;
 

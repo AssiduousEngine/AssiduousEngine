@@ -93,4 +93,7 @@ public static class ValueMath
     public static float MathMin(float a, float b) => b < a ? b : a;
     public static float MathMax(float a, float b) => a < b ? b : a;
     public static float MathClamp(float x, float lo, float hi) => x < lo ? lo : (hi < x ? hi : x);
+    public static int MathMinInt(int a, int b) => b < a ? b : a;
+    public static int MathMaxInt(int a, int b) => a < b ? b : a;
+    public static int MathClampInt(int x, int lo, int hi) => x < lo ? lo : (hi < x ? hi : x);
 }

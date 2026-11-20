@@ -1065,9 +1065,9 @@ namespace
     };
 }
 
-// A C# Game class starts from the assembly it is built into (C# compiles nothing at run time): it
-// is launched, updated, hears the run's bus through its on<Event> handler, and exits.
-TEST_CASE("game-instance: a C# Game starts from its assembly")
+// A C# run behavior starts from the assembly it is built into (C# compiles nothing at run time): it
+// is started, updated, hears the run's bus through its on<Event> handler, and stops.
+TEST_CASE("game-instance: a C# run behavior starts from its assembly")
 {
     RegisterCoreTypes();
     foundation::script::RegisterScriptFacadeReflection();
@@ -1076,9 +1076,10 @@ TEST_CASE("game-instance: a C# Game starts from its assembly")
         ReadFile(PathJoin(StringView(reinterpret_cast<const utf8char*>(CSHARP_TESTGAME_DIR)), u8"TestGame.dll").AsView());
     REQUIRE(image.HasValue());
 
-    foundation::script::ScriptClass cooked;
+    foundation::script::BehaviorClass cooked;
     cooked.language = String(u8"csharp");
     cooked.className = String(u8"Game");
+    cooked.kind = foundation::script::BehaviorKind::Run;
     cooked.sourceName = String(u8"Game.cs");
     cooked.handlers.PushBack(String(u8"onGoalReached"));
     cooked.assembly = MakeRef<foundation::script::ScriptAssembly>(DefaultAllocator());
@@ -1088,17 +1089,17 @@ TEST_CASE("game-instance: a C# Game starts from its assembly")
     CapturedLog log;
     GlobalLogger().AddSink(&log);
     {
-        engine::runtime::GameInstance gi;
-        REQUIRE(gi.StartScript(cooked));
-        CHECK(log.Has(u8"C# game launched"));
-        gi.TickScript(0.1f, 1.0f);
-        gi.TickScript(0.1f, 1.0f);
+        engine::runtime::ApplicationRun gi;
+        REQUIRE(gi.StartRunBehavior(cooked));
+        CHECK(log.Has(u8"C# game started"));
+        gi.TickRunBehavior(0.1f, 1.0f);
+        gi.TickRunBehavior(0.1f, 1.0f);
         CHECK(log.Has(u8"C# game updated twice"));
         gi.Events().Publish(StringHash(StringView(u8"GoalReached")), Variant::From<i32>(7));
         gi.DrainRunEvents();
         CHECK(log.Has(u8"C# game heard GoalReached 7"));
-        gi.StopScript();
-        CHECK(log.Has(u8"C# game exited"));
+        gi.StopRunBehavior();
+        CHECK(log.Has(u8"C# game stopped"));
     }
     GlobalLogger().RemoveSink(&log);
 }

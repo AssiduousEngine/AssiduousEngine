@@ -104,6 +104,7 @@ TEST_CASE("dotnet bindings: the pure functions C# computes itself match the engi
     put(Abs(y)); put(Sqrt(s)); put(Sin(x)); put(Cos(x)); put(Tan(x)); put(Asin(x)); put(Acos(x)); put(Atan2(y, x));
     put(Floor(y)); put(Ceil(y)); put(Round(2.5f)); put(Pow(s, x)); put(Log(s)); put(Exp(x)); put(DegreesToRadians(45.0f));
     put(RadiansToDegrees(x)); put(Lerp(x, y, s)); put(Min(x, y)); put(Max(x, y)); put(Clamp(y, -1.0f, 1.0f)); entries += 20;
+    put(static_cast<f32>(Min(7, -3))); put(static_cast<f32>(Max(7, -3))); put(static_cast<f32>(Clamp(12, 1, 10))); entries += 3;
     CHECK(entries == pureMethods); // a pure method with no entry here is not checked
 
     DotNetHost host;

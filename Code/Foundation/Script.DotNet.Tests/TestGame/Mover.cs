@@ -9,7 +9,7 @@ using Engine;
 
 namespace TestGame;
 
-public class Mover
+public class Mover : EntityBehavior
 {
     readonly Entity m_entity;
 

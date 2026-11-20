@@ -26,7 +26,8 @@ function(dotnet_link_compiled_runtime target name sources)
     set(project ${dir}/Engine.Runtime.csproj)
     file(GLOB_RECURSE application_sources CONFIGURE_DEPENDS ${sources}/*.cs)
     list(FILTER application_sources EXCLUDE REGEX "/(bin|obj)/")
-    set(compile_items "    <Compile Include=\"${DOTNET_RUNTIME_SOURCE}/Bridge.cs\" />
+    set(compile_items "    <Compile Include=\"${DOTNET_RUNTIME_SOURCE}/Behaviors.cs\" />
+    <Compile Include=\"${DOTNET_RUNTIME_SOURCE}/Bridge.cs\" />
     <Compile Include=\"${DOTNET_RUNTIME_SOURCE}/Runtime.cs\" />
     <Compile Include=\"${DOTNET_RUNTIME_SOURCE}/ValueMath.cs\" />
     <Compile Include=\"${DOTNET_RUNTIME_BINDINGS}\" />
@@ -83,7 +84,7 @@ ${compile_items}
         add_custom_command(
             OUTPUT ${out}/link.rsp
             COMMAND bash -c "source '${DOTNET_EMSDK}/emsdk_env.sh' >/dev/null 2>&1 && '${DOTNET_EXECUTABLE}' publish '${project}' -c Release -r browser-wasm -o '${out}/publish' -p:EMSDK='${DOTNET_EMSDK}' -p:BaseIntermediateOutputPath='${dir}/obj/' -nologo -v:q --disable-build-servers"
-            DEPENDS ${project} ${application_sources} ${DOTNET_RUNTIME_SOURCE}/Bridge.cs ${DOTNET_RUNTIME_SOURCE}/Runtime.cs ${DOTNET_RUNTIME_SOURCE}/ValueMath.cs
+            DEPENDS ${project} ${application_sources} ${DOTNET_RUNTIME_SOURCE}/Behaviors.cs ${DOTNET_RUNTIME_SOURCE}/Bridge.cs ${DOTNET_RUNTIME_SOURCE}/Runtime.cs ${DOTNET_RUNTIME_SOURCE}/ValueMath.cs
                     ${DOTNET_RUNTIME_BINDINGS}
             COMMENT "Compiling the managed runtime and ${name} to bitcode for the web (NativeAOT-LLVM)"
             VERBATIM)
@@ -124,7 +125,7 @@ ${compile_items}
             OUTPUT ${out}/Engine.Runtime.a ${out}/link.rsp
             COMMAND ${DOTNET_EXECUTABLE} publish ${project} -c Release -o ${out}
                     -p:BaseIntermediateOutputPath=${dir}/obj/ -nologo -v:q --disable-build-servers
-            DEPENDS ${project} ${application_sources} ${DOTNET_RUNTIME_SOURCE}/Bridge.cs ${DOTNET_RUNTIME_SOURCE}/Runtime.cs ${DOTNET_RUNTIME_SOURCE}/ValueMath.cs
+            DEPENDS ${project} ${application_sources} ${DOTNET_RUNTIME_SOURCE}/Behaviors.cs ${DOTNET_RUNTIME_SOURCE}/Bridge.cs ${DOTNET_RUNTIME_SOURCE}/Runtime.cs ${DOTNET_RUNTIME_SOURCE}/ValueMath.cs
                     ${DOTNET_RUNTIME_BINDINGS}
             COMMENT "Compiling the managed runtime and ${name} ahead of time")
         add_custom_target(${name}.CompiledRuntime DEPENDS ${out}/Engine.Runtime.a ${out}/link.rsp)

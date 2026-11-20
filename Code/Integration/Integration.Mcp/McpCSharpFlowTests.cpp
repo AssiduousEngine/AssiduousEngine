@@ -29,7 +29,7 @@ import pipeline.core;
 import pipeline.importer;
 import pipeline.registration;
 import script.pipeline;
-import engine.script;
+import engine.behavior;
 import editor.mcp;
 import foundation.net.replication; // NetworkComponent: a component the behaviour reaches with of()
 
@@ -86,7 +86,7 @@ namespace
     }
 
     constexpr StringView kMover = u8"using Engine;\n\n"
-                                  u8"public class Mover\n{\n"
+                                  u8"public class Mover : EntityBehavior\n{\n"
                                   u8"    readonly Entity m_entity;\n"
                                   u8"    public float speed = Speeds.Doubled(1.5f);\n\n"
                                   u8"    public Mover(Entity entity) { m_entity = entity; }\n\n"
@@ -143,48 +143,48 @@ TEST_CASE("integration.mcp: a C# project cooks whole through the MCP tools, and 
     {
         foundation::vfs::NativeFileSystem cookedMount(Format(u8"{}/Cooked", projectDir).AsView(), DefaultAllocator());
         foundation::content::ContentDatabase cookedDb(DefaultAllocator(), cookedMount, BinarySerializerFactory(), u8".rasset");
-        foundation::script::ScriptClassFactory classes(DefaultAllocator());
+        foundation::script::BehaviorClassFactory classes(DefaultAllocator());
         foundation::script::ScriptAssemblyFactory assemblies(DefaultAllocator());
         foundation::resource::ResourceManager resources(DefaultAllocator(), cookedDb);
         resources.AddFactory(&classes);
         resources.AddFactory(&assemblies);
         const Guid moverId(mover.AsView());
         REQUIRE_FALSE(moverId.IsNil());
-        foundation::resource::Proxy<foundation::script::ScriptClass> moverClass =
-            resources.Bind<foundation::script::ScriptClass>(moverId);
+        foundation::resource::Proxy<foundation::script::BehaviorClass> moverClass =
+            resources.Bind<foundation::script::BehaviorClass>(moverId);
         REQUIRE(moverClass);
         CHECK(moverClass->language == u8"csharp");
         CHECK(moverClass->HasHandler(u8"onUpdate"));
         REQUIRE(moverClass->assembly.Get() != nullptr);
         CHECK_FALSE(Guid(project.AsView()).IsNil());
-        const foundation::script::ScriptPropertyDesc* speed =
-            moverClass->FindProperty(foundation::script::ScriptPropertyNameHash(u8"speed"));
+        const foundation::script::BehaviorProperty* speed =
+            moverClass->FindProperty(foundation::script::BehaviorPropertyNameHash(u8"speed"));
         REQUIRE(speed != nullptr);
         CHECK(speed->defaultValue.number == doctest::Approx(3.0)); // computed by the other file's class
 
         // A headless scene runs it.
         foundation::run::RunBase run{DefaultAllocator(), u8"csharp-test"};
         scene::Scene world{DefaultAllocator(), u8"csharp-test"};
-        engine::script::ScriptRunHost host{DefaultAllocator()};
+        engine::behavior::BehaviorRunHost host{DefaultAllocator()};
         RegisterCoreTypes();
-        engine::script::RegisterScriptComponentReflection();
+        engine::behavior::RegisterBehaviorComponentReflection();
         foundation::script::RegisterScriptFacadeReflection();
         foundation::net::RegisterNetworkComponentScriptFacade();
         world.SetRun(&run);
         auto* net = world.AddSystem<foundation::net::NetworkComponentManager>();
-        auto* components = world.AddSystem<engine::script::ScriptComponentManager>();
-        auto* scripts = world.AddSystem<engine::script::ScriptSceneSystem>();
+        auto* components = world.AddSystem<engine::behavior::BehaviorComponentManager>();
+        auto* scripts = world.AddSystem<engine::behavior::EntityBehaviorSystem>();
         components->SetScriptSystem(scripts);
         scripts->SetRunHost(&host);
-        // The single-scene message route (a real run's ScriptSubsystem installs a scene multiplexer).
+        // The single-scene message route (a real run's BehaviorSubsystem installs a scene multiplexer).
         host.Binding().dispatchMessage =
             Function<void(scene::Scene*, scene::EntityHandle, StringView, Span<const Variant>)>{
                 [scripts](scene::Scene*, scene::EntityHandle target, StringView message, Span<const Variant> args)
                 { scripts->EnqueueMessage(target, message, args); }};
         const scene::EntityHandle walker = world.CreateEntity(u8"walker");
-        engine::script::ScriptComponent& component = components->Add(walker);
-        engine::script::ScriptBehavior behavior;
-        behavior.script.SetProxy(moverClass); // as a scene binds it: a reload reaches it
+        engine::behavior::BehaviorComponent& component = components->Add(walker);
+        engine::behavior::AttachedBehavior behavior;
+        behavior.behaviorClass.SetProxy(moverClass); // as a scene binds it: a reload reaches it
         component.behaviors.PushBack(Move(behavior));
         net->Add(walker).authority = foundation::net::NetworkAuthority::Server;
         world.Start();
@@ -211,7 +211,7 @@ TEST_CASE("integration.mcp: a C# project cooks whole through the MCP tools, and 
         Write(Format(u8"{}/Code/scripts/Mover.cs", projectDir).AsView(), edited.AsView());
         JsonValue recooked = CallOk(server, u8"asset_cook", Obj());
         CHECK(recooked.Get(u8"failed").AsInt() == 0);
-        const foundation::script::ScriptClass* before = moverClass.Get();
+        const foundation::script::BehaviorClass* before = moverClass.Get();
         CHECK(resources.Reload(Guid(project.AsView())));
         CHECK(moverClass.Get() != before); // the class rebuilt with its assembly
         host.Binding().deltaSeconds = 0.5f;
