@@ -28,6 +28,7 @@ import foundation.fonts;          // IFontService
 import foundation.fonts.resource; // Font products (the project's fonts)
 import foundation.texture.resource;
 import foundation.render.api;
+import foundation.render; // GpuRetireQueue
 import foundation.shell;
 import foundation.input;
 import engine.input;
@@ -1061,6 +1062,73 @@ TEST_CASE("engine.gui: a render-texture canvas draws into a texture of its own, 
     engine.gui->RenderTextures(encoder, 1);
     CHECK(engine.gui->TextureCount() == 0u);
     engine.scenes.DestroyScene(level);
+}
+
+namespace
+{
+    // A Null device that counts its waits for the GPU.
+    class WaitCountingDevice final : public rhi::null::NullDevice
+    {
+    public:
+        using rhi::null::NullDevice::NullDevice;
+        void WaitIdle() override { ++waits; }
+        u32 waits = 0;
+    };
+}
+
+TEST_CASE("engine.gui: removed and resized textures are retired for the frames in flight, never waited for")
+{
+    WaitCountingDevice device{DefaultAllocator()}; // outlives the GUI that draws on it
+    foundation::render::GpuRetireQueue retire;
+    retire.Initialize(&device, 2);
+    {
+        Engine engine;
+        engine.gui->EnsureRenderReady(device, 2, &retire);
+        REQUIRE(engine.gui->IsRenderReady());
+        scene::Scene* level = engine.scenes.CreateScene(u8"level");
+        level->AddSystem<engine::render::SpriteComponentManager>();
+        auto* canvases = level->GetSystem<engine::gui::GuiCanvasComponentManager>();
+        scene::EntityHandle screens[3];
+        for (scene::EntityHandle& screen : screens)
+        {
+            screen = level->CreateEntity(u8"screen");
+            level->GetSystem<engine::render::SpriteComponentManager>()->Add(screen);
+            engine::gui::GuiCanvasComponent& added = canvases->Add(screen);
+            added.document = MakeDocument(u8"<Panel/>");
+            added.renderMode = engine::gui::GuiCanvasRenderMode::RenderTexture;
+            added.renderTextureWidth = 64;
+            added.renderTextureHeight = 32;
+        }
+        engine.Frame();
+        rhi::null::NullCommandEncoder encoder;
+        engine.gui->RenderTextures(encoder, 0);
+        REQUIRE(engine.gui->TextureCount() == 3u);
+        const u32 waitsBefore = device.waits;
+
+        // A resize remakes the texture and retires the old one.
+        canvases->Get(screens[0])->renderTextureWidth = 128;
+        engine.Frame();
+        engine.gui->RenderTextures(encoder, 1);
+        CHECK(engine.gui->TextureCount() == 3u);
+        const usize afterResize = retire.PendingCount();
+        CHECK(afterResize >= 2u); // the texture and its view, and the pass's own targets if any
+
+        // Two removed in one frame: both retired.
+        level->DestroyEntity(screens[1]);
+        level->DestroyEntity(screens[2]);
+        engine.Frame();
+        engine.gui->RenderTextures(encoder, 0);
+        CHECK(engine.gui->TextureCount() == 1u);
+        CHECK(retire.PendingCount() == 3u * afterResize);
+        CHECK(device.waits == waitsBefore);
+
+        // Freed once the frames in flight have passed.
+        for (int frame = 0; frame < 3; ++frame)
+            retire.Tick();
+        CHECK(retire.PendingCount() == 0u);
+        engine.scenes.DestroyScene(level);
+    }
+    retire.Flush();
 }
 
 TEST_CASE("engine.gui: a world panel drives its sprite, and the pointer reaches it by a ray: hovered, clicked, the game told")

@@ -121,6 +121,27 @@ export namespace foundation::vg::renderer
             m_stencilFormat = foundation::rhi::TextureFormat::Undefined;
         }
 
+        /// Hands each texture and view to `retire` instead of destroying it, for a host whose
+        /// frames in flight may still draw into them (it destroys them once those frames are
+        /// done). Each texture goes before its view. Afterwards the targets are as after Destroy.
+        template <typename RetireFn>
+        void Retire(RetireFn&& retire)
+        {
+            if (m_color != nullptr)
+                retire(m_color);
+            if (m_colorView != nullptr)
+                retire(m_colorView);
+            if (m_stencil != nullptr)
+                retire(m_stencil);
+            if (m_stencilView != nullptr)
+                retire(m_stencilView);
+            m_color = nullptr;
+            m_colorView = nullptr;
+            m_stencil = nullptr;
+            m_stencilView = nullptr;
+            Destroy();
+        }
+
         /// Whether a stencil format was found (the renderer is to be configured for the pass).
         [[nodiscard]] bool IsValid() const noexcept
         {
