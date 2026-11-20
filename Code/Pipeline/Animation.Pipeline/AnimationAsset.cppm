@@ -218,6 +218,8 @@ export namespace pipeline{
         {
             return &AnimationGraphSource::StaticType();
         }
+        // 2: transitions carry `interruptible`.
+        [[nodiscard]] u32 Version() const override { return 2; }
         [[nodiscard]] Status Build(const pipeline::Asset& asset,
                                    pipeline::AssetBuildContext& ctx) override
         {

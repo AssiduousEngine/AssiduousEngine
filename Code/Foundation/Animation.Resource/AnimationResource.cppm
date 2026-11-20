@@ -727,6 +727,7 @@ export namespace foundation::animation
         f32 exitTime = 1.0f;
         i32 priority = 0;
         Array<GraphConditionData> conditions;
+        bool interruptible = false; // its fade may be cut short by its destination's transitions
     };
     inline void Serialize(ISerializer& ar, GraphTransitionData& t)
     {
@@ -737,6 +738,9 @@ export namespace foundation::animation
         foundation::core::Serialize(ar, "exitTime", t.exitTime);
         foundation::core::Serialize(ar, "priority", t.priority);
         foundation::core::Serialize(ar, "conditions", t.conditions);
+        // Appended: a text graph written without it reads with fades uninterruptible. Cooked
+        // graphs re-cook (the graph builder's version).
+        SerializeAppended(ar, "interruptible", t.interruptible);
     }
 
     struct GraphStateData
@@ -856,6 +860,7 @@ export namespace foundation::animation
                     tr->hasExitTime = td.hasExitTime;
                     tr->exitTime = td.exitTime;
                     tr->priority = td.priority;
+                    tr->interruptible = td.interruptible;
                     for (const GraphConditionData& cd : td.conditions)
                     {
                         tr->Conditions().PushBack(AnimationGraphCondition{

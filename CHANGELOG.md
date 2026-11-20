@@ -11,6 +11,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 - Scripting: an EntityBehavior's `onFixedUpdate(dt)` runs each fixed physics step, as a
   SceneBehavior's does.
+- Animation graphs: a transition can be marked Interruptible, so the state it goes to may leave
+  while the blend still runs, blending on from the pose of that moment.
 - Projects: `mcpFolders` lists folders outside the project that its MCP tools work in, such as a
   game's sources beside it. The editor asks once per project and folder whether agents may reach
   them and remembers the answer on this computer; `Tools.Mcp` reaches only folders approved there.

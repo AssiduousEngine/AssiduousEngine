@@ -415,6 +415,8 @@ namespace editor
         exitTime.Hint = String(u8"slider");
         Row(*m_transitionRows, u8"priority", gui::PropertyKind::Integer, gui::Variant(static_cast<i64>(0)), u8"Priority",
             u8"Which goes when several could: the lowest first");
+        Row(*m_transitionRows, u8"interruptible", gui::PropertyKind::Bool, gui::Variant(false), u8"Interruptible",
+            u8"Whether, while it blends, the state it goes to may leave already, blending on from the pose of that moment");
         gui::PropertyInfo& conditions = m_transitionRows->AddList(kConditions, gui::PropertyKind::Group, gui::Variant{});
         conditions.DisplayName = String(u8"Conditions");
         conditions.Description = String(u8"What must all hold for it to go (none: it goes as soon as it may)");
@@ -612,6 +614,7 @@ namespace editor
             m_transitionRows->SetValue(u8"exit", 0, gui::Variant(transition.hasExitTime));
             m_transitionRows->SetValue(u8"exitTime", 0, gui::Variant(static_cast<f64>(transition.exitTime)));
             m_transitionRows->SetValue(u8"priority", 0, gui::Variant(static_cast<i64>(transition.priority)));
+            m_transitionRows->SetValue(u8"interruptible", 0, gui::Variant(transition.interruptible));
             m_transitionRows->ResizeList(kConditions, 0, transition.conditions.Size());
             for (usize c = 0; c < transition.conditions.Size(); ++c)
             {
@@ -779,6 +782,8 @@ namespace editor
                          transition.exitTime = static_cast<f32>(Clamp(real, 0.0, 1.0));
                      else if (path == StringView(u8"priority"))
                          transition.priority = static_cast<i32>(number);
+                     else if (path == StringView(u8"interruptible"))
+                         transition.interruptible = on;
                  });
         }
     }

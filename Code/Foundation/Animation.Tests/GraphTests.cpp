@@ -284,6 +284,88 @@ TEST_CASE("graph: player transitions states on a bool parameter")
     CHECK(skin.Size() == 1);
 }
 
+namespace
+{
+    // Idle, Walk and Run each hold the bone at x = 0, 10 and 20; Go fades Idle to Walk, Fast fades
+    // Walk to Run, each over one second.
+    struct ThreeStates
+    {
+        Skeleton skel{1};
+        AnimationClip clips[3] = {AnimationClip{u8"idle", 1.0f, true}, AnimationClip{u8"walk", 1.0f, true}, AnimationClip{u8"run", 1.0f, true}};
+        AnimationGraph graph;
+        i32 go = -1;
+        i32 fast = -1;
+
+        explicit ThreeStates(bool interruptible)
+        {
+            skel.Bones()[0].index = 0;
+            skel.Bones()[0].parentIndex = -1;
+            skel.FindRootBones();
+            skel.BuildChildIndices();
+            skel.ComputeInverseBindPoses();
+            go = graph.AddParameter(u8"Go", AnimationParameterType::Bool);
+            fast = graph.AddParameter(u8"Fast", AnimationParameterType::Bool);
+            auto layer = MakeUnique<AnimationLayer>(DefaultAllocator(), StringView{u8"Base"});
+            const char8_t* names[] = {u8"Idle", u8"Walk", u8"Run"};
+            for (i32 i = 0; i < 3; ++i)
+            {
+                const f32 x = 10.0f * static_cast<f32>(i);
+                clips[i].GetOrCreatePositionTrack(0)->AddKeyframe(0.0f, Float3{x, 0, 0});
+                clips[i].GetOrCreatePositionTrack(0)->AddKeyframe(1.0f, Float3{x, 0, 0});
+                layer->AddState(MakeUnique<AnimationGraphState>(DefaultAllocator(), StringView{names[i]},
+                                                                MakeUnique<ClipStateNode>(DefaultAllocator(), &clips[i])));
+            }
+            auto toWalk = MakeUnique<AnimationGraphTransition>(DefaultAllocator());
+            toWalk->sourceStateIndex = 0;
+            toWalk->destStateIndex = 1;
+            toWalk->duration = 1.0f;
+            toWalk->interruptible = interruptible;
+            toWalk->AddBoolCondition(go, true);
+            layer->AddTransition(static_cast<UniquePtr<AnimationGraphTransition>&&>(toWalk));
+            auto toRun = MakeUnique<AnimationGraphTransition>(DefaultAllocator());
+            toRun->sourceStateIndex = 1;
+            toRun->destStateIndex = 2;
+            toRun->duration = 1.0f;
+            toRun->AddBoolCondition(fast, true);
+            layer->AddTransition(static_cast<UniquePtr<AnimationGraphTransition>&&>(toRun));
+            graph.AddLayer(static_cast<UniquePtr<AnimationLayer>&&>(layer));
+        }
+    };
+}
+
+TEST_CASE("graph: an interruptible fade gives way to its destination's transition, fading on from the pose of that moment")
+{
+    ThreeStates bed{true};
+    AnimationGraphPlayer player{bed.graph, bed.skel};
+    player.SetBool(bed.go, true);
+    player.Update(0.25f);
+    CHECK(player.IsTransitioning());
+    CHECK(player.GetLocalPoses()[0].position.x == doctest::Approx(2.5f)); // a quarter of Idle to Walk
+
+    player.SetBool(bed.fast, true);
+    player.Update(0.25f); // Walk to Run starts mid-fade, from x = 2.5
+    CHECK(player.GetCurrentStateIndex() == 2);
+    CHECK(player.GetLocalPoses()[0].position.x == doctest::Approx(2.5f + 0.25f * 17.5f));
+    player.Update(0.75f);
+    CHECK_FALSE(player.IsTransitioning());
+    CHECK(player.GetLocalPoses()[0].position.x == doctest::Approx(20.0f));
+}
+
+TEST_CASE("graph: a fade that is not interruptible finishes before its destination may leave")
+{
+    ThreeStates bed{false};
+    AnimationGraphPlayer player{bed.graph, bed.skel};
+    player.SetBool(bed.go, true);
+    player.Update(0.25f);
+    player.SetBool(bed.fast, true);
+    player.Update(0.25f);
+    CHECK(player.GetCurrentStateIndex() == 1);
+    CHECK(player.GetLocalPoses()[0].position.x == doctest::Approx(5.0f));
+    player.Update(0.5f); // the fade ends
+    player.Update(0.0f); // then Walk may leave
+    CHECK(player.GetCurrentStateIndex() == 2);
+}
+
 TEST_CASE("graph: a trigger set during a crossfade fires once the fade is done, and is spent")
 {
     // Every update consumed every trigger, and no transition is looked at mid-fade: a trigger set

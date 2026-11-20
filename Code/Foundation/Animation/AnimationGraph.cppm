@@ -724,6 +724,9 @@ export namespace foundation::animation
         bool hasExitTime = false;
         f32 exitTime = 1.0f;
         i32 priority = 0; // lower = higher priority
+        // While this transition's fade runs, its destination's transitions may fire; one that
+        // does fades on from the pose of that moment. Off, the fade always finishes first.
+        bool interruptible = false;
 
         [[nodiscard]] Array<AnimationGraphCondition>& Conditions() noexcept { return m_conditions; }
         [[nodiscard]] const Array<AnimationGraphCondition>& Conditions() const noexcept
@@ -926,6 +929,8 @@ export namespace foundation::animation
         f32 transitionElapsed = 0.0f;
         f32 transitionDuration = 0.0f;
         bool isTransitioning = false;
+        bool interruptible = false; // the running fade's transition may be interrupted
+        bool fadeFromFrozen = false; // the fade starts from prevPoses as held (an interrupted fade's pose)
         Array<BoneTransform> poses;
         Array<BoneTransform> prevPoses;
 
@@ -943,6 +948,8 @@ export namespace foundation::animation
             transitionElapsed = 0.0f;
             transitionDuration = 0.0f;
             isTransitioning = false;
+            interruptible = false;
+            fadeFromFrozen = false;
         }
     };
 
@@ -1179,6 +1186,8 @@ export namespace foundation::animation
                 rt.currentStateIndex = stateIndex;
                 rt.currentTime = 0.0f;
                 rt.isTransitioning = false;
+                rt.interruptible = false;
+                rt.fadeFromFrozen = false;
                 rt.previousStateIndex = -1;
             }
         }
@@ -1202,9 +1211,10 @@ export namespace foundation::animation
             }
             AnimationGraphState* currentState = layer.GetState(rt.currentStateIndex);
 
-            if (!rt.isTransitioning)
+            if (!rt.isTransitioning || rt.interruptible)
             {
                 EvaluateTransitions(layer, rt);
+                currentState = layer.GetState(rt.currentStateIndex);
             }
 
             if (rt.isTransitioning)
@@ -1234,6 +1244,8 @@ export namespace foundation::animation
                 if (rt.transitionElapsed >= rt.transitionDuration)
                 {
                     rt.isTransitioning = false;
+                    rt.interruptible = false;
+                    rt.fadeFromFrozen = false;
                     rt.previousStateIndex = -1;
                 }
             }
@@ -1333,13 +1345,27 @@ export namespace foundation::animation
                         m_parameters[static_cast<usize>(c.parameterIndex)].ConsumeTrigger();
                     }
                 }
-                rt.previousStateIndex = rt.currentStateIndex;
-                rt.previousTime = rt.currentTime;
+                if (rt.isTransitioning)
+                {
+                    // Interrupting a fade: the new one starts from the pose the layer showed last
+                    // (rt.poses, the blend of the fade so far), held still.
+                    for (usize i = 0; i < rt.prevPoses.Size() && i < rt.poses.Size(); ++i)
+                        rt.prevPoses[i] = rt.poses[i];
+                    rt.previousStateIndex = -1;
+                    rt.fadeFromFrozen = true;
+                }
+                else
+                {
+                    rt.previousStateIndex = rt.currentStateIndex;
+                    rt.previousTime = rt.currentTime;
+                    rt.fadeFromFrozen = false;
+                }
                 rt.currentStateIndex = best->destStateIndex;
                 rt.currentTime = 0.0f;
                 rt.transitionElapsed = 0.0f;
                 rt.transitionDuration = Max(best->duration, 0.001f);
                 rt.isTransitioning = true;
+                rt.interruptible = best->interruptible;
             }
         }
 
@@ -1355,6 +1381,16 @@ export namespace foundation::animation
                 return;
             }
 
+            if (rt.isTransitioning && rt.fadeFromFrozen)
+            {
+                currentState->Node()->Evaluate(*m_skeleton, rt.currentTime,
+                                               Span<BoneTransform>{rt.poses.Data(), rt.poses.Size()});
+                const f32 blend = Clamp(rt.transitionElapsed / rt.transitionDuration, 0.0f, 1.0f);
+                BlendPoses(Span<const BoneTransform>{rt.prevPoses.Data(), rt.prevPoses.Size()},
+                           Span<const BoneTransform>{rt.poses.Data(), rt.poses.Size()}, blend,
+                           Span<BoneTransform>{rt.poses.Data(), rt.poses.Size()});
+                return;
+            }
             if (rt.isTransitioning && rt.previousStateIndex >= 0)
             {
                 AnimationGraphState* prevState = layer.GetState(rt.previousStateIndex);
