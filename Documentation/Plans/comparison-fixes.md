@@ -14,18 +14,18 @@
 | # | Status | Size | Defect | Where | Found |
 |---|---|---|---|---|---|
 | D1 | done (a211f51fb) | S | GUI cleanup calls `WaitIdle` once per removed render texture, inside the frame's recording. On the web a mid-frame wait pumps the event loop and likely drops the frame's submit. Resizing a world panel waits the same way. Fix: retire the target's textures and views through the render subsystem's `GpuRetireQueue` (frames in flight + 1); `VGPassTargets` needs a retire path beside `Destroy()`; keep `WaitIdle` only as the no-queue fallback and in the destructor. Test: removing and resizing panels never idles a device that counts its waits. | `Engine.GUI/GuiSubsystemImpl.cpp:2225`, `:680`; `VG.Renderer/PassTargets.cppm` | checked |
-| D2 | open | S | Player rebinding never reaches a game: the run loads no binding overrides and the Input facade has no rebind method. `describe`'s comment says it reads bindings after the player's rebinding. | `Engine.Input/InputSubsystem.cppm:300-302`; only `Samples/InputActions` calls `ApplyBindingOverrides` | checked |
+| D2 | done (6d255f52b): rebind, setBinding, reset, kept in the save; visual check owed | S | Player rebinding never reaches a game: the run loads no binding overrides and the Input facade has no rebind method. `describe`'s comment says it reads bindings after the player's rebinding. | `Engine.Input/InputSubsystem.cppm:300-302`; only `Samples/InputActions` calls `ApplyBindingOverrides` | checked |
 | D3 | done (479c7dc24) | S | An EntityBehavior's `onFixedUpdate` is never called; `Systems/scripting.md:103` implies it is. Call it, or correct the document. | `Engine.Behavior`; `Documentation/Systems/scripting.md:103` | checked |
 | D4 | done (a4bd1f5b7): says it runs in order | S | The `AsyncUpdate` phase is documented as parallel and runs serially; nothing outside tests registers into it. Make it say what it does, or remove it (the parallel schedule is among the larger items). | `Scene/Phase.cppm:29`; `Scene/SceneImpl.cpp:1123` | checked |
 | D5 | done (c7e4b3433) | M | A crossfade cannot be interrupted: a state machine evaluates no transitions while one runs. | `Animation/AnimationGraph.cppm:1205` | checked |
 | D6 | open | M | Hot reload drops script state in every language; the C# spec's claim that state carries "as the other backends do" is wrong as written. The fix is I2. | script backends; the C# spec | checked |
-| D7 | open | S | The driver pipeline cache is never used, so every launch compiles every pipeline. The fix is I1. | `RHI/Device.cppm:213`; `RHI/Descriptors.cppm:422` | checked |
+| D7 | backlog (user, 2026-11-20) | S | The driver pipeline cache is never used, so every launch compiles every pipeline. The fix is I1. | `RHI/Device.cppm:213`; `RHI/Descriptors.cppm:422` | checked |
 | D8 | open | L | Replication sends whole components `ReliableOrdered` to every ready peer each fixed step, with no rate limit, byte budget or quantization; `WriteFloatRanged` has no caller outside tests. The fix is I6. | `Net.Manager/NetworkManager.cppm:283-295`; `Net/WireStream.cppm:80` | checked |
-| D9 | open | S | The SDL3 shell never asks for `SDL_WINDOW_HIGH_PIXEL_DENSITY`, so on a scaled Wayland desktop a window likely draws at scale 1 and is stretched. Not seen: the dev box runs at scale 1; check with GNOME at 125% or above. | `Shell.SDL3/SDL3ShellImpl.cpp:284` | checked (behaviour inferred) |
+| D9 | done (fe6436cc3); Imgui's pointer still in window units; check at 125% owed | S | The SDL3 shell never asks for `SDL_WINDOW_HIGH_PIXEL_DENSITY`, so on a scaled Wayland desktop a window likely draws at scale 1 and is stretched. Not seen: the dev box runs at scale 1; check with GNOME at 125% or above. | `Shell.SDL3/SDL3ShellImpl.cpp:284` | checked (behaviour inferred) |
 | D10 | open | S | The C# backend declares only `Bytecode` although script delegates work, and stores its budget without reading it, so a runaway C# loop is not stopped. | `Script.DotNet`, on the dotnet branch | reviewer |
 | D11 | done (a4bd1f5b7) | S | Stale comments claim the render graph aliases transients; `RenderGraph.cppm:8-9` says it does not. | `RenderGraphModule.cppm:7`; `PipelineImpl.cpp:1491` | reviewer |
 | D12 | done (91df62354) | M | RHI device methods with default bodies, against the pure-interface rule: `MaxColorDepthSampleCount`, `SupportsSampleCount`, the mesh and ray-tracing methods. | `RHI/Device.cppm:177`, `:183`, `:245-288` | reviewer |
-| D13 | started: every primitive seeds, no list | S | Starter seeding picks primitives by their display label, a hard-coded list. | `ProjectSeedImpl.cpp:451-452` | reviewer |
+| D13 | done (37be10e43): every primitive seeds, no list | S | Starter seeding picks primitives by their display label, a hard-coded list. | `ProjectSeedImpl.cpp:451-452` | reviewer |
 | D14 | open: with the backends-as-plugins spec | S | The Luau backend's implementation sits in its module interface, with Luau's headers in the global fragment. | `Script.Luau` | reviewer |
 | D15 | open | M | Paks have no compression and no integrity check. The fix is I7. | the pak format | reviewer |
 | D16 | open | M | World UI is styled, laid out and drawn every frame it shows, with no skip for an unchanged frame (whether layout already skips an unchanged tree is unchecked). | `Engine.GUI/GuiSubsystemImpl.cpp`, the canvas loop | reviewer, drawing checked |
@@ -39,7 +39,7 @@ In the comparison's recommended order; the first group is cheap.
 
 | # | Status | Size | Improvement | Notes |
 |---|---|---|---|---|
-| I1 | open | S | Persist the driver pipeline cache between launches. | Every backend has it already; fixes D7. |
+| I1 | backlog (D7) | S | Persist the driver pipeline cache between launches. | Every backend has it already; fixes D7. |
 | I2 | open | M | Hot reload that keeps state, with an `onReload` handler. | Re-apply the harvested properties' live values, not only the overrides; fixes D6. |
 | I3 | open | S | A paged sparse array in `ComponentManager<T>` in place of the hash map lookup, plus a debug check for a pool growing during a walk. | Local to `Scene/Component.cppm`; no API change; needs a benchmark. |
 | I4 | open | M | GPU crash breadcrumbs per backend, and spirv-val in development builds. | Fixes half of D19. |
