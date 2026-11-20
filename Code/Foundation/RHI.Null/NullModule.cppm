@@ -667,6 +667,30 @@ export namespace foundation::rhi::null
 
         bool IsLost() override { return false; } // a null device cannot be lost
         void WaitIdle() override {}
+        // No MSAA: one sample only.
+        [[nodiscard]] u32 MaxColorDepthSampleCount() const noexcept override { return 1; }
+        [[nodiscard]] bool SupportsSampleCount(u32 count) const noexcept override { return count <= 1; }
+
+        // No mesh shaders and no ray tracing here.
+        Status CreateMeshPipeline(const MeshPipelineDesc&, MeshPipeline*& out) override
+        {
+            out = nullptr;
+            return ErrorCode::NotSupported;
+        }
+        void DestroyMeshPipeline(MeshPipeline*& pipeline) override { pipeline = nullptr; }
+        Status CreateAccelStruct(const AccelStructDesc&, AccelStruct*& out) override
+        {
+            out = nullptr;
+            return ErrorCode::NotSupported;
+        }
+        void DestroyAccelStruct(AccelStruct*& accelStruct) override { accelStruct = nullptr; }
+        Status CreateRayTracingPipeline(const RayTracingPipelineDesc&, RayTracingPipeline*& out) override
+        {
+            out = nullptr;
+            return ErrorCode::NotSupported;
+        }
+        void DestroyRayTracingPipeline(RayTracingPipeline*& pipeline) override { pipeline = nullptr; }
+        Status GetShaderGroupHandles(RayTracingPipeline*, u32, u32, Span<u8>) override { return ErrorCode::NotSupported; }
         void Destroy() override
         {
             IAllocator& alloc = m_allocator;

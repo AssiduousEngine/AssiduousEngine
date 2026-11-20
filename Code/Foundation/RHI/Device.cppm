@@ -171,16 +171,15 @@ export namespace foundation::rhi
         /// Query hardware format support for a given texture format.
         [[nodiscard]] virtual FormatSupport GetFormatSupport(TextureFormat format) = 0;
         /// The maximum MSAA sample count supported for both color and depth framebuffer attachments
-        /// (scene-pass MSAA). The engine caps it at 4 (8x is not supported).
-        /// The default of 1 means a backend that does not implement the query reports no MSAA,
-        /// which is safe: views clamp to single-sample. Backends that support MSAA override it.
-        [[nodiscard]] virtual u32 MaxColorDepthSampleCount() const noexcept { return 1; }
+        /// (scene-pass MSAA). The engine caps it at 4 (8x is not supported). 1 is no MSAA: views
+        /// clamp to single-sample.
+        [[nodiscard]] virtual u32 MaxColorDepthSampleCount() const noexcept = 0;
         /// Whether this sample count is usable for both color and depth render targets. The set of
         /// valid counts is not simply [1 .. MaxColorDepthSampleCount()]: WebGPU, for instance,
         /// guarantees only {1, 4} and never 2, so a caller must snap an unsupported count rather than
         /// assume every count up to the ceiling works (an unsupported count aborts texture or pipeline
-        /// creation). The default accepts only 1 (no MSAA); backends that support MSAA override it.
-        [[nodiscard]] virtual bool SupportsSampleCount(u32 count) const noexcept { return count <= 1; }
+        /// creation). A device without MSAA accepts only 1.
+        [[nodiscard]] virtual bool SupportsSampleCount(u32 count) const noexcept = 0;
 
         /// What this device has recorded since it was made and the memory it holds now (the
         /// profiler's counters; DeviceCounters).
@@ -242,13 +241,8 @@ export namespace foundation::rhi
         // ---- Mesh shader extension (folded into Device) ----
         /// Create a mesh shader pipeline. Returns NotSupported if mesh shaders
         /// are not enabled on this device.
-        virtual Status CreateMeshPipeline(const MeshPipelineDesc& desc, MeshPipeline*& out)
-        {
-            (void)desc;
-            out = nullptr;
-            return ErrorCode::NotSupported;
-        }
-        virtual void DestroyMeshPipeline(MeshPipeline*& pipeline) { (void)pipeline; }
+        virtual Status CreateMeshPipeline(const MeshPipelineDesc& desc, MeshPipeline*& out) = 0;
+        virtual void DestroyMeshPipeline(MeshPipeline*& pipeline) = 0;
 
         // ---- Ray tracing extension (folded into Device) ----
         /// Shader binding table handle properties. Populated by the backend
@@ -259,33 +253,16 @@ export namespace foundation::rhi
 
         /// Create an acceleration structure. Returns NotSupported if ray tracing
         /// is not enabled on this device.
-        virtual Status CreateAccelStruct(const AccelStructDesc& desc, AccelStruct*& out)
-        {
-            (void)desc;
-            out = nullptr;
-            return ErrorCode::NotSupported;
-        }
-        virtual void DestroyAccelStruct(AccelStruct*& accelStruct) { (void)accelStruct; }
+        virtual Status CreateAccelStruct(const AccelStructDesc& desc, AccelStruct*& out) = 0;
+        virtual void DestroyAccelStruct(AccelStruct*& accelStruct) = 0;
 
         virtual Status CreateRayTracingPipeline(const RayTracingPipelineDesc& desc,
-                                                RayTracingPipeline*& out)
-        {
-            (void)desc;
-            out = nullptr;
-            return ErrorCode::NotSupported;
-        }
-        virtual void DestroyRayTracingPipeline(RayTracingPipeline*& pipeline) { (void)pipeline; }
+                                                RayTracingPipeline*& out) = 0;
+        virtual void DestroyRayTracingPipeline(RayTracingPipeline*& pipeline) = 0;
 
         /// Retrieve shader group handles for building shader binding tables.
         virtual Status GetShaderGroupHandles(RayTracingPipeline* pipeline, u32 firstGroup,
-                                             u32 groupCount, Span<u8> outData)
-        {
-            (void)pipeline;
-            (void)firstGroup;
-            (void)groupCount;
-            (void)outData;
-            return ErrorCode::NotSupported;
-        }
+                                             u32 groupCount, Span<u8> outData) = 0;
 
         // ---- Lifecycle ----
         /// Whether the device has been lost (GPU hang/TDR, driver reset, removal).

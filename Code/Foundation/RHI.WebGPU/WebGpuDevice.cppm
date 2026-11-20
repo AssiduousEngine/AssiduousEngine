@@ -472,6 +472,28 @@ export namespace foundation::rhi::webgpu
         // ---- Lifecycle ----
         bool IsLost() override { return m_lost; }
 
+        // No mesh shaders and no ray tracing in WebGPU.
+        Status CreateMeshPipeline(const MeshPipelineDesc&, MeshPipeline*& out) override
+        {
+            out = nullptr;
+            return ErrorCode::NotSupported;
+        }
+        void DestroyMeshPipeline(MeshPipeline*& pipeline) override { pipeline = nullptr; }
+        Status CreateAccelStruct(const AccelStructDesc&, AccelStruct*& out) override
+        {
+            out = nullptr;
+            return ErrorCode::NotSupported;
+        }
+        void DestroyAccelStruct(AccelStruct*& accelStruct) override { accelStruct = nullptr; }
+        Status CreateRayTracingPipeline(const RayTracingPipelineDesc&, RayTracingPipeline*& out) override
+        {
+            out = nullptr;
+            return ErrorCode::NotSupported;
+        }
+        void DestroyRayTracingPipeline(RayTracingPipeline*& pipeline) override { pipeline = nullptr; }
+        Status GetShaderGroupHandles(RayTracingPipeline*, u32, u32, Span<u8>) override { return ErrorCode::NotSupported; }
+
+
         void WaitIdle() override
         {
             // wgpu-native's DevicePoll(wait) drains the queue; on web (no poll
