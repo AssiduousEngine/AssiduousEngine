@@ -4,7 +4,7 @@ using Engine;
 // near it (Combat), the more the nearer, other barrels included, so a row can go off together; its
 // light flashes, pads rumble, and what is left is the kit's spilled barrel. Its children: Body (the
 // collider shots hit), Model (the barrel), Spilled (shown once it has gone) and Flash (its light).
-public class Barrel : IDamageable
+public class Barrel : EntityBehavior, IDamageable
 {
     readonly Entity m_entity;
     Entity m_model;

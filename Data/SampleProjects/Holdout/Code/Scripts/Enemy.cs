@@ -6,7 +6,7 @@ using Engine;
 // dodge or hide from (Projectile). Either flinches when hit and falls when its health is gone, then
 // is removed. Its model is one of the kit's characters (`model`: the enemy, or the hazmat suit for
 // the heavy one), which carries every hand weapon; it shows only `weapon`, or none.
-public class Enemy : IDamageable
+public class Enemy : EntityBehavior, IDamageable
 {
     // Each model's clips: its own rig, so its own ids. Run, Idle, Punch, HitReact, Death, Idle_Shoot,
     // Run_Gun, in that order.

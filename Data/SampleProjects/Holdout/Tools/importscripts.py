@@ -64,7 +64,7 @@ for folder, ext, group in (("ui", ".xml", "UI"), ("ui", ".css", "UI"), ("scripts
         if ext == ".css":
             sheets.append(r["guid"])
         if name == "Game":
-            mcp("project_settings_set", {"startupScriptId": r["guid"]})
+            mcp("project_settings_set", {"runBehaviorId": r["guid"]})
 if sheets:
     mcp("project_settings_set", {"guiStyleSheetIds": sheets}) # the game's look, over the GUI's theme
 cooked = mcp("asset_cook", {})

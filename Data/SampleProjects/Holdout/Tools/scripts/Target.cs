@@ -1,7 +1,7 @@
 using Engine;
 
 // A practice target: flashes red when shot, and counts its hits in the log.
-public class Target : IDamageable
+public class Target : EntityBehavior, IDamageable
 {
     readonly Entity m_entity;
     Entity m_model;

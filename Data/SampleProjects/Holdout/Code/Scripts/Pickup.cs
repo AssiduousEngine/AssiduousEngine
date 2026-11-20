@@ -3,7 +3,7 @@ using Engine;
 // Something lying in the yard, turning slowly: a weapon, which walked over gives the player the
 // weapon (or more rounds for it), or a health pack (`heal`), which heals the player when they are
 // hurt. Taken, it comes back after `respawnSeconds`.
-public class Pickup
+public class Pickup : EntityBehavior
 {
     readonly Entity m_entity;
     Float3 m_home;

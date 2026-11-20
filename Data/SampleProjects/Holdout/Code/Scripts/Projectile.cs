@@ -3,7 +3,7 @@ using Engine;
 // A gunner's shot: a glowing round that flies straight along the way it was spawned facing, slow
 // enough to dodge. It hurts the player when it passes within `radius` of the body's middle, and ends
 // there, on anything solid in its path, or after `lifetime` seconds.
-public class Projectile
+public class Projectile : EntityBehavior
 {
     readonly Entity m_entity;
     float m_age;

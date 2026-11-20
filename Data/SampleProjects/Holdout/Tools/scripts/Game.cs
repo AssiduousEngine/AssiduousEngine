@@ -11,7 +11,7 @@ using Engine;
 // its rounds, and a hit marker. Pause (Escape, Start, or a pointer lock the browser ended) holds the
 // yard behind the pause menu: resume, restart or back to the title.
 // Behaviours reach the game through its statics (one assembly, one game).
-public class Game
+public class Game : RunBehavior
 {
     const string TitleDocument = "{{{GUI:Title}}}";
     const string HudDocument = "{{{GUI:Hud}}}";
@@ -60,19 +60,19 @@ public class Game
 
     ScreenStack? Screens => ScreenStack.of(gui.root()?.find("screens"));
 
-    public void launch()
+    public void onStart()
     {
         s_current = this;
         ShowTitle();
     }
 
-    public void exit()
+    public void onStop()
     {
         if (s_current == this)
             s_current = null;
     }
 
-    public void update(float dt)
+    public void onUpdate(float dt)
     {
         UpdateHud(dt);
         if (!m_playing)
