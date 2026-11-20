@@ -9,6 +9,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Added
 
+- Scripting: players can rebind controls. `Input.rebind(action)` takes the player's next press,
+  `Input.setBinding(action, "Key.Space")` sets one by name, and `Input.resetBinding` /
+  `Input.resetAllBindings` undo them; the bindings are kept in the game's save and apply when it
+  next starts.
 - Scripting: an EntityBehavior's `onFixedUpdate(dt)` runs each fixed physics step, as a
   SceneBehavior's does.
 - Animation graphs: a transition can be marked Interruptible, so the state it goes to may leave

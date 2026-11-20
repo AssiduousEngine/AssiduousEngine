@@ -337,6 +337,8 @@ export namespace engine::runtime
             Register<input::ActionRuntime>(m_inputRuntime);
             Register<input::IRunInput>(*this); // the input subsystem drives it as the frame begins
             Register<RunSave>(m_save);
+            Register<input::PlayerBindings>(m_bindings); // the Input facade's rebinding
+            m_bindings.SetStore(&m_save.Bindings(), [this]() { m_save.MarkChanged(); });
             Register<engine::behavior::BehaviorRunHost>(m_runHost);
             Register<foundation::http::HttpScriptBinding>(m_http);
             Register<RunBinding>(m_runBinding);
@@ -657,7 +659,10 @@ export namespace engine::runtime
 
         /// Install the action map (the game's controls, from the project's input-map asset) on this
         /// instance's runtime. Each instance has its own runtime and its own copy of the map.
-        void SetInputMap(const input::InputMap& map) { m_inputRuntime.SetMap(map); }
+        /// The player's own bindings saved with the run (SetSaveFile) lie over it.
+        void SetInputMap(const input::InputMap& map) { m_bindings.Install(m_inputRuntime, map); }
+        /// The player's bindings over the game's controls: rebinding, kept in the run's save.
+        [[nodiscard]] input::PlayerBindings& Bindings() noexcept { return m_bindings; }
 
         /// This run's action runtime. The Input facade resolves it per script context (installed
         /// into this instance's context, so instance A's script never sees instance B's keys).
@@ -672,7 +677,13 @@ export namespace engine::runtime
         /// Names this run's save file and reads it (the player's user data directory, the editor's
         /// project Editor/ folder). The run's scripts reach it through the Save facade, and the run
         /// writes it when its script stops if anything changed. Empty: values kept for the run only.
-        void SetSaveFile(core::StringView path) { m_save.Open(path); }
+        /// The player's bindings in it apply over the game's controls.
+        void SetSaveFile(core::StringView path)
+        {
+            m_save.Open(path);
+            m_bindings.SetStore(&m_save.Bindings(), [this]() { m_save.MarkChanged(); });
+            m_bindings.Reapply();
+        }
         [[nodiscard]] RunSave& Saves() noexcept { return m_save; }
 
         // ---- networking (this instance's NetworkController; the forwards below) ----
@@ -728,6 +739,7 @@ export namespace engine::runtime
 
         input::ActionRuntime m_inputRuntime; // this run's action state (per-instance)
         RunSave m_save{DefaultAllocator()};  // this run's save, installed per context (StartRunBehavior)
+        input::PlayerBindings m_bindings;    // the player's rebinding of m_inputRuntime, kept in m_save
         foundation::http::HttpScriptBinding m_http;          // installed per context; its client on first use
         void TraceInput(); // ENV_INPUT_TRACE: the input path, logged twice a second
         input::IInputSourceProvider* m_inputSource =

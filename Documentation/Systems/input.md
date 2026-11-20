@@ -84,9 +84,13 @@ construction.
 - **`InputMapResource`** (cooked, write-through: validate + serialize) - `resource::Ref`; the runtime
   binds the project's `defaultInputMapId` at startup.
 - **User rebind overlay** - NOT part of the asset. `InputBindingOverrides` (a `foundation.settings`
-  section in the USER file) stores per-action replacement bindings; the runtime applies
-  overlay-over-asset at load and after each rebind. Reset = clear the overlay (the asset stays
-  pristine).
+  section) stores per-action replacement bindings. A run keeps it in its save file, beside the
+  game's values (`RunSave::Bindings`), and `PlayerBindings` lays it over the game's map when the map
+  is installed or the save opens, and over one action at each rebind, without resetting the sets
+  (`ActionRuntime::ReplaceBindings`). A rebind replaces the action's binding for one kind of
+  device (keyboard and mouse, or pad) and keeps the rest; a capture (`BeginCapture`, polled before
+  the runtime's update) holds every action released, as a disabled set does, until the press.
+  Reset = clear the overlay (the asset stays pristine).
 
 ## Editor + scripting
 
@@ -97,7 +101,10 @@ construction.
   AngelScript `Input::`, Luau `Input.`): `isDown` / `wasPressed` / `wasReleased` /
   `value` / `valueX` / `valueY` / `value2D` (a Float2) by action name, `pushSet` / `popSet` /
   `enableSet`, and `describe(action)` / `describe(action, set)`, the name of the control the action
-  takes on the kind of input in use (for prompts).
+  takes on the kind of input in use (for prompts). Rebinding: `rebind(action[, set])` takes the
+  player's next press, `isRebinding()` / `cancelRebind()`, `setBinding(action, control[, set])` by
+  name (`"Key.Space"`, `"Mouse.Left"`, `"Pad.South"`, `"PadAxis.RightTrigger"`),
+  `resetBinding(action[, set])` and `resetAllBindings()`; each saves with the game's save.
   **Rumble**: `rumble(low, high, seconds)` runs gamepad 0's motors (`low` the heavy, low-frequency
   one, `high` the light, high-frequency one, each 0 to 1), `rumble(gamepad, low, high, seconds)` a
   pad by index, `stopRumble()` every pad. A request waits for the runtime's next update and reaches

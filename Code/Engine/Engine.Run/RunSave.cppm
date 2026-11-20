@@ -7,7 +7,7 @@
 // options), the file they live in, and whether they changed since the last write. The host names
 // the file (the player in the user data directory, play in editor in the project's Editor/ folder);
 // the run's script contexts reach it through the `Save` facade. The file is an ordinary settings
-// file holding one SaveValues section, written whole and atomically.
+// file holding a SaveValues section and the player's bindings, written whole and atomically.
 
 module;
 #include "Core/Prelude.h"
@@ -18,6 +18,7 @@ export module engine.run:save;
 import foundation.core;
 import foundation.settings;
 import foundation.script;
+import foundation.input; // InputBindingOverrides: the player's rebinding, kept in the save
 
 using namespace foundation::core;
 using namespace foundation;
@@ -49,6 +50,12 @@ export namespace engine::runtime
         [[nodiscard]] StringView Path() const noexcept { return m_path.AsView(); }
 
         [[nodiscard]] settings::SaveValues& Values() { return m_store->Section<settings::SaveValues>(); }
+        // The player's own bindings of the game's controls, a section of their own beside the
+        // values (so clearing the values keeps them). Open replaces the store: ask again after it.
+        [[nodiscard]] foundation::input::InputBindingOverrides& Bindings()
+        {
+            return m_store->Section<foundation::input::InputBindingOverrides>();
+        }
 
         // A change the next Flush writes. The facade calls it when a setter reports a change.
         void MarkChanged() noexcept { m_changed = true; }

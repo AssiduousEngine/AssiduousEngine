@@ -1933,6 +1933,43 @@ TEST_CASE("game-instance: a game keeps its values between runs through Save (Ang
     CHECK_FALSE(reread.Values().Has(u8"scratch"));
 }
 
+TEST_CASE("game-instance: the player's rebinding is kept in the save and lies over the controls the next run")
+{
+    const String path = FreshSavePath(u8"game_bindings.xml");
+    input::InputMap map;
+    {
+        input::ActionSet gameplay;
+        gameplay.name = String(u8"Gameplay");
+        input::Action jump;
+        jump.name = String(u8"Jump");
+        input::Binding space;
+        space.code = static_cast<u32>(foundation::shell::KeyCode::Space);
+        jump.bindings.PushBack(space);
+        gameplay.actions.PushBack(jump);
+        map.sets.PushBack(gameplay);
+    }
+    input::Binding j;
+    j.code = static_cast<u32>(foundation::shell::KeyCode::J);
+    {
+        engine::runtime::ApplicationRun gi;
+        gi.SetSaveFile(path.AsView());
+        gi.SetInputMap(map);
+        (void)gi.Saves().Values().SetInt(u8"runs", 1);
+        REQUIRE(gi.Bindings().Set(StringView{}, u8"Jump", j));
+        CHECK(gi.Saves().HasChanges());
+        REQUIRE(gi.Saves().Flush());
+    }
+    {
+        // The map installed before the save opens: the save's bindings apply as it opens.
+        engine::runtime::ApplicationRun gi;
+        gi.SetInputMap(map);
+        CHECK(gi.InputRuntime().FindAction(u8"Gameplay", u8"Jump")->bindings[0].code == static_cast<u32>(foundation::shell::KeyCode::Space));
+        gi.SetSaveFile(path.AsView());
+        CHECK(gi.InputRuntime().FindAction(u8"Gameplay", u8"Jump")->bindings[0].code == j.code);
+        CHECK(gi.Saves().Values().GetInt(u8"runs", 0) == 1);
+    }
+}
+
 TEST_CASE("game-instance: a game keeps a list of numbers through Save (AngelScript and Luau)")
 {
     RegisterCoreTypes();

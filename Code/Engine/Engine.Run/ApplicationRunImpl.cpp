@@ -208,6 +208,7 @@ namespace engine::runtime
         StopNetworking(); // networking belongs to the run; the endpoint drops with it
         m_http.Reset();   // so do its HTTP requests: no answer reaches a script that has stopped
         // What the game saved and did not write yet is kept: the run writes it as it ends.
+        m_bindings.CancelCapture(); // a rebinding the game left listening ends with it
         (void)m_save.Flush();
         // So does any rumble the game started, and a pointer it locked: no pad is left buzzing and
         // no pointer held after its run.
@@ -235,6 +236,7 @@ namespace engine::runtime
             return;
         }
         m_inputRuntime.SetTimeScale(contextTimeScale);
+        m_bindings.Poll(*m_inputSource); // a capture takes its press before the actions read
         m_inputRuntime.Update(*m_inputSource, deltaTime);
         TraceInput();
     }

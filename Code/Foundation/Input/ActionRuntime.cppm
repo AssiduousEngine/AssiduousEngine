@@ -283,6 +283,64 @@ export namespace foundation::input
             }
         }
         void DisableSet(StringView name) { EnableSet(name, false); }
+
+        /// While listening, every action reads released, as in a disabled set (a held press is
+        /// latched, so it does not fire once listening ends): the player's next press is being
+        /// taken for a binding, not played.
+        void SetListening(bool listening) noexcept { m_listening = listening; }
+        [[nodiscard]] bool IsListening() const noexcept { return m_listening; }
+
+        /// The action named `action` in the set named `set`, or null.
+        [[nodiscard]] const Action* FindAction(StringView set, StringView action) const noexcept
+        {
+            for (const ActionSet& candidate : m_map.sets)
+                if (candidate.name.AsView() == set)
+                    for (const Action& a : candidate.actions)
+                        if (a.name.AsView() == action)
+                            return &a;
+            return nullptr;
+        }
+        /// The set `action` is read from: the highest-priority enabled set that has it, else the
+        /// highest-priority set that has it; empty when none has.
+        [[nodiscard]] StringView SetOf(StringView action) const noexcept
+        {
+            const ActionSet* best = nullptr;
+            bool bestEnabled = false;
+            for (usize i = 0; i < m_map.sets.Size(); ++i)
+            {
+                const ActionSet& candidate = m_map.sets[i];
+                bool has = false;
+                for (const Action& a : candidate.actions)
+                    has = has || a.name.AsView() == action;
+                if (!has)
+                    continue;
+                const bool enabled = m_setEnabled[i] != 0u;
+                if (best == nullptr || (enabled && !bestEnabled) || (enabled == bestEnabled && candidate.priority > best->priority))
+                {
+                    best = &candidate;
+                    bestEnabled = enabled;
+                }
+            }
+            return best != nullptr ? best->name.AsView() : StringView{};
+        }
+        /// Gives `action` in `set` these bindings, keeping every set's enabled state, the exclusive
+        /// stack and the actions' states (a player's rebinding mid-game). False when there is no
+        /// such action.
+        bool ReplaceBindings(StringView set, StringView action, Span<const Binding> bindings)
+        {
+            for (ActionSet& candidate : m_map.sets)
+                if (candidate.name.AsView() == set)
+                    for (Action& a : candidate.actions)
+                        if (a.name.AsView() == action)
+                        {
+                            a.bindings.Clear();
+                            for (const Binding& binding : bindings)
+                                a.bindings.PushBack(binding);
+                            ++m_bindingsVersion;
+                            return true;
+                        }
+            return false;
+        }
         [[nodiscard]] bool IsSetEnabled(StringView name) const
         {
             for (usize i = 0; i < m_map.sets.Size(); ++i)
@@ -374,7 +432,7 @@ export namespace foundation::input
             for (usize s = 0; s < m_map.sets.Size(); ++s)
             {
                 // Disabled behaves exactly like exclusive-suppressed: released, with latching.
-                const bool suppressed = (m_setEnabled[s] == 0u) ||
+                const bool suppressed = m_listening || (m_setEnabled[s] == 0u) ||
                                         (exclusiveTop >= 0 && static_cast<i32>(s) != exclusiveTop);
                 for (usize a = 0; a < m_map.sets[s].actions.Size(); ++a, ++flat)
                 {
@@ -1256,6 +1314,7 @@ export namespace foundation::input
         f32 m_timeScale = 1.0f;
         ConsumptionMask m_consumed;
         bool m_latchHeldOnce = false; // set by exclusive push/pop, consumed next Update
+        bool m_listening = false;     // a press is being taken for a binding: every action released
         u64 m_bindingsVersion = 0; // BindingsVersion
 
         struct RumbleRequest

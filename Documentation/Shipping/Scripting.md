@@ -164,6 +164,23 @@ name for the device in hand, "" when the action has no binding: `"Hold " + Input
 + ": pick the lock"`. Build such a sentence when it is shown, not once, so it follows a pad
 picked up.
 
+## Rebinding controls
+
+A player can change what they press for an action, and the change is kept in the game's save:
+
+- `Input.rebind("Jump")` waits for the player's next press on the device in hand (the keyboard and
+  mouse, or a pad) and makes it Jump's control for that device; the other device keeps its own.
+  Every action reads released while it waits. Escape, or the pad's Back, cancels;
+  `Input.cancelRebind()` does from a script. `Input.isRebinding()` is true until then, and
+  `Input.describe("Jump")` names the new control after. It works on button actions.
+- `Input.setBinding("Jump", "Key.Space")` sets it by name: `Key.<key>`, `Mouse.<button>`,
+  `Pad.<button>` or `PadAxis.<axis>`, named as the engine spells them (`Key.LeftShift`,
+  `Pad.South`, `PadAxis.RightTrigger`). False for a name or action it does not know.
+- `Input.resetBinding("Jump")` gives the action the game's own controls back;
+  `Input.resetAllBindings()` does it for every action.
+- Each takes the action's set as a last argument when the name is in more than one; without it,
+  the set the action is read from now.
+
 ## Editor properties
 
 - **Luau**: every field the constructor sets to a number, boolean, string or Float3 becomes a

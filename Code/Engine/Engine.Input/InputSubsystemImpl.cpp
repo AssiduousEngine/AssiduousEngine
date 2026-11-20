@@ -47,6 +47,17 @@ namespace engine::input
         // The control an action takes on the device in hand, by arity: the action, or it in a set.
         builder.Method<static_cast<String (*)(String)>(&InputFacade::describe)>("describe", {"action"});
         builder.Method<static_cast<String (*)(String, String)>(&InputFacade::describe)>("describe", {"action", "set"});
+        // The player's rebinding, kept in the game's save; each by arity, with or without a set.
+        builder.Method<static_cast<bool (*)(String)>(&InputFacade::rebind)>("rebind", {"action"});
+        builder.Method<static_cast<bool (*)(String, String)>(&InputFacade::rebind)>("rebind", {"action", "set"});
+        builder.Method<&InputFacade::isRebinding>("isRebinding");
+        builder.Method<&InputFacade::cancelRebind>("cancelRebind");
+        builder.Method<static_cast<bool (*)(String, String)>(&InputFacade::setBinding)>("setBinding", {"action", "control"});
+        builder.Method<static_cast<bool (*)(String, String, String)>(&InputFacade::setBinding)>("setBinding",
+                                                                                               {"action", "control", "set"});
+        builder.Method<static_cast<bool (*)(String)>(&InputFacade::resetBinding)>("resetBinding", {"action"});
+        builder.Method<static_cast<bool (*)(String, String)>(&InputFacade::resetBinding)>("resetBinding", {"action", "set"});
+        builder.Method<&InputFacade::resetAllBindings>("resetAllBindings");
         // Some backends only materialize constructible types as foreign classes.
         builder.Constructor();
     }

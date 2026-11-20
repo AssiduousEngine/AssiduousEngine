@@ -299,8 +299,8 @@ export namespace engine::input
         }
         /// What the player presses for `action` on the device in hand ("Space", "Pad South"): the
         /// control a GUI prompt for it shows, for a sentence that names it. Read from the
-        /// highest-priority enabled set with the action, after the player's rebinding; "" when it
-        /// has no binding (or there is no runtime).
+        /// highest-priority enabled set with the action, after the player's rebinding (rebind,
+        /// setBinding); "" when it has no binding (or there is no runtime).
         [[nodiscard]] static String describe(String action) { return describe(static_cast<String&&>(action), String{}); }
         /// The same, for the action in `set`.
         [[nodiscard]] static String describe(String action, String set)
@@ -314,6 +314,64 @@ export namespace engine::input
             const InputKind kind = kinds != nullptr ? kinds->Kind() : InputKind::Pointer;
             const Optional<Binding> binding = ShownBinding::For(*rt, action.AsView(), set.AsView(), kind);
             return binding.HasValue() ? DescribeBinding(binding.Value()) : String{};
+        }
+
+        // ---- the player's rebinding, kept in the game's save ----
+
+        /// The calling script's run's bindings; null outside a run.
+        [[nodiscard]] static PlayerBindings* Bindings() { return foundation::script::CurrentService<PlayerBindings>(); }
+        /// Takes the player's next press on the device in hand (the keyboard and mouse, or a pad)
+        /// as `action`'s binding for that device, in place of its old one; every action reads
+        /// released until then. Escape, or the pad's Back, cancels. False when the action is not a
+        /// button of the game's controls.
+        static bool rebind(String action) { return rebind(static_cast<String&&>(action), String{}); }
+        /// The same, for the action in `set`.
+        static bool rebind(String action, String set)
+        {
+            PlayerBindings* bindings = Bindings();
+            const InputKindTracker* kinds = foundation::script::CurrentService<InputKindTracker>();
+            return bindings != nullptr &&
+                   bindings->BeginCapture(set.AsView(), action.AsView(), kinds != nullptr ? kinds->Kind() : InputKind::Keyboard);
+        }
+        /// Whether a rebind is waiting for the player's press.
+        [[nodiscard]] static bool isRebinding()
+        {
+            const PlayerBindings* bindings = Bindings();
+            return bindings != nullptr && bindings->IsCapturing();
+        }
+        /// Stops waiting; the action keeps its binding.
+        static void cancelRebind()
+        {
+            if (PlayerBindings* bindings = Bindings())
+                bindings->CancelCapture();
+        }
+        /// Binds `action` to a control by name ("Key.Space", "Mouse.Left", "Pad.South",
+        /// "PadAxis.RightTrigger"), in place of its binding for that device. False for an unknown
+        /// control or action, or a two-dimensional action.
+        static bool setBinding(String action, String control)
+        {
+            return setBinding(static_cast<String&&>(action), static_cast<String&&>(control), String{});
+        }
+        /// The same, for the action in `set`.
+        static bool setBinding(String action, String control, String set)
+        {
+            PlayerBindings* bindings = Bindings();
+            const Optional<Binding> binding = ParseControl(control.AsView());
+            return bindings != nullptr && binding.HasValue() && bindings->Set(set.AsView(), action.AsView(), binding.Value());
+        }
+        /// Gives `action` the game's own bindings again. False for an unknown action.
+        static bool resetBinding(String action) { return resetBinding(static_cast<String&&>(action), String{}); }
+        /// The same, for the action in `set`.
+        static bool resetBinding(String action, String set)
+        {
+            PlayerBindings* bindings = Bindings();
+            return bindings != nullptr && bindings->Reset(set.AsView(), action.AsView());
+        }
+        /// Every action back to the game's own bindings.
+        static void resetAllBindings()
+        {
+            if (PlayerBindings* bindings = Bindings())
+                bindings->ResetAll();
         }
     };
 

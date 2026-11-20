@@ -16,3 +16,4 @@ export import :binding_names;
 export import :scripted_input;
 export import :scripted_input_json;
 export import :input_kind;
+export import :player_bindings;

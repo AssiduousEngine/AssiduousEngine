@@ -509,6 +509,60 @@ TEST_CASE("input: Input::describe names the control for the device in hand, as a
     CHECK(ctxNone->GetGlobal(u8"Shown").Get<String>().IsEmpty());
 }
 
+TEST_CASE("input: a script rebinds by name, waits for a press, and resets, through its run's bindings")
+{
+    RefPtr<foundation::script::IScriptManager> manager =
+        foundation::script::angelscript::CreateScriptManager(DefaultAllocator());
+    engine::input::RegisterInputScriptFacade();
+    foundation::script::RegisterReflectedTypes(*manager);
+
+    ActionRuntime runtime;
+    PlayerBindings bindings;
+    bindings.Install(runtime, MakeGameplayMap()); // Jump: Space, then the pad's south button
+    InputKindTracker kinds;
+    RefPtr<foundation::script::IScriptContext> ctx = manager->CreateContext();
+    RefPtr<foundation::script::IScriptContext> ctxNone = manager->CreateContext();
+    foundation::script::ScriptServices services;
+    services.Add(runtime);
+    services.Add(kinds);
+    services.Add(bindings);
+    ctx->SetServiceResolver(services.Resolver());
+    const StringView set = u8"bool Known; bool Unknown; string Shown;\n"
+                           u8"void main() {\n"
+                           u8"  Known = Input::setBinding(\"Jump\", \"Key.J\");\n"
+                           u8"  Unknown = Input::setBinding(\"Jump\", \"Key.Nothing\");\n"
+                           u8"  Shown = Input::describe(\"Jump\");\n"
+                           u8"}\n";
+    REQUIRE(ctx->Load(set, u8"main").IsOk());
+    CHECK(ctx->GetGlobal(u8"Known").Get<bool>());
+    CHECK_FALSE(ctx->GetGlobal(u8"Unknown").Get<bool>());
+    CHECK(ctx->GetGlobal(u8"Shown").Get<String>() == StringView(u8"J"));
+
+    const StringView listen = u8"bool Started; bool Waiting; bool Stopped;\n"
+                              u8"void main() {\n"
+                              u8"  Started = Input::rebind(\"Jump\");\n"
+                              u8"  Waiting = Input::isRebinding();\n"
+                              u8"  Input::cancelRebind();\n"
+                              u8"  Stopped = !Input::isRebinding();\n"
+                              u8"}\n";
+    REQUIRE(ctx->Load(listen, u8"main").IsOk());
+    CHECK(ctx->GetGlobal(u8"Started").Get<bool>());
+    CHECK(ctx->GetGlobal(u8"Waiting").Get<bool>());
+    CHECK(ctx->GetGlobal(u8"Stopped").Get<bool>());
+
+    const StringView reset = u8"string Shown;\n"
+                             u8"void main() {\n"
+                             u8"  Input::resetBinding(\"Jump\");\n"
+                             u8"  Shown = Input::describe(\"Jump\");\n"
+                             u8"}\n";
+    REQUIRE(ctx->Load(reset, u8"main").IsOk());
+    CHECK(ctx->GetGlobal(u8"Shown").Get<String>() == StringView(u8"Space"));
+
+    // Outside a run: nothing to rebind, never a fault.
+    REQUIRE(ctxNone->Load(set, u8"main").IsOk());
+    CHECK_FALSE(ctxNone->GetGlobal(u8"Known").Get<bool>());
+}
+
 TEST_CASE("input.subsystem: the subsystem tracks the input kind from its active source")
 {
     FakeGamepad pad;

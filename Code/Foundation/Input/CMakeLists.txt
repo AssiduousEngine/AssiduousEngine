@@ -17,5 +17,6 @@ target_sources(Input
             BindingNames.cppm
             ScriptedInput.cppm
             ScriptedInputJson.cppm
-            InputKind.cppm)
+            InputKind.cppm
+            PlayerBindings.cppm)
 

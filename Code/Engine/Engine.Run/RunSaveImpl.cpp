@@ -15,12 +15,25 @@ import foundation.settings;
 import foundation.script;
 import foundation.script.facades;  // RegisterExtraFacadeName
 import foundation.xml.serialization; // a save file is XML, like the user settings beside it
+import foundation.input;             // the bindings section's type
 
 using namespace foundation::core;
 using namespace foundation;
 
 namespace engine::runtime
 {
+    // The types of a save file's sections, registered once: a load makes each by its name.
+    static void RegisterSaveSections()
+    {
+        static const bool once = []()
+        {
+            settings::RegisterSaveValuesType();
+            foundation::input::RegisterInputTypes();
+            return true;
+        }();
+        (void)once;
+    }
+
     void RunSave::Open(StringView path)
     {
         m_path = String(path, *m_allocator);
@@ -30,7 +43,7 @@ namespace engine::runtime
         {
             return;
         }
-        settings::RegisterSaveValuesType(); // the load instantiates the section by its name
+        RegisterSaveSections(); // the load instantiates each section by its name
         bool read = false;
         {
             // Closed before the file might be moved aside below.
@@ -205,7 +218,7 @@ namespace engine::runtime
     {
         static const bool once = []()
         {
-            settings::RegisterSaveValuesType(); // reading a save file instantiates the section by name
+            RegisterSaveSections();   // reading a save file instantiates each section by name
             RegisterArrayType<f32>();           // getFloats/setFloats: a list crosses as array<float>
             GlobalTypeRegistry().Register(SaveFacade::StaticType());
             foundation::script::RegisterExtraFacadeName(u8"Save");
