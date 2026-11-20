@@ -27,7 +27,9 @@ export namespace foundation::script
     struct BehaviorKinds
     {
         /// Every kind a class can declare, in the order Run, Scene, Entity.
-        static constexpr BehaviorKind kAll[] = {BehaviorKind::Run, BehaviorKind::Scene, BehaviorKind::Entity};
+        // ENGINE_EXPORT_DATA: odr-used from another library (the backends loop over it).
+        static constexpr ENGINE_EXPORT_DATA BehaviorKind kAll[] = {BehaviorKind::Run, BehaviorKind::Scene,
+                                                                  BehaviorKind::Entity};
 
         /// The base type a class derives from to be of `kind`, as every language names it
         /// ("RunBehavior"); empty for None.

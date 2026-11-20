@@ -32,8 +32,9 @@ TEST_CASE("mcp folders: a listed folder is unanswered until the user answers; on
     // Each relative to the project, made absolute.
     const Array<String> listed = ResolveMcpFolders(project.AsView(), settings);
     REQUIRE(listed.Size() == 2u);
-    CHECK(listed[0] == PathJoin(GetCurrentDirectory().AsView(), u8"Game"));
-    CHECK(listed[1] == PathJoin(GetCurrentDirectory().AsView(), u8"Art"));
+    // Normalised as the path checks compare them (on Windows that is not the joined spelling).
+    CHECK(listed[0] == PathNormalizeLexically(PathJoin(GetCurrentDirectory().AsView(), u8"Game").AsView()));
+    CHECK(listed[1] == PathNormalizeLexically(PathJoin(GetCurrentDirectory().AsView(), u8"Art").AsView()));
 
     // No answers yet: both unanswered, none approved.
     McpFolderStanding standing = StandMcpFolders(answersDir.AsView(), project.AsView(), settings);
