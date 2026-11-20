@@ -238,7 +238,9 @@ screens do, which should match ImGui's look. Investigate and settle:
 
 `Render.Backend.Tests`' GPU profile probe (`GpuProfileProbeTests.cpp`) checks that every GPU pass
 lies inside its frame's CPU span, give or take 2 ms (`slack`). On CI's Windows clang Debug job it
-failed once on WebGPU (`outsideFrame` 20, CI on bfb22ac89) and passed on a rerun. WebGPU has no
+failed once on WebGPU (`outsideFrame` 20, CI on bfb22ac89) and passed on a rerun. It failed the
+same way twice more, on Windows' software adapter (Microsoft Basic Render Driver): run 44398182132,
+and run 44482531143 on 7fefb9087 (MSVC RelWithDebInfo shared, 20 of 24 passes outside). WebGPU has no
 calibrated timestamps (`Features::timestampCalibration` false, `WebGpuQueue.cppm`), so the
 profiler maps GPU time to CPU time from one sync point taken at the start (`GraphProfiler::
 Calibrate`, `SyncPoint`) and never again: the error is the sync point's own uncertainty plus the
@@ -558,3 +560,11 @@ flags depth = true and stencil = true` on every submit. Chrome, Opera, Safari an
   its pass holds read-only (`LOG_ERROR`, once per encoder), with its test in RHI.WebGPU.Tests;
   native wgpu does not validate this, so it would catch a real mismatch of our own. It stayed silent
   in Firefox, which showed our flags right.
+
+## Core.Tests hung once (2026-11-19)
+
+A clang `ctest` run of Core.Tests (normally about 8.5 s) sat for 65 minutes at 0% CPU, every thread
+in a futex wait, on master after the behavior rename (which does not touch Core). It could not be
+attached to (ptrace scope), so the test case is unknown; five reruns with `-s -d` passed. Find it
+by running the suite in a loop under `timeout` with `-s` until it hangs, then read the last test
+case printed; the threading tests are the first suspects.
