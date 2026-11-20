@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// The Game tier as a game writes it in C#: one per run, made with no arguments, launched, updated
-// and exited by name; its on<Event> handlers hear the run's bus.
+// A run behavior as a game writes it in C#: one per run, made with no arguments, started, updated
+// and stopped by name; its on<Event> handlers hear the run's bus.
 
 using Engine;
 
 namespace TestGame;
 
-public class Game
+public class Game : RunBehavior
 {
     int m_updates;
 
-    public void launch() => Log.info("C# game launched");
+    public void onStart() => Log.info("C# game started");
 
-    public void update(float dt)
+    public void onUpdate(float dt)
     {
         m_updates += 1;
         if (m_updates == 2)
@@ -23,5 +23,5 @@ public class Game
 
     public void onGoalReached(int x) => Log.info($"C# game heard GoalReached {x}");
 
-    public void exit() => Log.info("C# game exited");
+    public void onStop() => Log.info("C# game stopped");
 }

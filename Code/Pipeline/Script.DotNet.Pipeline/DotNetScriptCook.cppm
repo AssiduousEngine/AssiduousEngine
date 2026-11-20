@@ -28,8 +28,11 @@ export namespace pipeline
     /// engine looks for it: DotNet/ beside the running executable.
     [[nodiscard]] String EngineRuntimeAssemblyPath();
 
-    /// The C# classes `source` declares (`class Name`, after any modifiers), in order.
-    [[nodiscard]] Array<String> ListCSharpClassNames(StringView source);
+    /// The C# classes `source` declares (`class Name`, after any modifiers), in order, each with the
+    /// behavior kind it names among its bases (`class Mover : EntityBehavior`); None for one that
+    /// names none here (a helper, or a class deriving from a kind through a base of its own, which
+    /// only the built assembly knows).
+    [[nodiscard]] Array<DeclaredScriptClass> ListCSharpClasses(StringView source);
 
     /// Parses a description the runtime wrote (Runtime.cs's DescribeAssembly) into `out`'s classes;
     /// a "warning" line goes to `sink` as a warning.

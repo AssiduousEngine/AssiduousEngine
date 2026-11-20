@@ -538,7 +538,11 @@ public static unsafe class Runtime
             {
                 if (!type.IsClass || type.IsAbstract || !type.IsPublic)
                     continue;
-                lines.Append("class ").Append(type.Name).Append('\n');
+                // The kind it derives from, directly or through a base of its own, after its name.
+                lines.Append("class ").Append(type.Name);
+                if (BehaviorKindOf(type) is string kind)
+                    lines.Append(' ').Append(kind);
+                lines.Append('\n');
                 object? instance = null;
                 ConstructorInfo? simplest = null;
                 foreach (ConstructorInfo constructor in type.GetConstructors())
@@ -580,6 +584,16 @@ public static unsafe class Runtime
     // A class's lines: "method NAME" for each of its public methods, "field NAME KIND DEFAULT" for
     // each public field of an inspector kind (its default from `instance`, empty without one),
     // then "tooltip NAME TEXT" and "replicated NAME".
+    // The behavior kind `type` derives from (the kind's type name), or null when it derives from none:
+    // a helper class, not a behavior. Compared by name, since the class came from its own load context.
+    static string? BehaviorKindOf(Type type)
+    {
+        for (Type? t = type.BaseType; t != null; t = t.BaseType)
+            if (t.Namespace == "Engine" && (t.Name == nameof(RunBehavior) || t.Name == nameof(SceneBehavior) || t.Name == nameof(EntityBehavior)))
+                return t.Name;
+        return null;
+    }
+
     static void DescribeType(Type type, object? instance, StringBuilder lines)
     {
         foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance))

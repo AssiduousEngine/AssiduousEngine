@@ -127,6 +127,7 @@ public static unsafe class PureValues
         Put(Engine.Math.Log(s)); Put(Engine.Math.Exp(x)); Put(Engine.Math.DegreesToRadians(45.0f));
         Put(Engine.Math.RadiansToDegrees(x)); Put(Engine.Math.Lerp(x, y, s)); Put(Engine.Math.Min(x, y));
         Put(Engine.Math.Max(x, y)); Put(Engine.Math.Clamp(y, -1.0f, 1.0f));
+        Put(Engine.Math.MinInt(7, -3)); Put(Engine.Math.MaxInt(7, -3)); Put(Engine.Math.ClampInt(12, 1, 10));
         return count;
     }
 }

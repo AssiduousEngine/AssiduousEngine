@@ -34,19 +34,25 @@ namespace
     }
 }
 
-TEST_CASE("csharp cook: the classes a file declares")
+TEST_CASE("csharp cook: the classes a file declares, with the kind each names among its bases")
 {
-    const Array<String> names = ListCSharpClassNames(u8"using Engine;\n"
-                                                     u8"// class Commented\n"
-                                                     u8"/* public class Blocked */\n"
-                                                     u8"public sealed partial class Player\n{\n"
-                                                     u8"    class Nested { }\n"
-                                                     u8"    int classic;\n}\n"
-                                                     u8"internal static class Helpers<T> where T : class { }\n");
-    REQUIRE(names.Size() == 3u);
-    CHECK(names[0] == u8"Player");
-    CHECK(names[1] == u8"Nested");
-    CHECK(names[2] == u8"Helpers");
+    const Array<DeclaredScriptClass> found = ListCSharpClasses(u8"using Engine;\n"
+                                                               u8"// class Commented\n"
+                                                               u8"/* public class Blocked */\n"
+                                                               u8"public sealed partial class Player : EntityBehavior, IDamageable\n{\n"
+                                                               u8"    class Nested { }\n"
+                                                               u8"    int classic;\n}\n"
+                                                               u8"internal static class Helpers<T> where T : class { }\n"
+                                                               u8"public class Game : Engine.RunBehavior { }\n");
+    REQUIRE(found.Size() == 4u);
+    CHECK(found[0].name == u8"Player");
+    CHECK(found[0].kind == BehaviorKind::Entity);
+    CHECK(found[1].name == u8"Nested");
+    CHECK(found[1].kind == BehaviorKind::None);
+    CHECK(found[2].name == u8"Helpers");
+    CHECK(found[2].kind == BehaviorKind::None); // a `where T : class` constraint is no base
+    CHECK(found[3].name == u8"Game");
+    CHECK(found[3].kind == BehaviorKind::Run);
 }
 
 TEST_CASE("csharp cook: a build's problems are read at their file, line and column, each once")
@@ -98,15 +104,15 @@ TEST_CASE("csharp cook: the runtime's description reads into classes")
     REQUIRE(mover->handlers.Size() == 1u);
     CHECK(mover->handlers[0] == u8"onUpdate");
     REQUIRE(mover->properties.Size() == 5u);
-    CHECK(mover->properties[0].type == ScriptPropertyType::Float);
+    CHECK(mover->properties[0].type == BehaviorPropertyType::Float);
     CHECK(mover->properties[0].defaultValue.number == doctest::Approx(2.5));
     CHECK(mover->properties[0].description == u8"units a second");
     CHECK(mover->properties[0].replicated);
-    CHECK(mover->properties[0].hash == ScriptPropertyNameHash(u8"speed"));
+    CHECK(mover->properties[0].hash == BehaviorPropertyNameHash(u8"speed"));
     CHECK(mover->properties[1].defaultValue.text == u8"two words\nand a line");
     CHECK(mover->properties[2].defaultValue.vector.z == doctest::Approx(3.0f));
     CHECK(mover->properties[3].defaultValue.color.g == doctest::Approx(0.25f));
-    CHECK(mover->properties[4].type == ScriptPropertyType::Entity);
+    CHECK(mover->properties[4].type == BehaviorPropertyType::Entity);
     REQUIRE(sink.errors.Size() == 1u);
     CHECK(sink.errors[0].kind == ScriptErrorKind::Warning);
 }
@@ -133,11 +139,13 @@ TEST_CASE("csharp cook: a project builds whole, one file's class using another's
 
     ScriptAssemblyFile helpers;
     helpers.path = String(u8"Game/Helpers.cs");
-    helpers.text = String(u8"public static class Speeds\n{\n    public static float Double(float v) => v * 2.0f;\n}\n");
+    // Actor: the project's own base for its entity behaviors (abstract: never made itself).
+    helpers.text = String(u8"public static class Speeds\n{\n    public static float Double(float v) => v * 2.0f;\n}\n"
+                          u8"public abstract class Actor : Engine.EntityBehavior { }\n");
     ScriptAssemblyFile player;
     player.path = String(u8"Game/Actors/Player.cs");
     player.text = String(u8"using Engine;\n\n"
-                         u8"public class Player\n{\n"
+                         u8"public class Player : Actor\n{\n"
                          u8"    readonly Entity m_entity;\n"
                          u8"    [Tooltip(\"units a second\")] public float speed = Speeds.Double(1.5f);\n"
                          u8"    [Replicated] public int lives = 3;\n"
@@ -155,6 +163,7 @@ TEST_CASE("csharp cook: a project builds whole, one file's class using another's
         CHECK(built.symbols.Size() > 0u);
         const ScriptAssemblyClass* described = built.FindClass(u8"Player");
         REQUIRE(described != nullptr);
+        CHECK(described->kind == BehaviorKind::Entity); // through the project's own Actor
         bool hasUpdate = false;
         for (const String& h : described->handlers)
             hasUpdate = hasUpdate || h == u8"onUpdate";
@@ -170,16 +179,18 @@ TEST_CASE("csharp cook: a project builds whole, one file's class using another's
         IScriptLanguageCook* classes = ScriptLanguageCookRegistry::Get().FindByLanguage(u8"csharp");
         REQUIRE(classes != nullptr);
         CHECK(classes->BuildsInAssembly());
-        ScriptClassSource cooked;
+        // Its source names no kind (its base is Actor); the built assembly knows it is an entity's.
+        BehaviorClassSource cooked;
         CookScriptErrorSink classSink;
-        REQUIRE(classes->CookFromAssembly(player.text.AsView(), player.path.AsView(), u8"Player", built, classSink, cooked));
+        REQUIRE(classes->CookFromAssembly(player.text.AsView(), player.path.AsView(), built, classSink, cooked));
         CHECK(cooked.language == u8"csharp");
         CHECK(cooked.className == u8"Player");
+        CHECK(cooked.kind == BehaviorKind::Entity);
         CHECK(cooked.properties.Size() == 2u);
 
         // The helper's file: a class no instance is made of, cooked as a helper with no class.
-        ScriptClassSource helper;
-        REQUIRE(classes->CookFromAssembly(helpers.text.AsView(), helpers.path.AsView(), u8"Helpers", built, classSink, helper));
+        BehaviorClassSource helper;
+        REQUIRE(classes->CookFromAssembly(helpers.text.AsView(), helpers.path.AsView(), built, classSink, helper));
         CHECK(helper.className.IsEmpty());
         CHECK(helper.handlers.IsEmpty());
     }
