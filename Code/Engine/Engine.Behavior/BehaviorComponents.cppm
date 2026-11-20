@@ -68,6 +68,7 @@ export namespace engine::behavior
         ScriptMethod enable;
         ScriptMethod start;
         ScriptMethod update;
+        ScriptMethod fixedUpdate;
         ScriptMethod disable;
         ScriptMethod destroy;
     };

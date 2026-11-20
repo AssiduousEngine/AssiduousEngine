@@ -51,7 +51,7 @@ has the ones its scope needs:
 |---|---|---|---|
 | `onStart()` | yes | yes | yes |
 | `onUpdate(dt)` | yes | yes | yes |
-| `onFixedUpdate(dt)` | | yes | |
+| `onFixedUpdate(dt)` | | yes | yes |
 | `onStop()` | yes | yes | |
 | `onEnable()`, `onDisable()`, `onDestroy()` | | | yes |
 | `on<Event>(...)` | yes | yes | yes |
@@ -65,6 +65,9 @@ has the ones its scope needs:
   (a navigation agent's speed fed to its graph jerks its walk). Read the speed the system reports,
   an agent's `velocityX()` / `velocityY()` / `velocityZ()` say. A scene's behavior updates
   before its entities' behaviors.
+- `onFixedUpdate(dt)` - each fixed physics step, `dt` the step's length; for forces and other
+  work that belongs to the simulation's rate. An entity's behavior gets its first step after its
+  `onStart()`, and none while its entity is inactive.
 - `onStop()` - when the run or scene stops; `onDestroy()` - before an entity's behavior goes.
 - `on<Event>(...)` - named events: physics contacts, and any custom event another script
   sends. `entity.send("eventName", payload)` delivers to the target entity's behaviors.

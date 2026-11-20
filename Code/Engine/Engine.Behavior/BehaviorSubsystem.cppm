@@ -752,6 +752,58 @@ export namespace engine::behavior
             }
         }
 
+        // Each fixed step, onFixedUpdate(dt) reaches every behavior that has started and is
+        // running (enabled, not faulted, its entity active). Starting stays with the frame's
+        // tick, so a behavior's first fixed step comes after its onStart.
+        void OnFixedUpdate(f32 fixedDeltaTime) override
+        {
+            if (!m_started || m_scene == nullptr || m_host == nullptr || m_host->IsDebugPaused())
+            {
+                return;
+            }
+            auto* components = m_scene->GetSystem<BehaviorComponentManager>();
+            if (components == nullptr || components->Count() == 0)
+            {
+                return;
+            }
+            PROFILE_SCOPE("Script.FixedUpdate");
+            m_fixedOwners.Clear();
+            for (scene::EntityHandle owner : components->Owners())
+            {
+                m_fixedOwners.PushBack(owner);
+            }
+            Variant dt = Variant::From(fixedDeltaTime);
+            for (scene::EntityHandle entity : m_fixedOwners)
+            {
+                if (!m_scene->IsEffectivelyActive(entity))
+                {
+                    continue;
+                }
+                BehaviorComponent* component = components->Get(entity);
+                for (usize i = 0; component != nullptr && i < component->behaviors.Size(); ++i)
+                {
+                    AttachedBehavior& behavior = component->behaviors[i];
+                    if (!behavior.started || !behavior.active || !behavior.enabled || behavior.faulted ||
+                        behavior.instance.Get() == nullptr || behavior.boundClass == nullptr ||
+                        !behavior.lifecycle.fixedUpdate.IsValid())
+                    {
+                        continue;
+                    }
+                    const u64 storage = components->StorageRevision();
+                    (void)InvokeHandler(behavior, *behavior.boundClass, entity, behavior.lifecycle.fixedUpdate, kOnFixedUpdate,
+                                        Span<Variant>{&dt, 1});
+                    if (m_host->IsDebugPaused())
+                    {
+                        return;
+                    }
+                    if (components->StorageRevision() != storage)
+                    {
+                        component = components->Get(entity);
+                    }
+                }
+            }
+        }
+
         void OnUpdate(scene::ScenePhase phase, f32 deltaTime) override
         {
             if (phase != scene::ScenePhase::Update)
@@ -1022,6 +1074,7 @@ export namespace engine::behavior
 
         static constexpr StringView kOnStart = u8"onStart";
         static constexpr StringView kOnUpdate = u8"onUpdate";
+        static constexpr StringView kOnFixedUpdate = u8"onFixedUpdate";
         static constexpr StringView kOnEnable = u8"onEnable";
         static constexpr StringView kOnDisable = u8"onDisable";
         static constexpr StringView kOnDestroy = u8"onDestroy";
@@ -1225,6 +1278,7 @@ export namespace engine::behavior
             behavior.lifecycle.enable = bind(kOnEnable, 0);
             behavior.lifecycle.start = bind(kOnStart, 0);
             behavior.lifecycle.update = bind(kOnUpdate, 1);
+            behavior.lifecycle.fixedUpdate = bind(kOnFixedUpdate, 1);
             behavior.lifecycle.disable = bind(kOnDisable, 0);
             behavior.lifecycle.destroy = bind(kOnDestroy, 0);
             ApplyProperties(behavior, scriptClass, entity);
@@ -1404,6 +1458,7 @@ export namespace engine::behavior
         BehaviorRunHost* m_host = nullptr;
         Function<void()> m_runObserver;
         Array<scene::EntityHandle> m_tickOwners; // per-tick snapshot (reused)
+        Array<scene::EntityHandle> m_fixedOwners; // per-fixed-step snapshot (reused)
         Array<PendingMessage> m_messages;        // deferred entity.send queue
         Array<PendingBehavior> m_pendingBehaviors; // SceneBehaviors.addBehavior, after the tick
         ScriptEventSubscriptions m_eventSubs;    // this scene's bus subscriptions, sunk into BroadcastEvent

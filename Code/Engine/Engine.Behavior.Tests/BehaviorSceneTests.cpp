@@ -364,6 +364,46 @@ TEST_CASE("script.scene: lifecycle - onStart once (deferred to the first simulat
     CHECK(bed.scripts->InstanceCount() == 1u);
 }
 
+TEST_CASE("script.scene: an entity behavior receives onFixedUpdate(dt) each fixed step once started, "
+          "not while its entity is inactive")
+{
+    ScriptedScene bed;
+    RefPtr<BehaviorClass> stepper =
+        MakeClass(u8"Stepper",
+                  u8"class Stepper {\n"
+                  u8"    private Entity self;\n"
+                  u8"    Stepper(Entity entity) { self = entity; }\n"
+                  u8"    void onFixedUpdate(double dt) {\n"
+                  u8"        Float3 p = self.position();\n"
+                  u8"        self.setPosition(p.x + 1.0f, p.y + float(dt), p.z);\n"
+                  u8"    }\n"
+                  u8"}\n",
+                  {u8"onFixedUpdate"});
+    const scene::EntityHandle e = bed.AddScripted(stepper, u8"stepper");
+    bed.scene.Start();
+
+    bed.scene.FixedUpdate(0.25f); // not started yet: starting is the frame's
+    CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 0.0f));
+    bed.Frame();
+    bed.scene.FixedUpdate(0.25f);
+    bed.scene.FixedUpdate(0.25f);
+    CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 2.0f));
+    CHECK(Near(bed.scene.GetLocalTransform(e).position.y, 0.5f));
+
+    bed.scene.SetActive(e, false);
+    bed.Frame();
+    bed.scene.FixedUpdate(0.25f);
+    CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 2.0f));
+    bed.scene.SetActive(e, true);
+    bed.Frame();
+    bed.scene.FixedUpdate(0.25f);
+    CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 3.0f));
+
+    bed.scene.SetSimulationEnabled(false);
+    bed.scene.FixedUpdate(0.25f); // gated on simulation
+    CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 3.0f));
+}
+
 TEST_CASE("script.scene: entity-active - starts-inactive never instantiates; activation "
           "delivers onStart on the first ACTIVE tick")
 {
