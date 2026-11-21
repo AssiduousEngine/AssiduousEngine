@@ -1,6 +1,6 @@
 # A sequencer for cutscenes
 
-> APPROVED 2026-11-20. Q0 to Q2 built 2026-11-20 (to `eb055461b`), Q3 2026-11-21 (to `979db9953`); Q4 next. Read on master at `595794aee`; line numbers will drift. Replaces the draft
+> APPROVED 2026-11-20. Q0 to Q2 built 2026-11-20 (to `eb055461b`), Q3 2026-11-21 (to `979db9953`), Q4 2026-11-21 (to `450e5fd02`); Q5 next. Read on master at `595794aee`; line numbers will drift. Replaces the draft
 > in `../Plans/backlog-0.1.md` ("A sequencer for cutscenes", 2026-11-08), which this answers.
 
 ## Goal
@@ -335,7 +335,14 @@ Each phase green on clang and gcc, with its tests, its documentation and its CHA
    (`SequenceTrackRunner::SetPaused`), not of a hold, so a voice pauses with the play and plays on
    at a hold.
 5. **Q4 Editor**: the section lane widget, the panel, preview, undo; then the MCP tools and the
-   guide.
+   guide. As built: sections are rows of the toolkit's Dopesheet, not a widget of their own (one
+   list on one axis keeps a part's key rows and section rows together; ruled 2026-11-21); each
+   track kind says how its keys and sections are edited (`SequenceTrack::KeyChannelCount`,
+   `GetSection` and the rest), which the panel and the tools both use; the panel is a pane of its
+   own under the viewport beside the animation panel, not a tab; "preview cuts" is not built (the
+   editor viewport keeps its own camera, so a cut shows nothing there yet); and pressing play in
+   the panel plays no sound (an editor scene has no audio group until it simulates). The MCP tools
+   are `sequence_read`, `sequence_edit` (a list of edits) and `sequence_preview`.
 6. **Q5 Proof**: rebuild one of the first game's staged cutscenes as a sequence the runner drives
    through holds and events (in that game's repository, with the user), and a small sequence in a
    sample game so Integration covers a cooked one. Documentation: `Systems/sequencer.md` and a
