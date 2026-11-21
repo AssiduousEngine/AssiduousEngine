@@ -245,6 +245,12 @@ namespace engine::render
         {
             post = ResolveScenePost(pp->Effective()); // the scene's, or its profile's
         }
+        // A fade (a sequence's) is the scene's at run time, over either.
+        if (const PostProcessSystem* pp = scene.GetSystem<PostProcessSystem>())
+        {
+            const ScreenFade fade = pp->Fade();
+            post.fade = Float4{fade.color.r, fade.color.g, fade.color.b, Clamp(fade.amount, 0.0f, 1.0f)};
+        }
         // The view's quality level over either: its MSAA count, its tiers over the effects and its
         // antialiasing, unless a debug panel set its own.
         ApplyQuality(post, QualityFor(viewportKey), !m_globalPostActive);

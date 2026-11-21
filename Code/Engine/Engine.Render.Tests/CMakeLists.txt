@@ -7,7 +7,8 @@ add_executable(Engine.Render.Tests
     LightAtTests.cpp
     RenderProfileTests.cpp
     SurfaceQueryTests.cpp
-    CameraCutTests.cpp)
+    CameraCutTests.cpp
+    FadeTests.cpp)
 
 target_link_libraries(Engine.Render.Tests PRIVATE
     Engine::Render Foundation::Geometry.Resource Foundation::Materials.Resource Foundation::Scene.Resource

@@ -52,8 +52,9 @@ export namespace foundation::render
     };
 
     // The tonemap's push block (TonemapPush, tonemap.ps.hlsl): twenty scalars, each a float in the
-    // shader (the flags as 0/1, the operator as 0 clamp, 1 AgX, 2 the present copy). The pads are
-    // scalars, never a float3: a WGSL uniform wants a vec3 on a 16-byte boundary.
+    // shader (the flags as 0/1, the operator as 0 clamp, 1 AgX, 2 the present copy), then the fade
+    // as a float4 on its 16-byte boundary. The pads are scalars, never a float3: a WGSL uniform
+    // wants a vec3 on a 16-byte boundary.
     // Integration.ShaderBlocks checks it against the compiled shader, member by member.
     struct GpuTonemapPush
     {
@@ -75,8 +76,9 @@ export namespace foundation::render
         f32 rotation = 0.0f;     // the ContentRotation, as a float
         f32 _pad0 = 0.0f;
         f32 _pad1 = 0.0f;
+        Float4 fade{0.0f, 0.0f, 0.0f, 0.0f}; // rgb the colour (display values), a the amount
     };
-    static_assert(sizeof(GpuTonemapPush) == 80, "push TonemapPush layout drift");
+    static_assert(sizeof(GpuTonemapPush) == 96, "push TonemapPush layout drift");
 
     // Tonemaps an HDR transient into an LDR target. Owns the fullscreen pipeline and per-(view, frame)
     // bind groups over the transient HDR view. Declared once per view, after that view's forward pass.
@@ -113,7 +115,8 @@ export namespace foundation::render
                             bool sceneYFlipped = false,
                             const TonemapAutoExposure& autoExposure = {},
                             const TonemapGrading& grading = {}, bool copyOnly = false,
-                            ContentRotation turn = ContentRotation::None);
+                            ContentRotation turn = ContentRotation::None,
+                            Float4 fade = Float4{0.0f, 0.0f, 0.0f, 0.0f});
 
     private:
         static constexpr rhi::TextureFormat kHdrFormat = rhi::TextureFormat::RGBA16Float;

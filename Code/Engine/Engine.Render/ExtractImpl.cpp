@@ -567,46 +567,6 @@ namespace engine::render
         return found;
     }
 
-    void CameraComponentManager::ClaimView(const void* holder, u64 order, scene::EntityHandle camera)
-    {
-        for (ViewClaim& claim : m_viewClaims)
-        {
-            if (claim.holder == holder)
-            {
-                claim.order = order;
-                claim.camera = camera;
-                return;
-            }
-        }
-        m_viewClaims.PushBack(ViewClaim{holder, order, m_nextClaimSerial++, camera});
-    }
-
-    void CameraComponentManager::ReleaseView(const void* holder) noexcept
-    {
-        for (usize i = 0; i < m_viewClaims.Size(); ++i)
-        {
-            if (m_viewClaims[i].holder == holder)
-            {
-                m_viewClaims.RemoveAt(i);
-                return;
-            }
-        }
-    }
-
-    scene::EntityHandle CameraComponentManager::ClaimedView() const noexcept
-    {
-        const ViewClaim* best = nullptr;
-        for (const ViewClaim& claim : m_viewClaims)
-        {
-            if (best == nullptr || claim.order > best->order ||
-                (claim.order == best->order && claim.serial > best->serial))
-            {
-                best = &claim;
-            }
-        }
-        return best != nullptr ? best->camera : scene::EntityHandle::Invalid();
-    }
-
     namespace
     {
         // A camera draws into its target as a colour attachment: an imported image (sampled only) or

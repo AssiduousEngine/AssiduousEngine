@@ -87,17 +87,17 @@ TEST_CASE("camera cut: a claim on the view comes before the primary camera, the 
 
     int first = 0;
     int second = 0;
-    stage.cameras->ClaimView(&first, 1, stage.wide);
+    stage.cameras->ViewClaims().Claim(&first, 1, stage.wide);
     CHECK(stage.View() == stage.wide);
-    stage.cameras->ClaimView(&second, 2, stage.close);
+    stage.cameras->ViewClaims().Claim(&second, 2, stage.close);
     CHECK(stage.View() == stage.close);
-    stage.cameras->ReleaseView(&second);
+    stage.cameras->ViewClaims().Release(&second);
     CHECK(stage.View() == stage.wide); // back to the claim under it
-    stage.cameras->ReleaseView(&first);
+    stage.cameras->ViewClaims().Release(&first);
     CHECK(stage.View() == stage.gameplay);
 
     // An inactive camera cannot be the view: the pick falls back to the primary.
-    stage.cameras->ClaimView(&first, 1, stage.wide);
+    stage.cameras->ViewClaims().Claim(&first, 1, stage.wide);
     stage.scene.SetActive(stage.wide, false);
     CHECK(stage.View() == stage.gameplay);
 }

@@ -87,7 +87,8 @@ namespace foundation::render
                                      Float2 uvScale, Float2 uvOffset, f32 aoStrength,
                                      bool debugShowAo, bool agx, bool sceneYFlipped,
                                      const TonemapAutoExposure& autoExposure,
-                                     const TonemapGrading& grading, bool copyOnly, ContentRotation turn)
+                                     const TonemapGrading& grading, bool copyOnly, ContentRotation turn,
+                                     Float4 fade)
     {
         rhi::RenderPipeline* pipeline = EnsurePipeline(ldrFormat);
         if (pipeline == nullptr)
@@ -128,6 +129,7 @@ namespace foundation::render
         push.rotation = static_cast<f32>(static_cast<u32>(turn));
         push._pad0 = 0.0f;
         push._pad1 = 0.0f;
+        push.fade = copyOnly ? Float4{0.0f, 0.0f, 0.0f, 0.0f} : fade; // the copy's image is already faded
 
         const rhi::LoadOp load = clearColor ? rhi::LoadOp::Clear : rhi::LoadOp::Load;
         rhi::TextureView* autoView = autoOn ? autoExposure.view : nullptr;

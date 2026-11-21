@@ -7,6 +7,9 @@
 /// (a claim on CameraComponentManager, which the camera pick reads before the primary camera).
 /// The camera knows nothing of it; the render starts the view's history fresh when the camera it
 /// is drawn from changes.
+///
+/// FadeSequenceTrack: a colour over the scene's whole view by an amount over time (a claim on
+/// PostProcessSystem, which the tonemap mixes in after grading, under the HUD).
 
 module;
 #include "Core/Prelude.h"
@@ -26,6 +29,7 @@ export namespace engine::render
 
     /// After properties (a camera's own transform keys) and animation, before events.
     inline constexpr i32 kCameraTrackOrder = 500;
+    inline constexpr i32 kFadeTrackOrder = 600;
 
     /// A span of a camera cut track's timeline: its camera is the view from `start` for
     /// `duration` seconds.
@@ -50,6 +54,23 @@ export namespace engine::render
         /// Whether a section runs at `time` (its end included, so a play that ends on a cut and
         /// holds keeps it).
         [[nodiscard]] bool CutsAt(f32 time) const noexcept;
+    };
+
+    /// Fades the scene's view to `color` by `amount` (keys, 0 none to 1 all) for as long as the
+    /// play runs: from its first step to its release, the last key's amount holding after it.
+    /// Bound to no one.
+    class FadeSequenceTrack final : public sequence::SequenceTrack
+    {
+        RTTI_OBJECT(FadeSequenceTrack, sequence::SequenceTrack)
+    public:
+        Curve amount;
+        Color color{0.0f, 0.0f, 0.0f, 1.0f}; // as authored (display values)
+
+        [[nodiscard]] f32 Duration() const noexcept override { return amount.Duration(); }
+        [[nodiscard]] i32 Order() const noexcept override { return kFadeTrackOrder; }
+        [[nodiscard]] bool NeedsBinding() const noexcept override { return false; }
+        [[nodiscard]] UniquePtr<sequence::SequenceTrackRunner> Begin(const sequence::SequenceTrackContext& context) const override;
+        void Serialize(ISerializer& ar) override;
     };
 
     /// Registers the render's track kinds. Idempotent.

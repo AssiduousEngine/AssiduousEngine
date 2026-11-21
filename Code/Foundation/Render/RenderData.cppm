@@ -876,6 +876,9 @@ export namespace foundation::render
         u64 gradingLutUid = 0;
         f32 gradingLutSize = 0.0f; // slice count (16 for a 256x16 strip); 0 is off
         f32 gradingIntensity = 1.0f;
+        // A fade over the finished image (after grading, before the HUD): rgb the colour as
+        // authored (display values), a the amount (0 is none).
+        Float4 fade{0.0f, 0.0f, 0.0f, 0.0f};
         // Resolved by the subsystem: whether this view needs motion vectors (taaEnabled or a temporal SSR
         // pass). Read at forward-pass execute through the bound view, so it must be resolved here rather
         // than recomputed from frame-global state.

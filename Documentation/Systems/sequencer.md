@@ -11,7 +11,7 @@ design and what is still to come are in [Specs/sequencer.md](../Specs/sequencer.
 | `Code/Foundation/Sequence.Resource` | `foundation.sequence.resource` | `SequenceSource` (cooked), `SequenceResource`, `SequenceFactory`, `NestedSequenceTrack` |
 | `Code/Pipeline/Sequence.Pipeline` | `sequence.pipeline` | `SequenceAsset`, its builder, File > New's creator |
 | `Code/Engine/Engine.Sequence` | `engine.sequence` | `SequenceSystem`, `scene.sequences`, `SequencePlay` for script, the domain |
-| `Code/Engine/Engine.Render` | `engine.render` (`:sequence`) | `CameraCutSequenceTrack` |
+| `Code/Engine/Engine.Render` | `engine.render` (`:sequence`) | `CameraCutSequenceTrack`, `FadeSequenceTrack` |
 
 None of the sequence libraries depends on render, audio, skeletal animation or physics: a domain
 adds the track kinds that drive it, and registers them with its reflection.
@@ -36,13 +36,19 @@ sequence inside itself is refused).
 
 `CameraCutSequenceTrack` (the render's) makes its bound camera the scene's view while one of its
 sections runs (a section's end included, so a play that ends on a cut and holds keeps it). It is a
-claim on `CameraComponentManager` (`ClaimView`, `ReleaseView`), which the camera pick reads before
+claim on `CameraComponentManager` (`ViewClaims()`, a `SceneClaims`), which the camera pick reads before
 the primary camera; claims are runtime state, never saved. Of the claims held, the play begun
 last wins (`SequencePlay::StartOrder`; a nested play answers its outermost play's), and within
 one play the shot cut to; letting go passes the view to the claim under it, then back to the
 primary camera. The camera knows nothing of cuts: the render starts a view's history fresh (TAA,
 SSR, SSGI, exposure, motion vectors) whenever the camera it is drawn from changes
 (`ViewSettings::cameraKey`), so a game switching cameras gets the same clean cut.
+
+`FadeSequenceTrack` (the render's, bound to no one) mixes a colour over the scene's whole view by
+an amount its keys give, from the play's first step until it lets go (the last key's amount holds
+after it). It is a claim on `PostProcessSystem` (`FadeClaims()`), won as camera claims are; the
+view's post config carries the winner (`ViewPostConfig::fade`) and the tonemap mixes it over the
+graded image, so the HUD and world-space UI draw over it (subtitles stay on a fade to black).
 
 ## A play
 

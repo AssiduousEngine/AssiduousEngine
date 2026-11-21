@@ -2435,7 +2435,8 @@ namespace foundation::render
                         v->ViewportX(), v->ViewportY(), v->ViewportWidth(), v->ViewportHeight(),
                         m_frameIndex, viewIndex, post.exposure, bloomStrength, uvScale, uvOffset,
                         aoStrength, showAo, post.agxTonemap,
-                        /*sceneYFlipped*/ !post.taaEnabled, autoExposure, grading);
+                        /*sceneYFlipped*/ !post.taaEnabled, autoExposure, grading, /*copyOnly*/ false,
+                        ContentRotation::None, post.fade);
                     // World-space UI draws between tonemap and FXAA: authored colors survive
                     // (FXAA doesn't grade) and the quad silhouettes get antialiased. With
                     // FXAA off the pass lands directly on the final LDR (TAA never touches

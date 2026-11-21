@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// engine.render:sequence - the camera cut track's runner, serialization and registration.
+// engine.render:sequence - the camera cut and fade tracks' runners, serialization and
+// registration.
 
 module;
 #include "Core/Prelude.h"
@@ -22,6 +23,10 @@ namespace engine::render
     {
         builder.Attribute("displayName", String(u8"Camera cut"));
     }
+    REFLECT_MEMBERS(FadeSequenceTrack, "rtti::render")
+    {
+        builder.Attribute("displayName", String(u8"Fade")).Property<&FadeSequenceTrack::color>("color");
+    }
 
     namespace
     {
@@ -41,13 +46,13 @@ namespace engine::render
                 {
                     if (!m_claiming)
                     {
-                        m_cameras->ClaimView(this, m_play != nullptr ? m_play->StartOrder() : 0u, m_camera);
+                        m_cameras->ViewClaims().Claim(this, m_play != nullptr ? m_play->StartOrder() : 0u, m_camera);
                         m_claiming = true;
                     }
                 }
                 else if (m_claiming)
                 {
-                    m_cameras->ReleaseView(this);
+                    m_cameras->ViewClaims().Release(this);
                     m_claiming = false;
                 }
             }
@@ -57,7 +62,7 @@ namespace engine::render
                 (void)restore; // the view is a claim, nothing to put back
                 if (m_claiming)
                 {
-                    m_cameras->ReleaseView(this);
+                    m_cameras->ViewClaims().Release(this);
                     m_claiming = false;
                 }
             }
@@ -69,6 +74,101 @@ namespace engine::render
             const sequence::SequencePlay* m_play;
             bool m_claiming = false;
         };
+    }
+
+    namespace
+    {
+        // Holds the fade from the play's first step until it lets go, at the amount its keys give.
+        class FadeRunner final : public sequence::SequenceTrackRunner
+        {
+        public:
+            FadeRunner(const FadeSequenceTrack& track, PostProcessSystem& post, const sequence::SequencePlay* play)
+                : m_track(&track), m_post(&post), m_play(play)
+            {
+            }
+
+            void Evaluate(const sequence::SequenceStep& step) override
+            {
+                ScreenFade fade;
+                fade.color = m_track->color;
+                fade.amount = Clamp(m_track->amount.Evaluate(step.time), 0.0f, 1.0f);
+                m_post->FadeClaims().Claim(this, m_play != nullptr ? m_play->StartOrder() : 0u, fade);
+            }
+
+            void Release(bool restore) override
+            {
+                (void)restore; // the fade is a claim, nothing to put back
+                m_post->FadeClaims().Release(this);
+            }
+
+        private:
+            const FadeSequenceTrack* m_track;
+            PostProcessSystem* m_post;
+            const sequence::SequencePlay* m_play;
+        };
+    }
+
+    UniquePtr<sequence::SequenceTrackRunner> FadeSequenceTrack::Begin(const sequence::SequenceTrackContext& context) const
+    {
+        PostProcessSystem* post = context.scene->GetSystem<PostProcessSystem>();
+        if (post == nullptr)
+        {
+            return {}; // a scene nothing renders: no view to fade
+        }
+        return MakeUnique<FadeRunner>(*context.allocator, *this, *post, context.play);
+    }
+
+    void FadeSequenceTrack::Serialize(ISerializer& ar)
+    {
+        SequenceTrack::Serialize(ar);
+        foundation::core::Serialize(ar, "color", color);
+        const bool reading = ar.Mode() == SerializeMode::Read;
+        Array<f32> times;
+        Array<f32> values;
+        Array<f32> tangentsIn;
+        Array<f32> tangentsOut;
+        Array<u8> interpolations;
+        Array<u8> tangentModes;
+        if (!reading)
+        {
+            for (const CurveKey& key : amount.Keys())
+            {
+                times.PushBack(key.time);
+                values.PushBack(key.value);
+                tangentsIn.PushBack(key.tangentIn);
+                tangentsOut.PushBack(key.tangentOut);
+                interpolations.PushBack(static_cast<u8>(key.interpolation));
+                tangentModes.PushBack(static_cast<u8>(key.tangentMode));
+            }
+        }
+        foundation::core::Serialize(ar, "keyTime", times);
+        foundation::core::Serialize(ar, "keyValue", values);
+        foundation::core::Serialize(ar, "keyTangentIn", tangentsIn);
+        foundation::core::Serialize(ar, "keyTangentOut", tangentsOut);
+        foundation::core::Serialize(ar, "keyInterpolation", interpolations);
+        foundation::core::Serialize(ar, "keyTangentMode", tangentModes);
+        if (reading)
+        {
+            amount.Clear();
+            const usize count = Min(Min(times.Size(), values.Size()), Min(tangentsIn.Size(), tangentsOut.Size()));
+            for (usize i = 0; i < count; ++i)
+            {
+                CurveKey key;
+                key.time = times[i];
+                key.value = values[i];
+                key.tangentIn = tangentsIn[i];
+                key.tangentOut = tangentsOut[i];
+                if (i < interpolations.Size())
+                {
+                    key.interpolation = static_cast<decltype(key.interpolation)>(interpolations[i]);
+                }
+                if (i < tangentModes.Size())
+                {
+                    key.tangentMode = static_cast<decltype(key.tangentMode)>(tangentModes[i]);
+                }
+                amount.AddKey(key);
+            }
+        }
     }
 
     f32 CameraCutSequenceTrack::Duration() const noexcept
@@ -137,6 +237,7 @@ namespace engine::render
         {
             sequence::RegisterSequenceTypes();
             sequence::RegisterSequenceTrack<CameraCutSequenceTrack>();
+            sequence::RegisterSequenceTrack<FadeSequenceTrack>();
             return true;
         }();
         (void)once;

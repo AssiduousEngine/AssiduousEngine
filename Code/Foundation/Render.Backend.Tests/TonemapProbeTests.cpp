@@ -113,7 +113,7 @@ TEST_CASE("tonemap probe: an exposure texture with another's generation still ge
         // One frame: a grey scene tone-mapped under `exposureTex` (holding `level`), read back. Both
         // frames use the same frame slot, the same transients and the same exposure generation.
         u64 submitted = 0;
-        const auto frame = [&](Target& exposureTex, f32 level) -> u32
+        const auto frame = [&](Target& exposureTex, f32 level, Float4 fade = Float4{0.0f, 0.0f, 0.0f, 0.0f}) -> u32
         {
             rhi::CommandEncoder* encoder = nullptr;
             REQUIRE(pool->CreateEncoder(encoder).IsOk());
@@ -151,7 +151,8 @@ TEST_CASE("tonemap probe: an exposure texture with another's generation still ge
             tonemap.DeclareTonemap(graph, hdr, bloom, ao, out, /*clearColor*/ true, rhi::ClearColor::Black(),
                                    rhi::TextureFormat::RGBA8Unorm, 0, 0, kSize, kSize, /*frameIndex*/ 0,
                                    /*viewIndex*/ 0, /*exposure*/ 1.0f, /*bloom*/ 0.0f, Float2{1, 1},
-                                   Float2{0, 0}, /*ao*/ 0.0f, false, /*agx*/ false, false, autoExposure);
+                                   Float2{0, 0}, /*ao*/ 0.0f, false, /*agx*/ false, false, autoExposure,
+                                   TonemapGrading{}, /*copyOnly*/ false, ContentRotation::None, fade);
             REQUIRE(graph.Execute(encoder).IsOk());
             graph.EndFrame();
             rhi::CommandBuffer* commandBuffer = encoder->Finish();
@@ -174,6 +175,14 @@ TEST_CASE("tonemap probe: an exposure texture with another's generation still ge
         CHECK(underDim > underBright + 40u);
         // And back: the first texture's level again.
         CHECK(frame(dim, 0.05f) == underDim);
+
+        // A fade mixes its colour over the finished image: all the way to red leaves no green, half
+        // way to black leaves half of it.
+        CHECK(frame(dim, 0.05f, Float4{1.0f, 0.0f, 0.0f, 1.0f}) == 0u);
+        const u32 halfBlack = frame(dim, 0.05f, Float4{0.0f, 0.0f, 0.0f, 0.5f});
+        INFO("half way to black ", halfBlack);
+        CHECK(halfBlack + 2u >= underDim / 2u);
+        CHECK(halfBlack <= underDim / 2u + 2u);
 
         device.WaitIdle();
         device.DestroyFence(fence);

@@ -561,6 +561,7 @@ namespace
         FIELD(render::GpuTonemapPush, rotation, "Rotation"),
         FIELD(render::GpuTonemapPush, _pad0, "_tonemapPad0"),
         FIELD(render::GpuTonemapPush, _pad1, "_tonemapPad1"),
+        FIELD(render::GpuTonemapPush, fade, "Fade"),
     };
     const FieldRow kFxaaPush[] = {
         FIELD(render::GpuFxaaPush, texelSize, "TexelSize"),

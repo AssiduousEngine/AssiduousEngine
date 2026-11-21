@@ -659,6 +659,66 @@ export namespace engine::render
     public:
         DecalComponentManager() : scene::SerializableComponentManager<DecalComponent>(u8"decal") {}
     };
+    // Claims on something one per scene that several holders may want at once (the view's
+    // camera, its fade), each a value. Of the claims held, the highest `order` wins (a sequence's
+    // play begun last), and of equal orders the one claimed last (the shot cut to); when it lets
+    // go the next wins. A holder claiming again changes its value and keeps its place. Runtime
+    // state only: never saved with the scene.
+    template <typename T>
+    class SceneClaims
+    {
+    public:
+        void Claim(const void* holder, u64 order, const T& value)
+        {
+            for (Entry& entry : m_entries)
+            {
+                if (entry.holder == holder)
+                {
+                    entry.order = order;
+                    entry.value = value;
+                    return;
+                }
+            }
+            m_entries.PushBack(Entry{holder, order, m_nextSerial++, value});
+        }
+        void Release(const void* holder) noexcept
+        {
+            for (usize i = 0; i < m_entries.Size(); ++i)
+            {
+                if (m_entries[i].holder == holder)
+                {
+                    m_entries.RemoveAt(i);
+                    return;
+                }
+            }
+        }
+        // The winning claim's value; null when none is held.
+        [[nodiscard]] const T* WinningValue() const noexcept
+        {
+            const Entry* best = nullptr;
+            for (const Entry& entry : m_entries)
+            {
+                if (best == nullptr || entry.order > best->order ||
+                    (entry.order == best->order && entry.serial > best->serial))
+                {
+                    best = &entry;
+                }
+            }
+            return best != nullptr ? &best->value : nullptr;
+        }
+
+    private:
+        struct Entry
+        {
+            const void* holder = nullptr;
+            u64 order = 0;
+            u64 serial = 0; // when it was claimed
+            T value{};
+        };
+        Array<Entry> m_entries;
+        u64 m_nextSerial = 1;
+    };
+
     class CameraComponentManager final : public scene::SerializableComponentManager<CameraComponent>
     {
     public:
@@ -667,25 +727,18 @@ export namespace engine::render
         }
 
         // Who may take the scene's view from its primary camera: a sequence's camera cut names a
-        // camera for as long as its section runs. Of the claims held, the highest `order` wins
-        // (the play begun last), and of equal orders the one claimed last (the shot cut to); when
-        // it lets go the view passes to the next, then back to the primary camera. Runtime state
-        // only: never saved with the scene.
-        void ClaimView(const void* holder, u64 order, scene::EntityHandle camera);
-        void ReleaseView(const void* holder) noexcept;
+        // camera for as long as its section runs. The camera pick takes the winning claim's
+        // camera before the primary one (SceneClaims says which wins).
+        [[nodiscard]] SceneClaims<scene::EntityHandle>& ViewClaims() noexcept { return m_viewClaims; }
         // The camera the winning claim names; unassigned when no claim is held.
-        [[nodiscard]] scene::EntityHandle ClaimedView() const noexcept;
+        [[nodiscard]] scene::EntityHandle ClaimedView() const noexcept
+        {
+            const scene::EntityHandle* camera = m_viewClaims.WinningValue();
+            return camera != nullptr ? *camera : scene::EntityHandle::Invalid();
+        }
 
     private:
-        struct ViewClaim
-        {
-            const void* holder = nullptr;
-            u64 order = 0;
-            u64 serial = 0; // when it was claimed
-            scene::EntityHandle camera;
-        };
-        Array<ViewClaim> m_viewClaims;
-        u64 m_nextClaimSerial = 1;
+        SceneClaims<scene::EntityHandle> m_viewClaims;
     };
     class LightComponentManager final : public scene::SerializableComponentManager<LightComponent>
     {
@@ -1197,6 +1250,13 @@ export namespace engine::render
     RTTI_DEFINE_OBJECT(PostProcessProfile, "rtti::engine::render")
     RTTI_DEFINE_OBJECT(RenderQualityLevel, "rtti::engine::render")
 
+    // A fade over a view: `color` as authored (display values), mixed in by `amount` (0 to 1).
+    struct ScreenFade
+    {
+        Color color{0.0f, 0.0f, 0.0f, 1.0f};
+        f32 amount = 0.0f;
+    };
+
     class PostProcessSystem final : public scene::SceneSystem
     {
     public:
@@ -1282,7 +1342,19 @@ export namespace engine::render
             m_post.profile = profile; // kept, so the profile is a pick away
         }
 
+        // A fade over the scene's whole view (a sequence's fade track): the winning claim's colour
+        // mixed over the finished image by its amount, under the HUD. Runtime state only, never
+        // saved; not one of the settings.
+        [[nodiscard]] SceneClaims<ScreenFade>& FadeClaims() noexcept { return m_fades; }
+        // The fade in effect: the winning claim, or none (amount 0).
+        [[nodiscard]] ScreenFade Fade() const noexcept
+        {
+            const ScreenFade* fade = m_fades.WinningValue();
+            return fade != nullptr ? *fade : ScreenFade{};
+        }
+
     private:
+        SceneClaims<ScreenFade> m_fades;
         PostProcessSettings m_post;
     };
 
