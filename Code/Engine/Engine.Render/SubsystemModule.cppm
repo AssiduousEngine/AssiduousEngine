@@ -15,4 +15,5 @@ export import :components;
 export import :profiles;
 export import :scene_renderer;
 export import :extract;
+export import :sequence;
 export import :subsystem;

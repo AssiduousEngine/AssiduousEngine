@@ -5,6 +5,7 @@
 // property and event tracks' runners, serialization and registration.
 
 module;
+#include <atomic>
 #include "Core/Prelude.h"
 #include "Core/Log/Log.h"
 #include "Core/Reflection/Reflect.h"
@@ -356,8 +357,24 @@ namespace foundation::sequence
         return true;
     }
 
+    namespace
+    {
+        std::atomic<u64> s_nextStartOrder{1}; // plays begin on any scene's thread
+    }
+
+    u64 SequencePlay::StartOrder() const noexcept
+    {
+        const SequencePlay* outer = this;
+        while (outer->m_parent != nullptr)
+        {
+            outer = outer->m_parent;
+        }
+        return outer->m_startOrder;
+    }
+
     void SequencePlay::Begin()
     {
+        m_startOrder = s_nextStartOrder.fetch_add(1, std::memory_order_relaxed);
         m_runners.Clear();
         for (u8& warned : m_warned)
         {

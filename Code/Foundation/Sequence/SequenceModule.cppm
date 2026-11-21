@@ -248,6 +248,10 @@ export namespace foundation::sequence
         [[nodiscard]] bool Plays(const Sequence& sequence) const noexcept;
         /// The entity that fills the binding `name`; unassigned when there is none.
         [[nodiscard]] scene::EntityHandle BoundEntity(StringView name) const noexcept;
+        /// When the play began, against every other play: of two plays claiming what plays share
+        /// (the view's camera, its fade), the one begun later wins. A nested play answers its
+        /// outermost play's.
+        [[nodiscard]] u64 StartOrder() const noexcept;
 
         [[nodiscard]] bool IsPlaying() const noexcept { return m_running && !m_finished; }
         [[nodiscard]] bool IsPaused() const noexcept { return m_paused; }
@@ -282,6 +286,7 @@ export namespace foundation::sequence
         Array<Running> m_runners;           // in evaluation order
         Array<u8> m_warned;                 // per track: its missing binding was told this play
         f32 m_time = 0.0f;
+        u64 m_startOrder = 0;     // see StartOrder
         bool m_begun = false;     // the runners exist
         bool m_running = false;   // between Play (or Seek, Pose) and Stop
         bool m_paused = false;

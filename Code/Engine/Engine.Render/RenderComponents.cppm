@@ -665,6 +665,27 @@ export namespace engine::render
         CameraComponentManager() : scene::SerializableComponentManager<CameraComponent>(u8"camera")
         {
         }
+
+        // Who may take the scene's view from its primary camera: a sequence's camera cut names a
+        // camera for as long as its section runs. Of the claims held, the highest `order` wins
+        // (the play begun last), and of equal orders the one claimed last (the shot cut to); when
+        // it lets go the view passes to the next, then back to the primary camera. Runtime state
+        // only: never saved with the scene.
+        void ClaimView(const void* holder, u64 order, scene::EntityHandle camera);
+        void ReleaseView(const void* holder) noexcept;
+        // The camera the winning claim names; unassigned when no claim is held.
+        [[nodiscard]] scene::EntityHandle ClaimedView() const noexcept;
+
+    private:
+        struct ViewClaim
+        {
+            const void* holder = nullptr;
+            u64 order = 0;
+            u64 serial = 0; // when it was claimed
+            scene::EntityHandle camera;
+        };
+        Array<ViewClaim> m_viewClaims;
+        u64 m_nextClaimSerial = 1;
     };
     class LightComponentManager final : public scene::SerializableComponentManager<LightComponent>
     {

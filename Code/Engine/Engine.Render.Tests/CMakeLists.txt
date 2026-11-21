@@ -6,12 +6,13 @@ add_executable(Engine.Render.Tests
     ExtractTests.cpp
     LightAtTests.cpp
     RenderProfileTests.cpp
-    SurfaceQueryTests.cpp)
+    SurfaceQueryTests.cpp
+    CameraCutTests.cpp)
 
 target_link_libraries(Engine.Render.Tests PRIVATE
     Engine::Render Foundation::Geometry.Resource Foundation::Materials.Resource Foundation::Scene.Resource
     Foundation::Resource Foundation::VFS Foundation::Content Foundation::RHI.Null Foundation::Xml
-    Foundation::Xml.Serialization doctest::doctest)
+    Foundation::Xml.Serialization Foundation::Sequence doctest::doctest)
 
 target_compile_definitions(Engine.Render.Tests PRIVATE
     DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)

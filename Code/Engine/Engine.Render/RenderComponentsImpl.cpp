@@ -928,6 +928,7 @@ namespace engine::render
             RttiRegisterValue_SpriteComponent();
             RttiRegisterValue_DecalComponent();
             RttiRegisterValue_ReflectionProbeComponent();
+            RegisterRenderSequenceTracks(); // a sequence's camera cuts
             return true;
         }();
         (void)once;

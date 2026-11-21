@@ -519,36 +519,92 @@ namespace engine::render
     bool ExtractPrimaryCamera(scene::Scene& scene, ViewCamera& out, Color* outClear, f32 aspect,
                               scene::EntityHandle* outEntity)
     {
-        bool found = false;
-        if (auto* cameras = scene.GetSystem<CameraComponentManager>())
+        auto* cameras = scene.GetSystem<CameraComponentManager>();
+        if (cameras == nullptr)
         {
-            cameras->ForEach(
-                [&](CameraComponent& cam, scene::EntityHandle e)
-                {
-                    // An inactive primary camera is skipped so the pick falls through to the
-                    // next primary; so is one with a target, which draws into its texture.
-                    if (found || !cam.primary || cam.HasTarget() || !scene.IsEffectivelyActive(e))
-                    {
-                        return;
-                    }
-                    found = true;
-                    const Float4x4 world = scene.GetWorldMatrix(e);
-                    out.view = Inverse(world);
-                    out.projection =
-                        MakeCameraProjection(cam, aspect > 0.0f ? aspect : cam.aspect);
-                    out.position = TransformPoint(Float3{0, 0, 0}, world);
-                    out.farZ = ClipPlanesOf(cam).farZ;
-                    if (outClear != nullptr)
-                    {
-                        *outClear = ToLinear(cam.clearColor);
-                    }
-                    if (outEntity != nullptr)
-                    {
-                        *outEntity = e;
-                    }
-                });
+            return false;
         }
+        const auto take = [&](const CameraComponent& cam, scene::EntityHandle e)
+        {
+            const Float4x4 world = scene.GetWorldMatrix(e);
+            out.view = Inverse(world);
+            out.projection = MakeCameraProjection(cam, aspect > 0.0f ? aspect : cam.aspect);
+            out.position = TransformPoint(Float3{0, 0, 0}, world);
+            out.farZ = ClipPlanesOf(cam).farZ;
+            if (outClear != nullptr)
+            {
+                *outClear = ToLinear(cam.clearColor);
+            }
+            if (outEntity != nullptr)
+            {
+                *outEntity = e;
+            }
+        };
+        // A claim on the view (a sequence's camera cut) comes before the primary camera, when it
+        // names a camera that can be the view.
+        const scene::EntityHandle claimed = cameras->ClaimedView();
+        if (claimed.IsAssigned() && scene.IsValid(claimed) && scene.IsEffectivelyActive(claimed))
+        {
+            if (const CameraComponent* cam = cameras->Get(claimed); cam != nullptr && !cam->HasTarget())
+            {
+                take(*cam, claimed);
+                return true;
+            }
+        }
+        bool found = false;
+        cameras->ForEach(
+            [&](CameraComponent& cam, scene::EntityHandle e)
+            {
+                // An inactive primary camera is skipped so the pick falls through to the next
+                // primary; so is one with a target, which draws into its texture.
+                if (found || !cam.primary || cam.HasTarget() || !scene.IsEffectivelyActive(e))
+                {
+                    return;
+                }
+                found = true;
+                take(cam, e);
+            });
         return found;
+    }
+
+    void CameraComponentManager::ClaimView(const void* holder, u64 order, scene::EntityHandle camera)
+    {
+        for (ViewClaim& claim : m_viewClaims)
+        {
+            if (claim.holder == holder)
+            {
+                claim.order = order;
+                claim.camera = camera;
+                return;
+            }
+        }
+        m_viewClaims.PushBack(ViewClaim{holder, order, m_nextClaimSerial++, camera});
+    }
+
+    void CameraComponentManager::ReleaseView(const void* holder) noexcept
+    {
+        for (usize i = 0; i < m_viewClaims.Size(); ++i)
+        {
+            if (m_viewClaims[i].holder == holder)
+            {
+                m_viewClaims.RemoveAt(i);
+                return;
+            }
+        }
+    }
+
+    scene::EntityHandle CameraComponentManager::ClaimedView() const noexcept
+    {
+        const ViewClaim* best = nullptr;
+        for (const ViewClaim& claim : m_viewClaims)
+        {
+            if (best == nullptr || claim.order > best->order ||
+                (claim.order == best->order && claim.serial > best->serial))
+            {
+                best = &claim;
+            }
+        }
+        return best != nullptr ? best->camera : scene::EntityHandle::Invalid();
     }
 
     namespace
