@@ -284,6 +284,23 @@ namespace editor
         return true;
     }
 
+    bool SequenceSource::InsertSection(usize channel, f32 time, gui::TimelineSectionRef& made)
+    {
+        if (!IsSectionChannel(channel))
+            return false;
+        const usize track = m_channels[channel].Track;
+        i32 index = -1;
+        m_document->Edit(u8"sequence-insert-section", [track, time, &index](sequence::Sequence& sequence)
+                         {
+                             if (track < sequence.tracks.Size())
+                                 index = sequence.tracks[track]->AddSection(time);
+                         });
+        if (index < 0)
+            return false;
+        made = gui::TimelineSectionRef{channel, static_cast<usize>(index)};
+        return true;
+    }
+
     gui::CurveInfo SequenceSource::GetCurveInfo(usize curve) const
     {
         gui::CurveInfo info;

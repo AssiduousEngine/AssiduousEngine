@@ -19,7 +19,8 @@
 //     zooms about the pointer over the keys; a middle drag pans.
 //   - A channel that holds sections (a clip, a sound, a shot) shows them as bars on its row. A
 //     click selects one; a drag on its body moves it, and a drag on either end trims it, its start
-//     or end snapping to a frame and staying in the clip. Delete removes it. Previewed through the
+//     or end snapping to a frame and staying in the clip. Delete removes it, and a double click on
+//     the row's empty space adds one there. Previewed through the
 //     source and committed once; Escape cancels. A parent row summarizes keys only.
 // The names sit at the inline start (the right in right to left). Time runs left to right in either
 // direction, as the ruler's does, so a ruler and a curve view beside it line up with its keys.
@@ -615,11 +616,22 @@ export namespace foundation::gui
         if (event.ClickCount == 2 && !onKey)
         {
             const i32 row = RowAtY(local.y);
-            if (row >= 0 && GetRows()[static_cast<usize>(row)].Channel >= 0)
+            const i32 channel = row >= 0 ? GetRows()[static_cast<usize>(row)].Channel : -1;
+            if (channel >= 0 && m_source->IsSectionChannel(static_cast<usize>(channel)))
+            {
+                TimelineSectionRef made;
+                const f32 at = core::Clamp(m_axis->Snap(TimeAtX(local.x)), 0.0f, m_axis->Duration());
+                if (m_source->InsertSection(static_cast<usize>(channel), at, made))
+                {
+                    m_selection.Clear();
+                    m_section = made;
+                }
+            }
+            else if (channel >= 0)
             {
                 TimelineKeyRef made;
                 const f32 at = core::Clamp(m_axis->Snap(TimeAtX(local.x)), 0.0f, m_axis->Duration());
-                if (m_source->InsertKey(static_cast<usize>(GetRows()[static_cast<usize>(row)].Channel), at, made))
+                if (m_source->InsertKey(static_cast<usize>(channel), at, made))
                 {
                     m_selection.Clear();
                     m_selection.PushBack(made);

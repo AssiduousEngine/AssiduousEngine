@@ -212,3 +212,12 @@ TEST_CASE("sequence document: a change made in place (the inspector's) is record
     CHECK(FindProperty(nested, "name") != nullptr); // the base's, inherited
     CHECK(FindProperty(sequence::EventSequenceTrack::StaticType(), "keys") != nullptr);
 }
+
+TEST_CASE("sequence source: a section row takes a new section through its kind; a nested track takes none")
+{
+    Bed bed;
+    gui::TimelineSectionRef made;
+    CHECK_FALSE(bed.source->InsertSection(3, 0.25f, made)); // a nested track has its one section
+    CHECK_FALSE(bed.source->InsertSection(0, 0.25f, made)); // a row of keys
+    CHECK_FALSE(bed.document->Commands().CanRedo());
+}

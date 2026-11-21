@@ -77,6 +77,7 @@ export namespace editor
         void CommitSectionEdit() override;
         void CancelSectionEdit() override;
         bool DeleteSection(const foundation::gui::TimelineSectionRef& section) override;
+        bool InsertSection(usize channel, f32 time, foundation::gui::TimelineSectionRef& made) override;
 
         // === ICurveSource ===
         [[nodiscard]] usize CurveCount() const override { return m_curves.Size(); }

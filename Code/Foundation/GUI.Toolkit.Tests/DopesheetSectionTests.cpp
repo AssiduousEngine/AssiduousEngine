@@ -85,6 +85,13 @@ namespace
             NotifyTimelineChanged();
             return true;
         }
+        bool InsertSection(usize channel, f32 time, TimelineSectionRef& made) override
+        {
+            clips.PushBack(TimelineSection{time, 0.25f, core::String(u8"new")});
+            made = TimelineSectionRef{channel, clips.Size() - 1};
+            NotifyTimelineChanged();
+            return true;
+        }
     };
 
     // A 660 by 200 dopesheet with names 160 wide, over 0 to 2 s at 250 px per second: time t on row r
@@ -195,4 +202,16 @@ TEST_CASE("Dopesheet sections: a drag on an end trims it, the other end staying;
     REQUIRE(bed.source.clips.Size() == 1u);
     CHECK(bed.source.clips[0].Label.AsView() == core::StringView(u8"wave"));
     CHECK_FALSE(bed.sheet->GetSelectedSection());
+}
+
+TEST_CASE("Dopesheet sections: a double click on a section row's empty space adds one there, chosen")
+{
+    Bed bed;
+    bed.axis->SetFrameRate(10.0f);
+    bed.Click(Bed::At(2, 1.63f));
+    bed.Click(Bed::At(2, 1.63f));
+    REQUIRE(bed.source.clips.Size() == 3u);
+    CHECK(bed.source.clips[2].Start == doctest::Approx(1.6f)); // on a frame
+    REQUIRE(bed.sheet->GetSelectedSection());
+    CHECK(bed.sheet->GetSelectedSection()->Index == 2u);
 }

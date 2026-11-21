@@ -123,6 +123,15 @@ export namespace foundation::gui
             (void)section;
             return false;
         }
+        /// Adds a section to `channel` at `time` as one change (a double click on its row); sets
+        /// `made` to where it went. Returns false when the channel takes none.
+        virtual bool InsertSection(usize channel, f32 time, TimelineSectionRef& made)
+        {
+            (void)channel;
+            (void)time;
+            (void)made;
+            return false;
+        }
 
         void AddTimelineClient(ITimelineSourceClient* client) { m_timelineClients.PushBack(client); }
         void RemoveTimelineClient(ITimelineSourceClient* client)
