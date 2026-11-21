@@ -35,23 +35,6 @@ namespace dialogue
             return Contains(Span<const String>(list.Data(), list.Size()), value);
         }
 
-        // An id the parser made from the line's place (`<conversation>.<n>`), not one written.
-        [[nodiscard]] bool IsPositionalId(StringView id, StringView conversation) noexcept
-        {
-            if (id.Size() <= conversation.Size() + 1 || !id.StartsWith(conversation) || id[conversation.Size()] != u8'.')
-            {
-                return false;
-            }
-            for (usize i = conversation.Size() + 1; i < id.Size(); ++i)
-            {
-                if (id[i] < u8'0' || id[i] > u8'9')
-                {
-                    return false;
-                }
-            }
-            return true;
-        }
-
         [[nodiscard]] String Joined(const Array<String>& words)
         {
             String out;
@@ -71,7 +54,7 @@ namespace dialogue
         public:
             Checker(DialogueParse& parse, const DialogueCheckInputs& inputs) : m_parse(parse), m_inputs(inputs)
             {
-                CollectDialogueFacts(parse, m_conversations, m_lineIds, m_flagsSet, m_flagsRead);
+                CollectDialogueFacts(parse, m_conversations, m_flagsSet, m_flagsRead);
             }
 
             void Run()
@@ -79,15 +62,11 @@ namespace dialogue
                 for (DialogueConversation& conversation : m_parse.conversations)
                 {
                     const u32 header = conversation.steps.IsEmpty() ? 0u : conversation.steps.Back().sourceLine;
-                    if (Contains(m_inputs.otherConversations, conversation.id.AsView()))
-                    {
-                        Problem(header, Format(u8"another dialogue file has a conversation `{}`", conversation.id));
-                    }
                     Level(conversation, header);
                     m_entitiesTold.Clear();
                     for (DialogueStep& step : conversation.steps)
                     {
-                        Step(conversation, step);
+                        Step(step);
                     }
                     Reachability(conversation);
                     m_entities = nullptr;
@@ -245,7 +224,7 @@ namespace dialogue
                 }
             }
 
-            void Step(const DialogueConversation& conversation, DialogueStep& step)
+            void Step(DialogueStep& step)
             {
                 switch (step.kind)
                 {
@@ -267,11 +246,6 @@ namespace dialogue
                     [[fallthrough]];
                 case DialogueStepKind::Answer:
                     Actions(step.lineId.AsView(), step.sourceLine);
-                    if (!IsPositionalId(step.lineId.AsView(), conversation.id.AsView()) &&
-                        Contains(m_inputs.otherLineIds, step.lineId.AsView()))
-                    {
-                        Problem(step.sourceLine, Format(u8"another dialogue file has a line `#line:{}`", step.lineId));
-                    }
                     break;
                 case DialogueStepKind::Play:
                     if (const DialogueSpeaker* speaker = Speaker(step.speaker.AsView(), step.sourceLine))
@@ -291,13 +265,7 @@ namespace dialogue
                     step.asset = Asset(step.name.AsView(), Span<const StringView>(kSequenceAssetTypes), u8"sequence",
                                        step.sourceLine);
                     break;
-                case DialogueStepKind::Jump:
-                    if (!Contains(m_conversations, step.name.AsView()) &&
-                        !Contains(m_inputs.otherConversations, step.name.AsView()))
-                    {
-                        Problem(step.sourceLine, Format(u8"no conversation `{}` to jump to", step.name));
-                    }
-                    break;
+                case DialogueStepKind::Jump: Jump(step); break;
                 case DialogueStepKind::If:
                     if (!Contains(m_flagsSet, step.flag.AsView()) && !Contains(m_inputs.otherFlagsSet, step.flag.AsView()) &&
                         !IsProvidedFlag(step.flag.AsView(), m_inputs.providedFlags))
@@ -309,6 +277,50 @@ namespace dialogue
                     break;
                 case DialogueStepKind::Command: Command(step); break;
                 default: break;
+                }
+            }
+
+            // A jump within the file, or into the file its dialogue asset names (resolved to the
+            // file's guid; nil when the asset is this file).
+            void Jump(DialogueStep& step)
+            {
+                const Array<String>* conversations = &m_conversations;
+                if (!step.file.IsEmpty())
+                {
+                    const Guid file = Asset(step.file.AsView(), Span<const StringView>(kDialogueFileAssetTypes),
+                                            u8"dialogue file", step.sourceLine);
+                    if (file == Guid{})
+                    {
+                        return;
+                    }
+                    if (file != m_inputs.self)
+                    {
+                        step.asset = file;
+                        conversations = nullptr;
+                        for (const DialogueFileConversations& other : m_inputs.otherFiles)
+                        {
+                            if (other.file == file)
+                            {
+                                conversations = &other.conversations;
+                                break;
+                            }
+                        }
+                        if (conversations == nullptr)
+                        {
+                            return; // a file that does not parse, which its own cook reports
+                        }
+                    }
+                }
+                if (!Contains(*conversations, step.name.AsView()))
+                {
+                    if (step.file.IsEmpty())
+                    {
+                        Problem(step.sourceLine, Format(u8"no conversation `{}` in this file to jump to", step.name));
+                    }
+                    else
+                    {
+                        Problem(step.sourceLine, Format(u8"no conversation `{}` in `{}` to jump to", step.name, step.file));
+                    }
                 }
             }
 
@@ -442,7 +454,6 @@ namespace dialogue
             DialogueParse& m_parse;
             const DialogueCheckInputs& m_inputs;
             Array<String> m_conversations;
-            Array<String> m_lineIds;
             Array<String> m_flagsSet;
             Array<String> m_flagsRead;
             bool m_noCastTold = false;
@@ -475,8 +486,8 @@ namespace dialogue
         return false;
     }
 
-    void CollectDialogueFacts(const DialogueParse& parse, Array<String>& conversations, Array<String>& explicitLineIds,
-                              Array<String>& flagsSet, Array<String>& flagsRead)
+    void CollectDialogueFacts(const DialogueParse& parse, Array<String>& conversations, Array<String>& flagsSet,
+                              Array<String>& flagsRead)
     {
         for (const DialogueConversation& conversation : parse.conversations)
         {
@@ -486,12 +497,7 @@ namespace dialogue
             }
             for (const DialogueStep& step : conversation.steps)
             {
-                if ((step.kind == DialogueStepKind::Line || step.kind == DialogueStepKind::Answer) &&
-                    !IsPositionalId(step.lineId.AsView(), conversation.id.AsView()))
-                {
-                    explicitLineIds.PushBack(step.lineId);
-                }
-                else if ((step.kind == DialogueStepKind::Set || step.kind == DialogueStepKind::Clear) &&
+                if ((step.kind == DialogueStepKind::Set || step.kind == DialogueStepKind::Clear) &&
                          !Contains(flagsSet, step.flag.AsView()))
                 {
                     flagsSet.PushBack(step.flag);

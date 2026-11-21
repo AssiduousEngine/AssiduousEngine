@@ -132,9 +132,11 @@ meets the engine's scenes (a conversation names its level, which is a scene).
 conversation <id> [in <level>]
 ```
 
-- `<id>` is a word (letters, digits, `_`), unique across the project, not only its file: `play`,
-  `jump` and `Dialogue.play(id)` name a conversation without its file. The first game's tool already
-  refuses a second conversation of a name across all files.
+- `<id>` is a word (letters, digits, `_`), unique within its file. A dialogue file is an asset, and
+  a script reaches it as it reaches any asset, by its guid: `Dialogue.play(dialogue, id)`, where
+  `dialogue` is a `Guid` property tagged `"asset:DialogueResource"`. So two files may use the same
+  ids, and a renamed or moved file is still found (user 2026-11-21; the first game's tool keeps ids
+  unique across the project because it plays a conversation by its id alone).
 - `in <level>` is new and optional: a dialogue asset's name (below), of type `SceneDocument`. When
   a conversation names its level, the cook checks every entity argument (a declared command's
   `entity` kind, a speaker's `entity`) against that level's entities, a missing one a warning since
@@ -156,7 +158,7 @@ conversation <id> [in <level>]
 | sound | `sound <name> [at <speaker>]` | no | plays the dialogue asset `name`, a sound or a cue, flat or at the speaker's entity |
 | fade | `fade in\|out [for <seconds>] [<colour>]` | the fade | the sequencer's fade claim; the length and colour default to the settings' |
 | sequence | `sequence <name> [and wait]` | with `and wait` | plays the dialogue asset `name`, a sequence, its parts bound by name to the cast's entities; `and wait` holds until it ends |
-| jump | `jump <conversation>` | no | ends this conversation and plays that one |
+| jump | `jump <conversation> [in <name>]` | no | ends this conversation and plays that one, in this file or in the dialogue asset `name`, another dialogue file |
 | command | anything else | as declared | a command the project declares (below) |
 
 `@` lines, `choice`, `if`, `set`, `clear`, `wait` and `play` are the first game's as written. Its
@@ -281,7 +283,8 @@ Every line and every answer has an id. Without `#line:` it is positional, `<conv
 counting lines and answers from 1, and it changes when a line is inserted above it; positional ids
 are used for nothing that outlives a build. When a project starts translating, the page's **Tag
 lines** command writes an explicit `#line:<id>` onto each untagged line, as Yarn's tagger does;
-explicit ids are unique across the project and never change after that. The cooked asset carries a
+explicit ids are unique within their file and never change after that; a line is the file's guid and
+its id. The cooked asset carries a
 string table keyed by id: the seam a translation fills.
 
 #### What the cook writes
@@ -317,7 +320,8 @@ editor and `dialogue_validate` show the same list):
 themselves"), so flags and the conversation in progress belong to the game's run, as the first
 game's do.
 
-- **Plays one conversation at a time**: `play(id)` starts it; statements run until one waits (a
+- **Plays one conversation at a time**: `play(dialogue, id)` starts the conversation `id` of the
+  dialogue file `dialogue` (its first conversation when `id` is empty); statements run until one waits (a
   line, a choice, a waited clip, sequence or command, a `wait`). A line waits for `advance()`, a
   choice for `choose(i)`.
 - **Flags** are booleans in the run's save store under a prefix the settings give (`flag.` by
@@ -326,7 +330,7 @@ game's do.
 - **Resume after a load**: the first game saves the conversation (`dialogue.resume`) and a step
   index (`dialogue.pc`), and only when a hand-off leaves the conversation. A step index points
   somewhere else once the asset changes between the save and the load (a patch). The plugin saves
-  under `dialogue.resume` the conversation, the id of the last line shown, the steps since it, and a
+  under `dialogue.resume` the dialogue file's guid, the conversation, the id of the last line shown, the steps since it, and a
   hash of the conversation's steps; on a match it resumes at the step, on a mismatch at that line if
   the conversation still has it, else at the conversation's start (logged). It saves when a `leaves`
   command runs and whenever the game saves mid-conversation.
@@ -336,7 +340,7 @@ game's do.
 - **What it tells the game**, on the run's event bus as the sequencer's notices are (a behavior's
   `on<Name>` hears them): `DialogueLine` (speaker id, shown name, mood, portrait, text with
   `{Action}` filled, line id), `DialogueChoice` (the answers' texts), `DialogueCommand` (name and
-  arguments), `DialogueEnded` (conversation id). The game's own box shows them; the plugin's stock
+  arguments), `DialogueEnded` (the dialogue file and the conversation id). The game's own box shows them; the plugin's stock
   box (below) does when the project turns it on.
 
 ### Dialogue in a sequence
@@ -376,7 +380,8 @@ side are settings.
 
 ### Script surface
 
-`Dialogue` (a facade, as `Audio` is): `play(conversationId)`, `isPlaying()`, `advance()`,
+`Dialogue` (a facade, as `Audio` is): `play(dialogue, conversationId)` (a dialogue file's guid, as
+`scene.sequences.play(sequence)` takes a sequence's), `isPlaying()`, `advance()`,
 `choose(index)`, `done()` (a waiting command finished), `stop()`, `flag(name)`,
 `setFlag(name, on)`, `resume()` (after a load). Handlers on the run's bus: `onDialogueLine`,
 `onDialogueChoice`, `onDialogueCommand`, `onDialogueEnded`, `onDialogueResolve`. Both languages,
@@ -408,6 +413,10 @@ tested in `Code/Integration` as the sequencer's script surface is.
 12. **A dialogue file names its cast and its dialogue assets** (user 2026-11-21), both shareable;
     the settings give a new file's. A conversation names neither, and a cast does not name an asset
     list: speakers and staging are kept apart.
+13. **A dialogue file is reached by its guid**, as every asset is (user 2026-11-21): a script plays
+    a conversation through its file's asset, and a `jump` into another file names that file among
+    the dialogue assets (`jump lane in village`). Conversation and line ids are unique within their
+    file only.
 
 ## Order of work
 
@@ -459,6 +468,9 @@ Each step a commit with its tests, green on clang and gcc.
      The pages are one bespoke kind (`DialogueListPage`, the items as a list beside the grid, as the
      input map page shows its actions), not the generic page, which cannot add to a list.
    The system is described in `Documentation/Systems/dialogue.md`.
+   *Amended before D3* (decision 13): conversation and line ids are a file's own, and `jump <id>
+   in <name>` reaches another file through the dialogue assets; the cook reads the other files
+   for the flags they set and the conversations a jump into them names, no longer for their ids.
 4. **D3 The runner and the facade**: the per-run runner, flags in the save store, resume,
    the events, `Dialogue` in both languages, `sequence` and the built-in staging. Integration
    tests in both languages.

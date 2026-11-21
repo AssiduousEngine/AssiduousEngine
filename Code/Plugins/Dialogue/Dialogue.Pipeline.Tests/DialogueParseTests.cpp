@@ -206,9 +206,10 @@ TEST_CASE("dialogue parse: the built-in statements")
                                       u8"fade out\n"
                                       u8"fade in for 0.5 #FFFFFF\n"
                                       u8"sequence gate_open and wait\n"
-                                      u8"jump farewell\n");
+                                      u8"jump farewell\n"
+                                      u8"jump farewell in farewells\n");
     const DialogueConversation& staged = Only(parse);
-    REQUIRE(staged.steps.Size() == 10u);
+    REQUIRE(staged.steps.Size() == 11u);
     CHECK(staged.steps[0].kind == DialogueStepKind::Wait);
     CHECK(staged.steps[0].seconds == doctest::Approx(1.5f));
     CHECK(staged.steps[1].kind == DialogueStepKind::Play);
@@ -233,6 +234,10 @@ TEST_CASE("dialogue parse: the built-in statements")
     CHECK(staged.steps[7].waits);
     CHECK(staged.steps[8].kind == DialogueStepKind::Jump);
     CHECK(staged.steps[8].name == StringView(u8"farewell"));
+    CHECK(staged.steps[8].file.IsEmpty());
+    CHECK(staged.steps[9].kind == DialogueStepKind::Jump);
+    CHECK(staged.steps[9].name == StringView(u8"farewell"));
+    CHECK(staged.steps[9].file == StringView(u8"farewells"));
 }
 
 TEST_CASE("dialogue parse: a declared command, its arguments run to the next literal word")

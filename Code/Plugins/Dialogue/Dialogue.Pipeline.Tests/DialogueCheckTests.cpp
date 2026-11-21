@@ -88,13 +88,14 @@ namespace
         TableLevels levels;
         Array<DialogueCommandForm> commands;
         Array<String> provided;
-        Array<String> otherConversations;
-        Array<String> otherLineIds;
+        Guid self;
+        Array<DialogueFileConversations> otherFiles;
         Array<String> otherFlagsSet;
         Guid wave;
         Guid creak;
         Guid gateOpen;
         Guid card;
+        Guid farewells;
 
         Project()
         {
@@ -111,6 +112,10 @@ namespace
             levels.names.PushBack(String(u8"Keeper"));
             levels.names.PushBack(String(u8"Well"));
             dialogueAssets.PushBack(DialogueAssetEntry{String(u8"village"), levels.level});
+            self = assets.Add(u8"Gate", u8"DialogueAsset", 7);
+            farewells = assets.Add(u8"Farewells", u8"DialogueAsset", 8);
+            dialogueAssets.PushBack(DialogueAssetEntry{String(u8"gate"), self});
+            dialogueAssets.PushBack(DialogueAssetEntry{String(u8"farewells"), farewells});
             actions.PushBack(String(u8"Interact"));
             actions.PushBack(String(u8"Move"));
             DialogueSpeaker& keeper = cast.EmplaceBack();
@@ -132,8 +137,10 @@ namespace
             }
             provided.PushBack(String(u8"seen_*"));
             provided.PushBack(String(u8"has_lamp"));
-            otherConversations.PushBack(String(u8"farewell"));
-            otherLineIds.PushBack(String(u8"taken"));
+            DialogueFileConversations& other = otherFiles.EmplaceBack();
+            other.file = farewells;
+            other.conversations.PushBack(String(u8"farewell"));
+            other.conversations.PushBack(String(u8"gate")); // a file's ids are its own
             otherFlagsSet.PushBack(String(u8"met_elsewhere"));
         }
 
@@ -145,8 +152,8 @@ namespace
             inputs.dialogueAssets = withAssets ? &dialogueAssets : nullptr;
             inputs.commands = Span<const DialogueCommandForm>(commands.Data(), commands.Size());
             inputs.providedFlags = Span<const String>(provided.Data(), provided.Size());
-            inputs.otherConversations = Span<const String>(otherConversations.Data(), otherConversations.Size());
-            inputs.otherLineIds = Span<const String>(otherLineIds.Data(), otherLineIds.Size());
+            inputs.self = self;
+            inputs.otherFiles = Span<const DialogueFileConversations>(otherFiles.Data(), otherFiles.Size());
             inputs.otherFlagsSet = Span<const String>(otherFlagsSet.Data(), otherFlagsSet.Size());
             inputs.assets = &assets;
             inputs.actions = withActions ? &actions : nullptr;
@@ -198,9 +205,11 @@ TEST_CASE("dialogue check: a file that names only what the project has is clean,
                                               u8"end\n"
                                               u8"if met\n"
                                               u8"end\n"
-                                              u8"jump farewell\n");
+                                              u8"jump farewell in farewells\n");
     RequireClean(parse);
     const Array<DialogueStep>& steps = parse.conversations[0].steps;
+    CHECK(steps[steps.Size() - 2].kind == DialogueStepKind::Jump);
+    CHECK(steps[steps.Size() - 2].asset == project.farewells);
     CHECK(steps[2].asset == project.wave);
     CHECK(steps[3].asset == project.creak);
     CHECK(steps[4].asset == project.gateOpen);
@@ -211,7 +220,7 @@ TEST_CASE("dialogue check: a file that names only what the project has is clean,
 TEST_CASE("dialogue check: what the project does not have, each at its line")
 {
     Project project;
-    const DialogueParse parse = project.Check(u8"conversation farewell\n"          // 1: another file has it
+    const DialogueParse parse = project.Check(u8"conversation farewell\n"          // 1: another file's id too, which is fine
                                               u8"@ stranger: Hello.\n"             // 2
                                               u8"@ keeper angry: Leave.\n"         // 3
                                               u8"play keeper Dance\n"              // 4
@@ -224,8 +233,11 @@ TEST_CASE("dialogue check: what the project does not have, each at its line")
                                               u8"if never_set\n"                   // 11
                                               u8"end\n"                            // 12
                                               u8"@ keeper: Taken. #line:taken\n"   // 13
-                                              u8"jump nowhere\n");                 // 14
-    CHECK(HasProblem(parse, 1, u8"another dialogue file has a conversation"));
+                                              u8"jump nowhere\n"                   // 14
+                                              u8"jump nowhere in farewells\n"      // 15
+                                              u8"jump farewell in door_creak\n"    // 16: not a dialogue file
+                                              u8"jump farewell in elsewhere\n");   // 17
+    CHECK_FALSE(HasProblem(parse, 1, u8""));
     CHECK(HasProblem(parse, 2, u8"no speaker `stranger`"));
     CHECK(HasProblem(parse, 3, u8"no mood `angry` (has neutral, worried)"));
     CHECK(HasProblem(parse, 4, u8"no clip `Dance` (has Wave, Nod)"));
@@ -236,9 +248,25 @@ TEST_CASE("dialogue check: what the project does not have, each at its line")
     CHECK(HasProblem(parse, 9, u8"is of type AudioClipAsset, which is no TextureAsset"));
     CHECK(HasProblem(parse, 10, u8"no speaker `stranger`"));
     CHECK(HasProblem(parse, 11, u8"`never_set` is read but nothing sets it"));
-    CHECK(HasProblem(parse, 13, u8"another dialogue file has a line `#line:taken`"));
-    CHECK(HasProblem(parse, 14, u8"no conversation `nowhere`"));
+    CHECK_FALSE(HasProblem(parse, 13, u8""));
+    CHECK(HasProblem(parse, 14, u8"no conversation `nowhere` in this file"));
+    CHECK(HasProblem(parse, 15, u8"no conversation `nowhere` in `farewells`"));
+    CHECK(HasProblem(parse, 16, u8"`door_creak` is of type AudioClipAsset, which is no dialogue file"));
+    CHECK(HasProblem(parse, 17, u8"no dialogue asset `elsewhere`"));
     CHECK_FALSE(parse.Ok());
+}
+
+TEST_CASE("dialogue check: a jump within the file, or into this file by its own name, takes no asset")
+{
+    Project project;
+    const DialogueParse parse = project.Check(u8"conversation gate\n"
+                                              u8"jump lane\n"
+                                              u8"conversation lane\n"
+                                              u8"jump gate in gate\n");
+    RequireClean(parse);
+    CHECK(parse.conversations[0].steps[0].asset == Guid{});
+    CHECK(parse.conversations[1].steps[0].file == StringView(u8"gate"));
+    CHECK(parse.conversations[1].steps[0].asset == Guid{});
 }
 
 TEST_CASE("dialogue check: with no dialogue assets, the file is told once")
@@ -268,7 +296,7 @@ TEST_CASE("dialogue check: what nothing reaches is a warning, not an error")
     Project project;
     const DialogueParse parse = project.Check(u8"conversation early\n"
                                               u8"@ keeper: Off you go.\n"
-                                              u8"jump farewell\n"
+                                              u8"jump farewell in farewells\n"
                                               u8"@ keeper: Never said.\n");
     CHECK(parse.Ok());
     CHECK(HasProblem(parse, 4, u8"nothing reaches", true));

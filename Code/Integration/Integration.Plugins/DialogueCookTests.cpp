@@ -5,7 +5,9 @@
 // agent or the editor cooks them. A project enables the plugin; its dialogue files each name their
 // cast and dialogue assets. A file that names only what the project has cooks to its compiled
 // conversations, one with an error fails the cook, and File > New's three creators make their
-// assets, a new dialogue file taking the settings' default cast and dialogue assets.
+// assets, a new dialogue file taking the settings' default cast and dialogue assets. Conversation
+// ids are a file's own: two files may share one, and a jump into another file names it by its
+// dialogue asset.
 
 #include <doctest/doctest.h>
 
@@ -88,10 +90,11 @@ namespace
         return instance->Id();
     }
 
-    // A scratch project enabling dialogue: its cast (a keeper and a visitor), its dialogue assets (empty)
-    // and one clean dialogue file naming them; the settings declare a command and a provided flag, and
+    // A scratch project enabling dialogue: its cast (a keeper and a visitor), its dialogue assets (the
+    // second file, as `lane`) and two clean dialogue files naming them, the first jumping into the
+    // second, both with a conversation `gate`; the settings declare a command and a provided flag, and
     // name the cast and the assets as a new file's defaults.
-    void MakeProject(StringView dir, Guid& gate, Guid& castId, Guid& assetsId)
+    void MakeProject(StringView dir, Guid& gate, Guid& lane, Guid& castId, Guid& assetsId)
     {
         (void)RemoveDirectoryRecursive(dir);
         REQUIRE(editor::EditorProject::Create(DefaultAllocator(), dir, u8"Dialogue Cook").IsOk());
@@ -114,8 +117,6 @@ namespace
         foundation::content::Instance* listInstance =
             root->CreateInstance(u8"Dialogue Assets", dialogue::DialogueAssetListAsset::StaticType());
         REQUIRE(listInstance != nullptr);
-        dialogue::DialogueAssetListAsset list;
-        REQUIRE(listInstance->WriteObject(list).IsOk());
 
         gate = AddDialogueFile(*project, *root, u8"Gate",
                                u8"conversation gate\n"
@@ -128,8 +129,18 @@ namespace
                                u8"if seen_gate\n"
                                u8"  @ visitor: Again.\n"
                                u8"end\n"
-                               u8"cue lights dim\n",
+                               u8"cue lights dim\n"
+                               u8"jump lane in lane\n",
                                castInstance->Id(), listInstance->Id());
+        lane = AddDialogueFile(*project, *root, u8"Lane",
+                               u8"conversation gate\n"
+                               u8"@ visitor: The other gate.\n"
+                               u8"conversation lane\n"
+                               u8"@ visitor: Down the lane.\n",
+                               castInstance->Id(), listInstance->Id());
+        dialogue::DialogueAssetListAsset list;
+        list.entries.PushBack(dialogue::DialogueAssetEntry{String(u8"lane"), lane});
+        REQUIRE(listInstance->WriteObject(list).IsOk());
         castId = castInstance->Id();
         assetsId = listInstance->Id();
 
@@ -168,9 +179,10 @@ TEST_CASE("plugins: through the MCP host, a dialogue file cooks to its conversat
                                                                       &pluginTools});
     const StringView dir = u8"scratch_plugins_dialogue_cook";
     Guid gate;
+    Guid lane;
     Guid castId;
     Guid assetsId;
-    MakeProject(dir, gate, castId, assetsId);
+    MakeProject(dir, gate, lane, castId, assetsId);
 
     JsonValue openArgs = JsonValue::MakeObject();
     openArgs.Set(u8"directory", JsonValue::MakeString(String(dir)));
@@ -192,6 +204,14 @@ TEST_CASE("plugins: through the MCP host, a dialogue file cooks to its conversat
     CHECK(conversation.id == StringView(u8"gate"));
     CHECK(conversation.steps[0].kind == dialogue::DialogueStepKind::Line);
     CHECK(conversation.steps.Back().kind == dialogue::DialogueStepKind::End);
+    const dialogue::DialogueStep& jump = conversation.steps[conversation.steps.Size() - 2];
+    CHECK(jump.kind == dialogue::DialogueStepKind::Jump);
+    CHECK(jump.name == StringView(u8"lane"));
+    CHECK(jump.asset == lane);
+    RefPtr<ISerializable> laneRead = session.project->CookedDb().ReadObject(lane);
+    const auto* laneSource = laneRead ? Cast<dialogue::DialogueSource>(laneRead.Get()) : nullptr;
+    REQUIRE(laneSource != nullptr);
+    CHECK(laneSource->conversations.Size() == 2u);
     bool cue = false;
     for (const dialogue::DialogueStep& step : conversation.steps)
     {

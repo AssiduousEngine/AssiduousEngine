@@ -75,9 +75,9 @@ export namespace dialogue
         bool hasCast = false;
         Array<DialogueAssetEntry> dialogueAssets;
         bool hasDialogueAssets = false;
-        Array<String> conversations; // every other file's
-        Array<String> lineIds;
-        Array<String> flagsSet;
+        Array<DialogueFileConversations> otherFiles; // every other dialogue file's conversations
+        Array<String> flagsSet;                      // the flags every other file sets or clears
+        Guid self;
         Array<Guid> files; // every other dialogue file's asset
         Array<String> actions; // every input map's
         bool hasInputMap = false;

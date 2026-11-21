@@ -39,6 +39,7 @@ namespace dialogue
         foundation::core::Serialize(ar, "flag", step.flag);
         foundation::core::Serialize(ar, "negate", step.negate);
         foundation::core::Serialize(ar, "name", step.name);
+        foundation::core::Serialize(ar, "file", step.file);
         foundation::core::Serialize(ar, "asset", step.asset);
         foundation::core::Serialize(ar, "seconds", step.seconds);
         foundation::core::Serialize(ar, "waits", step.waits);

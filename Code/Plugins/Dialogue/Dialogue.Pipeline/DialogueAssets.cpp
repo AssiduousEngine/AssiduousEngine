@@ -202,6 +202,7 @@ namespace dialogue
     void DialogueProject::Gather(const DialogueSettings& settings, const DialogueAsset& file, content::IContentDatabase& db,
                                  const pipeline::AssetBuildContext& reader, const Guid& self)
     {
+        this->self = self;
         for (const String& text : settings.commands)
         {
             DialogueCommandForm form;
@@ -278,8 +279,10 @@ namespace dialogue
                                     return; // its own cook says so
                                 }
                                 const DialogueParse parse = ParseDialogue(text.AsView(), FormsOf(*this));
+                                DialogueFileConversations& facts = otherFiles.EmplaceBack();
+                                facts.file = instance.Id();
                                 Array<String> flagsRead; // what a file reads is no other file's business
-                                CollectDialogueFacts(parse, conversations, lineIds, flagsSet, flagsRead);
+                                CollectDialogueFacts(parse, facts.conversations, flagsSet, flagsRead);
                             });
         }
     }
@@ -302,8 +305,8 @@ namespace dialogue
         inputs.dialogueAssets = project.hasDialogueAssets ? &project.dialogueAssets : nullptr;
         inputs.commands = FormsOf(project);
         inputs.providedFlags = Span<const String>(settings.providedFlags.Data(), settings.providedFlags.Size());
-        inputs.otherConversations = Span<const String>(project.conversations.Data(), project.conversations.Size());
-        inputs.otherLineIds = Span<const String>(project.lineIds.Data(), project.lineIds.Size());
+        inputs.self = project.self;
+        inputs.otherFiles = Span<const DialogueFileConversations>(project.otherFiles.Data(), project.otherFiles.Size());
         inputs.otherFlagsSet = Span<const String>(project.flagsSet.Data(), project.flagsSet.Size());
         inputs.assets = db != nullptr ? &assets.Value() : nullptr;
         inputs.actions = project.hasInputMap ? &project.actions : nullptr;
@@ -346,7 +349,8 @@ namespace dialogue
             return;
         }
         // The cast, the dialogue assets and every other dialogue file are read: a change to any of
-        // them can change what this file's checks find.
+        // them can change what this file's checks find (the flags the others set, the conversations
+        // a jump into one names).
         if (file.cast != Guid{})
         {
             out.reads.PushBack(file.cast);

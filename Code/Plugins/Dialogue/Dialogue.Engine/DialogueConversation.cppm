@@ -37,7 +37,8 @@ export namespace dialogue
         Sound,    // plays the sound `asset`, at `speaker`'s entity when one is named
         Fade,     // fades in (`fadeIn`) or out over `seconds` to `color`
         Sequence, // plays the sequence `asset`; waits with `waits`
-        Jump,     // ends this conversation and plays the one named `name`
+        Jump,     // ends this conversation and plays the one named `name`, in the dialogue file `asset`
+                  // (nil: this one)
         Command,  // the declared command `name` with its `arguments`; waits with `waits`, or leaves
         End,      // the conversation's end
     };
@@ -62,6 +63,7 @@ export namespace dialogue
         String flag;
         bool negate = false;
         String name;    // a clip's, a conversation's or a command's name
+        String file;    // a jump's other dialogue file, by its name in the dialogue assets; empty: this one
         Guid asset;
         f32 seconds = -1.0f; // a wait's, or a fade's length; below 0, the settings' default
         bool waits = false;

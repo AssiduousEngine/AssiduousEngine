@@ -641,7 +641,7 @@ namespace dialogue
                 (void)ParseForm(u8"sound <sound:asset(Sound)> [at <speaker:speaker>]", sound, error, true);
                 (void)ParseForm(u8"fade <direction:in|out> [for <seconds:number>] [<color:word>]", fade, error, true);
                 (void)ParseForm(u8"sequence <sequence:asset(Sequence)> [and wait]", sequence, error, true);
-                (void)ParseForm(u8"jump <conversation:word>", jump, error, true);
+                (void)ParseForm(u8"jump <conversation:word> [in <dialogue:word>]", jump, error, true);
             }
 
             [[nodiscard]] const DialogueCommandForm* Find(StringView word) const noexcept
@@ -1157,9 +1157,15 @@ namespace dialogue
                 {
                     step.kind = DialogueStepKind::Jump;
                     step.name = text(u8"conversation");
+                    step.file = text(u8"dialogue");
                     if (!IsWord(step.name.AsView()))
                     {
                         Problem(line.number, String(u8"`jump` names a conversation by its id, a word"));
+                        return;
+                    }
+                    if (!step.file.IsEmpty() && !IsWord(step.file.AsView()))
+                    {
+                        Problem(line.number, String(u8"`jump ... in` names a dialogue file by its dialogue asset's name, a word"));
                         return;
                     }
                 }

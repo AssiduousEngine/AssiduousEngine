@@ -60,7 +60,7 @@ the `level` its entity names are checked against when it names one, and a flat l
 | `Sound` | plays the sound `asset`, at `speaker`'s entity when named |
 | `Fade` | fades in (`fadeIn`) or out over `seconds` to `color` (the settings' when unset) |
 | `Sequence` | plays the sequence `asset`; `waits` holds until it ends |
-| `Jump` | ends the conversation and plays `name` |
+| `Jump` | ends the conversation and plays `name`, in the dialogue file `asset` (nil: this one; `file` keeps the dialogue asset's name) |
 | `Command` | a declared command, `name`, with its `arguments` converted to their kinds; waits or leaves as declared |
 | `End` | the conversation's end |
 
@@ -85,13 +85,14 @@ at the line that opened it.
 - One statement a line; blank lines and lines starting with `#` are nothing. Indentation means
   nothing: a `choice` or `if` block ends at its `end`.
 - `conversation <id> [in <level>]` starts a conversation, its level a dialogue asset's name; a
-  second of one id is an error.
+  second of one id in the file is an error (another file may use it).
 - `@ <speaker> [mood]: <text>` is a line, `choice` / `> <answer>` / `end` a choice, `if [not]
   <flag>` / `else` / `end` a branch. A line or an answer ending in `#line:<id>` takes that id;
   otherwise it is `<conversation>.<n>`, counting lines and answers from 1. An id used twice in a
   file is an error.
 - `wait`, `set`, `clear`, `play`, `sound`, `fade`, `sequence` and `jump` are built in (`sound` and
-  `sequence` name a dialogue asset, one word), each a form
+  `sequence` name a dialogue asset, one word; `jump <conversation> [in <name>]` another dialogue
+  file by its dialogue asset's name), each a form
   in the commands' notation (`play <speaker:speaker> <clip:text> [and wait]`), so they read their
   arguments the way declared commands do.
 - Any other statement is matched against the declared commands, the first whose form reads it.
@@ -112,9 +113,11 @@ the flags set elsewhere) is the cook's to check.
 `CheckDialogue(parse, inputs)` adds to a parsed file what the parser cannot know, each problem at
 its line, and resolves the assets its steps name. Its `DialogueCheckInputs` are the cast, the
 dialogue assets (`DialogueAssetEntry`: a name and an asset's guid), the declared commands, the
-provided flags, the project's other dialogue files (their conversation ids, their explicit line ids
-and the flags they set; `CollectDialogueFacts` gathers them from a parse) and the project's assets
-by guid (`IDialogueAssets`: an asset's name and type). A conversation never names an asset by path:
+provided flags, the file's own asset (`self`), the project's other dialogue files (their
+conversations, `DialogueFileConversations`, and the flags they set; `CollectDialogueFacts` gathers
+them from a parse) and the project's assets by guid (`IDialogueAssets`: an asset's name and type).
+Conversation and line ids are a file's own: a script plays a conversation through its file's asset,
+so two files may use the same ids. A conversation never names an asset by path:
 a clip by its name among the speaker's clips, anything else by its name in the dialogue assets.
 
 - **Errors:** a speaker not in the cast (a line's, a `play`'s, a `sound`'s, a `speaker` argument's),
@@ -122,9 +125,9 @@ a clip by its name among the speaker's clips, anything else by its name in the d
   `play` clip not among the speaker's clips by name; a `sound`, a `sequence` or an `asset(Type)`
   argument naming no dialogue asset, one that refers to no asset, or one of another type (a `sound`
   takes an `AudioClipAsset` or a `SoundCueAsset`, a `sequence` a `SequenceAsset`); dialogue assets
-  the settings do not name, once; a `jump` to a conversation no file has; a flag an `if` reads that
-  no file sets and the settings do not provide; a conversation id or an explicit line id another
-  file has too.
+  the settings do not name, once; a `jump` to a conversation its file lacks (this file's, or with
+  `in <name>` the file the dialogue asset `name` holds, which must be a `DialogueAsset`); a flag an
+  `if` reads that no file sets and the settings do not provide.
 - **Actions:** each `{Action}` in a line's or an answer's text must be an action of one of the
   project's input maps (`{{` is a brace); a project with no input map is told once.
 - **The level:** a conversation that names its level (`conversation square in village`, the level a
@@ -132,8 +135,8 @@ a clip by its name among the speaker's clips, anything else by its name in the d
   into a scratch scene with its prefabs placed: the speakers' `entity` and every `entity` argument.
   A missing one is a warning, since an entity spawned at play is not in the scene.
 - **Warnings:** a statement nothing reaches (after a `jump`, say); an entity the level lacks.
-- **Resolved:** a `play`'s clip, a `sound`'s and a `sequence`'s asset, and an `asset(Type)`
-  argument's, into the step's or the argument's `asset`.
+- **Resolved:** a `play`'s clip, a `sound`'s and a `sequence`'s asset, a `jump ... in`'s dialogue
+  file, and an `asset(Type)` argument's, into the step's or the argument's `asset`.
 
 ## The assets and the cook
 
