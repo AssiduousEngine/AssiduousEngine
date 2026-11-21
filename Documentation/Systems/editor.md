@@ -207,7 +207,9 @@ notices and status, the script breakpoints, and the registries. As built:
 | `InspectorExtrasRegistry` (`editor.scene`) | component or settings type | notices, actions and sections under an inspector header |
 | `IViewportToolProvider` (`editor.viewporttools`) / `IViewportToolPanelProvider` (`editor.app`) | tool id | viewport tools and their panels |
 
-A page factory's registration answers a key (`EditorPageRegistry::Register`), and each page keeps
+A plugin's Editor part finds the editor's `EditorContext` and its `app::AssetPageServicesSource`
+through its plugin context (`PluginContext::Find`), so it makes its asset pages as the editor's own
+domains make theirs. A page factory's registration answers a key (`EditorPageRegistry::Register`), and each page keeps
 the key of the factory that made it (`FactoryKey`). A plugin's Editor part removes its factories as
 it unloads with `EditorContext::RemovePageFactory(key)`, which closes the pages that factory made
 first (one with unsaved edits is logged), since they run the plugin's code; its type then opens

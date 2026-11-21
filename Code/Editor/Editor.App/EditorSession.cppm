@@ -38,6 +38,7 @@ import foundation.scene;
 import foundation.scene.resource; // SceneSnapshot (the reload's scene bracket)
 import engine.scene;              // SceneSubsystem (the live scenes a reload carries across)
 import :layout; // the per-project store's sections and files
+import :asset_page; // AssetPageServicesSource (what a plugin's pages are made with)
 
 using namespace foundation::core;
 
@@ -65,6 +66,9 @@ export namespace editor::app
             editor::mcp::McpPluginServices* pluginTools = nullptr;
             /// What the project's plugins' Tooling parts add their export hooks through (null: none).
             editor::ExportPluginServices* exportHooks = nullptr;
+            /// What a plugin's Editor part makes its asset pages with, as the editor's own pages do
+            /// (null: none, and a plugin's pages are not made).
+            AssetPageServicesSource* pageServices = nullptr;
             /// Called when the project's plugin host changed (made at open, remade at a reload, gone
             /// at close), so what holds it follows (the MCP host's session).
             Function<void(foundation::runtime::PluginHost*)> pluginsChanged;
@@ -189,6 +193,8 @@ export namespace editor::app
             if (plugins == nullptr)
                 return;
             (void)plugins->Provide(context);
+            if (m_services.pageServices != nullptr)
+                (void)plugins->Provide(*m_services.pageServices);
             if (!m_pipelinePlugins)
                 m_pipelinePlugins = MakeUnique<pipeline::PipelinePluginServices>(
                     m_allocator, m_allocator, pipeline::PipelineRegistries{m_services.builders, &context.Importers(), &context.Creators()});

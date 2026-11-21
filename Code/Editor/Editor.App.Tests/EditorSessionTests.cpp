@@ -110,13 +110,17 @@ namespace
     constexpr char8_t kFourParts[] = u8"four_parts";
     Array<String> g_partLog;
     EditorContext* g_contextSeen = nullptr;
+    app::AssetPageServicesSource* g_pageServicesSeen = nullptr;
     pipeline::PipelinePluginServices* g_pipelineSeen = nullptr;
     template <foundation::runtime::PluginPartKind Kind>
     void PartLoad(foundation::runtime::PluginContext& context)
     {
         g_partLog.PushBack(Format(u8"load:{}", foundation::runtime::PluginPartKindName(Kind)));
         if (Kind == foundation::runtime::PluginPartKind::Editor)
+        {
             g_contextSeen = context.Find<EditorContext>();
+            g_pageServicesSeen = context.Find<app::AssetPageServicesSource>();
+        }
         if (Kind == foundation::runtime::PluginPartKind::Pipeline)
             g_pipelineSeen = context.Find<pipeline::PipelinePluginServices>();
     }
@@ -181,8 +185,11 @@ TEST_CASE("editor session: a project's plugins load with it into the embedded ru
     services.embeddedHost = &host;
     services.embeddedApp = &embedded;
     services.linkedPlugins = Span<const foundation::runtime::LinkedPlugin>(linked, 1);
+    app::AssetPageServicesSource pageServices;
+    services.pageServices = &pageServices;
     g_partLog.Clear();
     g_contextSeen = nullptr;
+    g_pageServicesSeen = nullptr;
     {
         app::EditorSession session(DefaultAllocator(), Move(services));
         REQUIRE(session.Open(dir.AsView(), app::EditorSession::OpenOptions{}));
@@ -194,6 +201,7 @@ TEST_CASE("editor session: a project's plugins load with it into the embedded ru
         CHECK(g_partLog[0] == String(u8"load:Engine"));
         CHECK(g_partLog[3] == String(u8"load:Editor"));
         CHECK(g_contextSeen == &context);
+        CHECK(g_pageServicesSeen == &pageServices); // what its pages are made with
         REQUIRE(g_pipelineSeen != nullptr); // a Pipeline part adds to the editor's registries
         CHECK(g_pipelineSeen->Registries().builders == &builders);
         CHECK(g_pipelineSeen->Registries().importers == &context.Importers());
