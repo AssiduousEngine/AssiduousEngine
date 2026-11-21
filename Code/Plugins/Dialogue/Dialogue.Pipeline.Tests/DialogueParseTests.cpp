@@ -201,11 +201,11 @@ TEST_CASE("dialogue parse: the built-in statements")
                                       u8"wait 1.5\n"
                                       u8"play keeper Wave Hello and wait\n"
                                       u8"play keeper Nod\n"
-                                      u8"sound Sounds/Door Creak at keeper\n"
-                                      u8"sound Sounds/Wind\n"
+                                      u8"sound door_creak at keeper\n"
+                                      u8"sound wind\n"
                                       u8"fade out\n"
                                       u8"fade in for 0.5 #FFFFFF\n"
-                                      u8"sequence Cutscenes/Gate Open and wait\n"
+                                      u8"sequence gate_open and wait\n"
                                       u8"jump farewell\n");
     const DialogueConversation& staged = Only(parse);
     REQUIRE(staged.steps.Size() == 10u);
@@ -217,7 +217,7 @@ TEST_CASE("dialogue parse: the built-in statements")
     CHECK(staged.steps[1].waits);
     CHECK_FALSE(staged.steps[2].waits);
     CHECK(staged.steps[3].kind == DialogueStepKind::Sound);
-    CHECK(staged.steps[3].name == StringView(u8"Sounds/Door Creak"));
+    CHECK(staged.steps[3].name == StringView(u8"door_creak"));
     CHECK(staged.steps[3].speaker == StringView(u8"keeper"));
     CHECK(staged.steps[4].speaker.IsEmpty());
     CHECK(staged.steps[5].kind == DialogueStepKind::Fade);
@@ -229,7 +229,7 @@ TEST_CASE("dialogue parse: the built-in statements")
     CHECK(staged.steps[6].hasColor);
     CHECK(staged.steps[6].color.z == doctest::Approx(1.0f));
     CHECK(staged.steps[7].kind == DialogueStepKind::Sequence);
-    CHECK(staged.steps[7].name == StringView(u8"Cutscenes/Gate Open"));
+    CHECK(staged.steps[7].name == StringView(u8"gate_open"));
     CHECK(staged.steps[7].waits);
     CHECK(staged.steps[8].kind == DialogueStepKind::Jump);
     CHECK(staged.steps[8].name == StringView(u8"farewell"));

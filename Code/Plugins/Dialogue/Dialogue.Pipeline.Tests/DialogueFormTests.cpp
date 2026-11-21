@@ -68,11 +68,11 @@ TEST_CASE("dialogue forms: every kind, a default, and how a command waits")
     CHECK(fight.parts[1].kind == DialogueArgumentKind::List);
     CHECK(fight.parts[1].list == StringView(u8"foes"));
 
-    const DialogueCommandForm show = Parsed(u8"show card <card:asset(Texture)> waits");
+    const DialogueCommandForm show = Parsed(u8"show card <card:asset(TextureAsset)> waits");
     CHECK(show.name == StringView(u8"show card"));
     CHECK(show.wait == DialogueCommandWait::Always);
     CHECK(show.parts[2].kind == DialogueArgumentKind::Asset);
-    CHECK(show.parts[2].assetType == StringView(u8"Texture"));
+    CHECK(show.parts[2].assetType == StringView(u8"TextureAsset"));
 
     const DialogueCommandForm note = Parsed(u8"note <who:speaker> <what:flag> <tag:word> <text:text>");
     CHECK(note.parts[1].kind == DialogueArgumentKind::Speaker);

@@ -35,7 +35,7 @@ export namespace dialogue
         Entity,  // a level entity, by name (any words)
         Speaker, // a cast id (one word)
         Flag,    // a flag (one word)
-        Asset,   // a project asset of `assetType`, by path (any words)
+        Asset,   // a dialogue asset of `assetType`, by its name in the project's dialogue assets (one word)
         List,    // one of the named list `list` (any words)
     };
 

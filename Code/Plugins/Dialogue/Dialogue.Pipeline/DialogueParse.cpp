@@ -368,7 +368,7 @@ namespace dialogue
         {
             return kind == DialogueArgumentKind::Word || kind == DialogueArgumentKind::Number ||
                    kind == DialogueArgumentKind::OneOf || kind == DialogueArgumentKind::Speaker ||
-                   kind == DialogueArgumentKind::Flag;
+                   kind == DialogueArgumentKind::Flag || kind == DialogueArgumentKind::Asset;
         }
 
         struct MatchState
@@ -510,7 +510,8 @@ namespace dialogue
                     }
                     return false;
                 case DialogueArgumentKind::Speaker:
-                case DialogueArgumentKind::Flag: return IsWord(text);
+                case DialogueArgumentKind::Flag:
+                case DialogueArgumentKind::Asset: return IsWord(text);
                 default: return true;
                 }
             }

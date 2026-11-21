@@ -23,6 +23,14 @@ namespace dialogue
         using engine::project::kSettingLabelAttribute;
         builder.DataVersion(1);
         RegisterArrayType<String>(); // the two lists
+        builder.Property<&DialogueSettings::cast>("cast")
+            .PropAttribute(kSettingLabelAttribute, String(u8"Cast"))
+            .PropAttribute(engine::project::kSettingAssetTypeAttribute, String(u8"DialogueCastAsset"))
+            .PropAttribute(engine::project::kSettingEmptyTextAttribute, String(u8"(none)"));
+        builder.Property<&DialogueSettings::assets>("assets")
+            .PropAttribute(kSettingLabelAttribute, String(u8"Dialogue assets"))
+            .PropAttribute(engine::project::kSettingAssetTypeAttribute, String(u8"DialogueAssetListAsset"))
+            .PropAttribute(engine::project::kSettingEmptyTextAttribute, String(u8"(none)"));
         builder.Property<&DialogueSettings::commands>("commands").PropAttribute(kSettingLabelAttribute,
                                                                                String(u8"Commands"));
         builder.Property<&DialogueSettings::providedFlags>("providedFlags")
@@ -42,6 +50,8 @@ namespace dialogue
 
     void DialogueSettings::Serialize(ISerializer& ar)
     {
+        foundation::core::Serialize(ar, "cast", cast);
+        foundation::core::Serialize(ar, "assets", assets);
         foundation::core::Serialize(ar, "commands", commands);
         foundation::core::Serialize(ar, "providedFlags", providedFlags);
         foundation::core::Serialize(ar, "flagPrefix", flagPrefix);

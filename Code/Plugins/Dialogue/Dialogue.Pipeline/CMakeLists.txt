@@ -7,7 +7,9 @@ target_sources(${PLUGIN_PART}
     PRIVATE
         DialoguePipeline.cpp # the part's entry
         DialogueParse.cpp    # the parser
+        DialogueCheck.cpp    # the cook's checks
     PUBLIC
         FILE_SET dialogue_pipeline_modules TYPE CXX_MODULES FILES
             DialoguePipelineModule.cppm
-            DialogueParse.cppm)
+            DialogueParse.cppm
+            DialogueCheck.cppm)

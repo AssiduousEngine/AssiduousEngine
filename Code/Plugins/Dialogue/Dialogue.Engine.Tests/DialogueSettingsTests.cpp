@@ -20,6 +20,8 @@ TEST_CASE("dialogue settings: an entry with none gives the defaults")
 {
     DialogueSettings settings;
     REQUIRE(runtime::ReadPluginSettings(Span<const u8>(), settings, DefaultAllocator()).IsOk());
+    CHECK(settings.cast == Guid{});
+    CHECK(settings.assets == Guid{});
     CHECK(settings.commands.IsEmpty());
     CHECK(settings.providedFlags.IsEmpty());
     CHECK(settings.flagPrefix == StringView(u8"flag."));
@@ -67,5 +69,5 @@ TEST_CASE("dialogue settings: every setting has a label for Project Settings")
         const String* label = engine::project::SettingAttribute(property, engine::project::kSettingLabelAttribute);
         CHECK_MESSAGE(label != nullptr, property.name);
     }
-    CHECK(count == 7u);
+    CHECK(count == 9u);
 }

@@ -152,16 +152,16 @@ conversation <id> [in <level>]
 | flags | `set <flag>`, `clear <flag>` | no | writes a flag |
 | wait | `wait <seconds>` | the time | pauses the conversation |
 | play | `play <speaker> <clip> [and wait]` | with `and wait` | plays a clip of the speaker's once over what they are doing (the animation's one-shot), blending back out |
-| sound | `sound <sound> [at <speaker>]` | no | plays a sound asset, flat or at the speaker's entity |
+| sound | `sound <name> [at <speaker>]` | no | plays the dialogue asset `name`, a sound or a cue, flat or at the speaker's entity |
 | fade | `fade in\|out [for <seconds>] [<colour>]` | the fade | the sequencer's fade claim; the length and colour default to the settings' |
-| sequence | `sequence <sequence> [and wait]` | with `and wait` | plays a sequence asset, its parts bound by name to the cast's entities; `and wait` holds until it ends |
+| sequence | `sequence <name> [and wait]` | with `and wait` | plays the dialogue asset `name`, a sequence, its parts bound by name to the cast's entities; `and wait` holds until it ends |
 | jump | `jump <conversation>` | no | ends this conversation and plays that one |
 | command | anything else | as declared | a command the project declares (below) |
 
 `@` lines, `choice`, `if`, `set`, `clear`, `wait` and `play` are the first game's as written. Its
 `fade in|out` is kept and gains a length and colour. Its `sound <cue>` (declared, unused by any of
-its conversations) becomes a sound asset. `sequence` and `jump` are new. Its `camera`, `move`,
-`shake`, `cue` and its hand-offs become its declared commands.
+its conversations) becomes a dialogue asset by name. `sequence` and `jump` are new. Its `camera`,
+`move`, `shake`, `cue` and its hand-offs become its declared commands.
 
 Blocks nest: an answer may hold a `choice` or an `if`, and an `if` side may hold a `choice`. Each
 answer's statements run to the next `>` at its level or the choice's `end`.
@@ -206,9 +206,9 @@ give coins <purse:copper|silver|gold> <count:number>
 
 - **Kinds:** `text` (as written), `word`, `number`, `a|b|c` (one of these words), `entity` (a level
   entity by name; checked when the conversation names its level), `speaker` (a cast id), `flag`,
-  `asset(<Type>)` (a project path, cooked to a guid), `list(<name>)` (one of a named list the
-  settings hold, written there or read from a data asset's keys: a game's item list).
-  `=<value>` gives a default.
+  `asset(<Type>)` (a dialogue asset of that type, by its name, cooked to its guid), `list(<name>)`
+  (one of a named list the settings hold, written there or read from a data asset's keys: a game's
+  item list). `=<value>` gives a default.
 - **Waiting:** a command does not wait unless its form says so. `[and wait]` lets the author choose;
   `waits` always holds; either holds until the game calls `Dialogue.done()`. `leaves` ends the
   conversation with its place saved, for a step that takes the player somewhere else (a fight): the
@@ -260,6 +260,17 @@ against it. It holds a list of `DialogueSpeaker` values:
   the cast a page of its own; D2 reads that page first and chooses.
 - **The first game's cast** is converted once at D7, through the MCP data tools, and its own
   tool retired.
+
+#### Dialogue assets
+
+A conversation never names an asset by its path, which a rename or a move would break. A clip is
+named among its speaker's clips in the cast; every other asset a conversation names (a `sound`'s,
+a `sequence`'s, a command's `asset(<Type>)` argument) is an entry in the project's **dialogue
+assets**: a `DialogueAssetListAsset` the plugin's settings name (`assets`), edited in the inspector,
+each entry a name (one word: `door_creak`) and a reference to the asset, which holds its guid. The
+cook finds the entry by name and checks the asset's type fits (a `sound` takes an audio clip or a
+cue, a `sequence` a sequence); the compiled step holds the guid. The list is read only when
+conversations cook, so it has no cooked form of its own.
 
 #### Line ids
 
@@ -388,6 +399,8 @@ tested in `Code/Integration` as the sequencer's script surface is.
    first game's cast is converted once.
 9. **Resume anchors on a line**, not a step index, so a save survives a patch to the conversation.
 10. **Conversation, not scene**, for the unit of dialogue, so it never reads as the engine's scenes.
+11. **Assets by name, never by path** (user 2026-11-21): a clip through the cast, everything else
+    through the dialogue assets, each holding the guid, so a renamed or moved asset is still found.
 
 ## Order of work
 
@@ -426,11 +439,11 @@ Each step a commit with its tests, green on clang and gcc.
    conversation assets and its cast a `DialogueCast`, its host interface becomes command handlers,
    and one of its cutscenes is rebuilt with its staging as sequences (the sequencer spec's Q5,
    folded in here). Its own tool and generated script data are retired.
-9. **D8 A sample** (user 2026-11-21): a new sample project that showcases the two, built through
-   the MCP tools as the other samples are, whose conversations play with their staging as
-   sequences and whose cutscenes carry lines: the dialogue and the sequencer used together and
-   played from script, cooked and exported. Integration checks that it reads and cooks, as it does for the other samples. It
-   stands for the sequencer spec's "small sequence in a sample game" (Q5) too.
+9. **D8 A sample** (user 2026-11-21): a new sample project that showcases the two, built through the
+   MCP tools as the other samples are, whose conversations play with their staging as sequences and
+   whose cutscenes carry lines: the dialogue and the sequencer used together and played from script,
+   cooked and exported. Integration checks that it reads and cooks, as it does for the other
+   samples. It stands for the sequencer spec's "small sequence in a sample game" (Q5) too.
 
 ## Risks
 
