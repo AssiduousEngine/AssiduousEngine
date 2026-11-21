@@ -195,6 +195,9 @@ export namespace editor
         /// The source database instance this page edits (a zero Guid for pages with no instance).
         [[nodiscard]] const Guid& InstanceId() const noexcept { return m_instanceId; }
         void SetInstanceId(const Guid& id) noexcept { m_instanceId = id; }
+        /// The registry key of the factory that made this page (EditorPageRegistry::Register); 0 for
+        /// a page made without one.
+        [[nodiscard]] u64 FactoryKey() const noexcept { return m_factoryKey; }
 
         // === Services: the interfaces this page publishes (a TypeId-keyed table, as the
         // SubsystemManager and Scene use, scoped to one page) ===
@@ -223,7 +226,8 @@ export namespace editor
         Guid m_instanceId{};
 
     private:
-        friend class EditorContext; // tells it its asset went, and that it came back
+        u64 m_factoryKey = 0;
+        friend class EditorContext; // tells it its asset went, and that it came back, and its factory
         void NoteAssetDeleted(StringView recordPath, StringView typeNamespace, StringView typeName)
         {
             m_assetDeleted = true;
@@ -273,28 +277,70 @@ export namespace editor
         EditorPageRegistry(const EditorPageRegistry&) = delete;
         EditorPageRegistry& operator=(const EditorPageRegistry&) = delete;
 
-        void Register(UniquePtr<IEditorPageFactory> factory)
+        /// Adds a factory; its key for Unregister (0, nothing added, for a null one or one with no
+        /// type). A plugin keeps the key and removes its factory when it unloads.
+        u64 Register(UniquePtr<IEditorPageFactory> factory)
         {
-            if (factory && factory->PrimaryType() != nullptr)
+            if (!factory || factory->PrimaryType() == nullptr)
             {
-                m_factories.PushBack(Move(factory));
+                return 0;
             }
+            const u64 key = m_nextKey++;
+            m_factories.PushBack(Entry{key, Move(factory)});
+            return key;
+        }
+
+        /// Removes the factory `key`; false when there is none. The pages it made stay open: the
+        /// editor's context closes them first (EditorContext::RemovePageFactory).
+        bool Unregister(u64 key)
+        {
+            for (usize i = 0; i < m_factories.Size(); ++i)
+            {
+                if (m_factories[i].key == key)
+                {
+                    m_factories.RemoveAt(i);
+                    return true;
+                }
+            }
+            return false;
         }
 
         [[nodiscard]] IEditorPageFactory* FindFactory(const TypeInfo& type) const
         {
-            IEditorPageFactory* best = nullptr;
+            const Entry* best = FindEntry(type);
+            return best != nullptr ? best->factory.Get() : nullptr;
+        }
+
+        /// The key of the factory FindFactory answers for `type`; 0 for none.
+        [[nodiscard]] u64 FindFactoryKey(const TypeInfo& type) const
+        {
+            const Entry* best = FindEntry(type);
+            return best != nullptr ? best->key : 0;
+        }
+
+        [[nodiscard]] usize Size() const noexcept { return m_factories.Size(); }
+
+    private:
+        struct Entry
+        {
+            u64 key = 0;
+            UniquePtr<IEditorPageFactory> factory;
+        };
+
+        [[nodiscard]] const Entry* FindEntry(const TypeInfo& type) const
+        {
+            const Entry* best = nullptr;
             u32 bestDistance = 0;
-            for (const UniquePtr<IEditorPageFactory>& factory : m_factories)
+            for (const Entry& entry : m_factories)
             {
                 u32 distance = 0;
                 for (const TypeInfo* t = &type; t != nullptr; t = t->base, ++distance)
                 {
-                    if (t == factory->PrimaryType())
+                    if (t == entry.factory->PrimaryType())
                     {
                         if (best == nullptr || distance < bestDistance)
                         {
-                            best = factory.Get();
+                            best = &entry;
                             bestDistance = distance;
                         }
                         break;
@@ -304,9 +350,7 @@ export namespace editor
             return best;
         }
 
-        [[nodiscard]] usize Size() const noexcept { return m_factories.Size(); }
-
-    private:
-        Array<UniquePtr<IEditorPageFactory>> m_factories;
+        Array<Entry> m_factories;
+        u64 m_nextKey = 1;
     };
 }

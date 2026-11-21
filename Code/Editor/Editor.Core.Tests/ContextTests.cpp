@@ -241,6 +241,53 @@ TEST_CASE("editor-context: open, focus, and close pages")
     RemoveDbTree(dir);
 }
 
+TEST_CASE("editor-context: a factory removed closes the pages it made, and its type falls back to the next nearest")
+{
+    RegisterTestTypes();
+
+    const StringView dir = u8"scratch_editor_test_ctx_remove_factory";
+    RemoveDbTree(dir);
+    foundation::vfs::NativeFileSystem mount(dir, foundation::core::DefaultAllocator());
+    foundation::content::ContentDatabase db(foundation::core::DefaultAllocator(), mount, foundation::xml::XmlSerializerFactory(),
+                                          u8".xasset");
+    auto* a = db.RootGroup()->CreateInstance(u8"a", BaseAsset::StaticType());
+    auto* b = db.RootGroup()->CreateInstance(u8"b", DerivedAsset::StaticType());
+    REQUIRE(a != nullptr);
+    REQUIRE(b != nullptr);
+
+    EditorContext ctx{DefaultAllocator()};
+    const u64 baseKey = ctx.Pages().Register(MakeFactory(BaseAsset::StaticType(), u8"base"));
+    const u64 derivedKey = ctx.Pages().Register(MakeFactory(DerivedAsset::StaticType(), u8"derived"));
+    CHECK(baseKey != 0u);
+    CHECK(derivedKey != 0u);
+    CHECK(baseKey != derivedKey);
+    CHECK(ctx.Pages().Register(UniquePtr<IEditorPageFactory>{}) == 0u); // nothing added
+
+    EditorPage* pageA = ctx.OpenPage(*a);
+    EditorPage* pageB = ctx.OpenPage(*b);
+    REQUIRE(pageA != nullptr);
+    REQUIRE(pageB != nullptr);
+    CHECK(pageA->FactoryKey() == baseKey);
+    CHECK(pageB->FactoryKey() == derivedKey); // the nearest
+
+    // The derived factory goes (a plugin unloading): its page closes, the other stays.
+    ctx.RemovePageFactory(derivedKey);
+    REQUIRE(ctx.OpenPages().Size() == 1);
+    CHECK(ctx.OpenPages()[0].Get() == pageA);
+    CHECK(ctx.Pages().Size() == 1);
+    CHECK_FALSE(ctx.Pages().Unregister(derivedKey)); // gone already
+
+    // The derived instance opens again through the base factory now.
+    EditorPage* reopened = ctx.OpenPage(*b);
+    REQUIRE(reopened != nullptr);
+    CHECK(reopened->FactoryKey() == baseKey);
+
+    ctx.RemovePageFactory(baseKey);
+    CHECK(ctx.OpenPages().Size() == 0);
+    CHECK(ctx.Pages().Size() == 0);
+    RemoveDbTree(dir);
+}
+
 TEST_CASE("editor-context: NotifyProjectSettingsChanged fires the subscribed hook")
 {
     // The settings dialog fires this after a successful save; the app re-applies

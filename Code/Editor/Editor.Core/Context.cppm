@@ -492,6 +492,10 @@ export namespace editor
 
         /// Close a page (the caller is responsible for save-prompting dirty pages first).
         void ClosePage(EditorPage* page);
+        /// Closes every open page the factory `key` made (logging one with unsaved edits), then
+        /// removes the factory from the page registry: a plugin's Editor part calls it as it unloads,
+        /// so no page is left running its code.
+        void RemovePageFactory(u64 key);
 
         [[nodiscard]] Span<const UniquePtr<EditorPage>> OpenPages() const noexcept;
 

@@ -279,6 +279,7 @@ namespace editor
         {
             return nullptr;
         }
+        const u64 factoryKey = m_pageRegistry.FindFactoryKey(*type);
 
         const Stopwatch openClock = Stopwatch::StartNew();
         UniquePtr<EditorPage> page = factory->CreatePage(*this, instance);
@@ -292,6 +293,7 @@ namespace editor
         LOG_INFO(u8"Editor", u8"page '{}' ({}) opened in {} ms", instance.Name(),
                  instance.TypeName(), static_cast<i64>(openClock.Elapsed().AsMilliseconds()));
         page->SetInstanceId(instance.Id());
+        page->m_factoryKey = factoryKey;
 
         EditorPage* raw = page.Get();
         m_pages.PushBack(Move(page));
@@ -332,6 +334,30 @@ namespace editor
                 return;
             }
         }
+    }
+
+    void EditorContext::RemovePageFactory(u64 key)
+    {
+        if (key == 0)
+        {
+            return;
+        }
+        // The pages it made run its code: they close before it goes, unsaved edits and all.
+        for (usize i = m_pages.Size(); i > 0; --i)
+        {
+            EditorPage* page = m_pages[i - 1].Get();
+            if (page->FactoryKey() != key)
+            {
+                continue;
+            }
+            if (page->IsDirty())
+            {
+                LOG_WARNING(u8"Editor", u8"page '{}' closed with unsaved edits: the plugin that edits it was unloaded",
+                            page->Title());
+            }
+            ClosePage(page);
+        }
+        (void)m_pageRegistry.Unregister(key);
     }
 
     Span<const UniquePtr<EditorPage>> EditorContext::OpenPages() const noexcept

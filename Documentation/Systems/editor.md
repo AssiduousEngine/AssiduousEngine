@@ -207,6 +207,12 @@ notices and status, the script breakpoints, and the registries. As built:
 | `InspectorExtrasRegistry` (`editor.scene`) | component or settings type | notices, actions and sections under an inspector header |
 | `IViewportToolProvider` (`editor.viewporttools`) / `IViewportToolPanelProvider` (`editor.app`) | tool id | viewport tools and their panels |
 
+A page factory's registration answers a key (`EditorPageRegistry::Register`), and each page keeps
+the key of the factory that made it (`FactoryKey`). A plugin's Editor part removes its factories as
+it unloads with `EditorContext::RemovePageFactory(key)`, which closes the pages that factory made
+first (one with unsaved edits is logged), since they run the plugin's code; its type then opens
+through the next nearest factory, the generic page at the last.
+
 Domains also contribute Preferences fields (`RegisterEditorSettingsContribution`) and MCP tools
 (`RegisterMcpToolContribution`). The designed `IEditorPanelFactory` and `IPropertyEditor` were not
 built: the shared panels are the dock's own, and a property's editor is chosen by its reflected hint
