@@ -34,6 +34,7 @@ import foundation.image.resource;
 import geometry.pipeline;
 import animation.pipeline;
 import propertyanimation.pipeline;
+import sequence.pipeline;
 import materials.pipeline;
 import shaders.pipeline;
 import particles.pipeline;
@@ -113,6 +114,7 @@ namespace pipeline
         RegisterMeshAssets();
         RegisterAnimationAssets();
         RegisterPropertyAnimationAssets();
+        RegisterSequenceAssets();
         RegisterMaterialAsset();
         RegisterShaderAsset();
         RegisterParticleEffectAsset();
@@ -173,6 +175,7 @@ namespace pipeline
         AddBuilder<AnimationClipAssetBuilder>(registry);
         AddBuilder<AnimationGraphAssetBuilder>(registry);
         AddBuilder<PropertyAnimationClipAssetBuilder>(registry);
+        AddBuilder<SequenceAssetBuilder>(registry);
         AddBuilder<MaterialAssetBuilder>(registry);
         registry.Register(UniquePtr<IAssetBuilder>(
             registry.Allocator().New<ShaderAssetBuilder>(dataRoot), registry.Allocator()));
@@ -239,6 +242,7 @@ namespace pipeline
         RegisterVegetationCreators(registry);
         RegisterAnimationCreators(registry);
         RegisterPropertyAnimationCreators(registry);
+        RegisterSequenceCreators(registry);
         return RegisterScriptCreators(registry);
     }
 }
