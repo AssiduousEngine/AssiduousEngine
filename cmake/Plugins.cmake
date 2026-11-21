@@ -153,9 +153,10 @@ function(util_add_plugin dir)
     set(PLUGIN_DEPENDS "${_plugin_DEPENDS}")
     set(PLUGIN_PREVIOUS_PART "")
     foreach(_kind IN LISTS UTIL_PLUGIN_PART_KINDS)
-        # A web or Android build is a player alone: no editor or tool runs there, so it declares
-        # only the Engine part (the others link editor libraries such a build does not have).
-        if((EMSCRIPTEN OR ANDROID) AND NOT _kind STREQUAL "Engine")
+        # A web or Android build is a player alone, and a build without the tools has no editor
+        # or tool to load the others: it declares only the Engine part (the others link editor
+        # libraries such a build does not have).
+        if((EMSCRIPTEN OR ANDROID OR NOT OPTION_BUILD_TOOLS) AND NOT _kind STREQUAL "Engine")
             continue()
         endif()
         if(_kind IN_LIST _plugin_PARTS)

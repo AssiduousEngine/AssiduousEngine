@@ -1,6 +1,6 @@
 # Dialogue as an official plugin
 
-> APPROVED 2026-11-21. D0 2026-11-21. Read on master at `247608c79`; line numbers will drift. Revisits the
+> APPROVED 2026-11-21. D0 and D1 2026-11-21. Read on master at `247608c79`; line numbers will drift. Revisits the
 > choice, made on 2026-11-06 for the first game built on the engine, to keep its dialogue in its
 > own script ("A now, with plans to move to C"), now that the sequencer exists, and makes dialogue
 > an official engine plugin (that note's option B).
@@ -224,9 +224,10 @@ give coins <purse:copper|silver|gold> <count:number>
 #### Flags
 
 A flag is a word. The cook checks that every flag an `if` reads is set by some `set` or `clear` in
-the project, or is declared in the settings as the game's (`gameFlags`: names, or a prefix such as
-`seen_`, which the application's scripts set). That replaces the first game's tool's hard-coded
-exception for such a prefix. Flags live in the run's save store under `flag.<name>`.
+the project, or is one the settings list as provided from outside the conversations
+(`providedFlags`: names, or a prefix such as `seen_`, which the application's scripts set). That
+replaces the first game's tool's hard-coded exception for such a prefix. Flags live in the run's
+save store under `flag.<name>`.
 
 #### The cast
 
@@ -401,7 +402,13 @@ Each step a commit with its tests, green on clang and gcc.
    listener. A nested sequence's holds do not hold the outer play, as before for markers.
 2. **D1 The plugin's skeleton**: `Code/Plugins/Dialogue/` with its manifest and four empty parts
    loading in every host, its settings type (`commands`, flag prefix, stock box), in the static
-   registry and the templates' list.
+   registry and the templates' list. *As built:* the plugin is the first in `UTIL_HOST_PLUGINS`, so
+   the players, the editor and the tools link it. `DialogueSettings` holds `commands`,
+   `providedFlags` (a prefix written `seen_*`), `flagPrefix`, `stockBox`, `typingSpeed`,
+   `advanceAction` and `portraitOnRight`; the cast setting comes with the cast in D2, and the fade
+   defaults with the runner in D3. A tools-less desktop build now declares only a plugin's Engine
+   part, as a web or Android one does. The system is described in
+   `Documentation/Systems/dialogue.md`.
 3. **D2 The format and the cook**: the parser (a port of the first game's tool's), the `.dialogue`
    asset and the reflected `DialogueCast` with its page, the importer, the checks (speakers, moods,
    flags set before read, commands against the settings, clips and sounds and sequences by name),

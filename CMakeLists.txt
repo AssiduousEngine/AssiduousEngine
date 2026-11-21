@@ -637,10 +637,11 @@ add_subdirectory(Code/Engine/Engine.Composition) # the composition root: the one
 if(OPTION_PLUGIN_IMGUI)
     util_add_plugin(Code/Plugins/Imgui) # Dear ImGui debug UI (RHI renderer and subsystem) over Runtime, from its Plugin.xml
 endif()
+util_add_plugin(Code/Plugins/Dialogue) # conversations as text, their runner and staging, from its Plugin.xml
 # The plugins the engine's hosts link (the players, the editor and the CLI tools, each the parts its
 # role loads), so a project can enable them: the engine's official plugins. Imgui is the framework
 # samples' debug UI and is in none of them.
-set(UTIL_HOST_PLUGINS "")
+set(UTIL_HOST_PLUGINS dialogue)
 add_subdirectory(Code/Engine/Engine.Player)        # Generic game runner
 
 
@@ -744,6 +745,7 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Pipeline/Audio.Pipeline.Tests                  Pipeline::Audio)
     util_test_suite(Code/Engine/Engine.DefaultApp.Tests             Engine::DefaultApp)
     util_test_suite(Code/Plugins/Imgui/Imgui.Engine.Tests           Plugins::Imgui.Engine)
+    util_test_suite(Code/Plugins/Dialogue/Dialogue.Engine.Tests     Plugins::Dialogue.Engine)
     util_test_suite(Code/Editor/Editor.App.Tests                    Editor::App)
     util_test_suite(Code/Editor/Editor.Animation.Tests              Editor::Animation)
     util_test_suite(Code/Editor/Editor.Materials.Tests              Editor::Materials)
