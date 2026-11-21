@@ -61,6 +61,15 @@ export namespace engine::animation
         void Serialize(ISerializer& ar) override;
         /// The section running at `time` (its end included); null between sections.
         [[nodiscard]] const ClipSection* SectionAt(f32 time) const noexcept;
+
+        [[nodiscard]] usize SectionCount() const override { return sections.Size(); }
+        /// Its bar says the clip's name.
+        void GetSection(usize index, f32& start, f32& length, String& label) const override;
+        /// A start trimmed later moves the clip's offset with it (at the section's speed).
+        void SetSection(usize index, f32 start, f32 length) override;
+        void RemoveSection(usize index) override;
+        /// A section of no clip yet (a second long) at `time`.
+        i32 AddSection(f32 time) override;
     };
 
     /// Registers the animation's track kinds. Idempotent.

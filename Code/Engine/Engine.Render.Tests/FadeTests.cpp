@@ -140,3 +140,19 @@ TEST_CASE("fade: a sequence reads its fade back by its kind")
     CHECK(fade->amount.Evaluate(1.0f) == doctest::Approx(0.5f));
     CHECK(fade->Duration() == doctest::Approx(2.0f));
 }
+
+TEST_CASE("fade and camera cut editing: the fade's amount is one curve channel; a shot is a section")
+{
+    FadeSequenceTrack fade;
+    CHECK(fade.KeyChannelCount() == 1u);
+    CHECK(fade.KeyCurve(0) == &fade.amount);
+    CHECK(fade.InsertKey(0, 0.5f) == 0);
+    CHECK(fade.amount.Keys()[0].value == doctest::Approx(0.0f));
+
+    CameraCutSequenceTrack cuts;
+    CHECK(cuts.AddSection(2.0f) == 0);
+    cuts.SetSection(0, 1.0f, 3.0f);
+    CHECK(cuts.Duration() == doctest::Approx(4.0f));
+    cuts.RemoveSection(0);
+    CHECK(cuts.SectionCount() == 0u);
+}

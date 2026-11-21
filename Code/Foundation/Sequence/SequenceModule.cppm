@@ -132,9 +132,136 @@ export namespace foundation::sequence
         /// sequence is loaded.
         virtual void ResolveResources(foundation::resource::ResourceManager& manager) { (void)manager; }
 
+        // === Editing, whatever the kind (the editor's panel and its tools) ===
+        // A kind shows what it holds as key channels (a property's x, y and z; an event track's
+        // events; a fade's amount) or as sections (a clip, a sound, a shot). Keys stay sorted by
+        // time in each channel; a move says where each moved key went. A kind holding neither
+        // keeps the defaults.
+
+        [[nodiscard]] virtual usize KeyChannelCount() const { return 0; }
+        /// The channel's name under the track ("x", "events", "amount").
+        [[nodiscard]] virtual String KeyChannelName(usize channel) const
+        {
+            (void)channel;
+            return String{};
+        }
+        virtual void GetKeyTimes(usize channel, Array<f32>& out) const
+        {
+            (void)channel;
+            out.Clear();
+        }
+        /// Moves the keys at `keys` (indices in the channel) by `delta` seconds, never before 0,
+        /// sorts the channel again and fills `moved` with each one's new index, in order.
+        virtual void MoveKeys(usize channel, Span<const usize> keys, f32 delta, Array<usize>& moved)
+        {
+            (void)channel;
+            (void)keys;
+            (void)delta;
+            moved.Clear();
+        }
+        virtual void DeleteKeys(usize channel, Span<const usize> keys)
+        {
+            (void)channel;
+            (void)keys;
+        }
+        /// Adds a key at `time` holding the channel's value there (or a new key's default);
+        /// returns its index, or -1 when the channel takes none.
+        virtual i32 InsertKey(usize channel, f32 time)
+        {
+            (void)channel;
+            (void)time;
+            return -1;
+        }
+        /// The channel's keys as a curve, when they are one (a property's part, a fade's amount):
+        /// the editor's curve view edits it. Null otherwise.
+        [[nodiscard]] virtual Curve* KeyCurve(usize channel)
+        {
+            (void)channel;
+            return nullptr;
+        }
+
+        [[nodiscard]] virtual usize SectionCount() const { return 0; }
+        /// The section's span and what its bar says.
+        virtual void GetSection(usize index, f32& start, f32& length, String& label) const
+        {
+            (void)index;
+            start = 0.0f;
+            length = 0.0f;
+            label = String{};
+        }
+        /// Sets the section's span. A start moved later trims what it plays from (a clip's or a
+        /// sound's offset moves with it), so what plays stays where it was.
+        virtual void SetSection(usize index, f32 start, f32 length)
+        {
+            (void)index;
+            (void)start;
+            (void)length;
+        }
+        virtual void RemoveSection(usize index) { (void)index; }
+        /// Adds a section at `time` (what it plays is chosen in the inspector); returns its
+        /// index, or -1 when the kind takes no more.
+        virtual i32 AddSection(f32 time)
+        {
+            (void)time;
+            return -1;
+        }
+
         void Serialize(ISerializer& ar) override;
     };
     RTTI_DEFINE_OBJECT(SequenceTrack, "rtti::sequence")
+
+    /// Moves the keys at `indices` of `keys` (sorted by their `time`) by `delta`, never before 0,
+    /// sorts them again (a moved key keeps its place among equals) and fills `moved` with each
+    /// one's new index, in the order of `indices`. The track kinds' MoveKeys share it.
+    template <typename Key>
+    void MoveKeysInTime(Array<Key>& keys, f32 Key::* time, Span<const usize> indices, f32 delta, Array<usize>& moved)
+    {
+        struct Entry
+        {
+            Key key;
+            usize from = 0;
+        };
+        Array<Entry> entries;
+        for (usize i = 0; i < keys.Size(); ++i)
+        {
+            Entry entry{keys[i], i};
+            for (const usize at : indices)
+                if (at == i)
+                    entry.key.*time = Max(0.0f, entry.key.*time + delta);
+            entries.PushBack(Move(entry));
+        }
+        for (usize i = 1; i < entries.Size(); ++i)
+        {
+            Entry entry = Move(entries[i]);
+            usize j = i;
+            while (j > 0 && entries[j - 1].key.*time > entry.key.*time)
+            {
+                entries[j] = Move(entries[j - 1]);
+                --j;
+            }
+            entries[j] = Move(entry);
+        }
+        moved.Clear();
+        for (const usize at : indices)
+            for (usize i = 0; i < entries.Size(); ++i)
+                if (entries[i].from == at)
+                    moved.PushBack(i);
+        for (usize i = 0; i < entries.Size(); ++i)
+            keys[i] = Move(entries[i].key);
+    }
+
+    /// Deletes the keys at `indices` of `keys`.
+    template <typename Key>
+    void DeleteKeysAt(Array<Key>& keys, Span<const usize> indices)
+    {
+        for (usize i = keys.Size(); i-- > 0;)
+            for (const usize at : indices)
+                if (at == i)
+                {
+                    keys.RemoveAt(i);
+                    break;
+                }
+    }
 
     /// Evaluation orders of the kinds here; a domain's kind picks its own between them.
     inline constexpr i32 kPropertyTrackOrder = 0;
@@ -152,6 +279,14 @@ export namespace foundation::sequence
         [[nodiscard]] i32 Order() const noexcept override { return kPropertyTrackOrder; }
         [[nodiscard]] UniquePtr<SequenceTrackRunner> Begin(const SequenceTrackContext& context) const override;
         void Serialize(ISerializer& ar) override;
+
+        [[nodiscard]] usize KeyChannelCount() const override;
+        [[nodiscard]] String KeyChannelName(usize channel) const override;
+        void GetKeyTimes(usize channel, Array<f32>& out) const override;
+        void MoveKeys(usize channel, Span<const usize> keys, f32 delta, Array<usize>& moved) override;
+        void DeleteKeys(usize channel, Span<const usize> keys) override;
+        i32 InsertKey(usize channel, f32 time) override;
+        [[nodiscard]] Curve* KeyCurve(usize channel) override;
     };
 
     /// A named event at a time, with a text value (a cue the game hears).
@@ -175,6 +310,14 @@ export namespace foundation::sequence
         [[nodiscard]] bool NeedsBinding() const noexcept override { return false; }
         [[nodiscard]] UniquePtr<SequenceTrackRunner> Begin(const SequenceTrackContext& context) const override;
         void Serialize(ISerializer& ar) override;
+
+        [[nodiscard]] usize KeyChannelCount() const override { return 1; }
+        [[nodiscard]] String KeyChannelName(usize channel) const override;
+        void GetKeyTimes(usize channel, Array<f32>& out) const override;
+        void MoveKeys(usize channel, Span<const usize> keys, f32 delta, Array<usize>& moved) override;
+        void DeleteKeys(usize channel, Span<const usize> keys) override;
+        /// A new event is named "event", with no value; the inspector names it.
+        i32 InsertKey(usize channel, f32 time) override;
     };
 
     /// A sequence, authored or cooked. Shared, unchanged, by every play of it.

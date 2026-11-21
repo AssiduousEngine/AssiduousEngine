@@ -499,3 +499,65 @@ TEST_CASE("sequence: pausing and resuming a play tells its runners; a hold does 
     CHECK(log.paused == 1);
     CHECK(log.resumed == 1);
 }
+
+TEST_CASE("sequence editing: a property track's channels are its parts; keys move, sort, delete and insert")
+{
+    EnsureRegistered();
+    PropertySequenceTrack track;
+    track.property.componentType = String(propertyanimation::kTransformTarget);
+    track.property.propertyPath = String(u8"position");
+    track.property.kind = propertyanimation::TrackValueKind::Float3;
+    REQUIRE(track.KeyChannelCount() == 3u);
+    CHECK(track.KeyChannelName(1).AsView() == StringView(u8"y"));
+    CHECK(track.KeyCurve(0) == &track.property.channels[0]);
+
+    // x: 0 at 0, 10 at 1. A key inserted at 0.5 takes the curve's value there.
+    track.property.channels[0].AddKey(CurveKey{0.0f, 0.0f, 0.0f, 0.0f, CurveKeyInterpolation::Linear, CurveTangentMode::Broken});
+    track.property.channels[0].AddKey(CurveKey{1.0f, 10.0f, 0.0f, 0.0f, CurveKeyInterpolation::Linear, CurveTangentMode::Broken});
+    CHECK(track.InsertKey(0, 0.5f) == 1);
+    CHECK(track.property.channels[0].Keys()[1].value == doctest::Approx(5.0f));
+    CHECK(track.InsertKey(0, 0.5f) == 1); // already there: no second key
+    CHECK(track.property.channels[0].KeyCount() == 3u);
+
+    // The first key moved past the others lands last; where it went is reported.
+    const usize first[] = {0};
+    Array<usize> moved;
+    track.MoveKeys(0, Span<const usize>(first, 1), 1.5f, moved);
+    REQUIRE(moved.Size() == 1u);
+    CHECK(moved[0] == 2u);
+    Array<f32> times;
+    track.GetKeyTimes(0, times);
+    REQUIRE(times.Size() == 3u);
+    CHECK(times[0] == doctest::Approx(0.5f));
+    CHECK(times[2] == doctest::Approx(1.5f));
+    track.MoveKeys(0, Span<const usize>(first, 1), -5.0f, moved); // never before 0
+    track.GetKeyTimes(0, times);
+    CHECK(times[0] == doctest::Approx(0.0f));
+
+    track.DeleteKeys(0, Span<const usize>(first, 1));
+    CHECK(track.property.channels[0].KeyCount() == 2u);
+
+    // A rotation is one channel of its keys, and no curve.
+    PropertySequenceTrack turn;
+    turn.property.kind = propertyanimation::TrackValueKind::Quat;
+    CHECK(turn.KeyChannelCount() == 1u);
+    CHECK(turn.KeyCurve(0) == nullptr);
+    CHECK(turn.InsertKey(0, 0.25f) == 0);
+    REQUIRE(turn.property.quatKeys.Size() == 1u);
+}
+
+TEST_CASE("sequence editing: an event track is one channel; a new event is named for the inspector to rename")
+{
+    EventSequenceTrack track;
+    track.keys.PushBack(SequenceEventKey{1.0f, String(u8"cue"), String(u8"gate")});
+    CHECK(track.InsertKey(0, 0.5f) == 0);
+    CHECK(track.keys[0].name.AsView() == StringView(u8"event"));
+    const usize second[] = {1};
+    Array<usize> moved;
+    track.MoveKeys(0, Span<const usize>(second, 1), -0.75f, moved);
+    REQUIRE(moved.Size() == 1u);
+    CHECK(moved[0] == 0u);
+    CHECK(track.keys[0].name.AsView() == StringView(u8"cue")); // the cue now first, at 0.25
+    CHECK(track.KeyCurve(0) == nullptr);
+    CHECK(track.SectionCount() == 0u);
+}

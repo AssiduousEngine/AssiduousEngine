@@ -54,6 +54,13 @@ export namespace engine::render
         /// Whether a section runs at `time` (its end included, so a play that ends on a cut and
         /// holds keeps it).
         [[nodiscard]] bool CutsAt(f32 time) const noexcept;
+
+        [[nodiscard]] usize SectionCount() const override { return sections.Size(); }
+        void GetSection(usize index, f32& start, f32& length, String& label) const override;
+        void SetSection(usize index, f32 start, f32 length) override;
+        void RemoveSection(usize index) override;
+        /// A second's shot at `time`.
+        i32 AddSection(f32 time) override;
     };
 
     /// Fades the scene's view to `color` by `amount` (keys, 0 none to 1 all) for as long as the
@@ -71,6 +78,14 @@ export namespace engine::render
         [[nodiscard]] bool NeedsBinding() const noexcept override { return false; }
         [[nodiscard]] UniquePtr<sequence::SequenceTrackRunner> Begin(const sequence::SequenceTrackContext& context) const override;
         void Serialize(ISerializer& ar) override;
+
+        [[nodiscard]] usize KeyChannelCount() const override { return 1; }
+        [[nodiscard]] String KeyChannelName(usize channel) const override;
+        void GetKeyTimes(usize channel, Array<f32>& out) const override;
+        void MoveKeys(usize channel, Span<const usize> keys, f32 delta, Array<usize>& moved) override;
+        void DeleteKeys(usize channel, Span<const usize> keys) override;
+        i32 InsertKey(usize channel, f32 time) override;
+        [[nodiscard]] Curve* KeyCurve(usize channel) override;
     };
 
     /// Registers the render's track kinds. Idempotent.

@@ -198,3 +198,24 @@ TEST_CASE("clip track: a sequence reads its clip sections back by their kind")
     CHECK(back.loop);
     CHECK(clips->Duration() == doctest::Approx(3.5f));
 }
+
+TEST_CASE("clip track editing: a start trimmed later moves the clip's offset with it, so what plays stays put")
+{
+    engine::animation::RegisterAnimationComponentReflection();
+    ClipSequenceTrack track;
+    CHECK(track.AddSection(2.0f) == 0);
+    CHECK(track.AddSection(1.0f) == 0); // sorted by start
+    REQUIRE(track.SectionCount() == 2u);
+    track.sections[1].speed = 2.0f;
+    track.SetSection(1, 2.5f, 0.5f); // trimmed half a second at double speed
+    CHECK(track.sections[1].offset == doctest::Approx(1.0f));
+    f32 start = 0.0f;
+    f32 length = 0.0f;
+    String label;
+    track.GetSection(1, start, length, label);
+    CHECK(start == doctest::Approx(2.5f));
+    CHECK(length == doctest::Approx(0.5f));
+    CHECK(label.AsView() == StringView(u8"Clip")); // no clip yet
+    track.RemoveSection(0);
+    CHECK(track.SectionCount() == 1u);
+}

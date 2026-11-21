@@ -171,6 +171,86 @@ namespace engine::render
         }
     }
 
+    // === Editing ===
+
+    void CameraCutSequenceTrack::GetSection(usize index, f32& start, f32& length, String& label) const
+    {
+        start = index < sections.Size() ? sections[index].start : 0.0f;
+        length = index < sections.Size() ? sections[index].duration : 0.0f;
+        label = name.IsEmpty() ? String(u8"Shot") : name;
+    }
+
+    void CameraCutSequenceTrack::SetSection(usize index, f32 start, f32 length)
+    {
+        if (index < sections.Size())
+            sections[index] = CameraCutSection{Max(0.0f, start), Max(0.0f, length)};
+    }
+
+    void CameraCutSequenceTrack::RemoveSection(usize index)
+    {
+        if (index < sections.Size())
+            sections.RemoveAt(index);
+    }
+
+    i32 CameraCutSequenceTrack::AddSection(f32 time)
+    {
+        usize at = 0;
+        while (at < sections.Size() && sections[at].start <= time)
+            ++at;
+        sections.Insert(at, CameraCutSection{Max(0.0f, time), 1.0f});
+        return static_cast<i32>(at);
+    }
+
+    String FadeSequenceTrack::KeyChannelName(usize channel) const
+    {
+        (void)channel;
+        return String(u8"amount");
+    }
+
+    void FadeSequenceTrack::GetKeyTimes(usize channel, Array<f32>& out) const
+    {
+        (void)channel;
+        out.Clear();
+        for (const CurveKey& key : amount.Keys())
+            out.PushBack(key.time);
+    }
+
+    void FadeSequenceTrack::MoveKeys(usize channel, Span<const usize> keys, f32 delta, Array<usize>& moved)
+    {
+        (void)channel;
+        sequence::MoveKeysInTime(amount.Keys(), &CurveKey::time, keys, delta, moved);
+        amount.ApplyTangentModes();
+    }
+
+    void FadeSequenceTrack::DeleteKeys(usize channel, Span<const usize> keys)
+    {
+        (void)channel;
+        sequence::DeleteKeysAt(amount.Keys(), keys);
+        amount.ApplyTangentModes();
+    }
+
+    i32 FadeSequenceTrack::InsertKey(usize channel, f32 time)
+    {
+        (void)channel;
+        time = Max(0.0f, time);
+        for (usize i = 0; i < amount.Keys().Size(); ++i)
+            if (Abs(amount.Keys()[i].time - time) < 1e-5f)
+                return static_cast<i32>(i);
+        const f32 value = amount.IsEmpty() ? 0.0f : Clamp(amount.Evaluate(time), 0.0f, 1.0f);
+        amount.AddKey(CurveKey{time, value, 0.0f, 0.0f, CurveKeyInterpolation::Linear, CurveTangentMode::Auto});
+        amount.ApplyTangentModes();
+        for (usize i = 0; i < amount.Keys().Size(); ++i)
+            if (Abs(amount.Keys()[i].time - time) < 1e-5f)
+                return static_cast<i32>(i);
+        return -1;
+    }
+
+    Curve* FadeSequenceTrack::KeyCurve(usize channel)
+    {
+        (void)channel;
+        return &amount;
+    }
+
     f32 CameraCutSequenceTrack::Duration() const noexcept
     {
         f32 last = 0.0f;

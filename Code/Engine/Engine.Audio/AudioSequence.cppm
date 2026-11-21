@@ -64,6 +64,14 @@ export namespace engine::audio
         void Serialize(ISerializer& ar) override;
         /// The section running at `time` (its end included); null between sections.
         [[nodiscard]] const SoundSection* SectionAt(f32 time) const noexcept;
+
+        [[nodiscard]] usize SectionCount() const override { return sections.Size(); }
+        void GetSection(usize index, f32& start, f32& length, String& label) const override;
+        /// A start trimmed later moves the sound's offset with it.
+        void SetSection(usize index, f32 start, f32 length) override;
+        void RemoveSection(usize index) override;
+        /// A section of no sound yet (a second long) at `time`.
+        i32 AddSection(f32 time) override;
     };
 
     /// Registers the audio's track kinds. Idempotent.

@@ -213,3 +213,14 @@ TEST_CASE("sound track: a sequence reads its sound sections back by their kind")
     CHECK(back.loop);
     CHECK(sounds->Duration() == doctest::Approx(4.5f));
 }
+
+TEST_CASE("sound track editing: a start trimmed later moves the sound's offset with it")
+{
+    SoundSequenceTrack track;
+    CHECK(track.AddSection(1.0f) == 0);
+    track.SetSection(0, 1.25f, 0.75f);
+    CHECK(track.sections[0].offset == doctest::Approx(0.25f));
+    CHECK(track.sections[0].length == doctest::Approx(0.75f));
+    track.RemoveSection(0);
+    CHECK(track.SectionCount() == 0u);
+}

@@ -136,6 +136,21 @@ namespace foundation::sequence
 
     f32 NestedSequenceTrack::Duration() const noexcept { return start + SectionLength(); }
 
+    void NestedSequenceTrack::GetSection(usize index, f32& at, f32& span, String& label) const
+    {
+        (void)index;
+        at = start;
+        span = SectionLength();
+        label = name.IsEmpty() ? String(u8"Sequence") : name;
+    }
+
+    void NestedSequenceTrack::SetSection(usize index, f32 at, f32 span)
+    {
+        (void)index;
+        start = Max(0.0f, at);
+        length = Max(0.0f, span);
+    }
+
     UniquePtr<SequenceTrackRunner> NestedSequenceTrack::Begin(const SequenceTrackContext& context) const
     {
         RefPtr<SequenceResource> nested(sequence.Get());

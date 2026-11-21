@@ -166,6 +166,44 @@ namespace engine::audio
         return loaded != nullptr ? Max(0.0f, loaded->durationSeconds - offset) : 0.0f;
     }
 
+    void SoundSequenceTrack::GetSection(usize index, f32& start, f32& length, String& label) const
+    {
+        if (index >= sections.Size())
+            return;
+        start = sections[index].start;
+        length = sections[index].Length();
+        label = name.IsEmpty() ? String(u8"Sound") : name;
+    }
+
+    void SoundSequenceTrack::SetSection(usize index, f32 start, f32 length)
+    {
+        if (index >= sections.Size())
+            return;
+        SoundSection& section = sections[index];
+        start = Max(0.0f, start);
+        section.offset = Max(0.0f, section.offset + (start - section.start));
+        section.start = start;
+        section.length = Max(0.0f, length);
+    }
+
+    void SoundSequenceTrack::RemoveSection(usize index)
+    {
+        if (index < sections.Size())
+            sections.RemoveAt(index);
+    }
+
+    i32 SoundSequenceTrack::AddSection(f32 time)
+    {
+        usize at = 0;
+        while (at < sections.Size() && sections[at].start <= time)
+            ++at;
+        SoundSection section;
+        section.start = Max(0.0f, time);
+        section.length = 1.0f;
+        sections.Insert(at, Move(section));
+        return static_cast<i32>(at);
+    }
+
     f32 SoundSequenceTrack::Duration() const noexcept
     {
         f32 last = 0.0f;

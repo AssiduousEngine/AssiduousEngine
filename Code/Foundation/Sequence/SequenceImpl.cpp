@@ -151,6 +151,159 @@ namespace foundation::sequence
         propertyanimation::SerializePropertyTrack(ar, property);
     }
 
+    // === Editing a property track: a channel per curve (x, y, z; r, g, b, a), or the rotation's keys ===
+
+    namespace
+    {
+        [[nodiscard]] bool IsRotation(const propertyanimation::PropertyTrack& track) noexcept
+        {
+            return track.kind == propertyanimation::TrackValueKind::Quat;
+        }
+
+        // The index of the key at `time` in sorted keys (the first at that time).
+        template <typename Key>
+        [[nodiscard]] i32 IndexAt(const Array<Key>& keys, f32 Key::* time, f32 at)
+        {
+            for (usize i = 0; i < keys.Size(); ++i)
+                if (Abs(keys[i].*time - at) < 1e-5f)
+                    return static_cast<i32>(i);
+            return -1;
+        }
+    }
+
+    usize PropertySequenceTrack::KeyChannelCount() const
+    {
+        return IsRotation(property) ? 1u : propertyanimation::ChannelCount(property.kind);
+    }
+
+    String PropertySequenceTrack::KeyChannelName(usize channel) const
+    {
+        static constexpr StringView kXyz[] = {u8"x", u8"y", u8"z"};
+        static constexpr StringView kRgba[] = {u8"r", u8"g", u8"b", u8"a"};
+        switch (property.kind)
+        {
+        case propertyanimation::TrackValueKind::Float3:
+            return String(channel < 3 ? kXyz[channel] : StringView{});
+        case propertyanimation::TrackValueKind::Color:
+            return String(channel < 4 ? kRgba[channel] : StringView{});
+        case propertyanimation::TrackValueKind::Quat:
+            return String(u8"rotation");
+        default:
+            return String(u8"value");
+        }
+    }
+
+    void PropertySequenceTrack::GetKeyTimes(usize channel, Array<f32>& out) const
+    {
+        out.Clear();
+        if (IsRotation(property))
+        {
+            for (const propertyanimation::QuatKey& key : property.quatKeys)
+                out.PushBack(key.time);
+            return;
+        }
+        if (channel < KeyChannelCount())
+            for (const CurveKey& key : property.channels[channel].Keys())
+                out.PushBack(key.time);
+    }
+
+    void PropertySequenceTrack::MoveKeys(usize channel, Span<const usize> keys, f32 delta, Array<usize>& moved)
+    {
+        if (IsRotation(property))
+        {
+            MoveKeysInTime(property.quatKeys, &propertyanimation::QuatKey::time, keys, delta, moved);
+            return;
+        }
+        if (channel >= KeyChannelCount())
+        {
+            moved.Clear();
+            return;
+        }
+        MoveKeysInTime(property.channels[channel].Keys(), &CurveKey::time, keys, delta, moved);
+        property.channels[channel].ApplyTangentModes();
+    }
+
+    void PropertySequenceTrack::DeleteKeys(usize channel, Span<const usize> keys)
+    {
+        if (IsRotation(property))
+        {
+            DeleteKeysAt(property.quatKeys, keys);
+            return;
+        }
+        if (channel < KeyChannelCount())
+        {
+            DeleteKeysAt(property.channels[channel].Keys(), keys);
+            property.channels[channel].ApplyTangentModes();
+        }
+    }
+
+    i32 PropertySequenceTrack::InsertKey(usize channel, f32 time)
+    {
+        time = Max(0.0f, time);
+        if (IsRotation(property))
+        {
+            const Quaternion value = property.quatKeys.IsEmpty() ? Quaternion::Identity : property.Sample(time).Get<Quaternion>();
+            usize at = 0;
+            while (at < property.quatKeys.Size() && property.quatKeys[at].time < time)
+                ++at;
+            property.quatKeys.Insert(at, propertyanimation::QuatKey{time, value});
+            return static_cast<i32>(at);
+        }
+        if (channel >= KeyChannelCount())
+            return -1;
+        Curve& curve = property.channels[channel];
+        if (const i32 existing = IndexAt(curve.Keys(), &CurveKey::time, time); existing >= 0)
+            return existing; // a key is already there
+        const f32 value = curve.IsEmpty() ? 0.0f : curve.Evaluate(time);
+        curve.AddKey(CurveKey{time, value, 0.0f, 0.0f, CurveKeyInterpolation::Cubic, CurveTangentMode::Auto});
+        curve.ApplyTangentModes();
+        return IndexAt(curve.Keys(), &CurveKey::time, time);
+    }
+
+    Curve* PropertySequenceTrack::KeyCurve(usize channel)
+    {
+        return !IsRotation(property) && channel < KeyChannelCount() ? &property.channels[channel] : nullptr;
+    }
+
+    // === Editing an event track: one channel of events ===
+
+    String EventSequenceTrack::KeyChannelName(usize channel) const
+    {
+        (void)channel;
+        return String(u8"events");
+    }
+
+    void EventSequenceTrack::GetKeyTimes(usize channel, Array<f32>& out) const
+    {
+        (void)channel;
+        out.Clear();
+        for (const SequenceEventKey& key : keys)
+            out.PushBack(key.time);
+    }
+
+    void EventSequenceTrack::MoveKeys(usize channel, Span<const usize> indices, f32 delta, Array<usize>& moved)
+    {
+        (void)channel;
+        MoveKeysInTime(keys, &SequenceEventKey::time, indices, delta, moved);
+    }
+
+    void EventSequenceTrack::DeleteKeys(usize channel, Span<const usize> indices)
+    {
+        (void)channel;
+        DeleteKeysAt(keys, indices);
+    }
+
+    i32 EventSequenceTrack::InsertKey(usize channel, f32 time)
+    {
+        (void)channel;
+        time = Max(0.0f, time);
+        usize at = 0;
+        while (at < keys.Size() && keys[at].time <= time)
+            ++at;
+        keys.Insert(at, SequenceEventKey{time, String(u8"event"), String{}});
+        return static_cast<i32>(at);
+    }
+
     f32 EventSequenceTrack::Duration() const noexcept
     {
         f32 last = 0.0f;

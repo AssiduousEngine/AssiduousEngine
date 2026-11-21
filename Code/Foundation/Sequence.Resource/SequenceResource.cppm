@@ -67,6 +67,12 @@ export namespace foundation::sequence
         void Serialize(ISerializer& ar) override;
         /// The section's length: `length`, or the nested sequence's duration.
         [[nodiscard]] f32 SectionLength() const noexcept;
+
+        /// Its one section: the span it plays the nested sequence over. A start trimmed later
+        /// starts the nested sequence later; it has no offset into it.
+        [[nodiscard]] usize SectionCount() const override { return 1; }
+        void GetSection(usize index, f32& start, f32& length, String& label) const override;
+        void SetSection(usize index, f32 start, f32 length) override;
     };
 
     /// Loads a cooked SequenceSource into a SequenceResource and binds what its tracks refer to.

@@ -114,6 +114,46 @@ namespace engine::animation
         return Max(0.0f, loaded->duration - offset) / speed;
     }
 
+    void ClipSequenceTrack::GetSection(usize index, f32& start, f32& length, String& label) const
+    {
+        if (index >= sections.Size())
+            return;
+        const ClipSection& section = sections[index];
+        start = section.start;
+        length = section.Length();
+        const foundation::animation::AnimationClip* clip = section.clip.Get();
+        label = clip != nullptr && !clip->Name().IsEmpty() ? clip->Name() : String(u8"Clip");
+    }
+
+    void ClipSequenceTrack::SetSection(usize index, f32 start, f32 length)
+    {
+        if (index >= sections.Size())
+            return;
+        ClipSection& section = sections[index];
+        start = Max(0.0f, start);
+        section.offset = Max(0.0f, section.offset + (start - section.start) * section.speed);
+        section.start = start;
+        section.length = Max(0.0f, length);
+    }
+
+    void ClipSequenceTrack::RemoveSection(usize index)
+    {
+        if (index < sections.Size())
+            sections.RemoveAt(index);
+    }
+
+    i32 ClipSequenceTrack::AddSection(f32 time)
+    {
+        usize at = 0;
+        while (at < sections.Size() && sections[at].start <= time)
+            ++at;
+        ClipSection section;
+        section.start = Max(0.0f, time);
+        section.length = 1.0f;
+        sections.Insert(at, Move(section));
+        return static_cast<i32>(at);
+    }
+
     f32 ClipSequenceTrack::Duration() const noexcept
     {
         f32 last = 0.0f;
