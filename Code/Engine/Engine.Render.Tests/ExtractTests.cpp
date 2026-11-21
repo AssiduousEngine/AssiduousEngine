@@ -81,6 +81,10 @@ TEST_CASE("ExtractSceneInto builds the draw list; ExtractPrimaryCamera reads the
     REQUIRE(ExtractPrimaryCamera(scene, wide, nullptr, 3.0f));
     CHECK(Near(wide.projection.m[1][1] / wide.projection.m[0][0], 3.0f)); // the view's aspect
     CHECK_FALSE(Near(authored, 3.0f));                                    // not the authored one
+    // The pick names its camera, so the render can tell a view drawn from another camera (a cut).
+    scene::EntityHandle picked = scene::EntityHandle::Invalid();
+    REQUIRE(ExtractPrimaryCamera(scene, wide, nullptr, 0.0f, &picked));
+    CHECK(picked == camEntity);
 
     ExtractedScene snapshot{DefaultAllocator()};
     ExtractSceneInto(scene, snapshot);

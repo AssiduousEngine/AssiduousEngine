@@ -580,7 +580,7 @@ namespace foundation::render
         return Span<const GpuLocalShadow>{m_localShadows.Data(), m_localShadows.Size()};
     }
 
-    u32 RenderFrame::HistorySlotFor(u64 historyKey, u32 viewIndex, bool& fresh) noexcept
+    u32 RenderFrame::HistorySlotFor(u64 historyKey, u32 viewIndex, bool& fresh, u64 cameraKey) noexcept
     {
         fresh = false;
         // An unkeyed view is known by its place in the list (tests, samples): a key
@@ -592,6 +592,9 @@ namespace foundation::render
             if (m_historySlots[s].used && m_historySlots[s].key == key)
             {
                 m_historySlots[s].lastFrame = m_noiseFrame;
+                // Another camera than last frame: what the history holds is another shot.
+                fresh = (m_historySlots[s].cameraKey != cameraKey);
+                m_historySlots[s].cameraKey = cameraKey;
                 return s;
             }
         }
@@ -618,7 +621,7 @@ namespace foundation::render
         {
             m_historySlots.Resize(static_cast<usize>(count) + 1);
         }
-        m_historySlots[pick] = HistorySlot{key, m_noiseFrame, true};
+        m_historySlots[pick] = HistorySlot{key, cameraKey, m_noiseFrame, true};
         fresh = true;
         return pick;
     }
@@ -1981,9 +1984,11 @@ namespace foundation::render
                 const u32 viewIndex = static_cast<u32>(i);
                 // The view's between-frame state lives in its history slot, found by its key
                 // (not its place in the list, which a render texture drawn only on some frames
-                // shifts). A slot new to this view starts clean.
+                // shifts). A slot new to this view starts clean, and so does a view drawn from
+                // another camera than last frame (a cut).
                 bool historyFresh = false;
-                const u32 historySlot = HistorySlotFor(v->Settings().historyKey, viewIndex, historyFresh);
+                const u32 historySlot = HistorySlotFor(v->Settings().historyKey, viewIndex, historyFresh,
+                                                       v->Settings().cameraKey);
                 if (historyFresh)
                 {
                     if (m_taa != nullptr)

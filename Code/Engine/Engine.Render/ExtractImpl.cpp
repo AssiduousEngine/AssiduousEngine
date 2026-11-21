@@ -516,7 +516,8 @@ namespace engine::render
             });
     }
 
-    bool ExtractPrimaryCamera(scene::Scene& scene, ViewCamera& out, Color* outClear, f32 aspect)
+    bool ExtractPrimaryCamera(scene::Scene& scene, ViewCamera& out, Color* outClear, f32 aspect,
+                              scene::EntityHandle* outEntity)
     {
         bool found = false;
         if (auto* cameras = scene.GetSystem<CameraComponentManager>())
@@ -540,6 +541,10 @@ namespace engine::render
                     if (outClear != nullptr)
                     {
                         *outClear = ToLinear(cam.clearColor);
+                    }
+                    if (outEntity != nullptr)
+                    {
+                        *outEntity = e;
                     }
                 });
         }

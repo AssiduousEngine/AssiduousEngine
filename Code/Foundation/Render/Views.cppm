@@ -64,6 +64,11 @@ export namespace foundation::render
         // on some frames before the main view shifts the main view's position, which would then read
         // the other view's history.
         u64 historyKey = 0;
+        // Which camera the view is drawn from (0 when the host gives its own, as the editor's
+        // viewport does). When it is not the one the view was drawn from last frame, the state the
+        // view carries between frames starts fresh: a cut, so nothing of the last shot smears into
+        // the new one. The camera itself knows nothing of cuts.
+        u64 cameraKey = 0;
         // This view may frustum-cull its draw list (the frame's global switch still gates it).
         // A per-view override (ViewPostOverride::disableCulling) clears it for an A/B.
         bool frustumCull = true;

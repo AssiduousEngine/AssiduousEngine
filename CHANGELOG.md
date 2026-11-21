@@ -142,6 +142,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Rendering: when a scene switches to another camera, the view starts its history fresh (temporal
+  anti-aliasing, reflections, global illumination, exposure and motion vectors), so nothing of the
+  last shot smears into the new one.
 - Windows: on a scaled display (Wayland or macOS at 125% and up) the editor and games draw at the
   display's own pixels instead of being stretched by the system, and the pointer lands where it
   points.

@@ -2330,6 +2330,48 @@ TEST_CASE("render: a view keeps its history slot by its key, wherever it falls i
     frame.End();
 }
 
+// A cut: the same view drawn from another camera keeps its slot, but what the slot holds is the
+// last shot, so the view starts fresh; the next frame from the new camera carries on.
+TEST_CASE("render: a view drawn from another camera starts its history fresh")
+{
+    RenderHarness h;
+    if (!h.Init(64, 64))
+    {
+        MESSAGE("DXC/Null unavailable; skipping");
+        return;
+    }
+    shaders::ShaderSystem shaderSystem(*h.compiler, h.device);
+    WireEngineShaders(shaderSystem);
+    RendererRegistry registry;
+    RenderFrame frame(DefaultAllocator(), h.device, registry, /*framesInFlight*/ 2);
+
+    bool fresh = false;
+    frame.Begin(*h.encoder, 0);
+    const u32 slot = frame.HistorySlotFor(1001, 0, fresh, 11);
+    CHECK(fresh);
+    frame.End();
+
+    frame.Begin(*h.encoder, 1);
+    CHECK(frame.HistorySlotFor(1001, 0, fresh, 11) == slot); // the same camera: carries on
+    CHECK_FALSE(fresh);
+    frame.End();
+
+    frame.Begin(*h.encoder, 0);
+    CHECK(frame.HistorySlotFor(1001, 0, fresh, 22) == slot); // another camera: a cut
+    CHECK(fresh);
+    frame.End();
+
+    frame.Begin(*h.encoder, 1);
+    CHECK(frame.HistorySlotFor(1001, 0, fresh, 22) == slot); // the new camera carries on
+    CHECK_FALSE(fresh);
+    frame.End();
+
+    frame.Begin(*h.encoder, 0);
+    CHECK(frame.HistorySlotFor(1001, 0, fresh, 0) == slot); // the host's own camera: a cut too
+    CHECK(fresh);
+    frame.End();
+}
+
 TEST_CASE("bloom: the pyramid takes the view's level budget, at most the pass's own")
 {
     // A 1024 view halves to seven levels; a view's budget (a quality level's bloom tier) caps them.

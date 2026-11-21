@@ -431,6 +431,7 @@ namespace engine::render
         // The view's camera, resolved before extraction: the first view's position rides on the
         // snapshot for producers that thin by distance (vegetation's fade prefix).
         ViewCamera camera;
+        scene::EntityHandle cameraEntity = scene::EntityHandle::Invalid(); // none: the host's own
         CameraOverride fallback;                 // the default backdrop (no primary camera)
         Color clearColor = fallback.clearColor; // linear: cameras' authored colours are decoded
         if (cameraOverride != nullptr)
@@ -455,7 +456,8 @@ namespace engine::render
                 aspectHeight = static_cast<f32>(viewport.height);
             }
             (void)ExtractPrimaryCamera(scene, camera, &clearColor,
-                                       aspectHeight > 0.0f ? aspectWidth / aspectHeight : 0.0f);
+                                       aspectHeight > 0.0f ? aspectWidth / aspectHeight : 0.0f,
+                                       &cameraEntity);
         }
 
         if (firstSight)
@@ -548,6 +550,11 @@ namespace engine::render
             mix(static_cast<u64>(static_cast<u32>(viewport.x)) << 32 | static_cast<u32>(viewport.y));
             settings.historyKey = (h != 0) ? h : 1u;
         }
+        // The camera entity the view is drawn from: when the scene's pick moves to another (a
+        // switch in a game, a cut in a sequence), the view's history starts fresh.
+        settings.cameraKey = cameraEntity.IsAssigned()
+                                 ? ((static_cast<u64>(cameraEntity.generation) << 32) | cameraEntity.index) + 1u
+                                 : 0u;
         settings.sceneOverlays = !m_renderingTargets;
         // Finalize the per-view motion-vector need after any override: TAA or an SSR temporal pass.
         // SSR's `temporal` stays frame-global, so the OR lands here, not in ResolveScenePost.

@@ -708,8 +708,10 @@ export namespace foundation::render
         // view's place in this frame's list, `viewIndex`). The same key gets the same slot every
         // frame, wherever the view falls in the list; a key new to the frame takes a free slot, the
         // stale one seen longest ago or a new one, and `fresh` says so (reused state is the last
-        // owner's: reset it).
-        [[nodiscard]] u32 HistorySlotFor(u64 historyKey, u32 viewIndex, bool& fresh) noexcept;
+        // owner's: reset it). `cameraKey` names the camera the view is drawn from (0 for none): a
+        // known view drawn from another camera than last time is a cut, and is fresh too.
+        [[nodiscard]] u32 HistorySlotFor(u64 historyKey, u32 viewIndex, bool& fresh,
+                                         u64 cameraKey = 0) noexcept;
         // Frames a history slot goes unseen before a newcomer may take it.
         static constexpr u32 kHistoryStaleFrames = 60;
         // Scene-pass MSAA first-sample resolve (borrowed pass); null means no MSAA support. Used only when
@@ -909,6 +911,7 @@ export namespace foundation::render
         struct HistorySlot
         {
             u64 key = 0;
+            u64 cameraKey = 0; // the camera the view was last drawn from
             u32 lastFrame = 0; // m_noiseFrame when a view last took it
             bool used = false;
         };

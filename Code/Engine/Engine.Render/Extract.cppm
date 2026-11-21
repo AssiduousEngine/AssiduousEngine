@@ -122,9 +122,11 @@ export namespace engine::render
     // fields). When `outClear` is given, also writes the camera's clear color. Returns false if
     // no primary CameraComponent exists.
     // The projection takes `aspect`, when given, for the shape the view draws into; the camera's
-    // authored aspect only stands in when it is not.
+    // authored aspect only stands in when it is not. `outEntity`, when given, receives the
+    // camera's entity (left as is when there is none).
     [[nodiscard]] bool ExtractPrimaryCamera(scene::Scene& scene, ViewCamera& out,
-                                            Color* outClear = nullptr, f32 aspect = 0.0f);
+                                            Color* outClear = nullptr, f32 aspect = 0.0f,
+                                            scene::EntityHandle* outEntity = nullptr);
 
     // One target camera to render: the texture it draws into, and the camera to draw with (its
     // projection at the texture's aspect, its clear color).
