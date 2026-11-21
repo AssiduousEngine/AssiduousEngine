@@ -733,6 +733,7 @@ namespace engine::gui
         m_resources = MakeUnique<GuiResourceProvider>(m_allocator, m_allocator);
         m_context->SetResourceProvider(m_resources.Get());
         m_styles.SetResourceProvider(m_resources.Get()); // the sheets' @import, url() and fonts
+        m_context->SetStylePass(&m_styling); // a popup is styled before it is measured as it opens
     }
     GuiSubsystem::~GuiSubsystem() = default;
 

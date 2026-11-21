@@ -607,3 +607,67 @@ TEST_CASE("popups: content above its owner is refused, so the owner is never car
     bed.d().OpenPopup(*button, *button, At(core::Float2{10.0f, 30.0f}));
     CHECK_FALSE(bed.d().IsPopupOpen(*button));
 }
+
+TEST_CASE("popups: one opened the frame its markup was built is styled before it is measured")
+{
+    // A dialog built from markup and opened in the same frame is measured by PlacePopups before
+    // the frame's own style pass has reached it. Without the GUI's style pass it measures at the
+    // markup's own sizes, is placed on those, and is measured again once that pass arrives: it
+    // opens small in a corner, then resizes and re-centres in view.
+    Bed bed;
+    StyleManager styles;
+    styles.SetStyleSheet(CSSParser::Parse(SV(u8".wide { width: 200px; height: 100px; }")));
+    struct Pass final : public IStylePass
+    {
+        StyleManager* Styles = nullptr;
+        void StyleSubtree(Node& node) override { Styles->ApplyNewSubtree(node); }
+    };
+    Pass pass;
+    pass.Styles = &styles;
+    const auto centredFit = []()
+    {
+        PopupOptions o;
+        o.Centered = true;
+        o.FitContent = true;
+        return o;
+    };
+
+    auto bare = Make<Panel>();
+    bare->AddClass(SV(u8"wide"));
+    bed.d().OpenPopup(*bed.root, *bare, centredFit());
+    CHECK(bare->GetSize().x != doctest::Approx(200.0f)); // nothing styled it before it was measured
+
+    bed.d().SetStylePass(&pass);
+    auto popup = Make<Panel>();
+    popup->AddClass(SV(u8"wide"));
+    bed.d().OpenPopup(*bed.root, *popup, centredFit());
+    CHECK(popup->GetSize().x == doctest::Approx(200.0f));    // its sheet's size, as it opens
+    CHECK(popup->GetSize().y == doctest::Approx(100.0f));
+    CHECK(popup->GetPosition().x == doctest::Approx(100.0f)); // centred in the 400 wide root at once
+    CHECK(popup->GetPosition().y == doctest::Approx(100.0f)); // and in the 300 tall one
+}
+
+TEST_CASE("popups: styling one as it opens leaves a restyle of everything for the frame's own pass")
+{
+    // ApplyTree consumes the flag that says everything must be restyled (a new sheet, media or
+    // fonts). Styling a popup through it as the popup opens would swallow that, and the rest of
+    // the tree would never see the new sheet.
+    Bed bed;
+    auto other = Make<Panel>();
+    other->AddClass(SV(u8"wide"));
+    bed.root->AddChild(other.Get());
+    StyleManager styles;
+    styles.ApplyTree(*bed.root); // everything clean, so only a pending restyle can reach `other`
+    styles.SetStyleSheet(CSSParser::Parse(SV(u8".wide { width: 200px; }")));
+
+    auto popup = Make<Panel>();
+    popup->AddClass(SV(u8"wide"));
+    styles.ApplyNewSubtree(*popup); // as the dispatcher does while the popup opens
+    PopupOptions options;
+    options.Centered = true;
+    options.FitContent = true;
+    bed.d().OpenPopup(*bed.root, *popup, core::Move(options));
+
+    styles.ApplyTree(*bed.root); // the frame's own pass, which must still reach the rest
+    CHECK(other->GetLayoutStyle().Width.Value == doctest::Approx(200.0f));
+}

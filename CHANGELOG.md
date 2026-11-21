@@ -136,6 +136,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- GUI: a dialog opened the frame its markup was built no longer opens small in a corner and then
+  resizes and re-centres, its text moving with it. The editor's pickers are built the first time
+  they are asked for, so Add Component, and every other dialog, did this on its first open. A
+  popup is now styled before it is measured, so it opens at its sheet's size, in place.
 - Windows: on a scaled display (Wayland or macOS at 125% and up) the editor and games draw at the
   display's own pixels instead of being stretched by the system, and the pointer lands where it
   points.

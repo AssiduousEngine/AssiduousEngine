@@ -130,6 +130,11 @@ export namespace foundation::gui
         /// Not owned; with null, each root is on its own.
         void SetRootPlaces(IRootPlaces* places);
         [[nodiscard]] IRootPlaces* GetRootPlaces() const noexcept { return m_rootPlaces; }
+        /// Sets what styles a subtree on demand, supplied by the host that owns the sheet, so a
+        /// popup opened the frame its markup was built is styled before it is measured. Not owned;
+        /// with null, such a popup is measured at the markup's own sizes first.
+        void SetStylePass(IStylePass* pass);
+        [[nodiscard]] IStylePass* GetStylePass() const noexcept { return m_stylePass; }
         /// Sets the fonts and resources the GUI's text asks for (a rich text's own faces and its
         /// icons). Not owned.
         void SetFontService(fonts::IFontService* fonts) noexcept { m_fontService = fonts; }
@@ -334,6 +339,7 @@ export namespace foundation::gui
         u32 m_lastBindingCount = 0;
 
         IRootPlaces* m_rootPlaces = nullptr; // the host's
+        IStylePass* m_stylePass = nullptr;   // the host's
         void AddRoot(SceneRoot& root); // defined after SceneRoot, since it gives the root's dispatcher the places
         void LanguageChanged(); // defined after SceneRoot, which it restyles
         void RemoveRoot(SceneRoot& root); // defined after SceneRoot, since the other roots' drags must forget it
@@ -860,6 +866,7 @@ export namespace foundation::gui
     {
         m_roots.PushBack(&root);
         root.GetEventDispatcher()->SetRootPlaces(m_rootPlaces);
+        root.GetEventDispatcher()->SetStylePass(m_stylePass);
     }
     inline void GUIContext::RemoveRoot(SceneRoot& root)
     {
@@ -879,6 +886,12 @@ export namespace foundation::gui
         m_rootPlaces = places;
         for (SceneRoot* root : m_roots)
             root->GetEventDispatcher()->SetRootPlaces(places);
+    }
+    inline void GUIContext::SetStylePass(IStylePass* pass)
+    {
+        m_stylePass = pass;
+        for (SceneRoot* root : m_roots)
+            root->GetEventDispatcher()->SetStylePass(pass);
     }
 
     inline void GUIContext::LanguageChanged()

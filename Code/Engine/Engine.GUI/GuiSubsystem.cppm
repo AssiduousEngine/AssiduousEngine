@@ -745,6 +745,19 @@ export namespace engine::gui
         foundation::vfs::IFileSystem* m_dataFileSystem; // borrowed
         RefPtr<GUIContext> m_context;
         StyleManager m_styles;
+        // Styles a popup's subtree as it opens, before the dispatcher measures it, so a screen or
+        // prompt built and shown in the same frame opens at its sheet's size rather than at its
+        // markup's and then moving.
+        class Styling final : public foundation::gui::IStylePass
+        {
+        public:
+            explicit Styling(StyleManager& styles) noexcept : m_styles(styles) {}
+            void StyleSubtree(foundation::gui::Node& node) override { m_styles.ApplyNewSubtree(node); }
+
+        private:
+            StyleManager& m_styles;
+        };
+        Styling m_styling{m_styles};
         UniquePtr<GuiResourceProvider> m_resources;
         UniquePtr<foundation::fonts::IFontService> m_fonts;        // the built-in font
         UniquePtr<foundation::fonts::IFontService> m_projectFonts; // the project's fonts, when it names a default
