@@ -17,6 +17,10 @@
 //     with the value the source gives.
 //   - A click on a row's name folds or opens it. The wheel scrolls the rows over the names and
 //     zooms about the pointer over the keys; a middle drag pans.
+//   - A channel that holds sections (a clip, a sound, a shot) shows them as bars on its row. A
+//     click selects one; a drag on its body moves it, and a drag on either end trims it, its start
+//     or end snapping to a frame and staying in the clip. Delete removes it. Previewed through the
+//     source and committed once; Escape cancels. A parent row summarizes keys only.
 // The names sit at the inline start (the right in right to left). Time runs left to right in either
 // direction, as the ruler's does, so a ruler and a curve view beside it line up with its keys.
 
@@ -63,11 +67,14 @@ export namespace foundation::gui
             out.PushBack(core::StringView(u8"selected"));
             out.PushBack(core::StringView(u8"playhead"));
             out.PushBack(core::StringView(u8"selection-box"));
+            out.PushBack(core::StringView(u8"section"));
+            out.PushBack(core::StringView(u8"section-selected"));
         }
         static constexpr f32 kRowHeight = 20.0f;
         static constexpr f32 kIndent = 12.0f;
         static constexpr f32 kHitRadius = 5.0f;
         static constexpr f32 kDragThreshold = 3.0f;
+        static constexpr f32 kSectionEdge = 5.0f; ///< how near an end of a bar a press trims it
 
         Dopesheet()
         {
@@ -215,10 +222,47 @@ export namespace foundation::gui
             return done;
         }
 
+        // === The section chosen ===
+        /// The section selected (a bar), if any; a section and keys are never selected together.
+        [[nodiscard]] const core::Optional<TimelineSectionRef>& GetSelectedSection() const noexcept { return m_section; }
+        void SetSelectedSection(const core::Optional<TimelineSectionRef>& section)
+        {
+            m_section = section;
+            if (m_section)
+                m_selection.Clear();
+            Invalidate();
+        }
+        /// Deletes the selected section as one change. Returns false when none is selected.
+        bool DeleteSelectedSection()
+        {
+            if (!m_source || !m_section)
+                return false;
+            const bool done = m_source->DeleteSection(*m_section);
+            m_section.Reset();
+            Invalidate();
+            return done;
+        }
+        /// Returns where a section's bar is drawn on a row, in the dopesheet's space.
+        [[nodiscard]] Rect SectionBar(usize row, const TimelineSection& section) const
+        {
+            const f32 left = KeysLeft() + (m_axis ? m_axis->TimeToOffset(section.Start) : 0.0f);
+            const f32 right = KeysLeft() + (m_axis ? m_axis->TimeToOffset(section.Start + section.Length) : 0.0f);
+            const f32 top = GetContentBounds().y + static_cast<f32>(row) * kRowHeight - m_rowScroll;
+            return Rect{left, top + 2.0f, core::Max(right - left, 2.0f), kRowHeight - 4.0f};
+        }
+
         void OnTimeAxisChanged() override { Invalidate(); }
         void OnTimelineChanged() override
         {
             m_dirty = true;
+            if (m_source && m_section && m_drag != Drag::SectionMove && m_drag != Drag::SectionStart && m_drag != Drag::SectionEnd)
+            {
+                core::Array<TimelineSection> sections; // an undo may take the section away
+                if (m_section->Channel < m_source->ChannelCount())
+                    m_source->GetSections(m_section->Channel, sections);
+                if (m_section->Index >= sections.Size())
+                    m_section.Reset();
+            }
             if (m_source && m_drag != Drag::Keys)
                 for (usize i = m_selection.Size(); i-- > 0;) // an undo may take keys away
                 {
@@ -256,6 +300,10 @@ export namespace foundation::gui
             Keys,
             Box,
             Pan,
+            SectionPending, // pressed on a section, not yet moved far enough to drag
+            SectionMove,
+            SectionStart, // trimming its start
+            SectionEnd,   // trimming its end
         };
         struct RowNode
         {
@@ -368,6 +416,10 @@ export namespace foundation::gui
         }
         // Finds the keys under a point of the key area: those of a row's marker within reach.
         bool KeysAt(core::Float2 local, core::Array<TimelineKeyRef>& out, f32& time) const;
+        // Finds the section under a point of the key area, and which part of it: -1 its start, 1
+        // its end, 0 its body.
+        bool SectionAt(core::Float2 local, TimelineSectionRef& out, TimelineSection& section, i32& part) const;
+        void EditSectionTo(f32 x);
         void MoveTo(f32 x);
         void EndDrag(bool commit);
 
@@ -393,6 +445,8 @@ export namespace foundation::gui
         core::Array<TimelineKeyRef> m_moving;       // the selection when the move began
         f32 m_movingLow = 0.0f, m_movingHigh = 0.0f; // their earliest and latest times at that point
         f32 m_panScroll = 0.0f;
+        core::Optional<TimelineSectionRef> m_section; // the section selected
+        TimelineSection m_sectionFrom;                // the pressed section as it was at the press
         mutable Text m_text; // reused for each name in turn
     };
 
@@ -408,6 +462,8 @@ export namespace foundation::gui
         core::Array<f32> channelTimes;
         for (const i32 channel : channels)
         {
+            if (m_source->IsSectionChannel(static_cast<usize>(channel)))
+                continue; // its sections are drawn as bars on its own row
             m_source->GetKeyTimes(static_cast<usize>(channel), channelTimes);
             for (usize i = 0; i < channelTimes.Size(); ++i)
             {
@@ -455,6 +511,59 @@ export namespace foundation::gui
         return true;
     }
 
+    inline bool Dopesheet::SectionAt(core::Float2 local, TimelineSectionRef& out, TimelineSection& section, i32& part) const
+    {
+        const i32 row = RowAtY(local.y);
+        if (row < 0 || !m_source)
+            return false;
+        const i32 channel = GetRows()[static_cast<usize>(row)].Channel;
+        if (channel < 0 || !m_source->IsSectionChannel(static_cast<usize>(channel)))
+            return false;
+        core::Array<TimelineSection> sections;
+        m_source->GetSections(static_cast<usize>(channel), sections);
+        // The last drawn is on top: look from the end.
+        for (usize i = sections.Size(); i-- > 0;)
+        {
+            const Rect bar = SectionBar(static_cast<usize>(row), sections[i]);
+            if (local.x < bar.x - kSectionEdge || local.x > bar.Right() + kSectionEdge || local.y < bar.y || local.y > bar.Bottom())
+                continue;
+            out = TimelineSectionRef{static_cast<usize>(channel), i};
+            section = sections[i];
+            // A short bar keeps a middle to move it by.
+            const f32 edge = core::Min(kSectionEdge, bar.width / 3.0f);
+            part = local.x <= bar.x + edge ? -1 : (local.x >= bar.Right() - edge ? 1 : 0);
+            return true;
+        }
+        return false;
+    }
+
+    inline void Dopesheet::EditSectionTo(f32 x)
+    {
+        if (!m_section)
+            return;
+        const f32 delta = TimeAtX(x) - TimeAtX(m_pressAt.x);
+        const f32 duration = m_axis->Duration();
+        const f32 end = m_sectionFrom.Start + m_sectionFrom.Length;
+        f32 start = m_sectionFrom.Start;
+        f32 length = m_sectionFrom.Length;
+        if (m_drag == Drag::SectionMove)
+        {
+            start = core::Clamp(m_axis->Snap(m_sectionFrom.Start + delta), 0.0f, core::Max(0.0f, duration - length));
+        }
+        else if (m_drag == Drag::SectionStart)
+        {
+            start = core::Clamp(m_axis->Snap(m_sectionFrom.Start + delta), 0.0f, end); // the end stays
+            length = end - start;
+        }
+        else
+        {
+            const f32 newEnd = core::Clamp(m_axis->Snap(end + delta), start, duration);
+            length = newEnd - start;
+        }
+        m_source->PreviewSectionEdit(*m_section, start, length);
+        Invalidate();
+    }
+
     // === Gestures ===
 
     inline void Dopesheet::OnMouseDown(const MouseEvent& event)
@@ -485,6 +594,22 @@ export namespace foundation::gui
         m_pressAt = local;
         m_boxTo = local;
         m_additive = (event.Modifiers & (KeyModShift | KeyModCtrl)) != 0;
+        {
+            // A section's bar: select it, and a drag moves or trims it.
+            TimelineSectionRef pressed;
+            i32 part = 0;
+            if (SectionAt(local, pressed, m_sectionFrom, part))
+            {
+                m_selection.Clear();
+                m_section = pressed;
+                m_drag = Drag::SectionPending;
+                m_pressed.Clear();
+                m_anchorTime = static_cast<f32>(part); // which part, until the drag begins
+                Invalidate();
+                return;
+            }
+            m_section.Reset();
+        }
         f32 time = 0.0f;
         const bool onKey = KeysAt(local, m_pressed, time);
         if (event.ClickCount == 2 && !onKey)
@@ -534,6 +659,21 @@ export namespace foundation::gui
         const core::Float2 local = ConvertToNodeSpace(event.Position);
         switch (m_drag)
         {
+        case Drag::SectionPending:
+        {
+            if (core::Abs(local.x - m_pressAt.x) < kDragThreshold)
+                return;
+            const i32 part = static_cast<i32>(m_anchorTime);
+            m_drag = part < 0 ? Drag::SectionStart : (part > 0 ? Drag::SectionEnd : Drag::SectionMove);
+            m_source->BeginSectionEdit();
+            EditSectionTo(local.x);
+            break;
+        }
+        case Drag::SectionMove:
+        case Drag::SectionStart:
+        case Drag::SectionEnd:
+            EditSectionTo(local.x);
+            break;
         case Drag::Pending:
         {
             if (core::Abs(local.x - m_pressAt.x) < kDragThreshold && core::Abs(local.y - m_pressAt.y) < kDragThreshold)
@@ -590,6 +730,11 @@ export namespace foundation::gui
         }
         if (event.Button != MouseButton::Left)
             return;
+        if (m_drag == Drag::SectionPending)
+        {
+            m_drag = Drag::None; // a click: the section stays selected
+            return;
+        }
         if (m_drag == Drag::Box && m_source)
         {
             const core::Float2 to = ConvertToNodeSpace(event.Position);
@@ -626,6 +771,15 @@ export namespace foundation::gui
     {
         const Drag drag = m_drag;
         m_drag = Drag::None;
+        if ((drag == Drag::SectionMove || drag == Drag::SectionStart || drag == Drag::SectionEnd) && m_source)
+        {
+            if (commit)
+                m_source->CommitSectionEdit();
+            else
+                m_source->CancelSectionEdit();
+            Invalidate();
+            return;
+        }
         if (drag != Drag::Keys || !m_source)
             return;
         if (commit)
@@ -641,14 +795,14 @@ export namespace foundation::gui
     inline void Dopesheet::OnKeyDown(const KeyEvent& event)
     {
         const KeyCode key = static_cast<KeyCode>(event.KeyCode);
-        if (key == KeyCode::Escape && m_drag == Drag::Keys)
+        if (key == KeyCode::Escape && (m_drag == Drag::Keys || m_drag == Drag::SectionMove || m_drag == Drag::SectionStart || m_drag == Drag::SectionEnd))
         {
             event.Handled = true;
             EndDrag(false);
             return;
         }
         if (event.Modifiers == 0 && (key == KeyCode::Delete || key == KeyCode::Backspace) && m_drag == Drag::None)
-            event.Handled = DeleteSelected();
+            event.Handled = m_section ? DeleteSelectedSection() : DeleteSelected();
     }
     inline void Dopesheet::OnMouseWheel(const WheelEvent& event)
     {
@@ -688,6 +842,8 @@ export namespace foundation::gui
         const Color keyColor = partColor(u8"key", Color{0.8f, 0.8f, 0.85f, 1.0f});
         const Color summary = partColor(u8"summary", Color{0.55f, 0.58f, 0.65f, 1.0f});
         const Color selected = partColor(u8"selected", Color{1.0f, 0.8f, 0.3f, 1.0f});
+        const Color sectionColor = partColor(u8"section", Color{0.36f, 0.45f, 0.62f, 0.9f});
+        const Color sectionSelected = partColor(u8"section-selected", Color{0.85f, 0.65f, 0.25f, 0.95f});
         ctx.PushClip(box);
         const Rect names = NamesBounds();
         const bool rtl = IsRightToLeft();
@@ -738,6 +894,26 @@ export namespace foundation::gui
             if (!m_axis)
                 continue;
             ctx.PushClip(Rect{keysArea.x, top, keysArea.width, kRowHeight});
+            if (row.Channel >= 0 && m_source && m_source->IsSectionChannel(static_cast<usize>(row.Channel)))
+            {
+                core::Array<TimelineSection> sections;
+                m_source->GetSections(static_cast<usize>(row.Channel), sections);
+                for (usize i = 0; i < sections.Size(); ++i)
+                {
+                    const Rect bar = SectionBar(r, sections[i]);
+                    const bool on = m_section && m_section->Channel == static_cast<usize>(row.Channel) && m_section->Index == i;
+                    ctx.VG().FillRect(bar.ToRectangle(), on ? sectionSelected : sectionColor);
+                    if (m_text.HasFont() && !sections[i].Label.IsEmpty() && bar.width > 12.0f)
+                    {
+                        ctx.PushClip(Rect{bar.x + 3.0f, bar.y, core::Max(0.0f, bar.width - 6.0f), bar.height});
+                        m_text.SetString(sections[i].Label.AsView());
+                        m_text.Draw(ctx, core::Float2{bar.x + 4.0f, top + 3.0f});
+                        ctx.PopClip();
+                    }
+                }
+                ctx.PopClip();
+                continue;
+            }
             GetRowKeys(r, times, keys);
             for (usize i = 0; i < times.Size(); ++i)
             {

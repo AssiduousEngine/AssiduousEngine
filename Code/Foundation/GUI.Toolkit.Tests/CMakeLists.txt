@@ -10,6 +10,7 @@ add_executable(GUI.Toolkit.Tests
     GradientViewTests.cpp
     CurveEditorTests.cpp
     DopesheetTests.cpp
+    DopesheetSectionTests.cpp
     GraphSourceTests.cpp
     GraphViewTests.cpp
     BreadcrumbBarTests.cpp
