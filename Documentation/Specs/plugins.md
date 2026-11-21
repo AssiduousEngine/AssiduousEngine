@@ -243,7 +243,8 @@ rule.
 
 - **every role:** the subsystem manager, the type and serializable registries, the plugin's
   settings object (Decision 5), logging.
-- **Engine part:** `EnginePluginServices` (`AddDomain`, `AddSceneManager`), found by type.
+- **Engine part:** `EnginePluginServices` (`AddDomain`, `AddSceneManager`, `AddRunService`), found
+  by type.
   Per-run state goes on the runs themselves and app-wide state on the subsystem manager, where
   facades find it (see "What exists").
 - **Pipeline part:** the builder, importer and creator registries.

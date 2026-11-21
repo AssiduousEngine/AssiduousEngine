@@ -495,13 +495,15 @@ namespace engine::runtime
         // Answers to the run's HTTP requests reach their handlers here, on the game's thread,
         // whether a game script or behaviours sent them.
         m_http.Pump();
+        const f32 sceneScale = m_scene != nullptr ? m_scene->TimeScale() : 1.0f;
+        const scene::FrameTime frame(hostDeltaTime, contextTimeScale, m_instanceTimeScale,
+                                     sceneScale);
+        // The run's services step with its gameplay time, whether or not a game script runs.
+        UpdateServices(frame.SceneDt());
         if (m_runBehavior.Get() == nullptr)
         {
             return;
         }
-        const f32 sceneScale = m_scene != nullptr ? m_scene->TimeScale() : 1.0f;
-        const scene::FrameTime frame(hostDeltaTime, contextTimeScale, m_instanceTimeScale,
-                                     sceneScale);
         core::Variant dt = core::Variant::From(frame.SceneDt());
         if (auto result = m_runBehavior->Invoke(u8"onUpdate", core::Span<core::Variant>{&dt, 1});
             !result.HasValue())

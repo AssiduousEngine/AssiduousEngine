@@ -13,6 +13,7 @@ import foundation.runtime;
 import foundation.scene;
 import engine.domain;
 import engine.scene; // GlobalSceneContributionRecorder
+import engine.run;   // RunServiceContributions
 
 using namespace foundation::core;
 
@@ -37,7 +38,23 @@ namespace engine
             return false;
         }
         const u64 recorded = m_nextToken++;
-        m_entries.PushBack(Entry{recorded, token});
+        m_entries.PushBack(Entry{recorded, token, 0});
+        if (m_sink != nullptr)
+        {
+            m_sink->PushBack(recorded);
+        }
+        return true;
+    }
+
+    bool EnginePluginServices::AddRunService(const engine::runtime::RunServiceContribution& contribution)
+    {
+        const u64 token = engine::runtime::RunServiceContributions::Global().Add(contribution);
+        if (token == 0)
+        {
+            return false;
+        }
+        const u64 recorded = m_nextToken++;
+        m_entries.PushBack(Entry{recorded, 0, token});
         if (m_sink != nullptr)
         {
             m_sink->PushBack(recorded);
@@ -60,9 +77,16 @@ namespace engine
             {
                 continue;
             }
-            const u64 domain = m_entries[i].domain;
+            const Entry entry = m_entries[i];
             m_entries.RemoveAt(i);
-            RemovePluginDomain(domain);
+            if (entry.domain != 0)
+            {
+                RemovePluginDomain(entry.domain);
+            }
+            if (entry.runService != 0)
+            {
+                engine::runtime::RunServiceContributions::Global().Remove(entry.runService);
+            }
             return;
         }
     }

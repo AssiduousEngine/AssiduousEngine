@@ -189,6 +189,52 @@ TEST_CASE("game-instance: the instance is an IRun, its scenes on the run's bus, 
     CHECK(run.State() == foundation::run::RunState::Idle);
 }
 
+namespace
+{
+    // A per-run service a contribution installs: it counts the frames it was stepped with.
+    struct StepCounter final : foundation::run::IRunService
+    {
+        i32 frames = 0;
+        f32 seconds = 0.0f;
+        void OnRunUpdate(foundation::run::IRun&, f32 deltaTime) override
+        {
+            ++frames;
+            seconds += deltaTime;
+        }
+    };
+
+    void InstallStepCounter(foundation::run::RunBase& run) { (void)run.Add<StepCounter>(); }
+}
+
+TEST_CASE("game-instance: a contributed service is installed in every run, live ones included, steps with its "
+          "frame, and leaves every run with its contribution")
+{
+    engine::runtime::RunServiceContributions& contributions = engine::runtime::RunServiceContributions::Global();
+    const engine::runtime::RunServiceContribution counter{u8"step_counter", TypeOf<StepCounter>().id, &InstallStepCounter};
+    CHECK(contributions.Add(engine::runtime::RunServiceContribution{}) == 0u); // no type: nothing added
+
+    engine::runtime::ApplicationRun before; // made before the contribution: installed as it is added
+    const u64 token = contributions.Add(counter);
+    REQUIRE(token != 0u);
+    REQUIRE(before.Get<StepCounter>() != nullptr);
+    {
+        engine::runtime::ApplicationRun after; // made after: installed as it is made
+        REQUIRE(after.Get<StepCounter>() != nullptr);
+        after.Start();
+        after.TickRunBehavior(0.25f, 1.0f); // no game script: its services still step
+        after.TickRunBehavior(0.25f, 1.0f);
+        CHECK(after.Get<StepCounter>()->frames == 2);
+        CHECK(after.Get<StepCounter>()->seconds == doctest::Approx(0.5f));
+        after.SetPaused(true);
+        after.TickRunBehavior(0.25f, 1.0f); // paused: not stepped
+        CHECK(after.Get<StepCounter>()->frames == 2);
+    }
+    contributions.Remove(token); // the plugin unloading: out of every live run
+    CHECK(before.Get<StepCounter>() == nullptr);
+    engine::runtime::ApplicationRun later;
+    CHECK(later.Get<StepCounter>() == nullptr);
+}
+
 TEST_CASE("game-instance: a run's end frees a pointer its game locked")
 {
     // A run ends through StopRunBehavior (the player's and the editor's stop, and a restart), the path

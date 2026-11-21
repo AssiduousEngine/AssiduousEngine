@@ -19,6 +19,7 @@ import foundation.core;
 import foundation.runtime;
 import foundation.scene;
 import engine.domain;
+import engine.run; // RunServiceContribution
 
 using namespace foundation::core;
 
@@ -42,6 +43,10 @@ export namespace engine
         [[nodiscard]] bool AddDomain(const DomainModule& module);
         /// Adds a scene manager to every live scene and every scene created after.
         void AddSceneManager(const foundation::scene::SceneModuleContributions::Contribution& contribution);
+        /// Adds a service to every live run and every run created after (the plugin's per-run
+        /// state); taken out of each run as the plugin unloads. False for one with no type or no
+        /// install.
+        [[nodiscard]] bool AddRunService(const engine::runtime::RunServiceContribution& contribution);
 
         // IRegistrationRecorder: armed around each part's load, so what it added is recorded
         // against it, and reversed when it unloads.
@@ -52,8 +57,9 @@ export namespace engine
     private:
         struct Entry
         {
-            u64 token;  // this service's, what the recording keeps
-            u64 domain; // the composition's token
+            u64 token;          // this service's, what the recording keeps
+            u64 domain = 0;     // the composition's token, for a domain
+            u64 runService = 0; // the run contributions' token, for a run service
         };
 
         Array<Entry> m_entries;

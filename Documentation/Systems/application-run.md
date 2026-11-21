@@ -22,8 +22,17 @@ runtime and the scenes depend on it, never the reverse) defines:
   -> Idle`, then `Disposed`), its event bus (`Events()`), its mutation queue (`Mutations()`), and
   the services it holds (`Get<T>()` / `FindService`).
 - **`RunBase`**: `IRun` implemented once. Services are added owned (`Add`, or `AddForSession` for
-  one session) or borrowed (`Register`); a service implementing `IRunService` hears its run pause
-  and stop. `Start` / `SetPaused` / `Stop` / `Dispose` drive the sessions.
+  one session) or borrowed (`Register`), and removed by type (`Remove`, or `RemoveService` by a
+  type's id); a service implementing `IRunService` hears its run pause and stop, and is stepped with
+  the run's frame (`OnRunUpdate`, through `UpdateServices`). `Start` / `SetPaused` / `Stop` /
+  `Dispose` drive the sessions.
+- **`RunServiceContributions`** (`engine.run`): the services a run gets from outside its own
+  members, each a type and what installs one (`run.Add<T>()`), as a scene's managers come from its
+  contributions. Every `ApplicationRun` installs them as it is made; one added while runs exist is
+  installed into them at once, and one removed is taken out of every live run. A plugin's Engine
+  part adds one through `EnginePluginServices::AddRunService`, reversed as it unloads. An
+  `ApplicationRun` steps its services each frame with its gameplay time (its scene's time scale
+  applied), before its behavior's update and whether or not a game script runs; not while paused.
 - **`IRunManager` / `RunRegistry`**: the live runs, the focused one, and every run's lifecycle
   announced to `IRunListener`s (created, started, paused, stopping, destroyed, focus changed).
   `DefaultApplication` owns the `RunRegistry` and hands it to the subsystem manager

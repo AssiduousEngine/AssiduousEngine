@@ -21,6 +21,7 @@ export module engine.run;
 
 export import :networkcontroller; // the run's networking, composed off this god object
 export import :save;              // the run's save (RunSave) and the Save facade
+export import :services;          // the services a run gets from outside (a plugin's)
 
 import foundation.core;
 import engine.domain;
@@ -343,11 +344,17 @@ export namespace engine::runtime
             Register<foundation::http::HttpScriptBinding>(m_http);
             Register<RunBinding>(m_runBinding);
             Register<foundation::net::NetScriptBinding>(m_network.ScriptBinding());
+            // Then the services contributed from outside (a plugin's per-run state).
+            RunServiceContributions::Global().Attach(*this);
         }
 
         // Disposed here, while the members registered on it still exist (their stop hooks run,
         // and the run's manager hears it go).
-        ~ApplicationRun() override { Dispose(); }
+        ~ApplicationRun() override
+        {
+            RunServiceContributions::Global().Detach(*this);
+            Dispose();
+        }
 
         /// The platform's TLS backend for this run (Mbed TLS natively; none in a browser, which
         /// does TLS itself), made on first use.

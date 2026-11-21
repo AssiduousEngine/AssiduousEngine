@@ -49,6 +49,17 @@ namespace foundation::run
         entry.object = nullptr;
     }
 
+    void RunBase::UpdateServices(f32 deltaTime)
+    {
+        // A service may add or remove another as it steps: walk by index, and stop at the end
+        // as it is now.
+        for (usize i = 0; i < m_services.Size(); ++i)
+        {
+            if (IRunService* hooks = m_services[i].hooks)
+                hooks->OnRunUpdate(*this, deltaTime);
+        }
+    }
+
     void RunBase::RemoveType(TypeId type)
     {
         for (usize i = 0; i < m_services.Size(); ++i)

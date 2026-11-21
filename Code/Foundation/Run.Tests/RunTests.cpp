@@ -31,6 +31,7 @@ namespace
         ~Hooked() override { Log().PushBack(Format(u8"~{}", name.AsView())); }
         void OnRunPaused(IRun&, bool paused) override { Log().PushBack(Format(u8"{} paused {}", name.AsView(), paused)); }
         void OnRunStopping(IRun&) override { Log().PushBack(Format(u8"{} stopping", name.AsView())); }
+        void OnRunUpdate(IRun&, f32 deltaTime) override { Log().PushBack(Format(u8"{} update {}", name.AsView(), deltaTime)); }
         String name;
     };
     struct First : Hooked
@@ -109,6 +110,26 @@ TEST_CASE("run: services by type, owned destroyed last-first, borrowed left alon
     // Reverse order of registration: the replacement First was registered after Second.
     CHECK(Logged({"~first", "~second"}));
     CHECK(borrowed.value == 7);
+}
+
+TEST_CASE("run: services step with the run's frame in order of registration; one is removed by its type's id")
+{
+    Log().Clear();
+    {
+        TestRun run(u8"Game 1");
+        run.Add<First>();
+        Plain plain;
+        run.Register<Plain>(plain); // no hooks: not stepped
+        run.Add<Second>();
+        run.UpdateServices(0.5f);
+        CHECK(Logged({"first update 0.5", "second update 0.5"}));
+        run.RemoveService(TypeOf<First>().id);
+        CHECK(Logged({"~first"}));
+        CHECK_FALSE(run.Has<First>());
+        run.UpdateServices(0.25f);
+        CHECK(Logged({"second update 0.25"}));
+    }
+    CHECK(Logged({"~second"}));
 }
 
 TEST_CASE("run: sessions start, pause once per change, stop with hooks last-first, and per-session services go")

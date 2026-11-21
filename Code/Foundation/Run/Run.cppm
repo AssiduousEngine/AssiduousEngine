@@ -140,13 +140,16 @@ export namespace foundation::run
     };
 
     /// A service a run owns may implement this to hear its run pause and stop (in reverse order
-    /// of registration).
+    /// of registration), and to be stepped with the run's frame.
     class IRunService
     {
     public:
         virtual ~IRunService() = default;
         virtual void OnRunPaused(IRun&, bool /*paused*/) {}
         virtual void OnRunStopping(IRun&) {}
+        /// The run's frame, `deltaTime` seconds of its gameplay time (its scene's time scale
+        /// applied), before its behavior's update. Not while the run is paused.
+        virtual void OnRunUpdate(IRun&, f32 /*deltaTime*/) {}
     };
 
     /// A running game, however it is implemented.
@@ -246,6 +249,12 @@ export namespace foundation::run
         {
             RemoveType(TypeOf<T>().id);
         }
+        /// Remove for a type known only by its id (a plugin's service, removed as it unloads).
+        void RemoveService(TypeId type) { RemoveType(type); }
+
+        /// Steps every service that hears the run's frame (IRunService::OnRunUpdate), in order of
+        /// registration.
+        void UpdateServices(f32 deltaTime);
 
         /// A session starts (Idle -> Running). Nothing when one is under way.
         void Start();
