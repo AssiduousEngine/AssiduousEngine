@@ -354,10 +354,24 @@ namespace dialogue
         if (file.cast != Guid{})
         {
             out.reads.PushBack(file.cast);
+            out.references.PushBack(file.cast); // the runner loads it for the lines' speakers
         }
         if (file.assets != Guid{})
         {
             out.reads.PushBack(file.assets);
+            // What the conversations play (sounds, sequences, other dialogue files, commands'
+            // assets) is reached through the dialogue assets, so an export takes every one.
+            RefPtr<ISerializable> read = db->ReadObject(file.assets);
+            if (const auto* list = Cast<DialogueAssetListAsset>(read.Get()))
+            {
+                for (const DialogueAssetEntry& entry : list->entries)
+                {
+                    if (entry.asset != Guid{} && entry.asset != (ctx.source != nullptr ? ctx.source->Id() : Guid{}))
+                    {
+                        out.references.PushBack(entry.asset);
+                    }
+                }
+            }
         }
         const Guid self = ctx.source != nullptr ? ctx.source->Id() : Guid{};
         if (content::Group* root = db->RootGroup())
@@ -418,6 +432,7 @@ namespace dialogue
             return Status{ErrorCode::InvalidArgument};
         }
         DialogueSource cooked;
+        cooked.cast = static_cast<const DialogueAsset&>(asset).cast;
         cooked.conversations = Move(parse.conversations);
         cooked.lines = Move(parse.lines);
         return ctx.output->WriteObject(cooked);

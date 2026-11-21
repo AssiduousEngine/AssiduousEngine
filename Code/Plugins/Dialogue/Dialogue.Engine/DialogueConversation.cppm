@@ -103,6 +103,7 @@ export namespace dialogue
     {
         RTTI_OBJECT(DialogueResource, Object)
     public:
+        Guid cast; // the cast its lines' speakers are from (a cooked DialogueCastSource)
         Array<DialogueConversation> conversations;
         Array<DialogueLineText> lines;
 
@@ -117,6 +118,7 @@ export namespace dialogue
     {
         RTTI_OBJECT(DialogueSource, ISerializable)
     public:
+        Guid cast;
         Array<DialogueConversation> conversations;
         Array<DialogueLineText> lines;
 

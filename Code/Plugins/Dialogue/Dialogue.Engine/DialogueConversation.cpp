@@ -97,6 +97,7 @@ namespace dialogue
 
     void DialogueSource::Serialize(ISerializer& ar)
     {
+        foundation::core::Serialize(ar, "cast", cast);
         foundation::core::Serialize(ar, "conversations", conversations);
         foundation::core::Serialize(ar, "lines", lines);
     }
@@ -112,6 +113,7 @@ namespace dialogue
             return RefPtr<Object>{};
         }
         RefPtr<DialogueResource> product = MakeRef<DialogueResource>(*m_allocator);
+        product->cast = source->cast;
         product->conversations = Move(source->conversations);
         product->lines = Move(source->lines);
         return product;

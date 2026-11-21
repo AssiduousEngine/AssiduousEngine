@@ -47,6 +47,7 @@ TEST_CASE("dialogue model: a compiled dialogue file reads back as it was written
 {
     RegisterDialogueTypes();
     DialogueSource written;
+    written.cast = MakeGuid(41);
     DialogueConversation& talk = written.conversations.EmplaceBack();
     talk.id = String(u8"gate_talk");
     talk.level = String(u8"Levels/Village");
@@ -83,6 +84,7 @@ TEST_CASE("dialogue model: a compiled dialogue file reads back as it was written
 
     DialogueSource read;
     RoundTrip(written, read);
+    CHECK(read.cast == written.cast);
     REQUIRE(read.conversations.Size() == 1u);
     const DialogueConversation& back = read.conversations[0];
     CHECK(back.id == StringView(u8"gate_talk"));

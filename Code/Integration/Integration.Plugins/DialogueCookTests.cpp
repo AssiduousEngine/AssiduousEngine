@@ -199,6 +199,7 @@ TEST_CASE("plugins: through the MCP host, a dialogue file cooks to its conversat
     RefPtr<ISerializable> read = session.project->CookedDb().ReadObject(gate);
     auto* source = read ? Cast<dialogue::DialogueSource>(read.Get()) : nullptr;
     REQUIRE(source != nullptr);
+    CHECK(source->cast == castId); // the runner loads it for the lines' speakers
     REQUIRE(source->conversations.Size() == 1u);
     const dialogue::DialogueConversation& conversation = source->conversations[0];
     CHECK(conversation.id == StringView(u8"gate"));
