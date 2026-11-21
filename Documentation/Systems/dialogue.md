@@ -16,7 +16,7 @@ otherwise. It supports Linux64, Win64, Web and Android64.
 | Engine | `Dialogue.Engine` | `dialogue.engine` | `DialogueSettings`; the compiled conversations and the cast, their cooked forms and factories; the dialogue's domain |
 | Pipeline | `Dialogue.Pipeline` | `dialogue.pipeline` | the format's parser, the commands' notation, the cook's checks; the dialogue's assets, their builders, the importer and File > New's creators |
 | Tooling | `Dialogue.Tooling` | | its entry |
-| Editor | `Dialogue.Editor` | | its entry |
+| Editor | `Dialogue.Editor` | `dialogue.editor` | the cast's and the dialogue assets' pages |
 
 A web, Android or tools-less build declares the Engine part alone (`cmake/Plugins.cmake`): the
 others link libraries such a build does not have.
@@ -153,6 +153,28 @@ its `EnvironmentHash`, so a change to them recooks every dialogue file. `Dialogu
 the speakers and declares what they refer to (portraits, clips, sounds). The `.dialogue` importer
 copies the file into the sources and links it.
 
+## The editor
+
+The Editor part adds two pages on one base, `DialogueListPage`, a page over an asset that is a list
+of items (on the editor's page over a reflected asset, `app::AssetObjectPage`), built from markup in
+`Data/Editor/Dialogue/`. The items are a list beside the grid, by name; the list's bar adds an item
+and removes the chosen one, and its search keeps the items whose name holds the text. The grid shows
+the chosen item's fields from reflection; the asset's own rows (its source file among them) are not
+shown, since the items are the asset.
+
+- **The cast's** (`DialogueCastPage`, `CastPage.xml`): the speakers, by id (and shown name). A new
+  speaker is `speaker` (`speaker_2`, ...) with a `neutral` mood. Its portraits (`Texture`), clips
+  and talk clip (`AnimationClip`) and voice (`AudioClip`) are asset slots that offer only assets of
+  their kind (`referenceType`); its plate colour is a colour.
+- **The dialogue assets'** (`DialogueAssetsPage`, `AssetsPage.xml`): the entries, by name, each an
+  asset slot that takes any asset. It has no Cook button: the list has no cooked form.
+
+Every edit, an add and a removal included, is one undo step, and Save writes the asset and requests
+a cook. A dialogue file's own `cast` and `assets` are slots that offer only a cast and a dialogue
+assets list. The part adds the pages where the editor offers its context and its page services,
+keeps their factories' keys, and removes them as it unloads (`EditorContext::RemovePageFactory`),
+which closes their open pages.
+
 ## Loading
 
 The Engine part's load registers the settings type and the plugin's types
@@ -168,4 +190,6 @@ declared commands with names of several words, line ids, and every problem at it
 checks over a table of a project's assets) and `Integration.Plugins` (the package linked with its
 four parts, its manifest, a project that enables it loading it with its settings and its domain,
 and, through the MCP host, a dialogue file cooking to its conversations, one with an error failing
-the cook, and File > New's three creators).
+the cook, and File > New's three creators; and, in an editor session, the cast and the dialogue
+assets opening in their pages, a speaker added, undone, found and removed, and the pages leaving
+with the plugin).

@@ -29,16 +29,19 @@ namespace dialogue
 {
     REFLECT_MEMBERS(DialogueCastAsset, "rtti::dialogue")
     {
+        builder.Attribute("displayName", String(u8"Dialogue Cast"));
         builder.Property<&DialogueCastAsset::speakers>("speakers").PropAttribute("displayName", String(u8"Speakers"));
     }
 
     REFLECT_MEMBERS(DialogueAssetListAsset, "rtti::dialogue")
     {
+        builder.Attribute("displayName", String(u8"Dialogue Assets"));
         builder.Property<&DialogueAssetListAsset::entries>("entries").PropAttribute("displayName", String(u8"Assets"));
     }
 
     REFLECT_VALUE(DialogueAssetEntry, "rtti::dialogue")
     {
+        builder.Attribute("displayName", String(u8"Dialogue Asset"));
         builder.Property<&DialogueAssetEntry::name>("name")
             .PropAttribute("displayName", String(u8"Name"))
             .PropAttribute("description", String(u8"What a conversation calls the asset by: one word"))
@@ -48,10 +51,13 @@ namespace dialogue
 
     REFLECT_MEMBERS(DialogueAsset, "rtti::dialogue")
     {
+        builder.Attribute("displayName", String(u8"Dialogue"));
         builder.Property<&DialogueAsset::cast>("cast")
             .PropAttribute("displayName", String(u8"Cast"))
+            .PropAttribute("referenceType", String(u8"DialogueCastAsset"))
             .Property<&DialogueAsset::assets>("assets")
-            .PropAttribute("displayName", String(u8"Dialogue Assets"));
+            .PropAttribute("displayName", String(u8"Dialogue Assets"))
+            .PropAttribute("referenceType", String(u8"DialogueAssetListAsset"));
     }
 
     void DialogueAsset::Serialize(ISerializer& ar)

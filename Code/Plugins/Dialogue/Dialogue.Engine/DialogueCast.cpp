@@ -21,14 +21,17 @@ namespace dialogue
 {
     REFLECT_VALUE(DialogueMood, "rtti::dialogue")
     {
+        builder.Attribute("displayName", String(u8"Mood"));
         builder.Property<&DialogueMood::name>("name")
             .PropAttribute("displayName", String(u8"Name"))
             .Property<&DialogueMood::portrait>("portrait")
-            .PropAttribute("displayName", String(u8"Portrait"));
+            .PropAttribute("displayName", String(u8"Portrait"))
+            .PropAttribute("referenceType", String(u8"Texture"));
     }
 
     REFLECT_VALUE(DialogueSpeaker, "rtti::dialogue")
     {
+        builder.Attribute("displayName", String(u8"Speaker"));
         builder.Property<&DialogueSpeaker::id>("id")
             .PropAttribute("displayName", String(u8"Id"))
             .PropAttribute("description", String(u8"What a conversation's lines name the speaker by: one word"))
@@ -39,19 +42,24 @@ namespace dialogue
             .PropAttribute("displayName", String(u8"Name Plate"))
             .Property<&DialogueSpeaker::plateColor>("plateColor")
             .PropAttribute("displayName", String(u8"Plate Color"))
+            .PropAttribute("color", true)
             .Property<&DialogueSpeaker::moods>("moods")
             .PropAttribute("displayName", String(u8"Moods"))
             .PropAttribute("description", String(u8"The moods a line may name; the first is the default"))
             .Property<&DialogueSpeaker::portrait>("portrait")
             .PropAttribute("displayName", String(u8"Portrait"))
+            .PropAttribute("referenceType", String(u8"Texture"))
             .PropAttribute("description", String(u8"For a mood without a portrait of its own"))
             .Property<&DialogueSpeaker::clips>("clips")
             .PropAttribute("displayName", String(u8"Clips"))
+            .PropAttribute("referenceType", String(u8"AnimationClip"))
             .PropAttribute("description", String(u8"The animation clips a conversation may play, by name"))
             .Property<&DialogueSpeaker::talk>("talk")
             .PropAttribute("displayName", String(u8"Talk Clip"))
+            .PropAttribute("referenceType", String(u8"AnimationClip"))
             .Property<&DialogueSpeaker::voice>("voice")
             .PropAttribute("displayName", String(u8"Voice"))
+            .PropAttribute("referenceType", String(u8"AudioClip"))
             .Property<&DialogueSpeaker::entity>("entity")
             .PropAttribute("displayName", String(u8"Entity"))
             .PropAttribute("description", String(u8"The level entity that plays the speaker, by name"));
