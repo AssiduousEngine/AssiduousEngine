@@ -478,7 +478,7 @@ add_subdirectory(Code/Foundation/Terrain.Resource) # cooked terrain resource: he
 add_subdirectory(Code/Foundation/Vegetation.Resource) # painted vegetation mask resource: density planes, brush cores, cooked source and factory
 add_subdirectory(Code/Foundation/Vegetation) # terrain vegetation model: layer params, deterministic per-chunk scatter and fade (no RHI)
 add_subdirectory(Code/Foundation/Animation) # skeletal-animation foundation (Core only)
-add_subdirectory(Code/Foundation/PropertyAnimation) # reflected property-curve animation (Core only; not skeletal)
+add_subdirectory(Code/Foundation/PropertyAnimation) # reflected property-curve animation and its scene targets (not skeletal)
 add_subdirectory(Code/Foundation/PropertyAnimation.Resource) # cooked property-clip resource and its loader
 add_subdirectory(Code/Foundation/Animation.Resource)
 add_subdirectory(Code/Foundation/Particles) # CPU particle runtime (Core only)

@@ -553,6 +553,23 @@ export namespace foundation::scene
             return found;
         }
 
+        // The component manager whose component type's reflected name is `name`, or null: for data
+        // that names a component as text (an animation track's target).
+        [[nodiscard]] ComponentManagerBase* FindManagerByComponentName(StringView name)
+        {
+            ComponentManagerBase* found = nullptr;
+            ForEachManager(
+                [&](ComponentManagerBase& m)
+                {
+                    if (found == nullptr && m.ComponentType() != nullptr && m.ComponentType()->name != nullptr &&
+                        StringView(reinterpret_cast<const utf8char*>(m.ComponentType()->name)) == name)
+                    {
+                        found = &m;
+                    }
+                });
+            return found;
+        }
+
         // The re-resolving component handle for `entity.get(Type)`: a resolve-mode Variant that
         // recomputes the live component address on every access (FindManagerByComponentType, then
         // GetComponentInstance per deref). Empty when no manager handles `componentType`. A dead

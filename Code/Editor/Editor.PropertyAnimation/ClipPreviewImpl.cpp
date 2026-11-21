@@ -82,9 +82,9 @@ namespace editor
             return seeds;
         // Every entity has a transform (the scene's, not a reflected component), so its position,
         // rotation and scale come first.
-        seeds.PushBack(AnimatablePropertyInfo{String(kTransformName), String(u8"position"), propanim::TrackValueKind::Float3});
-        seeds.PushBack(AnimatablePropertyInfo{String(kTransformName), String(u8"rotation"), propanim::TrackValueKind::Quat});
-        seeds.PushBack(AnimatablePropertyInfo{String(kTransformName), String(u8"scale"), propanim::TrackValueKind::Float3});
+        seeds.PushBack(AnimatablePropertyInfo{String(propanim::kTransformTarget), String(u8"position"), propanim::TrackValueKind::Float3});
+        seeds.PushBack(AnimatablePropertyInfo{String(propanim::kTransformTarget), String(u8"rotation"), propanim::TrackValueKind::Quat});
+        seeds.PushBack(AnimatablePropertyInfo{String(propanim::kTransformTarget), String(u8"scale"), propanim::TrackValueKind::Float3});
         m_scene->ForEachManager(
             [&](scene::ComponentManagerBase& manager)
             {
@@ -152,54 +152,13 @@ namespace editor
         m_posing = false;
     }
 
-    scene::ComponentManagerBase* ClipPreview::ManagerNamed(StringView name) const
-    {
-        scene::ComponentManagerBase* found = nullptr;
-        m_scene->ForEachManager(
-            [&](scene::ComponentManagerBase& manager)
-            {
-                if (found == nullptr && manager.ComponentType() != nullptr && manager.ComponentType()->name != nullptr &&
-                    StringView(reinterpret_cast<const utf8char*>(manager.ComponentType()->name)) == name)
-                    found = &manager;
-            });
-        return found;
-    }
-
     Variant ClipPreview::ReadTarget(scene::EntityHandle entity, StringView componentType, StringView propertyPath) const
     {
-        if (componentType == kTransformName)
-        {
-            const propanim::PropertyBinding binding = propanim::ResolveBinding(TypeOf<core::Transform>(), propertyPath);
-            if (!binding.IsResolved())
-                return Variant{};
-            core::Transform local = m_scene->GetLocalTransform(entity);
-            return propanim::ReadBinding(binding, Instance{&local, &TypeOf<core::Transform>()});
-        }
-        scene::ComponentManagerBase* manager = ManagerNamed(componentType);
-        if (manager == nullptr || manager->ComponentType() == nullptr || !manager->HasComponent(entity))
-            return Variant{};
-        const propanim::PropertyBinding binding = propanim::ResolveBinding(*manager->ComponentType(), propertyPath);
-        return binding.IsResolved() ? propanim::ReadBinding(binding, manager->GetComponentInstance(entity)) : Variant{};
+        return propanim::ReadTrackTarget(*m_scene, propanim::ResolveTrackTarget(*m_scene, componentType, propertyPath), entity);
     }
 
     void ClipPreview::WriteTarget(scene::EntityHandle entity, StringView componentType, StringView propertyPath, const Variant& value) const
     {
-        if (componentType == kTransformName)
-        {
-            const propanim::PropertyBinding binding = propanim::ResolveBinding(TypeOf<core::Transform>(), propertyPath);
-            if (!binding.IsResolved())
-                return;
-            // Through SetLocalTransform, so the world matrix follows.
-            core::Transform local = m_scene->GetLocalTransform(entity);
-            if (propanim::WriteBinding(binding, Instance{&local, &TypeOf<core::Transform>()}, value).IsOk())
-                m_scene->SetLocalTransform(entity, local);
-            return;
-        }
-        scene::ComponentManagerBase* manager = ManagerNamed(componentType);
-        if (manager == nullptr || manager->ComponentType() == nullptr || !manager->HasComponent(entity))
-            return;
-        const propanim::PropertyBinding binding = propanim::ResolveBinding(*manager->ComponentType(), propertyPath);
-        if (binding.IsResolved())
-            (void)propanim::WriteBinding(binding, manager->GetComponentInstance(entity), value);
+        (void)propanim::WriteTrackTarget(*m_scene, propanim::ResolveTrackTarget(*m_scene, componentType, propertyPath), entity, value);
     }
 }

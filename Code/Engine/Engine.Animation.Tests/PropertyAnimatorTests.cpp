@@ -140,7 +140,7 @@ TEST_CASE("property animator: a kind/type mismatch disables the track (not a sil
 
     sceneObj.Update(0.0f); // binds; the mismatch is caught here
     REQUIRE(anim.bindings.Size() == 1);
-    CHECK(anim.bindings[0].disabled); // disabled once, not retried every frame
+    CHECK(anim.bindings[0].status == foundation::propertyanimation::TrackTargetStatus::KindMismatch); // disabled once, not retried every frame
 
     sceneObj.Update(0.5f);
     CHECK(target.value == doctest::Approx(42.0f)); // never written

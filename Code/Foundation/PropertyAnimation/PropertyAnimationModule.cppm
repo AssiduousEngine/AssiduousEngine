@@ -13,8 +13,9 @@
 // never per-component Euler). Evaluation yields a Variant per track at time t; the binding
 // resolver walks the reflected property chain (nested paths included) and writes through
 // reflection set, so resolve-mode rules and any setter side effects apply exactly as if the
-// inspector wrote the value. Nothing here knows the scene: the resolver takes a reflection
-// Instance, and the engine binds the entity to its component.
+// inspector wrote the value. The resolver takes a reflection Instance; a track target binds a
+// track's component and path on a scene, once, and reads or writes it on any entity there, which is
+// what every player of tracks (the animator, the sequencer, the editor's preview) needs.
 
 module;
 #include "Core/Prelude.h"
@@ -22,6 +23,7 @@ module;
 export module foundation.propertyanimation;
 
 import foundation.core;
+import foundation.scene;
 
 using namespace foundation::core;
 
@@ -198,6 +200,11 @@ export namespace foundation::propertyanimation
         }
     };
 
+    // Reads or writes one track, keyed: its target, its kind, each channel's keys and the quaternion
+    // keys. For data that holds tracks one by one (a sequence's property tracks); a clip's cooked form
+    // is PropertyAnimationClipSource's flat wire.
+    void SerializePropertyTrack(ISerializer& ar, PropertyTrack& track);
+
     // ===================================================================================
     // Binding resolver (reflection only, no scene dependency)
     // ===================================================================================
@@ -230,4 +237,58 @@ export namespace foundation::propertyanimation
     // leaf. Returns an empty Variant for an unresolved binding, an empty instance, or a null nested
     // address. Used to snapshot a property before a transient write (the in-scene animation preview).
     [[nodiscard]] Variant ReadBinding(const PropertyBinding& binding, const Instance& componentInstance);
+
+    // ===================================================================================
+    // Track targets on a scene
+    // ===================================================================================
+
+    // The component type under which a track animates the entity's own transform (position,
+    // rotation, scale). The transform belongs to the scene, not to a component, so it is read and
+    // written through Get/SetLocalTransform, which keeps the world matrix in step. Reserved: a real
+    // component may not take this name.
+    inline constexpr StringView kTransformTarget = u8"Transform";
+
+    // Why a track target is not resolved.
+    enum class TrackTargetStatus : u8
+    {
+        Resolved,
+        UnknownComponent, // no component type of that name in the scene
+        UnknownProperty,  // the path names no property of it
+        KindMismatch,     // the property's type is not the one the track's kind writes
+    };
+
+    // A track's component and property path bound on one scene: the component's manager (stable for
+    // the scene's life; null for the transform) and the property chain. The component itself is
+    // found again on every read and write, never kept, since its pool moves components.
+    struct TrackTarget
+    {
+        foundation::scene::ComponentManagerBase* manager = nullptr;
+        PropertyBinding binding;
+        bool transform = false;
+        TrackTargetStatus status = TrackTargetStatus::UnknownProperty;
+
+        [[nodiscard]] bool IsResolved() const noexcept { return status == TrackTargetStatus::Resolved; }
+    };
+
+    // The reflected type a track of `kind` writes (f32, Float3, Color, Quaternion).
+    [[nodiscard]] const TypeInfo* LeafTypeOf(TrackValueKind kind) noexcept;
+
+    // Binds `componentType` and `propertyPath` on `scene`. Not resolved when either is unknown.
+    [[nodiscard]] TrackTarget ResolveTrackTarget(foundation::scene::Scene& scene, StringView componentType,
+                                                 StringView propertyPath);
+    // Binds `track`'s target on `scene`, and checks that its property's type is the one its kind
+    // writes (KindMismatch otherwise, since every write would fail).
+    [[nodiscard]] TrackTarget ResolveTrackTarget(foundation::scene::Scene& scene, const PropertyTrack& track);
+
+    // The target's value on `entity`; empty when it is not resolved, or the entity has no such
+    // component.
+    [[nodiscard]] Variant ReadTrackTarget(foundation::scene::Scene& scene, const TrackTarget& target,
+                                          foundation::scene::EntityHandle entity);
+    // Writes `value` to the target on `entity`; false when nothing was written.
+    bool WriteTrackTarget(foundation::scene::Scene& scene, const TrackTarget& target, foundation::scene::EntityHandle entity,
+                          const Variant& value);
+    // Samples `track` at `time` over the target's live value (channels without keys keep it) and
+    // writes it: one track's step for a player. False when nothing was written.
+    bool ApplyTrack(foundation::scene::Scene& scene, const TrackTarget& target, foundation::scene::EntityHandle entity,
+                    const PropertyTrack& track, f32 time);
 }

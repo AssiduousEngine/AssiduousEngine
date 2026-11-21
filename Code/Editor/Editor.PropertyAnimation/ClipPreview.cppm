@@ -43,10 +43,6 @@ export namespace editor
     class ClipPreview
     {
     public:
-        /// The name under which the entity's own transform is animated (the transform belongs to
-        /// the scene, not to a component).
-        static constexpr StringView kTransformName = u8"Transform";
-
         explicit ClipPreview(foundation::scene::Scene& scene) : m_scene(&scene) {}
         ~ClipPreview() { Stop(); }
         ClipPreview(const ClipPreview&) = delete;
@@ -75,7 +71,6 @@ export namespace editor
         };
         [[nodiscard]] Variant ReadTarget(foundation::scene::EntityHandle entity, StringView componentType, StringView propertyPath) const;
         void WriteTarget(foundation::scene::EntityHandle entity, StringView componentType, StringView propertyPath, const Variant& value) const;
-        [[nodiscard]] foundation::scene::ComponentManagerBase* ManagerNamed(StringView name) const;
 
         foundation::scene::Scene* m_scene;
         bool m_posing = false;

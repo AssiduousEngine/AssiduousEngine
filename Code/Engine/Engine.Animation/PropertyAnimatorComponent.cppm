@@ -6,9 +6,8 @@
 // PropertyAnimatorComponent and its per-scene manager. One animator per entity plays one clip
 // whose tracks drive reflected properties on the owning entity's components. The manager ticks in
 // PostUpdate (before render extraction, the skeletal phase): it advances the play clock
-// (Once/Loop/PingPong), then for each track re-resolves the live target component through the
-// scene's component-by-type lookup and writes the sampled Variant through the reflection binding.
-// It never caches a component pointer, since a sparse-set swap-remove moves components. A track
+// (Once/Loop/PingPong), then writes each track through its target (propertyanimation's
+// TrackTarget, bound once per clip), which finds the live component again on every write. A track
 // that fails to resolve is disabled with one warning; the clip keeps playing its other tracks.
 
 module;
@@ -39,24 +38,6 @@ export namespace engine::animation
         PingPong, // bounce between ends
     };
 
-    // Per-track runtime binding: the target component's manager (found by type name, stable for the
-    // scene) and the resolved PropertyInfo chain (stable static metadata). The component instance is
-    // re-resolved through the manager on every write, never cached here. `disabled` marks a failed
-    // resolve (warned once); the track is skipped and the rest of the clip plays on.
-    struct PropertyTrackBinding
-    {
-        scene::ComponentManagerBase* manager = nullptr; // null for the built-in Transform target
-        propanim::PropertyBinding binding;
-        bool disabled = false;
-        bool isTransform = false; // targets the entity's scene transform (no component manager)
-    };
-
-    // The entity's local transform (position/rotation/scale) is not a reflected component (it is
-    // part of the scene), so tracks name it with this reserved component type and the manager binds
-    // it to core::Transform, writing through Set/GetLocalTransform (which flags the world matrix
-    // dirty). Reserved: a real component may not take this name.
-    inline constexpr StringView kTransformComponentName = u8"Transform";
-
     // Physics: the animator writes the transform like any other property. On an entity with a
     // dynamic rigid body, physics is authoritative: its per-frame pose sync overwrites the animated
     // transform (they run in different scene phases and the body integrates independently).
@@ -77,7 +58,7 @@ export namespace engine::animation
         f32 time = 0.0f;
         i8 pingPongDir = 1;
         propanim::PropertyAnimationClipResource* boundClip = nullptr; // bindings built for this clip
-        Array<PropertyTrackBinding> bindings;
+        Array<propanim::TrackTarget> bindings; // one per track; an unresolved one is skipped
 
         // Reflected playback ops for scripting. They reach scripts through the reflected-component
         // `.of(entity)` surface, with natural numeric types, so no facade library is needed. They
@@ -156,7 +137,7 @@ export namespace engine::animation
                     if (clipRes != a.boundClip)
                     {
                         a.boundClip = clipRes;
-                        BuildBindings(a, clipRes->clip, owner);
+                        BuildBindings(a, clipRes->clip);
                         if (a.autoplay)
                         {
                             a.playing = true;
@@ -176,147 +157,39 @@ export namespace engine::animation
                         Min(a.bindings.Size(), clip.tracks.Size());
                     for (usize i = 0; i < trackCount; ++i)
                     {
-                        PropertyTrackBinding& tb = a.bindings[i];
-                        if (tb.disabled || !tb.binding.IsResolved())
-                        {
-                            continue;
-                        }
-                        const propanim::PropertyTrack& track = clip.tracks[i];
-                        if (tb.isTransform)
-                        {
-                            // Read-modify-write the scene transform: SetLocalTransform flags the
-                            // world matrix dirty (a raw field write would not). SampleMerged keeps
-                            // the live value for empty channels (no teleport-to-origin).
-                            Transform local = m_scene->GetLocalTransform(owner);
-                            const Instance inst{&local, &TypeOf<Transform>()};
-                            const Variant value =
-                                track.SampleMerged(evalTime, propanim::ReadBinding(tb.binding, inst));
-                            if (propanim::WriteBinding(tb.binding, inst, value).IsOk())
-                            {
-                                m_scene->SetLocalTransform(owner, local);
-                            }
-                            continue;
-                        }
-                        if (tb.manager == nullptr)
-                        {
-                            continue;
-                        }
-                        // Re-resolve the live component every write (safe across structural changes).
-                        const Instance inst = tb.manager->GetComponentInstance(owner);
-                        if (inst.IsEmpty())
-                        {
-                            continue; // component removed this frame: skip it, keep the binding
-                        }
-                        const Variant value =
-                            track.SampleMerged(evalTime, propanim::ReadBinding(tb.binding, inst));
-                        (void)propanim::WriteBinding(tb.binding, inst, value);
+                        (void)propanim::ApplyTrack(*m_scene, a.bindings[i], owner, clip.tracks[i], evalTime);
                     }
                 });
         }
 
     private:
-        // Resolve each track's target component manager (by type name) and property binding once. A
-        // track whose component type or property path can't resolve is disabled with one warning.
-        void BuildBindings(PropertyAnimatorComponent& a, const propanim::PropertyAnimationClip& clip,
-                           scene::EntityHandle owner)
+        // Binds each track's target once. A track that does not resolve is skipped with one warning
+        // saying why; the rest of the clip plays on.
+        void BuildBindings(PropertyAnimatorComponent& a, const propanim::PropertyAnimationClip& clip)
         {
-            (void)owner;
             a.bindings.Clear();
             for (const propanim::PropertyTrack& track : clip.tracks)
             {
-                PropertyTrackBinding tb;
-                // Built-in Transform target: bind against core::Transform (no component manager).
-                if (track.componentType.AsView() == kTransformComponentName)
+                propanim::TrackTarget target = propanim::ResolveTrackTarget(*m_scene, track);
+                switch (target.status)
                 {
-                    tb.isTransform = true;
-                    tb.binding = propanim::ResolveBinding(TypeOf<Transform>(),
-                                                          track.propertyPath.AsView());
-                    if (!tb.binding.IsResolved())
-                    {
-                        LOG_WARNING(u8"PropertyAnimation",
-                                    u8"track property 'Transform.{}' not found - disabled",
-                                    track.propertyPath);
-                        tb.disabled = true;
-                    }
-                    CheckKind(tb, track);
-                    a.bindings.PushBack(Move(tb));
-                    continue;
-                }
-                scene::ComponentManagerBase* manager =
-                    FindManagerByComponentTypeName(track.componentType.AsView());
-                if (manager == nullptr || manager->ComponentType() == nullptr)
-                {
-                    LOG_WARNING(u8"PropertyAnimation",
-                                u8"track targets unknown component type '{}' - disabled",
+                case propanim::TrackTargetStatus::Resolved:
+                    break;
+                case propanim::TrackTargetStatus::UnknownComponent:
+                    LOG_WARNING(u8"PropertyAnimation", u8"track targets unknown component type '{}' - disabled",
                                 track.componentType);
-                    tb.disabled = true;
-                    a.bindings.PushBack(Move(tb));
-                    continue;
-                }
-                tb.manager = manager;
-                tb.binding =
-                    propanim::ResolveBinding(*manager->ComponentType(), track.propertyPath.AsView());
-                if (!tb.binding.IsResolved())
-                {
-                    LOG_WARNING(u8"PropertyAnimation",
-                                u8"track property '{}' not found on '{}' - disabled",
+                    break;
+                case propanim::TrackTargetStatus::UnknownProperty:
+                    LOG_WARNING(u8"PropertyAnimation", u8"track property '{}' not found on '{}' - disabled",
                                 track.propertyPath, track.componentType);
-                    tb.disabled = true;
+                    break;
+                case propanim::TrackTargetStatus::KindMismatch:
+                    LOG_WARNING(u8"PropertyAnimation", u8"track '{}.{}' kind does not match the property type - disabled",
+                                track.componentType, track.propertyPath);
+                    break;
                 }
-                CheckKind(tb, track);
-                a.bindings.PushBack(Move(tb));
+                a.bindings.PushBack(Move(target));
             }
-        }
-
-        // The kind a TrackValueKind writes as, as a reflected leaf type. A track whose kind does not
-        // match its resolved leaf property would fail WriteBinding silently every frame, so it is
-        // disabled once with a warning instead, matching the resolve-failure policy.
-        [[nodiscard]] static const TypeInfo* ExpectedLeafType(propanim::TrackValueKind kind) noexcept
-        {
-            switch (kind)
-            {
-            case propanim::TrackValueKind::Float:
-                return &TypeOf<f32>();
-            case propanim::TrackValueKind::Float3:
-                return &TypeOf<Float3>();
-            case propanim::TrackValueKind::Color:
-                return &TypeOf<Color>();
-            case propanim::TrackValueKind::Quat:
-                return &TypeOf<Quaternion>();
-            }
-            return nullptr;
-        }
-
-        void CheckKind(PropertyTrackBinding& tb, const propanim::PropertyTrack& track)
-        {
-            if (tb.disabled || !tb.binding.IsResolved() || tb.binding.chain.IsEmpty())
-            {
-                return;
-            }
-            const TypeInfo* leaf = tb.binding.chain[tb.binding.chain.Size() - 1]->type;
-            if (leaf != ExpectedLeafType(track.kind))
-            {
-                LOG_WARNING(u8"PropertyAnimation",
-                            u8"track '{}.{}' kind does not match the property type - disabled",
-                            track.componentType, track.propertyPath);
-                tb.disabled = true;
-            }
-        }
-
-        // The scene's component manager whose reflected component type is named `name`, or null.
-        [[nodiscard]] scene::ComponentManagerBase* FindManagerByComponentTypeName(StringView name)
-        {
-            scene::ComponentManagerBase* found = nullptr;
-            m_scene->ForEachManager(
-                [&](scene::ComponentManagerBase& m)
-                {
-                    if (found == nullptr && m.ComponentType() != nullptr && m.ComponentType()->name &&
-                        StringView(reinterpret_cast<const utf8char*>(m.ComponentType()->name)) == name)
-                    {
-                        found = &m;
-                    }
-                });
-            return found;
         }
 
         // Advance the play clock by `dt` under the loop mode; returns the evaluation time and updates
