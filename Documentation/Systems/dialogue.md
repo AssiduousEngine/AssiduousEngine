@@ -84,7 +84,8 @@ at the line that opened it.
 
 - One statement a line; blank lines and lines starting with `#` are nothing. Indentation means
   nothing: a `choice` or `if` block ends at its `end`.
-- `conversation <id> [in <level>]` starts a conversation; a second of one id is an error.
+- `conversation <id> [in <level>]` starts a conversation, its level a dialogue asset's name; a
+  second of one id is an error.
 - `@ <speaker> [mood]: <text>` is a line, `choice` / `> <answer>` / `end` a choice, `if [not]
   <flag>` / `else` / `end` a branch. A line or an answer ending in `#line:<id>` takes that id;
   otherwise it is `<conversation>.<n>`, counting lines and answers from 1. An id used twice in a
@@ -124,7 +125,13 @@ a clip by its name among the speaker's clips, anything else by its name in the d
   the settings do not name, once; a `jump` to a conversation no file has; a flag an `if` reads that
   no file sets and the settings do not provide; a conversation id or an explicit line id another
   file has too.
-- **Warnings:** a statement nothing reaches (after a `jump`, say).
+- **Actions:** each `{Action}` in a line's or an answer's text must be an action of one of the
+  project's input maps (`{{` is a brace); a project with no input map is told once.
+- **The level:** a conversation that names its level (`conversation square in village`, the level a
+  dialogue asset of type `SceneDocument`) has its entity names checked against that scene's, loaded
+  into a scratch scene with its prefabs placed: the speakers' `entity` and every `entity` argument.
+  A missing one is a warning, since an entity spawned at play is not in the scene.
+- **Warnings:** a statement nothing reaches (after a `jump`, say); an entity the level lacks.
 - **Resolved:** a `play`'s clip, a `sound`'s and a `sequence`'s asset, and an `asset(Type)`
   argument's, into the step's or the argument's `asset`.
 
@@ -137,14 +144,14 @@ a clip by its name among the speaker's clips, anything else by its name in the d
 | `DialogueAssetListAsset` | the dialogue assets, its `entries` (a name and an asset each) edited in the inspector (File > New's Dialogue Assets) | nothing: read when dialogue files cook |
 
 `DialogueBuilder` reads the file's text, gathers its project (`DialogueProject::Gather`: the
-settings' commands parsed, the cast and the dialogue assets the settings name, and what the
-project's other dialogue files hold), parses and checks it (`CookDialogue`), logs every problem as
-`<file>:<line>: <message>`, and writes the compiled conversations; a file with an error does not
-cook. It declares the cast, the dialogue assets and every other dialogue file as read, so a change
-to any of them recooks it, and folds the settings it reads into its `EnvironmentHash`, so a change
-to them recooks every dialogue file. `DialogueCastBuilder` writes the speakers and declares what
-they refer to (portraits, clips, sounds). The `.dialogue` importer copies the file into the sources
-and links it.
+settings' commands parsed, the cast and the dialogue assets the settings name, the input maps'
+actions, and what the project's other dialogue files hold), parses and checks it (`CookDialogue`),
+logs every problem as `<file>:<line>: <message>`, and writes the compiled conversations; a file with
+an error does not cook. It declares the cast, the dialogue assets, the input maps and every other
+dialogue file as read, so a change to any of them recooks it, and folds the settings it reads into
+its `EnvironmentHash`, so a change to them recooks every dialogue file. `DialogueCastBuilder` writes
+the speakers and declares what they refer to (portraits, clips, sounds). The `.dialogue` importer
+copies the file into the sources and links it.
 
 ## Loading
 

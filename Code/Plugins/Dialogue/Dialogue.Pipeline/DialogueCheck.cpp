@@ -83,11 +83,14 @@ namespace dialogue
                     {
                         Problem(header, Format(u8"another dialogue file has a conversation `{}`", conversation.id));
                     }
+                    Level(conversation, header);
+                    m_entitiesTold.Clear();
                     for (DialogueStep& step : conversation.steps)
                     {
                         Step(conversation, step);
                     }
                     Reachability(conversation);
+                    m_entities = nullptr;
                 }
             }
 
@@ -163,6 +166,85 @@ namespace dialogue
                 return {};
             }
 
+            // The level a conversation names: its entities, which later steps check their names against.
+            void Level(const DialogueConversation& conversation, u32 header)
+            {
+                m_entities = nullptr;
+                m_levelName = conversation.level.AsView();
+                if (conversation.level.IsEmpty())
+                {
+                    return;
+                }
+                const Guid level = Asset(conversation.level.AsView(), Span<const StringView>(kLevelAssetTypes), u8"level", header);
+                if (level != Guid{} && m_inputs.levels != nullptr)
+                {
+                    m_entities = m_inputs.levels->EntityNames(level);
+                }
+            }
+
+            // A warning when the conversation's level has no entity `name`: one spawned at play is
+            // not in the scene, so it may be there when the conversation plays.
+            void Entity(StringView name, StringView whose, u32 line)
+            {
+                if (m_entities == nullptr || name.IsEmpty() || Contains(*m_entities, name) || Contains(m_entitiesTold, name))
+                {
+                    return;
+                }
+                m_entitiesTold.PushBack(String(name));
+                Problem(line,
+                        Format(u8"no entity `{}` ({}) in the level `{}`, unless it is spawned at play", name, whose, m_levelName),
+                        true);
+            }
+
+            // The actions a line's or an answer's text names (`{Interact}`; `{{` is a brace).
+            void Actions(StringView id, u32 line)
+            {
+                StringView text;
+                for (const DialogueLineText& entry : m_parse.lines)
+                {
+                    if (entry.id == id)
+                    {
+                        text = entry.text.AsView();
+                        break;
+                    }
+                }
+                for (usize i = 0; i < text.Size(); ++i)
+                {
+                    if (text[i] != u8'{')
+                    {
+                        continue;
+                    }
+                    if (i + 1 < text.Size() && text[i + 1] == u8'{')
+                    {
+                        ++i;
+                        continue;
+                    }
+                    const usize close = text.Find(u8'}', i + 1);
+                    if (close == StringView::kNotFound)
+                    {
+                        Problem(line, String(u8"a `{` with no `}`: an action is `{Name}`, a brace `{{`"));
+                        return;
+                    }
+                    const StringView action = text.SubStr(i + 1, close - i - 1);
+                    if (m_inputs.actions == nullptr)
+                    {
+                        if (!m_noActionsTold)
+                        {
+                            String braced(u8"{");
+                            braced.Append(action);
+                            braced.Append(u8'}');
+                            Problem(line, Format(u8"`{}` names an action, but the project has no input map", braced));
+                            m_noActionsTold = true;
+                        }
+                    }
+                    else if (!Contains(*m_inputs.actions, action))
+                    {
+                        Problem(line, Format(u8"no action `{}` in the project's input maps", action));
+                    }
+                    i = close;
+                }
+            }
+
             void Step(const DialogueConversation& conversation, DialogueStep& step)
             {
                 switch (step.kind)
@@ -170,6 +252,7 @@ namespace dialogue
                 case DialogueStepKind::Line:
                     if (const DialogueSpeaker* speaker = Speaker(step.speaker.AsView(), step.sourceLine))
                     {
+                        Entity(speaker->entity.AsView(), Format(u8"the speaker `{}`'s", speaker->id).AsView(), step.sourceLine);
                         if (!step.mood.IsEmpty() && speaker->FindMood(step.mood.AsView()) == nullptr)
                         {
                             Array<String> moods;
@@ -183,6 +266,7 @@ namespace dialogue
                     }
                     [[fallthrough]];
                 case DialogueStepKind::Answer:
+                    Actions(step.lineId.AsView(), step.sourceLine);
                     if (!IsPositionalId(step.lineId.AsView(), conversation.id.AsView()) &&
                         Contains(m_inputs.otherLineIds, step.lineId.AsView()))
                     {
@@ -283,6 +367,11 @@ namespace dialogue
                         {
                             (void)Speaker(argument.text.AsView(), step.sourceLine);
                         }
+                        else if (part.kind == DialogueArgumentKind::Entity)
+                        {
+                            Entity(argument.text.AsView(), Format(u8"`{}`'s {}", step.name, argument.name).AsView(),
+                                   step.sourceLine);
+                        }
                         else if (part.kind == DialogueArgumentKind::Asset)
                         {
                             const StringView type = part.assetType.AsView();
@@ -357,6 +446,10 @@ namespace dialogue
             Array<String> m_flagsSet;
             Array<String> m_flagsRead;
             bool m_noCastTold = false;
+            bool m_noActionsTold = false;
+            const Array<String>* m_entities = nullptr; // the conversation's level's, when it names one that loads
+            StringView m_levelName;
+            Array<String> m_entitiesTold;
             bool m_noAssetsTold = false;
         };
     }

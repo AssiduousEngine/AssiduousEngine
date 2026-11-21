@@ -777,21 +777,18 @@ namespace dialogue
                 Array<Word> words;
                 (void)StatementWords(header.text, words);
                 DialogueConversation conversation;
-                if (words.Size() < 2 || !IsWord(words[1].text.AsView()) ||
-                    (words.Size() > 2 && (words[2].text != StringView(u8"in") || words.Size() < 4)))
+                if ((words.Size() != 2 && words.Size() != 4) || !IsWord(words[1].text.AsView()) ||
+                    (words.Size() == 4 && (!(words[2].text == StringView(u8"in")) || !IsWord(words[3].text.AsView()))))
                 {
-                    Problem(header.number, String(u8"a conversation is `conversation <id> [in <level>]`"));
+                    Problem(header.number,
+                            String(u8"a conversation is `conversation <id> [in <level>]`, the level a dialogue asset's name"));
                 }
                 else
                 {
                     conversation.id = words[1].text;
-                    for (usize w = 3; w < words.Size(); ++w)
+                    if (words.Size() == 4)
                     {
-                        if (w > 3)
-                        {
-                            conversation.level.Append(u8' ');
-                        }
-                        conversation.level.Append(words[w].text.AsView());
+                        conversation.level = words[3].text;
                     }
                     for (const DialogueConversation& other : m_out.conversations)
                     {

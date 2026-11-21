@@ -135,10 +135,11 @@ conversation <id> [in <level>]
 - `<id>` is a word (letters, digits, `_`), unique across the project, not only its file: `play`,
   `jump` and `Dialogue.play(id)` name a conversation without its file. The first game's tool already
   refuses a second conversation of a name across all files.
-- `in <level>` is new and optional: a scene asset path. When a conversation names its level, the
-  cook checks every entity argument (a declared command's `entity` kind, a speaker's `entity`)
-  against that level's entities; without it those names are checked at play and logged once when
-  missing, as the first game's runner does today.
+- `in <level>` is new and optional: a dialogue asset's name (below), of type `SceneDocument`. When
+  a conversation names its level, the cook checks every entity argument (a declared command's
+  `entity` kind, a speaker's `entity`) against that level's entities, a missing one a warning since
+  an entity spawned at play is not in the scene; without it those names are checked at play and
+  logged once when missing, as the first game's runner does today.
 - A conversation runs from its first statement to the next `conversation` or the end of the file.
   Reaching its end, or a `jump`, ends it.
 
@@ -300,9 +301,10 @@ editor and `dialogue_validate` show the same list):
   without a clip group, or a clip the group lacks; a sound, sequence or conversation that does not
   exist; an `{Action}` not in the input map; a flag read that nothing sets or declares; a statement
   that matches no declared form (the message names the nearest form); an argument of the wrong kind;
-  an entity missing from the conversation's named level; a `#line:` id used twice.
+  a `#line:` id used twice.
 - **Warnings:** statements after a `jump` that nothing reaches; a speaker with neither a portrait
-  for a mood nor a default portrait (the plate colour is used); a flag set that nothing reads.
+  for a mood nor a default portrait (the plate colour is used); a flag set that nothing reads; an
+  entity missing from the conversation's named level.
 - **The cast's own checks**, shown on its page and by `dialogue_validate`: a speaker id that is not
   a word or is used twice; a speaker with no moods; two moods of one speaker with one name; a
   `talk` clip not in the speaker's `clips`.

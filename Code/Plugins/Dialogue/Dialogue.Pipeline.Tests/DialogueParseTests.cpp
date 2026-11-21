@@ -122,13 +122,13 @@ TEST_CASE("dialogue parse: lines with a speaker and a mood, comments and blank l
 
 TEST_CASE("dialogue parse: a conversation names its level, and a file holds several")
 {
-    const DialogueParse parse = Parse(u8"conversation first in Levels/Old Village\n"
+    const DialogueParse parse = Parse(u8"conversation first in village\n"
                                       u8"@ keeper: One.\n"
                                       u8"conversation second\n"
                                       u8"@ keeper: Two.\n");
     REQUIRE(parse.Ok());
     REQUIRE(parse.conversations.Size() == 2u);
-    CHECK(parse.conversations[0].level == StringView(u8"Levels/Old Village"));
+    CHECK(parse.conversations[0].level == StringView(u8"village"));
     CHECK(parse.conversations[1].steps[0].lineId == StringView(u8"second.1"));
 }
 

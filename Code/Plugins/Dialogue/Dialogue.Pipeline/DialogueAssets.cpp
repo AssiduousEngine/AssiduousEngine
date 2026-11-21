@@ -16,6 +16,11 @@ import foundation.content;
 import foundation.vfs;
 import pipeline.core;
 import pipeline.importer;
+import input.pipeline;
+import foundation.input; // ActionSet, Action
+import foundation.scene;
+import foundation.scene.resource;
+import engine.composition; // the scene managers a level loads with, and its stream's name
 import dialogue.engine;
 
 using namespace foundation::core;
@@ -114,6 +119,61 @@ namespace dialogue
             content::IContentDatabase* m_db;
         };
 
+        // The levels conversations name, each loaded once into a scratch scene (its prefabs placed, as
+        // a load places them) for its entities' names.
+        class LoadedLevels final : public IDialogueLevels
+        {
+        public:
+            LoadedLevels(content::IContentDatabase& db, IAllocator& allocator) : m_db(&db), m_allocator(&allocator) {}
+
+            [[nodiscard]] const Array<String>* EntityNames(const Guid& level) const override
+            {
+                for (const Loaded& loaded : m_loaded)
+                {
+                    if (loaded.level == level)
+                    {
+                        return loaded.ok ? &loaded.names : nullptr;
+                    }
+                }
+                Loaded& loaded = m_loaded.EmplaceBack();
+                loaded.level = level;
+                content::Instance* instance = m_db->GetInstance(level);
+                if (instance == nullptr)
+                {
+                    return nullptr;
+                }
+                foundation::scene::Scene scratch(*m_allocator, u8"__dialogue_level");
+                engine::AddAllSceneManagers(scratch);
+                if (!foundation::scene::LoadScene(*instance, scratch).IsOk())
+                {
+                    return nullptr;
+                }
+                content::IContentDatabase* db = m_db;
+                const foundation::scene::PrefabPayloadResolver resolver = [db](const Guid& prefabId) -> UniquePtr<IStream>
+                {
+                    content::Instance* prefab = db->GetInstance(prefabId);
+                    return prefab != nullptr ? prefab->ReadData(engine::kSceneStream) : UniquePtr<IStream>{};
+                };
+                foundation::scene::ResolveScenePrefabs(scratch, resolver);
+                scratch.ForEachEntity([&scratch, &loaded](foundation::scene::EntityHandle entity)
+                                      { loaded.names.PushBack(String(scratch.GetEntityName(entity))); });
+                loaded.ok = true;
+                return &loaded.names;
+            }
+
+        private:
+            struct Loaded
+            {
+                Guid level;
+                Array<String> names;
+                bool ok = false;
+            };
+
+            content::IContentDatabase* m_db;
+            IAllocator* m_allocator;
+            mutable Array<Loaded> m_loaded;
+        };
+
         [[nodiscard]] Span<const DialogueCommandForm> FormsOf(const DialogueProject& project)
         {
             return Span<const DialogueCommandForm>(project.commands.Data(), project.commands.Size());
@@ -163,6 +223,25 @@ namespace dialogue
         }
         if (content::Group* root = db.RootGroup())
         {
+            ForEachInstance(*root, u8"InputMapAsset",
+                            [this, &db](content::Instance& instance)
+                            {
+                                RefPtr<ISerializable> read = db.ReadObject(instance.Id());
+                                const auto* map = Cast<pipeline::InputMapAsset>(read.Get());
+                                if (map == nullptr)
+                                {
+                                    return;
+                                }
+                                hasInputMap = true;
+                                inputMaps.PushBack(instance.Id());
+                                for (const foundation::input::ActionSet& set : map->Map().sets)
+                                {
+                                    for (const foundation::input::Action& action : set.actions)
+                                    {
+                                        actions.PushBack(action.name);
+                                    }
+                                }
+                            });
             ForEachInstance(*root, u8"DialogueAsset",
                             [this, &db, &reader, &self](content::Instance& instance)
                             {
@@ -187,14 +266,18 @@ namespace dialogue
     }
 
     DialogueParse CookDialogue(StringView text, const DialogueSettings& settings, const DialogueProject& project,
-                               content::IContentDatabase* db)
+                               content::IContentDatabase* db, IAllocator& allocator)
     {
         DialogueParse parse = ParseDialogue(text, FormsOf(project));
         for (const DialogueProblem& problem : project.settingsProblems)
         {
             parse.problems.PushBack(problem);
         }
-        DatabaseAssets assets(*db);
+        Optional<DatabaseAssets> assets;
+        if (db != nullptr)
+        {
+            assets.Emplace(*db);
+        }
         DialogueCheckInputs inputs;
         inputs.cast = project.hasCast ? &project.cast : nullptr;
         inputs.dialogueAssets = project.hasDialogueAssets ? &project.dialogueAssets : nullptr;
@@ -203,7 +286,14 @@ namespace dialogue
         inputs.otherConversations = Span<const String>(project.conversations.Data(), project.conversations.Size());
         inputs.otherLineIds = Span<const String>(project.lineIds.Data(), project.lineIds.Size());
         inputs.otherFlagsSet = Span<const String>(project.flagsSet.Data(), project.flagsSet.Size());
-        inputs.assets = db != nullptr ? &assets : nullptr;
+        inputs.assets = db != nullptr ? &assets.Value() : nullptr;
+        inputs.actions = project.hasInputMap ? &project.actions : nullptr;
+        Optional<LoadedLevels> levels;
+        if (db != nullptr)
+        {
+            levels.Emplace(*db, allocator);
+            inputs.levels = &levels.Value();
+        }
         CheckDialogue(parse, inputs);
         return parse;
     }
@@ -250,6 +340,7 @@ namespace dialogue
         const Guid self = ctx.source != nullptr ? ctx.source->Id() : Guid{};
         if (content::Group* root = db->RootGroup())
         {
+            ForEachInstance(*root, u8"InputMapAsset", [&out](content::Instance& instance) { out.reads.PushBack(instance.Id()); });
             ForEachInstance(*root, u8"DialogueAsset",
                             [&out, &self, db](content::Instance& instance)
                             {
@@ -287,7 +378,7 @@ namespace dialogue
         {
             project.Gather(*m_settings, *db, ctx, ctx.source != nullptr ? ctx.source->Id() : Guid{});
         }
-        DialogueParse parse = CookDialogue(text.AsView(), *m_settings, project, db);
+        DialogueParse parse = CookDialogue(text.AsView(), *m_settings, project, db, *ctx.allocator);
         for (const DialogueProblem& problem : parse.problems)
         {
             if (problem.warning)

@@ -43,6 +43,15 @@ export namespace dialogue
         [[nodiscard]] virtual String TypeOf(const Guid& id) const = 0;
     };
 
+    /// The project's levels as the checks see them.
+    class IDialogueLevels
+    {
+    public:
+        virtual ~IDialogueLevels() = default;
+        /// The names of the entities in the scene `level`; null when it does not load.
+        [[nodiscard]] virtual const Array<String>* EntityNames(const Guid& level) const = 0;
+    };
+
     /// What the checks read beyond the file itself.
     struct DialogueCheckInputs
     {
@@ -55,6 +64,8 @@ export namespace dialogue
         Span<const String> otherLineIds;       // their explicit (`#line:`) ids
         Span<const String> otherFlagsSet;      // the flags their `set` and `clear` write
         const IDialogueAssets* assets = nullptr; // null: the assets' names and types are not checked
+        const Array<String>* actions = nullptr;  // the input maps' actions; null: the project has no input map
+        const IDialogueLevels* levels = nullptr; // null: a level's entities are not checked
     };
 
     /// Checks `parse` and adds every problem to it, by line; resolves the clips, sounds and
@@ -71,4 +82,5 @@ export namespace dialogue
     /// The asset types `sound` and `sequence` take.
     inline constexpr StringView kSoundAssetTypes[] = {u8"AudioClipAsset", u8"SoundCueAsset"};
     inline constexpr StringView kSequenceAssetTypes[] = {u8"SequenceAsset"};
+    inline constexpr StringView kLevelAssetTypes[] = {u8"SceneDocument"};
 }

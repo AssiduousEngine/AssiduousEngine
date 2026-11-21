@@ -5,7 +5,9 @@
 util_add_plugin_part()
 target_link_libraries(${PLUGIN_PART}
     PUBLIC Foundation::Core Foundation::Content Foundation::VFS Pipeline::Core Pipeline::Importer
-    PRIVATE Foundation::Runtime Foundation::Policy)
+           Pipeline::Input # the input maps' actions a line may name
+    PRIVATE Foundation::Runtime Foundation::Policy Foundation::Input Foundation::Scene Foundation::Scene.Resource
+            Engine::Composition) # a level loaded into a scratch scene for its entities
 target_sources(${PLUGIN_PART}
     PRIVATE
         DialoguePipeline.cpp # the part's entry

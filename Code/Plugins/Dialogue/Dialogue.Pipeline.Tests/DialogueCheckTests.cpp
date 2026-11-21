@@ -66,11 +66,26 @@ namespace
         }
     };
 
+    // A project's levels: the entity names of each.
+    class TableLevels final : public IDialogueLevels
+    {
+    public:
+        Guid level;
+        Array<String> names;
+
+        [[nodiscard]] const Array<String>* EntityNames(const Guid& id) const override
+        {
+            return id == level ? &names : nullptr;
+        }
+    };
+
     struct Project
     {
         TableAssets assets;
         Array<DialogueSpeaker> cast;
         Array<DialogueAssetEntry> dialogueAssets;
+        Array<String> actions;
+        TableLevels levels;
         Array<DialogueCommandForm> commands;
         Array<String> provided;
         Array<String> otherConversations;
@@ -92,14 +107,22 @@ namespace
             dialogueAssets.PushBack(DialogueAssetEntry{String(u8"gate_open"), gateOpen});
             dialogueAssets.PushBack(DialogueAssetEntry{String(u8"title_card"), card});
             dialogueAssets.PushBack(DialogueAssetEntry{String(u8"lost"), MakeGuid(99)}); // refers to nothing
+            levels.level = assets.Add(u8"Village", u8"SceneDocument", 6);
+            levels.names.PushBack(String(u8"Keeper"));
+            levels.names.PushBack(String(u8"Well"));
+            dialogueAssets.PushBack(DialogueAssetEntry{String(u8"village"), levels.level});
+            actions.PushBack(String(u8"Interact"));
+            actions.PushBack(String(u8"Move"));
             DialogueSpeaker& keeper = cast.EmplaceBack();
             keeper.id = String(u8"keeper");
             keeper.moods.PushBack(DialogueMood{String(u8"neutral"), Guid{}});
             keeper.moods.PushBack(DialogueMood{String(u8"worried"), Guid{}});
             keeper.clips.PushBack(wave);
             keeper.clips.PushBack(nod);
+            keeper.entity = String(u8"Keeper");
             cast.EmplaceBack().id = String(u8"visitor");
-            const StringView forms[] = {u8"show card <card:asset(TextureAsset)>", u8"greet <who:speaker>"};
+            const StringView forms[] = {u8"show card <card:asset(TextureAsset)>", u8"greet <who:speaker>",
+                                        u8"walk <who:entity> to <target:entity>"};
             for (StringView text : forms)
             {
                 DialogueCommandForm form;
@@ -114,7 +137,7 @@ namespace
             otherFlagsSet.PushBack(String(u8"met_elsewhere"));
         }
 
-        DialogueParse Check(StringView text, bool withCast = true, bool withAssets = true)
+        DialogueParse Check(StringView text, bool withCast = true, bool withAssets = true, bool withActions = true)
         {
             DialogueParse parse = ParseDialogue(text, Span<const DialogueCommandForm>(commands.Data(), commands.Size()));
             DialogueCheckInputs inputs;
@@ -126,6 +149,8 @@ namespace
             inputs.otherLineIds = Span<const String>(otherLineIds.Data(), otherLineIds.Size());
             inputs.otherFlagsSet = Span<const String>(otherFlagsSet.Data(), otherFlagsSet.Size());
             inputs.assets = &assets;
+            inputs.actions = withActions ? &actions : nullptr;
+            inputs.levels = &levels;
             CheckDialogue(parse, inputs);
             return parse;
         }
@@ -261,4 +286,51 @@ TEST_CASE("dialogue check: a provided flag by name or by prefix")
     CHECK(IsProvidedFlag(u8"has_lamp", span));
     CHECK_FALSE(IsProvidedFlag(u8"has_lamps", span));
     CHECK_FALSE(IsProvidedFlag(u8"unseen", span));
+}
+
+TEST_CASE("dialogue check: the actions a line names are the input maps'")
+{
+    Project project;
+    const DialogueParse parse = project.Check(u8"conversation hint\n"
+                                              u8"@ keeper: Press {Interact} to open, {{or not}}.\n" // 2: clean
+                                              u8"@ keeper: Press {Jump}.\n"                       // 3
+                                              u8"choice\n"
+                                              u8"> {Move} away\n"                                // 5: clean
+                                              u8"> {Fly} away\n"                                 // 6
+                                              u8"end\n"
+                                              u8"@ keeper: An open {brace.\n");                  // 8
+    CHECK_FALSE(HasProblem(parse, 2, u8""));
+    CHECK(HasProblem(parse, 3, u8"no action `Jump`"));
+    CHECK_FALSE(HasProblem(parse, 5, u8""));
+    CHECK(HasProblem(parse, 6, u8"no action `Fly`"));
+    CHECK(HasProblem(parse, 8, u8"a `{` with no `}`"));
+
+    const DialogueParse bare = project.Check(u8"conversation bare\n"
+                                             u8"@ keeper: Press {Interact}.\n"
+                                             u8"@ keeper: Press {Move}.\n",
+                                             true, true, false);
+    REQUIRE(bare.problems.Size() == 1u);
+    CHECK(HasProblem(bare, 2, u8"`{Interact}` names an action, but the project has no input map"));
+}
+
+TEST_CASE("dialogue check: a conversation's level: its entities named, a missing one a warning")
+{
+    Project project;
+    const DialogueParse parse = project.Check(u8"conversation square in village\n"
+                                              u8"@ keeper: Here.\n"                  // the keeper's entity is there
+                                              u8"walk Keeper to Well\n"              // both there
+                                              u8"walk Keeper to Old Mill\n"          // 4: not there
+                                              u8"walk Old Mill to Keeper\n");        // 5: told once
+    CHECK(parse.Ok());
+    CHECK(HasProblem(parse, 4, u8"no entity `Old Mill` (`walk`'s target) in the level `village`", true));
+    CHECK_FALSE(HasProblem(parse, 5, u8"Old Mill", true));
+
+    project.cast[0].entity = String(u8"Gatekeeper");
+    const DialogueParse moved = project.Check(u8"conversation square in village\n"
+                                              u8"@ keeper: Here.\n");
+    CHECK(HasProblem(moved, 2, u8"no entity `Gatekeeper` (the speaker `keeper`'s)", true));
+
+    const DialogueParse wrong = project.Check(u8"conversation square in door_creak\n"
+                                              u8"@ keeper: Here.\n");
+    CHECK(HasProblem(wrong, 1, u8"`door_creak` is of type AudioClipAsset, which is no level"));
 }

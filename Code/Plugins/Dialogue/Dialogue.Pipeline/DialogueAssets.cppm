@@ -24,6 +24,7 @@ import foundation.content;
 import foundation.vfs;
 import pipeline.core;
 import pipeline.importer;
+import input.pipeline; // InputMapAsset (the actions a line may name)
 import dialogue.engine;
 import :parse;
 import :check;
@@ -73,6 +74,9 @@ export namespace dialogue
         Array<String> lineIds;
         Array<String> flagsSet;
         Array<Guid> files; // every other dialogue file's asset
+        Array<String> actions; // every input map's
+        bool hasInputMap = false;
+        Array<Guid> inputMaps;
 
         /// Gathers it for the file `self` (nil for none) from `db`, reading the other files'
         /// sources through `reader`'s sources.
@@ -80,9 +84,11 @@ export namespace dialogue
                     const Guid& self);
     };
 
-    /// Parses `text` and checks it against `project`, its assets reached through `db`.
+    /// Parses `text` and checks it against `project`, its assets reached through `db` and the
+    /// levels its conversations name loaded into scratch scenes from `allocator`.
     [[nodiscard]] DialogueParse CookDialogue(StringView text, const DialogueSettings& settings,
-                                             const DialogueProject& project, content::IContentDatabase* db);
+                                             const DialogueProject& project, content::IContentDatabase* db,
+                                             IAllocator& allocator);
 
     class DialogueBuilder final : public pipeline::DefaultAssetBuilder
     {
