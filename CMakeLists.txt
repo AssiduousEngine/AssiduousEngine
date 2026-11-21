@@ -678,6 +678,7 @@ if(OPTION_BUILD_TOOLS)
     add_subdirectory(Code/Editor/Editor.Particles) # the particle effect page
     add_subdirectory(Code/Editor/Editor.Animation) # the animation pages: clip, skeleton, graph
     add_subdirectory(Code/Editor/Editor.PropertyAnimation) # property animation in the scene: its panel under the viewport
+    add_subdirectory(Code/Editor/Editor.Sequence) # sequences in the scene: the document, the preview and their panel under the viewport
     add_subdirectory(Code/Editor/Editor.ViewportTools) # viewport tool-mode framework (IViewportTool, its manager, the provider registry)
     add_subdirectory(Code/Editor/Editor.Camera) # shared free-fly viewport camera (lean, foundation-only) for all editor pages
     add_subdirectory(Code/Editor/Editor.Navigation) # navmesh bake tooling (collects geometry, bakes it with Recast, writes the zone asset)
@@ -766,6 +767,7 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Editor/Editor.ViewportTools.Tests          Editor::ViewportTools)
     util_test_suite(Code/Editor/Editor.Camera.Tests                 Editor::Camera)
     util_test_suite(Code/Editor/Editor.PropertyAnimation.Tests      Editor::PropertyAnimation)
+    util_test_suite(Code/Editor/Editor.Sequence.Tests               Editor::Sequence)
     util_test_suite(Code/Editor/Editor.Script.Tests                 Editor::Script)
     util_test_suite(Code/Editor/Editor.Shaders.Tests                Editor::Shaders)
     util_test_suite(Code/Editor/Editor.Tests                        Pipeline::Core)
