@@ -130,6 +130,7 @@ export namespace foundation::gui
         {
             m_context->SetFontService(fonts);
             m_context->SetRootPlaces(&m_places); // a drag can continue from window to window
+            m_context->SetStylePass(&m_styling); // a popup is styled before it is measured as it opens
             m_styles.SetFontService(fonts);
             m_clipboard = MakeUnique<ShellClipboard>(allocator, &shellRef);
             m_router = MakeUnique<shell::InputRouter>(allocator, shellRef.Input());
@@ -150,6 +151,7 @@ export namespace foundation::gui
         ~GuiHost()
         {
             m_context->SetRootPlaces(nullptr);
+            m_context->SetStylePass(nullptr);
             for (Hosted& hosted : m_contents)
                 Unbind(hosted);
             m_contents.Clear();
@@ -1089,6 +1091,33 @@ export namespace foundation::gui
             GuiHost& m_host;
         };
 
+        // Styles a subtree when the GUI asks, so a popup opened the frame its markup was built is
+        // measured at its sheet's sizes rather than at the markup's own. The pane's own styles when
+        // it has them (another GUI's), else the host's, so a subtree is resolved against the sheet
+        // its root is drawn with.
+        class Styling final : public IStylePass
+        {
+        public:
+            explicit Styling(GuiHost& host) noexcept : m_host(host) {}
+            void StyleSubtree(Node& node) override
+            {
+                const Node* root = node.GetRootNode();
+                for (const Attached& attached : m_host.m_attached)
+                    for (const UniquePtr<GuiWindowData::Pane>& pane : attached.Data->Panes)
+                        if (pane->Root.Get() == root)
+                        {
+                            StyleManager& styles = pane->Styles != nullptr ? *pane->Styles : m_host.m_styles;
+                            styles.SetMediaContext(pane->Root->GetMediaContext());
+                            styles.ApplyNewSubtree(node);
+                            return;
+                        }
+                m_host.m_styles.ApplyNewSubtree(node); // a root the host does not hold: its own sheet
+            }
+
+        private:
+            GuiHost& m_host;
+        };
+
         IAllocator& m_allocator;
         graphics::GraphicsDevice& m_device;
         shell::IShell& m_shell;
@@ -1120,6 +1149,7 @@ export namespace foundation::gui
         Array<WindowListener> m_windowListeners{m_allocator};
         u32 m_nextWindowListener = 1;
         Places m_places{*this};
+        Styling m_styling{*this};
         Array<u32> m_focusOrder{m_allocator}; // window ids, most recently focused first
         f32 m_uiScale = 1.0f;
         vg::VGBlendSpace m_blendSpace = vg::VGBlendSpace::Encoded;

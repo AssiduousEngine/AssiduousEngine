@@ -150,6 +150,18 @@ export namespace foundation::gui
         virtual bool ToScreen(const EventDispatcher& dispatcher, core::Float2 local, core::Float2& screen) = 0;
     };
 
+    /// Resolves a sheet over a subtree on demand, supplied by the host that owns the styles. A
+    /// popup is measured as it opens, so one whose markup was built this frame would otherwise be
+    /// measured before any style pass had reached it: at the markup's own sizes and with no font,
+    /// then again once the frame's style pass arrives. The popup resizes and re-centres in view.
+    class IStylePass
+    {
+    public:
+        virtual ~IStylePass() = default;
+        /// Styles the subtree under `node`, as the frame's own style pass does.
+        virtual void StyleSubtree(Node& node) = 0;
+    };
+
     class EventDispatcher
     {
     public:
@@ -1016,6 +1028,10 @@ export namespace foundation::gui
         /// Sets where the GUI's roots are on the screen (owned by its GUIContext and set by the
         /// host). With null, only this root is known and a drag past its edge is outside.
         void SetRootPlaces(IRootPlaces* places) noexcept { m_rootPlaces = places; }
+        /// Sets what styles a subtree on demand (owned by its GUIContext and set by the host).
+        /// With null, a popup built this frame is measured before it has been styled.
+        void SetStylePass(IStylePass* pass) noexcept { m_stylePass = pass; }
+        [[nodiscard]] IStylePass* GetStylePass() const noexcept { return m_stylePass; }
         /// Returns the dispatcher of the root that a drag from here is over now (this one, or
         /// another root of the GUI). Returns null while the drag is outside every root or no drag is
         /// in progress.
@@ -1208,6 +1224,15 @@ export namespace foundation::gui
             popup.SetInTopLayer(true);
             popup.SetRouteStop(entry.Options.Modal);
             m_popups.PushBack(core::Move(entry));
+            // Style it before PlacePopups measures it below. A popup whose markup was built this
+            // frame has been styled by nothing yet, so it would measure at the markup's own sizes
+            // and with no font, be placed on that, and be measured again once the frame's style pass
+            // arrives: a dialog opening narrow in a corner, then resizing and re-centring in view.
+            // A popup joining the tree is style-dirty whether or not it has been open before, so
+            // this resolves it every time; it is the restyle the frame's pass would have done, run
+            // early, and that pass then finds the subtree clean.
+            if (m_stylePass != nullptr)
+                m_stylePass->StyleSubtree(popup);
             PlacePopups();
             popup.Enter(); // plays the sheet's entrance (`:entering`) each time the popup opens
             if (focusing)
@@ -3056,6 +3081,7 @@ export namespace foundation::gui
         f32 m_dragHoverOpenDelay = 0.6f;
         Node* m_dragRestNode = nullptr; // non-owning: compared, never dereferenced
         IRootPlaces* m_rootPlaces = nullptr;   // the GUI's, set by its host; not owned
+        IStylePass* m_stylePass = nullptr;     // the GUI's, set by its host; not owned
         EventDispatcher* m_dragOver = nullptr; // the dispatcher of the root a drag is over (this one, or another root's)
         core::Float2 m_dragOverAt{};           // the pointer in that root
         bool m_dragOutside = false;            // over no root

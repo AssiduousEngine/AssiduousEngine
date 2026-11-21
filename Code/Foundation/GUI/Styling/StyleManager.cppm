@@ -266,6 +266,20 @@ export namespace foundation::gui
             }
         }
 
+        /// Styles a subtree that has just joined the tree, for an owner that must measure it before
+        /// the frame's own style pass reaches it (a popup as it opens). What that pass must still
+        /// see is left pending: a restyle of everything, from a new sheet, media or fonts, and a
+        /// viewport resize, which ApplyTree consumes and which would otherwise never reach the rest
+        /// of the tree.
+        void ApplyNewSubtree(Node& node)
+        {
+            const bool all = m_allDirty;
+            const bool resized = m_viewportResized;
+            ApplyTree(node);
+            m_allDirty = m_allDirty || all;
+            m_viewportResized = m_viewportResized || resized;
+        }
+
         /// How many widgets the last ApplyTree restyled (none in a frame where nothing changed).
         [[nodiscard]] u32 LastRestyleCount() const noexcept { return m_lastRestyleCount; }
         /// How many widgets have a cached style (a destroyed widget's entry goes at the next sweep).
