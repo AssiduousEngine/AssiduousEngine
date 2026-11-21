@@ -14,7 +14,7 @@ otherwise. It supports Linux64, Win64, Web and Android64.
 | Part | Library | Module | Holds |
 |---|---|---|---|
 | Engine | `Dialogue.Engine` | `dialogue.engine` | `DialogueSettings`; the compiled conversations and the cast, their cooked forms and factories; the dialogue's domain |
-| Pipeline | `Dialogue.Pipeline` | | its entry |
+| Pipeline | `Dialogue.Pipeline` | `dialogue.pipeline` | the format's parser, the commands' notation |
 | Tooling | `Dialogue.Tooling` | | its entry |
 | Editor | `Dialogue.Editor` | | its entry |
 
@@ -73,6 +73,36 @@ the `clips` a conversation may play by name, a `talk` clip, a `voice` sound and 
 plays the speaker), its assets referred to by guid. `Find(id)` and a speaker's `FindMood(name)`
 look them up.
 
+## Parsing
+
+`ParseDialogue(text, commands)` reads a dialogue file into its conversations, the texts of their
+lines and answers, and its problems, each at its line (`DialogueParse`; `Ok()` when none is an
+error). It parses on after a problem, so one pass reports them all; a block left open is reported
+at the line that opened it.
+
+- One statement a line; blank lines and lines starting with `#` are nothing. Indentation means
+  nothing: a `choice` or `if` block ends at its `end`.
+- `conversation <id> [in <level>]` starts a conversation; a second of one id is an error.
+- `@ <speaker> [mood]: <text>` is a line, `choice` / `> <answer>` / `end` a choice, `if [not]
+  <flag>` / `else` / `end` a branch. A line or an answer ending in `#line:<id>` takes that id;
+  otherwise it is `<conversation>.<n>`, counting lines and answers from 1. An id used twice in a
+  file is an error.
+- `wait`, `set`, `clear`, `play`, `sound`, `fade`, `sequence` and `jump` are built in, each a form
+  in the commands' notation (`play <speaker:speaker> <clip:text> [and wait]`), so they read their
+  arguments the way declared commands do.
+- Any other statement is matched against the declared commands, the first whose form reads it.
+
+A form (`ParseCommandForm`) is literal words, `<name:kind>` arguments (`text`, `word`, `number`,
+`a|b|c`, `entity`, `speaker`, `flag`, `asset(Type)`, `list(name)`, an optional part's taking a
+`=default`) and `[optional parts]`, ending in `waits` or `leaves` for a command that always waits or
+leaves. An optional `[and wait]` lets the author choose. Its name is its leading literal words; one
+that starts like a built-in statement is refused. An argument takes the fewest words that let the
+rest of the statement match, so it runs to the next literal word, and the last runs to the end; an
+optional part is taken when it can be. A "quoted name" is one word and never a literal, for a name
+holding one of the form's words. Each matched argument is kept as written, a number also as a
+number; what the parser cannot know (the cast, the assets, the level, the flags set elsewhere) is
+the cook's to check.
+
 ## Loading
 
 The Engine part's load registers the settings type and the plugin's types
@@ -82,5 +112,8 @@ All of it is recorded and taken out when the plugin unloads.
 
 Tests: `Dialogue.Engine.Tests` (the settings' defaults, their round trip through the project's
 entry, their labels; the compiled conversations and the cast reading back as written, their
-lookups and the speaker's reflection) and `Integration.Plugins` (the package linked with its four
+lookups and the speaker's reflection), `Dialogue.Pipeline.Tests` (the commands' notation and what
+it refuses; the format parsed: lines, choices and branches compiled to jumps, the built-in
+statements, declared commands with names of several words, line ids, and every problem at its
+line) and `Integration.Plugins` (the package linked with its four
 parts, its manifest, and a project that enables it loading it with its settings and its domain).
