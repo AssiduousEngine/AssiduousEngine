@@ -27,6 +27,7 @@ import foundation.physics;
 import engine.physics;
 import engine.navigation;
 import engine.animation; // PropertyAnimatorComponent (its Edit Clip)
+import engine.sequence;  // SequenceComponent (its Edit Sequence)
 import editor.core;
 import editor.navigation;
 import :edit;
@@ -60,6 +61,7 @@ export namespace editor
             registry.Register(TypeOf<engine::physics::PhysicsSceneSettings>(), [](InspectorExtras& extras) { AddCollisionGroups(extras); });
             registry.Register(TypeOf<engine::behavior::SceneBehaviorSettings>(), [](InspectorExtras& extras) { AddLevelProperties(extras); });
             registry.Register(TypeOf<engine::animation::PropertyAnimatorComponent>(), [](InspectorExtras& extras) { AddEditClip(extras); });
+            registry.Register(TypeOf<engine::sequence::SequenceComponent>(), [](InspectorExtras& extras) { AddEditSequence(extras); });
         }
 
     private:
@@ -102,6 +104,28 @@ export namespace editor
                                  const foundation::scene::EntityHandle handle = edit.Resolve(entity);
                                  engine::animation::PropertyAnimatorComponent* animator = animators != nullptr && handle.IsAssigned() ? animators->Get(handle) : nullptr;
                                  page->EditAnimationClip(animator != nullptr ? animator->clip.id : Guid{}, entity);
+                             });
+        }
+
+        // A sequence component's sequence opens in the page's sequence panel, its cast filled from
+        // the component's.
+        static void AddEditSequence(InspectorExtras& extras)
+        {
+            InspectorExtras* at = &extras;
+            extras.AddAction(u8"Sequence", u8"Edit Sequence", u8"Open the sequence in the sequence panel under the viewport, cast as this component casts it",
+                             [at]()
+                             {
+                                 EditorContext* context = at->Context();
+                                 ISceneEditorPage* page = context != nullptr ? ServiceOf<ISceneEditorPage>(context->ActivePage()) : nullptr;
+                                 if (page == nullptr || at->Entities().IsEmpty())
+                                     return;
+                                 SceneEditContext& edit = at->Edit();
+                                 const Guid entity = at->Entities()[0];
+                                 auto* components = edit.Scene().GetSystem<engine::sequence::SequenceComponentManager>();
+                                 const foundation::scene::EntityHandle handle = edit.Resolve(entity);
+                                 const engine::sequence::SequenceComponent* component =
+                                     components != nullptr && handle.IsAssigned() ? components->Get(handle) : nullptr;
+                                 page->EditSequence(component != nullptr ? component->sequence.id : Guid{}, entity);
                              });
         }
 

@@ -319,7 +319,8 @@ property source; for a component that is `ReflectedSource` (`foundation.gui.tool
 - **The bar and the HUD:** the bar (`SceneBar`) is Save, Undo, Redo; Select (Q), Translate (W),
  Rotate (E) and Scale (R) as one choice; the space (X over the view); Snap (every drag snaps
  while it is on, its increments in its menu); Vertex Snap; the viewport tools; Simulate, Pause and
- Stop with the state named beside them; Frame; and the property animation panel's toggle. Each
+ Stop with the state named beside them; Frame; and the property animation and sequence panels'
+ toggles (the sequence panel: [sequencer.md](sequencer.md), under The editor). Each
  button is an action over the page (`PageActionBar`). The view's own controls are the HUD's
  (`SceneHud`) chips at the top start: the projection (perspective, orthographic, the six axis
  views), the shading (Lit, Unlit, debug terms, effects, MSAA) and the overlays (the grid and its

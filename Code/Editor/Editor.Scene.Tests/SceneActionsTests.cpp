@@ -100,6 +100,9 @@ namespace
         [[nodiscard]] bool AnimationPanelShown() const noexcept override { return animation; }
         void SetAnimationPanelShown(bool shown) override { animation = shown; }
         void EditAnimationClip(const Guid&, const Guid&) override {}
+        [[nodiscard]] bool SequencePanelShown() const noexcept override { return sequence; }
+        void SetSequencePanelShown(bool shown) override { sequence = shown; }
+        void EditSequence(const Guid&, const Guid&) override {}
         void CreatePrefabFromEntity(const Guid& entity) override { prefabFrom = entity; }
         void PickAndSpawnPrefab(const Guid& parent) override
         {
@@ -113,6 +116,7 @@ namespace
         bool paused = false;
         bool markers = true;
         bool animation = false;
+        bool sequence = false;
         bool cameraOwnsInput = false;
         bool hasViewport = false;
         EditorCamera camera;

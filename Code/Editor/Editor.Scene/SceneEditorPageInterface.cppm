@@ -114,6 +114,13 @@ export namespace editor
         /// Shows the panel editing the clip `clip` (nil: the one it has) and animating `entity`
         /// (nil: the one it binds), asking first about an unsaved clip (an animator's Edit Clip).
         virtual void EditAnimationClip(const Guid& clip, const Guid& entity) = 0;
+        /// The sequence panel under the viewport, beside the animation panel. Selecting an entity
+        /// never opens it: its toggle, the Scene menu or a sequence component's Edit Sequence does.
+        [[nodiscard]] virtual bool SequencePanelShown() const noexcept = 0;
+        virtual void SetSequencePanelShown(bool shown) = 0;
+        /// Shows the panel editing `sequence` (nil: the one it has), its cast filled from the
+        /// sequence component on `owner` (nil: as it is), asking first about an unsaved sequence.
+        virtual void EditSequence(const Guid& sequence, const Guid& owner) = 0;
 
         /// The viewport's free-fly camera: the pose the scene is looked at from, which an agent
         /// moves to look from somewhere specific; null on a page without a viewport.

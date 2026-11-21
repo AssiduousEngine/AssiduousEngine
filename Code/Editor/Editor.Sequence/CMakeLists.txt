@@ -6,16 +6,18 @@ target_link_libraries(Editor.Sequence
         Foundation::Core Foundation::Content Foundation::Resource Foundation::Scene
         Foundation::Sequence Foundation::Sequence.Resource Pipeline::Sequence
         Foundation::GUI Foundation::GUI.Toolkit
-        Editor::Core Foundation::Policy)
+        Editor::Core Editor::App Editor::PropertyAnimation Foundation::PropertyAnimation Foundation::Policy)
 
 target_sources(Editor.Sequence
     PRIVATE
         SequenceDocumentImpl.cpp
         SequencePreviewImpl.cpp
         SequenceSourceImpl.cpp
+        SequencePanelImpl.cpp
     PUBLIC
         FILE_SET editorsequence_modules TYPE CXX_MODULES FILES
             SequenceDocument.cppm
             SequencePreview.cppm
             SequenceSource.cppm
+            SequencePanel.cppm
             SequenceEditorModule.cppm)

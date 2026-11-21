@@ -81,6 +81,7 @@ export namespace editor
             m_bar.Bind(find(u8"scene-stop"), kSimulateStop);
             m_bar.Bind(find(u8"scene-frame"), kFrameSelection);
             m_bar.Bind(find(u8"scene-animation-panel"), kAnimationPanel);
+            m_bar.Bind(find(u8"scene-sequence-panel"), kSequencePanel);
             if (auto* snap = Cast<foundation::gui::ToolMenuButton>(find(u8"scene-snap")))
                 BuildSnapMenu(snap->GetMenu());
             SyncState(); // hidden until it runs

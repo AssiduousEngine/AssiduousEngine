@@ -36,6 +36,9 @@ import editor.propertyanimation; // the animation panel under the viewport
 import propertyanimation.pipeline; // CreatePropertyAnimationClip (the panel's New)
 import engine.animation;          // PropertyAnimatorComponent (a new clip given to it)
 import foundation.propertyanimation.resource;
+import editor.sequence;   // the sequence panel beside the animation panel
+import sequence.pipeline; // CreateSequenceAsset (the panel's New)
+import engine.sequence;   // SequenceComponent (Edit Sequence fills the panel's cast from it)
 import :view_settings;
 import :view_gizmo;
 import :edit;
@@ -273,6 +276,7 @@ namespace editor
             }
 
         BuildAnimationPanel(context);
+        BuildSequencePanel(context);
         m_overlays.settings = SceneViewState::LoadOverlays(context.ProjectEditorSettings(), InstanceId(), m_overlays.settings);
         RestoreViewState();
     }
@@ -415,25 +419,185 @@ namespace editor
         m_confirm = box;
     }
 
-    void SceneEditorPage::SetAnimationPanelShown(bool shown)
+    void SceneEditorPage::ShowPaneUnderViewport(gui::Node& pane, bool shown)
     {
-        if (!m_animation || !m_animationPane || shown == m_animationShown)
-            return;
         gui::Splitter* center = Find<gui::Splitter>(u8"scene-center");
         if (center == nullptr)
             return;
-        m_animationShown = shown;
         if (shown)
-        {
-            center->AddChild(m_animationPane.Get());
-            const f32 weights[] = {0.68f, 0.32f};
-            center->SetWeights(Span<const f32>(weights, 2u));
-        }
+            center->AddChild(&pane);
         else
-        {
+            center->RemoveChild(&pane);
+        // The viewport keeps two thirds; the panes under it (the flags say which are shown) share
+        // the rest.
+        const usize panes = (m_animationShown ? 1u : 0u) + (m_sequenceShown ? 1u : 0u);
+        if (panes == 0)
+            return;
+        Array<f32> weights;
+        weights.PushBack(0.68f);
+        for (usize i = 0; i < panes; ++i)
+            weights.PushBack(0.32f / static_cast<f32>(panes));
+        center->SetWeights(weights.AsSpan());
+    }
+
+    void SceneEditorPage::SetAnimationPanelShown(bool shown)
+    {
+        if (!m_animation || !m_animationPane || shown == m_animationShown || Find<gui::Splitter>(u8"scene-center") == nullptr)
+            return;
+        m_animationShown = shown;
+        if (!shown)
             m_animation->StopPreview(); // what it posed goes back with it
-            center->RemoveChild(m_animationPane.Get());
+        ShowPaneUnderViewport(*m_animationPane, shown);
+    }
+
+    void SceneEditorPage::BuildSequencePanel(EditorContext& context)
+    {
+        // Under the viewport, beside the animation panel; out of the splitter until shown.
+        m_sequencePane = RefPtr<gui::Node>(Find<gui::Node>(u8"scene-sequence"));
+        if (!m_sequencePane || m_scene == nullptr || !m_editContext || !m_services.loadMarkup)
+            return;
+        RefPtr<gui::Node> content = m_services.loadMarkup(kSequencePanelPath);
+        if (!content)
+            return;
+        m_sequencePane->AddChild(content.Get());
+        m_sequence = MakeUnique<SequencePanel>(Allocator(), context, *m_scene, content, m_services.refs);
+        SceneEditorPage* self = this;
+        m_sequence->SelectedEntity = [self]() -> Guid
+        {
+            const Guid* primary = self->m_editContext->EntitySelection().Primary();
+            return primary != nullptr ? *primary : Guid{};
+        };
+        m_sequence->GuardUnsaved = [self](Function<void()> proceed) { self->AskAboutSequence(Move(proceed)); };
+        m_sequence->RequestClose = [self]() { self->Later([self]() { self->SetSequencePanelShown(false); }); };
+        if (m_services.refs != nullptr && m_services.refs->Pick)
+            m_sequence->RequestOpenSequence = [self]()
+            {
+                const String types[] = {String(u8"SequenceAsset")};
+                self->m_services.refs->Pick(Span<const String>(types, 1u), self->m_sequence->Document().SequenceId(),
+                                            [self](const Guid& picked)
+                                            {
+                                                if (!picked.IsNil())
+                                                    self->m_sequence->RequestEditSequence(picked, {});
+                                            });
+            };
+        m_sequence->RequestNewSequence = [self]() { self->AskAboutSequence([self]() { self->NewSequence(); }); };
+        // A sequence opened from the browser or a slot while this page is on screen opens in the
+        // panel rather than in a page of its own.
+        m_openSequenceInterceptor = context.AddOpenAssetInterceptor([self](foundation::content::Instance& instance) -> bool
+                                                                    {
+                                                                        if (instance.TypeName() != StringView(u8"SequenceAsset") || !self->IsOnScreen())
+                                                                            return false;
+                                                                        self->SetSequencePanelShown(true);
+                                                                        self->m_sequence->RequestEditSequence(instance.Id(), {});
+                                                                        return true;
+                                                                    });
+        m_sequencePane->GetParent()->RemoveChild(m_sequencePane.Get()); // hidden until shown
+    }
+
+    void SceneEditorPage::NewSequence()
+    {
+        foundation::content::Group* top = m_context->Project() != nullptr ? m_context->Project()->SourceDb().RootGroup() : nullptr;
+        if (top == nullptr)
+            return;
+        foundation::content::Group* sequences = nullptr;
+        for (foundation::content::Group* child : top->Groups())
+            if (child->Name() == StringView(u8"Sequences"))
+                sequences = child;
+        const String suggested = (sequences != nullptr ? sequences : top)->UniqueInstanceName(u8"Sequence");
+        SceneEditorPage* self = this;
+        const auto make = [self](foundation::content::Group& group, StringView name)
+        {
+            foundation::content::Instance* made = pipeline::CreateSequenceAsset(&group, name);
+            if (made == nullptr)
+            {
+                self->m_context->Notify(NoticeKind::Warning, u8"The sequence could not be made; the Console says why.");
+                return;
+            }
+            (void)self->m_sequence->LoadSequence(made->Id());
+        };
+        if (m_services.createAsset)
+        {
+            m_services.createAsset(u8"New Sequence", suggested.AsView(), sequences, make);
+            return;
         }
+        // No dialog (a test): Sequences, as suggested.
+        if (sequences == nullptr)
+            sequences = top->CreateGroup(u8"Sequences");
+        if (sequences != nullptr)
+            make(*sequences, suggested.AsView());
+    }
+
+    void SceneEditorPage::AskAboutSequence(Function<void()> proceed)
+    {
+        if (!m_sequence || !m_sequence->Document().IsDirty())
+        {
+            proceed();
+            return;
+        }
+        gui::Node* root = m_content ? m_content->GetRootNode() : nullptr;
+        if (root == nullptr)
+            return; // nothing to ask over: the sequence stays
+        auto box = MakeRef<gui::MessageBox>(Allocator());
+        box->Configure(u8"Unsaved sequence", Format(u8"The sequence '{}' has unsaved changes.", m_sequence->Document().Name()).AsView(),
+                       gui::MessageBox::Buttons::Ok);
+        box->ClearButtons();
+        (void)box->AddButton(u8"Discard", u8"discard", gui::DialogRole::Destructive);
+        (void)box->AddButton(u8"Cancel", u8"cancel", gui::DialogRole::Cancel);
+        (void)box->AddButton(u8"Save", u8"save", gui::DialogRole::Primary);
+        SceneEditorPage* self = this;
+        gui::MessageBox* raw = box.Get();
+        (void)box->AddEventListener(gui::EventType::Changed, [self, raw, onProceed = Move(proceed)](const gui::Event&)
+                                    {
+                                        const String answer = raw->GetResultName();
+                                        if (answer == StringView(u8"save") && !self->m_sequence->Save().IsOk())
+                                            return; // it reported why
+                                        if (answer == StringView(u8"save") || answer == StringView(u8"discard"))
+                                            onProceed();
+                                    });
+        box->OpenModal(*root);
+        m_confirm = box;
+    }
+
+    void SceneEditorPage::SetSequencePanelShown(bool shown)
+    {
+        if (!m_sequence || !m_sequencePane || shown == m_sequenceShown || Find<gui::Splitter>(u8"scene-center") == nullptr)
+            return;
+        m_sequenceShown = shown;
+        if (!shown)
+            m_sequence->StopPreview(); // what it posed goes back with it
+        ShowPaneUnderViewport(*m_sequencePane, shown);
+    }
+
+    void SceneEditorPage::EditSequence(const Guid& sequence, const Guid& owner)
+    {
+        if (!m_sequence)
+            return;
+        SetSequencePanelShown(true);
+        // The owner's sequence component gives the cast: each part's entity, or the owner itself.
+        Array<SequencePanelCast> cast;
+        auto* components = m_scene != nullptr ? m_scene->GetSystem<engine::sequence::SequenceComponentManager>() : nullptr;
+        const scene::EntityHandle handle = owner.IsNil() || m_scene == nullptr ? scene::EntityHandle{} : m_scene->FindEntity(owner);
+        if (const engine::sequence::SequenceComponent* component = components != nullptr && handle.IsAssigned() ? components->Get(handle) : nullptr)
+            for (const engine::sequence::SequenceCastEntry& entry : component->cast)
+                cast.PushBack(SequencePanelCast{entry.name, entry.self ? owner : entry.entity.id});
+        if (!sequence.IsNil())
+            m_sequence->RequestEditSequence(sequence, cast.AsSpan());
+    }
+
+    void SceneEditorPage::StopPreviews()
+    {
+        if (m_animation)
+            m_animation->StopPreview();
+        if (m_sequence)
+            m_sequence->StopPreview();
+    }
+
+    void SceneEditorPage::Repose()
+    {
+        if (m_animation)
+            m_animation->Repose();
+        if (m_sequence && m_sequenceShown)
+            m_sequence->Repose();
     }
 
     void SceneEditorPage::EditAnimationClip(const Guid& clip, const Guid& entity)
@@ -451,11 +615,20 @@ namespace editor
     {
         if (m_animation && m_animation->Document().IsDirty())
             out.PushBack(Format(u8"The clip '{}'", m_animation->Document().Name()));
+        if (m_sequence && m_sequence->Document().IsDirty())
+            out.PushBack(Format(u8"The sequence '{}'", m_sequence->Document().Name()));
     }
 
     Status SceneEditorPage::SaveBesides()
     {
-        return m_animation && m_animation->Document().IsDirty() ? m_animation->Save() : Status{};
+        Status saved = m_animation && m_animation->Document().IsDirty() ? m_animation->Save() : Status{};
+        if (m_sequence && m_sequence->Document().IsDirty())
+        {
+            const Status sequenceSaved = m_sequence->Save();
+            if (saved.IsOk())
+                saved = sequenceSaved;
+        }
+        return saved;
     }
 
     void SceneEditorPage::BuildTools(EditorContext& context)
@@ -508,6 +681,8 @@ namespace editor
 
         if (m_animation && m_animationShown)
             m_animation->Update(dt, m_simulation.IsRunning());
+        if (m_sequence && m_sequenceShown)
+            m_sequence->Update(dt, m_simulation.IsRunning());
         PROFILE_SCOPE("ScenePage.Update"); // the steps below each have their own: a large scene shows which costs
         m_viewport->AdvanceScripted(dt); // a playtest's frame (viewport_run), before the view's input is read
         // A modal tool (a brush) owns Shift and the wheel to size itself, so the camera leaves that
@@ -697,6 +872,12 @@ namespace editor
             m_context->RemoveOpenAssetInterceptor(m_openClipInterceptor);
             m_openClipInterceptor = 0;
         }
+        if (m_openSequenceInterceptor != 0)
+        {
+            m_context->RemoveOpenAssetInterceptor(m_openSequenceInterceptor);
+            m_openSequenceInterceptor = 0;
+        }
+        m_sequence.Reset(); // what its preview posed goes back while the scene is here
         m_animation.Reset(); // what its preview posed goes back while the scene is here
         m_entityPicker.Reset(); // it lets the scene's tree go before the scene does
         m_cameraPreview.Reset(); // its picture's targets go with the viewports, before the scene
@@ -782,14 +963,14 @@ namespace editor
                 return Status{ErrorCode::InvalidArgument};
             }
         }
-        // What the animation panel posed is not part of the scene: save the scene as it is, then
-        // pose again.
-        const bool posed = &source == m_scene && m_animation;
+        // What the animation and sequence panels posed is not part of the scene: save the scene as
+        // it is, then pose again.
+        const bool posed = &source == m_scene;
         if (posed)
-            m_animation->StopPreview();
+            StopPreviews();
         const Status saved = isPrefab ? scene::SavePrefab(source, instance) : scene::SaveScene(source, instance);
         if (posed)
-            m_animation->Repose();
+            Repose();
         return saved;
     }
 
@@ -849,10 +1030,9 @@ namespace editor
 
     void SceneEditorPage::StartSimulation()
     {
-        // The scene as it is, not as the animation panel posed it, is what the run starts from and
-        // what its end puts back.
-        if (m_animation)
-            m_animation->StopPreview();
+        // The scene as it is, not as the panels posed it, is what the run starts from and what its
+        // end puts back.
+        StopPreviews();
         if (m_scene == nullptr || !m_simulation.Start(*m_scene, Commands()))
             return;
         // The page Simulate was pressed in is the run heard, as the tab Play was pressed in is.

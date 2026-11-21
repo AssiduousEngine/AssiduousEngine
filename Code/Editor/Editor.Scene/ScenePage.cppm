@@ -39,6 +39,7 @@ import editor.app;
 import editor.camera;
 import editor.viewporttools;
 import editor.propertyanimation; // the animation panel under the viewport
+import editor.sequence;          // the sequence panel beside it
 import :edit;
 import :gizmo;
 import :tools;
@@ -139,6 +140,11 @@ export namespace editor
         [[nodiscard]] bool AnimationPanelShown() const noexcept override { return m_animationShown; }
         void SetAnimationPanelShown(bool shown) override;
         void EditAnimationClip(const Guid& clip, const Guid& entity) override;
+        /// The sequence panel under the viewport: it edits a sequence of its own, never touching
+        /// the scene's history or its unsaved mark.
+        [[nodiscard]] bool SequencePanelShown() const noexcept override { return m_sequenceShown; }
+        void SetSequencePanelShown(bool shown) override;
+        void EditSequence(const Guid& sequence, const Guid& owner) override;
         [[nodiscard]] EditorCamera* ViewportCamera() noexcept override { return &m_viewport->Camera(); }
         bool FrameEntities(Span<const Guid> entities, bool ease) override;
         [[nodiscard]] Status RequestViewportCapture(StringView path) override { return m_viewport->RequestCapture(path, false); }
@@ -177,6 +183,7 @@ export namespace editor
         [[nodiscard]] SceneHierarchyView* Hierarchy() noexcept { return m_hierarchy.Get(); }
         [[nodiscard]] SceneInspectorView* Inspector() noexcept { return m_inspector.Get(); }
         [[nodiscard]] PropertyAnimationPanel* AnimationPanel() const noexcept { return m_animation.Get(); }
+        [[nodiscard]] SequencePanel* SequencePanelView() const noexcept { return m_sequence.Get(); }
         /// Opens the entity picker over the page's GUI for `request` (made the first time); false
         /// with no markup, no edit context, or the page in no GUI.
         bool PickEntity(EntityPickRequest request);
@@ -208,6 +215,17 @@ export namespace editor
         // animator when it has none.
         void NewClip();
         void GiveClipToAnimator(const Guid& entity, const Guid& clip);
+        void BuildSequencePanel(EditorContext& context);
+        // The page's prompt for the panel's unsaved sequence: Save, Discard (as saved) or Cancel.
+        void AskAboutSequence(Function<void()> proceed);
+        // New Sequence: named and placed (Create Asset, starting in Sequences), then opened.
+        void NewSequence();
+        // Shows or hides a pane under the viewport, the viewport keeping most of the height.
+        void ShowPaneUnderViewport(foundation::gui::Node& pane, bool shown);
+        // What the panels posed is not the scene's: put it back (a save, a simulation), and pose it
+        // again after.
+        void StopPreviews();
+        void Repose();
         template <typename T>
         [[nodiscard]] T* Find(StringView id) const;
 
@@ -245,6 +263,10 @@ export namespace editor
         RefPtr<foundation::gui::Node> m_animationPane; // held here: while hidden it is out of the splitter
         bool m_animationShown = false;
         u64 m_openClipInterceptor = 0; // takes a clip's open into the panel while on screen
+        UniquePtr<SequencePanel> m_sequence; // under the viewport, beside the animation panel (null: no markup)
+        RefPtr<foundation::gui::Node> m_sequencePane; // held here: while hidden it is out of the splitter
+        bool m_sequenceShown = false;
+        u64 m_openSequenceInterceptor = 0; // takes a sequence's open into the panel while on screen
         RefPtr<foundation::gui::MessageBox> m_confirm;
         // The launcher's picture of the project: the default scene's view, taken once the scene has
         // settled when there is no picture yet, and on every save of it.

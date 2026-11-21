@@ -12,7 +12,8 @@
 // channels is one row of sections. The curve view shows the curves of the tracks the panel shows
 // (a property's parts, a fade's amount). Every edit goes through the document: a drag is a gesture
 // that previews from where it began and becomes one undo step when it ends; a deletion or an
-// insertion is one step.
+// insertion is one step. Its markers are the ruler's: a hold says so on its flag, and a drag moves
+// one as a gesture.
 
 module;
 #include "Core/Prelude.h"
@@ -29,7 +30,9 @@ using namespace foundation::core;
 
 export namespace editor
 {
-    class SequenceSource final : public foundation::gui::ITimelineSource, public foundation::gui::ICurveSource
+    class SequenceSource final : public foundation::gui::ITimelineSource,
+                                 public foundation::gui::ICurveSource,
+                                 public foundation::gui::ITimeMarkerSource
     {
     public:
         /// A row's channel: its track and, for keys, which of the track's key channels (-1 for the
@@ -84,6 +87,14 @@ export namespace editor
         void CommitKeysEdit() override;
         void CancelKeysEdit() override;
 
+        // === ITimeMarkerSource ===
+        [[nodiscard]] usize MarkerCount() const override;
+        [[nodiscard]] foundation::gui::TimeMarker GetMarker(usize marker) const override;
+        void BeginMarkerMove(usize marker) override;
+        void PreviewMarkerMove(usize marker, f32 time) override;
+        void CommitMarkerMove() override;
+        void CancelMarkerMove() override;
+
     private:
         void Rebuild();
         [[nodiscard]] foundation::sequence::SequenceTrack* TrackOf(const Channel& channel) const;
@@ -92,5 +103,6 @@ export namespace editor
         Array<Channel> m_channels; // the dopesheet's rows that hold keys or sections
         Array<Channel> m_curves;   // the curve view's: the shown tracks' curve channels
         Array<usize> m_shown;
+        usize m_movingMarker = 0;
     };
 }

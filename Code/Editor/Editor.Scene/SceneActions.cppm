@@ -46,6 +46,7 @@ export namespace editor
         inline constexpr StringView kFrameSelection = u8"scene.view.frameSelection";
         inline constexpr StringView kOrthographic = u8"scene.view.orthographic";
         inline constexpr StringView kAnimationPanel = u8"scene.view.animationPanel";
+        inline constexpr StringView kSequencePanel = u8"scene.view.sequencePanel";
         inline constexpr StringView kSetProjectThumbnail = u8"scene.view.setProjectThumbnail";
         inline constexpr StringView kEntityCreate = u8"scene.entity.create";
         inline constexpr StringView kEntityCreateChild = u8"scene.entity.createChild";
@@ -398,6 +399,25 @@ export namespace editor
             {
                 ISceneEditorPage* scene = scenePage(page);
                 scene->SetAnimationPanelShown(!scene->AnimationPanelShown());
+            };
+            (void)actions.Register(Move(d));
+        }
+        {
+            EditorActionDeclaration d =
+                Declare(kSequencePanel, u8"Sequence",
+                        u8"Show the sequence panel under the viewport: cutscene timelines",
+                        u8"Scene/Sequence Panel", 302);
+            d.kind = EditorActionKind::Toggle;
+            d.enabled = [scenePage](EditorPage* page) { return scenePage(page) != nullptr; };
+            d.checked = [scenePage](EditorPage* page)
+            {
+                ISceneEditorPage* scene = scenePage(page);
+                return scene != nullptr && scene->SequencePanelShown();
+            };
+            d.execute = [scenePage](EditorPage* page)
+            {
+                ISceneEditorPage* scene = scenePage(page);
+                scene->SetSequencePanelShown(!scene->SequencePanelShown());
             };
             (void)actions.Register(Move(d));
         }

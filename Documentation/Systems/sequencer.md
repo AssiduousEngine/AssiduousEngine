@@ -14,6 +14,7 @@ design and what is still to come are in [Specs/sequencer.md](../Specs/sequencer.
 | `Code/Engine/Engine.Render` | `engine.render` (`:sequence`) | `CameraCutSequenceTrack`, `FadeSequenceTrack` |
 | `Code/Engine/Engine.Animation` | `engine.animation` (`:sequence`) | `ClipSequenceTrack` |
 | `Code/Engine/Engine.Audio` | `engine.audio` (`:sequence`) | `SoundSequenceTrack` |
+| `Code/Editor/Editor.Sequence` | `editor.sequence` | `SequenceDocument`, `SequencePreview`, `SequenceSource`, `SequencePanel` |
 
 None of the sequence libraries depends on render, audio, skeletal animation or physics: a domain
 adds the track kinds that drive it, and registers them with its reflection.
@@ -106,3 +107,37 @@ which the prefab spawn remaps. Autoplay starts it once per run; `play()` and `st
 the next update; destroying or disabling the entity stops it.
 
 The script surface is in [Shipping/Scripting.md](../Shipping/Scripting.md), under Sequences.
+
+## The editor
+
+The sequence panel (`SequencePanel`, markup `Data/Editor/SequencePanel.xml`) sits under the scene
+page's viewport beside the property animation panel. Its toggle on the scene bar, Scene > Sequence
+Panel (`scene.view.sequencePanel`) or a sequence component's Edit Sequence shows it; selecting an
+entity never does. Edit Sequence opens the component's sequence with the panel's cast filled from
+the component's (`ISceneEditorPage::EditSequence(sequence, owner)`), and a sequence asset opened
+while the page is on screen opens there too.
+
+- **The document** (`SequenceDocument`) is the asset's, with its own history and unsaved mark, as a
+  clip's is. Each step keeps the sequence as serialized bytes (its tracks are shared objects a copy
+  would alias); an edit that changes nothing leaves no step; `RecordEdit` records an edit made in
+  place (the inspector's) from the sequence as it last stood. Every change rebuilds the tracks and
+  moves `Version()` on.
+- **The source** (`SequenceSource`) shows the document in the dopesheet, the curve view and the
+  ruler through each kind's own editing calls (`SequenceTrack::KeyChannelCount`, `GetSection` and
+  the rest), so a kind a domain or a plugin adds edits with no list to extend. Rows go by part,
+  then track (its name, its property, or its kind's name), then channel; a track with no key
+  channels is one row of section bars; tracks bound to no one sit under "Sequence". Moves, trims
+  and curve edits are gestures that preview from where they began and commit as one step.
+- **The cast** is the panel's own: Cast fills a part with the scene's selected entity, or adds a
+  part named for it.
+- **Track** offers every registered kind (made through the serializable registry, as a sequence
+  being read makes them), and a property track for each of the chosen part's animatable properties
+  without one, which starts with what the entity shows at the playhead. Section adds a section at
+  the playhead to the chosen section track; Marker and Hold add a marker or a hold there.
+- **The inspector** beside the timeline edits the chosen track's reflected fields (a section's
+  clip or sound, an event's name, a fade's colour) in place, each edit one step.
+- **The preview** (`SequencePreview`) poses the scene through the game's own play
+  (`SequencePlay::Pose`: no events, no sounds) with a restoring finish, so stopping it puts the
+  scene back. It stops before the page saves the scene or simulates (and poses again after a
+  save), when the panel hides, and while the scene simulates. The editor's viewport keeps its own
+  camera, so a camera cut changes nothing there; a fade shows.

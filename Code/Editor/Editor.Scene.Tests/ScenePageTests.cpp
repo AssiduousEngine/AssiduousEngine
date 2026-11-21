@@ -49,6 +49,10 @@ import editor.viewporttools;
 import foundation.propertyanimation;
 import propertyanimation.pipeline;
 import editor.propertyanimation;
+import foundation.sequence;
+import sequence.pipeline;
+import editor.sequence;
+import engine.sequence;
 
 using namespace foundation::core;
 using namespace editor;
@@ -228,6 +232,76 @@ TEST_CASE("scene page: its scene opened into a scene of its own, the viewport in
     CHECK(save->IsEnabled());
     CHECK(page->Save().IsOk());
     CHECK_FALSE(page->IsDirty());
+    page->OnClose();
+}
+
+TEST_CASE("scene page: the sequence panel beside the animation panel, cast from a component, the scene saved as it is and not as posed")
+{
+    Bed bed;
+    pipeline::RegisterSequenceAssets();
+    foundation::content::Instance* asset = pipeline::CreateSequenceAsset(bed.project->SourceDb().RootGroup(), u8"Arrival");
+    REQUIRE(asset != nullptr);
+    UniquePtr<SceneEditorPage> page = bed.Open(*bed.level);
+    SequencePanel* panel = page->SequencePanelView();
+    REQUIRE(panel != nullptr);
+    gui::Splitter* center = FindId<gui::Splitter>(*page->Content(), u8"scene-center");
+    REQUIRE(center != nullptr);
+    page->SetAnimationPanelShown(true);
+    page->SetSequencePanelShown(true);
+    CHECK(center->GetPaneCount() == 3u); // the viewport and both panels
+    page->SetAnimationPanelShown(false);
+    CHECK(center->GetPaneCount() == 2u);
+
+    // A sequence component's Edit Sequence: its sequence opens, its cast filled from the component
+    // (the crate plays "Hero" as the component's own entity).
+    page->EditContext().AddComponent(bed.crate, &TypeOf<engine::sequence::SequenceComponent>());
+    {
+        auto* components = page->ScenePtr()->GetSystem<engine::sequence::SequenceComponentManager>();
+        REQUIRE(components != nullptr);
+        engine::sequence::SequenceComponent* component = components->Get(page->ScenePtr()->FindEntity(bed.crate));
+        REQUIRE(component != nullptr);
+        component->cast.PushBack(engine::sequence::SequenceCastEntry{String(u8"Hero"), scene::EntityRef{}, true});
+    }
+    page->EditSequence(asset->Id(), bed.crate);
+    CHECK(page->SequencePanelShown());
+    CHECK(panel->Document().SequenceId() == asset->Id());
+    CHECK(panel->CastEntity(u8"Hero") == bed.crate);
+
+    // A part and a track pose the crate at x 5; the sequence has unsaved work, the scene's own
+    // history none of it.
+    page->EditContext().EntitySelection().Set(Span<const Guid>(&bed.crate, 1u));
+    REQUIRE(panel->AddPartForSelected() == 0);
+    SequenceTrackOffer position;
+    for (const SequenceTrackOffer& offer : panel->OfferedTracks())
+        if (offer.property && offer.target.propertyPath == String(u8"position"))
+            position = offer;
+    REQUIRE(position.property);
+    panel->AddTrack(position);
+    panel->Document().Edit(u8"test", [](foundation::sequence::Sequence& s) { s.tracks[0]->KeyCurve(0)->Keys()[0].value = 5.0f; });
+    page->OnUpdate(bed.host, 1.0f / 60.0f);
+    const scene::EntityHandle crate = page->ScenePtr()->FindEntity(bed.crate);
+    CHECK(page->ScenePtr()->GetLocalTransform(crate).position.x == doctest::Approx(5.0f));
+    Array<String> besides;
+    page->ListUnsavedBesides(besides);
+    REQUIRE(besides.Size() == 1u);
+    CHECK(besides[0] == String(u8"The sequence 'Arrival'"));
+
+    // Saving writes the scene as it is (x 0), and the crate is posed again afterwards.
+    REQUIRE(page->Save().IsOk());
+    CHECK(page->ScenePtr()->GetLocalTransform(crate).position.x == doctest::Approx(5.0f));
+    {
+        scene::Scene stored(DefaultAllocator(), u8"stored");
+        REQUIRE(scene::LoadScene(*bed.level, stored).IsOk());
+        CHECK(stored.GetLocalTransform(stored.FindEntity(bed.crate)).position.x == doctest::Approx(0.0f));
+    }
+    REQUIRE(page->SaveBesides().IsOk());
+
+    // Its own Close puts back what it posed.
+    REQUIRE(panel->RequestClose);
+    panel->RequestClose();
+    page->OnUpdate(bed.host, 1.0f / 60.0f);
+    CHECK_FALSE(page->SequencePanelShown());
+    CHECK(page->ScenePtr()->GetLocalTransform(crate).position.x == doctest::Approx(0.0f));
     page->OnClose();
 }
 
@@ -1694,7 +1768,7 @@ TEST_CASE("scene bar: the editing controls are the page's actions; Select, the s
     Shown shown(*page);
     SceneBar* bar = page->Bar();
     REQUIRE(bar != nullptr);
-    CHECK(bar->Bound() == 16u); // save, undo, redo, discard, four transform, space, snap, vertex snap, Simulate's three, frame, the animation panel
+    CHECK(bar->Bound() == 17u); // save, undo, redo, discard, four transform, space, snap, vertex snap, Simulate's three, frame, the animation and sequence panels
     GizmoController* gizmos = page->Gizmos();
     REQUIRE(gizmos != nullptr);
     page->OnUpdate(bed.host, 1.0f / 60.0f);
@@ -1710,6 +1784,20 @@ TEST_CASE("scene bar: the editing controls are the page's actions; Select, the s
     shown.Click(*animation);
     page->OnUpdate(bed.host, 1.0f / 60.0f);
     CHECK_FALSE(page->AnimationPanelShown());
+
+    // So does the sequence panel's; selecting an entity never shows it.
+    auto* sequence = FindId<gui::ButtonBase>(*page->Content(), u8"scene-sequence-panel");
+    REQUIRE(sequence != nullptr);
+    page->EditContext().EntitySelection().Set(Span<const Guid>(&bed.crate, 1u));
+    page->OnUpdate(bed.host, 1.0f / 60.0f);
+    CHECK_FALSE(page->SequencePanelShown());
+    shown.Click(*sequence);
+    page->OnUpdate(bed.host, 1.0f / 60.0f);
+    CHECK(page->SequencePanelShown());
+    CHECK(sequence->IsChecked());
+    shown.Click(*sequence);
+    page->OnUpdate(bed.host, 1.0f / 60.0f);
+    CHECK_FALSE(page->SequencePanelShown());
 
     auto* select = FindId<gui::ButtonBase>(*page->Content(), u8"scene-select");
     auto* move = FindId<gui::ButtonBase>(*page->Content(), u8"scene-move");

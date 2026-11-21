@@ -90,6 +90,7 @@ namespace editor
         Rebuild();
         NotifyTimelineChanged();
         NotifyCurvesChanged();
+        NotifyTimeMarkersChanged();
     }
 
     void SequenceSource::Rebuild()
@@ -333,6 +334,56 @@ namespace editor
     }
 
     void SequenceSource::CancelKeysEdit()
+    {
+        m_document->CancelGesture();
+    }
+
+    // === Markers ===
+
+    usize SequenceSource::MarkerCount() const
+    {
+        return m_document->Sequence().markers.Size();
+    }
+
+    gui::TimeMarker SequenceSource::GetMarker(usize marker) const
+    {
+        const sequence::Sequence& sequence = m_document->Sequence();
+        if (marker >= sequence.markers.Size())
+            return {};
+        const sequence::SequenceMarker& at = sequence.markers[marker];
+        return gui::TimeMarker{at.time, at.hold ? Format(u8"{} (hold)", at.name) : at.name};
+    }
+
+    void SequenceSource::BeginMarkerMove(usize marker)
+    {
+        m_movingMarker = marker;
+        m_document->BeginGesture();
+    }
+
+    void SequenceSource::PreviewMarkerMove(usize marker, f32 time)
+    {
+        sequence::Sequence& sequence = m_document->GestureSequence();
+        if (marker >= sequence.markers.Size())
+            return;
+        sequence.markers[marker].time = Max(0.0f, time);
+        m_document->PreviewGesture();
+    }
+
+    void SequenceSource::CommitMarkerMove()
+    {
+        // Kept by time, as the play reads them.
+        sequence::Sequence& sequence = m_document->GestureSequence();
+        for (usize i = 1; i < sequence.markers.Size(); ++i)
+            for (usize j = i; j > 0 && sequence.markers[j - 1].time > sequence.markers[j].time; --j)
+            {
+                sequence::SequenceMarker swap = Move(sequence.markers[j - 1]);
+                sequence.markers[j - 1] = Move(sequence.markers[j]);
+                sequence.markers[j] = Move(swap);
+            }
+        m_document->CommitGesture(u8"sequence-move-marker");
+    }
+
+    void SequenceSource::CancelMarkerMove()
     {
         m_document->CancelGesture();
     }
