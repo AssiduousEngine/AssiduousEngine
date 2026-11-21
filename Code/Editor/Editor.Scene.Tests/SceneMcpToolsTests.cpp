@@ -135,6 +135,7 @@ namespace
         [[nodiscard]] bool SequencePanelShown() const noexcept override { return false; }
         void SetSequencePanelShown(bool) override {}
         void EditSequence(const Guid&, const Guid&) override {}
+        [[nodiscard]] Result<bool, String> PreviewSequence(const Guid&, Span<const String>, Span<const Guid>, f32) override { return true; }
         void CreatePrefabFromEntity(const Guid&) override {}
         void PickAndSpawnPrefab(const Guid&) override {}
         void ApplyInstanceToPrefab(const Guid&) override {}
@@ -248,7 +249,7 @@ TEST_CASE("scene-mcp-tools: page addressing, the selection round-trip, its refus
     server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     RegisterSceneLiveTools(server, context);
     CHECK(server.ToolCount() == kSceneLiveToolCount);
-    CHECK(kSceneLiveToolCount == 20u); // a tripwire: update it when a live tool is added or removed
+    CHECK(kSceneLiveToolCount == 21u); // a tripwire: update it when a live tool is added or removed
     const String aGuid = GuidText(sceneA);
     const String lampGuid = GuidText(lamp);
     const String tableGuid = GuidText(table);

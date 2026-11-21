@@ -11,13 +11,16 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 - Sequences: a sequence asset (File > New, under Animation) is a cutscene timeline that drives
   several entities at once: property and transform tracks, skeletal clips, sounds, camera cuts,
-  fades, events, holds that wait for the game, and sequences nested in others. Scripts play one with `scene.sequences.play(sequence)`, fill its
-  cast with `bind(name, entity)`, and hear `onSequenceEvent`, `onSequenceHeld` and
-  `onSequenceFinished`; a Sequence component plays one from an entity with its cast picked in the
-  inspector. The editor's sequence panel sits under the scene's viewport (its toggle, Scene >
-  Sequence Panel, or a Sequence component's Edit Sequence): parts cast from the selection, tracks
-  of every registered kind, keys and section bars in one dopesheet, markers and holds on the ruler,
-  the chosen track's inspector, its own undo, and a preview that poses the scene and puts it back.
+  fades, events, holds that wait for the game, and sequences nested in others. Scripts play one
+  with `scene.sequences.play(sequence)`, fill its cast with `bind(name, entity)`, and hear
+  `onSequenceEvent`, `onSequenceHeld` and `onSequenceFinished`; a Sequence component plays one
+  from an entity with its cast picked in the inspector. The editor's sequence panel sits under the
+  scene's viewport (its toggle, Scene > Sequence Panel, or a Sequence component's Edit Sequence):
+  parts cast from the selection, tracks of every registered kind, keys and section bars in one
+  dopesheet (a double click on a section row adds one), markers and holds on the ruler, the chosen
+  track's inspector, its own undo, and a preview that poses the scene and puts it back. MCP:
+  `sequence_read` and `sequence_edit` (a list of edits, written once), and `sequence_preview` on
+  the editor host to pose a scene page with a sequence for `viewport_screenshot`.
 - Scripting: players can rebind controls. `Input.rebind(action)` takes the player's next press,
   `Input.setBinding(action, "Key.Space")` sets one by name, and `Input.resetBinding` /
   `Input.resetAllBindings` undo them; the bindings are kept in the game's save and apply when it

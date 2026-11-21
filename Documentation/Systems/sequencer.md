@@ -126,8 +126,9 @@ while the page is on screen opens there too.
   ruler through each kind's own editing calls (`SequenceTrack::KeyChannelCount`, `GetSection` and
   the rest), so a kind a domain or a plugin adds edits with no list to extend. Rows go by part,
   then track (its name, its property, or its kind's name), then channel; a track with no key
-  channels is one row of section bars; tracks bound to no one sit under "Sequence". Moves, trims
-  and curve edits are gestures that preview from where they began and commit as one step.
+  channels is one row of section bars (a double click on it adds a section there, through the
+  kind's `AddSection`); tracks bound to no one sit under "Sequence". Moves, trims and curve edits
+  are gestures that preview from where they began and commit as one step.
 - **The cast** is the panel's own: Cast fills a part with the scene's selected entity, or adds a
   part named for it.
 - **Track** offers every registered kind (made through the serializable registry, as a sequence
@@ -141,3 +142,14 @@ while the page is on screen opens there too.
   scene back. It stops before the page saves the scene or simulates (and poses again after a
   save), when the panel hides, and while the scene simulates. The editor's viewport keeps its own
   camera, so a camera cut changes nothing there; a fade shows.
+
+## Agents
+
+`sequence_read` and `sequence_edit` (`Code/Editor/Editor.Mcp/SequenceTools.cppm`, engine tools on
+both hosts) read and write a sequence asset through the same kind-agnostic calls the panel uses:
+kinds come from `SequenceTrackKinds()`, keys and sections from each kind's editing calls, and a
+field is read and set by its reflected path (`sections.0.clip`, `keys.1.name`). The edit applies a
+list in order to the sequence as stored and writes it once, or nothing when an edit is refused.
+`sequence_preview` (an editor-host scene tool, `ISceneEditorPage::PreviewSequence`) poses a page
+with a sequence through its panel, for `viewport_screenshot`. `Documentation/Shipping/McpGuide.md`
+is the agents' description.

@@ -773,6 +773,60 @@ namespace editor
             });
 
         server.RegisterTool(
+            u8"sequence_preview",
+            u8"Show a scene page's sequence panel posing the scene with a sequence at a time, through the game's own "
+            u8"play (no events, no sounds), then viewport_screenshot to see it. `cast` fills the sequence's parts "
+            u8"with the page's entities ({\"Hero\": \"Hero\"}: a part's name to an entity's name, path or guid). "
+            u8"The pose is the panel's preview: nothing is saved, and it goes back when the panel hides, the scene "
+            u8"saves (posed again after) or simulates. Refused while the panel holds unsaved edits to another "
+            u8"sequence. Returns {page, sequence, time}.",
+            SchemaBuilder()
+                .Str(u8"page", kPageArgument)
+                .Str(u8"sequence", u8"the sequence's guid (asset_list: type SequenceAsset)", true)
+                .Number(u8"time", u8"seconds into the sequence (default 0)")
+                .Any(u8"cast", u8"an object: a part's name to the entity that plays it")
+                .Build(),
+            ToolAnnotations::Adjusts(),
+            [ctx](const JsonValue& args) -> ToolResult
+            {
+                Result<AddressedPage, String> addressed = ResolveScenePage(*ctx, args);
+                if (!addressed.HasValue())
+                {
+                    return Err(Move(addressed.Error()));
+                }
+                Guid sequence;
+                if (!Guid::TryParse(args.Get(u8"sequence").AsString().AsView(), sequence))
+                {
+                    return Err(String(u8"`sequence` is not a valid guid"));
+                }
+                Array<String> parts;
+                Array<Guid> entities;
+                const JsonValue cast = args.Get(u8"cast");
+                for (const String& part : cast.Keys())
+                {
+                    Result<Guid, String> entity = ResolveSceneEntity(addressed.Value(), cast.Get(part).AsString().AsView());
+                    if (!entity.HasValue())
+                    {
+                        return Err(Format(u8"cast '{}': {}", part.AsView(), entity.Error().AsView()));
+                    }
+                    parts.PushBack(part);
+                    entities.PushBack(entity.Value());
+                }
+                const f32 time = static_cast<f32>(args.Get(u8"time").AsNumber());
+                Result<bool, String> posed =
+                    addressed.Value().scene->PreviewSequence(sequence, parts.AsSpan(), entities.AsSpan(), time);
+                if (!posed.HasValue())
+                {
+                    return Err(Move(posed.Error()));
+                }
+                JsonValue out = JsonValue::MakeObject();
+                out.Set(u8"page", PageJson(*addressed.Value().page));
+                out.Set(u8"sequence", JsonValue::MakeString(args.Get(u8"sequence").AsString()));
+                out.Set(u8"time", JsonValue::MakeNumber(time));
+                return out;
+            });
+
+        server.RegisterTool(
             u8"simulate_start",
             u8"Start a scene page's edit-mode Simulate: the live scene runs (physics, systems) from "
             u8"a snapshot that simulate_stop restores; edits are locked meanwhile. A no-op when "

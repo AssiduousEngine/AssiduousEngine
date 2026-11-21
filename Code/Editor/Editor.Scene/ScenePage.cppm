@@ -145,6 +145,7 @@ export namespace editor
         [[nodiscard]] bool SequencePanelShown() const noexcept override { return m_sequenceShown; }
         void SetSequencePanelShown(bool shown) override;
         void EditSequence(const Guid& sequence, const Guid& owner) override;
+        [[nodiscard]] Result<bool, String> PreviewSequence(const Guid& sequence, Span<const String> parts, Span<const Guid> entities, f32 time) override;
         [[nodiscard]] EditorCamera* ViewportCamera() noexcept override { return &m_viewport->Camera(); }
         bool FrameEntities(Span<const Guid> entities, bool ease) override;
         [[nodiscard]] Status RequestViewportCapture(StringView path) override { return m_viewport->RequestCapture(path, false); }

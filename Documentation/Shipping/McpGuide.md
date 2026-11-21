@@ -30,7 +30,8 @@ an execute refused says it: a scene tool with nothing to work on names what is m
 scene view's tools are actions too, `scene.tool.<id>`), executed unattended - a dialog an action would open is
 closed as cancelled and named under `suppressedDialogs`, so the action most likely did
 nothing; use a dedicated tool or ask the user) and the scene page's live tools
-(`selection_get` / `selection_set` / `simulate_start` / `simulate_stop` / `entity_inspect`,
+(`selection_get` / `selection_set` / `simulate_start` / `simulate_stop` / `entity_inspect` /
+`sequence_preview`,
 each addressed by the page's asset guid; `entity_inspect` is the inspector's view of one
 entity - hierarchy, transform, every component's reflected properties with asset references
 as guids and enums by name - the primary selection by default; `component_set` writes one
@@ -305,7 +306,25 @@ other one's. A data asset's content (an input map's actions
 and bindings, a material, a physics material, a sound cue) is edited through its envelope:
 `asset_data_read` gives the XML, and `asset_data_write` takes the edited whole back, loading it
 exactly as the engine would and refusing it, unchanged, when it does not load. Enum fields are
-numbers there; `type_info` on the field's type names the cases. A material's envelope holds its
+numbers there; `type_info` on the field's type names the cases. A sequence (a cutscene timeline,
+type `SequenceAsset`) has tools of its own instead, since its envelope stores each track by a
+numeric kind id: `sequence_read` gives its parts (the cast's names, filled when it plays), its
+markers (a `hold` stops the playhead until the game resumes the play), and each track by index -
+its `kind` and `kindName`, its `part`, a property track's `component` and `property`, its key
+`channels` with their keys, its `sections`, and its reflected `fields` - with `kinds` listing every
+registered kind. `sequence_edit` takes `edits`, a list applied in order and written once (a
+refused edit refuses the whole call, naming which and why, and writes nothing): `length`,
+`add_part` / `remove_part`, `add_track` (a `kind` by either name; `part` when the kind plays on
+one; a property track's `component` - `Transform` or a component's name - `property` and, for a
+component's, `valueKind` Float, Float3, Color or Quat), `remove_track`, `key` (`track`, `channel` by
+name or index, `time`, a curve's `value`) and `remove_key`, `section` (`track`, `start`, `length`,
+and `fields` set by name: a clip's `clip` guid, `speed`, `blendIn`...) and `remove_section`,
+`marker` (`time`, `name`, `hold`) and `remove_marker`, and `set` (`track`, a `path` from the read's
+`fields` such as `keys.0.name` or `sections.1.clip`, or `part`, and its `value`). Each edit's
+result gives the index it made, so a later edit in the same list can name it. On the editor host,
+`sequence_preview` shows a scene page's sequence panel posing the scene with a sequence at a
+`time`, its `cast` mapping each part to one of the page's entities (by name, path or guid); then
+`viewport_screenshot` sees it. The pose is the panel's preview: nothing is saved by it. A material's envelope holds its
 shader's values in `uniformDefaults` and each effect group (Wind; see **Shaders**) apart, in
 `effects`: the effect's `name`, its `flag`, its parameters' `propertyNames`, types, offsets and
 sizes, and their `values` bytes.

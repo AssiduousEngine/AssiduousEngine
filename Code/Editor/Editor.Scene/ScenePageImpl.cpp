@@ -584,6 +584,24 @@ namespace editor
             m_sequence->RequestEditSequence(sequence, cast.AsSpan());
     }
 
+    Result<bool, String> SceneEditorPage::PreviewSequence(const Guid& sequence, Span<const String> parts, Span<const Guid> entities, f32 time)
+    {
+        if (!m_sequence)
+            return Err(String(u8"this page has no sequence panel"));
+        if (m_sequence->Document().IsDirty() && m_sequence->Document().SequenceId() != sequence)
+            return Err(Format(u8"the sequence panel holds unsaved edits to '{}': save or discard them first", m_sequence->Document().Name()));
+        SetSequencePanelShown(true);
+        Array<SequencePanelCast> cast;
+        for (usize i = 0; i < parts.Size() && i < entities.Size(); ++i)
+            cast.PushBack(SequencePanelCast{parts[i], entities[i]});
+        m_sequence->RequestEditSequence(sequence, cast.AsSpan());
+        if (m_sequence->Document().SequenceId() != sequence)
+            return Err(String(u8"no sequence with that guid in the project"));
+        m_sequence->Pause();
+        m_sequence->Scrub(Max(0.0f, time));
+        return true;
+    }
+
     void SceneEditorPage::StopPreviews()
     {
         if (m_animation)

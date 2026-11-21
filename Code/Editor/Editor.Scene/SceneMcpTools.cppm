@@ -36,7 +36,7 @@ export namespace editor
     /// component_remove, prefab_spawn, behavior_add, behavior_set). kSceneLiveToolCount, the number
     /// RegisterSceneLiveTools registers, is a tripwire like kEngineToolCount.
     inline constexpr usize kSceneEditToolCount = 8;
-    inline constexpr usize kSceneLiveToolCount = 12 + kSceneEditToolCount;
+    inline constexpr usize kSceneLiveToolCount = 13 + kSceneEditToolCount;
 
     void RegisterSceneLiveTools(foundation::mcp::McpServer& server, EditorContext& context);
 }

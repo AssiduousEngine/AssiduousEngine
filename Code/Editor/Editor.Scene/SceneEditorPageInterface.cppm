@@ -121,6 +121,11 @@ export namespace editor
         /// Shows the panel editing `sequence` (nil: the one it has), its cast filled from the
         /// sequence component on `owner` (nil: as it is), asking first about an unsaved sequence.
         virtual void EditSequence(const Guid& sequence, const Guid& owner) = 0;
+        /// Shows the panel posing the scene with `sequence` at `time`, the part `parts[i]` played
+        /// by `entities[i]` (an agent's look before viewport_screenshot). The reason when it
+        /// cannot: no such sequence, or the panel holds unsaved edits to another.
+        [[nodiscard]] virtual Result<bool, String> PreviewSequence(const Guid& sequence, Span<const String> parts, Span<const Guid> entities,
+                                                                   f32 time) = 0;
 
         /// The viewport's free-fly camera: the pose the scene is looked at from, which an agent
         /// moves to look from somewhere specific; null on a page without a viewport.

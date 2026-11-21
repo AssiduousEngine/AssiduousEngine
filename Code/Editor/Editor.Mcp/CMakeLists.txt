@@ -17,6 +17,7 @@ target_link_libraries(Editor.Mcp PUBLIC
     Engine::Behavior # the reference example's script behaviour (one override per property kind)
     Engine::Project Engine::Render # project_settings_set: the reflected settings, the MSAA levels
     Foundation::Mcp.Reflection Foundation::Mcp.Script # the engine surface root registers their tools too
+    Pipeline::Sequence Foundation::Sequence Foundation::PropertyAnimation # sequence_read, sequence_edit
     Foundation::Mcp Foundation::Json Foundation::Core Foundation::Policy)
 
 target_sources(Editor.Mcp
@@ -45,6 +46,7 @@ target_sources(Editor.Mcp
             ScriptCreate.cppm
             ProjectExport.cppm
             SceneReference.cppm
+            SequenceTools.cppm
             ProjectTools.cppm
     PRIVATE
         SceneReferenceImpl.cpp)

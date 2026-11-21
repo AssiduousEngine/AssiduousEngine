@@ -103,6 +103,7 @@ namespace
         [[nodiscard]] bool SequencePanelShown() const noexcept override { return sequence; }
         void SetSequencePanelShown(bool shown) override { sequence = shown; }
         void EditSequence(const Guid&, const Guid&) override {}
+        [[nodiscard]] Result<bool, String> PreviewSequence(const Guid&, Span<const String>, Span<const Guid>, f32) override { return true; }
         void CreatePrefabFromEntity(const Guid& entity) override { prefabFrom = entity; }
         void PickAndSpawnPrefab(const Guid& parent) override
         {

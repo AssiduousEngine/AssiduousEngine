@@ -296,6 +296,14 @@ TEST_CASE("scene page: the sequence panel beside the animation panel, cast from 
     }
     REQUIRE(page->SaveBesides().IsOk());
 
+    // An agent's look (sequence_preview): the panel poses the sequence at a time with the cast it
+    // is given; a sequence that is not there is refused.
+    const String parts[] = {String(u8"Hero")};
+    const Guid players[] = {bed.crate};
+    REQUIRE(page->PreviewSequence(asset->Id(), Span<const String>(parts, 1u), Span<const Guid>(players, 1u), 0.0f).HasValue());
+    CHECK(page->ScenePtr()->GetLocalTransform(crate).position.x == doctest::Approx(5.0f));
+    CHECK_FALSE(page->PreviewSequence(Guid{0x7, 0x7}, {}, {}, 0.0f).HasValue());
+
     // Its own Close puts back what it posed.
     REQUIRE(panel->RequestClose);
     panel->RequestClose();
