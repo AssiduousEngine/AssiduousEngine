@@ -1,6 +1,6 @@
 # Dialogue as an official plugin
 
-> APPROVED 2026-11-21. D0 and D1 2026-11-21. Read on master at `247608c79`; line numbers will drift. Revisits the
+> APPROVED 2026-11-21. D0 to D2 2026-11-21. Read on master at `247608c79`; line numbers will drift. Revisits the
 > choice, made on 2026-11-06 for the first game built on the engine, to keep its dialogue in its
 > own script ("A now, with plans to move to C"), now that the sequencer exists, and makes dialogue
 > an official engine plugin (that note's option B).
@@ -432,8 +432,33 @@ Each step a commit with its tests, green on clang and gcc.
 3. **D2 The format and the cook**: the parser (a port of the first game's tool's), the `.dialogue`
    asset and the reflected `DialogueCast` with its page, the importer, the checks (speakers, moods,
    flags set before read, commands against the settings, clips and sounds and sequences by name),
-   File > New. Tests over the first game's scenes copied in as fixtures, their `scene` keyword
-   renamed.
+   File > New. Tests over conversations written for the engine's tests; nothing of the first game's
+   comes in (user 2026-11-21).
+   *As built:* the runtime model (`DialogueSource`/`DialogueResource`, `DialogueCastSource`/
+   `DialogueCastResource`, their factories, added as the dialogue's domain); the parser and the
+   commands' notation, the built-in statements with arguments forms in that notation, so a name
+   with spaces reads one way everywhere (an argument takes the fewest words that let the rest match;
+   a quoted name is one word); the checks; the assets, builders, importer and File > New's
+   Dialogue, Dialogue Cast and Dialogue Assets; and the cast's and the dialogue assets' pages.
+   Against the plan:
+   - The cast cooks after all: it is a `DialogueCastAsset` cooked to a `DialogueCastSource`, as every
+     reflected data asset is (a render quality level's way), not a resource with no cook.
+   - Assets are named, never by path (decision 11): the dialogue assets, a list of names and guid
+     references, hold the sounds, sequences, levels and command arguments a conversation names. A
+     dialogue file names its cast and its dialogue assets (decision 12); the settings give a new
+     file's.
+   - A conversation's level is a dialogue asset's name, and an entity it lacks is a warning, since
+     an actor spawned at play is not in the scene. `{Action}` checks against every input map in the
+     project.
+   - Not built: the "flag set that nothing reads" warning (an application's own code reads such
+     flags, so it would warn on correct projects); `list(<name>)` values (the settings hold no lists
+     yet); the portrait-per-mood warning; the cast's own checks (a duplicate id, a speaker with no
+     mood), which go with `dialogue_validate` in D6; "add every clip in a folder" on the cast page.
+   - Two editor changes it needed: a page factory can be removed, closing the pages it made
+     (`EditorContext::RemovePageFactory`), and a plugin's Editor part is offered the page services.
+     The pages are one bespoke kind (`DialogueListPage`, the items as a list beside the grid, as the
+     input map page shows its actions), not the generic page, which cannot add to a list.
+   The system is described in `Documentation/Systems/dialogue.md`.
 4. **D3 The runner and the facade**: the per-run runner, flags in the save store, resume,
    the events, `Dialogue` in both languages, `sequence` and the built-in staging. Integration
    tests in both languages.
