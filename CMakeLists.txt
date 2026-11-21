@@ -505,6 +505,7 @@ add_subdirectory(Code/Engine/Engine.Physics) # physics scene integration (compon
 add_subdirectory(Code/Engine/Engine.Terrain) # terrain scene integration (TerrainComponent)
 add_subdirectory(Code/Engine/Engine.Vegetation) # terrain vegetation: a per-layer component and the provider of per-chunk instanced sets (VegetationSubsystem)
 add_subdirectory(Code/Engine/Engine.Spline) # authorable 3D spline scene component (data-only; math in Foundation::Spline)
+add_subdirectory(Code/Engine/Engine.Sequence) # a scene's sequences as they play: the scene system, scene.sequences, the domain
 add_subdirectory(Code/Engine/Engine.Navigation) # navmesh scene integration (zone/agent components and a per-scene Detour crowd)
 add_subdirectory(Code/Engine/Engine.Audio)   # audio scene integration (components, per-scene voice group, listener sync; after Render)
 add_subdirectory(Code/Foundation/Fonts)     # font types/interfaces over Core and Image
@@ -915,6 +916,7 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Foundation/I18N.Tests                      Foundation::I18N)
     util_test_suite(Code/Foundation/Spline.Tests                    Foundation::Spline)
     util_test_suite(Code/Engine/Engine.Spline.Tests                 Engine::Spline)
+    util_test_suite(Code/Engine/Engine.Sequence.Tests               Engine::Sequence)
     util_test_suite(Code/Foundation/Scene.Tests                     Foundation::Scene)
     util_test_suite(Code/Foundation/Script.AngelScript.Tests        Foundation::Script.AngelScript)
     util_test_suite(Code/Foundation/Script.Resource.Tests           Foundation::Script.Resource)

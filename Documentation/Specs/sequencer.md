@@ -243,11 +243,19 @@ the play's handle, the sequence's guid, and the event's own name and value. A le
 compares the handle with the one `play` returned. A play a component owns posts the same events
 as entity events to its owner (`Scene::PostEntityEvent`), so that entity's behaviors hear them.
 
-| Event | When | Notice carries |
-|---|---|---|
-| `sequenceEvent` | an event key is passed | the key's name and value |
-| `sequenceHeld` | the playhead reaches a hold marker and stops | the marker's name |
-| `sequenceFinished` | the end is reached (not on `stop()`) | nothing more |
+| Entity event | On the run's bus | When | Carries |
+|---|---|---|---|
+| `sequenceEvent` | `SequenceEvent` | an event key is passed | the key's name and value |
+| `sequenceHeld` | `SequenceHeld` | the playhead reaches a hold marker and stops | the marker's name |
+| `sequenceFinished` | `SequenceFinished` | the end is reached (not on `stop()`) | nothing more |
+
+The two spellings reach the same handlers: an entity event `name` calls `on<Name>` (as
+`contactBegin` calls `onContactBegin`), and a handler `on<Name>` hears the bus event `Name`. The
+notice holds strings, so it crosses into AngelScript as a reference (`SequenceNotice@`); the handle
+is a plain value. As built (Q2): the notice is `{play: int, sequence: Guid, name, value}`, a play's
+`id()` is what `play` is compared with, `play(sequence, finish)` names the finish as text
+(`"release"`, `"hold"`, `"restore"`), and the system's update order is -100, right after the
+behaviors' -110. Destroying a play releases nothing (the scene may be going away); stopping does.
 
 A hold is how a line of dialogue waits for the player: the game's runner hears `sequenceHeld`,
 shows the line, and calls `resume()` on the handle at the press. The sequencer knows nothing of

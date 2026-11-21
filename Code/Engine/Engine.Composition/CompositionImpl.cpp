@@ -29,6 +29,7 @@ import engine.audio;
 import engine.behavior;
 import engine.net;
 import engine.spline;
+import engine.sequence;
 import engine.input;
 import engine.run;
 import engine.gui; // the engine's GUI on foundation.gui
@@ -57,7 +58,8 @@ namespace
         &engine::terrain::TerrainDomain(),       &engine::vegetation::VegetationDomain(),
         &engine::navigation::NavigationDomain(), &engine::audio::AudioDomain(),
         &engine::behavior::BehaviorDomain(),         &engine::net::NetDomain(),
-        &engine::spline::SplineDomain(),         &kPrefabsDomain,
+        &engine::spline::SplineDomain(),         &engine::sequence::SequenceDomain(),
+        &kPrefabsDomain,
         &engine::input::InputDomain(),           &engine::runtime::RunDomain(),
         &engine::gui::GuiDomain(),
     };

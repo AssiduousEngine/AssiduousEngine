@@ -41,9 +41,9 @@ namespace
 TEST_CASE("engine.composition: the one list covers every domain, and the scene facet every manager")
 {
     const engine::EngineComposition& composition = engine::FullComposition();
-    // Twelve scene domains, input and the run's facade library, and the GUI's when the GUI is built.
-    CHECK(composition.Modules().Size() == 14u + kGuiDomains);
-    CHECK(composition.Scene().ModuleCount() == 12u + kGuiDomains);
+    // Thirteen scene domains, input and the run's facade library, and the GUI's when the GUI is built.
+    CHECK(composition.Modules().Size() == 15u + kGuiDomains);
+    CHECK(composition.Scene().ModuleCount() == 13u + kGuiDomains);
     CHECK(&engine::FullSceneComposition() == &composition.Scene());
 
     scene::Scene scratch(DefaultAllocator());
@@ -93,7 +93,7 @@ TEST_CASE("engine.composition: the resource facet - every domain's resource modu
 {
     const engine::EngineComposition& composition = engine::FullComposition();
     // The nineteen resource libraries, the scene documents and the render profiles.
-    CHECK(composition.ResourceModules().Size() == 21u + kGuiResourceModules);
+    CHECK(composition.ResourceModules().Size() == 22u + kGuiResourceModules);
     for (const resource::ResourceModule* module : composition.ResourceModules())
     {
         usize same = 0;
@@ -106,7 +106,7 @@ TEST_CASE("engine.composition: the resource facet - every domain's resource modu
     // 31 = the standard headless set (22), the texture factory, the image and shader factories,
     // the two render profiles and the quality level, the vector image, the scene's prefabs and the
     // script project assembly, plus the GUI's documents and sheets when the GUI is built.
-    CHECK(composition.FactoryDescriptionCount() == 31u + kGuiFactories);
+    CHECK(composition.FactoryDescriptionCount() == 32u + kGuiFactories);
 
     engine::RegisterAllResourceTypes();
     usize described = 0;
@@ -132,7 +132,7 @@ TEST_CASE("engine.composition: a headless host creates every factory but the two
     resource::ResourceFactorySet set;
     resource::NoResourceServices none;
     composition.CreateFactories(set, DefaultAllocator(), none);
-    CHECK(set.Count() == 29u + kGuiFactories);
+    CHECK(set.Count() == 30u + kGuiFactories);
     REQUIRE(set.Skipped().Size() == 2u);
     bool wantsDevice = false;
     bool wantsShaders = false;
@@ -162,7 +162,7 @@ TEST_CASE("engine.composition: a headless host creates every factory but the two
         });
     // Idempotent: a second headless pass adds nothing.
     composition.CreateFactories(set, DefaultAllocator(), none);
-    CHECK(set.Count() == 29u + kGuiFactories);
+    CHECK(set.Count() == 30u + kGuiFactories);
 }
 
 TEST_CASE("engine.composition: RegisterAllScriptFacades installs exactly the domain facades, "

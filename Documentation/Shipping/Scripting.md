@@ -152,6 +152,34 @@ A prefab is still the way to make something with many parts at once (`scene.pref
 - `setClip(entity, clip, blendSeconds)` swaps an animator's clip easing from the pose shown now into
   the new clip, instead of the snap of `setClip(entity, clip)`.
 
+## Sequences: cutscenes on a timeline
+
+A sequence asset is a timeline that drives several entities at once: tracks of keys on any
+reflected property or the transform, events, and markers, some of which hold the playhead. It names
+its cast ("Mentor", "Actor"), and whoever plays it fills each name with an entity. `scene.sequences`
+plays them:
+
+- `scene.sequences.play(sequence)` starts the sequence asset `sequence` (its id) and returns a
+  `SequencePlay`, already at time 0. `play(sequence, finish)` ends it as `"release"` (the default:
+  what it moved stays where it is), `"hold"` (everything stays as its last frame left it until
+  `stop()`) or `"restore"` (every value it changed goes back).
+- On the play: `bind(name, entity)` fills a name, during the play too (an actor spawned for the
+  scene); `pause()`, `resume()` (also what lets a hold go), `seek(time)`, `setSpeed(speed)`,
+  `stop()`, `time()`, `duration()`, `isPlaying()`, `isHeld()`, and `id()`. A play that has ended is
+  harmless: its calls do nothing and `isPlaying()` is false.
+- `scene.sequences.stopAll()` ends every play in the scene (a skip).
+- What a play reports reaches behaviours at the next scene tick as `onSequenceEvent(notice)` (an
+  event key passed: its `name` and `value`), `onSequenceHeld(notice)` (the playhead stopped at the
+  hold marker `name`; call `resume()` when the game is ready, the way a line of dialogue waits for a
+  press) and `onSequenceFinished(notice)`. Every scene in the run hears these, so `notice.play` says
+  which play it is: compare it with your play's `id()`. In AngelScript the handler takes a
+  `SequenceNotice@`.
+- An event track bound to an actor posts to that actor instead, as an entity event:
+  `onSequenceEvent(string name, string value)`.
+
+The sequence advances right after the behaviours each frame, on the scene's clock, so a play started
+or resumed in `onUpdate` moves in the same frame.
+
 ## Naming a control
 
 Text that tells the player what to press names the control, never the action: an action's name

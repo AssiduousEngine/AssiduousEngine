@@ -1,11 +1,13 @@
 # Integration.ScriptScene - script behaviours on a real scene through the script subsystem: entity
-# events reaching them in every language, and the script speed work's scene measures against the
-# same work done by native components. The measures are skipped in a normal run; run them with
+# events reaching them in every language, a sequence played from script and its notices, and the
+# script speed work's scene measures against the same work done by native components. The measures are skipped in a normal run; run them with
 # --no-skip from an optimised build.
 
-add_executable(Integration.ScriptScene TestsMain.cpp ScriptSceneBenchmarkTests.cpp EntityEventTests.cpp)
+add_executable(Integration.ScriptScene TestsMain.cpp ScriptSceneBenchmarkTests.cpp EntityEventTests.cpp SequenceScriptTests.cpp)
 target_link_libraries(Integration.ScriptScene PRIVATE
-    Engine::Behavior Engine::Spline Engine::Physics Engine::Animation Foundation::Script.Resource Foundation::Script.Facades Foundation::Scene Foundation::Script
+    Engine::Behavior Engine::Spline Engine::Physics Engine::Animation Engine::Sequence Foundation::Sequence Foundation::Sequence.Resource
+    Foundation::PropertyAnimation Foundation::Content Foundation::VFS Foundation::Resource Foundation::Run
+    Foundation::Script.Resource Foundation::Script.Facades Foundation::Scene Foundation::Script
     doctest::doctest)
 
 # Each backend is independently switchable; include its leg only when the backend is built.
