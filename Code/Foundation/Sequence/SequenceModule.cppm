@@ -201,7 +201,8 @@ export namespace foundation::sequence
         Restore, // put every value back as it was before the play, and let go
     };
 
-    /// One running instance of a sequence on a scene. The sequence must outlive the play.
+    /// One running instance of a sequence on a scene. The sequence must outlive the play. Stop a
+    /// play to release what it changed; destroying one releases nothing (as Abandon).
     class SequencePlay
     {
     public:
@@ -223,6 +224,9 @@ export namespace foundation::sequence
         void Play();
         /// Ends the play: every runner lets go, and puts values back when the finish is Restore.
         void Stop();
+        /// Ends the play without letting the runners touch the scene: for a scene being torn down,
+        /// whose other systems may already be gone.
+        void Abandon() noexcept;
         void Pause() noexcept { m_paused = true; }
         /// Continues after a pause, or from a hold.
         void Resume() noexcept;

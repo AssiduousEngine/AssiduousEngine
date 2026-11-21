@@ -311,13 +311,9 @@ namespace foundation::sequence
         m_warned.Resize(sequence.tracks.Size());
     }
 
-    SequencePlay::~SequencePlay()
-    {
-        if (m_begun)
-        {
-            Release(finish == SequenceFinish::Restore);
-        }
-    }
+    // Destroying a play lets go of nothing in the scene (it may be the scene going away): whoever
+    // owns a play stops it first when what it changed should be released.
+    SequencePlay::~SequencePlay() = default;
 
     bool SequencePlay::Bind(StringView name, scene::EntityHandle entity)
     {
@@ -461,6 +457,16 @@ namespace foundation::sequence
         {
             Release(finish == SequenceFinish::Restore);
         }
+        m_running = false;
+        m_paused = false;
+        m_held = false;
+        m_finished = false;
+    }
+
+    void SequencePlay::Abandon() noexcept
+    {
+        m_runners.Clear();
+        m_begun = false;
         m_running = false;
         m_paused = false;
         m_held = false;
