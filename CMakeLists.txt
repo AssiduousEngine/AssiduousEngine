@@ -481,6 +481,7 @@ add_subdirectory(Code/Foundation/Animation) # skeletal-animation foundation (Cor
 add_subdirectory(Code/Foundation/PropertyAnimation) # reflected property-curve animation and its scene targets (not skeletal)
 add_subdirectory(Code/Foundation/PropertyAnimation.Resource) # cooked property-clip resource and its loader
 add_subdirectory(Code/Foundation/Sequence) # cutscene timelines: tracks bound by name, holds, the play that runs them
+add_subdirectory(Code/Foundation/Sequence.Resource) # cooked sequence resource, its loader and the nested sequence track
 add_subdirectory(Code/Foundation/Animation.Resource)
 add_subdirectory(Code/Foundation/Particles) # CPU particle runtime (Core only)
 add_subdirectory(Code/Foundation/Particles.Resource)
@@ -838,6 +839,7 @@ if(OPTION_BUILD_TESTS)
     util_test_suite(Code/Foundation/PropertyAnimation.Tests         Foundation::PropertyAnimation)
     util_test_suite(Code/Foundation/PropertyAnimation.Resource.Tests Foundation::PropertyAnimation.Resource)
     util_test_suite(Code/Foundation/Sequence.Tests                  Foundation::Sequence)
+    util_test_suite(Code/Foundation/Sequence.Resource.Tests         Foundation::Sequence.Resource)
     util_test_suite(Code/Foundation/Audio.Tests                     Foundation::Audio)
     util_test_suite(Code/Foundation/Content.Tests                   Foundation::Content)
     util_test_suite(Code/Foundation/Core.Tests                      Foundation::Core)

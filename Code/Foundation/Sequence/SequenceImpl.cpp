@@ -12,6 +12,7 @@ module;
 module foundation.sequence;
 
 import foundation.core;
+import foundation.resource;
 import foundation.scene;
 import foundation.propertyanimation;
 
@@ -396,6 +397,7 @@ namespace foundation::sequence
         context.entity = entity;
         context.listener = m_listener;
         context.allocator = m_allocator;
+        context.play = this;
         UniquePtr<SequenceTrackRunner> runner = track->Begin(context);
         if (!runner)
         {
@@ -579,6 +581,35 @@ namespace foundation::sequence
             m_time = 0.0f;
             m_fromStart = true;
         }
+    }
+
+    void SequencePlay::EvaluateStep(const SequenceStep& step)
+    {
+        if (!m_begun)
+        {
+            Begin();
+        }
+        m_running = true;
+        m_time = step.time;
+        Evaluate(step);
+    }
+
+    bool SequencePlay::Plays(const Sequence& sequence) const noexcept
+    {
+        for (const SequencePlay* play = this; play != nullptr; play = play->m_parent)
+        {
+            if (play->m_sequence == &sequence)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    scene::EntityHandle SequencePlay::BoundEntity(StringView name) const noexcept
+    {
+        const i32 index = m_sequence->FindBinding(name);
+        return index >= 0 ? m_bound[static_cast<usize>(index)] : scene::EntityHandle{};
     }
 
     void SequencePlay::Finish()

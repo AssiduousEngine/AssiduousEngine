@@ -4,7 +4,7 @@
 # audio or skeletal animation.
 util_add_engine_library(Sequence ALIAS Foundation::Sequence)
 target_link_libraries(Sequence
-    PUBLIC Foundation::Core Foundation::Scene Foundation::PropertyAnimation
+    PUBLIC Foundation::Core Foundation::Resource Foundation::Scene Foundation::PropertyAnimation
     PRIVATE Foundation::Policy)
 
 target_sources(Sequence

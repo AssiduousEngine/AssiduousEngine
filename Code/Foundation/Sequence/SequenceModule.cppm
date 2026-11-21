@@ -23,6 +23,7 @@ module;
 export module foundation.sequence;
 
 import foundation.core;
+import foundation.resource;
 import foundation.scene;
 import foundation.propertyanimation;
 
@@ -90,6 +91,8 @@ export namespace foundation::sequence
         virtual void Release(bool restore) = 0;
     };
 
+    class SequencePlay;
+
     /// What a track is given to begin in a play.
     struct SequenceTrackContext
     {
@@ -97,6 +100,7 @@ export namespace foundation::sequence
         scene::EntityHandle entity; // the track's bound entity; unassigned when it is bound to no one
         ISequenceListener* listener = nullptr; // may be null: nothing is reported
         IAllocator* allocator = nullptr;
+        const SequencePlay* play = nullptr; // the play the track runs in (its cast, its parents)
     };
 
     /// The base of every track kind. A kind adds its keys or sections, serializes them after the
@@ -120,6 +124,9 @@ export namespace foundation::sequence
         /// The track's runner for one play; null when it has nothing to do there (a warning says
         /// why when that is a fault).
         [[nodiscard]] virtual UniquePtr<SequenceTrackRunner> Begin(const SequenceTrackContext& context) const = 0;
+        /// Binds the assets the track refers to (a clip, a sound, a nested sequence), after a
+        /// sequence is loaded.
+        virtual void ResolveResources(foundation::resource::ResourceManager& manager) { (void)manager; }
 
         void Serialize(ISerializer& ar) override;
     };
@@ -226,6 +233,17 @@ export namespace foundation::sequence
         void Pose(f32 time);
         /// Advances by `deltaTime` seconds (times speed): stops at a hold, wraps or ends at the end.
         void Advance(f32 deltaTime);
+        /// Applies `step` as given, holds and the end left to whoever steps it: a nested sequence
+        /// follows its parent's playhead this way. Begins the runners first when needed.
+        void EvaluateStep(const SequenceStep& step);
+
+        /// The play this one is nested in, or null.
+        [[nodiscard]] const SequencePlay* Parent() const noexcept { return m_parent; }
+        void SetParent(const SequencePlay* parent) noexcept { m_parent = parent; }
+        /// Whether this play, or one it is nested in, plays `sequence`.
+        [[nodiscard]] bool Plays(const Sequence& sequence) const noexcept;
+        /// The entity that fills the binding `name`; unassigned when there is none.
+        [[nodiscard]] scene::EntityHandle BoundEntity(StringView name) const noexcept;
 
         [[nodiscard]] bool IsPlaying() const noexcept { return m_running && !m_finished; }
         [[nodiscard]] bool IsPaused() const noexcept { return m_paused; }
@@ -255,6 +273,7 @@ export namespace foundation::sequence
         scene::Scene* m_scene;
         const Sequence* m_sequence;
         ISequenceListener* m_listener = nullptr;
+        const SequencePlay* m_parent = nullptr;
         Array<scene::EntityHandle> m_bound; // per binding
         Array<Running> m_runners;           // in evaluation order
         Array<u8> m_warned;                 // per track: its missing binding was told this play
