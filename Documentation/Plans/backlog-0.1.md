@@ -223,7 +223,8 @@
 
 ## Engine
 
-- **A sequencer for cutscenes** (user 2026-11-08, from the flagship's act 1): timelines that drive
+- **A sequencer for cutscenes** (user 2026-11-08, from the flagship's act 1; spec PROPOSED
+  2026-11-20 in `../Specs/sequencer.md`, which supersedes this draft): timelines that drive
   several entities at once (transforms and any reflected property, skeletal clips, camera cuts,
   sounds, events, fades, nested sequences), authored on a timeline page and played from script. The
   flagship's cutscenes run as script for now (its dialogue runner's steps: camera, fades, shakes,
