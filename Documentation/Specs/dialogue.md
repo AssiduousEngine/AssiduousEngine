@@ -1,6 +1,6 @@
 # Dialogue as an official plugin
 
-> APPROVED 2026-11-21. D0 2026-11-21. Read on master at `5970a238a`; line numbers will drift. Revisits the
+> APPROVED 2026-11-21. D0 2026-11-21. Read on master at `247608c79`; line numbers will drift. Revisits the
 > choice, made on 2026-11-06 for the first game built on the engine, to keep its dialogue in its
 > own script ("A now, with plans to move to C"), now that the sequencer exists, and makes dialogue
 > an official engine plugin (that note's option B).

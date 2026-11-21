@@ -1,6 +1,6 @@
 # A sequencer for cutscenes
 
-> APPROVED 2026-11-20. Q0 to Q2 built 2026-11-20 (to `eb055461b`), Q3 2026-11-21 (to `979db9953`), Q4 2026-11-21 (to `450e5fd02`); Q5 next. Read on master at `595794aee`; line numbers will drift. Replaces the draft
+> APPROVED 2026-11-20. Q0 to Q2 built 2026-11-20 (to `18d154549`), Q3 2026-11-21 (to `3f78d54e2`), Q4 2026-11-21 (to `74f0019f6`); Q5 next. Read on master at `595794aee`; line numbers will drift. Replaces the draft
 > in `../Plans/backlog-0.1.md` ("A sequencer for cutscenes", 2026-11-08), which this answers.
 
 ## Goal
