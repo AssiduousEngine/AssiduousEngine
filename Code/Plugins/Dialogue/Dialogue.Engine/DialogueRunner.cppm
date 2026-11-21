@@ -116,8 +116,14 @@ export namespace dialogue
         [[nodiscard]] virtual u32 Stage(const DialogueStep& step, const DialogueCastResource* cast) = 0;
         /// Whether the staging `token` is still going.
         [[nodiscard]] virtual bool IsStaging(u32 token) = 0;
+        /// The runner's clock, every frame whether or not a conversation plays (a fade goes on
+        /// after the conversation that began it).
+        virtual void Update(f32 deltaTime) { (void)deltaTime; }
 
-        virtual void OnLine(const DialogueLineNotice& notice) = 0;
+        /// `speaker` is the line's speaker's entry in the cast; null when the cast has none.
+        virtual void OnLine(const DialogueLineNotice& notice, const DialogueSpeaker* speaker) = 0;
+        /// The line shown has been advanced past, or the conversation ended on it.
+        virtual void OnLineEnded() {}
         virtual void OnChoice(const DialogueChoiceNotice& notice) = 0;
         virtual void OnCommand(const DialogueCommandNotice& notice) = 0;
         virtual void OnEnded(const DialogueEndedNotice& notice) = 0;
@@ -162,7 +168,7 @@ export namespace dialogue
         [[nodiscard]] bool Flag(StringView name);
         void SetFlag(StringView name, bool on);
 
-        /// Steps the clock: a `wait` counts down, staging is asked after.
+        /// Steps the clock: the host's, then a `wait` counts down and staging is asked after.
         void Update(f32 deltaTime);
 
         // IRunService

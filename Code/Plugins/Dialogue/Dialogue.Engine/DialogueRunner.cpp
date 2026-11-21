@@ -106,6 +106,7 @@ namespace dialogue
         }
         m_wait = DialogueWait::Nothing;
         ++m_step;
+        m_host->OnLineEnded();
         Pump();
         return true;
     }
@@ -214,6 +215,7 @@ namespace dialogue
 
     void DialogueRunner::Update(f32 deltaTime)
     {
+        m_host->Update(deltaTime);
         if (!m_playing)
         {
             return;
@@ -319,7 +321,8 @@ namespace dialogue
                 notice.mood = step.mood;
                 notice.lineId = step.lineId;
                 notice.text = Fill(Text(step.lineId.AsView()).AsView());
-                if (const DialogueSpeaker* speaker = m_cast ? m_cast->Find(step.speaker.AsView()) : nullptr)
+                const DialogueSpeaker* speaker = m_cast ? m_cast->Find(step.speaker.AsView()) : nullptr;
+                if (speaker != nullptr)
                 {
                     notice.shownName = speaker->shownName;
                     if (notice.mood.IsEmpty() && !speaker->moods.IsEmpty())
@@ -332,7 +335,7 @@ namespace dialogue
                 m_lastLine = step.lineId;
                 WriteResume(m_step);
                 m_wait = DialogueWait::Line;
-                m_host->OnLine(notice);
+                m_host->OnLine(notice, speaker);
                 break;
             }
             case DialogueStepKind::Choice:
@@ -452,6 +455,10 @@ namespace dialogue
         notice.conversation = m_conversation != nullptr ? m_conversation->id : String();
         notice.stopped = stopped;
         notice.left = left;
+        if (m_wait == DialogueWait::Line)
+        {
+            m_host->OnLineEnded();
+        }
         // Cleared before the game hears it, so it may play another from its handler.
         m_playing = false;
         m_wait = DialogueWait::Nothing;

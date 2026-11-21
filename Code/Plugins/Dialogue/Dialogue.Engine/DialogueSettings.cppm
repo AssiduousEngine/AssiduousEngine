@@ -35,6 +35,10 @@ export namespace dialogue
         Array<String> providedFlags;
         /// Where flags live in the run's save store: `<prefix><flag>`.
         String flagPrefix = String(u8"flag.");
+        /// A `fade` that names no length takes this many seconds.
+        f32 fadeSeconds = 0.5f;
+        /// A `fade` that names no colour fades to this one.
+        Float4 fadeColor{0.0f, 0.0f, 0.0f, 1.0f};
         /// The plugin's own dialogue box shows lines and choices.
         bool stockBox = false;
         /// The stock box types a line out at this many characters a second; 0 shows it whole.

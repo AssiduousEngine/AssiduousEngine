@@ -6,10 +6,12 @@
 # suite stays out of it.
 util_add_plugin(${CMAKE_SOURCE_DIR}/Data/SampleProjects/NativeSample/Plugins/NativeSample)
 
-add_executable(Integration.Plugins TestsMain.cpp NativeSampleTests.cpp DialoguePluginTests.cpp DialogueCookTests.cpp DialogueEditorTests.cpp)
+add_executable(Integration.Plugins TestsMain.cpp NativeSampleTests.cpp DialoguePluginTests.cpp DialogueCookTests.cpp DialogueEditorTests.cpp
+    DialogueRunTests.cpp)
 util_link_plugins(Integration.Plugins ROLE editor PLUGINS nativesample dialogue) # every part an editor loads
 target_link_libraries(Integration.Plugins PRIVATE
-    Editor::App Editor::Mcp Editor::Project Editor::Core Engine::DefaultApp Engine::Composition Engine::Project
+    Editor::App Editor::Mcp Editor::Project Editor::Core Engine::DefaultApp Engine::Composition Engine::Project Engine::Run Engine::Behavior Engine::Render Engine::Sequence
+    Foundation::Sequence Foundation::Sequence.Resource Foundation::PropertyAnimation Foundation::Run
     Pipeline::Core Pipeline::Importer Pipeline::Registration Foundation::Mcp Foundation::Json Foundation::Content
     Foundation::Scene Foundation::Scene.Resource Foundation::VFS Foundation::Runtime Foundation::Runtime.Client
     Foundation::Core doctest::doctest)

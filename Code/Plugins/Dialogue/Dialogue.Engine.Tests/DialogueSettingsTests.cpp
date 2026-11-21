@@ -25,6 +25,8 @@ TEST_CASE("dialogue settings: an entry with none gives the defaults")
     CHECK(settings.commands.IsEmpty());
     CHECK(settings.providedFlags.IsEmpty());
     CHECK(settings.flagPrefix == StringView(u8"flag."));
+    CHECK(settings.fadeSeconds == doctest::Approx(0.5f));
+    CHECK(settings.fadeColor.w == doctest::Approx(1.0f));
     CHECK_FALSE(settings.stockBox);
     CHECK(settings.typingSpeed == doctest::Approx(40.0f));
     CHECK(settings.advanceAction == StringView(u8"Interact"));
@@ -38,6 +40,8 @@ TEST_CASE("dialogue settings: they read back from the entry as they were written
     written.commands.PushBack(String(u8"fight <foe:list(foes)> leaves"));
     written.providedFlags.PushBack(String(u8"seen_*"));
     written.flagPrefix = String(u8"story.");
+    written.fadeSeconds = 1.25f;
+    written.fadeColor = Float4{1.0f, 1.0f, 1.0f, 1.0f};
     written.stockBox = true;
     written.typingSpeed = 60.0f;
     written.advanceAction = String(u8"Confirm");
@@ -53,6 +57,8 @@ TEST_CASE("dialogue settings: they read back from the entry as they were written
     REQUIRE(read.providedFlags.Size() == 1u);
     CHECK(read.providedFlags[0] == StringView(u8"seen_*"));
     CHECK(read.flagPrefix == StringView(u8"story."));
+    CHECK(read.fadeSeconds == doctest::Approx(1.25f));
+    CHECK(read.fadeColor.x == doctest::Approx(1.0f));
     CHECK(read.stockBox);
     CHECK(read.typingSpeed == doctest::Approx(60.0f));
     CHECK(read.advanceAction == StringView(u8"Confirm"));
@@ -69,5 +75,5 @@ TEST_CASE("dialogue settings: every setting has a label for Project Settings")
         const String* label = engine::project::SettingAttribute(property, engine::project::kSettingLabelAttribute);
         CHECK_MESSAGE(label != nullptr, property.name);
     }
-    CHECK(count == 9u);
+    CHECK(count == 11u);
 }

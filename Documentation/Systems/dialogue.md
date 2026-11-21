@@ -34,6 +34,8 @@ Settings edits it.
 | `commands` | none | the commands the game declares, each a form (`move <who:entity> to <target:entity> [and wait]`) |
 | `providedFlags` | none | flags provided from outside the conversations, by the application's own code, which a conversation may read with no `set`: a name, or a prefix ending in `*` (`seen_*`) |
 | `flagPrefix` | `flag.` | where flags live in the run's save store |
+| `fadeSeconds` | 0.5 | how long a `fade` that names no length takes |
+| `fadeColor` | black | what a `fade` that names no colour fades to |
 | `stockBox` | off | the plugin's own dialogue box shows lines and choices |
 | `typingSpeed` | 40 | characters a second the stock box types at; 0 shows a line whole |
 | `advanceAction` | `Interact` | the input map action that advances a line in the stock box |
@@ -222,6 +224,20 @@ contribution): a `DialogueRunService`, `run.Get<DialogueRunService>()`, stepped 
 resources, keeps flags and the record in the run's save (`RunSave`), reads an action's binding from
 the run's input on the device in hand, and publishes the notices on the run's bus.
 
+**Staging** is in the run's current scene (`RunBinding::currentScene`). A speaker plays as an
+entity: the one the game bound (`DialogueRunService::Bind`, the facade's `bind`), else the level
+entity the cast names, else none (logged once a speaker).
+
+| Step | What the run does | Waits |
+|---|---|---|
+| `play` | the clip once over what the entity animates, the animation's one-shot | with `and wait`, until it blends out |
+| `sound` | the clip or cue through the run's audio, at the speaker's entity when named | never |
+| `fade` | a claim on the scene's fade (`PostProcessSystem::FadeClaims`), over the sequences' fades; a fade out holds at full until a fade in lets it go; the length and colour default to the settings' | always, for its length |
+| `sequence` | a play in the scene's `SequenceSystem`, each binding named for a speaker filled with that speaker's entity | with `and wait`, until it ends |
+
+While a line shows, its speaker plays the cast's `talk` clip, looping, until the line is advanced
+or the conversation ends there (`IDialogueHost::OnLineEnded`).
+
 ## Loading
 
 The Engine part's load registers the settings type and the plugin's types
@@ -239,7 +255,8 @@ checks over a table of a project's assets; the runner playing parsed conversatio
 stand-in host: lines, choices, branches, flags, waits, staging, commands that wait or leave, jumps,
 resume after a load and after a patch, a second play refused, a host that answers at once) and `Integration.Plugins` (the package linked with its
 four parts, its manifest, a project that enables it loading it with its settings, its domain and a
-runner in every run, its flags in the run's save,
+runner in every run, its flags in the run's save; a run's runner fading the scene, playing a
+sequence bound to the cast's entity or to one the game bound, and showing a line on the run's bus;
 and, through the MCP host, a dialogue file cooking to its conversations, one with an error failing
 the cook, and File > New's three creators; and, in an editor session, the cast and the dialogue
 assets opening in their pages, a speaker added, undone, found and removed, and the pages leaving

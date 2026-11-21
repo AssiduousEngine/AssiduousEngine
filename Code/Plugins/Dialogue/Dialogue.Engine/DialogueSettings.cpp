@@ -37,6 +37,12 @@ namespace dialogue
             .PropAttribute(kSettingLabelAttribute, String(u8"Provided flags"));
         builder.Property<&DialogueSettings::flagPrefix>("flagPrefix").PropAttribute(kSettingLabelAttribute,
                                                                                    String(u8"Flag prefix"));
+        builder.Property<&DialogueSettings::fadeSeconds>("fadeSeconds")
+            .PropAttribute(kSettingLabelAttribute, String(u8"Fade length"))
+            .PropAttribute("range", Float4{0.0f, 10.0f, 0.1f, 0.0f});
+        builder.Property<&DialogueSettings::fadeColor>("fadeColor")
+            .PropAttribute(kSettingLabelAttribute, String(u8"Fade colour"))
+            .PropAttribute("color", true);
         builder.Property<&DialogueSettings::stockBox>("stockBox").PropAttribute(kSettingLabelAttribute,
                                                                                String(u8"Stock box"));
         builder.Property<&DialogueSettings::typingSpeed>("typingSpeed")
@@ -55,6 +61,8 @@ namespace dialogue
         foundation::core::Serialize(ar, "commands", commands);
         foundation::core::Serialize(ar, "providedFlags", providedFlags);
         foundation::core::Serialize(ar, "flagPrefix", flagPrefix);
+        foundation::core::Serialize(ar, "fadeSeconds", fadeSeconds);
+        foundation::core::Serialize(ar, "fadeColor", fadeColor);
         foundation::core::Serialize(ar, "stockBox", stockBox);
         foundation::core::Serialize(ar, "typingSpeed", typingSpeed);
         foundation::core::Serialize(ar, "advanceAction", advanceAction);

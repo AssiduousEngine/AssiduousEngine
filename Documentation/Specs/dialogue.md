@@ -249,7 +249,7 @@ It holds a list of `DialogueSpeaker` values:
 | `clips` | list of animation clips | what `play <speaker> <clip>` may name, by the clip asset's name |
 | `talk` | animation clip, optional | played while the speaker's line shows |
 | `voice` | sound, optional | played as the text types |
-| `entity` | string | the level entity that plays the speaker, by name; else the game's `onDialogueResolve` |
+| `entity` | string | the level entity that plays the speaker, by name, unless the game binds one (`Dialogue.bind`) |
 
 - **Clips are references, not a group path.** The first game's cast names an asset group
   and `play` looks a clip up in it by name at import. A list of clip references is checked by the
@@ -334,9 +334,11 @@ game's do.
   hash of the conversation's steps; on a match it resumes at the step, on a mismatch at that line if
   the conversation still has it, else at the conversation's start (logged). It saves when a `leaves`
   command runs and whenever the game saves mid-conversation.
-- **Speakers to entities**: the cast's `entity`, else the game's `onDialogueResolve` handler,
-  else none (logged once). The speaker of a line plays its talk clip while the line shows , when the
-  cast names one.
+- **Speakers to entities**: the entity the game bound to the speaker (`Dialogue.bind(speaker,
+  entity)`, as a sequence play binds its parts), else the cast's `entity` by name, else none (logged
+  once). A handler cannot answer (the run's bus delivers later), so the game binds ahead instead
+  (user 2026-11-21). The speaker of a line plays its talk clip while the line shows, when the cast
+  names one.
 - **What it tells the game**, on the run's event bus as the sequencer's notices are (a behavior's
   `on<Name>` hears them): `DialogueLine` (speaker id, shown name, mood, portrait, text with
   `{Action}` filled, line id), `DialogueChoice` (the answers' texts), `DialogueCommand` (name and
@@ -383,8 +385,8 @@ side are settings.
 `Dialogue` (a facade, as `Audio` is): `play(dialogue, conversationId)` (a dialogue file's guid, as
 `scene.sequences.play(sequence)` takes a sequence's), `isPlaying()`, `advance()`,
 `choose(index)`, `done()` (a waiting command finished), `stop()`, `flag(name)`,
-`setFlag(name, on)`, `resume()` (after a load). Handlers on the run's bus: `onDialogueLine`,
-`onDialogueChoice`, `onDialogueCommand`, `onDialogueEnded`, `onDialogueResolve`. Both languages,
+`setFlag(name, on)`, `resume()` (after a load), `bind(speaker, entity)`. Handlers on the run's bus:
+`onDialogueLine`, `onDialogueChoice`, `onDialogueCommand`, `onDialogueEnded`. Both languages,
 tested in `Code/Integration` as the sequencer's script surface is.
 
 ## Decided by this spec (for review)

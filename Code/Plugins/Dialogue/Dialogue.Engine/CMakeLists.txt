@@ -11,7 +11,9 @@ target_link_libraries(${PLUGIN_PART}
             Engine::Domain      # the dialogue's domain
             Engine::Composition # EnginePluginServices, which takes it
             Engine::Behavior    # the services the run's scripts find (its resources, its input)
-            Foundation::Input Foundation::Script.Facades
+            Foundation::Input Foundation::Script Foundation::Script.Facades Foundation::Scene
+            Foundation::Sequence Foundation::Sequence.Resource
+            Engine::Animation Engine::Audio Engine::Render Engine::Sequence # the staging
 )
 target_sources(${PLUGIN_PART}
     PRIVATE

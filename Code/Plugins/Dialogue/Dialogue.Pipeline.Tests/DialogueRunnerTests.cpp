@@ -70,6 +70,8 @@ namespace
         Array<u32> staging; // the tokens still going
         u32 nextToken = 1;
         bool advanceAtOnce = false;
+        u32 linesEnded = 0;
+        f32 clock = 0.0f;
         DialogueRunner* runner = nullptr;
         DialogueChoiceNotice lastChoice;
         DialogueCommandNotice lastCommand;
@@ -117,7 +119,7 @@ namespace
             return false;
         }
 
-        void OnLine(const DialogueLineNotice& notice) override
+        void OnLine(const DialogueLineNotice& notice, const DialogueSpeaker*) override
         {
             lastLine = notice;
             told.PushBack(Format(u8"{}: {}", notice.speaker, notice.text));
@@ -126,6 +128,8 @@ namespace
                 (void)runner->Advance();
             }
         }
+        void OnLineEnded() override { ++linesEnded; }
+        void Update(f32 deltaTime) override { clock += deltaTime; }
         void OnChoice(const DialogueChoiceNotice& notice) override
         {
             lastChoice = notice;
@@ -248,6 +252,7 @@ TEST_CASE("dialogue runner: lines wait for advance, a choice for an answer, and 
     CHECK_FALSE(f.runner.Choose(0)); // no choice offered yet
 
     REQUIRE(f.runner.Advance());
+    CHECK(f.host.linesEnded == 1u);
     CHECK(f.runner.Waiting() == DialogueWait::Choice);
     CHECK(f.host.Told() == StringView(u8"choice A friend. | Nobody.\n"));
     CHECK(f.host.lastChoice.lineIds.Size() == 2u);
@@ -291,7 +296,9 @@ TEST_CASE("dialogue runner: a branch reads a flag, set by script or by a convers
 
     REQUIRE(f.runner.Play(f.gate, u8"gate"));
     CHECK(f.host.Told() == StringView(u8"keeper: Back again.\n"));
+    const u32 ended = f.host.linesEnded;
     f.runner.Stop();
+    CHECK(f.host.linesEnded == ended + 1u); // stopped on a line: it ends too
     CHECK(f.host.Told() == StringView(u8"ended gate\n"));
     CHECK(f.host.lastEnded.stopped);
 
@@ -314,6 +321,7 @@ TEST_CASE("dialogue runner: a wait counts down, staging waits when told to, and 
     REQUIRE(f.runner.Play(f.gate, u8"gate"));
     CHECK(f.runner.Waiting() == DialogueWait::Time);
     f.runner.Update(0.6f);
+    CHECK(f.host.clock == doctest::Approx(0.6f));
     CHECK(f.host.Told().IsEmpty());
     f.runner.Update(0.6f);
     CHECK(f.host.Told() == StringView(u8"stage creak\nstage opening\n")); // the sound does not wait
