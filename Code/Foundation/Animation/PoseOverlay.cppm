@@ -61,7 +61,25 @@ export namespace foundation::animation
             m_settings.speed = settings.speed > 0.0f ? settings.speed : 1.0f;
             m_time = 0.0f;
             m_stopping = false;
+            m_driven = false;
         }
+
+        /// Shows `clip` at `clipTime` by `weight` (0 to 1), driven from outside: a sequence's clip
+        /// section sets both every step, so a seek or a scrub lands exactly, and Update does not
+        /// move it. `clipTime` is within the clip (the driver wraps a loop). It takes over from a
+        /// one-shot at once (the driver blends by its weight), and ends with StopOneShot, which
+        /// plays on from where it was while it blends out.
+        void DriveOneShot(const AnimationClip& clip, f32 clipTime, f32 weight)
+        {
+            m_clip = &clip;
+            m_settings = OneShotSettings{};
+            m_time = Max(0.0f, clipTime);
+            m_weight = Clamp(weight, 0.0f, 1.0f);
+            m_stopping = false;
+            m_driven = true;
+        }
+        /// Whether the one-shot showing is driven from outside (DriveOneShot).
+        [[nodiscard]] bool IsDriven() const noexcept { return m_clip != nullptr && m_driven; }
 
         /// Blends the one-shot out over `blendOut` seconds from where it is now (0: at once). It
         /// ends, and Update says so, once it is out.
@@ -78,6 +96,7 @@ export namespace foundation::animation
                 m_clip = nullptr;
                 return;
             }
+            m_driven = false; // blends out on its own
             m_stopping = true;
             m_stopFrom = m_weight;
             m_stopLeft = blendOut;
@@ -120,9 +139,9 @@ export namespace foundation::animation
             {
                 m_holdLeft = Max(0.0f, m_holdLeft - deltaTime);
             }
-            if (m_clip == nullptr)
+            if (m_clip == nullptr || m_driven)
             {
-                return ended;
+                return ended; // a driven one-shot moves only when its driver says
             }
             m_time += deltaTime * m_settings.speed;
             if (m_stopping)
@@ -236,6 +255,7 @@ export namespace foundation::animation
         f32 m_stopLeft = 0.0f;
         f32 m_stopSeconds = 0.0f;
         bool m_endedNow = false; // stopped at once: Update reports it
+        bool m_driven = false;   // DriveOneShot's: its time and weight are set from outside
         Array<BoneTransform> m_held; // the pose a fade starts from
         f32 m_holdLeft = 0.0f;
         f32 m_holdSeconds = 0.0f;

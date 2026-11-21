@@ -1124,15 +1124,7 @@ export namespace engine::animation
             SkeletalAnimationComponent* c = Skeletal(entity);
             return c != nullptr ? &c->oneShot : nullptr;
         }
-        [[nodiscard]] animation::PoseOverlay* OverlayOf(foundation::script::Entity entity) const
-        {
-            if (animation::AnimationGraphPlayer* g = GraphPlayer(entity))
-            {
-                return &g->Overlay();
-            }
-            animation::AnimationPlayer* p = SkeletalPlayer(entity);
-            return p != nullptr ? &p->Overlay() : nullptr;
-        }
+        [[nodiscard]] animation::PoseOverlay* OverlayOf(foundation::script::Entity entity) const;
         [[nodiscard]] animation::AnimationGraphPlayer* GraphPlayer(foundation::script::Entity e) const
         {
             if (scene == nullptr)
@@ -1153,6 +1145,12 @@ export namespace engine::animation
 export namespace engine::animation
 {
     void RegisterAnimationComponentReflection();
+
+    // The overlay over the entity's pose: its animation graph's, else its skeletal animation's;
+    // null when it has neither (or its player is not built yet). Ask again rather than keep it: a
+    // player is rebuilt when its skeleton changes.
+    [[nodiscard]] foundation::animation::PoseOverlay* EntityOverlay(foundation::scene::Scene& scene,
+                                                                    foundation::scene::EntityHandle entity);
 
     // Surfaces the animation components to scripts: SkeletalAnimationComponent.of(entity) and
     // AnimationGraphComponent.of(entity) for the data (speed, autoPlay, active), plus

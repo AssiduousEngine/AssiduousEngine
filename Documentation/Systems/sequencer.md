@@ -12,6 +12,7 @@ design and what is still to come are in [Specs/sequencer.md](../Specs/sequencer.
 | `Code/Pipeline/Sequence.Pipeline` | `sequence.pipeline` | `SequenceAsset`, its builder, File > New's creator |
 | `Code/Engine/Engine.Sequence` | `engine.sequence` | `SequenceSystem`, `scene.sequences`, `SequencePlay` for script, the domain |
 | `Code/Engine/Engine.Render` | `engine.render` (`:sequence`) | `CameraCutSequenceTrack`, `FadeSequenceTrack` |
+| `Code/Engine/Engine.Animation` | `engine.animation` (`:sequence`) | `ClipSequenceTrack` |
 
 None of the sequence libraries depends on render, audio, skeletal animation or physics: a domain
 adds the track kinds that drive it, and registers them with its reflection.
@@ -43,6 +44,16 @@ one play the shot cut to; letting go passes the view to the claim under it, then
 primary camera. The camera knows nothing of cuts: the render starts a view's history fresh (TAA,
 SSR, SSGI, exposure, motion vectors) whenever the camera it is drawn from changes
 (`ViewSettings::cameraKey`), so a game switching cameras gets the same clean cut.
+
+`ClipSequenceTrack` (the animation's) plays skeletal clips on the bound entity, a section at a time
+(of two overlapping, the later): a clip, where in it to start, a speed, a length (0: the clip once),
+blend in and out, and whether it loops over the section. The track drives the entity's
+`PoseOverlay` (`DriveOneShot`: the clip time and weight each step, which the player's own tick
+leaves alone), so a seek lands on the frame, while the graph or clip underneath keeps running and
+shows again as a section blends out. Between sections the overlay lets go; a play stopped
+mid-section eases back over the section's blend out. `EntityOverlay(scene, entity)` finds the
+overlay (the graph's, else the skeletal animation's) each step, since a player is rebuilt when its
+skeleton changes.
 
 `FadeSequenceTrack` (the render's, bound to no one) mixes a colour over the scene's whole view by
 an amount its keys give, from the play's first step until it lets go (the last key's amount holds

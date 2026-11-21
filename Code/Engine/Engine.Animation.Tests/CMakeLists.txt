@@ -10,12 +10,13 @@ add_executable(Engine.Animation.Tests
     OneShotTests.cpp
     RestPoseTests.cpp
     BoneAttachmentTests.cpp
+    ClipTrackTests.cpp
     TestsMain.cpp)
 
 target_link_libraries(Engine.Animation.Tests PRIVATE
     Engine::Animation Foundation::Animation.Resource Foundation::Scene.Resource
     Foundation::PropertyAnimation Foundation::PropertyAnimation.Resource
-    Foundation::Resource Foundation::VFS Foundation::Content Foundation::Xml Foundation::Xml.Serialization doctest::doctest)
+    Foundation::Resource Foundation::VFS Foundation::Content Foundation::Xml Foundation::Xml.Serialization Foundation::Sequence doctest::doctest)
 
 target_compile_definitions(Engine.Animation.Tests PRIVATE
     DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)

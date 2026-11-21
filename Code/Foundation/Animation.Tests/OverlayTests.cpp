@@ -155,3 +155,32 @@ TEST_CASE("overlay: a graph's pose takes a one-shot the same way")
     CHECK(player.ConsumeOneShotEnded());
     CHECK(player.GetLocalPoses()[0].position.y == doctest::Approx(0.0f));
 }
+
+TEST_CASE("overlay: a driven one-shot shows the time and weight its driver sets, and Update leaves it")
+{
+    Skeleton skeleton{1};
+    OneBone(skeleton);
+    AnimationClip stand{u8"Stand", 1.0f, true};
+    Holding(stand, 0.0f);
+    AnimationClip rise{u8"Rise", 1.0f, false}; // the bone climbs from 0 to 2 over the second
+    rise.GetOrCreatePositionTrack(0)->AddKeyframe(0.0f, Float3{0, 0, 0});
+    rise.GetOrCreatePositionTrack(0)->AddKeyframe(1.0f, Float3{0, 2, 0});
+    AnimationPlayer player{skeleton};
+    player.Play(&stand);
+
+    player.Overlay().DriveOneShot(rise, 0.5f, 1.0f);
+    CHECK(player.Overlay().IsDriven());
+    CHECK(Run(player, 0.3f) == 0);
+    CHECK(Height(player) == doctest::Approx(1.0f)); // still at 0.5 s: Update did not move it
+    player.Overlay().DriveOneShot(rise, 0.25f, 0.5f); // a seek back, half shown
+    (void)Run(player, 0.01f);
+    CHECK(Height(player) == doctest::Approx(0.25f));
+
+    // A stop blends it out from there on its own, and it ends.
+    player.Overlay().DriveOneShot(rise, 0.5f, 1.0f);
+    player.Overlay().StopOneShot(0.2f);
+    CHECK_FALSE(player.Overlay().IsDriven());
+    CHECK(Run(player, 0.3f) == 1);
+    CHECK_FALSE(player.Overlay().IsPlayingOneShot());
+    CHECK(Height(player) == doctest::Approx(0.0f));
+}

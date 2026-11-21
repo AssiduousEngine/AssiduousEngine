@@ -6,17 +6,20 @@ target_link_libraries(Engine.Animation
     PUBLIC Foundation::Core Foundation::Runtime Foundation::Scene Engine::Scene
            Foundation::Animation Foundation::Resource Engine::Render Foundation::Script.Facades
            Foundation::PropertyAnimation Foundation::PropertyAnimation.Resource
-           Foundation::Profiler Engine::Domain Foundation::Animation.Resource Foundation::Policy)
+           Foundation::Profiler Engine::Domain Foundation::Animation.Resource Foundation::Policy
+           Foundation::Sequence)
 
 target_sources(Engine.Animation
     PRIVATE
         AnimationSubsystemImpl.cpp   # REFLECT_VALUE bodies (see AnimationComponents.cppm)
+        AnimationSequenceImpl.cpp    # the clip track (see AnimationSequence.cppm)
     PUBLIC
         FILE_SET animation_subsystem_modules TYPE CXX_MODULES FILES
             AnimationComponents.cppm
             PropertyAnimatorComponent.cppm
             IkComponents.cppm
             BoneAttachment.cppm
+            AnimationSequence.cppm
             AnimationSubsystem.cppm
             AnimationSubsystemModule.cppm)
 

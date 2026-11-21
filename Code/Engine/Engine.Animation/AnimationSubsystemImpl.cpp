@@ -381,6 +381,7 @@ namespace engine::animation
             RttiRegisterValue_BoneAttachmentComponent();
             RttiRegisterEnum_PropertyLoopMode();
             RttiRegisterValue_PropertyAnimatorComponent();
+            RegisterAnimationSequenceTracks(); // a sequence's clips
             return true;
         }();
         (void)once;

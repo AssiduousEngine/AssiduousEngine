@@ -15,4 +15,5 @@ export import :components;
 export import :propertyanimator;
 export import :ik;
 export import :attachment;
+export import :sequence;
 export import :subsystem;
