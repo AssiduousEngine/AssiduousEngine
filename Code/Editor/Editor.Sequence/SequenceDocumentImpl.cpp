@@ -65,6 +65,7 @@ namespace editor
                 track->ResolveResources(*resources);
         m_id = sequenceId;
         m_name = String(instance->Name());
+        m_current = Snapshot();
         m_commands.Clear();
         m_commands.MarkSaved();
         Changed();
@@ -94,6 +95,7 @@ namespace editor
     {
         CancelGesture();
         m_sequence = sequence::Sequence{};
+        m_current.Clear();
         m_id = Guid{};
         m_name = String{};
         m_commands.Clear();
@@ -112,6 +114,14 @@ namespace editor
             return;
         Array<byte> before = Snapshot();
         mutate(m_sequence);
+        Push(typeId, Move(before));
+    }
+
+    void SequenceDocument::RecordEdit(StringView typeId)
+    {
+        if (!HasSequence() || m_inGesture)
+            return;
+        Array<byte> before = m_current;
         Push(typeId, Move(before));
     }
 
@@ -181,6 +191,9 @@ namespace editor
             for (RefPtr<sequence::SequenceTrack>& track : restored.tracks)
                 track->ResolveResources(*resources);
         m_sequence = Move(restored);
+        m_current.Clear();
+        for (const byte b : bytes)
+            m_current.PushBack(b);
         ++m_version; // the history notifies once it has moved
     }
 

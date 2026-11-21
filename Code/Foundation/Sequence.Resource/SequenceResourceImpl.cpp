@@ -22,6 +22,8 @@ namespace foundation::sequence
     REFLECT_MEMBERS(NestedSequenceTrack, "rtti::sequence")
     {
         builder.Attribute("displayName", String(u8"Sequence"))
+            .Property<&NestedSequenceTrack::sequence>("sequence")
+            .PropAttribute("displayName", String(u8"Sequence"))
             .Property<&NestedSequenceTrack::start>("start")
             .Property<&NestedSequenceTrack::length>("length")
             .Property<&NestedSequenceTrack::loop>("loop");

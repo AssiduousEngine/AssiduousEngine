@@ -67,6 +67,9 @@ export namespace editor
         void CommitGesture(StringView typeId);
         void CancelGesture();
         [[nodiscard]] bool InGesture() const noexcept { return m_inGesture; }
+        /// Records a change already made to the sequence in place (the inspector writes a track's
+        /// fields as they are edited) as one undo step, from the sequence as it last stood.
+        void RecordEdit(StringView typeId);
 
         /// Called after any change: an edit, a gesture's preview, an undo, a load.
         Function<void()> OnChanged;
@@ -84,6 +87,7 @@ export namespace editor
         String m_name;
         EditorCommandStack m_commands;
         Array<byte> m_gestureBefore;
+        Array<byte> m_current; // the sequence as it last stood (a load, a step, an undo)
         bool m_inGesture = false;
         u64 m_version = 0;
     };

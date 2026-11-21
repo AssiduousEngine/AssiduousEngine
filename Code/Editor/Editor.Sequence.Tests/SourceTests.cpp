@@ -191,3 +191,24 @@ TEST_CASE("sequence source: inserting and deleting keys are one step each; the c
     bed.document->Commands().Undo();
     CHECK(bed.Walk().property.channels[0].Evaluate(1.0f) == doctest::Approx(10.0f));
 }
+
+TEST_CASE("sequence document: a change made in place (the inspector's) is recorded as one step from where it stood")
+{
+    Bed bed;
+    bed.Inner().loop = true; // as the inspector writes a field
+    bed.document->RecordEdit(u8"sequence-inspector");
+    CHECK(bed.Inner().loop);
+    bed.document->Commands().Undo();
+    CHECK_FALSE(bed.Inner().loop);
+    bed.document->Commands().Redo();
+    CHECK(bed.Inner().loop);
+    bed.document->RecordEdit(u8"sequence-inspector"); // nothing changed since: no step
+    bed.document->Commands().Undo();
+    CHECK_FALSE(bed.Inner().loop);
+
+    // The kinds show their fields to the inspector.
+    const TypeInfo& nested = sequence::NestedSequenceTrack::StaticType();
+    CHECK(FindProperty(nested, "sequence") != nullptr);
+    CHECK(FindProperty(nested, "name") != nullptr); // the base's, inherited
+    CHECK(FindProperty(sequence::EventSequenceTrack::StaticType(), "keys") != nullptr);
+}

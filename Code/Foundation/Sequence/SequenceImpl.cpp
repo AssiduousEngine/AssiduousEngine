@@ -21,13 +21,32 @@ using namespace foundation::core;
 
 namespace foundation::sequence
 {
+    // What a track shows in the editor's inspector: its own fields after these.
+    REFLECT_MEMBERS(SequenceTrack, "rtti::sequence")
+    {
+        builder.Property<&SequenceTrack::name>("name")
+            .PropAttribute("displayName", String(u8"Name"))
+            .Property<&SequenceTrack::muted>("muted")
+            .PropAttribute("displayName", String(u8"Muted"));
+    }
+    REFLECT_VALUE(SequenceEventKey, "rtti::sequence")
+    {
+        builder.Property<&SequenceEventKey::time>("time")
+            .PropAttribute("displayName", String(u8"Time"))
+            .Property<&SequenceEventKey::name>("name")
+            .PropAttribute("displayName", String(u8"Name"))
+            .Property<&SequenceEventKey::value>("value")
+            .PropAttribute("displayName", String(u8"Value"));
+    }
     REFLECT_MEMBERS(PropertySequenceTrack, "rtti::sequence")
     {
         builder.Attribute("displayName", String(u8"Property"));
     }
     REFLECT_MEMBERS(EventSequenceTrack, "rtti::sequence")
     {
-        builder.Attribute("displayName", String(u8"Event"));
+        builder.Attribute("displayName", String(u8"Event"))
+            .Property<&EventSequenceTrack::keys>("keys")
+            .PropAttribute("displayName", String(u8"Events"));
     }
     REFLECT_ENUM(SequenceFinish, "rtti::sequence")
     {
@@ -843,6 +862,8 @@ namespace foundation::sequence
         {
             GlobalTypeRegistry().Register(SequenceTrack::StaticType());
             RttiRegisterEnum_SequenceFinish();
+            RttiRegisterValue_SequenceEventKey();
+            RegisterArrayType<SequenceEventKey>(); // an event track's keys (the inspector)
             RegisterSequenceTrack<PropertySequenceTrack>();
             RegisterSequenceTrack<EventSequenceTrack>();
             return true;

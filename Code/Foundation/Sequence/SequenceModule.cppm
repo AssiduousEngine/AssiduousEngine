@@ -208,7 +208,6 @@ export namespace foundation::sequence
 
         void Serialize(ISerializer& ar) override;
     };
-    RTTI_DEFINE_OBJECT(SequenceTrack, "rtti::sequence")
 
     /// Moves the keys at `indices` of `keys` (sorted by their `time`) by `delta`, never before 0,
     /// sorts them again (a moved key keeps its place among equals) and fills `moved` with each

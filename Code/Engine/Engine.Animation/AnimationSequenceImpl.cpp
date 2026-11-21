@@ -19,9 +19,31 @@ using namespace foundation::core;
 
 namespace engine::animation
 {
+    REFLECT_VALUE(ClipSection, "rtti::animation")
+    {
+        builder.Property<&ClipSection::clip>("clip")
+            .PropAttribute("displayName", String(u8"Clip"))
+            .Property<&ClipSection::start>("start")
+            .PropAttribute("displayName", String(u8"Start"))
+            .Property<&ClipSection::length>("length")
+            .PropAttribute("displayName", String(u8"Length"))
+            .PropAttribute("description", String(u8"Seconds on the timeline; 0 plays the clip once from its offset"))
+            .Property<&ClipSection::offset>("offset")
+            .PropAttribute("displayName", String(u8"Offset"))
+            .Property<&ClipSection::speed>("speed")
+            .PropAttribute("displayName", String(u8"Speed"))
+            .Property<&ClipSection::blendIn>("blendIn")
+            .PropAttribute("displayName", String(u8"Blend In"))
+            .Property<&ClipSection::blendOut>("blendOut")
+            .PropAttribute("displayName", String(u8"Blend Out"))
+            .Property<&ClipSection::loop>("loop")
+            .PropAttribute("displayName", String(u8"Loop"));
+    }
     REFLECT_MEMBERS(ClipSequenceTrack, "rtti::animation")
     {
-        builder.Attribute("displayName", String(u8"Clip"));
+        builder.Attribute("displayName", String(u8"Clip"))
+            .Property<&ClipSequenceTrack::sections>("sections")
+            .PropAttribute("displayName", String(u8"Clips"));
     }
 
     namespace
@@ -255,6 +277,8 @@ namespace engine::animation
         static const bool once = []()
         {
             sequence::RegisterSequenceTypes();
+            RttiRegisterValue_ClipSection();
+            RegisterArrayType<ClipSection>();
             sequence::RegisterSequenceTrack<ClipSequenceTrack>();
             return true;
         }();

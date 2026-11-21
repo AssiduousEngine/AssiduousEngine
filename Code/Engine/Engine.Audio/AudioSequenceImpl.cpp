@@ -20,9 +20,29 @@ using namespace foundation::audio;
 
 namespace engine::audio
 {
+    REFLECT_VALUE(SoundSection, "rtti::audio")
+    {
+        builder.Property<&SoundSection::clip>("clip")
+            .PropAttribute("displayName", String(u8"Sound"))
+            .Property<&SoundSection::start>("start")
+            .PropAttribute("displayName", String(u8"Start"))
+            .Property<&SoundSection::length>("length")
+            .PropAttribute("displayName", String(u8"Length"))
+            .PropAttribute("description", String(u8"Seconds on the timeline; 0 plays the sound once from its offset"))
+            .Property<&SoundSection::offset>("offset")
+            .PropAttribute("displayName", String(u8"Offset"))
+            .Property<&SoundSection::volume>("volume")
+            .PropAttribute("displayName", String(u8"Volume"))
+            .Property<&SoundSection::bus>("bus")
+            .PropAttribute("displayName", String(u8"Bus"))
+            .Property<&SoundSection::loop>("loop")
+            .PropAttribute("displayName", String(u8"Loop"));
+    }
     REFLECT_MEMBERS(SoundSequenceTrack, "rtti::audio")
     {
-        builder.Attribute("displayName", String(u8"Sound"));
+        builder.Attribute("displayName", String(u8"Sound"))
+            .Property<&SoundSequenceTrack::sections>("sections")
+            .PropAttribute("displayName", String(u8"Sounds"));
     }
 
     namespace
@@ -301,6 +321,8 @@ namespace engine::audio
         static const bool once = []()
         {
             sequence::RegisterSequenceTypes();
+            RttiRegisterValue_SoundSection();
+            RegisterArrayType<SoundSection>();
             sequence::RegisterSequenceTrack<SoundSequenceTrack>();
             return true;
         }();

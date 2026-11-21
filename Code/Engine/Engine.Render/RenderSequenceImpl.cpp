@@ -19,13 +19,26 @@ using namespace foundation::core;
 
 namespace engine::render
 {
+    REFLECT_VALUE(CameraCutSection, "rtti::render")
+    {
+        builder.Property<&CameraCutSection::start>("start")
+            .PropAttribute("displayName", String(u8"Start"))
+            .Property<&CameraCutSection::duration>("duration")
+            .PropAttribute("displayName", String(u8"Duration"));
+    }
     REFLECT_MEMBERS(CameraCutSequenceTrack, "rtti::render")
     {
-        builder.Attribute("displayName", String(u8"Camera cut"));
+        builder.Attribute("displayName", String(u8"Camera cut"))
+            .Property<&CameraCutSequenceTrack::sections>("sections")
+            .PropAttribute("displayName", String(u8"Shots"));
     }
     REFLECT_MEMBERS(FadeSequenceTrack, "rtti::render")
     {
-        builder.Attribute("displayName", String(u8"Fade")).Property<&FadeSequenceTrack::color>("color");
+        builder.Attribute("displayName", String(u8"Fade"))
+            .Property<&FadeSequenceTrack::color>("color")
+            .PropAttribute("displayName", String(u8"Color"))
+            .Property<&FadeSequenceTrack::amount>("amount")
+            .PropAttribute("displayName", String(u8"Amount"));
     }
 
     namespace
@@ -316,6 +329,8 @@ namespace engine::render
         static const bool once = []()
         {
             sequence::RegisterSequenceTypes();
+            RttiRegisterValue_CameraCutSection();
+            RegisterArrayType<CameraCutSection>();
             sequence::RegisterSequenceTrack<CameraCutSequenceTrack>();
             sequence::RegisterSequenceTrack<FadeSequenceTrack>();
             return true;
