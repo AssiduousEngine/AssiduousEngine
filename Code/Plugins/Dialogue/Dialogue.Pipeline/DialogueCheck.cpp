@@ -107,7 +107,7 @@ namespace dialogue
                 {
                     if (!m_noCastTold)
                     {
-                        Problem(line, String(u8"the project's dialogue settings name no cast"));
+                        Problem(line, String(u8"the dialogue file names no cast"));
                         m_noCastTold = true;
                     }
                     return nullptr;
@@ -131,7 +131,7 @@ namespace dialogue
                 {
                     if (!m_noAssetsTold)
                     {
-                        Problem(line, String(u8"the project's dialogue settings name no dialogue assets"));
+                        Problem(line, String(u8"the dialogue file names no dialogue assets"));
                         m_noAssetsTold = true;
                     }
                     return {};

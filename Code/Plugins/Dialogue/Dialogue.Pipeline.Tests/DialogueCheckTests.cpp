@@ -249,7 +249,7 @@ TEST_CASE("dialogue check: with no dialogue assets, the file is told once")
                                               u8"sequence gate_open\n",
                                               true, false);
     REQUIRE(parse.problems.Size() == 1u);
-    CHECK(HasProblem(parse, 2, u8"name no dialogue assets"));
+    CHECK(HasProblem(parse, 2, u8"names no dialogue assets"));
 }
 
 TEST_CASE("dialogue check: with no cast, the file is told once")
@@ -260,7 +260,7 @@ TEST_CASE("dialogue check: with no cast, the file is told once")
                                               u8"@ keeper: Two.\n",
                                               false);
     REQUIRE(parse.problems.Size() == 1u);
-    CHECK(HasProblem(parse, 2, u8"name no cast"));
+    CHECK(HasProblem(parse, 2, u8"names no cast"));
 }
 
 TEST_CASE("dialogue check: what nothing reaches is a warning, not an error")

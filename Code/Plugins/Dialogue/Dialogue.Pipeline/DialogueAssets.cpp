@@ -46,7 +46,20 @@ namespace dialogue
             .PropAttribute("displayName", String(u8"Asset"));
     }
 
-    RTTI_DEFINE_OBJECT(DialogueAsset, "rtti::dialogue")
+    REFLECT_MEMBERS(DialogueAsset, "rtti::dialogue")
+    {
+        builder.Property<&DialogueAsset::cast>("cast")
+            .PropAttribute("displayName", String(u8"Cast"))
+            .Property<&DialogueAsset::assets>("assets")
+            .PropAttribute("displayName", String(u8"Dialogue Assets"));
+    }
+
+    void DialogueAsset::Serialize(ISerializer& ar)
+    {
+        pipeline::Asset::Serialize(ar);
+        foundation::core::Serialize(ar, "cast", cast);
+        foundation::core::Serialize(ar, "assets", assets);
+    }
 
     void DialogueCastAsset::Serialize(ISerializer& ar)
     {
@@ -180,7 +193,7 @@ namespace dialogue
         }
     }
 
-    void DialogueProject::Gather(const DialogueSettings& settings, content::IContentDatabase& db,
+    void DialogueProject::Gather(const DialogueSettings& settings, const DialogueAsset& file, content::IContentDatabase& db,
                                  const pipeline::AssetBuildContext& reader, const Guid& self)
     {
         for (const String& text : settings.commands)
@@ -203,18 +216,18 @@ namespace dialogue
             }
             commands.PushBack(Move(form));
         }
-        if (settings.cast != Guid{})
+        if (file.cast != Guid{})
         {
-            RefPtr<ISerializable> read = db.ReadObject(settings.cast);
+            RefPtr<ISerializable> read = db.ReadObject(file.cast);
             if (const auto* castAsset = Cast<DialogueCastAsset>(read.Get()))
             {
                 cast = castAsset->speakers;
                 hasCast = true;
             }
         }
-        if (settings.assets != Guid{})
+        if (file.assets != Guid{})
         {
-            RefPtr<ISerializable> read = db.ReadObject(settings.assets);
+            RefPtr<ISerializable> read = db.ReadObject(file.assets);
             if (const auto* list = Cast<DialogueAssetListAsset>(read.Get()))
             {
                 dialogueAssets = list->entries;
@@ -303,8 +316,7 @@ namespace dialogue
     u64 DialogueBuilder::EnvironmentHash() const
     {
         // What the checks read from the settings: a change recooks every dialogue file.
-        u64 hash = HashBytes(&m_settings->cast, sizeof(Guid));
-        hash = HashBytes(&m_settings->assets, sizeof(Guid), hash);
+        u64 hash = kFnv1a64OffsetBasis;
         for (const String& form : m_settings->commands)
         {
             hash = HashBytes(form.Data(), form.Size(), hash);
@@ -321,7 +333,7 @@ namespace dialogue
     void DialogueBuilder::ScanDependencies(const pipeline::Asset& asset, pipeline::AssetBuildContext& ctx,
                                            pipeline::AssetDependencies& out)
     {
-        (void)asset;
+        const auto& file = static_cast<const DialogueAsset&>(asset);
         content::IContentDatabase* db = SourceDatabase(ctx);
         if (db == nullptr)
         {
@@ -329,13 +341,13 @@ namespace dialogue
         }
         // The cast, the dialogue assets and every other dialogue file are read: a change to any of
         // them can change what this file's checks find.
-        if (m_settings->cast != Guid{})
+        if (file.cast != Guid{})
         {
-            out.reads.PushBack(m_settings->cast);
+            out.reads.PushBack(file.cast);
         }
-        if (m_settings->assets != Guid{})
+        if (file.assets != Guid{})
         {
-            out.reads.PushBack(m_settings->assets);
+            out.reads.PushBack(file.assets);
         }
         const Guid self = ctx.source != nullptr ? ctx.source->Id() : Guid{};
         if (content::Group* root = db->RootGroup())
@@ -376,7 +388,8 @@ namespace dialogue
         DialogueProject project;
         if (db != nullptr)
         {
-            project.Gather(*m_settings, *db, ctx, ctx.source != nullptr ? ctx.source->Id() : Guid{});
+            project.Gather(*m_settings, static_cast<const DialogueAsset&>(asset), *db, ctx,
+                           ctx.source != nullptr ? ctx.source->Id() : Guid{});
         }
         DialogueParse parse = CookDialogue(text.AsView(), *m_settings, project, db, *ctx.allocator);
         for (const DialogueProblem& problem : parse.problems)
@@ -481,7 +494,7 @@ namespace dialogue
 
     // ---- File > New -----------------------------------------------------------------------------
 
-    void AddDialogueCreators(pipeline::PipelinePluginServices& services)
+    void AddDialogueCreators(pipeline::PipelinePluginServices& services, const DialogueSettings& settings)
     {
         {
             pipeline::AssetCreator creator;
@@ -489,13 +502,15 @@ namespace dialogue
             creator.category = String(u8"Dialogue");
             creator.type = &DialogueAsset::StaticType();
             creator.defaultGroup = String(u8"Dialogue");
-            creator.run = [](const pipeline::AssetCreationContext& at)
+            creator.run = [&settings](const pipeline::AssetCreationContext& at)
             {
                 constexpr StringView kStarter = u8"# One statement a line. A conversation starts with its id, then its lines:\n"
                                                 u8"#\n"
                                                 u8"# conversation greeting\n"
                                                 u8"# @ speaker mood: What the speaker says.\n";
                 DialogueAsset asset;
+                asset.cast = settings.cast;
+                asset.assets = settings.assets;
                 return pipeline::CreateLinkedTextAsset(at, u8"Dialogue", u8".dialogue", kStarter,
                                                        DialogueAsset::StaticType(), asset);
             };

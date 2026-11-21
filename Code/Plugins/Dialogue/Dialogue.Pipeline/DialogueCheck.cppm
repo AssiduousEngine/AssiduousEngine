@@ -55,8 +55,8 @@ export namespace dialogue
     /// What the checks read beyond the file itself.
     struct DialogueCheckInputs
     {
-        const Array<DialogueSpeaker>* cast = nullptr; // null: the settings name no cast
-        const Array<DialogueAssetEntry>* dialogueAssets = nullptr; // null: the settings name none
+        const Array<DialogueSpeaker>* cast = nullptr; // null: the file names no cast
+        const Array<DialogueAssetEntry>* dialogueAssets = nullptr; // null: the file names none
         Span<const DialogueCommandForm> commands;     // the declared commands the file was parsed with
         Span<const String> providedFlags;             // names, or prefixes ending in `*`
         // The project's other dialogue files:

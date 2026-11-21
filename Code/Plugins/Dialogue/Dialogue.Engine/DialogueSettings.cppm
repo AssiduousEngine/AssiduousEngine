@@ -21,10 +21,10 @@ export namespace dialogue
     {
         RTTI_OBJECT(DialogueSettings, ISerializable)
     public:
-        /// The project's cast (a DialogueCastAsset): who its conversations' lines may name.
+        /// The cast (a DialogueCastAsset) a new dialogue file names; each file names its own.
         Guid cast;
-        /// The project's dialogue assets (a DialogueAssetListAsset): the sounds, sequences and other
-        /// assets its conversations name, each by a name of its own.
+        /// The dialogue assets (a DialogueAssetListAsset) a new dialogue file names; each file names
+        /// its own.
         Guid assets;
         /// The commands the game declares, each a form: literal words, `<name:kind>` arguments,
         /// `[optional parts]` and how it waits ("move <who:entity> to <target:entity> [and wait]").

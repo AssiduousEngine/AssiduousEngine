@@ -35,11 +35,16 @@ export namespace dialogue
 {
     namespace content = foundation::content;
 
+    /// A dialogue file: its text, and the cast and dialogue assets its conversations name, which
+    /// several files may share.
     class DialogueAsset final : public pipeline::Asset
     {
         RTTI_OBJECT(DialogueAsset, pipeline::Asset)
     public:
-        void Serialize(ISerializer& ar) override { pipeline::Asset::Serialize(ar); }
+        Guid cast;   // a DialogueCastAsset
+        Guid assets; // a DialogueAssetListAsset
+
+        void Serialize(ISerializer& ar) override;
     };
 
     class DialogueCastAsset final : public pipeline::Asset
@@ -78,10 +83,10 @@ export namespace dialogue
         bool hasInputMap = false;
         Array<Guid> inputMaps;
 
-        /// Gathers it for the file `self` (nil for none) from `db`, reading the other files'
-        /// sources through `reader`'s sources.
-        void Gather(const DialogueSettings& settings, content::IContentDatabase& db, const pipeline::AssetBuildContext& reader,
-                    const Guid& self);
+        /// Gathers it for the dialogue file `file` (its cast and dialogue assets; `self`, its id, nil
+        /// for none) from `db`, reading the other files' sources through `reader`'s sources.
+        void Gather(const DialogueSettings& settings, const DialogueAsset& file, content::IContentDatabase& db,
+                    const pipeline::AssetBuildContext& reader, const Guid& self);
     };
 
     /// Parses `text` and checks it against `project`, its assets reached through `db` and the
@@ -137,8 +142,9 @@ export namespace dialogue
     inline constexpr StringView kDialogueCastCreator = u8"Dialogue Cast";
     inline constexpr StringView kDialogueAssetsCreator = u8"Dialogue Assets";
 
-    /// File > New's three creators.
-    void AddDialogueCreators(pipeline::PipelinePluginServices& services);
+    /// File > New's three creators; a new dialogue file takes the settings' default cast and dialogue
+    /// assets.
+    void AddDialogueCreators(pipeline::PipelinePluginServices& services, const DialogueSettings& settings);
 
     /// Registers the assets' types and the reflected values their inspector edits.
     void RegisterDialoguePipelineTypes(TypeRegistry& types, SerializableRegistry& serializables);

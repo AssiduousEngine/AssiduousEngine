@@ -31,7 +31,7 @@ namespace
         (void)pipeline->AddBuilder(foundation::core::MakeUnique<dialogue::DialogueBuilder>(context.Allocator(), *settings));
         (void)pipeline->AddBuilder(foundation::core::MakeUnique<dialogue::DialogueCastBuilder>(context.Allocator()));
         (void)pipeline->AddImporter(foundation::core::MakeUnique<dialogue::DialogueFileImporter>(context.Allocator()));
-        dialogue::AddDialogueCreators(*pipeline);
+        dialogue::AddDialogueCreators(*pipeline, *settings);
     }
 }
 

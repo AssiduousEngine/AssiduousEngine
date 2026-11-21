@@ -24,11 +24,11 @@ namespace dialogue
         builder.DataVersion(1);
         RegisterArrayType<String>(); // the two lists
         builder.Property<&DialogueSettings::cast>("cast")
-            .PropAttribute(kSettingLabelAttribute, String(u8"Cast"))
+            .PropAttribute(kSettingLabelAttribute, String(u8"Default cast"))
             .PropAttribute(engine::project::kSettingAssetTypeAttribute, String(u8"DialogueCastAsset"))
             .PropAttribute(engine::project::kSettingEmptyTextAttribute, String(u8"(none)"));
         builder.Property<&DialogueSettings::assets>("assets")
-            .PropAttribute(kSettingLabelAttribute, String(u8"Dialogue assets"))
+            .PropAttribute(kSettingLabelAttribute, String(u8"Default dialogue assets"))
             .PropAttribute(engine::project::kSettingAssetTypeAttribute, String(u8"DialogueAssetListAsset"))
             .PropAttribute(engine::project::kSettingEmptyTextAttribute, String(u8"(none)"));
         builder.Property<&DialogueSettings::commands>("commands").PropAttribute(kSettingLabelAttribute,

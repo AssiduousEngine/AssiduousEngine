@@ -233,8 +233,9 @@ save store under `flag.<name>`.
 #### The cast
 
 `DialogueCast`, a reflected resource (`REFLECT_MEMBERS`, edited in the inspector, read by the
-MCP data tools), one per project: the plugin's settings name it, and every `.dialogue` cooks
-against it. It holds a list of `DialogueSpeaker` values:
+MCP data tools). Each dialogue file names its cast (user 2026-11-21), so a project may have several
+(one a chapter, say) and files may share one; the plugin's settings give the cast a new file takes.
+It holds a list of `DialogueSpeaker` values:
 
 | Field | Type | What it is |
 |---|---|---|
@@ -265,13 +266,14 @@ against it. It holds a list of `DialogueSpeaker` values:
 #### Dialogue assets
 
 A conversation never names an asset by its path, which a rename or a move would break. A clip is
-named among its speaker's clips in the cast; every other asset a conversation names (a `sound`'s,
-a `sequence`'s, a command's `asset(<Type>)` argument) is an entry in the project's **dialogue
-assets**: a `DialogueAssetListAsset` the plugin's settings name (`assets`), edited in the inspector,
-each entry a name (one word: `door_creak`) and a reference to the asset, which holds its guid. The
-cook finds the entry by name and checks the asset's type fits (a `sound` takes an audio clip or a
-cue, a `sequence` a sequence); the compiled step holds the guid. The list is read only when
-conversations cook, so it has no cooked form of its own.
+named among its speaker's clips in the cast; every other asset a conversation names (a `sound`'s, a
+`sequence`'s, a command's `asset(<Type>)` argument) is an entry in the project's **dialogue
+assets**: a `DialogueAssetListAsset` the dialogue file names (as it names its cast; several files
+may share one, and the settings give a new file's), edited in the inspector, each entry a name (one
+word: `door_creak`) and a reference to the asset, which holds its guid. The cook finds the entry by
+name and checks the asset's type fits (a `sound` takes an audio clip or a cue, a `sequence` a
+sequence); the compiled step holds the guid. The list is read only when conversations cook, so it
+has no cooked form of its own.
 
 #### Line ids
 
@@ -403,6 +405,9 @@ tested in `Code/Integration` as the sequencer's script surface is.
 10. **Conversation, not scene**, for the unit of dialogue, so it never reads as the engine's scenes.
 11. **Assets by name, never by path** (user 2026-11-21): a clip through the cast, everything else
     through the dialogue assets, each holding the guid, so a renamed or moved asset is still found.
+12. **A dialogue file names its cast and its dialogue assets** (user 2026-11-21), both shareable;
+    the settings give a new file's. A conversation names neither, and a cast does not name an asset
+    list: speakers and staging are kept apart.
 
 ## Order of work
 

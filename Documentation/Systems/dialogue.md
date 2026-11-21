@@ -29,8 +29,8 @@ Settings edits it.
 
 | Setting | Default | What it is |
 |---|---|---|
-| `cast` | none | the project's cast, a `DialogueCastAsset`: who its conversations' lines may name |
-| `assets` | none | the project's dialogue assets, a `DialogueAssetListAsset`: the sounds, sequences and other assets its conversations name, each by a name of its own |
+| `cast` | none | the cast a new dialogue file names, a `DialogueCastAsset` (each file names its own) |
+| `assets` | none | the dialogue assets a new dialogue file names, a `DialogueAssetListAsset` (each file names its own) |
 | `commands` | none | the commands the game declares, each a form (`move <who:entity> to <target:entity> [and wait]`) |
 | `providedFlags` | none | flags provided from outside the conversations, by the application's own code, which a conversation may read with no `set`: a name, or a prefix ending in `*` (`seen_*`) |
 | `flagPrefix` | `flag.` | where flags live in the run's save store |
@@ -139,12 +139,12 @@ a clip by its name among the speaker's clips, anything else by its name in the d
 
 | Asset | What it is | Cooks to |
 |---|---|---|
-| `DialogueAsset` | a dialogue file, its text a `.dialogue` file in the project's sources (imported, or made by File > New's Dialogue) | `DialogueSource`, by `DialogueBuilder` |
+| `DialogueAsset` | a dialogue file: its text, a `.dialogue` file in the project's sources (imported, or made by File > New's Dialogue, which names the settings' default cast and dialogue assets), and the `cast` and `assets` it names, which several files may share | `DialogueSource`, by `DialogueBuilder` |
 | `DialogueCastAsset` | the cast, its `speakers` edited in the inspector (File > New's Dialogue Cast) | `DialogueCastSource`, by `DialogueCastBuilder` |
 | `DialogueAssetListAsset` | the dialogue assets, its `entries` (a name and an asset each) edited in the inspector (File > New's Dialogue Assets) | nothing: read when dialogue files cook |
 
 `DialogueBuilder` reads the file's text, gathers its project (`DialogueProject::Gather`: the
-settings' commands parsed, the cast and the dialogue assets the settings name, the input maps'
+settings' commands parsed, the cast and the dialogue assets the file names, the input maps'
 actions, and what the project's other dialogue files hold), parses and checks it (`CookDialogue`),
 logs every problem as `<file>:<line>: <message>`, and writes the compiled conversations; a file with
 an error does not cook. It declares the cast, the dialogue assets, the input maps and every other

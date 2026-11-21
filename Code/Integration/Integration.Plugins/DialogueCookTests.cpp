@@ -2,10 +2,10 @@
 // Copyright (c) 2026-Present Robert Campbell
 
 // Integration.Plugins: the dialogue plugin's assets cooked through the standalone MCP host, as an
-// agent or the editor cooks them. A project enables the plugin with its cast and its dialogue assets
-// named in the settings; a dialogue file that names only what the project has cooks to its compiled
+// agent or the editor cooks them. A project enables the plugin; its dialogue files each name their
+// cast and dialogue assets. A file that names only what the project has cooks to its compiled
 // conversations, one with an error fails the cook, and File > New's three creators make their
-// assets.
+// assets, a new dialogue file taking the settings' default cast and dialogue assets.
 
 #include <doctest/doctest.h>
 
@@ -70,8 +70,9 @@ namespace
         return called;
     }
 
-    // A dialogue file in the project's sources and its asset; its guid.
-    Guid AddDialogueFile(editor::EditorProject& project, foundation::content::Group& group, StringView name, StringView text)
+    // A dialogue file in the project's sources and its asset, naming `cast` and `assets`; its guid.
+    Guid AddDialogueFile(editor::EditorProject& project, foundation::content::Group& group, StringView name, StringView text,
+                         const Guid& cast, const Guid& assets)
     {
         const String fileName = Format(u8"Dialogue/{}.dialogue", name);
         const String path = project.SourceFile(fileName.AsView());
@@ -81,13 +82,16 @@ namespace
         REQUIRE(instance != nullptr);
         dialogue::DialogueAsset asset;
         asset.fileName = foundation::vfs::SourcePath(fileName.AsView());
+        asset.cast = cast;
+        asset.assets = assets;
         REQUIRE(instance->WriteObject(asset).IsOk());
         return instance->Id();
     }
 
     // A scratch project enabling dialogue: its cast (a keeper and a visitor), its dialogue assets (empty)
-    // and one clean dialogue file, the settings naming the cast, the assets, a command and a provided flag.
-    void MakeProject(StringView dir, Guid& gate)
+    // and one clean dialogue file naming them; the settings declare a command and a provided flag, and
+    // name the cast and the assets as a new file's defaults.
+    void MakeProject(StringView dir, Guid& gate, Guid& castId, Guid& assetsId)
     {
         (void)RemoveDirectoryRecursive(dir);
         REQUIRE(editor::EditorProject::Create(DefaultAllocator(), dir, u8"Dialogue Cook").IsOk());
@@ -124,7 +128,10 @@ namespace
                                u8"if seen_gate\n"
                                u8"  @ visitor: Again.\n"
                                u8"end\n"
-                               u8"cue lights dim\n");
+                               u8"cue lights dim\n",
+                               castInstance->Id(), listInstance->Id());
+        castId = castInstance->Id();
+        assetsId = listInstance->Id();
 
         dialogue::DialogueSettings settings;
         settings.cast = castInstance->Id();
@@ -161,7 +168,9 @@ TEST_CASE("plugins: through the MCP host, a dialogue file cooks to its conversat
                                                                       &pluginTools});
     const StringView dir = u8"scratch_plugins_dialogue_cook";
     Guid gate;
-    MakeProject(dir, gate);
+    Guid castId;
+    Guid assetsId;
+    MakeProject(dir, gate, castId, assetsId);
 
     JsonValue openArgs = JsonValue::MakeObject();
     openArgs.Set(u8"directory", JsonValue::MakeString(String(dir)));
@@ -202,7 +211,8 @@ TEST_CASE("plugins: through the MCP host, a dialogue file cooks to its conversat
         REQUIRE(root != nullptr);
         (void)AddDialogueFile(*session.project, *root, u8"Wrong",
                               u8"conversation wrong\n"
-                              u8"@ keeper angry: Out!\n");
+                              u8"@ keeper angry: Out!\n",
+                              castId, assetsId);
     }
     const Called failing = Call(server, u8"asset_cook", JsonValue::MakeObject());
     REQUIRE_FALSE(failing.error);
@@ -216,11 +226,20 @@ TEST_CASE("plugins: through the MCP host, a dialogue file cooks to its conversat
         args.Set(u8"name", JsonValue::MakeString(String(name)));
         const Called made = Call(server, u8"asset_create", Move(args));
         REQUIRE_FALSE(made.error);
-        return made.value.Get(u8"type").AsString();
+        return made.value;
     };
-    CHECK(create(dialogue::kDialogueCreator, u8"Village") == String(u8"DialogueAsset"));
-    CHECK(create(dialogue::kDialogueCastCreator, u8"Second Cast") == String(u8"DialogueCastAsset"));
-    CHECK(create(dialogue::kDialogueAssetsCreator, u8"More Assets") == String(u8"DialogueAssetListAsset"));
+    const JsonValue village = create(dialogue::kDialogueCreator, u8"Village");
+    CHECK(village.Get(u8"type").AsString() == String(u8"DialogueAsset"));
+    Guid villageId;
+    REQUIRE(Guid::TryParse(village.Get(u8"guid").AsString().AsView(), villageId));
+    RefPtr<ISerializable> villageRead = session.project->SourceDb().ReadObject(villageId);
+    const auto* villageAsset = villageRead ? Cast<dialogue::DialogueAsset>(villageRead.Get()) : nullptr;
+    REQUIRE(villageAsset != nullptr);
+    CHECK(villageAsset->cast == castId); // the settings' defaults
+    CHECK(villageAsset->assets == assetsId);
+    CHECK(create(dialogue::kDialogueCastCreator, u8"Second Cast").Get(u8"type").AsString() == String(u8"DialogueCastAsset"));
+    CHECK(create(dialogue::kDialogueAssetsCreator, u8"More Assets").Get(u8"type").AsString() ==
+          String(u8"DialogueAssetListAsset"));
 
     session.plugins = nullptr;
     owner.plugins.Reset();
