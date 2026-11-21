@@ -14,7 +14,7 @@ otherwise. It supports Linux64, Win64, Web and Android64.
 | Part | Library | Module | Holds |
 |---|---|---|---|
 | Engine | `Dialogue.Engine` | `dialogue.engine` | `DialogueSettings`; the compiled conversations and the cast, their cooked forms and factories; the dialogue's domain |
-| Pipeline | `Dialogue.Pipeline` | `dialogue.pipeline` | the format's parser, the commands' notation, the cook's checks |
+| Pipeline | `Dialogue.Pipeline` | `dialogue.pipeline` | the format's parser, the commands' notation, the cook's checks; the dialogue's assets, their builders, the importer and File > New's creators |
 | Tooling | `Dialogue.Tooling` | | its entry |
 | Editor | `Dialogue.Editor` | | its entry |
 
@@ -128,6 +128,24 @@ a clip by its name among the speaker's clips, anything else by its name in the d
 - **Resolved:** a `play`'s clip, a `sound`'s and a `sequence`'s asset, and an `asset(Type)`
   argument's, into the step's or the argument's `asset`.
 
+## The assets and the cook
+
+| Asset | What it is | Cooks to |
+|---|---|---|
+| `DialogueAsset` | a dialogue file, its text a `.dialogue` file in the project's sources (imported, or made by File > New's Dialogue) | `DialogueSource`, by `DialogueBuilder` |
+| `DialogueCastAsset` | the cast, its `speakers` edited in the inspector (File > New's Dialogue Cast) | `DialogueCastSource`, by `DialogueCastBuilder` |
+| `DialogueAssetListAsset` | the dialogue assets, its `entries` (a name and an asset each) edited in the inspector (File > New's Dialogue Assets) | nothing: read when dialogue files cook |
+
+`DialogueBuilder` reads the file's text, gathers its project (`DialogueProject::Gather`: the
+settings' commands parsed, the cast and the dialogue assets the settings name, and what the
+project's other dialogue files hold), parses and checks it (`CookDialogue`), logs every problem as
+`<file>:<line>: <message>`, and writes the compiled conversations; a file with an error does not
+cook. It declares the cast, the dialogue assets and every other dialogue file as read, so a change
+to any of them recooks it, and folds the settings it reads into its `EnvironmentHash`, so a change
+to them recooks every dialogue file. `DialogueCastBuilder` writes the speakers and declares what
+they refer to (portraits, clips, sounds). The `.dialogue` importer copies the file into the sources
+and links it.
+
 ## Loading
 
 The Engine part's load registers the settings type and the plugin's types
@@ -141,5 +159,6 @@ and the speaker's reflection), `Dialogue.Pipeline.Tests` (the commands' notation
 refuses; the format parsed: lines, choices and branches compiled to jumps, the built-in statements,
 declared commands with names of several words, line ids, and every problem at its line; the cook's
 checks over a table of a project's assets) and `Integration.Plugins` (the package linked with its
-four parts, its manifest, and a project that enables it loading it with its settings and its
-domain).
+four parts, its manifest, a project that enables it loading it with its settings and its domain,
+and, through the MCP host, a dialogue file cooking to its conversations, one with an error failing
+the cook, and File > New's three creators).
