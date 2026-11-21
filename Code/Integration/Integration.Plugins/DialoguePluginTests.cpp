@@ -3,8 +3,9 @@
 
 // Integration.Plugins: the engine's official dialogue plugin, linked here as the engine's hosts link
 // it. Its manifest reads and passes the host's checks, an editor links its four parts, and a
-// project that enables it loads it, with the project's settings for it read into its settings type
-// and the type taken out again when it unloads.
+// project that enables it loads it: the project's settings for it read into its settings type, its
+// domain added to the engine's composition (the factories for a cooked dialogue file and cast),
+// and all of it taken out again when it unloads.
 
 #include <doctest/doctest.h>
 
@@ -17,6 +18,8 @@ import foundation.shell;
 import foundation.graphics;
 import engine.project;
 import engine.defaultapp;
+import engine.domain;
+import engine.composition;
 import dialogue.engine;
 
 using namespace foundation::core;
@@ -25,6 +28,18 @@ namespace runtime = foundation::runtime;
 namespace
 {
     constexpr char8_t kDialogue[] = u8"dialogue";
+
+    [[nodiscard]] bool HasDomain(StringView id)
+    {
+        for (const engine::DomainModule* module : engine::FullComposition().Modules())
+        {
+            if (module->id == id)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
 
     // A headless application host: no shell, no graphics, no windows.
     class BareHost final : public runtime::IApplicationHost
@@ -85,7 +100,7 @@ TEST_CASE("plugins: the dialogue plugin is linked here with its four parts, and 
     CHECK(found->partCount == 4u); // an editor's role links every part
 }
 
-TEST_CASE("plugins: a project that enables dialogue loads it, its settings read from the project's entry")
+TEST_CASE("plugins: a project that enables dialogue loads it, its settings read from the project's entry and its domain added")
 {
     BareHost host;
     engine::runtime::DefaultApplication embedded;
@@ -118,7 +133,16 @@ TEST_CASE("plugins: a project that enables dialogue loads it, its settings read 
     CHECK(read->stockBox);
     CHECK(read->flagPrefix == StringView(u8"flag.")); // what the entry left out keeps its default
 
+    // The domain: its resource types, which the composition builds the factories from.
+    CHECK(HasDomain(kDialogue));
+    const TypeId cooked = dialogue::DialogueSource::StaticType().id;
+    const TypeId castCooked = dialogue::DialogueCastSource::StaticType().id;
+    CHECK(GlobalTypeRegistry().FindById(cooked) != nullptr);
+    CHECK(GlobalTypeRegistry().FindById(castCooked) != nullptr);
+
     embedded.DestroyPluginHost();
     CHECK(GlobalTypeRegistry().FindById(type.id) == nullptr); // taken out with the plugin
+    CHECK_FALSE(HasDomain(kDialogue));
+    CHECK(GlobalTypeRegistry().FindById(cooked) == nullptr);
     embedded.OnShutdown(host);
 }

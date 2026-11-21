@@ -13,7 +13,7 @@ otherwise. It supports Linux64, Win64, Web and Android64.
 
 | Part | Library | Module | Holds |
 |---|---|---|---|
-| Engine | `Dialogue.Engine` | `dialogue.engine` | `DialogueSettings` |
+| Engine | `Dialogue.Engine` | `dialogue.engine` | `DialogueSettings`; the compiled conversations and the cast, their cooked forms and factories; the dialogue's domain |
 | Pipeline | `Dialogue.Pipeline` | | its entry |
 | Tooling | `Dialogue.Tooling` | | its entry |
 | Editor | `Dialogue.Editor` | | its entry |
@@ -37,6 +37,50 @@ Settings edits it.
 | `advanceAction` | `Interact` | the input map action that advances a line in the stock box |
 | `portraitOnRight` | off | the stock box's portrait side |
 
+## The compiled conversations
+
+A dialogue file cooks to a `DialogueSource`, which `DialogueFactory` loads into a
+`DialogueResource`: its `conversations` and, apart from them, the texts of its lines and answers by
+line id (`lines`, `Text(id)`), the seam a translation fills. A `DialogueConversation` is an `id`, the
+`level` its entity names are checked against when it names one, and a flat list of `DialogueStep`s
+with its choice and branch blocks compiled to jumps:
+
+| Kind | What it does |
+|---|---|
+| `Line` | `speaker` says the line `lineId` in `mood`; waits to be advanced |
+| `Choice` | offers the `count` `Answer` steps after it; waits for a choice |
+| `Answer` | one answer, `lineId`; its statements start at `next` |
+| `Skip` | goes on at `next` (an answer's end, an if's side's end) |
+| `If` | goes on at `next` unless `flag` is set (clear, with `negate`) |
+| `Set`, `Clear` | write `flag` |
+| `Wait` | waits `seconds` |
+| `Play` | `speaker` plays the clip `asset` (named `name`) once; `waits` holds until it ends |
+| `Sound` | plays the sound `asset`, at `speaker`'s entity when named |
+| `Fade` | fades in (`fadeIn`) or out over `seconds` to `color` (the settings' when unset) |
+| `Sequence` | plays the sequence `asset`; `waits` holds until it ends |
+| `Jump` | ends the conversation and plays `name` |
+| `Command` | a declared command, `name`, with its `arguments` converted to their kinds; waits or leaves as declared |
+| `End` | the conversation's end |
+
+Each step keeps its `sourceLine`, for messages.
+
+## The cast
+
+A cast cooks to a `DialogueCastSource`, which `DialogueCastFactory` loads into a
+`DialogueCastResource`: a list of `DialogueSpeaker`s, each a reflected value (`id`, `shownName`, a
+name `plate` and its `plateColor`, `moods` each with an optional `portrait`, a default `portrait`,
+the `clips` a conversation may play by name, a `talk` clip, a `voice` sound and the `entity` that
+plays the speaker), its assets referred to by guid. `Find(id)` and a speaker's `FindMood(name)`
+look them up.
+
+## Loading
+
+The Engine part's load registers the settings type and the plugin's types
+(`RegisterDialogueTypes`), reads the settings, and, where the host offers the engine's service
+(`EnginePluginServices`), adds the dialogue's domain, whose resource module holds the two factories.
+All of it is recorded and taken out when the plugin unloads.
+
 Tests: `Dialogue.Engine.Tests` (the settings' defaults, their round trip through the project's
-entry, their labels) and `Integration.Plugins` (the package linked with its four parts, its
-manifest, and a project that enables it loading it with its settings).
+entry, their labels; the compiled conversations and the cast reading back as written, their
+lookups and the speaker's reflection) and `Integration.Plugins` (the package linked with its four
+parts, its manifest, and a project that enables it loading it with its settings and its domain).

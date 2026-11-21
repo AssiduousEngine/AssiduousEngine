@@ -1,4 +1,4 @@
-add_executable(Dialogue.Engine.Tests TestsMain.cpp DialogueSettingsTests.cpp)
+add_executable(Dialogue.Engine.Tests TestsMain.cpp DialogueSettingsTests.cpp DialogueModelTests.cpp)
 target_link_libraries(Dialogue.Engine.Tests PRIVATE Plugins::Dialogue.Engine Engine::Project doctest::doctest)
 target_compile_definitions(Dialogue.Engine.Tests PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)
 target_compile_options(Dialogue.Engine.Tests PRIVATE
