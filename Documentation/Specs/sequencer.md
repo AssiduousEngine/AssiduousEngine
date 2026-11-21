@@ -1,6 +1,6 @@
 # A sequencer for cutscenes
 
-> APPROVED 2026-11-20 (work started). Read on master at `595794aee`; line numbers will drift. Replaces the draft
+> APPROVED 2026-11-20. Q0 to Q2 built 2026-11-20 (to `eb055461b`); Q3 next. Read on master at `595794aee`; line numbers will drift. Replaces the draft
 > in `../Plans/backlog-0.1.md` ("A sequencer for cutscenes", 2026-11-08), which this answers.
 
 ## Goal
