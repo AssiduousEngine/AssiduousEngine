@@ -345,7 +345,7 @@ Each phase green on clang and gcc, with its tests, its documentation and its CHA
    are `sequence_read`, `sequence_edit` (a list of edits) and `sequence_preview`.
 6. **Q5 Proof**: rebuild one of the first game's staged cutscenes as a sequence the runner drives
    through holds and events (in that game's repository, with the user), and a small sequence in a
-   sample game so Integration covers a cooked one. Documentation: `Systems/sequencer.md` and a
+   sample game so Integration covers a cooked one (the dialogue spec's D8 sample, which uses both). Documentation: `Systems/sequencer.md` and a
    section in `Shipping/Scripting.md`.
 
 ## Risks

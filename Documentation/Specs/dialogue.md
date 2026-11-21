@@ -426,6 +426,11 @@ Each step a commit with its tests, green on clang and gcc.
    conversation assets and its cast a `DialogueCast`, its host interface becomes command handlers,
    and one of its cutscenes is rebuilt with its staging as sequences (the sequencer spec's Q5,
    folded in here). Its own tool and generated script data are retired.
+9. **D8 A sample** (user 2026-11-21): a new sample project that showcases the two, built through
+   the MCP tools as the other samples are, whose conversations play with their staging as
+   sequences and whose cutscenes carry lines: the dialogue and the sequencer used together and
+   played from script, cooked and exported. Integration checks that it reads and cooks, as it does for the other samples. It
+   stands for the sequencer spec's "small sequence in a sample game" (Q5) too.
 
 ## Risks
 
