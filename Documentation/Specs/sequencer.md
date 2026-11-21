@@ -1,6 +1,6 @@
 # A sequencer for cutscenes
 
-> APPROVED 2026-11-20. Q0 to Q2 built 2026-11-20 (to `eb055461b`); Q3 next. Read on master at `595794aee`; line numbers will drift. Replaces the draft
+> APPROVED 2026-11-20. Q0 to Q2 built 2026-11-20 (to `eb055461b`), Q3 2026-11-21 (to `979db9953`); Q4 next. Read on master at `595794aee`; line numbers will drift. Replaces the draft
 > in `../Plans/backlog-0.1.md` ("A sequencer for cutscenes", 2026-11-08), which this answers.
 
 ## Goal
@@ -328,7 +328,12 @@ Each phase green on clang and gcc, with its tests, its documentation and its CHA
    correction); the camera cut kind (a view camera override in the render's camera pick); the
    render starting a view's history fresh when the camera it is drawn from changes (its own
    commit, first: it fixes any game that switches cameras, with or without a sequence); the fade
-   kind (a fade colour in the composite).
+   kind (a fade colour in the composite). As built: the clip kind drives the overlay (its clip
+   time and weight each step, `PoseOverlay::DriveOneShot`) rather than seeking a one-shot, so the
+   player's own tick never moves it; the camera cut and the fade are claims on scene state
+   (`SceneClaims`), the play begun last winning; runners are told of a pause
+   (`SequenceTrackRunner::SetPaused`), not of a hold, so a voice pauses with the play and plays on
+   at a hold.
 5. **Q4 Editor**: the section lane widget, the panel, preview, undo; then the MCP tools and the
    guide.
 6. **Q5 Proof**: rebuild one of the first game's staged cutscenes as a sequence the runner drives
@@ -351,6 +356,7 @@ Each phase green on clang and gcc, with its tests, its documentation and its CHA
 - **A cut within one camera.** A camera that jumps (a transform track with a step key) is still
   the same camera, so its history is kept; its motion vectors then point off screen and TAA's
   rejection has to carry it. If that ghosts, the render can also treat a jump of the view past a
-  threshold as a cut; measured in Q3 before it is added.
+  threshold as a cut. Not measured yet: it is a look, the user's to judge on a built sequence
+  (Q5's rebuild has one).
 - **Restore across prefab spawns**: an entity spawned by an event during the sequence is not in
   the snapshot. Restore puts back what existed; what the game spawned is the game's.
