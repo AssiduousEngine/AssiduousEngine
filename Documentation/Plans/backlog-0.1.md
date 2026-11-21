@@ -264,6 +264,17 @@
     does). Spec it (`Specs/sequencer.md`) once the flagship's script cutscenes have run long
     enough to say what the tracks must be.
 
+- **A sequence play's start order, per scene** (user 2026-11-21): `SequencePlay::Begin` takes its
+  start order from a process-wide counter (`s_nextStartOrder`, `SequenceImpl.cpp`), the order by
+  which the later-begun of two plays wins a scene's view camera or fade (`SceneClaims`). It is
+  correct, with several PIE instances and with shared libraries (one copy, in
+  `Foundation::Sequence`; a part over another copy is refused by the plugin ABI stamp), but it is
+  the only process-wide counter of its kind, and the numbers only mean something within one
+  scene. Revisit: a counter per scene, which the play finds on or adds to its scene, so the order
+  lives where it is compared (plays outside Engine.Sequence's manager, the editor's preview and the
+  tests, need one too). First check `foundation::scene` can carry a light per-scene counter
+  cleanly; if not, keep the global and say why in its comment.
+
 - **A model's clips from other files** (user 2026-11-05): a model import takes the skeleton and
   clips of its own file only (`FileImport.cppm`: a skeleton from the file's first skin, a clip per
   animation in it), so a character whose clips each come in a file of their own imports as one
