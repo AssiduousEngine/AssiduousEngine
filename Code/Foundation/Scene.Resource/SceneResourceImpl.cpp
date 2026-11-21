@@ -844,6 +844,66 @@ namespace foundation::scene
     // left untouched: they point at the wider scene, not the template. Reflection-driven, so every
     // component with an EntityRef field is covered without per-type code. Called after each component
     // read and before the baseline blob is captured, so the baseline reflects the remapped value.
+    // Every EntityRef reachable in `inst` of `type`: its own EntityRef fields and arrays of them, and
+    // the same inside its nested and value-struct members and arrays of those (a binding table of
+    // {name, EntityRef} rows). `depth` bounds a type that contains itself.
+    template <typename RemapFn>
+    static void RemapEntityRefsIn(const Instance& inst, const TypeInfo& type, const RemapFn& remapOne, u32 depth)
+    {
+        if (depth > 8)
+        {
+            return;
+        }
+        for (const PropertyInfo& p : Properties(type))
+        {
+            if (p.address == nullptr || p.type == nullptr)
+            {
+                continue;
+            }
+            if (p.type == &TypeOf<EntityRef>())
+            {
+                remapOne(static_cast<EntityRef*>(p.address(inst)));
+                continue;
+            }
+            if (const ContainerInfo* container = p.type->container)
+            {
+                const TypeInfo* element = container->elementType;
+                if (element == nullptr || container->addressAt == nullptr)
+                {
+                    continue;
+                }
+                const bool refs = element == &TypeOf<EntityRef>();
+                if (!refs && !IsValueStruct(*element))
+                {
+                    continue;
+                }
+                // Elements by address, so each remaps in place.
+                const Instance field{p.address(inst), p.type};
+                const usize count = container->size(field);
+                for (usize i = 0; i < count; ++i)
+                {
+                    const Instance item = container->addressAt(field, i);
+                    if (refs)
+                    {
+                        remapOne(static_cast<EntityRef*>(item.Pointer()));
+                    }
+                    else
+                    {
+                        RemapEntityRefsIn(item, *element, remapOne, depth + 1);
+                    }
+                }
+                continue;
+            }
+            if (IsNested(p) || IsValueStruct(*p.type))
+            {
+                if (void* member = p.address(inst))
+                {
+                    RemapEntityRefsIn(Instance{member, p.type}, *p.type, remapOne, depth + 1);
+                }
+            }
+        }
+    }
+
     static void RemapPrefabEntityRefs(ComponentManagerBase& manager, EntityHandle owner,
                                       const HashMap<Guid, Guid>& liveBySource)
     {
@@ -868,32 +928,7 @@ namespace foundation::scene
                 ref->id = *live;
             }
         };
-        for (const PropertyInfo& p : Properties(*type))
-        {
-            if (p.address == nullptr)
-            {
-                continue;
-            }
-            if (p.type == &TypeOf<EntityRef>())
-            {
-                remapOne(static_cast<EntityRef*>(p.address(inst)));
-                continue;
-            }
-            // Containers of EntityRef (e.g. an animator's meshEntities list): walk the
-            // elements by address so every entry remaps in place.
-            if (p.type != nullptr && p.type->container != nullptr &&
-                p.type->container->elementType == &TypeOf<EntityRef>() &&
-                p.type->container->addressAt != nullptr)
-            {
-                const Instance field{p.address(inst), p.type};
-                const usize count = p.type->container->size(field);
-                for (usize i = 0; i < count; ++i)
-                {
-                    const Instance element = p.type->container->addressAt(field, i);
-                    remapOne(static_cast<EntityRef*>(element.Pointer()));
-                }
-            }
-        }
+        RemapEntityRefsIn(inst, *type, remapOne, 0);
     }
 
     void detail::RemapOverrideEntityRefs(ComponentManagerBase& manager, EntityHandle owner,

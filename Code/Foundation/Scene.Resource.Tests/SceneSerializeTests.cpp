@@ -345,6 +345,37 @@ namespace
     public:
         LinkManager() : SerializableComponentManager<Link>(u8"demo.Link") {}
     };
+
+    // A cast table: rows of a name and an entity, so the references sit inside an array of
+    // structs (a sequence component's bindings), not on the component itself.
+    struct CastRow
+    {
+        String name;
+        foundation::scene::EntityRef entity;
+    };
+    struct CastTable
+    {
+        Array<CastRow> rows;
+    };
+    void Serialize(ISerializer& ar, CastTable& c)
+    {
+        u32 count = static_cast<u32>(c.rows.Size());
+        foundation::core::Serialize(ar, "count", count);
+        if (ar.Mode() == SerializeMode::Read)
+        {
+            c.rows.Resize(count);
+        }
+        for (CastRow& row : c.rows)
+        {
+            foundation::core::Serialize(ar, "name", row.name);
+            foundation::core::Serialize(ar, "entity", row.entity.id);
+        }
+    }
+    class CastManager : public SerializableComponentManager<CastTable>
+    {
+    public:
+        CastManager() : SerializableComponentManager<CastTable>(u8"demo.Cast") {}
+    };
 }
 
 REFLECT_VALUE(Turret, "demo")
@@ -356,6 +387,16 @@ REFLECT_VALUE(Turret, "demo")
 REFLECT_VALUE(Link, "demo")
 {
     builder.Property<&Link::target>("target"); // reflected so the prefab remap finds the EntityRef
+}
+
+REFLECT_VALUE(CastRow, "demo")
+{
+    builder.Property<&CastRow::name>("name").Property<&CastRow::entity>("entity");
+}
+
+REFLECT_VALUE(CastTable, "demo")
+{
+    builder.Property<&CastTable::rows>("rows");
 }
 
 TEST_CASE("scene-serialize: component records carry the reflected type's data version")
@@ -583,6 +624,40 @@ TEST_CASE("prefab: an intra-prefab EntityRef remaps to the instance's own copy")
     // No "!= author's guid" check: two fresh scenes mint guids from the same deterministic
     // sequence, so inst1's copy can share a guid value with the author's. That is harmless,
     // since it still resolves to inst1's own child; pointing at its own copy is the invariant.
+}
+
+TEST_CASE("prefab: an EntityRef inside an array of structs remaps to the instance's own copy")
+{
+    Scene author(DefaultAllocator(), u8"author");
+    RttiRegisterValue_CastRow();
+    RegisterArrayType<CastRow>();
+    RttiRegisterValue_CastTable();
+    CastManager* authorCasts = author.AddSystem<CastManager>();
+    EntityHandle root = author.CreateEntity(u8"Stage");
+    EntityHandle mentor = author.CreateEntity(u8"Mentor");
+    author.SetParent(mentor, root);
+    const Guid outside{0x4321, 0x8765};
+    CastTable& authored = authorCasts->Add(root);
+    authored.rows.PushBack(CastRow{String(u8"Mentor"), foundation::scene::EntityRef{author.GetEntityId(mentor)}});
+    authored.rows.PushBack(CastRow{String(u8"Player"), foundation::scene::EntityRef{outside}});
+
+    MemoryStream payload;
+    REQUIRE(CapturePrefab(author, root, payload).IsOk());
+
+    Scene target(DefaultAllocator(), u8"level");
+    CastManager* casts = target.AddSystem<CastManager>();
+    (void)payload.Seek(0, SeekOrigin::Begin);
+    EntityHandle inst1 = SpawnPrefab(target, payload, Guid{0xAA, 0xBB});
+    (void)payload.Seek(0, SeekOrigin::Begin);
+    EntityHandle inst2 = SpawnPrefab(target, payload, Guid{0xCC, 0xDD});
+    REQUIRE(casts->Has(inst1));
+    REQUIRE(casts->Has(inst2));
+    REQUIRE(casts->Get(inst1)->rows.Size() == 2u);
+
+    // Each instance's row names its own Mentor; the row pointing outside the prefab is kept.
+    CHECK(casts->Get(inst1)->rows[0].entity.id == target.GetEntityId(target.GetFirstChild(inst1)));
+    CHECK(casts->Get(inst2)->rows[0].entity.id == target.GetEntityId(target.GetFirstChild(inst2)));
+    CHECK(casts->Get(inst1)->rows[1].entity.id == outside);
 }
 
 TEST_CASE("prefab: an EntityRef pointing OUTSIDE the prefab is left unchanged")
