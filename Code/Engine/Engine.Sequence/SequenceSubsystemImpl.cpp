@@ -112,7 +112,8 @@ namespace engine::sequence
         }
     }
 
-    u32 SequenceSystem::Play(RefPtr<foundation::sequence::SequenceResource> sequence, const Guid& id, foundation::sequence::SequenceFinish finish, scene::EntityHandle owner)
+    u32 SequenceSystem::Play(RefPtr<foundation::sequence::SequenceResource> sequence, const Guid& id, foundation::sequence::SequenceFinish finish, scene::EntityHandle owner,
+                             const Function<void(foundation::sequence::SequencePlay&)>& prepare)
     {
         if (m_scene == nullptr || !sequence)
         {
@@ -129,6 +130,10 @@ namespace engine::sequence
         const u32 playId = running->id;
         foundation::sequence::SequencePlay* play = running->play.Get();
         m_plays.PushBack(Move(running));
+        if (prepare)
+        {
+            prepare(*play);
+        }
         play->Play();
         return playId;
     }
@@ -205,7 +210,155 @@ namespace engine::sequence
         return foundation::sequence::SequenceFinish::Release;
     }
 
-    void AddSequenceSceneSystems(scene::Scene& scene) { (void)scene.AddSystem<SequenceSystem>(); }
+    void AddSequenceSceneSystems(scene::Scene& scene)
+    {
+        (void)scene.AddSystem<SequenceSystem>();
+        (void)scene.AddSystem<SequenceComponentManager>();
+    }
+
+    // ---- the component --------------------------------------------------------------------------
+
+    void Serialize(ISerializer& ar, SequenceComponent& c)
+    {
+        foundation::core::Serialize(ar, "sequence", c.sequence);
+        Array<String> names;
+        Array<Guid> entities;
+        Array<u8> self;
+        if (ar.Mode() != SerializeMode::Read)
+        {
+            for (const SequenceCastEntry& entry : c.cast)
+            {
+                names.PushBack(entry.name);
+                entities.PushBack(entry.entity.id);
+                self.PushBack(entry.self ? 1u : 0u);
+            }
+        }
+        foundation::core::Serialize(ar, "castName", names);
+        foundation::core::Serialize(ar, "castEntity", entities);
+        foundation::core::Serialize(ar, "castSelf", self);
+        if (ar.Mode() == SerializeMode::Read)
+        {
+            c.cast.Clear();
+            const usize count = Min(names.Size(), Min(entities.Size(), self.Size()));
+            for (usize i = 0; i < count; ++i)
+            {
+                c.cast.PushBack(SequenceCastEntry{Move(names[i]), scene::EntityRef{entities[i]}, self[i] != 0});
+            }
+        }
+        foundation::core::Serialize(ar, "autoplay", c.autoplay);
+        foundation::core::Serialize(ar, "speed", c.speed);
+        foundation::core::Serialize(ar, "loop", c.loop);
+        u8 finish = static_cast<u8>(c.finish);
+        foundation::core::Serialize(ar, "finish", finish);
+        c.finish = finish <= static_cast<u8>(foundation::sequence::SequenceFinish::Restore) ? static_cast<foundation::sequence::SequenceFinish>(finish)
+                                                                         : foundation::sequence::SequenceFinish::Release;
+    }
+
+    void SequenceComponentManager::Start(SequenceComponent& component, scene::EntityHandle owner)
+    {
+        StopPlay(component);
+        SequenceSystem* system = m_scene->GetSystem<SequenceSystem>();
+        foundation::sequence::SequenceResource* resource = component.sequence.Get();
+        if (system == nullptr || resource == nullptr)
+        {
+            return;
+        }
+        const SequenceComponent& c = component;
+        scene::Scene& scene = *m_scene;
+        component.playId = system->Play(RefPtr<foundation::sequence::SequenceResource>(resource), component.sequence.id, component.finish, owner,
+                                        [&c, &scene, owner](foundation::sequence::SequencePlay& play)
+                                        {
+                                            play.speed = Max(0.0f, c.speed);
+                                            play.loop = c.loop;
+                                            for (const SequenceCastEntry& entry : c.cast)
+                                            {
+                                                const scene::EntityHandle entity = entry.self ? owner : scene.FindEntity(entry.entity.id);
+                                                (void)play.Bind(entry.name.AsView(), entity);
+                                            }
+                                        });
+    }
+
+    void SequenceComponentManager::StopPlay(SequenceComponent& component)
+    {
+        if (component.playId == 0)
+        {
+            return;
+        }
+        if (SequenceSystem* system = m_scene->GetSystem<SequenceSystem>())
+        {
+            system->Stop(component.playId);
+        }
+        component.playId = 0;
+    }
+
+    void SequenceComponentManager::OnUpdate(scene::ScenePhase phase, f32 deltaTime)
+    {
+        (void)deltaTime;
+        if (phase != scene::ScenePhase::Update || m_scene == nullptr)
+        {
+            return;
+        }
+        SequenceSystem* system = m_scene->GetSystem<SequenceSystem>();
+        ForEach(
+            [&](SequenceComponent& c, scene::EntityHandle owner)
+            {
+                if (!m_scene->IsEffectivelyActive(owner))
+                {
+                    return;
+                }
+                // A play that has ended leaves the system; forget it here too.
+                if (c.playId != 0 && (system == nullptr || system->Find(c.playId) == nullptr))
+                {
+                    c.playId = 0;
+                }
+                if (c.stopPending)
+                {
+                    c.stopPending = false;
+                    StopPlay(c);
+                }
+                if (c.startPending || (c.autoplay && !c.autoplayed))
+                {
+                    c.startPending = false;
+                    c.autoplayed = true;
+                    Start(c, owner);
+                }
+            });
+    }
+
+    void SequenceComponentManager::OnEntityDestroyed(scene::EntityHandle entity)
+    {
+        if (SequenceComponent* c = Get(entity))
+        {
+            StopPlay(*c);
+        }
+        scene::SerializableComponentManager<SequenceComponent>::OnEntityDestroyed(entity);
+    }
+
+    void SequenceComponentManager::OnEntityActiveChanged(scene::EntityHandle entity, bool active)
+    {
+        if (active)
+        {
+            return;
+        }
+        if (SequenceComponent* c = Get(entity))
+        {
+            StopPlay(*c);
+        }
+    }
+
+    void SequenceComponentManager::OnSceneStopped()
+    {
+        // The system stops every play itself; the components only forget theirs, so the next run
+        // autoplays again.
+        ForEach(
+            [](SequenceComponent& c, scene::EntityHandle)
+            {
+                c.playId = 0;
+                c.startPending = false;
+                c.stopPending = false;
+                c.autoplayed = false;
+            });
+    }
 
     // ---- the script surface ---------------------------------------------------------------------
 
@@ -323,6 +476,24 @@ namespace engine::sequence
         return handle;
     }
 
+    SequencePlayHandle SceneSequencesFacade::of(foundation::script::Entity entity) const
+    {
+        SequencePlayHandle handle;
+        scene::Scene* owner = scene.Get();
+        if (owner == nullptr)
+        {
+            return handle;
+        }
+        SequenceComponentManager* components = owner->GetSystem<SequenceComponentManager>();
+        const SequenceComponent* c = components != nullptr ? components->Get(entity.Handle()) : nullptr;
+        if (c != nullptr && c->playId != 0)
+        {
+            handle.scene = scene;
+            handle.play = c->playId;
+        }
+        return handle;
+    }
+
     void SceneSequencesFacade::stopAll() const
     {
         if (scene::Scene* owner = scene.Get())
@@ -366,6 +537,39 @@ namespace engine::sequence
         builder.Method<static_cast<SequencePlayHandle (SceneSequencesFacade::*)(Guid, String) const>(&SceneSequencesFacade::play)>(
             "play", {"sequence", "finish"});
         builder.Method<&SceneSequencesFacade::stopAll>("stopAll");
+        builder.Method<&SceneSequencesFacade::of>("of", {"entity"});
+    }
+
+    REFLECT_VALUE(SequenceCastEntry, "rtti::engine::sequence")
+    {
+        builder.Property<&SequenceCastEntry::name>("name")
+            .PropAttribute("displayName", String(u8"Name"))
+            .Property<&SequenceCastEntry::entity>("entity")
+            .PropAttribute("displayName", String(u8"Entity"))
+            .Property<&SequenceCastEntry::self>("self")
+            .PropAttribute("displayName", String(u8"This Entity"));
+    }
+
+    REFLECT_VALUE(SequenceComponent, "rtti::engine::sequence")
+    {
+        builder.Attribute("displayName", String(u8"Sequence"))
+            .Attribute("category", String(u8"Animation"))
+            .Attribute("description", String(u8"Plays a sequence from this entity: a cutscene timeline driving the entities of its cast."))
+            .Apply(&foundation::script::ComponentMethods<SequenceComponent>)
+            .Method<&SequenceComponent::play>("play")
+            .Method<&SequenceComponent::stop>("stop")
+            .Property<&SequenceComponent::sequence>("sequence")
+            .PropAttribute("displayName", String(u8"Sequence"))
+            .Property<&SequenceComponent::cast>("cast")
+            .PropAttribute("displayName", String(u8"Cast"))
+            .Property<&SequenceComponent::autoplay>("autoplay")
+            .PropAttribute("displayName", String(u8"Autoplay"))
+            .Property<&SequenceComponent::speed>("speed")
+            .PropAttribute("displayName", String(u8"Speed"))
+            .Property<&SequenceComponent::loop>("loop")
+            .PropAttribute("displayName", String(u8"Loop"))
+            .Property<&SequenceComponent::finish>("finish")
+            .PropAttribute("displayName", String(u8"At the End"));
     }
 
     void RegisterSequenceReflection()
@@ -379,6 +583,10 @@ namespace engine::sequence
             GlobalTypeRegistry().Register(TypeOf<SequenceNotice>());
             RttiRegisterValue_SceneSequencesFacade();
             GlobalTypeRegistry().Register(TypeOf<SceneSequencesFacade>());
+            RttiRegisterValue_SequenceCastEntry();
+            RegisterArrayType<SequenceCastEntry>(); // the cast list (inspector, prefab remap, scripts)
+            RttiRegisterValue_SequenceComponent();
+            GlobalTypeRegistry().Register(TypeOf<SequenceComponent>());
             return true;
         }();
         (void)once;
@@ -396,6 +604,8 @@ namespace engine::sequence
             foundation::script::RegisterExtraScriptRootType(&TypeOf<SceneSequencesFacade>());
             foundation::script::RegisterExtraFacadeName(u8"SceneSequences");
             foundation::script::ExtendScene<&SceneSequencesFacade::ForScene>("sequences"); // scene.sequences
+            foundation::script::RegisterExtraScriptRootType(&TypeOf<SequenceComponent>());
+            foundation::script::RegisterExtraFacadeName(u8"SequenceComponent");
             return true;
         }();
         (void)once;

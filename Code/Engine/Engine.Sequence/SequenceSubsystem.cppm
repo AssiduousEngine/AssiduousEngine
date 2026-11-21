@@ -91,17 +91,20 @@ export namespace engine::sequence
 
         void OnSceneCreate(scene::Scene& scene) override { m_scene = &scene; }
         [[nodiscard]] bool IsSimulationOnly() const noexcept override { return true; }
-        /// Right after the behaviors (kScriptUpdateOrder, -110), so a play a script starts or
-        /// resumes this frame steps this frame, and before what reads what plays write.
-        [[nodiscard]] i32 UpdateOrder() const noexcept override { return -100; }
+        /// After the behaviors (kScriptUpdateOrder, -110) and the sequence components (-100), so a
+        /// play a script starts or resumes this frame steps this frame, and before what reads what
+        /// plays write.
+        [[nodiscard]] i32 UpdateOrder() const noexcept override { return -99; }
         void OnUpdate(scene::ScenePhase phase, f32 deltaTime) override;
         void OnSceneStopped() override { StopAll(); }
 
         /// Starts a play of `sequence` (`id` names it in notices). `owner`, when assigned, is told
-        /// what the play reports as entity events; otherwise it goes on the run's bus. The play is
-        /// at time 0 when this returns. Its id, or 0 when there is no sequence.
+        /// what the play reports as entity events; otherwise it goes on the run's bus. `prepare`,
+        /// when given, sets the play up (its cast, its speed) before it starts, so time 0 is applied
+        /// on what it fills. The play is at time 0 when this returns. Its id, or 0 when there is no
+        /// sequence.
         u32 Play(RefPtr<foundation::sequence::SequenceResource> sequence, const Guid& id, foundation::sequence::SequenceFinish finish = foundation::sequence::SequenceFinish::Release,
-                 scene::EntityHandle owner = {});
+                 scene::EntityHandle owner = {}, const Function<void(foundation::sequence::SequencePlay&)>& prepare = {});
         /// The play numbered `id`, or null once it has ended.
         [[nodiscard]] foundation::sequence::SequencePlay* Find(u32 id) noexcept;
         /// Ends the play numbered `id` (its finish decides what it puts back).
@@ -119,6 +122,74 @@ export namespace engine::sequence
         u32 m_nextId = 1;
     };
 
+    /// One name of a sequence component's cast and the entity that fills it: `entity`, or the
+    /// component's own entity when `self` is set (a prefab's staged moment played by its root).
+    struct SequenceCastEntry
+    {
+        String name;
+        scene::EntityRef entity;
+        bool self = false;
+    };
+
+    /// Plays a sequence from an entity: the cast picked in the inspector, what the play reports
+    /// told to this entity's behaviors as entity events, and the play stopped when the entity is
+    /// destroyed or disabled. The play runs in the scene's SequenceSystem like any other.
+    struct SequenceComponent
+    {
+        foundation::resource::Ref<foundation::sequence::SequenceResource> sequence;
+        Array<SequenceCastEntry> cast;
+        bool autoplay = true;
+        f32 speed = 1.0f;
+        bool loop = false;
+        foundation::sequence::SequenceFinish finish = foundation::sequence::SequenceFinish::Release;
+
+        // runtime
+        u32 playId = 0;          // its play in the scene's SequenceSystem; 0: none
+        bool startPending = false; // play() asked; started at the next update
+        bool stopPending = false;
+        bool autoplayed = false;   // autoplay has started it this run
+
+        /// Starts the sequence from the beginning at the next update (again, if it is playing).
+        void play()
+        {
+            startPending = true;
+            stopPending = false;
+        }
+        /// Stops it at the next update.
+        void stop()
+        {
+            stopPending = true;
+            startPending = false;
+        }
+    };
+
+    void Serialize(ISerializer& ar, SequenceComponent& c);
+    inline void ResolveResources(foundation::resource::ResourceManager& manager, SequenceComponent& c) { c.sequence.Bind(manager); }
+
+    /// The sequence components of a scene: starts and stops their plays in the scene's
+    /// SequenceSystem, just before it steps them.
+    class SequenceComponentManager final : public scene::SerializableComponentManager<SequenceComponent>
+    {
+    public:
+        SequenceComponentManager() : scene::SerializableComponentManager<SequenceComponent>(u8"sequence") {}
+
+        void OnSceneCreate(scene::Scene& scene) override { m_scene = &scene; }
+        [[nodiscard]] bool IsSimulationOnly() const noexcept override { return true; }
+        /// Just before the SequenceSystem (-99), so a play started here steps this frame; with the
+        /// first gameplay systems after the behaviors (the crowd's -100).
+        [[nodiscard]] i32 UpdateOrder() const noexcept override { return -100; }
+        void OnUpdate(scene::ScenePhase phase, f32 deltaTime) override;
+        void OnEntityDestroyed(scene::EntityHandle entity) override;
+        void OnEntityActiveChanged(scene::EntityHandle entity, bool active) override;
+        void OnSceneStopped() override;
+
+    private:
+        void Start(SequenceComponent& component, scene::EntityHandle owner);
+        void StopPlay(SequenceComponent& component);
+
+        scene::Scene* m_scene = nullptr;
+    };
+
     /// The scene's sequences for script (scene.sequences).
     struct SceneSequencesFacade
     {
@@ -129,6 +200,8 @@ export namespace engine::sequence
         /// The same, ending as `finish`: "release", "hold" or "restore".
         [[nodiscard]] SequencePlayHandle play(Guid sequence, String finish) const;
         void stopAll() const;
+        /// The play `entity`'s sequence component is running, or an ended one when it runs none.
+        [[nodiscard]] SequencePlayHandle of(foundation::script::Entity entity) const;
 
         [[nodiscard]] static SceneSequencesFacade ForScene(const foundation::script::Scene& sceneHandle)
         {

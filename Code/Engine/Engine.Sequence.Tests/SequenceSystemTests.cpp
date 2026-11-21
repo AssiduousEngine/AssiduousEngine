@@ -227,3 +227,94 @@ TEST_CASE("sequence system: a finish is named for scripts")
     CHECK(ParseSequenceFinish(u8"release") == sequence::SequenceFinish::Release);
     CHECK(ParseSequenceFinish(u8"anything else") == sequence::SequenceFinish::Release);
 }
+
+TEST_CASE("sequence component: autoplays with its cast and reports to its entity")
+{
+    Stage stage;
+    EventLog log;
+    stage.world.AddEntityEventSink(log);
+    auto* components = stage.world.GetSystem<SequenceComponentManager>();
+    REQUIRE(components != nullptr);
+    const scene::EntityHandle stageEntity = stage.world.CreateEntity(u8"Stage");
+    SequenceComponent& c = components->Add(stageEntity);
+    c.sequence = Walk();
+    c.cast.PushBack(SequenceCastEntry{String(u8"Actor"), scene::EntityRef{stage.world.GetEntityId(stage.actor)}, false});
+
+    stage.Frame(0.5f); // started and stepped in the same frame
+    CHECK(c.playId != 0);
+    CHECK(stage.X() == doctest::Approx(5.0f));
+    stage.Frame(1.0f);
+    CHECK(stage.X() == doctest::Approx(10.0f));
+    CHECK(c.playId != 0); // forgotten at the next update, once the play has left
+    stage.Frame(0.1f);
+    CHECK(c.playId == 0);
+    REQUIRE(log.entries.Size() == 2u); // the unbound cue and the end, to the component's entity
+    CHECK(log.entries[0].target == stageEntity);
+    CHECK(log.entries[1].name.AsView() == kSequenceFinishedName);
+    CHECK(stage.heard.IsEmpty());
+}
+
+TEST_CASE("sequence component: plays on its own entity, restarts and stops on request, and stops with its entity")
+{
+    Stage stage;
+    auto* components = stage.world.GetSystem<SequenceComponentManager>();
+    SequenceComponent& c = components->Add(stage.actor);
+    c.sequence = Walk();
+    c.autoplay = false;
+    c.finish = sequence::SequenceFinish::Restore;
+    c.cast.PushBack(SequenceCastEntry{String(u8"Actor"), scene::EntityRef{}, true}); // this entity
+
+    stage.Frame(0.5f);
+    CHECK(c.playId == 0); // no autoplay
+    c.play();
+    stage.Frame(0.25f);
+    CHECK(stage.X() == doctest::Approx(2.5f));
+    c.play(); // again: from the start
+    stage.Frame(0.25f);
+    CHECK(stage.X() == doctest::Approx(2.5f));
+    c.stop();
+    stage.Frame(0.1f);
+    CHECK(c.playId == 0);
+    CHECK(stage.X() == doctest::Approx(0.0f)); // restored
+
+    c.play();
+    stage.Frame(0.25f);
+    const u32 running = c.playId;
+    REQUIRE(stage.sequences->Find(running) != nullptr);
+    stage.world.DestroyEntity(stage.actor);
+    CHECK(stage.sequences->Find(running) == nullptr);
+}
+
+TEST_CASE("sequence component: its settings and cast read back as written")
+{
+    RegisterCoreTypes();
+    RegisterSequenceReflection();
+    SequenceComponent written;
+    written.sequence.SetId(Guid{9, 10});
+    written.cast.PushBack(SequenceCastEntry{String(u8"Mentor"), scene::EntityRef{Guid{11, 12}}, false});
+    written.cast.PushBack(SequenceCastEntry{String(u8"Stage"), scene::EntityRef{}, true});
+    written.autoplay = false;
+    written.speed = 0.5f;
+    written.loop = true;
+    written.finish = sequence::SequenceFinish::Hold;
+
+    MemoryStream stream;
+    {
+        BinarySerializer writer(stream, SerializeMode::Write);
+        Serialize(writer, written);
+    }
+    (void)stream.Seek(0, SeekOrigin::Begin);
+    SequenceComponent read;
+    {
+        BinarySerializer reader(stream, SerializeMode::Read);
+        Serialize(reader, read);
+    }
+    CHECK(read.sequence.id == Guid{9, 10});
+    REQUIRE(read.cast.Size() == 2u);
+    CHECK(read.cast[0].entity.id == Guid{11, 12});
+    CHECK(read.cast[1].self);
+    CHECK_FALSE(read.autoplay);
+    CHECK(read.speed == doctest::Approx(0.5f));
+    CHECK(read.loop);
+    CHECK(read.finish == sequence::SequenceFinish::Hold);
+}

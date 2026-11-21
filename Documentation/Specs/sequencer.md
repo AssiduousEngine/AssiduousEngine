@@ -254,8 +254,9 @@ The two spellings reach the same handlers: an entity event `name` calls `on<Name
 notice holds strings, so it crosses into AngelScript as a reference (`SequenceNotice@`); the handle
 is a plain value. As built (Q2): the notice is `{play: int, sequence: Guid, name, value}`, a play's
 `id()` is what `play` is compared with, `play(sequence, finish)` names the finish as text
-(`"release"`, `"hold"`, `"restore"`), and the system's update order is -100, right after the
-behaviors' -110. Destroying a play releases nothing (the scene may be going away); stopping does.
+(`"release"`, `"hold"`, `"restore"`), and the system's update order is -99, after the behaviors'
+-110 and the sequence components' -100 (nothing may run between the behaviors and the first
+gameplay systems at -100). Destroying a play releases nothing (the scene may be going away); stopping does.
 
 A hold is how a line of dialogue waits for the player: the game's runner hears `sequenceHeld`,
 shows the line, and calls `resume()` on the handle at the press. The sequencer knows nothing of

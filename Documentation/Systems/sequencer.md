@@ -50,8 +50,8 @@ sequence inside itself is refused).
 
 ## In a scene
 
-`SequenceSystem` is the scene's player (simulation only, `UpdateOrder` -100: right after the
-behaviors). `Play(resource, id, finish, owner)` starts a play; finished plays leave the list unless
+`SequenceSystem` is the scene's player (simulation only, `UpdateOrder` -99: after the behaviors'
+-110 and the sequence components' -100). `Play(resource, id, finish, owner)` starts a play; finished plays leave the list unless
 they hold; the scene stopping stops them all.
 
 A play with an owner reports to it as entity events (`sequenceEvent`, `sequenceHeld`,
@@ -59,5 +59,11 @@ A play with an owner reports to it as entity events (`sequenceEvent`, `sequenceH
 `SequenceNotice` (the play's id, the sequence's id, a name and a value) on the run's event bus as
 `SequenceEvent`, `SequenceHeld` and `SequenceFinished`, so the same `on<Name>` handlers hear them.
 An event track bound to an actor posts `sequenceEvent` to that actor.
+
+`SequenceComponent` (manager update order -100, just before the system) starts its play in the
+system with its entity as owner and its inspector cast filled in before time 0 (`SequenceSystem::Play`
+takes a `prepare` step). A cast row names an entity or "self"; the rows are an array of structs,
+which the prefab spawn remaps. Autoplay starts it once per run; `play()` and `stop()` are applied at
+the next update; destroying or disabling the entity stops it.
 
 The script surface is in [Shipping/Scripting.md](../Shipping/Scripting.md), under Sequences.

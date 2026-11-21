@@ -28,6 +28,12 @@ namespace foundation::sequence
     {
         builder.Attribute("displayName", String(u8"Event"));
     }
+    REFLECT_ENUM(SequenceFinish, "rtti::sequence")
+    {
+        builder.Value("Release", SequenceFinish::Release);
+        builder.Value("Hold", SequenceFinish::Hold);
+        builder.Value("Restore", SequenceFinish::Restore);
+    }
 
     // ---- tracks ---------------------------------------------------------------------------------
 
@@ -645,6 +651,7 @@ namespace foundation::sequence
         static const bool once = []()
         {
             GlobalTypeRegistry().Register(SequenceTrack::StaticType());
+            RttiRegisterEnum_SequenceFinish();
             RegisterSequenceTrack<PropertySequenceTrack>();
             RegisterSequenceTrack<EventSequenceTrack>();
             return true;

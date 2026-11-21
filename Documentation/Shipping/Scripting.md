@@ -168,6 +168,12 @@ plays them:
   `stop()`, `time()`, `duration()`, `isPlaying()`, `isHeld()`, and `id()`. A play that has ended is
   harmless: its calls do nothing and `isPlaying()` is false.
 - `scene.sequences.stopAll()` ends every play in the scene (a skip).
+- A Sequence component plays a sequence from an entity: its cast is picked in the inspector (an
+  entity per name, or "This Entity"), it starts by itself unless Autoplay is off, and it stops when
+  its entity is destroyed or disabled. `SequenceComponent.of(entity).play()` starts it again from
+  the beginning, `stop()` stops it, and `scene.sequences.of(entity)` is its running play. What its
+  play reports reaches that entity's behaviours as entity events: `onSequenceEvent(string name,
+  string value)`, `onSequenceHeld(string marker)` and `onSequenceFinished()`.
 - What a play reports reaches behaviours at the next scene tick as `onSequenceEvent(notice)` (an
   event key passed: its `name` and `value`), `onSequenceHeld(notice)` (the playhead stopped at the
   hold marker `name`; call `resume()` when the game is ready, the way a line of dialogue waits for a
