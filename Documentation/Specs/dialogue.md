@@ -1,6 +1,6 @@
 # Dialogue as an official plugin
 
-> APPROVED 2026-11-21. Read on master at `5970a238a`; line numbers will drift. Revisits the
+> APPROVED 2026-11-21. D0 2026-11-21. Read on master at `5970a238a`; line numbers will drift. Revisits the
 > choice, made on 2026-11-06 for the first game built on the engine, to keep its dialogue in its
 > own script ("A now, with plans to move to C"), now that the sequencer exists, and makes dialogue
 > an official engine plugin (that note's option B).
@@ -394,6 +394,11 @@ Each step a commit with its tests, green on clang and gcc.
 
 1. **D0 The sequencer's runner hold**: a track's runner holds and releases the play
    (`SequenceTrackContext`), with tests in `Sequence.Tests`.
+   *As built:* the runner is asked, not handed the play: `HoldTime(after, upTo)` names where it
+   holds and `IsHolding()` whether the hold stands, polled at the hold and each step after, so the
+   context gained nothing. A hold already let go when reached is passed in the same step. `Resume`,
+   `Seek` and `Stop` let go of a runner's hold as of a marker's; only a marker's is reported to the
+   listener. A nested sequence's holds do not hold the outer play, as before for markers.
 2. **D1 The plugin's skeleton**: `Code/Plugins/Dialogue/` with its manifest and four empty parts
    loading in every host, its settings type (`commands`, flag prefix, stock box), in the static
    registry and the templates' list.

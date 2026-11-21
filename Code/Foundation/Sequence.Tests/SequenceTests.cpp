@@ -561,3 +561,162 @@ TEST_CASE("sequence editing: an event track is one channel; a new event is named
     CHECK(track.KeyCurve(0) == nullptr);
     CHECK(track.SectionCount() == 0u);
 }
+
+namespace
+{
+    // A kind whose runner holds the play at `holdAt` until the test reads the line (`read`).
+    struct HoldLine
+    {
+        f32 holdAt = 0.5f;
+        bool read = false;
+        i32 evaluated = 0;
+    };
+
+    class HoldProbeTrack final : public SequenceTrack
+    {
+        RTTI_OBJECT(HoldProbeTrack, SequenceTrack)
+    public:
+        HoldLine* line = nullptr;
+
+        [[nodiscard]] f32 Duration() const noexcept override { return 1.0f; }
+        [[nodiscard]] bool NeedsBinding() const noexcept override { return false; }
+        [[nodiscard]] UniquePtr<SequenceTrackRunner> Begin(const SequenceTrackContext& context) const override
+        {
+            class Runner final : public SequenceTrackRunner
+            {
+            public:
+                explicit Runner(HoldLine* line) : m_line(line) {}
+                void Evaluate(const SequenceStep&) override { ++m_line->evaluated; }
+                void Release(bool) override {}
+                [[nodiscard]] f32 HoldTime(f32 after, f32 upTo) const override
+                {
+                    return m_line->holdAt > after && m_line->holdAt <= upTo ? m_line->holdAt : -1.0f;
+                }
+                [[nodiscard]] bool IsHolding() const override { return !m_line->read; }
+
+            private:
+                HoldLine* m_line;
+            };
+            return MakeUnique<Runner>(*context.allocator, line);
+        }
+    };
+}
+RTTI_DEFINE_OBJECT(HoldProbeTrack, "rtti::sequence::tests")
+
+namespace
+{
+    struct HoldStage
+    {
+        HoldStage() { EnsureRegistered(); }
+        scene::Scene world{DefaultAllocator()};
+        HoldLine line;
+        Sequence sequence;
+
+        void Build()
+        {
+            RefPtr<HoldProbeTrack> probe = MakeRef<HoldProbeTrack>(DefaultAllocator());
+            probe->line = &line;
+            sequence.tracks.PushBack(probe);
+            sequence.duration = 1.0f;
+        }
+    };
+}
+
+TEST_CASE("sequence: a runner holds the play at its time until it lets go")
+{
+    HoldStage stage;
+    stage.Build();
+    Recorder recorder;
+    SequencePlay play(DefaultAllocator(), stage.world, stage.sequence);
+    play.SetListener(&recorder);
+    play.Play();
+
+    play.Advance(0.75f); // past the runner's hold: stops at it
+    CHECK(play.IsHeld());
+    CHECK(play.Time() == doctest::Approx(0.5f));
+    CHECK(recorder.heard.IsEmpty()); // a runner's hold is its own to show, not a marker's
+    const i32 evaluated = stage.line.evaluated;
+    play.Advance(1.0f); // still held: nothing moves, nothing is evaluated
+    CHECK(play.Time() == doctest::Approx(0.5f));
+    CHECK(stage.line.evaluated == evaluated);
+
+    stage.line.read = true; // the runner lets go: the next step goes on
+    play.Advance(0.25f);
+    CHECK_FALSE(play.IsHeld());
+    CHECK(play.Time() == doctest::Approx(0.75f));
+    play.Advance(0.5f); // the hold it left does not stop it again
+    CHECK(play.IsFinished());
+}
+
+TEST_CASE("sequence: a runner's hold already let go is passed in the same step")
+{
+    HoldStage stage;
+    stage.Build();
+    stage.line.read = true; // read before the playhead reaches it
+    SequencePlay play(DefaultAllocator(), stage.world, stage.sequence);
+    play.Play();
+    play.Advance(0.75f);
+    CHECK_FALSE(play.IsHeld());
+    CHECK(play.Time() == doctest::Approx(0.75f)); // the whole step was played
+}
+
+TEST_CASE("sequence: a marker and a runner's hold: the earlier wins, Resume lets go of both")
+{
+    HoldStage stage;
+    stage.Build();
+    SUBCASE("the marker first")
+    {
+        stage.sequence.markers.PushBack(SequenceMarker{0.25f, String(u8"line"), true});
+        SequencePlay play(DefaultAllocator(), stage.world, stage.sequence);
+        play.Play();
+        play.Advance(0.75f);
+        CHECK(play.Time() == doctest::Approx(0.25f));
+        play.Resume();
+        play.Advance(0.75f); // then the runner's
+        CHECK(play.IsHeld());
+        CHECK(play.Time() == doctest::Approx(0.5f));
+    }
+    SUBCASE("at one time, both hold; Resume lets go of both")
+    {
+        stage.sequence.markers.PushBack(SequenceMarker{0.5f, String(u8"line"), true});
+        SequencePlay play(DefaultAllocator(), stage.world, stage.sequence);
+        play.Play();
+        play.Advance(0.75f);
+        CHECK(play.Time() == doctest::Approx(0.5f));
+        stage.line.read = true;
+        play.Advance(0.1f); // the marker still holds
+        CHECK(play.IsHeld());
+        play.Resume();
+        play.Advance(0.1f);
+        CHECK(play.Time() == doctest::Approx(0.6f));
+    }
+    SUBCASE("Resume overrides a runner still holding")
+    {
+        SequencePlay play(DefaultAllocator(), stage.world, stage.sequence);
+        play.Play();
+        play.Advance(0.75f);
+        REQUIRE(play.IsHeld());
+        play.Resume();
+        play.Advance(0.25f);
+        CHECK(play.Time() == doctest::Approx(0.75f));
+    }
+}
+
+TEST_CASE("sequence: a seek or a stop lets go of a runner's hold")
+{
+    HoldStage stage;
+    stage.Build();
+    SequencePlay play(DefaultAllocator(), stage.world, stage.sequence);
+    play.Play();
+    play.Advance(0.75f);
+    REQUIRE(play.IsHeld());
+    play.Seek(0.6f);
+    CHECK_FALSE(play.IsHeld());
+    play.Advance(0.1f);
+    CHECK(play.Time() == doctest::Approx(0.7f));
+    play.Seek(0.0f);
+    play.Advance(0.75f); // reaching it again holds again
+    CHECK(play.IsHeld());
+    play.Stop();
+    CHECK_FALSE(play.IsHeld());
+}

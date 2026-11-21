@@ -93,6 +93,18 @@ export namespace foundation::sequence
         /// plays, a line of dialogue, carries on). Most runners have nothing that runs on its own
         /// between steps; a sound's voice does.
         virtual void SetPaused(bool paused) { (void)paused; }
+        /// The first time in (after, upTo] at which this runner holds the play (a line of dialogue
+        /// shown until it is read), or a negative time for none. The play stops there, as at a hold
+        /// marker, once the step to it has been applied.
+        [[nodiscard]] virtual f32 HoldTime(f32 after, f32 upTo) const
+        {
+            (void)after;
+            (void)upTo;
+            return -1.0f;
+        }
+        /// Asked at the runner's hold time and each step after: whether its hold still stands. The
+        /// play goes on once it answers false, or when the play is resumed.
+        [[nodiscard]] virtual bool IsHolding() const { return false; }
     };
 
     class SequencePlay;
@@ -375,7 +387,7 @@ export namespace foundation::sequence
         void Abandon() noexcept;
         /// Stops the playhead, and tells the runners (a sound's voice pauses with it).
         void Pause();
-        /// Continues after a pause, or from a hold.
+        /// Continues after a pause, or from a hold (a marker's, or one a runner keeps).
         void Resume();
         /// Moves the playhead to `time` without playing what lies between; a hold it was at is let
         /// go. Starts the play first when it is not running.
@@ -383,6 +395,7 @@ export namespace foundation::sequence
         /// The editor's preview: applies `time` with no events and no sounds.
         void Pose(f32 time);
         /// Advances by `deltaTime` seconds (times speed): stops at a hold, wraps or ends at the end.
+        /// A hold a runner keeps ends by itself, when the runner lets go.
         void Advance(f32 deltaTime);
         /// Applies `step` as given, holds and the end left to whoever steps it: a nested sequence
         /// follows its parent's playhead this way. Begins the runners first when needed.
@@ -402,7 +415,8 @@ export namespace foundation::sequence
 
         [[nodiscard]] bool IsPlaying() const noexcept { return m_running && !m_finished; }
         [[nodiscard]] bool IsPaused() const noexcept { return m_paused; }
-        [[nodiscard]] bool IsHeld() const noexcept { return m_held; }
+        /// Held at a hold marker, or by a runner keeping a hold.
+        [[nodiscard]] bool IsHeld() const noexcept { return m_held || !m_holders.IsEmpty(); }
         [[nodiscard]] bool IsFinished() const noexcept { return m_finished; }
         [[nodiscard]] f32 Time() const noexcept { return m_time; }
         [[nodiscard]] f32 Duration() const noexcept { return m_sequence->duration; }
@@ -419,9 +433,11 @@ export namespace foundation::sequence
         void BeginTrack(usize index);
         void Release(bool restore);
         void Evaluate(const SequenceStep& step);
-        /// Plays from the playhead to `to`, stopping at the first hold on the way. True when it
-        /// stopped at one.
+        /// Plays from the playhead to `to`, stopping at the first hold on the way (a marker, or a
+        /// runner whose hold still stands there). True when it stopped at one.
         bool PlayTo(f32 to);
+        /// Lets go of the runners' holds whose runners no longer keep them; true when none is left.
+        bool HoldersLetGo();
         void Finish();
 
         IAllocator* m_allocator;
@@ -431,6 +447,7 @@ export namespace foundation::sequence
         const SequencePlay* m_parent = nullptr;
         Array<scene::EntityHandle> m_bound; // per binding
         Array<Running> m_runners;           // in evaluation order
+        Array<SequenceTrackRunner*> m_holders; // runners keeping the play held; owned by m_runners
         Array<u8> m_warned;                 // per track: its missing binding was told this play
         f32 m_time = 0.0f;
         u64 m_startOrder = 0;     // see StartOrder

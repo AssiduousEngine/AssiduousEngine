@@ -518,6 +518,14 @@ namespace foundation::sequence
             {
                 if (m_runners[r].track == t)
                 {
+                    for (usize h = 0; h < m_holders.Size(); ++h)
+                    {
+                        if (m_holders[h] == m_runners[r].runner.Get())
+                        {
+                            m_holders.RemoveAt(h);
+                            break;
+                        }
+                    }
                     m_runners[r].runner->Release(false);
                     m_runners.RemoveAt(r);
                     break;
@@ -615,6 +623,7 @@ namespace foundation::sequence
         {
             m_runners[r - 1].runner->Release(restore);
         }
+        m_holders.Clear();
         m_runners.Clear();
         m_begun = false;
     }
@@ -637,6 +646,7 @@ namespace foundation::sequence
         m_running = true;
         m_paused = false;
         m_held = false;
+        m_holders.Clear();
         m_finished = false;
         m_time = 0.0f;
         m_fromStart = true;
@@ -655,11 +665,13 @@ namespace foundation::sequence
         m_running = false;
         m_paused = false;
         m_held = false;
+        m_holders.Clear();
         m_finished = false;
     }
 
     void SequencePlay::Abandon() noexcept
     {
+        m_holders.Clear();
         m_runners.Clear();
         m_begun = false;
         m_running = false;
@@ -684,6 +696,7 @@ namespace foundation::sequence
     void SequencePlay::Resume()
     {
         m_held = false;
+        m_holders.Clear();
         if (!m_paused)
         {
             return;
@@ -703,6 +716,7 @@ namespace foundation::sequence
         }
         m_running = true;
         m_held = false;
+        m_holders.Clear();
         m_finished = false;
         m_fromStart = false;
         m_time = Clamp(time, 0.0f, m_sequence->duration);
@@ -721,6 +735,7 @@ namespace foundation::sequence
         }
         m_running = true;
         m_held = false;
+        m_holders.Clear();
         m_finished = false;
         m_fromStart = false;
         m_time = Clamp(time, 0.0f, m_sequence->duration);
@@ -734,42 +749,87 @@ namespace foundation::sequence
 
     bool SequencePlay::PlayTo(f32 to)
     {
-        const f32 from = m_time;
-        const f32 previous = m_fromStart ? -1.0f : from;
-        // The first hold on the way, if any, ends the step there.
-        const SequenceMarker* hold = nullptr;
-        for (const SequenceMarker& marker : m_sequence->markers)
+        // Step by step to `to`: each step ends at the first hold on the way. A runner's hold that no
+        // longer stands when it is reached (the line was read already) is passed, and the play goes
+        // on from there.
+        for (;;)
         {
-            if (marker.hold && marker.time > previous && marker.time <= to && (hold == nullptr || marker.time < hold->time))
+            const f32 previous = m_fromStart ? -1.0f : m_time;
+            f32 stop = to;
+            const SequenceMarker* hold = nullptr;
+            for (const SequenceMarker& marker : m_sequence->markers)
             {
-                hold = &marker;
+                if (marker.hold && marker.time > previous && marker.time <= stop && (hold == nullptr || marker.time < hold->time))
+                {
+                    hold = &marker;
+                    stop = marker.time;
+                }
+            }
+            Array<SequenceTrackRunner*> holding(*m_allocator);
+            for (Running& running : m_runners)
+            {
+                const f32 at = running.runner->HoldTime(previous, to);
+                if (at <= previous || at > stop)
+                {
+                    continue;
+                }
+                if (at < stop)
+                {
+                    stop = at;
+                    hold = nullptr;
+                    holding.Clear();
+                }
+                holding.PushBack(running.runner.Get());
+            }
+
+            SequenceStep step;
+            step.time = stop;
+            step.previousTime = previous;
+            m_time = stop;
+            m_fromStart = false;
+            Evaluate(step);
+
+            for (SequenceTrackRunner* runner : holding)
+            {
+                if (runner->IsHolding())
+                {
+                    m_holders.PushBack(runner);
+                }
+            }
+            if (hold != nullptr)
+            {
+                m_held = true;
+                if (m_listener != nullptr)
+                {
+                    m_listener->OnSequenceHeld(hold->name.AsView());
+                }
+            }
+            if (m_held || !m_holders.IsEmpty())
+            {
+                return true;
+            }
+            if (stop >= to)
+            {
+                return false;
             }
         }
-        if (hold != nullptr)
+    }
+
+    bool SequencePlay::HoldersLetGo()
+    {
+        for (usize h = m_holders.Size(); h > 0; --h)
         {
-            to = hold->time;
+            if (!m_holders[h - 1]->IsHolding())
+            {
+                m_holders.RemoveAt(h - 1);
+            }
         }
-        SequenceStep step;
-        step.time = to;
-        step.previousTime = previous;
-        m_time = to;
-        m_fromStart = false;
-        Evaluate(step);
-        if (hold == nullptr)
-        {
-            return false;
-        }
-        m_held = true;
-        if (m_listener != nullptr)
-        {
-            m_listener->OnSequenceHeld(hold->name.AsView());
-        }
-        return true;
+        return m_holders.IsEmpty();
     }
 
     void SequencePlay::Advance(f32 deltaTime)
     {
-        if (!m_running || m_finished || m_paused || m_held)
+        if (!m_running || m_finished || m_paused || m_held || !HoldersLetGo())
         {
             return;
         }

@@ -31,7 +31,10 @@ serializable registries; `SequenceTrackKinds()` lists them from the type registr
 a list. A kind gives its `Duration`, an `Order` within a step (properties first, events last),
 whether it `NeedsBinding`, `ResolveResources` for the assets it refers to, and `Begin`, which makes a
 `SequenceTrackRunner` for one play: `Evaluate(step)`, `Release(restore)` and `SetPaused(paused)`
-(told when the play pauses or resumes, not at a hold; a sound's voice is what needs it).
+(told when the play pauses or resumes, not at a hold; a sound's voice is what needs it). A runner
+may also hold the play, as a hold marker does: `HoldTime(after, upTo)` names the first time in that
+span it holds at, and `IsHolding()` says whether the hold still stands (a line of dialogue not yet
+read). A hold that no longer stands when the playhead reaches it is passed in the same step.
 
 Kinds here: `PropertySequenceTrack` (property animation's `PropertyTrack`, through its track targets:
 any reflected property, or `Transform`), `EventSequenceTrack` (a name and a text value at a time) and
@@ -78,8 +81,11 @@ graded image, so the HUD and world-space UI draw over it (subtitles stay on a fa
 `SequencePlay` runs one sequence on one scene; the editor's preview and the game use the same one.
 
 - `Play()` begins the runners and applies time 0; `Advance(dt)` plays forward, firing events over
-  `(previous, now]`, stopping at the first hold on the way, wrapping a loop (what is at 0 fires
-  again) or finishing.
+  `(previous, now]`, stopping at the first hold on the way (a hold marker, or a runner's hold),
+  wrapping a loop (what is at 0 fires again) or finishing. A marker's hold waits for `Resume()`; a
+  runner's ends when the runner lets go, or on `Resume()`. Only a marker's is reported
+  (`OnSequenceHeld`); a runner shows its own. A nested sequence's holds, of either kind, do not hold
+  the outer play.
 - `Seek(t)` and `Pose(t)` jump: nothing in between fires; `Pose` is the editor's (no events, no
   sounds).
 - The finish: `Release` (side effects let go, moved values stay), `Hold` (everything stays until
