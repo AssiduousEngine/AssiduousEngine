@@ -496,10 +496,31 @@ namespace foundation::sequence
         m_finished = false;
     }
 
-    void SequencePlay::Resume() noexcept
+    void SequencePlay::Pause()
     {
-        m_paused = false;
+        if (m_paused)
+        {
+            return;
+        }
+        m_paused = true;
+        for (Running& running : m_runners)
+        {
+            running.runner->SetPaused(true);
+        }
+    }
+
+    void SequencePlay::Resume()
+    {
         m_held = false;
+        if (!m_paused)
+        {
+            return;
+        }
+        m_paused = false;
+        for (Running& running : m_runners)
+        {
+            running.runner->SetPaused(false);
+        }
     }
 
     void SequencePlay::Seek(f32 time)

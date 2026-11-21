@@ -21,6 +21,7 @@ module;
 export module engine.audio;
 
 export import :components;
+export import :sequence;
 
 import foundation.core;
 import engine.domain;

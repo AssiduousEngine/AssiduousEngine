@@ -89,6 +89,10 @@ export namespace foundation::sequence
         /// The play ended or stopped: let go of what this runner holds (a voice, an override).
         /// `restore`: also put back every value it changed, as it was before its first change.
         virtual void Release(bool restore) = 0;
+        /// The play was paused or resumed (not held: at a hold the playhead waits while what
+        /// plays, a line of dialogue, carries on). Most runners have nothing that runs on its own
+        /// between steps; a sound's voice does.
+        virtual void SetPaused(bool paused) { (void)paused; }
     };
 
     class SequencePlay;
@@ -227,9 +231,10 @@ export namespace foundation::sequence
         /// Ends the play without letting the runners touch the scene: for a scene being torn down,
         /// whose other systems may already be gone.
         void Abandon() noexcept;
-        void Pause() noexcept { m_paused = true; }
+        /// Stops the playhead, and tells the runners (a sound's voice pauses with it).
+        void Pause();
         /// Continues after a pause, or from a hold.
-        void Resume() noexcept;
+        void Resume();
         /// Moves the playhead to `time` without playing what lies between; a hold it was at is let
         /// go. Starts the play first when it is not running.
         void Seek(f32 time);

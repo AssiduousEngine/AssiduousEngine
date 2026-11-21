@@ -13,6 +13,7 @@ design and what is still to come are in [Specs/sequencer.md](../Specs/sequencer.
 | `Code/Engine/Engine.Sequence` | `engine.sequence` | `SequenceSystem`, `scene.sequences`, `SequencePlay` for script, the domain |
 | `Code/Engine/Engine.Render` | `engine.render` (`:sequence`) | `CameraCutSequenceTrack`, `FadeSequenceTrack` |
 | `Code/Engine/Engine.Animation` | `engine.animation` (`:sequence`) | `ClipSequenceTrack` |
+| `Code/Engine/Engine.Audio` | `engine.audio` (`:sequence`) | `SoundSequenceTrack` |
 
 None of the sequence libraries depends on render, audio, skeletal animation or physics: a domain
 adds the track kinds that drive it, and registers them with its reflection.
@@ -28,7 +29,8 @@ its fields (as particle modules are). `RegisterSequenceTrack<T>()` records it wi
 serializable registries; `SequenceTrackKinds()` lists them from the type registry, so nothing keeps
 a list. A kind gives its `Duration`, an `Order` within a step (properties first, events last),
 whether it `NeedsBinding`, `ResolveResources` for the assets it refers to, and `Begin`, which makes a
-`SequenceTrackRunner` for one play: `Evaluate(step)` and `Release(restore)`.
+`SequenceTrackRunner` for one play: `Evaluate(step)`, `Release(restore)` and `SetPaused(paused)`
+(told when the play pauses or resumes, not at a hold; a sound's voice is what needs it).
 
 Kinds here: `PropertySequenceTrack` (property animation's `PropertyTrack`, through its track targets:
 any reflected property, or `Transform`), `EventSequenceTrack` (a name and a text value at a time) and
@@ -54,6 +56,15 @@ shows again as a section blends out. Between sections the overlay lets go; a pla
 mid-section eases back over the section's blend out. `EntityOverlay(scene, entity)` finds the
 overlay (the graph's, else the skeletal animation's) each step, since a player is rebuilt when its
 skeleton changes.
+
+`SoundSequenceTrack` (the audio's) plays audio clips in the scene's audio group, a section at a time:
+a clip, where in it to start, a length (0: the clip once), a volume, a bus and whether it loops.
+Bound to an entity, the voice is spatial at it and follows it; bound to no one, it is flat. A
+section entered part way (a seek) starts its voice at that point (`AudioPlayParams::startSeconds`);
+a voice more than `kSoundDriftSeconds` (0.1 s) from the playhead is moved back to it
+(`AudioEngine::SeekVoice`), and a jump moves it at once. The voice pauses with the play, and plays
+on at a hold, so a line of dialogue finishes while the game waits for the press. The editor's pose
+plays no sound; the play letting go stops the voice.
 
 `FadeSequenceTrack` (the render's, bound to no one) mixes a colour over the scene's whole view by
 an amount its keys give, from the play's first step until it lets go (the last key's amount holds

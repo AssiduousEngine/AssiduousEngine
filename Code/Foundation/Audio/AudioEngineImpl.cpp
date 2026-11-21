@@ -2123,6 +2123,10 @@ namespace foundation::audio
             ma_sound_set_pan(slot.sound, params.pan);
         }
 
+        if (params.startSeconds > 0.0f)
+        {
+            (void)ma_sound_seek_to_second(slot.sound, params.startSeconds);
+        }
         // A paused scene or run halts its group nodes, custom-bus children included, so a voice
         // started beneath one waits in place like every other voice there.
         if (!params.startPaused)
@@ -2347,6 +2351,16 @@ namespace foundation::audio
         }
     }
 
+    void AudioEngine::SeekVoice(VoiceHandle handle, f32 seconds)
+    {
+        VoiceSlot* slot = m_impl->Resolve(handle);
+        if (slot == nullptr || !slot->soundInitialized)
+        {
+            return;
+        }
+        (void)ma_sound_seek_to_second(slot->sound, Max(0.0f, seconds));
+    }
+
     bool AudioEngine::IsPlaying(VoiceHandle handle) const
     {
         const VoiceSlot* slot = m_impl->Resolve(handle);
@@ -2473,6 +2487,17 @@ namespace foundation::audio
             }
         }
         return count;
+    }
+
+    void AudioEngine::ActiveVoices(Array<VoiceHandle>& out) const
+    {
+        for (usize i = 0; i < m_impl->voices.Size(); ++i)
+        {
+            if (m_impl->voices[i].state != VoiceState::Free)
+            {
+                out.PushBack(m_impl->HandleFor(i));
+            }
+        }
     }
 
     usize AudioEngine::DyingVoiceCount() const { return m_impl->dyingVoices.Size(); }

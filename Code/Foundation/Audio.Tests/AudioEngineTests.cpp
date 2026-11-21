@@ -1656,3 +1656,26 @@ TEST_CASE("audio: reverb parameters set between blocks take effect on the next b
         changed = changed || Abs(out[i] - in[i]) > 1.0e-3f;
     CHECK(changed); // no dry path: what comes out is the tail
 }
+
+TEST_CASE("audio.engine: a voice starts part way into its clip, and a seek moves its cursor")
+{
+    AudioEngine engine(DefaultAllocator(), HeadlessSettings());
+    RefPtr<AudioClip> clip = MakeToneClip(2.0f);
+    AudioPlayParams params;
+    params.allowDedupe = false;
+    params.startSeconds = 1.0f;
+    const VoiceHandle voice = engine.Play(clip, params);
+    REQUIRE(voice.IsValid());
+    VoiceStatus status;
+    REQUIRE(engine.GetVoiceStatus(voice, status));
+    CHECK(status.cursorSeconds == doctest::Approx(1.0f).epsilon(0.02));
+
+    engine.Update(0.1f);
+    engine.SeekVoice(voice, 0.25f);
+    REQUIRE(engine.GetVoiceStatus(voice, status));
+    CHECK(status.cursorSeconds == doctest::Approx(0.25f).epsilon(0.05));
+    engine.Update(0.1f);
+    REQUIRE(engine.GetVoiceStatus(voice, status));
+    CHECK(status.cursorSeconds > 0.3f);
+    CHECK(status.cursorSeconds < 0.45f);
+}

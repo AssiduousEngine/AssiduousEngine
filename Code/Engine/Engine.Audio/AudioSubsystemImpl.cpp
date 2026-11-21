@@ -345,6 +345,7 @@ namespace engine::audio
             RttiRegisterValue_AudioSourceComponent();
             RttiRegisterValue_AudioListenerComponent();
             RttiRegisterValue_AudioReverbZoneComponent();
+            RegisterAudioSequenceTracks(); // a sequence's sounds
             return true;
         }();
         (void)once;

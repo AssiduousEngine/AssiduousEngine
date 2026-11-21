@@ -84,6 +84,9 @@ export namespace foundation::audio
         // sceneGroup is set (the scene group knows its run). 0 = outside every run.
         u64 runGroup = 0;
         bool startPaused = false;
+        // Where in the clip the voice starts, in seconds (a sound a sequence enters part way
+        // through). A streamed clip may land at the nearest block its codec can seek to.
+        f32 startSeconds = 0.0f;
         // Recent-play merging (shotgun pellets, particle bursts). Persistent sources
         // (scene components) must opt out: distinct authored sources playing the same
         // clip in the same instant are distinct voices at distinct positions, and merging
@@ -293,6 +296,9 @@ export namespace foundation::audio
         void StopAll();
         /// Pause fades out but keeps the cursor; resume fades back in.
         void SetPaused(VoiceHandle handle, bool paused);
+        /// Moves the voice's cursor to `seconds` into its clip (a sequence keeping a sound on its
+        /// playhead). A streamed clip may land at the nearest block its codec can seek to.
+        void SeekVoice(VoiceHandle handle, f32 seconds);
         [[nodiscard]] bool IsPlaying(VoiceHandle handle) const; // active && !paused && !stopping
         [[nodiscard]] bool IsValidHandle(VoiceHandle handle) const;
         [[nodiscard]] bool GetVoiceStatus(VoiceHandle handle, VoiceStatus& out) const;
@@ -313,6 +319,9 @@ export namespace foundation::audio
         /// this count at the instant of the steal (its handle dies) even though its
         /// audio tail keeps mixing briefly (see DyingVoiceCount()).
         [[nodiscard]] usize ActiveVoiceCount() const;
+        /// The addressable voices now, appended to `out` (what a debugger lists, or a test that
+        /// did not start the voice itself looks for).
+        void ActiveVoices(Array<VoiceHandle>& out) const;
         /// Whether `clip` played now would find a free voice (in its pool: the streamed one for a
         /// streamed clip), taking no other voice's.
         [[nodiscard]] bool HasFreeVoiceFor(const RefPtr<AudioClip>& clip) const;

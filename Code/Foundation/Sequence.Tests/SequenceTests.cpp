@@ -437,3 +437,65 @@ TEST_CASE("sequence: the track kinds are found through the type registry")
     CHECK(property);
     CHECK(event);
 }
+
+namespace
+{
+    // A kind whose runner counts what the play tells it of pauses.
+    struct PauseLog
+    {
+        i32 paused = 0;
+        i32 resumed = 0;
+    };
+
+    class PauseProbeTrack final : public SequenceTrack
+    {
+        RTTI_OBJECT(PauseProbeTrack, SequenceTrack)
+    public:
+        PauseLog* log = nullptr;
+
+        [[nodiscard]] f32 Duration() const noexcept override { return 1.0f; }
+        [[nodiscard]] bool NeedsBinding() const noexcept override { return false; }
+        [[nodiscard]] UniquePtr<SequenceTrackRunner> Begin(const SequenceTrackContext& context) const override
+        {
+            class Runner final : public SequenceTrackRunner
+            {
+            public:
+                explicit Runner(PauseLog* log) : m_log(log) {}
+                void Evaluate(const SequenceStep&) override {}
+                void Release(bool) override {}
+                void SetPaused(bool paused) override { ++(paused ? m_log->paused : m_log->resumed); }
+
+            private:
+                PauseLog* m_log;
+            };
+            return MakeUnique<Runner>(*context.allocator, log);
+        }
+    };
+}
+RTTI_DEFINE_OBJECT(PauseProbeTrack, "rtti::sequence::tests")
+
+TEST_CASE("sequence: pausing and resuming a play tells its runners; a hold does not")
+{
+    EnsureRegistered();
+    scene::Scene world{DefaultAllocator()};
+    PauseLog log;
+    RefPtr<PauseProbeTrack> probe = MakeRef<PauseProbeTrack>(DefaultAllocator());
+    probe->log = &log;
+    Sequence sequence;
+    sequence.tracks.PushBack(probe);
+    sequence.markers.PushBack(SequenceMarker{0.5f, String(u8"line"), true});
+    sequence.duration = 1.0f;
+    SequencePlay play(DefaultAllocator(), world, sequence);
+
+    play.Play();
+    play.Pause();
+    play.Pause(); // already paused: told once
+    CHECK(log.paused == 1);
+    play.Resume();
+    CHECK(log.resumed == 1);
+    play.Advance(0.75f); // stops at the hold: the runners carry on
+    REQUIRE(play.IsHeld());
+    play.Resume(); // from a hold, not a pause
+    CHECK(log.paused == 1);
+    CHECK(log.resumed == 1);
+}

@@ -205,3 +205,56 @@ TEST_CASE("sequence resource: the factory loads a cooked sequence and binds what
     FileDelete(u8"scratch_sequence_resource_db/outer.rasset");
     RemoveDirectory(u8"scratch_sequence_resource_db");
 }
+
+namespace
+{
+    // A kind whose runner says whether it was last told the play paused.
+    class PauseFlagTrack final : public SequenceTrack
+    {
+        RTTI_OBJECT(PauseFlagTrack, SequenceTrack)
+    public:
+        bool* paused = nullptr;
+
+        [[nodiscard]] f32 Duration() const noexcept override { return 1.0f; }
+        [[nodiscard]] bool NeedsBinding() const noexcept override { return false; }
+        [[nodiscard]] UniquePtr<SequenceTrackRunner> Begin(const SequenceTrackContext& context) const override
+        {
+            class Runner final : public SequenceTrackRunner
+            {
+            public:
+                explicit Runner(bool* paused) : m_paused(paused) {}
+                void Evaluate(const SequenceStep&) override {}
+                void Release(bool) override {}
+                void SetPaused(bool paused) override { *m_paused = paused; }
+
+            private:
+                bool* m_paused;
+            };
+            return MakeUnique<Runner>(*context.allocator, paused);
+        }
+    };
+}
+RTTI_DEFINE_OBJECT(PauseFlagTrack, "rtti::sequence::tests")
+
+TEST_CASE("sequence resource: a nested sequence's runners pause with the outer play")
+{
+    EnsureRegistered();
+    scene::Scene world{DefaultAllocator()};
+    bool paused = false;
+    RefPtr<SequenceResource> inner = MakeRef<SequenceResource>(DefaultAllocator());
+    RefPtr<PauseFlagTrack> flag = MakeRef<PauseFlagTrack>(DefaultAllocator());
+    flag->paused = &paused;
+    inner->sequence.tracks.PushBack(flag);
+    inner->sequence.duration = 1.0f;
+
+    Sequence outer;
+    outer.tracks.PushBack(Nested(inner, 0.0f, 0.0f, false));
+    outer.duration = outer.ComputeDuration();
+    SequencePlay play(DefaultAllocator(), world, outer);
+    play.Play();
+    play.Advance(0.25f);
+    play.Pause();
+    CHECK(paused);
+    play.Resume();
+    CHECK_FALSE(paused);
+}

@@ -91,6 +91,19 @@ namespace foundation::sequence
                 m_applied = true;
             }
 
+            // The nested play's runners pause with the outer play.
+            void SetPaused(bool paused) override
+            {
+                if (paused)
+                {
+                    m_play.Pause();
+                }
+                else
+                {
+                    m_play.Resume();
+                }
+            }
+
             void Release(bool restore) override
             {
                 m_play.finish = restore ? SequenceFinish::Restore : SequenceFinish::Release;
