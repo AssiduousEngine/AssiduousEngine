@@ -125,6 +125,12 @@ namespace editor
         m_inGesture = true;
     }
 
+    void SequenceDocument::RestoreGestureStart()
+    {
+        if (m_inGesture)
+            Restore(m_gestureBefore.AsSpan());
+    }
+
     void SequenceDocument::PreviewGesture()
     {
         ++m_version; // the tracks changed in place: a play on them begins again
@@ -183,6 +189,11 @@ namespace editor
         // The duration never cuts off what the sequence holds.
         m_sequence.duration = Max(m_sequence.duration, m_sequence.ComputeDuration());
         Array<byte> after = Snapshot();
+        if (after.Size() == before.Size() && (before.IsEmpty() || MemCompare(after.Data(), before.Data(), before.Size()) == 0))
+        {
+            Changed(); // nothing changed (a gesture back where it began): no step to undo
+            return;
+        }
         (void)m_commands.Execute(UniquePtr<IEditorCommand>(EditorRootAllocator().New<Step>(*this, typeId, Move(before), Move(after)), EditorRootAllocator()));
     }
 

@@ -60,6 +60,9 @@ export namespace editor
         /// show it) and becomes one undo step when it commits; a cancelled gesture restores it.
         void BeginGesture();
         [[nodiscard]] foundation::sequence::Sequence& GestureSequence() noexcept { return m_sequence; }
+        /// Puts the sequence back as the gesture found it, so a preview applies its whole change
+        /// again from there (a drag's delta is from where it began).
+        void RestoreGestureStart();
         void PreviewGesture();
         void CommitGesture(StringView typeId);
         void CancelGesture();

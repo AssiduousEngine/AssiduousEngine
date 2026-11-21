@@ -4,10 +4,11 @@
 // Editor::Sequence - the `editor.sequence` module.
 //
 // Sequences are authored in the scene, in a panel under the scene page's viewport: the sequence
-// document with its own history (:document) and the preview that poses the scene with it
-// (:preview).
+// document with its own history (:document), the preview that poses the scene with it
+// (:preview), and the document as the dopesheet's and the curve view's source (:source).
 
 export module editor.sequence;
 
 export import :document;
 export import :preview;
+export import :source;
