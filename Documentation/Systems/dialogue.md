@@ -13,7 +13,7 @@ otherwise. It supports Linux64, Win64, Web and Android64.
 
 | Part | Library | Module | Holds |
 |---|---|---|---|
-| Engine | `Dialogue.Engine` | `dialogue.engine` | `DialogueSettings`; the compiled conversations and the cast, their cooked forms and factories; the dialogue's domain |
+| Engine | `Dialogue.Engine` | `dialogue.engine` | `DialogueSettings`; the compiled conversations and the cast, their cooked forms and factories; the dialogue's domain; the runner, and the one each run holds |
 | Pipeline | `Dialogue.Pipeline` | `dialogue.pipeline` | the format's parser, the commands' notation, the cook's checks; the dialogue's assets, their builders, the importer and File > New's creators |
 | Tooling | `Dialogue.Tooling` | | its entry |
 | Editor | `Dialogue.Editor` | `dialogue.editor` | the cast's and the dialogue assets' pages |
@@ -42,7 +42,7 @@ Settings edits it.
 ## The compiled conversations
 
 A dialogue file cooks to a `DialogueSource`, which `DialogueFactory` loads into a
-`DialogueResource`: its `conversations` and, apart from them, the texts of its lines and answers by
+`DialogueResource`: the `cast` its speakers are from, its `conversations` and, apart from them, the texts of its lines and answers by
 line id (`lines`, `Text(id)`), the seam a translation fills. A `DialogueConversation` is an `id`,
 the `level` its entity names are checked against when it names one, and a flat list of
 `DialogueStep`s with its choice and branch blocks compiled to jumps:
@@ -178,11 +178,56 @@ assets list. The part adds the pages where the editor offers its context and its
 keeps their factories' keys, and removes them as it unloads (`EditorContext::RemovePageFactory`),
 which closes their open pages.
 
+## The runner
+
+`DialogueRunner` plays one conversation at a time. `Play(dialogue, conversation)` starts the
+conversation of a dialogue file, by the file's guid (its first conversation when none is named),
+and refuses while one is playing or when there is no such conversation. It walks the steps from the
+first and stops at one that waits:
+
+| Waits on | Step | Goes on with |
+|---|---|---|
+| `Line` | a line | `Advance()` |
+| `Choice` | a choice | `Choose(i)`, at that answer's statements |
+| `Time` | `wait` | its seconds, counted by `Update` |
+| `Staging` | `play` or `sequence` with `and wait`, and every `fade` | the staging done |
+| `Command` | a declared command that waits | `Done()` |
+
+`Stop()` ends it at once. A command that leaves ends it with its place kept, and `Resume()` goes on
+after it. Flags are booleans under the settings' `flagPrefix` (`Flag`, `SetFlag`); an `if` reads
+them, `set` and `clear` write them. A `jump` goes on in its own file or, when the cook resolved one,
+in another.
+
+What it needs from the game goes through `IDialogueHost`: loading dialogue files and casts, the
+save store (flags and the resume record), what an input action is bound to, the staging, and four
+notices for the game:
+
+| Notice | Event | Holds |
+|---|---|---|
+| `DialogueLineNotice` | `DialogueLine` | the file, the conversation, the speaker's id and shown name, the mood (the speaker's first when unnamed), the portrait (the mood's, else the speaker's), the text with each `{Action}` filled with what it is bound to (`{{` and `}}` are braces), the line id |
+| `DialogueChoiceNotice` | `DialogueChoice` | the answers' texts and line ids |
+| `DialogueCommandNotice` | `DialogueCommand` | the command's name, its arguments (`Find(name)`), whether the conversation waits for `Done()` or has left |
+| `DialogueEndedNotice` | `DialogueEnded` | the file and the conversation, and whether it was stopped or left |
+
+**Resume** anchors on a line, so a save survives a patch to the conversation. The record
+(`dialogue.resume` in the save store) holds the dialogue file, the conversation, the step to go on
+at, the last line shown and a hash of the conversation's steps (`HashSteps`). It is written as each
+line shows and when a command leaves, so a game that saves mid conversation saves its place, and
+cleared when the conversation ends. `Resume()` goes on at the step when the hash matches, else at
+the line if the conversation still has it, else from the start (logged).
+
+**In a run**, the plugin contributes a runner to every run (`DialogueRunContribution`, a run service
+contribution): a `DialogueRunService`, `run.Get<DialogueRunService>()`, stepped with the run's frame
+(`IRunService::OnRunUpdate`). Its host, `DialogueRunHost`, loads files and casts through the run's
+resources, keeps flags and the record in the run's save (`RunSave`), reads an action's binding from
+the run's input on the device in hand, and publishes the notices on the run's bus.
+
 ## Loading
 
 The Engine part's load registers the settings type and the plugin's types
 (`RegisterDialogueTypes`), reads the settings, and, where the host offers the engine's service
-(`EnginePluginServices`), adds the dialogue's domain, whose resource module holds the two factories.
+(`EnginePluginServices`), adds the dialogue's domain, whose resource module holds the two factories,
+and the run service contribution that gives every run its runner.
 All of it is recorded and taken out when the plugin unloads.
 
 Tests: `Dialogue.Engine.Tests` (the settings' defaults, their round trip through the project's
@@ -190,8 +235,11 @@ entry, their labels; the compiled conversations and the cast reading back as wri
 and the speaker's reflection), `Dialogue.Pipeline.Tests` (the commands' notation and what it
 refuses; the format parsed: lines, choices and branches compiled to jumps, the built-in statements,
 declared commands with names of several words, line ids, and every problem at its line; the cook's
-checks over a table of a project's assets) and `Integration.Plugins` (the package linked with its
-four parts, its manifest, a project that enables it loading it with its settings and its domain,
+checks over a table of a project's assets; the runner playing parsed conversations against a
+stand-in host: lines, choices, branches, flags, waits, staging, commands that wait or leave, jumps,
+resume after a load and after a patch, a second play refused, a host that answers at once) and `Integration.Plugins` (the package linked with its
+four parts, its manifest, a project that enables it loading it with its settings, its domain and a
+runner in every run, its flags in the run's save,
 and, through the MCP host, a dialogue file cooking to its conversations, one with an error failing
 the cook, and File > New's three creators; and, in an editor session, the cast and the dialogue
 assets opening in their pages, a speaker added, undone, found and removed, and the pages leaving

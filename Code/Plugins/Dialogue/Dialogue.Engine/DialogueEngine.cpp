@@ -3,8 +3,8 @@
 
 // Dialogue.Engine's entry. Load registers the plugin's types, reads the project's settings for the
 // plugin (the host holds them while the plugin is loaded; Project Settings edits that object) and,
-// in a host that offers the engine's service, adds the dialogue's domain: the factories that load
-// a cooked dialogue file and a cooked cast. What it registers and adds is recorded and taken out
+// in a host that offers the engine's service, adds the dialogue's domain (the factories that load
+// a cooked dialogue file and a cooked cast) and a runner to every run. What it registers and adds is recorded and taken out
 // again when the plugin unloads.
 
 #include "Core/Prelude.h"
@@ -26,11 +26,15 @@ namespace
     void Load(foundation::runtime::PluginContext& context)
     {
         context.Types().Register(dialogue::DialogueSettings::StaticType());
-        (void)context.Settings<dialogue::DialogueSettings>();
+        const dialogue::DialogueSettings* settings = context.Settings<dialogue::DialogueSettings>();
         dialogue::RegisterDialogueTypes();
         if (engine::EnginePluginServices* services = context.Find<engine::EnginePluginServices>())
         {
             (void)services->AddDomain(kDialogueDomain);
+            if (settings != nullptr)
+            {
+                (void)services->AddRunService(dialogue::DialogueRunContribution(*settings));
+            }
         }
     }
 }

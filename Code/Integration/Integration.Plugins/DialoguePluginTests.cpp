@@ -5,7 +5,8 @@
 // it. Its manifest reads and passes the host's checks, an editor links its four parts, and a
 // project that enables it loads it: the project's settings for it read into its settings type, its
 // domain added to the engine's composition (the factories for a cooked dialogue file and cast),
-// and all of it taken out again when it unloads.
+// a runner in every run whose flags live in the run's save, and all of it taken out again when it
+// unloads.
 
 #include <doctest/doctest.h>
 
@@ -20,6 +21,7 @@ import engine.project;
 import engine.defaultapp;
 import engine.domain;
 import engine.composition;
+import engine.run;
 import dialogue.engine;
 
 using namespace foundation::core;
@@ -100,7 +102,8 @@ TEST_CASE("plugins: the dialogue plugin is linked here with its four parts, and 
     CHECK(found->partCount == 4u); // an editor's role links every part
 }
 
-TEST_CASE("plugins: a project that enables dialogue loads it, its settings read from the project's entry and its domain added")
+TEST_CASE("plugins: a project that enables dialogue loads it, its settings read from the project's entry, its domain "
+          "added and a runner in every run")
 {
     BareHost host;
     engine::runtime::DefaultApplication embedded;
@@ -140,7 +143,24 @@ TEST_CASE("plugins: a project that enables dialogue loads it, its settings read 
     CHECK(GlobalTypeRegistry().FindById(cooked) != nullptr);
     CHECK(GlobalTypeRegistry().FindById(castCooked) != nullptr);
 
+    // Every run gets a runner, its flags in the run's save under the settings' prefix.
+    {
+        engine::runtime::ApplicationRun run;
+        auto* runner = run.Get<dialogue::DialogueRunService>();
+        REQUIRE(runner != nullptr);
+        CHECK_FALSE(runner->IsPlaying());
+        runner->SetFlag(u8"met_keeper", true);
+        CHECK(run.Saves().Values().GetBool(u8"flag.met_keeper", false));
+        CHECK(run.Saves().HasChanges());
+        CHECK(runner->Flag(u8"met_keeper"));
+        CHECK_FALSE(runner->Resume()); // nothing saved to resume
+        CHECK_FALSE(runner->Play(Guid{}, u8"gate")); // no such file: refused
+    }
+    engine::runtime::ApplicationRun live;
+    REQUIRE(live.Get<dialogue::DialogueRunService>() != nullptr);
+
     embedded.DestroyPluginHost();
+    CHECK(live.Get<dialogue::DialogueRunService>() == nullptr); // its code is going: out of the live run
     CHECK(GlobalTypeRegistry().FindById(type.id) == nullptr); // taken out with the plugin
     CHECK_FALSE(HasDomain(kDialogue));
     CHECK(GlobalTypeRegistry().FindById(cooked) == nullptr);

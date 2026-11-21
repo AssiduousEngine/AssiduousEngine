@@ -5,9 +5,13 @@
 util_add_plugin_part()
 target_link_libraries(${PLUGIN_PART}
     PUBLIC Foundation::Core Foundation::Runtime Foundation::Resource Foundation::Content Foundation::Policy
+           Foundation::Run      # the runner is a run's service
+           Engine::Run          # the run's save, and the contribution that installs the runner
     PRIVATE Engine::Project     # the settings' attributes
             Engine::Domain      # the dialogue's domain
             Engine::Composition # EnginePluginServices, which takes it
+            Engine::Behavior    # the services the run's scripts find (its resources, its input)
+            Foundation::Input Foundation::Script.Facades
 )
 target_sources(${PLUGIN_PART}
     PRIVATE
@@ -16,10 +20,14 @@ target_sources(${PLUGIN_PART}
         DialogueConversation.cpp # the compiled conversations
         DialogueCast.cpp         # the cast
         DialogueResources.cpp    # the types' registration
+        DialogueRunner.cpp       # the runner
+        DialogueRun.cpp          # the runner a run holds, with the run's host
     PUBLIC
         FILE_SET dialogue_engine_modules TYPE CXX_MODULES FILES
             DialogueEngineModule.cppm
             DialogueSettings.cppm
             DialogueConversation.cppm
             DialogueCast.cppm
-            DialogueResources.cppm)
+            DialogueResources.cppm
+            DialogueRunner.cppm
+            DialogueRun.cppm)

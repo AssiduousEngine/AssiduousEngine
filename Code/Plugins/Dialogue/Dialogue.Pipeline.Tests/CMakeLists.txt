@@ -1,4 +1,5 @@
-add_executable(Dialogue.Pipeline.Tests TestsMain.cpp DialogueParseTests.cpp DialogueFormTests.cpp DialogueCheckTests.cpp)
+add_executable(Dialogue.Pipeline.Tests TestsMain.cpp DialogueParseTests.cpp DialogueFormTests.cpp DialogueCheckTests.cpp
+    DialogueRunnerTests.cpp)
 target_link_libraries(Dialogue.Pipeline.Tests PRIVATE Plugins::Dialogue.Pipeline doctest::doctest)
 target_compile_definitions(Dialogue.Pipeline.Tests PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)
 target_compile_options(Dialogue.Pipeline.Tests PRIVATE
