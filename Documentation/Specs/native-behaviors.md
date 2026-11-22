@@ -265,9 +265,14 @@ prove it.
 - **The kinds as C++ bases**: `engine::RunBehavior`, `SceneBehavior` and `EntityBehavior`, each an
   `Object` the layer gives its `Entity` (an entity behavior) or its `Scene` (a scene behavior) on
   creation, as a script's constructor takes them; `Fault(reason)` on each.
-- **`NativeBehaviorClasses`**: finds the class in the type registry by name (`FindByName`), checks
-  its base chain for the kind, creates it through its reflected constructor, and wraps it in a
-  native `ScriptObject`. `Bind(name, argCount)` finds the reflected method by its script name and
+- **`NativeBehaviorClasses`**: finds the class in the type registry by the qualified name its
+  `BehaviorClass` records (`rtti::game::Orb`, by `FindByName`), checks its base chain for the kind,
+  makes it through its reflected creator (`builder.Creator()`: an `Object` from an allocator, as a
+  script's object takes its entity or scene after, through the base's `BindEntity` / `BindScene`),
+  and wraps it in a native `BehaviorObject`. The bases carry `hiddenFromScripts`, which keeps them
+  and every class derived from them out of the languages' surface (`RegisterReflectedTypes`): a
+  script reaches a native behavior by its messages and events, and the bases' names are the
+  scripts' own base types'. A plugin registers a class by its `StaticType()`. `Bind(name, argCount)` finds the reflected method by its script name and
   parameter count (a handle to its `MethodInfo`); `Invoke` pushes the service scope and the current
   call (for the crash report), and calls the method's typed entry where it has one, else `invoke`
   with the `Variant`s, an argument that does not convert being an error, so a fault; `GetProperty`

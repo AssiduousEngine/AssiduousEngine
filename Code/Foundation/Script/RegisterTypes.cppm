@@ -194,9 +194,28 @@ export namespace foundation::script
         }
     }
 
-    // Registers every type in `registry` with `manager` except those in `hidden`: the surface of a
-    // platform without some plugins is the full one less their types, so a script checked against
-    // it fails where it uses one of them.
+    /// The type attribute that keeps a type, and every type deriving from it, out of the script
+    /// languages' surface: the C++ base types of native behaviors and the classes a game derives
+    /// from them, which scripts reach through messages and events, not by name.
+    inline constexpr const char* kHiddenFromScriptsAttribute = "hiddenFromScripts";
+
+    /// Whether `type` or a type it derives from carries kHiddenFromScriptsAttribute.
+    [[nodiscard]] inline bool IsHiddenFromScripts(const core::TypeInfo& type) noexcept
+    {
+        for (const core::TypeInfo* t = &type; t != nullptr; t = t->base)
+        {
+            const core::Variant* hidden = core::FindAttribute(*t, kHiddenFromScriptsAttribute);
+            if (hidden != nullptr && hidden->TryGet<bool>() != nullptr && *hidden->TryGet<bool>())
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Registers every type in `registry` with `manager` except those in `hidden` and those hidden
+    // from scripts (IsHiddenFromScripts): the surface of a platform without some plugins is the
+    // full one less their types, so a script checked against it fails where it uses one of them.
     inline void
     RegisterReflectedTypes(IScriptManager& manager,
                            const core::TypeRegistry& registry = core::GlobalTypeRegistry(),
@@ -204,7 +223,7 @@ export namespace foundation::script
     {
         for (const core::TypeInfo* type : registry.All())
         {
-            bool skip = false;
+            bool skip = IsHiddenFromScripts(*type);
             for (core::TypeId id : hidden)
             {
                 skip = skip || id == type->id;

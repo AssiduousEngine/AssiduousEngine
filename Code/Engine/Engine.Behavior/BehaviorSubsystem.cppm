@@ -30,6 +30,7 @@ module;
 export module engine.behavior;
 
 export import :components;
+export import :native; // behaviors written in C++: the kinds' bases, native objects
 export import foundation.script.facades; // Entity, Log, Time, Random and the run-service binding
 
 import foundation.core;
@@ -575,16 +576,19 @@ export namespace engine::behavior
 
     /// A run's behaviors: the services its objects find (its runtime binding, its run's services,
     /// the application's), its clock, and the classes it makes objects of. A class in a script
-    /// language is made in the run's VM (Scripts()). One host per run; it does not move, since
-    /// its script half resolves services through it.
+    /// language is made in the run's VM (Scripts()); a native class (language `native`) is made
+    /// from its registered type, with no VM. One host per run; it does not move, since its halves
+    /// resolve services through it.
     class BehaviorRunHost
     {
     public:
-        explicit BehaviorRunHost(foundation::core::IAllocator& allocator) noexcept : m_scripts(allocator)
+        explicit BehaviorRunHost(foundation::core::IAllocator& allocator) noexcept
+            : m_allocator(&allocator), m_scripts(allocator)
         {
             BehaviorRunHost* self = this;
             m_scripts.SetHost(ServiceResolver{[self](TypeId type) { return self->FindService(type); }},
                               Function<void()>{[self]() { self->RestartClock(); }});
+            m_native.SetServices(ServiceResolver{[self](TypeId type) { return self->FindService(type); }});
         }
         BehaviorRunHost(const BehaviorRunHost&) = delete;
         BehaviorRunHost& operator=(const BehaviorRunHost&) = delete;
@@ -622,7 +626,11 @@ export namespace engine::behavior
         /// a debug-suspended handler apart from a fault.
         [[nodiscard]] bool IsDebugPaused() const noexcept { return m_scripts.IsDebugPaused(); }
         /// The last error this run reported, then forgotten: the reason a faulting call gives.
-        [[nodiscard]] String TakeLastError() { return m_scripts.TakeLastError(); }
+        [[nodiscard]] String TakeLastError()
+        {
+            String native = m_native.TakeLastError();
+            return native.IsEmpty() ? m_scripts.TakeLastError() : native;
+        }
 
         /// The run's script half: its VM, made for the first class in a script language.
         [[nodiscard]] ScriptBehaviorClasses& Scripts() noexcept { return m_scripts; }
@@ -654,6 +662,10 @@ export namespace engine::behavior
                           BehaviorKinds::TypeName(kind));
                 return nullptr;
             }
+            if (scriptClass.language.AsView() == kNativeLanguage)
+            {
+                return m_native.Create(scriptClass, args, kind, *m_allocator);
+            }
             return m_scripts.Create(scriptClass, args);
         }
 
@@ -667,7 +679,9 @@ export namespace engine::behavior
             m_binding.random = core::Random{}; // fresh per-run RNG
         }
 
+        foundation::core::IAllocator* m_allocator;
         ScriptBehaviorClasses m_scripts;
+        NativeBehaviorClasses m_native;
         ScriptRuntimeBinding m_binding;
         Function<void*(TypeId)> m_applicationServices; // SetApplicationServices
         bool m_gameScriptHold = false; // a game script is loaded into this host (teardown pin)

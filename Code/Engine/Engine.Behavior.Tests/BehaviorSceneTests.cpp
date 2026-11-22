@@ -6358,3 +6358,150 @@ TEST_CASE("script.scene: the script Entity and the scene facades are plain bytes
     CHECK(TypeOf<foundation::script::Scene>().trivialCopy);
     CHECK(TypeOf<foundation::script::SceneEventsFacade>().trivialCopy);
 }
+
+namespace nativetest
+{
+    // A behavior written in C++: an entity's, with a property of its own (worth), a reflected field
+    // that is not one (spin), its lifecycle and a message handler by the names scripts use, and a
+    // facade call that must find its run's services with no script context.
+    class Orb final : public engine::behavior::EntityBehavior
+    {
+        RTTI_OBJECT(Orb, engine::behavior::EntityBehavior)
+    public:
+        f32 worth = 5.0f;
+        f32 spin = 1.0f;
+        i32 starts = 0;
+        f32 lastDelta = 0.0f;
+        f64 startedAt = -1.0;
+        i32 pinged = 0;
+        String named;
+        String crashNote; // what a crash in onStart would have printed
+
+        void OnStart()
+        {
+            ++starts;
+            startedAt = foundation::script::TimeFacade::now(); // the run's clock, through its services
+            named = Self().name();
+            crashNote = String(StringView(reinterpret_cast<const utf8char*>(CrashNoteScope::Current())));
+        }
+        void OnUpdate(f32 deltaTime) { lastDelta = deltaTime; }
+        void OnPing(i32 amount) { pinged += amount; }
+        void OnHurt(i32 amount)
+        {
+            if (amount > 10)
+            {
+                Fault(u8"hurt past mending");
+            }
+        }
+    };
+
+    REFLECT_MEMBERS(Orb, "rtti::nativetest")
+    {
+        builder.Property<&Orb::worth>("worth").PropAttribute("behaviorProperty", true);
+        builder.Property<&Orb::spin>("spin");
+        builder.Property<&Orb::starts>("starts");
+        builder.Property<&Orb::lastDelta>("lastDelta");
+        builder.Property<&Orb::startedAt>("startedAt");
+        builder.Property<&Orb::pinged>("pinged");
+        builder.Property<&Orb::named>("named");
+        builder.Property<&Orb::crashNote>("crashNote");
+        builder.Method<&Orb::OnHurt>("onHurt");
+        builder.Method<&Orb::OnStart>("onStart");
+        builder.Method<&Orb::OnUpdate>("onUpdate");
+        builder.Method<&Orb::OnPing>("onPing");
+        builder.Creator();
+    }
+}
+
+TEST_CASE("behavior: a native entity behavior runs its lifecycle, messages and properties by the names scripts use, with no VM")
+{
+    GlobalTypeRegistry().Register(nativetest::Orb::StaticType());
+    ScriptedScene bed;
+    RefPtr<BehaviorClass> orb = MakeClassLang(engine::behavior::kNativeLanguage, u8"rtti::nativetest::Orb", u8"",
+                                              {u8"onStart", u8"onUpdate", u8"onPing"},
+                                              {FloatProperty(u8"worth", 5.0), FloatProperty(u8"spin", 1.0)});
+    const scene::EntityHandle e = bed.AddScripted(orb, u8"orb");
+    BehaviorPropertyValue eight;
+    eight.kind = BehaviorPropertyType::Float;
+    eight.number = 8.0;
+    bed.components->Get(e)->behaviors[0].SetOverride(BehaviorPropertyNameHash(u8"worth"), eight);
+
+    bed.host.Binding().timeSeconds = 3.0; // what the run's clock reads at the first frame's start
+    bed.Start();
+    bed.Frame(0.25f);
+    BehaviorObject* object = bed.components->Get(e)->behaviors[0].instance.Get();
+    REQUIRE(object != nullptr);
+    CHECK(bed.host.Scripts().ScriptContext() == nullptr); // no VM was made for it
+
+    const auto read = [object](StringView name) { return object->GetProperty(name); };
+    CHECK(read(u8"starts").Value().Get<i32>() == 1);
+    CHECK(read(u8"lastDelta").Value().Get<f32>() == doctest::Approx(0.25f)); // the layer's number, fitted
+    CHECK(read(u8"startedAt").Value().Get<f64>() == doctest::Approx(3.25)); // Time found the run's clock
+    CHECK(read(u8"named").Value().Get<String>() == String(u8"orb"));       // Self() is its entity
+    CHECK(read(u8"worth").Value().Get<f32>() == doctest::Approx(8.0f));     // the override, over the default
+    CHECK(read(u8"spin").Value().Get<f32>() == doctest::Approx(1.0f));      // not a property: not written
+    CHECK_FALSE(object->SetProperty(u8"spin", Variant::From<f64>(2.0)).IsOk());
+
+    Variant amount[1] = {Variant::From<f64>(4.0)}; // a script's number
+    bed.scripts->EnqueueMessage(e, u8"Ping", Span<const Variant>{amount, 1});
+    bed.Frame(0.25f);
+    CHECK(read(u8"pinged").Value().Get<i32>() == 4);
+    CHECK(read(u8"starts").Value().Get<i32>() == 1);
+    CHECK_FALSE(bed.components->Get(e)->behaviors[0].faulted);
+    CHECK(read(u8"crashNote").Value().Get<String>() == String(u8"Orb.onStart on 'orb'")); // what a crash would name
+    CHECK(CrashNoteScope::Current() == nullptr); // and nothing once the call returned
+}
+
+TEST_CASE("behavior: a native behavior that faults itself is disabled with its reason, as a script's error disables one")
+{
+    GlobalTypeRegistry().Register(nativetest::Orb::StaticType());
+    ScriptedScene bed;
+    RefPtr<BehaviorClass> orb = MakeClassLang(engine::behavior::kNativeLanguage, u8"rtti::nativetest::Orb", u8"",
+                                              {u8"onStart", u8"onPing", u8"onHurt"});
+    const scene::EntityHandle e = bed.AddScripted(orb, u8"orb");
+    bed.Start();
+    bed.Frame();
+    Variant mild[1] = {Variant::From<f64>(3.0)};
+    bed.scripts->EnqueueMessage(e, u8"Hurt", Span<const Variant>{mild, 1});
+    bed.Frame();
+    CHECK_FALSE(bed.components->Get(e)->behaviors[0].faulted);
+    Variant hard[1] = {Variant::From<f64>(30.0)};
+    bed.scripts->EnqueueMessage(e, u8"Hurt", Span<const Variant>{hard, 1});
+    bed.Frame();
+    CHECK(bed.components->Get(e)->behaviors[0].faulted);
+    CHECK(bed.host.TakeLastError() == String(u8"hurt past mending"));
+    Variant one[1] = {Variant::From<f64>(1.0)};
+    bed.scripts->EnqueueMessage(e, u8"Ping", Span<const Variant>{one, 1});
+    bed.Frame();
+    BehaviorObject* object = bed.components->Get(e)->behaviors[0].instance.Get();
+    CHECK((object == nullptr || object->GetProperty(u8"pinged").Value().Get<i32>() == 0)); // disabled: no handler ran
+}
+
+TEST_CASE("behavior: a native class of another kind, or one not registered, is refused and the behavior disabled")
+{
+    ScriptedScene bed;
+    RefPtr<BehaviorClass> missing =
+        MakeClassLang(engine::behavior::kNativeLanguage, u8"rtti::nativetest::Nowhere", u8"", {u8"onStart"});
+    const scene::EntityHandle a = bed.AddScripted(missing, u8"missing");
+    GlobalTypeRegistry().Register(nativetest::Orb::StaticType());
+    RefPtr<BehaviorClass> wrongKind =
+        MakeClassLang(engine::behavior::kNativeLanguage, u8"rtti::nativetest::Orb", u8"", {u8"onStart"});
+    wrongKind->kind = BehaviorKind::Entity;
+    BehaviorClass& asScene = *wrongKind;
+    Scene handle;
+    handle.scene = &bed.scene;
+    Variant arg = Variant::From(handle);
+    CHECK(bed.host.Instantiate(asScene, Span<Variant>{&arg, 1}, BehaviorKind::Entity).Get() != nullptr);
+    asScene.kind = BehaviorKind::Scene;
+    CHECK(bed.host.Instantiate(asScene, Span<Variant>{&arg, 1}, BehaviorKind::Scene).Get() == nullptr); // an EntityBehavior
+    bed.Start();
+    bed.Frame();
+    CHECK(bed.components->Get(a)->behaviors[0].faulted);
+}
+
+TEST_CASE("behavior: the native bases and the classes derived from them are kept out of the script languages")
+{
+    CHECK(foundation::script::IsHiddenFromScripts(engine::behavior::EntityBehavior::StaticType()));
+    CHECK(foundation::script::IsHiddenFromScripts(nativetest::Orb::StaticType()));
+    CHECK_FALSE(foundation::script::IsHiddenFromScripts(TypeOf<foundation::script::Entity>()));
+}

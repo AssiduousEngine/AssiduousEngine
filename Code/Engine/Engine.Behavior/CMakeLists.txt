@@ -12,8 +12,10 @@ target_link_libraries(Engine.Behavior
 target_sources(Engine.Behavior
     PRIVATE
         BehaviorSubsystemImpl.cpp   # implementation unit: the REFLECT_* bodies (GCC gcm rule)
+        NativeBehaviorsImpl.cpp     # the :native partition's: the bases' reflection, native objects
     PUBLIC
         FILE_SET behavior_subsystem_modules TYPE CXX_MODULES FILES
             BehaviorSubsystem.cppm
-            BehaviorComponents.cppm)
+            BehaviorComponents.cppm
+            NativeBehaviors.cppm)
 
