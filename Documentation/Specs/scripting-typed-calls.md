@@ -350,7 +350,7 @@ matched per call as C# matches; anything else takes `invoke`. Value constructors
 | Today | Where | Change |
 |---|---|---|
 | `HasHandler` compares strings down the class's handler list on every dispatch | `ScriptResource.cppm:382` | the cooked class resolves the fixed lifecycle handlers to bits at load; `InvokeHandler` tests a bit |
-| The engine names a handler by text on every call | `ScriptObject::Invoke(StringView, ...)` | `ScriptObject::Bind(name)` returns a handle once at instantiate; `Invoke(handle, args)` per call |
+| The engine names a handler by text on every call | `BehaviorObject::Invoke(StringView, ...)` | `BehaviorObject::Bind(name)` returns a handle once at instantiate; `Invoke(handle, args)` per call |
 | A Luau property access compares C strings down the type's property list | `FindProperty`, `Reflection.cppm:377` | a per-type table from interned name to property, built at type emission |
 | C# finds a handler through .NET reflection on every call | `Runtime.cs`, on `dotnet` | a delegate or generated function per handler, resolved at class load; see the C# cost audit |
 

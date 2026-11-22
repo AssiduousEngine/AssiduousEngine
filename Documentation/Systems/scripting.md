@@ -15,7 +15,7 @@ served that purpose - historical mentions in older specs refer to it.
 ## Architecture (the neutral contract - `foundation.script`)
 
 - `IScriptManager` / `IScriptContext` - VM-agnostic; everything crosses as `Variant` +
-  `TypeInfo`. `ScriptObject::Invoke(method, Span<Variant>)` calls a script method;
+  `TypeInfo`. `BehaviorObject::Invoke(method, Span<Variant>)` calls a script method;
   `IScriptErrorHandler` receives a `ScriptError`: kind (compiler warnings have a kind of their
   own and never fail a cook), module, line, column, message, and for a runtime fault the script
   call stack, innermost first, which the log prints beneath the message. Numbers of every width
@@ -98,7 +98,7 @@ level load reads null rather than a freed scene.
 
 - **`ScriptComponent`** (serializable, value-pool, one per entity): an ordered array of
   `Behavior{ script: Ref<BehaviorClass>, enabled, updateInterval, overrides: [{nameHash, Variant}] }`
-  plus a runtime `ScriptObject` instance. Execution order = array order; cross-entity order is
+  plus a runtime `BehaviorObject` instance. Execution order = array order; cross-entity order is
   unspecified. Prefab members work via the component-granular delta machinery (overrides
   live in the payload).
 - **Authoring idiom** is shape-identical across backends, spelled in each language's OOP: a

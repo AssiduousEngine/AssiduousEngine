@@ -438,7 +438,7 @@ export namespace engine::behavior
         /// Instantiate a behavior class instance (loads or reloads the behaviors module as
         /// needed). Null on failure (logged), and for a class not of the kind `kind` the place it is
         /// set takes (a scene's Level slot a SceneBehavior, an entity's an EntityBehavior).
-        [[nodiscard]] RefPtr<ScriptObject> Instantiate(BehaviorClass& scriptClass, Span<Variant> args, BehaviorKind kind)
+        [[nodiscard]] RefPtr<BehaviorObject> Instantiate(BehaviorClass& scriptClass, Span<Variant> args, BehaviorKind kind)
         {
             if (scriptClass.kind != kind)
             {
@@ -453,7 +453,7 @@ export namespace engine::behavior
             {
                 return nullptr;
             }
-            RefPtr<ScriptObject> instance =
+            RefPtr<BehaviorObject> instance =
                 m_scriptContext->CreateInstance(scriptClass.className.AsView(), args);
             if (instance.Get() == nullptr)
             {
@@ -528,7 +528,7 @@ export namespace engine::behavior
         }
 
         /// Total run teardown (the Stop bracket): drops the context, the manager, and
-        /// every loaded class reference. Live ScriptObjects held elsewhere keep the
+        /// every loaded class reference. Live BehaviorObjects held elsewhere keep the
         /// context alive until released, so callers destroy instances first.
         void Teardown()
         {
@@ -668,7 +668,7 @@ export namespace engine::behavior
     /// Push a class's harvested defaults, then hash-keyed overrides (overrides win), through each
     /// property's generated per-property setter ("<name>="). `contextName` names the owner in the
     /// no-setter warning (an entity name for a behavior, the scene name for a Level).
-    inline void ApplyScriptProperties(ScriptObject& instance, const BehaviorClass& scriptClass,
+    inline void ApplyScriptProperties(BehaviorObject& instance, const BehaviorClass& scriptClass,
                                       Span<const BehaviorPropertyOverride> overrides,
                                       scene::Scene* scene, StringView contextName)
     {
@@ -1273,7 +1273,7 @@ export namespace engine::behavior
             // tests a handle rather than comparing names.
             const auto bind = [&](StringView name, usize argCount)
             {
-                return scriptClass.HasHandler(name) ? behavior.instance->Bind(name, argCount) : ScriptMethod{};
+                return scriptClass.HasHandler(name) ? behavior.instance->Bind(name, argCount) : BehaviorMethod{};
             };
             behavior.lifecycle.enable = bind(kOnEnable, 0);
             behavior.lifecycle.start = bind(kOnStart, 0);
@@ -1321,7 +1321,7 @@ export namespace engine::behavior
         // is skipped.
         [[nodiscard]] HandlerOutcome InvokeHandler(AttachedBehavior& behavior,
                                                    const BehaviorClass& scriptClass,
-                                                   scene::EntityHandle entity, ScriptMethod method,
+                                                   scene::EntityHandle entity, BehaviorMethod method,
                                                    StringView name, Span<Variant> args)
         {
             if (!method.IsValid())
@@ -1804,7 +1804,7 @@ export namespace engine::behavior
         scene::Scene* m_scene = nullptr;
         BehaviorRunHost* m_host = nullptr;
         SceneBehaviorSettings m_settings;
-        RefPtr<ScriptObject> m_level;
+        RefPtr<BehaviorObject> m_level;
         BehaviorClass* m_boundClass = nullptr;
         ScriptEventSubscriptions m_eventSubs; // this scene's bus subscriptions, sunk into DispatchEvent
         bool m_started = false;

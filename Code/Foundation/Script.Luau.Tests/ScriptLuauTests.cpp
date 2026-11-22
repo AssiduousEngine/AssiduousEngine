@@ -267,7 +267,7 @@ TEST_CASE("script.luau: Float3 maps to Luau's native vector (fast path - fields,
 
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     REQUIRE(scriptContext->Load(kVectorProbe, u8"luau.vector").IsOk());
-    RefPtr<ScriptObject> probe = scriptContext->CreateInstance(u8"VecProbe", Span<Variant>{});
+    RefPtr<BehaviorObject> probe = scriptContext->CreateInstance(u8"VecProbe", Span<Variant>{});
     REQUIRE(probe.Get() != nullptr);
 
     // Float3.new returns a native vector: .x and .z are Luau's built-in fields, not a metatable.
@@ -407,7 +407,7 @@ TEST_CASE("script.luau: a facade Array<T> return crosses as a native table (nume
 
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     REQUIRE(scriptContext->Load(kBagProbe, u8"luau.bag").IsOk());
-    RefPtr<ScriptObject> probe = scriptContext->CreateInstance(u8"BagProbe", Span<Variant>{});
+    RefPtr<BehaviorObject> probe = scriptContext->CreateInstance(u8"BagProbe", Span<Variant>{});
     REQUIRE(probe.Get() != nullptr);
 
     CHECK(probe->Invoke(u8"nums", Span<Variant>{}).Value().Get<f64>() == doctest::Approx(63.0));
@@ -431,7 +431,7 @@ TEST_CASE("script.luau: a table crosses into a facade Array<T> parameter")
 
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     REQUIRE(scriptContext->Load(kBagProbe, u8"luau.bag").IsOk());
-    RefPtr<ScriptObject> probe = scriptContext->CreateInstance(u8"BagProbe", Span<Variant>{});
+    RefPtr<BehaviorObject> probe = scriptContext->CreateInstance(u8"BagProbe", Span<Variant>{});
     REQUIRE(probe.Get() != nullptr);
 
     CHECK(probe->Invoke(u8"sumOf", Span<Variant>{}).Value().Get<f64>() == doctest::Approx(3.0));
@@ -1401,7 +1401,7 @@ TEST_CASE("script.luau: reflected enums - named tables + number marshalling both
 
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     REQUIRE(scriptContext->Load(kEnumProbe, u8"luau.enum").IsOk());
-    RefPtr<ScriptObject> probe = scriptContext->CreateInstance(u8"Probe", Span<Variant>{});
+    RefPtr<BehaviorObject> probe = scriptContext->CreateInstance(u8"Probe", Span<Variant>{});
     REQUIRE(probe.Get() != nullptr);
 
     // An enum property reads as its underlying number (North = 0).
@@ -1429,7 +1429,7 @@ TEST_CASE("script.luau: a read-only property reads, and an assignment raises ins
 
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     REQUIRE(scriptContext->Load(kEnumProbe, u8"luau.readonly").IsOk());
-    RefPtr<ScriptObject> probe = scriptContext->CreateInstance(u8"Probe", Span<Variant>{});
+    RefPtr<BehaviorObject> probe = scriptContext->CreateInstance(u8"Probe", Span<Variant>{});
     REQUIRE(probe.Get() != nullptr);
 
     CHECK(probe->Invoke(u8"readHeading", Span<Variant>{}).Value().Get<f64>() == doctest::Approx(90.0));
@@ -1450,7 +1450,7 @@ TEST_CASE("script.luau: a value of the wrong type for a property says what the p
 
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     REQUIRE(scriptContext->Load(kEnumProbe, u8"luau.wrongtype").IsOk());
-    RefPtr<ScriptObject> probe = scriptContext->CreateInstance(u8"Probe", Span<Variant>{});
+    RefPtr<BehaviorObject> probe = scriptContext->CreateInstance(u8"Probe", Span<Variant>{});
     REQUIRE(probe.Get() != nullptr);
 
     const Result<Variant> said = probe->Invoke(u8"writeFacingWrong", Span<Variant>{});
@@ -1573,7 +1573,7 @@ TEST_CASE("script.luau: an instance's own fields read as properties, its methods
                           u8"function Counter:add(x) self.n = self.n + x end\n",
                           u8"luau.counter")
                 .IsOk());
-    RefPtr<ScriptObject> counter = scriptContext->CreateInstance(u8"Counter", Span<Variant>{});
+    RefPtr<BehaviorObject> counter = scriptContext->CreateInstance(u8"Counter", Span<Variant>{});
     REQUIRE(counter.Get() != nullptr);
     Variant args[] = {Variant::From<f64>(3.0)};
     REQUIRE(counter->Invoke(u8"add", Span<Variant>{args, 1}).HasValue());
@@ -1599,7 +1599,7 @@ function Ids:differ() return Guid.new("6b0a7709-5169-4a0e-8077-c78b87a132e6") ~=
 )lua",
                           u8"luau.ids")
                 .IsOk());
-    RefPtr<ScriptObject> ids = scriptContext->CreateInstance(u8"Ids", Span<Variant>{});
+    RefPtr<BehaviorObject> ids = scriptContext->CreateInstance(u8"Ids", Span<Variant>{});
     REQUIRE(ids.Get() != nullptr);
     CHECK(ids->Invoke(u8"same", Span<Variant>{}).Value().Get<bool>());
     CHECK(ids->Invoke(u8"differ", Span<Variant>{}).Value().Get<bool>());
@@ -1632,7 +1632,7 @@ function Ops:qw() return (Quaternion.new(0, 0, 0, 1) * Quaternion.new(0, 0, 0, 1
 )lua",
                           u8"luau.ops")
                 .IsOk());
-    RefPtr<ScriptObject> ops = scriptContext->CreateInstance(u8"Ops", Span<Variant>{});
+    RefPtr<BehaviorObject> ops = scriptContext->CreateInstance(u8"Ops", Span<Variant>{});
     REQUIRE(ops.Get() != nullptr);
     const auto call = [&](StringView method) { return ops->Invoke(method, Span<Variant>{}); };
     CHECK(call(u8"sumY").Value().Get<f64>() == doctest::Approx(6.0));
@@ -1684,7 +1684,7 @@ function Limits:heldWhole() return Math.ClampInt(12, 1, 10) end
 )lua",
                           u8"luau.limits")
                 .IsOk());
-    RefPtr<ScriptObject> limits = scriptContext->CreateInstance(u8"Limits", Span<Variant>{});
+    RefPtr<BehaviorObject> limits = scriptContext->CreateInstance(u8"Limits", Span<Variant>{});
     REQUIRE(limits.Get() != nullptr);
     const auto call = [&](StringView method) { return limits->Invoke(method, Span<Variant>{}).Value().Get<f64>(); };
     CHECK(call(u8"low") == doctest::Approx(0.0));
@@ -1721,7 +1721,7 @@ TEST_CASE("script.luau: a coroutine that starts coroutines and cancels its own o
                        u8"end\n",
                        u8"luau.coroutine.churn")
                 .IsOk());
-    RefPtr<ScriptObject> spawner = scriptContext->CreateInstance(u8"Spawner", Span<Variant>{});
+    RefPtr<BehaviorObject> spawner = scriptContext->CreateInstance(u8"Spawner", Span<Variant>{});
     REQUIRE(spawner.Get() != nullptr);
     Canceller::onFire = [&manager, &spawner]() { manager->CancelCoroutinesFor(*spawner); };
     REQUIRE(spawner->Invoke(u8"go", Span<Variant>{}).HasValue());
@@ -1785,7 +1785,7 @@ end
 )lua",
                                 u8"luau.self")
                 .IsOk());
-    RefPtr<ScriptObject> probe = scriptContext->CreateInstance(u8"Probe", Span<Variant>{});
+    RefPtr<BehaviorObject> probe = scriptContext->CreateInstance(u8"Probe", Span<Variant>{});
     REQUIRE(probe.Get() != nullptr);
     const auto check = [&](StringView method)
     {
@@ -1836,7 +1836,7 @@ TEST_CASE("script.luau: a call past its time budget is stopped, and the context 
     BudgetErrors errors;
     scriptContext->SetErrorHandler(&errors);
     REQUIRE(scriptContext->Load(kBudgetProbe, u8"luau.budget").IsOk());
-    RefPtr<ScriptObject> probe = scriptContext->CreateInstance(u8"Probe", Span<Variant>{});
+    RefPtr<BehaviorObject> probe = scriptContext->CreateInstance(u8"Probe", Span<Variant>{});
     REQUIRE(probe.Get() != nullptr);
 
     const Stopwatch clock = Stopwatch::StartNew();
@@ -1867,7 +1867,7 @@ TEST_CASE("script.luau: a call that allocates past the heap budget fails, and th
     BudgetErrors errors;
     scriptContext->SetErrorHandler(&errors);
     REQUIRE(scriptContext->Load(kBudgetProbe, u8"luau.heap").IsOk());
-    RefPtr<ScriptObject> probe = scriptContext->CreateInstance(u8"Probe", Span<Variant>{});
+    RefPtr<BehaviorObject> probe = scriptContext->CreateInstance(u8"Probe", Span<Variant>{});
     REQUIRE(probe.Get() != nullptr);
     CHECK_FALSE(probe->Invoke(u8"hoard", Span<Variant>{}).HasValue());
     CHECK(errors.Any(u8"memory"));
@@ -1886,7 +1886,7 @@ TEST_CASE("script.luau: a replaced class's table is collected once no instance h
                              u8"function Counter.new() return setmetatable({}, Counter) end\n";
     const BehaviorModuleClass first[] = {{u8"Counter.luau", counter, {}, {}}};
     REQUIRE(scriptContext->LoadBehaviorModule(Span<const BehaviorModuleClass>{first, 1}, u8"behaviors#1").IsOk());
-    RefPtr<ScriptObject> old = scriptContext->CreateInstance(u8"Counter", Span<Variant>{});
+    RefPtr<BehaviorObject> old = scriptContext->CreateInstance(u8"Counter", Span<Variant>{});
     REQUIRE(static_cast<bool>(old));
 
     // The reload keeps a weak reference to the class it replaces.
@@ -1916,7 +1916,7 @@ TEST_CASE("script.luau: a method an instance assigns itself is the one the next 
                        u8"function Walker:onUpdate() self.onUpdate = walking return 1 end\n",
                        u8"walker")
                 .IsOk());
-    RefPtr<ScriptObject> walker = scriptContext->CreateInstance(u8"Walker", Span<Variant>{});
+    RefPtr<BehaviorObject> walker = scriptContext->CreateInstance(u8"Walker", Span<Variant>{});
     REQUIRE(static_cast<bool>(walker));
     CHECK(walker->Invoke(u8"onUpdate", Span<Variant>{}).Value().Get<f64>() == 1.0);
     CHECK(walker->Invoke(u8"onUpdate", Span<Variant>{}).Value().Get<f64>() == 2.0);
@@ -1935,9 +1935,9 @@ TEST_CASE("script.luau: a bound method is called by its handle, and a swap still
                        u8"function Walker:onBroken() error('broken') end\n",
                        u8"walker")
                 .IsOk());
-    RefPtr<ScriptObject> walker = scriptContext->CreateInstance(u8"Walker", Span<Variant>{});
+    RefPtr<BehaviorObject> walker = scriptContext->CreateInstance(u8"Walker", Span<Variant>{});
     REQUIRE(static_cast<bool>(walker));
-    const ScriptMethod update = walker->Bind(u8"onUpdate", 1);
+    const BehaviorMethod update = walker->Bind(u8"onUpdate", 1);
     REQUIRE(update.IsValid());
     Variant dt[] = {Variant::From<f64>(3.0)};
     CHECK(walker->Invoke(update, Span<Variant>{dt, 1}).Value().Get<f64>() == 3.0);
@@ -1947,7 +1947,7 @@ TEST_CASE("script.luau: a bound method is called by its handle, and a swap still
     const Result<Variant> broken = walker->Invoke(walker->Bind(u8"onBroken", 0), Span<Variant>{});
     REQUIRE_FALSE(broken.HasValue());
     CHECK(broken.Error() != ErrorCode::NotFound);
-    CHECK(walker->Invoke(ScriptMethod{}, Span<Variant>{}).Error() == ErrorCode::NotFound);
+    CHECK(walker->Invoke(BehaviorMethod{}, Span<Variant>{}).Error() == ErrorCode::NotFound);
 }
 
 TEST_CASE("script.luau: a constructor that matches none fails without leaking its arguments")
@@ -1973,7 +1973,7 @@ end
 )lua",
                                 u8"luau.ctorfail")
                 .IsOk());
-    RefPtr<ScriptObject> probe = scriptContext->CreateInstance(u8"Probe", Span<Variant>{});
+    RefPtr<BehaviorObject> probe = scriptContext->CreateInstance(u8"Probe", Span<Variant>{});
     REQUIRE(probe.Get() != nullptr);
     Result<Variant> r = probe->Invoke(u8"refused", Span<Variant>{});
     REQUIRE(r.HasValue());

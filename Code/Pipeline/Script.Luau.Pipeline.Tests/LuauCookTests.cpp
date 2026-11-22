@@ -246,7 +246,7 @@ TEST_CASE("luau.cook: the cook stores loadable bytecode in the pack (the player 
     }
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     REQUIRE(scriptContext->LoadBlob(*blob).IsOk());
-    RefPtr<ScriptObject> instance = scriptContext->CreateInstance(u8"NewBehavior", Span<Variant>{});
+    RefPtr<BehaviorObject> instance = scriptContext->CreateInstance(u8"NewBehavior", Span<Variant>{});
     CHECK(instance.Get() != nullptr);
 }
 

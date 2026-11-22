@@ -43,7 +43,7 @@ namespace
         {
             return Err(ErrorCode::NotSupported);
         }
-        RefPtr<ScriptObject> CreateInstance(StringView, Span<Variant>) override { return nullptr; }
+        RefPtr<BehaviorObject> CreateInstance(StringView, Span<Variant>) override { return nullptr; }
 
     private:
         HashMap<String, Variant> m_globals;

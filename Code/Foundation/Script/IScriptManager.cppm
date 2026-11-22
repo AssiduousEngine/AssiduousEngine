@@ -108,7 +108,7 @@ export namespace foundation::script
 
         /// Stop and drop every coroutine owned by `instance` (its behavior is being
         /// disabled or destroyed). No-op on a backend without the capability.
-        virtual void CancelCoroutinesFor(ScriptObject& instance) { (void)instance; }
+        virtual void CancelCoroutinesFor(BehaviorObject& instance) { (void)instance; }
 
         /// The backend's optional feature set. Required behavior is certified by the
         /// conformance battery instead and is not flagged here.

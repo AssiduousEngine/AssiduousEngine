@@ -6,7 +6,7 @@
 // The attachment model: one BehaviorComponent per entity holding an ordered array of
 // behaviors, each a cooked BehaviorClass reference, an enabled flag, and property overrides
 // keyed by name hash (only the values that differ from the class's harvested defaults).
-// Runtime fields (the live ScriptObject instance, dispatch state) are transient and
+// Runtime fields (the live BehaviorObject instance, dispatch state) are transient and
 // never serialized. Because overrides live in the component payload, the prefab delta
 // machinery (baseline blob compare) covers them with no extra code.
 
@@ -65,12 +65,12 @@ export namespace engine::behavior
     /// invalid one is a handler its class does not declare.
     struct BehaviorLifecycle
     {
-        ScriptMethod enable;
-        ScriptMethod start;
-        ScriptMethod update;
-        ScriptMethod fixedUpdate;
-        ScriptMethod disable;
-        ScriptMethod destroy;
+        BehaviorMethod enable;
+        BehaviorMethod start;
+        BehaviorMethod update;
+        BehaviorMethod fixedUpdate;
+        BehaviorMethod disable;
+        BehaviorMethod destroy;
     };
 
     struct AttachedBehavior
@@ -83,7 +83,7 @@ export namespace engine::behavior
         Array<BehaviorPropertyOverride> overrides;
 
         // Runtime (transient):
-        RefPtr<ScriptObject> instance;
+        RefPtr<BehaviorObject> instance;
         BehaviorLifecycle lifecycle;        // bound with the instance, gone with it
         const BehaviorClass* boundClass = nullptr; // product the instance was built from
                                                  // (a reload swaps the product: re-instantiate)

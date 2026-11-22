@@ -74,7 +74,7 @@ Not goals:
   1579-1624 (Luau).
 
 **State capture:**
-- There is none at runtime: `ScriptObject` exposes only `Invoke` (`Code/Foundation/Script/IScriptContext.cppm:53-61`).
+- There is none at runtime: `BehaviorObject` exposes only `Invoke` (`Code/Foundation/Script/IScriptContext.cppm:53-61`).
 - AngelScript's `CSerializer` add-on is not vendored; `ThirdParty/angelscript/add_on` holds
   scriptarray, scriptbuilder and scriptstdstring.
 - The cook harvests property defaults (`AngelScriptScriptCookImpl.cpp:508-541`,

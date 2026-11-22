@@ -510,15 +510,15 @@ TEST_CASE("scene-mcp-tools: an entity by name or path, and a Script component's 
 namespace
 {
     // A running behaviour's instance: two fields, `speed` and the private `m_hits`.
-    class FakeInstance final : public foundation::script::ScriptObject
+    class FakeInstance final : public foundation::script::BehaviorObject
     {
     public:
         [[nodiscard]] Result<Variant> Invoke(StringView, Span<Variant>) override
         {
             return Err(ErrorCode::NotFound);
         }
-        [[nodiscard]] foundation::script::ScriptMethod Bind(StringView, usize) override { return {}; }
-        [[nodiscard]] Result<Variant> Invoke(foundation::script::ScriptMethod, Span<Variant>) override
+        [[nodiscard]] foundation::script::BehaviorMethod Bind(StringView, usize) override { return {}; }
+        [[nodiscard]] Result<Variant> Invoke(foundation::script::BehaviorMethod, Span<Variant>) override
         {
             return Err(ErrorCode::NotFound);
         }

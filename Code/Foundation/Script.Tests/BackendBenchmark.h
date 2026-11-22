@@ -139,7 +139,7 @@ namespace foundation::script::benchmark
         scriptContext->SetErrorHandler(&printer);
         const bool loaded = dialect.load ? dialect.load(*scriptContext) : scriptContext->Load(dialect.benchClass, u8"bench").IsOk();
         REQUIRE(loaded);
-        RefPtr<ScriptObject> bench = scriptContext->CreateInstance(u8"Bench", Span<Variant>{});
+        RefPtr<BehaviorObject> bench = scriptContext->CreateInstance(u8"Bench", Span<Variant>{});
         REQUIRE(bench.Get() != nullptr);
         const StringView language = dialect.languageId;
 
@@ -182,7 +182,7 @@ namespace foundation::script::benchmark
         {
             constexpr u32 kHandlerCalls = 100000;
             Variant dt[] = {Variant::From<f64>(0.016)};
-            const ScriptMethod tick = bench->Bind(u8"tick", 1);
+            const BehaviorMethod tick = bench->Bind(u8"tick", 1);
             REQUIRE(tick.IsValid());
             Steady measured;
             const bool ran = steady(

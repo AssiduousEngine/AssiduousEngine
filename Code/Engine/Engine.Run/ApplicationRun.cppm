@@ -732,7 +732,7 @@ export namespace engine::runtime
         f32 m_instanceTimeScale = 1.0f;
         core::RefPtr<script::IScriptContext>
             m_scriptContext; // the game script's ref to the run host's context
-        core::RefPtr<script::ScriptObject> m_runBehavior;
+        core::RefPtr<script::BehaviorObject> m_runBehavior;
         core::String m_runBehaviorFault; // why the game script stopped on its own (ScriptFault)
         f64 m_runTime = 0.0;        // unscaled seconds of the run's frames, game script or not (RunTime)
         engine::behavior::ScriptEventSubscriptions m_gameEventSubs; // Game tier's run-bus on<Event> inbox

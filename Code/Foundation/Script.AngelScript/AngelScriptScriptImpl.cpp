@@ -1563,7 +1563,7 @@ namespace foundation::script::angelscript
         }
 
         void
-        CancelCoroutinesFor(ScriptObject& instance) override; // by owner; after AngelScriptObject
+        CancelCoroutinesFor(BehaviorObject& instance) override; // by owner; after AngelScriptObject
 
         // ---- shared services for contexts and dispatchers -------------------
         [[nodiscard]] asIScriptEngine* Engine() const noexcept { return m_engine; }
@@ -4778,7 +4778,7 @@ namespace foundation::script::angelscript
             return ExecuteCall(target, nullptr, args);
         }
 
-        [[nodiscard]] core::RefPtr<ScriptObject>
+        [[nodiscard]] core::RefPtr<BehaviorObject>
         CreateInstance(core::StringView className, core::Span<core::Variant> args) override;
 
         // Prepare and execute a script function on the engine's pooled contexts.
@@ -5075,7 +5075,7 @@ namespace foundation::script::angelscript
     // A live instance of a script-declared class. Holds the asIScriptObject plus a
     // strong reference to its owning context (which keeps the manager, and so
     // the engine, alive).
-    class AngelScriptObject final : public ScriptObject
+    class AngelScriptObject final : public BehaviorObject
     {
     public:
         AngelScriptObject(core::RefPtr<AngelScriptContext> owner,
@@ -5134,14 +5134,14 @@ namespace foundation::script::angelscript
 
         // The handle is the method's function: a class's methods are fixed once compiled, and the
         // module that owns them outlives every instance of it.
-        [[nodiscard]] ScriptMethod Bind(core::StringView method, core::usize argCount) override
+        [[nodiscard]] BehaviorMethod Bind(core::StringView method, core::usize argCount) override
         {
             asITypeInfo* type = m_instance->GetObjectType();
             asIScriptFunction* found = type != nullptr ? FindMethod(type, method, argCount) : nullptr;
-            return ScriptMethod{reinterpret_cast<core::u64>(found)};
+            return BehaviorMethod{reinterpret_cast<core::u64>(found)};
         }
 
-        [[nodiscard]] core::Result<core::Variant> Invoke(ScriptMethod method, core::Span<core::Variant> args) override
+        [[nodiscard]] core::Result<core::Variant> Invoke(BehaviorMethod method, core::Span<core::Variant> args) override
         {
             auto* function = reinterpret_cast<asIScriptFunction*>(method.id);
             if (function == nullptr || function->GetParamCount() != args.Size())
@@ -5289,7 +5289,7 @@ namespace foundation::script::angelscript
 
     // Out of line (needs the complete AngelScriptDelegate above): Detach() every delegate that
     // wrapped one of this context's functions so a later Invoke fails cleanly, then discard the
-    // owned modules. No ScriptObject outlives its context (they hold a strong ref), so the
+    // owned modules. No BehaviorObject outlives its context (they hold a strong ref), so the
     // module discard is safe here.
     void AngelScriptContext::UntrackObject(AngelScriptObject* object)
     {
@@ -5398,7 +5398,7 @@ namespace foundation::script::angelscript
         return core::Variant::From(core::RefPtr<IScriptDelegate>(delegate.Get()));
     }
 
-    void AngelScriptManager::CancelCoroutinesFor(ScriptObject& instance)
+    void AngelScriptManager::CancelCoroutinesFor(BehaviorObject& instance)
     {
         // We hold the owner pointer directly: drop every coroutine started by this
         // behavior instance (its context is aborted and released, its owner ref freed).
@@ -5877,7 +5877,7 @@ namespace foundation::script::angelscript
             MemoryAllocator(), core::RefPtr<AngelScriptManager>(this), m_nextContextId++));
     }
 
-    core::RefPtr<ScriptObject> AngelScriptContext::CreateInstance(core::StringView className,
+    core::RefPtr<BehaviorObject> AngelScriptContext::CreateInstance(core::StringView className,
                                                                   core::Span<core::Variant> args)
     {
         const core::String name(className);
@@ -5970,7 +5970,7 @@ namespace foundation::script::angelscript
         {
             return nullptr;
         }
-        return core::RefPtr<ScriptObject>(core::MakeRef<AngelScriptObject>(
+        return core::RefPtr<BehaviorObject>(core::MakeRef<AngelScriptObject>(
             MemoryAllocator(), core::RefPtr<AngelScriptContext>(this), instance));
     }
 

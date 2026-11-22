@@ -6096,7 +6096,7 @@ namespace
         auto clientValue = [&](StringView name) -> f64
         {
             const scene::EntityHandle e = client.scene.FindEntityByName(u8"Guest");
-            ScriptObject* instance = client.components->Get(e)->behaviors[0].instance.Get();
+            BehaviorObject* instance = client.components->Get(e)->behaviors[0].instance.Get();
             REQUIRE(instance != nullptr);
             const Result<Variant> v = instance->GetProperty(name);
             REQUIRE(v.HasValue());

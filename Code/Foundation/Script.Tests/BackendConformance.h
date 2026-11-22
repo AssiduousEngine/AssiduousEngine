@@ -420,9 +420,9 @@ namespace foundation::script::conformance
 
         // --- script classes: construct with args, invoke methods, state persists.
         // The contract does not promise a later Load preserves an earlier load's globals
-        // (some backends replace the module), only that live ScriptObjects survive. ---
+        // (some backends replace the module), only that live BehaviorObjects survive. ---
         CHECK(scriptContext->Load(dialect.counterClass, u8"conformance.counter").IsOk());
-        RefPtr<ScriptObject> counter;
+        RefPtr<BehaviorObject> counter;
         {
             Variant ctorArgs[] = {Variant::From(10)};
             counter = scriptContext->CreateInstance(u8"Counter", Span<Variant>{ctorArgs, 1});
@@ -497,7 +497,7 @@ namespace foundation::script::conformance
             !dialect.coroutineClass.IsEmpty())
         {
             manager->RegisterType(CallScope::StaticType()); // late registration, like DelegateSignal
-            const auto progressOf = [](const RefPtr<ScriptObject>& coro) -> f64
+            const auto progressOf = [](const RefPtr<BehaviorObject>& coro) -> f64
             {
                 auto p = coro->Invoke(u8"progress", Span<Variant>{});
                 REQUIRE(p.HasValue());
@@ -509,7 +509,7 @@ namespace foundation::script::conformance
                 RefPtr<IScriptContext> coroutineContext = manager->CreateContext();
                 REQUIRE(coroutineContext.Get() != nullptr);
                 CHECK(coroutineContext->Load(dialect.coroutineClass, u8"conformance.coroutine").IsOk());
-                RefPtr<ScriptObject> coro = coroutineContext->CreateInstance(u8"Coro", Span<Variant>{});
+                RefPtr<BehaviorObject> coro = coroutineContext->CreateInstance(u8"Coro", Span<Variant>{});
                 REQUIRE(coro.Get() != nullptr);
                 REQUIRE(coro->Invoke(u8"begin", Span<Variant>{}).HasValue());
                 for (int i = 0; i < 3; ++i)
@@ -528,7 +528,7 @@ namespace foundation::script::conformance
             {
                 RefPtr<IScriptContext> coroutineContext = manager->CreateContext();
                 CHECK(coroutineContext->Load(dialect.coroutineClass, u8"conformance.coroutine").IsOk());
-                RefPtr<ScriptObject> coro = coroutineContext->CreateInstance(u8"Coro", Span<Variant>{});
+                RefPtr<BehaviorObject> coro = coroutineContext->CreateInstance(u8"Coro", Span<Variant>{});
                 REQUIRE(coro.Get() != nullptr);
                 REQUIRE(coro->Invoke(u8"beginUntil", Span<Variant>{}).HasValue());
                 for (int i = 0; i < 5; ++i)
@@ -548,7 +548,7 @@ namespace foundation::script::conformance
             {
                 RefPtr<IScriptContext> coroutineContext = manager->CreateContext();
                 CHECK(coroutineContext->Load(dialect.coroutineClass, u8"conformance.coroutine").IsOk());
-                RefPtr<ScriptObject> coro = coroutineContext->CreateInstance(u8"Coro", Span<Variant>{});
+                RefPtr<BehaviorObject> coro = coroutineContext->CreateInstance(u8"Coro", Span<Variant>{});
                 REQUIRE(coro.Get() != nullptr);
                 REQUIRE(coro->Invoke(u8"begin", Span<Variant>{}).HasValue());
                 for (int i = 0; i < 3; ++i)
@@ -571,7 +571,7 @@ namespace foundation::script::conformance
                 CapturedErrors faults;
                 coroutineContext->SetErrorHandler(&faults);
                 CHECK(coroutineContext->Load(dialect.coroutineClass, u8"conformance.coroutine").IsOk());
-                RefPtr<ScriptObject> coro = coroutineContext->CreateInstance(u8"Coro", Span<Variant>{});
+                RefPtr<BehaviorObject> coro = coroutineContext->CreateInstance(u8"Coro", Span<Variant>{});
                 REQUIRE(coro.Get() != nullptr);
                 REQUIRE(coro->Invoke(u8"beginFault", Span<Variant>{}).HasValue());
                 manager->AdvanceCoroutines(0.1); // 0.1s: still waiting
@@ -595,7 +595,7 @@ namespace foundation::script::conformance
             {
                 RefPtr<IScriptContext> coroutineContext = manager->CreateContext();
                 CHECK(coroutineContext->Load(dialect.coroutineClass, u8"conformance.coroutine").IsOk());
-                RefPtr<ScriptObject> coro = coroutineContext->CreateInstance(u8"Coro", Span<Variant>{});
+                RefPtr<BehaviorObject> coro = coroutineContext->CreateInstance(u8"Coro", Span<Variant>{});
                 REQUIRE(coro.Get() != nullptr);
                 REQUIRE(coro->Invoke(u8"beginScoped", Span<Variant>{}).HasValue());
                 manager->AdvanceCoroutines(0.1);
@@ -614,7 +614,7 @@ namespace foundation::script::conformance
                 CapturedErrors faults;
                 coroutineContext->SetErrorHandler(&faults);
                 CHECK(coroutineContext->Load(dialect.coroutineClass, u8"conformance.coroutine").IsOk());
-                RefPtr<ScriptObject> coro = coroutineContext->CreateInstance(u8"Coro", Span<Variant>{});
+                RefPtr<BehaviorObject> coro = coroutineContext->CreateInstance(u8"Coro", Span<Variant>{});
                 REQUIRE(coro.Get() != nullptr);
                 REQUIRE(coro->Invoke(u8"beginBadPredicate", Span<Variant>{}).HasValue());
                 for (int i = 0; i < 3; ++i)

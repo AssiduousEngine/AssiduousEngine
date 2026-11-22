@@ -3,7 +3,7 @@
 
 // Foundation::Script.Luau - the Luau VM backend for Foundation::Script.
 //
-// Implements IScriptManager, IScriptContext, ScriptObject and IScriptDelegate over the
+// Implements IScriptManager, IScriptContext, BehaviorObject and IScriptDelegate over the
 // vendored Luau VM and compiler (ThirdParty/luau, interpreter-only). One isolated
 // lua_State per context; reflected engine types are emitted into each state at context
 // creation as a metatable (property get and set, and method dispatch through the
@@ -315,10 +315,10 @@ namespace foundation::script
     };
 
     // =====================================================================
-    // ScriptObject: a registry-ref'd Lua table (an instance of a script
+    // BehaviorObject: a registry-ref'd Lua table (an instance of a script
     // class). Retains the context.
     // =====================================================================
-    class LuauScriptObject final : public ScriptObject
+    class LuauScriptObject final : public BehaviorObject
     {
     public:
         LuauScriptObject(RefPtr<LuauScriptContext> context, int tableRef)
@@ -328,8 +328,8 @@ namespace foundation::script
         ~LuauScriptObject() override;
 
         [[nodiscard]] Result<Variant> Invoke(StringView method, Span<Variant> args) override;
-        [[nodiscard]] ScriptMethod Bind(StringView method, usize argCount) override;
-        [[nodiscard]] Result<Variant> Invoke(ScriptMethod method, Span<Variant> args) override;
+        [[nodiscard]] BehaviorMethod Bind(StringView method, usize argCount) override;
+        [[nodiscard]] Result<Variant> Invoke(BehaviorMethod method, Span<Variant> args) override;
         [[nodiscard]] Result<Variant> GetProperty(StringView name) override;
 
         // Identity of the instance table (coroutine ownership matching).
@@ -374,7 +374,7 @@ namespace foundation::script
         [[nodiscard]] Variant GetGlobal(StringView name) override;
         [[nodiscard]] bool HasFunction(StringView name) const override;
         [[nodiscard]] Result<Variant> Call(StringView function, Span<Variant> args) override;
-        [[nodiscard]] RefPtr<ScriptObject> CreateInstance(StringView className,
+        [[nodiscard]] RefPtr<BehaviorObject> CreateInstance(StringView className,
                                                           Span<Variant> args) override;
 
         [[nodiscard]] lua_State* State() noexcept { return m_state; }
@@ -459,7 +459,7 @@ namespace foundation::script
         [[nodiscard]] Variant ToVariantForParam(lua_State* state, int index, const TypeInfo* expected);
 
         // ---- the resumable-thread executor ----
-        // Every script call (Call, CreateInstance, ScriptObject::Invoke) runs on a pooled lua
+        // Every script call (Call, CreateInstance, BehaviorObject::Invoke) runs on a pooled lua
         // thread via lua_resume, not lua_pcall on the main state. That gives one executor for the
         // shipping and the debugged program, and it is the only shape lua_break (the debugger's
         // suspend) can suspend and resume. AcquireThread reuses a recycled thread or makes one
@@ -607,7 +607,7 @@ namespace foundation::script
         [[nodiscard]] ScriptDeclarations Declarations() const override;
 
         void AdvanceCoroutines(f64 deltaSeconds) override;
-        void CancelCoroutinesFor(ScriptObject& instance) override;
+        void CancelCoroutinesFor(BehaviorObject& instance) override;
 
         // ---- backend internals ----
         [[nodiscard]] Span<const TypeInfo* const> RegisteredTypes() const noexcept
@@ -2910,7 +2910,7 @@ namespace foundation::script
         m_startedWhileAdvancing.Clear();
     }
 
-    void LuauScriptManager::CancelCoroutinesFor(ScriptObject& instance)
+    void LuauScriptManager::CancelCoroutinesFor(BehaviorObject& instance)
     {
         const void* owner = static_cast<LuauScriptObject&>(instance).TablePointer();
         if (owner == nullptr)
@@ -3466,7 +3466,7 @@ namespace foundation::script
         return result;
     }
 
-    RefPtr<ScriptObject> LuauScriptContext::CreateInstance(StringView className,
+    RefPtr<BehaviorObject> LuauScriptContext::CreateInstance(StringView className,
                                                            Span<Variant> args)
     {
         String storage;
@@ -3499,13 +3499,13 @@ namespace foundation::script
         }
         const int tableRef = lua_ref(m_state, -1);
         lua_pop(m_state, 1);
-        return RefPtr<ScriptObject>(
+        return RefPtr<BehaviorObject>(
             MakeRef<LuauScriptObject>(MemoryAllocator(), RefPtr<LuauScriptContext>(this), tableRef)
                 .Get());
     }
 
     // =====================================================================
-    // ScriptObject and delegate bodies.
+    // BehaviorObject and delegate bodies.
     // =====================================================================
     LuauScriptObject::~LuauScriptObject()
     {
@@ -3551,17 +3551,17 @@ namespace foundation::script
         return CallNamedOnTop(method, kNotBound, args);
     }
 
-    ScriptMethod LuauScriptObject::Bind(StringView method, usize argCount)
+    BehaviorMethod LuauScriptObject::Bind(StringView method, usize argCount)
     {
         (void)argCount; // a Luau function takes what it is given
         lua_State* state = m_context->State();
         lua_pushlstring(state, reinterpret_cast<const char*>(method.Data()), method.Size());
         m_bound.PushBack(BoundName{String(method), lua_ref(state, -1)});
         lua_pop(state, 1);
-        return ScriptMethod{static_cast<u64>(m_bound.Size())};
+        return BehaviorMethod{static_cast<u64>(m_bound.Size())};
     }
 
-    Result<Variant> LuauScriptObject::Invoke(ScriptMethod method, Span<Variant> args)
+    Result<Variant> LuauScriptObject::Invoke(BehaviorMethod method, Span<Variant> args)
     {
         if (method.id == 0 || method.id > m_bound.Size())
             return Err(ErrorCode::NotFound);

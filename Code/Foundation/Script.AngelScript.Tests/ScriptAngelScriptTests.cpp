@@ -746,7 +746,7 @@ TEST_CASE("angelscript: plain reflected-type members and globals read back as th
     REQUIRE(Guid::TryParse(u8"6b0a7709-5169-4a0e-8077-c78b87a132e6", track));
     REQUIRE(Guid::TryParse(u8"0758e8d2-c6cd-47a7-bce6-9728a9501018", held));
 
-    RefPtr<ScriptObject> holder = scriptContext->CreateInstance(u8"Holder", Span<Variant>{});
+    RefPtr<BehaviorObject> holder = scriptContext->CreateInstance(u8"Holder", Span<Variant>{});
     REQUIRE(static_cast<bool>(holder));
     Result<Variant> got = holder->GetProperty(u8"track");
     REQUIRE(got.HasValue());
@@ -1537,7 +1537,7 @@ TEST_CASE("angelscript: instantiate a script class and invoke its methods")
                 .IsOk());
 
     Variant ctorArgs[] = {Variant::From(10)};
-    RefPtr<ScriptObject> counter = scriptContext->CreateInstance(u8"Counter", Span<Variant>{ctorArgs, 1});
+    RefPtr<BehaviorObject> counter = scriptContext->CreateInstance(u8"Counter", Span<Variant>{ctorArgs, 1});
     REQUIRE(static_cast<bool>(counter));
 
     Variant addArgs[] = {Variant::From(5)};
@@ -1563,11 +1563,11 @@ TEST_CASE("angelscript: a bound method is called by its handle, matched by its p
                                 u8"}\n",
                                 u8"main")
                 .IsOk());
-    RefPtr<ScriptObject> counter = scriptContext->CreateInstance(u8"Counter", Span<Variant>{});
+    RefPtr<BehaviorObject> counter = scriptContext->CreateInstance(u8"Counter", Span<Variant>{});
     REQUIRE(static_cast<bool>(counter));
 
-    const ScriptMethod add = counter->Bind(u8"add", 1);
-    const ScriptMethod value = counter->Bind(u8"value", 0);
+    const BehaviorMethod add = counter->Bind(u8"add", 1);
+    const BehaviorMethod value = counter->Bind(u8"value", 0);
     REQUIRE(add.IsValid());
     REQUIRE(value.IsValid());
     Variant five[] = {Variant::From(5)};
@@ -1579,7 +1579,7 @@ TEST_CASE("angelscript: a bound method is called by its handle, matched by its p
     CHECK_FALSE(counter->Bind(u8"add", 0).IsValid());
     CHECK_FALSE(counter->Bind(u8"missing", 0).IsValid());
     CHECK(counter->Invoke(add, Span<Variant>{}).Error() == ErrorCode::NotFound);
-    CHECK(counter->Invoke(ScriptMethod{}, Span<Variant>{}).Error() == ErrorCode::NotFound);
+    CHECK(counter->Invoke(BehaviorMethod{}, Span<Variant>{}).Error() == ErrorCode::NotFound);
 }
 
 TEST_CASE("angelscript: CreateInstance returns null for an unknown class")
@@ -1591,7 +1591,7 @@ TEST_CASE("angelscript: CreateInstance returns null for an unknown class")
 
 TEST_CASE("angelscript: a script object outlives the local context reference")
 {
-    RefPtr<ScriptObject> obj;
+    RefPtr<BehaviorObject> obj;
     {
         RefPtr<IScriptContext> scriptContext = angelscript::CreateScriptManager(foundation::core::DefaultAllocator())->CreateContext();
         REQUIRE(scriptContext->Load(u8"class Echo {\n"
@@ -1675,7 +1675,7 @@ TEST_CASE("angelscript: LoadBehaviorModule reports each class's sourceName as it
     // "behaviors#1" module name.
     debugger->SetBreakpoint(u8"Mover.as", 5);
 
-    RefPtr<ScriptObject> mover = scriptContext->CreateInstance(u8"Mover", Span<Variant>{});
+    RefPtr<BehaviorObject> mover = scriptContext->CreateInstance(u8"Mover", Span<Variant>{});
     REQUIRE(static_cast<bool>(mover));
     (void)mover->Invoke(u8"tick", Span<Variant>{}); // suspends at the breakpoint
 
@@ -2055,7 +2055,7 @@ TEST_CASE("angelscript: a call past its time budget is stopped, and the context 
                                 u8"}\n",
                                 u8"budget")
                 .IsOk());
-    RefPtr<ScriptObject> probe = scriptContext->CreateInstance(u8"Probe", Span<Variant>{});
+    RefPtr<BehaviorObject> probe = scriptContext->CreateInstance(u8"Probe", Span<Variant>{});
     REQUIRE(static_cast<bool>(probe));
 
     const Stopwatch clock = Stopwatch::StartNew();
@@ -2256,7 +2256,7 @@ TEST_CASE("angelscript: a behaviour class's includes load with it, and a breakpo
     } sink;
     debugger->SetListener(&sink);
     debugger->SetBreakpoint(u8"Shared/Steps.as", 3);
-    RefPtr<ScriptObject> mover = scriptContext->CreateInstance(u8"Mover", Span<Variant>{});
+    RefPtr<BehaviorObject> mover = scriptContext->CreateInstance(u8"Mover", Span<Variant>{});
     REQUIRE(static_cast<bool>(mover));
     (void)mover->Invoke(u8"tick", Span<Variant>{});
     CHECK(sink.last == ScriptDebuggerState::Breakpoint);
@@ -2283,7 +2283,7 @@ namespace
         return scriptContext.LoadBehaviorModule(Span<const BehaviorModuleClass>{&entry, 1}, moduleName);
     }
 
-    [[nodiscard]] f64 Next(ScriptObject& counter, f64 value)
+    [[nodiscard]] f64 Next(BehaviorObject& counter, f64 value)
     {
         Variant args[] = {Variant::From<f64>(value)};
         return counter.Invoke(u8"next", Span<Variant>{args, 1}).Value().Get<f64>();
@@ -2299,13 +2299,13 @@ TEST_CASE("angelscript: a replaced class's module stays while an old instance li
     RefPtr<IScriptContext> scriptContext = manager->CreateContext();
     REQUIRE(LoadCounter(*scriptContext, kCounterBy3, u8"behaviors#1").IsOk());
     const asUINT loaded = ModuleCount(*manager);
-    RefPtr<ScriptObject> old = scriptContext->CreateInstance(u8"Counter", Span<Variant>{});
+    RefPtr<BehaviorObject> old = scriptContext->CreateInstance(u8"Counter", Span<Variant>{});
     REQUIRE(static_cast<bool>(old));
 
     REQUIRE(LoadCounter(*scriptContext, kCounterBy10, u8"behaviors#2").IsOk());
     CHECK(ModuleCount(*manager) == loaded + 1); // the old instance still runs the old module
     CHECK(Next(*old, 1.0) == 4.0);              // and its globals are intact
-    RefPtr<ScriptObject> fresh = scriptContext->CreateInstance(u8"Counter", Span<Variant>{});
+    RefPtr<BehaviorObject> fresh = scriptContext->CreateInstance(u8"Counter", Span<Variant>{});
     REQUIRE(static_cast<bool>(fresh));
     CHECK(Next(*fresh, 1.0) == 11.0);
 
@@ -2330,7 +2330,7 @@ TEST_CASE("angelscript: a replaced class's module with no instance goes at once;
                 .IsOk());
     REQUIRE(LoadCounter(*scriptContext, kCounterBy3, u8"behaviors#4").IsOk());
     CHECK(ModuleCount(*manager) == loaded + 1);
-    RefPtr<ScriptObject> other = scriptContext->CreateInstance(u8"Other", Span<Variant>{});
+    RefPtr<BehaviorObject> other = scriptContext->CreateInstance(u8"Other", Span<Variant>{});
     CHECK(static_cast<bool>(other));
 }
 
@@ -2340,7 +2340,7 @@ TEST_CASE("angelscript: an object finds each method once and keeps calling the r
     REQUIRE(scriptContext
                 ->Load(u8"class Pick { double f() { return 1; } double f(double v) { return v + 2; } }\n", u8"pick")
                 .IsOk());
-    RefPtr<ScriptObject> pick = scriptContext->CreateInstance(u8"Pick", Span<Variant>{});
+    RefPtr<BehaviorObject> pick = scriptContext->CreateInstance(u8"Pick", Span<Variant>{});
     REQUIRE(static_cast<bool>(pick));
     Variant five[] = {Variant::From<f64>(5.0)};
     for (int round = 0; round < 2; ++round) // the second round runs from what the first found

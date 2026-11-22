@@ -2191,7 +2191,7 @@ namespace
     };
     AssembledSeen g_assembled;
 
-    class AssembledGame final : public foundation::script::ScriptObject
+    class AssembledGame final : public foundation::script::BehaviorObject
     {
     public:
         [[nodiscard]] Result<Variant> Invoke(StringView method, Span<Variant>) override
@@ -2199,12 +2199,12 @@ namespace
             g_assembled.calls.PushBack(String(method));
             return Variant{};
         }
-        [[nodiscard]] foundation::script::ScriptMethod Bind(StringView method, usize) override
+        [[nodiscard]] foundation::script::BehaviorMethod Bind(StringView method, usize) override
         {
             m_bound.PushBack(String(method));
-            return foundation::script::ScriptMethod{m_bound.Size()};
+            return foundation::script::BehaviorMethod{m_bound.Size()};
         }
-        [[nodiscard]] Result<Variant> Invoke(foundation::script::ScriptMethod method, Span<Variant> args) override
+        [[nodiscard]] Result<Variant> Invoke(foundation::script::BehaviorMethod method, Span<Variant> args) override
         {
             if (method.id == 0 || method.id > m_bound.Size())
                 return Err(ErrorCode::NotFound);
@@ -2237,11 +2237,11 @@ namespace
         Variant GetGlobal(StringView) override { return Variant{}; }
         bool HasFunction(StringView) const override { return false; }
         Result<Variant> Call(StringView, Span<Variant>) override { return Err(ErrorCode::NotSupported); }
-        RefPtr<foundation::script::ScriptObject> CreateInstance(StringView className, Span<Variant>) override
+        RefPtr<foundation::script::BehaviorObject> CreateInstance(StringView className, Span<Variant>) override
         {
             if (className != u8"Game" || g_assembled.loaded.IsEmpty())
                 return nullptr;
-            return RefPtr<foundation::script::ScriptObject>(MakeRef<AssembledGame>(DefaultAllocator()));
+            return RefPtr<foundation::script::BehaviorObject>(MakeRef<AssembledGame>(DefaultAllocator()));
         }
     };
 
