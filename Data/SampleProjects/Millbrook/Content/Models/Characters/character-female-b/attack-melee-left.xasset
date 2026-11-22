@@ -1,0 +1,709 @@
+<root>
+	<string name="guid">d9c7600a-2ac6-4755-ad78-25f394507acf</string>
+	<string name="typeNamespace">rtti::pipeline::animation</string>
+	<string name="typeName">AnimationClipAsset</string>
+	<string name="source"/>
+	<array name="dataVersions" count="1">
+		<u64 name="type">18178064882238147284</u64>
+		<u32 name="version">0</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName"/>
+		<string name="name">attack-melee-left</string>
+		<f32 name="duration">0.41666666</f32>
+		<bool name="isLooping">true</bool>
+		<array name="trackBone" count="7">
+			<i32>0</i32>
+			<i32>3</i32>
+			<i32>6</i32>
+			<i32>4</i32>
+			<i32>5</i32>
+			<i32>1</i32>
+			<i32>2</i32>
+		</array>
+		<array name="trackKind" count="7">
+			<u8>0</u8>
+			<u8>1</u8>
+			<u8>1</u8>
+			<u8>1</u8>
+			<u8>1</u8>
+			<u8>1</u8>
+			<u8>1</u8>
+		</array>
+		<array name="trackInterp" count="7">
+			<u8>1</u8>
+			<u8>1</u8>
+			<u8>1</u8>
+			<u8>1</u8>
+			<u8>1</u8>
+			<u8>1</u8>
+			<u8>1</u8>
+		</array>
+		<array name="trackStart" count="7">
+			<u32>0</u32>
+			<u32>13</u32>
+			<u32>26</u32>
+			<u32>39</u32>
+			<u32>52</u32>
+			<u32>65</u32>
+			<u32>75</u32>
+		</array>
+		<array name="trackCount" count="7">
+			<u32>13</u32>
+			<u32>13</u32>
+			<u32>13</u32>
+			<u32>13</u32>
+			<u32>13</u32>
+			<u32>10</u32>
+			<u32>13</u32>
+		</array>
+		<array name="keyTimes" count="88">
+			<f32>0</f32>
+			<f32>0.03205128</f32>
+			<f32>0.06410256</f32>
+			<f32>0.09615384</f32>
+			<f32>0.12820512</f32>
+			<f32>0.1602564</f32>
+			<f32>0.19230768</f32>
+			<f32>0.22435896</f32>
+			<f32>0.25641024</f32>
+			<f32>0.2884615</f32>
+			<f32>0.3205128</f32>
+			<f32>0.3525641</f32>
+			<f32>0.41666666</f32>
+			<f32>0</f32>
+			<f32>0.03205128</f32>
+			<f32>0.06410256</f32>
+			<f32>0.09615384</f32>
+			<f32>0.12820512</f32>
+			<f32>0.1602564</f32>
+			<f32>0.19230768</f32>
+			<f32>0.22435896</f32>
+			<f32>0.25641024</f32>
+			<f32>0.2884615</f32>
+			<f32>0.3205128</f32>
+			<f32>0.3525641</f32>
+			<f32>0.41666666</f32>
+			<f32>0</f32>
+			<f32>0.03205128</f32>
+			<f32>0.06410256</f32>
+			<f32>0.09615384</f32>
+			<f32>0.12820512</f32>
+			<f32>0.1602564</f32>
+			<f32>0.19230768</f32>
+			<f32>0.22435896</f32>
+			<f32>0.25641024</f32>
+			<f32>0.2884615</f32>
+			<f32>0.3205128</f32>
+			<f32>0.3525641</f32>
+			<f32>0.41666666</f32>
+			<f32>0</f32>
+			<f32>0.03205128</f32>
+			<f32>0.06410256</f32>
+			<f32>0.09615384</f32>
+			<f32>0.12820512</f32>
+			<f32>0.1602564</f32>
+			<f32>0.19230768</f32>
+			<f32>0.22435896</f32>
+			<f32>0.25641024</f32>
+			<f32>0.2884615</f32>
+			<f32>0.3205128</f32>
+			<f32>0.3525641</f32>
+			<f32>0.41666666</f32>
+			<f32>0</f32>
+			<f32>0.03205128</f32>
+			<f32>0.06410256</f32>
+			<f32>0.09615384</f32>
+			<f32>0.12820512</f32>
+			<f32>0.1602564</f32>
+			<f32>0.19230768</f32>
+			<f32>0.22435896</f32>
+			<f32>0.25641024</f32>
+			<f32>0.2884615</f32>
+			<f32>0.3205128</f32>
+			<f32>0.3525641</f32>
+			<f32>0.41666666</f32>
+			<f32>0</f32>
+			<f32>0.03205128</f32>
+			<f32>0.06410256</f32>
+			<f32>0.09615384</f32>
+			<f32>0.12820512</f32>
+			<f32>0.1602564</f32>
+			<f32>0.19230768</f32>
+			<f32>0.22435896</f32>
+			<f32>0.25641024</f32>
+			<f32>0.41666666</f32>
+			<f32>0</f32>
+			<f32>0.03205128</f32>
+			<f32>0.06410256</f32>
+			<f32>0.09615384</f32>
+			<f32>0.12820512</f32>
+			<f32>0.1602564</f32>
+			<f32>0.19230768</f32>
+			<f32>0.22435896</f32>
+			<f32>0.25641024</f32>
+			<f32>0.2884615</f32>
+			<f32>0.3205128</f32>
+			<f32>0.3525641</f32>
+			<f32>0.41666666</f32>
+		</array>
+		<array name="keyValues" count="88">
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">0</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">-0.00483614</f32>
+				<f32 name="w">0</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">-0.01649977</f32>
+				<f32 name="w">0</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">-0.030723713</f32>
+				<f32 name="w">0</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">-0.043240782</f32>
+				<f32 name="w">0</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">-0.049783796</f32>
+				<f32 name="w">0</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">-0.01613567</f32>
+				<f32 name="w">0</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0.06613563</f32>
+				<f32 name="w">0</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0.09956759</f32>
+				<f32 name="w">0</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0.086481586</f32>
+				<f32 name="w">0</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0.061447438</f32>
+				<f32 name="w">0</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0.032999538</f32>
+				<f32 name="w">0</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">0</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-1</f32>
+			</object>
+			<object>
+				<f32 name="x">0.025350917</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.9996786</f32>
+			</object>
+			<object>
+				<f32 name="x">0.08633313</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.9962663</f32>
+			</object>
+			<object>
+				<f32 name="x">0.1602261</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.98708034</f32>
+			</object>
+			<object>
+				<f32 name="x">0.22452033</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.9744694</f32>
+			</object>
+			<object>
+				<f32 name="x">0.26099154</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.96534115</f32>
+			</object>
+			<object>
+				<f32 name="x">0.1428432</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.9897453</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.14284304</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.9897454</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.26099154</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.96534115</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.22452039</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.9744694</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.16022615</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.98708034</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.086333126</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.99626637</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-1</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-1</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.025350917</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.9996786</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.08633313</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.9962663</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.1602261</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.98708034</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.22452033</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.9744694</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.26099154</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.96534115</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.1428432</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.9897453</f32>
+			</object>
+			<object>
+				<f32 name="x">0.14284304</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.9897454</f32>
+			</object>
+			<object>
+				<f32 name="x">0.26099154</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.96534115</f32>
+			</object>
+			<object>
+				<f32 name="x">0.22452039</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.9744694</f32>
+			</object>
+			<object>
+				<f32 name="x">0.16022615</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.98708034</f32>
+			</object>
+			<object>
+				<f32 name="x">0.086333126</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.99626637</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-1</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">-0</f32>
+				<f32 name="z">0.3826835</f32>
+				<f32 name="w">-0.92387956</f32>
+			</object>
+			<object>
+				<f32 name="x">0.12845384</f32>
+				<f32 name="y">0.05955965</f32>
+				<f32 name="z">0.3778382</f32>
+				<f32 name="w">-0.91498125</f32>
+			</object>
+			<object>
+				<f32 name="x">0.4231318</f32>
+				<f32 name="y">0.18758596</f32>
+				<f32 name="z">0.3327597</f32>
+				<f32 name="w">-0.8216094</f32>
+			</object>
+			<object>
+				<f32 name="x">0.7155534</f32>
+				<f32 name="y">0.30419484</f32>
+				<f32 name="z">0.22987136</f32>
+				<f32 name="w">-0.5853273</f32>
+			</object>
+			<object>
+				<f32 name="x">0.87588197</f32>
+				<f32 name="y">0.36345035</f32>
+				<f32 name="z">0.11585449</f32>
+				<f32 name="w">-0.2954866</f32>
+			</object>
+			<object>
+				<f32 name="x">0.91426474</f32>
+				<f32 name="y">0.3817849</f32>
+				<f32 name="z">0.053885467</f32>
+				<f32 name="w">-0.12432415</f32>
+			</object>
+			<object>
+				<f32 name="x">0.8168994</f32>
+				<f32 name="y">0.51337785</f32>
+				<f32 name="z">0.013475469</f32>
+				<f32 name="w">-0.26255852</f32>
+			</object>
+			<object>
+				<f32 name="x">0.56344765</f32>
+				<f32 name="y">0.57689965</f32>
+				<f32 name="z">0.13924421</f32>
+				<f32 name="w">-0.57473874</f32>
+			</object>
+			<object>
+				<f32 name="x">0.5487161</f32>
+				<f32 name="y">0.47331205</f32>
+				<f32 name="z">0.33953765</f32>
+				<f32 name="w">-0.599667</f32>
+			</object>
+			<object>
+				<f32 name="x">0.5990286</f32>
+				<f32 name="y">0.3187009</f32>
+				<f32 name="z">0.46568736</f32>
+				<f32 name="w">-0.568093</f32>
+			</object>
+			<object>
+				<f32 name="x">0.51985157</f32>
+				<f32 name="y">0.11635262</f32>
+				<f32 name="z">0.5707675</f32>
+				<f32 name="w">-0.6248526</f32>
+			</object>
+			<object>
+				<f32 name="x">0.29655486</f32>
+				<f32 name="y">-0.02570596</f32>
+				<f32 name="z">0.5738575</f32>
+				<f32 name="w">-0.762943</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0.3826835</f32>
+				<f32 name="w">-0.92387956</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">-0.3826835</f32>
+				<f32 name="w">-0.92387956</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.014666722</f32>
+				<f32 name="y">-0.02069172</f32>
+				<f32 name="z">-0.36767668</f32>
+				<f32 name="w">-0.92960775</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.04772027</f32>
+				<f32 name="y">-0.06982267</f32>
+				<f32 name="z">-0.3304986</f32>
+				<f32 name="w">-0.9400097</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.08321545</f32>
+				<f32 name="y">-0.12897138</f32>
+				<f32 name="z">-0.28349772</f32>
+				<f32 name="w">-0.9466101</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.109712355</f32>
+				<f32 name="y">-0.1794652</f32>
+				<f32 name="z">-0.24197097</f32>
+				<f32 name="w">-0.9472093</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.12345798</f32>
+				<f32 name="y">-0.20020466</f32>
+				<f32 name="z">-0.22282684</f32>
+				<f32 name="w">-0.9460573</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.066945404</f32>
+				<f32 name="y">-0.07426663</f32>
+				<f32 name="z">-0.24705653</f32>
+				<f32 name="w">-0.96382874</f32>
+			</object>
+			<object>
+				<f32 name="x">0.08142092</f32>
+				<f32 name="y">0.17070216</f32>
+				<f32 name="z">-0.26820013</f32>
+				<f32 name="w">-0.9446164</f32>
+			</object>
+			<object>
+				<f32 name="x">0.14900006</f32>
+				<f32 name="y">0.2878033</f32>
+				<f32 name="z">-0.27107236</f32>
+				<f32 name="w">-0.90635973</f32>
+			</object>
+			<object>
+				<f32 name="x">0.1340796</f32>
+				<f32 name="y">0.2561522</f32>
+				<f32 name="z">-0.2953976</f32>
+				<f32 name="w">-0.91057616</f32>
+			</object>
+			<object>
+				<f32 name="x">0.10042284</f32>
+				<f32 name="y">0.18634315</f32>
+				<f32 name="z">-0.32805416</f32>
+				<f32 name="w">-0.9206367</f32>
+			</object>
+			<object>
+				<f32 name="x">0.056351468</f32>
+				<f32 name="y">0.10291782</f32>
+				<f32 name="z">-0.35764608</f32>
+				<f32 name="w">-0.9264565</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">-0.3826835</f32>
+				<f32 name="w">-0.92387956</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-1</f32>
+			</object>
+			<object>
+				<f32 name="x">0.025350917</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.9996786</f32>
+			</object>
+			<object>
+				<f32 name="x">0.08633313</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.9962663</f32>
+			</object>
+			<object>
+				<f32 name="x">0.1602261</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.98708034</f32>
+			</object>
+			<object>
+				<f32 name="x">0.22452033</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.9744694</f32>
+			</object>
+			<object>
+				<f32 name="x">0.2590788</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.96585625</f32>
+			</object>
+			<object>
+				<f32 name="x">0.20121953</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.9795461</f32>
+			</object>
+			<object>
+				<f32 name="x">0.059162155</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.9982484</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-1</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-1</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-1</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.0126764</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.9999197</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.043206558</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.99906623</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.08037282</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.9967649</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.11298374</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.99359685</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.13262433</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.9911664</f32>
+			</object>
+			<object>
+				<f32 name="x">-0.042069633</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.9991147</f32>
+			</object>
+			<object>
+				<f32 name="x">0.17212018</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.98507595</f32>
+			</object>
+			<object>
+				<f32 name="x">0.2600356</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.965599</f32>
+			</object>
+			<object>
+				<f32 name="x">0.22452039</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.9744694</f32>
+			</object>
+			<object>
+				<f32 name="x">0.16022615</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.98708034</f32>
+			</object>
+			<object>
+				<f32 name="x">0.086333126</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-0.99626637</f32>
+			</object>
+			<object>
+				<f32 name="x">-0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">-1</f32>
+			</object>
+		</array>
+		<array name="eventTimes" count="0"/>
+		<array name="eventNames" count="0"/>
+		<string name="rootBone"/>
+		<bool name="rootHorizontal">false</bool>
+		<bool name="rootVertical">false</bool>
+		<bool name="rootYaw">false</bool>
+		<array name="rootTimes" count="0"/>
+		<array name="rootPositions" count="0"/>
+		<array name="rootYaws" count="0"/>
+		<array name="keyInTangents" count="0"/>
+		<array name="keyOutTangents" count="0"/>
+		<string name="skeleton">93634725-2e6c-4b52-96cc-e05dfe8c4bd4</string>
+		<object name="restPosition">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+		</object>
+		<object name="restRotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">1</f32>
+		</object>
+		<object name="restScale">
+			<f32 name="x">1</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">1</f32>
+		</object>
+	</object>
+</root>

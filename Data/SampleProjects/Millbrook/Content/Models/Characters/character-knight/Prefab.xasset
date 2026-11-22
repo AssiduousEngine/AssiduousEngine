@@ -1,0 +1,13 @@
+<root>
+	<string name="guid">ca3e72d3-14ea-4096-808b-d285dd0c80c8</string>
+	<string name="typeNamespace">rtti::scene</string>
+	<string name="typeName">PrefabDocument</string>
+	<string name="source"/>
+	<array name="dataVersions" count="1">
+		<u64 name="type">3442582207943668603</u64>
+		<u32 name="version">0</u32>
+	</array>
+	<object name="payload">
+		<string name="name">character-knight</string>
+	</object>
+</root>

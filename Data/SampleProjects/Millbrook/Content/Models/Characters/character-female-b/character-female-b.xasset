@@ -1,0 +1,283 @@
+<root>
+	<string name="guid">6e6ee0a5-0608-4cfe-aed2-a09c3a7104c7</string>
+	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
+	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Characters/character-female-b/character-female-b.glb</string>
+	<array name="dataVersions" count="1">
+		<u64 name="type">2440385714661564817</u64>
+		<u32 name="version">3</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName">Models/Characters/character-female-b/character-female-b.glb</string>
+		<array name="meshGuids" count="2">
+			<string>24820521-b530-45a4-9968-1d72189ad70b</string>
+			<string>4837d61a-772d-4055-abbf-f3cd8133ef8c</string>
+		</array>
+		<array name="meshSkinned" count="2">
+			<u8>1</u8>
+			<u8>1</u8>
+		</array>
+		<array name="meshMaterial" count="2">
+			<i32>0</i32>
+			<i32>0</i32>
+		</array>
+		<array name="meshMaterialSlots" count="2">
+			<object>
+				<array name="slots" count="1">
+					<i32>0</i32>
+				</array>
+			</object>
+			<object>
+				<array name="slots" count="1">
+					<i32>0</i32>
+				</array>
+			</object>
+		</array>
+		<array name="collisionGuids" count="0"/>
+		<array name="materialGuids" count="1">
+			<string>d215d7ab-f875-4a68-b832-921da870c3ff</string>
+		</array>
+		<array name="materialAlbedo" count="1">
+			<string>43507103-d7e1-4838-ad8a-b6b49bd589cb</string>
+		</array>
+		<array name="nodes" count="10">
+			<string name="name">character-female-b</string>
+			<i32 name="parent">-1</i32>
+			<object name="t">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+			</object>
+			<object name="r">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">1</f32>
+			</object>
+			<object name="s">
+				<f32 name="x">1</f32>
+				<f32 name="y">1</f32>
+				<f32 name="z">1</f32>
+			</object>
+			<i32 name="mesh">-1</i32>
+			<string name="name">root</string>
+			<i32 name="parent">0</i32>
+			<object name="t">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+			</object>
+			<object name="r">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">1</f32>
+			</object>
+			<object name="s">
+				<f32 name="x">1</f32>
+				<f32 name="y">1</f32>
+				<f32 name="z">1</f32>
+			</object>
+			<i32 name="mesh">-1</i32>
+			<string name="name">leg-left</string>
+			<i32 name="parent">1</i32>
+			<object name="t">
+				<f32 name="x">0.083570965</f32>
+				<f32 name="y">0.17625</f32>
+				<f32 name="z">-0.02875</f32>
+			</object>
+			<object name="r">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">1</f32>
+			</object>
+			<object name="s">
+				<f32 name="x">1</f32>
+				<f32 name="y">1</f32>
+				<f32 name="z">1</f32>
+			</object>
+			<i32 name="mesh">-1</i32>
+			<string name="name">leg-right</string>
+			<i32 name="parent">1</i32>
+			<object name="t">
+				<f32 name="x">-0.083570965</f32>
+				<f32 name="y">0.17625</f32>
+				<f32 name="z">-0.02875</f32>
+			</object>
+			<object name="r">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">1</f32>
+			</object>
+			<object name="s">
+				<f32 name="x">1</f32>
+				<f32 name="y">1</f32>
+				<f32 name="z">1</f32>
+			</object>
+			<i32 name="mesh">-1</i32>
+			<string name="name">torso</string>
+			<i32 name="parent">1</i32>
+			<object name="t">
+				<f32 name="x">-1.4438228e-15</f32>
+				<f32 name="y">0.17625</f32>
+				<f32 name="z">-0.02875</f32>
+			</object>
+			<object name="r">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">1</f32>
+			</object>
+			<object name="s">
+				<f32 name="x">1</f32>
+				<f32 name="y">1</f32>
+				<f32 name="z">1</f32>
+			</object>
+			<i32 name="mesh">-1</i32>
+			<string name="name">arm-left</string>
+			<i32 name="parent">4</i32>
+			<object name="t">
+				<f32 name="x">0.09989677</f32>
+				<f32 name="y">0.1115</f32>
+				<f32 name="z">0.0115</f32>
+			</object>
+			<object name="r">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">1</f32>
+			</object>
+			<object name="s">
+				<f32 name="x">1</f32>
+				<f32 name="y">1</f32>
+				<f32 name="z">1</f32>
+			</object>
+			<i32 name="mesh">-1</i32>
+			<string name="name">arm-right</string>
+			<i32 name="parent">4</i32>
+			<object name="t">
+				<f32 name="x">-0.09989677</f32>
+				<f32 name="y">0.1115</f32>
+				<f32 name="z">0.0115</f32>
+			</object>
+			<object name="r">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">1</f32>
+			</object>
+			<object name="s">
+				<f32 name="x">1</f32>
+				<f32 name="y">1</f32>
+				<f32 name="z">1</f32>
+			</object>
+			<i32 name="mesh">-1</i32>
+			<string name="name">head</string>
+			<i32 name="parent">4</i32>
+			<object name="t">
+				<f32 name="x">1.8196893e-09</f32>
+				<f32 name="y">0.167</f32>
+				<f32 name="z">0.026388777</f32>
+			</object>
+			<object name="r">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">1</f32>
+			</object>
+			<object name="s">
+				<f32 name="x">1</f32>
+				<f32 name="y">1</f32>
+				<f32 name="z">1</f32>
+			</object>
+			<i32 name="mesh">-1</i32>
+			<string name="name">body-mesh</string>
+			<i32 name="parent">0</i32>
+			<object name="t">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+			</object>
+			<object name="r">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">1</f32>
+			</object>
+			<object name="s">
+				<f32 name="x">1</f32>
+				<f32 name="y">1</f32>
+				<f32 name="z">1</f32>
+			</object>
+			<i32 name="mesh">0</i32>
+			<string name="name">head-mesh</string>
+			<i32 name="parent">0</i32>
+			<object name="t">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+			</object>
+			<object name="r">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">1</f32>
+			</object>
+			<object name="s">
+				<f32 name="x">1</f32>
+				<f32 name="y">1</f32>
+				<f32 name="z">1</f32>
+			</object>
+			<i32 name="mesh">1</i32>
+		</array>
+		<string name="skeletonGuid">93634725-2e6c-4b52-96cc-e05dfe8c4bd4</string>
+		<i32 name="skeletonParentNode">0</i32>
+		<array name="animationGuids" count="32">
+			<string>46159d75-5254-40f8-b37a-6f136da25fde</string>
+			<string>217c7044-fec1-48f0-871d-57eb1f6bf49d</string>
+			<string>655956d7-2cd2-4c9d-8d74-df9f5b928311</string>
+			<string>ef73e212-45ff-4dd4-afd9-ca14c5f1d2c4</string>
+			<string>53021057-9c53-42a3-a73f-6770170a3705</string>
+			<string>0a91abf6-97f9-4832-8704-db3d7857a80a</string>
+			<string>8d0384ca-6665-4cc5-a7d2-b29b1d48b295</string>
+			<string>8f2ff0b9-50b6-4781-8e14-06d1a78a23ff</string>
+			<string>dc6ad827-f3d5-49d5-b209-1e9de3223446</string>
+			<string>a4f7753c-41ed-4c97-95f7-2d0e9cef4666</string>
+			<string>1d32f699-ea6f-4e7e-a16d-873918d722f8</string>
+			<string>36701ff2-4571-4465-be16-9dfa82918328</string>
+			<string>b6cfc64a-1eeb-4a7c-8e60-0f69d4719de6</string>
+			<string>f36d447c-5744-430e-a597-6eee17bb9cb1</string>
+			<string>d776139a-3079-46d9-b868-9d1042d36366</string>
+			<string>9827681d-3b0c-4d0b-9ccb-aee680893b9d</string>
+			<string>f2586518-8666-44b4-935a-0cb5623f43c3</string>
+			<string>f27dc20d-3a04-41aa-aef3-a264db0e4ba4</string>
+			<string>3a2fb696-ff51-4dcc-a87f-023d03e8fc01</string>
+			<string>78c42c2d-5548-4237-982e-efd02385245b</string>
+			<string>d9c7600a-2ac6-4755-ad78-25f394507acf</string>
+			<string>073d932c-4152-4680-b3c8-a1a0c18f682e</string>
+			<string>6467918c-70ae-4f3b-a799-3335ea425c24</string>
+			<string>8017ec7e-a314-46b2-ba82-422a304affbf</string>
+			<string>87bf42ff-1cf2-4af8-8922-85f3a6117075</string>
+			<string>aa99c03c-2f8d-44c6-9477-278118c2471a</string>
+			<string>dbe05b87-1413-48d4-bfa9-3d69785275a4</string>
+			<string>94a53009-1e48-4ebe-82c1-71377f365827</string>
+			<string>fdc48660-96b2-41b8-8f63-7e8954def664</string>
+			<string>1ef356f5-499d-4fb9-b673-13dfc360de1f</string>
+			<string>7a6e9609-62af-4abb-ba19-39c8d76d1287</string>
+			<string>6cbca363-90e1-42ab-95d0-587044b8ecbd</string>
+		</array>
+		<object name="boundsMin">
+			<f32 name="x">-0.38358414</f32>
+			<f32 name="y">1.0430813e-07</f32>
+			<f32 name="z">-0.21088342</f32>
+		</object>
+		<object name="boundsMax">
+			<f32 name="x">0.38358414</f32>
+			<f32 name="y">0.72335327</f32>
+			<f32 name="z">0.2076388</f32>
+		</object>
+		<array name="entries" count="0"/>
+	</object>
+</root>
