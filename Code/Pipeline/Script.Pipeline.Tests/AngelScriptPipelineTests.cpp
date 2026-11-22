@@ -169,7 +169,7 @@ TEST_CASE("script.pipeline: B3 - the neutral builder resolves a per-language COO
     cooked = 0;
     struct FakeCook final : IScriptLanguageCook
     {
-        [[nodiscard]] String NewAssetTemplate(ScriptTier, StringView) const override
+        [[nodiscard]] String NewAssetTemplate(foundation::script::BehaviorKind, StringView) const override
         {
             return String(u8"// fake\n");
         }

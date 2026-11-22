@@ -24,7 +24,7 @@ namespace editor
     {
         constexpr StringView kUnbound = u8"Sequence"; // the group of tracks bound to no one
 
-        // The kind's name, as its reflection gives it ("Clip", "Camera cut").
+        // The kind's name, as its reflection gives it ("Clip", "Camera Cut").
         [[nodiscard]] String KindName(const sequence::SequenceTrack& track)
         {
             const TypeInfo* type = track.GetType();

@@ -277,18 +277,18 @@ namespace pipeline{
             CachedCheckManager m_checkManager{DefaultAllocator(), u8"luau"};
 
         public:
-            [[nodiscard]] String NewAssetTemplate(ScriptTier tier,
+            [[nodiscard]] String NewAssetTemplate(foundation::script::BehaviorKind kind,
                                                   StringView className) const override
             {
-                switch (tier)
+                switch (kind)
                 {
-                case ScriptTier::Level:
-                    return FillStarterClassName(kLuauLevelStarter, className);
-                case ScriptTier::Game:
-                    return FillStarterClassName(kLuauGameStarter, className);
-                case ScriptTier::Behavior:
+                case foundation::script::BehaviorKind::Scene:
+                    return FillStarterClassName(kLuauSceneStarter, className);
+                case foundation::script::BehaviorKind::Run:
+                    return FillStarterClassName(kLuauRunStarter, className);
+                case foundation::script::BehaviorKind::Entity:
                 default:
-                    return FillStarterClassName(kLuauBehaviorStarter, className);
+                    return FillStarterClassName(kLuauEntityStarter, className);
                 }
             }
 

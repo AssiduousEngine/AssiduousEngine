@@ -74,7 +74,7 @@ def fair_opens():
     guid = fresh("FairOpens")
     edits = [{"op": "length", "seconds": 14.0},
              {"op": "add_part", "name": "EndingCamera"},
-             {"op": "add_track", "kind": "Camera cut", "part": "EndingCamera"},          # track 0
+             {"op": "add_track", "kind": "Camera Cut", "part": "EndingCamera"},          # track 0
              {"op": "section", "track": 0, "start": 0.0, "length": 14.0},
              {"op": "add_track", "kind": "Event"},                                      # track 1
              {"op": "key", "track": 1, "time": 2.0},

@@ -609,17 +609,6 @@ export namespace pipeline{
 
     // ---- the per-language cook service ----
 
-    /// The scripting tier a New-Asset starter targets. The three contracts a script can
-    /// implement: a per-entity Behavior (class named freely, constructed with its entity), a
-    /// per-scene Level (constructed with its scene, one per scene), and the game orchestrator
-    /// (mandatory class `Game`, constructed with no arguments). Each cook seeds a starter per tier.
-    enum class ScriptTier
-    {
-        Behavior,
-        Level,
-        Game
-    };
-
     /// A language's cook: the compile-check, the metadata harvest and the New-Asset starter. The
     /// only place a language's specifics live on the cook side; the neutral builder
     /// resolves one by languageId and delegates. Implemented per language in its own
@@ -713,10 +702,10 @@ export namespace pipeline{
     public:
         virtual ~IScriptLanguageCook() = default;
 
-        /// The New-Asset starter source for `tier` (the tier's convention pre-filled). A
-        /// behaviour's class is `className` (a valid identifier: ClassNameFor makes one; empty is
-        /// "NewBehavior"); the level and game tiers keep their reserved class names and ignore it.
-        [[nodiscard]] virtual String NewAssetTemplate(ScriptTier tier, StringView className) const = 0;
+        /// The New-Asset starter source for a behavior of `kind` (Entity, Scene or Run), its class
+        /// `className` (a valid identifier: ClassNameFor makes one; empty is "NewBehavior").
+        [[nodiscard]] virtual String NewAssetTemplate(foundation::script::BehaviorKind kind,
+                                                      StringView className) const = 0;
 
         /// A cook-fingerprint contribution beyond the shared builder Version: a bytecode-emitting
         /// cook returns its compiler version here so a vendor bump recooks (bytecode is
@@ -1654,28 +1643,29 @@ export namespace pipeline{
         return out;
     }
 
-    /// The stem a new script of `tier` is named by when the caller names none ("NewBehavior").
-    [[nodiscard]] inline StringView ScriptTierBaseName(ScriptTier tier) noexcept
+    /// The stem a new behavior of `kind` is named by when the caller names none
+    /// ("NewEntityBehavior").
+    [[nodiscard]] inline StringView BehaviorBaseName(foundation::script::BehaviorKind kind) noexcept
     {
-        switch (tier)
+        switch (kind)
         {
-        case ScriptTier::Level:
-            return u8"NewLevel";
-        case ScriptTier::Game:
-            return u8"NewGame";
-        case ScriptTier::Behavior:
+        case foundation::script::BehaviorKind::Scene:
+            return u8"NewSceneBehavior";
+        case foundation::script::BehaviorKind::Run:
+            return u8"NewRunBehavior";
+        case foundation::script::BehaviorKind::Entity:
         default:
-            return u8"NewBehavior";
+            return u8"NewEntityBehavior";
         }
     }
 
-    /// A new script asset: the language cook's starter for `tier` written to the sources folder
-    /// as "<name>.<extension>" (a behaviour's class named after the asset), and a
+    /// A new script asset: the language cook's starter for a behavior of `kind` written to the
+    /// code folder as "<name>.<extension>" (its class named after the asset), and a
     /// ScriptClassAsset linking it with its language. Null when the language has no cook or a
     /// write is refused.
     [[nodiscard]] foundation::content::Instance* CreateScriptInstance(
         const AssetCreationContext& context, StringView languageId, StringView extension,
-        ScriptTier tier, StringView baseName);
+        foundation::script::BehaviorKind kind, StringView baseName);
     /// A new project file for a language whose classes build together (a C# .csproj): the project
     /// build's template written to the sources folder as "<name><dottedExtension>", and its
     /// ScriptAssemblyAsset. Null when the language has no project build or a write is refused.

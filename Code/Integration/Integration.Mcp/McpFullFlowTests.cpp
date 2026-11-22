@@ -24,6 +24,7 @@ import script.pipeline;
 import engine.composition;
 import editor.project;
 import editor.mcp;
+import foundation.script; // BehaviorKind, the starter a cook seeds
 import engine.project; // the display settings (WindowMode)
 
 using namespace foundation::core;
@@ -141,7 +142,7 @@ TEST_CASE("integration.mcp: the full agent flow - create, import, cook, author, 
         pipeline::IScriptLanguageCook* cook =
             pipeline::ScriptLanguageCookRegistry::Get().FindByLanguage(u8"luau");
         REQUIRE(cook != nullptr);
-        const String starter = cook->NewAssetTemplate(pipeline::ScriptTier::Behavior, {});
+        const String starter = cook->NewAssetTemplate(foundation::script::BehaviorKind::Entity, {});
         WriteText(u8"Mover.luau", starter.AsView());
     }
     JsonValue imported =

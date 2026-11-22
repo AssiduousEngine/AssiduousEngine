@@ -22,7 +22,7 @@ namespace pipeline
 {
     foundation::content::Instance* CreateScriptInstance(const AssetCreationContext& context,
                                                         StringView languageId,
-                                                        StringView extension, ScriptTier tier,
+                                                        StringView extension, foundation::script::BehaviorKind kind,
                                                         StringView baseName)
     {
         IScriptLanguageCook* cook = ScriptLanguageCookRegistry::Get().FindByLanguage(languageId);
@@ -44,7 +44,7 @@ namespace pipeline
         ScriptClassAsset asset;
         asset.language = String(languageId);
         const String className = ClassNameFor(name.AsView(), baseName);
-        const String starter = cook->NewAssetTemplate(tier, className.AsView());
+        const String starter = cook->NewAssetTemplate(kind, className.AsView());
         return CreateLinkedTextAsset(named, baseName, dottedExtension.AsView(), starter.AsView(),
                                      ScriptClassAsset::StaticType(), asset, foundation::vfs::kSourcesCodeFolder);
     }
@@ -131,17 +131,9 @@ namespace pipeline
 
     usize RegisterScriptCreators(AssetCreatorRegistry& registry)
     {
-        struct TierDesc
-        {
-            ScriptTier tier;
-            StringView suffix;   // the label's suffix
-            StringView baseName; // the unique-name stem
-        };
-        static const TierDesc kTiers[] = {
-            {ScriptTier::Behavior, u8"Behavior", ScriptTierBaseName(ScriptTier::Behavior)},
-            {ScriptTier::Level, u8"Level", ScriptTierBaseName(ScriptTier::Level)},
-            {ScriptTier::Game, u8"Game", ScriptTierBaseName(ScriptTier::Game)},
-        };
+        using foundation::script::BehaviorKind;
+        // A creator per kind, named for it ("Luau Entity Behavior").
+        static const BehaviorKind kKinds[] = {BehaviorKind::Entity, BehaviorKind::Scene, BehaviorKind::Run};
         usize registered = 0;
         for (const foundation::script::ScriptBackendDesc& backend :
              foundation::script::ScriptBackendRegistry::Get().All())
@@ -158,18 +150,18 @@ namespace pipeline
             const StringView displayName = backend.displayName.IsEmpty()
                                                ? backend.languageId.AsView()
                                                : backend.displayName.AsView();
-            for (const TierDesc& t : kTiers)
+            for (const BehaviorKind kind : kKinds)
             {
                 AssetCreator creator;
-                creator.label = Format(u8"{} {}", displayName, t.suffix);
+                creator.label = Format(u8"{} {}", displayName, foundation::script::BehaviorKinds::TypeName(kind));
                 creator.category = String(u8"Scripts");
                 creator.type = &ScriptClassAsset::StaticType();
                 creator.run = [languageId = String(backend.languageId.AsView()), extension,
-                               tier = t.tier, base = String(t.baseName)](
+                               kind, base = String(BehaviorBaseName(kind))](
                                   const AssetCreationContext& context)
                 {
                     return CreateScriptInstance(context, languageId.AsView(), extension.AsView(),
-                                                tier, base.AsView());
+                                                kind, base.AsView());
                 };
                 registry.Register(Move(creator));
                 ++registered;

@@ -28,14 +28,13 @@ import foundation.core;
 using namespace foundation::core;
 
 export namespace pipeline{
-    // The New Asset starter for AngelScript: a behavior class whose constructor takes the
-    // entity handle, with the lifecycle handlers stubbed. No properties.
-    inline constexpr StringView kAngelScriptBehaviorStarter =
-        u8"// Behavior class - attach via a BehaviorComponent behavior slot.\n"
-        u8"// Reflected engine facades are visible globally (no import). In AngelScript the\n"
-        u8"// static facades are NAMESPACED and lowercase - Log::info, Time::delta,\n"
-        u8"// Random::value - and the entity handle uses '.' (self.setName, ...). The scene is\n"
-        u8"// reached THROUGH the entity: self.scene.find(\"name\"), self.scene.spawn(...).\n"
+    // The New Asset starters for AngelScript, one per kind of behavior, each class named after its
+    // asset and deriving from its kind, with the handlers stubbed.
+    inline constexpr StringView kAngelScriptEntityStarter =
+        u8"// An entity behavior: set it on an entity's Behavior component.\n"
+        u8"// Reflected engine facades are global (no import). Static facades are namespaced and\n"
+        u8"// lowercase (Log::info, Time::delta, Random::value), and the entity handle uses '.'\n"
+        u8"// (self.setName). The scene is reached through the entity: self.scene.find(\"name\").\n"
         u8"class {ClassName} : EntityBehavior\n"
         u8"{\n"
         u8"    private Entity self;\n"
@@ -49,50 +48,49 @@ export namespace pipeline{
         u8"\n"
         u8"    void onUpdate(double dt)\n"
         u8"    {\n"
-        u8"        // Drift along +X at 1 unit/second. A Float3 is a value, as an int is:\n"
+        u8"        // Drift along +X at 1 unit a second. A Float3 is a value, as an int is:\n"
         u8"        // p is a copy of the entity's position.\n"
         u8"        Float3 p = self.position();\n"
         u8"        self.setPosition(p.x + float(dt), p.y, p.z);\n"
-        u8"        // Also available: Time::delta(), Random::value(), self.scene.find(\"name\").\n"
+        u8"        // Also there: Time::delta(), Random::value(), self.scene.find(\"name\").\n"
         u8"    }\n"
         u8"\n"
         u8"    void onDestroy() {}\n"
         u8"}\n";
 
-    // The New Asset starter for a scene behavior: one object per scene, constructed with the
-    // scene handle, its class named after the asset. All handlers optional. onUpdate and
-    // onFixedUpdate run only while the scene simulates.
-    inline constexpr StringView kAngelScriptLevelStarter =
-        u8"// A scene behavior - one per scene. Set it on the scene's Scene Behavior settings.\n"
-        u8"// One instance per scene, constructed with the scene handle. In AngelScript the\n"
-        u8"// static facades are NAMESPACED and lowercase - Log::info, Time::delta - and the\n"
-        u8"// scene handle uses '.': scene.find(\"name\"), scene.spawn(...).\n"
+    // A scene behavior: one object per scene, made with the scene's handle. Every handler is
+    // optional; onUpdate and onFixedUpdate run only while the scene simulates.
+    inline constexpr StringView kAngelScriptSceneStarter =
+        u8"// A scene behavior: one per scene, made with the scene's handle.\n"
+        u8"// Set it in the scene's Scene Behavior settings. Static facades are namespaced and\n"
+        u8"// lowercase (Log::info, Time::delta), and the scene's handle uses '.': scene.find(\"name\").\n"
         u8"class {ClassName} : SceneBehavior\n"
         u8"{\n"
         u8"    private Scene scene;\n"
         u8"\n"
         u8"    {ClassName}(Scene s) { scene = s; }\n"
         u8"\n"
-        u8"    void onStart() { Log::info(\"Level started\"); }\n"
-        u8"    // Gameplay dt; runs only while the scene simulates.\n"
+        u8"    void onStart() { Log::info(\"{ClassName} started\"); }\n"
+        u8"    // Every frame while the scene simulates.\n"
         u8"    void onUpdate(double dt) {}\n"
-        u8"    // Fixed-step dt (physics lane); runs only while the scene simulates.\n"
+        u8"    // Every fixed physics step while the scene simulates.\n"
         u8"    void onFixedUpdate(double dt) {}\n"
         u8"    void onStop() {}\n"
         u8"}\n";
 
-    // The New Asset starter for a run behavior, the game orchestrator: one per run, its class
-    // named after the asset; drives scene loading (through the run facade) and the game-wide update.
-    inline constexpr StringView kAngelScriptGameStarter =
-        u8"// A run behavior - the game orchestrator, one per run. Set it as the project's.\n"
+    // A run behavior: one per run, for the whole game across its scenes; it may load the scenes
+    // itself (through the run facade).
+    inline constexpr StringView kAngelScriptRunStarter =
+        u8"// A run behavior: one per run, for the whole game across its scenes.\n"
+        u8"// Set it as the project's Run behavior.\n"
         u8"class {ClassName} : RunBehavior\n"
         u8"{\n"
         u8"    {ClassName}() {}\n"
         u8"\n"
-        u8"    // Runs once at start. Load the opening scene here via the run facade:\n"
+        u8"    // Runs once, before the default scene loads. With no default scene, load the first here:\n"
         u8"    //   run::loadScene(Guid(\"<the scene's id>\"));\n"
-        u8"    void onStart() { Log::info(\"Game launched\"); }\n"
-        u8"    // Game-wide update (context dt). Per-scene logic belongs in a Level.\n"
+        u8"    void onStart() { Log::info(\"{ClassName} started\"); }\n"
+        u8"    // Every frame, whatever scene is loaded.\n"
         u8"    void onUpdate(double dt) {}\n"
         u8"    void onStop() {}\n"
         u8"}\n";

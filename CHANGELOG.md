@@ -110,6 +110,11 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Changed
 
+- Editor and MCP: the script creators are named for the kind of behavior they make: **Luau Entity
+  Behavior**, **Luau Scene Behavior** and **Luau Run Behavior** (and AngelScript's), where they
+  were Behavior, Level and Game, and their starters' comments say so. `script_create` takes
+  `kind` (`entity`, `scene` or `run`) in place of `tier`. The sequencer's Camera cut track is
+  Camera Cut, as `sequence_edit` names it.
 - Projects: a new project starts with every primitive (cube, sphere, plane, cylinder, cone and
   torus), not only the first three. The editor's `--seed-primitives` is gone: `--seed` now seeds
   them all.

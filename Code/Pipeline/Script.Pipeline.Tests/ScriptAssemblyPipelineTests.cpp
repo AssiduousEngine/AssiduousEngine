@@ -74,7 +74,7 @@ namespace
     class StandInClassCook final : public IScriptLanguageCook
     {
     public:
-        [[nodiscard]] String NewAssetTemplate(ScriptTier, StringView) const override { return String{}; }
+        [[nodiscard]] String NewAssetTemplate(foundation::script::BehaviorKind, StringView) const override { return String{}; }
         [[nodiscard]] bool Cook(StringView, StringView, CookScriptErrorSink&, BehaviorClassSource&,
                                 IScriptIncludeReader*) override
         {

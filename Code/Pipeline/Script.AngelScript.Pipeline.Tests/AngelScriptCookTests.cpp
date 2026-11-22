@@ -37,7 +37,7 @@ TEST_CASE("as.cook: registered + resolvable by language; supplies a starter temp
 {
     IScriptLanguageCook* cook = AngelScriptCook();
     REQUIRE(cook != nullptr);
-    CHECK_FALSE(cook->NewAssetTemplate(ScriptTier::Behavior, {}).IsEmpty());
+    CHECK_FALSE(cook->NewAssetTemplate(foundation::script::BehaviorKind::Entity, {}).IsEmpty());
 }
 
 TEST_CASE("as.cook: the scene and run behavior starters cook to a class named after the asset, of their kind")
@@ -45,9 +45,9 @@ TEST_CASE("as.cook: the scene and run behavior starters cook to a class named af
     IScriptLanguageCook* cook = AngelScriptCook();
     REQUIRE(cook != nullptr);
 
-    const String behavior = cook->NewAssetTemplate(ScriptTier::Behavior, {});
-    const String level = cook->NewAssetTemplate(ScriptTier::Level, u8"Arena");
-    const String game = cook->NewAssetTemplate(ScriptTier::Game, u8"Heist");
+    const String behavior = cook->NewAssetTemplate(foundation::script::BehaviorKind::Entity, {});
+    const String level = cook->NewAssetTemplate(foundation::script::BehaviorKind::Scene, u8"Arena");
+    const String game = cook->NewAssetTemplate(foundation::script::BehaviorKind::Run, u8"Heist");
     CHECK_FALSE(level.IsEmpty());
     CHECK_FALSE(game.IsEmpty());
     CHECK(level != behavior);
@@ -298,7 +298,7 @@ TEST_CASE("as.cook: the starter template itself compiles clean")
     REQUIRE(cook != nullptr);
     CookScriptErrorSink sink;
     BehaviorClassSource out;
-    CHECK(cook->Cook(cook->NewAssetTemplate(ScriptTier::Behavior, {}), u8"NewBehavior.as", sink, out));
+    CHECK(cook->Cook(cook->NewAssetTemplate(foundation::script::BehaviorKind::Entity, {}), u8"NewBehavior.as", sink, out));
     CHECK(out.className == u8"NewBehavior");
     CHECK(out.kind == BehaviorKind::Entity);
 }
@@ -318,7 +318,7 @@ TEST_CASE("as.cook: the New-Asset starter template compiles clean (its example c
     REQUIRE(cook != nullptr);
     CookScriptErrorSink sink;
     BehaviorClassSource out;
-    const bool ok = cook->Cook(cook->NewAssetTemplate(ScriptTier::Behavior, {}), u8"NewBehavior.as", sink, out);
+    const bool ok = cook->Cook(cook->NewAssetTemplate(foundation::script::BehaviorKind::Entity, {}), u8"NewBehavior.as", sink, out);
     REQUIRE(ok); // the starter has to compile: it teaches the API by example
     CHECK(out.className == u8"NewBehavior");
 }

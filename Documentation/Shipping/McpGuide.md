@@ -405,7 +405,7 @@ one of a type scripts have no form for (an asset reference, a skeletal animation
 and is changed through its facade instead (`scene.animation.setClip`); a list member binds as
 methods rather than a property. A member with `readOnly: true` (a network identity's
 `authority`, for one) reads and refuses assignment in every backend. `script_create` seeds a starter asset
-(behavior | level | game tier), then edit the returned source FILE, loop on
+(`kind`: entity, scene or run behavior), then edit the returned source FILE, loop on
 `script_validate`, and `asset_cook` to make the class attachable. A script file may declare several
 classes (data, helpers); the one it plays is the one deriving from a kind (`class Coin :
 EntityBehavior`; Luau `Coin = EntityBehavior.class()`), of any name. A script with none is a module

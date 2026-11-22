@@ -594,18 +594,18 @@ namespace pipeline{
         class AngelScriptScriptCook final : public IScriptLanguageCook
         {
         public:
-            [[nodiscard]] String NewAssetTemplate(ScriptTier tier,
+            [[nodiscard]] String NewAssetTemplate(foundation::script::BehaviorKind kind,
                                                   StringView className) const override
             {
-                switch (tier)
+                switch (kind)
                 {
-                case ScriptTier::Level:
-                    return FillStarterClassName(kAngelScriptLevelStarter, className);
-                case ScriptTier::Game:
-                    return FillStarterClassName(kAngelScriptGameStarter, className);
-                case ScriptTier::Behavior:
+                case foundation::script::BehaviorKind::Scene:
+                    return FillStarterClassName(kAngelScriptSceneStarter, className);
+                case foundation::script::BehaviorKind::Run:
+                    return FillStarterClassName(kAngelScriptRunStarter, className);
+                case foundation::script::BehaviorKind::Entity:
                 default:
-                    return FillStarterClassName(kAngelScriptBehaviorStarter, className);
+                    return FillStarterClassName(kAngelScriptEntityStarter, className);
                 }
             }
 

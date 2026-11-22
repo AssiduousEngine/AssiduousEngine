@@ -78,12 +78,12 @@ TEST_CASE("luau.cook: registered + resolvable by language; the Behavior starter 
 {
     IScriptLanguageCook* cook = LuauCook();
     REQUIRE(cook != nullptr);
-    CHECK_FALSE(cook->NewAssetTemplate(ScriptTier::Behavior, {}).IsEmpty());
+    CHECK_FALSE(cook->NewAssetTemplate(foundation::script::BehaviorKind::Entity, {}).IsEmpty());
 
     CookScriptErrorSink sink;
     BehaviorClassSource out;
     REQUIRE(
-        cook->Cook(cook->NewAssetTemplate(ScriptTier::Behavior, {}), u8"NewBehavior.luau", sink, out));
+        cook->Cook(cook->NewAssetTemplate(foundation::script::BehaviorKind::Entity, {}), u8"NewBehavior.luau", sink, out));
     CHECK(out.language == u8"luau");
     CHECK(out.className == u8"NewBehavior");
     CHECK(out.kind == BehaviorKind::Entity);
@@ -102,9 +102,9 @@ TEST_CASE("luau.cook: the scene and run behavior starters cook to a class named 
     IScriptLanguageCook* cook = LuauCook();
     REQUIRE(cook != nullptr);
 
-    const String behavior = cook->NewAssetTemplate(ScriptTier::Behavior, {});
-    const String level = cook->NewAssetTemplate(ScriptTier::Level, u8"Arena");
-    const String game = cook->NewAssetTemplate(ScriptTier::Game, u8"Heist");
+    const String behavior = cook->NewAssetTemplate(foundation::script::BehaviorKind::Entity, {});
+    const String level = cook->NewAssetTemplate(foundation::script::BehaviorKind::Scene, u8"Arena");
+    const String game = cook->NewAssetTemplate(foundation::script::BehaviorKind::Run, u8"Heist");
     CHECK_FALSE(level.IsEmpty());
     CHECK_FALSE(game.IsEmpty());
     CHECK(level != behavior);
@@ -226,7 +226,7 @@ TEST_CASE("luau.cook: the cook stores loadable bytecode in the pack (the player 
     CookScriptErrorSink sink;
     BehaviorClassSource out;
     REQUIRE(
-        cook->Cook(cook->NewAssetTemplate(ScriptTier::Behavior, {}), u8"NewBehavior.luau", sink, out));
+        cook->Cook(cook->NewAssetTemplate(foundation::script::BehaviorKind::Entity, {}), u8"NewBehavior.luau", sink, out));
     // Luau ships bytecode into the pack (source stays for dev-mode hot reload).
     REQUIRE_FALSE(out.bytecode.IsEmpty());
     CHECK_FALSE(out.source.IsEmpty());

@@ -17,6 +17,7 @@ import foundation.runtime; // a plugin host that loaded a plugin with a script t
 import engine.project;
 import editor.project;
 import editor.mcp;
+import foundation.script; // BehaviorKind, the starter a cook seeds
 
 using namespace foundation::core;
 using namespace foundation::mcp;
@@ -93,7 +94,7 @@ TEST_CASE("integration.mcp: script_validate - every enabled backend's starter co
         ++enabled;
 
         // The backend's own Behavior starter validates, and the harvest recognized it.
-        const String starter = cook->NewAssetTemplate(pipeline::ScriptTier::Behavior, {});
+        const String starter = cook->NewAssetTemplate(foundation::script::BehaviorKind::Entity, {});
         JsonValue ok = SvOk(server, SvArgs(language, starter));
         CHECK(ok.Get(u8"valid").AsBool() == true);
         CHECK(ok.Get(u8"errors").Count() == 0);

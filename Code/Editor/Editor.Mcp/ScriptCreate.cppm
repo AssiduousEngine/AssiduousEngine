@@ -6,7 +6,7 @@
 // script_create: seed a fresh script asset from the chosen backend's own starter (the language
 // cook's NewAssetTemplate, never hardcoded text), through the creation the editor's New Asset menu
 // and asset_create run (pipeline::CreateScriptInstance). The starter source is written to
-// Sources/<name>.<ext> with a behaviour's class named after the asset, and a ScriptClassAsset
+// Code/<name>.<ext> with the behavior's class named after the asset, and a ScriptClassAsset
 // envelope records {fileName, language} in the source database. The agent then edits the file
 // (the file is the truth), checks it with script_validate, and runs asset_cook to make the class
 // attachable.
@@ -34,33 +34,33 @@ namespace content = foundation::content;
 
 namespace editor::mcp::detail
 {
-    inline Array<String> ScriptTierChoices()
+    inline Array<String> BehaviorKindChoices()
     {
         Array<String> choices;
-        choices.PushBack(String(u8"behavior"));
-        choices.PushBack(String(u8"level"));
-        choices.PushBack(String(u8"game"));
+        choices.PushBack(String(u8"entity"));
+        choices.PushBack(String(u8"scene"));
+        choices.PushBack(String(u8"run"));
         return choices;
     }
 
-    inline pipeline::ScriptTier ParseScriptTier(StringView name)
+    inline foundation::script::BehaviorKind ParseBehaviorKind(StringView name)
     {
-        if (name == StringView(u8"level"))
+        if (name == StringView(u8"scene"))
         {
-            return pipeline::ScriptTier::Level;
+            return foundation::script::BehaviorKind::Scene;
         }
-        if (name == StringView(u8"game"))
+        if (name == StringView(u8"run"))
         {
-            return pipeline::ScriptTier::Game;
+            return foundation::script::BehaviorKind::Run;
         }
-        return pipeline::ScriptTier::Behavior;
+        return foundation::script::BehaviorKind::Entity;
     }
 }
 
 export namespace editor::mcp
 {
     // Registers script_create against `server` (it writes into the open project's source DB and
-    // Sources/ directory).
+    // Code/ folder).
     inline void RegisterScriptCreateTool(foundation::mcp::McpServer& server,
                                          ProjectSession& session)
     {
@@ -70,19 +70,20 @@ export namespace editor::mcp
 
         server.RegisterTool(
             u8"script_create",
-            u8"Create a new script asset from the backend's starter template: writes "
-            u8"Sources/<name>.<ext> with the tier's starter source and creates the script "
-            u8"asset referencing it. Tiers: 'behavior' (per-entity, attach via a "
-            u8"BehaviorComponent slot), 'level' (per-scene, reserved class Level), 'game' (the "
-            u8"project orchestrator, reserved class Game). Returns the asset guid and the "
-            u8"source file path - edit the FILE to write your gameplay code, use "
-            u8"script_validate as the loop, then asset_cook to make the class attachable.",
+            u8"Create a new script asset from the backend's starter: writes Code/<name>.<ext> "
+            u8"with the starter of a behavior of the kind asked, its class named after the "
+            u8"asset, and creates the script asset referencing it. Kinds: 'entity' (an "
+            u8"EntityBehavior, set on an entity's Behavior component), 'scene' (a "
+            u8"SceneBehavior, one per scene), 'run' (a RunBehavior, the project's run "
+            u8"behavior). Returns the asset guid and the source file path: edit the FILE to "
+            u8"write your gameplay code, use script_validate as the loop, then asset_cook to "
+            u8"make the class attachable.",
             SchemaBuilder()
                 .Str(u8"name", u8"the asset name (also the source file stem)", true)
                 .Enum(u8"language", detail::ScriptLanguageChoices(), u8"the script backend",
                       true)
-                .Enum(u8"tier", detail::ScriptTierChoices(),
-                      u8"which starter to seed (default behavior)")
+                .Enum(u8"kind", detail::BehaviorKindChoices(),
+                      u8"the kind of behavior to seed (default entity)")
                 .Str(u8"group", u8"source-DB group path to place it in (slash-joined; "
                                 u8"default root)")
                 .Build(),
@@ -110,11 +111,11 @@ export namespace editor::mcp
                                       u8"may be disabled in this build)",
                                       language.AsView()));
                 }
-                const pipeline::ScriptTier tier =
-                    detail::ParseScriptTier(args.Get(u8"tier").AsString().AsView());
+                const foundation::script::BehaviorKind kind =
+                    detail::ParseBehaviorKind(args.Get(u8"kind").AsString().AsView());
 
                 // The same creation File > New and asset_create run: the starter written to
-                // Sources/, a behaviour's class named after the asset, the asset pointing at the
+                // Code/, the behavior's class named after the asset, the asset pointing at the
                 // file.
                 const String sourcesRoot = s->project->SourcesRoot();
                 pipeline::AssetCreationContext creation;
@@ -126,8 +127,8 @@ export namespace editor::mcp
                 creation.codeRoot = codeRoot.AsView();
                 creation.name = requestedName.AsView();
                 content::Instance* instance = pipeline::CreateScriptInstance(
-                    creation, language.AsView(), backend->fileExtensions[0].AsView(), tier,
-                    pipeline::ScriptTierBaseName(tier));
+                    creation, language.AsView(), backend->fileExtensions[0].AsView(), kind,
+                    pipeline::BehaviorBaseName(kind));
                 if (instance == nullptr)
                 {
                     return Err(Format(u8"could not create '{}': the source file under '{}' or the "

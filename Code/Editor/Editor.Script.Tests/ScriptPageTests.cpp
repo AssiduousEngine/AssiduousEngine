@@ -77,7 +77,7 @@ namespace
             context.SetProject(project.Get());
             pipeline::IScriptLanguageCook* cook = pipeline::ScriptLanguageCookRegistry::Get().FindByLanguage(u8"angelscript");
             REQUIRE(cook != nullptr);
-            source = cook->NewAssetTemplate(pipeline::ScriptTier::Behavior, u8"Hero");
+            source = cook->NewAssetTemplate(foundation::script::BehaviorKind::Entity, u8"Hero");
             REQUIRE(WriteFile(PathJoin(project->SourcesRoot().AsView(), u8"Hero.as").AsView(),
                               Span<const byte>(reinterpret_cast<const byte*>(source.Data()), source.Size())).IsOk());
             foundation::content::Group* top = project->SourceDb().RootGroup();

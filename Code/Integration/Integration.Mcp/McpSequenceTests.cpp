@@ -144,6 +144,6 @@ TEST_CASE("integration.mcp: an agent authors a cutscene with sequence_edit and r
     bad.Set(u8"edits", Edits(u8"[{\"op\":\"add_track\",\"kind\":\"Clip\"}]"));
     CHECK(Call(server, u8"sequence_edit", bad).text.AsView().Contains(u8"give `part`"));
     bad.Set(u8"edits", Edits(u8"[{\"op\":\"add_track\",\"kind\":\"Juggle\"}]"));
-    CHECK(Call(server, u8"sequence_edit", bad).text.AsView().Contains(u8"Camera cut"));
+    CHECK(Call(server, u8"sequence_edit", bad).text.AsView().Contains(u8"Camera Cut"));
     (void)RemoveDirectoryRecursive(u8"mcp_sequence");
 }

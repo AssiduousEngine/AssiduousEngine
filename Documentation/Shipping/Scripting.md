@@ -18,7 +18,7 @@ facades).
 A class the engine runs is a **behavior**, and declares its kind by deriving from it. A script
 holds one behavior class, of any name; other classes beside it are its helpers.
 
-- **EntityBehavior** - attached to an entity through a ScriptComponent behavior slot; the engine
+- **EntityBehavior** - attached to an entity through its Behavior component; the engine
   constructs it with its entity. This is where most gameplay lives.
 - **SceneBehavior** - one per scene, set in the scene's Scene Behavior settings, constructed with
   its scene. Use it for scene-wide orchestration: spawning, win conditions, sequencing.
@@ -360,10 +360,10 @@ Http.post("https://example.com/scores", "application/json", '{"score":9}',      
 - `script_api` - the live bound API for a chosen backend. Read it before writing code.
 - Scripts are project assets: import/list/cook them like any asset (see Assets.md).
 - Coroutines are available in every backend for multi-frame sequences.
-- A scene page's Simulate (`simulate_start`) runs that scene's behaviors and Level script as a
+- A scene page's Simulate (`simulate_start`) runs that scene's behaviors and scene behavior as a
   run of its own, one per page: their own context, clock and `gui` root. What they push on screen
   draws over the page's viewport (and so in `viewport_screenshot`), and goes when the Simulate
-  stops. It has no Game script, input map or save; test those with play in editor.
+  stops. It has no run behavior, input map or save; test those with play in editor.
 
 ## Gotchas
 

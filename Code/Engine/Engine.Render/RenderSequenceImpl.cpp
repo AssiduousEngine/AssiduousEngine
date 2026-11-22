@@ -28,7 +28,7 @@ namespace engine::render
     }
     REFLECT_MEMBERS(CameraCutSequenceTrack, "rtti::render")
     {
-        builder.Attribute("displayName", String(u8"Camera cut"))
+        builder.Attribute("displayName", String(u8"Camera Cut"))
             .Property<&CameraCutSequenceTrack::sections>("sections")
             .PropAttribute("displayName", String(u8"Shots"));
     }
