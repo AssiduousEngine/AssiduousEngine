@@ -4,7 +4,9 @@ names in its settings, so the look is tuned in one place (arranged as Masquerade
 Dusk: a sky going from a warm horizon to a deep blue overhead, a low golden sun and a cool ambient,
 so the square reads warm and the lanterns tell once they are lit (the ending). TAA, GTAO, a little
 bloom for the lanterns and the windows; no SSR (nothing in the village is polished) and no SSGI, so
-the web build plays it too. Colours are sRGB, as entered anywhere.
+the web build plays it too. The sun's shadows reach 18 m with most of their detail near the camera
+(split 0.9), which suits a camera that follows the player closely, and the ambient is high enough
+that shade stays readable rather than near black. Colours are sRGB, as entered anywhere.
 """
 import xml.etree.ElementTree as ET
 from scenegen import mcp, settings, num
@@ -14,13 +16,13 @@ POST = dict(exposureEV=0.0, tonemapOperator=1, bloomEnabled=True, bloomThreshold
             ssrIntensity=1.0, taaBlendFactor=0.97, taaVarianceGamma=1.25, fxaaSubpixel=0.75,
             autoExposure=True, autoExposureKey=0.18, autoExposureSpeed=1.5, autoExposureMinEV=-3.0,
             autoExposureMaxEV=5.0, gradingIntensity=1.0, ssgiEnabled=False, ssgiIntensity=1.0)
-ENVIRONMENT = dict(ambientColor={"r": 0.40, "g": 0.42, "b": 0.58, "a": 1.0}, ambientIntensity=0.25, skyMode=0,
+ENVIRONMENT = dict(ambientColor={"r": 0.40, "g": 0.42, "b": 0.58, "a": 1.0}, ambientIntensity=0.42, skyMode=0,
                    skyIntensity=0.6, skyBackgroundIntensity=0.8, skyRotation=0.0,
                    skyHorizon={"r": 0.95, "g": 0.62, "b": 0.38, "a": 1.0},
                    skyZenith={"r": 0.16, "g": 0.22, "b": 0.45, "a": 1.0},
                    skyGround={"r": 0.20, "g": 0.18, "b": 0.16, "a": 1.0}, sunIntensity=1.0, sunAngularSize=0.5,
                    turbidity=2.0, iblDiffuseIntensity=0.2, iblSpecularIntensity=0.4,
-                   shadowDistance=40.0, shadowCascadeSplit=0.75, shadowFadeDistance=8.0)
+                   shadowDistance=18.0, shadowCascadeSplit=0.9, shadowFadeDistance=5.0)
 
 ENVIRONMENTS = {"Dusk": ("Millbrook Environment", ENVIRONMENT)}
 
