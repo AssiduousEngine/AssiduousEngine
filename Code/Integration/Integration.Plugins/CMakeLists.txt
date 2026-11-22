@@ -7,7 +7,7 @@
 util_add_plugin(${CMAKE_SOURCE_DIR}/Data/SampleProjects/NativeSample/Plugins/NativeSample)
 
 add_executable(Integration.Plugins TestsMain.cpp NativeSampleTests.cpp DialoguePluginTests.cpp DialogueCookTests.cpp DialogueEditorTests.cpp
-    DialogueRunTests.cpp)
+    DialogueRunTests.cpp MillbrookSampleTests.cpp)
 util_link_plugins(Integration.Plugins ROLE editor PLUGINS nativesample dialogue) # every part an editor loads
 target_link_libraries(Integration.Plugins PRIVATE
     Editor::App Editor::Mcp Editor::Project Editor::Core Engine::DefaultApp Engine::Composition Engine::Project Engine::Run Engine::Behavior Engine::Render Engine::Sequence Engine::GUI Foundation::GUI Foundation::GUI.Gamekit Foundation::GUI.Resources

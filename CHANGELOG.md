@@ -22,6 +22,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   a page of its own: its text coloured and checked as you type, an outline of its conversations,
   and Preview, which plays the chosen one in the open scene. MCP: `dialogue_validate` and
   `dialogue_read`.
+- Millbrook, the dialogue sample: a village readying its fair, told in conversations with its
+  villagers, with choices, flags, the game's own commands, staging, saves and an ending cutscene.
 - Sequences: a sequence asset (File > New, under Animation) is a cutscene timeline that drives
   several entities at once: property and transform tracks, skeletal clips, sounds, camera cuts,
   fades, events, holds that wait for the game, and sequences nested in others. Scripts play one

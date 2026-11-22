@@ -74,10 +74,10 @@ how to run the editor.
 
 ## Sample projects
 
-Game projects under `Data/SampleProjects/`, opened from the editor's project manager. The five
+Game projects under `Data/SampleProjects/`, opened from the editor's project manager. The six
 games and the Shader Gallery were built through the engine's MCP tools.
-[The website](https://assiduousengine.github.io/#games) plays them in a browser and has their
-Windows, Linux and Steam Deck downloads (the Shader Gallery has no Steam Deck build).
+[The website](https://assiduousengine.github.io/#games) plays all but Millbrook in a browser and
+has their Windows, Linux and Steam Deck downloads (the Shader Gallery has no Steam Deck build).
 
 **Sky Hopper** (`SkyHopper`) is a small 3D platformer, played through to the end over the
 MCP tools by an AI agent while it was built: five levels, coins, enemies and hazards, three lives
@@ -147,6 +147,14 @@ themselves: toon bands, and lighting that walks the scene's lights. Its lessons 
 | The hall | Hologram | Dissolve | Toon |
 |:---:|:---:|:---:|:---:|
 | ![The hall](Documentation/Images/ShaderGallery-Hall.png) | ![Hologram](Documentation/Images/ShaderGallery-Hologram.png) | ![Dissolve](Documentation/Images/ShaderGallery-Dissolve.png) | ![Toon](Documentation/Images/ShaderGallery-Toon.png) |
+
+**Millbrook** is the dialogue sample: a village on the evening of its fair, and three things to put
+right before it opens, told in conversations with the mayor, the baker, the miller, the guard and
+Pip. Its conversations are text files for the dialogue plugin, with choices, flags, jumps across
+files, the game's own commands (a villager walks somewhere, an errand round the back of the mill)
+and staging (clips, sounds, fades, a cart's sequence); the ending is a cutscene whose lines play in
+the plugin's dialogue box. Built from Kenney's CC0 kits. More in
+[its README](Data/SampleProjects/Millbrook/README.md).
 
 **NativeSample** is the reference for a game's own native C++ code: a plugin package with all
 four parts (runtime, pipeline, tooling and editor), and a scene of cubes its native Spin component

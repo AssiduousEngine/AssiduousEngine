@@ -86,12 +86,14 @@ generators, sounds), each with a README:
 - **Lamplight**: a stealth heist in a manor at night.
 - **Shader Gallery** (`ShaderGallery`): the custom shaders sample, a hall of lesson shaders.
 - **Masquerade**: the networking and crowds sample, a masked ball for up to four players.
+- **Millbrook**: the dialogue sample, a village readying its fair, told in conversations.
 - **NativeSample**: a game's own native code, a plugin package of all four parts, and a scene its
   Spin component turns.
 
 Their `Cooked/`, `.cache/`, `Editor/` and `Dist/` are generated and ignored. Integration.Mcp
 checks that PaperKid, Sky Hopper, Snowline, Shader Gallery and Masquerade read at the current data
 versions and cook; Integration.Plugins checks that NativeSample reads with its package loaded and
+cooks, and that Millbrook reads with the dialogue plugin, its conversations check clean and it
 cooks. Each sample game's `CREDITS.md` and `Licenses/` must stay in step with its
 assets.
 
