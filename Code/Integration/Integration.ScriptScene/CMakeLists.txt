@@ -5,13 +5,19 @@
 # --no-skip from an optimised build.
 
 add_executable(Integration.ScriptScene TestsMain.cpp ScriptSceneBenchmarkTests.cpp EntityEventTests.cpp SequenceScriptTests.cpp
-    NativeBehaviorTests.cpp BehaviorConformanceTests.cpp)
+    BehaviorConformanceTests.cpp)
 target_link_libraries(Integration.ScriptScene PRIVATE
     Engine::Behavior Engine::Spline Engine::Physics Engine::Animation Engine::Sequence Foundation::Sequence Foundation::Sequence.Resource
     Foundation::PropertyAnimation Foundation::Content Foundation::VFS Foundation::Resource Foundation::Run
     Foundation::Script.Resource Foundation::Script.Facades Foundation::Scene Foundation::Script
-    Pipeline::Script # the Native Behavior cook's harvest
     doctest::doctest)
+
+# A native behavior from its cook to a scene needs the cook, which a build without the tools (the
+# Android one) does not have.
+if(TARGET Pipeline::Script)
+    target_sources(Integration.ScriptScene PRIVATE NativeBehaviorTests.cpp)
+    target_link_libraries(Integration.ScriptScene PRIVATE Pipeline::Script) # the Native Behavior cook's harvest
+endif()
 
 # Each backend is independently switchable; include its leg only when the backend is built.
 if(TARGET ${SCRIPTLIB_ANGELSCRIPT})

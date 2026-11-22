@@ -14,6 +14,7 @@ module dialogue.engine;
 import foundation.core;
 import foundation.run;
 import foundation.resource;
+import foundation.content; // a step's asset, to tell a cue from a clip
 import foundation.input;
 import foundation.scene;
 import foundation.script;

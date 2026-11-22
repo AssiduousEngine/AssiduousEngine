@@ -14,6 +14,7 @@ import foundation.resource;
 import foundation.scene;
 import foundation.animation;
 import foundation.sequence;
+import foundation.script.facades; // script::Entity, which SceneAnimationFacade::OverlayOf takes
 
 using namespace foundation::core;
 
