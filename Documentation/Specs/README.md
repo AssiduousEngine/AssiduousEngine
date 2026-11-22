@@ -21,6 +21,7 @@ for every one.
 | [terrain-improvements.md](terrain-improvements.md) | L | PROPOSED 2026-11-14: detiling, steep faces, distance scale, geomorphing, ground rules, authoring, T0 to T6 |
 | [sequencer.md](sequencer.md) | L | APPROVED 2026-11-20; Q0 to Q4 built (model, asset, scene player, component, clips, sounds, camera cuts, fades, the editor's panel, MCP tools), Q5 next: cutscene timelines, track kinds from each domain, holds for dialogue, Q0 to Q5 |
 | [dialogue.md](dialogue.md) | L | APPROVED 2026-11-21, D0 to D6 built: dialogue as an official plugin (conversations as text, cook checks, a per-run runner and `Dialogue` facade, a line track for sequences, a stock box, an editor page, MCP), D0 to D7 |
+| [dialogue-sample.md](dialogue-sample.md) | M | APPROVED 2026-11-21: Millbrook, the dialogue sample (dialogue's D8), a village fair from Kenney's kits, S0 to S5 |
 
 A spec moves to `../Archive/<name>-history.md` once it is built (or made obsolete), with a banner
 saying so, and leaves this index; whatever it still owes goes to the backlogs in `../Plans/`
