@@ -413,6 +413,16 @@ them. `script_declarations {directory}` writes the
 bound API as each backend's declarations file (`as.predefined`, `engine.d.luau`) for an external
 editor's completion; write it into the project's folder and again after an engine update.
 
+**Native behaviors**: a run, scene or entity behavior written in C++ is a class a project's plugin
+registers, deriving from `RunBehavior`, `SceneBehavior` or `EntityBehavior`. `native_behavior_list`
+lists the ones this host knows: each one's `className` (its qualified name), `name`, `kind`,
+`properties` (the fields it marks `behaviorProperty`, with their types and defaults), `handlers` (its
+`on<Name>` methods), an `error` when it would not cook, and `assets`, the open project's Native
+Behavior assets naming it. `asset_create` with creator `Native Behavior` and the class's `name` makes
+its asset, the class filled from the name; `asset_cook` cooks it to a class an entity, a scene or the
+project names as it names a script's (`script_validate` has nothing to check: the class is compiled
+C++). A plugin built after the editor started is reloaded first (Project > Reload Project Plugins).
+
 **Shaders**: a custom shader is one `.hlsl` with a `properties` block declaring its materials'
 parameters, in one of two kinds. A SURFACE shader (a `// surface: lit` or `// surface: unlit`
 line) holds `void Surface(SurfaceInput input, inout SurfaceOutput surface)` and optionally

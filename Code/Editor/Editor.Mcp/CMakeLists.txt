@@ -40,6 +40,7 @@ target_sources(Editor.Mcp
             LogTools.cppm
             McpResources.cppm
             ScriptValidate.cppm
+            NativeBehaviorTools.cppm
             ShaderValidate.cppm
             GuiValidate.cppm
             MaterialShader.cppm

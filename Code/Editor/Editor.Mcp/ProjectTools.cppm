@@ -32,6 +32,7 @@ export import :project_health;
 export import :log_tools;
 export import :resources;
 export import :script_validate;
+export import :native_behavior_tools;
 export import :shader_validate;
 export import :gui_validate;
 export import :material_shader;
@@ -832,7 +833,7 @@ export namespace editor::mcp
     // The number of tools RegisterEngineTools registers. Adding an engine tool means bumping
     // this by hand, so a lost registration fails the test loudly. host_info and the stdio host's
     // project_create and project_open are not counted: each host registers its own.
-    inline constexpr usize kEngineToolCount = 42;
+    inline constexpr usize kEngineToolCount = 43;
 
     // Every *.md in `docsDir` as a read-only `docs://<FileName>` resource: the curated,
     // distribution-facing docs set (internal design and process docs are never exposed).
@@ -927,6 +928,7 @@ export namespace editor::mcp
         RegisterSceneReferenceResources(server, editor::EditorRootAllocator(), builders);
         RegisterProjectResources(server, session);
         RegisterScriptValidateTool(server, session);
+        RegisterNativeBehaviorTools(server, session);
         RegisterShaderValidateTool(server, paths.shaderLibrary.AsView());
         RegisterGuiValidateTool(server);
         RegisterMaterialShaderTool(server, session, paths.shaderLibrary.AsView());

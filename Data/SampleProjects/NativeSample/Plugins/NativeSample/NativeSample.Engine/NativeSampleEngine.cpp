@@ -41,6 +41,10 @@ namespace
         // The component's reflection: what the inspector, component_add and component_set read.
         nativesample::RttiRegisterValue_SpinComponent();
         context.Types().Register(foundation::core::TypeOf<nativesample::SpinComponent>());
+        // The game's behaviors, made by the run host from their Native Behavior assets.
+        context.Types().Register(nativesample::Bobber::StaticType());
+        context.Types().Register(nativesample::Showcase::StaticType());
+        context.Types().Register(nativesample::NativeGame::StaticType());
         engine::EnginePluginServices* engine = context.Find<engine::EnginePluginServices>();
         if (engine == nullptr)
         {

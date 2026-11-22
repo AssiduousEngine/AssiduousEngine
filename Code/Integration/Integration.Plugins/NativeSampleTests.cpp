@@ -10,6 +10,8 @@
 //   - Pipeline: the note asset type, its builder and its creator, in the host's registries;
 //   - Tooling: the nativesample_notes MCP tool, in every MCP server the host serves;
 //   - Editor: the Project > Native Sample Notes action, in the editor.
+// Its game logic is native behaviors (an entity's, the scene's and the game's), which an agent
+// lists, makes assets for, cooks and runs through the engine's tools, with no script language.
 // The sample project itself is checked too: its content reads, its scene's spinning entities are the
 // Engine part's, and it cooks.
 
@@ -41,6 +43,11 @@ import editor.mcp;
 import editor.app;
 import nativesample.engine;
 import nativesample.pipeline;
+import foundation.run;             // RunBase: a scene's run, for the native behaviors
+import foundation.script;          // kNativeLanguage
+import foundation.script.resource; // BehaviorClass, BehaviorClassSource: a cooked native behavior
+import engine.behavior;            // the run host and the scene's behavior systems
+import engine.run;                 // ApplicationRun: a native run behavior
 
 using namespace foundation::core;
 using namespace foundation::mcp;
@@ -571,5 +578,136 @@ TEST_CASE("plugins: the NativeSample project reads with its package, its scene's
         owner.project.Reset();
         pluginTools.DetachServer(server);
     }
+    (void)RemoveDirectoryRecursive(dir);
+}
+
+TEST_CASE("plugins: an agent lists the game's native behaviors, makes and cooks their assets, and they run with no script")
+{
+    pipeline::RegisterPipelineTypes(); // the asset types, the Native Behavior one among them (idempotent)
+    engine::RegisterAllSceneComponentReflection();
+    pipeline::BuilderRegistry builders{DefaultAllocator()};
+    pipeline::ImporterRegistry importers{DefaultAllocator()};
+    pipeline::AssetCreatorRegistry creators{DefaultAllocator()};
+    pipeline::RegisterAllBuilders(builders, foundation::vfs::FindDataRoot());
+    pipeline::RegisterAllCreators(creators);
+    editor::EditorLogBuffer logBuffer{DefaultAllocator()};
+    editor::mcp::McpPluginServices pluginTools{DefaultAllocator()};
+    editor::mcp::ProjectSession session;
+    editor::mcp::ProjectOwner owner;
+    McpServer server;
+    server.Paths().AddFolder(GetCurrentDirectory().AsView());
+    editor::mcp::InlineProjectOperations operations(session, builders, String(), String());
+    editor::mcp::RegisterEngineTools(server, session, builders, importers, creators, logBuffer,
+                                     editor::mcp::EngineToolPaths{}, operations);
+    pluginTools.AttachServer(server, session);
+    editor::mcp::RegisterProjectOpenTools(server, session, owner, &creators, StringView{},
+                                          editor::mcp::ProjectPlugins{runtime::LinkedPluginList(),
+                                                                      pipeline::PipelineRegistries{&builders, &importers, &creators},
+                                                                      &pluginTools});
+    const StringView dir = u8"scratch_plugins_native_behaviors";
+    MakeProject(dir, u8"Native Behaviors");
+    JsonValue openArgs = JsonValue::MakeObject();
+    openArgs.Set(u8"directory", JsonValue::MakeString(String(dir)));
+    REQUIRE_FALSE(Call(server, u8"project_open", Move(openArgs)).error);
+    REQUIRE(session.plugins != nullptr);
+
+    // The three classes the Engine part registers, each as the cook reads it.
+    const Called listed = Call(server, u8"native_behavior_list", JsonValue::MakeObject());
+    REQUIRE_FALSE(listed.error);
+    const JsonValue classes = listed.value.Get(u8"classes");
+    const auto find = [&classes](StringView name) -> JsonValue
+    {
+        for (i64 i = 0; i < classes.Count(); ++i)
+            if (classes.At(i).Get(u8"name").AsString() == String(name))
+                return classes.At(i);
+        return JsonValue{};
+    };
+    CHECK(find(u8"Bobber").Get(u8"kind").AsString() == String(u8"EntityBehavior"));
+    CHECK(find(u8"Bobber").Get(u8"className").AsString() == String(u8"rtti::nativesample::Bobber"));
+    CHECK(find(u8"Bobber").Get(u8"properties").Count() == 2); // height, period
+    CHECK(find(u8"Showcase").Get(u8"kind").AsString() == String(u8"SceneBehavior"));
+    CHECK(find(u8"NativeGame").Get(u8"kind").AsString() == String(u8"RunBehavior"));
+    CHECK(find(u8"NativeGame").Get(u8"properties").Count() == 0); // frames is its own
+    CHECK(find(u8"Bobber").Get(u8"assets").Count() == 0);
+
+    // An asset per class, named like it; the cook writes each class's declaration.
+    Guid bobberId;
+    Guid gameId;
+    const StringView names[] = {u8"Bobber", u8"NativeGame"};
+    for (StringView name : names)
+    {
+        JsonValue create = JsonValue::MakeObject();
+        create.Set(u8"creator", JsonValue::MakeString(String(u8"Native Behavior")));
+        create.Set(u8"name", JsonValue::MakeString(String(name)));
+        const Called made = Call(server, u8"asset_create", Move(create));
+        REQUIRE_FALSE(made.error);
+        REQUIRE(Guid::TryParse(made.value.Get(u8"guid").AsString().AsView(), name == StringView(u8"Bobber") ? bobberId : gameId));
+    }
+    CHECK(Call(server, u8"native_behavior_list", JsonValue::MakeObject()).value.Get(u8"classes").Count() >= 3);
+    const Called cooked = Call(server, u8"asset_cook", JsonValue::MakeObject());
+    REQUIRE_FALSE(cooked.error);
+    CHECK(cooked.value.Get(u8"failed").AsNumber() == doctest::Approx(0.0));
+    CHECK(cooked.value.Get(u8"cooked").AsNumber() >= 2.0); // the two classes' declarations
+    const auto classOf = [&session](const Guid& id) -> RefPtr<foundation::script::BehaviorClass>
+    {
+        RefPtr<ISerializable> read = session.project->CookedDb().ReadObject(id);
+        const auto* source = read ? Cast<foundation::script::BehaviorClassSource>(read.Get()) : nullptr;
+        REQUIRE(source != nullptr);
+        RefPtr<foundation::script::BehaviorClass> cls = MakeRef<foundation::script::BehaviorClass>(DefaultAllocator());
+        cls->language = source->language;
+        cls->className = source->className;
+        cls->kind = source->kind;
+        cls->sourceName = source->sourceName;
+        cls->properties = source->properties;
+        cls->handlers = source->handlers;
+        cls->BuildProfileName();
+        return cls;
+    };
+    RefPtr<foundation::script::BehaviorClass> bobber = classOf(bobberId);
+    CHECK(bobber->language == String(foundation::script::kNativeLanguage));
+    CHECK(bobber->className == String(u8"rtti::nativesample::Bobber"));
+    CHECK(bobber->kind == foundation::script::BehaviorKind::Entity);
+
+    // The bobber moves its entity, with no script context made.
+    {
+        foundation::run::RunBase run{DefaultAllocator(), u8"native"};
+        foundation::scene::Scene world{DefaultAllocator(), u8"native"};
+        engine::behavior::BehaviorRunHost host{DefaultAllocator()};
+        world.SetRun(&run);
+        auto* components = world.AddSystem<engine::behavior::BehaviorComponentManager>();
+        auto* behaviors = world.AddSystem<engine::behavior::EntityBehaviorSystem>();
+        components->SetScriptSystem(behaviors);
+        behaviors->SetRunHost(&host);
+        const foundation::scene::EntityHandle cube = world.CreateEntity(u8"cube");
+        engine::behavior::AttachedBehavior attached;
+        attached.behaviorClass = bobber;
+        components->Add(cube).behaviors.PushBack(Move(attached));
+        world.Start();
+        world.SetSimulationEnabled(true);
+        world.Update(0.25f); // starts (the base is where it stands), then its first update
+        CHECK(world.GetLocalTransform(cube).position.y == doctest::Approx(0.25f * 0.70710678f).epsilon(0.01)); // an eighth of a bob
+        world.Update(0.25f); // a quarter of a two-second bob: at the top, its height up
+        CHECK(world.GetLocalTransform(cube).position.y == doctest::Approx(0.25f).epsilon(0.01));
+        CHECK(host.Scripts().ScriptContext() == nullptr);
+    }
+
+    // The game's own object counts the run's frames.
+    {
+        engine::runtime::ApplicationRun gi;
+        RefPtr<foundation::script::BehaviorClass> game = classOf(gameId);
+        REQUIRE(gi.StartRunBehavior(*game));
+        gi.TickRunBehavior(0.1f, 1.0f);
+        gi.TickRunBehavior(0.1f, 1.0f);
+        CHECK(gi.RunBehaviorRunning());
+        CHECK(gi.GetRunBehaviorProperty(u8"frames").Value().Get<i32>() == 2);
+        CHECK(gi.RunHost().Scripts().ScriptContext() == nullptr);
+        gi.StopRunBehavior();
+    }
+
+    session.plugins = nullptr;
+    owner.plugins.Reset();
+    session.project = nullptr;
+    owner.project.Reset();
+    pluginTools.DetachServer(server);
     (void)RemoveDirectoryRecursive(dir);
 }

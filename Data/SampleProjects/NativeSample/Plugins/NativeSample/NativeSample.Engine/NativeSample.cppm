@@ -3,15 +3,20 @@
 
 // nativesample.engine - the reference game's runtime types: a component the game puts on an entity,
 // and the scene manager that owns it and turns its entities, which the Engine part adds to every
-// scene.
+// scene; and the game's logic written in C++ as behaviors, one of each kind, with no script: the
+// game (NativeGame), the scene's (Showcase) and an entity's (Bobber). Each is a Native Behavior
+// asset in the project, named like its class.
 
 module;
 #include "Core/Prelude.h"
+#include "Core/Reflection/Reflect.h"
 
 export module nativesample.engine;
 
 import foundation.core;
 import foundation.scene;
+import foundation.script.facades; // Entity, Scene, Time: what a behavior reads
+import engine.behavior;           // the kinds' native bases
 
 export namespace nativesample
 {
@@ -65,6 +70,60 @@ export namespace nativesample
 
     private:
         foundation::scene::Scene* m_scene = nullptr;
+    };
+
+    // Bobs its entity up and down about where it stood when it started, a full bob `period` seconds
+    // long, `height` metres from the middle to either end.
+    class Bobber final : public engine::behavior::EntityBehavior
+    {
+        RTTI_OBJECT(Bobber, engine::behavior::EntityBehavior)
+    public:
+        foundation::core::f32 height = 0.25f;
+        foundation::core::f32 period = 2.0f;
+
+        void OnStart()
+        {
+            m_base = Self().position();
+            m_time = 0.0f;
+        }
+        void OnUpdate(foundation::core::f32 deltaTime)
+        {
+            if (period <= 0.0f)
+            {
+                return;
+            }
+            m_time += deltaTime;
+            const foundation::core::f32 rise = height * foundation::core::Sin(foundation::core::kTwoPi * m_time / period);
+            Self().setPosition(m_base.x, m_base.y + rise, m_base.z);
+        }
+
+    private:
+        foundation::core::Float3 m_base{};
+        foundation::core::f32 m_time = 0.0f;
+    };
+
+    // The scene's own behavior: it says what the scene shows as it starts, and keeps how long it has
+    // run.
+    class Showcase final : public engine::behavior::SceneBehavior
+    {
+        RTTI_OBJECT(Showcase, engine::behavior::SceneBehavior)
+    public:
+        foundation::core::String title = foundation::core::String(u8"Spinners");
+        foundation::core::f32 seconds = 0.0f;
+
+        void OnStart();
+        void OnUpdate(foundation::core::f32 deltaTime) { seconds += deltaTime; }
+    };
+
+    // The game's own object, for the whole run: it counts the frames it has seen.
+    class NativeGame final : public engine::behavior::RunBehavior
+    {
+        RTTI_OBJECT(NativeGame, engine::behavior::RunBehavior)
+    public:
+        foundation::core::i32 frames = 0;
+
+        void OnStart();
+        void OnUpdate(foundation::core::f32) { ++frames; }
     };
 
     // The id the Engine part contributes the manager under.

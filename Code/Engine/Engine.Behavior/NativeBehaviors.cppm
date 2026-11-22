@@ -58,8 +58,8 @@ export namespace engine::behavior
     {
         RTTI_OBJECT(SceneBehavior, NativeBehavior)
     public:
-        /// The scene it belongs to, as a script's constructor receives it.
-        [[nodiscard]] const foundation::script::Scene& GetScene() const noexcept { return m_scene; }
+        /// The scene it belongs to, as a script's constructor receives it: a handle, by value.
+        [[nodiscard]] foundation::script::Scene GetScene() const noexcept { return m_scene; }
         /// The layer gives it its scene as it makes it.
         void BindScene(const foundation::script::Scene& scene) noexcept { m_scene = scene; }
 
@@ -72,8 +72,9 @@ export namespace engine::behavior
     {
         RTTI_OBJECT(EntityBehavior, NativeBehavior)
     public:
-        /// The entity it is attached to, as a script's constructor receives it.
-        [[nodiscard]] const foundation::script::Entity& Self() const noexcept { return m_self; }
+        /// The entity it is attached to, as a script's constructor receives it: a handle, by value,
+        /// so `Self().setPosition(...)` reads as a script's `self.setPosition(...)`.
+        [[nodiscard]] foundation::script::Entity Self() const noexcept { return m_self; }
         /// The layer gives it its entity as it makes it.
         void BindEntity(const foundation::script::Entity& self) noexcept { m_self = self; }
 
