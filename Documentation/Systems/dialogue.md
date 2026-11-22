@@ -238,6 +238,19 @@ entity the cast names, else none (logged once a speaker).
 While a line shows, its speaker plays the cast's `talk` clip, looping, until the line is advanced
 or the conversation ends there (`IDialogueHost::OnLineEnded`).
 
+## The script surface
+
+`DialogueFacade` (scripts call it `Dialogue`) reaches the calling script's run's runner
+(`script::CurrentService<DialogueRunService>()`): `play(dialogue)`, `play(dialogue, conversation)`,
+`isPlaying`, `advance`, `choose`, `done`, `stop`, `resume`, `flag`, `setFlag` and `bind(speaker,
+entity)`. The four notices are reflected value types; a choice's answers are read through
+`answerCount`, `answer(i)` and `answerLineId(i)`, and a command's arguments by name through `has`,
+`text`, `number`, `asset` and `entity` (the entity found by name in the run's scene, which the run's
+host puts on the notice). `RegisterDialogueScriptFacade` is the domain's `registerScriptFacade`, so
+it runs on each load; the Engine part's unload takes back the script names and roots it added
+(`RemoveDialogueScriptFacade`). The surface for game authors is in
+[Shipping/Scripting.md](../Shipping/Scripting.md), under Dialogue.
+
 ## Loading
 
 The Engine part's load registers the settings type and the plugin's types
@@ -255,8 +268,10 @@ checks over a table of a project's assets; the runner playing parsed conversatio
 stand-in host: lines, choices, branches, flags, waits, staging, commands that wait or leave, jumps,
 resume after a load and after a patch, a second play refused, a host that answers at once) and `Integration.Plugins` (the package linked with its
 four parts, its manifest, a project that enables it loading it with its settings, its domain and a
-runner in every run, its flags in the run's save; a run's runner fading the scene, playing a
-sequence bound to the cast's entity or to one the game bound, and showing a line on the run's bus;
+runner in every run, its flags in the run's save, `Dialogue` offered to scripts and taken back on
+unload; a run's runner fading the scene, playing a sequence bound to the cast's entity or to one
+the game bound, and showing a line on the run's bus; an AngelScript and a Luau behavior playing a
+cooked conversation through `Dialogue` and answering its line, choice and command;
 and, through the MCP host, a dialogue file cooking to its conversations, one with an error failing
 the cook, and File > New's three creators; and, in an editor session, the cast and the dialogue
 assets opening in their pages, a speaker added, undone, found and removed, and the pages leaving

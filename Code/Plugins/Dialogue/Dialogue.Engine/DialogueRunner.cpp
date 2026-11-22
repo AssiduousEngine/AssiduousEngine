@@ -12,6 +12,8 @@ module dialogue.engine;
 
 import foundation.core;
 import foundation.run;
+import foundation.scene;
+import foundation.script.facades;
 
 using namespace foundation::core;
 
@@ -70,6 +72,51 @@ namespace dialogue
             }
         }
         return nullptr;
+    }
+
+    String DialogueChoiceNotice::answer(i32 index) const
+    {
+        return index >= 0 && static_cast<usize>(index) < answers.Size() ? answers[static_cast<usize>(index)] : String();
+    }
+
+    String DialogueChoiceNotice::answerLineId(i32 index) const
+    {
+        return index >= 0 && static_cast<usize>(index) < lineIds.Size() ? lineIds[static_cast<usize>(index)] : String();
+    }
+
+    bool DialogueCommandNotice::has(String name) const
+    {
+        const DialogueArgument* found = Find(name.AsView());
+        return found != nullptr && found->present;
+    }
+
+    String DialogueCommandNotice::text(String name) const
+    {
+        const DialogueArgument* found = Find(name.AsView());
+        return found != nullptr ? found->text : String();
+    }
+
+    f32 DialogueCommandNotice::number(String name) const
+    {
+        const DialogueArgument* found = Find(name.AsView());
+        return found != nullptr ? found->number : 0.0f;
+    }
+
+    Guid DialogueCommandNotice::asset(String name) const
+    {
+        const DialogueArgument* found = Find(name.AsView());
+        return found != nullptr ? found->asset : Guid{};
+    }
+
+    foundation::script::Entity DialogueCommandNotice::entity(String name) const
+    {
+        const DialogueArgument* found = Find(name.AsView());
+        foundation::scene::Scene* owner = scene.Get();
+        if (found == nullptr || owner == nullptr)
+        {
+            return foundation::script::WrapEntity(owner, {});
+        }
+        return foundation::script::WrapEntity(owner, owner->FindEntityByName(found->text.AsView()));
     }
 
     bool DialogueRunner::Play(const Guid& dialogue, StringView conversation)

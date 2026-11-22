@@ -438,7 +438,12 @@ namespace dialogue
 
     void DialogueRunHost::OnLineEnded() { StopTalking(); }
     void DialogueRunHost::OnChoice(const DialogueChoiceNotice& notice) { Publish(*m_run, kDialogueChoiceEvent, notice); }
-    void DialogueRunHost::OnCommand(const DialogueCommandNotice& notice) { Publish(*m_run, kDialogueCommandEvent, notice); }
+    void DialogueRunHost::OnCommand(const DialogueCommandNotice& notice)
+    {
+        DialogueCommandNotice placed = notice;
+        placed.scene = Scene(); // where its entity arguments are
+        Publish(*m_run, kDialogueCommandEvent, placed);
+    }
     void DialogueRunHost::OnEnded(const DialogueEndedNotice& notice) { Publish(*m_run, kDialogueEndedEvent, notice); }
 
     engine::runtime::RunServiceContribution DialogueRunContribution(const DialogueSettings& settings)

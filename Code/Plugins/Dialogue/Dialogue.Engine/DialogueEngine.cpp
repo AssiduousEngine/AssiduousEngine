@@ -21,7 +21,9 @@ namespace
 {
     const foundation::resource::ResourceModule* const kResources[] = {&dialogue::kDialogueResourceModule};
     const engine::DomainModule kDialogueDomain{
-        .id = u8"dialogue", .resources = foundation::core::Span<const foundation::resource::ResourceModule* const>{kResources, 1}};
+        .id = u8"dialogue",
+        .registerScriptFacade = &dialogue::RegisterDialogueScriptFacade,
+        .resources = foundation::core::Span<const foundation::resource::ResourceModule* const>{kResources, 1}};
 
     void Load(foundation::runtime::PluginContext& context)
     {
@@ -37,6 +39,12 @@ namespace
             }
         }
     }
+
+    void Unload(foundation::runtime::PluginContext&)
+    {
+        // The types go with the recorded registrations; the script names and roots are kept apart.
+        dialogue::RemoveDialogueScriptFacade();
+    }
 }
 
-PLUGIN_PART(&Load, nullptr)
+PLUGIN_PART(&Load, &Unload)

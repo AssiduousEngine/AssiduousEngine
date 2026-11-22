@@ -11,10 +11,19 @@ add_executable(Integration.Plugins TestsMain.cpp NativeSampleTests.cpp DialogueP
 util_link_plugins(Integration.Plugins ROLE editor PLUGINS nativesample dialogue) # every part an editor loads
 target_link_libraries(Integration.Plugins PRIVATE
     Editor::App Editor::Mcp Editor::Project Editor::Core Engine::DefaultApp Engine::Composition Engine::Project Engine::Run Engine::Behavior Engine::Render Engine::Sequence
-    Foundation::Sequence Foundation::Sequence.Resource Foundation::PropertyAnimation Foundation::Run
+    Foundation::Sequence Foundation::Sequence.Resource Foundation::PropertyAnimation Foundation::Run Foundation::Script Foundation::Script.Facades Foundation::Script.Resource
     Pipeline::Core Pipeline::Importer Pipeline::Registration Foundation::Mcp Foundation::Json Foundation::Content
     Foundation::Scene Foundation::Scene.Resource Foundation::VFS Foundation::Runtime Foundation::Runtime.Client
     Foundation::Core doctest::doctest)
+# The dialogue facade's tests run behaviors in each backend that is built.
+if(TARGET ${SCRIPTLIB_ANGELSCRIPT})
+    target_link_libraries(Integration.Plugins PRIVATE ${SCRIPTLIB_ANGELSCRIPT})
+    target_compile_definitions(Integration.Plugins PRIVATE INTEGRATION_HAS_ANGELSCRIPT=1)
+endif()
+if(TARGET ${SCRIPTLIB_LUAU})
+    target_link_libraries(Integration.Plugins PRIVATE ${SCRIPTLIB_LUAU})
+    target_compile_definitions(Integration.Plugins PRIVATE INTEGRATION_HAS_LUAU=1)
+endif()
 target_compile_definitions(Integration.Plugins PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)
 target_compile_options(Integration.Plugins PRIVATE
     "$<$<CXX_COMPILER_ID:Clang>:-Wno-error=#warnings>" "$<$<CXX_COMPILER_ID:GNU>:-Wno-error=cpp>")

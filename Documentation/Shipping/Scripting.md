@@ -186,6 +186,31 @@ plays them:
 The sequence advances right after the behaviours each frame, on the scene's clock, so a play started
 or resumed in `onUpdate` moves in the same frame.
 
+## Dialogue: conversations (the dialogue plugin)
+
+A project that enables the dialogue plugin writes its conversations as text in dialogue files, and
+plays them from script through `Dialogue`. A dialogue file is an asset, reached by its id as any
+asset is: a property tagged `"asset:DialogueResource"`.
+
+- `Dialogue.play(dialogue)` plays the file's first conversation, `play(dialogue, "gate")` the one
+  named; false when one is already playing or there is no such conversation. One plays at a time.
+- A line waits for `Dialogue.advance()`, a choice for `Dialogue.choose(i)` (from 0), and a command
+  that waits for `Dialogue.done()`. `stop()` ends it; `isPlaying()` says whether one plays.
+- Flags are what `if`, `set` and `clear` read and write: `Dialogue.flag(name)` and
+  `setFlag(name, on)`. They live in the game's save (under the `flag.` prefix the plugin's settings
+  give), so they last between runs.
+- `Dialogue.bind(speaker, entity)` plays a speaker as an entity (a `play`, a `sound` at them, the
+  parts of a `sequence` named for them); without one, the level entity the cast names.
+- `Dialogue.resume()` goes on with the conversation the save holds a place in: after a load, or back
+  from a command that left (a fight).
+- What a conversation tells the game reaches behaviours at the next scene tick: `onDialogueLine`
+  (its `speaker`, `shownName`, `mood`, `portrait`, `text` with each `{Action}` filled with the
+  player's control for it, `lineId`), `onDialogueChoice` (`answerCount()`, `answer(i)`),
+  `onDialogueCommand` (its `name`, `waits`, `leaves`, and its arguments by name: `text(name)`,
+  `number(name)`, `asset(name)`, `entity(name)`, `has(name)`) and `onDialogueEnded`
+  (`conversation`, `stopped`, `left`). In AngelScript the handlers take a `DialogueLineNotice@`,
+  `DialogueChoiceNotice@`, `DialogueCommandNotice@` and `DialogueEndedNotice@`.
+
 ## Naming a control
 
 Text that tells the player what to press names the control, never the action: an action's name

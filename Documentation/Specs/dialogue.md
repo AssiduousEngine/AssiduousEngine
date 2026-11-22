@@ -1,6 +1,6 @@
 # Dialogue as an official plugin
 
-> APPROVED 2026-11-21. D0 to D2 2026-11-21. Read on master at `247608c79`; line numbers will drift. Revisits the
+> APPROVED 2026-11-21. D0 to D3 2026-11-21. Read on master at `247608c79`; line numbers will drift. Revisits the
 > choice, made on 2026-11-06 for the first game built on the engine, to keep its dialogue in its
 > own script ("A now, with plans to move to C"), now that the sequencer exists, and makes dialogue
 > an official engine plugin (that note's option B).
@@ -476,6 +476,20 @@ Each step a commit with its tests, green on clang and gcc.
 4. **D3 The runner and the facade**: the per-run runner, flags in the save store, resume,
    the events, `Dialogue` in both languages, `sequence` and the built-in staging. Integration
    tests in both languages.
+   *As built:* the runner (`DialogueRunner`) plays against an `IDialogueHost`, so its tests play
+   parsed conversations against a stand-in; each run holds a `DialogueRunService` with the run's
+   host, which the plugin contributes to every run (`EnginePluginServices::AddRunService`, an engine
+   change of its own: a run's services stepped with its frame). Against the plan:
+   - Speakers are bound by the game (`Dialogue.bind`), not resolved by an `onDialogueResolve`
+     handler (decision recorded under the runner above).
+   - The resume record holds the step to go on at (with the hash and the last line), not the steps
+     since the line: with the hash matching the two are the same, and the line is the fallback.
+   - The cooked file names its cast, and refers to its cast and dialogue assets for export.
+   - `fade` takes its length and colour from two new settings, `fadeSeconds` and `fadeColor`; its
+     claim sits over the sequences' fades and holds at full until a fade in.
+   - Not built: the speaker's `voice` (the stock box's, D5).
+   - An engine change: a plugin takes back the script facade names and roots it added as it unloads
+     (`RemoveExtraFacadeName`, `RemoveExtraScriptRootType`).
 5. **D4 The line track**: `DialogueLineTrack` in a sequence, holding for the line; offered by the
    sequence panel's Track menu with no change there.
 6. **D5 The stock box**: the GUI document, its settings, a sample of it in use.

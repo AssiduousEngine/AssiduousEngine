@@ -5,7 +5,9 @@
 // fades out, plays a sequence whose binding is named for a speaker and waits for it, fades in, and
 // shows a line on the run's bus. The fade is a claim on the scene's fade, held at full until the
 // fade in lets it go; the sequence moves the entity the cast names for the speaker, or the one the
-// game bound to it.
+// game bound to it. And the `Dialogue` facade in every language: a behavior binds a speaker, sets a
+// flag, plays a cooked conversation by its file's guid, and answers its line, choice and command
+// in its on<Name> handlers until it ends.
 
 #include <doctest/doctest.h>
 
@@ -20,6 +22,15 @@ import foundation.scene;
 import foundation.propertyanimation;
 import foundation.sequence;
 import foundation.sequence.resource;
+import foundation.script;
+import foundation.script.facades;
+import foundation.script.resource;
+#if defined(INTEGRATION_HAS_ANGELSCRIPT)
+import foundation.script.angelscript;
+#endif
+#if defined(INTEGRATION_HAS_LUAU)
+import foundation.script.luau;
+#endif
 import engine.behavior;
 import engine.run;
 import engine.render;
@@ -34,8 +45,33 @@ namespace propertyanimation = foundation::propertyanimation;
 
 namespace
 {
-    // A content database holding a cooked conversation, its cast (the keeper played by "Keeper") and
-    // a sequence that walks its binding "keeper" to X 10 over a second.
+    constexpr StringView kStaged = u8"conversation gate\n"
+                                   u8"fade out for 1\n"
+                                   u8"sequence walk and wait\n"
+                                   u8"fade in for 1\n"
+                                   u8"@ keeper: Done.\n";
+
+    void RegisterScriptsOnce()
+    {
+        static const bool once = []()
+        {
+#if defined(INTEGRATION_HAS_ANGELSCRIPT)
+            foundation::script::angelscript::RegisterAngelScriptBackend();
+#endif
+#if defined(INTEGRATION_HAS_LUAU)
+            foundation::script::RegisterLuauScriptBackend();
+#endif
+            RegisterCoreTypes();
+            engine::behavior::RegisterBehaviorComponentReflection();
+            foundation::script::RegisterScriptFacadeReflection();
+            return true;
+        }();
+        (void)once;
+    }
+
+    // A content database holding a cooked conversation (`text`, its `sequence` the walk), its cast
+    // (the keeper played by "Keeper") and a sequence that walks its binding "keeper" to X 10 over a
+    // second.
     struct DialogueStore
     {
         StringView dir = u8"scratch_dialogue_run";
@@ -48,7 +84,7 @@ namespace
         Guid gate;
         Guid walk;
 
-        DialogueStore()
+        explicit DialogueStore(StringView text)
         {
             dialogue::RegisterDialogueTypes();
             engine::sequence::RegisterSequenceReflection();
@@ -88,15 +124,18 @@ namespace
             keeper.entity = String(u8"Keeper");
             REQUIRE(castInstance->WriteObject(cast).IsOk());
 
-            dialogue::DialogueParse parse = dialogue::ParseDialogue(u8"conversation gate\n"
-                                                                    u8"fade out for 1\n"
-                                                                    u8"sequence walk and wait\n"
-                                                                    u8"fade in for 1\n"
-                                                                    u8"@ keeper: Done.\n",
-                                                                    {});
+            dialogue::DialogueCommandForm cue;
+            String error;
+            REQUIRE(dialogue::ParseCommandForm(u8"cue <event:text> waits", cue, error));
+            dialogue::DialogueParse parse = dialogue::ParseDialogue(text, Span<const dialogue::DialogueCommandForm>(&cue, 1));
             REQUIRE(parse.Ok());
-            REQUIRE(parse.conversations[0].steps[1].kind == dialogue::DialogueStepKind::Sequence);
-            parse.conversations[0].steps[1].asset = walk; // what the cook resolves through the dialogue assets
+            for (dialogue::DialogueStep& step : parse.conversations[0].steps)
+            {
+                if (step.kind == dialogue::DialogueStepKind::Sequence)
+                {
+                    step.asset = walk; // what the cook resolves through the dialogue assets
+                }
+            }
             foundation::content::Instance* gateInstance = root.CreateInstance(u8"gate", dialogue::DialogueSource::StaticType());
             gate = gateInstance->Id();
             dialogue::DialogueSource source;
@@ -127,6 +166,7 @@ namespace
     struct DialogueRun
     {
         DialogueStore store;
+        engine::behavior::BehaviorComponentManager* components = nullptr;
         dialogue::DialogueSettings settings;
         foundation::run::RunBase run{DefaultAllocator(), u8"dialogue"};
         scene::Scene scene{DefaultAllocator(), u8"dialogue"};
@@ -135,9 +175,16 @@ namespace
         dialogue::DialogueRunService* runner = nullptr;
         Array<String> lines;
 
-        DialogueRun()
+        explicit DialogueRun(StringView text = kStaged) : store(text)
         {
+            RegisterScriptsOnce();
+            dialogue::RegisterDialogueScriptFacade();
             scene.SetRun(&run);
+            components = scene.AddSystem<engine::behavior::BehaviorComponentManager>();
+            auto* behaviors = scene.AddSystem<engine::behavior::EntityBehaviorSystem>();
+            components->SetScriptSystem(behaviors);
+            behaviors->SetRunHost(&scripts);
+            scripts.Binding().run = &run;
             engine::sequence::AddSequenceSceneSystems(scene);
             post = scene.AddSystem<engine::render::PostProcessSystem>();
             foundation::resource::ResourceManager* resources = store.resources.Get();
@@ -156,8 +203,41 @@ namespace
                                                  lines.PushBack(Format(u8"{}: {}", notice->shownName, notice->text));
                                              }
                                          });
+        }
+
+        ~DialogueRun() { dialogue::RemoveDialogueScriptFacade(); }
+
+        // Starts the scene, its behaviors' onStart with it.
+        void Start()
+        {
             scene.Start();
             scene.SetSimulationEnabled(true);
+        }
+
+        void Attach(scene::EntityHandle e, StringView language, StringView source)
+        {
+            RefPtr<foundation::script::BehaviorClass> cls = MakeRef<foundation::script::BehaviorClass>(DefaultAllocator());
+            cls->language = String(language);
+            cls->className = String(u8"Director");
+            cls->kind = foundation::script::BehaviorKind::Entity;
+            cls->source = String(source);
+            const StringView handlers[] = {u8"onStart", u8"onDialogueLine", u8"onDialogueChoice", u8"onDialogueCommand",
+                                           u8"onDialogueEnded"};
+            for (StringView handler : handlers)
+            {
+                cls->handlers.PushBack(String(handler));
+            }
+            cls->BuildProfileName();
+            engine::behavior::AttachedBehavior behavior;
+            behavior.behaviorClass = cls;
+            components->Add(e).behaviors.PushBack(Move(behavior));
+        }
+
+        [[nodiscard]] String GateText() const
+        {
+            utf8char text[37];
+            store.gate.ToChars(text);
+            return String(StringView(text, 36));
         }
 
         // A frame: the bus, the run's services (the runner), then the scene (its sequences).
@@ -174,6 +254,7 @@ TEST_CASE("plugins: a run's dialogue runner fades, plays a sequence bound to the
 {
     DialogueRun r;
     const scene::EntityHandle keeper = r.scene.CreateEntity(u8"Keeper");
+    r.Start();
     REQUIRE(r.runner->Play(r.store.gate, u8"gate"));
 
     r.Frame(0.5f);
@@ -207,6 +288,7 @@ TEST_CASE("plugins: a speaker the game binds plays as that entity, over the one 
     const scene::EntityHandle keeper = r.scene.CreateEntity(u8"Keeper");
     const scene::EntityHandle standIn = r.scene.CreateEntity(u8"Stand-in");
     r.runner->Bind(u8"keeper", standIn);
+    r.Start();
     REQUIRE(r.runner->Play(r.store.gate, u8"gate"));
     for (int i = 0; i < 16; ++i)
     {
@@ -216,3 +298,104 @@ TEST_CASE("plugins: a speaker the game binds plays as that entity, over the one 
     CHECK(r.scene.GetLocalTransform(keeper).position.x == doctest::Approx(0.0f));
     CHECK(r.runner->Waiting() == dialogue::DialogueWait::Line);
 }
+
+namespace
+{
+    constexpr StringView kTalk = u8"conversation gate\n"
+                                 u8"if met\n"
+                                 u8"  @ keeper: Welcome back.\n"
+                                 u8"end\n"
+                                 u8"choice\n"
+                                 u8"> Stay.\n"
+                                 u8"> Go.\n"
+                                 u8"  cue lights out\n"
+                                 u8"end\n";
+
+    // The scene runs a few frames: the behavior starts the conversation and answers each notice.
+    void Talk(DialogueRun& r)
+    {
+        r.Start();
+        for (int i = 0; i < 8; ++i)
+        {
+            r.Frame(0.25f);
+        }
+    }
+}
+
+#if defined(INTEGRATION_HAS_ANGELSCRIPT)
+TEST_CASE("plugins: an AngelScript behavior plays a conversation through Dialogue and answers its notices")
+{
+    DialogueRun r(kTalk);
+    const scene::EntityHandle director = r.scene.CreateEntity(u8"director");
+    r.Attach(director, u8"angelscript",
+             Format(u8"class Director : EntityBehavior {{\n"
+                    u8"    private Entity self;\n"
+                    u8"    Director(Entity entity) {{ self = entity; }}\n"
+                    u8"    private void say(const string &in what) {{ self.setName(self.name() + \"|\" + what); }}\n"
+                    u8"    void onStart() {{\n"
+                    u8"        Dialogue::bind(\"keeper\", self);\n"
+                    u8"        Dialogue::setFlag(\"met\", true);\n"
+                    u8"        if (Dialogue::play(Guid(\"{}\"), \"gate\") && Dialogue::isPlaying()) {{ say(\"playing\"); }}\n"
+                    u8"    }}\n"
+                    u8"    void onDialogueLine(DialogueLineNotice@ notice) {{\n"
+                    u8"        say(notice.shownName + \": \" + notice.text);\n"
+                    u8"        Dialogue::advance();\n"
+                    u8"    }}\n"
+                    u8"    void onDialogueChoice(DialogueChoiceNotice@ notice) {{\n"
+                    u8"        say(notice.answer(0) + \" or \" + notice.answer(1));\n"
+                    u8"        Dialogue::choose(1);\n"
+                    u8"    }}\n"
+                    u8"    void onDialogueCommand(DialogueCommandNotice@ notice) {{\n"
+                    u8"        say(notice.name + \" \" + notice.text(\"event\"));\n"
+                    u8"        if (notice.waits) {{ Dialogue::done(); }}\n"
+                    u8"    }}\n"
+                    u8"    void onDialogueEnded(DialogueEndedNotice@ notice) {{\n"
+                    u8"        say(\"ended \" + notice.conversation + (Dialogue::flag(\"met\") ? \" met\" : \"\"));\n"
+                    u8"    }}\n"
+                    u8"}}\n",
+                    r.GateText())
+                 .AsView());
+    Talk(r);
+    CHECK(r.scene.GetEntityName(director) ==
+          StringView(u8"director|playing|The Keeper: Welcome back.|Stay. or Go.|cue lights out|ended gate met"));
+    CHECK_FALSE(r.runner->IsPlaying());
+}
+#endif
+
+#if defined(INTEGRATION_HAS_LUAU)
+TEST_CASE("plugins: a Luau behavior plays a conversation through Dialogue and answers its notices")
+{
+    DialogueRun r(kTalk);
+    const scene::EntityHandle director = r.scene.CreateEntity(u8"director");
+    r.Attach(director, u8"luau",
+             Format(u8"Director = EntityBehavior.class()\n"
+                    u8"function Director.new(entity) return setmetatable({{ entity = entity }}, Director) end\n"
+                    u8"function Director:say(what) self.entity:setName(self.entity:name() .. \"|\" .. what) end\n"
+                    u8"function Director:onStart()\n"
+                    u8"    Dialogue.bind(\"keeper\", self.entity)\n"
+                    u8"    Dialogue.setFlag(\"met\", true)\n"
+                    u8"    if Dialogue.play(Guid.new(\"{}\"), \"gate\") and Dialogue.isPlaying() then self:say(\"playing\") end\n"
+                    u8"end\n"
+                    u8"function Director:onDialogueLine(notice)\n"
+                    u8"    self:say(notice.shownName .. \": \" .. notice.text)\n"
+                    u8"    Dialogue.advance()\n"
+                    u8"end\n"
+                    u8"function Director:onDialogueChoice(notice)\n"
+                    u8"    self:say(notice:answer(0) .. \" or \" .. notice:answer(1))\n"
+                    u8"    Dialogue.choose(1)\n"
+                    u8"end\n"
+                    u8"function Director:onDialogueCommand(notice)\n"
+                    u8"    self:say(notice.name .. \" \" .. notice:text(\"event\"))\n"
+                    u8"    if notice.waits then Dialogue.done() end\n"
+                    u8"end\n"
+                    u8"function Director:onDialogueEnded(notice)\n"
+                    u8"    self:say(\"ended \" .. notice.conversation .. (Dialogue.flag(\"met\") and \" met\" or \"\"))\n"
+                    u8"end\n",
+                    r.GateText())
+                 .AsView());
+    Talk(r);
+    CHECK(r.scene.GetEntityName(director) ==
+          StringView(u8"director|playing|The Keeper: Welcome back.|Stay. or Go.|cue lights out|ended gate met"));
+    CHECK_FALSE(r.runner->IsPlaying());
+}
+#endif

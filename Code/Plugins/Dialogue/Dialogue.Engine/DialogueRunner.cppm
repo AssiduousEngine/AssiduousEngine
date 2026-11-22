@@ -28,6 +28,8 @@ export module dialogue.engine:runner;
 
 import foundation.core;
 import foundation.run;
+import foundation.scene;
+import foundation.script.facades; // Entity: what a command's entity argument reads as in script
 import :settings;
 import :conversation;
 import :cast;
@@ -56,6 +58,12 @@ export namespace dialogue
         String conversation;
         Array<String> answers; // their texts, `{Action}`s filled in
         Array<String> lineIds;
+
+        // For script:
+        [[nodiscard]] i32 answerCount() const noexcept { return static_cast<i32>(answers.Size()); }
+        /// Answer `index`'s text; empty past the last.
+        [[nodiscard]] String answer(i32 index) const;
+        [[nodiscard]] String answerLineId(i32 index) const;
     };
 
     /// A declared command for the game to carry out.
@@ -67,9 +75,21 @@ export namespace dialogue
         bool waits = false;  // the conversation waits for `Dialogue.done()`
         bool leaves = false; // the conversation has ended with its place saved
         Array<DialogueArgument> arguments;
+        foundation::scene::WeakSceneRef scene; // where an entity argument is looked for (the run's)
 
         /// The argument `name`, or null.
         [[nodiscard]] const DialogueArgument* Find(StringView name) const noexcept;
+
+        // For script, each by the argument's name in the command's form:
+        /// Whether it was written (an optional part, `[running]`).
+        [[nodiscard]] bool has(String name) const;
+        /// As written; empty when absent.
+        [[nodiscard]] String text(String name) const;
+        [[nodiscard]] f32 number(String name) const;
+        /// An asset argument's asset; nil when absent.
+        [[nodiscard]] Guid asset(String name) const;
+        /// An entity argument's entity in the scene, by its name; invalid when there is none.
+        [[nodiscard]] foundation::script::Entity entity(String name) const;
     };
 
     /// The conversation ended: reached its end, was stopped, or left for a command.

@@ -24,6 +24,7 @@ target_sources(${PLUGIN_PART}
         DialogueResources.cpp    # the types' registration
         DialogueRunner.cpp       # the runner
         DialogueRun.cpp          # the runner a run holds, with the run's host
+        DialogueFacade.cpp       # the `Dialogue` facade
     PUBLIC
         FILE_SET dialogue_engine_modules TYPE CXX_MODULES FILES
             DialogueEngineModule.cppm
@@ -32,4 +33,5 @@ target_sources(${PLUGIN_PART}
             DialogueCast.cppm
             DialogueResources.cppm
             DialogueRunner.cppm
-            DialogueRun.cppm)
+            DialogueRun.cppm
+            DialogueFacade.cppm)

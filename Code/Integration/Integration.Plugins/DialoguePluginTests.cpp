@@ -22,6 +22,7 @@ import engine.defaultapp;
 import engine.domain;
 import engine.composition;
 import engine.run;
+import foundation.script.facades;
 import dialogue.engine;
 
 using namespace foundation::core;
@@ -30,6 +31,18 @@ namespace runtime = foundation::runtime;
 namespace
 {
     constexpr char8_t kDialogue[] = u8"dialogue";
+
+    [[nodiscard]] bool HasFacadeName(StringView name)
+    {
+        for (const StringView known : foundation::script::ExtraFacadeNames())
+        {
+            if (known == name)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
 
     [[nodiscard]] bool HasDomain(StringView id)
     {
@@ -143,6 +156,11 @@ TEST_CASE("plugins: a project that enables dialogue loads it, its settings read 
     CHECK(GlobalTypeRegistry().FindById(cooked) != nullptr);
     CHECK(GlobalTypeRegistry().FindById(castCooked) != nullptr);
 
+    // Scripts are offered the `Dialogue` facade and its notices.
+    CHECK(HasFacadeName(u8"Dialogue"));
+    CHECK(HasFacadeName(u8"DialogueLineNotice"));
+    CHECK(GlobalTypeRegistry().FindById(dialogue::DialogueFacade::StaticType().id) != nullptr);
+
     // Every run gets a runner, its flags in the run's save under the settings' prefix.
     {
         engine::runtime::ApplicationRun run;
@@ -161,6 +179,9 @@ TEST_CASE("plugins: a project that enables dialogue loads it, its settings read 
 
     embedded.DestroyPluginHost();
     CHECK(live.Get<dialogue::DialogueRunService>() == nullptr); // its code is going: out of the live run
+    CHECK_FALSE(HasFacadeName(u8"Dialogue"));
+    CHECK_FALSE(HasFacadeName(u8"DialogueLineNotice"));
+    CHECK(GlobalTypeRegistry().FindById(dialogue::DialogueFacade::StaticType().id) == nullptr);
     CHECK(GlobalTypeRegistry().FindById(type.id) == nullptr); // taken out with the plugin
     CHECK_FALSE(HasDomain(kDialogue));
     CHECK(GlobalTypeRegistry().FindById(cooked) == nullptr);
