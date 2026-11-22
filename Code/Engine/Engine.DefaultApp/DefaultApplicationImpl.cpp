@@ -425,7 +425,7 @@ namespace engine::runtime
                 m_scenes->UnregisterManager(&instance->Scenes());
             }
             instance->Scenes().Clear(); // destroy any remaining scenes (aware subsystems notified)
-            instance->RunHost().Teardown();
+            instance->RunHost().Scripts().Teardown();
             m_extraRuns.RemoveAt(i); // frees the ApplicationRun: its run's end reaches every subsystem
             return;
         }
@@ -721,7 +721,7 @@ namespace engine::runtime
             {
                 gi.StopNetworking();
                 gi.Scenes().Clear();
-                gi.RunHost().Teardown();
+                gi.RunHost().Scripts().Teardown();
             });
     }
 

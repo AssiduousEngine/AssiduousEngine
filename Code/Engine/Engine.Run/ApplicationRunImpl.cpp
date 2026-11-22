@@ -136,8 +136,8 @@ namespace engine::runtime
         m_runBehaviorFault = core::String{};
         // This instance's run host is the game's context. The app configured the host
         // (ConfigureRunHost) with the facades and the Scene.spawn and entity.send routing.
-        m_runHost.SetExternalErrorSink(m_errorHandler); // before the context is created
-        script::IScriptContext* scriptContext = m_runHost.EnsureContextForFile(name);
+        m_runHost.Scripts().SetExternalErrorSink(m_errorHandler); // before the context is created
+        script::IScriptContext* scriptContext = m_runHost.Scripts().EnsureContextForFile(name);
         if (scriptContext == nullptr)
         {
             LOG_ERROR(u8"App", u8"no script backend for '{}'", name);
@@ -204,7 +204,7 @@ namespace engine::runtime
         }
         m_scriptContext = nullptr; // drop the game script's ref; the run host owns the context
         m_runHost.SetGameScriptHold(false);
-        m_runHost.SetExternalErrorSink(nullptr);
+        m_runHost.Scripts().SetExternalErrorSink(nullptr);
         StopNetworking(); // networking belongs to the run; the endpoint drops with it
         m_http.Reset();   // so do its HTTP requests: no answer reaches a script that has stopped
         // What the game saved and did not write yet is kept: the run writes it as it ends.

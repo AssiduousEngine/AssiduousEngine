@@ -49,7 +49,7 @@ export namespace editor
         ~SimulationRun() override
         {
             Dispose();
-            m_scripts.Teardown();
+            m_scripts.Scripts().Teardown();
         }
 
         [[nodiscard]] engine::behavior::BehaviorRunHost& Scripts() noexcept { return m_scripts; }

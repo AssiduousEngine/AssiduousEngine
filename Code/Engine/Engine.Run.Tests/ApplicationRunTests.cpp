@@ -131,7 +131,7 @@ TEST_CASE("game-instance: instance time scale defaults to 1 and is settable; fre
     CHECK(gi.GetScene() == nullptr);
     CHECK(gi.ScriptContext() == nullptr);
     CHECK_FALSE(
-        gi.RunHost().IsActive()); // the instance owns its run host (idle until a run starts)
+        gi.RunHost().Scripts().IsActive()); // the instance owns its run host (idle until a run starts)
 
     // The instance owns a usable scene group (its SceneManager).
     CHECK(gi.Scenes().SceneCount() == 0u);
@@ -194,14 +194,14 @@ TEST_CASE("game-instance: native code under the run host's services reaches the 
 {
     engine::runtime::ApplicationRun gi;
     engine::behavior::BehaviorRunHost& host = gi.RunHost();
-    CHECK(host.ScriptContext() == nullptr); // nothing made one
+    CHECK(host.Scripts().ScriptContext() == nullptr); // nothing made one
     const script::ServiceResolver services{[&host](TypeId type) { return host.FindService(type); }};
     {
         script::ServiceScope scope(&services);
         engine::runtime::SaveFacade::setInt(String(u8"coins"), 7);
         CHECK(engine::runtime::SaveFacade::getInt(String(u8"coins"), 0) == 7);
     }
-    CHECK(host.ScriptContext() == nullptr);
+    CHECK(host.Scripts().ScriptContext() == nullptr);
     CHECK(gi.Saves().HasChanges()); // the run's own save took it
     CHECK(engine::runtime::SaveFacade::getInt(String(u8"coins"), 0) == 0); // outside, no run: the fallback
 }
@@ -553,7 +553,7 @@ TEST_CASE("game-instance: fallback path starts, ticks, and stops a Game script")
     REQUIRE(ok);
     CHECK(gi.RunBehaviorRunning());
     CHECK(gi.ScriptContext() != nullptr);
-    CHECK(gi.RunHost().IsActive()); // the game script runs on the instance's own run host
+    CHECK(gi.RunHost().Scripts().IsActive()); // the game script runs on the instance's own run host
 
     gi.RunHost().Advance(0.016f); // advance the run host clock/GC (must not fault)
     gi.TickRunBehavior(0.016f, 1.0f); // must not fault
@@ -579,7 +579,7 @@ TEST_CASE("game-instance: starts, ticks, and stops a LUAU Game orchestrator (the
     REQUIRE(ok);
     CHECK(gi.RunBehaviorRunning());
     CHECK(gi.ScriptContext() != nullptr);
-    CHECK(gi.RunHost().IsActive());
+    CHECK(gi.RunHost().Scripts().IsActive());
 
     gi.RunHost().Advance(0.016f); // advance the run host clock/GC (must not fault)
     gi.TickRunBehavior(0.016f, 1.0f); // update() (must not fault)
@@ -906,7 +906,7 @@ TEST_CASE("game-instance: a debugger suspension in update is not a fault - the s
     REQUIRE(gi.RunBehaviorRunning());
 
     foundation::script::IScriptDebugger* debugger = nullptr;
-    gi.RunHost().RequestDebugger(Function<void(foundation::script::IScriptDebugger&)>{
+    gi.RunHost().Scripts().RequestDebugger(Function<void(foundation::script::IScriptDebugger&)>{
         [&debugger](foundation::script::IScriptDebugger& created)
         {
             created.SetBreakpoint(u8"game.as", 4);
@@ -926,7 +926,7 @@ TEST_CASE("game-instance: a debugger suspension in update is not a fault - the s
         }
     };
     BreakCounter counter;
-    gi.RunHost().SetExternalDebugListener(&counter);
+    gi.RunHost().Scripts().SetExternalDebugListener(&counter);
 
     // Hitting the breakpoint suspends update mid-call. The suspension surfaces as an error result,
     // and TickRunBehavior must not read it as a fault and kill the game script.
@@ -962,7 +962,7 @@ TEST_CASE("game-instance: a debugger suspension in update is not a fault - the s
     CHECK(gi.RunBehaviorRunning());
     CHECK(counter.breaks == 2);
 
-    gi.RunHost().SetExternalDebugListener(nullptr);
+    gi.RunHost().Scripts().SetExternalDebugListener(nullptr);
     gi.StopRunBehavior();
     CHECK_FALSE(gi.RunBehaviorRunning());
 }
@@ -979,10 +979,10 @@ TEST_CASE("game-instance: two instances own separate, isolated run-host contexts
     REQUIRE(a.StartRunBehavior(src, u8"game.as", u8"Game"));
     REQUIRE(b.StartRunBehavior(src, u8"game.as", u8"Game"));
 
-    REQUIRE(a.RunHost().ScriptContext() != nullptr);
-    REQUIRE(b.RunHost().ScriptContext() != nullptr);
-    CHECK(a.RunHost().ScriptContext() !=
-          b.RunHost().ScriptContext()); // distinct contexts = no shared script globals
+    REQUIRE(a.RunHost().Scripts().ScriptContext() != nullptr);
+    REQUIRE(b.RunHost().Scripts().ScriptContext() != nullptr);
+    CHECK(a.RunHost().Scripts().ScriptContext() !=
+          b.RunHost().Scripts().ScriptContext()); // distinct contexts = no shared script globals
 
     a.SetHeadless(true);
     CHECK(a.IsHeadless());
@@ -1056,7 +1056,7 @@ TEST_CASE("game-instance: the Game tier's on<Event> inbox harvests the run bus (
                                    u8"}\n",
                                    u8"game.as", u8"Game", Span<const String>(handlers, 1));
     REQUIRE(ok);
-    auto* scriptContext = gi.RunHost().ScriptContext();
+    auto* scriptContext = gi.RunHost().Scripts().ScriptContext();
     REQUIRE(scriptContext != nullptr);
     CHECK(scriptContext->GetGlobal(u8"Pinged").Get<f64>() == doctest::Approx(0.0)); // nothing fired yet
 
@@ -1100,7 +1100,7 @@ TEST_CASE("game-instance: a Game started from its cooked class hears the run bus
 
     engine::runtime::ApplicationRun gi;
     REQUIRE(gi.StartRunBehavior(cooked));
-    auto* scriptContext = gi.RunHost().ScriptContext();
+    auto* scriptContext = gi.RunHost().Scripts().ScriptContext();
     REQUIRE(scriptContext != nullptr);
     gi.Events().Publish(StringHash(StringView(u8"GoalReached")), Variant::From<i32>(0));
     gi.DrainRunEvents();
@@ -1162,7 +1162,7 @@ TEST_CASE("game-instance: run.events().emit publishes on the run bus, round-trip
         u8"}\n",
         u8"game.as", u8"Game", Span<const String>(handlers, 1));
     REQUIRE(ok);
-    auto* scriptContext = gi.RunHost().ScriptContext();
+    auto* scriptContext = gi.RunHost().Scripts().ScriptContext();
     REQUIRE(scriptContext != nullptr);
     // launch() emitted, but the run bus delivers deferred: nothing fires until the drain.
     CHECK(scriptContext->GetGlobal(u8"Pinged").Get<f64>() == doctest::Approx(0.0));
@@ -1845,7 +1845,7 @@ TEST_CASE("game-instance: a context for behaviors gets the run's input, run and 
     foundation::script::angelscript::RegisterAngelScriptBackend();
     engine::runtime::ApplicationRun gi;
     CHECK_FALSE(gi.RunBehaviorRunning());
-    foundation::script::IScriptContext* scriptContext = gi.RunHost().EnsureContextForFile(u8"behaviors.as");
+    foundation::script::IScriptContext* scriptContext = gi.RunHost().Scripts().EnsureContextForFile(u8"behaviors.as");
     REQUIRE(scriptContext != nullptr);
     CHECK(scriptContext->FindService<foundation::input::ActionRuntime>() == &gi.InputRuntime());
     CHECK(scriptContext->FindService<engine::runtime::RunBinding>() != nullptr);

@@ -562,7 +562,7 @@ namespace editor
         // borrowed pointer, and the run host owns the debugger and destroys it in OnExit.
         if (m_run != nullptr)
         {
-            m_run->RunHost().SetExternalDebugListener(nullptr);
+            m_run->RunHost().Scripts().SetExternalDebugListener(nullptr);
         }
         m_debuggerPanel.SetIdle();
         m_simPausedByDebugger = false;
@@ -1151,10 +1151,10 @@ namespace editor
         {
             return;
         }
-        m_run->RunHost().SetExternalDebugListener(&m_debugListener);
+        m_run->RunHost().Scripts().SetExternalDebugListener(&m_debugListener);
         EditorContext* context = m_context;
         GameEditorPage* self = this;
-        m_run->RunHost().RequestDebugger(Function<void(script::IScriptDebugger&)>{
+        m_run->RunHost().Scripts().RequestDebugger(Function<void(script::IScriptDebugger&)>{
             [context, self](script::IScriptDebugger& debugger)
             {
                 for (const EditorContext::ScriptBreakpoint& breakpoint : context->Breakpoints())

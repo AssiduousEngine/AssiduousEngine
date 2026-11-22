@@ -10,10 +10,11 @@
 // (IsSimulationOnly: the editor's Simulate toggle and play-in-editor both count). A faulting
 // behavior is disabled and logged; scripting keeps running.
 //
-// Context ownership: the subsystem's BehaviorRunHost owns the run's single IScriptContext,
-// created lazily at first use (the first behavior instantiate, or the game script's
-// StartRunBehavior, which shares it) and torn down when the run ends (game script released,
-// no live instances, nothing simulating). The backend is resolved through the
+// A run's BehaviorRunHost is the gameplay layer's: the services its objects find, its clock, and
+// Instantiate. Its script half (ScriptBehaviorClasses, Scripts()) owns the run's single
+// IScriptContext, created lazily at first use (the first behavior instantiate, or the game
+// script's StartRunBehavior, which shares it) and torn down when the run ends (game script
+// released, no live instances, nothing simulating). The backend is resolved through the
 // ScriptBackendRegistry by language; no backend type is ever named here.
 //
 // Hot reload: the cook swaps the product inside the resource handle; the dispatch loop
@@ -254,53 +255,31 @@ export namespace engine::behavior
         bool m_paused = false;
     };
 
-    /// Owns the run's manager and context and the behavior modules loaded into it. Each class
-    /// loads into a module of its own, named by generation ("behaviors#N"): a fresh name per
-    /// load gives hot reload clean semantics (live instances of the replaced class keep
-    /// running on its old module until they end).
+    /// The VM half of a run's behaviors: its script manager and context, made for the first class in
+    /// a language that needs one, and the classes loaded into it. Each class loads into a module of
+    /// its own, named by generation ("behaviors#N"): a fresh name per load gives hot reload clean
+    /// semantics (live instances of the replaced class keep running on its old module until they
+    /// end). Also the run's debugger, its error sink, its collector and its coroutines. The run host
+    /// holds one (Scripts()); a run whose classes are all native never makes a context.
     /// Plain class (no runtime deps) so headless tests drive it directly.
-    class BehaviorRunHost
+    class ScriptBehaviorClasses
     {
     public:
-        // The allocator (required: the owner decides) becomes the run's script
-        // manager tree root: every context, object and blob inherits it through
-        // MemoryAllocator().
-        explicit BehaviorRunHost(foundation::core::IAllocator& allocator) noexcept
-            : m_allocator(&allocator)
+        // The allocator becomes the run's script manager tree root: every context, object and blob
+        // inherits it through MemoryAllocator().
+        explicit ScriptBehaviorClasses(foundation::core::IAllocator& allocator) noexcept : m_allocator(&allocator) {}
+        ScriptBehaviorClasses(const ScriptBehaviorClasses&) = delete;
+        ScriptBehaviorClasses& operator=(const ScriptBehaviorClasses&) = delete;
+
+        /// What the context resolves services through (its run host's FindService), and what to do
+        /// when a context is made (the host restarts its clock). Set once by the owning host.
+        void SetHost(ServiceResolver services, Function<void()> contextMade)
         {
+            m_services = Move(services);
+            m_contextMade = Move(contextMade);
         }
 
-        /// Where this host's context finds the application's services by type (the app's
-        /// subsystem manager, wired by BehaviorSubsystem::ConfigureRunHost): what the context's
-        /// resolver asks after this host's own binding and its run's services.
-        void SetApplicationServices(Function<void*(TypeId)> services) { m_applicationServices = Move(services); }
-
-        /// The service of type `type` for this host's scripts: the runtime binding, then the run's
-        /// services (Binding().run), then the application's. What its context resolves through.
-        [[nodiscard]] void* FindService(TypeId type) const
-        {
-            if (type == TypeOf<ScriptRuntimeBinding>().id)
-            {
-                return const_cast<ScriptRuntimeBinding*>(&m_binding);
-            }
-            if (m_binding.run != nullptr)
-            {
-                if (void* service = m_binding.run->FindService(type))
-                {
-                    return service;
-                }
-            }
-            return m_applicationServices ? m_applicationServices(type) : nullptr;
-        }
-        void SetExternalErrorSink(IScriptErrorHandler* sink) noexcept
-        {
-            m_errorSink.external = sink;
-        }
-
-        // The game-script hold: true while a game script is loaded into this
-        // host, so teardown accounting keeps the context alive. Per-host.
-        void SetGameScriptHold(bool held) noexcept { m_gameScriptHold = held; }
-        [[nodiscard]] bool HasGameScriptHold() const noexcept { return m_gameScriptHold; }
+        void SetExternalErrorSink(IScriptErrorHandler* sink) noexcept { m_errorSink.external = sink; }
 
         // ---- step debugging (the play-in-editor debugger, or any other transport) ----
 
@@ -323,27 +302,19 @@ export namespace engine::behavior
         {
             m_debugTracker.external = listener;
         }
-        /// The game-pause flag: true while suspended at a breakpoint or step. The scene tick
-        /// checks this to hold the world still; InvokeHandler checks it to tell a
-        /// debug-suspended handler apart from a fault.
+        /// True while suspended at a breakpoint or step.
         [[nodiscard]] bool IsDebugPaused() const noexcept { return m_debugTracker.Paused(); }
-        /// The last script error this run reported, then forgotten: the reason a faulting call
-        /// gives. Empty when none was reported since the last take.
+        /// The last script error this run reported, then forgotten. Empty when none was reported
+        /// since the last take.
         [[nodiscard]] String TakeLastError() { return Move(m_errorSink.last); }
 
         [[nodiscard]] IScriptContext* ScriptContext() const noexcept { return m_scriptContext.Get(); }
         [[nodiscard]] IScriptManager* Manager() const noexcept { return m_manager.Get(); }
         [[nodiscard]] StringView Language() const noexcept { return m_language.AsView(); }
-        [[nodiscard]] ScriptRuntimeBinding& Binding() noexcept { return m_binding; }
 
-        /// One frame of this host's clock (what `Time` reads: the seconds since it was made and
-        /// the frame's delta) and a frame-budgeted step of its collector, once a context exists.
-        /// Whoever owns the host calls it once a frame: a game's run, an editor page's run, the
-        /// subsystem for its default host. Only scripts read this clock.
-        void Advance(f32 deltaSeconds)
+        /// A frame-budgeted step of the collector, once a context exists.
+        void StepGarbage()
         {
-            m_binding.timeSeconds += static_cast<f64>(deltaSeconds);
-            m_binding.deltaSeconds = deltaSeconds;
             if (m_manager.Get() != nullptr)
             {
                 m_manager->StepGarbage(m_manager->Budget().collectSeconds);
@@ -392,13 +363,14 @@ export namespace engine::behavior
                 return nullptr;
             }
             m_language = String(languageId);
-            m_binding.timeSeconds = 0.0;
-            m_binding.deltaSeconds = 0.0f;
-            m_binding.random = core::Random{}; // fresh per-run RNG
+            if (m_contextMade)
+            {
+                m_contextMade();
+            }
             m_scriptContext->SetErrorHandler(&m_errorSink);
-            const BehaviorRunHost* self = this;
+            const ScriptBehaviorClasses* self = this;
             m_scriptContext->SetServiceResolver(
-                IScriptContext::ServiceResolver{[self](TypeId type) { return self->FindService(type); }});
+                ServiceResolver{[self](TypeId type) { return self->m_services ? self->m_services(type) : nullptr; }});
             EnsureDebugger(); // a debugger requested before the context existed attaches now
             LOG_DEBUG(u8"Script", u8"run script context created ({})", languageId);
             return m_scriptContext.Get();
@@ -435,30 +407,18 @@ export namespace engine::behavior
             return EnsureContext(backend->languageId.AsView());
         }
 
-        /// Instantiate a behavior class instance (loads or reloads the behaviors module as
-        /// needed). Null on failure (logged), and for a class not of the kind `kind` the place it is
-        /// set takes (a scene's Level slot a SceneBehavior, an entity's an EntityBehavior).
-        [[nodiscard]] RefPtr<BehaviorObject> Instantiate(BehaviorClass& scriptClass, Span<Variant> args, BehaviorKind kind)
+        /// An object of `scriptClass`, its class loaded into the run's context first (or reloaded).
+        /// Null on failure (logged).
+        [[nodiscard]] RefPtr<BehaviorObject> Create(BehaviorClass& scriptClass, Span<Variant> args)
         {
-            if (scriptClass.kind != kind)
-            {
-                const String is = scriptClass.kind == BehaviorKind::None
-                                      ? String(u8"declares no behavior class")
-                                      : Format(u8"derives from {}", BehaviorKinds::TypeName(scriptClass.kind));
-                LOG_ERROR(u8"Script", u8"'{}' {}: it is set where a class deriving from {} goes", scriptClass.sourceName, is,
-                          BehaviorKinds::TypeName(kind));
-                return nullptr;
-            }
             if (!EnsureClassLoaded(scriptClass))
             {
                 return nullptr;
             }
-            RefPtr<BehaviorObject> instance =
-                m_scriptContext->CreateInstance(scriptClass.className.AsView(), args);
+            RefPtr<BehaviorObject> instance = m_scriptContext->CreateInstance(scriptClass.className.AsView(), args);
             if (instance.Get() == nullptr)
             {
-                LOG_ERROR(u8"Script", u8"class '{}' failed to instantiate",
-                                   scriptClass.className);
+                LOG_ERROR(u8"Script", u8"class '{}' failed to instantiate", scriptClass.className);
             }
             return instance;
         }
@@ -601,9 +561,9 @@ export namespace engine::behavior
         RefPtr<IScriptContext> m_scriptContext;
         String m_language;
         RunErrorSink m_errorSink;
-        ScriptRuntimeBinding m_binding;
         foundation::core::IAllocator* m_allocator;
-        Function<void*(TypeId)> m_applicationServices; // SetApplicationServices
+        ServiceResolver m_services;     // SetHost: its run host's FindService
+        Function<void()> m_contextMade; // SetHost: the host restarts its clock
         Array<RefPtr<BehaviorClass>> m_loadedClasses; // the classes loaded into the context, one each
         UniquePtr<IScriptDebugger> m_debugger; // the run's step debugger (opt-in)
         DebugPauseTracker m_debugTracker;      // the game-pause flag and external forward
@@ -611,6 +571,105 @@ export namespace engine::behavior
         u32 m_generation = 0; // names each class's module
         bool m_warnedLanguageMismatch = false;
         bool m_debuggerRequested = false;
+    };
+
+    /// A run's behaviors: the services its objects find (its runtime binding, its run's services,
+    /// the application's), its clock, and the classes it makes objects of. A class in a script
+    /// language is made in the run's VM (Scripts()). One host per run; it does not move, since
+    /// its script half resolves services through it.
+    class BehaviorRunHost
+    {
+    public:
+        explicit BehaviorRunHost(foundation::core::IAllocator& allocator) noexcept : m_scripts(allocator)
+        {
+            BehaviorRunHost* self = this;
+            m_scripts.SetHost(ServiceResolver{[self](TypeId type) { return self->FindService(type); }},
+                              Function<void()>{[self]() { self->RestartClock(); }});
+        }
+        BehaviorRunHost(const BehaviorRunHost&) = delete;
+        BehaviorRunHost& operator=(const BehaviorRunHost&) = delete;
+
+        /// Where this host's context finds the application's services by type (the app's
+        /// subsystem manager, wired by BehaviorSubsystem::ConfigureRunHost): what the context's
+        /// resolver asks after this host's own binding and its run's services.
+        void SetApplicationServices(Function<void*(TypeId)> services) { m_applicationServices = Move(services); }
+
+        /// The service of type `type` for this host's objects: the runtime binding, then the run's
+        /// services (Binding().run), then the application's. What its context resolves through.
+        [[nodiscard]] void* FindService(TypeId type) const
+        {
+            if (type == TypeOf<ScriptRuntimeBinding>().id)
+            {
+                return const_cast<ScriptRuntimeBinding*>(&m_binding);
+            }
+            if (m_binding.run != nullptr)
+            {
+                if (void* service = m_binding.run->FindService(type))
+                {
+                    return service;
+                }
+            }
+            return m_applicationServices ? m_applicationServices(type) : nullptr;
+        }
+
+        // The game-script hold: true while a game script is loaded into this
+        // host, so teardown accounting keeps the context alive. Per-host.
+        void SetGameScriptHold(bool held) noexcept { m_gameScriptHold = held; }
+        [[nodiscard]] bool HasGameScriptHold() const noexcept { return m_gameScriptHold; }
+
+        /// The game-pause flag: true while a debugger holds the run at a breakpoint or step. The
+        /// scene tick checks this to hold the world still; a handler's dispatch checks it to tell
+        /// a debug-suspended handler apart from a fault.
+        [[nodiscard]] bool IsDebugPaused() const noexcept { return m_scripts.IsDebugPaused(); }
+        /// The last error this run reported, then forgotten: the reason a faulting call gives.
+        [[nodiscard]] String TakeLastError() { return m_scripts.TakeLastError(); }
+
+        /// The run's script half: its VM, made for the first class in a script language.
+        [[nodiscard]] ScriptBehaviorClasses& Scripts() noexcept { return m_scripts; }
+        [[nodiscard]] const ScriptBehaviorClasses& Scripts() const noexcept { return m_scripts; }
+        [[nodiscard]] ScriptRuntimeBinding& Binding() noexcept { return m_binding; }
+
+        /// One frame of this host's clock (what `Time` reads: the seconds since it was made and
+        /// the frame's delta) and a frame-budgeted step of its collector, once a context exists.
+        /// Whoever owns the host calls it once a frame: a game's run, an editor page's run, the
+        /// subsystem for its default host.
+        void Advance(f32 deltaSeconds)
+        {
+            m_binding.timeSeconds += static_cast<f64>(deltaSeconds);
+            m_binding.deltaSeconds = deltaSeconds;
+            m_scripts.StepGarbage();
+        }
+
+        /// An object of `scriptClass`, for the place that takes a class of kind `kind` (a scene's
+        /// Level slot a SceneBehavior, an entity's an EntityBehavior). Null on failure (logged),
+        /// and for a class of another kind.
+        [[nodiscard]] RefPtr<BehaviorObject> Instantiate(BehaviorClass& scriptClass, Span<Variant> args, BehaviorKind kind)
+        {
+            if (scriptClass.kind != kind)
+            {
+                const String is = scriptClass.kind == BehaviorKind::None
+                                      ? String(u8"declares no behavior class")
+                                      : Format(u8"derives from {}", BehaviorKinds::TypeName(scriptClass.kind));
+                LOG_ERROR(u8"Script", u8"'{}' {}: it is set where a class deriving from {} goes", scriptClass.sourceName, is,
+                          BehaviorKinds::TypeName(kind));
+                return nullptr;
+            }
+            return m_scripts.Create(scriptClass, args);
+        }
+
+    private:
+        // A new context restarts the clock and the random stream: what a run's scripts see begins
+        // with their context.
+        void RestartClock()
+        {
+            m_binding.timeSeconds = 0.0;
+            m_binding.deltaSeconds = 0.0f;
+            m_binding.random = core::Random{}; // fresh per-run RNG
+        }
+
+        ScriptBehaviorClasses m_scripts;
+        ScriptRuntimeBinding m_binding;
+        Function<void*(TypeId)> m_applicationServices; // SetApplicationServices
         bool m_gameScriptHold = false; // a game script is loaded into this host (teardown pin)
     };
 
@@ -825,7 +884,7 @@ export namespace engine::behavior
             // Resume due coroutines once per simulated frame, at the tick's top level (no
             // VM call active, so the backend's resume is safe here). Gated to a backend that
             // actually has the scheduler; a non-supporting one no-ops anyway.
-            if (IScriptManager* manager = m_host->Manager();
+            if (IScriptManager* manager = m_host->Scripts().Manager();
                 manager != nullptr &&
                 HasScriptCapability(manager->Capabilities(), ScriptCapabilities::Coroutines))
             {
@@ -1362,7 +1421,7 @@ export namespace engine::behavior
             {
                 return;
             }
-            IScriptManager* manager = m_host->Manager();
+            IScriptManager* manager = m_host->Scripts().Manager();
             if (manager == nullptr ||
                 !HasScriptCapability(manager->Capabilities(), ScriptCapabilities::Coroutines))
             {
@@ -1781,7 +1840,7 @@ export namespace engine::behavior
             {
                 return;
             }
-            IScriptManager* manager = m_host->Manager();
+            IScriptManager* manager = m_host->Scripts().Manager();
             if (manager != nullptr &&
                 HasScriptCapability(manager->Capabilities(), ScriptCapabilities::Coroutines))
             {
@@ -1884,16 +1943,16 @@ export namespace engine::behavior
         /// one where a pause is expected, and what it left is garbage now.
         void MaybeTeardownRunHost(BehaviorRunHost& host)
         {
-            if (!host.IsActive())
+            if (!host.Scripts().IsActive())
             {
                 return;
             }
             if (RunHostPinned(host))
             {
-                host.CollectAllGarbage();
+                host.Scripts().CollectAllGarbage();
                 return;
             }
-            host.Teardown();
+            host.Scripts().Teardown();
         }
 
         [[nodiscard]] bool RunHostPinned(BehaviorRunHost& host) const
@@ -2023,7 +2082,7 @@ export namespace engine::behavior
                     entry.system->OnSceneStopped();
                 }
             }
-            m_ownedRunHost.Teardown(); // instance hosts are torn down by their owners
+            m_ownedRunHost.Scripts().Teardown(); // instance hosts are torn down by their owners
         }
 
     private:

@@ -352,7 +352,7 @@ TEST_CASE("script.scene: lifecycle - onStart once (deferred to the first simulat
     bed.scene.SetSimulationEnabled(false);
     bed.Frame();
     CHECK(bed.scene.GetEntityName(e) == StringView(u8"walker"));
-    CHECK_FALSE(bed.host.IsActive());
+    CHECK_FALSE(bed.host.Scripts().IsActive());
 
     bed.scene.SetSimulationEnabled(true);
     bed.Frame(); // instantiate, onStart and the first onUpdate, all this tick
@@ -360,7 +360,7 @@ TEST_CASE("script.scene: lifecycle - onStart once (deferred to the first simulat
     CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 1.0f)); // 2.0 * 0.5
     bed.Frame();
     CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 2.0f));
-    CHECK(bed.host.IsActive());
+    CHECK(bed.host.Scripts().IsActive());
     CHECK(bed.scripts->InstanceCount() == 1u);
 }
 
@@ -775,7 +775,7 @@ TEST_CASE("script.scene: onDestroy fires on entity destroy AND on scene stop; st
     bed.Frame();
     CHECK(bed.scripts->InstanceCount() == 1u);
     {
-        const Variant count = bed.host.ScriptContext()->GetGlobal(u8"DestroyCount");
+        const Variant count = bed.host.Scripts().ScriptContext()->GetGlobal(u8"DestroyCount");
         REQUIRE(count.TryGet<f64>() != nullptr);
         CHECK(*count.TryGet<f64>() == 1.0);
     }
@@ -783,7 +783,7 @@ TEST_CASE("script.scene: onDestroy fires on entity destroy AND on scene stop; st
     bed.scene.Stop();
     CHECK(bed.scripts->InstanceCount() == 0u);
     {
-        const Variant count = bed.host.ScriptContext()->GetGlobal(u8"DestroyCount");
+        const Variant count = bed.host.Scripts().ScriptContext()->GetGlobal(u8"DestroyCount");
         REQUIRE(count.TryGet<f64>() != nullptr);
         CHECK(*count.TryGet<f64>() == 2.0);
     }
@@ -1208,18 +1208,18 @@ TEST_CASE("script.scene: run-host teardown after stop releases the context; a la
     (void)bed.AddScripted(noop, u8"n");
     bed.Start();
     bed.Frame();
-    CHECK(bed.host.IsActive());
+    CHECK(bed.host.Scripts().IsActive());
     bed.scene.Stop();
     CHECK(bed.scripts->InstanceCount() == 0u);
-    bed.host.Teardown(); // the subsystem's MaybeTeardown does this in-engine
-    CHECK_FALSE(bed.host.IsActive());
+    bed.host.Scripts().Teardown(); // the subsystem's MaybeTeardown does this in-engine
+    CHECK_FALSE(bed.host.Scripts().IsActive());
 
     // Behaviors in an unregistered language stay disabled with a clean error.
     RefPtr<BehaviorClass> alien = MakeClass(u8"Alien", u8"whatever", {u8"onUpdate"});
     alien->language = String(u8"nolang");
     BehaviorRunHost host(DefaultAllocator());
-    CHECK(host.EnsureContext(u8"nolang") == nullptr);
-    CHECK_FALSE(host.EnsureClassLoaded(*alien));
+    CHECK(host.Scripts().EnsureContext(u8"nolang") == nullptr);
+    CHECK_FALSE(host.Scripts().EnsureClassLoaded(*alien));
 }
 
 TEST_CASE("script.scene: a run host's Advance counts its scripts' clock, with a context or none")
@@ -1230,7 +1230,7 @@ TEST_CASE("script.scene: a run host's Advance counts its scripts' clock, with a 
     bare.Advance(0.5f);
     CHECK(bare.Binding().timeSeconds == doctest::Approx(0.75));
     CHECK(bare.Binding().deltaSeconds == doctest::Approx(0.5f));
-    CHECK_FALSE(bare.IsActive());
+    CHECK_FALSE(bare.Scripts().IsActive());
 
     // With a context, the same clock and a collector step.
     ScriptedScene bed;
@@ -1244,7 +1244,7 @@ TEST_CASE("script.scene: a run host's Advance counts its scripts' clock, with a 
     (void)bed.AddScripted(noop, u8"n");
     bed.Start();
     bed.Frame();
-    REQUIRE(bed.host.IsActive());
+    REQUIRE(bed.host.Scripts().IsActive());
     const f64 before = bed.host.Binding().timeSeconds;
     bed.host.Advance(0.125f);
     CHECK(bed.host.Binding().timeSeconds == doctest::Approx(before + 0.125));
@@ -1657,7 +1657,7 @@ TEST_CASE("script.scene: LUAU onDestroy fires on entity destroy AND on scene sto
     bed.Frame();
     CHECK(bed.scripts->InstanceCount() == 1u);
     {
-        const Variant count = bed.host.ScriptContext()->GetGlobal(u8"DestroyCount");
+        const Variant count = bed.host.Scripts().ScriptContext()->GetGlobal(u8"DestroyCount");
         REQUIRE(count.TryGet<f64>() != nullptr);
         CHECK(*count.TryGet<f64>() == 1.0);
     }
@@ -1665,7 +1665,7 @@ TEST_CASE("script.scene: LUAU onDestroy fires on entity destroy AND on scene sto
     bed.scene.Stop();
     CHECK(bed.scripts->InstanceCount() == 0u);
     {
-        const Variant count = bed.host.ScriptContext()->GetGlobal(u8"DestroyCount");
+        const Variant count = bed.host.Scripts().ScriptContext()->GetGlobal(u8"DestroyCount");
         REQUIRE(count.TryGet<f64>() != nullptr);
         CHECK(*count.TryGet<f64>() == 2.0);
     }
@@ -2122,7 +2122,7 @@ TEST_CASE("script.scene: an AngelScript behavior runs the neutral lifecycle path
     const scene::EntityHandle e = bed.AddScripted(mover, u8"walker");
     bed.Start();
     bed.Frame(); // instantiate, onStart, first onUpdate (dt 0.5): x = 1.0
-    CHECK(bed.host.Language() == StringView(u8"angelscript"));
+    CHECK(bed.host.Scripts().Language() == StringView(u8"angelscript"));
     CHECK(bed.scene.GetEntityName(e) == StringView(u8"started"));
     CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 1.0f)); // 2.0 * 0.5
     bed.Frame();
@@ -2158,7 +2158,7 @@ TEST_CASE("script.scene: a breakpoint in a behavior handler pauses the game and 
     // section named by it, so a breakpoint keyed on the source file (the editor's key) lines up.
     breaker->sourceName = String(u8"Breaker.as");
 
-    bed.host.RequestDebugger(Function<void(IScriptDebugger&)>{}); // debuggable run
+    bed.host.Scripts().RequestDebugger(Function<void(IScriptDebugger&)>{}); // debuggable run
 
     const scene::EntityHandle e = bed.AddScripted(breaker, u8"walker");
     bed.Start();
@@ -2167,7 +2167,7 @@ TEST_CASE("script.scene: a breakpoint in a behavior handler pauses the game and 
 
     // Set the breakpoint on the source file (the editor's breakpoint key) at the increment line,
     // now that the debugger and module exist; it has to line up with the class's section.
-    IScriptDebugger* debugger = bed.host.Debugger();
+    IScriptDebugger* debugger = bed.host.Scripts().Debugger();
     REQUIRE(debugger != nullptr);
     CHECK_FALSE(bed.host.IsDebugPaused());
     debugger->SetBreakpoint(u8"Breaker.as", 6);
@@ -2234,13 +2234,13 @@ TEST_CASE("script.scene: LUAU a breakpoint in a behavior handler pauses the game
         {u8"onUpdate"});
     breaker->sourceName = String(u8"Breaker.luau");
 
-    bed.host.RequestDebugger(Function<void(IScriptDebugger&)>{});
+    bed.host.Scripts().RequestDebugger(Function<void(IScriptDebugger&)>{});
     const scene::EntityHandle e = bed.AddScripted(breaker, u8"walker");
     bed.Start();
     bed.Frame(); // instantiate + onUpdate (no breakpoint yet): x = 1
     CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 1.0f));
 
-    IScriptDebugger* debugger = bed.host.Debugger();
+    IScriptDebugger* debugger = bed.host.Scripts().Debugger();
     REQUIRE(debugger != nullptr);
     CHECK_FALSE(bed.host.IsDebugPaused());
     debugger->SetBreakpoint(u8"Breaker.luau", 7);
@@ -2317,12 +2317,12 @@ TEST_CASE("script.scene: LUAU a breakpoint in a nested entity.send handler pause
         component.behaviors.PushBack(Move(b));
     }
 
-    bed.host.RequestDebugger(Function<void(IScriptDebugger&)>{});
+    bed.host.Scripts().RequestDebugger(Function<void(IScriptDebugger&)>{});
     bed.Start();
     bed.Frame(); // n=7: send ping 7 -> onPing(7) sets the name (no breakpoint yet)
     CHECK(bed.scene.GetEntityName(target) == StringView(u8"pinged:7"));
 
-    IScriptDebugger* debugger = bed.host.Debugger();
+    IScriptDebugger* debugger = bed.host.Scripts().Debugger();
     REQUIRE(debugger != nullptr);
     debugger->SetBreakpoint(u8"Receiver.luau", 7);
 
@@ -2401,8 +2401,8 @@ TEST_CASE("script.scene: ANGELSCRIPT a behavior runs from cooked bytecode with n
     // Bring up the AngelScript run context first (EnsureContext registers the reflected surface and
     // facades on its engine) so we can cook an Entity-using behaviour on the same engine that will
     // load it with LoadByteCode: AngelScript bytecode is bound to the engine's type registration.
-    REQUIRE(bed.host.EnsureContext(u8"angelscript") != nullptr);
-    IScriptManager* manager = bed.host.Manager();
+    REQUIRE(bed.host.Scripts().EnsureContext(u8"angelscript") != nullptr);
+    IScriptManager* manager = bed.host.Scripts().Manager();
     REQUIRE(manager != nullptr);
 
     const StringView moverSource =
@@ -2449,8 +2449,8 @@ TEST_CASE("script.scene: ANGELSCRIPT a breakpoint works on a behavior loaded fro
 {
     foundation::script::angelscript::RegisterAngelScriptBackend();
     ScriptedScene bed;
-    REQUIRE(bed.host.EnsureContext(u8"angelscript") != nullptr);
-    IScriptManager* manager = bed.host.Manager();
+    REQUIRE(bed.host.Scripts().EnsureContext(u8"angelscript") != nullptr);
+    IScriptManager* manager = bed.host.Scripts().Manager();
     REQUIRE(manager != nullptr);
 
     const StringView breakerSource =
@@ -2480,13 +2480,13 @@ TEST_CASE("script.scene: ANGELSCRIPT a breakpoint works on a behavior loaded fro
         breaker->bytecode.PushBack(bytes[i]);
     }
 
-    bed.host.RequestDebugger(Function<void(IScriptDebugger&)>{});
+    bed.host.Scripts().RequestDebugger(Function<void(IScriptDebugger&)>{});
     const scene::EntityHandle e = bed.AddScripted(breaker, u8"walker");
     bed.Start();
     bed.Frame(); // x = 1 (no breakpoint yet)
     CHECK(Near(bed.scene.GetLocalTransform(e).position.x, 1.0f));
 
-    IScriptDebugger* debugger = bed.host.Debugger();
+    IScriptDebugger* debugger = bed.host.Scripts().Debugger();
     REQUIRE(debugger != nullptr);
     debugger->SetBreakpoint(u8"Breaker.as", 6);
     bed.Frame(); // onUpdate hits the breakpoint: paused; the section is the sourceName
@@ -2642,7 +2642,7 @@ TEST_CASE("script.scene: destroying a behavior cancels its pending coroutine (ne
     bed.Frame(0.5f);
     bed.Frame(0.5f); // well past 1.0s: a cancelled coroutine does not run
 
-    const Variant fired = bed.host.ScriptContext()->GetGlobal(u8"GhostFired");
+    const Variant fired = bed.host.Scripts().ScriptContext()->GetGlobal(u8"GhostFired");
     REQUIRE(fired.TryGet<f64>() != nullptr);
     CHECK(*fired.TryGet<f64>() == 0.0);
 }
@@ -2674,7 +2674,7 @@ TEST_CASE("script.scene: disabling a behavior cancels its pending coroutine (nev
     bed.Frame(0.5f);
     bed.Frame(0.5f); // past 1.0s: does not fire
 
-    const Variant fired = bed.host.ScriptContext()->GetGlobal(u8"SleeperFired");
+    const Variant fired = bed.host.Scripts().ScriptContext()->GetGlobal(u8"SleeperFired");
     REQUIRE(fired.TryGet<f64>() != nullptr);
     CHECK(*fired.TryGet<f64>() == 0.0);
 }
@@ -3023,13 +3023,13 @@ TEST_CASE("script.scene: a scene's behaviours run on its run's script host; a sc
     ctx.BeginFrame(1.0f / 60.0f);
     ctx.Update(1.0f / 60.0f);
     CHECK(Near(owned->GetLocalTransform(e).position.x, 1.0f));
-    CHECK(run.host.IsActive());
-    CHECK_FALSE(scripts->RunHost().IsActive());
+    CHECK(run.host.Scripts().IsActive());
+    CHECK_FALSE(scripts->RunHost().Scripts().IsActive());
 
     owned->Stop();
     inRun.DestroyScene(owned);
     loose.DestroyScene(outside);
-    CHECK_FALSE(run.host.IsActive()); // nothing pins it once its scene is gone
+    CHECK_FALSE(run.host.Scripts().IsActive()); // nothing pins it once its scene is gone
     ctx.Shutdown();
 }
 
@@ -6338,7 +6338,7 @@ TEST_CASE("script.scene: a new class loads alone, never every known class again"
         REQUIRE(bed.host.Instantiate(*other, Span<Variant>{}, BehaviorKind::Entity).Get() != nullptr);
     }
     bool numeric = false;
-    CHECK(ScriptNumbers::Of(bed.host.ScriptContext()->GetGlobal(u8"Loads"), numeric) == doctest::Approx(1.0));
+    CHECK(ScriptNumbers::Of(bed.host.Scripts().ScriptContext()->GetGlobal(u8"Loads"), numeric) == doctest::Approx(1.0));
 }
 
 TEST_CASE("script.scene: a component's script methods declare its identity, so scripts hold it, never a copy")
