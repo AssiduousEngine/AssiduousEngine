@@ -1788,6 +1788,46 @@ TEST_CASE("export: CreateTemplate packages a Bin/<Config> dir and the registry t
     NukeTree(root.AsView());
 }
 
+// A player's plugin list may name a package folder relative to the player's own folder as well as
+// absolutely; making a template reads either and carries the package's manifest.
+TEST_CASE("export: CreateTemplate finds a linked plugin's package by a path relative to the player")
+{
+    const String base = TempDir(u8"scratch_createtmpl_plugins");
+    const String out = TempDir(u8"scratch_createtmpl_plugins_out");
+    NukeTree(base.AsView());
+    NukeTree(out.AsView());
+    String leaf(GetHostPlatformName());
+    leaf += u8"-Clang";
+    const String binDir = PathJoin(PathJoin(PathJoin(base.AsView(), u8"Bin").AsView(), u8"Release").AsView(), leaf.AsView());
+    REQUIRE(CreateDirectories(binDir.AsView()));
+    foundation::vfs::NativeFileSystem binFs(binDir.AsView(), foundation::core::DefaultAllocator());
+    SaveText(binFs, GetExecutableName(u8"Engine.Player").AsView(), u8"#!player\n");
+    SaveText(binFs, u8"Engine.Player.runtime-libs", u8"");
+    SaveText(binFs, u8"Engine.Player.plugins", u8"widget|../../../Code/Plugins/Widget\n");
+
+    foundation::runtime::PluginManifest manifest;
+    manifest.id = String(u8"widget");
+    manifest.name = String(u8"Widget");
+    manifest.version = String(u8"1.2.0");
+    manifest.engineVersion = String(engine::project::kEngineVersionString);
+    manifest.parts.PushBack(foundation::runtime::PluginManifestPart{String(u8"Engine")});
+    manifest.platforms.PushBack(foundation::runtime::PluginPlatform{String(GetHostPlatformName())});
+    const String packageDir = PathJoin(base.AsView(), u8"Code/Plugins/Widget");
+    REQUIRE(CreateDirectories(packageDir.AsView()));
+    MemoryStream xml;
+    REQUIRE(foundation::runtime::WritePluginManifest(manifest, xml).IsOk());
+    REQUIRE(WriteFile(PathJoin(packageDir.AsView(), u8"Plugin.xml").AsView(), xml.Bytes()).IsOk());
+
+    REQUIRE(editor::CreateTemplate(binDir.AsView(), out.AsView(), editor::TemplateOutput::ExportFolder).IsOk());
+    CHECK(FileExists(PathJoin(out.AsView(), u8"plugins/widget/Plugin.xml").AsView()));
+    const Result<Array<byte>> list = ReadFile(PathJoin(out.AsView(), u8"Engine.Player.plugins").AsView());
+    REQUIRE(list.HasValue());
+    CHECK(StringView(reinterpret_cast<const utf8char*>(list.Value().Data()), list.Value().Size()) ==
+          StringView(u8"widget|plugins/widget\n"));
+    NukeTree(base.AsView());
+    NukeTree(out.AsView());
+}
+
 TEST_CASE("export: CreateTemplate --out mode writes a self-contained bundle to the folder")
 {
     const String base = TempDir(u8"scratch_createtmpl_out");

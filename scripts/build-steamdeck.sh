@@ -101,6 +101,11 @@ if [[ "${TEMPLATE:-1}" != "0" ]]; then
     [[ -n "$VERSION" && -n "$PREFIX" ]] || { echo "!! no project VERSION or ENGINE_ID (the template id prefix) in CMakeLists.txt" >&2; exit 1; }
     echo
     echo "== export template: Steam Deck $VERSION =="
+    # The build ran in the container with the tree at /work, so the player's plugin list names each
+    # package folder there; the template is made here, where the tree is $ROOT.
+    if [[ -f "$BIN/Engine.Player.plugins" ]]; then
+        sed -i "s#|/work/#|$ROOT/#" "$BIN/Engine.Player.plugins"
+    fi
     DESTINATION=(--install)
     if [[ -n "${TEMPLATE_OUT:-}" ]]; then
         mkdir -p "$TEMPLATE_OUT"
