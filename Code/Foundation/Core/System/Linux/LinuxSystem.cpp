@@ -1259,6 +1259,11 @@ namespace foundation::core::sys
 {
     int WriteBacktrace(int) noexcept { return 0; }
     void InstallCrashBacktrace() noexcept {}
+    const char*& CrashNoteSlot() noexcept
+    {
+        static thread_local const char* note = nullptr; // kept, though no handler prints it here
+        return note;
+    }
 
     // The web player mounts IndexedDB (IDBFS) over the user data directory and marks it
     // (Module.userDataPersistent); a push copies what changed in memory to the page's storage. An
@@ -1380,11 +1385,24 @@ namespace foundation::core::sys
             // write(2) is async-signal-safe; ignore short writes (dying anyway).
             (void)!write(2, "\n=== ", 5);
             (void)!write(2, name, static_cast<size_t>(__builtin_strlen(name)));
-            (void)!write(2, " ===\n  backtrace (addr2line -e <binary> -f -C to resolve):\n", 59);
+            (void)!write(2, " ===\n", 5);
+            if (const char* note = CrashNoteSlot(); note != nullptr && note[0] != '\0')
+            {
+                (void)!write(2, "  in: ", 6);
+                (void)!write(2, note, static_cast<size_t>(__builtin_strlen(note)));
+                (void)!write(2, "\n", 1);
+            }
+            (void)!write(2, "  backtrace (addr2line -e <binary> -f -C to resolve):\n", 54);
             (void)WriteBacktrace(2);
             signal(sig, SIG_DFL);
             raise(sig);
         }
+    }
+
+    const char*& CrashNoteSlot() noexcept
+    {
+        static thread_local const char* note = nullptr;
+        return note;
     }
 
     void InstallCrashBacktrace() noexcept

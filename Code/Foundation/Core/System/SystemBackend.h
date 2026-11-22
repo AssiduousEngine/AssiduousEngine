@@ -47,6 +47,11 @@ namespace foundation::core::sys
     // handling go on. Idempotent; no-op where unsupported and under AddressSanitizer.
     void InstallCrashBacktrace() noexcept;
 
+    // The calling thread's crash note: what it is doing, which a crash report prints beside the
+    // backtrace (a native behavior's class, handler and entity). Null or empty for none. The text
+    // is the setter's to keep alive while it is set; CrashNoteScope does both.
+    const char*& CrashNoteSlot() noexcept;
+
     // --- Environment -------------------------------------------------------
     // Copy environment variable `name` into `out` (truncated to outSize-1, always null-terminated
     // when out/outSize are valid). Returns the value's full length excluding the null (so a return

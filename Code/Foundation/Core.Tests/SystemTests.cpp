@@ -862,3 +862,27 @@ TEST_CASE("system: FillEntropy fills the whole span with bytes that never repeat
     CHECK(none[0] == byte{7});
 }
 
+
+TEST_CASE("system: a crash note names what the thread is doing, nested, cut to fit, and gone after")
+{
+    const auto current = []() { return StringView(reinterpret_cast<const utf8char*>(CrashNoteScope::Current())); };
+    CHECK(CrashNoteScope::Current() == nullptr);
+    {
+        CrashNoteScope outer(u8"Orb", u8".", u8"onUpdate", u8" on 'orb'");
+        CHECK(current() == StringView(u8"Orb.onUpdate on 'orb'"));
+        {
+            CrashNoteScope inner(u8"Gate.onOpen");
+            CHECK(current() == StringView(u8"Gate.onOpen"));
+        }
+        CHECK(current() == StringView(u8"Orb.onUpdate on 'orb'"));
+    }
+    CHECK(CrashNoteScope::Current() == nullptr);
+    String longer;
+    for (int i = 0; i < 40; ++i)
+    {
+        longer += StringView(u8"abcdefgh");
+    }
+    CrashNoteScope cut(longer.AsView());
+    CHECK(current().Size() < longer.Size()); // cut to its buffer, still a terminated string
+    CHECK(longer.AsView().StartsWith(current()));
+}

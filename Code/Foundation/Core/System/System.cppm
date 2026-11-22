@@ -122,6 +122,42 @@ export namespace foundation::core
     // Idempotent; hosts call it once at startup. See SystemBackend.h.
     inline void InstallCrashBacktrace() noexcept { sys::InstallCrashBacktrace(); }
 
+    // Names what this thread is doing for its lifetime, so a crash report prints it beside the
+    // backtrace ("in Orb.onUpdate on 'orb'"), and restores what was named before. The text is copied
+    // (cut to fit) into the scope itself, which a crash handler reads as it is: no allocation.
+    class CrashNoteScope
+    {
+    public:
+        /// The note is the parts in order, so a caller names a call with no allocation (a prefix it
+        /// keeps, and the call's own name).
+        explicit CrashNoteScope(StringView first, StringView second = {}, StringView third = {},
+                                StringView fourth = {}) noexcept
+            : m_previous(sys::CrashNoteSlot())
+        {
+            usize length = 0;
+            const StringView parts[] = {first, second, third, fourth};
+            for (StringView part : parts)
+            {
+                for (usize i = 0; i < part.Size() && length < sizeof(m_text) - 1; ++i)
+                {
+                    m_text[length++] = static_cast<char>(part[i]);
+                }
+            }
+            m_text[length] = '\0';
+            sys::CrashNoteSlot() = m_text;
+        }
+        ~CrashNoteScope() { sys::CrashNoteSlot() = m_previous; }
+        CrashNoteScope(const CrashNoteScope&) = delete;
+        CrashNoteScope& operator=(const CrashNoteScope&) = delete;
+
+        /// What a crash on this thread would print now; null for nothing.
+        [[nodiscard]] static const char* Current() noexcept { return sys::CrashNoteSlot(); }
+
+    private:
+        char m_text[160];
+        const char* m_previous;
+    };
+
     // --- System info -------------------------------------------------------
 
     [[nodiscard]] inline u32 LogicalCoreCount() noexcept { return sys::LogicalCoreCount(); }

@@ -1494,6 +1494,7 @@ namespace foundation::core::sys
             DWORD reporterId = 0;        // 0: no reporter thread, so the crashing thread writes them
             EXCEPTION_POINTERS* pointers = nullptr;
             DWORD threadId = 0;        // the thread that crashed
+            const char* note = nullptr; // what it was doing (its CrashNoteSlot), read as it crashed
             volatile LONG claimed = 0; // the first crash reports; a later one waits for it
         };
         CrashState g_crash;
@@ -1547,6 +1548,10 @@ namespace foundation::core::sys
                       std::snprintf(line, sizeof(line), "\n=== %s (0x%08lX) on thread %lu ===\n",
                                     ExceptionName(record.ExceptionCode), record.ExceptionCode, g_crash.threadId),
                       sizeof(line));
+            if (g_crash.note != nullptr && g_crash.note[0] != '\0')
+            {
+                out.Write(line, std::snprintf(line, sizeof(line), "  in: %s\n", g_crash.note), sizeof(line));
+            }
             if ((record.ExceptionCode == EXCEPTION_ACCESS_VIOLATION || record.ExceptionCode == EXCEPTION_IN_PAGE_ERROR) &&
                 record.NumberParameters >= 2)
             {
@@ -1625,6 +1630,7 @@ namespace foundation::core::sys
             }
             g_crash.pointers = pointers;
             g_crash.threadId = ::GetCurrentThreadId();
+            g_crash.note = CrashNoteSlot();
             if (g_crash.reporterId != 0)
             {
                 (void)::SetEvent(g_crash.requested);
