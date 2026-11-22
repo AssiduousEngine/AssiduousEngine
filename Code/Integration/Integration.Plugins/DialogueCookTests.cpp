@@ -5,7 +5,9 @@
 // agent or the editor cooks them. A project enables the plugin; its dialogue files each name their
 // cast and dialogue assets. A file that names only what the project has cooks to its compiled
 // conversations, one with an error fails the cook, and File > New's three creators make their
-// assets, a new dialogue file taking the settings' default cast and dialogue assets. Conversation
+// assets, a new dialogue file taking the settings' default cast and dialogue assets. The plugin's
+// MCP tools check every file or one without cooking (dialogue_validate) and read one's
+// conversations (dialogue_read). Conversation
 // ids are a file's own: two files may share one, and a jump into another file names it by its
 // dialogue asset.
 
@@ -238,6 +240,51 @@ TEST_CASE("plugins: through the MCP host, a dialogue file cooks to its conversat
     const Called failing = Call(server, u8"asset_cook", JsonValue::MakeObject());
     REQUIRE_FALSE(failing.error);
     CHECK(failing.value.Get(u8"failed").AsNumber() == doctest::Approx(1.0));
+
+    // The plugin's tools: the checks over every file, without cooking, and one file's conversations.
+    const Called validated = Call(server, u8"dialogue_validate", JsonValue::MakeObject());
+    REQUIRE_FALSE(validated.error);
+    CHECK(validated.value.Get(u8"files").Count() == 3); // Gate, Lane, Wrong
+    CHECK(validated.value.Get(u8"errors").AsNumber() == doctest::Approx(1.0));
+    bool wrongTold = false;
+    for (i64 i = 0; i < validated.value.Get(u8"files").Count(); ++i)
+    {
+        const JsonValue file = validated.value.Get(u8"files").At(i);
+        if (file.Get(u8"name").AsString() == String(u8"Wrong"))
+        {
+            CHECK_FALSE(file.Get(u8"ok").AsBool());
+            REQUIRE(file.Get(u8"problems").Count() == 1);
+            CHECK(file.Get(u8"problems").At(0).Get(u8"line").AsNumber() == doctest::Approx(2.0));
+            CHECK(file.Get(u8"problems").At(0).Get(u8"message").AsString().AsView().Contains(u8"no mood `angry`"));
+            wrongTold = true;
+        }
+    }
+    CHECK(wrongTold);
+    utf8char gateText[37];
+    gate.ToChars(gateText);
+    JsonValue one = JsonValue::MakeObject();
+    one.Set(u8"asset", JsonValue::MakeString(String(StringView(gateText, 36))));
+    const Called gateValid = Call(server, u8"dialogue_validate", one);
+    REQUIRE_FALSE(gateValid.error);
+    REQUIRE(gateValid.value.Get(u8"files").Count() == 1);
+    CHECK(gateValid.value.Get(u8"files").At(0).Get(u8"ok").AsBool());
+
+    const Called readOne = Call(server, u8"dialogue_read", one);
+    REQUIRE_FALSE(readOne.error);
+    REQUIRE(readOne.value.Get(u8"conversations").Count() == 1);
+    const JsonValue talk = readOne.value.Get(u8"conversations").At(0);
+    CHECK(talk.Get(u8"id").AsString() == String(u8"gate"));
+    REQUIRE(talk.Get(u8"lines").Count() == 2);
+    CHECK(talk.Get(u8"lines").At(0).Get(u8"speaker").AsString() == String(u8"keeper"));
+    CHECK(talk.Get(u8"lines").At(0).Get(u8"text").AsString() == String(u8"Who goes there?"));
+    REQUIRE(talk.Get(u8"choices").Count() == 1);
+    CHECK(talk.Get(u8"choices").At(0).Get(u8"answers").At(1).Get(u8"id").AsString() == String(u8"nobody"));
+    REQUIRE(talk.Get(u8"commands").Count() == 1);
+    CHECK(talk.Get(u8"commands").At(0).Get(u8"arguments").Get(u8"event").AsString() == String(u8"lights dim"));
+    CHECK(talk.Get(u8"jumps").At(0).AsString() == String(u8"lane in lane"));
+    CHECK(talk.Get(u8"flagsWritten").At(0).AsString() == String(u8"friendly"));
+    CHECK(talk.Get(u8"flagsRead").At(0).AsString() == String(u8"seen_gate"));
+    CHECK(Call(server, u8"dialogue_read", JsonValue::MakeObject()).error); // no asset named
 
     // File > New: the three creators make their types.
     const auto create = [&server](StringView creator, StringView name)

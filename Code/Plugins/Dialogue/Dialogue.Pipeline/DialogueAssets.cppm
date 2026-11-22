@@ -65,8 +65,11 @@ export namespace dialogue
         void Serialize(ISerializer& ar) override;
     };
 
+    /// Reads the source file `fileName` (as an asset names it) into `out`; false when it cannot.
+    using DialogueSourceReader = Function<bool(StringView fileName, String& out)>;
+
     /// A dialogue file's project: what its checks read, gathered from a source database and the
-    /// sources it links. Cook and tools build it the same way.
+    /// sources it links. The cook, the editor's page and the MCP tools build it the same way.
     struct DialogueProject
     {
         Array<DialogueCommandForm> commands;
@@ -84,9 +87,9 @@ export namespace dialogue
         Array<Guid> inputMaps;
 
         /// Gathers it for the dialogue file `file` (its cast and dialogue assets; `self`, its id, nil
-        /// for none) from `db`, reading the other files' sources through `reader`'s sources.
+        /// for none) from `db`, reading the other files' sources through `readSource`.
         void Gather(const DialogueSettings& settings, const DialogueAsset& file, content::IContentDatabase& db,
-                    const pipeline::AssetBuildContext& reader, const Guid& self);
+                    const DialogueSourceReader& readSource, const Guid& self);
     };
 
     /// Parses `text` and checks it against `project`, its assets reached through `db` and the
@@ -94,6 +97,13 @@ export namespace dialogue
     [[nodiscard]] DialogueParse CookDialogue(StringView text, const DialogueSettings& settings,
                                              const DialogueProject& project, content::IContentDatabase* db,
                                              IAllocator& allocator);
+
+    /// Checks `text` as the dialogue file `self` (its asset in `db`), as the cook does: its project
+    /// gathered, every other file read through `read`. What a page checks as it is edited and the
+    /// MCP tools check; a file with no asset in `db` checks against no cast or dialogue assets.
+    [[nodiscard]] DialogueParse CheckDialogueText(StringView text, const DialogueSettings& settings, const Guid& self,
+                                                  content::IContentDatabase& db, const DialogueSourceReader& read,
+                                                  IAllocator& allocator);
 
     class DialogueBuilder final : public pipeline::DefaultAssetBuilder
     {

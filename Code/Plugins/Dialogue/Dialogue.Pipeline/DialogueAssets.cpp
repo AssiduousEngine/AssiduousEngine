@@ -200,7 +200,7 @@ namespace dialogue
     }
 
     void DialogueProject::Gather(const DialogueSettings& settings, const DialogueAsset& file, content::IContentDatabase& db,
-                                 const pipeline::AssetBuildContext& reader, const Guid& self)
+                                 const DialogueSourceReader& readSource, const Guid& self)
     {
         this->self = self;
         for (const String& text : settings.commands)
@@ -263,7 +263,7 @@ namespace dialogue
                                 }
                             });
             ForEachInstance(*root, u8"DialogueAsset",
-                            [this, &db, &reader, &self](content::Instance& instance)
+                            [this, &db, &readSource, &self](content::Instance& instance)
                             {
                                 if (instance.Id() == self)
                                 {
@@ -273,8 +273,7 @@ namespace dialogue
                                 RefPtr<ISerializable> read = db.ReadObject(instance.Id());
                                 const auto* other = Cast<DialogueAsset>(read.Get());
                                 String text;
-                                if (other == nullptr ||
-                                    !pipeline::DefaultAssetBuilder::ReadSourceText(reader, other->fileName.View(), text).IsOk())
+                                if (other == nullptr || !readSource || !readSource(other->fileName.View(), text))
                                 {
                                     return; // its own cook says so
                                 }
@@ -318,6 +317,17 @@ namespace dialogue
         }
         CheckDialogue(parse, inputs);
         return parse;
+    }
+
+    DialogueParse CheckDialogueText(StringView text, const DialogueSettings& settings, const Guid& self,
+                                    content::IContentDatabase& db, const DialogueSourceReader& read, IAllocator& allocator)
+    {
+        DialogueProject project;
+        RefPtr<ISerializable> object = self.IsNil() ? RefPtr<ISerializable>{} : db.ReadObject(self);
+        const DialogueAsset* file = Cast<DialogueAsset>(object.Get());
+        const DialogueAsset none;
+        project.Gather(settings, file != nullptr ? *file : none, db, read, self);
+        return CookDialogue(text, settings, project, &db, allocator);
     }
 
     // ---- the dialogue file's builder ----------------------------------------------------------
@@ -412,7 +422,9 @@ namespace dialogue
         DialogueProject project;
         if (db != nullptr)
         {
-            project.Gather(*m_settings, static_cast<const DialogueAsset&>(asset), *db, ctx,
+            const DialogueSourceReader reader = [&ctx](StringView fileName, String& out)
+            { return ReadSourceText(ctx, fileName, out).IsOk(); };
+            project.Gather(*m_settings, static_cast<const DialogueAsset&>(asset), *db, reader,
                            ctx.source != nullptr ? ctx.source->Id() : Guid{});
         }
         DialogueParse parse = CookDialogue(text.AsView(), *m_settings, project, db, *ctx.allocator);

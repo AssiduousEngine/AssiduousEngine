@@ -15,7 +15,7 @@ otherwise. It supports Linux64, Win64, Web and Android64.
 |---|---|---|---|
 | Engine | `Dialogue.Engine` | `dialogue.engine` | `DialogueSettings`; the compiled conversations and the cast, their cooked forms and factories; the dialogue's domain; the runner, and the one each run holds; the `Dialogue` facade; the sequences' line track |
 | Pipeline | `Dialogue.Pipeline` | `dialogue.pipeline` | the format's parser, the commands' notation, the cook's checks; the dialogue's assets, their builders, the importer and File > New's creators |
-| Tooling | `Dialogue.Tooling` | | its entry |
+| Tooling | `Dialogue.Tooling` | | its MCP tools, `dialogue_validate` and `dialogue_read` |
 | Editor | `Dialogue.Editor` | `dialogue.editor` | the cast's and the dialogue assets' pages |
 
 A web, Android or tools-less build declares the Engine part alone (`cmake/Plugins.cmake`): the
@@ -158,6 +158,22 @@ dialogue file as read, so a change to any of them recooks it, and folds the sett
 its `EnvironmentHash`, so a change to them recooks every dialogue file. `DialogueCastBuilder` writes
 the speakers and declares what they refer to (portraits, clips, sounds). The `.dialogue` importer
 copies the file into the sources and links it.
+
+## The MCP tools
+
+The Tooling part adds two tools through `McpPluginServices`, which every MCP host serves while the
+plugin is loaded (the engine's tool count and `McpGuide.md` do not list them):
+
+- `dialogue_validate` runs the cook's checks over one dialogue file (`asset`, its guid) or every one
+  in the open project, without cooking: each file's problems with their lines and severities, and
+  whether it would cook.
+- `dialogue_read` gives one file's conversations as the cook reads them: each one's lines (id,
+  source line, speaker, mood, text), choices and their answers, commands with their arguments,
+  jumps, and the flags it reads and writes; and the file's problems.
+
+Writing stays the text's: `asset_data_write` or the file itself, then `dialogue_validate`. Both
+check through `CheckDialogueText`, which gathers the file's project as the cook does
+(`DialogueProject::Gather`, reading the other files' sources through a `DialogueSourceReader`).
 
 ## The editor
 
@@ -312,6 +328,6 @@ line, finishing and advancing on a press, taking an answer and going at the end;
 a Luau behavior playing a
 cooked conversation through `Dialogue` and answering its line, choice and command;
 and, through the MCP host, a dialogue file cooking to its conversations, one with an error failing
-the cook, and File > New's three creators; and, in an editor session, the cast and the dialogue
+the cook, File > New's three creators, and the two tools; and, in an editor session, the cast and the dialogue
 assets opening in their pages, a speaker added, undone, found and removed, and the pages leaving
 with the plugin).
