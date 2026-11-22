@@ -200,9 +200,9 @@ namespace dialogue
     }
 
     void DialogueProject::Gather(const DialogueSettings& settings, const DialogueAsset& file, content::IContentDatabase& db,
-                                 const DialogueSourceReader& readSource, const Guid& self)
+                                 const DialogueSourceReader& readSource, const Guid& fileId)
     {
-        this->self = self;
+        self = fileId;
         for (const String& text : settings.commands)
         {
             DialogueCommandForm form;
@@ -263,9 +263,9 @@ namespace dialogue
                                 }
                             });
             ForEachInstance(*root, u8"DialogueAsset",
-                            [this, &db, &readSource, &self](content::Instance& instance)
+                            [this, &db, &readSource, &fileId](content::Instance& instance)
                             {
-                                if (instance.Id() == self)
+                                if (instance.Id() == fileId)
                                 {
                                     return;
                                 }

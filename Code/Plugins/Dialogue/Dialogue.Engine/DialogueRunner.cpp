@@ -62,11 +62,11 @@ namespace dialogue
         }
     }
 
-    const DialogueArgument* DialogueCommandNotice::Find(StringView name) const noexcept
+    const DialogueArgument* DialogueCommandNotice::Find(StringView argumentName) const noexcept
     {
         for (const DialogueArgument& argument : arguments)
         {
-            if (argument.name == name)
+            if (argument.name == argumentName)
             {
                 return &argument;
             }
@@ -84,33 +84,33 @@ namespace dialogue
         return index >= 0 && static_cast<usize>(index) < lineIds.Size() ? lineIds[static_cast<usize>(index)] : String();
     }
 
-    bool DialogueCommandNotice::has(String name) const
+    bool DialogueCommandNotice::has(String argumentName) const
     {
-        const DialogueArgument* found = Find(name.AsView());
+        const DialogueArgument* found = Find(argumentName.AsView());
         return found != nullptr && found->present;
     }
 
-    String DialogueCommandNotice::text(String name) const
+    String DialogueCommandNotice::text(String argumentName) const
     {
-        const DialogueArgument* found = Find(name.AsView());
+        const DialogueArgument* found = Find(argumentName.AsView());
         return found != nullptr ? found->text : String();
     }
 
-    f32 DialogueCommandNotice::number(String name) const
+    f32 DialogueCommandNotice::number(String argumentName) const
     {
-        const DialogueArgument* found = Find(name.AsView());
+        const DialogueArgument* found = Find(argumentName.AsView());
         return found != nullptr ? found->number : 0.0f;
     }
 
-    Guid DialogueCommandNotice::asset(String name) const
+    Guid DialogueCommandNotice::asset(String argumentName) const
     {
-        const DialogueArgument* found = Find(name.AsView());
+        const DialogueArgument* found = Find(argumentName.AsView());
         return found != nullptr ? found->asset : Guid{};
     }
 
-    foundation::script::Entity DialogueCommandNotice::entity(String name) const
+    foundation::script::Entity DialogueCommandNotice::entity(String argumentName) const
     {
-        const DialogueArgument* found = Find(name.AsView());
+        const DialogueArgument* found = Find(argumentName.AsView());
         foundation::scene::Scene* owner = scene.Get();
         if (found == nullptr || owner == nullptr)
         {
