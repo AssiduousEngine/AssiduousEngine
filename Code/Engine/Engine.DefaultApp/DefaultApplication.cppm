@@ -276,7 +276,7 @@ export namespace engine::runtime
         /// Compiles and launches the cooked game class, delegated to the run's ApplicationRun, with
         /// the class's declared handlers so its on<Event> inbox hears the run bus. The caller binds
         /// the class (the player: from its content DB).
-        bool StartRunBehavior(const foundation::script::BehaviorClass& scriptClass);
+        bool StartRunBehavior(foundation::script::BehaviorClass& scriptClass);
 
         /// onStop() and release (idempotent; the update fault path also lands here). The run host tears
         /// down via the scene-stop observer once the run's scene stops.

@@ -179,19 +179,49 @@ namespace engine::runtime
                                    name);
             return false;
         }
+        BeginRunBehavior(gameHandlers, name);
+        return true;
+    }
+
+    bool ApplicationRun::StartRunBehavior(foundation::script::BehaviorClass& runClass)
+    {
+        StopRunBehavior();
+        m_runBehaviorFault = core::String{};
+        if (runClass.kind != foundation::script::BehaviorKind::Run)
+        {
+            return RefuseRunBehavior(runClass);
+        }
+        m_runHost.Scripts().SetExternalErrorSink(m_errorHandler); // before a context is created
+        m_runHost.SetGameScriptHold(true);
+        m_runBehavior = m_runHost.Instantiate(runClass, core::Span<core::Variant>{}, foundation::script::BehaviorKind::Run);
+        if (m_runBehavior.Get() == nullptr)
+        {
+            const core::String why = m_runHost.TakeLastError();
+            StopRunBehavior();
+            m_runBehaviorFault = why.IsEmpty() ? Format(u8"the run behavior '{}' did not start", runClass.sourceName.AsView())
+                                               : Format(u8"the run behavior '{}' did not start: {}",
+                                                        runClass.sourceName.AsView(), why.AsView());
+            LOG_ERROR(u8"App", u8"{}", m_runBehaviorFault);
+            return false;
+        }
+        m_scriptContext = core::RefPtr<script::IScriptContext>(m_runHost.Scripts().ScriptContext());
+        BeginRunBehavior(core::Span<const core::String>(runClass.handlers.Data(), runClass.handlers.Size()),
+                         runClass.sourceName.AsView());
+        return true;
+    }
+
+    void ApplicationRun::BeginRunBehavior(core::Span<const core::String> handlers, core::StringView name)
+    {
         // Wire the Game tier's on<Event> inbox to this run's bus: the shared bridge subscribes the
-        // run bus to the Game class's declared handlers (threaded in from the cooked BehaviorClass),
-        // fanning each through DispatchGameEvent to the Game object. There is no implicit
-        // scene-to-run relay.
+        // run bus to the Game class's declared handlers, fanning each through DispatchGameEvent to
+        // the Game object. There is no implicit scene-to-run relay.
         m_gameEventSubs.Bind(&Events(),
                              core::Function<void(core::StringView, const core::Variant&)>{
                                  [this](core::StringView eventName, const core::Variant& payload)
                                  { DispatchGameEvent(eventName, payload); }});
-        m_gameEventSubs.EnsureFor(gameHandlers);
-
+        m_gameEventSubs.EnsureFor(handlers);
         (void)m_runBehavior->Invoke(u8"onStart", core::Span<core::Variant>{});
         LOG_INFO(u8"App", u8"game script '{}' launched", name);
-        return true;
     }
 
     void ApplicationRun::StopRunBehavior()

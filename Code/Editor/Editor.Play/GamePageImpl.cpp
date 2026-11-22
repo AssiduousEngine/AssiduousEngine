@@ -1132,7 +1132,7 @@ namespace editor
             return;
         }
         auto proxy = m_context->Resources()->Bind<foundation::script::BehaviorClass>(scriptId);
-        if (!proxy || proxy->source.IsEmpty())
+        if (!proxy)
         {
             m_context->Notify(NoticeKind::Warning, u8"Game: the run behavior asset was not found.");
             return;

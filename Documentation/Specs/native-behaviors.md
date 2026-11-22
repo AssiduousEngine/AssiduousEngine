@@ -2,8 +2,8 @@
 
 > APPROVED 2026-11-19 as part of the script backends spec (proposed 2026-11-18), split out on
 > 2026-11-21 with no decision changed: [script-backends-as-plugins.md](script-backends-as-plugins.md)
-> keeps the languages as plugins, this spec the game logic that needs no language. Nothing here is
-> built. Read on master at `0618e177f`.
+> keeps the languages as plugins, this spec the game logic that needs no language. N0 and N1 are
+> built; N2 is next. Read on master at `0618e177f`.
 >
 > The changes to how script calls are made are a separate proposal:
 > [scripting-typed-calls.md](scripting-typed-calls.md). Neither depends on the other.
@@ -297,7 +297,11 @@ Each step stands on its own and leaves the tree green.
    handlers. Done: The seam, above, and its decisions.
 1. **N1 The seam.** The four parts of The seam, above, and the rename of `ScriptObject` to
    `BehaviorObject`. No behavior change; the conformance suites and the dialogue staging tests
-   prove it.
+   prove it. Done 2026-11-21: the service scope (`0e8d9776e`), the rename, with `ScriptMethod` made
+   `BehaviorMethod` beside it (`dd67c7dd7`), `SetProperty` (`1196911c2`), `ScriptBehaviorClasses`
+   (`a9133c625`), and the run behavior through `Instantiate`. The game script now loads as every
+   behavior's class does (a class module, from its cooked bytecode where it has some), and the
+   hosts start a run behavior with no source, since a native one has none.
 2. **N2 Native classes.** A plugin registers native run, scene and entity behaviors: the Native
    Behavior asset and its cook (properties from the marked fields, handlers from the `on` methods,
    the plugin's build stamp in its recipe), the picker's entry for a registered class with no asset

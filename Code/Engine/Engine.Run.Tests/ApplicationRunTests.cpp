@@ -1083,7 +1083,8 @@ TEST_CASE("game-instance: a Game started from its cooked class hears the run bus
     engine::runtime::RegisterRunScriptFacade();
     foundation::script::angelscript::RegisterAngelScriptBackend();
 
-    foundation::script::BehaviorClass cooked;
+    RefPtr<foundation::script::BehaviorClass> cookedClass = MakeRef<foundation::script::BehaviorClass>(DefaultAllocator());
+    foundation::script::BehaviorClass& cooked = *cookedClass; // a cooked class is a resource, never on the stack
     cooked.language = String(u8"angelscript");
     cooked.className = String(u8"Game");
     cooked.kind = foundation::script::BehaviorKind::Run;
@@ -2277,7 +2278,8 @@ TEST_CASE("game-instance: a Game built into an assembly starts from it, not from
     foundation::script::ScriptBackendRegistry::Get().Register(Move(backend));
     g_assembled = AssembledSeen{};
 
-    foundation::script::BehaviorClass cooked;
+    RefPtr<foundation::script::BehaviorClass> cookedClass = MakeRef<foundation::script::BehaviorClass>(DefaultAllocator());
+    foundation::script::BehaviorClass& cooked = *cookedClass; // a cooked class is a resource, never on the stack
     cooked.language = String(u8"assembled");
     cooked.className = String(u8"Game");
     cooked.kind = foundation::script::BehaviorKind::Run;
@@ -2291,7 +2293,7 @@ TEST_CASE("game-instance: a Game built into an assembly starts from it, not from
         engine::runtime::ApplicationRun gi;
         REQUIRE(gi.StartRunBehavior(cooked));
         CHECK_FALSE(g_assembled.compiled);
-        CHECK(g_assembled.moduleName == StringView(u8"game"));
+        CHECK(g_assembled.moduleName.AsView().StartsWith(u8"behaviors#")); // a class module, as every behavior's
         REQUIRE(g_assembled.loaded.Size() == 2u);
         CHECK(g_assembled.loaded[0] == byte{0x4D});
         gi.TickRunBehavior(0.1f, 1.0f);
@@ -2309,7 +2311,8 @@ TEST_CASE("game-instance: a cooked class that is not a RunBehavior is refused as
 {
     RegisterCoreTypes();
     foundation::script::angelscript::RegisterAngelScriptBackend();
-    foundation::script::BehaviorClass cooked;
+    RefPtr<foundation::script::BehaviorClass> cookedClass = MakeRef<foundation::script::BehaviorClass>(DefaultAllocator());
+    foundation::script::BehaviorClass& cooked = *cookedClass; // a cooked class is a resource, never on the stack
     cooked.language = String(u8"angelscript");
     cooked.sourceName = String(u8"mover.as");
     cooked.className = String(u8"Mover");

@@ -533,7 +533,7 @@ namespace engine::player
                 return;
             }
             auto proxy = Resources()->Bind<foundation::script::BehaviorClass>(scriptId);
-            if (!proxy || proxy->source.IsEmpty())
+            if (!proxy)
             {
                 LOG_ERROR(u8"Player", u8"the run behavior asset was not found");
                 return;

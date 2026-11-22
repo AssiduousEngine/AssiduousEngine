@@ -413,31 +413,13 @@ export namespace engine::runtime
                          core::Span<const foundation::script::ScriptSection> includes = {},
                          core::Span<const core::byte> assembly = {}, core::Span<const core::byte> symbols = {});
 
-        /// The cooked run behavior: its source, its file identity, its class and its declared
-        /// handlers, so its on<Event> inbox hears the run bus. Every host that starts a cooked game
-        /// (the player, the editor's Game tab) starts it this way. A class of another kind is
-        /// refused (RunBehaviorFault says which kind it is).
-        bool StartRunBehavior(const foundation::script::BehaviorClass& scriptClass)
-        {
-            if (scriptClass.kind != foundation::script::BehaviorKind::Run)
-            {
-                return RefuseRunBehavior(scriptClass);
-            }
-            core::Array<foundation::script::ScriptSection> includes; // the files its source includes
-            for (const foundation::script::ScriptIncludedSource& included : scriptClass.includes)
-            {
-                includes.PushBack(foundation::script::ScriptSection{included.path.AsView(), included.source.AsView()});
-            }
-            const foundation::script::ScriptAssembly* assembly = scriptClass.assembly.Get();
-            return StartRunBehavior(scriptClass.source.AsView(), scriptClass.sourceName.AsView(), scriptClass.className.AsView(),
-                               core::Span<const core::String>(scriptClass.handlers.Data(),
-                                                              scriptClass.handlers.Size()),
-                               core::Span<const foundation::script::ScriptSection>(includes.Data(), includes.Size()),
-                               assembly != nullptr ? core::Span<const core::byte>{assembly->image.Data(), assembly->image.Size()}
-                                                   : core::Span<const core::byte>{},
-                               assembly != nullptr ? core::Span<const core::byte>{assembly->symbols.Data(), assembly->symbols.Size()}
-                                                   : core::Span<const core::byte>{});
-        }
+        /// The cooked run behavior, made through the run host as a scene's and an entity's behavior
+        /// are (Instantiate), whatever it is written in; its declared handlers subscribe its
+        /// on<Event> inbox to the run bus. Every host that starts a cooked game (the player, the
+        /// editor's Game tab) starts it this way. A class of another kind is refused
+        /// (RunBehaviorFault says which kind it is). The run holds the class while its object
+        /// lives: it is a cooked resource, never one on the stack.
+        bool StartRunBehavior(foundation::script::BehaviorClass& runClass);
 
         /// onStop() the `Game` and release the game-script hold (idempotent; the update-fault path
         /// lands here). The run host tears down when nothing else pins it (the scene-stop observer
@@ -594,6 +576,8 @@ export namespace engine::runtime
         // Refuses a cooked class that is not a RunBehavior as the run's behavior: stops any running
         // one, keeps the reason (RunBehaviorFault), logs it, and returns false.
         bool RefuseRunBehavior(const foundation::script::BehaviorClass& scriptClass);
+        // A made run behavior's start: its on<Event> inbox on the run bus, then its onStart.
+        void BeginRunBehavior(core::Span<const core::String> handlers, core::StringView name);
 
     public:
 
