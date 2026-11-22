@@ -174,6 +174,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- MCP: reloading a project's plugins from a tool call (an agent's Reload Project Plugins, or
+  `project_open` on the open project) keeps the plugins' own MCP tools. They were refused as taken
+  by their old copies, which then left, so the tools were gone until the project was opened again.
 - Editor: quitting after a picker had been opened (Add Component, an asset field's) no longer
   crashes on the way out and leaves a crash dump.
 - Rendering: when a scene switches to another camera, the view starts its history fresh (temporal

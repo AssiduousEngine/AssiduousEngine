@@ -778,6 +778,7 @@ TEST_CASE("mcp: tools registered or removed by a running tool apply when it retu
     server.RegisterTool(u8"plugins", u8"swaps a plugin's tools", SchemaBuilder().Build(), ToolAnnotations::Rebuilds(),
                         [self](const JsonValue&) -> ToolResult
                         {
+                            const usize before = self->ToolCount();
                             CHECK(self->UnregisterTool(u8"echo"));
                             for (u32 i = 0; i < 64; ++i) // enough to move the table
                             {
@@ -785,7 +786,11 @@ TEST_CASE("mcp: tools registered or removed by a running tool apply when it retu
                                                    ToolAnnotations::ReadOnly(),
                                                    [](const JsonValue&) -> ToolResult { return JsonValue::MakeBool(true); });
                             }
-                            CHECK_FALSE(self->HasTool(u8"added0")); // not yet: after this returns
+                            // The table does not move until this returns, but a name answers as it
+                            // will stand: one queued to come is taken, one queued to go is free.
+                            CHECK(self->ToolCount() == before);
+                            CHECK(self->HasTool(u8"added0"));
+                            CHECK_FALSE(self->HasTool(u8"echo"));
                             return JsonValue::MakeString(String(u8"swapped"));
                         });
     const JsonValue answer = Response(server.HandleLine(

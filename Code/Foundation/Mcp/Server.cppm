@@ -478,7 +478,21 @@ export namespace foundation::mcp
             }
             return names;
         }
-        [[nodiscard]] bool HasTool(StringView name) const noexcept { return FindTool(name) != nullptr; }
+        /// Whether `name` is served, as the table stands once the changes a running handler queued
+        /// apply: a plugin reloaded from a tool call removes its old tools and adds its new ones in
+        /// one handler, and a name queued to leave is free for the tool that replaces it.
+        [[nodiscard]] bool HasTool(StringView name) const noexcept
+        {
+            bool served = FindTool(name) != nullptr;
+            for (const PendingToolChange& change : m_pendingToolChanges)
+            {
+                if (change.remove ? change.name.AsView() == name : change.tool.name.AsView() == name)
+                {
+                    served = !change.remove;
+                }
+            }
+            return served;
+        }
         /// Removes the tool `name` (a plugin's, as it unloads); false when there is none. A call to
         /// it in flight ends with it, its state destroyed; when its transport hands it back, it is a
         /// call to an unknown tool.

@@ -717,6 +717,12 @@ TEST_CASE("integration.mcp: a plugin's MCP tool is served by a server there befo
     CHECK(hello.value.Get(u8"hello").AsString() == String(u8"Greeted"));
     CHECK(Call(server, u8"project_info", JsonValue::MakeObject()).value.Has(u8"settings")); // still the engine's
 
+    // Opened again while its plugin is loaded, from a tool call as an agent's reload is: the old tool
+    // leaves and the new one takes its name, though the table's changes wait for the call to end.
+    open(dir);
+    CHECK(server.ToolCount() == engineTools + 1u);
+    CHECK_FALSE(Call(server, u8"greeter_hello", JsonValue::MakeObject()).error);
+
     // A server started after the plugin loaded serves it too, and leaves it as it stops.
     {
         McpServer later;
