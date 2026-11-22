@@ -34,10 +34,18 @@ enables AI agents to build entire games, from initial project setup to fully pla
 - **Gameplay systems:** physics (Jolt), navigation (Recast/Detour), audio (miniaudio, buses
   with effect chains), input maps, save data, splines, terrain and vegetation.
 - **Animation:** skeletal clips, animation graphs, IK, root motion and property animation.
+- **Sequences:** a timeline sequencer for cutscenes that animates entities, plays clips and
+  sounds, cuts between cameras, fades and holds, edited in a panel below the viewport.
+- **Dialogue** (an official plugin): conversations as text files, with choices, flags, the game's
+  own commands and staging, checked as they are written, and a stock dialogue box.
 - **Networking** with state replication.
-- **Scripting** in AngelScript or Luau over the engine's reflected facades: behaviours per entity,
-  a level script per scene and a game script per run, with coroutines, events and an in-editor
-  debugger.
+- **Scripting** in AngelScript or Luau over the engine's reflected facades: entity, scene and run
+  behaviors, with coroutines, events, messages and an in-editor debugger. The same behaviors can
+  be written in C++ instead.
+- **Plugins:** official plugins a project enables, and a project's own native C++ code as a plugin
+  package of up to four parts: components and the scene systems that update them, behaviors in
+  C++ and script facades; asset types and their cooks; MCP tools and export steps; editor pages
+  and actions.
 - **UI:** a retained-mode GUI with flex, grid and stack layouts, `.xml` markup, CSS sheets
   (cascade, variables, transitions, animations, media queries), shaped bidirectional text,
   keyboard and gamepad navigation, data binding, world-space UI, and a game kit for screens and
@@ -51,15 +59,16 @@ enables AI agents to build entire games, from initial project setup to fully pla
 - **Asset pipeline:** importers for glTF, FBX, OBJ, images, audio and fonts; cooks per asset
   type; BC7 and ASTC texture compression.
 - **Export** to the desktop player, the web (WebAssembly with WebGPU), the Steam Deck and Android
-  (an APK or an App Bundle), from per-target presets and player templates. Headless tools can run all of it from the command
-  line.
+  (an APK or an App Bundle), from per-target presets. A template export copies a ready-built
+  player; a native export builds the game's own player with its native code in it. Headless tools
+  can run all of it from the command line.
 - **Agent tooling:** an MCP host (`Tools.Mcp`) exposes the engine's reflection, the script API
   and project operations (import, cook, scene validation, export, health checks). The editor
   serves the same tools over HTTP for its open project, plus its pages and play in editor, where
   an agent plays the game with scripted input and reads back probes and screenshots.
   [AGENTS.md](AGENTS.md) describes how an agent works on the engine itself.
-- **Samples:** five sample games and a custom shaders gallery (below), and low-level C++ samples
-  per engine area.
+- **Samples:** six sample games, a custom shaders gallery and a native code reference project
+  (below), and low-level C++ samples per engine area.
 
 ## Download
 
