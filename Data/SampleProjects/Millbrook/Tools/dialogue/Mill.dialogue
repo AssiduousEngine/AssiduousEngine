@@ -1,0 +1,22 @@
+# The miller, by his house on the square's east side. His cart's wheel is the second task: it came
+# off on the way up from the stream, and he goes round the back with you to look for it (an errand:
+# the conversation leaves, and the game brings it back when you are both there).
+
+conversation miller in village
+if wheel_found
+  @ miller happy: She rolls like new. The benches will be out before the lanterns.
+else
+  @ miller worried: My cart's lost a wheel. It came off on the slope down by the stream.
+  choice
+  > I'll help you look.
+    @ miller: Come round the back with me, then.
+    errand WheelSpot
+    @ miller: There! Caught on the waterwheel's step.
+    play miller pick-up and wait
+    @ miller happy: Not a scratch on it. I'll have it back on in no time.
+    set wheel_found
+    jump progress in square
+  > Later, perhaps.
+    @ miller: It'll keep. The stream won't, mind.
+  end
+end

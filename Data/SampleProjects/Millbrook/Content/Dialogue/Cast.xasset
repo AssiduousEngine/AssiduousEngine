@@ -1,0 +1,202 @@
+<root>
+	<string name="guid">b3ed5de3-45b9-4c20-b696-427546fb37f4</string>
+	<string name="typeNamespace">rtti::dialogue</string>
+	<string name="typeName">DialogueCastAsset</string>
+	<string name="source"/>
+	<array name="dataVersions" count="1">
+		<u64 name="type">15413368820826658377</u64>
+		<u32 name="version">0</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName"/>
+		<array name="speakers" count="6">
+			<object>
+				<string name="id">you</string>
+				<string name="shownName">You</string>
+				<bool name="plate">true</bool>
+				<object name="plateColor">
+					<f32 name="x">0.35</f32>
+					<f32 name="y">0.45</f32>
+					<f32 name="z">0.65</f32>
+					<f32 name="w">1</f32>
+				</object>
+				<array name="moods" count="1">
+					<object>
+						<string name="name">neutral</string>
+						<string name="portrait">00000000-0000-0000-0000-000000000000</string>
+					</object>
+				</array>
+				<string name="portrait">00000000-0000-0000-0000-000000000000</string>
+				<array name="clips" count="0"/>
+				<string name="talk">00000000-0000-0000-0000-000000000000</string>
+				<string name="voice">00000000-0000-0000-0000-000000000000</string>
+				<string name="entity">character-male-a</string>
+			</object>
+			<object>
+				<string name="id">mayor</string>
+				<string name="shownName">Mayor Hale</string>
+				<bool name="plate">true</bool>
+				<object name="plateColor">
+					<f32 name="x">0.55</f32>
+					<f32 name="y">0.35</f32>
+					<f32 name="z">0.2</f32>
+					<f32 name="w">1</f32>
+				</object>
+				<array name="moods" count="3">
+					<object>
+						<string name="name">neutral</string>
+						<string name="portrait">00000000-0000-0000-0000-000000000000</string>
+					</object>
+					<object>
+						<string name="name">happy</string>
+						<string name="portrait">00000000-0000-0000-0000-000000000000</string>
+					</object>
+					<object>
+						<string name="name">worried</string>
+						<string name="portrait">00000000-0000-0000-0000-000000000000</string>
+					</object>
+				</array>
+				<string name="portrait">00000000-0000-0000-0000-000000000000</string>
+				<array name="clips" count="2">
+					<string>e3b012fb-68ac-4a26-8af3-4625429b72dc</string>
+					<string>67c9168c-a2d8-4248-a3b4-9b2365c5d6f3</string>
+				</array>
+				<string name="talk">00000000-0000-0000-0000-000000000000</string>
+				<string name="voice">00000000-0000-0000-0000-000000000000</string>
+				<string name="entity">character-male-e</string>
+			</object>
+			<object>
+				<string name="id">baker</string>
+				<string name="shownName">Marta the Baker</string>
+				<bool name="plate">true</bool>
+				<object name="plateColor">
+					<f32 name="x">0.7</f32>
+					<f32 name="y">0.3</f32>
+					<f32 name="z">0.28</f32>
+					<f32 name="w">1</f32>
+				</object>
+				<array name="moods" count="3">
+					<object>
+						<string name="name">neutral</string>
+						<string name="portrait">00000000-0000-0000-0000-000000000000</string>
+					</object>
+					<object>
+						<string name="name">happy</string>
+						<string name="portrait">00000000-0000-0000-0000-000000000000</string>
+					</object>
+					<object>
+						<string name="name">worried</string>
+						<string name="portrait">00000000-0000-0000-0000-000000000000</string>
+					</object>
+				</array>
+				<string name="portrait">00000000-0000-0000-0000-000000000000</string>
+				<array name="clips" count="2">
+					<string>8017ec7e-a314-46b2-ba82-422a304affbf</string>
+					<string>36701ff2-4571-4465-be16-9dfa82918328</string>
+				</array>
+				<string name="talk">00000000-0000-0000-0000-000000000000</string>
+				<string name="voice">00000000-0000-0000-0000-000000000000</string>
+				<string name="entity">character-female-b</string>
+			</object>
+			<object>
+				<string name="id">miller</string>
+				<string name="shownName">Old Tobin</string>
+				<bool name="plate">true</bool>
+				<object name="plateColor">
+					<f32 name="x">0.4</f32>
+					<f32 name="y">0.5</f32>
+					<f32 name="z">0.3</f32>
+					<f32 name="w">1</f32>
+				</object>
+				<array name="moods" count="3">
+					<object>
+						<string name="name">neutral</string>
+						<string name="portrait">00000000-0000-0000-0000-000000000000</string>
+					</object>
+					<object>
+						<string name="name">happy</string>
+						<string name="portrait">00000000-0000-0000-0000-000000000000</string>
+					</object>
+					<object>
+						<string name="name">worried</string>
+						<string name="portrait">00000000-0000-0000-0000-000000000000</string>
+					</object>
+				</array>
+				<string name="portrait">00000000-0000-0000-0000-000000000000</string>
+				<array name="clips" count="2">
+					<string>bb722465-7ec8-425a-afb1-41a564a465be</string>
+					<string>fa0b3970-a63c-42ed-97f9-8981efff7d07</string>
+				</array>
+				<string name="talk">00000000-0000-0000-0000-000000000000</string>
+				<string name="voice">00000000-0000-0000-0000-000000000000</string>
+				<string name="entity">character-male-c</string>
+			</object>
+			<object>
+				<string name="id">pip</string>
+				<string name="shownName">Pip</string>
+				<bool name="plate">true</bool>
+				<object name="plateColor">
+					<f32 name="x">0.8</f32>
+					<f32 name="y">0.55</f32>
+					<f32 name="z">0.25</f32>
+					<f32 name="w">1</f32>
+				</object>
+				<array name="moods" count="3">
+					<object>
+						<string name="name">neutral</string>
+						<string name="portrait">00000000-0000-0000-0000-000000000000</string>
+					</object>
+					<object>
+						<string name="name">happy</string>
+						<string name="portrait">00000000-0000-0000-0000-000000000000</string>
+					</object>
+					<object>
+						<string name="name">worried</string>
+						<string name="portrait">00000000-0000-0000-0000-000000000000</string>
+					</object>
+				</array>
+				<string name="portrait">00000000-0000-0000-0000-000000000000</string>
+				<array name="clips" count="2">
+					<string>dac0f017-1b7d-47b7-81b3-6a087872179e</string>
+					<string>f2e8dca1-8f95-4bc4-9d5d-73af1432cd05</string>
+				</array>
+				<string name="talk">00000000-0000-0000-0000-000000000000</string>
+				<string name="voice">00000000-0000-0000-0000-000000000000</string>
+				<string name="entity">character-female-d</string>
+			</object>
+			<object>
+				<string name="id">guard</string>
+				<string name="shownName">Sergeant Brook</string>
+				<bool name="plate">true</bool>
+				<object name="plateColor">
+					<f32 name="x">0.35</f32>
+					<f32 name="y">0.38</f32>
+					<f32 name="z">0.45</f32>
+					<f32 name="w">1</f32>
+				</object>
+				<array name="moods" count="3">
+					<object>
+						<string name="name">neutral</string>
+						<string name="portrait">00000000-0000-0000-0000-000000000000</string>
+					</object>
+					<object>
+						<string name="name">happy</string>
+						<string name="portrait">00000000-0000-0000-0000-000000000000</string>
+					</object>
+					<object>
+						<string name="name">stern</string>
+						<string name="portrait">00000000-0000-0000-0000-000000000000</string>
+					</object>
+				</array>
+				<string name="portrait">00000000-0000-0000-0000-000000000000</string>
+				<array name="clips" count="2">
+					<string>9c144071-3c70-4f4c-a1a0-73bf08762b04</string>
+					<string>b0c901eb-9a9a-4502-976e-611b24d9f311</string>
+				</array>
+				<string name="talk">00000000-0000-0000-0000-000000000000</string>
+				<string name="voice">00000000-0000-0000-0000-000000000000</string>
+				<string name="entity">character-knight</string>
+			</object>
+		</array>
+	</object>
+</root>

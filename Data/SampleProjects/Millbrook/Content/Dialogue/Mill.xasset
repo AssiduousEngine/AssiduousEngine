@@ -1,0 +1,15 @@
+<root>
+	<string name="guid">69beea3e-381e-4b30-be8c-2e6476a3d77a</string>
+	<string name="typeNamespace">rtti::dialogue</string>
+	<string name="typeName">DialogueAsset</string>
+	<string name="source">Dialogue/Mill.dialogue</string>
+	<array name="dataVersions" count="1">
+		<u64 name="type">6890406481092094192</u64>
+		<u32 name="version">0</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName">Dialogue/Mill.dialogue</string>
+		<string name="cast">b3ed5de3-45b9-4c20-b696-427546fb37f4</string>
+		<string name="assets">07ad5361-0013-4056-b3a3-414f5eaec0bb</string>
+	</object>
+</root>

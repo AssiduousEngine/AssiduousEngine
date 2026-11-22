@@ -30,7 +30,34 @@
 			<string name="id">dialogue</string>
 			<string name="path"/>
 			<array name="platforms" count="0"/>
-			<object name="settings"/>
+			<object name="settings">
+				<array name="dataVersions" count="1">
+					<u64 name="type">3137474752225931533</u64>
+					<u32 name="version">1</u32>
+				</array>
+				<string name="cast">b3ed5de3-45b9-4c20-b696-427546fb37f4</string>
+				<string name="assets">07ad5361-0013-4056-b3a3-414f5eaec0bb</string>
+				<array name="commands" count="2">
+					<string>walk &lt;who:speaker&gt; to &lt;where:entity&gt; [and wait]</string>
+					<string>errand &lt;where:entity&gt; leaves</string>
+				</array>
+				<array name="providedFlags" count="1">
+					<string>fair_*</string>
+				</array>
+				<string name="flagPrefix">flag.</string>
+				<f32 name="fadeSeconds">0.5</f32>
+				<object name="fadeColor">
+					<f32 name="x">0</f32>
+					<f32 name="y">0</f32>
+					<f32 name="z">0</f32>
+					<f32 name="w">1</f32>
+				</object>
+				<bool name="stockBox">true</bool>
+				<string name="stockBoxSheet">00000000-0000-0000-0000-000000000000</string>
+				<f32 name="typingSpeed">40</f32>
+				<string name="advanceAction">Interact</string>
+				<bool name="portraitOnRight">false</bool>
+			</object>
 		</object>
 	</array>
 	<array name="qualityLevelIds" count="0"/>

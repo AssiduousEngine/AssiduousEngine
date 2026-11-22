@@ -4,6 +4,10 @@
 
 /* The HUD: the talk prompt at the foot, over the village, taking none of its input. */
 .hud { flex-grow: 1; flex-direction: column; justify-content: space-between; padding: 18px; pointer-events: none; }
+.hud-top { flex-direction: row; justify-content: center; }
+.hud-note { padding: 8px 16px; font-size: 19px; color: #F2E2C2; background-color: rgba(40, 26, 16, 0.82);
+            border-radius: 10px; opacity: 0; }
+.hud-note.shown { opacity: 1; }
 .hud-foot { flex-direction: row; justify-content: center; }
 .hud-talk { padding: 8px 14px; background-color: rgba(40, 26, 16, 0.82); border: 2px solid #A0784A;
             border-radius: 10px; opacity: 0; }

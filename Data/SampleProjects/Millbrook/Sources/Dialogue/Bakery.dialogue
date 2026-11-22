@@ -1,0 +1,19 @@
+# The baker, at her stall on the square's west side. Her sign is the first task: the guard has it.
+
+conversation baker in village
+if sign_hung
+  @ baker happy: Look at it! Fresh bread, and now everyone can see where.
+else
+  if has_sign
+    @ baker: Is that my sign? Where did you find it?
+    @ you: The guard was keeping it safe.
+    walk baker to SignSpot and wait
+    play baker interact-right and wait
+    @ baker happy: There. Now the fair can find my bread.
+    set sign_hung
+    jump progress in square
+  else
+    @ baker worried: My sign's gone. It was on the miller's cart when we came up from the stream.
+    @ baker: Without it, who'll know where the bread is?
+  end
+end

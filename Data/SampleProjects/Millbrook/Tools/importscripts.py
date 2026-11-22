@@ -7,7 +7,8 @@ those (Player, Hud, ...). A re-run re-imports over the same assets, keeping thei
 named by its file, so a sheet and a document may not share a name.
 
 The documents go first, so a script can name them: a `{{Type:Name}}` in a script, a document or the
-sheet (Type one of GUI, Scene, Prefab, Audio, Texture: the prompts' glyphs, glyphs.py) is replaced by
+sheet (Type one of GUI, Scene, Prefab, Audio, Texture, Dialogue, AnimationClip; a clip named
+`model/clip` is that model's) is replaced by
 that asset's id before it is imported (the filled copy goes to generated/scripts/), and by the nil id
 when there is no such asset yet (a level not built).
 """
@@ -17,7 +18,7 @@ sys.path.insert(0, HERE)
 from scenegen import mcp
 
 TYPES = {"GUI": "GuiDocumentAsset", "Scene": "SceneDocument", "Prefab": "PrefabDocument", "Audio": "AudioClipAsset",
-         "Texture": "TextureAsset"}
+         "Texture": "TextureAsset", "Dialogue": "DialogueAsset", "AnimationClip": "AnimationClipAsset"}
 NIL = "00000000-0000-0000-0000-000000000000"
 FILLED = os.path.join(HERE, "generated", "scripts")
 
@@ -30,12 +31,15 @@ def filled(path):
     assets = mcp("asset_list", {})["assets"]
 
     def one(m):
-        found = [a["guid"] for a in assets if a["type"] == TYPES[m.group(1)] and a["name"] == m.group(2)]
+        # A name may say whose it is: `character-female-b/walk` is the clip walk of that model.
+        owner, _, name = m.group(2).rpartition("/")
+        found = [a["guid"] for a in assets if a["type"] == TYPES[m.group(1)] and a["name"] == name
+                 and (not owner or a.get("group", "").endswith("/" + owner))]
         return found[0] if found else NIL
 
     os.makedirs(FILLED, exist_ok=True)
     out = os.path.join(FILLED, os.path.basename(path))
-    open(out, "w").write(re.sub(r"\{\{(\w+):(\w+)\}\}", one, text))
+    open(out, "w").write(re.sub(r"\{\{(\w+):([\w/-]+)\}\}", one, text))
     return out
 
 

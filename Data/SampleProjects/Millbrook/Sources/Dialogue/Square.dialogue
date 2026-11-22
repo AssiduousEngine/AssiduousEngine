@@ -1,0 +1,91 @@
+# Millbrook's square: the mayor, the guard at the gate and Pip, and the player's own tally of what
+# is left to do (progress), which the others jump to as each task is done. The tasks are flags: sign_hung (the
+# baker's sign), wheel_found (the miller's wheel), cat_found (Pip's cat); fair_ready once all three
+# are done. fair_cat_seen is the game's: it sets it when the player reaches the windmill.
+
+conversation mayor in village
+if not met_mayor
+  set met_mayor
+  @ mayor worried: Ah, a visitor! You've come on the evening of the fair, and we are nowhere near ready.
+  @ mayor: The baker's stall has no sign, the miller's cart has lost a wheel, and Pip has lost her cat.
+  choice
+  > I'll help.
+    play mayor emote-yes
+    @ mayor happy: Splendid! Ask around the square. Everyone here knows a little of everything.
+    @ mayor: Walk up to anyone and press {Interact} to talk.
+  > Is it really that bad?
+    @ mayor: Worse. Without a sign nobody finds the bread, and without the cart there are no benches.
+    @ mayor: So yes. I'd be glad of a hand.
+  end
+else
+  if fair_ready
+    @ mayor happy: Everything's done? Then light the lanterns. Millbrook's fair is open!
+  else
+    @ mayor: How are we getting on?
+    jump progress
+  end
+end
+
+conversation progress
+if sign_hung
+  if wheel_found
+    if cat_found
+      @ you: The sign, the wheel and the cat. That's everything. I should tell the mayor.
+      set fair_ready
+    else
+      jump left
+    end
+  else
+    jump left
+  end
+else
+  jump left
+end
+
+conversation left
+if not sign_hung
+  @ you: The baker still needs her sign.
+end
+if not wheel_found
+  @ you: The miller's cart is still on three wheels.
+end
+if not cat_found
+  @ you: And Pip still hasn't found her cat.
+end
+
+conversation guard in village
+if has_sign
+  @ guard: Mind how you go. And mind that sign: the baker's been asking after it all day.
+else
+  @ guard: Evening. Welcome to Millbrook.
+  choice
+  > Have you seen anything odd today?
+    @ guard: Odd? A sign fell off the miller's cart this morning. I've been keeping it safe.
+    @ guard happy: It's the baker's. You'd be doing her a kindness.
+    @ you: I'll take it to her.
+    set has_sign
+    if asked_cat
+      @ guard: And a grey cat ran past me toward the windmill, if that's any use.
+    end
+  > Out of my way.
+    play guard emote-no
+    @ guard stern: Mind your manners in Millbrook, visitor.
+  end
+end
+
+conversation pip in village
+if cat_found
+  @ pip happy: Whiskers is home! Thank you, thank you!
+else
+  if fair_cat_seen
+    @ pip: You saw her? Up by the windmill?
+    play pip emote-yes
+    @ pip happy: She always goes there when the sails turn. I'll fetch her right now!
+    set cat_found
+    jump progress
+  else
+    @ pip worried: Have you seen my cat? She's small and grey, and she was right here a moment ago.
+    set asked_cat
+    @ you: I'll keep an eye out for her.
+  end
+end

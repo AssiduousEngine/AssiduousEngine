@@ -1,11 +1,14 @@
-<!-- The HUD, which Millbrook.as fills: at the foot, the prompt to talk with whoever is near
+<!-- The HUD, which Millbrook.as fills: at the top, a note when something happens (the cat seen);
+     at the foot, the prompt to talk with whoever is near
      ("Talk with the baker", with the control Interact takes on the device in hand), shown while
      someone is in reach and no conversation plays. It lies over the village and takes none of its
      input; the screen stack's back is off (the game's own Pause takes it). Styled by
      MillbrookSheet.css. -->
 <Screen blocks="false" back="none">
   <Panel class="hud">
-    <Panel class="hud-top"/>
+    <Panel class="hud-top">
+      <Label id="hud-note" class="hud-note" text=""/>
+    </Panel>
     <Panel class="hud-foot">
       <Panel id="hud-talk" class="hint hud-talk">
         <Prompt class="key" action="Interact" set="Gameplay"/>

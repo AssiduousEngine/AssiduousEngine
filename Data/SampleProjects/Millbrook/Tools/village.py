@@ -314,12 +314,18 @@ def main():
     v.scatter(("Nature/plant_bushLarge", "Nature/plant_bush", "Nature/flower_redA", "Nature/flower_yellowA",
                "Nature/flower_purpleA", "Nature/grass_large"), 160, -25, -25, 25, 25)
 
+    # The places the conversations name: where the baker hangs her sign, where the miller's wheel
+    # lies behind his house by the waterwheel, and the windmill's foot, where Pip's cat is seen.
+    for name, x, z in (("SignSpot", -3.4, -1.6), ("WheelSpot", 8.6, 0.8), ("MillerAtWheel", 8.6, 0.0),
+                       ("WindmillSpot", 6.0, -8.0)):
+        v.d.entity(name, (x * SCALE, 0.0, z * SCALE))
+
     # The villagers where the day starts, and the player at the gate.
     v.person("Mayor", "character-male-e", -3, -6, 0)
     v.person("Baker", "character-female-b", -3, -1, 270)
     v.person("Miller", "character-male-c", 5, -1, 90)
     v.person("Child", "character-female-d", 1, 1, 200)
-    v.person("Guard", "character-knight", 1, 5, 0)
+    v.person("Guard", "character-knight", 0.6, 4.8, 0)
     v.player(-0.5, 8, 180)
     v.sun()
 

@@ -1,0 +1,31 @@
+<root>
+	<string name="guid">07ad5361-0013-4056-b3a3-414f5eaec0bb</string>
+	<string name="typeNamespace">rtti::dialogue</string>
+	<string name="typeName">DialogueAssetListAsset</string>
+	<string name="source"/>
+	<array name="dataVersions" count="1">
+		<u64 name="type">2682690244079749080</u64>
+		<u32 name="version">0</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName"/>
+		<array name="entries" count="4">
+			<object>
+				<string name="name">village</string>
+				<string name="asset">cae0f0d7-e823-4831-ad84-e2f785eca26a</string>
+			</object>
+			<object>
+				<string name="name">square</string>
+				<string name="asset">7a97915a-e9eb-476d-ba58-5dd5fb4ed885</string>
+			</object>
+			<object>
+				<string name="name">bakery</string>
+				<string name="asset">cfba85cf-a545-40f5-8ed6-ec85e82916f6</string>
+			</object>
+			<object>
+				<string name="name">mill</string>
+				<string name="asset">69beea3e-381e-4b30-be8c-2e6476a3d77a</string>
+			</object>
+		</array>
+	</object>
+</root>

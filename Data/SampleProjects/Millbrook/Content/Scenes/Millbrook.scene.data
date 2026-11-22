@@ -2,7 +2,7 @@
 	<u32 name="magic">3586350318</u32>
 	<u32 name="version">3</u32>
 	<string name="name">Millbrook</string>
-	<array name="entities" count="611">
+	<array name="entities" count="615">
 		<string name="id">f94b962e-2fe9-598f-8444-1160c87b057a</string>
 		<string name="name">Grass</string>
 		<u8 name="active">1</u8>
@@ -12163,7 +12163,87 @@
 			<f32 name="y">3.297748</f32>
 			<f32 name="z">3.297748</f32>
 		</object>
-		<string name="id">12f33c9d-b5aa-52e7-bf45-a4555940163c</string>
+		<string name="id">3c63c791-10a0-513f-b506-53b0e45c721b</string>
+		<string name="name">SignSpot</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">-6.8</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">-3.2</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">1</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">1</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">1</f32>
+		</object>
+		<string name="id">6eb8632f-dc48-5b51-a243-7ee05aef75b4</string>
+		<string name="name">WheelSpot</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">17.2</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">1.6</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">1</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">1</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">1</f32>
+		</object>
+		<string name="id">8a72c789-4ccf-58aa-9bc8-07982e6c90f3</string>
+		<string name="name">MillerAtWheel</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">17.2</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">1</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">1</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">1</f32>
+		</object>
+		<string name="id">e1dfa2f9-9ed4-5943-a9bb-85647763cb1f</string>
+		<string name="name">WindmillSpot</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">12</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">-16</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">1</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">1</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">1</f32>
+		</object>
+		<string name="id">6bc38bdb-b687-5c99-a89f-31251a764836</string>
 		<string name="name">Player</string>
 		<u8 name="active">1</u8>
 		<string name="parent">00000000-0000-0000-0000-000000000000</string>
@@ -12183,7 +12263,7 @@
 			<f32 name="y">1</f32>
 			<f32 name="z">1</f32>
 		</object>
-		<string name="id">3efb8c4b-32d6-5717-bd36-0d27d66cc518</string>
+		<string name="id">bcd2acad-6eed-5f17-9ee6-9b655e80ec06</string>
 		<string name="name">Camera</string>
 		<u8 name="active">1</u8>
 		<string name="parent">00000000-0000-0000-0000-000000000000</string>
@@ -12203,7 +12283,7 @@
 			<f32 name="y">1</f32>
 			<f32 name="z">1</f32>
 		</object>
-		<string name="id">fb3bf945-9289-57bb-a115-223fba1b5997</string>
+		<string name="id">ad5b1b46-06dd-5988-a153-5bd3c42c7179</string>
 		<string name="name">Sun</string>
 		<u8 name="active">1</u8>
 		<string name="parent">00000000-0000-0000-0000-000000000000</string>
@@ -24630,7 +24710,7 @@
 			</object>
 		</object>
 		<object>
-			<string name="owner">3efb8c4b-32d6-5717-bd36-0d27d66cc518</string>
+			<string name="owner">bcd2acad-6eed-5f17-9ee6-9b655e80ec06</string>
 			<string name="type">camera</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
@@ -24655,7 +24735,7 @@
 			</object>
 		</object>
 		<object>
-			<string name="owner">fb3bf945-9289-57bb-a115-223fba1b5997</string>
+			<string name="owner">ad5b1b46-06dd-5988-a153-5bd3c42c7179</string>
 			<string name="type">light</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
@@ -27626,7 +27706,7 @@
 			</object>
 		</object>
 		<object>
-			<string name="owner">12f33c9d-b5aa-52e7-bf45-a4555940163c</string>
+			<string name="owner">6bc38bdb-b687-5c99-a89f-31251a764836</string>
 			<string name="type">physics.Character</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
@@ -27643,7 +27723,7 @@
 			</object>
 		</object>
 		<object>
-			<string name="owner">12f33c9d-b5aa-52e7-bf45-a4555940163c</string>
+			<string name="owner">6bc38bdb-b687-5c99-a89f-31251a764836</string>
 			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
@@ -27657,7 +27737,7 @@
 					<array name="overrides" count="4">
 						<u64 name="nameHash">8056904078410733902</u64>
 						<u8 name="kind">7</u8>
-						<string name="guid">3efb8c4b-32d6-5717-bd36-0d27d66cc518</string>
+						<string name="guid">bcd2acad-6eed-5f17-9ee6-9b655e80ec06</string>
 						<u64 name="nameHash">5105976852235128597</u64>
 						<u8 name="kind">8</u8>
 						<string name="guid">9538c61a-2917-49be-a4d0-91dc8938217e</string>
@@ -27672,7 +27752,7 @@
 			</object>
 		</object>
 		<object>
-			<string name="owner">3efb8c4b-32d6-5717-bd36-0d27d66cc518</string>
+			<string name="owner">bcd2acad-6eed-5f17-9ee6-9b655e80ec06</string>
 			<string name="type">behavior</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
@@ -27686,7 +27766,7 @@
 					<array name="overrides" count="4">
 						<u64 name="nameHash">1653916590517707752</u64>
 						<u8 name="kind">7</u8>
-						<string name="guid">12f33c9d-b5aa-52e7-bf45-a4555940163c</string>
+						<string name="guid">6bc38bdb-b687-5c99-a89f-31251a764836</string>
 						<u64 name="nameHash">15956180055569954882</u64>
 						<u8 name="kind">1</u8>
 						<f64 name="number">6</f64>
@@ -27852,7 +27932,7 @@
 			<f32 name="y">2</f32>
 			<f32 name="z">2</f32>
 		</object>
-		<string name="rootLive">79ca54a9-3532-5065-b7c5-6c0f20e16bae</string>
+		<string name="rootLive">da9cd092-9cd7-5b9a-addb-6723e3ced30b</string>
 		<string name="owner">00000000-0000-0000-0000-000000000000</string>
 		<string name="nestedSrcRoot">00000000-0000-0000-0000-000000000000</string>
 		<string name="nextSibling">00000000-0000-0000-0000-000000000000</string>
@@ -27879,7 +27959,7 @@
 			<f32 name="y">2</f32>
 			<f32 name="z">2</f32>
 		</object>
-		<string name="rootLive">51c6ee89-48da-5ddc-bed6-e313fc3bcb30</string>
+		<string name="rootLive">1848bbea-95b5-5879-8ae2-dc3ebcceac41</string>
 		<string name="owner">00000000-0000-0000-0000-000000000000</string>
 		<string name="nestedSrcRoot">00000000-0000-0000-0000-000000000000</string>
 		<string name="nextSibling">00000000-0000-0000-0000-000000000000</string>
@@ -27906,7 +27986,7 @@
 			<f32 name="y">2</f32>
 			<f32 name="z">2</f32>
 		</object>
-		<string name="rootLive">9d7f774a-c699-511a-8e75-793e27d7ef26</string>
+		<string name="rootLive">557aefe1-299d-56ae-92a1-a113e55a3ce9</string>
 		<string name="owner">00000000-0000-0000-0000-000000000000</string>
 		<string name="nestedSrcRoot">00000000-0000-0000-0000-000000000000</string>
 		<string name="nextSibling">00000000-0000-0000-0000-000000000000</string>
@@ -27933,7 +28013,7 @@
 			<f32 name="y">2</f32>
 			<f32 name="z">2</f32>
 		</object>
-		<string name="rootLive">75bb225d-946b-569b-8a99-f70336ecff28</string>
+		<string name="rootLive">f6f23945-e193-5228-906d-482d760d2495</string>
 		<string name="owner">00000000-0000-0000-0000-000000000000</string>
 		<string name="nestedSrcRoot">00000000-0000-0000-0000-000000000000</string>
 		<string name="nextSibling">00000000-0000-0000-0000-000000000000</string>
@@ -27945,9 +28025,9 @@
 		<string name="prefab">ca3e72d3-14ea-4096-808b-d285dd0c80c8</string>
 		<string name="parent">00000000-0000-0000-0000-000000000000</string>
 		<object name="position">
-			<f32 name="x">2</f32>
+			<f32 name="x">1.2</f32>
 			<f32 name="y">0</f32>
-			<f32 name="z">10</f32>
+			<f32 name="z">9.6</f32>
 		</object>
 		<object name="rotation">
 			<f32 name="x">0</f32>
@@ -27960,7 +28040,7 @@
 			<f32 name="y">2</f32>
 			<f32 name="z">2</f32>
 		</object>
-		<string name="rootLive">da9cd092-9cd7-5b9a-addb-6723e3ced30b</string>
+		<string name="rootLive">a4ca7495-00f4-5d72-914a-0366a9e5de1f</string>
 		<string name="owner">00000000-0000-0000-0000-000000000000</string>
 		<string name="nestedSrcRoot">00000000-0000-0000-0000-000000000000</string>
 		<string name="nextSibling">00000000-0000-0000-0000-000000000000</string>
@@ -27970,7 +28050,7 @@
 		<array name="transformOverrides" count="0"/>
 		<array name="componentOps" count="0"/>
 		<string name="prefab">e79c59de-82e5-46e9-bb62-7496296bb925</string>
-		<string name="parent">12f33c9d-b5aa-52e7-bf45-a4555940163c</string>
+		<string name="parent">6bc38bdb-b687-5c99-a89f-31251a764836</string>
 		<object name="position">
 			<f32 name="x">0</f32>
 			<f32 name="y">-0.85</f32>
@@ -27987,7 +28067,7 @@
 			<f32 name="y">2</f32>
 			<f32 name="z">2</f32>
 		</object>
-		<string name="rootLive">557aefe1-299d-56ae-92a1-a113e55a3ce9</string>
+		<string name="rootLive">3f87a7a5-d686-55ee-8587-592cb19a1a1d</string>
 		<string name="owner">00000000-0000-0000-0000-000000000000</string>
 		<string name="nestedSrcRoot">00000000-0000-0000-0000-000000000000</string>
 		<string name="nextSibling">00000000-0000-0000-0000-000000000000</string>
