@@ -1,7 +1,9 @@
 # Millbrook's square: the mayor, the guard at the gate and Pip, and the player's own tally of what
 # is left to do (progress), which the others jump to as each task is done. The tasks are flags: sign_hung (the
 # baker's sign), wheel_found (the miller's wheel), cat_found (Pip's cat); fair_ready once all three
-# are done. fair_cat_seen is the game's: it sets it when the player reaches the windmill.
+# are done. fair_cat_seen is the game's: it sets it when the player reaches the windmill. When the
+# mayor has called everyone (opening), the game plays the ending (Sequences/FairOpens) and sets
+# fair_opened once it has played.
 
 conversation mayor in village
 if not met_mayor
@@ -18,12 +20,16 @@ if not met_mayor
     @ mayor: So yes. I'd be glad of a hand.
   end
 else
-  if fair_ready
-    sound chime
-    @ mayor happy: Everything's done? Then light the lanterns. Millbrook's fair is open!
+  if fair_opened
+    @ mayor happy: Have you tried Marta's buns? Go on, the fair's open!
   else
-    @ mayor: How are we getting on?
-    jump progress
+    if fair_ready
+      @ mayor happy: Everything's done? Then gather round the fountain, everyone!
+      set opening
+    else
+      @ mayor: How are we getting on?
+      jump progress
+    end
   end
 end
 

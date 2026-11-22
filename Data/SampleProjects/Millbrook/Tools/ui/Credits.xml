@@ -1,0 +1,21 @@
+<!-- The credits, after the fair opens: who made what (CREDITS.md in full), and Back to the village,
+     where the lanterns stay lit. Styled by MillbrookSheet.css. -->
+<Screen class="fades" nav-default="back-btn" back="none">
+  <Panel class="centre">
+    <Panel class="card credits-card">
+      <Label class="title-name" text="Millbrook"/>
+      <Label class="title-lead" text="The fair is open"/>
+      <Label class="credit-head" text="Models"/>
+      <Label class="credit" text="Mini Characters, Fantasy Town Kit and Nature Kit by Kenney (CC0)"/>
+      <Label class="credit-head" text="Sky"/>
+      <Label class="credit" text="Poly Haven (CC0)"/>
+      <Label class="credit-head" text="Type"/>
+      <Label class="credit" text="Roboto (Apache 2.0)"/>
+      <Label class="credit-head" text="Sounds and music"/>
+      <Label class="credit" text="Made for the sample, by script"/>
+      <Label class="credit-head" text="Made with"/>
+      <Label class="credit" text="AssiduousEngine and its dialogue plugin"/>
+      <Button id="back-btn" class="tag" text="Back to the village"/>
+    </Panel>
+  </Panel>
+</Screen>

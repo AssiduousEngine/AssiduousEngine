@@ -1,0 +1,155 @@
+<root>
+	<string name="guid">39b391ba-a843-4ce3-ba27-bb0fa67440a8</string>
+	<string name="typeNamespace">rtti::pipeline::sequence</string>
+	<string name="typeName">SequenceAsset</string>
+	<string name="source"/>
+	<array name="dataVersions" count="1">
+		<u64 name="type">18041285930185609870</u64>
+		<u32 name="version">0</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName"/>
+		<f32 name="duration">14</f32>
+		<f32 name="frameRate">30</f32>
+		<array name="bindings" count="1">
+			<string>EndingCamera</string>
+		</array>
+		<array name="markerTime" count="0"/>
+		<array name="markerName" count="0"/>
+		<array name="markerHold" count="0"/>
+		<array name="tracks" count="5">
+			<object>
+				<u64 name="type">7780230259196944251</u64>
+				<string name="name"/>
+				<i32 name="binding">0</i32>
+				<bool name="muted">false</bool>
+				<array name="sectionStart" count="1">
+					<f32>0</f32>
+				</array>
+				<array name="sectionDuration" count="1">
+					<f32>14</f32>
+				</array>
+			</object>
+			<object>
+				<u64 name="type">11979994379635215757</u64>
+				<string name="name"/>
+				<i32 name="binding">-1</i32>
+				<bool name="muted">false</bool>
+				<array name="keyTime" count="1">
+					<f32>2</f32>
+				</array>
+				<array name="keyName" count="1">
+					<string>LightLanterns</string>
+				</array>
+				<array name="keyValue" count="1">
+					<string/>
+				</array>
+			</object>
+			<object>
+				<u64 name="type">12431684380277452071</u64>
+				<string name="name"/>
+				<i32 name="binding">-1</i32>
+				<bool name="muted">false</bool>
+				<array name="sectionClip" count="1">
+					<string>1f7e07ff-c1ab-461f-a22d-904b694e0e0b</string>
+				</array>
+				<array name="sectionStart" count="1">
+					<f32>2</f32>
+				</array>
+				<array name="sectionLength" count="1">
+					<f32>2.6</f32>
+				</array>
+				<array name="sectionOffset" count="1">
+					<f32>0</f32>
+				</array>
+				<array name="sectionVolume" count="1">
+					<f32>1</f32>
+				</array>
+				<array name="sectionBus" count="1">
+					<u8>1</u8>
+				</array>
+				<array name="sectionLoop" count="1">
+					<u8>0</u8>
+				</array>
+			</object>
+			<object>
+				<u64 name="type">2917679344629393097</u64>
+				<string name="name"/>
+				<i32 name="binding">-1</i32>
+				<bool name="muted">false</bool>
+				<string name="cast">b3ed5de3-45b9-4c20-b696-427546fb37f4</string>
+				<array name="sections" count="3">
+					<object>
+						<f32 name="start">2.8</f32>
+						<f32 name="length">3</f32>
+						<string name="speaker">mayor</string>
+						<string name="mood">happy</string>
+						<string name="text">Friends! The sign is up, the cart is mended, and Whiskers is home.</string>
+						<string name="dialogue">00000000-0000-0000-0000-000000000000</string>
+						<string name="lineId"/>
+					</object>
+					<object>
+						<f32 name="start">6.2</f32>
+						<f32 name="length">2.6</f32>
+						<string name="speaker">mayor</string>
+						<string name="mood">happy</string>
+						<string name="text">So light the lanterns, strike up the tune: Millbrook's fair is open!</string>
+						<string name="dialogue">00000000-0000-0000-0000-000000000000</string>
+						<string name="lineId"/>
+					</object>
+					<object>
+						<f32 name="start">9.2</f32>
+						<f32 name="length">2.2</f32>
+						<string name="speaker">pip</string>
+						<string name="mood">happy</string>
+						<string name="text">Look, Whiskers, all the lights!</string>
+						<string name="dialogue">00000000-0000-0000-0000-000000000000</string>
+						<string name="lineId"/>
+					</object>
+				</array>
+			</object>
+			<object>
+				<u64 name="type">3141866068265434626</u64>
+				<string name="name"/>
+				<i32 name="binding">-1</i32>
+				<bool name="muted">false</bool>
+				<object name="color">
+					<f32 name="r">0</f32>
+					<f32 name="g">0</f32>
+					<f32 name="b">0</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<array name="keyTime" count="3">
+					<f32>0</f32>
+					<f32>12</f32>
+					<f32>14</f32>
+				</array>
+				<array name="keyValue" count="3">
+					<f32>0</f32>
+					<f32>0</f32>
+					<f32>1</f32>
+				</array>
+				<array name="keyTangentIn" count="3">
+					<f32>0</f32>
+					<f32>0.071428575</f32>
+					<f32>0.5</f32>
+				</array>
+				<array name="keyTangentOut" count="3">
+					<f32>0</f32>
+					<f32>0.071428575</f32>
+					<f32>0.5</f32>
+				</array>
+				<array name="keyInterpolation" count="3">
+					<u8>1</u8>
+					<u8>1</u8>
+					<u8>1</u8>
+				</array>
+				<array name="keyTangentMode" count="3">
+					<u8>1</u8>
+					<u8>1</u8>
+					<u8>1</u8>
+				</array>
+			</object>
+		</array>
+	</object>
+</root>

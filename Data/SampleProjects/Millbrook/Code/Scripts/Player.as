@@ -55,6 +55,10 @@ class Player : EntityBehavior
     }
 
     // Turns to face the point `at` on the ground (the game, as a conversation starts).
+    // The game holds the player still while the ending plays (Millbrook.as).
+    private bool m_held = false;
+    void onHold(bool held) { m_held = held; }
+
     void onFaceTo(Float3 at)
     {
         Float3 here = self.worldPosition();
@@ -67,7 +71,7 @@ class Player : EntityBehavior
         CharacterComponent@ body = CharacterComponent::of(self);
         Float2 stick = Input::value2D("Move");
         float amount = Math::Sqrt(stick.x * stick.x + stick.y * stick.y);
-        if (Dialogue::isPlaying() || amount < 0.05f || !camera.isValid())
+        if (m_held || Dialogue::isPlaying() || amount < 0.05f || !camera.isValid())
         {
             body.move(0.0f, 0.0f);
             gait(0);

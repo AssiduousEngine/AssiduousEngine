@@ -53,7 +53,7 @@
 					<f32 name="w">1</f32>
 				</object>
 				<bool name="stockBox">true</bool>
-				<string name="stockBoxSheet">00000000-0000-0000-0000-000000000000</string>
+				<string name="stockBoxSheet">8b22eb53-6e2b-4826-b272-46827c8e3c7e</string>
 				<f32 name="typingSpeed">40</f32>
 				<string name="advanceAction">Interact</string>
 				<bool name="portraitOnRight">false</bool>

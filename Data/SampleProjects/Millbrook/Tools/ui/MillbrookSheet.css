@@ -1,6 +1,25 @@
 /* Millbrook's look on the engine GUI, and the project's GUI sheet (guiStyleSheetIds): warm parchment
-   on deep brown, as a village fair's signs are. Its screens are the HUD (Hud.xml), which Millbrook.as
-   pushes. */
+   on deep brown, as a village fair's signs are. Its screens are Title, Hud and Credits, which
+   Millbrook.as pushes. The dialogue box has a sheet of its own (box/MillbrookBox.css). */
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+screen.fades:entering { animation: fade-in 0.4s ease-out; }
+
+/* The title and the credits: a card in the middle, over the village. */
+.centre { flex-grow: 1; flex-direction: column; justify-content: center; align-items: center; padding: 32px; }
+.card { flex-direction: column; align-items: center; gap: 10px; padding: 28px 40px;
+        background-color: rgba(40, 26, 16, 0.9); border: 3px solid #A0784A; border-radius: 16px; }
+.title-name { font-size: 64px; color: #F6D27A; }
+.title-lead { font-size: 21px; color: #E2CDA6; margin-bottom: 10px; }
+.title-hint { font-size: 16px; color: #B89C74; margin-top: 10px; }
+.credit-head { font-size: 15px; color: #B89C74; margin-top: 6px; }
+.credit { font-size: 19px; color: #F2E2C2; }
+button.tag { width: 300px; height: 46px; font-size: 22px; color: #2A1A0E; background-color: #E8D2A6;
+             border: 2px solid #7A5230; border-radius: 10px; }
+button.tag:hover { background-color: #F2E2C2; border: 3px solid #A3362A; }
+button.tag:active { background-color: #D8BE8C; }
+button.tag:focus-visible { border: 4px solid #A3362A; }
+.credits-card button.tag { margin-top: 14px; }
 
 /* The HUD: the talk prompt at the foot, over the village, taking none of its input. */
 .hud { flex-grow: 1; flex-direction: column; justify-content: space-between; padding: 18px; pointer-events: none; }

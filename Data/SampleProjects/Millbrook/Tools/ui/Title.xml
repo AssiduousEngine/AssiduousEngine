@@ -1,0 +1,14 @@
+<!-- The title, over the village at dusk: the game's name, what it is about, and Begin (or Carry on,
+     when the save holds a game under way; Millbrook.as sets the text), and Quit. The screen stack's
+     back is off: the game's own actions take it. Styled by MillbrookSheet.css. -->
+<Screen class="fades" nav-default="begin-btn" back="none">
+  <Panel class="centre">
+    <Panel class="card title-card">
+      <Label class="title-name" text="Millbrook"/>
+      <Label class="title-lead" text="The fair opens tonight, if the village is ready"/>
+      <Button id="begin-btn" class="tag" text="Begin"/>
+      <Button id="quit-btn" class="tag" text="Quit"/>
+      <Label class="title-hint" text="WASD or stick to walk, Shift to run, E or A to talk and go on"/>
+    </Panel>
+  </Panel>
+</Screen>

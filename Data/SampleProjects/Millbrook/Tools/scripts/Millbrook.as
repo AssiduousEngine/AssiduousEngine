@@ -11,8 +11,16 @@
 //     the game provides; the settings list fair_* as the game's).
 // The save keeps every flag and a conversation's place: each conversation's end saves, and a game
 // that starts with a conversation in progress resumes it.
+// The game opens on the title over the village (Begin, or Carry on with a save under way). When the
+// mayor has called everyone (the flag opening), the ending plays (Sequences/FairOpens: its camera,
+// the lanterns lit on its LightLanterns event, its lines in the stock box), then the credits; the
+// flag fair_opened keeps the lanterns lit after.
 
 const string kHudDoc = "{{{GUI:Hud}}}";
+const string kTitleDoc = "{{{GUI:Title}}}";
+const string kCreditsDoc = "{{{GUI:Credits}}}";
+const Guid kFairOpens = Guid("{{Sequence:FairOpens}}"); // the ending
+const int kLanterns = 4; // LanternLight0..3 (village.py)
 const Guid kFairTune = Guid("{{Audio:FairTune}}"); // the fair's music, from the start
 const float kTalkReach = 2.6f;   // how near the player must be to talk with someone (m)
 const float kWalkSpeed = 1.6f;   // a villager's walk (m/s)
@@ -36,6 +44,9 @@ array<Guid> kIdleClips = {Guid("{{AnimationClip:character-male-e/idle}}"), Guid(
                           Guid("{{AnimationClip:character-knight/idle}}")};
 
 ScreenStack@ screens() { return ScreenStack::of(gui::root().find("screens")); }
+
+funcdef bool EventHandler(GuiEvent e);
+void wire(string id, EventHandler@ handler) { find(id).on("click", handler); } // a button's click
 
 Node@ find(string id)
 {
@@ -72,14 +83,108 @@ class Game : RunBehavior
     private bool m_walkWaits = false;
     private float m_noteFor = 0.0f;
     private bool m_talkedLastFrame = false; // a conversation played last frame: its last press is not a new talk
+    private bool m_playing = false;  // past the title, the credits not up
+    private int m_ending = 0;        // the ending's play id (a notice's play); 0 none
+    private SequencePlay m_endingPlay; // held on its last frame (black) behind the credits
 
     void onStart()
     {
-        screens().push(kHudDoc);
         Audio::playMusic(kFairTune);
         idleAll();
+        lightLanterns(Dialogue::flag("fair_opened"));
+        showTitle();
+    }
+
+    // ---- the title and the credits ----
+    private void showTitle()
+    {
+        m_playing = false;
+        run::setTimeScale(0.0f); // the village holds still behind the title
+        screens().clear();
+        screens().push(kTitleDoc);
+        Button::of(find("begin-btn")).text = Dialogue::flag("met_mayor") ? "Carry on" : "Begin";
+        wire("begin-btn", EventHandler(this.onBegin));
+        wire("quit-btn", EventHandler(this.onQuit));
+    }
+
+    private bool onBegin(GuiEvent e)
+    {
+        screens().clear();
+        screens().push(kHudDoc);
+        m_near = -1;
+        run::setTimeScale(1.0f);
+        m_playing = true;
+        m_talkedLastFrame = true; // the press that began is not a talk
         // A save made mid conversation goes on where it was.
         Dialogue::resume();
+        return true;
+    }
+
+    private bool onQuit(GuiEvent e) { run::requestExit(0); return true; }
+
+    private void showCredits()
+    {
+        m_playing = false;
+        screens().clear();
+        screens().push(kCreditsDoc);
+        wire("back-btn", EventHandler(this.onBackToVillage));
+    }
+
+    private bool onBackToVillage(GuiEvent e)
+    {
+        m_endingPlay.stop(); // the view and the light come back
+        screens().clear();
+        screens().push(kHudDoc);
+        m_near = -1;
+        m_playing = true;
+        m_talkedLastFrame = true;
+        return true;
+    }
+
+    // ---- the ending ----
+    private void playEnding(Scene scene)
+    {
+        m_near = -1;
+        UIWidget::of(find("hud-talk")).removeClass("shown");
+        scene.find("Player").send("Hold", true);
+        // held at its end, so the credits come up over black; Back to the village lets it go
+        m_endingPlay = scene.sequences.play(kFairOpens, "hold");
+        m_endingPlay.bind("EndingCamera", scene.find("EndingCamera")); // a play fills its parts itself
+        m_ending = int(m_endingPlay.id());
+    }
+
+    void onSequenceEvent(SequenceNotice@ notice)
+    {
+        if (notice.play == m_ending && notice.name == "LightLanterns")
+        {
+            lightLanterns(true);
+        }
+    }
+
+    void onSequenceFinished(SequenceNotice@ notice)
+    {
+        if (notice.play != m_ending)
+        {
+            return;
+        }
+        m_ending = 0;
+        Dialogue::setFlag("fair_opened", true);
+        Save::flush();
+        run::currentScene().find("Player").send("Hold", false);
+        showCredits();
+    }
+
+    private void lightLanterns(bool lit)
+    {
+        Scene scene = run::currentScene();
+        for (int i = 0; i < kLanterns; i++)
+        {
+            Entity light = scene.find("LanternLight" + i);
+            if (light.isValid())
+            {
+                LightComponent::of(light).enabled = lit;
+            }
+        }
     }
 
     private void idleAll()
@@ -99,7 +204,7 @@ class Game : RunBehavior
     {
         Scene scene = run::currentScene();
         Entity player = scene.find("Player");
-        if (!player.isValid())
+        if (!player.isValid() || !m_playing)
         {
             return;
         }
@@ -114,7 +219,7 @@ class Game : RunBehavior
             }
         }
         int near = -1;
-        if (!Dialogue::isPlaying() && m_walker < 0)
+        if (!Dialogue::isPlaying() && m_walker < 0 && m_ending == 0)
         {
             Float3 at = player.worldPosition();
             float best = kTalkReach;
@@ -270,8 +375,17 @@ class Game : RunBehavior
     // Each conversation's end saves the flags (and a place kept by an errand).
     void onDialogueEnded(DialogueEndedNotice@ notice)
     {
+        if (notice.conversation.isEmpty())
+        {
+            return; // a line the ending's sequence showed, not a conversation
+        }
         Save::flush();
-        if (Dialogue::flag("fair_ready"))
+        if (Dialogue::flag("opening") && !Dialogue::flag("fair_opened"))
+        {
+            playEnding(run::currentScene());
+            return;
+        }
+        if (Dialogue::flag("fair_ready") && !Dialogue::flag("fair_opened"))
         {
             note("The fair is ready to open.");
         }

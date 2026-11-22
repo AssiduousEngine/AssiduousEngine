@@ -8,9 +8,10 @@
 - The dialogue assets (Dialogue/Staging): the village (the level the conversations check their
   entity names against), the three files, so a jump reaches across them, and what the staging plays:
   the sounds (sounds.py) and the cart's sequence (sequences.py).
+- The stock box's sheet (box/MillbrookBox.css, UI/MillbrookBox), checked with gui_validate.
 - Each file names the cast and the dialogue assets; the plugin's settings name them as a new
   file's defaults, declare the game's commands (walk, errand) and its flags (fair_*), and turn on
-  the stock box.
+  the stock box with Millbrook's sheet.
 
 Run with the editor open on the project, after village.py, sounds.py, sequences.py and
 importscripts.py; then checks every file with dialogue_validate.
@@ -136,9 +137,14 @@ def main():
 
     for name in FILES:
         rewrite(files[name], names)
+    sheet_source = os.path.join(HERE, "box", "MillbrookBox.css")
+    check = mcp("gui_validate", {"source": open(sheet_source).read(), "kind": "sheet"})
+    if not check["valid"] or check["diagnostics"]:
+        raise SystemExit("MillbrookBox.css: %s" % check["diagnostics"])
+    sheet = mcp("asset_import", {"source": sheet_source, "group": "UI"})["guid"]
     mcp("plugin_settings_set", {"id": "dialogue", "settings": {
         "cast": cast, "assets": staging, "commands": list(COMMANDS), "providedFlags": list(PROVIDED),
-        "stockBox": True}})
+        "stockBox": True, "stockBoxSheet": sheet}})
     report = mcp("dialogue_validate", {})
     for f in report["files"]:
         for p in f.get("problems", []):

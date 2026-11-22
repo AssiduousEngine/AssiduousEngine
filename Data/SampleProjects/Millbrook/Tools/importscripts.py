@@ -7,7 +7,8 @@ those (Player, Hud, ...). A re-run re-imports over the same assets, keeping thei
 named by its file, so a sheet and a document may not share a name.
 
 The documents go first, so a script can name them: a `{{Type:Name}}` in a script, a document or the
-sheet (Type one of GUI, Scene, Prefab, Audio, Texture, Dialogue, AnimationClip; a clip named
+sheet (Type one of GUI, Scene, Prefab, Audio, Texture, Dialogue, AnimationClip,
+Sequence; a clip named
 `model/clip` is that model's) is replaced by
 that asset's id before it is imported (the filled copy goes to generated/scripts/), and by the nil id
 when there is no such asset yet (a level not built).
@@ -18,7 +19,8 @@ sys.path.insert(0, HERE)
 from scenegen import mcp
 
 TYPES = {"GUI": "GuiDocumentAsset", "Scene": "SceneDocument", "Prefab": "PrefabDocument", "Audio": "AudioClipAsset",
-         "Texture": "TextureAsset", "Dialogue": "DialogueAsset", "AnimationClip": "AnimationClipAsset"}
+         "Texture": "TextureAsset", "Dialogue": "DialogueAsset", "AnimationClip": "AnimationClipAsset",
+         "Sequence": "SequenceAsset"}
 NIL = "00000000-0000-0000-0000-000000000000"
 FILLED = os.path.join(HERE, "generated", "scripts")
 

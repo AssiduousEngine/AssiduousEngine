@@ -297,9 +297,14 @@ def main():
     v.solid("Cart", 3, -3, 0.7, 1.2, 1.4)
     for x, z, deg in ((-2, 3, 0), (1, 3, 0)):
         v.put("Town/stall-bench", x, 0, z, deg, name="Bench")
-    for x, z in ((-5, -5), (4, -5), (-5, 4), (4, 4)):
+    for k, (x, z) in enumerate(((-5, -5), (4, -5), (-5, 4), (4, 4))):
         v.put("Town/lantern", x, 0, z, 0, name="Lantern")
         v.solid("Lantern", x, z, 0.2, 3.0, 0.2)
+        # unlit until the fair opens (the ending's LightLanterns event; Millbrook.as)
+        light = v.d.stable_id("entity")
+        v.d.entity("LanternLight%d" % k, (x * SCALE, 3.0, z * SCALE), eid=light)
+        v.d.add(light, "light", type=1, color={"r": 1.0, "g": 0.72, "b": 0.40, "a": 1.0}, intensity=6.0, range=11.0,
+                enabled=False)
 
     # South: the fence and its gate; the road out.
     v.fence(-9, 8, 6, gap=(-1, 0))
@@ -327,6 +332,11 @@ def main():
     v.person("Child", "character-female-d", 1, 1, 200)
     v.person("Guard", "character-knight", 0.6, 4.8, 0)
     v.player(-0.5, 8, 180)
+    # The ending's camera, high over the square's south-east corner looking at the fountain; it is
+    # the view only while the ending's camera cut holds it (sequences.py).
+    cam = v.d.stable_id("entity")
+    v.d.entity("EndingCamera", (16.0, 9.0, 16.0), (-0.20, 0.36, 0.08, 0.91), eid=cam)
+    v.d.add(cam, "camera", fovYRadians=0.85, primary=False)
     v.sun()
 
     existing = [a["guid"] for a in ASSETS if a["type"] == "SceneDocument" and a["name"] == "Millbrook"]
