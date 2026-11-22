@@ -10,7 +10,7 @@ add_executable(Integration.Plugins TestsMain.cpp NativeSampleTests.cpp DialogueP
     DialogueRunTests.cpp)
 util_link_plugins(Integration.Plugins ROLE editor PLUGINS nativesample dialogue) # every part an editor loads
 target_link_libraries(Integration.Plugins PRIVATE
-    Editor::App Editor::Mcp Editor::Project Editor::Core Engine::DefaultApp Engine::Composition Engine::Project Engine::Run Engine::Behavior Engine::Render Engine::Sequence
+    Editor::App Editor::Mcp Editor::Project Editor::Core Engine::DefaultApp Engine::Composition Engine::Project Engine::Run Engine::Behavior Engine::Render Engine::Sequence Engine::GUI Foundation::GUI Foundation::GUI.Gamekit Foundation::GUI.Resources
     Foundation::Sequence Foundation::Sequence.Resource Foundation::PropertyAnimation Foundation::Run Foundation::Script Foundation::Script.Facades Foundation::Script.Resource
     Pipeline::Core Pipeline::Importer Pipeline::Registration Foundation::Mcp Foundation::Json Foundation::Content
     Foundation::Scene Foundation::Scene.Resource Foundation::VFS Foundation::Runtime Foundation::Runtime.Client

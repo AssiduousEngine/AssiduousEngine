@@ -75,5 +75,5 @@ TEST_CASE("dialogue settings: every setting has a label for Project Settings")
         const String* label = engine::project::SettingAttribute(property, engine::project::kSettingLabelAttribute);
         CHECK_MESSAGE(label != nullptr, property.name);
     }
-    CHECK(count == 11u);
+    CHECK(count == 12u);
 }

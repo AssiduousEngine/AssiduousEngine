@@ -41,6 +41,8 @@ export namespace dialogue
         Float4 fadeColor{0.0f, 0.0f, 0.0f, 1.0f};
         /// The plugin's own dialogue box shows lines and choices.
         bool stockBox = false;
+        /// A sheet (a GUI style sheet) that styles the stock box in place of the plugin's own.
+        Guid stockBoxSheet;
         /// The stock box types a line out at this many characters a second; 0 shows it whole.
         f32 typingSpeed = 40.0f;
         /// The input map action that advances a line in the stock box.

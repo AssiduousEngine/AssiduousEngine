@@ -45,6 +45,10 @@ namespace dialogue
             .PropAttribute("color", true);
         builder.Property<&DialogueSettings::stockBox>("stockBox").PropAttribute(kSettingLabelAttribute,
                                                                                String(u8"Stock box"));
+        builder.Property<&DialogueSettings::stockBoxSheet>("stockBoxSheet")
+            .PropAttribute(kSettingLabelAttribute, String(u8"Stock box sheet"))
+            .PropAttribute(engine::project::kSettingAssetTypeAttribute, String(u8"GuiStyleSheetAsset"))
+            .PropAttribute(engine::project::kSettingEmptyTextAttribute, String(u8"(the plugin's own)"));
         builder.Property<&DialogueSettings::typingSpeed>("typingSpeed")
             .PropAttribute(kSettingLabelAttribute, String(u8"Typing speed"))
             .PropAttribute("range", Float4{0.0f, 200.0f, 1.0f, 0.0f});
@@ -64,6 +68,7 @@ namespace dialogue
         foundation::core::Serialize(ar, "fadeSeconds", fadeSeconds);
         foundation::core::Serialize(ar, "fadeColor", fadeColor);
         foundation::core::Serialize(ar, "stockBox", stockBox);
+        foundation::core::Serialize(ar, "stockBoxSheet", stockBoxSheet);
         foundation::core::Serialize(ar, "typingSpeed", typingSpeed);
         foundation::core::Serialize(ar, "advanceAction", advanceAction);
         foundation::core::Serialize(ar, "portraitOnRight", portraitOnRight);

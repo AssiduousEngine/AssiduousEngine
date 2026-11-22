@@ -10,11 +10,12 @@ target_link_libraries(${PLUGIN_PART}
            Engine::Run          # the run's save, and the contribution that installs the runner
            Foundation::Scene Foundation::Script Foundation::Script.Facades # the notices' scene and entities
            Foundation::Sequence # the line track
+           Foundation::GUI Foundation::GUI.Gamekit Engine::GUI # the stock box
     PRIVATE Engine::Project     # the settings' attributes
             Engine::Domain      # the dialogue's domain
             Engine::Composition # EnginePluginServices, which takes it
             Engine::Behavior    # the services the run's scripts find (its resources, its input)
-            Foundation::Input Foundation::Sequence.Resource
+            Foundation::Input Foundation::Sequence.Resource Foundation::GUI.Resources
             Engine::Animation Engine::Audio Engine::Render Engine::Sequence # the staging
 )
 target_sources(${PLUGIN_PART}
@@ -28,6 +29,7 @@ target_sources(${PLUGIN_PART}
         DialogueRun.cpp          # the runner a run holds, with the run's host
         DialogueFacade.cpp       # the `Dialogue` facade
         DialogueLineTrack.cpp    # lines on a sequence's timeline
+        DialogueStockBox.cpp     # the plugin's own dialogue box
     PUBLIC
         FILE_SET dialogue_engine_modules TYPE CXX_MODULES FILES
             DialogueEngineModule.cppm
@@ -38,4 +40,5 @@ target_sources(${PLUGIN_PART}
             DialogueRunner.cppm
             DialogueRun.cppm
             DialogueFacade.cppm
-            DialogueLineTrack.cppm)
+            DialogueLineTrack.cppm
+            DialogueStockBox.cppm)

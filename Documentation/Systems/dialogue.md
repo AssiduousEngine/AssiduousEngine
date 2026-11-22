@@ -36,6 +36,7 @@ Settings edits it.
 | `flagPrefix` | `flag.` | where flags live in the run's save store |
 | `fadeSeconds` | 0.5 | how long a `fade` that names no length takes |
 | `fadeColor` | black | what a `fade` that names no colour fades to |
+| `stockBoxSheet` | none | a GUI style sheet that styles the stock box in place of the plugin's own |
 | `stockBox` | off | the plugin's own dialogue box shows lines and choices |
 | `typingSpeed` | 40 | characters a second the stock box types at; 0 shows a line whole |
 | `advanceAction` | `Interact` | the input map action that advances a line in the stock box |
@@ -238,6 +239,23 @@ entity the cast names, else none (logged once a speaker).
 While a line shows, its speaker plays the cast's `talk` clip, looping, until the line is advanced
 or the conversation ends there (`IDialogueHost::OnLineEnded`).
 
+## The stock box
+
+With `stockBox` on, the run's host shows what the runner tells the game in the plugin's own box as
+well (`DialogueStockBox`), so a game has dialogue on screen before it builds a box of its own. It is
+a screen on the run's screen stack (`GuiSubsystem::ScreensFor`) that blocks nothing under it, built
+from the plugin's markup (`DialogueStockBoxMarkup`): a portrait (the notice's), the speaker's shown
+name (none when the cast's `plate` is off), the line typed out at `typingSpeed` characters a second,
+and a choice's answers as buttons, the first focused, so the pad, the keys and the mouse all reach
+them. The advance action (`advanceAction`) or a press on the box first finishes the typing, then
+advances; a press on an answer chooses it. The box goes when the conversation ends (or the line a
+sequence showed). Its look is a sheet over the box alone: the plugin's own
+(`DialogueStockBoxSheet`), or the project's `stockBoxSheet` in its place. The classes a sheet
+styles are `dialogue-screen`, `dialogue-box` (with `portrait-right` when `portraitOnRight` is on),
+`dialogue-portrait`, `dialogue-words`, `dialogue-name`, `dialogue-text`, `dialogue-answers` and
+`dialogue-answer`. The host reaches the GUI as an application service (the GUI subsystem offers
+itself as one).
+
 ## Lines in a sequence
 
 `DialogueLineTrack` is a sequence track kind (Dialogue Lines in the sequence panel's Track menu),
@@ -289,7 +307,9 @@ four parts, its manifest, a project that enables it loading it with its settings
 runner in every run, its flags in the run's save, `Dialogue` offered to scripts and taken back on
 unload; a run's runner fading the scene, playing a sequence bound to the cast's entity or to one
 the game bound, and showing a line on the run's bus; a sequence's line track showing its lines
-through the run's runner and holding until each is advanced; an AngelScript and a Luau behavior playing a
+through the run's runner and holding until each is advanced; the stock box on a real GUI typing a
+line, finishing and advancing on a press, taking an answer and going at the end; an AngelScript and
+a Luau behavior playing a
 cooked conversation through `Dialogue` and answering its line, choice and command;
 and, through the MCP host, a dialogue file cooking to its conversations, one with an error failing
 the cook, and File > New's three creators; and, in an editor session, the cast and the dialogue

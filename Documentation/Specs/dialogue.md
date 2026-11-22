@@ -1,6 +1,6 @@
 # Dialogue as an official plugin
 
-> APPROVED 2026-11-21. D0 to D4 2026-11-21. Read on master at `247608c79`; line numbers will drift. Revisits the
+> APPROVED 2026-11-21. D0 to D5 2026-11-21. Read on master at `247608c79`; line numbers will drift. Revisits the
 > choice, made on 2026-11-06 for the first game built on the engine, to keep its dialogue in its
 > own script ("A now, with plans to move to C"), now that the sequencer exists, and makes dialogue
 > an official engine plugin (that note's option B).
@@ -498,6 +498,13 @@ Each step a commit with its tests, green on clang and gcc.
    no conversation, and holds the play at the section's end through D0's runner hold. A
    conversation starting takes over from a line still shown.
 6. **D5 The stock box**: the GUI document, its settings, a sample of it in use.
+   *As built:* the box is a non-blocking screen on the run's screen stack, built from markup the
+   plugin carries, styled by a sheet over the box alone: the plugin's, or the project's
+   (`stockBoxSheet`, a setting added for it) in its place. A press on the box, or the advance
+   action, finishes the typing and then advances; the answers are buttons. The speaker's `voice`
+   plays once as a line starts (through the run's host, with or without the box). An engine change:
+   the GUI subsystem is an application service of its own type, so the run's host reaches its
+   style manager and the run's screen stack. The sample of it in use is D8's.
 7. **D6 The editor and agents**: the dialogue page (code editor, checks, outline, preview), and
    `dialogue_validate` / `dialogue_read`.
 8. **D7 Proof, with the user**: the first game enables the plugin, its scenes become

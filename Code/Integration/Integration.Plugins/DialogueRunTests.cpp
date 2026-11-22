@@ -8,7 +8,9 @@
 // game bound to it. And the `Dialogue` facade in every language: a behavior binds a speaker, sets a
 // flag, plays a cooked conversation by its file's guid, and answers its line, choice and command
 // in its on<Name> handlers until it ends. And a sequence's line track: the play shows each line
-// through the run's runner and holds at its end until it is advanced.
+// through the run's runner and holds at its end until it is advanced. And the stock box on a real
+// GUI: the line typed out, a press finishing it then advancing, the answers pressed, the box gone
+// at the end.
 
 #include <doctest/doctest.h>
 
@@ -36,6 +38,11 @@ import engine.behavior;
 import engine.run;
 import engine.render;
 import engine.sequence;
+import engine.gui;
+import foundation.runtime;
+import foundation.gui.gamekit;
+import foundation.gui;
+import foundation.gui.resources;
 import dialogue.engine;
 import dialogue.pipeline;
 
@@ -43,6 +50,7 @@ using namespace foundation::core;
 namespace scene = foundation::scene;
 namespace sequence = foundation::sequence;
 namespace propertyanimation = foundation::propertyanimation;
+namespace runtime = foundation::runtime;
 
 namespace
 {
@@ -469,4 +477,45 @@ TEST_CASE("plugins: a sequence's line track shows its line through the run's run
         r.Frame(0.5f);
     }
     CHECK(system->Find(play) == nullptr); // played to its end
+}
+
+TEST_CASE("plugins: the stock box types a line, takes a press to finish it and another to advance, and its answers")
+{
+    DialogueRun r(kTalk);
+    runtime::SubsystemManager application{DefaultAllocator()};
+    foundation::vfs::NativeFileSystem data(foundation::vfs::FindDataRoot(), DefaultAllocator());
+    engine::gui::GuiSubsystem* gui = application.AddSubsystem<engine::gui::GuiSubsystem>(DefaultAllocator(), data);
+    application.Startup();
+    r.scripts.SetApplicationServices(Function<void*(TypeId)>{[&application](TypeId type) { return application.FindService(type); }});
+    r.settings.stockBox = true;
+    r.settings.typingSpeed = 10.0f;
+    r.runner->SetFlag(u8"met", true);
+    dialogue::DialogueStockBox& box = r.runner->Box();
+    r.Start();
+
+    REQUIRE(r.runner->Play(r.store.gate, u8"gate"));
+    REQUIRE(box.IsShown());
+    REQUIRE(gui->Screens() != nullptr);
+    CHECK(gui->Screens()->Top() == box.ScreenNode());
+    CHECK(box.ShownName() == StringView(u8"The Keeper"));
+    CHECK(box.ShownText().IsEmpty());
+    r.Frame(0.25f);
+    CHECK(box.ShownText() == StringView(u8"We")); // ten a second: two and a half shown
+    CHECK(box.IsTyping());
+    box.PressBox(); // finishes the typing
+    r.Frame(0.0f);
+    CHECK(box.ShownText() == StringView(u8"Welcome back."));
+    CHECK(r.runner->Waiting() == dialogue::DialogueWait::Line);
+    box.PressBox(); // advances
+    r.Frame(0.0f);
+    CHECK(r.runner->Waiting() == dialogue::DialogueWait::Choice);
+    REQUIRE(box.AnswerCount() == 2u);
+    box.Press(1); // Go.
+    r.Frame(0.0f);
+    CHECK(r.runner->Waiting() == dialogue::DialogueWait::Command);
+    REQUIRE(r.runner->Done());
+    CHECK_FALSE(r.runner->IsPlaying());
+    CHECK_FALSE(box.IsShown()); // gone with the conversation
+    CHECK(gui->Screens()->Top() == nullptr); // popped
+    application.Shutdown();
 }

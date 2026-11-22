@@ -14,7 +14,12 @@
 //   * `fade`: a claim on the scene's fade, over the sequences' own, held at full until a fade in.
 //   * `sequence`: a play in the scene, each of its bindings named for a speaker filled with that
 //     speaker's entity; `and wait` holds until it ends.
-// While a line shows, its speaker plays their talk clip (the cast's `talk`), looping.
+// While a line shows, its speaker plays their talk clip (the cast's `talk`), looping, and their
+// voice (the cast's `voice`) once as it starts.
+//
+// With the settings' `stockBox` on, the host shows what it tells the game in the plugin's own box
+// as well (DialogueStockBox), on the run's screen stack, and takes the player's advance and answers
+// from it.
 
 module;
 
@@ -28,10 +33,13 @@ import engine.run; // RunServiceContribution
 import foundation.scene;
 import foundation.resource;
 import foundation.script; // IScriptContext
+import foundation.gui.gamekit; // the stock box's screen stack
+import engine.gui;
 import :settings;
 import :conversation;
 import :cast;
 import :runner;
+import :stockbox;
 
 using namespace foundation::core;
 
@@ -41,11 +49,17 @@ export namespace dialogue
     class DialogueRunHost final : public IDialogueHost
     {
     public:
-        DialogueRunHost(const DialogueSettings& settings, foundation::run::IRun& run) : m_settings(&settings), m_run(&run) {}
+        DialogueRunHost(const DialogueSettings& settings, foundation::run::IRun& run)
+            : m_settings(&settings), m_run(&run), m_box(settings)
+        {
+        }
         ~DialogueRunHost() override;
 
         /// Plays the speaker `speaker` as `entity` in what follows (unassigned: the cast's again).
         void Bind(StringView speaker, foundation::scene::EntityHandle entity);
+        /// The runner the stock box advances and answers.
+        void SetRunner(DialogueRunner& runner) noexcept { m_runner = &runner; }
+        [[nodiscard]] DialogueStockBox& Box() noexcept { return m_box; }
 
         [[nodiscard]] RefPtr<DialogueResource> LoadDialogue(const Guid& id) override;
         [[nodiscard]] RefPtr<DialogueCastResource> LoadCast(const Guid& id) override;
@@ -88,6 +102,11 @@ export namespace dialogue
                                                                const DialogueSpeaker* entry);
         void StopTalking();
         void ReleaseFade();
+        void UpdateFade(f32 deltaTime);
+        // The box's sheet: the project's (`stockBoxSheet`) when it loads, else the plugin's.
+        [[nodiscard]] String BoxSheet() const;
+        // The GUI and the run's screen stack the box goes on; false when there are none.
+        [[nodiscard]] bool BoxPlace(engine::gui::GuiSubsystem*& gui, foundation::gui::ScreenStack*& stack) const;
 
         const DialogueSettings* m_settings;
         foundation::run::IRun* m_run;
@@ -107,6 +126,8 @@ export namespace dialogue
         // The speaker talking while their line shows.
         foundation::scene::WeakSceneRef m_talkScene;
         foundation::scene::EntityHandle m_talker;
+        DialogueRunner* m_runner = nullptr;
+        DialogueStockBox m_box;
     };
 
     /// The runner a run holds, with the run's host (`run.Get<DialogueRunService>()`).
@@ -117,7 +138,11 @@ export namespace dialogue
         DialogueRunService(const DialogueSettings& settings, foundation::run::IRun& run)
             : DialogueRunner(settings, m_runHost), m_runHost(settings, run)
         {
+            m_runHost.SetRunner(*this);
         }
+
+        /// The stock box (for tests).
+        [[nodiscard]] DialogueStockBox& Box() noexcept { return m_runHost.Box(); }
 
         /// Plays the speaker `speaker` as `entity` (unassigned: the cast's entity again).
         void Bind(StringView speaker, foundation::scene::EntityHandle entity) { m_runHost.Bind(speaker, entity); }

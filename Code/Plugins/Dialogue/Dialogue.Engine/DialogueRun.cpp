@@ -26,6 +26,9 @@ import engine.animation; // the one-shot
 import engine.audio;
 import engine.render; // the scene's fade
 import engine.sequence;
+import engine.gui;
+import foundation.gui.gamekit;
+import foundation.gui.resources;
 
 using namespace foundation::core;
 
@@ -281,7 +284,7 @@ namespace dialogue
             m_fadeSeconds = step.seconds >= 0.0f ? step.seconds : m_settings->fadeSeconds;
             m_fadeTime = 0.0f;
             m_fadeToken = m_nextToken++;
-            Update(0.0f);
+            UpdateFade(0.0f);
             return m_fadeToken;
         }
         case DialogueStepKind::Sequence:
@@ -367,6 +370,50 @@ namespace dialogue
 
     void DialogueRunHost::Update(f32 deltaTime)
     {
+        UpdateFade(deltaTime);
+        if (!m_settings->stockBox || !m_box.IsShown() || m_runner == nullptr)
+        {
+            return;
+        }
+        bool pressed = false;
+        if (auto* input = static_cast<foundation::input::ActionRuntime*>(Find(TypeOf<foundation::input::ActionRuntime>().id)))
+        {
+            const foundation::input::ActionRef action = input->Resolve(m_settings->advanceAction.AsView());
+            pressed = input->WasPressed(action);
+        }
+        const DialogueStockBox::Request request = m_box.Update(deltaTime, pressed);
+        if (request.choose >= 0)
+        {
+            (void)m_runner->Choose(request.choose);
+        }
+        else if (request.advance)
+        {
+            (void)m_runner->Advance();
+        }
+    }
+
+    String DialogueRunHost::BoxSheet() const
+    {
+        if (!m_settings->stockBoxSheet.IsNil())
+        {
+            if (RefPtr<foundation::gui::GuiStyleSheet> sheet =
+                    Load<foundation::gui::GuiStyleSheet>(Resources(), m_settings->stockBoxSheet))
+            {
+                return sheet->css;
+            }
+        }
+        return String(DialogueStockBoxSheet());
+    }
+
+    bool DialogueRunHost::BoxPlace(engine::gui::GuiSubsystem*& gui, foundation::gui::ScreenStack*& stack) const
+    {
+        gui = static_cast<engine::gui::GuiSubsystem*>(Find(TypeOf<engine::gui::GuiSubsystem>().id));
+        stack = gui != nullptr ? gui->ScreensFor(m_run) : nullptr;
+        return stack != nullptr;
+    }
+
+    void DialogueRunHost::UpdateFade(f32 deltaTime)
+    {
         if (m_fadeToken == 0)
         {
             return;
@@ -433,18 +480,48 @@ namespace dialogue
                 m_talker = entity;
             }
         }
+        if (speaker != nullptr && !speaker->voice.IsNil())
+        {
+            foundation::script::ScriptCallScope scope(Context());
+            (void)engine::audio::AudioFacade::playOneShot(speaker->voice);
+        }
+        if (m_settings->stockBox)
+        {
+            engine::gui::GuiSubsystem* gui = nullptr;
+            foundation::gui::ScreenStack* stack = nullptr;
+            if (BoxPlace(gui, stack))
+            {
+                m_box.ShowLine(*gui, *stack, BoxSheet().AsView(), notice, speaker);
+            }
+        }
         Publish(*m_run, kDialogueLineEvent, notice);
     }
 
     void DialogueRunHost::OnLineEnded() { StopTalking(); }
-    void DialogueRunHost::OnChoice(const DialogueChoiceNotice& notice) { Publish(*m_run, kDialogueChoiceEvent, notice); }
+    void DialogueRunHost::OnChoice(const DialogueChoiceNotice& notice)
+    {
+        if (m_settings->stockBox)
+        {
+            engine::gui::GuiSubsystem* gui = nullptr;
+            foundation::gui::ScreenStack* stack = nullptr;
+            if (BoxPlace(gui, stack))
+            {
+                m_box.ShowChoice(*gui, *stack, BoxSheet().AsView(), notice);
+            }
+        }
+        Publish(*m_run, kDialogueChoiceEvent, notice);
+    }
     void DialogueRunHost::OnCommand(const DialogueCommandNotice& notice)
     {
         DialogueCommandNotice placed = notice;
         placed.scene = Scene(); // where its entity arguments are
         Publish(*m_run, kDialogueCommandEvent, placed);
     }
-    void DialogueRunHost::OnEnded(const DialogueEndedNotice& notice) { Publish(*m_run, kDialogueEndedEvent, notice); }
+    void DialogueRunHost::OnEnded(const DialogueEndedNotice& notice)
+    {
+        m_box.Hide();
+        Publish(*m_run, kDialogueEndedEvent, notice);
+    }
 
     engine::runtime::RunServiceContribution DialogueRunContribution(const DialogueSettings& settings)
     {
