@@ -24,16 +24,10 @@ namespace foundation::script
 
 namespace foundation::script::detail
 {
-    IScriptContext*& CurrentScriptContextSlot() noexcept
+    CallSlots& CurrentCallSlots() noexcept
     {
-        static thread_local IScriptContext* slot = nullptr;
-        return slot;
-    }
-
-    const ServiceResolver*& CurrentServiceResolverSlot() noexcept
-    {
-        static thread_local const ServiceResolver* slot = nullptr;
-        return slot;
+        static thread_local CallSlots slots;
+        return slots;
     }
 } // namespace foundation::script::detail
 

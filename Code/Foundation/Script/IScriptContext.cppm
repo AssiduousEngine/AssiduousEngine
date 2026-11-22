@@ -299,19 +299,23 @@ export namespace foundation::script
     // different libraries, and a vague-linkage thread_local would be duplicated per shared
     // library, so the facade would read null and lose its per-context services.
     //
-    // Apart from it, the services of the call running now: what a facade reads through
+    // Beside it, the services of the call running now: what a facade reads through
     // CurrentService. A script's call pushes its context's (ScriptCallScope); native code that calls
     // facades pushes its host's (ServiceScope), with no context at all: a native behavior, or a
-    // plugin's runner staging a conversation. The slot is defined beside the context's, for the
-    // same reason.
+    // plugin's runner staging a conversation. Both live in one thread_local, so a scope reaches
+    // them with one lookup: a script's every call into the engine opens one.
     namespace detail
     {
-        [[nodiscard]] IScriptContext*& CurrentScriptContextSlot() noexcept;
-        [[nodiscard]] const ServiceResolver*& CurrentServiceResolverSlot() noexcept;
+        struct CallSlots
+        {
+            IScriptContext* scriptContext = nullptr;
+            const ServiceResolver* services = nullptr;
+        };
+        [[nodiscard]] CallSlots& CurrentCallSlots() noexcept;
     }
     [[nodiscard]] inline IScriptContext* CurrentScriptContext() noexcept
     {
-        return detail::CurrentScriptContextSlot();
+        return detail::CurrentCallSlots().scriptContext;
     }
 
     /// The service of type `T` for the call running now (a script's or native code's under a
@@ -320,7 +324,7 @@ export namespace foundation::script
     template <typename T>
     [[nodiscard]] T* CurrentService()
     {
-        const ServiceResolver* resolver = detail::CurrentServiceResolverSlot();
+        const ServiceResolver* resolver = detail::CurrentCallSlots().services;
         return resolver != nullptr && *resolver ? static_cast<T*>((*resolver)(core::TypeOf<T>().id)) : nullptr;
     }
 
@@ -330,15 +334,16 @@ export namespace foundation::script
     {
     public:
         explicit ServiceScope(const ServiceResolver* resolver) noexcept
-            : m_previous(detail::CurrentServiceResolverSlot())
+            : m_slots(&detail::CurrentCallSlots()), m_previous(m_slots->services)
         {
-            detail::CurrentServiceResolverSlot() = resolver;
+            m_slots->services = resolver;
         }
-        ~ServiceScope() { detail::CurrentServiceResolverSlot() = m_previous; }
+        ~ServiceScope() { m_slots->services = m_previous; }
         ServiceScope(const ServiceScope&) = delete;
         ServiceScope& operator=(const ServiceScope&) = delete;
 
     private:
+        detail::CallSlots* m_slots; // this thread's, found once
         const ServiceResolver* m_previous;
     };
 
@@ -348,17 +353,17 @@ export namespace foundation::script
     {
     public:
         explicit ScriptCallScope(IScriptContext* scriptContext) noexcept
-            : m_previous(detail::CurrentScriptContextSlot()),
-              m_services(scriptContext != nullptr ? &scriptContext->Resolver() : nullptr)
+            : m_slots(&detail::CurrentCallSlots()), m_previous(*m_slots)
         {
-            detail::CurrentScriptContextSlot() = scriptContext;
+            m_slots->scriptContext = scriptContext;
+            m_slots->services = scriptContext != nullptr ? &scriptContext->Resolver() : nullptr;
         }
-        ~ScriptCallScope() { detail::CurrentScriptContextSlot() = m_previous; }
+        ~ScriptCallScope() { *m_slots = m_previous; }
         ScriptCallScope(const ScriptCallScope&) = delete;
         ScriptCallScope& operator=(const ScriptCallScope&) = delete;
 
     private:
-        IScriptContext* m_previous;
-        ServiceScope m_services;
+        detail::CallSlots* m_slots; // this thread's, found once
+        detail::CallSlots m_previous;
     };
 }

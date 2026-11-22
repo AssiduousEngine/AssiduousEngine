@@ -332,7 +332,15 @@ then work in a project that also uses a VM.
 
 - **The seam's cost.** Every handler call goes through one more interface. The typed call path
   ([scripting-typed-calls.md](scripting-typed-calls.md)) measures script calls against native ones;
-  N1 is measured the same way before and after.
+  N1 is measured the same way before and after. Measured 2026-11-22 (`build/clang-reldbg`,
+  Integration.ScriptScene's measures, three runs each, alternating with `f7238a93f`, the commit
+  before the seam): AngelScript did not move, and Luau's calls into the engine were 7 to 11%
+  slower (an entity call 122 to 136 ns, an engine call 82 to 90 ns; 5,000 movers 3.11 to 3.29 ms a
+  frame). Luau opens a `ScriptCallScope` around every call into the engine, and the seam made it
+  push a second thread_local slot through a second accessor in another library. With both slots
+  in one thread_local, found once per scope, every measure is back within 4% of the commit before
+  the seam, the ranges overlapping (an entity call 122 against 123 ns, 5,000 movers 3.12 against
+  3.12 ms).
 - **Scope.** A native behavior is something a game's author writes, so it adds CHANGELOG lines, a
   section in `Documentation/Shipping/Scripting.md` (or a native code guide beside it), and the
   inspector's handling of native classes.
