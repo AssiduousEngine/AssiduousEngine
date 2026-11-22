@@ -671,6 +671,9 @@ TEST_CASE("shell.sdl3: unplugging a pad leaves the others their numbers")
     }
     IInputManager* input = shell.Input();
     REQUIRE(input != nullptr);
+    // Pads already connected to the machine hold the first numbers; the test's own come after them.
+    shell.ProcessEvents();
+    const i32 existing = input->GamepadCount();
     auto attach = []()
     {
         SDL_VirtualJoystickDesc desc;
@@ -687,25 +690,25 @@ TEST_CASE("shell.sdl3: unplugging a pad leaves the others their numbers")
         return; // no virtual joysticks in this SDL
     }
     shell.ProcessEvents();
-    REQUIRE(input->GamepadCount() == 2);
-    IGamepad* secondPad = input->GetGamepad(1);
+    REQUIRE(input->GamepadCount() == existing + 2);
+    IGamepad* secondPad = input->GetGamepad(existing + 1);
     REQUIRE(secondPad != nullptr);
 
     SDL_DetachVirtualJoystick(first);
     shell.ProcessEvents();
-    CHECK(input->GetGamepad(0) == nullptr); // its slot is empty
-    CHECK(input->GetGamepad(1) == secondPad);
-    CHECK(secondPad->Index() == 1);
+    CHECK(input->GetGamepad(existing) == nullptr); // its slot is empty
+    CHECK(input->GetGamepad(existing + 1) == secondPad);
+    CHECK(secondPad->Index() == existing + 1);
 
     const SDL_JoystickID third = attach(); // a pad plugged in takes the free slot
     shell.ProcessEvents();
-    REQUIRE(input->GetGamepad(0) != nullptr);
-    CHECK(input->GetGamepad(0)->Index() == 0);
-    CHECK(input->GamepadCount() == 2);
+    REQUIRE(input->GetGamepad(existing) != nullptr);
+    CHECK(input->GetGamepad(existing)->Index() == existing);
+    CHECK(input->GamepadCount() == existing + 2);
 
     SDL_DetachVirtualJoystick(second);
     shell.ProcessEvents();
-    CHECK(input->GamepadCount() == 1); // trailing empty slots go
+    CHECK(input->GamepadCount() == existing + 1); // trailing empty slots go
     SDL_DetachVirtualJoystick(third);
     shell.ProcessEvents();
 }
