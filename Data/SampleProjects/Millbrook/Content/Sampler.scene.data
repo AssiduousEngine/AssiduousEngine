@@ -1,0 +1,1685 @@
+<root>
+	<u32 name="magic">3586350318</u32>
+	<u32 name="version">3</u32>
+	<string name="name">Sampler</string>
+	<array name="entities" count="35">
+		<string name="id">b71bfabc-043e-5b1c-94f7-5a58d95ae1b3</string>
+		<string name="name">wall</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">6.123234e-17</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">86f022f5-5d94-5801-b9ff-0103a3aa7384</string>
+		<string name="name">wall</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0.70710677</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">0.70710677</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">01095d06-0efa-5c5e-8885-70410fa73d9e</string>
+		<string name="name">roof-high</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">0</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">0</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">1</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">108e248d-9432-5994-b8eb-308a6c467278</string>
+		<string name="name">wall</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">6.123234e-17</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">b637a10e-8c60-5bc7-8fef-c5865f6fdffc</string>
+		<string name="name">roof-high</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">0</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">1</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">8c6c9794-11d1-5c8e-899b-225e9350ccff</string>
+		<string name="name">wall</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">4</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">6.123234e-17</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">fb1856b8-a72c-57f6-9e98-39e9f6fd7f47</string>
+		<string name="name">wall-door</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">4</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0.70710677</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">-0.70710677</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">5d3f36fc-a27f-540c-886b-4798143cc944</string>
+		<string name="name">wall-door</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">4</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0.70710677</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">-0.70710677</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">3b9fd108-b03b-54ee-bc6f-f48d12ac9392</string>
+		<string name="name">roof-high</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">0</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">4</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">1</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">26ec5a47-055d-50d9-a472-3a34870cadf3</string>
+		<string name="name">wall</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">2</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">1</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">6fe32bb7-11a1-5561-8e97-c13b557bf2a3</string>
+		<string name="name">wall</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">2</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0.70710677</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">0.70710677</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">8ba34cfa-c2e6-5bfc-b3cb-daebf7af75b2</string>
+		<string name="name">roof-high</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">0</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">6.123234e-17</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">a58fae11-44b5-52ef-a92c-15a16963aa6e</string>
+		<string name="name">wall</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">2</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">1</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">a349bfdb-c858-5748-8fe0-89d1ffd81b73</string>
+		<string name="name">roof-high</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">6.123234e-17</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">e3ae443c-d7f7-5608-942d-b20ef9a8fffc</string>
+		<string name="name">wall</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">2</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">4</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">1</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">908a1950-28b9-53a8-9b7b-a17ee484c7c6</string>
+		<string name="name">wall</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">2</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">4</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0.70710677</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">-0.70710677</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">1f55fbfe-337c-5cd8-8949-aa287fc640d4</string>
+		<string name="name">roof-high</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">4</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">6.123234e-17</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">86d5f34f-0a77-5135-bed3-3dc71f4f93ef</string>
+		<string name="name">wall-wood</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">8</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">6.123234e-17</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">ac05bd4c-62b3-5cb4-8878-1b2566faf8cf</string>
+		<string name="name">wall-wood</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">8</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0.70710677</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">0.70710677</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">d7fb929f-d6a3-5339-b4fd-8893f8013d73</string>
+		<string name="name">roof</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">8</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">0</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">1</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">7c9305fd-beaa-5220-aca6-115056857071</string>
+		<string name="name">wall-wood</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">8</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">6.123234e-17</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">a9f41606-afa1-5473-9d51-129249940b83</string>
+		<string name="name">roof</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">8</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">1</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">dba857c8-fb4f-5a4f-b434-3a2b92621d12</string>
+		<string name="name">wall-wood</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">8</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">4</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">6.123234e-17</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">ca17b738-fe74-5cd2-af8b-c760eb1291da</string>
+		<string name="name">wall-wood</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">8</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">4</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0.70710677</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">-0.70710677</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">362814f5-5ba5-578e-8fd7-959dba9ca90c</string>
+		<string name="name">roof</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">8</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">4</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">1</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">a56f0d07-da35-5b3f-847e-ee308c04f3fb</string>
+		<string name="name">wall-wood</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">10</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">1</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">825cac71-b5e9-55fc-8006-5320d37610d7</string>
+		<string name="name">wall-wood</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">10</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0.70710677</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">0.70710677</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">676f99f5-8597-59bc-b8a4-675d73321363</string>
+		<string name="name">roof</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">10</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">0</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">6.123234e-17</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">af0734fc-6d73-5fca-a1ee-949d427cae9e</string>
+		<string name="name">wall-wood</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">10</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">1</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">0b72a9a9-5901-551a-9d93-4fa139f2ee6a</string>
+		<string name="name">roof</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">10</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">6.123234e-17</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">a15e3ec4-6510-5f6f-b5b4-11abbe8b9362</string>
+		<string name="name">wall-wood</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">10</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">4</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">1</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">0b120e33-08d1-51ac-94b2-15ad9f36c227</string>
+		<string name="name">wall-door</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">10</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">4</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0.70710677</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">-0.70710677</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">f3707617-4a0f-5075-a572-e4ac677fbe54</string>
+		<string name="name">wall-door</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">10</f32>
+			<f32 name="y">0</f32>
+			<f32 name="z">4</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">0.70710677</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">-0.70710677</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">b76e7435-d3f8-5422-9a14-bf71f3b4238f</string>
+		<string name="name">roof</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">10</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">4</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">0</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">0</f32>
+			<f32 name="w">6.123234e-17</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">2</f32>
+			<f32 name="y">2</f32>
+			<f32 name="z">2</f32>
+		</object>
+		<string name="id">643801dc-ff21-56b6-9cef-48e5c49d60e0</string>
+		<string name="name">Sun</string>
+		<u8 name="active">1</u8>
+		<string name="parent">00000000-0000-0000-0000-000000000000</string>
+		<object name="position">
+			<f32 name="x">0</f32>
+			<f32 name="y">10</f32>
+			<f32 name="z">0</f32>
+		</object>
+		<object name="rotation">
+			<f32 name="x">-0.38</f32>
+			<f32 name="y">0.32</f32>
+			<f32 name="z">0.14</f32>
+			<f32 name="w">0.86</f32>
+		</object>
+		<object name="scale">
+			<f32 name="x">1</f32>
+			<f32 name="y">1</f32>
+			<f32 name="z">1</f32>
+		</object>
+	</array>
+	<array name="components" count="35">
+		<object>
+			<string name="owner">b71bfabc-043e-5b1c-94f7-5a58d95ae1b3</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">92379954-5d63-415d-a393-5fd55a515a29</string>
+				<array name="materials" count="1">
+					<string>fb1c8217-2ed5-46a5-8d59-5c6be902da84</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">86f022f5-5d94-5801-b9ff-0103a3aa7384</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">92379954-5d63-415d-a393-5fd55a515a29</string>
+				<array name="materials" count="1">
+					<string>fb1c8217-2ed5-46a5-8d59-5c6be902da84</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">01095d06-0efa-5c5e-8885-70410fa73d9e</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">720b14b1-728d-4077-96b0-91e8d9e7c4a7</string>
+				<array name="materials" count="1">
+					<string>f75a0c47-4a93-42de-b4e2-2eaa2ba8fe17</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">108e248d-9432-5994-b8eb-308a6c467278</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">92379954-5d63-415d-a393-5fd55a515a29</string>
+				<array name="materials" count="1">
+					<string>fb1c8217-2ed5-46a5-8d59-5c6be902da84</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">b637a10e-8c60-5bc7-8fef-c5865f6fdffc</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">720b14b1-728d-4077-96b0-91e8d9e7c4a7</string>
+				<array name="materials" count="1">
+					<string>f75a0c47-4a93-42de-b4e2-2eaa2ba8fe17</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">8c6c9794-11d1-5c8e-899b-225e9350ccff</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">92379954-5d63-415d-a393-5fd55a515a29</string>
+				<array name="materials" count="1">
+					<string>fb1c8217-2ed5-46a5-8d59-5c6be902da84</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">fb1856b8-a72c-57f6-9e98-39e9f6fd7f47</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">62fafb03-4758-4686-a5f0-8de9075fe29b</string>
+				<array name="materials" count="1">
+					<string>4eda49b7-6f74-4f28-9c62-e4723f2e7898</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">5d3f36fc-a27f-540c-886b-4798143cc944</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">bedea1d0-a9db-4624-bdfe-e3d60e9178e6</string>
+				<array name="materials" count="1">
+					<string>4eda49b7-6f74-4f28-9c62-e4723f2e7898</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">3b9fd108-b03b-54ee-bc6f-f48d12ac9392</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">720b14b1-728d-4077-96b0-91e8d9e7c4a7</string>
+				<array name="materials" count="1">
+					<string>f75a0c47-4a93-42de-b4e2-2eaa2ba8fe17</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">26ec5a47-055d-50d9-a472-3a34870cadf3</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">92379954-5d63-415d-a393-5fd55a515a29</string>
+				<array name="materials" count="1">
+					<string>fb1c8217-2ed5-46a5-8d59-5c6be902da84</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">6fe32bb7-11a1-5561-8e97-c13b557bf2a3</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">92379954-5d63-415d-a393-5fd55a515a29</string>
+				<array name="materials" count="1">
+					<string>fb1c8217-2ed5-46a5-8d59-5c6be902da84</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">8ba34cfa-c2e6-5bfc-b3cb-daebf7af75b2</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">720b14b1-728d-4077-96b0-91e8d9e7c4a7</string>
+				<array name="materials" count="1">
+					<string>f75a0c47-4a93-42de-b4e2-2eaa2ba8fe17</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">a58fae11-44b5-52ef-a92c-15a16963aa6e</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">92379954-5d63-415d-a393-5fd55a515a29</string>
+				<array name="materials" count="1">
+					<string>fb1c8217-2ed5-46a5-8d59-5c6be902da84</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">a349bfdb-c858-5748-8fe0-89d1ffd81b73</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">720b14b1-728d-4077-96b0-91e8d9e7c4a7</string>
+				<array name="materials" count="1">
+					<string>f75a0c47-4a93-42de-b4e2-2eaa2ba8fe17</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">e3ae443c-d7f7-5608-942d-b20ef9a8fffc</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">92379954-5d63-415d-a393-5fd55a515a29</string>
+				<array name="materials" count="1">
+					<string>fb1c8217-2ed5-46a5-8d59-5c6be902da84</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">908a1950-28b9-53a8-9b7b-a17ee484c7c6</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">92379954-5d63-415d-a393-5fd55a515a29</string>
+				<array name="materials" count="1">
+					<string>fb1c8217-2ed5-46a5-8d59-5c6be902da84</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">1f55fbfe-337c-5cd8-8949-aa287fc640d4</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">720b14b1-728d-4077-96b0-91e8d9e7c4a7</string>
+				<array name="materials" count="1">
+					<string>f75a0c47-4a93-42de-b4e2-2eaa2ba8fe17</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">86d5f34f-0a77-5135-bed3-3dc71f4f93ef</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">1cc25c40-7133-41d0-82b5-51f4536f997b</string>
+				<array name="materials" count="1">
+					<string>4a2ada21-c46c-4a5a-8466-3b759d708029</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">ac05bd4c-62b3-5cb4-8878-1b2566faf8cf</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">1cc25c40-7133-41d0-82b5-51f4536f997b</string>
+				<array name="materials" count="1">
+					<string>4a2ada21-c46c-4a5a-8466-3b759d708029</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">d7fb929f-d6a3-5339-b4fd-8893f8013d73</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">e59e6be2-7c28-4a72-b760-6d4e28d0fc26</string>
+				<array name="materials" count="1">
+					<string>d874b7d5-50cc-4d63-96fe-8c0e701468de</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">7c9305fd-beaa-5220-aca6-115056857071</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">1cc25c40-7133-41d0-82b5-51f4536f997b</string>
+				<array name="materials" count="1">
+					<string>4a2ada21-c46c-4a5a-8466-3b759d708029</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">a9f41606-afa1-5473-9d51-129249940b83</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">e59e6be2-7c28-4a72-b760-6d4e28d0fc26</string>
+				<array name="materials" count="1">
+					<string>d874b7d5-50cc-4d63-96fe-8c0e701468de</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">dba857c8-fb4f-5a4f-b434-3a2b92621d12</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">1cc25c40-7133-41d0-82b5-51f4536f997b</string>
+				<array name="materials" count="1">
+					<string>4a2ada21-c46c-4a5a-8466-3b759d708029</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">ca17b738-fe74-5cd2-af8b-c760eb1291da</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">1cc25c40-7133-41d0-82b5-51f4536f997b</string>
+				<array name="materials" count="1">
+					<string>4a2ada21-c46c-4a5a-8466-3b759d708029</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">362814f5-5ba5-578e-8fd7-959dba9ca90c</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">e59e6be2-7c28-4a72-b760-6d4e28d0fc26</string>
+				<array name="materials" count="1">
+					<string>d874b7d5-50cc-4d63-96fe-8c0e701468de</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">a56f0d07-da35-5b3f-847e-ee308c04f3fb</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">1cc25c40-7133-41d0-82b5-51f4536f997b</string>
+				<array name="materials" count="1">
+					<string>4a2ada21-c46c-4a5a-8466-3b759d708029</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">825cac71-b5e9-55fc-8006-5320d37610d7</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">1cc25c40-7133-41d0-82b5-51f4536f997b</string>
+				<array name="materials" count="1">
+					<string>4a2ada21-c46c-4a5a-8466-3b759d708029</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">676f99f5-8597-59bc-b8a4-675d73321363</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">e59e6be2-7c28-4a72-b760-6d4e28d0fc26</string>
+				<array name="materials" count="1">
+					<string>d874b7d5-50cc-4d63-96fe-8c0e701468de</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">af0734fc-6d73-5fca-a1ee-949d427cae9e</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">1cc25c40-7133-41d0-82b5-51f4536f997b</string>
+				<array name="materials" count="1">
+					<string>4a2ada21-c46c-4a5a-8466-3b759d708029</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">0b72a9a9-5901-551a-9d93-4fa139f2ee6a</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">e59e6be2-7c28-4a72-b760-6d4e28d0fc26</string>
+				<array name="materials" count="1">
+					<string>d874b7d5-50cc-4d63-96fe-8c0e701468de</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">a15e3ec4-6510-5f6f-b5b4-11abbe8b9362</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">1cc25c40-7133-41d0-82b5-51f4536f997b</string>
+				<array name="materials" count="1">
+					<string>4a2ada21-c46c-4a5a-8466-3b759d708029</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">0b120e33-08d1-51ac-94b2-15ad9f36c227</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">62fafb03-4758-4686-a5f0-8de9075fe29b</string>
+				<array name="materials" count="1">
+					<string>4eda49b7-6f74-4f28-9c62-e4723f2e7898</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">f3707617-4a0f-5075-a572-e4ac677fbe54</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">bedea1d0-a9db-4624-bdfe-e3d60e9178e6</string>
+				<array name="materials" count="1">
+					<string>4eda49b7-6f74-4f28-9c62-e4723f2e7898</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">b76e7435-d3f8-5422-9a14-bf71f3b4238f</string>
+			<string name="type">mesh</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">17486421469838262082</u64>
+					<u32 name="version">5</u32>
+				</array>
+				<string name="mesh">e59e6be2-7c28-4a72-b760-6d4e28d0fc26</string>
+				<array name="materials" count="1">
+					<string>d874b7d5-50cc-4d63-96fe-8c0e701468de</string>
+				</array>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<bool name="visible">true</bool>
+				<f32 name="fade">0</f32>
+				<f32 name="lodBias">0</f32>
+				<i32 name="forceLod">-1</i32>
+			</object>
+		</object>
+		<object>
+			<string name="owner">643801dc-ff21-56b6-9cef-48e5c49d60e0</string>
+			<string name="type">light</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">5052821885067367169</u64>
+					<u32 name="version">1</u32>
+				</array>
+				<u8 name="type">0</u8>
+				<object name="color">
+					<f32 name="r">1</f32>
+					<f32 name="g">1</f32>
+					<f32 name="b">1</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<f32 name="intensity">3</f32>
+				<f32 name="range">10</f32>
+				<f32 name="innerAngle">0.5</f32>
+				<f32 name="outerAngle">0.6</f32>
+				<u8 name="shadowUpdate">0</u8>
+				<bool name="enabled">true</bool>
+				<bool name="castsShadows">false</bool>
+				<f32 name="shadowDepthBiasScale">1</f32>
+				<f32 name="shadowNormalBias">0.02</f32>
+				<f32 name="shadowStrength">1</f32>
+			</object>
+		</object>
+	</array>
+	<array name="systemSettings" count="5">
+		<object>
+			<string name="system">sceneBehavior</string>
+			<array name="dataVersions" count="1">
+				<u64 name="type">7942436008690084579</u64>
+				<u32 name="version">2</u32>
+			</array>
+			<object name="settings">
+				<string name="class">00000000-0000-0000-0000-000000000000</string>
+				<bool name="enabled">true</bool>
+				<array name="overrides" count="0"/>
+			</object>
+		</object>
+		<object>
+			<string name="system">navigation</string>
+			<array name="dataVersions" count="1">
+				<u64 name="type">17060359306528790095</u64>
+				<u32 name="version">2</u32>
+			</array>
+			<object name="settings">
+				<bool name="debugDraw">false</bool>
+				<bool name="debugDrawPaths">false</bool>
+				<bool name="debugDrawBakeStages">false</bool>
+			</object>
+		</object>
+		<object>
+			<string name="system">environment</string>
+			<array name="dataVersions" count="1">
+				<u64 name="type">8050982980905767318</u64>
+				<u32 name="version">6</u32>
+			</array>
+			<object name="settings">
+				<string name="skyTexture">00000000-0000-0000-0000-000000000000</string>
+				<object name="ambientColor">
+					<f32 name="r">0.349</f32>
+					<f32 name="g">0.381</f32>
+					<f32 name="b">0.437</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<f32 name="ambientIntensity">0.3</f32>
+				<u32 name="skyMode">0</u32>
+				<f32 name="skyIntensity">1</f32>
+				<f32 name="skyBackgroundIntensity">0.5</f32>
+				<f32 name="skyRotation">0</f32>
+				<object name="skyHorizon">
+					<f32 name="r">0.748</f32>
+					<f32 name="g">0.798</f32>
+					<f32 name="b">0.854</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<object name="skyZenith">
+					<f32 name="r">0.485</f32>
+					<f32 name="g">0.634</f32>
+					<f32 name="b">0.786</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<object name="skyGround">
+					<f32 name="r">0.547</f32>
+					<f32 name="g">0.547</f32>
+					<f32 name="b">0.547</f32>
+					<f32 name="a">1</f32>
+				</object>
+				<f32 name="sunIntensity">1</f32>
+				<f32 name="sunAngularSize">0.5</f32>
+				<f32 name="turbidity">3</f32>
+				<f32 name="iblDiffuseIntensity">1</f32>
+				<f32 name="iblSpecularIntensity">1</f32>
+				<f32 name="shadowDistance">300</f32>
+				<f32 name="shadowCascadeSplit">0.5</f32>
+				<f32 name="shadowFadeDistance">40</f32>
+				<u32 name="source">0</u32>
+				<string name="profile">00000000-0000-0000-0000-000000000000</string>
+			</object>
+		</object>
+		<object>
+			<string name="system">postprocess</string>
+			<array name="dataVersions" count="1">
+				<u64 name="type">18428310631361443216</u64>
+				<u32 name="version">5</u32>
+			</array>
+			<object name="settings">
+				<f32 name="exposureEV">0</f32>
+				<u32 name="tonemapOperator">1</u32>
+				<bool name="bloomEnabled">true</bool>
+				<f32 name="bloomThreshold">1</f32>
+				<f32 name="bloomKnee">0.6</f32>
+				<f32 name="bloomIntensity">0.05</f32>
+				<u32 name="aoMode">0</u32>
+				<f32 name="aoStrength">0.6</f32>
+				<f32 name="aoRadius">0.5</f32>
+				<f32 name="aoIntensity">1</f32>
+				<bool name="ssrEnabled">false</bool>
+				<f32 name="ssrIntensity">1</f32>
+				<f32 name="taaBlendFactor">0.97</f32>
+				<f32 name="taaVarianceGamma">1.25</f32>
+				<f32 name="fxaaSubpixel">0.75</f32>
+				<bool name="autoExposure">false</bool>
+				<f32 name="autoExposureKey">0.18</f32>
+				<f32 name="autoExposureSpeed">2</f32>
+				<f32 name="autoExposureMinEV">-4</f32>
+				<f32 name="autoExposureMaxEV">4</f32>
+				<string name="gradingLut">00000000-0000-0000-0000-000000000000</string>
+				<f32 name="gradingIntensity">1</f32>
+				<bool name="ssgiEnabled">false</bool>
+				<f32 name="ssgiIntensity">1</f32>
+				<u32 name="source">0</u32>
+				<string name="profile">00000000-0000-0000-0000-000000000000</string>
+			</object>
+		</object>
+		<object>
+			<string name="system">physics</string>
+			<array name="dataVersions" count="1">
+				<u64 name="type">2041796140320429017</u64>
+				<u32 name="version">2</u32>
+			</array>
+			<object name="settings">
+				<object name="gravity">
+					<f32 name="x">0</f32>
+					<f32 name="y">-9.81</f32>
+					<f32 name="z">0</f32>
+				</object>
+				<i32 name="collisionSteps">1</i32>
+				<bool name="debugDraw">false</bool>
+				<array name="groupNames" count="0"/>
+				<array name="groupCollides" count="0"/>
+				<u32 name="maxBodies">4096</u32>
+				<u32 name="maxBodyPairs">4096</u32>
+				<u32 name="maxContactConstraints">2048</u32>
+			</object>
+		</object>
+	</array>
+	<u8 name="prefabMode">4</u8>
+	<array name="prefabInstances" count="0"/>
+</root>

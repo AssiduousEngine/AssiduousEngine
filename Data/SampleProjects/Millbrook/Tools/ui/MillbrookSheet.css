@@ -1,0 +1,16 @@
+/* Millbrook's look on the engine GUI, and the project's GUI sheet (guiStyleSheetIds): warm parchment
+   on deep brown, as a village fair's signs are. Its screens are the HUD (Hud.xml), which Millbrook.as
+   pushes. */
+
+/* The HUD: the talk prompt at the foot, over the village, taking none of its input. */
+.hud { flex-grow: 1; flex-direction: column; justify-content: space-between; padding: 18px; pointer-events: none; }
+.hud-foot { flex-direction: row; justify-content: center; }
+.hud-talk { padding: 8px 14px; background-color: rgba(40, 26, 16, 0.82); border: 2px solid #A0784A;
+            border-radius: 10px; opacity: 0; }
+.hud-talk.shown { opacity: 1; }
+
+/* The prompts: the control an action takes, read from the input map for the device in use. */
+.hint { flex-direction: row; align-items: center; gap: 8px; }
+.hint-what { font-size: 18px; color: #F2E2C2; }
+prompt.key { height: 30px; min-width: 30px; padding: 0px 9px; font-size: 16px; color: #2A1A0E;
+             background-color: #F2E2C2; border-radius: 6px; }

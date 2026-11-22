@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+"""controls.py: Millbrook's input map (Controls), written through the editor's MCP, and made the
+project's default.
+
+- Move: WASD or the left stick, relative to the camera.
+- Run: Left Shift, or pressing the left stick.
+- Interact: E, or the south button (A): talk to whoever is near, and go on past a line (the
+  dialogue's advance action).
+- Turn the camera a quarter left or right: Q / R, or the left and right shoulders.
+- Pause: Escape, or Start. It is also the whole of the Menu set, the one in effect while a menu is
+  up, so under a menu no other action reads pressed.
+- On a touch screen: a floating stick on the left half moves; Interact large in the bottom-right
+  corner, Run above it, the two turns above those; Pause small at the top-left.
+Codes are the engine's enums' values (shell::KeyCode, shell::GamepadButton, input::StickCode).
+"""
+import os, sys
+import xml.etree.ElementTree as ET
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from mcp import call as mcp
+
+KEY, GAMEPAD_BUTTON, GAMEPAD_STICK, COMPOSITE, TOUCH_BUTTON, TOUCH_STICK = 0, 4, 6, 7, 8, 9
+BUTTON, AXIS2D = 0, 2
+A, D, E, Q, R, S, W = 1, 4, 5, 17, 18, 19, 23
+ESCAPE, SPACE, LEFT_SHIFT = 62, 65, 109
+SOUTH, EAST, LEFT_SHOULDER, RIGHT_SHOULDER, LEFT_STICK_PRESS, START = 0, 1, 4, 5, 6, 14
+LEFT_STICK = 0
+
+ACTIONS = [
+    ("Move", AXIS2D, [dict(source=COMPOSITE, negX=A, posX=D, negY=S, posY=W),
+                      dict(source=GAMEPAD_STICK, code=LEFT_STICK, invert=True),
+                      dict(source=TOUCH_STICK, region=(0, 0.26, 0.5, 0.74), stickRadius=0.12, invert=True)]),
+    ("Run", BUTTON, [dict(source=KEY, code=LEFT_SHIFT), dict(source=GAMEPAD_BUTTON, code=LEFT_STICK_PRESS),
+                     dict(source=TOUCH_BUTTON, region=(0.86, 0.50, 0.13, 0.2))]),
+    ("Interact", BUTTON, [dict(source=KEY, code=E), dict(source=GAMEPAD_BUTTON, code=SOUTH),
+                          dict(source=TOUCH_BUTTON, region=(0.84, 0.72, 0.15, 0.25))]),
+    ("TurnLeft", BUTTON, [dict(source=KEY, code=Q), dict(source=GAMEPAD_BUTTON, code=LEFT_SHOULDER),
+                          dict(source=TOUCH_BUTTON, region=(0.73, 0.26, 0.12, 0.2))]),
+    ("TurnRight", BUTTON, [dict(source=KEY, code=R), dict(source=GAMEPAD_BUTTON, code=RIGHT_SHOULDER),
+                           dict(source=TOUCH_BUTTON, region=(0.86, 0.22, 0.13, 0.22))]),
+    ("Pause", BUTTON, [dict(source=KEY, code=ESCAPE), dict(source=GAMEPAD_BUTTON, code=START),
+                       dict(source=TOUCH_BUTTON, region=(0.0, 0.11, 0.09, 0.13))]),
+]
+
+
+def el(parent, tag, name=None, text=None, **attrs):
+    e = ET.SubElement(parent, tag, **({"name": name} if name else {}), **attrs)
+    if text is not None:
+        e.text = text
+    return e
+
+
+def binding(parent, b):
+    """One binding, every field (arrays of structs are written flat)."""
+    el(parent, "u8", "source", str(b["source"]))
+    el(parent, "u32", "code", str(b.get("code", 0)))
+    el(parent, "u32", "modifiers", "0")
+    el(parent, "i32", "device", "-1")
+    el(parent, "f32", "deadZone", "0.15")
+    el(parent, "f32", "scale", "1")
+    el(parent, "bool", "invert", "true" if b.get("invert") else "false")
+    el(parent, "bool", "normalize", "true")
+    for k in ("negX", "posX", "negY", "posY"):
+        el(parent, "u32", k, str(b.get(k, 0)))
+    region = b.get("region", (0, 0, 1, 1))  # touch: x, y, width, height, normalized over the screen
+    for k, v in zip(("regionX", "regionY", "regionW", "regionH"), region):
+        el(parent, "f32", k, str(v))
+    el(parent, "f32", "stickRadius", str(b.get("stickRadius", 0.15)))
+
+
+def main():
+    assets = mcp("asset_list", {})["assets"]
+    found = [a["guid"] for a in assets if a["type"] == "InputMapAsset" and a["name"] == "Controls"]
+    guid = found[0] if found else mcp("asset_create", {"creator": "Input Map", "name": "Controls"})["guid"]
+    root = ET.fromstring(mcp("asset_data_read", {"guid": guid})["xml"])
+    payload = root.find("object[@name='payload']")
+    for child in list(payload):
+        if child.get("name") == "sets":
+            payload.remove(child)
+    # Gameplay, and Menu: Pause alone, the one set in effect while a menu is up (Millbrook.as
+    # pushes it), so the player's actions read released under every menu.
+    menu = [a for a in ACTIONS if a[0] == "Pause"]
+    sets = el(payload, "array", "sets", count="2")
+    write_set(sets, "Gameplay", ACTIONS)
+    write_set(sets, "Menu", menu)
+    mcp("asset_data_write", {"guid": guid, "xml": ET.tostring(root, encoding="unicode")})
+    mcp("project_settings_set", {"defaultInputMapId": guid})
+    print("Controls", guid)
+
+
+def write_set(sets, set_name, set_actions):
+    el(sets, "string", "name", set_name)
+    el(sets, "i32", "priority", "0")
+    actions = el(sets, "array", "actions", count=str(len(set_actions)))
+    for name, kind, bindings in set_actions:
+        el(actions, "string", "name", name)
+        el(actions, "u8", "kind", str(kind))
+        for k, v in (("sensitivity", "0"), ("gravity", "0")):
+            el(actions, "f32", k, v)
+        el(actions, "bool", "snap", "false")
+        el(actions, "f32", "responseExponent", "1")
+        el(actions, "bool", "timeScale", "false")
+        el(actions, "u8", "interaction", "0")
+        el(actions, "f32", "interactionSeconds", "0.3")
+        b = el(actions, "array", "bindings", count=str(len(bindings)))
+        for each in bindings:
+            binding(b, each)
+
+
+main()

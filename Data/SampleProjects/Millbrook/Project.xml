@@ -5,12 +5,12 @@
 	</array>
 	<string name="name">Millbrook</string>
 	<string name="engineVersion">0.1.0</string>
-	<string name="defaultSceneId">00000000-0000-0000-0000-000000000000</string>
-	<string name="defaultScene"/>
-	<string name="runBehavior"/>
-	<string name="defaultInputMapId">00000000-0000-0000-0000-000000000000</string>
+	<string name="defaultSceneId">cae0f0d7-e823-4831-ad84-e2f785eca26a</string>
+	<string name="defaultScene">Scenes/Millbrook</string>
+	<string name="runBehavior">Scripts/Millbrook</string>
+	<string name="defaultInputMapId">0742add0-08ec-49a6-8d62-f55e00dae5ab</string>
 	<string name="defaultBusLayoutId">00000000-0000-0000-0000-000000000000</string>
-	<string name="runBehaviorId">00000000-0000-0000-0000-000000000000</string>
+	<string name="runBehaviorId">8eb12754-2da1-44fe-b3ce-c761cfa77232</string>
 	<string name="defaultUiFontId">1ea8c0a5-148d-4d80-a75d-101bc0c9fec9</string>
 	<array name="uiFontIds" count="0"/>
 	<u32 name="renderWidth">0</u32>
@@ -21,7 +21,9 @@
 	<u8 name="windowMode">0</u8>
 	<bool name="windowResizable">true</bool>
 	<i32 name="orientation">0</i32>
-	<array name="guiStyleSheetIds" count="0"/>
+	<array name="guiStyleSheetIds" count="1">
+		<string>d927680c-f491-4e2d-b336-de997e0ffada</string>
+	</array>
 	<string name="guiLoadingDocumentId">00000000-0000-0000-0000-000000000000</string>
 	<array name="plugins" count="1">
 		<object>
