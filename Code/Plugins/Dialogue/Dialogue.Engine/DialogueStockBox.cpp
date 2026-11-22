@@ -94,11 +94,11 @@ namespace dialogue
     {
         return u8".dialogue-screen { flex-grow: 1; flex-direction: column; justify-content: end; align-items: center; "
                u8"padding: 24px; }\n"
-               u8".dialogue-box { flex-direction: row; align-items: start; gap: 18px; width: 920px; padding: 18px; "
+               u8".dialogue-box { flex-direction: row; align-items: start; gap: 18px; width: 100%; max-width: 920px; padding: 18px; "
                u8"background-color: rgba(14, 14, 20, 0.9); border: 2px solid #5A5468; border-radius: 14px; }\n"
                u8".dialogue-box.portrait-right { flex-direction: row-reverse; }\n"
                u8".dialogue-portrait { width: 120px; height: 120px; border-radius: 10px; }\n"
-               u8".dialogue-words { flex-direction: column; flex-grow: 1; gap: 8px; }\n"
+               u8".dialogue-words { flex-direction: column; flex-grow: 1; flex-shrink: 1; min-width: 0px; gap: 8px; }\n"
                u8".dialogue-name { font-size: 22px; color: #F2D9A6; }\n"
                u8".dialogue-text { font-size: 21px; color: #F4F0E8; white-space: normal; }\n"
                u8".dialogue-answers { flex-direction: column; gap: 6px; margin-top: 4px; }\n"
@@ -141,8 +141,9 @@ namespace dialogue
         }
         DialogueStockBox* self = this;
         (void)m_box->AddEventListener(gui::EventType::MouseClick, [self](const gui::Event&) { self->m_boxPressed = true; });
-        (void)guiSystem.Styles().SetSubtreeSheet(*screen, gui::CSSParser::Parse(css, u8"dialogue stock box"));
         (void)stack.Push(*screen);
+        // Once it is in the GUI: a subtree's sheet is kept by the tree's element reference.
+        m_styled = guiSystem.Styles().SetSubtreeSheet(*screen, gui::CSSParser::Parse(css, u8"dialogue stock box"));
         return true;
     }
 
@@ -214,6 +215,7 @@ namespace dialogue
             }
         }
         m_screen = {};
+        m_styled = false;
         m_box = nullptr;
         m_portrait = nullptr;
         m_name = nullptr;
@@ -257,6 +259,11 @@ namespace dialogue
     String DialogueStockBox::ShownName() const
     {
         return m_name != nullptr && m_name->IsDisplayed() ? String(m_name->GetText()) : String();
+    }
+
+    String DialogueStockBox::AnswerText(usize index) const
+    {
+        return index < m_answers.Size() ? String(m_answers[index]->GetText()) : String();
     }
 
     void DialogueStockBox::Press(usize index)

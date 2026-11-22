@@ -495,6 +495,7 @@ TEST_CASE("plugins: the stock box types a line, takes a press to finish it and a
 
     REQUIRE(r.runner->Play(r.store.gate, u8"gate"));
     REQUIRE(box.IsShown());
+    CHECK(box.IsStyled()); // its sheet over the box alone
     REQUIRE(gui->Screens() != nullptr);
     CHECK(gui->Screens()->Top() == box.ScreenNode());
     CHECK(box.ShownName() == StringView(u8"The Keeper"));

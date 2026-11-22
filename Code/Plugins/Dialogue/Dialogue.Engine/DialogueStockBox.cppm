@@ -66,10 +66,14 @@ export namespace dialogue
 
         // === For tests ===
         [[nodiscard]] bool IsShown() const noexcept { return m_screen.Get() != nullptr; }
+        /// Whether its sheet took (it is set once the box is in the GUI).
+        [[nodiscard]] bool IsStyled() const noexcept { return m_styled; }
         [[nodiscard]] bool IsTyping() const noexcept;
         [[nodiscard]] String ShownText() const;
         [[nodiscard]] String ShownName() const;
         [[nodiscard]] usize AnswerCount() const noexcept { return m_answers.Size(); }
+        /// Answer `index`'s text; empty past the last.
+        [[nodiscard]] String AnswerText(usize index) const;
         /// Presses answer `index`, as a click on it does.
         void Press(usize index);
         /// Presses the box, as a click on it does.
@@ -94,6 +98,7 @@ export namespace dialogue
         usize m_length = 0;     // its characters (code points)
         f32 m_typed = 0.0f;     // how many show
         bool m_boxPressed = false;
+        bool m_styled = false;
         i32 m_answerPressed = -1;
     };
 }
