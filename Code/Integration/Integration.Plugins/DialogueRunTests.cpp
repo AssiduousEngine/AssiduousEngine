@@ -79,8 +79,8 @@ namespace
     }
 
     // A content database holding a cooked conversation (`text`, its `sequence` the walk), its cast
-    // (the keeper played by "Keeper") and a sequence that walks its binding "keeper" to X 10 over a
-    // second.
+    // (the keeper played by "Keeper") and a sequence that walks its binding "keeper", and "Cart"
+    // (no speaker), to X 10 over a second.
     struct DialogueStore
     {
         StringView dir = u8"scratch_dialogue_run";
@@ -123,6 +123,12 @@ namespace
             move->property.channels[0].AddKey(a);
             move->property.channels[0].AddKey(b);
             walkSource.sequence.tracks.PushBack(move);
+            // A second part named for no speaker: the level entity of that name (a prop).
+            walkSource.sequence.bindings.PushBack(sequence::SequenceBinding{String(u8"Cart")});
+            RefPtr<sequence::PropertySequenceTrack> roll = MakeRef<sequence::PropertySequenceTrack>(DefaultAllocator());
+            roll->binding = 1;
+            roll->property = move->property;
+            walkSource.sequence.tracks.PushBack(roll);
             walkSource.sequence.duration = 1.0f;
             REQUIRE(walkInstance->WriteObject(walkSource).IsOk());
 
@@ -265,6 +271,7 @@ TEST_CASE("plugins: a run's dialogue runner fades, plays a sequence bound to the
 {
     DialogueRun r;
     const scene::EntityHandle keeper = r.scene.CreateEntity(u8"Keeper");
+    const scene::EntityHandle cart = r.scene.CreateEntity(u8"Cart");
     r.Start();
     REQUIRE(r.runner->Play(r.store.gate, u8"gate"));
 
@@ -278,6 +285,7 @@ TEST_CASE("plugins: a run's dialogue runner fades, plays a sequence bound to the
         r.Frame(0.25f);
     }
     CHECK(r.scene.GetLocalTransform(keeper).position.x == doctest::Approx(10.0f));
+    CHECK(r.scene.GetLocalTransform(cart).position.x == doctest::Approx(10.0f)); // the prop by its name
     CHECK(r.post->Fade().amount == doctest::Approx(0.5f)); // the sequence ended; half way into the fade in
     CHECK(r.lines.IsEmpty());
 

@@ -269,7 +269,7 @@ entity the cast names, else none (logged once a speaker).
 | `play` | the clip once over what the entity animates, the animation's one-shot | with `and wait`, until it blends out |
 | `sound` | the clip or cue through the run's audio, at the speaker's entity when named | never |
 | `fade` | a claim on the scene's fade (`PostProcessSystem::FadeClaims`), over the sequences' fades; a fade out holds at full until a fade in lets it go; the length and colour default to the settings' | always, for its length |
-| `sequence` | a play in the scene's `SequenceSystem`, each binding named for a speaker filled with that speaker's entity | with `and wait`, until it ends |
+| `sequence` | a play in the scene's `SequenceSystem`, each binding named for a speaker filled with that speaker's entity, and one named for no speaker with the level entity of its name (a prop: a cart, a door) | with `and wait`, until it ends |
 
 While a line shows, its speaker plays the cast's `talk` clip, looping, until the line is advanced
 or the conversation ends there (`IDialogueHost::OnLineEnded`).

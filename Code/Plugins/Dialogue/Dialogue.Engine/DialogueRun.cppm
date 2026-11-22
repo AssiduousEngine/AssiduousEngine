@@ -13,7 +13,8 @@
 //   * `sound`: the clip or cue through the run's audio, at the speaker's entity when named.
 //   * `fade`: a claim on the scene's fade, over the sequences' own, held at full until a fade in.
 //   * `sequence`: a play in the scene, each of its bindings named for a speaker filled with that
-//     speaker's entity; `and wait` holds until it ends.
+//     speaker's entity, and one named for no speaker with the level entity of its name; `and wait`
+//     holds until it ends.
 // While a line shows, its speaker plays their talk clip (the cast's `talk`), looping, and their
 // voice (the cast's `voice`) once as it starts.
 //

@@ -364,7 +364,8 @@ namespace dialogue
                 LOG_WARNING(u8"Dialogue", u8"sequence: `{}` did not load", step.name);
                 return 0;
             }
-            // Each of its bindings named for a speaker is that speaker's entity.
+            // Each of its bindings named for a speaker is that speaker's entity; one named for no
+            // speaker is the level entity of its name (a prop the scene moves: a cart, a door).
             Array<Binding> filled;
             for (const foundation::sequence::SequenceBinding& binding : sequence->sequence.bindings)
             {
@@ -374,13 +375,12 @@ namespace dialogue
                 {
                     boundByGame = boundByGame || own.speaker == binding.name;
                 }
-                if (speaker != nullptr || boundByGame)
+                const foundation::scene::EntityHandle entity = speaker != nullptr || boundByGame
+                                                                   ? EntityOf(*scene, binding.name.AsView(), speaker)
+                                                                   : scene->FindEntityByName(binding.name.AsView());
+                if (entity.IsAssigned())
                 {
-                    const foundation::scene::EntityHandle entity = EntityOf(*scene, binding.name.AsView(), speaker);
-                    if (entity.IsAssigned())
-                    {
-                        filled.PushBack(Binding{binding.name, entity});
-                    }
+                    filled.PushBack(Binding{binding.name, entity});
                 }
             }
             const u32 play = system->Play(sequence, step.asset, foundation::sequence::SequenceFinish::Release, {},
