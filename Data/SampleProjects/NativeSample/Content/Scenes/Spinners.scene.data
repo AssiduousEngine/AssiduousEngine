@@ -364,7 +364,7 @@
 			<f32 name="z">1</f32>
 		</object>
 	</array>
-	<array name="components" count="23">
+	<array name="components" count="28">
 		<object>
 			<string name="owner">5e86dbb9-57e9-5dbe-9b70-953b046a1de0</string>
 			<string name="type">mesh</string>
@@ -661,6 +661,121 @@
 		</object>
 		<object>
 			<string name="owner">2ba87a28-5e11-58a4-9cfe-de77594c8add</string>
+			<string name="type">behavior</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">16490444935376574941</u64>
+					<u32 name="version">1</u32>
+				</array>
+				<array name="behaviors" count="1">
+					<string name="class">5e0304a8-e432-4237-b587-b06654aa88f1</string>
+					<bool name="enabled">true</bool>
+					<f32 name="updateInterval">0</f32>
+					<array name="overrides" count="2">
+						<u64 name="nameHash">1689425963507806754</u64>
+						<u8 name="kind">1</u8>
+						<f64 name="number">0.3</f64>
+						<u64 name="nameHash">371555813819389028</u64>
+						<u8 name="kind">1</u8>
+						<f64 name="number">2.6</f64>
+					</array>
+				</array>
+			</object>
+		</object>
+		<object>
+			<string name="owner">f2f2529d-4c24-57f1-97b0-282b0a88819d</string>
+			<string name="type">behavior</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">16490444935376574941</u64>
+					<u32 name="version">1</u32>
+				</array>
+				<array name="behaviors" count="1">
+					<string name="class">5e0304a8-e432-4237-b587-b06654aa88f1</string>
+					<bool name="enabled">true</bool>
+					<f32 name="updateInterval">0</f32>
+					<array name="overrides" count="2">
+						<u64 name="nameHash">1689425963507806754</u64>
+						<u8 name="kind">1</u8>
+						<f64 name="number">0.3</f64>
+						<u64 name="nameHash">371555813819389028</u64>
+						<u8 name="kind">1</u8>
+						<f64 name="number">1.4</f64>
+					</array>
+				</array>
+			</object>
+		</object>
+		<object>
+			<string name="owner">e70eeb73-0b1b-546c-95de-f29a1699bc8c</string>
+			<string name="type">behavior</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">16490444935376574941</u64>
+					<u32 name="version">1</u32>
+				</array>
+				<array name="behaviors" count="1">
+					<string name="class">5e0304a8-e432-4237-b587-b06654aa88f1</string>
+					<bool name="enabled">true</bool>
+					<f32 name="updateInterval">0</f32>
+					<array name="overrides" count="2">
+						<u64 name="nameHash">1689425963507806754</u64>
+						<u8 name="kind">1</u8>
+						<f64 name="number">0.3</f64>
+						<u64 name="nameHash">371555813819389028</u64>
+						<u8 name="kind">1</u8>
+						<f64 name="number">2</f64>
+					</array>
+				</array>
+			</object>
+		</object>
+		<object>
+			<string name="owner">f47ee187-a826-581a-8ca1-d52546efd9c6</string>
+			<string name="type">behavior</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">16490444935376574941</u64>
+					<u32 name="version">1</u32>
+				</array>
+				<array name="behaviors" count="1">
+					<string name="class">5e0304a8-e432-4237-b587-b06654aa88f1</string>
+					<bool name="enabled">true</bool>
+					<f32 name="updateInterval">0</f32>
+					<array name="overrides" count="2">
+						<u64 name="nameHash">1689425963507806754</u64>
+						<u8 name="kind">1</u8>
+						<f64 name="number">0.3</f64>
+						<u64 name="nameHash">371555813819389028</u64>
+						<u8 name="kind">1</u8>
+						<f64 name="number">1.7</f64>
+					</array>
+				</array>
+			</object>
+		</object>
+		<object>
+			<string name="owner">d74aca2c-b886-5cb1-a014-f5c3a1cf7fcd</string>
+			<string name="type">behavior</string>
+			<object name="data">
+				<array name="dataVersions" count="1">
+					<u64 name="type">16490444935376574941</u64>
+					<u32 name="version">1</u32>
+				</array>
+				<array name="behaviors" count="1">
+					<string name="class">5e0304a8-e432-4237-b587-b06654aa88f1</string>
+					<bool name="enabled">true</bool>
+					<f32 name="updateInterval">0</f32>
+					<array name="overrides" count="2">
+						<u64 name="nameHash">1689425963507806754</u64>
+						<u8 name="kind">1</u8>
+						<f64 name="number">0.3</f64>
+						<u64 name="nameHash">371555813819389028</u64>
+						<u8 name="kind">1</u8>
+						<f64 name="number">2.3</f64>
+					</array>
+				</array>
+			</object>
+		</object>
+		<object>
+			<string name="owner">2ba87a28-5e11-58a4-9cfe-de77594c8add</string>
 			<string name="type">nativesample.Spin</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
@@ -828,7 +943,7 @@
 				<u32 name="version">2</u32>
 			</array>
 			<object name="settings">
-				<string name="class">00000000-0000-0000-0000-000000000000</string>
+				<string name="class">95f04853-5d1f-407f-8ae0-caaec0583009</string>
 				<bool name="enabled">true</bool>
 				<array name="overrides" count="0"/>
 			</object>
@@ -933,7 +1048,7 @@
 			<string name="system">physics</string>
 			<array name="dataVersions" count="1">
 				<u64 name="type">2041796140320429017</u64>
-				<u32 name="version">1</u32>
+				<u32 name="version">2</u32>
 			</array>
 			<object name="settings">
 				<object name="gravity">
@@ -945,6 +1060,9 @@
 				<bool name="debugDraw">false</bool>
 				<array name="groupNames" count="0"/>
 				<array name="groupCollides" count="0"/>
+				<u32 name="maxBodies">4096</u32>
+				<u32 name="maxBodyPairs">4096</u32>
+				<u32 name="maxContactConstraints">2048</u32>
 			</object>
 		</object>
 	</array>

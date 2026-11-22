@@ -11,8 +11,11 @@ the script. None of this is game content.
   record starts from the engine's own defaults; the plugin's Spin component is in the schema while
   the plugin is loaded.
 - `spinners.py`: the content. The Cube and Plane primitives, a note (Notes/Welcome, the Pipeline
-  part's asset type), and the scene Spinners (Scenes/Spinners), made the project's default: a
+  part's asset type), a Native Behavior asset for each of the Engine part's C++ behaviors (Bobber,
+  Showcase, NativeGame, each named like its class), and the scene Spinners (Scenes/Spinners), made the project's default: a
   floor, a row of five cubes that each spin at their own rate about their own axis, and a carousel
   whose hub turns four arms, each carrying a cube that spins as well, lit by a sun under the default
-  sky. Every cube is the Cube primitive on the default material, told apart by its tint. A rerun
+  sky. Every cube is the Cube primitive on the default material, told apart by its tint. Each cube
+  of the row bobs as well (Bobber, its period its own), the scene's behavior is Showcase and the
+  project's run behavior is NativeGame: the game's logic, with no script. A rerun
   writes the scene over itself and makes nothing twice.

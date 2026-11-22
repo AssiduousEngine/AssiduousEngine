@@ -64,6 +64,26 @@ def record(owner, wire, **values):
             '%s</object></object>' % (owner, s["wireName"], dv["type"], dv["version"], body))
 
 
+def fnv(name):
+    """BehaviorPropertyNameHash: FNV-1a 64 over the property's name."""
+    h = 14695981039346656037
+    for b in name.encode():
+        h ^= b
+        h = (h * 1099511628211) & 0xFFFFFFFFFFFFFFFF
+    return h
+
+
+def override(name, value):
+    """A behavior property override: a bool, an int or a float."""
+    h = fnv(name)
+    if isinstance(value, bool):
+        return '<u64 name="nameHash">%d</u64><u8 name="kind">3</u8><bool name="boolean">%s</bool>' % (
+            h, "true" if value else "false")
+    if isinstance(value, int):
+        return '<u64 name="nameHash">%d</u64><u8 name="kind">2</u8><f64 name="number">%s</f64>' % (h, float(value))
+    return '<u64 name="nameHash">%d</u64><u8 name="kind">1</u8><f64 name="number">%s</f64>' % (h, float(value))
+
+
 def settings(system, **values):
     s = schema(system)
     dv = s["dataVersions"][0]
@@ -131,6 +151,18 @@ class Doc:
 
     def setting(self, system, **values):
         self.settings.append(settings(system, **values))
+
+    def behaviors(self, owner, *behaviors):
+        """An entity's behaviors: (class guid, {property: value}) pairs."""
+        items = ['<string name="class">%s</string><bool name="enabled">true</bool><f32 name="updateInterval">0</f32>'
+                 '<array name="overrides" count="%d">%s</array>' % (g, len(o), "".join(override(k, v) for k, v in o.items()))
+                 for g, o in behaviors]
+        self.components.append(record(owner, "behavior", behaviors=items))
+
+    def scene_behavior(self, guid, **overrides):
+        """The scene's own behavior, with its property overrides."""
+        self.settings.append(settings("sceneBehavior", **{"class": guid},
+                                      overrides=[override(k, v) for k, v in overrides.items()]))
 
     def xml(self):
         return ('<root><u32 name="magic">3586350318</u32><u32 name="version">3</u32><string name="name">%s</string>'

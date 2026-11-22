@@ -14,7 +14,7 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   its reflected on<Name> methods and its properties the fields it marks. File > New > Native Behavior
   makes its asset, which is set where a script's class is; it runs with the same lifecycle, events,
   messages, overrides and facades, and its crash report names it. MCP: `native_behavior_list`.
-  NativeSample has one of each kind.
+  NativeSample's scene uses one of each kind: its cubes bob, and its scene and run behaviors are C++.
 - Dialogue: the official dialogue plugin plays conversations. A project that enables it writes them
   as text in dialogue files (File > New > Dialogue), with a cast and a list of the assets they
   name, each edited on its own page. Scripts play one with `Dialogue.play(dialogue, conversation)`,

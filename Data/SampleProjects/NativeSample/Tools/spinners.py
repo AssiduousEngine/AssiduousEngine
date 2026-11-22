@@ -1,26 +1,34 @@
 #!/usr/bin/env python3
 """spinners.py: the sample's content, written through the editor's MCP and made the project's
-default scene: the Cube and Plane primitives, a note (the Pipeline part's asset type), and the
-scene Spinners, where the Engine part's Spin component turns what it is on.
+default scene: the Cube and Plane primitives, a note (the Pipeline part's asset type), the Native
+Behavior assets naming the Engine part's three C++ behaviors, and the scene Spinners, where the
+Engine part's Spin component turns what it is on.
 
 The scene: a floor, a row of cubes before the camera that each spin at their own rate about their
 own axis (up, sideways, a diagonal), and behind them a carousel, a spinning hub whose arms each
 carry a cube that spins as well, so a spin composes with its parent's. A sun and the default sky
 light it. Every cube is the Cube primitive on the default material, told apart by its tint.
+
+The game logic is C++ with no script: each cube of the row bobs as well (Bobber, an entity
+behavior, its period its own), the scene's behavior is Showcase, and the project's run behavior is
+NativeGame.
 """
 import os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from scenegen import Doc, mcp, colour, axis, yaw, pitch, quat_mul
 
-# The row: name, x, turns a second, axis, tint.
+# The row: name, x, turns a second, axis, tint, seconds a bob.
 ROW = [
-    ("Slow", -4.0, 0.15, (0, 1, 0), (0.85, 0.25, 0.20)),
-    ("Quick", -2.0, 0.6, (0, 1, 0), (0.95, 0.60, 0.15)),
-    ("Tumble", 0.0, 0.3, (1, 0, 0), (0.30, 0.75, 0.35)),
-    ("Diagonal", 2.0, 0.4, (1, 1, 0), (0.25, 0.50, 0.90)),
-    ("Backward", 4.0, -0.25, (0, 1, 0), (0.65, 0.35, 0.85)),
+    ("Slow", -4.0, 0.15, (0, 1, 0), (0.85, 0.25, 0.20), 2.6),
+    ("Quick", -2.0, 0.6, (0, 1, 0), (0.95, 0.60, 0.15), 1.4),
+    ("Tumble", 0.0, 0.3, (1, 0, 0), (0.30, 0.75, 0.35), 2.0),
+    ("Diagonal", 2.0, 0.4, (1, 1, 0), (0.25, 0.50, 0.90), 1.7),
+    ("Backward", 4.0, -0.25, (0, 1, 0), (0.65, 0.35, 0.85), 2.3),
 ]
+BOB_HEIGHT = 0.3
+# The Engine part's native behaviors, each an asset named like its class.
+NATIVE_BEHAVIORS = ["Bobber", "Showcase", "NativeGame"]
 CAROUSEL_ARMS = 4
 CAROUSEL_RADIUS = 2.0
 
@@ -42,18 +50,24 @@ def main():
     plane = primitive(meshes, "Plane")
     if "Welcome" not in assets("NoteAsset"):
         mcp("asset_create", {"creator": "Native Sample Note", "name": "Welcome"})
+    natives = assets("NativeBehaviorAsset")
+    for name in NATIVE_BEHAVIORS:
+        if name not in natives:
+            natives[name] = mcp("asset_create", {"creator": "Native Behavior", "name": name})["guid"]
     scenes = assets("SceneDocument")
 
     d = Doc("Spinners")
     d.setting("environment", ambientIntensity=0.35)
+    d.scene_behavior(natives["Showcase"])
 
     e = d.entity("Floor", scale=(24.0, 1.0, 16.0))
     d.add(e, "mesh", mesh=plane, color=colour(0.32, 0.33, 0.35))
 
-    for name, x, turns, (ax, ay, az), tint in ROW:
+    for name, x, turns, (ax, ay, az), tint, period in ROW:
         e = d.entity(name, (x, 1.0, 1.5), scale=(0.9, 0.9, 0.9))
         d.add(e, "mesh", mesh=cube, color=colour(*tint))
         d.add(e, "nativesample.Spin", turnsPerSecond=turns, axis=axis(ax, ay, az))
+        d.behaviors(e, (natives["Bobber"], {"height": BOB_HEIGHT, "period": period}))
 
     # The carousel: the hub turns its arms; each arm's cube spins on its own as well.
     hub = d.entity("Carousel", (0.0, 1.4, -4.0))
@@ -73,7 +87,7 @@ def main():
     d.add(cam, "camera")
 
     guid = d.write(scenes.get("Spinners"), group="Scenes")
-    mcp("project_settings_set", {"defaultSceneId": guid})
+    mcp("project_settings_set", {"defaultSceneId": guid, "runBehaviorId": natives["NativeGame"]})
     print("Spinners", guid)
 
 

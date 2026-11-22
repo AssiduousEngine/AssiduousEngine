@@ -1,0 +1,14 @@
+<root>
+	<string name="guid">bea05181-c97c-4d99-961f-a0033666edb0</string>
+	<string name="typeNamespace">rtti::pipeline::script</string>
+	<string name="typeName">NativeBehaviorAsset</string>
+	<string name="source"/>
+	<array name="dataVersions" count="1">
+		<u64 name="type">9864926087059894712</u64>
+		<u32 name="version">0</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName"/>
+		<string name="className">rtti::nativesample::NativeGame</string>
+	</object>
+</root>

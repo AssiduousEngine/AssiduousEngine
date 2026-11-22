@@ -7,10 +7,10 @@
 	<string name="engineVersion">0.1.0</string>
 	<string name="defaultSceneId">1f71df2c-8289-4bf2-a468-9ee8efd763b0</string>
 	<string name="defaultScene">Scenes/Spinners</string>
-	<string name="runBehavior"/>
+	<string name="runBehavior">NativeGame</string>
 	<string name="defaultInputMapId">00000000-0000-0000-0000-000000000000</string>
 	<string name="defaultBusLayoutId">00000000-0000-0000-0000-000000000000</string>
-	<string name="runBehaviorId">00000000-0000-0000-0000-000000000000</string>
+	<string name="runBehaviorId">bea05181-c97c-4d99-961f-a0033666edb0</string>
 	<string name="defaultUiFontId">00000000-0000-0000-0000-000000000000</string>
 	<array name="uiFontIds" count="0"/>
 	<u32 name="renderWidth">0</u32>
@@ -35,4 +35,5 @@
 		<string>b632e335-0831-4de7-9021-e9509510b163</string>
 	</array>
 	<string name="defaultQualityId">b632e335-0831-4de7-9021-e9509510b163</string>
+	<array name="mcpFolders" count="0"/>
 </root>

@@ -157,8 +157,8 @@ the plugin's dialogue box. Built from Kenney's CC0 kits. More in
 [its README](Data/SampleProjects/Millbrook/README.md).
 
 **NativeSample** is the reference for a game's own native C++ code: a plugin package with all
-four parts (runtime, pipeline, tooling and editor), and a scene of cubes its native Spin component
-turns.
+four parts (runtime, pipeline, tooling and editor), a scene of cubes its native Spin component
+turns, and its game logic as behaviors written in C++ with no script.
 
 ## Platform support
 
