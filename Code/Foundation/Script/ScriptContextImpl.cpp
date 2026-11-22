@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026-Present Robert Campbell
 
-// The current-script-context slot. It is defined here, one per process per thread,
-// because the pushers (script backends) and readers (native facades) live in
-// different libraries; an inline thread_local in the interface would be duplicated
-// per shared library.
+// The current-script-context slot and the current services slot. They are defined here, one per
+// process per thread, because the pushers (script backends, native callers) and readers (native
+// facades) live in different libraries; an inline thread_local in the interface would be
+// duplicated per shared library.
 
 module;
 #include "Core/Prelude.h"
@@ -27,6 +27,12 @@ namespace foundation::script::detail
     IScriptContext*& CurrentScriptContextSlot() noexcept
     {
         static thread_local IScriptContext* slot = nullptr;
+        return slot;
+    }
+
+    const ServiceResolver*& CurrentServiceResolverSlot() noexcept
+    {
+        static thread_local const ServiceResolver* slot = nullptr;
         return slot;
     }
 } // namespace foundation::script::detail

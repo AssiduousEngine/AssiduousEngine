@@ -209,10 +209,10 @@ namespace dialogue
         ReleaseFade();
     }
 
-    foundation::script::IScriptContext* DialogueRunHost::Context() const
+    foundation::script::ServiceResolver DialogueRunHost::Services() const
     {
-        auto* scripts = m_run->Get<engine::behavior::BehaviorRunHost>();
-        return scripts != nullptr ? scripts->ScriptContext() : nullptr;
+        const DialogueRunHost* self = this;
+        return foundation::script::ServiceResolver{[self](TypeId type) { return self->Find(type); }};
     }
 
     foundation::resource::ResourceManager* DialogueRunHost::Resources() const
@@ -294,8 +294,10 @@ namespace dialogue
         {
             return 0;
         }
-        // The facades the staging goes through read the run from the calling script's context.
-        foundation::script::ScriptCallScope scope(Context());
+        // The facades the staging goes through find the run's services through this scope, as a
+        // script's call finds them, whether or not the run has a script context.
+        const foundation::script::ServiceResolver services = Services();
+        foundation::script::ServiceScope scope(&services);
         const auto entryOf = [cast](StringView speaker) { return cast != nullptr ? cast->Find(speaker) : nullptr; };
         switch (step.kind)
         {
@@ -416,7 +418,8 @@ namespace dialogue
             {
                 if (m_staged[i].kind == DialogueStepKind::Play)
                 {
-                    foundation::script::ScriptCallScope scope(Context());
+                    const foundation::script::ServiceResolver services = Services();
+                    foundation::script::ServiceScope scope(&services);
                     going = engine::animation::SceneAnimationFacade{scene}.isPlayingOneShot(
                         foundation::script::WrapEntity(scene, m_staged[i].entity));
                 }
@@ -525,7 +528,8 @@ namespace dialogue
         foundation::scene::Scene* scene = m_talkScene.Get();
         if (scene != nullptr && m_talker.IsAssigned() && scene->IsValid(m_talker))
         {
-            foundation::script::ScriptCallScope scope(Context());
+            const foundation::script::ServiceResolver services = Services();
+            foundation::script::ServiceScope scope(&services);
             engine::animation::SceneAnimationFacade{scene}.stopOneShot(foundation::script::WrapEntity(scene, m_talker));
         }
         m_talker = {};
@@ -540,7 +544,8 @@ namespace dialogue
             const foundation::scene::EntityHandle entity = EntityOf(*scene, notice.speaker.AsView(), speaker);
             if (entity.IsAssigned())
             {
-                foundation::script::ScriptCallScope scope(Context());
+                const foundation::script::ServiceResolver services = Services();
+                foundation::script::ServiceScope scope(&services);
                 engine::animation::SceneAnimationFacade{scene}.playOneShot(foundation::script::WrapEntity(scene, entity),
                                                                            speaker->talk, 1.0f, 0.2f, 0.2f, -1);
                 m_talkScene = scene;
@@ -549,7 +554,8 @@ namespace dialogue
         }
         if (speaker != nullptr && !speaker->voice.IsNil())
         {
-            foundation::script::ScriptCallScope scope(Context());
+            const foundation::script::ServiceResolver services = Services();
+            foundation::script::ServiceScope scope(&services);
             (void)engine::audio::AudioFacade::playOneShot(speaker->voice);
         }
         if (BoxOn())

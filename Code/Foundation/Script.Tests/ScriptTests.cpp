@@ -355,3 +355,47 @@ TEST_CASE("script: an error's line and a fault's stack carry source references t
     logger.RemoveSink(&sink);
     logger.SetMinLevel(previous);
 }
+
+TEST_CASE("script: a facade finds the services of the call running now, a script's or native code's, nested")
+{
+    struct Counter
+    {
+        i32 value = 0;
+    };
+    Counter runOne;
+    Counter runTwo;
+    ScriptServices one;
+    one.Add(runOne);
+    ScriptServices two;
+    two.Add(runTwo);
+
+    CHECK(CurrentService<Counter>() == nullptr); // outside every call
+
+    // Native code (no script context) under its host's services.
+    const ServiceResolver oneResolver = one.Resolver();
+    {
+        ServiceScope native(&oneResolver);
+        CHECK(CurrentScriptContext() == nullptr);
+        CHECK(CurrentService<Counter>() == &runOne);
+
+        // A script's call inside it finds its own context's services, and the native code's again
+        // once it returns.
+        RefPtr<IScriptContext> context = MakeRef<MockContext>(DefaultAllocator());
+        context->SetServiceResolver(two.Resolver());
+        {
+            ScriptCallScope script(context.Get());
+            CHECK(CurrentScriptContext() == context.Get());
+            CHECK(CurrentService<Counter>() == &runTwo);
+        }
+        CHECK(CurrentScriptContext() == nullptr);
+        CHECK(CurrentService<Counter>() == &runOne);
+
+        // A call with no context finds no services.
+        {
+            ScriptCallScope none(nullptr);
+            CHECK(CurrentService<Counter>() == nullptr);
+        }
+        CHECK(CurrentService<Counter>() == &runOne);
+    }
+    CHECK(CurrentService<Counter>() == nullptr);
+}

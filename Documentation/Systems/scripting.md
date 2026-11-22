@@ -22,7 +22,10 @@ served that purpose - historical mentions in older specs refer to it.
   cross through one conversion (`ScriptNumbers`) in both backends. A context's host services are found
   by type (`CurrentService<T>`): its run host answers with its runtime binding, then its run's
   services, then the application's (subsystems register theirs with their manager), so there are
-  no process globals and no lists of what to install.
+  no process globals and no lists of what to install. A facade reads the services of the call
+  running now, not the context: a script's call pushes its context's (`ScriptCallScope`), and native
+  code that calls facades pushes its host's (`ServiceScope`, with no context at all), as the
+  dialogue plugin's runner does around its staging.
 - **Values and identity**: a reflected type whose bytes copy it (`TypeInfo` records trivially
   copyable and destructible) crosses as a plain VALUE: the math types (Float3, Quaternion,
   Color, ...), `Guid`, the script `Entity` and the scene's facades. A property read is a copy (as a

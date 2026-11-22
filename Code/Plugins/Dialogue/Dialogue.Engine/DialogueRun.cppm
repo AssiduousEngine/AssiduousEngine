@@ -105,7 +105,8 @@ export namespace dialogue
 
         // The service the run's scripts would find of type `type`: the run's, then the application's.
         [[nodiscard]] void* Find(TypeId type) const;
-        [[nodiscard]] foundation::script::IScriptContext* Context() const;
+        // Find as a resolver, for the scope the staging's facade calls run under.
+        [[nodiscard]] foundation::script::ServiceResolver Services() const;
         [[nodiscard]] foundation::resource::ResourceManager* Resources() const;
         [[nodiscard]] foundation::scene::Scene* Scene() const;
         // The entity that plays `speaker` (`entry` its cast entry, null for none) in `scene`:

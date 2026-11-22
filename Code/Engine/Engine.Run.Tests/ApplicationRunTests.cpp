@@ -189,6 +189,23 @@ TEST_CASE("game-instance: the instance is an IRun, its scenes on the run's bus, 
     CHECK(run.State() == foundation::run::RunState::Idle);
 }
 
+TEST_CASE("game-instance: native code under the run host's services reaches the run's save through the Save facade, "
+          "with no script context")
+{
+    engine::runtime::ApplicationRun gi;
+    engine::behavior::BehaviorRunHost& host = gi.RunHost();
+    CHECK(host.ScriptContext() == nullptr); // nothing made one
+    const script::ServiceResolver services{[&host](TypeId type) { return host.FindService(type); }};
+    {
+        script::ServiceScope scope(&services);
+        engine::runtime::SaveFacade::setInt(String(u8"coins"), 7);
+        CHECK(engine::runtime::SaveFacade::getInt(String(u8"coins"), 0) == 7);
+    }
+    CHECK(host.ScriptContext() == nullptr);
+    CHECK(gi.Saves().HasChanges()); // the run's own save took it
+    CHECK(engine::runtime::SaveFacade::getInt(String(u8"coins"), 0) == 0); // outside, no run: the fallback
+}
+
 namespace
 {
     // A per-run service a contribution installs: it counts the frames it was stepped with.

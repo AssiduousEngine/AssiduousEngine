@@ -166,6 +166,10 @@ export namespace foundation::script
         core::Span<const core::byte> symbols = {};
     };
 
+    /// Finds a host's service by type (null when it has none): a run's, through its run host, or a
+    /// set a test or a sample keeps (ScriptServices).
+    using ServiceResolver = core::Function<void*(core::TypeId)>;
+
     class IScriptContext : public core::Object
     {
     public:
@@ -234,8 +238,10 @@ export namespace foundation::script
         // This is how engine services reach scripts without process globals: two runs' contexts
         // see two runs' services (two players' input), and a context outside every run sees the
         // application's alone.
-        using ServiceResolver = core::Function<void*(core::TypeId)>;
+        using ServiceResolver = foundation::script::ServiceResolver;
         void SetServiceResolver(ServiceResolver resolver) { m_resolver = core::Move(resolver); }
+        /// What the context's lookups go through: what ScriptCallScope pushes for the facades.
+        [[nodiscard]] const ServiceResolver& Resolver() const noexcept { return m_resolver; }
 
         /// The host's service of type `T` for this context, or null.
         template <typename T>
@@ -288,28 +294,58 @@ export namespace foundation::script
     // pushing (Script.AngelScript, Script.Luau) and the facade reading (Engine.*) live in
     // different libraries, and a vague-linkage thread_local would be duplicated per shared
     // library, so the facade would read null and lose its per-context services.
+    //
+    // Apart from it, the services of the call running now: what a facade reads through
+    // CurrentService. A script's call pushes its context's (ScriptCallScope); native code that calls
+    // facades pushes its host's (ServiceScope), with no context at all: a native behavior, or a
+    // plugin's runner staging a conversation. The slot is defined beside the context's, for the
+    // same reason.
     namespace detail
     {
         [[nodiscard]] IScriptContext*& CurrentScriptContextSlot() noexcept;
+        [[nodiscard]] const ServiceResolver*& CurrentServiceResolverSlot() noexcept;
     }
     [[nodiscard]] inline IScriptContext* CurrentScriptContext() noexcept
     {
         return detail::CurrentScriptContextSlot();
     }
 
-    /// The host's service of type `T` for the context whose script is executing, or null outside
-    /// every scripted call or where the host has none (a facade then does nothing).
+    /// The service of type `T` for the call running now (a script's or native code's under a
+    /// ServiceScope), or null outside every such call or where its host has none (a facade then
+    /// does nothing).
     template <typename T>
     [[nodiscard]] T* CurrentService()
     {
-        IScriptContext* scriptContext = CurrentScriptContext();
-        return scriptContext != nullptr ? scriptContext->FindService<T>() : nullptr;
+        const ServiceResolver* resolver = detail::CurrentServiceResolverSlot();
+        return resolver != nullptr && *resolver ? static_cast<T*>((*resolver)(core::TypeOf<T>().id)) : nullptr;
     }
+
+    /// Makes `resolver` the services facades find for its lifetime (null: none), and restores the
+    /// previous on exit, so a nested call finds its own. `resolver` outlives the scope.
+    class ServiceScope
+    {
+    public:
+        explicit ServiceScope(const ServiceResolver* resolver) noexcept
+            : m_previous(detail::CurrentServiceResolverSlot())
+        {
+            detail::CurrentServiceResolverSlot() = resolver;
+        }
+        ~ServiceScope() { detail::CurrentServiceResolverSlot() = m_previous; }
+        ServiceScope(const ServiceScope&) = delete;
+        ServiceScope& operator=(const ServiceScope&) = delete;
+
+    private:
+        const ServiceResolver* m_previous;
+    };
+
+    /// A script's call: its context is the one executing, and its context's services are the ones
+    /// facades find.
     class ScriptCallScope
     {
     public:
         explicit ScriptCallScope(IScriptContext* scriptContext) noexcept
-            : m_previous(detail::CurrentScriptContextSlot())
+            : m_previous(detail::CurrentScriptContextSlot()),
+              m_services(scriptContext != nullptr ? &scriptContext->Resolver() : nullptr)
         {
             detail::CurrentScriptContextSlot() = scriptContext;
         }
@@ -319,5 +355,6 @@ export namespace foundation::script
 
     private:
         IScriptContext* m_previous;
+        ServiceScope m_services;
     };
 }
