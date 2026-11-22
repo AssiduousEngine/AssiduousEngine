@@ -1,0 +1,11 @@
+scale=1
+upAxis=Y
+importTextures=true
+importMaterials=true
+importAnimations=true
+generatePrefab=true
+generateScene=false
+generateCollision=false
+generateLods=true
+rootMotion=false
+collisionConvex=false

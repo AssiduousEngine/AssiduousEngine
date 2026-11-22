@@ -1,0 +1,100 @@
+<root>
+	<string name="guid">30e069ed-dfa6-4131-94fb-577371f02bfb</string>
+	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
+	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Town/fountain-round-detail/fountain-round-detail.glb</string>
+	<array name="dataVersions" count="1">
+		<u64 name="type">2440385714661564817</u64>
+		<u32 name="version">3</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName">Models/Town/fountain-round-detail/fountain-round-detail.glb</string>
+		<array name="meshGuids" count="2">
+			<string>b64647fb-3184-4cb0-b524-72a3976eacf9</string>
+			<string>e50aaf34-fad1-45c5-be0a-9634fc41d1a8</string>
+		</array>
+		<array name="meshSkinned" count="2">
+			<u8>0</u8>
+			<u8>0</u8>
+		</array>
+		<array name="meshMaterial" count="2">
+			<i32>0</i32>
+			<i32>1</i32>
+		</array>
+		<array name="meshMaterialSlots" count="2">
+			<object>
+				<array name="slots" count="1">
+					<i32>0</i32>
+				</array>
+			</object>
+			<object>
+				<array name="slots" count="1">
+					<i32>1</i32>
+				</array>
+			</object>
+		</array>
+		<array name="collisionGuids" count="0"/>
+		<array name="materialGuids" count="2">
+			<string>91249fbc-575c-4b6c-a64b-579f393841bd</string>
+			<string>a4e8bdcd-b544-4f66-8ecb-4c5201a7e0f1</string>
+		</array>
+		<array name="materialAlbedo" count="2">
+			<string>2df8075f-c911-45ac-a9e2-941eba620885</string>
+			<string>00000000-0000-0000-0000-000000000000</string>
+		</array>
+		<array name="nodes" count="2">
+			<string name="name">fountain-round-detail</string>
+			<i32 name="parent">-1</i32>
+			<object name="t">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+			</object>
+			<object name="r">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">1</f32>
+			</object>
+			<object name="s">
+				<f32 name="x">1</f32>
+				<f32 name="y">1</f32>
+				<f32 name="z">1</f32>
+			</object>
+			<i32 name="mesh">0</i32>
+			<string name="name">(%ignore)</string>
+			<i32 name="parent">0</i32>
+			<object name="t">
+				<f32 name="x">2.8876458e-14</f32>
+				<f32 name="y">0.14</f32>
+				<f32 name="z">-3.032028e-14</f32>
+			</object>
+			<object name="r">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">1</f32>
+			</object>
+			<object name="s">
+				<f32 name="x">1</f32>
+				<f32 name="y">1</f32>
+				<f32 name="z">1</f32>
+			</object>
+			<i32 name="mesh">1</i32>
+		</array>
+		<string name="skeletonGuid">00000000-0000-0000-0000-000000000000</string>
+		<i32 name="skeletonParentNode">-2</i32>
+		<array name="animationGuids" count="0"/>
+		<object name="boundsMin">
+			<f32 name="x">-1</f32>
+			<f32 name="y">-4.5911684e-20</f32>
+			<f32 name="z">-1</f32>
+		</object>
+		<object name="boundsMax">
+			<f32 name="x">1</f32>
+			<f32 name="y">0.48000002</f32>
+			<f32 name="z">1</f32>
+		</object>
+		<array name="entries" count="0"/>
+	</object>
+</root>

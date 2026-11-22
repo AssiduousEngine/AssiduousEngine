@@ -3,7 +3,7 @@
 	<u32 name="version">3</u32>
 	<string name="name">character-female-b</string>
 	<array name="entities" count="11">
-		<string name="id">b6d1134a-5bbc-41dd-9710-6ed5ccd2c7cd</string>
+		<string name="id">3b542d28-a3c4-4e0c-b7c7-93bf9e068466</string>
 		<string name="name">character-female-b</string>
 		<u8 name="active">1</u8>
 		<string name="parent">00000000-0000-0000-0000-000000000000</string>
@@ -23,10 +23,10 @@
 			<f32 name="y">1</f32>
 			<f32 name="z">1</f32>
 		</object>
-		<string name="id">1dca8aa4-1986-4258-84c0-60cfa199cc09</string>
+		<string name="id">457b7521-f3b0-4ffa-bda1-0aa8ecc5fb59</string>
 		<string name="name">character-female-b</string>
 		<u8 name="active">1</u8>
-		<string name="parent">b6d1134a-5bbc-41dd-9710-6ed5ccd2c7cd</string>
+		<string name="parent">3b542d28-a3c4-4e0c-b7c7-93bf9e068466</string>
 		<object name="position">
 			<f32 name="x">0</f32>
 			<f32 name="y">0</f32>
@@ -43,10 +43,10 @@
 			<f32 name="y">1</f32>
 			<f32 name="z">1</f32>
 		</object>
-		<string name="id">1b8ef7d0-c700-490f-913a-d17db863308d</string>
+		<string name="id">ff7bbe2f-feb7-4eb5-a60b-42438483cb2b</string>
 		<string name="name">root</string>
 		<u8 name="active">1</u8>
-		<string name="parent">1dca8aa4-1986-4258-84c0-60cfa199cc09</string>
+		<string name="parent">457b7521-f3b0-4ffa-bda1-0aa8ecc5fb59</string>
 		<object name="position">
 			<f32 name="x">0</f32>
 			<f32 name="y">0</f32>
@@ -63,10 +63,10 @@
 			<f32 name="y">1</f32>
 			<f32 name="z">1</f32>
 		</object>
-		<string name="id">40ec126b-3820-4142-965a-7552dd502036</string>
+		<string name="id">e9b7541a-9236-4954-b782-fcd75f739be3</string>
 		<string name="name">leg-left</string>
 		<u8 name="active">1</u8>
-		<string name="parent">1b8ef7d0-c700-490f-913a-d17db863308d</string>
+		<string name="parent">ff7bbe2f-feb7-4eb5-a60b-42438483cb2b</string>
 		<object name="position">
 			<f32 name="x">0.083570965</f32>
 			<f32 name="y">0.17625</f32>
@@ -83,10 +83,10 @@
 			<f32 name="y">1</f32>
 			<f32 name="z">1</f32>
 		</object>
-		<string name="id">cae20e8b-202d-46b8-af9b-0d2a48eeca17</string>
+		<string name="id">757a18a8-7e2a-4f75-ba8f-58b00e93ab04</string>
 		<string name="name">leg-right</string>
 		<u8 name="active">1</u8>
-		<string name="parent">1b8ef7d0-c700-490f-913a-d17db863308d</string>
+		<string name="parent">ff7bbe2f-feb7-4eb5-a60b-42438483cb2b</string>
 		<object name="position">
 			<f32 name="x">-0.083570965</f32>
 			<f32 name="y">0.17625</f32>
@@ -103,10 +103,10 @@
 			<f32 name="y">1</f32>
 			<f32 name="z">1</f32>
 		</object>
-		<string name="id">7b0d2475-c451-4988-88de-614365db0631</string>
+		<string name="id">37657e47-5494-4261-86ef-3576b906fd97</string>
 		<string name="name">torso</string>
 		<u8 name="active">1</u8>
-		<string name="parent">1b8ef7d0-c700-490f-913a-d17db863308d</string>
+		<string name="parent">ff7bbe2f-feb7-4eb5-a60b-42438483cb2b</string>
 		<object name="position">
 			<f32 name="x">-1.4438228e-15</f32>
 			<f32 name="y">0.17625</f32>
@@ -123,10 +123,10 @@
 			<f32 name="y">1</f32>
 			<f32 name="z">1</f32>
 		</object>
-		<string name="id">503af708-fb17-425a-a73f-428ac7b8f6c9</string>
+		<string name="id">cbab39e2-b5aa-4ad0-904c-86892174d377</string>
 		<string name="name">arm-left</string>
 		<u8 name="active">1</u8>
-		<string name="parent">7b0d2475-c451-4988-88de-614365db0631</string>
+		<string name="parent">37657e47-5494-4261-86ef-3576b906fd97</string>
 		<object name="position">
 			<f32 name="x">0.09989677</f32>
 			<f32 name="y">0.1115</f32>
@@ -143,10 +143,10 @@
 			<f32 name="y">1</f32>
 			<f32 name="z">1</f32>
 		</object>
-		<string name="id">484c5ec0-6ec7-4bbe-946b-3ba855650f11</string>
+		<string name="id">34778b9b-9314-4e6d-9efc-a51c22383c04</string>
 		<string name="name">arm-right</string>
 		<u8 name="active">1</u8>
-		<string name="parent">7b0d2475-c451-4988-88de-614365db0631</string>
+		<string name="parent">37657e47-5494-4261-86ef-3576b906fd97</string>
 		<object name="position">
 			<f32 name="x">-0.09989677</f32>
 			<f32 name="y">0.1115</f32>
@@ -163,10 +163,10 @@
 			<f32 name="y">1</f32>
 			<f32 name="z">1</f32>
 		</object>
-		<string name="id">86af3988-c91f-4583-a844-1081f01e3cbd</string>
+		<string name="id">4479a590-518f-4943-8694-e76ecb92b243</string>
 		<string name="name">head</string>
 		<u8 name="active">1</u8>
-		<string name="parent">7b0d2475-c451-4988-88de-614365db0631</string>
+		<string name="parent">37657e47-5494-4261-86ef-3576b906fd97</string>
 		<object name="position">
 			<f32 name="x">1.8196893e-09</f32>
 			<f32 name="y">0.167</f32>
@@ -183,10 +183,10 @@
 			<f32 name="y">1</f32>
 			<f32 name="z">1</f32>
 		</object>
-		<string name="id">f998ba8e-1dc0-4725-a5a4-0a00f6e540fd</string>
+		<string name="id">457b7525-4fe5-4c2b-9487-dba378612cd2</string>
 		<string name="name">body-mesh</string>
 		<u8 name="active">1</u8>
-		<string name="parent">1dca8aa4-1986-4258-84c0-60cfa199cc09</string>
+		<string name="parent">457b7521-f3b0-4ffa-bda1-0aa8ecc5fb59</string>
 		<object name="position">
 			<f32 name="x">0</f32>
 			<f32 name="y">0</f32>
@@ -203,10 +203,10 @@
 			<f32 name="y">1</f32>
 			<f32 name="z">1</f32>
 		</object>
-		<string name="id">36a4cdc1-0ec4-447d-a245-eee06355ced6</string>
+		<string name="id">49c6ae6a-235f-4725-89f0-2f1dafdf5e4e</string>
 		<string name="name">head-mesh</string>
 		<u8 name="active">1</u8>
-		<string name="parent">1dca8aa4-1986-4258-84c0-60cfa199cc09</string>
+		<string name="parent">457b7521-f3b0-4ffa-bda1-0aa8ecc5fb59</string>
 		<object name="position">
 			<f32 name="x">0</f32>
 			<f32 name="y">0</f32>
@@ -226,7 +226,7 @@
 	</array>
 	<array name="components" count="3">
 		<object>
-			<string name="owner">f998ba8e-1dc0-4725-a5a4-0a00f6e540fd</string>
+			<string name="owner">457b7525-4fe5-4c2b-9487-dba378612cd2</string>
 			<string name="type">mesh</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
@@ -250,7 +250,7 @@
 			</object>
 		</object>
 		<object>
-			<string name="owner">36a4cdc1-0ec4-447d-a245-eee06355ced6</string>
+			<string name="owner">49c6ae6a-235f-4725-89f0-2f1dafdf5e4e</string>
 			<string name="type">mesh</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
@@ -274,7 +274,7 @@
 			</object>
 		</object>
 		<object>
-			<string name="owner">b6d1134a-5bbc-41dd-9710-6ed5ccd2c7cd</string>
+			<string name="owner">3b542d28-a3c4-4e0c-b7c7-93bf9e068466</string>
 			<string name="type">skeletal_animation</string>
 			<object name="data">
 				<array name="dataVersions" count="1">
@@ -287,8 +287,8 @@
 				<f32 name="startTime">0</f32>
 				<bool name="autoPlay">true</bool>
 				<array name="meshEntities" count="2">
-					<string>f998ba8e-1dc0-4725-a5a4-0a00f6e540fd</string>
-					<string>36a4cdc1-0ec4-447d-a245-eee06355ced6</string>
+					<string>457b7525-4fe5-4c2b-9487-dba378612cd2</string>
+					<string>49c6ae6a-235f-4725-89f0-2f1dafdf5e4e</string>
 				</array>
 				<u8 name="rootMotion">0</u8>
 				<string name="rootMotionTarget">00000000-0000-0000-0000-000000000000</string>

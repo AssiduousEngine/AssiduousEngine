@@ -1,0 +1,13 @@
+<root>
+	<string name="guid">ac3704ca-3f3e-4cf3-ae96-c0b4e2946625</string>
+	<string name="typeNamespace">rtti::scene</string>
+	<string name="typeName">PrefabDocument</string>
+	<string name="source"/>
+	<array name="dataVersions" count="1">
+		<u64 name="type">3442582207943668603</u64>
+		<u32 name="version">0</u32>
+	</array>
+	<object name="payload">
+		<string name="name">windmill</string>
+	</object>
+</root>

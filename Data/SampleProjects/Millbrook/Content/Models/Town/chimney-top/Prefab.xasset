@@ -1,0 +1,13 @@
+<root>
+	<string name="guid">28419d8e-4ed5-4ee2-b680-2c2f8f648ee0</string>
+	<string name="typeNamespace">rtti::scene</string>
+	<string name="typeName">PrefabDocument</string>
+	<string name="source"/>
+	<array name="dataVersions" count="1">
+		<u64 name="type">3442582207943668603</u64>
+		<u32 name="version">0</u32>
+	</array>
+	<object name="payload">
+		<string name="name">chimney-top</string>
+	</object>
+</root>

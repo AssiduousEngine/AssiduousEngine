@@ -1,0 +1,13 @@
+<root>
+	<string name="guid">83ad1fa4-6df5-4585-a9bc-9d43b6daafed</string>
+	<string name="typeNamespace">rtti::scene</string>
+	<string name="typeName">PrefabDocument</string>
+	<string name="source"/>
+	<array name="dataVersions" count="1">
+		<u64 name="type">3442582207943668603</u64>
+		<u32 name="version">0</u32>
+	</array>
+	<object name="payload">
+		<string name="name">stall-stool</string>
+	</object>
+</root>

@@ -1,0 +1,13 @@
+<root>
+	<string name="guid">8a4a35d5-b4a6-4491-8c85-eb2c9febd666</string>
+	<string name="typeNamespace">rtti::scene</string>
+	<string name="typeName">PrefabDocument</string>
+	<string name="source"/>
+	<array name="dataVersions" count="1">
+		<u64 name="type">3442582207943668603</u64>
+		<u32 name="version">0</u32>
+	</array>
+	<object name="payload">
+		<string name="name">flower_purpleA</string>
+	</object>
+</root>

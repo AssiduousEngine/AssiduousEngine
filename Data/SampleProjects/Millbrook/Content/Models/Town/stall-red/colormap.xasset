@@ -1,0 +1,29 @@
+<root>
+	<string name="guid">e19a196d-f318-48a6-8591-63124706000b</string>
+	<string name="typeNamespace">rtti::pipeline::texture</string>
+	<string name="typeName">TextureAsset</string>
+	<string name="source"/>
+	<array name="dataVersions" count="1">
+		<u64 name="type">18429015988889570204</u64>
+		<u32 name="version">4</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName"/>
+		<u32 name="colorSpace">0</u32>
+		<u8 name="usage">0</u8>
+		<u8 name="compression">0</u8>
+		<u32 name="embeddedWidth">512</u32>
+		<u32 name="embeddedHeight">512</u32>
+		<u8 name="shape">0</u8>
+		<u8 name="minFilter">1</u8>
+		<u8 name="magFilter">1</u8>
+		<u8 name="wrapU">0</u8>
+		<u8 name="wrapV">0</u8>
+		<u8 name="wrapW">0</u8>
+		<bool name="generateMipmaps">true</bool>
+		<f32 name="anisotropy">1</f32>
+		<string name="sourceHint">Textures/colormap.png</string>
+		<bool name="preserveAlphaCoverage">false</bool>
+		<f32 name="alphaCoverageReference">0.5</f32>
+	</object>
+</root>

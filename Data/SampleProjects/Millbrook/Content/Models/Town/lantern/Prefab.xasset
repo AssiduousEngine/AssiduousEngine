@@ -1,0 +1,13 @@
+<root>
+	<string name="guid">d1a199d1-d2b7-4d51-b560-c27b1c4637b3</string>
+	<string name="typeNamespace">rtti::scene</string>
+	<string name="typeName">PrefabDocument</string>
+	<string name="source"/>
+	<array name="dataVersions" count="1">
+		<u64 name="type">3442582207943668603</u64>
+		<u32 name="version">0</u32>
+	</array>
+	<object name="payload">
+		<string name="name">lantern</string>
+	</object>
+</root>

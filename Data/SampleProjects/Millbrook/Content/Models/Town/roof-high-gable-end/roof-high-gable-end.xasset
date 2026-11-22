@@ -1,0 +1,71 @@
+<root>
+	<string name="guid">b93e1bb2-47ff-437f-bce6-381ce1fbe121</string>
+	<string name="typeNamespace">rtti::pipeline::modelimporter</string>
+	<string name="typeName">ModelManifestAsset</string>
+	<string name="source">Models/Town/roof-high-gable-end/roof-high-gable-end.glb</string>
+	<array name="dataVersions" count="1">
+		<u64 name="type">2440385714661564817</u64>
+		<u32 name="version">3</u32>
+	</array>
+	<object name="payload">
+		<string name="fileName">Models/Town/roof-high-gable-end/roof-high-gable-end.glb</string>
+		<array name="meshGuids" count="1">
+			<string>c9115da4-e886-4224-8041-c674e59b30f1</string>
+		</array>
+		<array name="meshSkinned" count="1">
+			<u8>0</u8>
+		</array>
+		<array name="meshMaterial" count="1">
+			<i32>0</i32>
+		</array>
+		<array name="meshMaterialSlots" count="1">
+			<object>
+				<array name="slots" count="1">
+					<i32>0</i32>
+				</array>
+			</object>
+		</array>
+		<array name="collisionGuids" count="0"/>
+		<array name="materialGuids" count="1">
+			<string>8cc7c25a-4905-45c2-9522-e1654a11b14d</string>
+		</array>
+		<array name="materialAlbedo" count="1">
+			<string>da419e33-8499-4ad2-9e25-a9075f258008</string>
+		</array>
+		<array name="nodes" count="1">
+			<string name="name">roof-high-gable-end</string>
+			<i32 name="parent">-1</i32>
+			<object name="t">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+			</object>
+			<object name="r">
+				<f32 name="x">0</f32>
+				<f32 name="y">0</f32>
+				<f32 name="z">0</f32>
+				<f32 name="w">1</f32>
+			</object>
+			<object name="s">
+				<f32 name="x">1</f32>
+				<f32 name="y">1</f32>
+				<f32 name="z">1</f32>
+			</object>
+			<i32 name="mesh">0</i32>
+		</array>
+		<string name="skeletonGuid">00000000-0000-0000-0000-000000000000</string>
+		<i32 name="skeletonParentNode">-2</i32>
+		<array name="animationGuids" count="0"/>
+		<object name="boundsMin">
+			<f32 name="x">-0.5675023</f32>
+			<f32 name="y">-0.044721358</f32>
+			<f32 name="z">-0.56708205</f32>
+		</object>
+		<object name="boundsMax">
+			<f32 name="x">0.55</f32>
+			<f32 name="y">1.1118033</f32>
+			<f32 name="z">0.56708205</f32>
+		</object>
+		<array name="entries" count="0"/>
+	</object>
+</root>

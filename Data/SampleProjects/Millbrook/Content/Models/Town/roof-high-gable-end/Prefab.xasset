@@ -1,0 +1,13 @@
+<root>
+	<string name="guid">15c55c33-99e6-4e8d-b784-949a8d61f450</string>
+	<string name="typeNamespace">rtti::scene</string>
+	<string name="typeName">PrefabDocument</string>
+	<string name="source"/>
+	<array name="dataVersions" count="1">
+		<u64 name="type">3442582207943668603</u64>
+		<u32 name="version">0</u32>
+	</array>
+	<object name="payload">
+		<string name="name">roof-high-gable-end</string>
+	</object>
+</root>

@@ -1,0 +1,13 @@
+<root>
+	<string name="guid">0811f319-f37a-4225-b69d-bd603ed23fa1</string>
+	<string name="typeNamespace">rtti::scene</string>
+	<string name="typeName">PrefabDocument</string>
+	<string name="source"/>
+	<array name="dataVersions" count="1">
+		<u64 name="type">3442582207943668603</u64>
+		<u32 name="version">0</u32>
+	</array>
+	<object name="payload">
+		<string name="name">log_stack</string>
+	</object>
+</root>

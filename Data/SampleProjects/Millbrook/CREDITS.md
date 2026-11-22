@@ -11,8 +11,7 @@ out of the packs.
 - **Mini Characters**: the villagers and the player, with the clips they share
   (`Licenses/Kenney-MiniCharacters-CC0.txt`).
 - **Fantasy Town Kit**: the village (`Licenses/Kenney-FantasyTownKit-CC0.txt`).
-- **Nature Kit**: trees, rocks and ground (`Licenses/Kenney-NatureKit-CC0.txt`).
-- **Mini Forest**: more trees and plants (`Licenses/Kenney-MiniForest-CC0.txt`).
+- **Nature Kit**: grass, the stream, trees, bushes, flowers and stones (`Licenses/Kenney-NatureKit-CC0.txt`).
 
 ## Sky
 

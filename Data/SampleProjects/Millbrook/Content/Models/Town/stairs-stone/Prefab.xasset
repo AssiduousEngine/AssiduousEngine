@@ -1,0 +1,13 @@
+<root>
+	<string name="guid">b8454838-8a17-44f8-a82b-6c84851a82c8</string>
+	<string name="typeNamespace">rtti::scene</string>
+	<string name="typeName">PrefabDocument</string>
+	<string name="source"/>
+	<array name="dataVersions" count="1">
+		<u64 name="type">3442582207943668603</u64>
+		<u32 name="version">0</u32>
+	</array>
+	<object name="payload">
+		<string name="name">stairs-stone</string>
+	</object>
+</root>

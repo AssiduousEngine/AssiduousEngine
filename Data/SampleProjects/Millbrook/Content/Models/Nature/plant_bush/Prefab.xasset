@@ -1,0 +1,13 @@
+<root>
+	<string name="guid">1f830408-de9d-4707-b6b6-0f1a8e78302d</string>
+	<string name="typeNamespace">rtti::scene</string>
+	<string name="typeName">PrefabDocument</string>
+	<string name="source"/>
+	<array name="dataVersions" count="1">
+		<u64 name="type">3442582207943668603</u64>
+		<u32 name="version">0</u32>
+	</array>
+	<object name="payload">
+		<string name="name">plant_bush</string>
+	</object>
+</root>

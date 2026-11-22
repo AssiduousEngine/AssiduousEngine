@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """importmodels.py [Name ...]: the Kenney models kenney.py copied into generated/, imported through
 the editor's MCP, then cooked: the cast's and the player's characters (generated/Characters) into
-Models/Characters, each model its own group (Models/Characters/character-knight). With names,
+Models/Characters, the village's pieces (generated/Town) into Models/Town and what grows round it
+(generated/Nature) into Models/Nature, each model its own group (Models/Characters/character-knight). With names,
 only those. A re-run re-imports over the same assets, keeping their ids.
 
     python3 kenney.py ~/Downloads/kenney
@@ -13,7 +14,7 @@ sys.path.insert(0, HERE)
 from scenegen import mcp
 
 # Each folder of copied models, and the group its models land under.
-FOLDERS = (("Characters", "Models/Characters"),)
+FOLDERS = (("Characters", "Models/Characters"), ("Town", "Models/Town"), ("Nature", "Models/Nature"))
 
 only = set(sys.argv[1:])
 for folder, group in FOLDERS:
