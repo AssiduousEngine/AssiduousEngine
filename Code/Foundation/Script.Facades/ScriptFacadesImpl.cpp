@@ -202,6 +202,19 @@ namespace foundation::script
         ExtraRootStorage().PushBack(type);
     }
 
+    void RemoveExtraScriptRootType(const core::TypeInfo* type)
+    {
+        Array<const core::TypeInfo*>& roots = ExtraRootStorage();
+        for (usize i = 0; i < roots.Size(); ++i)
+        {
+            if (roots[i] == type)
+            {
+                roots.RemoveAt(i);
+                return;
+            }
+        }
+    }
+
     core::Span<const core::TypeInfo* const> ExtraScriptRootTypes()
     {
         return {ExtraRootStorage().Data(), ExtraRootStorage().Size()};
@@ -223,6 +236,25 @@ namespace foundation::script
         for (const String& n : ExtraFacadeStorage())
         {
             views.PushBack(n.AsView());
+        }
+    }
+
+    void RemoveExtraFacadeName(StringView name)
+    {
+        Array<String>& names = ExtraFacadeStorage();
+        for (usize i = 0; i < names.Size(); ++i)
+        {
+            if (names[i].AsView() == name)
+            {
+                names.RemoveAt(i);
+                Array<StringView>& views = ExtraFacadeViews();
+                views.Clear();
+                for (const String& n : names)
+                {
+                    views.PushBack(n.AsView());
+                }
+                return;
+            }
         }
     }
 

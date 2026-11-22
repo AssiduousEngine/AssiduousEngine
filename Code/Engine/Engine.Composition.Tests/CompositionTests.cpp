@@ -177,6 +177,34 @@ TEST_CASE("engine.composition: RegisterAllScriptFacades installs exactly the dom
 
 namespace
 {
+    struct PluginFacade
+    {
+    };
+}
+
+TEST_CASE("engine.composition: a facade name and a script root a plugin added are taken back as it unloads")
+{
+    const TypeInfo* type = &TypeOf<PluginFacade>();
+    const usize names = foundation::script::ExtraFacadeNames().Size();
+    const usize roots = foundation::script::ExtraScriptRootTypes().Size();
+    foundation::script::RegisterExtraFacadeName(u8"PluginFacade");
+    foundation::script::RegisterExtraScriptRootType(type);
+    CHECK(foundation::script::ExtraFacadeNames().Size() == names + 1u);
+    CHECK(foundation::script::ExtraScriptRootTypes().Size() == roots + 1u);
+    foundation::script::RemoveExtraFacadeName(u8"PluginFacade");
+    foundation::script::RemoveExtraScriptRootType(type);
+    CHECK(foundation::script::ExtraFacadeNames().Size() == names);
+    CHECK(foundation::script::ExtraScriptRootTypes().Size() == roots);
+    for (const StringView name : foundation::script::ExtraFacadeNames())
+    {
+        CHECK(name != StringView(u8"PluginFacade"));
+    }
+    foundation::script::RemoveExtraFacadeName(u8"PluginFacade"); // nothing to take: nothing happens
+    CHECK(foundation::script::ExtraFacadeNames().Size() == names);
+}
+
+namespace
+{
     int g_pluginTypesRegistered = 0;
     int g_pluginFacadesRegistered = 0;
     void RegisterPluginTypes() { ++g_pluginTypesRegistered; }

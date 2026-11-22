@@ -50,6 +50,8 @@ export namespace foundation::script
     /// Idempotent; call alongside the module's own reflection registration. Names are borrowed as
     /// interned copies. See ExtraFacadeNames.
     void RegisterExtraFacadeName(core::StringView name);
+    /// Takes back a name RegisterExtraFacadeName added (a plugin unloading, its facade gone).
+    void RemoveExtraFacadeName(core::StringView name);
     /// The extra facade names registered by other modules (appended to the prelude after the built-ins).
     [[nodiscard]] core::Span<const core::StringView> ExtraFacadeNames();
 
@@ -60,6 +62,9 @@ export namespace foundation::script
     /// is consumed by the collector. Idempotent; the type is borrowed (its TypeInfo has static
     /// lifetime).
     void RegisterExtraScriptRootType(const core::TypeInfo* type);
+    /// Takes back a root RegisterExtraScriptRootType added (a plugin unloading: its TypeInfo goes
+    /// with its code).
+    void RemoveExtraScriptRootType(const core::TypeInfo* type);
     /// The additional emission roots registered by other modules (extra seeds for the reachability closure).
     [[nodiscard]] core::Span<const core::TypeInfo* const> ExtraScriptRootTypes();
 

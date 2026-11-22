@@ -139,6 +139,14 @@ Add `Foundation::Script Foundation::Script.Facades` to the module's `target_link
   "Where a binding comes from" above). Store the binding as a *stable member* of its owner so it
   never dangles. Nothing is installed per script context.
 
+### f. A plugin's facade
+
+A plugin registers its facade from its domain's `registerScriptFacade`, which `AddPluginDomain`
+calls as the plugin loads; it does so on every load (no `static once`: a plugin loaded again after
+an unload registers again). Its Engine part's unload takes back what the registries keep beyond the
+type: `RemoveExtraFacadeName` and `RemoveExtraScriptRootType`, since the facade's code and its
+TypeInfo go with the plugin. The dialogue plugin's `Dialogue` facade is the example.
+
 ## How the backends see it
 
 `RegisterReflectedTypes(manager)` binds every emittable registered type (the shared
