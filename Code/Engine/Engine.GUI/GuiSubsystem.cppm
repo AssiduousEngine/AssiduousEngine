@@ -42,6 +42,10 @@
 // kinds are drawn in RenderTextures, which the host calls after the frame's bakes and before the
 // scene draws.
 //
+// The subsystem is an application service of its own type too, so native code that runs with a
+// run (a plugin's run service, reaching the application's services as the run's scripts do) can
+// build GUI in that run's screen tier and style it.
+//
 // The script surface is the GUI's own: the `gui` facade, every widget reflected, and the
 // gamekit's screen stack. The subsystem offers its binding as the application's GUI service for
 // scripts, resolving to the calling script's run's screen tier. `gui::root()` is the screen root, and `ScreenStack::of(gui::root().find("screens"))` is

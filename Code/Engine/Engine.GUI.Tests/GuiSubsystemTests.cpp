@@ -1431,6 +1431,15 @@ TEST_CASE("engine.gui: at a render resolution the screen tier lays out at it, dr
     CHECK(root->GetDisplayScale() == doctest::Approx(1.0f));
 }
 
+TEST_CASE("engine.gui: the subsystem is an application service of its own type, while it is registered")
+{
+    {
+        Engine engine;
+        CHECK(engine.context.GetService<GuiSubsystem>() == engine.gui);
+        CHECK(engine.context.GetService<GuiScriptBinding>() != nullptr);
+    }
+}
+
 TEST_CASE("engine.gui: with run screens on each run has its own screen tier, drawn for its tab and gone with its run")
 {
     rhi::null::NullDevice device{DefaultAllocator()}; // outlives the GUI that draws on it

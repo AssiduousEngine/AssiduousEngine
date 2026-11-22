@@ -911,6 +911,9 @@ namespace engine::gui
     {
         Subsystem::OnRegister(manager);
         manager->RegisterService(m_scriptBinding);
+        // Itself, for native code that runs with a run (a plugin's run service) and builds GUI in
+        // the run's screen tier, styled through the GUI's style manager.
+        manager->RegisterService<GuiSubsystem>(*this);
     }
 
     void GuiSubsystem::OnUnregister()
@@ -918,6 +921,7 @@ namespace engine::gui
         if (foundation::runtime::SubsystemManager* manager = Manager())
         {
             manager->UnregisterService<GuiScriptBinding>();
+            manager->UnregisterService<GuiSubsystem>();
         }
         Subsystem::OnUnregister();
     }
