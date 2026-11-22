@@ -208,7 +208,8 @@ asset is: a property tagged `"asset:DialogueResource"`.
   player's control for it, `lineId`), `onDialogueChoice` (`answerCount()`, `answer(i)`),
   `onDialogueCommand` (its `name`, `waits`, `leaves`, and its arguments by name: `text(name)`,
   `number(name)`, `asset(name)`, `entity(name)`, `has(name)`) and `onDialogueEnded`
-  (`conversation`, `stopped`, `left`). In AngelScript the handlers take a `DialogueLineNotice@`,
+  (`conversation`, `stopped`, `left`; a line a sequence showed ends with no `conversation`, so a
+  game that acts on a conversation's end checks it). In AngelScript the handlers take a `DialogueLineNotice@`,
   `DialogueChoiceNotice@`, `DialogueCommandNotice@` and `DialogueEndedNotice@`.
 
 ## Naming a control
