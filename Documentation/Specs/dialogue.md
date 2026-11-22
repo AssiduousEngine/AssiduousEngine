@@ -1,6 +1,6 @@
 # Dialogue as an official plugin
 
-> APPROVED 2026-11-21. D0 to D3 2026-11-21. Read on master at `247608c79`; line numbers will drift. Revisits the
+> APPROVED 2026-11-21. D0 to D4 2026-11-21. Read on master at `247608c79`; line numbers will drift. Revisits the
 > choice, made on 2026-11-06 for the first game built on the engine, to keep its dialogue in its
 > own script ("A now, with plans to move to C"), now that the sequencer exists, and makes dialogue
 > an official engine plugin (that note's option B).
@@ -492,6 +492,11 @@ Each step a commit with its tests, green on clang and gcc.
      (`RemoveExtraFacadeName`, `RemoveExtraScriptRootType`).
 5. **D4 The line track**: `DialogueLineTrack` in a sequence, holding for the line; offered by the
    sequence panel's Track menu with no change there.
+   *As built:* the track names its cast; a section's text is written in it or taken by line id
+   from a dialogue file. Its runner shows the line through the run's runner
+   (`DialogueRunner::ShowLine`), which ends on `advance()` and is followed by `DialogueEnded` with
+   no conversation, and holds the play at the section's end through D0's runner hold. A
+   conversation starting takes over from a line still shown.
 6. **D5 The stock box**: the GUI document, its settings, a sample of it in use.
 7. **D6 The editor and agents**: the dialogue page (code editor, checks, outline, preview), and
    `dialogue_validate` / `dialogue_read`.

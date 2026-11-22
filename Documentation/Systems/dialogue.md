@@ -13,7 +13,7 @@ otherwise. It supports Linux64, Win64, Web and Android64.
 
 | Part | Library | Module | Holds |
 |---|---|---|---|
-| Engine | `Dialogue.Engine` | `dialogue.engine` | `DialogueSettings`; the compiled conversations and the cast, their cooked forms and factories; the dialogue's domain; the runner, and the one each run holds |
+| Engine | `Dialogue.Engine` | `dialogue.engine` | `DialogueSettings`; the compiled conversations and the cast, their cooked forms and factories; the dialogue's domain; the runner, and the one each run holds; the `Dialogue` facade; the sequences' line track |
 | Pipeline | `Dialogue.Pipeline` | `dialogue.pipeline` | the format's parser, the commands' notation, the cook's checks; the dialogue's assets, their builders, the importer and File > New's creators |
 | Tooling | `Dialogue.Tooling` | | its entry |
 | Editor | `Dialogue.Editor` | `dialogue.editor` | the cast's and the dialogue assets' pages |
@@ -238,6 +238,23 @@ entity the cast names, else none (logged once a speaker).
 While a line shows, its speaker plays the cast's `talk` clip, looping, until the line is advanced
 or the conversation ends there (`IDialogueHost::OnLineEnded`).
 
+## Lines in a sequence
+
+`DialogueLineTrack` is a sequence track kind (Dialogue Lines in the sequence panel's Track menu),
+for a linear cutscene staged on a timeline. It names a `cast`, and each of its sections
+(`DialogueLineSection`) is a line: a `speaker` of that cast, a `mood`, and its `text`, or the line
+`lineId` of a dialogue file (`dialogue`). When the playhead enters a section the track's runner
+shows the line through the run's runner (`DialogueRunner::ShowLine`), which the game hears as it
+hears a conversation's line (no file, no conversation); the runner's hold (`HoldTime`, `IsHolding`)
+stops the play at the section's end until the line is advanced (`Advance()`, `Dialogue.advance()`),
+and `DialogueEnded` follows with no conversation. A line is refused, logged, while a conversation
+plays, and holds nothing then; a conversation that starts takes over from a line still shown. The
+editor's posing shows no lines. The track is bound to no one and runs after the other kinds.
+
+The track registers with the plugin's types on each load; the engine registers the track kinds'
+base itself, and a plugin's load registers nothing of the engine's, since unloading reverses what
+the load registered.
+
 ## The script surface
 
 `DialogueFacade` (scripts call it `Dialogue`) reaches the calling script's run's runner
@@ -266,11 +283,13 @@ refuses; the format parsed: lines, choices and branches compiled to jumps, the b
 declared commands with names of several words, line ids, and every problem at its line; the cook's
 checks over a table of a project's assets; the runner playing parsed conversations against a
 stand-in host: lines, choices, branches, flags, waits, staging, commands that wait or leave, jumps,
-resume after a load and after a patch, a second play refused, a host that answers at once) and `Integration.Plugins` (the package linked with its
+resume after a load and after a patch, a second play refused, a host that answers at once, a line
+shown on its own) and `Integration.Plugins` (the package linked with its
 four parts, its manifest, a project that enables it loading it with its settings, its domain and a
 runner in every run, its flags in the run's save, `Dialogue` offered to scripts and taken back on
 unload; a run's runner fading the scene, playing a sequence bound to the cast's entity or to one
-the game bound, and showing a line on the run's bus; an AngelScript and a Luau behavior playing a
+the game bound, and showing a line on the run's bus; a sequence's line track showing its lines
+through the run's runner and holding until each is advanced; an AngelScript and a Luau behavior playing a
 cooked conversation through `Dialogue` and answering its line, choice and command;
 and, through the MCP host, a dialogue file cooking to its conversations, one with an error failing
 the cook, and File > New's three creators; and, in an editor session, the cast and the dialogue

@@ -180,6 +180,16 @@ export namespace dialogue
         bool Done();
         /// Ends the conversation now; its place is not kept.
         void Stop();
+
+        /// Shows one line on its own (a sequence's line track): the game hears it as a
+        /// conversation's line, `Advance()` ends it, and DialogueEnded (no conversation) follows.
+        /// Its token, or 0, logged, while a conversation plays. A line already shown gives way.
+        u32 ShowLine(const DialogueCastResource* cast, StringView speaker, StringView mood, StringView text,
+                     StringView lineId);
+        /// Whether the line `token` is still shown.
+        [[nodiscard]] bool IsShowing(u32 token) const noexcept { return token != 0 && token == m_shownLine; }
+        /// Ends the line `token` if it is still shown (its play let go of it).
+        void EndLine(u32 token);
         /// Goes on with the conversation the resume record names; false when there is none, or one
         /// is playing.
         bool Resume();
@@ -205,6 +215,10 @@ export namespace dialogue
         // Runs steps until one waits or the conversation ends.
         void Pump();
         void Finish(bool stopped, bool left);
+        // A line's notice: its speaker's name, mood and portrait from `cast`, its text filled.
+        [[nodiscard]] DialogueLineNotice LineNotice(const DialogueCastResource* cast, StringView speaker, StringView mood,
+                                                    StringView text, StringView lineId,
+                                                    const DialogueSpeaker*& entry);
         void WriteResume(usize step);
         [[nodiscard]] String FlagKey(StringView name) const;
         [[nodiscard]] String Fill(StringView text);
@@ -223,5 +237,7 @@ export namespace dialogue
         u32 m_staging = 0;
         String m_lastLine; // the id of the last line shown, the resume record's anchor
         bool m_pumping = false;
+        u32 m_shownLine = 0; // a line shown on its own, not a conversation's
+        u32 m_nextLine = 1;
     };
 }

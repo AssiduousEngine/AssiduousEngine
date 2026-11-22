@@ -7,7 +7,8 @@
 // fade in lets it go; the sequence moves the entity the cast names for the speaker, or the one the
 // game bound to it. And the `Dialogue` facade in every language: a behavior binds a speaker, sets a
 // flag, plays a cooked conversation by its file's guid, and answers its line, choice and command
-// in its on<Name> handlers until it ends.
+// in its on<Name> handlers until it ends. And a sequence's line track: the play shows each line
+// through the run's runner and holds at its end until it is advanced.
 
 #include <doctest/doctest.h>
 
@@ -83,11 +84,12 @@ namespace
         UniquePtr<foundation::resource::ResourceManager> resources;
         Guid gate;
         Guid walk;
+        Guid castId;
 
         explicit DialogueStore(StringView text)
         {
-            dialogue::RegisterDialogueTypes();
             engine::sequence::RegisterSequenceReflection();
+            dialogue::RegisterDialogueTypes();
             (void)RemoveDirectoryRecursive(dir);
             (void)CreateDirectories(dir);
             mount = MakeUnique<foundation::vfs::NativeFileSystem>(DefaultAllocator(), dir, DefaultAllocator());
@@ -123,6 +125,7 @@ namespace
             keeper.shownName = String(u8"The Keeper");
             keeper.entity = String(u8"Keeper");
             REQUIRE(castInstance->WriteObject(cast).IsOk());
+            castId = castInstance->Id();
 
             dialogue::DialogueCommandForm cue;
             String error;
@@ -399,3 +402,71 @@ TEST_CASE("plugins: a Luau behavior plays a conversation through Dialogue and an
     CHECK_FALSE(r.runner->IsPlaying());
 }
 #endif
+
+TEST_CASE("plugins: a sequence's line track shows its line through the run's runner and holds until it is advanced")
+{
+    DialogueRun r;
+    // A sequence of one line track, cooked and loaded as any sequence: two lines, the second's text
+    // from the dialogue file.
+    foundation::content::Instance* instance =
+        r.store.db->RootGroup()->CreateInstance(u8"cutscene", sequence::SequenceSource::StaticType());
+    sequence::SequenceSource source;
+    RefPtr<dialogue::DialogueLineTrack> lines = MakeRef<dialogue::DialogueLineTrack>(DefaultAllocator());
+    lines->cast.SetId(r.store.castId);
+    dialogue::DialogueLineSection first;
+    first.start = 0.5f;
+    first.length = 1.0f;
+    first.speaker = String(u8"keeper");
+    first.text = String(u8"Look.");
+    lines->sections.PushBack(first);
+    dialogue::DialogueLineSection second;
+    second.start = 2.0f;
+    second.length = 1.0f;
+    second.speaker = String(u8"keeper");
+    second.dialogue.SetId(r.store.gate);
+    second.lineId = String(u8"gate.1");
+    lines->sections.PushBack(second);
+    source.sequence.tracks.PushBack(lines);
+    source.sequence.duration = 4.0f;
+    REQUIRE(instance->WriteObject(source).IsOk());
+
+    bool listed = false;
+    for (const TypeInfo* kind : sequence::SequenceTrackKinds())
+    {
+        listed = listed || kind == &dialogue::DialogueLineTrack::StaticType();
+    }
+    CHECK(listed); // the sequence panel's Track menu offers it
+
+    r.Start();
+    auto* system = r.scene.GetSystem<engine::sequence::SequenceSystem>();
+    foundation::resource::Ref<sequence::SequenceResource> loaded;
+    loaded.SetId(instance->Id());
+    loaded.Bind(*r.store.resources);
+    REQUIRE(loaded.Get() != nullptr);
+    REQUIRE(loaded.Get()->sequence.tracks.Size() == 1u);
+    const u32 play = system->Play(RefPtr<sequence::SequenceResource>(loaded.Get()), instance->Id());
+    for (int i = 0; i < 4; ++i)
+    {
+        r.Frame(0.5f); // past the first line's end at 1.5: held there
+    }
+    REQUIRE(r.lines.Size() == 1u);
+    CHECK(r.lines[0] == StringView(u8"The Keeper: Look."));
+    REQUIRE(system->Find(play) != nullptr);
+    CHECK(system->Find(play)->Time() == doctest::Approx(1.5f));
+    CHECK(system->Find(play)->IsHeld());
+
+    REQUIRE(r.runner->Advance());
+    for (int i = 0; i < 4; ++i)
+    {
+        r.Frame(0.5f);
+    }
+    REQUIRE(r.lines.Size() == 2u);
+    CHECK(r.lines[1] == StringView(u8"The Keeper: Done.")); // the dialogue file's line gate.1
+    CHECK(system->Find(play)->Time() == doctest::Approx(3.0f));
+    REQUIRE(r.runner->Advance());
+    for (int i = 0; i < 4; ++i)
+    {
+        r.Frame(0.5f);
+    }
+    CHECK(system->Find(play) == nullptr); // played to its end
+}

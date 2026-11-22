@@ -464,3 +464,32 @@ TEST_CASE("dialogue runner: one conversation at a time; a host may answer a line
     CHECK(f.host.Told() == StringView(u8"keeper: One.\nkeeper: Two.\nended gate\n"));
     CHECK_FALSE(f.runner.IsPlaying());
 }
+
+TEST_CASE("dialogue runner: a line shown on its own (a sequence's) ends on advance, and gives way to a conversation")
+{
+    Fixture f;
+    f.Add(f.gate, u8"conversation gate\n"
+                  u8"@ visitor: A conversation.\n");
+    const u32 line = f.runner.ShowLine(f.host.cast.Get(), u8"keeper", {}, u8"Press {Interact}.", u8"cutscene.1");
+    REQUIRE(line != 0u);
+    CHECK(f.runner.IsShowing(line));
+    CHECK_FALSE(f.runner.IsPlaying());
+    CHECK(f.host.Told() == StringView(u8"keeper: Press E.\n"));
+    CHECK(f.host.lastLine.shownName == StringView(u8"The Keeper"));
+    CHECK(f.host.lastLine.conversation.IsEmpty());
+    REQUIRE(f.runner.Advance());
+    CHECK_FALSE(f.runner.IsShowing(line));
+    CHECK(f.host.Told() == StringView(u8"ended \n")); // no conversation
+    CHECK_FALSE(f.runner.Advance());
+
+    // A conversation takes over from a line still shown.
+    const u32 second = f.runner.ShowLine(f.host.cast.Get(), u8"keeper", {}, u8"Wait.", {});
+    REQUIRE(f.runner.Play(f.gate, u8"gate"));
+    CHECK_FALSE(f.runner.IsShowing(second));
+    CHECK(f.host.Told() == StringView(u8"keeper: Wait.\nended \nvisitor: A conversation.\n"));
+
+    // While it plays, a sequence's line is refused.
+    CHECK(f.runner.ShowLine(f.host.cast.Get(), u8"keeper", {}, u8"Refused.", {}) == 0u);
+    f.runner.EndLine(second); // long gone: nothing happens
+    CHECK(f.host.Told().IsEmpty());
+}

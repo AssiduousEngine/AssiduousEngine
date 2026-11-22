@@ -29,5 +29,8 @@ namespace dialogue
         GlobalTypeRegistry().Register(DialogueCastSource::StaticType());
         RegisterSerializable<DialogueSource>();
         RegisterSerializable<DialogueCastSource>();
+        // The line track joins the engine's track kinds; the engine registers their base itself. A
+        // load is recorded and reversed on unload, so it registers nothing of the engine's.
+        RegisterDialogueLineTrack();
     }
 }

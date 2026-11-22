@@ -126,6 +126,10 @@ namespace dialogue
             LOG_WARNING(u8"Dialogue", u8"play: the conversation `{}` is still playing", m_conversation->id);
             return false;
         }
+        if (m_shownLine != 0)
+        {
+            EndLine(m_shownLine); // a conversation takes over from a sequence's line
+        }
         RefPtr<DialogueResource> file = m_host->LoadDialogue(dialogue);
         if (!file)
         {
@@ -147,6 +151,11 @@ namespace dialogue
 
     bool DialogueRunner::Advance()
     {
+        if (m_shownLine != 0)
+        {
+            EndLine(m_shownLine);
+            return true;
+        }
         if (m_wait != DialogueWait::Line)
         {
             return false;
@@ -193,6 +202,59 @@ namespace dialogue
         {
             Finish(true, false);
         }
+    }
+
+    u32 DialogueRunner::ShowLine(const DialogueCastResource* cast, StringView speaker, StringView mood, StringView text,
+                                 StringView lineId)
+    {
+        if (m_playing)
+        {
+            LOG_WARNING(u8"Dialogue", u8"a sequence's line waits for no one: the conversation `{}` is playing",
+                        m_conversation->id);
+            return 0;
+        }
+        if (m_shownLine != 0)
+        {
+            EndLine(m_shownLine);
+        }
+        const DialogueSpeaker* entry = nullptr;
+        const DialogueLineNotice notice = LineNotice(cast, speaker, mood, text, lineId, entry);
+        m_shownLine = m_nextLine++;
+        m_host->OnLine(notice, entry);
+        return m_shownLine;
+    }
+
+    void DialogueRunner::EndLine(u32 token)
+    {
+        if (token == 0 || token != m_shownLine)
+        {
+            return;
+        }
+        m_shownLine = 0;
+        m_host->OnLineEnded();
+        m_host->OnEnded(DialogueEndedNotice{});
+    }
+
+    DialogueLineNotice DialogueRunner::LineNotice(const DialogueCastResource* cast, StringView speaker, StringView mood,
+                                                  StringView text, StringView lineId, const DialogueSpeaker*& entry)
+    {
+        DialogueLineNotice notice;
+        notice.speaker = String(speaker);
+        notice.mood = String(mood);
+        notice.lineId = String(lineId);
+        notice.text = Fill(text);
+        entry = cast != nullptr ? cast->Find(speaker) : nullptr;
+        if (entry != nullptr)
+        {
+            notice.shownName = entry->shownName;
+            if (notice.mood.IsEmpty() && !entry->moods.IsEmpty())
+            {
+                notice.mood = entry->moods[0].name; // the first is the default
+            }
+            const DialogueMood* found = entry->FindMood(notice.mood.AsView());
+            notice.portrait = found != nullptr && !found->portrait.IsNil() ? found->portrait : entry->portrait;
+        }
+        return notice;
     }
 
     bool DialogueRunner::Resume()
@@ -299,6 +361,7 @@ namespace dialogue
         m_conversation = nullptr;
         m_file = {};
         m_cast = {};
+        m_shownLine = 0;
     }
 
     u64 DialogueRunner::HashSteps(const DialogueConversation& conversation) noexcept
@@ -361,24 +424,11 @@ namespace dialogue
             {
             case DialogueStepKind::Line:
             {
-                DialogueLineNotice notice;
+                const DialogueSpeaker* speaker = nullptr;
+                DialogueLineNotice notice = LineNotice(m_cast.Get(), step.speaker.AsView(), step.mood.AsView(),
+                                                       Text(step.lineId.AsView()).AsView(), step.lineId.AsView(), speaker);
                 notice.dialogue = m_dialogue;
                 notice.conversation = m_conversation->id;
-                notice.speaker = step.speaker;
-                notice.mood = step.mood;
-                notice.lineId = step.lineId;
-                notice.text = Fill(Text(step.lineId.AsView()).AsView());
-                const DialogueSpeaker* speaker = m_cast ? m_cast->Find(step.speaker.AsView()) : nullptr;
-                if (speaker != nullptr)
-                {
-                    notice.shownName = speaker->shownName;
-                    if (notice.mood.IsEmpty() && !speaker->moods.IsEmpty())
-                    {
-                        notice.mood = speaker->moods[0].name; // the first is the default
-                    }
-                    const DialogueMood* mood = speaker->FindMood(notice.mood.AsView());
-                    notice.portrait = mood != nullptr && !mood->portrait.IsNil() ? mood->portrait : speaker->portrait;
-                }
                 m_lastLine = step.lineId;
                 WriteResume(m_step);
                 m_wait = DialogueWait::Line;
