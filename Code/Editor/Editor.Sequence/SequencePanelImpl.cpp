@@ -486,11 +486,11 @@ namespace editor
             const String name = binding.name;
             const Guid entity = m_preview.BoundEntity(name.AsView());
             const scene::EntityHandle handle = entity.IsNil() ? scene::EntityHandle::Invalid() : m_scene->FindEntity(entity);
-            const StringView playedBy = handle.IsAssigned() ? m_scene->GetEntityName(handle) : StringView(u8"no one");
-            m_menu->AddItem(Format(u8"{} (played by {}): fill with the selection", name, playedBy).AsView(), [self, name]() { self->CastSelected(name.AsView()); })
-                ->SetEnabled(selected);
+            const String label = handle.IsAssigned() ? Format(u8"Bind {} to selection (now {})", name, m_scene->GetEntityName(handle))
+                                                     : Format(u8"Bind {} to selection (unbound)", name);
+            m_menu->AddItem(label.AsView(), [self, name]() { self->CastSelected(name.AsView()); })->SetEnabled(selected);
         }
-        m_menu->AddItem(u8"Add a part for the selection", [self]() { (void)self->AddPartForSelected(); })->SetEnabled(selected);
+        m_menu->AddItem(u8"Add part for selection", [self]() { (void)self->AddPartForSelected(); })->SetEnabled(selected);
         m_menu->OpenBelow(*m_cast, *m_cast);
     }
 
