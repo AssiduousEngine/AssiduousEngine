@@ -42,6 +42,42 @@ EntityBehavior`). In Luau the class is a global made from its kind (`local` is n
 script whose class derives from no kind is not a behavior, and is refused where a behavior is set;
 one with two behavior classes does not cook.
 
+### Behaviors in C++
+
+A behavior can be C++, in a plugin of the project (its Engine part), with no script language at
+all. The class derives from `engine::behavior::RunBehavior`, `SceneBehavior` or `EntityBehavior`,
+reflects itself and registers its type when its plugin loads. Its handlers are the reflected
+methods named as a script's are (`onStart`, `onUpdate`, `onHit` for the `hit` event, `onPing` for
+the `Ping` message), its properties the reflected fields it marks `behaviorProperty`, and it calls
+the same facades a script does, which find its run as a script's call finds it.
+
+```cpp
+class Bobber final : public engine::behavior::EntityBehavior
+{
+    RTTI_OBJECT(Bobber, engine::behavior::EntityBehavior)
+public:
+    f32 height = 0.25f;
+    void OnUpdate(f32 deltaTime) { /* Self().setPosition(...) */ }
+};
+
+REFLECT_MEMBERS(Bobber, "rtti::mygame") // in an implementation unit of the module
+{
+    builder.Property<&Bobber::height>("height").PropAttribute("behaviorProperty", true);
+    builder.Method<&Bobber::OnUpdate>("onUpdate");
+    builder.Creator(); // how the engine makes one
+}
+
+// In the Engine part's Load: context.Types().Register(Bobber::StaticType());
+```
+
+In the project, File > New > Native Behavior makes the class's asset, named like the class (the
+asset Bobber names the registered Bobber); it is set on an entity, a scene or the project as a
+script's class is. An entity behavior reads its entity with `Self()`, a scene's its scene with
+`GetScene()`. `Fault(reason)` disables it as a script error disables a script's. Two differences
+from a script: it reloads only with its plugin, while nothing runs (Project > Reload Project
+Plugins), and a crash in it is a crash, though the report names it (`in: Bobber.onUpdate on
+'cube'`). Scripts do not see native classes by name; they reach them through messages and events.
+
 ## Lifecycle and events
 
 Handlers dispatch **by presence** - implement only what you need. Every kind shares the names; each

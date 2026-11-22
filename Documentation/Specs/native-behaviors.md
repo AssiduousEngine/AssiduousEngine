@@ -2,8 +2,9 @@
 
 > APPROVED 2026-11-19 as part of the script backends spec (proposed 2026-11-18), split out on
 > 2026-11-21 with no decision changed: [script-backends-as-plugins.md](script-backends-as-plugins.md)
-> keeps the languages as plugins, this spec the game logic that needs no language. N0 and N1 are
-> built; N2 is next. Read on master at `0618e177f`.
+> keeps the languages as plugins, this spec the game logic that needs no language. N0 to N2 are
+> built (2026-11-22); NativeSample's own scene does not use its native behaviors yet. Read on master
+> at `0618e177f`.
 >
 > The changes to how script calls are made are a separate proposal:
 > [scripting-typed-calls.md](scripting-typed-calls.md). Neither depends on the other.
@@ -316,7 +317,9 @@ Each step stands on its own and leaves the tree green.
    New and the MCP tools (no picker entry for a class with no asset: user, 2026-11-22),
    `Fault(reason)`, and the current call in the crash report. Built so far: the bases and native
    objects with their faults (`561191f44`), the crash note (`448b286ea`), the asset and its cook
-   (`c8dd9b8f1`), and the creator.
+   (`c8dd9b8f1`), the creator (`abeb06376`), NativeSample's three and `native_behavior_list`
+   (`ac14be117`), and the behavior conformance test, one probe in AngelScript, Luau and C++ coming
+   out the same (Integration.ScriptScene).
    NativeSample gains one of each kind, and the conformance suites gain a native column beside the
    languages. A project with no language enabled then has every kind:
    [script-backends-as-plugins.md](script-backends-as-plugins.md)'s scriptless project gains a

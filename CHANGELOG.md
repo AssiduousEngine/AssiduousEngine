@@ -9,6 +9,12 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Added
 
+- Native behaviors: a run, scene or entity behavior can be C++ in a plugin of the project, with no
+  script language: a class deriving from RunBehavior, SceneBehavior or EntityBehavior, its handlers
+  its reflected on<Name> methods and its properties the fields it marks. File > New > Native Behavior
+  makes its asset, which is set where a script's class is; it runs with the same lifecycle, events,
+  messages, overrides and facades, and its crash report names it. MCP: `native_behavior_list`.
+  NativeSample has one of each kind.
 - Dialogue: the official dialogue plugin plays conversations. A project that enables it writes them
   as text in dialogue files (File > New > Dialogue), with a cast and a list of the assets they
   name, each edited on its own page. Scripts play one with `Dialogue.play(dialogue, conversation)`,
