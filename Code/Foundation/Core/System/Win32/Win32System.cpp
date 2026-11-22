@@ -1683,6 +1683,12 @@ namespace foundation::core::sys
         return static_cast<int>(count);
     }
 
+    const char*& CrashNoteSlot() noexcept
+    {
+        static thread_local const char* note = nullptr;
+        return note;
+    }
+
     void InstallCrashBacktrace() noexcept
     {
         static bool installed = false;
