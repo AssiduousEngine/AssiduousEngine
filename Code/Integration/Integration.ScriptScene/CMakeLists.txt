@@ -1,10 +1,11 @@
 # Integration.ScriptScene - script behaviours on a real scene through the script subsystem: entity
-# events reaching them in every language, a native behavior from its cook to a scene, a sequence played from script and its notices, and the
+# events reaching them in every language, a native behavior from its cook to a scene, one behavior in
+# every language and in C++ coming out the same, a sequence played from script and its notices, and the
 # script speed work's scene measures against the same work done by native components. The measures are skipped in a normal run; run them with
 # --no-skip from an optimised build.
 
 add_executable(Integration.ScriptScene TestsMain.cpp ScriptSceneBenchmarkTests.cpp EntityEventTests.cpp SequenceScriptTests.cpp
-    NativeBehaviorTests.cpp)
+    NativeBehaviorTests.cpp BehaviorConformanceTests.cpp)
 target_link_libraries(Integration.ScriptScene PRIVATE
     Engine::Behavior Engine::Spline Engine::Physics Engine::Animation Engine::Sequence Foundation::Sequence Foundation::Sequence.Resource
     Foundation::PropertyAnimation Foundation::Content Foundation::VFS Foundation::Resource Foundation::Run
