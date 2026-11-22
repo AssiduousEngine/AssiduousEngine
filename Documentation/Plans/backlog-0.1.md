@@ -8,6 +8,22 @@
 
 ## Editor
 
+- **The editor crashes on exit once a picker has been opened** (reported 2026-11-21 on
+  Win64-MSVC at `595794aee`; fix after the dialogue plugin): open any picker (Add Component,
+  `#inspector-add`), close it, quit, and the editor exits with an access violation (139 /
+  0xC0000005) and writes a crash dump, after the UI is gone, so no work is lost but every such run
+  leaves a dump. `Picker` keeps a raw pointer to the root it opened over (`m_root`,
+  `Picker.cppm`), set in `Open()` and never cleared. `EditorApplication::OnShutdown` closes the
+  window (`m_window.Close()`, which destroys the `SceneRoot`) but never resets `m_picker` or
+  `m_assetPicker`, so the members' destruction runs `~Picker` -> `Close()` -> `IsOpen()`, whose
+  `m_root != nullptr` passes on the freed pointer. A picker never opened has a null root, so the
+  crash needs one opened that session. The same shape is in `AssetPickerWindow` (same fault
+  expected), `CommandPalette` (safe only because `OnShutdown` resets it first) and
+  `EntityPickerWindow` (held by a scene page; not checked). Fix: hold the root weakly
+  (`WeakRefPtr<SceneRoot>`, as the GUI does elsewhere) so a dead root reads as closed, for all four,
+  rather than adding resets to `OnShutdown`. Test: open a picker, destroy the root, then destroy the
+  picker.
+
 - **Two main-thread stalls in the editor** (measured 2026-11-08 on the flagship's 2000-asset
   project, while finding the import hang; the user put them here): `script_validate` compiles on
   the main thread, about 1.9 s for a level script with its includes; and at startup each texture's
