@@ -1,5 +1,5 @@
 /* Millbrook's look on the engine GUI, and the project's GUI sheet (guiStyleSheetIds): warm parchment
-   on deep brown, as a village fair's signs are. Its screens are Title, Hud and Credits, which
+   on deep brown, as a village fair's signs are. Its screens are Title, Hud, Pause and Credits, which
    Millbrook.as pushes. The dialogue box has a sheet of its own (box/MillbrookBox.css). */
 
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
@@ -20,6 +20,15 @@ button.tag:hover { background-color: #F2E2C2; border: 3px solid #A3362A; }
 button.tag:active { background-color: #D8BE8C; }
 button.tag:focus-visible { border: 4px solid #A3362A; }
 .credits-card button.tag { margin-top: 14px; }
+
+/* The pause menu: its buttons, then the controls, an action to a row. */
+.pause-title { font-size: 40px; color: #F6D27A; margin-bottom: 6px; }
+.controls { flex-direction: column; align-items: center; gap: 4px; margin-top: 14px; }
+.controls-row { flex-direction: row; align-items: center; width: 520px; }
+.controls-action { width: 240px; font-size: 16px; color: #E2CDA6; }
+.controls-key { width: 130px; font-size: 16px; color: #FFFFFF; }
+.controls-pad { width: 150px; font-size: 16px; color: #F6D27A; }
+.controls-head { font-size: 13px; color: #B89C74; }
 
 /* The HUD: the talk prompt at the foot, over the village, taking none of its input. */
 .hud { flex-grow: 1; flex-direction: column; justify-content: space-between; padding: 18px; pointer-events: none; }

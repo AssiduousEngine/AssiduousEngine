@@ -14,11 +14,13 @@
 // The game opens on the title over the village (Begin, or Carry on with a save under way). When the
 // mayor has called everyone (the flag opening), the ending plays (Sequences/FairOpens: its camera,
 // the lanterns lit on its LightLanterns event, its lines in the stock box), then the credits; the
-// flag fair_opened keeps the lanterns lit after.
+// flag fair_opened keeps the lanterns lit after. Pause (Escape or Start) holds the village still
+// under the pause menu: Resume, Leave to the title, Quit.
 
 const string kHudDoc = "{{{GUI:Hud}}}";
 const string kTitleDoc = "{{{GUI:Title}}}";
 const string kCreditsDoc = "{{{GUI:Credits}}}";
+const string kPauseDoc = "{{{GUI:Pause}}}";
 const Guid kFairOpens = Guid("{{Sequence:FairOpens}}"); // the ending
 const int kLanterns = 4; // LanternLight0..3 (village.py)
 const Guid kFairTune = Guid("{{Audio:FairTune}}"); // the fair's music, from the start
@@ -86,6 +88,7 @@ class Game : RunBehavior
     private bool m_playing = false;  // past the title, the credits not up
     private int m_ending = 0;        // the ending's play id (a notice's play); 0 none
     private SequencePlay m_endingPlay; // held on its last frame (black) behind the credits
+    private bool m_paused = false;
 
     void onStart()
     {
@@ -138,6 +141,62 @@ class Game : RunBehavior
         m_near = -1;
         m_playing = true;
         m_talkedLastFrame = true;
+        return true;
+    }
+
+    // ---- the pause menu ----
+    // The village holds still, and the input map's Menu set (Pause alone) is the one in effect, so
+    // the player's actions read released under the menu and the press that clicks a button is
+    // never read as a talk. A conversation's box stays, waiting, under the menu.
+    private void pause()
+    {
+        m_paused = true;
+        run::setTimeScale(0.0f);
+        Input::pushSet("Menu");
+        screens().push(kPauseDoc);
+        wire("resume-btn", EventHandler(this.onResume));
+        wire("title-btn", EventHandler(this.onLeaveToTitle));
+        wire("quit-btn", EventHandler(this.onQuit));
+    }
+
+    private bool onResume(GuiEvent e)
+    {
+        resume();
+        return true;
+    }
+
+    private void resume()
+    {
+        if (!m_paused)
+        {
+            return;
+        }
+        m_paused = false;
+        screens().pop();
+        Input::popSet();
+        run::setTimeScale(1.0f);
+        m_talkedLastFrame = true; // a press that closed the menu is not a talk
+    }
+
+    // Back to the title: a conversation under way ends (its flags so far are saved), and an ending
+    // under way stops, to play again when the mayor is next asked.
+    private bool onLeaveToTitle(GuiEvent e)
+    {
+        resume();
+        if (Dialogue::isPlaying())
+        {
+            Dialogue::stop();
+        }
+        if (m_ending != 0)
+        {
+            m_endingPlay.stop();
+            m_ending = 0;
+            run::currentScene().find("Player").send("Hold", false);
+        }
+        m_walker = -1;
+        idleAll(); // a villager stopped mid-walk stands
+        Save::flush();
+        showTitle();
         return true;
     }
 
@@ -205,6 +264,22 @@ class Game : RunBehavior
         Scene scene = run::currentScene();
         Entity player = scene.find("Player");
         if (!player.isValid() || !m_playing)
+        {
+            return;
+        }
+        if (Input::wasPressed("Pause"))
+        {
+            if (m_paused)
+            {
+                resume();
+            }
+            else
+            {
+                pause();
+            }
+            return;
+        }
+        if (m_paused)
         {
             return;
         }

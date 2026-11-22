@@ -1,0 +1,22 @@
+<!-- The pause menu, over a village that holds still (Millbrook.as): Resume, Leave to the title (a
+     conversation under way ends; what is done stays in the save) and Quit, and the controls. The
+     screen stack's back is off: the game's own Pause action (Escape, Start) closes it. Styled by
+     MillbrookSheet.css. -->
+<Screen class="fades" nav-default="resume-btn" back="none">
+  <Panel class="centre">
+    <Panel class="card pause-card">
+      <Label class="pause-title" text="Paused"/>
+      <Button id="resume-btn" class="tag" text="Resume"/>
+      <Button id="title-btn" class="tag" text="Leave to the title"/>
+      <Button id="quit-btn" class="tag" text="Quit"/>
+      <Panel class="controls">
+        <Panel class="controls-row"><Label class="controls-action" text=""/><Label class="controls-key controls-head" text="Keyboard"/><Label class="controls-pad controls-head" text="Gamepad"/></Panel>
+        <Panel class="controls-row"><Label class="controls-action" text="Walk"/><Label class="controls-key" text="W A S D"/><Label class="controls-pad" text="Left stick"/></Panel>
+        <Panel class="controls-row"><Label class="controls-action" text="Run"/><Label class="controls-key" text="Left Shift"/><Label class="controls-pad" text="Left stick press"/></Panel>
+        <Panel class="controls-row"><Label class="controls-action" text="Talk, go on, choose"/><Label class="controls-key" text="E"/><Label class="controls-pad" text="A"/></Panel>
+        <Panel class="controls-row"><Label class="controls-action" text="Turn the view"/><Label class="controls-key" text="Q / R"/><Label class="controls-pad" text="LB / RB"/></Panel>
+        <Panel class="controls-row"><Label class="controls-action" text="Pause"/><Label class="controls-key" text="Escape"/><Label class="controls-pad" text="Start"/></Panel>
+      </Panel>
+    </Panel>
+  </Panel>
+</Screen>

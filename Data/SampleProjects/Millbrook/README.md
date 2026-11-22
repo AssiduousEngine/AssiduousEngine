@@ -22,8 +22,9 @@ done in its save, and a game saved partway through a conversation goes on from t
 
 Controls: W A S D (or the left stick) to walk, relative to the camera; Left Shift (pressing the left
 stick) to run; E (A) to talk, to go on past a line and to choose the focused answer (the mouse
-chooses one too); Q and R (the shoulders) to turn the view a quarter. On a touch screen: a stick on
-the left half to walk, and buttons on the right to talk, run and turn.
+chooses one too); Q and R (the shoulders) to turn the view a quarter; Escape (Start) to pause, with
+the controls on the pause menu. On a touch screen: a stick on the left half to walk, buttons on the
+right to talk, run and turn, and a small pause button at the top-left.
 
 ## What it shows
 
