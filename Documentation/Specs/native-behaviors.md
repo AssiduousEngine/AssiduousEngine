@@ -341,6 +341,26 @@ then work in a project that also uses a VM.
   in one thread_local, found once per scope, every measure is back within 4% of the commit before
   the seam, the ranges overlapping (an entity call 122 against 123 ns, 5,000 movers 3.12 against
   3.12 ms).
+- **What a native behavior costs** (measured 2026-11-22, the same tree, three runs; the scene
+  measures gained a native behavior column, the same work as the scripts' through the same
+  subsystem and facades). The median frame, against a component manager's own loop and the
+  languages:
+
+  | Median frame | Component | Native behavior | AngelScript | Luau |
+  |---|---|---|---|---|
+  | 1,000 empty update handlers | 0.006 ms | 0.168 ms | 0.27 ms | 0.20 to 0.21 ms |
+  | 100 movers | 0.004 ms | 0.022 to 0.023 ms | 0.057 to 0.059 ms | 0.061 ms |
+  | 1,000 movers | 0.040 to 0.042 ms | 0.23 to 0.24 ms | 0.58 to 0.59 ms | 0.62 to 0.64 ms |
+  | 5,000 movers | 0.21 ms | 1.18 to 1.24 ms | 2.96 to 3.04 ms | 3.15 to 3.20 ms |
+  | 1,000 component fetches | 0.005 ms | 0.078 to 0.082 ms | 0.44 to 0.45 ms | 0.38 to 0.39 ms |
+
+  A native behavior's handler costs about 165 ns a call against a component's 6 ns, near Luau's
+  200: the dispatch, not the work, sets it (the reflected Invoke with Variant arguments, the
+  service and crash note scopes, the subsystem's own walk), and a script's handler pays the same
+  path before its VM. Where the 165 ns goes is not yet measured part by part. Its facade calls
+  are cheap (a mover's work beside an empty handler adds about 70 ns; a component fetch through
+  the facade's of() is 80 ns, a Variant made and a manager found, against the manager's own 5 ns).
+  Nothing allocates per frame.
 - **Scope.** A native behavior is something a game's author writes, so it adds CHANGELOG lines, a
   section in `Documentation/Shipping/Scripting.md` (or a native code guide beside it), and the
   inspector's handling of native classes.

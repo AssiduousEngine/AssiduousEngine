@@ -5,7 +5,8 @@
 // benchmark, Script.Tests/BackendBenchmark.h): a call into the engine, an entity method, a value
 // method, a string argument and a handler call, with the language's loop alone to subtract. Per
 // scene: script behaviours on a real scene, ticked through the script subsystem, against the same
-// work done by native components on the same scene:
+// work done by native behaviors (C++ classes run through the same subsystem, no VM) and by native
+// components (a manager's own loop) on the same scene:
 //
 //   handler-dispatch  1,000 behaviours with an empty update;
 //   movers-<N>        N behaviours each reading its entity's position, moving it and writing it
@@ -22,6 +23,7 @@
 
 #include "Core/Prelude.h"
 #include "Core/Log/Log.h"
+#include "Core/Reflection/Reflect.h"
 #include "Script.Tests/BackendBenchmark.h"
 
 import foundation.core;
@@ -120,6 +122,69 @@ namespace
         scene::Scene* m_scene = nullptr;
     };
 
+}
+
+namespace benchnative
+{
+    // The three behaviours as native behaviors: C++ classes the behavior subsystem runs as it runs
+    // a script's, through the same objects and the same facades, with no VM.
+    class Empty final : public EntityBehavior
+    {
+        RTTI_OBJECT(Empty, EntityBehavior)
+    public:
+        void OnUpdate(f32) {}
+    };
+
+    class Mover final : public EntityBehavior
+    {
+        RTTI_OBJECT(Mover, EntityBehavior)
+    public:
+        f32 speed = 2.0f;
+
+        void OnUpdate(f32 deltaTime)
+        {
+            const Float3 p = Self().position();
+            Self().setPosition(p.x + speed * deltaTime, p.y, p.z);
+        }
+    };
+
+    class Fetcher final : public EntityBehavior
+    {
+        RTTI_OBJECT(Fetcher, EntityBehavior)
+    public:
+        void OnUpdate(f32)
+        {
+            for (u32 i = 0; i < kFetchesPerFrame; ++i)
+            {
+                // What a script's PathFollowComponent.of(self) calls.
+                const Variant fetched = ComponentOf<engine::spline::PathFollowComponent>(Self());
+                (void)fetched;
+            }
+        }
+    };
+
+    REFLECT_MEMBERS(Empty, "rtti::benchnative")
+    {
+        builder.Method<&Empty::OnUpdate>("onUpdate");
+        builder.Creator();
+    }
+
+    REFLECT_MEMBERS(Mover, "rtti::benchnative")
+    {
+        builder.Property<&Mover::speed>("speed");
+        builder.Method<&Mover::OnUpdate>("onUpdate");
+        builder.Creator();
+    }
+
+    REFLECT_MEMBERS(Fetcher, "rtti::benchnative")
+    {
+        builder.Method<&Fetcher::OnUpdate>("onUpdate");
+        builder.Creator();
+    }
+}
+
+namespace
+{
     void EnsureRegistered()
     {
         static const bool once = []()
@@ -136,6 +201,9 @@ namespace
             RegisterBehaviorComponentReflection();
             RegisterScriptFacadeReflection();
             engine::spline::RegisterSplineScriptFacade(); // PathFollowComponent and its of()
+            GlobalTypeRegistry().Register(benchnative::Empty::StaticType());
+            GlobalTypeRegistry().Register(benchnative::Mover::StaticType());
+            GlobalTypeRegistry().Register(benchnative::Fetcher::StaticType());
             return true;
         }();
         (void)once;
@@ -249,10 +317,15 @@ namespace
         return cls;
     }
 
-    // The three behaviours in one language.
+    // The three behaviours in one language: each one's class name and source (the class names
+    // alone for native behaviors, which have no source), and the column they print as.
     struct Behaviours
     {
         StringView language;
+        StringView column;
+        StringView emptyClass = u8"Empty";
+        StringView moverClass = u8"Mover";
+        StringView fetcherClass = u8"Fetcher";
         StringView empty;
         StringView mover;
         StringView fetcher;
@@ -262,22 +335,22 @@ namespace
     {
         {
             BenchScene bench;
-            bench.AddScripted(MakeClass(in.language, u8"Empty", in.empty), kHandlers);
-            bench.Measure(in.language, "handler-dispatch");
+            bench.AddScripted(MakeClass(in.language, in.emptyClass, in.empty), kHandlers);
+            bench.Measure(in.column, "handler-dispatch");
         }
         const u32 sizes[] = {100, 1000, 5000};
         for (const u32 size : sizes)
         {
             BenchScene bench;
-            bench.AddScripted(MakeClass(in.language, u8"Mover", in.mover), size);
+            bench.AddScripted(MakeClass(in.language, in.moverClass, in.mover), size);
             char name[32];
             std::snprintf(name, sizeof(name), "movers-%u", size);
-            bench.Measure(in.language, name);
+            bench.Measure(in.column, name);
         }
         {
             BenchScene bench;
-            bench.AddScripted(MakeClass(in.language, u8"Fetcher", in.fetcher), 1);
-            bench.Measure(in.language, "component-fetch");
+            bench.AddScripted(MakeClass(in.language, in.fetcherClass, in.fetcher), 1);
+            bench.Measure(in.column, "component-fetch");
         }
     }
 }
@@ -408,11 +481,23 @@ TEST_CASE("script scene: the scene measures in native components, the baseline" 
     }
 }
 
+TEST_CASE("script scene: the scene measures in native behaviors" * doctest::skip())
+{
+    Behaviours in;
+    in.language = kNativeLanguage;
+    in.column = u8"native-behavior";
+    in.emptyClass = u8"rtti::benchnative::Empty";
+    in.moverClass = u8"rtti::benchnative::Mover";
+    in.fetcherClass = u8"rtti::benchnative::Fetcher";
+    RunSceneMeasures(in);
+}
+
 #if defined(INTEGRATION_HAS_ANGELSCRIPT)
 TEST_CASE("script scene: the scene measures in AngelScript" * doctest::skip())
 {
     Behaviours in;
     in.language = u8"angelscript";
+    in.column = in.language;
     in.empty = u8"class Empty : EntityBehavior {\n"
                u8"    Empty(Entity entity) {}\n"
                u8"    void onUpdate(double dt) {}\n"
@@ -442,6 +527,7 @@ TEST_CASE("script scene: the scene measures in Luau" * doctest::skip())
 {
     Behaviours in;
     in.language = u8"luau";
+    in.column = in.language;
     in.empty = u8"Empty = EntityBehavior.class()\n"
                u8"function Empty.new(entity) return setmetatable({}, Empty) end\n"
                u8"function Empty:onUpdate(dt) end\n";
@@ -479,6 +565,15 @@ TEST_CASE("script scene: each measure's scene runs its behaviours")
     for (scene::EntityHandle root = bench.scene.GetFirstRoot(); root.IsAssigned(); root = bench.scene.GetNextSibling(root))
         CHECK(bench.scene.GetLocalTransform(root).position.x == doctest::Approx(2.0f));
 #endif
+    BenchScene behaviors;
+    behaviors.AddScripted(MakeClass(kNativeLanguage, u8"rtti::benchnative::Mover", u8""), 3);
+    behaviors.scene.Start();
+    behaviors.scene.SetSimulationEnabled(true);
+    behaviors.Frame();
+    CHECK(behaviors.scripts->InstanceCount() == 3u);
+    for (scene::EntityHandle root = behaviors.scene.GetFirstRoot(); root.IsAssigned(); root = behaviors.scene.GetNextSibling(root))
+        CHECK(behaviors.scene.GetLocalTransform(root).position.x == doctest::Approx(2.0f * kDelta));
+
     BenchScene native;
     native.AddNative(NativeWork::Move, 3);
     native.scene.Start();
