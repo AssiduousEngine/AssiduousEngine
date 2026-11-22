@@ -1685,4 +1685,15 @@ export namespace pipeline{
     /// Level, Game), and a project creator for one whose classes build together. Answers how many
     /// it registered. Register the cooks first.
     usize RegisterScriptCreators(AssetCreatorRegistry& registry);
+
+    /// The Native Behavior creator's label, as File > New and asset_create name it.
+    inline constexpr StringView kNativeBehaviorCreator = u8"Native Behavior";
+
+    /// The registered native class whose own name is `name` ("Spinner" names rtti::game::Spinner),
+    /// or null when none is, or several are.
+    [[nodiscard]] const TypeInfo* NativeBehaviorClassNamed(StringView name);
+
+    /// File > New's Native Behavior: an asset naming the registered native class of the asset's
+    /// own name, when there is one (the class is the asset's field to set otherwise).
+    void RegisterNativeBehaviorCreator(AssetCreatorRegistry& registry);
 }

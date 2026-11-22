@@ -85,6 +85,50 @@ namespace pipeline
         return created;
     }
 
+    const TypeInfo* NativeBehaviorClassNamed(StringView name)
+    {
+        const TypeInfo* found = nullptr;
+        for (const TypeInfo* type : GlobalTypeRegistry().All())
+        {
+            if (StringView(reinterpret_cast<const utf8char*>(type->name)) != name ||
+                NativeBehaviorKindOf(*type) == foundation::script::BehaviorKind::None)
+            {
+                continue;
+            }
+            if (found != nullptr)
+            {
+                return nullptr; // two of that name, in two namespaces: the asset's field says which
+            }
+            found = type;
+        }
+        return found;
+    }
+
+    void RegisterNativeBehaviorCreator(AssetCreatorRegistry& registry)
+    {
+        AssetCreator creator;
+        creator.label = String(kNativeBehaviorCreator);
+        creator.category = String(u8"Scripts");
+        creator.type = &NativeBehaviorAsset::StaticType();
+        creator.run = [](const AssetCreationContext& context) -> foundation::content::Instance*
+        {
+            foundation::content::Group* target = context.Target();
+            if (target == nullptr)
+            {
+                return nullptr;
+            }
+            const String name = target->UniqueInstanceName(context.NameOr(u8"NativeBehavior"));
+            NativeBehaviorAsset asset;
+            if (const TypeInfo* type = NativeBehaviorClassNamed(name.AsView()))
+            {
+                asset.className = Format(u8"{}::{}", StringView(reinterpret_cast<const utf8char*>(type->namespaceName)),
+                                         StringView(reinterpret_cast<const utf8char*>(type->name)));
+            }
+            return CreateWrittenInstance(target, name.AsView(), NativeBehaviorAsset::StaticType(), asset);
+        };
+        registry.Register(Move(creator));
+    }
+
     usize RegisterScriptCreators(AssetCreatorRegistry& registry)
     {
         struct TierDesc

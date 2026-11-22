@@ -143,9 +143,12 @@ Component managers stay what they are: the way to update many entities as data. 
   names a class names it as it names a script's, with no second reference kind and no data format
   change. A rename or move of the asset keeps every reference (the guid); a renamed C++ class fails
   the asset's cook, naming the class, and is fixed by editing one field. The project makes the
-  asset, not the plugin, since a plugin is shared by many projects and writes into none: the
-  behavior picker lists the registered native classes beside the project's assets, and picking one
-  that has no asset yet makes it; File > New and the MCP tools make one too. The engines that name
+  asset, not the plugin, since a plugin is shared by many projects and writes into none. File > New
+  > Native Behavior and `asset_create` make one, filling its class from the asset's name (an asset
+  named Spinner names the registered class Spinner; the class is the asset's field to set
+  otherwise), and the behavior picker then offers it beside the scripts, since it cooks to a
+  `BehaviorClass`; an MCP tool lists the registered native classes. The picker does not list
+  classes that have no asset yet (user, 2026-11-22: File > New is enough). The engines that name
   native and script classes alike by type name (Flax, Lumina, Zero) need rename redirects for it;
   the rest keep two reference kinds (Godot, ez, Hyperion, traktor).
 - **Properties** (2026-11-21): a native class's properties are the reflected fields it marks as
@@ -309,8 +312,11 @@ Each step stands on its own and leaves the tree green.
    hosts start a run behavior with no source, since a native one has none.
 2. **N2 Native classes.** A plugin registers native run, scene and entity behaviors: the Native
    Behavior asset and its cook (properties from the marked fields, handlers from the `on` methods,
-   the plugin's build stamp in its recipe), the picker's entry for a registered class with no asset
-   yet, File > New and the MCP tools, `Fault(reason)`, and the current call in the crash report.
+   a hash of every native class's declaration in its recipe, so a changed class recooks), File >
+   New and the MCP tools (no picker entry for a class with no asset: user, 2026-11-22),
+   `Fault(reason)`, and the current call in the crash report. Built so far: the bases and native
+   objects with their faults (`561191f44`), the crash note (`448b286ea`), the asset and its cook
+   (`c8dd9b8f1`), and the creator.
    NativeSample gains one of each kind, and the conformance suites gain a native column beside the
    languages. A project with no language enabled then has every kind:
    [script-backends-as-plugins.md](script-backends-as-plugins.md)'s scriptless project gains a

@@ -244,6 +244,7 @@ namespace pipeline
         RegisterAnimationCreators(registry);
         RegisterPropertyAnimationCreators(registry);
         RegisterSequenceCreators(registry);
+        RegisterNativeBehaviorCreator(registry);
         return RegisterScriptCreators(registry);
     }
 }

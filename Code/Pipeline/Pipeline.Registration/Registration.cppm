@@ -66,5 +66,5 @@ export namespace pipeline
     inline constexpr usize kBuilderCount = 33 + kGuiAssetKinds; // 33: the Native Behavior cook
     inline constexpr usize kImporterCount = 13;
     /// The creators every build has; the scripts add three per language with a cook on top.
-    inline constexpr usize kCreatorCount = 32 + kGuiAssetKinds;
+    inline constexpr usize kCreatorCount = 33 + kGuiAssetKinds; // 33: Native Behavior
 }
