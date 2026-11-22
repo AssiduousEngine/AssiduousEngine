@@ -63,7 +63,7 @@ export namespace pipeline
     // fails the test.
     /// The GUI's asset kinds (a document and a style sheet), when the GUI is built.
     inline constexpr usize kGuiAssetKinds = 2;
-    inline constexpr usize kBuilderCount = 32 + kGuiAssetKinds;
+    inline constexpr usize kBuilderCount = 33 + kGuiAssetKinds; // 33: the Native Behavior cook
     inline constexpr usize kImporterCount = 13;
     /// The creators every build has; the scripts add three per language with a cook on top.
     inline constexpr usize kCreatorCount = 32 + kGuiAssetKinds;

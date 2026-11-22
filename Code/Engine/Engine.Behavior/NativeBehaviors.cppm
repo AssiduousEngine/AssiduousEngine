@@ -24,13 +24,6 @@ using namespace foundation::script;
 
 export namespace engine::behavior
 {
-    /// The language a native class's BehaviorClass records.
-    inline constexpr StringView kNativeLanguage = u8"native";
-
-    /// The field attribute that makes a native class's reflected field one of its properties: what
-    /// the inspector shows and an entity or a scene overrides.
-    inline constexpr const char* kBehaviorPropertyAttribute = "behaviorProperty";
-
     /// What the three kinds' bases share.
     class NativeBehavior : public Object
     {
@@ -139,9 +132,6 @@ export namespace engine::behavior
         /// registered, is not of `kind`, or cannot be made.
         [[nodiscard]] RefPtr<BehaviorObject> Create(const BehaviorClass& nativeClass, Span<Variant> args, BehaviorKind kind,
                                                     IAllocator& allocator);
-
-        /// The registered type a native class's qualified name ("rtti::game::Orb") names, or null.
-        [[nodiscard]] static const TypeInfo* FindClass(StringView qualifiedName);
 
         /// The services its objects' calls find (their run's).
         [[nodiscard]] const ServiceResolver& Services() const noexcept { return m_services; }

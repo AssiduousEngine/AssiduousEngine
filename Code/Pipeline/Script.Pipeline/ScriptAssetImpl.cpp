@@ -170,9 +170,9 @@ namespace pipeline{
         u64 sum = 0;
         for (const TypeInfo* type : registry.All())
         {
-            if (!(registry.DomainOf(type->id) == kRuntimeTypeDomain))
+            if (!(registry.DomainOf(type->id) == kRuntimeTypeDomain) || IsHiddenFromScripts(*type))
             {
-                continue;
+                continue; // a native behavior is no part of what a script compiles against
             }
             u64 h = number(kFnv1a64OffsetBasis, type->id);
             h = number(h, type->base != nullptr ? type->base->id : 0);
@@ -326,6 +326,245 @@ namespace pipeline{
             .Property<&ScriptAssemblyAsset::language>("language")
             .PropAttribute("displayName", String(u8"Language"))
             .PropAttribute("description", String(u8"Backend id (e.g. \"csharp\")"));
+    }
+
+    // ---- native behaviors ----
+
+    namespace
+    {
+        [[nodiscard]] StringView NameOf(const char* name) noexcept
+        {
+            return StringView(reinterpret_cast<const utf8char*>(name != nullptr ? name : ""));
+        }
+
+        // An `on<Upper>` name: a handler, as a script's cook reads one.
+        [[nodiscard]] bool IsHandlerName(StringView name) noexcept
+        {
+            return name.Size() > 2 && name[0] == u8'o' && name[1] == u8'n' && name[2] >= u8'A' && name[2] <= u8'Z';
+        }
+
+        [[nodiscard]] bool Marked(const PropertyInfo& property) noexcept
+        {
+            const Attribute* marked = FindAttribute(property, NameOf(kBehaviorPropertyAttribute));
+            return marked != nullptr && marked->value.TryGet<bool>() != nullptr && *marked->value.TryGet<bool>();
+        }
+
+        [[nodiscard]] String AttributeText(const PropertyInfo& property, const char* key)
+        {
+            const Attribute* found = FindAttribute(property, NameOf(key));
+            const String* text = found != nullptr ? found->value.TryGet<String>() : nullptr;
+            return text != nullptr ? *text : String{};
+        }
+
+        // The property type a field's type is, None for one a property cannot hold.
+        [[nodiscard]] BehaviorPropertyType PropertyTypeOf(const PropertyInfo& property)
+        {
+            const TypeId id = property.type != nullptr ? property.type->id : 0;
+            if (id == TypeOf<f32>().id || id == TypeOf<f64>().id)
+                return BehaviorPropertyType::Float;
+            if (id == TypeOf<i32>().id || id == TypeOf<i64>().id || id == TypeOf<u32>().id || id == TypeOf<i16>().id ||
+                id == TypeOf<u16>().id || id == TypeOf<u8>().id || id == TypeOf<i8>().id)
+                return BehaviorPropertyType::Int;
+            if (id == TypeOf<bool>().id)
+                return BehaviorPropertyType::Bool;
+            if (id == TypeOf<String>().id)
+                return BehaviorPropertyType::String;
+            if (id == TypeOf<Color>().id)
+                return BehaviorPropertyType::Color;
+            if (id == TypeOf<Float3>().id)
+                return BehaviorPropertyType::Vec3;
+            if (id == TypeOf<foundation::script::Entity>().id)
+                return BehaviorPropertyType::Entity;
+            if (id == TypeOf<Guid>().id && !AttributeText(property, "assetType").IsEmpty())
+                return BehaviorPropertyType::Asset;
+            return BehaviorPropertyType::None;
+        }
+
+        // The value `property` holds on `instance`, as a property's default.
+        [[nodiscard]] BehaviorPropertyValue DefaultOf(const PropertyInfo& property, BehaviorPropertyType type, const Instance& instance)
+        {
+            BehaviorPropertyValue value;
+            value.kind = type;
+            const Variant held = GetProperty(property, instance);
+            bool numeric = false;
+            switch (type)
+            {
+            case BehaviorPropertyType::Float:
+            case BehaviorPropertyType::Int:
+                value.number = ScriptNumbers::Of(held, numeric);
+                break;
+            case BehaviorPropertyType::Bool:
+                value.boolean = held.TryGet<bool>() != nullptr && *held.TryGet<bool>();
+                break;
+            case BehaviorPropertyType::String:
+                value.text = held.TryGet<String>() != nullptr ? *held.TryGet<String>() : String{};
+                break;
+            case BehaviorPropertyType::Color:
+                value.color = held.TryGet<Color>() != nullptr ? *held.TryGet<Color>() : Color{};
+                break;
+            case BehaviorPropertyType::Vec3:
+                value.vector = held.TryGet<Float3>() != nullptr ? *held.TryGet<Float3>() : Float3{};
+                break;
+            case BehaviorPropertyType::Asset:
+                value.guid = held.TryGet<Guid>() != nullptr ? *held.TryGet<Guid>() : Guid{};
+                break;
+            case BehaviorPropertyType::Entity: // an entity in no scene: none
+            case BehaviorPropertyType::None:
+            default:
+                break;
+            }
+            return value;
+        }
+    }
+
+    BehaviorKind NativeBehaviorKindOf(const TypeInfo& type) noexcept
+    {
+        for (const TypeInfo* t = &type; t != nullptr; t = t->base)
+        {
+            if (NameOf(t->namespaceName) == NameOf(kNativeBehaviorNamespace))
+            {
+                const BehaviorKind kind = BehaviorKinds::FromTypeName(NameOf(t->name));
+                if (kind != BehaviorKind::None)
+                {
+                    return kind;
+                }
+            }
+        }
+        return BehaviorKind::None;
+    }
+
+    bool HarvestNativeBehaviorClass(const TypeInfo& type, IAllocator& allocator, BehaviorClassSource& out, String& why)
+    {
+        out.kind = NativeBehaviorKindOf(type);
+        if (out.kind == BehaviorKind::None)
+        {
+            why = Format(u8"'{}' derives from none of RunBehavior, SceneBehavior and EntityBehavior", NameOf(type.name));
+            return false;
+        }
+        RefPtr<Object> made = CreateObject(type, allocator);
+        if (made.Get() == nullptr)
+        {
+            why = Format(u8"'{}' has no creator (builder.Creator())", NameOf(type.name));
+            return false;
+        }
+        out.language = String(kNativeLanguage);
+        out.className = Format(u8"{}::{}", NameOf(type.namespaceName), NameOf(type.name));
+        out.sourceName = String(NameOf(type.name));
+        const Instance instance(made.Get(), &type);
+        // The class's own declarations after its bases', as a script's derive.
+        Array<const TypeInfo*> chain;
+        for (const TypeInfo* t = &type; t != nullptr; t = t->base)
+        {
+            chain.PushBack(t);
+        }
+        for (usize c = chain.Size(); c-- > 0;)
+        {
+            const TypeInfo& t = *chain[c];
+            for (u32 i = 0; i < t.propertyCount; ++i)
+            {
+                const PropertyInfo& field = t.properties[i];
+                if (!Marked(field))
+                {
+                    continue;
+                }
+                const BehaviorPropertyType kind = PropertyTypeOf(field);
+                if (kind == BehaviorPropertyType::None)
+                {
+                    why = Format(u8"'{}' marks '{}' a property, but its type is none a property holds (a number, a bool, a "
+                                 u8"String, a Color, a Float3, an Entity, or an asset's Guid with assetType)",
+                                 NameOf(type.name), NameOf(field.name));
+                    return false;
+                }
+                BehaviorProperty property;
+                property.name = String(NameOf(field.name));
+                property.hash = BehaviorPropertyNameHash(property.name.AsView());
+                property.type = kind;
+                property.assetType = AttributeText(field, "assetType");
+                property.description = AttributeText(field, "description");
+                const Attribute* replicated = FindAttribute(field, StringView(u8"replicated"));
+                property.replicated = replicated != nullptr && replicated->value.TryGet<bool>() != nullptr && *replicated->value.TryGet<bool>();
+                property.defaultValue = DefaultOf(field, kind, instance);
+                out.properties.PushBack(Move(property));
+            }
+            for (u32 i = 0; i < t.methodCount; ++i)
+            {
+                const StringView name = NameOf(t.methods[i].name);
+                if (!t.methods[i].isStatic && IsHandlerName(name))
+                {
+                    out.handlers.PushBack(String(name));
+                }
+            }
+        }
+        return true;
+    }
+
+    u64 NativeBehaviorsHash(const TypeRegistry& registry)
+    {
+        const auto text = [](u64 hash, const char* value)
+        {
+            const usize size = value != nullptr ? std::strlen(value) : 0;
+            return HashBytes(value, size + 1, hash);
+        };
+        const auto number = [](u64 hash, u64 value) { return HashBytes(&value, sizeof(value), hash); };
+        u64 sum = 0;
+        for (const TypeInfo* type : registry.All())
+        {
+            if (NativeBehaviorKindOf(*type) == BehaviorKind::None)
+            {
+                continue;
+            }
+            u64 h = number(kFnv1a64OffsetBasis, type->id);
+            for (const TypeInfo* t = type; t != nullptr; t = t->base)
+            {
+                for (u32 i = 0; i < t->propertyCount; ++i)
+                {
+                    h = text(h, t->properties[i].name);
+                    h = number(h, t->properties[i].type != nullptr ? t->properties[i].type->id : 0);
+                    h = number(h, Marked(t->properties[i]) ? 1 : 0);
+                }
+                for (u32 i = 0; i < t->methodCount; ++i)
+                {
+                    h = text(h, t->methods[i].name);
+                    h = number(h, t->methods[i].paramCount);
+                }
+            }
+            sum += h; // order-free: the registry's order is not the classes'
+        }
+        return sum;
+    }
+
+    Status NativeBehaviorAssetBuilder::Build(const pipeline::Asset& asset, pipeline::AssetBuildContext& ctx)
+    {
+        const NativeBehaviorAsset& native = static_cast<const NativeBehaviorAsset&>(asset);
+        if (ctx.output == nullptr)
+        {
+            return Status{ErrorCode::InvalidArgument};
+        }
+        const TypeInfo* type = FindNativeBehaviorClass(native.className.AsView());
+        if (type == nullptr)
+        {
+            LOG_ERROR(u8"Script", u8"native class '{}' is not registered (is its plugin enabled and built?) - cook failed",
+                      native.className);
+            return Status{ErrorCode::NotFound};
+        }
+        BehaviorClassSource cooked;
+        String why;
+        if (!HarvestNativeBehaviorClass(*type, *ctx.allocator, cooked, why))
+        {
+            LOG_ERROR(u8"Script", u8"native class '{}': {} - cook failed", native.className, why);
+            return Status{ErrorCode::InvalidArgument};
+        }
+        return ctx.output->WriteObject(cooked);
+    }
+
+    REFLECT_MEMBERS(NativeBehaviorAsset, "rtti::pipeline::script")
+    {
+        builder.Attribute("displayName", String(u8"Native Behavior"))
+            .Attribute("category", String(u8"Scripting"))
+            .Property<&NativeBehaviorAsset::className>("className")
+            .PropAttribute("displayName", String(u8"Class"))
+            .PropAttribute("description", String(u8"The C++ class's qualified reflected name (rtti::game::Orb), which a "
+                                                 u8"plugin of the project registers"));
     }
 
     REFLECT_MEMBERS(ScriptClassAsset, "rtti::pipeline::script")

@@ -6417,7 +6417,7 @@ TEST_CASE("behavior: a native entity behavior runs its lifecycle, messages and p
 {
     GlobalTypeRegistry().Register(nativetest::Orb::StaticType());
     ScriptedScene bed;
-    RefPtr<BehaviorClass> orb = MakeClassLang(engine::behavior::kNativeLanguage, u8"rtti::nativetest::Orb", u8"",
+    RefPtr<BehaviorClass> orb = MakeClassLang(foundation::script::kNativeLanguage, u8"rtti::nativetest::Orb", u8"",
                                               {u8"onStart", u8"onUpdate", u8"onPing"},
                                               {FloatProperty(u8"worth", 5.0), FloatProperty(u8"spin", 1.0)});
     const scene::EntityHandle e = bed.AddScripted(orb, u8"orb");
@@ -6456,7 +6456,7 @@ TEST_CASE("behavior: a native behavior that faults itself is disabled with its r
 {
     GlobalTypeRegistry().Register(nativetest::Orb::StaticType());
     ScriptedScene bed;
-    RefPtr<BehaviorClass> orb = MakeClassLang(engine::behavior::kNativeLanguage, u8"rtti::nativetest::Orb", u8"",
+    RefPtr<BehaviorClass> orb = MakeClassLang(foundation::script::kNativeLanguage, u8"rtti::nativetest::Orb", u8"",
                                               {u8"onStart", u8"onPing", u8"onHurt"});
     const scene::EntityHandle e = bed.AddScripted(orb, u8"orb");
     bed.Start();
@@ -6481,11 +6481,11 @@ TEST_CASE("behavior: a native class of another kind, or one not registered, is r
 {
     ScriptedScene bed;
     RefPtr<BehaviorClass> missing =
-        MakeClassLang(engine::behavior::kNativeLanguage, u8"rtti::nativetest::Nowhere", u8"", {u8"onStart"});
+        MakeClassLang(foundation::script::kNativeLanguage, u8"rtti::nativetest::Nowhere", u8"", {u8"onStart"});
     const scene::EntityHandle a = bed.AddScripted(missing, u8"missing");
     GlobalTypeRegistry().Register(nativetest::Orb::StaticType());
     RefPtr<BehaviorClass> wrongKind =
-        MakeClassLang(engine::behavior::kNativeLanguage, u8"rtti::nativetest::Orb", u8"", {u8"onStart"});
+        MakeClassLang(foundation::script::kNativeLanguage, u8"rtti::nativetest::Orb", u8"", {u8"onStart"});
     wrongKind->kind = BehaviorKind::Entity;
     BehaviorClass& asScene = *wrongKind;
     Scene handle;

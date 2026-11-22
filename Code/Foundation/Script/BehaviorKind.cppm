@@ -22,6 +22,16 @@ export namespace foundation::script
         Entity, // one per attached slot on an entity; constructed with its entity
     };
 
+    /// The language a native class's BehaviorClass records: a C++ class deriving from one of the
+    /// kinds' engine bases, named by its qualified reflected name ("rtti::game::Orb").
+    inline constexpr core::StringView kNativeLanguage = u8"native";
+    /// The reflection namespace of the engine's native bases, whose names are the kinds' base
+    /// types' (RunBehavior, SceneBehavior, EntityBehavior): how a native class's kind is read.
+    inline constexpr const char* kNativeBehaviorNamespace = "rtti::behavior";
+    /// The field attribute that makes a native class's reflected field one of its properties: what
+    /// the inspector shows and an entity or a scene overrides.
+    inline constexpr const char* kBehaviorPropertyAttribute = "behaviorProperty";
+
     // Static members rather than free functions: gcc 15 cannot read back a module partition whose
     // namespace-scope inline function instantiates a template.
     struct BehaviorKinds

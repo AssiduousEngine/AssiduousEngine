@@ -196,6 +196,7 @@ namespace pipeline
         AddBuilder<SoundCueAssetBuilder>(registry);
         AddBuilder<ScriptAssemblyAssetBuilder>(registry);
         AddBuilder<ScriptClassAssetBuilder>(registry);
+        AddBuilder<NativeBehaviorAssetBuilder>(registry);
     }
 
     void RegisterAllImporters(ImporterRegistry& registry)

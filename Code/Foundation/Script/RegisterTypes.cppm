@@ -213,6 +213,23 @@ export namespace foundation::script
         return false;
     }
 
+    /// The registered type a native behavior's qualified name ("rtti::game::Orb") names: the
+    /// namespace before the last "::", the name after it. Null when none is registered.
+    [[nodiscard]] inline const core::TypeInfo* FindNativeBehaviorClass(core::StringView qualifiedName)
+    {
+        for (core::usize i = qualifiedName.Size(); i-- > 1;)
+        {
+            if (qualifiedName[i] == u8':' && qualifiedName[i - 1] == u8':')
+            {
+                const core::String namespaceName(qualifiedName.SubStr(0, i - 1));
+                const core::String name(qualifiedName.SubStr(i + 1, qualifiedName.Size() - (i + 1)));
+                return core::GlobalTypeRegistry().FindByName(reinterpret_cast<const char*>(namespaceName.CStr()),
+                                                             reinterpret_cast<const char*>(name.CStr()));
+            }
+        }
+        return nullptr;
+    }
+
     // Registers every type in `registry` with `manager` except those in `hidden` and those hidden
     // from scripts (IsHiddenFromScripts): the surface of a platform without some plugins is the
     // full one less their types, so a script checked against it fails where it uses one of them.

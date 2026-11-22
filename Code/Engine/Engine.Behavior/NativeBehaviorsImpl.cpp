@@ -22,6 +22,7 @@ namespace engine::behavior
 {
     // The bases are the engine's, never a script's type: a script derives from its language's own
     // RunBehavior, and a native class is reached by its messages and events, not by name.
+    // In kNativeBehaviorNamespace, under the kinds' base type names: how a cook reads a class's kind.
     REFLECT_MEMBERS(NativeBehavior, "rtti::behavior")
     {
         builder.Attribute(kHiddenFromScriptsAttribute, true); // and so every type deriving from it
@@ -168,25 +169,10 @@ namespace engine::behavior
                                              Fit(value, property->type));
     }
 
-    const TypeInfo* NativeBehaviorClasses::FindClass(StringView qualifiedName)
-    {
-        // "rtti::game::Orb": the namespace before the last "::", the name after it.
-        for (usize i = qualifiedName.Size(); i-- > 1;)
-        {
-            if (qualifiedName[i] == u8':' && qualifiedName[i - 1] == u8':')
-            {
-                const String namespaceName(qualifiedName.SubStr(0, i - 1));
-                const String name(qualifiedName.SubStr(i + 1, qualifiedName.Size() - (i + 1)));
-                return GlobalTypeRegistry().FindByName(AsChars(namespaceName), AsChars(name));
-            }
-        }
-        return nullptr;
-    }
-
     RefPtr<BehaviorObject> NativeBehaviorClasses::Create(const BehaviorClass& nativeClass, Span<Variant> args,
                                                          BehaviorKind kind, IAllocator& allocator)
     {
-        const TypeInfo* type = FindClass(nativeClass.className.AsView());
+        const TypeInfo* type = FindNativeBehaviorClass(nativeClass.className.AsView());
         if (type == nullptr)
         {
             LOG_ERROR(u8"Script", u8"native class '{}' is not registered (is its plugin enabled?)", nativeClass.className);

@@ -1279,6 +1279,54 @@ export namespace pipeline{
         }
     };
 
+    // ---- native behaviors ----
+
+    /// Source asset: a behavior written in C++. It names the class by its qualified reflected name
+    /// ("rtti::game::Orb"), which a project's plugin registers; it cooks into an ordinary
+    /// BehaviorClass of language `native`, so an entity, a scene or the project refers to it as
+    /// it refers to a script's class. No file: the class is the plugin's.
+    class NativeBehaviorAsset final : public pipeline::Asset
+    {
+        RTTI_OBJECT(NativeBehaviorAsset, pipeline::Asset)
+    public:
+        String className;
+
+        void Serialize(ISerializer& ar) override
+        {
+            pipeline::Asset::Serialize(ar);
+            foundation::core::Serialize(ar, "className", className);
+        }
+    };
+
+    /// The kind a native class is, read from its base chain (the engine's bases are named for the
+    /// kinds in kNativeBehaviorNamespace); None when it derives from none of them.
+    [[nodiscard]] BehaviorKind NativeBehaviorKindOf(const TypeInfo& type) noexcept;
+
+    /// What a native class declares, as a script's cook harvests a script's: its kind, its handlers
+    /// (its reflected methods named `on<Name>`), and its properties (the fields it marks
+    /// kBehaviorPropertyAttribute, each a float, an integer, a bool, a String, a Color, a Float3,
+    /// an Entity, or an asset's Guid carrying `assetType`), their defaults read from an object of
+    /// it made with `allocator`. False, with `why`, when it is no native class, cannot be made, or
+    /// marks a field of another type.
+    [[nodiscard]] bool HarvestNativeBehaviorClass(const TypeInfo& type, IAllocator& allocator, BehaviorClassSource& out,
+                                                  String& why);
+
+    /// A hash of every registered native class's declaration (its name, kind, marked fields and
+    /// handlers): what the Native Behavior cook depends on, so a class rebuilt with a property more
+    /// recooks its asset.
+    [[nodiscard]] u64 NativeBehaviorsHash(const TypeRegistry& registry);
+
+    /// Cooks a Native Behavior asset: the class's declaration, harvested from its reflection.
+    class NativeBehaviorAssetBuilder final : public pipeline::DefaultAssetBuilder
+    {
+    public:
+        [[nodiscard]] const TypeInfo* AssetType() const override { return &NativeBehaviorAsset::StaticType(); }
+        [[nodiscard]] const TypeInfo* ProductType() const override { return &BehaviorClassSource::StaticType(); }
+        [[nodiscard]] u32 Version() const override { return 1; }
+        [[nodiscard]] u64 EnvironmentHash() const override { return NativeBehaviorsHash(GlobalTypeRegistry()); }
+        [[nodiscard]] Status Build(const pipeline::Asset& asset, pipeline::AssetBuildContext& ctx) override;
+    };
+
     // OS-file importer (editor drag-drop): accepts any extension a registered script
     // backend claims (language-clean), copies the file into Sources/, and creates
     // a ScriptClassAsset whose language records the owning backend. No options dialog.
@@ -1548,6 +1596,8 @@ export namespace pipeline{
         RegisterSerializable<ScriptClassAsset>();
         GlobalTypeRegistry().Register(ScriptAssemblyAsset::StaticType(), TypeDomain(u8"Pipeline"));
         RegisterSerializable<ScriptAssemblyAsset>();
+        GlobalTypeRegistry().Register(NativeBehaviorAsset::StaticType(), TypeDomain(u8"Pipeline"));
+        RegisterSerializable<NativeBehaviorAsset>();
     }
 
     // ScriptClassAsset::StaticType() is defined with its reflected properties in ScriptAssetImpl.cpp.
