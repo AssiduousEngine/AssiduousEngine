@@ -264,7 +264,8 @@ namespace foundation::script::conformance
     ///  - functionsModule: function `add(a, b)` returning a + b, function `greeting()`
     ///    returning the string "hi", a module global `answer` readable as 42.
     ///  - counterClass: class `Counter`, constructed with one number, method
-    ///    `increment()` adding 1, zero-arg method `value()` returning the count.
+    ///    `increment()` adding 1, zero-arg method `value()` returning the count, which it keeps in
+    ///    a field (a property) named `count`.
     ///  - compileBroken: source that cannot compile.
     ///  - runtimeFault: source that compiles but faults at load/run time.
     ///  - nestedFault: source that loads and runs clean, with module functions `outer()`, which
@@ -431,6 +432,18 @@ namespace foundation::script::conformance
             auto value = counter->Invoke(u8"value", Span<Variant>{});
             REQUIRE(value.HasValue());
             CHECK(value.Value().Get<f64>() == doctest::Approx(11.0));
+
+            // Its property, written and read as the behavior layer writes a declared one (its
+            // default, or an entity's override), and seen by its own methods after.
+            CHECK(counter->SetProperty(u8"count", Variant::From<f64>(20.0)).IsOk());
+            auto read = counter->GetProperty(u8"count");
+            REQUIRE(read.HasValue());
+            CHECK(read.Value().Get<f64>() == doctest::Approx(20.0));
+            CHECK(counter->Invoke(u8"increment", Span<Variant>{}).HasValue());
+            auto after = counter->Invoke(u8"value", Span<Variant>{});
+            REQUIRE(after.HasValue());
+            CHECK(after.Value().Get<f64>() == doctest::Approx(21.0));
+            CHECK(counter->SetProperty(u8"count", Variant::From<f64>(11.0)).IsOk()); // as the GC section expects it
         }
 
         // --- error reporting: compile and runtime kinds through the handler ---

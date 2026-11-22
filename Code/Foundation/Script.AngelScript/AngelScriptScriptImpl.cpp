@@ -5109,21 +5109,6 @@ namespace foundation::script::angelscript
                 return core::Err(core::ErrorCode::NotFound);
             }
 
-            // The neutral property-apply path Invokes the setter as `<name>=` with one
-            // argument (the setter convention). AngelScript has no method
-            // by that name; its editor properties are plain member fields. So a trailing
-            // `=` with exactly one arg writes the same-named member field directly, which is
-            // how AngelScript exposes harvested behavior properties as settable.
-            if (args.Size() == 1 && !method.IsEmpty() && method[method.Size() - 1] == u8'=')
-            {
-                const core::StringView fieldName = method.SubStr(0, method.Size() - 1);
-                if (SetMemberField(fieldName, args[0]))
-                {
-                    return core::Variant{};
-                }
-                return core::Err(core::ErrorCode::NotFound);
-            }
-
             asIScriptFunction* target = FindMethod(type, method, args.Size());
             if (target == nullptr)
             {
@@ -5165,6 +5150,12 @@ namespace foundation::script::angelscript
                 }
             }
             return core::Err(core::ErrorCode::NotFound);
+        }
+
+        // An AngelScript class's properties are its member fields, so the field of that name.
+        [[nodiscard]] core::Status SetProperty(core::StringView name, const core::Variant& value) override
+        {
+            return SetMemberField(name, value) ? core::Status{} : core::Status{core::ErrorCode::NotFound};
         }
 
     private:

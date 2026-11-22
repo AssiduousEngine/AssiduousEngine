@@ -522,6 +522,7 @@ namespace
         {
             return Err(ErrorCode::NotFound);
         }
+        [[nodiscard]] Status SetProperty(StringView, const Variant&) override { return Status{ErrorCode::NotFound}; }
         [[nodiscard]] Result<Variant> GetProperty(StringView name) override
         {
             if (name == u8"speed")

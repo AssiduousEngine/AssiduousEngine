@@ -331,6 +331,7 @@ namespace foundation::script
         [[nodiscard]] BehaviorMethod Bind(StringView method, usize argCount) override;
         [[nodiscard]] Result<Variant> Invoke(BehaviorMethod method, Span<Variant> args) override;
         [[nodiscard]] Result<Variant> GetProperty(StringView name) override;
+        [[nodiscard]] Status SetProperty(StringView name, const Variant& value) override;
 
         // Identity of the instance table (coroutine ownership matching).
         [[nodiscard]] const void* TablePointer() const;
@@ -3526,23 +3527,6 @@ namespace foundation::script
     Result<Variant> LuauScriptObject::Invoke(StringView method, Span<Variant> args)
     {
         lua_State* state = m_context->State();
-        String storage;
-
-        // The neutral property-apply path Invokes the setter as `<name>=` with one argument
-        // (the setter convention). Luau editor properties are plain instance fields
-        // (harvested by walking the constructed table), so a trailing `=` with exactly one arg
-        // writes the same-named field directly, as AngelScript writes a member field. The field
-        // always exists once the constructor set it; this applies its default
-        // or the hash-keyed override.
-        if (args.Size() == 1 && !method.IsEmpty() && method[method.Size() - 1] == u8'=')
-        {
-            const StringView fieldName = method.SubStr(0, method.Size() - 1);
-            lua_getref(state, m_tableRef);
-            m_context->PushVariant(state, args[0]);
-            lua_setfield(state, -2, CStr(fieldName, storage)); // instance[field] = value
-            lua_pop(state, 1);                                 // pop the instance table
-            return Variant{};
-        }
 
         // Looked up on every call, never remembered: a script may assign a method to the instance
         // at runtime (`self.onUpdate = walking`). The name goes in from the view, with no copy.
@@ -3616,6 +3600,19 @@ namespace foundation::script
         Variant value = m_context->ToVariant(state, -1);
         lua_pop(state, 2);
         return value;
+    }
+
+    Status LuauScriptObject::SetProperty(StringView name, const Variant& value)
+    {
+        // A Luau class's properties are plain instance fields (harvested by walking the constructed
+        // table), so the field of that name: its default or the hash-keyed override.
+        lua_State* state = m_context->State();
+        String storage;
+        lua_getref(state, m_tableRef);
+        m_context->PushVariant(state, value);
+        lua_setfield(state, -2, CStr(name, storage)); // instance[field] = value
+        lua_pop(state, 1);                            // pop the instance table
+        return Status{};
     }
 
     LuauScriptDelegate::~LuauScriptDelegate()

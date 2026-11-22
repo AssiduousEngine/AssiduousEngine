@@ -1797,7 +1797,7 @@ TEST_CASE("script.scene: an unset entity property is an invalid Entity in both l
         GlobalLogger().RemoveSink(&warnings);
         CHECK(bed.scene.GetEntityName(e) == StringView(u8"invalid"));
         for (const String& message : warnings.messages)
-            CHECK_MESSAGE(!message.AsView().Contains(u8"has no setter"), reinterpret_cast<const char*>(message.CStr()));
+            CHECK_MESSAGE(!message.AsView().Contains(u8"does not take its declared property"), reinterpret_cast<const char*>(message.CStr()));
     }
     // Luau: an Entity too, not nil, which says isValid() false; so is a lookup that finds nothing.
     {

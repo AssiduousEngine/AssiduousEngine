@@ -1700,10 +1700,10 @@ TEST_CASE("angelscript: CERTIFIED - the backend conformance battery")
                               u8"double add(double a, double b) { return a + b; }\n"
                               u8"string greeting() { return \"hi\"; }\n";
     dialect.counterClass = u8"class Counter {\n"
-                           u8"  double n;\n"
-                           u8"  Counter(double start) { n = start; }\n"
-                           u8"  void increment() { n = n + 1; }\n"
-                           u8"  double value() { return n; }\n"
+                           u8"  double count;\n"
+                           u8"  Counter(double start) { count = start; }\n"
+                           u8"  void increment() { count = count + 1; }\n"
+                           u8"  double value() { return count; }\n"
                            u8"}\n";
     dialect.compileBroken = u8"int = = = @#$";
     dialect.runtimeFault = u8"void main() { int zero = 0; int boom = 10 / zero; }\n";

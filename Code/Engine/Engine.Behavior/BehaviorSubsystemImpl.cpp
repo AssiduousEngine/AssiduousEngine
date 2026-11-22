@@ -248,10 +248,8 @@ namespace engine::behavior
                 behavior.SetOverride(property.hash, entry.value); // for an instance made later
                 if (behavior.instance.Get() != nullptr)
                 {
-                    String setter(property.name.AsView());
-                    setter += u8"=";
-                    Variant args[1] = {ScriptPropertyValueToVariant(entry.value, property.type, nullptr)};
-                    (void)behavior.instance->Invoke(setter.AsView(), Span<Variant>{args, 1});
+                    (void)behavior.instance->SetProperty(property.name.AsView(),
+                                                         ScriptPropertyValueToVariant(entry.value, property.type, nullptr));
                 }
             }
         }

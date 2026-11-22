@@ -665,9 +665,9 @@ export namespace engine::behavior
         }
     }
 
-    /// Push a class's harvested defaults, then hash-keyed overrides (overrides win), through each
-    /// property's generated per-property setter ("<name>="). `contextName` names the owner in the
-    /// no-setter warning (an entity name for a behavior, the scene name for a Level).
+    /// Push a class's harvested defaults, then hash-keyed overrides (overrides win), into the object
+    /// (SetProperty). `contextName` names the owner in the warning for a property the object does
+    /// not take (an entity name for a behavior, the scene name for a Level).
     inline void ApplyScriptProperties(BehaviorObject& instance, const BehaviorClass& scriptClass,
                                       Span<const BehaviorPropertyOverride> overrides,
                                       scene::Scene* scene, StringView contextName)
@@ -683,15 +683,10 @@ export namespace engine::behavior
                     break;
                 }
             }
-            Variant marshalled = ScriptPropertyValueToVariant(*chosen, property.type, scene);
-            String setter(property.name.AsView());
-            setter += u8"=";
-            Variant args[1] = {Move(marshalled)};
-            if (auto result = instance.Invoke(setter.AsView(), Span<Variant>{args, 1});
-                !result.HasValue())
+            const Variant marshalled = ScriptPropertyValueToVariant(*chosen, property.type, scene);
+            if (!instance.SetProperty(property.name.AsView(), marshalled).IsOk())
             {
-                LOG_WARNING(u8"Script",
-                            u8"'{}': class '{}' has no setter '{}=' for its declared property",
+                LOG_WARNING(u8"Script", u8"'{}': class '{}' does not take its declared property '{}'",
                             contextName, scriptClass.className, property.name);
             }
         }

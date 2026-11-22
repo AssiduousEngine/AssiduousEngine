@@ -135,6 +135,10 @@ export namespace foundation::script
         // lives count, for a playtest that probes it. NotFound when the object has no such
         // property; methods are not properties.
         [[nodiscard]] virtual core::Result<core::Variant> GetProperty(core::StringView name) = 0;
+        // Writes the property `name` the class declares (one it harvests: its default, or the
+        // value an entity or a scene overrides it with): a script object's field of that name.
+        // NotFound when the object has no such property.
+        [[nodiscard]] virtual core::Status SetProperty(core::StringView name, const core::Variant& value) = 0;
     };
 
     // One class in a structured behavior-module load. `name` is the class's source file

@@ -2211,6 +2211,7 @@ namespace
             return Invoke(m_bound[static_cast<usize>(method.id - 1)].AsView(), args);
         }
         [[nodiscard]] Result<Variant> GetProperty(StringView) override { return Err(ErrorCode::NotFound); }
+        [[nodiscard]] Status SetProperty(StringView, const Variant&) override { return Status{ErrorCode::NotFound}; }
 
     private:
         Array<String> m_bound;
