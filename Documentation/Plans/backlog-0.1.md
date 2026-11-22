@@ -8,6 +8,12 @@
 
 ## Editor
 
+- **The dialogue stock box's first frame** (user 2026-11-21): the box is pushed on the run's
+  screen stack and its sheet set over it (`DialogueStockBox::Ensure`), and the next frame's style
+  pass styles it, so its first frame may show it unstyled, as a picker opened before
+  `gui-style-popup-before-measure` (827115902). Look frame by frame; if it shows, style the box as
+  it is pushed with that branch's `StyleManager::ApplyNewSubtree`.
+
 - **The editor crashes on exit once a picker has been opened** (reported 2026-11-21 on
   Win64-MSVC at `595794aee`; fix after the dialogue plugin): open any picker (Add Component,
   `#inspector-add`), close it, quit, and the editor exits with an access violation (139 /
