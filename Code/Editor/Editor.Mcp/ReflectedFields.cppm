@@ -41,6 +41,27 @@ export namespace editor::mcp::detail
         return property.type == &TypeOf<Array<String>>();
     }
 
+    /// A field holding a colour: a Float4 the inspector shows as one (its `color` attribute).
+    [[nodiscard]] inline bool IsColorField(const PropertyInfo& property) noexcept
+    {
+        return property.type == &TypeOf<Float4>() && FindAttribute(property, u8"color") != nullptr;
+    }
+
+    /// A number field's bounds: its reflected `range` (min, max); false when it has none.
+    inline bool NumberRange(const PropertyInfo& property, f32& least, f32& most)
+    {
+        if (const Attribute* range = FindAttribute(property, u8"range"))
+        {
+            if (const Float4* bounds = range->value.TryGet<Float4>())
+            {
+                least = bounds->x;
+                most = bounds->y;
+                return true;
+            }
+        }
+        return false;
+    }
+
     /// The fields of `type` these tools read and set: the labelled properties of a kind above.
     inline Array<const PropertyInfo*> ReflectedFieldsOf(const TypeInfo& type)
     {
@@ -48,7 +69,8 @@ export namespace editor::mcp::detail
         for (const PropertyInfo& property : Properties(type))
         {
             const bool kind = property.type == &TypeOf<String>() || IsTextListField(property) ||
-                              property.type == &TypeOf<u32>() || property.type == &TypeOf<bool>() ||
+                              property.type == &TypeOf<u32>() || property.type == &TypeOf<f32>() ||
+                              IsColorField(property) || property.type == &TypeOf<bool>() ||
                               IsEnum(*property.type) || engine::project::IsAssetSetting(property) ||
                               engine::project::IsAssetListSetting(property);
             if (kind && engine::project::SettingAttribute(property, engine::project::kSettingLabelAttribute) !=
@@ -99,7 +121,8 @@ export namespace editor::mcp::detail
     }
 
     /// The fields' values: an asset {guid, path} (null when unset), a list as an array, a text as
-    /// text, a flag as a bool, a choice by its value's name, a count as a number.
+    /// text, a flag as a bool, a choice by its value's name, a count or a number as a number, a
+    /// colour as [r, g, b, a].
     inline JsonValue FieldsJson(const Instance& record, Span<const PropertyInfo* const> fields,
                                 editor::EditorProject* project)
     {
@@ -138,6 +161,21 @@ export namespace editor::mcp::detail
             else if (field->type == &TypeOf<bool>())
             {
                 out.Set(key, JsonValue::MakeBool(*static_cast<const bool*>(address)));
+            }
+            else if (field->type == &TypeOf<f32>())
+            {
+                out.Set(key, JsonValue::MakeNumber(static_cast<f64>(*static_cast<const f32*>(address))));
+            }
+            else if (IsColorField(*field))
+            {
+                const Float4& color = *static_cast<const Float4*>(address);
+                JsonValue channels = JsonValue::MakeArray();
+                const f32 values[] = {color.x, color.y, color.z, color.w};
+                for (const f32 channel : values)
+                {
+                    channels.Add(JsonValue::MakeNumber(static_cast<f64>(channel)));
+                }
+                out.Set(key, Move(channels));
             }
             else if (IsEnum(*field->type))
             {
@@ -188,6 +226,17 @@ export namespace editor::mcp::detail
             {
                 schema.Boolean(key, *label);
             }
+            else if (field->type == &TypeOf<f32>())
+            {
+                f32 least = 0.0f;
+                f32 most = 0.0f;
+                schema.Number(key, NumberRange(*field, least, most) ? Format(u8"{}: {} to {}", label->AsView(), least, most)
+                                                                    : *label);
+            }
+            else if (IsColorField(*field))
+            {
+                schema.Arr(key, u8"number", Format(u8"{}: [r, g, b] or [r, g, b, a], each 0 to 1", label->AsView()));
+            }
             else if (IsEnum(*field->type))
             {
                 Array<String> names;
@@ -220,6 +269,8 @@ export namespace editor::mcp::detail
         i64 choice = 0;
         String text;
         u32 number = 0;
+        f32 real = 0.0f;
+        Float4 color{};
     };
 
     /// Checks every given argument that names one of `fields` against its kind: an asset must
@@ -322,6 +373,35 @@ export namespace editor::mcp::detail
                 }
                 change.flag = value.AsBool();
             }
+            else if (field->type == &TypeOf<f32>())
+            {
+                f32 least = 0.0f;
+                f32 most = 0.0f;
+                const bool bounded = NumberRange(*field, least, most);
+                if (!value.IsNumber() || (bounded && (value.AsNumber() < static_cast<f64>(least) ||
+                                                      value.AsNumber() > static_cast<f64>(most))))
+                {
+                    return Err(bounded ? Format(u8"`{}` takes a number from {} to {}", key.AsView(), least, most)
+                                       : Format(u8"`{}` takes a number", key.AsView()));
+                }
+                change.real = static_cast<f32>(value.AsNumber());
+            }
+            else if (IsColorField(*field))
+            {
+                f32 channels[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+                bool valid = value.IsArray() && (value.Count() == 3 || value.Count() == 4);
+                for (i64 i = 0; valid && i < value.Count(); ++i)
+                {
+                    const JsonValue channel = value.At(i);
+                    valid = channel.IsNumber() && channel.AsNumber() >= 0.0 && channel.AsNumber() <= 1.0;
+                    channels[i] = static_cast<f32>(channel.AsNumber());
+                }
+                if (!valid)
+                {
+                    return Err(Format(u8"`{}` takes a colour as [r, g, b] or [r, g, b, a], each 0 to 1", key.AsView()));
+                }
+                change.color = Float4{channels[0], channels[1], channels[2], channels[3]};
+            }
             else if (IsEnum(*field->type))
             {
                 const String name = value.AsString();
@@ -373,6 +453,14 @@ export namespace editor::mcp::detail
             else if (change.field->type == &TypeOf<bool>())
             {
                 *static_cast<bool*>(address) = change.flag;
+            }
+            else if (change.field->type == &TypeOf<f32>())
+            {
+                *static_cast<f32*>(address) = change.real;
+            }
+            else if (IsColorField(*change.field))
+            {
+                *static_cast<Float4*>(address) = change.color;
             }
             else if (IsEnum(*change.field->type))
             {

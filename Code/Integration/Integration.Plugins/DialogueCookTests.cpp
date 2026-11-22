@@ -241,6 +241,44 @@ TEST_CASE("plugins: through the MCP host, a dialogue file cooks to its conversat
     REQUIRE_FALSE(failing.error);
     CHECK(failing.value.Get(u8"failed").AsNumber() == doctest::Approx(1.0));
 
+    // Its settings as the MCP tools read and set them: numbers and colours too.
+    {
+        const Called listed = Call(server, u8"plugin_list", JsonValue::MakeObject());
+        REQUIRE_FALSE(listed.error);
+        const JsonValue settings = listed.value.Get(u8"plugins").At(0).Get(u8"settings");
+        CHECK(settings.Get(u8"typingSpeed").AsNumber() == doctest::Approx(40.0));
+        CHECK(settings.Get(u8"fadeSeconds").AsNumber() == doctest::Approx(0.5));
+        REQUIRE(settings.Get(u8"fadeColor").Count() == 4);
+        CHECK(settings.Get(u8"fadeColor").At(3).AsNumber() == doctest::Approx(1.0));
+        const auto set = [&server](JsonValue values)
+        {
+            JsonValue args = JsonValue::MakeObject();
+            args.Set(u8"id", JsonValue::MakeString(String(u8"dialogue")));
+            args.Set(u8"settings", Move(values));
+            return Call(server, u8"plugin_settings_set", Move(args));
+        };
+        JsonValue tooFast = JsonValue::MakeObject();
+        tooFast.Set(u8"typingSpeed", JsonValue::MakeNumber(500.0));
+        CHECK(set(Move(tooFast)).text.AsView().Contains(u8"`typingSpeed` takes a number from 0 to 200"));
+        JsonValue badColour = JsonValue::MakeObject();
+        badColour.Set(u8"fadeColor", JsonValue::MakeString(String(u8"white")));
+        CHECK(set(Move(badColour)).error);
+        JsonValue values = JsonValue::MakeObject();
+        values.Set(u8"typingSpeed", JsonValue::MakeNumber(25.0));
+        JsonValue white = JsonValue::MakeArray();
+        for (int i = 0; i < 3; ++i)
+        {
+            white.Add(JsonValue::MakeNumber(1.0));
+        }
+        values.Set(u8"fadeColor", Move(white));
+        REQUIRE_FALSE(set(Move(values)).error);
+        const auto* held = static_cast<const dialogue::DialogueSettings*>(session.plugins->Settings(u8"dialogue"));
+        REQUIRE(held != nullptr);
+        CHECK(held->typingSpeed == doctest::Approx(25.0f));
+        CHECK(held->fadeColor.x == doctest::Approx(1.0f));
+        CHECK(held->fadeColor.w == doctest::Approx(1.0f)); // three channels: opaque
+    }
+
     // The plugin's tools: the checks over every file, without cooking, and one file's conversations.
     const Called validated = Call(server, u8"dialogue_validate", JsonValue::MakeObject());
     REQUIRE_FALSE(validated.error);
