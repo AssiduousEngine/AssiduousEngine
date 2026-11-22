@@ -14,6 +14,7 @@ import foundation.core;
 import foundation.content;
 import foundation.gui;
 import foundation.gui.toolkit;
+import foundation.gui.code; // the text page's problems
 import editor.core;
 import editor.app;
 import dialogue.engine;
@@ -338,6 +339,115 @@ namespace dialogue
         }
     }
 
+    // ---- the text page --------------------------------------------------------------------------
+
+    DialogueTextPage::DialogueTextPage(editor::EditorContext& context, editor::app::AssetPageServices services,
+                                       foundation::content::Instance& instance, const DialogueSettings& settings)
+        : CodeAssetPage(context, Move(services), instance, DialogueAsset::StaticType(), kPath), m_settings(&settings)
+    {
+        m_model = MakeUnique<gui::TreeModel>(Allocator());
+        m_outline = Find<gui::TreeView>(u8"dialogue-outline");
+        if (m_outline != nullptr)
+        {
+            m_outline->SetModel(m_model.Get());
+            DialogueTextPage* self = this;
+            m_outline->SetOnSelectionChanged([self](gui::ModelIndex index)
+                                             {
+                                                 if (!self->m_showing && index.IsValid())
+                                                 {
+                                                     self->GoToConversation(static_cast<usize>(index.InternalId));
+                                                 }
+                                             });
+        }
+        OpenCode(u8"dialogue");
+    }
+
+    DialogueTextPage::~DialogueTextPage()
+    {
+        if (m_outline != nullptr)
+        {
+            m_outline->SetModel(nullptr);
+        }
+    }
+
+    Array<editor::app::CodeProblem> DialogueTextPage::CheckCode(StringView text)
+    {
+        Array<editor::app::CodeProblem> problems;
+        m_conversations.Clear();
+        editor::EditorProject* project = Context().Project();
+        if (project == nullptr)
+        {
+            return problems;
+        }
+        const DialogueSourceReader read = [project](StringView fileName, String& out)
+        {
+            Result<Array<byte>> bytes = ReadFile(project->SourceFile(fileName).AsView());
+            if (!bytes.HasValue())
+            {
+                return false;
+            }
+            out = String(StringView(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size()));
+            return true;
+        };
+        const DialogueParse parse = CheckDialogueText(text, *m_settings, InstanceId(), project->SourceDb(), read, Allocator());
+        for (const DialogueProblem& problem : parse.problems)
+        {
+            problems.PushBack(editor::app::CodeProblem{problem.warning ? gui::CodeSeverity::Warning : gui::CodeSeverity::Error,
+                                                       problem.message, String{}, problem.line > 0 ? problem.line - 1 : 0, 0,
+                                                       false});
+        }
+        for (const DialogueConversation& conversation : parse.conversations)
+        {
+            // Its header is the line before its first statement's, or its End's when it has none.
+            u32 line = 0;
+            for (const DialogueStep& step : conversation.steps)
+            {
+                if (step.sourceLine > 0 && (line == 0 || step.sourceLine < line))
+                {
+                    line = step.sourceLine;
+                }
+            }
+            m_conversations.PushBack(Entry{conversation.id, line > 1 ? line - 1 : line});
+        }
+        return problems;
+    }
+
+    void DialogueTextPage::OnCodeChecked()
+    {
+        m_showing = true;
+        m_model->Clear();
+        for (const Entry& entry : m_conversations)
+        {
+            (void)m_model->AddNode(gui::kTreeModelRoot, entry.id.AsView());
+        }
+        m_showing = false;
+    }
+
+    String DialogueTextPage::CleanSummary() const
+    {
+        return m_conversations.Size() == 1 ? String(u8"No problems: 1 conversation")
+                                           : Format(u8"No problems: {} conversations", m_conversations.Size());
+    }
+
+    void DialogueTextPage::GoToConversation(usize index)
+    {
+        if (index < m_conversations.Size())
+        {
+            ShowLine(m_conversations[index].line, 1);
+        }
+    }
+
+    String DialogueTextPage::Outline() const
+    {
+        String out;
+        for (const Entry& entry : m_conversations)
+        {
+            out.Append(entry.id.AsView());
+            out.Append(u8'\n');
+        }
+        return out;
+    }
+
     // ---- registration ---------------------------------------------------------------------------
 
     namespace
@@ -364,9 +474,38 @@ namespace dialogue
         };
     }
 
-    Array<u64> RegisterDialoguePages(editor::EditorContext& context, const editor::app::AssetPageServicesSource& services)
+    namespace
+    {
+        // The text page, which also takes the plugin's settings.
+        class TextPageFactory final : public editor::IEditorPageFactory
+        {
+        public:
+            TextPageFactory(const editor::app::AssetPageServicesSource& services, const DialogueSettings& settings)
+                : m_services(&services), m_settings(&settings)
+            {
+            }
+
+            [[nodiscard]] const TypeInfo* PrimaryType() const override { return &DialogueAsset::StaticType(); }
+
+            [[nodiscard]] UniquePtr<editor::EditorPage> CreatePage(editor::EditorContext& context,
+                                                                   foundation::content::Instance& instance) override
+            {
+                IAllocator& allocator = editor::EditorRootAllocator();
+                auto* page = allocator.New<DialogueTextPage>(context, m_services->Make(), instance, *m_settings);
+                return UniquePtr<editor::EditorPage>(page, allocator);
+            }
+
+        private:
+            const editor::app::AssetPageServicesSource* m_services;
+            const DialogueSettings* m_settings;
+        };
+    }
+
+    Array<u64> RegisterDialoguePages(editor::EditorContext& context, const editor::app::AssetPageServicesSource& services,
+                                     const DialogueSettings& settings)
     {
         Array<u64> keys(context.Allocator());
+        keys.PushBack(context.Pages().Register(MakeUnique<TextPageFactory>(context.Allocator(), services, settings)));
         keys.PushBack(context.Pages().Register(
             MakeUnique<PageFactory<DialogueCastPage, DialogueCastAsset>>(context.Allocator(), services)));
         keys.PushBack(context.Pages().Register(

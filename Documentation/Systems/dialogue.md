@@ -16,7 +16,7 @@ otherwise. It supports Linux64, Win64, Web and Android64.
 | Engine | `Dialogue.Engine` | `dialogue.engine` | `DialogueSettings`; the compiled conversations and the cast, their cooked forms and factories; the dialogue's domain; the runner, and the one each run holds; the `Dialogue` facade; the sequences' line track |
 | Pipeline | `Dialogue.Pipeline` | `dialogue.pipeline` | the format's parser, the commands' notation, the cook's checks; the dialogue's assets, their builders, the importer and File > New's creators |
 | Tooling | `Dialogue.Tooling` | | its MCP tools, `dialogue_validate` and `dialogue_read` |
-| Editor | `Dialogue.Editor` | `dialogue.editor` | the cast's and the dialogue assets' pages |
+| Editor | `Dialogue.Editor` | `dialogue.editor` | the dialogue file's, the cast's and the dialogue assets' pages |
 
 A web, Android or tools-less build declares the Engine part alone (`cmake/Plugins.cmake`): the
 others link libraries such a build does not have.
@@ -177,7 +177,16 @@ check through `CheckDialogueText`, which gathers the file's project as the cook 
 
 ## The editor
 
-The Editor part adds two pages on one base, `DialogueListPage`, a page over an asset that is a list
+**A dialogue file** opens in `DialogueTextPage` (`DialoguePage.xml`), on the editor's code page
+(`app::CodeAssetPage`): its text in the code editor, coloured as dialogue
+(`Data/Editor/Code/dialogue.xml`: the statements' words, a line's speaker and text, an answer, a
+comment), and checked as the cook checks it a moment after each edit (`CheckDialogueText`, the other
+files read from the sources), each problem in the list and on its line. Beside it, the outline of
+its conversations, which moves the cursor to the one chosen, and the file's own slots, its cast and
+its dialogue assets. Save writes the text and the asset and requests a cook; the page checks
+against the plugin's settings, which the Editor part reads as it loads.
+
+The Editor part adds two more pages on one base, `DialogueListPage`, a page over an asset that is a list
 of items (on the editor's page over a reflected asset, `app::AssetObjectPage`), built from markup in
 `Data/Editor/Dialogue/`. The items are a list beside the grid, by name; the list's bar adds an item
 and removes the chosen one, and its search keeps the items whose name holds the text. The grid shows

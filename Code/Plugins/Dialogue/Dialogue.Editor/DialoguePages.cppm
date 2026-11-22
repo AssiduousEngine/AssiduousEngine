@@ -13,6 +13,13 @@
 ///   * DialogueCastPage (Data/Editor/Dialogue/CastPage.xml): a cast's speakers, by id.
 ///   * DialogueAssetsPage (Data/Editor/Dialogue/AssetsPage.xml): a dialogue assets list's entries,
 ///     by name.
+///
+/// DialogueTextPage (Data/Editor/Dialogue/DialoguePage.xml): a dialogue file's text in the code
+/// editor, coloured as dialogue (Data/Editor/Code/dialogue.xml) and checked as the cook checks it a
+/// moment after each edit (CheckDialogueText, its project gathered with the other files read from
+/// the sources), the problems in the list and on their lines; an outline of its conversations,
+/// which moves the cursor to the one chosen; and the file's own slots, its cast and its dialogue
+/// assets, in the grid.
 
 module;
 
@@ -26,6 +33,7 @@ import foundation.gui;
 import foundation.gui.toolkit;
 import editor.core;
 import editor.app;
+import dialogue.engine; // the settings the checks read
 
 using namespace foundation::core;
 
@@ -122,7 +130,44 @@ export namespace dialogue
         void RemoveItem(ISerializable& asset, usize item) override;
     };
 
-    /// Adds the dialogue's pages to the editor's page registry; the keys to remove them by.
+    class DialogueTextPage final : public editor::app::CodeAssetPage
+    {
+    public:
+        static constexpr StringView kPath = u8"Editor/Dialogue/DialoguePage.xml";
+
+        DialogueTextPage(editor::EditorContext& context, editor::app::AssetPageServices services,
+                         foundation::content::Instance& instance, const DialogueSettings& settings);
+        ~DialogueTextPage() override;
+
+        /// Moves the cursor to conversation `index` of the last check.
+        void GoToConversation(usize index);
+
+        // === For tests ===
+        /// The outline's rows, one a line.
+        [[nodiscard]] String Outline() const;
+
+    protected:
+        [[nodiscard]] Array<editor::app::CodeProblem> CheckCode(StringView text) override;
+        void OnCodeChecked() override;
+        [[nodiscard]] String CleanSummary() const override;
+
+    private:
+        struct Entry
+        {
+            String id;
+            u32 line = 0; // from 1
+        };
+
+        const DialogueSettings* m_settings;
+        Array<Entry> m_conversations; // as the last check found them
+        UniquePtr<foundation::gui::TreeModel> m_model;
+        foundation::gui::TreeView* m_outline = nullptr;
+        bool m_showing = false;
+    };
+
+    /// Adds the dialogue's pages to the editor's page registry, the text page checking against
+    /// `settings` (the plugin's, which outlive the pages); the keys to remove them by.
     [[nodiscard]] Array<u64> RegisterDialoguePages(editor::EditorContext& context,
-                                                   const editor::app::AssetPageServicesSource& services);
+                                                   const editor::app::AssetPageServicesSource& services,
+                                                   const DialogueSettings& settings);
 }

@@ -288,4 +288,16 @@ TEST_CASE("code language: the shared definitions read, each tokenizing its langu
     CHECK(state.Depth == 0);
     CHECK_RUNS(Runs(css, SV(u8"toast { background: var(--toast-background, #222); }"), state),
                u8"selector:toast punctuation:{ property:background punctuation:: builtin:var punctuation:( text:--toast-background punctuation:, constant:#222 punctuation:); punctuation:}");
+
+    // The dialogue plugin's format: statements' words, a line's speaker and text, an answer, a comment.
+    CodeLanguage talk;
+    REQUIRE(LoadSharedLanguage("dialogue", talk));
+    state = CodeLexState{};
+    CHECK_RUNS(Runs(talk, SV(u8"conversation gate in village"), state), u8"keyword:conversation text:gate keyword:in text:village");
+    CHECK_RUNS(Runs(talk, SV(u8"@ keeper worried: Who goes there?"), state),
+               u8"punctuation:@ type: keeper worried punctuation:: string: Who goes there?");
+    CHECK(state.Depth == 0); // the line's end leaves the text
+    CHECK_RUNS(Runs(talk, SV(u8"> A friend."), state), u8"punctuation:> string: A friend.");
+    CHECK_RUNS(Runs(talk, SV(u8"wait 1.5 # a pause"), state), u8"keyword:wait number:1.5 comment:# a pause");
+    CHECK(state.Depth == 0);
 }

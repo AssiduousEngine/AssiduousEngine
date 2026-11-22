@@ -22,6 +22,7 @@ import engine.defaultapp;
 import editor.project;
 import editor.core;
 import editor.app;
+import foundation.vfs;
 import dialogue.pipeline;
 import dialogue.editor;
 
@@ -56,7 +57,8 @@ namespace
     };
 }
 
-TEST_CASE("plugins: in the editor, the dialogue's cast and dialogue assets open in their pages, which leave with the plugin")
+TEST_CASE("plugins: in the editor, a dialogue file, the cast and the dialogue assets open in their pages, which leave with "
+          "the plugin")
 {
     app::RegisterEditorProjectSettingsTypes();
     const StringView dir = u8"scratch_plugins_dialogue_editor";
@@ -135,11 +137,39 @@ TEST_CASE("plugins: in the editor, the dialogue's cast and dialogue assets open 
         CHECK(listPage->Title() == StringView(u8"Staging"));
         CHECK(context.OpenPages().Size() == 2u);
 
+        // A dialogue file opens in the text page: its problems as the cook finds them, at their
+        // lines, and its conversations in the outline. (With no window the page has no code editor
+        // to type in; typing and its checks are the code pages' own.)
+        CHECK(context.Pages().FindFactory(dialogue::DialogueAsset::StaticType()) != nullptr);
+        const String text(u8"conversation gate\n"
+                          u8"@ keeper: Who goes there?\n"
+                          u8"conversation lane\n"
+                          u8"@ stranger: Me.\n");
+        const String path = context.Project()->SourceFile(u8"Dialogue/Gate.dialogue");
+        REQUIRE(CreateDirectories(PathParent(path.AsView())));
+        REQUIRE(WriteFile(path.AsView(), Span<const byte>(reinterpret_cast<const byte*>(text.Data()), text.Size())).IsOk());
+        foundation::content::Instance* file = root->CreateInstance(u8"Gate", dialogue::DialogueAsset::StaticType());
+        REQUIRE(file != nullptr);
+        dialogue::DialogueAsset fileAsset;
+        fileAsset.fileName = foundation::vfs::SourcePath(u8"Dialogue/Gate.dialogue");
+        fileAsset.cast = cast->Id();
+        REQUIRE(file->WriteObject(fileAsset).IsOk());
+        editor::EditorPage* filePage = context.OpenPage(*file);
+        REQUIRE(filePage != nullptr);
+        auto* textPage = static_cast<dialogue::DialogueTextPage*>(filePage);
+        CHECK(textPage->SourceRead());
+        CHECK(textPage->Outline() == StringView(u8"gate\nlane\n"));
+        REQUIRE(textPage->Found().Size() == 1u);
+        CHECK(textPage->Found()[0].line == 3u); // the fourth line, from 0
+        CHECK(textPage->Found()[0].message.AsView().Contains(u8"no speaker `stranger`"));
+        CHECK(context.OpenPages().Size() == 3u);
+
         session.Close();
         CHECK(context.Plugins() == nullptr);
         CHECK(context.OpenPages().Size() == 0u);
         CHECK(context.Pages().FindFactory(dialogue::DialogueCastAsset::StaticType()) == nullptr);
         CHECK(context.Pages().FindFactory(dialogue::DialogueAssetListAsset::StaticType()) == nullptr);
+        CHECK(context.Pages().FindFactory(dialogue::DialogueAsset::StaticType()) == nullptr);
     }
     context.Tasks().Finish();
     embedded.OnShutdown(host);
