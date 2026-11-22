@@ -186,6 +186,16 @@ its conversations, which moves the cursor to the one chosen, and the file's own 
 its dialogue assets. Save writes the text and the asset and requests a cook; the page checks
 against the plugin's settings, which the Editor part reads as it loads.
 
+**Preview** plays the chosen conversation (the first, when none is) as the text now reads, in the
+first open scene page's Simulate, started when it is not running and stopped with the preview. The
+page holds a runner of its own (`DialogueRunService`) over the scene page's run, stepped with the
+page, its host playing the page's compiled text in place of the cooked file
+(`DialogueRunHost::SetDialogue`), staging in that scene (`SetScene`) and showing the stock box
+(`ShowStockBox`). A Simulate's run has no save, so the host keeps the flags and the resume record in
+a store of its own, which goes with the preview. Simulate's pointer serves the scene, so the page's
+pane says what the conversation waits on and takes the advance, the answers and a command's done.
+Text with errors does not play.
+
 The Editor part adds two more pages on one base, `DialogueListPage`, a page over an asset that is a list
 of items (on the editor's page over a reflected asset, `app::AssetObjectPage`), built from markup in
 `Data/Editor/Dialogue/`. The items are a list beside the grid, by name; the list's bar adds an item
@@ -335,7 +345,9 @@ the game bound, and showing a line on the run's bus; a sequence's line track sho
 through the run's runner and holding until each is advanced; the stock box on a real GUI typing a
 line, finishing and advancing on a press, taking an answer and going at the end; an AngelScript and
 a Luau behavior playing a
-cooked conversation through `Dialogue` and answering its line, choice and command;
+cooked conversation through `Dialogue` and answering its line, choice and command; a dialogue
+file's page listing its conversations and its problems, and its preview playing the text with flags
+of its own;
 and, through the MCP host, a dialogue file cooking to its conversations, one with an error failing
 the cook, File > New's three creators, and the two tools; and, in an editor session, the cast and the dialogue
 assets opening in their pages, a speaker added, undone, found and removed, and the pages leaving

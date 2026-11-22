@@ -4,7 +4,10 @@
   its problems, one above the other, beside the outline of its conversations and the file's own
   slots (its cast and its dialogue assets). The text is coloured as dialogue and checked as the
   cook checks it a moment after each edit; choosing a conversation in the outline moves the cursor
-  to it. An asset that did not read says so in place of the text.
+  to it. Preview plays the chosen conversation (the first, when none is) in the open scene page's
+  Simulate, in the stock box, with flags of its own that go when it stops; its pane says what the
+  conversation waits on and takes the advance, the answers and a command's done, since Simulate's
+  pointer is the scene's. An asset that did not read says so in place of the text.
 -->
 <Panel class="page code-page dialogue-page">
     <ToolBar id="page-bar" class="page-toolbar">
@@ -16,6 +19,7 @@
         <ToolButton id="page-cook" icon="Editor/Icons/cook.svg"/>
         <ToolButton id="page-rebuild" icon="Editor/Icons/rebuild.svg"/>
         <Separator id="page-own"/>
+        <ToolButton id="dialogue-preview" toggle="true" icon="Editor/Icons/play.svg" text="Preview" shows-text="true" tooltip="Play the chosen conversation in the open scene page, in the stock box"/>
         <Spacer/>
         <Label id="page-kind" class="badge page-kind"/>
     </ToolBar>
@@ -34,7 +38,18 @@
                 <Label class="panel-title" text="Conversations"/>
                 <TreeView id="dialogue-outline" class="panel-body tree dialogue-outline"/>
             </Panel>
-            <PropertyGrid id="page-grid" class="panel-body"/>
+            <Panel class="panel dialogue-side">
+                <Panel id="dialogue-preview-pane" class="panel dialogue-preview-pane">
+                    <Label class="panel-title" text="Preview"/>
+                    <Label id="dialogue-preview-state" class="dialogue-preview-state" text="Not playing"/>
+                    <Panel id="dialogue-preview-answers" class="dialogue-preview-answers"/>
+                    <Panel class="dialogue-preview-buttons">
+                        <Button id="dialogue-preview-advance" text="Advance"/>
+                        <Button id="dialogue-preview-done" text="Done"/>
+                    </Panel>
+                </Panel>
+                <PropertyGrid id="page-grid" class="panel-body"/>
+            </Panel>
         </Splitter>
     </Splitter>
 </Panel>

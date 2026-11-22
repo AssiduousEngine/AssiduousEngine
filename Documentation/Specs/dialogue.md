@@ -1,6 +1,6 @@
 # Dialogue as an official plugin
 
-> APPROVED 2026-11-21. D0 to D5 2026-11-21. Read on master at `247608c79`; line numbers will drift. Revisits the
+> APPROVED 2026-11-21. D0 to D6 2026-11-21. Read on master at `247608c79`; line numbers will drift. Revisits the
 > choice, made on 2026-11-06 for the first game built on the engine, to keep its dialogue in its
 > own script ("A now, with plans to move to C"), now that the sequencer exists, and makes dialogue
 > an official engine plugin (that note's option B).
@@ -507,6 +507,13 @@ Each step a commit with its tests, green on clang and gcc.
    style manager and the run's screen stack. The sample of it in use is D8's.
 7. **D6 The editor and agents**: the dialogue page (code editor, checks, outline, preview), and
    `dialogue_validate` / `dialogue_read`.
+   *As built:* the page is on the editor's code page, coloured by a language file
+   (`Data/Editor/Code/dialogue.xml`); it and the tools check through `CheckDialogueText`. Preview
+   holds a runner of its own over the open scene page's run (its Simulate started for it), playing
+   the page's compiled text; flags go in the host's own store, since a Simulate's run has no save.
+   Since Simulate's pointer serves the scene, the page's pane, not the box, takes the advance, the
+   answers and a command's done. Not built: the indentation warning (the risk below), the cast's
+   own checks in `dialogue_validate`.
 8. **D7 Proof, with the user**: the first game enables the plugin, its scenes become
    conversation assets and its cast a `DialogueCast`, its host interface becomes command handlers,
    and one of its cutscenes is rebuilt with its staging as sequences (the sequencer spec's Q5,

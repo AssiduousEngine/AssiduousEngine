@@ -23,6 +23,9 @@ import editor.project;
 import editor.core;
 import editor.app;
 import foundation.vfs;
+import foundation.run;
+import foundation.scene;
+import dialogue.engine;
 import dialogue.pipeline;
 import dialogue.editor;
 
@@ -163,6 +166,45 @@ TEST_CASE("plugins: in the editor, a dialogue file, the cast and the dialogue as
         CHECK(textPage->Found()[0].line == 3u); // the fourth line, from 0
         CHECK(textPage->Found()[0].message.AsView().Contains(u8"no speaker `stranger`"));
         CHECK(context.OpenPages().Size() == 3u);
+
+        // Preview plays the text as it reads, here in a plain run and scene (the editor plays it in
+        // the open scene page's Simulate); text with errors does not play.
+        foundation::run::RunBase run(DefaultAllocator(), u8"preview");
+        foundation::scene::Scene scene(DefaultAllocator(), u8"preview");
+        scene.SetRun(&run);
+        CHECK_FALSE(textPage->PlayPreview(scene, run)); // `stranger` is no speaker
+        CHECK_FALSE(textPage->IsPreviewing());
+        const String clean(u8"conversation talk\n"
+                           u8"set seen\n"
+                           u8"if seen\n"
+                           u8"  @ keeper: Seen.\n"
+                           u8"end\n"
+                           u8"choice\n"
+                           u8"> Yes.\n"
+                           u8"> No.\n"
+                           u8"end\n");
+        const String cleanPath = context.Project()->SourceFile(u8"Dialogue/Talk.dialogue");
+        REQUIRE(WriteFile(cleanPath.AsView(), Span<const byte>(reinterpret_cast<const byte*>(clean.Data()), clean.Size())).IsOk());
+        foundation::content::Instance* talk = root->CreateInstance(u8"Talk", dialogue::DialogueAsset::StaticType());
+        REQUIRE(talk != nullptr);
+        dialogue::DialogueAsset talkAsset;
+        talkAsset.fileName = foundation::vfs::SourcePath(u8"Dialogue/Talk.dialogue");
+        talkAsset.cast = cast->Id();
+        REQUIRE(talk->WriteObject(talkAsset).IsOk());
+        auto* talkPage = static_cast<dialogue::DialogueTextPage*>(context.OpenPage(*talk));
+        REQUIRE(talkPage != nullptr);
+        REQUIRE(talkPage->PlayPreview(scene, run));
+        REQUIRE(talkPage->PreviewRunner() != nullptr);
+        CHECK(talkPage->PreviewRunner()->Waiting() == dialogue::DialogueWait::Line);
+        CHECK(talkPage->PreviewRunner()->Flag(u8"seen")); // a flag of the preview's own: the run has no save
+        CHECK(talkPage->PreviewState() == StringView(u8"A line shows: Advance goes on"));
+        REQUIRE(talkPage->PreviewRunner()->Advance());
+        CHECK(talkPage->PreviewRunner()->Waiting() == dialogue::DialogueWait::Choice);
+        REQUIRE(talkPage->PreviewRunner()->Choose(1));
+        CHECK(talkPage->PreviewState() == StringView(u8"Ended"));
+        talkPage->StopPreview();
+        CHECK_FALSE(talkPage->IsPreviewing());
+        CHECK(talkPage->PreviewState() == StringView(u8"Not playing"));
 
         session.Close();
         CHECK(context.Plugins() == nullptr);

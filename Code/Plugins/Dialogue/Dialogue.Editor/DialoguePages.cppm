@@ -19,7 +19,11 @@
 /// moment after each edit (CheckDialogueText, its project gathered with the other files read from
 /// the sources), the problems in the list and on their lines; an outline of its conversations,
 /// which moves the cursor to the one chosen; and the file's own slots, its cast and its dialogue
-/// assets, in the grid.
+/// assets, in the grid. Preview plays the chosen conversation, as the text now reads, in the open
+/// scene page's Simulate (started when it is not running): a runner of the page's own over the
+/// scene page's run, in the stock box, with flags of its own that go when the preview stops. Its
+/// pane says what the conversation waits on and takes the advance, the answers and a command's
+/// done, since Simulate's pointer is the scene's.
 
 module;
 
@@ -33,7 +37,11 @@ import foundation.gui;
 import foundation.gui.toolkit;
 import editor.core;
 import editor.app;
-import dialogue.engine; // the settings the checks read
+import dialogue.engine; // the settings the checks read, and the preview's runner
+import editor.scene;    // ISceneEditorPage: the scene page a preview plays in
+import foundation.runtime.client; // IApplicationHost: the page's update
+import foundation.scene;
+import foundation.run;
 
 using namespace foundation::core;
 
@@ -139,12 +147,29 @@ export namespace dialogue
                          foundation::content::Instance& instance, const DialogueSettings& settings);
         ~DialogueTextPage() override;
 
-        /// Moves the cursor to conversation `index` of the last check.
+        /// Moves the cursor to conversation `index` of the last check, and chooses it for Preview.
         void GoToConversation(usize index);
+
+        /// Plays the chosen conversation in `scenePage`'s Simulate (null: the first open scene
+        /// page). False, told, when there is no scene page or the text does not build.
+        bool StartPreview(editor::ISceneEditorPage* scenePage = nullptr);
+        /// Plays the chosen conversation in `scene` of `run` (what StartPreview does once the scene
+        /// page simulates); false, told, when the text does not build.
+        bool PlayPreview(foundation::scene::Scene& scene, foundation::run::IRun& run);
+        /// Ends the preview, and the Simulate it started.
+        void StopPreview();
+        [[nodiscard]] bool IsPreviewing() const noexcept { return m_preview.Get() != nullptr; }
+
+        void OnUpdate(foundation::runtime::IApplicationHost& host, f32 dt) override;
+        void OnClose() override;
 
         // === For tests ===
         /// The outline's rows, one a line.
         [[nodiscard]] String Outline() const;
+        /// The preview's runner; null when no preview plays.
+        [[nodiscard]] DialogueRunService* PreviewRunner() const noexcept { return m_preview.Get(); }
+        /// What the preview's pane says.
+        [[nodiscard]] String PreviewState() const;
 
     protected:
         [[nodiscard]] Array<editor::app::CodeProblem> CheckCode(StringView text) override;
@@ -158,8 +183,25 @@ export namespace dialogue
             u32 line = 0; // from 1
         };
 
+        // The preview's pane, after each step: what it waits on and the answers to take.
+        void ShowPreview();
+        // Whether `page` is still open.
+        [[nodiscard]] bool IsOpen(const editor::ISceneEditorPage* page) const;
+
         const DialogueSettings* m_settings;
         Array<Entry> m_conversations; // as the last check found them
+        Array<DialogueConversation> m_built; // the last check's compiled conversations (for Preview)
+        Array<DialogueLineText> m_builtLines;
+        bool m_builds = false;
+        usize m_chosen = 0;
+        UniquePtr<DialogueRunService> m_preview;
+        editor::ISceneEditorPage* m_previewPage = nullptr;
+        bool m_startedSimulation = false;
+        foundation::gui::ButtonBase* m_previewButton = nullptr;
+        foundation::gui::Label* m_previewState = nullptr;
+        foundation::gui::UIWidget* m_previewAnswers = nullptr;
+        usize m_shownAnswers = 0;
+        DialogueWait m_shownWait = DialogueWait::Nothing;
         UniquePtr<foundation::gui::TreeModel> m_model;
         foundation::gui::TreeView* m_outline = nullptr;
         bool m_showing = false;

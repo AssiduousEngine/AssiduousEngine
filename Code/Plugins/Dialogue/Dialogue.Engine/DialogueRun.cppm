@@ -17,6 +17,10 @@
 // While a line shows, its speaker plays their talk clip (the cast's `talk`), looping, and their
 // voice (the cast's `voice`) once as it starts.
 //
+// A run with no save (an editor page's) keeps flags and the resume record in a store of the
+// host's own, dropped with it. A preview (the dialogue page's) plays a file's text as it is edited
+// (SetDialogue) and stages in the scene it names (SetScene).
+//
 // With the settings' `stockBox` on, the host shows what it tells the game in the plugin's own box
 // as well (DialogueStockBox), on the run's screen stack, and takes the player's advance and answers
 // from it.
@@ -57,6 +61,13 @@ export namespace dialogue
 
         /// Plays the speaker `speaker` as `entity` in what follows (unassigned: the cast's again).
         void Bind(StringView speaker, foundation::scene::EntityHandle entity);
+        /// Loads `resource` for the dialogue file `id` in place of its cooked form (a preview of
+        /// its text as it is edited); null goes back to the cooked one.
+        void SetDialogue(const Guid& id, RefPtr<DialogueResource> resource);
+        /// Shows the stock box whatever the settings say (a preview).
+        void ShowStockBox(bool show) noexcept { m_showBox = show; }
+        /// Stages in `scene` rather than the run's current scene (null: the run's again).
+        void SetScene(foundation::scene::Scene* scene) noexcept { m_scene = scene; m_hasScene = scene != nullptr; }
         /// The runner the stock box advances and answers.
         void SetRunner(DialogueRunner& runner) noexcept { m_runner = &runner; }
         [[nodiscard]] DialogueStockBox& Box() noexcept { return m_box; }
@@ -128,6 +139,16 @@ export namespace dialogue
         foundation::scene::EntityHandle m_talker;
         DialogueRunner* m_runner = nullptr;
         DialogueStockBox m_box;
+        Guid m_previewId;                     // the file SetDialogue replaces
+        RefPtr<DialogueResource> m_preview;
+        foundation::scene::WeakSceneRef m_scene; // SetScene's
+        bool m_hasScene = false;
+        bool m_showBox = false;
+        [[nodiscard]] bool BoxOn() const noexcept { return m_showBox || m_settings->stockBox; }
+        Array<String> m_scratchKeys; // the store of a run with no save
+        Array<String> m_scratchValues;
+        [[nodiscard]] String* Scratch(StringView key);
+        void WriteScratch(StringView key, StringView value);
     };
 
     /// The runner a run holds, with the run's host (`run.Get<DialogueRunService>()`).
@@ -143,6 +164,8 @@ export namespace dialogue
 
         /// The stock box (for tests).
         [[nodiscard]] DialogueStockBox& Box() noexcept { return m_runHost.Box(); }
+        /// The run's host, for a preview's hooks (DialogueRunHost::SetDialogue, SetScene).
+        [[nodiscard]] DialogueRunHost& Host() noexcept { return m_runHost; }
 
         /// Plays the speaker `speaker` as `entity` (unassigned: the cast's entity again).
         void Bind(StringView speaker, foundation::scene::EntityHandle entity) { m_runHost.Bind(speaker, entity); }

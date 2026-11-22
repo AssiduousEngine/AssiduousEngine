@@ -18,7 +18,10 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   `play` (a clip on a speaker), `sound`, `fade` and `sequence`, and a sequence carries lines on a
   Dialogue Lines track, its play waiting at each until it is advanced. The plugin's own dialogue
   box (Stock box in its settings) shows lines typed out and a choice's answers, for the pad, the
-  keys and the mouse, and a project restyles it with a sheet of its own.
+  keys and the mouse, and a project restyles it with a sheet of its own. A dialogue file opens in
+  a page of its own: its text coloured and checked as you type, an outline of its conversations,
+  and Preview, which plays the chosen one in the open scene. MCP: `dialogue_validate` and
+  `dialogue_read`.
 - Sequences: a sequence asset (File > New, under Animation) is a cutscene timeline that drives
   several entities at once: property and transform tracks, skeletal clips, sounds, camera cuts,
   fades, events, holds that wait for the game, and sequences nested in others. Scripts play one

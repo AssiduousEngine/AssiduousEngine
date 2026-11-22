@@ -15,6 +15,8 @@ import foundation.content;
 import foundation.gui;
 import foundation.gui.toolkit;
 import foundation.gui.code; // the text page's problems
+import foundation.scene;
+import foundation.run;
 import editor.core;
 import editor.app;
 import dialogue.engine;
@@ -359,11 +361,51 @@ namespace dialogue
                                                  }
                                              });
         }
+        m_previewButton = Find<gui::ButtonBase>(u8"dialogue-preview");
+        m_previewState = Find<gui::Label>(u8"dialogue-preview-state");
+        m_previewAnswers = Find<gui::UIWidget>(u8"dialogue-preview-answers");
+        DialogueTextPage* self = this;
+        if (m_previewButton != nullptr)
+        {
+            m_previewButton->SetOnClick([self]()
+                                        {
+                                            if (self->IsPreviewing())
+                                            {
+                                                self->StopPreview();
+                                            }
+                                            else
+                                            {
+                                                (void)self->StartPreview();
+                                            }
+                                        });
+        }
+        if (auto* advance = Find<gui::ButtonBase>(u8"dialogue-preview-advance"))
+        {
+            advance->SetOnClick([self]()
+                                {
+                                    if (self->m_preview)
+                                    {
+                                        (void)self->m_preview->Advance();
+                                    }
+                                });
+        }
+        if (auto* done = Find<gui::ButtonBase>(u8"dialogue-preview-done"))
+        {
+            done->SetOnClick([self]()
+                             {
+                                 if (self->m_preview)
+                                 {
+                                     (void)self->m_preview->Done();
+                                 }
+                             });
+        }
         OpenCode(u8"dialogue");
+        ShowPreview();
     }
 
     DialogueTextPage::~DialogueTextPage()
     {
+        StopPreview();
         if (m_outline != nullptr)
         {
             m_outline->SetModel(nullptr);
@@ -389,7 +431,8 @@ namespace dialogue
             out = String(StringView(reinterpret_cast<const utf8char*>(bytes.Value().Data()), bytes.Value().Size()));
             return true;
         };
-        const DialogueParse parse = CheckDialogueText(text, *m_settings, InstanceId(), project->SourceDb(), read, Allocator());
+        DialogueParse parse = CheckDialogueText(text, *m_settings, InstanceId(), project->SourceDb(), read, Allocator());
+        m_builds = parse.Ok();
         for (const DialogueProblem& problem : parse.problems)
         {
             problems.PushBack(editor::app::CodeProblem{problem.warning ? gui::CodeSeverity::Warning : gui::CodeSeverity::Error,
@@ -409,6 +452,8 @@ namespace dialogue
             }
             m_conversations.PushBack(Entry{conversation.id, line > 1 ? line - 1 : line});
         }
+        m_built = Move(parse.conversations);
+        m_builtLines = Move(parse.lines);
         return problems;
     }
 
@@ -433,7 +478,201 @@ namespace dialogue
     {
         if (index < m_conversations.Size())
         {
+            m_chosen = index;
             ShowLine(m_conversations[index].line, 1);
+        }
+    }
+
+    bool DialogueTextPage::IsOpen(const editor::ISceneEditorPage* page) const
+    {
+        for (const UniquePtr<editor::EditorPage>& open : Context().OpenPages())
+        {
+            if (open->Service<editor::ISceneEditorPage>() == page)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool DialogueTextPage::StartPreview(editor::ISceneEditorPage* scenePage)
+    {
+        StopPreview();
+        if (scenePage == nullptr)
+        {
+            for (const UniquePtr<editor::EditorPage>& open : Context().OpenPages())
+            {
+                if (auto* found = open->Service<editor::ISceneEditorPage>())
+                {
+                    scenePage = found;
+                    break;
+                }
+            }
+        }
+        if (scenePage == nullptr)
+        {
+            Context().Notify(editor::NoticeKind::Warning, u8"Preview: open a scene to play the conversation in");
+            ShowPreview();
+            return false;
+        }
+        m_startedSimulation = !scenePage->IsSimulating();
+        if (m_startedSimulation)
+        {
+            scenePage->StartSimulation();
+        }
+        foundation::scene::Scene& scene = scenePage->EditContext().Scene();
+        foundation::run::IRun* run = scene.Run();
+        if (run == nullptr || !scenePage->IsSimulating())
+        {
+            Context().Notify(editor::NoticeKind::Warning, u8"Preview: the scene did not start");
+            if (m_startedSimulation)
+            {
+                scenePage->StopSimulation();
+            }
+            m_startedSimulation = false;
+            ShowPreview();
+            return false;
+        }
+        m_previewPage = scenePage;
+        if (!PlayPreview(scene, *run))
+        {
+            StopPreview();
+            return false;
+        }
+        return true;
+    }
+
+    bool DialogueTextPage::PlayPreview(foundation::scene::Scene& scene, foundation::run::IRun& run)
+    {
+        m_preview.Reset();
+        CheckNow(); // the text as it reads now
+        if (!m_builds || m_built.IsEmpty())
+        {
+            Context().Notify(editor::NoticeKind::Warning, u8"Preview: the dialogue has errors, or no conversation");
+            ShowPreview();
+            return false;
+        }
+        // The text as it reads now, as the file the runner plays.
+        RefPtr<DialogueResource> file = MakeRef<DialogueResource>(Allocator());
+        file->conversations = m_built;
+        file->lines = m_builtLines;
+        if (const auto* asset = ObjectAs<DialogueAsset>())
+        {
+            file->cast = asset->cast;
+        }
+        m_preview = MakeUnique<DialogueRunService>(Allocator(), *m_settings, run);
+        m_preview->Host().ShowStockBox(true);
+        m_preview->Host().SetDialogue(InstanceId(), file);
+        m_preview->Host().SetScene(&scene);
+        const StringView conversation =
+            m_chosen < m_conversations.Size() ? m_conversations[m_chosen].id.AsView() : StringView{};
+        if (!m_preview->Play(InstanceId(), conversation))
+        {
+            m_preview.Reset();
+            ShowPreview();
+            return false;
+        }
+        ShowPreview();
+        return true;
+    }
+
+    void DialogueTextPage::StopPreview()
+    {
+        const bool was = m_preview.Get() != nullptr;
+        m_preview.Reset(); // the box and the fade go with its host
+        if (m_startedSimulation && m_previewPage != nullptr && IsOpen(m_previewPage))
+        {
+            m_previewPage->StopSimulation();
+        }
+        m_previewPage = nullptr;
+        m_startedSimulation = false;
+        if (was)
+        {
+            ShowPreview();
+        }
+    }
+
+    void DialogueTextPage::OnUpdate(foundation::runtime::IApplicationHost& host, f32 dt)
+    {
+        CodeAssetPage::OnUpdate(host, dt);
+        if (!m_preview)
+        {
+            return;
+        }
+        if (m_previewPage != nullptr && (!IsOpen(m_previewPage) || !m_previewPage->IsSimulating()))
+        {
+            m_startedSimulation = false; // it closed or stopped on its own: nothing of it to stop
+            StopPreview();
+            return;
+        }
+        if (m_previewPage == nullptr || !m_previewPage->IsPaused())
+        {
+            m_preview->Update(dt);
+        }
+        if (m_preview && (m_preview->Waiting() != m_shownWait || m_preview->Box().AnswerCount() != m_shownAnswers))
+        {
+            ShowPreview();
+        }
+    }
+
+    void DialogueTextPage::OnClose()
+    {
+        StopPreview();
+        CodeAssetPage::OnClose();
+    }
+
+    String DialogueTextPage::PreviewState() const
+    {
+        if (!m_preview)
+        {
+            return String(u8"Not playing");
+        }
+        switch (m_preview->Waiting())
+        {
+        case DialogueWait::Line: return String(u8"A line shows: Advance goes on");
+        case DialogueWait::Choice: return String(u8"A choice: take an answer");
+        case DialogueWait::Time: return String(u8"Waiting");
+        case DialogueWait::Staging: return String(u8"Staging: waiting for it to end");
+        case DialogueWait::Command: return String(u8"A command waits: Done goes on");
+        default: break;
+        }
+        return m_preview->IsPlaying() ? String(u8"Playing") : String(u8"Ended");
+    }
+
+    void DialogueTextPage::ShowPreview()
+    {
+        if (m_previewButton != nullptr)
+        {
+            m_previewButton->SetChecked(IsPreviewing());
+        }
+        if (m_previewState != nullptr)
+        {
+            m_previewState->SetText(PreviewState().AsView());
+        }
+        m_shownWait = m_preview ? m_preview->Waiting() : DialogueWait::Nothing;
+        m_shownAnswers = m_preview ? m_preview->Box().AnswerCount() : 0;
+        if (m_previewAnswers == nullptr)
+        {
+            return;
+        }
+        m_previewAnswers->RemoveAllChildren();
+        for (usize i = 0; i < m_shownAnswers; ++i)
+        {
+            auto* button = Cast<gui::Button>(gui::Node::FromHandle(m_previewAnswers->AddElement(u8"Button")));
+            if (button == nullptr)
+            {
+                continue;
+            }
+            button->SetText(m_preview->Box().AnswerText(i).AsView());
+            DialogueTextPage* self = this;
+            const i32 index = static_cast<i32>(i);
+            button->SetOnClick([self, index]()
+                               {
+                                   if (self->m_preview)
+                                   {
+                                       (void)self->m_preview->Choose(index);
+                                   }
+                               });
         }
     }
 

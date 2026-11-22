@@ -78,8 +78,55 @@ namespace dialogue
         return m_run->FindService(type);
     }
 
+    void DialogueRunHost::SetDialogue(const Guid& id, RefPtr<DialogueResource> resource)
+    {
+        m_previewId = id;
+        m_preview = Move(resource);
+    }
+
+    String* DialogueRunHost::Scratch(StringView key)
+    {
+        for (usize i = 0; i < m_scratchKeys.Size(); ++i)
+        {
+            if (m_scratchKeys[i] == key)
+            {
+                return &m_scratchValues[i];
+            }
+        }
+        return nullptr;
+    }
+
+    void DialogueRunHost::WriteScratch(StringView key, StringView value)
+    {
+        for (usize i = 0; i < m_scratchKeys.Size(); ++i)
+        {
+            if (m_scratchKeys[i] == key)
+            {
+                if (value.IsEmpty())
+                {
+                    m_scratchKeys.RemoveAt(i);
+                    m_scratchValues.RemoveAt(i);
+                }
+                else
+                {
+                    m_scratchValues[i] = String(value);
+                }
+                return;
+            }
+        }
+        if (!value.IsEmpty())
+        {
+            m_scratchKeys.PushBack(String(key));
+            m_scratchValues.PushBack(String(value));
+        }
+    }
+
     RefPtr<DialogueResource> DialogueRunHost::LoadDialogue(const Guid& id)
     {
+        if (m_preview && id == m_previewId)
+        {
+            return m_preview;
+        }
         auto* binding = static_cast<foundation::script::ScriptRuntimeBinding*>(
             Find(TypeOf<foundation::script::ScriptRuntimeBinding>().id));
         return Load<DialogueResource>(binding != nullptr && binding->resolveResources ? binding->resolveResources() : nullptr, id);
@@ -96,12 +143,22 @@ namespace dialogue
     bool DialogueRunHost::ReadFlag(StringView key)
     {
         auto* save = m_run->Get<engine::runtime::RunSave>();
-        return save != nullptr && save->Values().GetBool(key, false);
+        if (save == nullptr)
+        {
+            const String* value = Scratch(key);
+            return value != nullptr && *value == StringView(u8"true");
+        }
+        return save->Values().GetBool(key, false);
     }
 
     void DialogueRunHost::WriteFlag(StringView key, bool on)
     {
-        if (auto* save = m_run->Get<engine::runtime::RunSave>(); save != nullptr && save->Values().SetBool(key, on))
+        auto* save = m_run->Get<engine::runtime::RunSave>();
+        if (save == nullptr)
+        {
+            WriteScratch(key, on ? StringView(u8"true") : StringView(u8"false"));
+        }
+        else if (save->Values().SetBool(key, on))
         {
             save->MarkChanged();
         }
@@ -110,7 +167,12 @@ namespace dialogue
     String DialogueRunHost::ReadText(StringView key)
     {
         auto* save = m_run->Get<engine::runtime::RunSave>();
-        return save != nullptr ? save->Values().GetText(key, {}) : String();
+        if (save == nullptr)
+        {
+            const String* value = Scratch(key);
+            return value != nullptr ? *value : String();
+        }
+        return save->Values().GetText(key, {});
     }
 
     void DialogueRunHost::WriteText(StringView key, StringView text)
@@ -118,6 +180,7 @@ namespace dialogue
         auto* save = m_run->Get<engine::runtime::RunSave>();
         if (save == nullptr)
         {
+            WriteScratch(key, text);
             return;
         }
         if (text.IsEmpty() ? save->Values().Remove(key) : save->Values().SetText(key, text))
@@ -161,6 +224,10 @@ namespace dialogue
 
     foundation::scene::Scene* DialogueRunHost::Scene() const
     {
+        if (m_hasScene)
+        {
+            return m_scene.Get();
+        }
         auto* binding = m_run->Get<engine::runtime::RunBinding>();
         return binding != nullptr && binding->currentScene ? binding->currentScene() : nullptr;
     }
@@ -371,7 +438,7 @@ namespace dialogue
     void DialogueRunHost::Update(f32 deltaTime)
     {
         UpdateFade(deltaTime);
-        if (!m_settings->stockBox || !m_box.IsShown() || m_runner == nullptr)
+        if (!BoxOn() || !m_box.IsShown() || m_runner == nullptr)
         {
             return;
         }
@@ -485,7 +552,7 @@ namespace dialogue
             foundation::script::ScriptCallScope scope(Context());
             (void)engine::audio::AudioFacade::playOneShot(speaker->voice);
         }
-        if (m_settings->stockBox)
+        if (BoxOn())
         {
             engine::gui::GuiSubsystem* gui = nullptr;
             foundation::gui::ScreenStack* stack = nullptr;
@@ -500,7 +567,7 @@ namespace dialogue
     void DialogueRunHost::OnLineEnded() { StopTalking(); }
     void DialogueRunHost::OnChoice(const DialogueChoiceNotice& notice)
     {
-        if (m_settings->stockBox)
+        if (BoxOn())
         {
             engine::gui::GuiSubsystem* gui = nullptr;
             foundation::gui::ScreenStack* stack = nullptr;
