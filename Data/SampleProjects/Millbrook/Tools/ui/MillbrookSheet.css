@@ -40,6 +40,7 @@ button.tag:focus-visible { border: 4px solid #A3362A; }
 .hud-talk { padding: 8px 14px; background-color: rgba(40, 26, 16, 0.82); border: 2px solid #A0784A;
             border-radius: 10px; opacity: 0; }
 .hud-talk.shown { opacity: 1; }
+button.tag.gone { display: none; } /* New game, with no game under way (Millbrook.as). */
 
 /* The prompts: the control an action takes, read from the input map for the device in use. */
 .hint { flex-direction: row; align-items: center; gap: 8px; }

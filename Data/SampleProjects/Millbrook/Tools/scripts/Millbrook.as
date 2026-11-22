@@ -89,9 +89,15 @@ class Game : RunBehavior
     private int m_ending = 0;        // the ending's play id (a notice's play); 0 none
     private SequencePlay m_endingPlay; // held on its last frame (black) behind the credits
     private bool m_paused = false;
+    // Where the village begins, read as the run starts: what a session moves (the villagers' walks,
+    // the player's errand, the cart's roll), which a new game puts back.
+    private array<string> m_placed;
+    private array<Float3> m_startPositions;
+    private array<Quaternion> m_startRotations;
 
     void onStart()
     {
+        rememberStart();
         Audio::playMusic(kFairTune);
         idleAll();
         lightLanterns(Dialogue::flag("fair_opened"));
@@ -105,9 +111,69 @@ class Game : RunBehavior
         run::setTimeScale(0.0f); // the village holds still behind the title
         screens().clear();
         screens().push(kTitleDoc);
-        Button::of(find("begin-btn")).text = Dialogue::flag("met_mayor") ? "Carry on" : "Begin";
+        const bool underWay = Dialogue::flag("met_mayor");
+        Button::of(find("begin-btn")).text = underWay ? "Carry on" : "Begin";
+        if (!underWay)
+        {
+            UIWidget::of(find("new-btn")).addClass("gone"); // nothing to start over from
+        }
         wire("begin-btn", EventHandler(this.onBegin));
+        wire("new-btn", EventHandler(this.onNewGame));
         wire("quit-btn", EventHandler(this.onQuit));
+    }
+
+    // Starts over: the save's flags and its place in a conversation go (the player's controls stay,
+    // kept apart from them), the village is put back as it began, and the lanterns are dark.
+    private bool onNewGame(GuiEvent e)
+    {
+        Save::clear();
+        Save::flush();
+        putBack();
+        lightLanterns(false);
+        return onBegin(e);
+    }
+
+    private void rememberStart()
+    {
+        Scene scene = run::currentScene();
+        array<string> names = kVillagers;
+        names.insertLast("Player");
+        names.insertLast("Cart");
+        for (uint i = 0; i < names.length(); i++)
+        {
+            Entity placed = scene.find(names[i]);
+            if (placed.isValid())
+            {
+                m_placed.insertLast(names[i]);
+                m_startPositions.insertLast(placed.worldPosition());
+                m_startRotations.insertLast(placed.rotation());
+            }
+        }
+    }
+
+    private void putBack()
+    {
+        Scene scene = run::currentScene();
+        for (uint i = 0; i < m_placed.length(); i++)
+        {
+            Entity placed = scene.find(m_placed[i]);
+            if (!placed.isValid())
+            {
+                continue;
+            }
+            placed.setRotation(m_startRotations[i]);
+            CharacterComponent@ character = CharacterComponent::of(placed);
+            if (character !is null)
+            {
+                character.setPosition(m_startPositions[i]); // the player walks as a character
+            }
+            else
+            {
+                placed.setPosition(m_startPositions[i]);
+            }
+        }
+        m_walker = -1;
+        idleAll();
     }
 
     private bool onBegin(GuiEvent e)

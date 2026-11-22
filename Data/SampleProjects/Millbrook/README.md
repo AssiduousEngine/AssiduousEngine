@@ -18,7 +18,8 @@ what you have done and whom you have met.
 
 After each, you tally what is left; when all three are done the mayor calls everyone to the
 fountain, the lanterns are lit and the fair opens, then the credits. The village keeps what you have
-done in its save, and a game saved partway through a conversation goes on from there.
+done in its save, and a game saved partway through a conversation goes on from there. With a game
+under way, the title offers Carry on and New game, which starts over with the village as it began.
 
 Controls: W A S D (or the left stick) to walk, relative to the camera; Left Shift (pressing the left
 stick) to run; E (A) to talk, to go on past a line and to choose the focused answer (the mouse
