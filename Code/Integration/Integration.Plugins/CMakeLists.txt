@@ -15,7 +15,8 @@ target_link_libraries(Integration.Plugins PRIVATE
     Pipeline::Core Pipeline::Importer Pipeline::Registration Foundation::Mcp Foundation::Json Foundation::Content
     Foundation::Scene Foundation::Scene.Resource Foundation::VFS Foundation::Runtime Foundation::Runtime.Client
     Foundation::Core doctest::doctest)
-# The dialogue facade's tests run behaviors in each backend that is built.
+# The dialogue facade's tests and the reference package's component tests run behaviors in each
+# backend that is built.
 if(TARGET ${SCRIPTLIB_ANGELSCRIPT})
     target_link_libraries(Integration.Plugins PRIVATE ${SCRIPTLIB_ANGELSCRIPT})
     target_compile_definitions(Integration.Plugins PRIVATE INTEGRATION_HAS_ANGELSCRIPT=1)

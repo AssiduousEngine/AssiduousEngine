@@ -2,10 +2,11 @@
 // Copyright (c) 2026-Present Robert Campbell
 
 // NativeSample.Engine's entry, the reference game's runtime code. Load is the one registration point:
-// it registers the spin component's reflection and adds the spin manager to every scene, live ones
-// included, through the engine's service (a host without one, such as the cook, offers none, and no
-// manager is added). What it adds is recorded and taken out again when the plugin unloads (a reload,
-// the project closing).
+// it registers the spin component's reflection, and through the engine's service adds the spin
+// manager to every scene, live ones included, and the package's domain, whose facade gives scripts
+// the component (a host without the service, such as the cook, offers none, and neither is added).
+// What it adds is recorded and taken out again when the plugin unloads (a reload, the project
+// closing); Unload takes back the script names, which the recording does not hold.
 
 #include "Core/Prelude.h"
 #include "Core/Log/Log.h"
@@ -15,7 +16,9 @@
 import foundation.core;
 import foundation.runtime;
 import foundation.scene;
-import engine.composition; // EnginePluginServices
+import foundation.script.facades; // ComponentMethods, the script roots and names
+import engine.domain;             // DomainModule
+import engine.composition;        // EnginePluginServices
 import nativesample.engine;
 
 namespace nativesample
@@ -31,11 +34,17 @@ namespace nativesample
             .PropAttribute("displayName", foundation::core::String(u8"Turns Per Second"))
             .Property<&SpinComponent::axis>("axis")
             .PropAttribute("displayName", foundation::core::String(u8"Axis"));
+        // SpinComponent.of(entity), addTo and removeFrom, as an engine component has them.
+        builder.Apply(&foundation::script::ComponentMethods<SpinComponent>);
     }
 }
 
 namespace
 {
+    // The package's domain: its script facade, run as it is added.
+    const engine::DomainModule kNativeSampleDomain{.id = u8"nativesample",
+                                                   .registerScriptFacade = &nativesample::RegisterSpinScriptFacade};
+
     void Load(foundation::runtime::PluginContext& context)
     {
         // The component's reflection: what the inspector, component_add and component_set read.
@@ -55,8 +64,11 @@ namespace
         spin.install = [](foundation::scene::Scene& scene) { scene.AddSystem<nativesample::SpinManager>(); };
         spin.systemType = foundation::core::TypeOf<nativesample::SpinManager>().id;
         engine->AddSceneManager(spin);
+        (void)engine->AddDomain(kNativeSampleDomain);
         LOG_INFO(u8"Game", u8"NativeSample loaded");
     }
+
+    void Unload(foundation::runtime::PluginContext&) { nativesample::RemoveSpinScriptFacade(); }
 }
 
-PLUGIN_PART(&Load, nullptr)
+PLUGIN_PART(&Load, &Unload)

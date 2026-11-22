@@ -2,8 +2,8 @@
 // Copyright (c) 2026-Present Robert Campbell
 
 // nativesample.engine - the reference game's runtime types: a component the game puts on an entity,
-// and the scene manager that owns it and turns its entities, which the Engine part adds to every
-// scene; and the game's logic written in C++ as behaviors, one of each kind, with no script: the
+// which scripts reach as SpinComponent, and the scene manager that owns it and turns its entities,
+// which the Engine part adds to every scene; and the game's logic written in C++ as behaviors, one of each kind, with no script: the
 // game (NativeGame), the scene's (Showcase) and an entity's (Bobber). Each is a Native Behavior
 // asset in the project, named like its class.
 
@@ -128,4 +128,17 @@ export namespace nativesample
 
     // The id the Engine part contributes the manager under.
     inline constexpr foundation::core::StringView kSpinContribution = u8"nativesample.spin";
+
+    // What scripts see of the package: SpinComponent, with of, addTo and removeFrom as the engine's
+    // components have. Its domain registers it as the part loads; the unload takes it out again.
+    inline void RegisterSpinScriptFacade()
+    {
+        foundation::script::RegisterExtraScriptRootType(&foundation::core::TypeOf<SpinComponent>());
+        foundation::script::RegisterExtraFacadeName(u8"SpinComponent");
+    }
+    inline void RemoveSpinScriptFacade()
+    {
+        foundation::script::RemoveExtraScriptRootType(&foundation::core::TypeOf<SpinComponent>());
+        foundation::script::RemoveExtraFacadeName(u8"SpinComponent");
+    }
 }

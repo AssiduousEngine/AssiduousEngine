@@ -48,6 +48,13 @@ import foundation.script;          // kNativeLanguage
 import foundation.script.resource; // BehaviorClass, BehaviorClassSource: a cooked native behavior
 import engine.behavior;            // the run host and the scene's behavior systems
 import engine.run;                 // ApplicationRun: a native run behavior
+import foundation.script.facades;  // the facade reflection a script context reads
+#if defined(INTEGRATION_HAS_ANGELSCRIPT)
+import foundation.script.angelscript;
+#endif
+#if defined(INTEGRATION_HAS_LUAU)
+import foundation.script.luau;
+#endif
 
 using namespace foundation::core;
 using namespace foundation::mcp;
@@ -286,6 +293,127 @@ TEST_CASE("plugins: in the player, the Engine part reflects the spin component a
     CHECK(GlobalTypeRegistry().FindById(type.id) == nullptr); // taken out with the plugin
     embedded.OnShutdown(host);
 }
+
+#if defined(INTEGRATION_HAS_ANGELSCRIPT) || defined(INTEGRATION_HAS_LUAU)
+namespace
+{
+    void RegisterSpinScriptsOnce()
+    {
+        static const bool once = []()
+        {
+#if defined(INTEGRATION_HAS_ANGELSCRIPT)
+            foundation::script::angelscript::RegisterAngelScriptBackend();
+#endif
+#if defined(INTEGRATION_HAS_LUAU)
+            foundation::script::RegisterLuauScriptBackend();
+#endif
+            RegisterCoreTypes();
+            engine::behavior::RegisterBehaviorComponentReflection();
+            foundation::script::RegisterScriptFacadeReflection();
+            return true;
+        }();
+        (void)once;
+    }
+
+    // Loads the package as the player does, and starts `source`, an entity behavior named Spinner,
+    // on "a" (a Spin at a quarter turn a second), in a scene where "b" has no Spin and "c" has one.
+    // The script reaches all three through SpinComponent; what it did is in their Spins, and what it
+    // saw in a's name.
+    void RunSpinScript(StringView language, StringView source)
+    {
+        RegisterSpinScriptsOnce();
+        StubHost host;
+        engine::runtime::DefaultApplication embedded;
+        embedded.Configure(host);
+        runtime::PluginHost* plugins = embedded.CreatePluginHost(runtime::HostRole::Player);
+        REQUIRE(plugins != nullptr);
+        engine::project::ProjectSettings settings;
+        runtime::EnabledPlugin entry;
+        entry.id = String(kNativeSample);
+        settings.plugins.PushBack(Move(entry));
+        REQUIRE(engine::project::LoadProjectPlugins(*plugins, runtime::LinkedPluginList(), settings).loaded.Size() == 1u);
+        {
+            foundation::run::RunBase run{DefaultAllocator(), u8"spin"};
+            foundation::scene::Scene scene{DefaultAllocator(), u8"spin"};
+            engine::behavior::BehaviorRunHost scripts{DefaultAllocator()};
+            scene.SetRun(&run);
+            foundation::scene::SceneModuleContributions::Global().InstallAll(scene);
+            auto* components = scene.AddSystem<engine::behavior::BehaviorComponentManager>();
+            auto* behaviors = scene.AddSystem<engine::behavior::EntityBehaviorSystem>();
+            components->SetScriptSystem(behaviors);
+            behaviors->SetRunHost(&scripts);
+            scripts.Binding().run = &run;
+            (void)run.Register<engine::behavior::BehaviorRunHost>(scripts);
+            nativesample::SpinManager* spins = scene.GetSystem<nativesample::SpinManager>();
+            REQUIRE(spins != nullptr);
+            const foundation::scene::EntityHandle a = scene.CreateEntity(u8"a");
+            const foundation::scene::EntityHandle b = scene.CreateEntity(u8"b");
+            const foundation::scene::EntityHandle c = scene.CreateEntity(u8"c");
+            spins->Add(a).turnsPerSecond = 0.25f;
+            spins->Add(c);
+
+            RefPtr<foundation::script::BehaviorClass> cls = MakeRef<foundation::script::BehaviorClass>(DefaultAllocator());
+            cls->language = String(language);
+            cls->className = String(u8"Spinner");
+            cls->kind = foundation::script::BehaviorKind::Entity;
+            cls->source = String(source);
+            cls->handlers.PushBack(String(u8"onStart"));
+            cls->BuildProfileName();
+            engine::behavior::AttachedBehavior attached;
+            attached.behaviorClass = cls;
+            components->Add(a).behaviors.PushBack(Move(attached));
+
+            scene.Start();
+            scene.SetSimulationEnabled(true);
+            scene.Update(0.1f);
+            CHECK(scene.GetEntityName(a) == StringView(u8"a|spinning|added|removed"));
+            REQUIRE(spins->Get(a) != nullptr);
+            CHECK(spins->Get(a)->turnsPerSecond == doctest::Approx(2.0f)); // set through of
+            REQUIRE(spins->Get(b) != nullptr);                              // given by addTo
+            CHECK(spins->Get(b)->turnsPerSecond == doctest::Approx(1.0f));
+            CHECK_FALSE(spins->Has(c)); // taken by removeFrom
+        }
+        embedded.DestroyPluginHost();
+        embedded.OnShutdown(host);
+    }
+}
+#endif
+
+#if defined(INTEGRATION_HAS_ANGELSCRIPT)
+TEST_CASE("plugins: an AngelScript behavior reaches the package's component as the engine's, by of, addTo and removeFrom")
+{
+    RunSpinScript(u8"angelscript",
+                  u8"class Spinner : EntityBehavior {\n"
+                  u8"    private Entity self;\n"
+                  u8"    Spinner(Entity entity) { self = entity; }\n"
+                  u8"    private void say(const string &in what) { self.setName(self.name() + \"|\" + what); }\n"
+                  u8"    void onStart() {\n"
+                  u8"        SpinComponent@ spin = SpinComponent::of(self);\n"
+                  u8"        if (spin !is null) { spin.turnsPerSecond = 2.0f; say(\"spinning\"); }\n"
+                  u8"        Entity other = self.scene.find(\"b\");\n"
+                  u8"        if (SpinComponent::of(other) is null) { SpinComponent::addTo(other).turnsPerSecond = 1.0f; say(\"added\"); }\n"
+                  u8"        if (SpinComponent::removeFrom(self.scene.find(\"c\"))) { say(\"removed\"); }\n"
+                  u8"    }\n"
+                  u8"}\n");
+}
+#endif
+
+#if defined(INTEGRATION_HAS_LUAU)
+TEST_CASE("plugins: a Luau behavior reaches the package's component as the engine's, by of, addTo and removeFrom")
+{
+    RunSpinScript(u8"luau",
+                  u8"Spinner = EntityBehavior.class()\n"
+                  u8"function Spinner.new(entity) return setmetatable({ entity = entity }, Spinner) end\n"
+                  u8"function Spinner:say(what) self.entity:setName(self.entity:name() .. \"|\" .. what) end\n"
+                  u8"function Spinner:onStart()\n"
+                  u8"    local spin = SpinComponent.of(self.entity)\n"
+                  u8"    if spin then spin.turnsPerSecond = 2; self:say(\"spinning\") end\n"
+                  u8"    local other = self.entity.scene:find(\"b\")\n"
+                  u8"    if not SpinComponent.of(other) then SpinComponent.addTo(other).turnsPerSecond = 1; self:say(\"added\") end\n"
+                  u8"    if SpinComponent.removeFrom(self.entity.scene:find(\"c\")) then self:say(\"removed\") end\n"
+                  u8"end\n");
+}
+#endif
 
 TEST_CASE("plugins: the cook loads the package's Engine and Pipeline parts, its builder and scene manager arriving and leaving with it")
 {
