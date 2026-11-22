@@ -358,9 +358,10 @@ namespace dialogue
         {
             return;
         }
-        // The cast, the dialogue assets and every other dialogue file are read: a change to any of
-        // them can change what this file's checks find (the flags the others set, the conversations
-        // a jump into one names).
+        // The cast and the dialogue assets are read, and every other dialogue file's text: a change
+        // to any of them can change what this file's checks find (the flags the others set, the
+        // conversations a jump into one names). The other files are their text, not reads: a read
+        // folds in the read asset's own recipe, and each file reading every other is a cycle.
         if (file.cast != Guid{})
         {
             out.reads.PushBack(file.cast);
@@ -394,7 +395,6 @@ namespace dialogue
                                 {
                                     return;
                                 }
-                                out.reads.PushBack(instance.Id());
                                 RefPtr<ISerializable> read = db->ReadObject(instance.Id());
                                 if (const auto* other = Cast<DialogueAsset>(read.Get()))
                                 {
