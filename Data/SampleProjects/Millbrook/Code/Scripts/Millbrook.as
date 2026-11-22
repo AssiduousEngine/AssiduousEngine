@@ -13,6 +13,7 @@
 // that starts with a conversation in progress resumes it.
 
 const string kHudDoc = "{c73aadcb-3022-4f3f-8adf-97c454da32be}";
+const Guid kFairTune = Guid("8754cba6-29ef-4d5f-8b1b-7193cf8df3e6"); // the fair's music, from the start
 const float kTalkReach = 2.6f;   // how near the player must be to talk with someone (m)
 const float kWalkSpeed = 1.6f;   // a villager's walk (m/s)
 const float kCatReach = 5.0f;    // how near the windmill the player sees the cat (m)
@@ -75,6 +76,7 @@ class Game : RunBehavior
     void onStart()
     {
         screens().push(kHudDoc);
+        Audio::playMusic(kFairTune);
         idleAll();
         // A save made mid conversation goes on where it was.
         Dialogue::resume();

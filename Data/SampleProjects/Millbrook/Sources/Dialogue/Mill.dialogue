@@ -1,6 +1,7 @@
 # The miller, by his house on the square's east side. His cart's wheel is the second task: it came
 # off on the way up from the stream, and he goes round the back with you to look for it (an errand:
-# the conversation leaves, and the game brings it back when you are both there).
+# the conversation leaves, and the game brings it back when you are both there). With the wheel back
+# on, the cart rolls into the square (Sequences/CartRolls) while the conversation waits.
 
 conversation miller in village
 if wheel_found
@@ -10,11 +11,17 @@ else
   choice
   > I'll help you look.
     @ miller: Come round the back with me, then.
+    fade out for 0.6
     errand WheelSpot
+    fade in for 0.6
+    sound splash at miller
     @ miller: There! Caught on the waterwheel's step.
     play miller pick-up and wait
-    @ miller happy: Not a scratch on it. I'll have it back on in no time.
+    @ miller happy: Not a scratch on it. Back on she goes.
     set wheel_found
+    sound rumble at miller
+    sequence cart_rolls and wait
+    @ miller happy: Hear that? She rolls like new. The benches will be out before the lanterns.
     jump progress in square
   > Later, perhaps.
     @ miller: It'll keep. The stream won't, mind.

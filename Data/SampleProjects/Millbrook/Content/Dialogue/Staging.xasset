@@ -9,7 +9,7 @@
 	</array>
 	<object name="payload">
 		<string name="fileName"/>
-		<array name="entries" count="4">
+		<array name="entries" count="10">
 			<object>
 				<string name="name">village</string>
 				<string name="asset">cae0f0d7-e823-4831-ad84-e2f785eca26a</string>
@@ -25,6 +25,30 @@
 			<object>
 				<string name="name">mill</string>
 				<string name="asset">69beea3e-381e-4b30-be8c-2e6476a3d77a</string>
+			</object>
+			<object>
+				<string name="name">rumble</string>
+				<string name="asset">963e7d4c-37ea-4adc-86c1-63deec80a666</string>
+			</object>
+			<object>
+				<string name="name">splash</string>
+				<string name="asset">d8a2bbd3-0203-4c0f-ab63-652fda1ed91e</string>
+			</object>
+			<object>
+				<string name="name">knock</string>
+				<string name="asset">aded2d4c-b627-4f4f-ad03-0ec264c86e8f</string>
+			</object>
+			<object>
+				<string name="name">meow</string>
+				<string name="asset">ff949f26-c6f6-420c-9bc1-1ec734b04197</string>
+			</object>
+			<object>
+				<string name="name">chime</string>
+				<string name="asset">1f7e07ff-c1ab-461f-a22d-904b694e0e0b</string>
+			</object>
+			<object>
+				<string name="name">cart_rolls</string>
+				<string name="asset">80fc2d77-433c-4fb9-bb28-676f01e6a366</string>
 			</object>
 		</array>
 	</object>

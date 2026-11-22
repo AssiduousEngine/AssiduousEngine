@@ -19,6 +19,7 @@ if not met_mayor
   end
 else
   if fair_ready
+    sound chime
     @ mayor happy: Everything's done? Then light the lanterns. Millbrook's fair is open!
   else
     @ mayor: How are we getting on?
@@ -79,6 +80,7 @@ if cat_found
 else
   if fair_cat_seen
     @ pip: You saw her? Up by the windmill?
+    sound meow
     play pip emote-yes
     @ pip happy: She always goes there when the sails turn. I'll fetch her right now!
     set cat_found

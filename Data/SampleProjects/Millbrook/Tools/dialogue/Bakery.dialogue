@@ -9,6 +9,7 @@ else
     @ you: The guard was keeping it safe.
     walk baker to SignSpot and wait
     play baker interact-right and wait
+    sound knock at baker
     @ baker happy: There. Now the fair can find my bread.
     set sign_hung
     jump progress in square

@@ -6,13 +6,14 @@
   moods, the clips `play` may name (from their own model) and their entity in the square, which is
   their model's name (an instance's root takes it; village.py).
 - The dialogue assets (Dialogue/Staging): the village (the level the conversations check their
-  entity names against) and the three files, so a jump reaches across them.
+  entity names against), the three files, so a jump reaches across them, and what the staging plays:
+  the sounds (sounds.py) and the cart's sequence (sequences.py).
 - Each file names the cast and the dialogue assets; the plugin's settings name them as a new
   file's defaults, declare the game's commands (walk, errand) and its flags (fair_*), and turn on
   the stock box.
 
-Run with the editor open on the project, after village.py and importscripts.py; then checks every
-file with dialogue_validate.
+Run with the editor open on the project, after village.py, sounds.py, sequences.py and
+importscripts.py; then checks every file with dialogue_validate.
 """
 import os, sys
 import xml.etree.ElementTree as ET
@@ -110,6 +111,12 @@ def main():
     rewrite(cast, speakers)
     village = find(listed, "SceneDocument", "Millbrook")
     entries = [("village", village)] + [(name.lower(), files[name]) for name in FILES]
+    for name in ("Rumble", "Splash", "Knock", "Meow", "Chime"):
+        entries.append((name.lower(), find(listed, "AudioClipAsset", name)))
+    entries.append(("cart_rolls", find(listed, "SequenceAsset", "CartRolls")))
+    missing = [name for name, guid in entries if guid is None]
+    if missing:
+        raise SystemExit("not made yet: %s (run village.py, sounds.py and sequences.py)" % ", ".join(missing))
 
     def staging_entries(payload):
         for child in list(payload):
