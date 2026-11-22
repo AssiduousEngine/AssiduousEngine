@@ -459,13 +459,8 @@ export namespace engine::terrain
 
             // The tileScale storage buffer: TileScales[i] = palette layer i (tight f32; the base
             // tile rides the view UBO, so a base-tile edit never rebuilds this buffer).
-            Array<f32> scales;
-            for (u32 i = 0; i < data.sliceCount; ++i)
-            {
-                scales.PushBack(i < paletteTileScales.Size() ? paletteTileScales[i] : 1.0f);
-            }
             rhi::BufferDesc bd{};
-            bd.size = scales.Size() * sizeof(f32);
+            bd.size = data.sliceCount * sizeof(f32);
             // StorageRead, not Storage: the shader only reads it, and CpuToGpu (upload-heap) memory
             // cannot carry UAV/Storage usage (the DX12 UPLOAD heap rule, which RHI validation checks).
             bd.usage = rhi::BufferUsage::StorageRead | rhi::BufferUsage::CopyDst;
@@ -477,9 +472,14 @@ export namespace engine::terrain
                 Destroy(device, out);
                 return false;
             }
+            // Written in place: a layer past the scales given tiles at 1.
             if (void* mapped = out.tileScaleBuffer->Map())
             {
-                MemCopy(mapped, scales.Data(), scales.Size() * sizeof(f32));
+                f32* scales = static_cast<f32*>(mapped);
+                for (u32 i = 0; i < data.sliceCount; ++i)
+                {
+                    scales[i] = i < paletteTileScales.Size() ? paletteTileScales[i] : 1.0f;
+                }
                 out.tileScaleBuffer->Unmap();
             }
             return true;
