@@ -5,14 +5,6 @@ engine, the editor or a game made with it would notice gets a line under **Unrel
 commit that makes it; a release turns Unreleased into its version and date. The steps are in
 [Documentation/Process/CONVENTIONS.md](Documentation/Process/CONVENTIONS.md), under Releases.
 
-## Unreleased
-
-### Fixed
-
-- Behaviors no longer hear contacts or animation events that happened before their scene started,
-  or that were still queued when it stopped; an editor scene that is not simulating no longer
-  queues them without end.
-
 ## 0.1.0-beta.5 - 2026-11-22
 
 ### Added
@@ -182,6 +174,9 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Behaviors no longer hear contacts or animation events that happened before their scene started,
+  or that were still queued when it stopped; an editor scene that is not simulating no longer
+  queues them without end.
 - MCP: reloading a project's plugins from a tool call (an agent's Reload Project Plugins, or
   `project_open` on the open project) keeps the plugins' own MCP tools. They were refused as taken
   by their old copies, which then left, so the tools were gone until the project was opened again.
