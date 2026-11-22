@@ -7,6 +7,12 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ## Unreleased
 
+### Fixed
+
+- Behaviors no longer hear contacts or animation events that happened before their scene started,
+  or that were still queued when it stopped; an editor scene that is not simulating no longer
+  queues them without end.
+
 ## 0.1.0-beta.5 - 2026-11-22
 
 ### Added

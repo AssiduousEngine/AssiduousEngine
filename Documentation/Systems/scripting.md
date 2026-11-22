@@ -120,9 +120,11 @@ level load reads null rather than a freed scene.
 ## Events into scripts
 
 - **Physics**: `onContactBegin/End(other, point, normal, speed)`, `onTriggerEnter/Exit`.
-  Script does NOT depend on physics - `engine.integration`'s `ScriptPhysicsContactBridge`
-  (`DefaultApplication` owns it) registers as physics' `IContactListener`, resolves an
-  entity-packed body user word to the exact entity and dispatches.
+  Script does not depend on physics: physics posts each contact or trigger to the scene as an
+  entity event (`Scene::PostEntityEvent`, to each side's entity, the other side an
+  `EntityHandle`), and the behavior system, a sink on the scene, queues it as `on<Name>` with
+  that handle made the script `Entity`. Animation posts its ended one-shots and clip events the
+  same way. Only a started scene's behaviors hear them; a stop drops what was queued.
 - **entity.send**: `entity.send("heal", amount)` invokes `onHeal(amount)` on every behavior
   of the target that declares it. Delivery is DEFERRED (queued + drained at the tick's top
   level - re-entrant VM calls are unsafe). Payload is a single `Variant`, not N overloads

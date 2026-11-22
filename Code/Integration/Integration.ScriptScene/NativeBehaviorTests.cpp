@@ -185,3 +185,49 @@ TEST_CASE("native behaviors: a cooked native class takes an entity's override an
     CHECK(object->GetProperty(u8"lastBy").Value().Get<String>() == String(u8"rock"));
     CHECK_FALSE(components->Get(target)->behaviors[0].faulted);
 }
+
+TEST_CASE("native behaviors: only a running scene's behaviors hear entity events, and a stop drops what was queued")
+{
+    nativecook::RegisterOnce();
+    BehaviorClassSource cooked;
+    String why;
+    REQUIRE(pipeline::HarvestNativeBehaviorClass(*FindNativeBehaviorClass(u8"rtti::nativecook::Target"), DefaultAllocator(), cooked, why));
+
+    foundation::run::RunBase run{DefaultAllocator(), u8"native"};
+    scene::Scene world{DefaultAllocator(), u8"native"};
+    BehaviorRunHost host{DefaultAllocator()};
+    world.SetRun(&run);
+    auto* components = world.AddSystem<BehaviorComponentManager>();
+    auto* behaviors = world.AddSystem<EntityBehaviorSystem>();
+    components->SetScriptSystem(behaviors);
+    behaviors->SetRunHost(&host);
+
+    const scene::EntityHandle target = world.CreateEntity(u8"target");
+    const scene::EntityHandle rock = world.CreateEntity(u8"rock");
+    AttachedBehavior behavior;
+    behavior.behaviorClass = nativecook::ClassFrom(cooked);
+    components->Add(target).behaviors.PushBack(Move(behavior));
+    const Variant args[] = {Variant::From<scene::EntityHandle>(rock), Variant::From<f64>(1.0)};
+    const auto hit = [&]() { world.PostEntityEvent(scene::EntityEvent{target, u8"hit", Span<const Variant>(args, 2)}); };
+    const auto hits = [&]() { return components->Get(target)->behaviors[0].instance->GetProperty(u8"hits").Value().Get<i32>(); };
+
+    // Posted before the scene starts (an editor page not simulating): nothing hears it, nothing
+    // keeps it.
+    hit();
+    world.Start();
+    world.SetSimulationEnabled(true);
+    world.Update(1.0f / 60.0f);
+    CHECK(hits() == 0);
+
+    // Running: heard at the next update.
+    hit();
+    world.Update(1.0f / 60.0f);
+    CHECK(hits() == 1);
+
+    // Queued, then the scene stops before it is drained: the next run starts without it.
+    hit();
+    world.Stop();
+    world.Start();
+    world.Update(1.0f / 60.0f);
+    CHECK(hits() == 0); // a new instance, which heard nothing
+}

@@ -604,6 +604,9 @@ export namespace foundation::scene
         /// sink keeps its own queue and delivers at its own safe point.
         void PostEntityEvent(const EntityEvent& event)
         {
+            // A sink only takes the event in (it queues it); one that posted again would clear the
+            // flag under the outer post, and the asserts on adding and removing sinks would miss it.
+            DIAGNOSTIC_ASSERT(!m_postingEntityEvent && "an entity event posted from a sink");
             m_postingEntityEvent = true;
             for (IEntityEventSink* sink : m_entityEventSinks)
                 sink->OnEntityEvent(*this, event);

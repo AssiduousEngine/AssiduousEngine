@@ -100,8 +100,9 @@ overlaps them. Contacts are per body pair (a compound's children touching one bo
 contact), and a pair whose bodies fall asleep touching stays in contact until they wake apart; a
 sensor's pair ends as `TriggerExit`. Contact/trigger events are appended to a lock-free buffer on Jolt worker threads
 (entity ids packed in body user data - O(1) reverse mapping, no re-entry into Jolt) with an overflow
-counter surfaced as a warning, then dispatched on the main thread after the step (to each
-registered `IContactListener`, the script subsystem among them). Contact data (relative velocity,
+counter surfaced as a warning, then posted on the main thread after the step as entity events to
+the scene (`contactBegin`, `contactEnd`, `triggerEnter`, `triggerExit`, to each side's entity),
+which the scene's behavior system hears as `on<Name>`. Contact data (relative velocity,
 combined friction/restitution) comes from Jolt's manifold.
 
 Two scene capabilities let systems that do not depend on physics use it: the rigid body manager is

@@ -812,6 +812,7 @@ export namespace engine::behavior
         void OnSceneStopped() override
         {
             m_started = false;
+            m_messages.Clear(); // what was queued for this run does not reach the next one
             DestroyAllInstances();
             m_eventSubs.Clear(); // drop bus subscriptions; re-subscribed as behaviors rebind on run
             if (m_runObserver)
@@ -990,7 +991,10 @@ export namespace engine::behavior
         /// gated by HasHandler in InvokeHandler, as messages are.
         void OnEntityEvent(scene::Scene& scene, const scene::EntityEvent& event) override
         {
-            if (!event.target.IsAssigned() || event.name.IsEmpty())
+            // Only a running scene's behaviors hear what happens to their entities: a scene not
+            // started (an editor page that is not simulating) never drains its queue, and an event
+            // kept from before a start would arrive as if it had just happened.
+            if (!m_started || !event.target.IsAssigned() || event.name.IsEmpty())
                 return;
             PendingMessage pending;
             pending.target = event.target;
