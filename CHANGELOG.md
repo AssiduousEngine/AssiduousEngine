@@ -118,8 +118,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   contacts and triggers, animation its ended one-shots and clip events. `IContactListener`,
   `IAnimationListener` and the `Engine.Integration` bridges are gone; behaviors' handlers are
   unchanged.
-- Scripts: a behavior declares its kind by deriving from it - `EntityBehavior`, `SceneBehavior` or
-  `RunBehavior` (`class Coin : EntityBehavior`; in Luau `Coin = EntityBehavior.class()`) - and may
+- Scripts: a behavior declares its kind by deriving from `EntityBehavior`, `SceneBehavior` or
+  `RunBehavior` (`class Coin : EntityBehavior`; in Luau `Coin = EntityBehavior.class()`), and may
   have any name. The reserved names `Game` and `Level` are gone: a project's scripts add the base
   their class needs, and a script without one is refused where a behavior is set.
 - Editor and MCP: a script asset no longer has a Class setting, and `script_validate` no longer
@@ -178,7 +178,7 @@ commit that makes it; a release turns Unreleased into its version and date. The 
   resizes and re-centres, its text moving with it. The editor's pickers are built the first time
   they are asked for, so Add Component, and every other dialog, did this on its first open. A
   popup is now styled before it is measured, so it opens at its sheet's size, in place.
-- Windows: on a scaled display (Wayland or macOS at 125% and up) the editor and games draw at the
+- Editor and games: on a scaled display (Wayland or macOS at 125% and up) they draw at the
   display's own pixels instead of being stretched by the system, and the pointer lands where it
   points.
 - GUI: removing or resizing a world panel or render-texture canvas no longer waits for the GPU
