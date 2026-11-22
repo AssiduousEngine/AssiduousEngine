@@ -349,3 +349,15 @@ TEST_CASE("asset picker: a long where gives way, never the name, nor drawn over 
     CHECK(near->KindLabel()->GetScreenBounds().x == doctest::Approx(farKind.x));
     bed.picker->Close();
 }
+
+TEST_CASE("asset picker: the window going first, as it does on exit, leaves it closed and safe to destroy")
+{
+    Bed bed;
+    bed.Open(Guid{});
+    REQUIRE(bed.picker->IsOpen());
+    const WeakRefPtr<gui::SceneRoot> weak(bed.root);
+    bed.root = RefPtr<gui::SceneRoot>{};
+    REQUIRE(weak.Expired());
+    CHECK_FALSE(bed.picker->IsOpen());
+    bed.picker.Reset(); // its destructor closes it: nothing, with no root to reach
+}

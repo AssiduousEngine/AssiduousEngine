@@ -302,3 +302,16 @@ TEST_CASE("picker: a right-click's menu from the request, on an item or the spac
     CHECK(bed.picker.LitKey() == StringView(u8"cedar"));
     CHECK(bed.picker.RowCount() > 4u); // every row again, not the search's
 }
+
+TEST_CASE("picker: the window going first, as it does on exit, leaves it closed and safe to destroy")
+{
+    // The editor closes its window (and so the root a picker opened over) before its pickers go.
+    Bed bed;
+    bed.Open(bed.Materials());
+    REQUIRE(bed.picker.IsOpen());
+    const WeakRefPtr<gui::SceneRoot> weak(bed.root);
+    bed.root = RefPtr<gui::SceneRoot>{};
+    REQUIRE(weak.Expired());
+    CHECK_FALSE(bed.picker.IsOpen());
+    bed.picker.Close(); // what its destructor does: nothing, with no root to reach
+}

@@ -168,7 +168,7 @@ export namespace editor::app
             content::ContentDatabase* db = Sources();
             if (!m_content || dispatcher == nullptr || IsOpen() || db == nullptr)
                 return false;
-            m_root = &root;
+            m_root = WeakRefPtr<gui::SceneRoot>(RefPtr<gui::SceneRoot>(&root));
             m_request = Move(request);
             m_query.Clear();
             m_tiles = StoredTiles();
@@ -203,11 +203,12 @@ export namespace editor::app
         void Close()
         {
             if (IsOpen())
-                (void)m_root->GetEventDispatcher()->ClosePopup(*m_content);
+                (void)m_root.Lock()->GetEventDispatcher()->ClosePopup(*m_content);
         }
         [[nodiscard]] bool IsOpen() const
         {
-            return m_root != nullptr && m_content && m_root->GetEventDispatcher() != nullptr && m_root->GetEventDispatcher()->IsPopupOpen(*m_content);
+            const RefPtr<gui::SceneRoot> root = m_root.Lock(); // null once the window has destroyed it
+            return root && m_content && root->GetEventDispatcher() != nullptr && root->GetEventDispatcher()->IsPopupOpen(*m_content);
         }
 
         /// Switches between tiles and a list; the choice is kept with the project for the next pick.
@@ -637,7 +638,9 @@ export namespace editor::app
         IAllocator& m_allocator;
         Services m_services;
         RefPtr<gui::Node> m_content;
-        gui::SceneRoot* m_root = nullptr;
+        // What it opened over, held weakly: the window may destroy it first (on exit), and a
+        // dead root reads as closed.
+        WeakRefPtr<gui::SceneRoot> m_root;
         gui::TextField* m_search = nullptr;
         gui::TreeView* m_tree = nullptr;
         gui::ListView* m_list = nullptr;

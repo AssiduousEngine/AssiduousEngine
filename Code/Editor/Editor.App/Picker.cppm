@@ -224,7 +224,7 @@ export namespace editor::app
             gui::EventDispatcher* dispatcher = root.GetEventDispatcher();
             if (!m_content || dispatcher == nullptr || IsOpen())
                 return false;
-            m_root = &root;
+            m_root = WeakRefPtr<gui::SceneRoot>(RefPtr<gui::SceneRoot>(&root));
             m_request = Move(request);
             if (m_search != nullptr)
             {
@@ -246,11 +246,12 @@ export namespace editor::app
         void Close()
         {
             if (IsOpen())
-                (void)m_root->GetEventDispatcher()->ClosePopup(*m_content);
+                (void)m_root.Lock()->GetEventDispatcher()->ClosePopup(*m_content);
         }
         [[nodiscard]] bool IsOpen() const
         {
-            return m_root != nullptr && m_content && m_root->GetEventDispatcher() != nullptr && m_root->GetEventDispatcher()->IsPopupOpen(*m_content);
+            const RefPtr<gui::SceneRoot> root = m_root.Lock(); // null once the window has destroyed it
+            return root && m_content && root->GetEventDispatcher() != nullptr && root->GetEventDispatcher()->IsPopupOpen(*m_content);
         }
 
         /// Filters for `text`, as typing it in the search does.
@@ -623,7 +624,9 @@ export namespace editor::app
         gui::UIWidget* m_state = nullptr;
         gui::Label* m_hint = nullptr;
         String m_keysHint; // what the keys do; the footer shows it when the highlighted item has no description
-        gui::SceneRoot* m_root = nullptr; // what it opened over
+        // What it opened over, held weakly: the window may destroy it first (on exit), and a
+        // dead root reads as closed.
+        WeakRefPtr<gui::SceneRoot> m_root;
         PickerRequest m_request;
         RefPtr<gui::Menu> m_menu; // a right-click's menu (OnContextMenu), while it is the last one
         Array<Row> m_rows;

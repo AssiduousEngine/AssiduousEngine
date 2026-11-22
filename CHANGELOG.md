@@ -169,6 +169,8 @@ commit that makes it; a release turns Unreleased into its version and date. The 
 
 ### Fixed
 
+- Editor: quitting after a picker had been opened (Add Component, an asset field's) no longer
+  crashes on the way out and leaves a crash dump.
 - Rendering: when a scene switches to another camera, the view starts its history fresh (temporal
   anti-aliasing, reflections, global illumination, exposure and motion vectors), so nothing of the
   last shot smears into the new one.

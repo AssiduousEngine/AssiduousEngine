@@ -112,7 +112,7 @@ export namespace editor
             gui::EventDispatcher* dispatcher = root.GetEventDispatcher();
             if (!m_content || dispatcher == nullptr || IsOpen())
                 return false;
-            m_root = &root;
+            m_root = WeakRefPtr<foundation::gui::SceneRoot>(RefPtr<foundation::gui::SceneRoot>(&root));
             m_request = Move(request);
             m_query.Clear();
             if (m_search != nullptr)
@@ -140,11 +140,12 @@ export namespace editor
         void Close()
         {
             if (IsOpen())
-                (void)m_root->GetEventDispatcher()->ClosePopup(*m_content);
+                (void)m_root.Lock()->GetEventDispatcher()->ClosePopup(*m_content);
         }
         [[nodiscard]] bool IsOpen() const
         {
-            return m_root != nullptr && m_content && m_root->GetEventDispatcher() != nullptr && m_root->GetEventDispatcher()->IsPopupOpen(*m_content);
+            const RefPtr<foundation::gui::SceneRoot> root = m_root.Lock(); // null once the window has destroyed it
+            return root && m_content && root->GetEventDispatcher() != nullptr && root->GetEventDispatcher()->IsPopupOpen(*m_content);
         }
 
         /// Searches the scene for `text`, as typing it does: each match is kept with its ancestors.
@@ -306,7 +307,9 @@ export namespace editor
         SceneEditContext* m_edit;
         Services m_services;
         RefPtr<foundation::gui::Node> m_content;
-        foundation::gui::SceneRoot* m_root = nullptr;
+        // What it opened over, held weakly: the window may destroy it first (on exit), and a
+        // dead root reads as closed.
+        WeakRefPtr<foundation::gui::SceneRoot> m_root;
         foundation::gui::TextField* m_search = nullptr;
         foundation::gui::TreeView* m_tree = nullptr;
         foundation::gui::Label* m_state = nullptr;
