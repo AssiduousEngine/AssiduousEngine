@@ -18,6 +18,7 @@ import foundation.core;
 import foundation.json;
 import foundation.content;
 import foundation.mcp;
+import pipeline.core;
 import engine.project;
 import editor.project;
 import :session;
@@ -74,11 +75,11 @@ export namespace editor::mcp::detail
     }
 
     /// project_settings_set's schema: one argument per setting, as reflection describes it.
-    inline JsonValue ProjectSettingsSchema()
+    inline JsonValue ProjectSettingsSchema(const pipeline::BuilderRegistry& builders)
     {
         const Array<const PropertyInfo*> fields = ProjectSettingProperties();
         foundation::mcp::SchemaBuilder schema;
-        AddFieldsToSchema(schema, Span<const PropertyInfo* const>(fields.Data(), fields.Size()));
+        AddFieldsToSchema(schema, Span<const PropertyInfo* const>(fields.Data(), fields.Size()), builders);
         return schema.Build();
     }
 }
@@ -86,7 +87,8 @@ export namespace editor::mcp::detail
 export namespace editor::mcp
 {
     inline void RegisterProjectSettingsTool(foundation::mcp::McpServer& server,
-                                            ProjectSession& session)
+                                            ProjectSession& session,
+                                            const pipeline::BuilderRegistry& builders)
     {
         using foundation::mcp::ToolResult;
         ProjectSession* s = &session;
@@ -104,8 +106,8 @@ export namespace editor::mcp
             u8"in full before anything changes, then saved to the manifest; the editor re-applies "
             u8"what depends on them (the game UI's font and theme). Returns the settings and their "
             u8"categories as project_info does.",
-            detail::ProjectSettingsSchema(), foundation::mcp::ToolAnnotations::Adjusts(),
-            [s](const JsonValue& args) -> ToolResult
+            detail::ProjectSettingsSchema(builders), foundation::mcp::ToolAnnotations::Adjusts(),
+            [s, &builders](const JsonValue& args) -> ToolResult
             {
                 if (s->project == nullptr)
                 {
@@ -122,7 +124,7 @@ export namespace editor::mcp
                 // server refuses an argument it does not declare.
                 // Everything is checked before anything changes: a refusal leaves the settings as
                 // they were.
-                Result<Array<detail::FieldChange>, String> checked = detail::CheckFields(args, fields, project);
+                Result<Array<detail::FieldChange>, String> checked = detail::CheckFields(args, fields, project, builders);
                 if (!checked.HasValue())
                 {
                     return Err(Move(checked.Error()));

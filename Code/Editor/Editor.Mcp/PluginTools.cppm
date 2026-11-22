@@ -21,6 +21,7 @@ import foundation.core;
 import foundation.json;
 import foundation.mcp;
 import foundation.runtime;
+import pipeline.core;
 import engine.project;
 import editor.project;
 import :session;
@@ -149,7 +150,8 @@ export namespace editor::mcp::detail
 
 export namespace editor::mcp
 {
-    inline void RegisterPluginTools(foundation::mcp::McpServer& server, ProjectSession& session)
+    inline void RegisterPluginTools(foundation::mcp::McpServer& server, ProjectSession& session,
+                                    const pipeline::BuilderRegistry& builders)
     {
         using foundation::mcp::SchemaBuilder;
         using foundation::mcp::ToolResult;
@@ -405,7 +407,7 @@ export namespace editor::mcp
                 .Map(u8"settings", u8"the settings to change, by name", true)
                 .Build(),
             foundation::mcp::ToolAnnotations::Adjusts(),
-            [s](const JsonValue& args) -> ToolResult
+            [s, &builders](const JsonValue& args) -> ToolResult
             {
                 if (s->project == nullptr)
                 {
@@ -455,7 +457,7 @@ export namespace editor::mcp
                                           names.IsEmpty() ? StringView(u8"none") : names.AsView()));
                     }
                 }
-                Result<Array<detail::FieldChange>, String> checked = detail::CheckFields(given, fields, project);
+                Result<Array<detail::FieldChange>, String> checked = detail::CheckFields(given, fields, project, builders);
                 if (!checked.HasValue())
                 {
                     return Err(Move(checked.Error()));

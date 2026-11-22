@@ -236,7 +236,8 @@ for the list's last, and `mcpFolders`, the folders outside the project its MCP t
 reached once the user approves it; an export leaves them out), and `settingCategories`, how they group: the Project Settings dialog's tabs in
 order (General, Startup, Audio, UI, Display, Quality), each with the names of its settings.
 `project_settings_set` changes them, by the names `project_info` reports: each asset setting must
-name an asset of its type, `""` clears it, `uiFontIds`, `guiStyleSheetIds` and `qualityLevelIds`
+name an asset of its type (the tool's schema names the types; `runBehaviorId` takes a script's or a
+Native Behavior's asset), `""` clears it, `uiFontIds`, `guiStyleSheetIds` and `qualityLevelIds`
 take the whole list, `defaultQualityId` must be one of the levels as the call leaves them, a choice
 takes one of its values by name, and nothing changes when any of it is refused. `plugin_list` reports the plugins the project enables, in order: each
 entry's id, path (a project-local package, empty for the engine's), platforms (empty is every

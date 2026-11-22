@@ -118,9 +118,10 @@ export namespace engine::project
 
     // ProjectSettings reflects the settings the Project Settings dialog edits (and the MCP
     // project_settings_set sets), each with a `label`; an asset setting is a Guid property whose
-    // `assetType` attribute names the asset type it takes (the picker's filter) and whose
-    // `emptyText` says what unset means. A setting's `category` names the group it shows in (the
-    // dialog's tab; none is "General"). The engine stamp and the path mirrors are not settings.
+    // `assetType` attribute names the asset type it takes (the picker's filter), or what assets
+    // cook to, taking every asset type that cooks to it, and whose `emptyText` says what unset
+    // means. A setting's `category` names the group it shows in (the dialog's tab; none is
+    // "General"). The engine stamp and the path mirrors are not settings.
     inline constexpr const char* kSettingLabelAttribute = "label";
     inline constexpr const char* kSettingCategoryAttribute = "category";
     inline constexpr StringView kSettingDefaultCategory = u8"General";
@@ -168,9 +169,9 @@ export namespace engine::project
         Guid defaultSceneId;  // authoritative startup-scene reference (survives rename and move)
         String defaultScene;  // its source-DB path: the human-readable mirror, and the
                               // fallback when the guid does not resolve
-        Guid runBehaviorId; // the run behavior (a script asset whose class derives from
-                            // RunBehavior), bound from the content DB by the player and play in
-                            // editor. Nil: none.
+        Guid runBehaviorId; // the run behavior (a script's or a native behavior's asset whose
+                            // class derives from RunBehavior), bound from the content DB by the
+                            // player and play in editor. Nil: none.
         String runBehavior; // its source-DB path: the human-readable mirror
         Guid defaultInputMapId; // the input map the player binds at startup (nil: none)
         Guid defaultBusLayoutId; // the audio mixer layout applied at startup (nil: built-in)

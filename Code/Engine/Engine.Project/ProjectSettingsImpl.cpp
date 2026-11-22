@@ -50,9 +50,10 @@ namespace engine::project
         builder.Property<&ProjectSettings::defaultSceneId>("defaultSceneId");
         asset(u8"Default scene", u8"SceneDocument", u8"(none)", u8"Startup");
         builder.PropAttribute(kSettingSummaryAttribute, String(u8"Default scene"));
-        // The run behavior the player (and the Game tab) starts: a script asset deriving from RunBehavior.
+        // The run behavior the player (and the Game tab) starts: a class deriving from RunBehavior,
+        // named by what its asset cooks to, so a script's and a native behavior's asset both name one.
         builder.Property<&ProjectSettings::runBehaviorId>("runBehaviorId");
-        asset(u8"Run behavior", u8"ScriptClassAsset", u8"(none)", u8"Startup");
+        asset(u8"Run behavior", u8"BehaviorClass", u8"(none)", u8"Startup");
         builder.PropAttribute(kSettingSummaryAttribute, String(u8"Run behavior"));
         // The cooked map the player (and the Game tab) binds at startup.
         builder.Property<&ProjectSettings::defaultInputMapId>("defaultInputMapId");

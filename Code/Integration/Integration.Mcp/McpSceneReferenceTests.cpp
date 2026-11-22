@@ -384,6 +384,12 @@ TEST_CASE("integration.mcp: a reference's product joins to the source asset type
     CHECK(post[0] == u8"PostProcessProfileAsset");
     // A product made from two cooked forms has two asset types.
     CHECK(names(foundation::texture::Texture::StaticType()).Size() == 2u);
+    // A cooked form two builders make gives both their asset types: a behavior class is cooked
+    // from a script's asset and from a native behavior's.
+    const Array<String> behaviors = names(foundation::script::BehaviorClass::StaticType());
+    REQUIRE(behaviors.Size() == 2u);
+    CHECK(((behaviors[0] == u8"ScriptClassAsset" && behaviors[1] == u8"NativeBehaviorAsset") ||
+           (behaviors[0] == u8"NativeBehaviorAsset" && behaviors[1] == u8"ScriptClassAsset")));
     // A cooked form itself, such as a collision shape's mesh, accepts each asset that cooks to that
     // form or to one derived from it: a skinned mesh source derives from a static mesh source.
     const Array<String> meshes = names(foundation::geometry::StaticMeshSource::StaticType());

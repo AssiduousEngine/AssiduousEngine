@@ -7,7 +7,7 @@
 // project's settings (project_info / project_settings_set) and an export preset
 // (export_presets / export_preset_set) are both labelled properties. The kinds a field may be:
 // text, a list of texts, an asset's guid or a list of them (the `assetType` attribute names the
-// type), a count (within its `range`), a flag, a choice (an enum, by its values' names). The
+// type: an asset type, or what assets cook to, which takes every asset type that cooks to it), a count (within its `range`), a flag, a choice (an enum, by its values' names). The
 // answer, the arguments' schema, the check of given values and their write are each one function
 // here, so the tools differ only in their own rules (MSAA's levels, a preset's platform).
 
@@ -20,9 +20,11 @@ import foundation.core;
 import foundation.json;
 import foundation.content;
 import foundation.mcp;
+import pipeline.core;
 import engine.project;
 import editor.project;
 import :session;
+import :scene_reference;
 
 using namespace foundation::core;
 using foundation::json::JsonValue;
@@ -193,7 +195,40 @@ export namespace editor::mcp::detail
     }
 
     /// One argument per field, as reflection describes it.
-    inline void AddFieldsToSchema(foundation::mcp::SchemaBuilder& schema, Span<const PropertyInfo* const> fields)
+    /// The asset types a field's `assetType` takes: when it names what assets cook to (the run
+    /// behavior's BehaviorClass), every type the builders make it from (a script's, a native
+    /// behavior's), as the editor's reference picker reads it; otherwise the type it names.
+    inline Array<String> AcceptedAssetTypes(const pipeline::BuilderRegistry& builders, StringView named)
+    {
+        Array<String> names;
+        for (const TypeInfo* asset : SourceAssetTypesForNamed(builders, named))
+        {
+            names.PushBack(String(StringView(reinterpret_cast<const utf8char*>(asset->name))));
+        }
+        if (names.IsEmpty())
+        {
+            names.PushBack(String(named));
+        }
+        return names;
+    }
+
+    /// `names` for a sentence: "A", "A or B", "A, B or C".
+    inline String AssetTypesText(const Array<String>& names)
+    {
+        String text;
+        for (usize i = 0; i < names.Size(); ++i)
+        {
+            if (i > 0)
+            {
+                text += StringView(i + 1 == names.Size() ? u8" or " : u8", ");
+            }
+            text += names[i].AsView();
+        }
+        return text;
+    }
+
+    inline void AddFieldsToSchema(foundation::mcp::SchemaBuilder& schema, Span<const PropertyInfo* const> fields,
+                                  const pipeline::BuilderRegistry& builders)
     {
         for (const PropertyInfo* field : fields)
         {
@@ -201,18 +236,20 @@ export namespace editor::mcp::detail
             const String key(PropertyName(*field));
             const String* assetType =
                 engine::project::SettingAttribute(*field, engine::project::kSettingAssetTypeAttribute);
+            const String accepted = assetType != nullptr ? AssetTypesText(AcceptedAssetTypes(builders, assetType->AsView()))
+                                                         : String();
             if (engine::project::IsAssetListSetting(*field))
             {
                 schema.Arr(key, u8"string",
                            Format(u8"{}: the guids of assets of type {}, in order; the whole list, [] for none",
-                                  label->AsView(), assetType->AsView()));
+                                  label->AsView(), accepted.AsView()));
             }
             else if (assetType != nullptr)
             {
                 const String* emptyText =
                     engine::project::SettingAttribute(*field, engine::project::kSettingEmptyTextAttribute);
                 schema.Str(key, Format(u8"{}: the guid of an asset of type {}; \"\" clears it ({})", label->AsView(),
-                                       assetType->AsView(), emptyText != nullptr ? emptyText->AsView() : StringView()));
+                                       accepted.AsView(), emptyText != nullptr ? emptyText->AsView() : StringView()));
             }
             else if (IsTextListField(*field))
             {
@@ -277,7 +314,8 @@ export namespace editor::mcp::detail
     /// exist in `project` and be of the field's type (an asset list's entries once each), a count
     /// within its range, a choice one of its values, a flag a bool. The changes, or the refusal.
     inline Result<Array<FieldChange>, String> CheckFields(const JsonValue& args, Span<const PropertyInfo* const> fields,
-                                                          editor::EditorProject& project)
+                                                          editor::EditorProject& project,
+                                                          const pipeline::BuilderRegistry& builders)
     {
         Array<FieldChange> changes;
         for (const PropertyInfo* field : fields)
@@ -292,9 +330,11 @@ export namespace editor::mcp::detail
             change.field = field;
             const String* assetType =
                 engine::project::SettingAttribute(*field, engine::project::kSettingAssetTypeAttribute);
-            // One guid naming an asset of the field's type: the refusal, empty when it does;
+            const Array<String> accepted =
+                assetType != nullptr ? AcceptedAssetTypes(builders, assetType->AsView()) : Array<String>();
+            // One guid naming an asset of a type the field takes: the refusal, empty when it does;
             // `where` names the field in it.
-            const auto checkAsset = [&project, assetType](StringView where, StringView text, Guid& id) -> String
+            const auto checkAsset = [&project, &accepted](StringView where, StringView text, Guid& id) -> String
             {
                 if (!Guid::TryParse(text, id))
                 {
@@ -305,10 +345,15 @@ export namespace editor::mcp::detail
                 {
                     return Format(u8"`{}`: no asset with guid {} in the project", where, text);
                 }
-                if (asset->TypeName() != assetType->AsView())
+                bool takes = false;
+                for (const String& type : accepted)
                 {
-                    return Format(u8"`{}` takes an asset of type {}; '{}' is of type {}", where, assetType->AsView(),
-                                  asset->Name(), asset->TypeName());
+                    takes = takes || asset->TypeName() == type.AsView();
+                }
+                if (!takes)
+                {
+                    return Format(u8"`{}` takes an asset of type {}; '{}' is of type {}", where,
+                                  AssetTypesText(accepted).AsView(), asset->Name(), asset->TypeName());
                 }
                 return String();
             };
@@ -316,7 +361,7 @@ export namespace editor::mcp::detail
             {
                 if (!value.IsArray())
                 {
-                    return Err(Format(u8"`{}` takes an array of {} guids", key.AsView(), assetType->AsView()));
+                    return Err(Format(u8"`{}` takes an array of {} guids", key.AsView(), AssetTypesText(accepted).AsView()));
                 }
                 for (i64 i = 0; i < value.Count(); ++i)
                 {

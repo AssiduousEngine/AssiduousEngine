@@ -745,6 +745,7 @@ TEST_CASE("integration.mcp: an agent sets the project's settings")
     server.Paths().AddFolder(GetCurrentDirectory().AsView()); // the test's scratch folder
     server.Paths().AddFolder(foundation::vfs::FindDataRoot().AsView()); // the engine's fonts, as a host allows
     pipeline::RegisterAllImporters(importers); // a font for the list setting
+    pipeline::RegisterAllBuilders(builders, foundation::vfs::FindDataRoot()); // what a setting's product is cooked from
     editor::mcp::InlineProjectOperations operations(session, builders, String(), String());
     editor::mcp::RegisterEngineTools(server, session, builders, importers, creators, logBuffer,
                                      editor::mcp::EngineToolPaths{}, operations);
@@ -791,6 +792,12 @@ TEST_CASE("integration.mcp: an agent sets the project's settings")
                                            u8"defaultSceneId", sceneId.AsView()));
     CHECK(wrongType.AsView().StartsWith(
         u8"`defaultInputMapId` takes an asset of type InputMapAsset; 'Level1' is of type"));
+    // The run behavior names what its asset cooks to, so it takes a script's and a native
+    // behavior's asset, and the refusal names both.
+    const String notBehavior = refused(FfStr(JsonValue::MakeObject(), u8"runBehaviorId", sceneId.AsView()));
+    CHECK(notBehavior.AsView().StartsWith(u8"`runBehaviorId` takes an asset of type "));
+    CHECK(notBehavior.AsView().Contains(u8"ScriptClassAsset"));
+    CHECK(notBehavior.AsView().Contains(u8"NativeBehaviorAsset"));
     // A misspelled setting is refused by the server against the tool's schema, before the tool runs.
     CHECK(FfRefusedArgument(server, u8"project_settings_set",
                             FfStr(JsonValue::MakeObject(), u8"defaultMap", mapId.AsView()))

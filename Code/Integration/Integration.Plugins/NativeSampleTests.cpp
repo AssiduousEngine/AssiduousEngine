@@ -648,6 +648,11 @@ TEST_CASE("plugins: an agent lists the game's native behaviors, makes and cooks 
     REQUIRE_FALSE(cooked.error);
     CHECK(cooked.value.Get(u8"failed").AsNumber() == doctest::Approx(0.0));
     CHECK(cooked.value.Get(u8"cooked").AsNumber() >= 2.0); // the two classes' declarations
+    // The project's run behavior takes a native behavior's asset as it takes a script's.
+    JsonValue runBehavior = JsonValue::MakeObject();
+    runBehavior.Set(u8"runBehaviorId", JsonValue::MakeString(Format(u8"{}", gameId)));
+    CHECK_FALSE(Call(server, u8"project_settings_set", Move(runBehavior)).error);
+    CHECK(session.project->Settings().runBehaviorId == gameId);
     const auto classOf = [&session](const Guid& id) -> RefPtr<foundation::script::BehaviorClass>
     {
         RefPtr<ISerializable> read = session.project->CookedDb().ReadObject(id);

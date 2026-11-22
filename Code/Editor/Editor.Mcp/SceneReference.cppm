@@ -48,8 +48,9 @@ export namespace editor::mcp
     GenerateSceneReference(IAllocator& allocator, const pipeline::BuilderRegistry& builders);
 
     /// The source asset types a resource reference to `product` takes: the runtime type's factory
-    /// description in the engine composition gives its cooked forms, and the builder producing
-    /// each gives its asset type (a texture's and a render texture's for a Texture). A cooked form
+    /// description in the engine composition gives its cooked forms, and every builder producing
+    /// one gives its asset type (a texture's and a render texture's for a Texture; a script's and a
+    /// native behavior's for a BehaviorClass). A cooked form
     /// itself (what nothing makes at run time) takes every asset whose product is one or derives
     /// from one (a StaticMeshSource: the static and the skinned mesh). An authored record nothing
     /// cooks (a prefab's document) is itself the asset type, its records what a reference to the
@@ -57,6 +58,11 @@ export namespace editor::mcp
     /// composition makes the product.
     [[nodiscard]] Array<const TypeInfo*> SourceAssetTypesFor(const pipeline::BuilderRegistry& builders,
                                                              const TypeInfo& product);
+
+    /// SourceAssetTypesFor the product the engine composition's factories make named `productName`
+    /// (a type's bare name, BehaviorClass); empty when none makes one of that name.
+    [[nodiscard]] Array<const TypeInfo*> SourceAssetTypesForNamed(const pipeline::BuilderRegistry& builders,
+                                                                  StringView productName);
 
     /// The asset types a reference field of `referenceType` takes: a Ref<T>'s are T's
     /// (SourceAssetTypesFor), an id reference's its declared target itself, the asset type it

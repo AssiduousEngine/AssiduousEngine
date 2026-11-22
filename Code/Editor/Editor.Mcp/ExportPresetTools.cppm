@@ -19,6 +19,7 @@ import foundation.core;
 import foundation.json;
 import foundation.vfs;
 import foundation.mcp;
+import pipeline.core;
 import editor.project;
 import engine.project; // SettingAttribute: a field one platform has alone
 import :session;
@@ -157,7 +158,7 @@ export namespace editor::mcp
 {
     /// `hostToolDir`: the host executable's directory, where its own player (the host template) is.
     inline void RegisterExportPresetTools(foundation::mcp::McpServer& server, ProjectSession& session,
-                                          String hostToolDir)
+                                          const pipeline::BuilderRegistry& builders, String hostToolDir)
     {
         using foundation::mcp::ToolResult;
         ProjectSession* s = &session;
@@ -196,7 +197,7 @@ export namespace editor::mcp
 
         const Array<const PropertyInfo*> fields = detail::ExportPresetFields();
         foundation::mcp::SchemaBuilder schema;
-        detail::AddFieldsToSchema(schema, Span<const PropertyInfo* const>(fields.Data(), fields.Size()));
+        detail::AddFieldsToSchema(schema, Span<const PropertyInfo* const>(fields.Data(), fields.Size()), builders);
         schema.Boolean(u8"remove", u8"delete the preset instead; nothing but `name` may be given");
         server.RegisterTool(
             u8"export_preset_set",
@@ -211,7 +212,7 @@ export namespace editor::mcp
             u8"with none starts from its synthesized host preset, which stays). Returns the presets "
             u8"as export_presets does.",
             schema.Build(), foundation::mcp::ToolAnnotations::Overwrites(),
-            [s, hostToolDir](const JsonValue& args) -> ToolResult
+            [s, &builders, hostToolDir](const JsonValue& args) -> ToolResult
             {
                 if (s->project == nullptr)
                 {
@@ -251,7 +252,7 @@ export namespace editor::mcp
                 {
                     // Everything is checked before anything changes: a refusal leaves the file as it was.
                     Result<Array<detail::FieldChange>, String> checked =
-                        detail::CheckFields(args, span, *s->project);
+                        detail::CheckFields(args, span, *s->project, builders);
                     if (!checked.HasValue())
                     {
                         return Err(Move(checked.Error()));

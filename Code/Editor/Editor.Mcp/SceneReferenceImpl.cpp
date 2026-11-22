@@ -977,27 +977,50 @@ namespace editor::mcp
         }
         for (const TypeInfo* cooked : cookedForms)
         {
-            const TypeInfo* asset = nullptr;
+            // Every builder making the cooked form gives its asset type: a behavior class is
+            // cooked from a script's asset and from a native behavior's.
+            bool made = false;
             builders.ForEach(
                 [&](const pipeline::IAssetBuilder& builder)
                 {
                     const TypeInfo* output = builder.ProductType();
-                    if (asset == nullptr && cooked != nullptr && output != nullptr &&
-                        output->id == cooked->id)
+                    const TypeInfo* asset = builder.AssetType();
+                    if (cooked == nullptr || output == nullptr || asset == nullptr || output->id != cooked->id)
                     {
-                        asset = builder.AssetType();
+                        return;
                     }
+                    made = true;
+                    for (const TypeInfo* listed : assets)
+                    {
+                        if (listed->id == asset->id)
+                        {
+                            return;
+                        }
+                    }
+                    assets.PushBack(asset);
                 });
-            if (asset != nullptr)
-            {
-                assets.PushBack(asset);
-            }
-            else if (authored && cooked != nullptr)
+            if (!made && authored && cooked != nullptr)
             {
                 assets.PushBack(cooked); // an authored record nothing cooks is itself the asset type
             }
         }
         return assets;
+    }
+
+    Array<const TypeInfo*> SourceAssetTypesForNamed(const pipeline::BuilderRegistry& builders, StringView productName)
+    {
+        const TypeInfo* product = nullptr;
+        engine::FullComposition().ForEachFactoryDescription(
+            [&](const foundation::resource::ResourceModule&, const foundation::resource::ResourceFactoryDesc& desc)
+            {
+                const TypeInfo* made = desc.product();
+                if (product == nullptr && made != nullptr && made->name != nullptr &&
+                    StringView(reinterpret_cast<const utf8char*>(made->name)) == productName)
+                {
+                    product = made;
+                }
+            });
+        return product != nullptr ? SourceAssetTypesFor(builders, *product) : Array<const TypeInfo*>();
     }
 
     Array<const TypeInfo*> AssetTypesForReference(const pipeline::BuilderRegistry& builders, const TypeInfo& referenceType)

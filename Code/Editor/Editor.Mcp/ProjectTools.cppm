@@ -901,9 +901,9 @@ export namespace editor::mcp
         foundation::mcp::RegisterReflectionTools(server);
         foundation::mcp::RegisterScriptTools(server);
         RegisterProjectInfoTool(server, session);
-        RegisterProjectSettingsTool(server, session);
-        RegisterPluginTools(server, session);
-        RegisterExportPresetTools(server, session, GetExecutableDirectory()); // the host's own player
+        RegisterProjectSettingsTool(server, session, builders);
+        RegisterPluginTools(server, session, builders);
+        RegisterExportPresetTools(server, session, builders, GetExecutableDirectory()); // the host's own player
 
         RegisterAssetTools(server, session);
         RegisterAssetWriteTools(server, session, importers, operations);
