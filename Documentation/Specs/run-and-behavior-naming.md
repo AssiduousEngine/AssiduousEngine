@@ -4,8 +4,8 @@
 > `6df9380b9` for C#.
 >
 > The names decided here are the ones
-> [script-backends-as-plugins.md](script-backends-as-plugins.md) builds on: its gameplay layer
-> and native behaviors use them.
+> [native-behaviors.md](native-behaviors.md) builds on: its gameplay layer and native behaviors
+> use them.
 
 ## Goal
 
@@ -125,8 +125,8 @@ kind is needed.
   reads the class from its `function Game.new` (a check does not run the script). A `local` class
   is not found by the runtime and declares no kind.
 - **Native C++:** a class derives from `engine::RunBehavior` (or the other two) and is registered
-  by its plugin's Engine part. How its handlers are found (virtual methods or reflected methods
-  found by name) is open in [script-backends-as-plugins.md](script-backends-as-plugins.md).
+  by its plugin's Engine part. How its handlers are found was decided in
+  [native-behaviors.md](native-behaviors.md): reflected methods found by name.
 
 ### Handlers, aligned
 

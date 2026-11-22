@@ -398,6 +398,17 @@ What `Specs/scripting.md` leaves out, from the same review of the AngelScript in
   (to decide, and say in the script guide); garbage steps and coroutines run per context, sharing
   the frame's collector budget. A CHANGELOG line and a section in `Shipping/Scripting.md` with it.
 
+## Native behaviors: live objects carried across a plugin reload (user 2026-11-21)
+
+`Specs/native-behaviors.md` reloads native classes with their plugin while editing only: the
+editor's `ReloadPlugins` stops every run first, so no behavior object outlives a reload. Later, a
+run could survive it, as Godot's GDExtension reload does (`GDExtension::prepare_reload` /
+`finish_reload`): before the plugin unloads, save each live native object's properties by their
+name hashes; after it loads, make each object again from its class, write the saved values back
+(the overrides path, so a property the new class dropped is skipped and a new one takes its
+default), and tell it it was reloaded (an `onReloaded` handler). Reflected properties make the save
+and the restore cheap. Not needed until native behaviors are built and a game asks for it.
+
 ## Reduced module interfaces on Android: memcpy through one core wrapper (user 2026-11-12)
 
 The root CMakeLists gives Clang `-fmodules-reduced-bmi` everywhere but Android (8b51e8fff). With it,

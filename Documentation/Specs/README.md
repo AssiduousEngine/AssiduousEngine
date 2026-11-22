@@ -15,7 +15,8 @@ for every one.
 | [script-run-modules.md](script-run-modules.md) | M (L with P2) | PROPOSED 2026-09-26: one script module per run, hot reload that migrates |
 | [code-editing.md](code-editing.md) | L | APPROVED 2026-11-17, built 2026-11-18 (C# on dotnet; no entity handler yet): a project's Code folder, outside code editors, log references, E0 to E6 |
 | [scripting-typed-calls.md](scripting-typed-calls.md) | L | APPROVED 2026-11-18: script speed measured against native code, then a typed call path and names bound once |
-| [script-backends-as-plugins.md](script-backends-as-plugins.md) | L | APPROVED 2026-11-19: each script language a plugin; a gameplay layer that runs native behaviors with no VM, their handlers reflected methods found by name |
+| [script-backends-as-plugins.md](script-backends-as-plugins.md) | M | APPROVED 2026-11-19 (split 2026-11-21): each script language a plugin, a project with none carrying no VM, steps 1 to 6 |
+| [native-behaviors.md](native-behaviors.md) | L | APPROVED 2026-11-19 (split from script backends 2026-11-21): a gameplay layer the languages implement, and native run, scene and entity behaviors (handlers reflected methods found by name, a Native Behavior asset per class, marked fields as properties, reload while editing, crashes that name the behavior), N0 to N2 |
 | [run-and-behavior-naming.md](run-and-behavior-naming.md) | M | APPROVED 2026-11-19: ApplicationRun, the Facade suffix, RunBehavior/SceneBehavior/EntityBehavior as base types |
 | [entity-events.md](entity-events.md) | M | APPROVED and built 2026-11-19: domains post entity events to the scene; Engine.Integration and its bridges gone |
 | [terrain-improvements.md](terrain-improvements.md) | L | PROPOSED 2026-11-14: detiling, steep faces, distance scale, geomorphing, ground rules, authoring, T0 to T6 |
