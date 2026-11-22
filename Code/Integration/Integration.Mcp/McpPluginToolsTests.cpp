@@ -367,6 +367,10 @@ TEST_CASE("integration.mcp: an agent enables and disables plugins in the project
     REQUIRE_FALSE(meter.error);
     REQUIRE(meter.value.Get(u8"plugins").Count() == 1);
     CHECK(meter.value.Get(u8"plugins").At(0).Get(u8"platforms").At(0).AsString() == String(GetHostPlatformName()));
+    // This host offers it but loaded the project's plugins before it was enabled: it is pending,
+    // loaded when the project next opens, not missing from the build.
+    CHECK(meter.value.Get(u8"plugins").At(0).Get(u8"state").AsString() == String(u8"pending"));
+    CHECK(meter.value.Get(u8"plugins").At(0).Get(u8"reason").AsString().AsView().Contains(u8"loads when the project next opens"));
     const Called steam = enable(u8"steam", {u8"Linux64", u8"Win64"});
     REQUIRE_FALSE(steam.error);
     CHECK(steam.value.Get(u8"plugins").At(1).Get(u8"state").AsString() == String(u8"missing"));

@@ -241,7 +241,8 @@ take the whole list, `defaultQualityId` must be one of the levels as the call le
 takes one of its values by name, and nothing changes when any of it is refused. `plugin_list` reports the plugins the project enables, in order: each
 entry's id, path (a project-local package, empty for the engine's), platforms (empty is every
 platform its manifest supports) and its state in this host (`loaded`, `notEnabled` on this
-platform, `refused` or `missing`, with the reason), plus `unsupportedPlatforms`, platforms the
+platform, `refused`, `missing`, or `pending` when it was enabled after the project opened and loads
+when it next opens, with the reason), plus `unsupportedPlatforms`, platforms the
 entry names that its plugin does not support. `available` lists what the project could enable: each package in its Plugins folder that no entry
 names and each plugin this host links that no entry enables (`path` empty), with its name, version,
 parts and platforms, and `offered` false with a `problem` when it cannot be (its manifest does not

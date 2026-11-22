@@ -475,6 +475,7 @@ export namespace engine::project
         NotEnabled, // not enabled on the host's platform: absent, as the entry asks
         Refused,    // known, and refused (the reason says why)
         Missing,    // not in this host: its entry and settings are kept as written
+        Pending,    // in this host, enabled since it opened the project: it loads when the project next opens
     };
 
     [[nodiscard]] constexpr StringView PluginStateName(PluginState state) noexcept
@@ -485,6 +486,7 @@ export namespace engine::project
         case PluginState::NotEnabled: return u8"notEnabled";
         case PluginState::Refused: return u8"refused";
         case PluginState::Missing: return u8"missing";
+        case PluginState::Pending: return u8"pending";
         }
         return u8"";
     }
@@ -533,6 +535,13 @@ export namespace engine::project
         {
             status.state = PluginState::Refused;
             status.reason = refusal->reason;
+            return status;
+        }
+        if (host->Knows(id) && report.FindRefusal(id) == nullptr)
+        {
+            // The host offers it, but did not load the project's plugins with it enabled.
+            status.state = PluginState::Pending;
+            status.reason = Format(u8"plugin '{}' was enabled after the project opened: it loads when the project next opens", id);
             return status;
         }
         status.reason = Format(u8"plugin '{}' is not in this build", id);
