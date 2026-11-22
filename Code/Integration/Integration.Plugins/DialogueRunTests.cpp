@@ -511,6 +511,7 @@ TEST_CASE("plugins: the stock box types a line, takes a press to finish it and a
     r.Frame(0.0f);
     CHECK(r.runner->Waiting() == dialogue::DialogueWait::Choice);
     REQUIRE(box.AnswerCount() == 2u);
+    CHECK(box.Update(0.0f, true).choose == 0); // the advance action: the focused answer, the first
     box.Press(1); // Go.
     r.Frame(0.0f);
     CHECK(r.runner->Waiting() == dialogue::DialogueWait::Command);

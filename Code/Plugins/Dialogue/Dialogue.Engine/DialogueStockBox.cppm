@@ -6,7 +6,8 @@
 // screen on the run's screen stack that blocks nothing under it: a portrait, the speaker's name,
 // the line typed out at the settings' speed, and a choice's answers as buttons that the pad, the
 // keys and the mouse all reach. The advance action (the settings', Interact by default) or a press
-// on the box first finishes the typing, then advances; a press on an answer chooses it. The box
+// on the box first finishes the typing, then advances; a press on an answer chooses it, and the
+// advance action chooses the focused answer. The box
 // goes when the conversation ends. Its look is a sheet over the box alone: the plugin's own, or
 // the project's (`stockBoxSheet`) in its place, so a game restyles it without building its own.
 // The class names the sheets style: dialogue-screen, dialogue-box (portrait-right with

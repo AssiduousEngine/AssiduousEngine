@@ -283,7 +283,7 @@ from the plugin's markup (`DialogueStockBoxMarkup`): a portrait (the notice's), 
 name (none when the cast's `plate` is off), the line typed out at `typingSpeed` characters a second,
 and a choice's answers as buttons, the first focused, so the pad, the keys and the mouse all reach
 them. The advance action (`advanceAction`) or a press on the box first finishes the typing, then
-advances; a press on an answer chooses it. The box goes when the conversation ends (or the line a
+advances; a press on an answer chooses it, and so does the advance action on the focused one. The box goes when the conversation ends (or the line a
 sequence showed). Its look is a sheet over the box alone: the plugin's own
 (`DialogueStockBoxSheet`), or the project's `stockBoxSheet` in its place. The classes a sheet
 styles are `dialogue-screen`, `dialogue-box` (with `portrait-right` when `portraitOnRight` is on),

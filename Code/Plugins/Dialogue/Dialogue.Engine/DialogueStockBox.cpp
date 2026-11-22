@@ -238,7 +238,20 @@ namespace dialogue
         }
         if (!m_answers.IsEmpty())
         {
-            request.choose = m_answerPressed; // the answers take the presses; the advance action is theirs to confirm
+            // A press on an answer chooses it; the advance action chooses the focused one (the
+            // pad's or the keys' way through the answers), the first when none has the focus.
+            request.choose = m_answerPressed;
+            if (request.choose < 0 && advancePressed)
+            {
+                request.choose = 0;
+                for (usize i = 0; i < m_answers.Size(); ++i)
+                {
+                    if (m_answers[i]->IsFocused())
+                    {
+                        request.choose = static_cast<i32>(i);
+                    }
+                }
+            }
             m_answerPressed = -1;
             return request;
         }
