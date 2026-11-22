@@ -199,6 +199,94 @@ Component managers stay what they are: the way to update many entities as data. 
   Godot do this), which is a change to the editor for scripts as much as for native code; it is a
   direction, outside this spec.
 
+## The seam (N0, mapped 2026-11-21)
+
+Read on master at `805e7478d`: `Engine.Behavior` (`BehaviorSubsystem.cppm`, 2,056 lines;
+`BehaviorComponents.cppm`; `BehaviorSubsystemImpl.cpp`), `Engine.Run`'s `ApplicationRun`, and
+`Foundation/Script`'s `IScriptContext.cppm`.
+
+### What each part of `Engine.Behavior` is
+
+| Part | Gameplay layer or VM |
+|---|---|
+| `IsReservedHandler`, `EventNameForHandler`, `ScriptEventSubscriptions` (`on<Event>` handlers subscribed to a bus) | layer: works from `BehaviorClass::handlers`, names only |
+| `BehaviorRunHost`: `FindService` (the runtime binding, the run's services, the application's), `Binding()` (time, random, resources, message routing), `Advance`'s clock | layer |
+| `BehaviorRunHost`: `EnsureContext`, `EnsureContextForFile`, `EnsureClassLoaded` (a module per class, `behaviors#N`), the manager, `RunErrorSink`, the debugger and `DebugPauseTracker`, `Advance`'s and `CollectAllGarbage`'s collector steps, `Teardown`, the game-script hold | VM |
+| `BehaviorRunHost::Instantiate` | the seam: checks the kind (layer), then loads and creates on the context (VM) |
+| `ScriptPropertyValueToVariant`, `ApplyScriptProperties` | layer, but it sets a property by invoking the script's `<name>=` setter, which is a script convention |
+| `EntityBehaviorSystem`: start and enable edges, intervals, suspension, the fault rule (`HandlerResult`), messages, entity events, bus events, hot reload by the bound product changing | layer; it reaches the VM only through `Instantiate`, the object's `Bind` / `Invoke`, `IsDebugPaused`, and the manager's `AdvanceCoroutines` / `CancelCoroutinesFor` |
+| `SceneBehaviorSystem` | the same, for one object per scene |
+| `ApplicationRun::StartRunBehavior` | VM throughout: it compiles the source or loads the assembly on the run host's context and creates the object there, not through `Instantiate` |
+
+The object every call goes through, `foundation::script::ScriptObject`, is already language-neutral:
+`Invoke` by name or by a `ScriptMethod` handle from `Bind(name, argCount)`, and `GetProperty`
+(what `pie_run`'s probes read). Nothing in the layer depends on what is behind it.
+
+Two things find services through the VM where nothing needs one:
+
+- `CurrentService<T>()` reads the *context* a backend pushes (`ScriptCallScope`); every facade
+  that reaches the run (`run`, `Save`, `Input`, `Time`, `Random`, `Audio`, a plugin's) goes through
+  it. A native call has no context to push.
+- The dialogue plugin's runner pushes `ScriptCallScope(the run's VM context)` around its staging
+  only so the facades it calls find the run (`DialogueRun.cpp`). In a run with no VM that context
+  is null, so the facades find no run and the staging's clips and sounds would do nothing (read
+  from the code, not run). It is the first case of a
+  plugin's native code calling facades; native behaviors make it the common one.
+
+### The seam
+
+1. **A service scope apart from the script context.** `foundation.script` gains a `ServiceScope`
+   (a resolver pushed on a thread-local slot, defined out of line as the context slot is, for the
+   shared-library build) and `CurrentService<T>()` reads it. `ScriptCallScope` pushes the context
+   and its resolver both, so the backends change nothing. The layer pushes
+   `ServiceScope(host.FindService)` around every native call, and the dialogue runner pushes it in
+   place of the VM context. A facade cannot tell which kind of caller it serves.
+2. **The VM moves out of `BehaviorRunHost`.** The VM half (the manager, the context, the class
+   modules, the error sink, the debugger and the pause tracker, the collector steps, coroutines,
+   teardown) becomes a `ScriptBehaviorClasses` the host holds, made on first use as the context is
+   today. The host keeps the layer half (services, binding, clock), and
+   `Instantiate(class, args, kind)` checks the kind and asks the implementation for
+   `class.language`: `native` goes to `NativeBehaviorClasses`, any other language to
+   `ScriptBehaviorClasses`. The per-scene systems ask the host for the script half (null with no
+   VM) for coroutines and the debug pause, which they already treat as optional.
+3. **The run behavior goes through `Instantiate`.** `StartRunBehavior(const BehaviorClass&)` calls
+   `Instantiate(class, {}, Run)` as the entity and scene tiers do, so a native run behavior needs no
+   path of its own. The raw-source overload stays, for the tests that compile a source with no cook.
+4. **Properties go through the object.** `ScriptObject` gains `SetProperty(name, value)`; a VM
+   object's calls its `<name>=` setter, as `ApplyScriptProperties` does today, and a native object's
+   writes the reflected field. `ApplyScriptProperties` calls it, so the layer no longer spells a
+   script convention.
+
+N1 is these four, with no behavior change; the conformance suites and the dialogue staging tests
+prove it.
+
+### What N2 adds on the seam
+
+- **The kinds as C++ bases**: `engine::RunBehavior`, `SceneBehavior` and `EntityBehavior`, each an
+  `Object` the layer gives its `Entity` (an entity behavior) or its `Scene` (a scene behavior) on
+  creation, as a script's constructor takes them; `Fault(reason)` on each.
+- **`NativeBehaviorClasses`**: finds the class in the type registry by name (`FindByName`), checks
+  its base chain for the kind, creates it through its reflected constructor, and wraps it in a
+  native `ScriptObject`. `Bind(name, argCount)` finds the reflected method by its script name and
+  parameter count (a handle to its `MethodInfo`); `Invoke` pushes the service scope and the current
+  call (for the crash report), and calls the method's typed entry where it has one, else `invoke`
+  with the `Variant`s, an argument that does not convert being an error, so a fault; `GetProperty`
+  and `SetProperty` read and write the marked fields. No separate registry: a plugin's reflection,
+  registered at its load and removed at its unload, is the list of native classes.
+- **The Native Behavior asset's cook** sits beside the script cook in `Pipeline/Script.Pipeline`:
+  a builder for the new asset that finds the class as `NativeBehaviorClasses` does (the cook loads a
+  project's Engine parts, so the reflection is there), harvests the marked fields and the `on`
+  methods into a `BehaviorClassSource`, and puts the plugin's build stamp in the recipe.
+
+### Decided (2026-11-21)
+
+- **`ScriptObject` becomes `BehaviorObject`**, renamed in N1 with every use: after N2 it is also a
+  native object, and the layer would otherwise call C++ objects script objects.
+- **Native classes are found by reflection alone**: a plugin's reflected types, registered at its
+  load and removed at its unload, are the list. No registry of their own.
+- **`SetProperty` on the object** (seam 4): a native class never answers a script's `<name>=`
+  setter names.
+
 ## Order of work
 
 Each step stands on its own and leaves the tree green.
@@ -206,10 +294,10 @@ Each step stands on its own and leaves the tree green.
 0. **N0 Map `Engine.Behavior`.** Which parts are gameplay machinery and which are VM calls; write
    the seam (the class implementation interface, in place of `Instantiate` and `ScriptObject`) into
    this spec before any code moves, with where the cook harvests a native class's properties and
-   handlers.
-1. **N1 The seam.** `Engine.Behavior` calls classes through the class implementation interface,
-   and the service lookup moves to the run's call scope; the three VMs implement it. No behavior
-   change; the conformance suites prove it.
+   handlers. Done: The seam, above, and its decisions.
+1. **N1 The seam.** The four parts of The seam, above, and the rename of `ScriptObject` to
+   `BehaviorObject`. No behavior change; the conformance suites and the dialogue staging tests
+   prove it.
 2. **N2 Native classes.** A plugin registers native run, scene and entity behaviors: the Native
    Behavior asset and its cook (properties from the marked fields, handlers from the `on` methods,
    the plugin's build stamp in its recipe), the picker's entry for a registered class with no asset
