@@ -1,6 +1,6 @@
 # RHI handles
 
-> STATUS: PROPOSED 2026-11-22, for discussion. Sized XL, in phases H0 to H6, green after each.
+> STATUS: APPROVED 2026-11-22. Sized XL, in phases H0 to H6, green after each.
 > Origin: the user asked whether handles would make the RHI's API better or safer (2026-11-22);
 > the answer was yes, for lifetime, and a survey of the engine found the other places a slot is
 > reused without a generation. Read CONVENTIONS.md first.
