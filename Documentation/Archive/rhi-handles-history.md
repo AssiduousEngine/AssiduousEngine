@@ -1,6 +1,11 @@
 # RHI handles
 
-> STATUS: APPROVED 2026-11-22. Sized XL, in phases H0 to H6, green after each.
+> ARCHIVED 2026-11-23, fully built on the `rhi-handles` branch (H0 to H6) and merged to master;
+> what it left open is in Documentation/Plans/weekly_backlog.md ("Left over from the RHI handles
+> spec"). Non-authoritative: the original spec, kept as the record of what was built and why; the
+> code and the tests are the truth. Each phase's write-up is in Documentation/Plans/week-2026-11-21.md.
+
+> STATUS: DONE 2026-11-23, H0 to H6. Sized XL, in phases H0 to H6, green after each.
 > Origin: the user asked whether handles would make the RHI's API better or safer (2026-11-22);
 > the answer was yes, for lifetime, and a survey of the engine found the other places a slot is
 > reused without a generation. Read CONVENTIONS.md first.
