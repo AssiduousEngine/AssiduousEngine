@@ -493,10 +493,10 @@ int main(int /*argc*/, char** /*argv*/)
                     dx12Device->CreateBuffer(bd, dx12Buf);
                     if (dx12Buf)
                     {
-                        void* mapped = dx12Buf->Map();
+                        void* mapped = dx12Device->Map(dx12Buf);
                         std::printf("DX12 buffer mapped: %s\n", mapped ? "OK" : "FAIL");
                         if (mapped)
-                            dx12Buf->Unmap();
+                            dx12Device->Unmap(dx12Buf);
                         dx12Device->DestroyBuffer(dx12Buf);
                     }
 
