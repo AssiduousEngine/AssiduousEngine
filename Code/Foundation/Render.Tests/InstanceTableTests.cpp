@@ -10,11 +10,19 @@
 import foundation.core;
 import foundation.rhi;
 import foundation.rhi.null;
+import foundation.geometry;
+import foundation.materials;
+import foundation.materials.pipelinecache;
+import foundation.shaders;
+import foundation.shaders.system;
 import foundation.render;
 
 using namespace foundation::core;
 using namespace foundation::render;
 namespace rhi = foundation::rhi;
+namespace geometry = foundation::geometry;
+namespace materials = foundation::materials;
+namespace shaders = foundation::shaders;
 
 namespace
 {
@@ -280,4 +288,78 @@ TEST_CASE("instance table: an item with no entity has a slot for its frame alone
     CHECK(bed.table.LiveSlots() == 0u);
     CHECK(bed.table.Write(kSceneA, 0, At(6.0f), Color{1, 1, 1, 1}) == slot);
     (void)bed.End();
+}
+
+TEST_CASE("instance table: the mesh renderer's frame gives each mesh its record, written only when it moves")
+{
+    shaders::Compiler* compiler = nullptr;
+    if (!shaders::createCompiler(shaders::CompilerDesc{}, compiler).IsOk())
+    {
+        MESSAGE("no shader compiler; skipping");
+        return;
+    }
+    {
+        rhi::null::NullDevice device(DefaultAllocator());
+        shaders::ShaderSystem shaderSystem(*compiler, device);
+        materials::PipelineStateCache psoCache(shaderSystem, device);
+        materials::MaterialSystem materialSystem;
+        REQUIRE(materialSystem.Initialize(device).IsOk());
+        MeshRenderer renderer(DefaultAllocator(), device, shaderSystem, psoCache, materialSystem, 2);
+        REQUIRE(renderer.Initialize().IsOk());
+        rhi::CommandPool* pool = nullptr;
+        REQUIRE(device.CreateCommandPool(rhi::QueueType::Graphics, pool).IsOk());
+
+        RefPtr<geometry::StaticMesh> cube = geometry::Primitives::Cube(DefaultAllocator(), 1.0f);
+        RefPtr<materials::Material> material = materials::MaterialBuilder(u8"lit").Shader(u8"forward").Build();
+        // One frame of a scene of three meshes, the first at `x`; returns the first's slot.
+        auto frame = [&](u32 index, f32 x, Array<u32>& slots)
+        {
+            ExtractedScene scene{DefaultAllocator()};
+            for (u32 i = 0; i < 3; ++i)
+            {
+                MeshRenderData* md = scene.Add<MeshRenderData>();
+                REQUIRE(md != nullptr);
+                md->mesh = cube.Get();
+                md->material = material.Get();
+                md->rendererId = renderer.RendererId();
+                md->category = RenderCategories::Opaque;
+                md->scene = kSceneA;
+                md->entityId = Entity(i, 1);
+                md->world = At(i == 0 ? x : static_cast<f32>(i));
+            }
+            renderer.PrepareFrame(3, index % 2);
+            rhi::CommandEncoder* encoder = nullptr;
+            REQUIRE(pool->CreateEncoder(encoder).IsOk());
+            const ExtractedScene* one = &scene;
+            renderer.UploadSkinning(Span<const ExtractedScene* const>(&one, 1u), *encoder);
+            slots.Clear();
+            for (RenderData* data : scene.Items())
+            {
+                slots.PushBack(static_cast<MeshRenderData*>(data)->instanceSlot);
+            }
+            pool->DestroyEncoder(encoder);
+            renderer.FinishFrame();
+        };
+
+        Array<u32> slots;
+        frame(0, 0.0f, slots);
+        REQUIRE(slots.Size() == 3u);
+        for (u32 slot : slots)
+        {
+            CHECK(slot != MeshRenderData::kNoInstanceSlot);
+        }
+        CHECK(renderer.InstanceRecords().FrameStats().written == 3u);
+        const u32 first = slots[0];
+
+        frame(1, 0.0f, slots);
+        CHECK(slots[0] == first);
+        CHECK(renderer.InstanceRecords().FrameStats().written == 0u); // at rest: nothing written
+
+        frame(2, 4.0f, slots); // the first moves
+        CHECK(renderer.InstanceRecords().FrameStats().written == 1u);
+        CHECK(Same(renderer.InstanceRecords().Record(first).world, At(4.0f)));
+        CHECK(Same(renderer.InstanceRecords().Record(first).prevWorld, At(0.0f)));
+        device.DestroyCommandPool(pool);
+    }
+    compiler->Destroy();
 }

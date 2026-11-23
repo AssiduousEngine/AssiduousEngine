@@ -9,11 +9,11 @@
 ///
 /// Every mesh draws instanced: a run of consecutive draws sharing one mesh and material is issued
 /// as one instanced draw, and a lone draw as an instanced draw of one. Each reads the
-/// view-projection from a shared per-view UBO (set 0) and a per-instance
-/// `StructuredBuffer<GpuInstance>` (set 1) indexed by a uint4 draw offsets vertex stream
-/// (location 5, instance-stepped). That is portable base-plus-offset addressing; SV_InstanceID
-/// differs between DX12 and Vulkan. Transparent draws are never instanced, since back-to-front
-/// order must win.
+/// view-projection from a shared per-view UBO (set 0) and the instance table
+/// (`StructuredBuffer<GpuInstance>` at set 1, every mesh's record, kept across frames) indexed by
+/// a uint4 draw offsets vertex stream (location 5, instance-stepped). That is portable
+/// base-plus-offset addressing; SV_InstanceID differs between DX12 and Vulkan. Transparent draws
+/// are never instanced, since back-to-front order must win.
 
 module;
 #include "Core/Prelude.h"
@@ -193,9 +193,6 @@ export namespace foundation::render
               m_shadowViewRing(device, framesInFlight, kViewSlot,
                                rhi::BufferUsage::Uniform | rhi::BufferUsage::CopyDst,
                                u8"mesh.shadowView"),
-              m_instanceRing(device, framesInFlight, sizeof(GpuInstance),
-                             rhi::BufferUsage::StorageRead | rhi::BufferUsage::CopyDst,
-                             u8"mesh.instances"),
               m_offsetsRing(device, framesInFlight, sizeof(GpuDrawOffsets),
                             rhi::BufferUsage::Vertex | rhi::BufferUsage::CopyDst, u8"mesh.offsets"),
               m_lightRing(device, framesInFlight, sizeof(GpuLight),
@@ -205,7 +202,8 @@ export namespace foundation::render
                                 u8"mesh.localShadows"),
               m_boneRing(device, framesInFlight, sizeof(Float4x4),
                          rhi::BufferUsage::CopySrc,
-                         u8"mesh.bones.staging")
+                         u8"mesh.bones.staging"),
+              m_instanceTable(allocator, device, framesInFlight)
         {
             m_clusterSlots.SetFramesInFlight(m_framesInFlight);
         }
@@ -232,7 +230,7 @@ export namespace foundation::render
         void SetSceneLights(u32 lights) override { m_sceneLights = lights; }
         void SetShadowCasterDraws(u32 draws) override { m_shadowCasterDraws = draws; }
 
-        /// The per-frame slots the instance and offset rings need. Each camera pass (the
+        /// The per-frame slots the offsets ring needs. Each camera pass (the
         /// depth prepass, the forward, a probe face, a pick) re-emits at most the views' draws;
         /// each shadow pass (a cascade, a local tile) at most its scene's casters, which the
         /// camera does not cull. Sized for the larger of the two in every pass, so neither can
@@ -258,9 +256,8 @@ export namespace foundation::render
 
         [[nodiscard]] Span<const RenderCategory> SupportedCategories() const override;
 
-        // Size every ring for the whole frame's draws (once) and select this frame's region. The
-        // per-object and instance rings are sized for 2x the camera draws so the shadow depth pass can
-        // re-emit the same geometry into the same rings without starving the forward pass.
+        // Size every ring for the whole frame's draws (once) and select this frame's region, every
+        // pass that re-emits draws counted (InstanceSlotsPerFrame).
         void PrepareFrame(u32 maxDraws, u32 frameIndex) override;
 
         // Device-local mirror of the bone staging ring: vertex skinning reads bones across many passes
@@ -279,6 +276,8 @@ export namespace foundation::render
         // the shared draw offsets ramp to the largest set. Called once per frame (from UploadSkinning). Static
         // sets fall through after their first upload, so they cost O(1) per frame.
         void UploadMultiMeshes(Span<const ExtractedScene* const> scenes);
+        /// The instance table, the frame's per-object records (Instances[] at set 1).
+        [[nodiscard]] const InstanceTable& InstanceRecords() const noexcept { return m_instanceTable; }
 
         // A MultiMesh set not extracted for this many upload frames releases its GPU buffers and
         // bind groups (destroyed through the device, which keeps them for frames in flight) and leaves
@@ -407,8 +406,8 @@ export namespace foundation::render
 
         // Re-emit this view's draws as depth-only shadow casters (ctx.viewProj is the light view-proj,
         // ctx.depthFormat the shadow map format). Follows Resolve's run batching but produces depth-only
-        // ResolvedDraws (set 0 the light view, set 1 object or instance; no material or cluster). Reuses
-        // the object and instance rings and their bind groups (sized 2x in PrepareFrame).
+        // ResolvedDraws (set 0 the light view, set 1 object or instance table; no material or cluster).
+        // Reuses the object and offset rings and their bind groups.
         void ResolveDepthOnly(const RenderRecordContext& ctx, Span<const DrawItem> items,
                               Array<ResolvedDraw>& out) override;
 
@@ -590,10 +589,6 @@ export namespace foundation::render
 
         void ReleaseBuffer(rhi::BufferHandle buffer);
 
-        // (Re)create the instanced set-1 bind group when the instance ring (re)allocated: the whole
-        // ring (read as Instances[slot]) and, as binding 1, the no-fade InstanceSet.
-        bool EnsureInstanceBindGroup();
-
         // The set-0 bind group spans two rings: the per-view UBO (dynamic-offset window of one
         // GpuView) and the light list (the whole light buffer, read as Lights[lightOffset + i]). Slots
         // are per view: views of different scenes bind different IBL products in one frame (per-scene
@@ -666,7 +661,6 @@ export namespace foundation::render
         ViewUniformRing m_viewRing; // one slot per distinct view block a frame
         DynamicUniformRing m_shadowViewRing;
         GpuView m_passView{}; // the pass's view block, copied per faded instanced set with its window
-        DynamicUniformRing m_instanceRing;
         DynamicUniformRing m_offsetsRing;
         DynamicUniformRing m_lightRing;
         DynamicUniformRing m_localShadowRing; // per-frame GpuLocalShadow entries (spot and point atlas)
@@ -695,40 +689,27 @@ export namespace foundation::render
         Array<SkinnedRef> m_skinnedScratch{*m_allocator};
         Array<DepthLikeRange> m_depthRanges{*m_allocator}; // a depth-like draw's ranges, reused
 
-        // Per-entity previous-frame world matrix, for rigid-object motion vectors, kept per scene:
-        // scenes drawn in one frame (two editor pages, a page and its play) reuse entity handles, and
-        // one history for all of them gave an entity another scene's last position (a smear). Within a
-        // scene a flat double buffer indexed by entity index (entityId's low 32 bits) rather than a
-        // hash map: a per-instance lookup is the motion-vector hot path at scale, and a direct index
-        // avoids hashing; the scene's history is found once per run of its draws (the last one is
-        // kept). `prev` holds last frame's worlds (read by every view this frame); resolves write this
-        // frame's into `cur`; the two swap at FinishFrame. An out-of-range or never-written entry
-        // gives prev == cur (no motion), so newly visible objects don't smear on their first frame.
-        struct MotionHistory
-        {
-            Array<Float4x4> prev;
-            Array<Float4x4> cur;
-            u64 lastUsed = 0; // m_frameSerial when a draw last read it; a scene gone for a while is dropped
-        };
-        HashMap<u64, MotionHistory> m_motion{*m_allocator}; // by scene serial
-        u64 m_motionScene = ~0ull;
-        MotionHistory* m_motionLast = nullptr; // m_motion's entry for m_motionScene (reset when it rehashes)
+        // Every plain mesh's record (world, last frame's world, tint), written once a frame before any
+        // pass and only when it changed; its CPU mirror is the motion history. Every mesh draw reads
+        // it by slot (GpuDrawOffsets::instanceIndex).
+        InstanceTable m_instanceTable;
+        // The frame's items into the table, each given its slot, then the copy into it.
+        void UploadInstances(Span<const ExtractedScene* const> scenes, rhi::CommandEncoder& encoder);
+        // Set 1 of the instanced draws over the table, made again when the table is.
+        bool EnsureInstanceBindGroup();
+        // Whether every item of a run has its table slot (and the table its bind group).
+        bool RunHasSlots(Span<const DrawItem> items, usize first, u32 count);
+        // A run whose item has no slot (resolved outside a frame's upload) cannot draw; said once.
+        bool m_noSlotLogged = false;
         // The frame's writes for the GPU as profiler counters, registered on first use.
         void PublishFrameBytes();
         bool m_frameBytesCounters = false;
         u32 m_offsetsBytesCounter = 0, m_instanceBytesCounter = 0, m_viewBytesCounter = 0, m_lightBytesCounter = 0,
             m_boneBytesCounter = 0;
 
-        // Record `cur` as this frame's world (idempotent across a frame's views, which pass the same value) and
-        // return the entity's previous-frame world in its scene (or `cur` if unknown). Indexed by entity
-        // index so multiple views resolving the same object read a stable prev (cur and prev are separate
-        // buffers).
-        [[nodiscard]] Float4x4 PrevWorldFor(u64 scene, u64 entityId, const Float4x4& cur);
-
-        // Instance sharing from the camera depth prepass to the forward pass. The prepass fills the full
-        // InstanceData (world, real prevWorld, tint) for each opaque run once and records the run's draw
-        // offsets range here; the forward looks it up and reuses that instance data instead of filling it
-        // again. Keyed by (view, the run's first item): runs of one mesh and material split by their slot
+        // Draw offsets shared from the camera depth prepass to the forward pass. The prepass fills each
+        // opaque run's offsets (its records' table slots, bone bases) once and records the range here;
+        // the forward looks it up and reuses them instead of filling them again. Keyed by (view, the run's first item): runs of one mesh and material split by their slot
         // materials, skinning or fade are apart, and each finds its own. Cleared each frame. Instanced
         // path only.
         struct InstShare

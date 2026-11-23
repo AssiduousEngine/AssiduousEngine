@@ -239,6 +239,10 @@ export namespace foundation::render
         Float4x4 world = Float4x4::Identity();
         // worldCenter and worldRadius live on the RenderData base (generic depth sort and cull).
         Color color = Color{1.0f, 1.0f, 1.0f, 1.0f}; // per-instance tint
+        // Its record's slot in the mesh renderer's instance table, which the renderer sets each frame
+        // before any pass resolves it; kNoInstanceSlot until then.
+        static constexpr u32 kNoInstanceSlot = 0xFFFFFFFFu;
+        u32 instanceSlot = kNoInstanceSlot;
         // Screen-door fade, 0 (solid) to 1 (gone). A faded mesh draws in the Masked category (out of
         // the depth prepass, whose depth would hide what shows through it) with the DITHER variant,
         // its fade riding the instance data or, drawn alone, the object block. Shadows ignore it.

@@ -464,19 +464,22 @@ TEST_CASE("MeshRenderer: a frame publishes the bytes it wrote for the GPU while 
 
     RefPtr<geometry::StaticMesh> cube = geometry::Primitives::Cube(DefaultAllocator(), 1.0f);
     RefPtr<materials::Material> material = materials::MaterialBuilder(u8"lit").Shader(u8"forward").Build();
-    MeshRenderData rd{};
+    ExtractedScene scene{DefaultAllocator()};
+    MeshRenderData& rd = *scene.Add<MeshRenderData>();
     rd.worldRadius = 1.0f;
     rd.mesh = cube.Get();
     rd.material = material.Get();
     rd.rendererId = meshRenderer.RendererId();
     rd.category = RenderCategories::Opaque;
     const DrawItem item{0, &rd};
+    const ExtractedScene* scenes[] = {&scene};
 
     profiler::Profiler& p = profiler::Profiler::Get();
     REQUIRE_FALSE(p.Armed());
     p.Arm();
     p.BeginFrame();
     meshRenderer.PrepareFrame(1, 0);
+    meshRenderer.UploadSkinning(Span<const ExtractedScene* const>(scenes, 1u), *h.encoder);
     RenderRecordContext ctx{};
     Array<ResolvedDraw> out;
     meshRenderer.Resolve(ctx, Span<const DrawItem>{&item, 1}, out);
@@ -523,23 +526,27 @@ TEST_CASE("MeshRenderer: a probe's faces each get a view slot, and a view's runs
 
     RefPtr<geometry::StaticMesh> cube = geometry::Primitives::Cube(DefaultAllocator(), 1.0f);
     RefPtr<materials::Material> material = materials::MaterialBuilder(u8"lit").Shader(u8"forward").Build();
-    MeshRenderData rd{};
+    ExtractedScene scene{DefaultAllocator()};
+    MeshRenderData& rd = *scene.Add<MeshRenderData>();
     rd.worldRadius = 1.0f;
     rd.mesh = cube.Get();
     rd.material = material.Get();
     rd.rendererId = meshRenderer.RendererId();
     rd.category = RenderCategories::Opaque;
     const DrawItem item{0, &rd};
+    const ExtractedScene* scenes[] = {&scene};
 
-    // A first frame of one view teaches the ring one view.
+    // A first frame of one view teaches the ring one view. Each frame uploads its meshes' records
+    // before any pass resolves them, as a frame does.
     meshRenderer.SetCaptureFacePasses(0);
     meshRenderer.PrepareFrame(1, 0);
+    meshRenderer.UploadSkinning(Span<const ExtractedScene* const>(scenes, 1u), *h.encoder);
     RenderRecordContext ctx{};
     Array<ResolvedDraw> out;
     meshRenderer.Resolve(ctx, Span<const DrawItem>{&item, 1}, out);
     meshRenderer.FinishFrame();
     REQUIRE(out.Size() == 1u);
-    // A lone mesh draws as an instanced draw of one: its record in the instance ring at set 1,
+    // A lone mesh draws as an instanced draw of one: its record from the instance table at set 1,
     // its slot in the draw offsets stream; there is no per-object path.
     CHECK(out[0].instanceCount == 1u);
     CHECK_FALSE(out[0].drawDynamic);
@@ -549,6 +556,7 @@ TEST_CASE("MeshRenderer: a probe's faces each get a view slot, and a view's runs
     constexpr u32 kFaces = 6;
     meshRenderer.SetCaptureFacePasses(kFaces);
     meshRenderer.PrepareFrame(1, 1);
+    meshRenderer.UploadSkinning(Span<const ExtractedScene* const>(scenes, 1u), *h.encoder);
     out.Clear();
     for (u32 run = 0; run < 3; ++run)
     {

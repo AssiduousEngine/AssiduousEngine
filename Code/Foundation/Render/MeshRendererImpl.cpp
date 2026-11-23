@@ -238,7 +238,7 @@ namespace foundation::render
 
     namespace
     {
-        // A draw the instance ring could not take is dropped; say so (rate-limited) rather than
+        // A draw the offsets ring could not take is dropped; say so (rate-limited) rather than
         // leave a mesh silently missing from a pass.
         void WarnInstanceRingFull(const char* pass, u32 wanted, u32 used)
         {
@@ -249,7 +249,7 @@ namespace foundation::render
                 return;
             }
             ++s_warned;
-            rhi::LogWarningf("[MeshRenderer] the instance ring is full: a %s batch of %u instances "
+            rhi::LogWarningf("[MeshRenderer] the draw offsets ring is full: a %s batch of %u instances "
                              "was dropped (%u slots already used this frame).%s",
                              pass, wanted, used,
                              s_warned == kWarnLimit ? " Further such warnings suppressed." : "");
@@ -269,7 +269,7 @@ namespace foundation::render
         }
         // Per-frame ring capacity covers every pass that re-emits draws: the depth prepass and the
         // forward, each CSM cascade, each local-atlas tile, probe faces and picks. Under-counting
-        // overflows the instance and offset rings, Allocate() fails and draws are dropped.
+        // overflows the offsets ring, Allocate() fails and draws are dropped.
         // Shadow passes are sized by their casters, not the view's draws: off-camera casters would
         // otherwise starve the camera's own draws, and meshes would vanish with their shadows drawn.
         const u32 drawCap = InstanceSlotsPerFrame(
@@ -278,7 +278,6 @@ namespace foundation::render
         // Pick passes take a shadow-view slot each, as shadow passes do.
         const u32 shadowViewCap = kMaxShadowPasses + m_pickPasses;
         if (!m_shadowViewRing.Reserve(shadowViewCap) ||
-            !m_instanceRing.Reserve(drawCap) ||
             !m_offsetsRing.Reserve(drawCap) || !m_lightRing.Reserve(Max(kMaxLights, m_sceneLights)) ||
             !m_localShadowRing.Reserve(kMaxLocalShadows) || !m_boneRing.Reserve(m_boneSlotsWanted))
         {
@@ -288,8 +287,7 @@ namespace foundation::render
         {
             return;
         } // device-local mirror of the bone staging ring (VS reads VRAM)
-        if (!EnsureShadowViewBindGroup() ||
-            !EnsureInstanceBindGroup())
+        if (!EnsureShadowViewBindGroup())
         {
             return;
         }
@@ -302,7 +300,6 @@ namespace foundation::render
             return;
         }
         m_shadowViewRing.BeginFrame(frameIndex);
-        m_instanceRing.BeginFrame(frameIndex);
         m_offsetsRing.BeginFrame(frameIndex);
         m_lightRing.BeginFrame(frameIndex);
         m_lightUploads.Clear();
@@ -367,6 +364,81 @@ namespace foundation::render
         return true;
     }
 
+    void MeshRenderer::UploadInstances(Span<const ExtractedScene* const> scenes, rhi::CommandEncoder& encoder)
+    {
+        m_instanceTable.BeginFrame(m_frameIndex);
+        for (const ExtractedScene* scene : scenes)
+        {
+            if (scene == nullptr)
+            {
+                continue;
+            }
+            for (RenderData* data : scene->Items())
+            {
+                if (data == nullptr || data->rendererId != RendererId())
+                {
+                    continue;
+                }
+                auto* md = static_cast<MeshRenderData*>(data);
+                if (md->multiMesh)
+                {
+                    continue; // a set keeps its own instances
+                }
+                md->instanceSlot = m_instanceTable.Write(md->scene, md->entityId, md->world, md->color);
+            }
+        }
+        m_instanceTable.EndScenes();
+        m_instanceTable.Upload(encoder);
+        (void)EnsureInstanceBindGroup();
+    }
+
+    bool MeshRenderer::EnsureInstanceBindGroup()
+    {
+        const rhi::BufferHandle table = m_instanceTable.Buffer();
+        if (!table.IsValid())
+        {
+            return false;
+        }
+        if (m_instanceBG.IsValid() && m_instanceBGGen == m_instanceTable.Generation())
+        {
+            return true;
+        }
+        ReleaseBindGroup(m_instanceBG);
+        m_instanceBG = {};
+        const rhi::BindGroupEntry entries[] = {
+            rhi::BindGroupEntry::BufferEntry(table, 0, static_cast<u64>(m_instanceTable.Capacity()) * sizeof(GpuInstance)),
+            rhi::BindGroupEntry::BufferEntry(m_noFadeSetBuf, 0, m_device->Describe(m_noFadeSetBuf)->size),
+        };
+        rhi::BindGroupDesc desc{};
+        desc.layout = m_instanceLayout;
+        desc.entries = Span<const rhi::BindGroupEntry>{entries, 2u};
+        if (!m_device->CreateBindGroup(desc, m_instanceBG).IsOk())
+        {
+            m_instanceBG = {};
+            return false;
+        }
+        m_instanceBGGen = m_instanceTable.Generation();
+        return true;
+    }
+
+    bool MeshRenderer::RunHasSlots(Span<const DrawItem> items, usize first, u32 count)
+    {
+        for (u32 k = 0; k < count; ++k)
+        {
+            const auto* md = static_cast<const MeshRenderData*>(items[first + k].data);
+            if (md->instanceSlot == MeshRenderData::kNoInstanceSlot)
+            {
+                if (!m_noSlotLogged)
+                {
+                    m_noSlotLogged = true;
+                    LOG_ERROR(u8"Render", u8"a mesh resolved with no instance table slot (no upload this frame); not drawn");
+                }
+                return false;
+            }
+        }
+        return m_instanceBG.IsValid();
+    }
+
     void MeshRenderer::UploadSkinning(Span<const ExtractedScene* const> scenes, rhi::CommandEncoder& encoder)
     {
         // Once for the frame: every scene's skeletons share this lookup and this one block.
@@ -376,6 +448,7 @@ namespace foundation::render
         {
             return;
         }
+        UploadInstances(scenes, encoder); // every plain mesh's record, before any pass reads one
         UploadMultiMeshes(scenes); // ensure and upload the persistent instanced-mesh buffers (once per frame)
         // One-time: bring the out-of-graph dummy depth textures into the layout their descriptors
         // expect, so they're never sampled while UNDEFINED on caster-less frames (VUID-09600).
@@ -1296,7 +1369,7 @@ namespace foundation::render
         const auto bytes = [](const DynamicUniformRing& ring)
         { return static_cast<f64>(ring.FrameAllocatedSlots()) * static_cast<f64>(ring.SlotSize()); };
         profiler.SetCounter(m_offsetsBytesCounter, bytes(m_offsetsRing));
-        profiler.SetCounter(m_instanceBytesCounter, bytes(m_instanceRing));
+        profiler.SetCounter(m_instanceBytesCounter, static_cast<f64>(m_instanceTable.FrameStats().bytes));
         profiler.SetCounter(m_viewBytesCounter, static_cast<f64>(m_viewRing.FrameSlots()) * static_cast<f64>(kViewDataSlot) +
                                                     bytes(m_shadowViewRing));
         profiler.SetCounter(m_lightBytesCounter, bytes(m_lightRing) + bytes(m_localShadowRing));
@@ -1308,33 +1381,8 @@ namespace foundation::render
         PublishFrameBytes();
         m_viewRing.EndFrame();
         m_shadowViewRing.EndFrame();
-        m_instanceRing.EndFrame();
         m_boneRing.EndFrame();
         m_offsetsRing.EndFrame();
-        // This frame's world matrices become next frame's "previous" (motion vectors). A flat swap: O(1)
-        // pointer moves and no clear. Each visible entity overwrites its own slot when resolved, and slots
-        // of entities no longer visible are never read (their draws don't resolve). Both buffers keep their
-        // capacity, so the steady state does no allocation.
-        // Per scene; a scene no draw has read for a while (a page closed) is dropped.
-        Array<u64> gone{*m_allocator};
-        for (auto& entry : m_motion)
-        {
-            MotionHistory& history = entry.value;
-            if (m_frameSerial - history.lastUsed > 600)
-            {
-                gone.PushBack(entry.key);
-                continue;
-            }
-            Array<Float4x4> recycled = Move(history.prev);
-            history.prev = Move(history.cur);
-            history.cur = Move(recycled);
-        }
-        for (u64 scene : gone)
-        {
-            m_motion.Remove(scene);
-        }
-        m_motionScene = ~0ull; // the map may have changed
-        m_motionLast = nullptr;
         m_ready = false;
     }
 
@@ -1372,21 +1420,20 @@ namespace foundation::render
         }
         else
         {
-            const DynamicUniformRing::Range inst = m_instanceRing.AllocateRange(count);
-            const DynamicUniformRing::Range offs = m_offsetsRing.AllocateRange(count);
-            if (!inst.ok || !offs.ok)
+            if (!RunHasSlots(items, first, count))
             {
-                WarnInstanceRingFull("forward", count, m_instanceRing.FrameAllocatedSlots());
                 return;
             }
-            GpuInstance* id = static_cast<GpuInstance*>(inst.ptr);
+            const DynamicUniformRing::Range offs = m_offsetsRing.AllocateRange(count);
+            if (!offs.ok)
+            {
+                WarnInstanceRingFull("forward", count, m_offsetsRing.FrameAllocatedSlots());
+                return;
+            }
             GpuDrawOffsets* od = static_cast<GpuDrawOffsets*>(offs.ptr);
             for (u32 k = 0; k < count; ++k)
             {
                 const auto* md = static_cast<const MeshRenderData*>(items[first + k].data);
-                id[k] = GpuInstance{
-                    md->world, ctx.needsMotion ? PrevWorldFor(md->scene, md->entityId, md->world) : md->world,
-                    md->color};
                 u32 boneBase = 0, prevBase = 0;
                 if (skinned)
                 {
@@ -1396,7 +1443,7 @@ namespace foundation::render
                         prevBase = s->prevBase;
                     }
                 }
-                od[k] = GpuDrawOffsets{inst.slotIndex + k, boneBase, prevBase, md->fade};
+                od[k] = GpuDrawOffsets{md->instanceSlot, boneBase, prevBase, md->fade};
             }
             offsByteOffset = offs.byteOffset;
         }
@@ -1499,30 +1546,27 @@ namespace foundation::render
         const bool skinned = head.boneMatrices != nullptr && head.boneCount > 0 && head.mesh != nullptr &&
                              head.mesh->IsSkinned() && mesh.skinBuffer.IsValid() &&
                              m_boneStart.Find(head.boneMatrices) != nullptr;
-        const DynamicUniformRing::Range inst = m_instanceRing.AllocateRange(count);
-        const DynamicUniformRing::Range offs = m_offsetsRing.AllocateRange(count);
-        if (!inst.ok || !offs.ok)
+        if (!RunHasSlots(items, first, count))
         {
-            WarnInstanceRingFull("depth/shadow", count, m_instanceRing.FrameAllocatedSlots());
+            return;
+        }
+        const DynamicUniformRing::Range offs = m_offsetsRing.AllocateRange(count);
+        if (!offs.ok)
+        {
+            WarnInstanceRingFull("depth/shadow", count, m_offsetsRing.FrameAllocatedSlots());
             return;
         }
 
-        GpuInstance* id = static_cast<GpuInstance*>(inst.ptr);
         // One ring entry per instance in either pass's layout (both 16 bytes): the pick fill is
         // pick-private, never shared with the forward, which reads the previous bone base from z.
         GpuDrawOffsets* od = static_cast<GpuDrawOffsets*>(offs.ptr);
         GpuPickDrawOffsets* pickOd = static_cast<GpuPickDrawOffsets*>(offs.ptr);
-        // When this prepass feeds the forward (camera depth prepass, fillInstanceCache), build the full
-        // InstanceData, including the real prevWorld, so the forward can reuse it for motion vectors. Shadow
-        // casters leave prevWorld = world (the depth and shadow shaders ignore it, so skip the lookup).
+        // When this prepass feeds the forward (camera depth prepass, fillInstanceCache), the forward
+        // reuses its draw offsets: each names the item's record in the instance table.
         const bool feedsForward = ctx.fillInstanceCache;
         for (u32 k = 0; k < count; ++k)
         {
             const auto* md = static_cast<const MeshRenderData*>(items[first + k].data);
-            const Float4x4 prev = (feedsForward && ctx.needsMotion)
-                                      ? PrevWorldFor(md->scene, md->entityId, md->world)
-                                      : md->world;
-            id[k] = GpuInstance{md->world, prev, md->color};
             u32 boneBase = 0, prevBase = 0;
             if (skinned)
             {
@@ -1534,13 +1578,13 @@ namespace foundation::render
             }
             if (pick)
             {
-                pickOd[k] = GpuPickDrawOffsets{inst.slotIndex + k, boneBase,
+                pickOd[k] = GpuPickDrawOffsets{md->instanceSlot, boneBase,
                                                EntityTag::Generation(md->entityId),
                                                EntityTag::Index(md->entityId) + 1u};
             }
             else
             {
-                od[k] = GpuDrawOffsets{inst.slotIndex + k, boneBase, prevBase, 0.0f};
+                od[k] = GpuDrawOffsets{md->instanceSlot, boneBase, prevBase, 0.0f};
             }
         }
         if (feedsForward)
@@ -2379,35 +2423,6 @@ namespace foundation::render
         m_device->DestroyBuffer(buffer); // kept by the device while a frame in flight uses it
     }
 
-    bool MeshRenderer::EnsureInstanceBindGroup()
-    {
-        if (m_instanceBG.IsValid() && m_instanceBGGen == m_instanceRing.Generation())
-        {
-            return true;
-        }
-        ReleaseBindGroup(m_instanceBG);
-        m_instanceBG = {};
-        const rhi::BufferHandle buffer = m_instanceRing.Buffer();
-        if (!buffer.IsValid() || !m_noFadeSetBuf.IsValid())
-        {
-            return false;
-        }
-        const rhi::BindGroupEntry be[] = {
-            rhi::BindGroupEntry::BufferEntry(buffer, 0, m_instanceRing.ByteCapacity()),
-            rhi::BindGroupEntry::BufferEntry(m_noFadeSetBuf, 0, m_device->Describe(m_noFadeSetBuf)->size),
-        };
-        rhi::BindGroupDesc bgd{};
-        bgd.layout = m_instanceLayout;
-        bgd.entries = Span<const rhi::BindGroupEntry>{be, 2u};
-        if (!m_device->CreateBindGroup(bgd, m_instanceBG).IsOk())
-        {
-            m_instanceBG = {};
-            return false;
-        }
-        m_instanceBGGen = m_instanceRing.Generation();
-        return true;
-    }
-
     bool MeshRenderer::EnsureViewBindGroup(const RenderRecordContext& ctx)
     {
         if (!m_activeShadowView.IsValid())
@@ -3007,29 +3022,6 @@ namespace foundation::render
             m_shadowViewLayout = {};
         }
         // rings free their buffers in their destructors (m_device still valid after this).
-    }
-
-    Float4x4 MeshRenderer::PrevWorldFor(u64 scene, u64 entityId, const Float4x4& cur)
-    {
-        if (scene != m_motionScene || m_motionLast == nullptr)
-        {
-            m_motionLast = m_motion.Find(scene);
-            if (m_motionLast == nullptr)
-            {
-                MotionHistory fresh{Array<Float4x4>{*m_allocator}, Array<Float4x4>{*m_allocator}, 0};
-                m_motionLast = &m_motion.InsertOrAssign(scene, Move(fresh)); // may rehash: only this pointer is kept
-            }
-            m_motionScene = scene;
-        }
-        MotionHistory& history = *m_motionLast;
-        history.lastUsed = m_frameSerial;
-        const u32 idx = static_cast<u32>(entityId); // entityId = (generation << 32) | index
-        if (idx >= history.cur.Size())
-        {
-            history.cur.Resize(idx + 1u);
-        } // grows toward the max live index, then stable
-        history.cur[idx] = cur;
-        return (idx < history.prev.Size()) ? history.prev[idx] : cur;
     }
 
     u64 MeshRenderer::InstShareKey(const void* view, const void* runHead) noexcept
