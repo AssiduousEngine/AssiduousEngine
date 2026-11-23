@@ -159,8 +159,9 @@ namespace foundation::rhi
   submit (with the queue's submission value) and its discard, and its queue signals an internal
   timeline on every submit (a timeline semaphore on Vulkan, a fence on Direct3D 12) whose completed
   value the tracker compares. WebGPU's
-  own objects already outlive the work that uses them; its backend frees at once if that holds in
-  the browser and wgpu-native, and retires as the others do if it does not (checked in H1).
+  own objects already outlive the work that uses them, so its backend frees at once. That holds:
+  checked 2026-11-23 in Chrome (the WebLifetimeCheck sample, resources destroyed before and just
+  after their frame's submit, 1800 frames with no error) and on wgpu-native (an RHI.WebGPU test).
 - **A swap chain's images and views are in the device's tables** while it holds them, so a frame
   names its back buffer by handle as it names any texture. They stay the swap chain's: taken back
   out of the tables (not retired) when it rebuilds or goes, which waits for the GPU already. On
