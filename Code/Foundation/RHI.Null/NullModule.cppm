@@ -135,8 +135,18 @@ export namespace foundation::rhi::null
     {
     public:
         DeviceCounterBlock* counters = nullptr;
+        // The device's pipelines, when a pool of a device made it: a bound pipeline is looked up as a
+        // GPU backend looks it up, so a stale one is reported here too.
+        const ResourceTable<RenderPipelineTag, NullRenderPipeline>* pipelines = nullptr;
         MeshShaderPassExt* AsMeshShaderExt() noexcept override { return this; }
-        void SetPipeline(RenderPipelineHandle) override { counters->PipelineBinds(); }
+        void SetPipeline(RenderPipelineHandle pipeline) override
+        {
+            counters->PipelineBinds();
+            if (pipelines != nullptr)
+            {
+                (void)pipelines->Get(pipeline);
+            }
+        }
         void SetBindGroup(u32, BindGroupHandle, Span<const u32>) override { counters->BindGroupBinds(); }
         void SetPushConstants(ShaderStage, u32, u32, const void*) override {}
         void SetVertexBuffer(u32, BufferHandle, u64) override {}
@@ -284,9 +294,11 @@ export namespace foundation::rhi::null
     class NullCommandPool : public CommandPool
     {
     public:
-        NullCommandPool(DeviceCounterBlock& counters, SubmissionTracker& tracker) noexcept
+        NullCommandPool(DeviceCounterBlock& counters, SubmissionTracker& tracker,
+                        const ResourceTable<RenderPipelineTag, NullRenderPipeline>& pipelines) noexcept
             : enc(counters), m_tracker(&tracker)
         {
+            enc.rpe.pipelines = &pipelines;
         }
         ~NullCommandPool() override { Discard(); }
         NullCommandEncoder enc;
@@ -769,7 +781,7 @@ export namespace foundation::rhi::null
         }
         Status CreateCommandPool(QueueType, CommandPool*& out) override
         {
-            out = m_allocator.New<NullCommandPool>(m_counters, m_tracker);
+            out = m_allocator.New<NullCommandPool>(m_counters, m_tracker, m_renderPipelines);
             return ErrorCode::Ok;
         }
         Status CreateFence(u64, Fence*& out) override
