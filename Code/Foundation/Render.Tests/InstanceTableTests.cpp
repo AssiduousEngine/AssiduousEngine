@@ -275,6 +275,54 @@ TEST_CASE("instance table: changed slots far apart are copied as one span; neigh
     CHECK(scattered.copies == 1u);
 }
 
+TEST_CASE("instance table: changes in slot order are copied straight from where they were staged")
+{
+    Bed bed;
+    const u32 count = 300;
+    for (int f = 0; f < 2; ++f) // made, then the previous worlds catch up
+    {
+        bed.Begin();
+        for (u32 i = 0; i < count; ++i)
+        {
+            (void)bed.table.Write(kSceneA, Entity(i, 1), At(0.0f), Color{1, 1, 1, 1});
+        }
+        (void)bed.End();
+    }
+    // Everything moves: one run, staged as it changed, no second staging from the mirror.
+    bed.Begin();
+    u32 last = 0;
+    for (u32 i = 0; i < count; ++i)
+    {
+        last = bed.table.Write(kSceneA, Entity(i, 1), At(2.0f), Color{1, 1, 1, 1});
+    }
+    const InstanceTableFrameStats moved = bed.End();
+    CHECK(moved.written == count);
+    CHECK(moved.staged);
+    CHECK(moved.copies == 1u);
+    CHECK(moved.bytes == static_cast<u64>(count) * sizeof(GpuInstance));
+    CHECK(Same(bed.table.Record(last).prevWorld, At(0.0f)));
+
+    // A tint alone changes: written, its previous world already equal to its world.
+    bed.Begin();
+    for (u32 i = 0; i < count; ++i)
+    {
+        (void)bed.table.Write(kSceneA, Entity(i, 1), At(2.0f), Color{1, 1, 1, 1});
+    }
+    (void)bed.End(); // the catch-up
+    bed.Begin();
+    for (u32 i = 0; i < count; ++i)
+    {
+        (void)bed.table.Write(kSceneA, Entity(i, 1), At(2.0f), i == 7 ? Color{1, 0, 0, 1} : Color{1, 1, 1, 1});
+    }
+    CHECK(bed.End().written == 1u);
+    bed.Begin();
+    for (u32 i = 0; i < count; ++i)
+    {
+        (void)bed.table.Write(kSceneA, Entity(i, 1), At(2.0f), i == 7 ? Color{1, 0, 0, 1} : Color{1, 1, 1, 1});
+    }
+    CHECK(bed.End().written == 0u); // nothing to catch up after a tint
+}
+
 TEST_CASE("instance table: an item with no entity has a slot for its frame alone")
 {
     Bed bed;
