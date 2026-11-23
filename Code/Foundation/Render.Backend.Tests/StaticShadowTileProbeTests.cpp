@@ -96,7 +96,7 @@ namespace
             ShadowSystem shadows(device, 2u);
             REQUIRE(shadows.Initialize().IsOk());
             shadows.SetShaderSystem(tileClear ? &shaderSystem : nullptr);
-            CHECK((shadows.TileClearPipeline() != nullptr) == tileClear); // the mode under test
+            CHECK((shadows.TileClearPipeline().IsValid()) == tileClear); // the mode under test
             RenderFrame frame(DefaultAllocator(), device, registry, 2, nullptr, nullptr, &shadows);
 
             RefPtr<geometry::StaticMesh> planeMesh = geometry::Primitives::Plane(DefaultAllocator(), 24.0f, 8.0f);

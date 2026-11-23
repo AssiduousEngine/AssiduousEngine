@@ -21,6 +21,7 @@ import foundation.rhi;
 import :conversions;
 import :pipeline_layout;
 import :shader_module;
+import :tables;
 
 using namespace foundation::core;
 
@@ -30,9 +31,9 @@ export namespace foundation::rhi::dx12
     class DxMeshPipelineImpl : public MeshPipeline
     {
     public:
-        Status init(ID3D12Device* device, const MeshPipelineDesc& desc)
+        Status init(ID3D12Device* device, const DxTables* tables, const MeshPipelineDesc& desc)
         {
-            m_layout = static_cast<DxPipelineLayoutImpl*>(desc.layout);
+            m_layout = LookUp(tables, desc.layout);
             if (!m_layout)
             {
                 LogErrorf("DxMeshPipeline: pipeline layout is null");
@@ -71,7 +72,7 @@ export namespace foundation::rhi::dx12
             }
 
             // Mesh shader (required).
-            auto* msMod = static_cast<DxShaderModuleImpl*>(desc.mesh.module);
+            auto* msMod = LookUp(tables, desc.mesh.module);
             if (!msMod)
             {
                 LogErrorf("DxMeshPipeline: mesh shader module is null");
@@ -86,7 +87,7 @@ export namespace foundation::rhi::dx12
             // Task (amplification) shader, optional.
             if (desc.task.HasValue())
             {
-                if (auto* asMod = static_cast<DxShaderModuleImpl*>(desc.task->module))
+                if (auto* asMod = LookUp(tables, desc.task->module))
                 {
                     auto asCode = asMod->bytecode();
                     D3D12_SHADER_BYTECODE asBC{asCode.Data(), asCode.Size()};
@@ -98,7 +99,7 @@ export namespace foundation::rhi::dx12
             // Fragment (pixel) shader, optional.
             if (desc.fragment.HasValue())
             {
-                if (auto* psMod = static_cast<DxShaderModuleImpl*>(desc.fragment->shader.module))
+                if (auto* psMod = LookUp(tables, desc.fragment->shader.module))
                 {
                     auto psCode = psMod->bytecode();
                     D3D12_SHADER_BYTECODE psBC{psCode.Data(), psCode.Size()};

@@ -1369,9 +1369,9 @@ namespace foundation::render
         }
         // The static layer's pass loads the layer and clears each tile it redraws. Without the tile
         // clear it must clear the whole layer, so a dirty tile redraws every static tile with it.
-        rhi::RenderPipeline* const staticTileClear =
-            (m_shadows != nullptr && !m_staticRenderDraws.IsEmpty()) ? m_shadows->TileClearPipeline() : nullptr;
-        if (!m_staticRenderDraws.IsEmpty() && staticTileClear == nullptr)
+        rhi::RenderPipelineHandle const staticTileClear =
+            (m_shadows != nullptr && !m_staticRenderDraws.IsEmpty()) ? m_shadows->TileClearPipeline() : rhi::RenderPipelineHandle{};
+        if (!m_staticRenderDraws.IsEmpty() && !staticTileClear.IsValid())
         {
             m_staticRenderDraws.Clear();
             for (usize k = 0; k < sceneCount; ++k)
@@ -1540,7 +1540,7 @@ namespace foundation::render
                 // Declare one layer's depth pass over a draw list (tiles across all scenes; each draw
                 // records its own scene's casters). The graph runs each pass's lambda at execute time,
                 // ordered before the forward by its ReadTexture of atlasH.
-                const auto declareLayer = [&](u32 layer, Array<AtlasDraw>* draws, rhi::RenderPipeline* tileClear)
+                const auto declareLayer = [&](u32 layer, Array<AtlasDraw>* draws, rhi::RenderPipelineHandle tileClear)
                 {
                     if (draws->IsEmpty())
                     {
@@ -1553,7 +1553,7 @@ namespace foundation::render
                             rendergraph::RGSubresourceRange sub{};
                             sub.baseArrayLayer = layer;
                             sub.arrayLayerCount = 1;
-                            b.SetDepthTarget(atlasH, tileClear != nullptr ? rhi::LoadOp::Load : rhi::LoadOp::Clear,
+                            b.SetDepthTarget(atlasH, tileClear.IsValid() ? rhi::LoadOp::Load : rhi::LoadOp::Clear,
                                              rhi::StoreOp::Store, rhi::depth::ClearValue(), sub);
                             b.SetViewport(0, 0, atlasRes,
                                           atlasRes); // pass default; each tile sets its own below
@@ -1570,7 +1570,7 @@ namespace foundation::render
                                                        static_cast<f32>(t.h));
                                         rp.SetScissor(static_cast<i32>(t.x), static_cast<i32>(t.y),
                                                       t.w, t.h);
-                                        if (tileClear != nullptr)
+                                        if (tileClear.IsValid())
                                         {
                                             rp.SetPipeline(tileClear); // this tile to the far depth
                                             rp.Draw(3, 1, 0, 0);
@@ -1583,7 +1583,7 @@ namespace foundation::render
                                 });
                         });
                 };
-                declareLayer(0u, &m_rtAtlasDraws, nullptr); // realtime layer, every frame
+                declareLayer(0u, &m_rtAtlasDraws, rhi::RenderPipelineHandle{}); // realtime layer, every frame
                 if (renderStatic)
                 {
                     declareLayer(1u, &m_staticRenderDraws, staticTileClear);

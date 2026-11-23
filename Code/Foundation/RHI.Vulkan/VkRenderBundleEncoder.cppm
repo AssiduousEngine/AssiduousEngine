@@ -64,18 +64,18 @@ export namespace foundation::rhi::vk
             m_allocator.Delete(m_bundle);
         } // frees the produced bundle wrapper
 
-        void SetPipeline(RenderPipeline* pipeline) override
+        void SetPipeline(RenderPipelineHandle pipeline) override
         {
-            m_currentPipeline = static_cast<VkRenderPipelineImpl*>(pipeline);
+            m_currentPipeline = LookUp(tables, pipeline);
             if (m_currentPipeline)
                 vkCmdBindPipeline(m_cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS,
                                   m_currentPipeline->handle());
             ++m_recorded.pipelineBinds;
         }
 
-        void SetBindGroup(u32 index, BindGroup* group, Span<const u32> dynOffsets) override
+        void SetBindGroup(u32 index, BindGroupHandle group, Span<const u32> dynOffsets) override
         {
-            auto* bg = static_cast<VkBindGroupImpl*>(group);
+            auto* bg = LookUp(tables, group);
             auto* layout = m_currentPipeline ? m_currentPipeline->vkLayout() : nullptr;
             if (!bg || !layout)
                 return;

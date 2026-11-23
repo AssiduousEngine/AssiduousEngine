@@ -53,36 +53,36 @@ namespace
             return out;
         }
         {
-            rhi::ShaderModule* vs = host.GetVariant(u8"vg", shaders::ShaderStage::Vertex,
+            rhi::ShaderModuleHandle vs = host.GetVariant(u8"vg", shaders::ShaderStage::Vertex,
                                                     shaders::ShaderFlags::None);
-            rhi::ShaderModule* fs = host.GetVariant(u8"vg", shaders::ShaderStage::Fragment,
+            rhi::ShaderModuleHandle fs = host.GetVariant(u8"vg", shaders::ShaderStage::Fragment,
                                                     shaders::ShaderFlags::None);
-            rhi::ShaderModule* distanceFieldFragmentShader = host.GetVariant(u8"vg_df", shaders::ShaderStage::Fragment,
+            rhi::ShaderModuleHandle distanceFieldFragmentShader = host.GetVariant(u8"vg_df", shaders::ShaderStage::Fragment,
                                                       shaders::ShaderFlags::None);
-            rhi::ShaderModule* gradR = host.GetVariant(
+            rhi::ShaderModuleHandle gradR = host.GetVariant(
                 u8"vg_grad_radial", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-            rhi::ShaderModule* gradC = host.GetVariant(
+            rhi::ShaderModuleHandle gradC = host.GetVariant(
                 u8"vg_grad_conic", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-            rhi::ShaderModule* boxVs =
+            rhi::ShaderModuleHandle boxVs =
                 host.GetVariant(u8"vg_box", shaders::ShaderStage::Vertex, shaders::ShaderFlags::None);
-            rhi::ShaderModule* boxFs =
+            rhi::ShaderModuleHandle boxFs =
                 host.GetVariant(u8"vg_box", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-            rhi::ShaderModule* layerFs =
+            rhi::ShaderModuleHandle layerFs =
                 host.GetVariant(u8"vg_layer", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-            rhi::ShaderModule* shadowFs =
+            rhi::ShaderModuleHandle shadowFs =
                 host.GetVariant(u8"vg_shadow", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-            REQUIRE(shadowFs != nullptr); // else box shadows would not draw, and the shadow probe prove nothing
-            REQUIRE(vs != nullptr);
-            rhi::ShaderModule* blurVs =
+            REQUIRE(shadowFs.IsValid()); // else box shadows would not draw, and the shadow probe prove nothing
+            REQUIRE(vs.IsValid());
+            rhi::ShaderModuleHandle blurVs =
                 host.GetVariant(u8"vg_blur", shaders::ShaderStage::Vertex, shaders::ShaderFlags::None);
-            rhi::ShaderModule* blurFs =
+            rhi::ShaderModuleHandle blurFs =
                 host.GetVariant(u8"vg_blur", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-            REQUIRE(layerFs != nullptr); // else layers would quietly be opacity pushes
-            REQUIRE(blurVs != nullptr);  // else blurred layers would quietly stay sharp
-            REQUIRE(blurFs != nullptr);
-            REQUIRE(fs != nullptr);
-            REQUIRE(boxVs != nullptr); // else boxes would quietly tessellate, and the box probe prove nothing
-            REQUIRE(boxFs != nullptr);
+            REQUIRE(layerFs.IsValid()); // else layers would quietly be opacity pushes
+            REQUIRE(blurVs.IsValid());  // else blurred layers would quietly stay sharp
+            REQUIRE(blurFs.IsValid());
+            REQUIRE(fs.IsValid());
+            REQUIRE(boxVs.IsValid()); // else boxes would quietly tessellate, and the box probe prove nothing
+            REQUIRE(boxFs.IsValid());
 
             vg::renderer::VGTargetConfig config;
             config.sampleCount = sampleCount;
@@ -91,7 +91,7 @@ namespace
 
             vg::renderer::VGRenderer renderer{DefaultAllocator()};
             REQUIRE(renderer
-                        .Initialize(device, *vs, *fs, drawFormat, 2, distanceFieldFragmentShader,
+                        .Initialize(device, vs, fs, drawFormat, 2, distanceFieldFragmentShader,
                                     gradR, gradC, config, shadowFs, boxVs, boxFs, layerFs, blurVs, blurFs)
                         .IsOk());
 
@@ -138,8 +138,8 @@ namespace
 
             vg::VGContext ctx;
             ctx.SetStencilFills(true);
-            ctx.SetPerPixelGradients(gradR != nullptr && gradC != nullptr);
-            ctx.SetAnalyticBoxes(boxVs != nullptr && boxFs != nullptr);
+            ctx.SetPerPixelGradients(gradR.IsValid() && gradC.IsValid());
+            ctx.SetAnalyticBoxes(boxVs.IsValid() && boxFs.IsValid());
             ctx.SetLayers(true);
             record(ctx);
             vg::VGBatch& batch = ctx.GetBatch();

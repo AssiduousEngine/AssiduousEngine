@@ -166,13 +166,13 @@ export namespace foundation::render
             }
         };
 
-        rhi::PipelineLayout* MakePipelineLayout(usize pushSize);
+        rhi::PipelineLayoutHandle MakePipelineLayout(usize pushSize);
 
         void DeclareBlur(rendergraph::RenderGraph& graph, rendergraph::RGHandle ao,
                          rendergraph::RGHandle depth, rendergraph::RGHandle out, u32 w, u32 h,
                          Float2 texel, Float2 dir, Float2 vpMin, Float2 vpSize);
 
-        rhi::RenderPipeline* MakePipeline(StringView name, rhi::PipelineLayout* layout,
+        rhi::RenderPipelineHandle MakePipeline(StringView name, rhi::PipelineLayoutHandle layout,
                                           rhi::TextureFormat fmt = kAoFormat);
 
         // Advance the deferred-free list once per frame, freeing bind groups retired long enough ago to be
@@ -183,20 +183,20 @@ export namespace foundation::render
         // Two-texture bind group (t0, t1) and sampler, cached by the t0 view and the combined generation.
         // Every AO pass shares the layout: generation binds depth and normal, blur binds AO and depth, apply
         // binds HDR and AO.
-        rhi::BindGroup* EnsureBindGroup(rhi::TextureViewHandle a, rhi::TextureViewHandle bView,
+        rhi::BindGroupHandle EnsureBindGroup(rhi::TextureViewHandle a, rhi::TextureViewHandle bView,
                                         u64 generation);
 
         void Shutdown();
 
         struct Entry
         {
-            rhi::BindGroup* bg = nullptr;
+            rhi::BindGroupHandle bg{};
             rhi::TextureViewHandle b{};
             u64 gen = 0;
         };
         struct Retired
         {
-            rhi::BindGroup* bg = nullptr;
+            rhi::BindGroupHandle bg{};
             u32 left = 0;
         };
         static constexpr u32 kRetireFrames =
@@ -204,15 +204,15 @@ export namespace foundation::render
 
         rhi::Device* m_device;
         shaders::ShaderSystem* m_shaders;
-        rhi::BindGroupLayout* m_layout = nullptr;
-        rhi::PipelineLayout* m_gtaoLayout = nullptr;
-        rhi::PipelineLayout* m_ssaoLayout = nullptr;
-        rhi::PipelineLayout* m_blurLayout = nullptr;
-        rhi::PipelineLayout* m_applyLayout = nullptr;
-        rhi::RenderPipeline* m_gtaoPipeline = nullptr;
-        rhi::RenderPipeline* m_ssaoPipeline = nullptr;
-        rhi::RenderPipeline* m_blurPipeline = nullptr;
-        rhi::RenderPipeline* m_applyPipeline = nullptr;
+        rhi::BindGroupLayoutHandle m_layout{};
+        rhi::PipelineLayoutHandle m_gtaoLayout{};
+        rhi::PipelineLayoutHandle m_ssaoLayout{};
+        rhi::PipelineLayoutHandle m_blurLayout{};
+        rhi::PipelineLayoutHandle m_applyLayout{};
+        rhi::RenderPipelineHandle m_gtaoPipeline{};
+        rhi::RenderPipelineHandle m_ssaoPipeline{};
+        rhi::RenderPipelineHandle m_blurPipeline{};
+        rhi::RenderPipelineHandle m_applyPipeline{};
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
         rhi::SamplerHandle m_sampler{};
         HashMap<rhi::TextureViewHandle, Entry> m_bindGroups;

@@ -149,22 +149,22 @@ export namespace foundation::vg::renderer
 
         /// True when Initialize was given a stencil-capable target (hosts gate
         /// VGContext::SetStencilFills on this).
-        [[nodiscard]] bool StencilFillsSupported() const { return m_coverPipeline != nullptr; }
+        [[nodiscard]] bool StencilFillsSupported() const { return m_coverPipeline.IsValid(); }
 
         /// Initialize with a device, the (already compiled) vg vertex and fragment
         /// shader modules, the render-target format and the frame count.
-        Status Initialize(rhi::Device& device, rhi::ShaderModule& vertShader,
-                          rhi::ShaderModule& fragShader, rhi::TextureFormat targetFormat,
-                          i32 frameCount, rhi::ShaderModule* distanceFieldFragmentShader = nullptr,
-                          rhi::ShaderModule* gradRadialFragShader = nullptr,
-                          rhi::ShaderModule* gradConicFragShader = nullptr,
+        Status Initialize(rhi::Device& device, rhi::ShaderModuleHandle vertShader,
+                          rhi::ShaderModuleHandle fragShader, rhi::TextureFormat targetFormat,
+                          i32 frameCount, rhi::ShaderModuleHandle distanceFieldFragmentShader = {},
+                          rhi::ShaderModuleHandle gradRadialFragShader = {},
+                          rhi::ShaderModuleHandle gradConicFragShader = {},
                           VGTargetConfig targetConfig = {},
-                          rhi::ShaderModule* boxShadowFragShader = nullptr,
-                          rhi::ShaderModule* boxVertShader = nullptr,
-                          rhi::ShaderModule* boxFragShader = nullptr,
-                          rhi::ShaderModule* layerFragShader = nullptr,
-                          rhi::ShaderModule* blurVertShader = nullptr,
-                          rhi::ShaderModule* blurFragShader = nullptr)
+                          rhi::ShaderModuleHandle boxShadowFragShader = {},
+                          rhi::ShaderModuleHandle boxVertShader = {},
+                          rhi::ShaderModuleHandle boxFragShader = {},
+                          rhi::ShaderModuleHandle layerFragShader = {},
+                          rhi::ShaderModuleHandle blurVertShader = {},
+                          rhi::ShaderModuleHandle blurFragShader = {})
         {
             m_device = &device;
             m_queue = device.GetQueue(rhi::QueueType::Graphics, 0);
@@ -173,8 +173,8 @@ export namespace foundation::vg::renderer
             m_targetConfig = targetConfig;
             // Kept for lazy pipeline variants (non-Normal blend modes build on first
             // use). Borrowed: the shader system owns them and outlives this renderer.
-            m_vsModule = &vertShader;
-            m_fsModule = &fragShader;
+            m_vsModule = vertShader;
+            m_fsModule = fragShader;
             m_distanceFieldModule = distanceFieldFragmentShader;
             m_gradRadialModule = gradRadialFragShader;
             m_gradConicModule = gradConicFragShader;
@@ -190,34 +190,34 @@ export namespace foundation::vg::renderer
             if (!CreatePipelineInto(vertShader, fragShader, m_pipeline).IsOk())
                 return ErrorCode::Unknown;
             // Optional distance-field pipeline (same layout and vertex format, MSDF fragment shader).
-            if (distanceFieldFragmentShader != nullptr &&
-                !CreatePipelineInto(vertShader, *distanceFieldFragmentShader, m_distanceFieldPipeline).IsOk())
+            if (distanceFieldFragmentShader.IsValid() &&
+                !CreatePipelineInto(vertShader, distanceFieldFragmentShader, m_distanceFieldPipeline).IsOk())
                 return ErrorCode::Unknown;
             // Optional per-pixel radial and conic gradient pipelines (same layout; the fragment shader
             // derives the gradient parameter per pixel from the emitted gradient-space texcoord).
-            if (gradRadialFragShader != nullptr &&
-                !CreatePipelineInto(vertShader, *gradRadialFragShader, m_gradRadialPipeline).IsOk())
+            if (gradRadialFragShader.IsValid() &&
+                !CreatePipelineInto(vertShader, gradRadialFragShader, m_gradRadialPipeline).IsOk())
                 return ErrorCode::Unknown;
-            if (gradConicFragShader != nullptr &&
-                !CreatePipelineInto(vertShader, *gradConicFragShader, m_gradConicPipeline).IsOk())
+            if (gradConicFragShader.IsValid() &&
+                !CreatePipelineInto(vertShader, gradConicFragShader, m_gradConicPipeline).IsOk())
                 return ErrorCode::Unknown;
             // Optional box-shadow pipeline (the UI's blurred rounded rects; direct fills only).
-            if (boxShadowFragShader != nullptr &&
-                !CreatePipelineInto(vertShader, *boxShadowFragShader, m_boxShadowPipeline).IsOk())
+            if (boxShadowFragShader.IsValid() &&
+                !CreatePipelineInto(vertShader, boxShadowFragShader, m_boxShadowPipeline).IsOk())
                 return ErrorCode::Unknown;
             // Optional analytic-box pipeline (VGContext::DrawBox): its own vertex layout and shaders.
-            if (boxVertShader != nullptr && boxFragShader != nullptr &&
-                !CreatePipelineVariant(*boxVertShader, *boxFragShader, StencilRole::None, m_boxPipeline,
+            if (boxVertShader.IsValid() && boxFragShader.IsValid() &&
+                !CreatePipelineVariant(boxVertShader, boxFragShader, StencilRole::None, m_boxPipeline,
                                        vg::VGBlendMode::Normal, false, /*box*/ true)
                      .IsOk())
                 return ErrorCode::Unknown;
             // Optional layer composite pipeline (VGContext::PushLayer): samples a premultiplied target.
-            if (layerFragShader != nullptr &&
-                !CreatePipelineInto(vertShader, *layerFragShader, m_layerPipeline).IsOk())
+            if (layerFragShader.IsValid() &&
+                !CreatePipelineInto(vertShader, layerFragShader, m_layerPipeline).IsOk())
                 return ErrorCode::Unknown;
             // Optional layer blur (a layer's `blur`): one axis of a Gaussian over its target.
-            if (blurVertShader != nullptr && blurFragShader != nullptr &&
-                !CreateBlurPipeline(*blurVertShader, *blurFragShader).IsOk())
+            if (blurVertShader.IsValid() && blurFragShader.IsValid() &&
+                !CreateBlurPipeline(blurVertShader, blurFragShader).IsOk())
                 return ErrorCode::Unknown;
             // Stencil-then-cover pipelines, only with a host-provided stencil attachment.
             // Write pass: color-masked fans accumulate winding (incr/decr-wrap for NonZero,
@@ -239,13 +239,13 @@ export namespace foundation::vg::renderer
                                            m_coverPipeline)
                          .IsOk())
                     return ErrorCode::Unknown;
-                if (gradRadialFragShader != nullptr &&
-                    !CreatePipelineVariant(vertShader, *gradRadialFragShader, StencilRole::Cover,
+                if (gradRadialFragShader.IsValid() &&
+                    !CreatePipelineVariant(vertShader, gradRadialFragShader, StencilRole::Cover,
                                            m_coverGradRadialPipeline)
                          .IsOk())
                     return ErrorCode::Unknown;
-                if (gradConicFragShader != nullptr &&
-                    !CreatePipelineVariant(vertShader, *gradConicFragShader, StencilRole::Cover,
+                if (gradConicFragShader.IsValid() &&
+                    !CreatePipelineVariant(vertShader, gradConicFragShader, StencilRole::Cover,
                                            m_coverGradConicPipeline)
                          .IsOk())
                     return ErrorCode::Unknown;
@@ -417,8 +417,8 @@ export namespace foundation::vg::renderer
                 layer.targetHeight = RoundUpToBucket(layer.height);
                 // A blur (in place, or a backdrop's copy) takes two more slots, across then down;
                 // without its pipeline, none.
-                layer.blur = m_blurPipeline != nullptr ? source.blur : 0.0f;
-                layer.backdropBlur = m_blurPipeline != nullptr ? source.backdropBlur : 0.0f;
+                layer.blur = m_blurPipeline.IsValid() ? source.blur : 0.0f;
+                layer.backdropBlur = m_blurPipeline.IsValid() ? source.backdropBlur : 0.0f;
                 const bool blurs = layer.blur > 0.0f || layer.backdropBlur > 0.0f;
                 const u32 slots = blurs ? 3u : 1u;
                 const bool slotsRemaining = nextUniformSlot + slots <= static_cast<u32>(MaxUniformSlots);
@@ -600,7 +600,7 @@ export namespace foundation::vg::renderer
         void RenderLayers(rhi::CommandEncoder& encoder, i32 frameIndex, const VGRenderSlice& slice)
         {
             m_lastLayerStats = RenderStats{};
-            if (!slice.isValid || slice.layerCount == 0 || m_layerPipeline == nullptr)
+            if (!slice.isValid || slice.layerCount == 0 || !m_layerPipeline.IsValid())
                 return;
             // A parent draws its children's composites, so the deepest layers go first.
             Array<i32> order;
@@ -730,9 +730,9 @@ export namespace foundation::vg::renderer
                 CachedTexture& c = *m_textureCache[i];
                 for (usize f = 0; f < c.bindGroups.Size(); ++f)
                 {
-                    if (c.bindGroups[f] != nullptr)
+                    if (c.bindGroups[f].IsValid())
                         m_device->DestroyBindGroup(c.bindGroups[f]);
-                    c.bindGroups[f] = nullptr;
+                    c.bindGroups[f] = {};
                 }
                 c.view = view;
                 c.external = true;
@@ -797,16 +797,16 @@ export namespace foundation::vg::renderer
             for (usize b = 0; b < kBlendVariantCount; ++b)
                 for (usize k = 0; k < kPipelineKindCount; ++k)
                 {
-                    if (m_blendPipelines[b][k] != nullptr)
+                    if (m_blendPipelines[b][k].IsValid())
                         m_device->DestroyRenderPipeline(m_blendPipelines[b][k]);
-                    m_blendPipelines[b][k] = nullptr;
+                    m_blendPipelines[b][k] = {};
                 }
             for (usize b = 0; b < kBlendVariantCount + 1; ++b)
                 for (usize k = 0; k < kPipelineKindCount; ++k)
                 {
-                    if (m_clippedPipelines[b][k] != nullptr)
+                    if (m_clippedPipelines[b][k].IsValid())
                         m_device->DestroyRenderPipeline(m_clippedPipelines[b][k]);
-                    m_clippedPipelines[b][k] = nullptr;
+                    m_clippedPipelines[b][k] = {};
                 }
             if (m_clippedWriteNonZero)
                 m_device->DestroyRenderPipeline(m_clippedWriteNonZero);
@@ -814,21 +814,21 @@ export namespace foundation::vg::renderer
                 m_device->DestroyRenderPipeline(m_clippedWriteEvenOdd);
             if (m_boxPipeline)
                 m_device->DestroyRenderPipeline(m_boxPipeline);
-            m_boxPipeline = nullptr;
+            m_boxPipeline = {};
             if (m_layerPipeline)
                 m_device->DestroyRenderPipeline(m_layerPipeline);
-            m_layerPipeline = nullptr;
+            m_layerPipeline = {};
             if (m_blurPipeline)
                 m_device->DestroyRenderPipeline(m_blurPipeline);
-            m_blurPipeline = nullptr;
+            m_blurPipeline = {};
             if (m_clipApplyPipeline)
                 m_device->DestroyRenderPipeline(m_clipApplyPipeline);
             if (m_clipClearPipeline)
                 m_device->DestroyRenderPipeline(m_clipClearPipeline);
-            m_clippedWriteNonZero = nullptr;
-            m_clippedWriteEvenOdd = nullptr;
-            m_clipApplyPipeline = nullptr;
-            m_clipClearPipeline = nullptr;
+            m_clippedWriteNonZero = {};
+            m_clippedWriteEvenOdd = {};
+            m_clipApplyPipeline = {};
+            m_clipClearPipeline = {};
             if (m_pipeline)
                 m_device->DestroyRenderPipeline(m_pipeline);
             if (m_distanceFieldPipeline)
@@ -860,18 +860,18 @@ export namespace foundation::vg::renderer
             if (m_samplerMirror)
                 m_device->DestroySampler(m_samplerMirror);
 
-            m_pipeline = nullptr;
-            m_distanceFieldPipeline = nullptr;
-            m_stencilWriteNonZero = nullptr;
-            m_stencilWriteEvenOdd = nullptr;
-            m_coverPipeline = nullptr;
-            m_coverGradRadialPipeline = nullptr;
-            m_coverGradConicPipeline = nullptr;
-            m_gradRadialPipeline = nullptr;
-            m_gradConicPipeline = nullptr;
-            m_boxShadowPipeline = nullptr;
-            m_pipelineLayout = nullptr;
-            m_bindGroupLayout = nullptr;
+            m_pipeline = {};
+            m_distanceFieldPipeline = {};
+            m_stencilWriteNonZero = {};
+            m_stencilWriteEvenOdd = {};
+            m_coverPipeline = {};
+            m_coverGradRadialPipeline = {};
+            m_coverGradConicPipeline = {};
+            m_gradRadialPipeline = {};
+            m_gradConicPipeline = {};
+            m_boxShadowPipeline = {};
+            m_pipelineLayout = {};
+            m_bindGroupLayout = {};
             m_sampler = {};
             m_samplerRepeat = {};
             m_samplerMirror = {};
@@ -898,10 +898,10 @@ export namespace foundation::vg::renderer
             const u32 dynOffsets[1] = {uniformOffset};
             i32 currentTextureIndex = -2; // sentinel forces first SetBindGroup
             vg::VGGradientSpread currentSpread = vg::VGGradientSpread::Pad;
-            rhi::RenderPipeline* currentPipeline = m_pipeline;
+            rhi::RenderPipelineHandle currentPipeline = m_pipeline;
             i32 currentStencilRef = -1; // sentinel: set on first stencil-relevant command
             bool boxesBound = false;    // the vertex buffer sits at the slice's boxes
-            if (m_coverPipeline != nullptr)
+            if (m_coverPipeline.IsValid())
             {
                 renderPass.SetStencilReference(0); // cover tests NotEqual 0
                 currentStencilRef = 0;
@@ -916,14 +916,14 @@ export namespace foundation::vg::renderer
 
                 // A layer's composite samples the target RenderLayers drew it into; none, no draw. A
                 // Layer-mode draw with no layer samples its own texture (a premultiplied image).
-                rhi::BindGroup* compositeGroup = nullptr;
+                rhi::BindGroupHandle compositeGroup{};
                 if (cmd.drawMode == foundation::vg::VGDrawMode::Layer && cmd.compositeLayer >= 0)
                 {
                     const bool known = cmd.compositeLayer >= 0 && cmd.compositeLayer < static_cast<i32>(m_layers.Size());
                     const i32 target = !known ? -1
                                        : cmd.backdrop ? m_layers[static_cast<usize>(cmd.compositeLayer)].backdropTarget
                                                       : m_layers[static_cast<usize>(cmd.compositeLayer)].target;
-                    if (target < 0 || m_layerTargets[static_cast<usize>(target)].bindGroup == nullptr)
+                    if (target < 0 || !m_layerTargets[static_cast<usize>(target)].bindGroup.IsValid())
                     {
                         ++stats.skipped;
                         continue;
@@ -936,8 +936,8 @@ export namespace foundation::vg::renderer
                 // without stencil pipelines (a context should not emit them then, but a
                 // stale batch must not draw winding fans as visible color). A pipeline swap
                 // forces a bind-group rebind.
-                rhi::RenderPipeline* pipeline = PipelineFor(cmd);
-                if (pipeline == nullptr)
+                rhi::RenderPipelineHandle pipeline = PipelineFor(cmd);
+                if (!pipeline.IsValid())
                 {
                     ++stats.skipped;
                     continue;
@@ -953,7 +953,7 @@ export namespace foundation::vg::renderer
                 // (clipped draws test Equal against it; ClipApply and clipped covers replace
                 // with it), 0 otherwise (unclipped covers compare to zero; ClipClear
                 // replaces with 0).
-                if (m_coverPipeline != nullptr || m_clipApplyPipeline != nullptr)
+                if (m_coverPipeline.IsValid() || m_clipApplyPipeline.IsValid())
                 {
                     const bool wantsClipRef =
                         cmd.clipMode == foundation::vg::VGClipMode::Stencil ||
@@ -966,7 +966,7 @@ export namespace foundation::vg::renderer
                     }
                 }
 
-                if (compositeGroup != nullptr)
+                if (compositeGroup.IsValid())
                 {
                     renderPass.SetBindGroup(0, compositeGroup, Span<const u32>(dynOffsets, 1));
                     currentTextureIndex = -2; // the next texture draw binds its own again
@@ -974,7 +974,7 @@ export namespace foundation::vg::renderer
                 else if (cmd.textureIndex != currentTextureIndex ||
                     cmd.gradientSpread != currentSpread)
                 {
-                    if (rhi::BindGroup* bindGroup =
+                    if (rhi::BindGroupHandle bindGroup =
                             GetBindGroupForTexture(cmd.textureIndex, frameIndex,
                                                    cmd.gradientSpread))
                         renderPass.SetBindGroup(0, bindGroup, Span<const u32>(dynOffsets, 1));
@@ -1026,7 +1026,7 @@ export namespace foundation::vg::renderer
             rhi::TextureViewHandle view{};
             // Per (frame, spread): slot = frame * kSpreadCount + spread. Spread picks
             // the LUT sampler, and the sampler lives in the bind group.
-            Array<rhi::BindGroup*> bindGroups;
+            Array<rhi::BindGroupHandle> bindGroups;
             bool external =
                 false; // view is caller-owned (e.g. an offscreen render target), never destroyed here
         };
@@ -1058,7 +1058,7 @@ export namespace foundation::vg::renderer
             rhi::TextureViewHandle msaaView{};
             rhi::TextureHandle depthStencil{}; // when the renderer's pipelines carry one
             rhi::TextureViewHandle depthStencilView{};
-            rhi::BindGroup* bindGroup = nullptr; // the frame's uniforms, colorView, clamp sampler
+            rhi::BindGroupHandle bindGroup{}; // the frame's uniforms, colorView, clamp sampler
             u32 width = 0, height = 0;
             i32 frame = 0;
             i32 idleFrames = 0;
@@ -1193,16 +1193,16 @@ export namespace foundation::vg::renderer
             if (!m_device->CreateBindGroupLayout(bglDesc, m_bindGroupLayout).IsOk())
                 return ErrorCode::Unknown;
 
-            rhi::BindGroupLayout* const layouts[1] = {m_bindGroupLayout};
+            rhi::BindGroupLayoutHandle const layouts[1] = {m_bindGroupLayout};
             rhi::PipelineLayoutDesc plDesc{};
-            plDesc.bindGroupLayouts = Span<rhi::BindGroupLayout* const>(layouts, 1);
+            plDesc.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>(layouts, 1);
             return m_device->CreatePipelineLayout(plDesc, m_pipelineLayout);
         }
 
         /// The pipeline a command renders with: stencil write or cover variants for
         /// stencil-phase commands (null when unconfigured; the caller skips), else the
         /// draw-mode variant with default fallback.
-        [[nodiscard]] rhi::RenderPipeline* PipelineFor(const foundation::vg::VGCommand& cmd)
+        [[nodiscard]] rhi::RenderPipelineHandle PipelineFor(const foundation::vg::VGCommand& cmd)
         {
             const bool blended = cmd.blendMode != vg::VGBlendMode::Normal;
             const bool clipped = cmd.clipMode == vg::VGClipMode::Stencil;
@@ -1222,15 +1222,15 @@ export namespace foundation::vg::renderer
                 return cmd.fillRule == foundation::vg::FillRule::EvenOdd ? m_stencilWriteEvenOdd
                                                                        : m_stencilWriteNonZero;
             case foundation::vg::VGFillPhase::StencilCover:
-                if (m_coverPipeline == nullptr)
-                    return nullptr;
+                if (!m_coverPipeline.IsValid())
+                    return {};
                 if (cmd.drawMode == foundation::vg::VGDrawMode::GradientRadial &&
-                    m_coverGradRadialPipeline != nullptr)
+                    m_coverGradRadialPipeline.IsValid())
                     return (blended || clipped)
                                ? Variant(PipelineKind::CoverRadial, cmd.blendMode, clipped)
                                : m_coverGradRadialPipeline;
                 if (cmd.drawMode == foundation::vg::VGDrawMode::GradientConic &&
-                    m_coverGradConicPipeline != nullptr)
+                    m_coverGradConicPipeline.IsValid())
                     return (blended || clipped)
                                ? Variant(PipelineKind::CoverConic, cmd.blendMode, clipped)
                                : m_coverGradConicPipeline;
@@ -1239,40 +1239,40 @@ export namespace foundation::vg::renderer
             case foundation::vg::VGFillPhase::Direct:
                 break;
             }
-            if (cmd.drawMode == foundation::vg::VGDrawMode::DistanceField && m_distanceFieldPipeline != nullptr)
+            if (cmd.drawMode == foundation::vg::VGDrawMode::DistanceField && m_distanceFieldPipeline.IsValid())
                 return (blended || clipped)
                            ? Variant(PipelineKind::DistanceField, cmd.blendMode, clipped)
                            : m_distanceFieldPipeline;
             if (cmd.drawMode == foundation::vg::VGDrawMode::GradientRadial &&
-                m_gradRadialPipeline != nullptr)
+                m_gradRadialPipeline.IsValid())
                 return (blended || clipped)
                            ? Variant(PipelineKind::GradRadial, cmd.blendMode, clipped)
                            : m_gradRadialPipeline;
             if (cmd.drawMode == foundation::vg::VGDrawMode::GradientConic &&
-                m_gradConicPipeline != nullptr)
+                m_gradConicPipeline.IsValid())
                 return (blended || clipped)
                            ? Variant(PipelineKind::GradConic, cmd.blendMode, clipped)
                            : m_gradConicPipeline;
             if (cmd.drawMode == foundation::vg::VGDrawMode::Box)
                 // Box vertices are not VG vertices: no other pipeline can read them. Skip when the
                 // box shaders were not given (a context draws boxes analytically only when told).
-                return m_boxPipeline == nullptr
-                           ? nullptr
+                return !m_boxPipeline.IsValid()
+                           ? rhi::RenderPipelineHandle{}
                            : ((blended || clipped) ? Variant(PipelineKind::Box, cmd.blendMode, clipped)
                                                    : m_boxPipeline);
             if (cmd.drawMode == foundation::vg::VGDrawMode::BoxShadow)
                 // No substitute: the default shader would paint the quadrant quads as flat
                 // colour over everything around the box. Skip when the shader was not given.
-                return m_boxShadowPipeline == nullptr
-                           ? nullptr
+                return !m_boxShadowPipeline.IsValid()
+                           ? rhi::RenderPipelineHandle{}
                            : ((blended || clipped)
                                   ? Variant(PipelineKind::BoxShadow, cmd.blendMode, clipped)
                                   : m_boxShadowPipeline);
             if (cmd.drawMode == foundation::vg::VGDrawMode::Layer)
                 // A layer target holds premultiplied colour; the default shader would multiply it
                 // again. Skip when the composite shader was not given.
-                return m_layerPipeline == nullptr
-                           ? nullptr
+                return !m_layerPipeline.IsValid()
+                           ? rhi::RenderPipelineHandle{}
                            : ((blended || clipped) ? Variant(PipelineKind::Layer, cmd.blendMode, clipped)
                                                    : m_layerPipeline);
             return (blended || clipped) ? Variant(PipelineKind::Default, cmd.blendMode, clipped)
@@ -1303,19 +1303,19 @@ export namespace foundation::vg::renderer
         /// A failed blend variant falls back to the Normal pipeline (a wrong-blend draw beats
         /// no draw); a failed clipped variant returns null instead, since drawing unclipped
         /// would paint outside the clip.
-        [[nodiscard]] rhi::RenderPipeline* Variant(PipelineKind kind, vg::VGBlendMode blendMode,
+        [[nodiscard]] rhi::RenderPipelineHandle Variant(PipelineKind kind, vg::VGBlendMode blendMode,
                                                    bool clipped)
         {
-            rhi::RenderPipeline*& slot =
+            rhi::RenderPipelineHandle& slot =
                 clipped ? m_clippedPipelines[static_cast<usize>(blendMode)][static_cast<usize>(
                               kind)]
                         : m_blendPipelines[static_cast<usize>(blendMode) - 1]
                                           [static_cast<usize>(kind)];
-            if (slot != nullptr)
+            if (slot.IsValid())
             {
                 return slot;
             }
-            rhi::ShaderModule* frag = nullptr;
+            rhi::ShaderModuleHandle frag{};
             StencilRole role = StencilRole::None;
             switch (kind)
             {
@@ -1354,18 +1354,18 @@ export namespace foundation::vg::renderer
                 break;
             }
             const bool box = kind == PipelineKind::Box;
-            rhi::ShaderModule* vert = box ? m_boxVsModule : m_vsModule;
-            if (vert == nullptr || frag == nullptr ||
+            rhi::ShaderModuleHandle vert = box ? m_boxVsModule : m_vsModule;
+            if (!vert.IsValid() || !frag.IsValid() ||
                 (clipped && m_targetConfig.depthStencilFormat == rhi::TextureFormat::Undefined) ||
-                !CreatePipelineVariant(*vert, *frag, role, slot, blendMode, clipped, box).IsOk())
+                !CreatePipelineVariant(vert, frag, role, slot, blendMode, clipped, box).IsOk())
             {
-                slot = nullptr;
+                slot = {};
                 // The default pipeline is a tolerable stand-in for a DF or gradient variant
                 // (flat colour), never for a box shadow (it would paint the quadrant quads as
                 // flat colour over everything around the box), a box (its vertices are not
                 // VG vertices), nor a layer composite (it would multiply premultiplied colour again).
                 return (clipped || kind == PipelineKind::BoxShadow || box || kind == PipelineKind::Layer)
-                           ? nullptr
+                           ? rhi::RenderPipelineHandle{}
                            : m_pipeline;
             }
             return slot;
@@ -1383,33 +1383,33 @@ export namespace foundation::vg::renderer
         };
 
         /// Lazy clipped stencil-write pair (needs a stencil attachment).
-        [[nodiscard]] rhi::RenderPipeline* ClippedWrite(StencilRole role,
-                                                        rhi::RenderPipeline*& slot)
+        [[nodiscard]] rhi::RenderPipelineHandle ClippedWrite(StencilRole role,
+                                                        rhi::RenderPipelineHandle& slot)
         {
-            if (slot != nullptr)
+            if (slot.IsValid())
                 return slot;
-            if (m_vsModule == nullptr || m_fsModule == nullptr ||
+            if (!m_vsModule.IsValid() || !m_fsModule.IsValid() ||
                 m_targetConfig.depthStencilFormat == rhi::TextureFormat::Undefined ||
-                !CreatePipelineVariant(*m_vsModule, *m_fsModule, role, slot,
+                !CreatePipelineVariant(m_vsModule, m_fsModule, role, slot,
                                        vg::VGBlendMode::Normal, /*clipped*/ true)
                      .IsOk())
             {
-                slot = nullptr;
-                return nullptr; // skip the command rather than corrupt the mask
+                slot = {};
+                return {}; // skip the command rather than corrupt the mask
             }
             return slot;
         }
 
         // Build a VG pipeline (shared layout and vertex format) with the given fragment shader
         // into `outPipeline`.
-        Status CreatePipelineInto(rhi::ShaderModule& vertShader, rhi::ShaderModule& fragShader,
-                                  rhi::RenderPipeline*& outPipeline)
+        Status CreatePipelineInto(rhi::ShaderModuleHandle vertShader, rhi::ShaderModuleHandle fragShader,
+                                  rhi::RenderPipelineHandle& outPipeline)
         {
             return CreatePipelineVariant(vertShader, fragShader, StencilRole::None, outPipeline);
         }
 
-        Status CreatePipelineVariant(rhi::ShaderModule& vertShader, rhi::ShaderModule& fragShader,
-                                     StencilRole role, rhi::RenderPipeline*& outPipeline,
+        Status CreatePipelineVariant(rhi::ShaderModuleHandle vertShader, rhi::ShaderModuleHandle fragShader,
+                                     StencilRole role, rhi::RenderPipelineHandle& outPipeline,
                                      vg::VGBlendMode blendMode = vg::VGBlendMode::Normal,
                                      bool clipped = false, bool box = false)
         {
@@ -1483,12 +1483,12 @@ export namespace foundation::vg::renderer
             rhi::RenderPipelineDesc desc{};
             desc.layout = m_pipelineLayout;
             desc.vertex.shader =
-                rhi::StageOf(&vertShader, rhi::ShaderStage::Vertex);
+                rhi::StageOf(vertShader, rhi::ShaderStage::Vertex);
             desc.vertex.buffers = Span<const rhi::VertexBufferLayout>(vertexBuffers, 1);
 
             rhi::FragmentState fragment{};
             fragment.shader =
-                rhi::StageOf(&fragShader, rhi::ShaderStage::Fragment);
+                rhi::StageOf(fragShader, rhi::ShaderStage::Fragment);
             fragment.targets = Span<const rhi::ColorTargetState>(colorTargets, 1);
             desc.fragment = fragment;
 
@@ -1777,7 +1777,7 @@ export namespace foundation::vg::renderer
                 return;
             const usize slot =
                 static_cast<usize>(frameIndex) * kSpreadCount + static_cast<usize>(spread);
-            if (cached->bindGroups[slot] != nullptr)
+            if (cached->bindGroups[slot].IsValid())
                 return; // already built
 
             rhi::BindGroupEntry entries[3];
@@ -1789,24 +1789,24 @@ export namespace foundation::vg::renderer
             rhi::BindGroupDesc desc{};
             desc.layout = m_bindGroupLayout;
             desc.entries = Span<const rhi::BindGroupEntry>(entries, 3);
-            rhi::BindGroup* group = nullptr;
+            rhi::BindGroupHandle group{};
             if (m_device->CreateBindGroup(desc, group).IsOk())
                 cached->bindGroups[slot] = group;
         }
 
-        rhi::BindGroup* GetBindGroupForTexture(i32 textureIndex, i32 frameIndex,
+        rhi::BindGroupHandle GetBindGroupForTexture(i32 textureIndex, i32 frameIndex,
                                                vg::VGGradientSpread spread)
         {
             if (m_batchTextures.IsEmpty())
-                return nullptr;
+                return {};
             const i32 effectiveIndex =
                 (textureIndex < 0) ? 0 : textureIndex; // solid draws use the white texture at 0
             if (effectiveIndex >= static_cast<i32>(m_batchTextures.Size()))
-                return nullptr;
+                return {};
 
             const image::ImageData* texture = m_batchTextures[static_cast<usize>(effectiveIndex)];
             if (texture == nullptr)
-                return nullptr;
+                return {};
 
             // Pad groups are built eagerly in Prepare; the rarer repeat and mirror groups
             // build on first use (a device call, legal while the pass records).
@@ -1816,7 +1816,7 @@ export namespace foundation::vg::renderer
             for (usize i = 0; i < m_textureCache.Size(); ++i)
                 if (m_textureCache[i]->source == texture)
                     return m_textureCache[i]->bindGroups[slot];
-            return nullptr;
+            return {};
         }
 
         // Blur a drawn layer's target into `intoIndex` (itself, or a copy): across into a scratch
@@ -1868,16 +1868,16 @@ export namespace foundation::vg::renderer
 
         // The blur pipeline: no vertex buffer (one triangle from the vertex index), single-sampled,
         // no stencil, writing what it computes (the target holds only the layer).
-        Status CreateBlurPipeline(rhi::ShaderModule& vertShader, rhi::ShaderModule& fragShader)
+        Status CreateBlurPipeline(rhi::ShaderModuleHandle vertShader, rhi::ShaderModuleHandle fragShader)
         {
             rhi::ColorTargetState colorTarget{};
             colorTarget.format = m_targetFormat;
             const rhi::ColorTargetState colorTargets[1] = {colorTarget};
             rhi::RenderPipelineDesc desc{};
             desc.layout = m_pipelineLayout;
-            desc.vertex.shader = rhi::StageOf(&vertShader, rhi::ShaderStage::Vertex);
+            desc.vertex.shader = rhi::StageOf(vertShader, rhi::ShaderStage::Vertex);
             rhi::FragmentState fragment{};
-            fragment.shader = rhi::StageOf(&fragShader, rhi::ShaderStage::Fragment);
+            fragment.shader = rhi::StageOf(fragShader, rhi::ShaderStage::Fragment);
             fragment.targets = Span<const rhi::ColorTargetState>(colorTargets, 1);
             desc.fragment = fragment;
             desc.primitive.topology = rhi::PrimitiveTopology::TriangleList;
@@ -1979,7 +1979,7 @@ export namespace foundation::vg::renderer
 
         void DisposeLayerTarget(LayerTarget& target)
         {
-            if (target.bindGroup != nullptr)
+            if (target.bindGroup.IsValid())
                 m_device->DestroyBindGroup(target.bindGroup);
             if (target.depthStencilView.IsValid())
                 m_device->DestroyTextureView(target.depthStencilView);
@@ -1999,7 +1999,7 @@ export namespace foundation::vg::renderer
         void DisposeCachedTexture(CachedTexture& cached)
         {
             for (usize i = 0; i < cached.bindGroups.Size(); ++i)
-                if (cached.bindGroups[i] != nullptr)
+                if (cached.bindGroups[i].IsValid())
                     m_device->DestroyBindGroup(cached.bindGroups[i]);
             if (cached.external)
                 return; // the view and texture are caller-owned
@@ -2023,37 +2023,37 @@ export namespace foundation::vg::renderer
         i32 m_frameCount = 0;
         rhi::TextureFormat m_targetFormat = rhi::TextureFormat::BGRA8UnormSrgb;
 
-        rhi::BindGroupLayout* m_bindGroupLayout = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::RenderPipeline* m_pipeline = nullptr;
-        rhi::RenderPipeline* m_distanceFieldPipeline = nullptr;         // MSDF fragment variant (null if unused)
+        rhi::BindGroupLayoutHandle m_bindGroupLayout{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
+        rhi::RenderPipelineHandle m_pipeline{};
+        rhi::RenderPipelineHandle m_distanceFieldPipeline{};         // MSDF fragment variant (null if unused)
         VGTargetConfig m_targetConfig{}; // host target: sample count and DS format
-        rhi::RenderPipeline* m_stencilWriteNonZero = nullptr; // winding pass (nullable)
-        rhi::RenderPipeline* m_stencilWriteEvenOdd = nullptr; // parity pass (nullable)
-        rhi::RenderPipeline* m_coverPipeline = nullptr;       // cover, default shading (nullable)
-        rhi::RenderPipeline* m_coverGradRadialPipeline = nullptr; // cover, radial (nullable)
-        rhi::RenderPipeline* m_coverGradConicPipeline = nullptr;  // cover, conic (nullable)
-        rhi::RenderPipeline* m_gradRadialPipeline = nullptr; // per-pixel radial gradient (nullable)
-        rhi::RenderPipeline* m_gradConicPipeline = nullptr;  // per-pixel conic gradient (nullable)
-        rhi::RenderPipeline* m_boxShadowPipeline = nullptr;  // blurred rounded rect (nullable)
-        rhi::ShaderModule* m_vsModule = nullptr; // borrowed (lazy blend variants)
-        rhi::ShaderModule* m_fsModule = nullptr;
-        rhi::ShaderModule* m_distanceFieldModule = nullptr;
-        rhi::ShaderModule* m_gradRadialModule = nullptr;
-        rhi::ShaderModule* m_gradConicModule = nullptr;
-        rhi::ShaderModule* m_boxShadowModule = nullptr;
-        rhi::ShaderModule* m_boxVsModule = nullptr; // analytic boxes (VGDrawMode::Box)
-        rhi::ShaderModule* m_boxFsModule = nullptr;
-        rhi::RenderPipeline* m_boxPipeline = nullptr;
-        rhi::ShaderModule* m_layerFsModule = nullptr; // layer composites (VGDrawMode::Layer)
-        rhi::RenderPipeline* m_layerPipeline = nullptr;
-        rhi::RenderPipeline* m_blurPipeline = nullptr; // layer blur (vg_blur), nullable
-        rhi::RenderPipeline* m_blendPipelines[kBlendVariantCount][kPipelineKindCount] = {}; // [blend-1][kind] (unclipped)
-        rhi::RenderPipeline* m_clippedPipelines[kBlendVariantCount + 1][kPipelineKindCount] = {}; // [blend][kind], lazy
-        rhi::RenderPipeline* m_clippedWriteNonZero = nullptr; // lazy clipped write pair
-        rhi::RenderPipeline* m_clippedWriteEvenOdd = nullptr;
-        rhi::RenderPipeline* m_clipApplyPipeline = nullptr; // winding to clip mask
-        rhi::RenderPipeline* m_clipClearPipeline = nullptr; // clip mask eraser
+        rhi::RenderPipelineHandle m_stencilWriteNonZero{}; // winding pass (nullable)
+        rhi::RenderPipelineHandle m_stencilWriteEvenOdd{}; // parity pass (nullable)
+        rhi::RenderPipelineHandle m_coverPipeline{};       // cover, default shading (nullable)
+        rhi::RenderPipelineHandle m_coverGradRadialPipeline{}; // cover, radial (nullable)
+        rhi::RenderPipelineHandle m_coverGradConicPipeline{};  // cover, conic (nullable)
+        rhi::RenderPipelineHandle m_gradRadialPipeline{}; // per-pixel radial gradient (nullable)
+        rhi::RenderPipelineHandle m_gradConicPipeline{};  // per-pixel conic gradient (nullable)
+        rhi::RenderPipelineHandle m_boxShadowPipeline{};  // blurred rounded rect (nullable)
+        rhi::ShaderModuleHandle m_vsModule{}; // borrowed (lazy blend variants)
+        rhi::ShaderModuleHandle m_fsModule{};
+        rhi::ShaderModuleHandle m_distanceFieldModule{};
+        rhi::ShaderModuleHandle m_gradRadialModule{};
+        rhi::ShaderModuleHandle m_gradConicModule{};
+        rhi::ShaderModuleHandle m_boxShadowModule{};
+        rhi::ShaderModuleHandle m_boxVsModule{}; // analytic boxes (VGDrawMode::Box)
+        rhi::ShaderModuleHandle m_boxFsModule{};
+        rhi::RenderPipelineHandle m_boxPipeline{};
+        rhi::ShaderModuleHandle m_layerFsModule{}; // layer composites (VGDrawMode::Layer)
+        rhi::RenderPipelineHandle m_layerPipeline{};
+        rhi::RenderPipelineHandle m_blurPipeline{}; // layer blur (vg_blur), nullable
+        rhi::RenderPipelineHandle m_blendPipelines[kBlendVariantCount][kPipelineKindCount] = {}; // [blend-1][kind] (unclipped)
+        rhi::RenderPipelineHandle m_clippedPipelines[kBlendVariantCount + 1][kPipelineKindCount] = {}; // [blend][kind], lazy
+        rhi::RenderPipelineHandle m_clippedWriteNonZero{}; // lazy clipped write pair
+        rhi::RenderPipelineHandle m_clippedWriteEvenOdd{};
+        rhi::RenderPipelineHandle m_clipApplyPipeline{}; // winding to clip mask
+        rhi::RenderPipelineHandle m_clipClearPipeline{}; // clip mask eraser
         rhi::SamplerHandle m_sampler{}; // clamp: images and pad gradients
         rhi::SamplerHandle m_samplerRepeat{};
         rhi::SamplerHandle m_samplerMirror{};

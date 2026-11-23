@@ -346,7 +346,7 @@ export namespace foundation::rhi::webgpu
                 return ErrorCode::InvalidArgument;
             }
             return CreateInTable<WebGpuTextureView>(
-                m_tables.views, out, [&](WebGpuTextureView& v) { return v.Initialize(*m_api, owner, texture, viewDesc); });
+                m_tables.textureViews, out, [&](WebGpuTextureView& v) { return v.Initialize(*m_api, owner, texture, viewDesc); });
         }
         Status CreateSampler(const SamplerDesc& samplerDesc, SamplerHandle& out) override
         {
@@ -360,12 +360,12 @@ export namespace foundation::rhi::webgpu
         }
         const TextureViewDesc* Describe(TextureViewHandle view) const override
         {
-            const WebGpuTextureView* v = m_tables.views.Get(view);
+            const WebGpuTextureView* v = m_tables.textureViews.Get(view);
             return v != nullptr ? &v->desc : nullptr;
         }
         TextureHandle TextureOf(TextureViewHandle view) const override
         {
-            const WebGpuTextureView* v = m_tables.views.Get(view);
+            const WebGpuTextureView* v = m_tables.textureViews.Get(view);
             return v != nullptr ? v->texture : TextureHandle::Invalid();
         }
         const SamplerDesc* Describe(SamplerHandle sampler) const override
@@ -373,10 +373,10 @@ export namespace foundation::rhi::webgpu
             const WebGpuSampler* smp = m_tables.samplers.Get(sampler);
             return smp != nullptr ? &smp->desc : nullptr;
         }
-        Status CreateShaderModule(const ShaderModuleDesc& moduleDesc, ShaderModule*& out) override
+        Status CreateShaderModule(const ShaderModuleDesc& moduleDesc, ShaderModuleHandle& out) override
         {
-            return CreateResource<WebGpuShaderModule>(
-                out,
+            return CreateInTable<WebGpuShaderModule>(
+                m_tables.shaderModules, out,
                 [&](WebGpuShaderModule& m)
                 {
                     m.entryPoint = String(moduleDesc.entryPoint);
@@ -384,48 +384,81 @@ export namespace foundation::rhi::webgpu
                 });
         }
         Status CreateBindGroupLayout(const BindGroupLayoutDesc& layoutDesc,
-                                     BindGroupLayout*& out) override
+                                     BindGroupLayoutHandle& out) override
         {
-            return CreateResource<WebGpuBindGroupLayout>(
-                out, [&](WebGpuBindGroupLayout& l)
+            return CreateInTable<WebGpuBindGroupLayout>(
+                m_tables.bindGroupLayouts, out, [&](WebGpuBindGroupLayout& l)
                 { return l.Initialize(*m_api, m_device, layoutDesc); });
         }
-        Status CreateBindGroup(const BindGroupDesc& groupDesc, BindGroup*& out) override
+        Status CreateBindGroup(const BindGroupDesc& groupDesc, BindGroupHandle& out) override
         {
-            return CreateResource<WebGpuBindGroup>(
-                out,
+            return CreateInTable<WebGpuBindGroup>(
+                m_tables.bindGroups, out,
                 [&](WebGpuBindGroup& g)
                 {
                     g.tables = &m_tables;
+                    g.layout = groupDesc.layout;
                     return g.Initialize(*m_api, m_device, groupDesc);
                 });
         }
         Status CreatePipelineLayout(const PipelineLayoutDesc& layoutDesc,
-                                    PipelineLayout*& out) override
+                                    PipelineLayoutHandle& out) override
         {
-            return CreateResource<WebGpuPipelineLayout>(
-                out, [&](WebGpuPipelineLayout& l)
-                { return l.Initialize(*m_api, m_device, layoutDesc, EmulatesPushConstants()); });
+            return CreateInTable<WebGpuPipelineLayout>(
+                m_tables.pipelineLayouts, out, [&](WebGpuPipelineLayout& l)
+                { return l.Initialize(*m_api, m_device, &m_tables, layoutDesc, EmulatesPushConstants()); });
         }
-        Status CreatePipelineCache(const PipelineCacheDesc&, PipelineCache*& out) override
+        Status CreatePipelineCache(const PipelineCacheDesc&, PipelineCacheHandle& out) override
         {
             // No cache object in WebGPU; an empty stand-in serves callers.
-            out = m_allocator.New<WebGpuPipelineCache>();
-            return ErrorCode::Ok;
+            return CreateInTable<WebGpuPipelineCache>(m_tables.pipelineCaches, out,
+                                                      [](WebGpuPipelineCache&) { return Status(ErrorCode::Ok); });
         }
-        Status CreateRenderPipeline(const RenderPipelineDesc& pipelineDesc,
-                                    RenderPipeline*& out) override
+        StringView EntryPointOf(ShaderModuleHandle module) const override
         {
-            return CreateResource<WebGpuRenderPipeline>(
-                out, [&](WebGpuRenderPipeline& p)
-                { return p.Initialize(*m_api, m_device, pipelineDesc); });
+            const WebGpuShaderModule* m = m_tables.shaderModules.Get(module);
+            return m != nullptr ? m->entryPoint.AsView() : StringView{};
+        }
+        Span<const BindGroupLayoutEntry> LayoutEntries(BindGroupLayoutHandle layout) const override
+        {
+            const WebGpuBindGroupLayout* l = m_tables.bindGroupLayouts.Get(layout);
+            return l != nullptr ? l->Entries() : Span<const BindGroupLayoutEntry>{};
+        }
+        BindGroupLayoutHandle LayoutOf(BindGroupHandle group) const override
+        {
+            const WebGpuBindGroup* g = m_tables.bindGroups.Get(group);
+            return g != nullptr ? g->layout : BindGroupLayoutHandle::Invalid();
+        }
+        void UpdateBindless(BindGroupHandle group, Span<const BindlessUpdateEntry> entries) override
+        {
+            if (WebGpuBindGroup* g = m_tables.bindGroups.Get(group))
+                g->UpdateBindless(entries);
+        }
+        u32 PipelineCacheDataSize(PipelineCacheHandle) override { return 0; }
+        Status PipelineCacheData(PipelineCacheHandle cache, Span<u8>) override
+        {
+            return m_tables.pipelineCaches.Get(cache) != nullptr ? Status(ErrorCode::Ok)
+                                                                 : Status(ErrorCode::InvalidArgument);
+        }
+        const QuerySetDesc* Describe(QuerySetHandle querySet) const override
+        {
+            const WebGpuQuerySet* q = m_tables.querySets.Get(querySet);
+            return q != nullptr ? &q->desc : nullptr;
+        }
+        u64 DeviceAddress(AccelStructHandle) const override { return 0; } // no ray tracing
+        Status CreateRenderPipeline(const RenderPipelineDesc& pipelineDesc,
+                                    RenderPipelineHandle& out) override
+        {
+            return CreateInTable<WebGpuRenderPipeline>(
+                m_tables.renderPipelines, out, [&](WebGpuRenderPipeline& p)
+                { return p.Initialize(*m_api, m_device, &m_tables, pipelineDesc); });
         }
         Status CreateComputePipeline(const ComputePipelineDesc& pipelineDesc,
-                                     ComputePipeline*& out) override
+                                     ComputePipelineHandle& out) override
         {
-            return CreateResource<WebGpuComputePipeline>(
-                out, [&](WebGpuComputePipeline& p)
-                { return p.Initialize(*m_api, m_device, pipelineDesc); });
+            return CreateInTable<WebGpuComputePipeline>(
+                m_tables.computePipelines, out, [&](WebGpuComputePipeline& p)
+                { return p.Initialize(*m_api, m_device, &m_tables, pipelineDesc); });
         }
         Status CreateCommandPool(QueueType, CommandPool*& out) override
         {
@@ -442,10 +475,10 @@ export namespace foundation::rhi::webgpu
             out = m_allocator.New<WebGpuFence>(*m_api, m_instance, m_device, initialValue);
             return ErrorCode::Ok;
         }
-        Status CreateQuerySet(const QuerySetDesc& setDesc, QuerySet*& out) override
+        Status CreateQuerySet(const QuerySetDesc& setDesc, QuerySetHandle& out) override
         {
-            return CreateResource<WebGpuQuerySet>(
-                out, [&](WebGpuQuerySet& q) { return q.Initialize(*m_api, m_device, setDesc); });
+            return CreateInTable<WebGpuQuerySet>(
+                m_tables.querySets, out, [&](WebGpuQuerySet& q) { return q.Initialize(*m_api, m_device, setDesc); });
         }
         Status CreateSwapChain(Surface* surface, const SwapChainDesc& swapDesc,
                                SwapChain*& out) override
@@ -478,7 +511,7 @@ export namespace foundation::rhi::webgpu
         }
         void DestroyTextureView(TextureViewHandle& x) override
         {
-            if (m_tables.views.Retire(x))
+            if (m_tables.textureViews.Retire(x))
                 m_tracker.Collect({});
         }
         void DestroySampler(SamplerHandle& x) override
@@ -486,27 +519,40 @@ export namespace foundation::rhi::webgpu
             if (m_tables.samplers.Retire(x))
                 m_tracker.Collect({});
         }
-        void DestroyShaderModule(ShaderModule*& x) override
+        void DestroyShaderModule(ShaderModuleHandle& x) override
         {
-            ReleaseAndDelete<WebGpuShaderModule>(x);
+            if (m_tables.shaderModules.Retire(x))
+                m_tracker.Collect({});
         }
-        void DestroyBindGroupLayout(BindGroupLayout*& x) override
+        void DestroyBindGroupLayout(BindGroupLayoutHandle& x) override
         {
-            ReleaseAndDelete<WebGpuBindGroupLayout>(x);
+            if (m_tables.bindGroupLayouts.Retire(x))
+                m_tracker.Collect({});
         }
-        void DestroyBindGroup(BindGroup*& x) override { ReleaseAndDelete<WebGpuBindGroup>(x); }
-        void DestroyPipelineLayout(PipelineLayout*& x) override
+        void DestroyBindGroup(BindGroupHandle& x) override
         {
-            ReleaseAndDelete<WebGpuPipelineLayout>(x);
+            if (m_tables.bindGroups.Retire(x))
+                m_tracker.Collect({});
         }
-        void DestroyPipelineCache(PipelineCache*& x) override { DeleteIfAny(x); }
-        void DestroyRenderPipeline(RenderPipeline*& x) override
+        void DestroyPipelineLayout(PipelineLayoutHandle& x) override
         {
-            ReleaseAndDelete<WebGpuRenderPipeline>(x);
+            if (m_tables.pipelineLayouts.Retire(x))
+                m_tracker.Collect({});
         }
-        void DestroyComputePipeline(ComputePipeline*& x) override
+        void DestroyPipelineCache(PipelineCacheHandle& x) override
         {
-            ReleaseAndDelete<WebGpuComputePipeline>(x);
+            if (m_tables.pipelineCaches.Retire(x))
+                m_tracker.Collect({});
+        }
+        void DestroyRenderPipeline(RenderPipelineHandle& x) override
+        {
+            if (m_tables.renderPipelines.Retire(x))
+                m_tracker.Collect({});
+        }
+        void DestroyComputePipeline(ComputePipelineHandle& x) override
+        {
+            if (m_tables.computePipelines.Retire(x))
+                m_tracker.Collect({});
         }
         void DestroyCommandPool(CommandPool*& x) override
         {
@@ -518,7 +564,11 @@ export namespace foundation::rhi::webgpu
             }
         }
         void DestroyFence(Fence*& x) override { DeleteIfAny(x); }
-        void DestroyQuerySet(QuerySet*& x) override { ReleaseAndDelete<WebGpuQuerySet>(x); }
+        void DestroyQuerySet(QuerySetHandle& x) override
+        {
+            if (m_tables.querySets.Retire(x))
+                m_tracker.Collect({});
+        }
         void DestroySwapChain(SwapChain*& x) override
         {
             if (x != nullptr)
@@ -535,25 +585,28 @@ export namespace foundation::rhi::webgpu
         bool IsLost() override { return m_lost; }
 
         // No mesh shaders and no ray tracing in WebGPU.
-        Status CreateMeshPipeline(const MeshPipelineDesc&, MeshPipeline*& out) override
+        Status CreateMeshPipeline(const MeshPipelineDesc&, MeshPipelineHandle& out) override
         {
-            out = nullptr;
+            out = {};
             return ErrorCode::NotSupported;
         }
-        void DestroyMeshPipeline(MeshPipeline*& pipeline) override { pipeline = nullptr; }
-        Status CreateAccelStruct(const AccelStructDesc&, AccelStruct*& out) override
+        void DestroyMeshPipeline(MeshPipelineHandle& pipeline) override { pipeline = {}; }
+        Status CreateAccelStruct(const AccelStructDesc&, AccelStructHandle& out) override
         {
-            out = nullptr;
+            out = {};
             return ErrorCode::NotSupported;
         }
-        void DestroyAccelStruct(AccelStruct*& accelStruct) override { accelStruct = nullptr; }
-        Status CreateRayTracingPipeline(const RayTracingPipelineDesc&, RayTracingPipeline*& out) override
+        void DestroyAccelStruct(AccelStructHandle& accelStruct) override { accelStruct = {}; }
+        Status CreateRayTracingPipeline(const RayTracingPipelineDesc&, RayTracingPipelineHandle& out) override
         {
-            out = nullptr;
+            out = {};
             return ErrorCode::NotSupported;
         }
-        void DestroyRayTracingPipeline(RayTracingPipeline*& pipeline) override { pipeline = nullptr; }
-        Status GetShaderGroupHandles(RayTracingPipeline*, u32, u32, Span<u8>) override { return ErrorCode::NotSupported; }
+        void DestroyRayTracingPipeline(RayTracingPipelineHandle& pipeline) override { pipeline = {}; }
+        Status GetShaderGroupHandles(RayTracingPipelineHandle, u32, u32, Span<u8>) override
+        {
+            return ErrorCode::NotSupported;
+        }
 
 
         void WaitIdle() override
@@ -620,15 +673,13 @@ export namespace foundation::rhi::webgpu
             const Status status = initialize(*resource);
             if (!status.IsOk())
             {
-                resource->Release();
-                m_allocator.Delete(resource);
+                FreeObject<TResource>(this, resource);
                 return status;
             }
             out = table.Add(resource);
             if (!out)
             {
-                resource->Release();
-                m_allocator.Delete(resource);
+                FreeObject<TResource>(this, resource);
                 return ErrorCode::OutOfMemory;
             }
             return ErrorCode::Ok;
@@ -665,8 +716,24 @@ export namespace foundation::rhi::webgpu
         // Its objects by handle, and the tracker the tables retire through: no recordings are
         // registered, so a destroyed object is freed at once (see DestroyBuffer).
         SubmissionTracker m_tracker{m_allocator};
-        WebGpuTables m_tables{m_allocator, m_tracker, this, &FreeBuffer, &FreeTexture,
-                              &FreeObject<WebGpuTextureView>, &FreeObject<WebGpuSampler>};
+        WebGpuTables m_tables{m_allocator, m_tracker, this, Frees()};
+        [[nodiscard]] static constexpr WebGpuTableFrees Frees() noexcept
+        {
+            WebGpuTableFrees f;
+            f.buffer = &FreeBuffer;
+            f.texture = &FreeTexture;
+            f.textureView = &FreeObject<WebGpuTextureView>;
+            f.sampler = &FreeObject<WebGpuSampler>;
+            f.shaderModule = &FreeObject<WebGpuShaderModule>;
+            f.bindGroupLayout = &FreeObject<WebGpuBindGroupLayout>;
+            f.bindGroup = &FreeObject<WebGpuBindGroup>;
+            f.pipelineLayout = &FreeObject<WebGpuPipelineLayout>;
+            f.pipelineCache = &FreeObject<WebGpuPipelineCache>;
+            f.renderPipeline = &FreeObject<WebGpuRenderPipeline>;
+            f.computePipeline = &FreeObject<WebGpuComputePipeline>;
+            f.querySet = &FreeObject<WebGpuQuerySet>;
+            return f; // no mesh, ray tracing or acceleration structures on WebGPU
+        }
         static void FreeTexture(void* context, void* object)
         {
             auto* device = static_cast<WebGpuDevice*>(context);
@@ -675,13 +742,15 @@ export namespace foundation::rhi::webgpu
             texture->Release();
             device->m_allocator.Delete(texture);
         }
-        // A view or a sampler: its WebGPU object, then itself.
+        // Its WebGPU object, where it has one, then itself.
         template <typename T>
         static void FreeObject(void* context, void* object)
         {
             auto* device = static_cast<WebGpuDevice*>(context);
-            static_cast<T*>(object)->Release();
-            device->m_allocator.Delete(static_cast<T*>(object));
+            T* typed = static_cast<T*>(object);
+            if constexpr (requires { typed->Release(); })
+                typed->Release();
+            device->m_allocator.Delete(typed);
         }
         static void FreeBuffer(void* context, void* object)
         {

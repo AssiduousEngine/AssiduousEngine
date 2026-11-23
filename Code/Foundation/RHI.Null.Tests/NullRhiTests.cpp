@@ -54,7 +54,7 @@ TEST_CASE("rhi.null: device creates resources and a mappable buffer")
     CHECK(texture.IsValid());
 
     // Unsupported extensions degrade; they do not crash.
-    MeshPipeline* mesh = nullptr;
+    MeshPipelineHandle mesh{};
     CHECK(device->CreateMeshPipeline(MeshPipelineDesc{}, mesh).Code() == ErrorCode::NotSupported);
 
     device->DestroyTexture(texture);
@@ -147,16 +147,16 @@ TEST_CASE("rhi.counters: a frame of known work counts what it did, a bundle each
     // A bundle of two draws and a bind, recorded once.
     RenderBundleEncoder* bundleEncoder = enc->CreateRenderBundleEncoder(RenderBundleDesc{});
     REQUIRE(bundleEncoder != nullptr);
-    bundleEncoder->SetBindGroup(0, nullptr, {});
+    bundleEncoder->SetBindGroup(0, {}, {});
     bundleEncoder->Draw(3);
     bundleEncoder->DrawIndexed(6);
     RenderBundle* bundle = bundleEncoder->Finish();
     CHECK(device.Counters().draws == 0u); // recording a bundle draws nothing yet
 
     RenderPassEncoder* pass = enc->BeginRenderPass(RenderPassDesc{});
-    pass->SetPipeline(nullptr);
-    pass->SetBindGroup(0, nullptr, {});
-    pass->SetBindGroup(1, nullptr, {});
+    pass->SetPipeline({});
+    pass->SetBindGroup(0, {}, {});
+    pass->SetBindGroup(1, {}, {});
     pass->Draw(3);
     pass->DrawIndexed(36);
     pass->DrawIndirect({}, 0, 4, 16);
@@ -164,7 +164,7 @@ TEST_CASE("rhi.counters: a frame of known work counts what it did, a bundle each
     pass->ExecuteBundles(Span<RenderBundle* const>(bundles, 2)); // the bundle runs twice
     pass->End();
     ComputePassEncoder* compute = enc->BeginComputePass();
-    compute->SetPipeline(nullptr);
+    compute->SetPipeline({});
     compute->Dispatch(8, 8, 1);
     compute->DispatchIndirect({}, 0);
     compute->End();

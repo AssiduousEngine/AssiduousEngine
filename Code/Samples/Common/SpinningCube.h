@@ -73,9 +73,9 @@ float4 PSMain(PSIn i) : SV_TARGET { return float4(i.Color, 1.0); }
             rhi::BindGroupLayoutDesc bgld{};
             bgld.entries = Span<const rhi::BindGroupLayoutEntry>(&e, 1);
             device->CreateBindGroupLayout(bgld, m_bgl);
-            rhi::BindGroupLayout* layouts[1] = {m_bgl};
+            rhi::BindGroupLayoutHandle layouts[1] = {m_bgl};
             rhi::PipelineLayoutDesc pld{};
-            pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>(layouts, 1);
+            pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>(layouts, 1);
             device->CreatePipelineLayout(pld, m_pl);
 
             // Per-frame uniform ring (frame N+1's CPU write mustn't clobber frame N's in-flight read).
@@ -122,7 +122,7 @@ float4 PSMain(PSIn i) : SV_TARGET { return float4(i.Color, 1.0); }
                     rhi::TextureViewHandle depthView, u32 w, u32 h, rhi::ClearColor clear,
                     const Float4x4& mvp, i32 frameIndex)
         {
-            if (m_pipeline == nullptr)
+            if (!m_pipeline.IsValid())
             {
                 return;
             }
@@ -214,7 +214,7 @@ float4 PSMain(PSIn i) : SV_TARGET { return float4(i.Color, 1.0); }
         }
 
         void CompileOne(shaders::Compiler* compiler, shaders::ShaderStage stage, StringView entry,
-                        rhi::ShaderModule*& out)
+                        rhi::ShaderModuleHandle& out)
         {
             const bool isDX12 = (m_device->type == rhi::DeviceType::DX12);
             const shaders::ShaderTarget target =
@@ -240,14 +240,14 @@ float4 PSMain(PSIn i) : SV_TARGET { return float4(i.Color, 1.0); }
         }
 
         rhi::Device* m_device = nullptr;
-        rhi::ShaderModule* m_vs = nullptr;
-        rhi::ShaderModule* m_ps = nullptr;
+        rhi::ShaderModuleHandle m_vs{};
+        rhi::ShaderModuleHandle m_ps{};
         rhi::BufferHandle m_vb{};
         rhi::BufferHandle m_ib{};
-        rhi::BindGroupLayout* m_bgl = nullptr;
-        rhi::PipelineLayout* m_pl = nullptr;
-        rhi::RenderPipeline* m_pipeline = nullptr;
+        rhi::BindGroupLayoutHandle m_bgl{};
+        rhi::PipelineLayoutHandle m_pl{};
+        rhi::RenderPipelineHandle m_pipeline{};
         Array<rhi::BufferHandle> m_uniforms;
-        Array<rhi::BindGroup*> m_bindGroups;
+        Array<rhi::BindGroupHandle> m_bindGroups;
     };
 } // namespace samples

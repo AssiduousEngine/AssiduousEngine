@@ -418,7 +418,7 @@ export namespace foundation::render
         /// clears that tile, in a pass that loads the rest of the layer. Built on first use and again
         /// when its shader reloads; a failed build is not retried until then. Null without a shader
         /// system or a build.
-        [[nodiscard]] rhi::RenderPipeline* TileClearPipeline();
+        [[nodiscard]] rhi::RenderPipelineHandle TileClearPipeline();
         ShadowSystem(const ShadowSystem&) = delete;
         ShadowSystem& operator=(const ShadowSystem&) = delete;
 
@@ -491,8 +491,8 @@ export namespace foundation::render
     private:
         GpuRetireQueue* m_retire = nullptr; // borrowed; null means WaitIdle on grow
         shaders::ShaderSystem* m_shaders = nullptr; // borrowed; the tile clear's shader
-        rhi::PipelineLayout* m_tileClearLayout = nullptr;
-        rhi::RenderPipeline* m_tileClearPipeline = nullptr;
+        rhi::PipelineLayoutHandle m_tileClearLayout{};
+        rhi::RenderPipelineHandle m_tileClearPipeline{};
         u64 m_tileClearVersion = ~0ull; // the shader version the clear was built (or failed) at
         static constexpr rhi::TextureFormat kShadowFormat = rhi::TextureFormat::Depth32Float;
         u32 m_resolution = 1024; // per cascade (SetResolutions)

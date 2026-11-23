@@ -94,18 +94,23 @@ export namespace foundation::rhi::webgpu
             return m_encoder != nullptr ? Status(ErrorCode::Ok) : Status(ErrorCode::Unknown);
         }
 
-        void SetPipeline(RenderPipeline* pipeline) override
+        void SetPipeline(RenderPipelineHandle pipeline) override
         {
-            auto* wgpuPipeline = static_cast<WebGpuRenderPipeline*>(pipeline);
+            auto* wgpuPipeline = LookUp(tables, pipeline);
+            if (wgpuPipeline == nullptr)
+                return; // a stale handle
             m_api->wgpuRenderBundleEncoderSetPipeline(m_encoder, wgpuPipeline->Handle());
             m_pushConstants.SetPipeline(wgpuPipeline->PushConstants());
             ++m_recorded.pipelineBinds;
         }
 
-        void SetBindGroup(u32 index, BindGroup* group, Span<const u32> dynamicOffsets) override
+        void SetBindGroup(u32 index, BindGroupHandle group, Span<const u32> dynamicOffsets) override
         {
+            const WebGpuBindGroup* bindGroup = LookUp(tables, group);
+            if (bindGroup == nullptr)
+                return; // a stale handle
             m_api->wgpuRenderBundleEncoderSetBindGroup(
-                m_encoder, index, static_cast<WebGpuBindGroup*>(group)->Handle(),
+                m_encoder, index, bindGroup->Handle(),
                 dynamicOffsets.Size(), dynamicOffsets.Data());
             ++m_recorded.bindGroupBinds;
         }

@@ -16,6 +16,7 @@ import :conversions;
 import :shader_module;
 import :pipeline_layout;
 import :pipeline_cache;
+import :tables;
 
 using namespace foundation::core;
 
@@ -25,9 +26,9 @@ export namespace foundation::rhi::vk
     class VkRenderPipelineImpl : public RenderPipeline
     {
     public:
-        Status init(VkDevice device, const RenderPipelineDesc& desc)
+        Status init(VkDevice device, const VkTables* tables, const RenderPipelineDesc& desc)
         {
-            auto* vkLayout = static_cast<VkPipelineLayoutImpl*>(desc.layout);
+            auto* vkLayout = LookUp(tables, desc.layout);
             if (!vkLayout)
                 return ErrorCode::Unknown;
             layout = desc.layout;
@@ -35,12 +36,12 @@ export namespace foundation::rhi::vk
 
             // Shader stages.
             Array<VkPipelineShaderStageCreateInfo> stages;
-            String vsEntry = String(EntryPointOf(desc.vertex.shader));
+            String vsEntry = String(EntryPointOf(desc.vertex.shader, LookUp(tables, desc.vertex.shader.module)));
             String fsEntry;
             if (vsEntry.IsEmpty())
                 return ErrorCode::InvalidArgument; // no entry point named by the stage or its module
 
-            auto* vsMod = static_cast<VkShaderModuleImpl*>(desc.vertex.shader.module);
+            auto* vsMod = LookUp(tables, desc.vertex.shader.module);
             if (!vsMod)
                 return ErrorCode::Unknown;
             VkPipelineShaderStageCreateInfo vsStage{};
@@ -52,10 +53,10 @@ export namespace foundation::rhi::vk
 
             if (desc.fragment.HasValue())
             {
-                fsEntry = String(EntryPointOf(desc.fragment->shader));
+                fsEntry = String(EntryPointOf(desc.fragment->shader, LookUp(tables, desc.fragment->shader.module)));
                 if (fsEntry.IsEmpty())
                     return ErrorCode::InvalidArgument;
-                auto* fsMod = static_cast<VkShaderModuleImpl*>(desc.fragment->shader.module);
+                auto* fsMod = LookUp(tables, desc.fragment->shader.module);
                 if (fsMod)
                 {
                     VkPipelineShaderStageCreateInfo fsStage{};
@@ -230,8 +231,8 @@ export namespace foundation::rhi::vk
             pi.layout = vkLayout->handle();
 
             VkPipelineCache cacheHandle = VK_NULL_HANDLE;
-            if (desc.cache)
-                cacheHandle = static_cast<VkPipelineCacheImpl*>(desc.cache)->handle();
+            if (auto* cache = LookUp(tables, desc.cache))
+                cacheHandle = cache->handle();
 
             if (vkCreateGraphicsPipelines(device, cacheHandle, 1, &pi, nullptr, &m_pipeline) !=
                 VK_SUCCESS)

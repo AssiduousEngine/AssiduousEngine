@@ -217,10 +217,10 @@ export namespace foundation::rhi::webgpu
             m_textureHandle = m_tables->textures.Add(&m_currentTexture);
             m_currentView.texture = m_textureHandle;
             m_currentAlternateView.texture = m_textureHandle;
-            m_viewHandle = m_tables->views.Add(&m_currentView);
+            m_viewHandle = m_tables->textureViews.Add(&m_currentView);
             if (AlternateViewFormat() != TextureFormat::Undefined)
             {
-                m_alternateHandle = m_tables->views.Add(&m_currentAlternateView);
+                m_alternateHandle = m_tables->textureViews.Add(&m_currentAlternateView);
             }
             ++m_frameIndex;
 #if PLATFORM_WEB
@@ -535,8 +535,8 @@ export namespace foundation::rhi::webgpu
         {
             if (m_tables != nullptr)
             {
-                (void)m_tables->views.Remove(m_alternateHandle);
-                (void)m_tables->views.Remove(m_viewHandle);
+                (void)m_tables->textureViews.Remove(m_alternateHandle);
+                (void)m_tables->textureViews.Remove(m_viewHandle);
                 (void)m_tables->textures.Remove(m_textureHandle);
             }
             if (m_haveImage)

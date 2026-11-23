@@ -91,10 +91,10 @@ export namespace foundation::rhi::dx12
 
         // ---- RenderPassEncoder: pipeline and binding ----
 
-        void SetPipeline(RenderPipeline* pipeline) override
+        void SetPipeline(RenderPipelineHandle pipeline) override
         {
             if (m_ctx.counters) m_ctx.counters->PipelineBinds();
-            auto* dxPipeline = static_cast<DxRenderPipelineImpl*>(pipeline);
+            auto* dxPipeline = LookUp(m_ctx.tables, pipeline);
             if (!dxPipeline)
                 return;
             m_currentPipeline = dxPipeline;
@@ -118,10 +118,10 @@ export namespace foundation::rhi::dx12
             }
         }
 
-        void SetBindGroup(u32 index, BindGroup* group, Span<const u32> dynamicOffsets) override
+        void SetBindGroup(u32 index, BindGroupHandle group, Span<const u32> dynamicOffsets) override
         {
             if (m_ctx.counters) m_ctx.counters->BindGroupBinds();
-            auto* dxGroup = static_cast<DxBindGroupImpl*>(group);
+            auto* dxGroup = LookUp(m_ctx.tables, group);
             if (!dxGroup)
                 return;
 
@@ -346,33 +346,33 @@ export namespace foundation::rhi::dx12
 
         // ---- Queries ----
 
-        void WriteTimestamp(QuerySet* querySet, u32 index) override
+        void WriteTimestamp(QuerySetHandle querySet, u32 index) override
         {
-            auto* qs = static_cast<DxQuerySetImpl*>(querySet);
+            auto* qs = LookUp(m_ctx.tables, querySet);
             if (qs)
                 m_ctx.cmdList->EndQuery(qs->handle(), D3D12_QUERY_TYPE_TIMESTAMP, index);
         }
 
-        void BeginOcclusionQuery(QuerySet* querySet, u32 index) override
+        void BeginOcclusionQuery(QuerySetHandle querySet, u32 index) override
         {
-            auto* qs = static_cast<DxQuerySetImpl*>(querySet);
+            auto* qs = LookUp(m_ctx.tables, querySet);
             if (qs)
                 m_ctx.cmdList->BeginQuery(qs->handle(), D3D12_QUERY_TYPE_OCCLUSION, index);
         }
 
-        void EndOcclusionQuery(QuerySet* querySet, u32 index) override
+        void EndOcclusionQuery(QuerySetHandle querySet, u32 index) override
         {
-            auto* qs = static_cast<DxQuerySetImpl*>(querySet);
+            auto* qs = LookUp(m_ctx.tables, querySet);
             if (qs)
                 m_ctx.cmdList->EndQuery(qs->handle(), D3D12_QUERY_TYPE_OCCLUSION, index);
         }
 
         // ---- MeshShaderPassExt ----
 
-        void SetMeshPipeline(MeshPipeline* pipeline) override
+        void SetMeshPipeline(MeshPipelineHandle pipeline) override
         {
             if (m_ctx.counters) m_ctx.counters->PipelineBinds();
-            auto* dxPipeline = static_cast<DxMeshPipelineImpl*>(pipeline);
+            auto* dxPipeline = LookUp(m_ctx.tables, pipeline);
             if (!dxPipeline)
                 return;
             m_currentMeshPipeline = dxPipeline;
@@ -460,7 +460,7 @@ export namespace foundation::rhi::dx12
             // Timestamp at pass end.
             if (m_desc.timestampQuerySet)
             {
-                auto* qs = static_cast<DxQuerySetImpl*>(m_desc.timestampQuerySet);
+                auto* qs = LookUp(m_ctx.tables, m_desc.timestampQuerySet);
                 if (qs)
                     m_ctx.cmdList->EndQuery(qs->handle(), D3D12_QUERY_TYPE_TIMESTAMP,
                                             m_desc.endTimestampIndex);

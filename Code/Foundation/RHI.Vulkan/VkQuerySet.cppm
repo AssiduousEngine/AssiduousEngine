@@ -37,8 +37,8 @@ export namespace foundation::rhi::vk
 
         Status init(VkDevice device, const QuerySetDesc& d)
         {
-            type = d.type;
-            count = d.count;
+            desc = d;
+            desc.label = {};
 
             VkQueryPoolCreateInfo ci{};
             ci.sType = VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO;

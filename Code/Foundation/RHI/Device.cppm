@@ -204,20 +204,20 @@ export namespace foundation::rhi
         virtual Status CreateTextureView(TextureHandle texture, const TextureViewDesc& desc,
                                          TextureViewHandle& out) = 0;
         virtual Status CreateSampler(const SamplerDesc& desc, SamplerHandle& out) = 0;
-        virtual Status CreateShaderModule(const ShaderModuleDesc& desc, ShaderModule*& out) = 0;
+        virtual Status CreateShaderModule(const ShaderModuleDesc& desc, ShaderModuleHandle& out) = 0;
         virtual Status CreateBindGroupLayout(const BindGroupLayoutDesc& desc,
-                                             BindGroupLayout*& out) = 0;
-        virtual Status CreateBindGroup(const BindGroupDesc& desc, BindGroup*& out) = 0;
+                                             BindGroupLayoutHandle& out) = 0;
+        virtual Status CreateBindGroup(const BindGroupDesc& desc, BindGroupHandle& out) = 0;
         virtual Status CreatePipelineLayout(const PipelineLayoutDesc& desc,
-                                            PipelineLayout*& out) = 0;
-        virtual Status CreatePipelineCache(const PipelineCacheDesc& desc, PipelineCache*& out) = 0;
+                                            PipelineLayoutHandle& out) = 0;
+        virtual Status CreatePipelineCache(const PipelineCacheDesc& desc, PipelineCacheHandle& out) = 0;
         virtual Status CreateRenderPipeline(const RenderPipelineDesc& desc,
-                                            RenderPipeline*& out) = 0;
+                                            RenderPipelineHandle& out) = 0;
         virtual Status CreateComputePipeline(const ComputePipelineDesc& desc,
-                                             ComputePipeline*& out) = 0;
+                                             ComputePipelineHandle& out) = 0;
         virtual Status CreateCommandPool(QueueType queueType, CommandPool*& out) = 0;
         virtual Status CreateFence(u64 initialValue, Fence*& out) = 0;
-        virtual Status CreateQuerySet(const QuerySetDesc& desc, QuerySet*& out) = 0;
+        virtual Status CreateQuerySet(const QuerySetDesc& desc, QuerySetHandle& out) = 0;
         virtual Status CreateSwapChain(Surface* surface, const SwapChainDesc& desc,
                                        SwapChain*& out) = 0;
 
@@ -243,6 +243,24 @@ export namespace foundation::rhi
         /// What the sampler was created with; null for a stale handle.
         [[nodiscard]] virtual const SamplerDesc* Describe(SamplerHandle sampler) const = 0;
 
+        // ---- Shaders, bindings, pipelines and queries ----
+        /// The entry point the module was compiled for (ShaderModuleDesc::entryPoint); empty for a
+        /// module whose stages name their entries, or a stale handle.
+        [[nodiscard]] virtual StringView EntryPointOf(ShaderModuleHandle module) const = 0;
+        /// The entries the layout was created with; empty for a stale handle.
+        [[nodiscard]] virtual Span<const BindGroupLayoutEntry> LayoutEntries(BindGroupLayoutHandle layout) const = 0;
+        /// The layout a bind group was created against; invalid for a stale handle.
+        [[nodiscard]] virtual BindGroupLayoutHandle LayoutOf(BindGroupHandle group) const = 0;
+        /// Update individual entries of a bindless bind group. Does nothing for a stale handle.
+        virtual void UpdateBindless(BindGroupHandle group, Span<const BindlessUpdateEntry> entries) = 0;
+        /// The bytes the cache's data takes; 0 for a stale handle.
+        [[nodiscard]] virtual u32 PipelineCacheDataSize(PipelineCacheHandle cache) = 0;
+        virtual Status PipelineCacheData(PipelineCacheHandle cache, Span<u8> outData) = 0;
+        /// What the query set was created with; null for a stale handle.
+        [[nodiscard]] virtual const QuerySetDesc* Describe(QuerySetHandle querySet) const = 0;
+        /// The acceleration structure's GPU address; 0 for a stale handle.
+        [[nodiscard]] virtual u64 DeviceAddress(AccelStructHandle accelStruct) const = 0;
+
         // ---- Resource destruction ----
         /// The handle (and the caller's copy) is stale at once; the buffer is freed when the GPU
         /// can no longer use it (Specs/rhi-handles.md, Decision 4).
@@ -252,24 +270,24 @@ export namespace foundation::rhi
         virtual void DestroyTexture(TextureHandle& tex) = 0;
         virtual void DestroyTextureView(TextureViewHandle& view) = 0;
         virtual void DestroySampler(SamplerHandle& sampler) = 0;
-        virtual void DestroyShaderModule(ShaderModule*& module) = 0;
-        virtual void DestroyBindGroupLayout(BindGroupLayout*& layout) = 0;
-        virtual void DestroyBindGroup(BindGroup*& group) = 0;
-        virtual void DestroyPipelineLayout(PipelineLayout*& layout) = 0;
-        virtual void DestroyPipelineCache(PipelineCache*& cache) = 0;
-        virtual void DestroyRenderPipeline(RenderPipeline*& pipeline) = 0;
-        virtual void DestroyComputePipeline(ComputePipeline*& pipeline) = 0;
+        virtual void DestroyShaderModule(ShaderModuleHandle& module) = 0;
+        virtual void DestroyBindGroupLayout(BindGroupLayoutHandle& layout) = 0;
+        virtual void DestroyBindGroup(BindGroupHandle& group) = 0;
+        virtual void DestroyPipelineLayout(PipelineLayoutHandle& layout) = 0;
+        virtual void DestroyPipelineCache(PipelineCacheHandle& cache) = 0;
+        virtual void DestroyRenderPipeline(RenderPipelineHandle& pipeline) = 0;
+        virtual void DestroyComputePipeline(ComputePipelineHandle& pipeline) = 0;
         virtual void DestroyCommandPool(CommandPool*& pool) = 0;
         virtual void DestroyFence(Fence*& fence) = 0;
-        virtual void DestroyQuerySet(QuerySet*& querySet) = 0;
+        virtual void DestroyQuerySet(QuerySetHandle& querySet) = 0;
         virtual void DestroySwapChain(SwapChain*& swapChain) = 0;
         virtual void DestroySurface(Surface*& surface) = 0;
 
         // ---- Mesh shader extension (folded into Device) ----
         /// Create a mesh shader pipeline. Returns NotSupported if mesh shaders
         /// are not enabled on this device.
-        virtual Status CreateMeshPipeline(const MeshPipelineDesc& desc, MeshPipeline*& out) = 0;
-        virtual void DestroyMeshPipeline(MeshPipeline*& pipeline) = 0;
+        virtual Status CreateMeshPipeline(const MeshPipelineDesc& desc, MeshPipelineHandle& out) = 0;
+        virtual void DestroyMeshPipeline(MeshPipelineHandle& pipeline) = 0;
 
         // ---- Ray tracing extension (folded into Device) ----
         /// Shader binding table handle properties. Populated by the backend
@@ -280,15 +298,15 @@ export namespace foundation::rhi
 
         /// Create an acceleration structure. Returns NotSupported if ray tracing
         /// is not enabled on this device.
-        virtual Status CreateAccelStruct(const AccelStructDesc& desc, AccelStruct*& out) = 0;
-        virtual void DestroyAccelStruct(AccelStruct*& accelStruct) = 0;
+        virtual Status CreateAccelStruct(const AccelStructDesc& desc, AccelStructHandle& out) = 0;
+        virtual void DestroyAccelStruct(AccelStructHandle& accelStruct) = 0;
 
         virtual Status CreateRayTracingPipeline(const RayTracingPipelineDesc& desc,
-                                                RayTracingPipeline*& out) = 0;
-        virtual void DestroyRayTracingPipeline(RayTracingPipeline*& pipeline) = 0;
+                                                RayTracingPipelineHandle& out) = 0;
+        virtual void DestroyRayTracingPipeline(RayTracingPipelineHandle& pipeline) = 0;
 
         /// Retrieve shader group handles for building shader binding tables.
-        virtual Status GetShaderGroupHandles(RayTracingPipeline* pipeline, u32 firstGroup,
+        virtual Status GetShaderGroupHandles(RayTracingPipelineHandle pipeline, u32 firstGroup,
                                              u32 groupCount, Span<u8> outData) = 0;
 
         // ---- Lifecycle ----

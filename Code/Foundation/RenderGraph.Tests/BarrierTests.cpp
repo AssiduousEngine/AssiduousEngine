@@ -65,11 +65,11 @@ namespace
         void Blit(rhi::TextureHandle, rhi::TextureHandle) override {}
         void GenerateMipmaps(rhi::TextureHandle) override {}
         void ResolveTexture(rhi::TextureHandle, rhi::TextureHandle) override {}
-        void ResetQuerySet(rhi::QuerySet*, u32, u32) override {}
-        void WriteTimestamp(rhi::QuerySet*, u32) override {}
-        void BeginPipelineStatisticsQuery(rhi::QuerySet*, u32) override {}
-        void EndPipelineStatisticsQuery(rhi::QuerySet*, u32) override {}
-        void ResolveQuerySet(rhi::QuerySet*, u32, u32, rhi::BufferHandle, u64) override {}
+        void ResetQuerySet(rhi::QuerySetHandle, u32, u32) override {}
+        void WriteTimestamp(rhi::QuerySetHandle, u32) override {}
+        void BeginPipelineStatisticsQuery(rhi::QuerySetHandle, u32) override {}
+        void EndPipelineStatisticsQuery(rhi::QuerySetHandle, u32) override {}
+        void ResolveQuerySet(rhi::QuerySetHandle, u32, u32, rhi::BufferHandle, u64) override {}
         void BeginDebugLabel(StringView, f32, f32, f32, f32) override {}
         void EndDebugLabel() override {}
         void InsertDebugLabel(StringView, f32, f32, f32, f32) override {}

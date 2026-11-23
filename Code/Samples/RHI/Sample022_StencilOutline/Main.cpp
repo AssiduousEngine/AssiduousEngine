@@ -103,10 +103,10 @@ private:
     void recreateDepthStencil(foundation::core::u32 w, foundation::core::u32 h);
 
     rhi::BufferHandle m_vb{}, m_ib{};
-    rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
-    rhi::PipelineLayout* m_pl = nullptr;
-    rhi::RenderPipeline* m_stencilWritePipeline = nullptr;
-    rhi::RenderPipeline* m_stencilTestPipeline = nullptr;
+    rhi::ShaderModuleHandle m_vs{}, m_ps{};
+    rhi::PipelineLayoutHandle m_pl{};
+    rhi::RenderPipelineHandle m_stencilWritePipeline{};
+    rhi::RenderPipelineHandle m_stencilTestPipeline{};
     rhi::TextureHandle m_depthStencilTex{};
     rhi::TextureViewHandle m_depthStencilView{};
     rhi::CommandPool* m_pool = nullptr;

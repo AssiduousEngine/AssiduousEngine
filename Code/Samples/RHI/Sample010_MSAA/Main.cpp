@@ -35,10 +35,10 @@ private:
 
     void recreateMSAA(foundation::core::u32 w, foundation::core::u32 h);
 
-    rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
+    rhi::ShaderModuleHandle m_vs{}, m_ps{};
     rhi::BufferHandle m_vb{}, m_ib{};
-    rhi::PipelineLayout* m_pl = nullptr;
-    rhi::RenderPipeline* m_pipeline = nullptr;
+    rhi::PipelineLayoutHandle m_pl{};
+    rhi::RenderPipelineHandle m_pipeline{};
     rhi::TextureHandle m_msaaTex{};
     rhi::TextureViewHandle m_msaaView{};
     rhi::CommandPool* m_pool = nullptr;

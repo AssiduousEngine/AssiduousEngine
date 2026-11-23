@@ -36,11 +36,11 @@ private:
     };
     static constexpr foundation::core::u16 kIdx[] = {0, 1, 2};
 
-    rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
+    rhi::ShaderModuleHandle m_vs{}, m_ps{};
     rhi::BufferHandle m_vb{}, m_ib{};
-    rhi::PipelineLayout* m_pl = nullptr;
-    rhi::RenderPipeline* m_pipeline = nullptr;
-    rhi::QuerySet* m_tsQuerySet = nullptr;
+    rhi::PipelineLayoutHandle m_pl{};
+    rhi::RenderPipelineHandle m_pipeline{};
+    rhi::QuerySetHandle m_tsQuerySet{};
     rhi::BufferHandle m_queryResultBuf{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;

@@ -74,18 +74,18 @@ export namespace foundation::render
                                                         rhi::TextureFormat depthFormat, u32 w, u32 h);
 
     private:
-        rhi::RenderPipeline* MakePipeline(rhi::TextureFormat depthFormat);
+        rhi::RenderPipelineHandle MakePipeline(rhi::TextureFormat depthFormat);
         // The multisampled inputs: normal, velocity, material, depth, albedo.
         using BindInputs = BindGroupInputs<5>;
-        rhi::BindGroup* EnsureBindGroup(const BindInputs& inputs);
+        rhi::BindGroupHandle EnsureBindGroup(const BindInputs& inputs);
         void Shutdown();
 
         rhi::Device* m_device = nullptr;
         shaders::ShaderSystem* m_shaders = nullptr;
         GpuRetireQueue* m_retire = nullptr; // borrowed; null: idle the GPU before destroying
-        rhi::BindGroupLayout* m_layout = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::RenderPipeline* m_pipeline = nullptr;
+        rhi::BindGroupLayoutHandle m_layout{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
+        rhi::RenderPipelineHandle m_pipeline{};
         rhi::TextureFormat m_pipelineDepthFormat = rhi::TextureFormat::Undefined;
         u64 m_pipelineShaderVersion = 0;
 

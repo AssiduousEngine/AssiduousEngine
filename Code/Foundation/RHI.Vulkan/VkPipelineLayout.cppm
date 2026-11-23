@@ -14,6 +14,7 @@ import foundation.core;
 import foundation.rhi;
 import :conversions;
 import :bind_group_layout;
+import :tables;
 
 using namespace foundation::core;
 
@@ -23,12 +24,12 @@ export namespace foundation::rhi::vk
     class VkPipelineLayoutImpl : public PipelineLayout
     {
     public:
-        Status init(VkDevice device, const PipelineLayoutDesc& desc)
+        Status init(VkDevice device, const VkTables* tables, const PipelineLayoutDesc& desc)
         {
             Array<VkDescriptorSetLayout> setLayouts(desc.bindGroupLayouts.Size());
             for (usize i = 0; i < desc.bindGroupLayouts.Size(); ++i)
             {
-                auto* vkl = static_cast<VkBindGroupLayoutImpl*>(desc.bindGroupLayouts[i]);
+                auto* vkl = LookUp(tables, desc.bindGroupLayouts[i]);
                 if (!vkl)
                     return ErrorCode::Unknown;
                 setLayouts[i] = vkl->handle();

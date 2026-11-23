@@ -64,9 +64,9 @@ export namespace foundation::render
     // frame still in flight may have recorded it, so it is retired into `retire` and freed once
     // every such frame has aged out; with no queue wired (a pass used on its own, as the backend
     // probes do), the GPU is idled first, as GpuRetireQueue's consumers do.
-    inline void RetireBindGroup(rhi::Device& device, GpuRetireQueue* retire, rhi::BindGroup* group)
+    inline void RetireBindGroup(rhi::Device& device, GpuRetireQueue* retire, rhi::BindGroupHandle group)
     {
-        if (group == nullptr)
+        if (!group.IsValid())
         {
             return;
         }
@@ -122,25 +122,25 @@ export namespace foundation::render
         // The group built for `key` from exactly `inputs`, or null. A group built for `key` from
         // anything else is forgotten and handed back in `stale` for the caller to retire
         // (RetireBindGroup: a frame in flight may still use it).
-        [[nodiscard]] rhi::BindGroup* Find(rhi::TextureViewHandle key, const BindGroupInputs<N>& inputs,
-                                           rhi::BindGroup*& stale)
+        [[nodiscard]] rhi::BindGroupHandle Find(rhi::TextureViewHandle key, const BindGroupInputs<N>& inputs,
+                                           rhi::BindGroupHandle& stale)
         {
-            stale = nullptr;
+            stale = {};
             Entry* e = m_entries.Find(key);
             if (e == nullptr)
             {
-                return nullptr;
+                return {};
             }
-            if (e->bg != nullptr && e->inputs == inputs)
+            if (e->bg.IsValid() && e->inputs == inputs)
             {
                 return e->bg;
             }
             stale = e->bg;
             m_entries.Remove(key);
-            return nullptr;
+            return {};
         }
 
-        void Store(rhi::TextureViewHandle key, const BindGroupInputs<N>& inputs, rhi::BindGroup* bg)
+        void Store(rhi::TextureViewHandle key, const BindGroupInputs<N>& inputs, rhi::BindGroupHandle bg)
         {
             m_entries.InsertOrAssign(key, Entry{bg, inputs});
         }
@@ -151,7 +151,7 @@ export namespace foundation::render
         {
             for (auto& kv : m_entries)
             {
-                if (kv.value.bg != nullptr)
+                if (kv.value.bg.IsValid())
                 {
                     destroy(kv.value.bg);
                 }
@@ -164,7 +164,7 @@ export namespace foundation::render
     private:
         struct Entry
         {
-            rhi::BindGroup* bg = nullptr;
+            rhi::BindGroupHandle bg{};
             BindGroupInputs<N> inputs;
         };
         HashMap<rhi::TextureViewHandle, Entry> m_entries;

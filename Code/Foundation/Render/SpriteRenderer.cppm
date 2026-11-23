@@ -118,11 +118,11 @@ export namespace foundation::render
         // One bind group over the whole view ring (a per-draw dynamic offset selects the slot). Rebuilt
         // when the ring grows (generation bump); the old one is retired through the queue when wired,
         // since a frame in flight may still use it.
-        rhi::BindGroup* EnsureViewBindGroup();
+        rhi::BindGroupHandle EnsureViewBindGroup();
 
-        rhi::BindGroup* EnsureTextureBindGroup(rhi::TextureViewHandle tex);
+        rhi::BindGroupHandle EnsureTextureBindGroup(rhi::TextureViewHandle tex);
 
-        rhi::RenderPipeline* EnsurePipeline(rhi::TextureFormat colorFormat, bool additive);
+        rhi::RenderPipelineHandle EnsurePipeline(rhi::TextureFormat colorFormat, bool additive);
 
         void Shutdown();
 
@@ -132,7 +132,7 @@ export namespace foundation::render
         // pipeline the frame's command buffer already bound.
         struct Pipelines
         {
-            rhi::RenderPipeline* pso = nullptr;
+            rhi::RenderPipelineHandle pso{};
             rhi::TextureFormat format = rhi::TextureFormat::Undefined;
             bool additive = false;
             u64 shaderVersion = 0; // ShaderSystem::Version at build (hot reload)
@@ -143,12 +143,12 @@ export namespace foundation::render
         DynamicUniformRing m_instanceRing;
         ViewUniformRing m_viewRing;
         GpuRetireQueue* m_retire = nullptr; // borrowed; null idles the GPU before freeing a replaced bind group
-        rhi::BindGroupLayout* m_viewLayout = nullptr;
-        rhi::BindGroupLayout* m_texLayout = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
+        rhi::BindGroupLayoutHandle m_viewLayout{};
+        rhi::BindGroupLayoutHandle m_texLayout{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
         rhi::SamplerHandle m_sampler{};
         rhi::BufferHandle m_indexBuffer{};
-        rhi::BindGroup* m_viewBg = nullptr;
+        rhi::BindGroupHandle m_viewBg{};
         u32 m_viewBgGen = 0xFFFFFFFFu; // generation the view bind group was built for
         Array<Pipelines> m_pipelines; // one entry per (format, additive) seen
         rhi::TextureFormat m_depthFormat = rhi::TextureFormat::Depth32Float;
@@ -156,7 +156,7 @@ export namespace foundation::render
         // was has another handle, so a group built for the old view is never handed back.
         // TODO(render): a destroyed view's group stays until Shutdown; free it once bind groups
         // retire through the device as views do.
-        HashMap<rhi::TextureViewHandle, rhi::BindGroup*> m_texBindGroups;
+        HashMap<rhi::TextureViewHandle, rhi::BindGroupHandle> m_texBindGroups;
     };
 
 } // namespace foundation::render

@@ -43,9 +43,9 @@ namespace foundation::render
         {
             return Status{ErrorCode::Unknown};
         }
-        rhi::BindGroupLayout* layouts[] = {m_layout};
+        rhi::BindGroupLayoutHandle layouts[] = {m_layout};
         rhi::PipelineLayoutDesc pld{};
-        pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{layouts, 1};
+        pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{layouts, 1};
         if (!m_device->CreatePipelineLayout(pld, m_pipelineLayout).IsOk())
         {
             return Status{ErrorCode::Unknown};
@@ -96,8 +96,8 @@ namespace foundation::render
             }
             m_retiredPipes.Resize(w);
         }
-        rhi::RenderPipeline* pipeline = EnsurePipeline(colorFormat, depthFormat, samples);
-        if (pipeline == nullptr || !envView.IsValid())
+        rhi::RenderPipelineHandle pipeline = EnsurePipeline(colorFormat, depthFormat, samples);
+        if (!pipeline.IsValid() || !envView.IsValid())
         {
             return;
         }
@@ -134,8 +134,8 @@ namespace foundation::render
                 b.SetExecute(
                     [this, envView, pipeline, viewIndex, frameIndex, uid, u](rhi::RenderPassEncoder& rp)
                     {
-                        rhi::BindGroup* bg = EnsureBindGroup(viewIndex, frameIndex, envView, uid, u);
-                        if (bg == nullptr)
+                        rhi::BindGroupHandle bg = EnsureBindGroup(viewIndex, frameIndex, envView, uid, u);
+                        if (!bg.IsValid())
                         {
                             return;
                         }
@@ -146,7 +146,7 @@ namespace foundation::render
             });
     }
 
-    rhi::RenderPipeline* SkyPass::EnsurePipeline(rhi::TextureFormat colorFmt,
+    rhi::RenderPipelineHandle SkyPass::EnsurePipeline(rhi::TextureFormat colorFmt,
                                                  rhi::TextureFormat depthFmt, u32 samples)
     {
         if (samples == 0)
@@ -154,26 +154,26 @@ namespace foundation::render
             samples = 1;
         }
         const u64 shaderVersion = m_shaders->Version(u8"sky"); // hot reload rebuilds
-        if (m_pipeline != nullptr && m_colorFormat == colorFmt && m_depthFormat == depthFmt &&
+        if (m_pipeline.IsValid() && m_colorFormat == colorFmt && m_depthFormat == depthFmt &&
             m_pipelineSampleCount == samples && m_pipelineShaderVersion == shaderVersion)
         {
             return m_pipeline;
         }
-        rhi::ShaderModule* vs = m_shaders->GetVariant(u8"sky", shaders::ShaderStage::Vertex,
+        rhi::ShaderModuleHandle vs = m_shaders->GetVariant(u8"sky", shaders::ShaderStage::Vertex,
                                                       shaders::ShaderFlags::None);
-        rhi::ShaderModule* ps = m_shaders->GetVariant(u8"sky", shaders::ShaderStage::Fragment,
+        rhi::ShaderModuleHandle ps = m_shaders->GetVariant(u8"sky", shaders::ShaderStage::Fragment,
                                                       shaders::ShaderFlags::None);
-        if (vs == nullptr || ps == nullptr)
+        if (!vs.IsValid() || !ps.IsValid())
         {
-            return nullptr;
+            return {};
         }
-        if (m_pipeline != nullptr)
+        if (m_pipeline.IsValid())
         {
             // A rebuild (shader reload or MSAA sample-count toggle) may retire a pipeline still
             // referenced by in-flight command buffers, so defer its free by kRetireFrames (drained per
             // frame in DeclareSky) rather than WaitIdle on the render path, which the web cannot afford.
             m_retiredPipes.PushBack(RetiredPipe{m_pipeline, kRetireFrames});
-            m_pipeline = nullptr;
+            m_pipeline = {};
         }
 
         // 2 targets: color (matches the HDR target) and velocity (camera motion, for TAA). No blend.
@@ -201,8 +201,8 @@ namespace foundation::render
         pd.label = u8"sky";
         if (!m_device->CreateRenderPipeline(pd, m_pipeline).IsOk())
         {
-            m_pipeline = nullptr;
-            return nullptr;
+            m_pipeline = {};
+            return {};
         }
         m_colorFormat = colorFmt;
         m_depthFormat = depthFmt;
@@ -211,7 +211,7 @@ namespace foundation::render
         return m_pipeline;
     }
 
-    rhi::BindGroup* SkyPass::EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureViewHandle envView,
+    rhi::BindGroupHandle SkyPass::EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureViewHandle envView,
                                              u64 envUid, const GpuSky& u)
     {
         Slot& s = m_slots.At(viewIndex, frameIndex);
@@ -225,7 +225,7 @@ namespace foundation::render
             if (!m_device->CreateBuffer(bd, s.ubo).IsOk())
             {
                 s.ubo = {};
-                return nullptr;
+                return {};
             }
         }
         if (void* p = m_device->Map(s.ubo))
@@ -233,12 +233,12 @@ namespace foundation::render
             MemCopy(p, &u, sizeof(GpuSky));
             m_device->Unmap(s.ubo);
         }
-        if (s.bindGroup == nullptr || s.env != envView || s.envUid != envUid)
+        if (!s.bindGroup.IsValid() || s.env != envView || s.envUid != envUid)
         {
-            if (s.bindGroup != nullptr)
+            if (s.bindGroup.IsValid())
             {
                 m_device->DestroyBindGroup(s.bindGroup);
-                s.bindGroup = nullptr;
+                s.bindGroup = {};
             }
             rhi::BindGroupEntry be[] = {
                 rhi::BindGroupEntry::BufferEntry(s.ubo, 0, sizeof(GpuSky)),
@@ -250,8 +250,8 @@ namespace foundation::render
             bgd.entries = Span<const rhi::BindGroupEntry>{be, 3};
             if (!m_device->CreateBindGroup(bgd, s.bindGroup).IsOk())
             {
-                s.bindGroup = nullptr;
-                return nullptr;
+                s.bindGroup = {};
+                return {};
             }
             s.env = envView;
             s.envUid = envUid;
@@ -266,7 +266,7 @@ namespace foundation::render
             if (slot.bindGroup)
             {
                 m_device->DestroyBindGroup(slot.bindGroup);
-                slot.bindGroup = nullptr;
+                slot.bindGroup = {};
             }
             if (slot.ubo)
             {
@@ -277,11 +277,11 @@ namespace foundation::render
         if (m_pipeline)
         {
             m_device->DestroyRenderPipeline(m_pipeline);
-            m_pipeline = nullptr;
+            m_pipeline = {};
         }
         for (RetiredPipe& r : m_retiredPipes)
         {
-            if (r.p != nullptr)
+            if (r.p.IsValid())
             {
                 m_device->DestroyRenderPipeline(r.p);
             }
@@ -295,12 +295,12 @@ namespace foundation::render
         if (m_pipelineLayout)
         {
             m_device->DestroyPipelineLayout(m_pipelineLayout);
-            m_pipelineLayout = nullptr;
+            m_pipelineLayout = {};
         }
         if (m_layout)
         {
             m_device->DestroyBindGroupLayout(m_layout);
-            m_layout = nullptr;
+            m_layout = {};
         }
     }
 }

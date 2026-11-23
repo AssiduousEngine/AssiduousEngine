@@ -111,7 +111,7 @@ TEST_CASE("rhi.webgpu: unimplemented stages fail honestly, extensions unsupporte
     QuerySetDesc statisticsDesc;
     statisticsDesc.type = QueryType::PipelineStatistics;
     statisticsDesc.count = 1;
-    QuerySet* statistics = nullptr;
+    QuerySetHandle statistics{};
     CHECK(device->CreateQuerySet(statisticsDesc, statistics).Code() ==
           ErrorCode::NotSupported);
     // ...so a statistics result takes no room and reads as zeros, and no GPU timestamp can be
@@ -127,7 +127,7 @@ TEST_CASE("rhi.webgpu: unimplemented stages fail honestly, extensions unsupporte
         CHECK(cpu == 4u);
     }
 
-    MeshPipeline* mesh = nullptr;
+    MeshPipelineHandle mesh{};
     CHECK(device->CreateMeshPipeline(MeshPipelineDesc{}, mesh).Code() ==
           ErrorCode::NotSupported);
 
@@ -321,7 +321,7 @@ TEST_CASE("rhi.webgpu: resources - buffer map emulation, texture + view, sampler
     ShaderModuleDesc moduleDesc;
     moduleDesc.code = Span<const u8>(reinterpret_cast<const u8*>(wgsl),
                                      StringView(wgsl).Size());
-    ShaderModule* shaderModule = nullptr;
+    ShaderModuleHandle shaderModule{};
     REQUIRE(device->CreateShaderModule(moduleDesc, shaderModule).IsOk());
 
     device->DestroyShaderModule(shaderModule);
@@ -354,9 +354,9 @@ TEST_CASE("rhi.webgpu: bind groups + pipelines - the DXC shift scheme end-to-end
     };
     BindGroupLayoutDesc layoutDesc;
     layoutDesc.entries = Span<const BindGroupLayoutEntry>(entries, 3);
-    BindGroupLayout* layout = nullptr;
+    BindGroupLayoutHandle layout{};
     REQUIRE(device->CreateBindGroupLayout(layoutDesc, layout).IsOk());
-    CHECK(layout->Entries().Size() == 3u);
+    CHECK(device->LayoutEntries(layout).Size() == 3u);
 
     // Resources to bind.
     BufferDesc uboDesc;
@@ -384,17 +384,17 @@ TEST_CASE("rhi.webgpu: bind groups + pipelines - the DXC shift scheme end-to-end
     BindGroupDesc groupDesc;
     groupDesc.layout = layout;
     groupDesc.entries = Span<const BindGroupEntry>(groupEntries, 3);
-    BindGroup* group = nullptr;
+    BindGroupHandle group{};
     REQUIRE(device->CreateBindGroup(groupDesc, group).IsOk());
-    CHECK(group->Layout() == layout);
+    CHECK(device->LayoutOf(group) == layout);
 
     // Pipeline layout and a render pipeline whose WGSL uses the shifted binding numbers
     // (the compact WebGPU profile: SRV +100, sampler +300); if the shift scheme
     // mismatched the layout, creation would fail.
     PipelineLayoutDesc plDesc;
-    BindGroupLayout* layouts[] = {layout};
-    plDesc.bindGroupLayouts = Span<BindGroupLayout* const>(layouts, 1);
-    PipelineLayout* pipelineLayout = nullptr;
+    BindGroupLayoutHandle layouts[] = {layout};
+    plDesc.bindGroupLayouts = Span<BindGroupLayoutHandle const>(layouts, 1);
+    PipelineLayoutHandle pipelineLayout{};
     REQUIRE(device->CreatePipelineLayout(plDesc, pipelineLayout).IsOk());
 
     const char8_t* wgsl =
@@ -409,7 +409,7 @@ TEST_CASE("rhi.webgpu: bind groups + pipelines - the DXC shift scheme end-to-end
     ShaderModuleDesc moduleDesc;
     moduleDesc.code =
         Span<const u8>(reinterpret_cast<const u8*>(wgsl), StringView(wgsl).Size());
-    ShaderModule* shaderModule = nullptr;
+    ShaderModuleHandle shaderModule{};
     REQUIRE(device->CreateShaderModule(moduleDesc, shaderModule).IsOk());
 
     RenderPipelineDesc rpDesc;
@@ -422,13 +422,13 @@ TEST_CASE("rhi.webgpu: bind groups + pipelines - the DXC shift scheme end-to-end
     fragment.shader = ProgrammableStage{shaderModule, u8"fragmentMain", ShaderStage::Fragment};
     fragment.targets = Span<const ColorTargetState>(&target, 1);
     rpDesc.fragment = fragment;
-    RenderPipeline* renderPipeline = nullptr;
+    RenderPipelineHandle renderPipeline{};
     REQUIRE(device->CreateRenderPipeline(rpDesc, renderPipeline).IsOk());
 
     // Wireframe has no WebGPU shape: NotSupported.
     RenderPipelineDesc wireframeDesc = rpDesc;
     wireframeDesc.primitive.fillMode = FillMode::Wireframe;
-    RenderPipeline* wireframe = nullptr;
+    RenderPipelineHandle wireframe{};
     CHECK(device->CreateRenderPipeline(wireframeDesc, wireframe).Code() ==
           ErrorCode::NotSupported);
 
@@ -438,15 +438,15 @@ TEST_CASE("rhi.webgpu: bind groups + pipelines - the DXC shift scheme end-to-end
     ShaderModuleDesc computeModuleDesc;
     computeModuleDesc.code = Span<const u8>(reinterpret_cast<const u8*>(computeWgsl),
                                             StringView(computeWgsl).Size());
-    ShaderModule* computeModule = nullptr;
+    ShaderModuleHandle computeModule{};
     REQUIRE(device->CreateShaderModule(computeModuleDesc, computeModule).IsOk());
     PipelineLayoutDesc emptyLayoutDesc;
-    PipelineLayout* emptyLayout = nullptr;
+    PipelineLayoutHandle emptyLayout{};
     REQUIRE(device->CreatePipelineLayout(emptyLayoutDesc, emptyLayout).IsOk());
     ComputePipelineDesc cpDesc;
     cpDesc.layout = emptyLayout;
     cpDesc.compute = ProgrammableStage{computeModule, u8"computeMain", ShaderStage::Compute};
-    ComputePipeline* computePipeline = nullptr;
+    ComputePipelineHandle computePipeline{};
     REQUIRE(device->CreateComputePipeline(cpDesc, computePipeline).IsOk());
 
     device->DestroyComputePipeline(computePipeline);
@@ -1265,7 +1265,7 @@ TEST_CASE("rhi.webgpu: cube faces render + cube view samples correctly")
     };
     BindGroupLayoutDesc layoutDesc;
     layoutDesc.entries = Span<const BindGroupLayoutEntry>(layoutEntries, 2);
-    BindGroupLayout* layout = nullptr;
+    BindGroupLayoutHandle layout{};
     REQUIRE(device->CreateBindGroupLayout(layoutDesc, layout).IsOk());
     const BindGroupEntry groupEntries[] = {
         BindGroupEntry::TextureEntry(cubeView),
@@ -1274,7 +1274,7 @@ TEST_CASE("rhi.webgpu: cube faces render + cube view samples correctly")
     BindGroupDesc groupDesc;
     groupDesc.layout = layout;
     groupDesc.entries = Span<const BindGroupEntry>(groupEntries, 2);
-    BindGroup* group = nullptr;
+    BindGroupHandle group{};
     REQUIRE(device->CreateBindGroup(groupDesc, group).IsOk());
 
     const char8_t* wgsl =
@@ -1292,13 +1292,13 @@ TEST_CASE("rhi.webgpu: cube faces render + cube view samples correctly")
     ShaderModuleDesc moduleDesc;
     moduleDesc.code =
         Span<const u8>(reinterpret_cast<const u8*>(wgsl), StringView(wgsl).Size());
-    ShaderModule* shaderModule = nullptr;
+    ShaderModuleHandle shaderModule{};
     REQUIRE(device->CreateShaderModule(moduleDesc, shaderModule).IsOk());
 
     PipelineLayoutDesc pipelineLayoutDesc;
-    BindGroupLayout* layouts[] = {layout};
-    pipelineLayoutDesc.bindGroupLayouts = Span<BindGroupLayout* const>(layouts, 1);
-    PipelineLayout* pipelineLayout = nullptr;
+    BindGroupLayoutHandle layouts[] = {layout};
+    pipelineLayoutDesc.bindGroupLayouts = Span<BindGroupLayoutHandle const>(layouts, 1);
+    PipelineLayoutHandle pipelineLayout{};
     REQUIRE(device->CreatePipelineLayout(pipelineLayoutDesc, pipelineLayout).IsOk());
     RenderPipelineDesc pipelineDesc;
     pipelineDesc.layout = pipelineLayout;
@@ -1310,7 +1310,7 @@ TEST_CASE("rhi.webgpu: cube faces render + cube view samples correctly")
     fragment.shader = ProgrammableStage{shaderModule, u8"fragmentMain", ShaderStage::Fragment};
     fragment.targets = Span<const ColorTargetState>(&target, 1);
     pipelineDesc.fragment = fragment;
-    RenderPipeline* pipeline = nullptr;
+    RenderPipelineHandle pipeline{};
     REQUIRE(device->CreateRenderPipeline(pipelineDesc, pipeline).IsOk());
 
     TextureDesc outDesc = TextureDesc::RenderTarget(TextureFormat::RGBA8Unorm, 1, 1);
@@ -1441,10 +1441,10 @@ TEST_CASE("rhi.webgpu: sky-shaped draw - z=1.0 vs cleared depth, read-only pass,
     ShaderModuleDesc moduleDesc;
     moduleDesc.code =
         Span<const u8>(reinterpret_cast<const u8*>(wgsl), StringView(wgsl).Size());
-    ShaderModule* shaderModule = nullptr;
+    ShaderModuleHandle shaderModule{};
     REQUIRE(device->CreateShaderModule(moduleDesc, shaderModule).IsOk());
     PipelineLayoutDesc emptyLayout;
-    PipelineLayout* pipelineLayout = nullptr;
+    PipelineLayoutHandle pipelineLayout{};
     REQUIRE(device->CreatePipelineLayout(emptyLayout, pipelineLayout).IsOk());
 
     RenderPipelineDesc pipelineDesc;
@@ -1464,7 +1464,7 @@ TEST_CASE("rhi.webgpu: sky-shaped draw - z=1.0 vs cleared depth, read-only pass,
     depthState.depthWriteEnabled = false;
     depthState.depthCompare = foundation::rhi::depth::NearerOrEqual(); // at the far plane: only a cleared pixel
     pipelineDesc.depthStencil = depthState;
-    RenderPipeline* pipeline = nullptr;
+    RenderPipelineHandle pipeline{};
     REQUIRE(device->CreateRenderPipeline(pipelineDesc, pipeline).IsOk());
 
     CommandPool* pool = nullptr;
@@ -1658,7 +1658,7 @@ TEST_CASE("rhi.webgpu: push-constant UNIFORM FALLBACK - forced on desktop, verif
         u8"}\n";
     ShaderModuleDesc moduleDesc;
     moduleDesc.code = Span<const u8>(reinterpret_cast<const u8*>(wgsl), StringView(wgsl).Size());
-    ShaderModule* shaderModule = nullptr;
+    ShaderModuleHandle shaderModule{};
     REQUIRE(device->CreateShaderModule(moduleDesc, shaderModule).IsOk());
 
     // Group 0: the read-write storage output.
@@ -1667,7 +1667,7 @@ TEST_CASE("rhi.webgpu: push-constant UNIFORM FALLBACK - forced on desktop, verif
     };
     BindGroupLayoutDesc bglDesc;
     bglDesc.entries = Span<const BindGroupLayoutEntry>(layoutEntries, 1);
-    BindGroupLayout* bgl = nullptr;
+    BindGroupLayoutHandle bgl{};
     REQUIRE(device->CreateBindGroupLayout(bglDesc, bgl).IsOk());
 
     BufferDesc storageDesc;
@@ -1681,7 +1681,7 @@ TEST_CASE("rhi.webgpu: push-constant UNIFORM FALLBACK - forced on desktop, verif
     BindGroupDesc groupDesc;
     groupDesc.layout = bgl;
     groupDesc.entries = Span<const BindGroupEntry>(groupEntries, 1);
-    BindGroup* bindGroup = nullptr;
+    BindGroupHandle bindGroup{};
     REQUIRE(device->CreateBindGroup(groupDesc, bindGroup).IsOk());
 
     // Pipeline layout declares a push-constant range targeting @group(1): the layout must
@@ -1692,16 +1692,16 @@ TEST_CASE("rhi.webgpu: push-constant UNIFORM FALLBACK - forced on desktop, verif
     pushRange.size = 16;
     pushRange.bindGroupIndex = 1;
     PipelineLayoutDesc plDesc;
-    BindGroupLayout* layouts[] = {bgl};
-    plDesc.bindGroupLayouts = Span<BindGroupLayout* const>(layouts, 1);
+    BindGroupLayoutHandle layouts[] = {bgl};
+    plDesc.bindGroupLayouts = Span<BindGroupLayoutHandle const>(layouts, 1);
     plDesc.pushConstantRanges = Span<const PushConstantRange>(&pushRange, 1);
-    PipelineLayout* pipelineLayout = nullptr;
+    PipelineLayoutHandle pipelineLayout{};
     REQUIRE(device->CreatePipelineLayout(plDesc, pipelineLayout).IsOk());
 
     ComputePipelineDesc cpDesc;
     cpDesc.layout = pipelineLayout;
     cpDesc.compute = ProgrammableStage{shaderModule, u8"computeMain", ShaderStage::Compute};
-    ComputePipeline* pipeline = nullptr;
+    ComputePipelineHandle pipeline{};
     REQUIRE(device->CreateComputePipeline(cpDesc, pipeline).IsOk());
 
     // Readback buffer for the storage output.
@@ -1784,7 +1784,7 @@ TEST_CASE("rhi.webgpu: RENDER-pass push emulation - group 0, no bind groups, two
         u8"@fragment fn fragmentMain() -> @location(0) vec4f { return pc.color; }\n";
     ShaderModuleDesc moduleDesc;
     moduleDesc.code = Span<const u8>(reinterpret_cast<const u8*>(wgsl), StringView(wgsl).Size());
-    ShaderModule* shaderModule = nullptr;
+    ShaderModuleHandle shaderModule{};
     REQUIRE(device->CreateShaderModule(moduleDesc, shaderModule).IsOk());
 
     PushConstantRange pushRange;
@@ -1794,7 +1794,7 @@ TEST_CASE("rhi.webgpu: RENDER-pass push emulation - group 0, no bind groups, two
     pushRange.bindGroupIndex = 0; // no bind groups, so the push block lives at group 0
     PipelineLayoutDesc plDesc;
     plDesc.pushConstantRanges = Span<const PushConstantRange>(&pushRange, 1);
-    PipelineLayout* pipelineLayout = nullptr;
+    PipelineLayoutHandle pipelineLayout{};
     REQUIRE(device->CreatePipelineLayout(plDesc, pipelineLayout).IsOk());
 
     ColorTargetState target;
@@ -1807,7 +1807,7 @@ TEST_CASE("rhi.webgpu: RENDER-pass push emulation - group 0, no bind groups, two
     rpDesc.vertex.shader = ProgrammableStage{shaderModule, u8"vertexMain", ShaderStage::Vertex};
     rpDesc.fragment = frag;
     rpDesc.primitive.topology = PrimitiveTopology::TriangleList;
-    RenderPipeline* pipeline = nullptr;
+    RenderPipelineHandle pipeline{};
     REQUIRE(device->CreateRenderPipeline(rpDesc, pipeline).IsOk());
 
     TextureDesc texDesc;

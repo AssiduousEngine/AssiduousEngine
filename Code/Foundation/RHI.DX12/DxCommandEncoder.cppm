@@ -80,7 +80,7 @@ export namespace foundation::rhi::dx12
             // Timestamp at pass begin.
             if (desc.timestampQuerySet)
             {
-                if (auto* qs = static_cast<DxQuerySetImpl*>(desc.timestampQuerySet))
+                if (auto* qs = LookUp(m_rpeCtx.tables, desc.timestampQuerySet))
                     m_cmdList->EndQuery(qs->handle(), D3D12_QUERY_TYPE_TIMESTAMP,
                                         desc.beginTimestampIndex);
             }
@@ -601,37 +601,37 @@ export namespace foundation::rhi::dx12
 
         // ---- Queries ----
 
-        void ResetQuerySet(QuerySet*, u32, u32) override
+        void ResetQuerySet(QuerySetHandle, u32, u32) override
         {
             // DX12 does not require an explicit query reset; queries are reset implicitly when written.
         }
 
-        void WriteTimestamp(QuerySet* querySet, u32 index) override
+        void WriteTimestamp(QuerySetHandle querySet, u32 index) override
         {
-            if (auto* qs = static_cast<DxQuerySetImpl*>(querySet))
+            if (auto* qs = LookUp(m_rpeCtx.tables, querySet))
                 m_cmdList->EndQuery(qs->handle(), D3D12_QUERY_TYPE_TIMESTAMP, index);
         }
 
-        void BeginPipelineStatisticsQuery(QuerySet* querySet, u32 index) override
+        void BeginPipelineStatisticsQuery(QuerySetHandle querySet, u32 index) override
         {
-            if (auto* qs = static_cast<DxQuerySetImpl*>(querySet))
+            if (auto* qs = LookUp(m_rpeCtx.tables, querySet))
                 m_cmdList->BeginQuery(qs->handle(), D3D12_QUERY_TYPE_PIPELINE_STATISTICS, index);
         }
 
-        void EndPipelineStatisticsQuery(QuerySet* querySet, u32 index) override
+        void EndPipelineStatisticsQuery(QuerySetHandle querySet, u32 index) override
         {
-            if (auto* qs = static_cast<DxQuerySetImpl*>(querySet))
+            if (auto* qs = LookUp(m_rpeCtx.tables, querySet))
                 m_cmdList->EndQuery(qs->handle(), D3D12_QUERY_TYPE_PIPELINE_STATISTICS, index);
         }
 
-        void ResolveQuerySet(QuerySet* querySet, u32 first, u32 count, BufferHandle dst,
+        void ResolveQuerySet(QuerySetHandle querySet, u32 first, u32 count, BufferHandle dst,
                              u64 dstOffset) override
         {
-            auto* qs = static_cast<DxQuerySetImpl*>(querySet);
+            auto* qs = LookUp(m_rpeCtx.tables, querySet);
             auto* dxDst = LookUp(m_rpeCtx.tables, dst);
             if (!qs || !dxDst)
                 return;
-            m_cmdList->ResolveQueryData(qs->handle(), DxQuerySetImpl::toDxQueryType(qs->type),
+            m_cmdList->ResolveQueryData(qs->handle(), DxQuerySetImpl::toDxQueryType(qs->desc.type),
                                         first, count, dxDst->handle(), dstOffset);
         }
 
@@ -664,11 +664,11 @@ export namespace foundation::rhi::dx12
         // RayTracingEncoderExt interface
         // ================================================================
 
-        void BuildBottomLevelAccelStruct(AccelStruct* dst, BufferHandle scratchBuffer, u64 scratchOffset,
+        void BuildBottomLevelAccelStruct(AccelStructHandle dst, BufferHandle scratchBuffer, u64 scratchOffset,
                                          Span<const AccelStructGeometryTriangles> tris,
                                          Span<const AccelStructGeometryAABBs> aabbs) override
         {
-            auto* dxAs = static_cast<DxAccelStructImpl*>(dst);
+            auto* dxAs = LookUp(m_rpeCtx.tables, dst);
             auto* dxScratch = LookUp(m_rpeCtx.tables, scratchBuffer);
             if (!dxAs || !dxScratch)
                 return;
@@ -754,11 +754,11 @@ export namespace foundation::rhi::dx12
             cmdList4->BuildRaytracingAccelerationStructure(&buildDesc, 0, nullptr);
         }
 
-        void BuildTopLevelAccelStruct(AccelStruct* dst, BufferHandle scratchBuffer, u64 scratchOffset,
+        void BuildTopLevelAccelStruct(AccelStructHandle dst, BufferHandle scratchBuffer, u64 scratchOffset,
                                       BufferHandle instanceBuffer, u64 instanceOffset,
                                       u32 instanceCount) override
         {
-            auto* dxAs = static_cast<DxAccelStructImpl*>(dst);
+            auto* dxAs = LookUp(m_rpeCtx.tables, dst);
             auto* dxScratch = LookUp(m_rpeCtx.tables, scratchBuffer);
             auto* dxInstances = LookUp(m_rpeCtx.tables, instanceBuffer);
             if (!dxAs || !dxScratch || !dxInstances)
@@ -781,10 +781,10 @@ export namespace foundation::rhi::dx12
             cmdList4->BuildRaytracingAccelerationStructure(&buildDesc, 0, nullptr);
         }
 
-        void SetRayTracingPipeline(RayTracingPipeline* pipeline) override
+        void SetRayTracingPipeline(RayTracingPipelineHandle pipeline) override
         {
             if (m_rpeCtx.counters) m_rpeCtx.counters->PipelineBinds();
-            m_currentRtPipeline = static_cast<DxRayTracingPipelineImpl*>(pipeline);
+            m_currentRtPipeline = LookUp(m_rpeCtx.tables, pipeline);
             if (!m_currentRtPipeline)
                 return;
 
@@ -799,10 +799,10 @@ export namespace foundation::rhi::dx12
                 m_cmdList->SetComputeRootSignature(layout->handle());
         }
 
-        void SetBindGroup(u32 index, BindGroup* group, Span<const u32> dynamicOffsets) override
+        void SetBindGroup(u32 index, BindGroupHandle group, Span<const u32> dynamicOffsets) override
         {
             if (m_rpeCtx.counters) m_rpeCtx.counters->BindGroupBinds();
-            auto* dxGroup = static_cast<DxBindGroupImpl*>(group);
+            auto* dxGroup = LookUp(m_rpeCtx.tables, group);
             if (!dxGroup || !m_currentRtPipeline)
                 return;
 

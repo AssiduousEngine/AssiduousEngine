@@ -130,17 +130,15 @@ export namespace foundation::rhi::webgpu
                 wgpuDesc.depthStencilAttachment = &depth;
             }
 
-            if (passDesc.occlusionQuerySet != nullptr)
+            if (const WebGpuQuerySet* occlusion = LookUp(tables, passDesc.occlusionQuerySet))
             {
-                wgpuDesc.occlusionQuerySet =
-                    static_cast<WebGpuQuerySet*>(passDesc.occlusionQuerySet)->Handle();
+                wgpuDesc.occlusionQuerySet = occlusion->Handle();
             }
 
             WGPUPassTimestampWrites timestamps = WGPU_PASS_TIMESTAMP_WRITES_INIT;
-            if (passDesc.timestampQuerySet != nullptr)
+            if (const WebGpuQuerySet* stamps = LookUp(tables, passDesc.timestampQuerySet))
             {
-                timestamps.querySet =
-                    static_cast<WebGpuQuerySet*>(passDesc.timestampQuerySet)->Handle();
+                timestamps.querySet = stamps->Handle();
                 timestamps.beginningOfPassWriteIndex = passDesc.beginTimestampIndex;
                 timestamps.endOfPassWriteIndex = passDesc.endTimestampIndex;
                 wgpuDesc.timestampWrites = &timestamps;
@@ -357,12 +355,12 @@ export namespace foundation::rhi::webgpu
             m_api->wgpuTextureViewRelease(destinationView);
         }
 
-        void ResetQuerySet(QuerySet*, u32, u32) override
+        void ResetQuerySet(QuerySetHandle, u32, u32) override
         {
             // No WebGPU shape; queries are implicitly reset by resolve semantics.
         }
 
-        void WriteTimestamp(QuerySet* querySet, u32 index) override
+        void WriteTimestamp(QuerySetHandle querySet, u32 index) override
         {
             EnsureOpen();
 #if PLATFORM_WEB
@@ -372,19 +370,22 @@ export namespace foundation::rhi::webgpu
             (void)querySet;
             (void)index;
 #else
-            m_api->wgpuCommandEncoderWriteTimestamp(
-                m_encoder, static_cast<WebGpuQuerySet*>(querySet)->Handle(), index);
+            if (const WebGpuQuerySet* set = LookUp(tables, querySet))
+                m_api->wgpuCommandEncoderWriteTimestamp(m_encoder, set->Handle(), index);
 #endif
         }
 
         // WebGPU has no pipeline statistics (Features::pipelineStatisticsQueries is false and no
         // such query set can be made), so there is nothing to begin or end.
-        void BeginPipelineStatisticsQuery(QuerySet*, u32) override {}
-        void EndPipelineStatisticsQuery(QuerySet*, u32) override {}
+        void BeginPipelineStatisticsQuery(QuerySetHandle, u32) override {}
+        void EndPipelineStatisticsQuery(QuerySetHandle, u32) override {}
 
-        void ResolveQuerySet(QuerySet* querySet, u32 firstQuery, u32 queryCount,
+        void ResolveQuerySet(QuerySetHandle querySet, u32 firstQuery, u32 queryCount,
                              BufferHandle destination, u64 destinationOffset) override
         {
+            const WebGpuQuerySet* set = LookUp(tables, querySet);
+            if (set == nullptr)
+                return; // a stale handle
             EnsureOpen();
             // WebGPU requires QUERY_RESOLVE usage on the resolve destination, which a
             // mappable readback buffer can never carry (MapRead combines only with
@@ -393,7 +394,7 @@ export namespace foundation::rhi::webgpu
             const u64 size = static_cast<u64>(queryCount) * sizeof(u64);
             EnsureQueryScratch(size);
             m_api->wgpuCommandEncoderResolveQuerySet(
-                m_encoder, static_cast<WebGpuQuerySet*>(querySet)->Handle(), firstQuery,
+                m_encoder, set->Handle(), firstQuery,
                 queryCount, m_queryScratch, 0);
             m_api->wgpuCommandEncoderCopyBufferToBuffer(
                 m_encoder, m_queryScratch, 0,

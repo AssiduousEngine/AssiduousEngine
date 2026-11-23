@@ -261,11 +261,11 @@ export namespace foundation::materials
 
         // --- wiring used only by MaterialSystem ---
         void SetSink(IMaterialInstanceSink* sink) noexcept { m_sink = sink; }
-        [[nodiscard]] rhi::BindGroupLayout* BindGroupLayout() const noexcept
+        [[nodiscard]] rhi::BindGroupLayoutHandle BindGroupLayout() const noexcept
         {
             return m_bindGroupLayout;
         }
-        void SetBindGroupLayout(rhi::BindGroupLayout* l) noexcept { m_bindGroupLayout = l; }
+        void SetBindGroupLayout(rhi::BindGroupLayoutHandle l) noexcept { m_bindGroupLayout = l; }
 
     private:
         void WriteUniform(StringView n, const void* src, usize bytes)
@@ -322,7 +322,7 @@ export namespace foundation::materials
         HashMap<usize, rhi::TextureViewHandle> m_textures; // override textures by property index
         HashMap<usize, rhi::SamplerHandle> m_samplers;     // override samplers by property index
         PropertyOverrideMask m_overrides;
-        rhi::BindGroupLayout* m_bindGroupLayout = nullptr; // set by MaterialSystem for PSO creation
+        rhi::BindGroupLayoutHandle m_bindGroupLayout{}; // set by MaterialSystem for PSO creation
         bool m_uniformDirty = true;
         bool m_bindGroupDirty = true;
     };

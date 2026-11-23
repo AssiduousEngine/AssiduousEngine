@@ -20,6 +20,7 @@ import :conversions;
 import :pipeline_layout;
 import :shader_module;
 import :pipeline_cache;
+import :tables;
 
 using namespace foundation::core;
 
@@ -29,9 +30,9 @@ export namespace foundation::rhi::dx12
     class DxRenderPipelineImpl : public RenderPipeline
     {
     public:
-        Status init(ID3D12Device* device, const RenderPipelineDesc& d)
+        Status init(ID3D12Device* device, const DxTables* tables, const RenderPipelineDesc& d)
         {
-            m_layout = static_cast<DxPipelineLayoutImpl*>(d.layout);
+            m_layout = LookUp(tables, d.layout);
             if (!m_layout)
                 return ErrorCode::Unknown;
 
@@ -39,7 +40,7 @@ export namespace foundation::rhi::dx12
             pso.pRootSignature = m_layout->handle();
 
             // Vertex shader.
-            auto* vsMod = static_cast<DxShaderModuleImpl*>(d.vertex.shader.module);
+            auto* vsMod = LookUp(tables, d.vertex.shader.module);
             if (!vsMod)
                 return ErrorCode::Unknown;
             auto vsCode = vsMod->bytecode();
@@ -48,7 +49,7 @@ export namespace foundation::rhi::dx12
             // Fragment shader.
             if (d.fragment.HasValue())
             {
-                auto* psMod = static_cast<DxShaderModuleImpl*>(d.fragment->shader.module);
+                auto* psMod = LookUp(tables, d.fragment->shader.module);
                 if (psMod)
                 {
                     auto ps = psMod->bytecode();

@@ -49,8 +49,8 @@ private:
     static constexpr foundation::core::u32 kVolumeSize = 32;
     static constexpr foundation::core::u32 kLUTSize = 64;
 
-    rhi::ShaderModule* m_vs = nullptr;
-    rhi::ShaderModule* m_ps = nullptr;
+    rhi::ShaderModuleHandle m_vs{};
+    rhi::ShaderModuleHandle m_ps{};
 
     // 3D volume texture
     rhi::TextureHandle m_volumeTexture{};
@@ -61,10 +61,10 @@ private:
     rhi::TextureViewHandle m_lutView{};
 
     rhi::SamplerHandle m_sampler{};
-    rhi::BindGroupLayout* m_bgl = nullptr;
-    rhi::BindGroup* m_bg = nullptr;
-    rhi::PipelineLayout* m_pl = nullptr;
-    rhi::RenderPipeline* m_pipeline = nullptr;
+    rhi::BindGroupLayoutHandle m_bgl{};
+    rhi::BindGroupHandle m_bg{};
+    rhi::PipelineLayoutHandle m_pl{};
+    rhi::RenderPipelineHandle m_pipeline{};
 
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
@@ -130,14 +130,14 @@ foundation::core::Status Texture3DSample::OnInit()
 
     // Pipeline layout with push constants
     {
-        rhi::BindGroupLayout* sets[1] = {m_bgl};
+        rhi::BindGroupLayoutHandle sets[1] = {m_bgl};
         rhi::PushConstantRange pcr{};
         pcr.stages = rhi::ShaderStage::Fragment;
         pcr.offset = 0;
         pcr.size = sizeof(PushData);
         rhi::PushConstantRange pushRanges[1] = {pcr};
         rhi::PipelineLayoutDesc pld{};
-        pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>(sets, 1);
+        pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>(sets, 1);
         pld.pushConstantRanges = Span<const rhi::PushConstantRange>(pushRanges, 1);
         pld.label = u8"VolPL";
         if (m_device->CreatePipelineLayout(pld, m_pl) != foundation::core::ErrorCode::Ok)

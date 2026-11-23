@@ -311,7 +311,7 @@ export namespace foundation::shaders
         // source is unknown or compilation fails. A failed variant is remembered until its source
         // changes (RegisterSource, InvalidateShader, a reload), so a broken shader is compiled
         // and reported once, not every frame the renderer asks for it.
-        [[nodiscard]] rhi::ShaderModule* GetVariant(core::StringView name, ShaderStage stage,
+        [[nodiscard]] rhi::ShaderModuleHandle GetVariant(core::StringView name, ShaderStage stage,
                                                     ShaderFlags flags)
         {
             if (m_pack != nullptr)
@@ -343,7 +343,7 @@ export namespace foundation::shaders
             {
                 if (e.key.nameHash == nameHash)
                 {
-                    if (e.value != nullptr)
+                    if (e.value.IsValid())
                     {
                         m_device->DestroyShaderModule(e.value);
                     }
@@ -382,7 +382,7 @@ export namespace foundation::shaders
         // cooked path does. Dev and dist must canonicalize identically, and doing so dedupes
         // variants (a PS that ignores SKINNED is not recompiled per skin). Explicitly registered
         // sources have no mask entry and compile raw flags.
-        [[nodiscard]] rhi::ShaderModule* GetCompiledVariant(core::StringView name,
+        [[nodiscard]] rhi::ShaderModuleHandle GetCompiledVariant(core::StringView name,
                                                             ShaderStage stage, ShaderFlags flags)
         {
             const core::u64 srcKey = SourceKey(name, stage);
@@ -403,7 +403,7 @@ export namespace foundation::shaders
             }
             if (source == nullptr)
             {
-                return nullptr;
+                return {};
             }
 
             ShaderFlags canon = flags;
@@ -412,21 +412,21 @@ export namespace foundation::shaders
                 canon = CanonicalizeFlags(flags, *mask);
             }
             const ShaderVariantKey key{ShaderNameHash(name), stage, canon};
-            if (rhi::ShaderModule** cached = m_cache.Find(key))
+            if (rhi::ShaderModuleHandle* cached = m_cache.Find(key))
             {
                 return *cached;
             }
             if (m_failedVariants.Find(key) != nullptr)
             {
-                return nullptr; // compiled and reported already; waits for the source to change
+                return {}; // compiled and reported already; waits for the source to change
             }
 
-            rhi::ShaderModule* module =
+            rhi::ShaderModuleHandle module =
                 Compile(source->hlsl.AsView(), source->entryPoint.AsView(), stage, canon);
-            if (module == nullptr)
+            if (!module.IsValid())
             {
                 m_failedVariants.InsertOrAssign(key, true);
-                return nullptr;
+                return {};
             }
 
             m_cache.InsertOrAssign(key, module);
@@ -436,14 +436,14 @@ export namespace foundation::shaders
         // Dist path: canonicalize against the declared mask, look up the prebuilt blob, and create
         // the GPU module directly. Cached under the canonical key so requests that differ only in
         // ignored flags dedupe. A miss is a cook-coverage bug (logged; returns null).
-        [[nodiscard]] rhi::ShaderModule* GetCookedVariant(core::StringView name, ShaderStage stage,
+        [[nodiscard]] rhi::ShaderModuleHandle GetCookedVariant(core::StringView name, ShaderStage stage,
                                                           ShaderFlags flags)
         {
             const core::u64 nameHash = ShaderNameHash(name);
             const ShaderFlags canon =
                 CanonicalizeFlags(flags, m_pack->DeclaredMask(nameHash, stage));
             const ShaderVariantKey key{nameHash, stage, canon};
-            if (rhi::ShaderModule** cached = m_cache.Find(key))
+            if (rhi::ShaderModuleHandle* cached = m_cache.Find(key))
             {
                 return *cached;
             }
@@ -458,7 +458,7 @@ export namespace foundation::shaders
                                           (static_cast<core::u64>(canon) << 32);
                 if (m_loggedFailures.Find(missKey) != nullptr)
                 {
-                    return nullptr;
+                    return {};
                 }
                 m_loggedFailures.InsertOrAssign(missKey, true);
                 const ShaderFlags mask = m_pack->DeclaredMask(nameHash, stage);
@@ -478,7 +478,7 @@ export namespace foundation::shaders
                                                           static_cast<unsigned>(f),
                                                           static_cast<unsigned>(fmt));
                                        });
-                return nullptr;
+                return {};
             }
 
             // The entry the cook compiled this stage for; a pack without one predates entry
@@ -490,28 +490,28 @@ export namespace foundation::shaders
                                static_cast<int>(name.Size()),
                                reinterpret_cast<const char*>(name.Data()),
                                static_cast<unsigned>(stage));
-                return nullptr;
+                return {};
             }
             rhi::ShaderModuleDesc desc{};
             desc.code = core::Span<const core::u8>(reinterpret_cast<const core::u8*>(blob->Data()),
                                                    blob->Size());
             desc.entryPoint = entryPoint;
-            rhi::ShaderModule* module = nullptr;
+            rhi::ShaderModuleHandle module{};
             if (m_device->CreateShaderModule(desc, module) != core::ErrorCode::Ok)
             {
-                return nullptr;
+                return {};
             }
             m_cache.InsertOrAssign(key, module);
             return module;
         }
 
-        [[nodiscard]] rhi::ShaderModule* Compile(core::StringView source,
+        [[nodiscard]] rhi::ShaderModuleHandle Compile(core::StringView source,
                                                  core::StringView entryPoint, ShaderStage stage,
                                                  ShaderFlags flags)
         {
             if (m_compiler == nullptr)
             {
-                return nullptr; // compiler-free (pack) mode: on-demand compilation is unavailable
+                return {}; // compiler-free (pack) mode: on-demand compilation is unavailable
             }
             const bool isDX12 = (m_device->type == rhi::DeviceType::DX12);
             const ShaderTarget target = isDX12 ? ShaderTarget::DXIL : ShaderTarget::SPIRV;
@@ -549,16 +549,16 @@ export namespace foundation::shaders
                     rhi::LogErrorf("Shader variant compile failed: %s", cr.messages);
                 }
                 m_compiler->freeResult(cr);
-                return nullptr;
+                return {};
             }
 
             rhi::ShaderModuleDesc desc{};
             desc.code = core::Span<const core::u8>(cr.bytecode, cr.bytecodeSize);
             desc.entryPoint = entryPoint;
-            rhi::ShaderModule* module = nullptr;
+            rhi::ShaderModuleHandle module{};
             const core::Status mr = m_device->CreateShaderModule(desc, module);
             m_compiler->freeResult(cr);
-            return (mr == core::ErrorCode::Ok) ? module : nullptr;
+            return (mr == core::ErrorCode::Ok) ? module : rhi::ShaderModuleHandle{};
         }
 
         // Dev: parse the effect blocks of every include the provider serves. A malformed block
@@ -614,7 +614,7 @@ export namespace foundation::shaders
         {
             for (auto& e : m_cache)
             {
-                if (e.value != nullptr)
+                if (e.value.IsValid())
                 {
                     m_device->DestroyShaderModule(e.value);
                 }
@@ -674,7 +674,7 @@ export namespace foundation::shaders
         core::HashMap<core::u64, bool> m_loggedFailures; // once-per-key error throttling
         // Variants that compiled and failed (see GetVariant); forgotten when the source changes.
         core::HashMap<ShaderVariantKey, bool> m_failedVariants;
-        core::HashMap<ShaderVariantKey, rhi::ShaderModule*>
+        core::HashMap<ShaderVariantKey, rhi::ShaderModuleHandle>
             m_cache;                                    // variant -> GPU module (owned)
         core::HashMap<core::u64, core::u64> m_versions; // nameHash -> version
         IShaderIncludeResolver* m_includeResolver = nullptr; // borrowed

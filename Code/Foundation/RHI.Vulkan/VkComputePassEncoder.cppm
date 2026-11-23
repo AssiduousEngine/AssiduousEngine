@@ -35,18 +35,18 @@ export namespace foundation::rhi::vk
         /// The device's counts this pass bumps (Device::Counters); set by the command encoder.
         void setCounters(DeviceCounterBlock* counters) noexcept { m_counters = counters; }
 
-        void SetPipeline(ComputePipeline* pipeline) override
+        void SetPipeline(ComputePipelineHandle pipeline) override
         {
-            m_current = static_cast<VkComputePipelineImpl*>(pipeline);
+            m_current = LookUp(tables, pipeline);
             if (m_current)
                 vkCmdBindPipeline(m_cmdBuf, VK_PIPELINE_BIND_POINT_COMPUTE, m_current->handle());
             if (m_counters)
                 m_counters->PipelineBinds();
         }
 
-        void SetBindGroup(u32 index, BindGroup* group, Span<const u32> dynOffsets) override
+        void SetBindGroup(u32 index, BindGroupHandle group, Span<const u32> dynOffsets) override
         {
-            auto* bg = static_cast<VkBindGroupImpl*>(group);
+            auto* bg = LookUp(tables, group);
             if (!bg || !m_current || !m_current->vkLayout())
                 return;
             VkDescriptorSet set = bg->handle();
@@ -96,9 +96,9 @@ export namespace foundation::rhi::vk
             vkCmdPipelineBarrier2(m_cmdBuf, &di);
         }
 
-        void WriteTimestamp(QuerySet* qs, u32 index) override
+        void WriteTimestamp(QuerySetHandle qs, u32 index) override
         {
-            auto* q = static_cast<VkQuerySetImpl*>(qs);
+            auto* q = LookUp(tables, qs);
             if (q)
                 vkCmdWriteTimestamp(m_cmdBuf, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, q->handle(),
                                     index);

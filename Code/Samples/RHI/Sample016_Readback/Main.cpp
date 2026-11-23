@@ -38,10 +38,10 @@ private:
 
     void readbackPixels();
 
-    rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
+    rhi::ShaderModuleHandle m_vs{}, m_ps{};
     rhi::BufferHandle m_vb{};
-    rhi::PipelineLayout* m_pl = nullptr;
-    rhi::RenderPipeline *m_offPipeline = nullptr, *m_swapPipeline = nullptr;
+    rhi::PipelineLayoutHandle m_pl{};
+    rhi::RenderPipelineHandle m_offPipeline{}, m_swapPipeline{};
     rhi::TextureHandle m_offTex{};
     rhi::TextureViewHandle m_offView{};
     rhi::BufferHandle m_readbackBuf{};

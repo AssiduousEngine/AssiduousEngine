@@ -65,9 +65,9 @@ export namespace imgui
             {
                 return Status{ErrorCode::Unknown};
             }
-            rhi::BindGroupLayout* layouts[] = {m_layout};
+            rhi::BindGroupLayoutHandle layouts[] = {m_layout};
             rhi::PipelineLayoutDesc pld{};
-            pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{layouts, 1};
+            pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{layouts, 1};
             if (!m_device->CreatePipelineLayout(pld, m_pipelineLayout).IsOk())
             {
                 return Status{ErrorCode::Unknown};
@@ -160,8 +160,8 @@ export namespace imgui
                 return false;
             }
             EnsureFontUploaded(enc);
-            rhi::RenderPipeline* pipeline = EnsurePipeline(targetFormat, depthStencilFormat);
-            if (pipeline == nullptr)
+            rhi::RenderPipelineHandle pipeline = EnsurePipeline(targetFormat, depthStencilFormat);
+            if (!pipeline.IsValid())
             {
                 return false;
             }
@@ -269,7 +269,7 @@ export namespace imgui
             rhi::BufferHandle idx{};
             u64 idxCap = 0;
             rhi::BufferHandle ubo{};
-            rhi::BindGroup* bindGroup = nullptr;
+            rhi::BindGroupHandle bindGroup{};
         };
 
         bool CreateFontAtlas()
@@ -437,24 +437,24 @@ export namespace imgui
 
         // The pipeline for a pass on a `fmt` target with `depthStencilFormat`'s attachment (Undefined
         // for none: a pass of its own); ImGui neither tests nor writes it.
-        rhi::RenderPipeline* EnsurePipeline(rhi::TextureFormat fmt, rhi::TextureFormat depthStencilFormat)
+        rhi::RenderPipelineHandle EnsurePipeline(rhi::TextureFormat fmt, rhi::TextureFormat depthStencilFormat)
         {
-            if (m_pipeline != nullptr && m_pipelineFormat == fmt && m_pipelineDepthStencil == depthStencilFormat)
+            if (m_pipeline.IsValid() && m_pipelineFormat == fmt && m_pipelineDepthStencil == depthStencilFormat)
             {
                 return m_pipeline;
             }
-            rhi::ShaderModule* vs = m_shaders->GetVariant(u8"imgui", shaders::ShaderStage::Vertex,
+            rhi::ShaderModuleHandle vs = m_shaders->GetVariant(u8"imgui", shaders::ShaderStage::Vertex,
                                                           shaders::ShaderFlags::None);
-            rhi::ShaderModule* ps = m_shaders->GetVariant(u8"imgui", shaders::ShaderStage::Fragment,
+            rhi::ShaderModuleHandle ps = m_shaders->GetVariant(u8"imgui", shaders::ShaderStage::Fragment,
                                                           shaders::ShaderFlags::None);
-            if (vs == nullptr || ps == nullptr)
+            if (!vs.IsValid() || !ps.IsValid())
             {
-                return nullptr;
+                return {};
             }
-            if (m_pipeline != nullptr)
+            if (m_pipeline.IsValid())
             {
                 m_device->DestroyRenderPipeline(m_pipeline);
-                m_pipeline = nullptr;
+                m_pipeline = {};
             }
 
             // ImDrawVert is { ImVec2 pos; ImVec2 uv; ImU32 col }: byte offsets 0, 8 and 16, stride 20.
@@ -494,8 +494,8 @@ export namespace imgui
             pd.label = u8"imgui";
             if (!m_device->CreateRenderPipeline(pd, m_pipeline).IsOk())
             {
-                m_pipeline = nullptr;
-                return nullptr;
+                m_pipeline = {};
+                return {};
             }
             m_pipelineFormat = fmt;
             m_pipelineDepthStencil = depthStencilFormat;
@@ -509,7 +509,7 @@ export namespace imgui
                 if (m_frames[i].bindGroup)
                 {
                     m_device->DestroyBindGroup(m_frames[i].bindGroup);
-                    m_frames[i].bindGroup = nullptr;
+                    m_frames[i].bindGroup = {};
                 }
                 if (m_frames[i].ubo)
                 {
@@ -530,7 +530,7 @@ export namespace imgui
             if (m_pipeline)
             {
                 m_device->DestroyRenderPipeline(m_pipeline);
-                m_pipeline = nullptr;
+                m_pipeline = {};
             }
             if (m_sampler)
             {
@@ -555,12 +555,12 @@ export namespace imgui
             if (m_pipelineLayout)
             {
                 m_device->DestroyPipelineLayout(m_pipelineLayout);
-                m_pipelineLayout = nullptr;
+                m_pipelineLayout = {};
             }
             if (m_layout)
             {
                 m_device->DestroyBindGroupLayout(m_layout);
-                m_layout = nullptr;
+                m_layout = {};
             }
         }
 
@@ -568,9 +568,9 @@ export namespace imgui
         shaders::ShaderSystem* m_shaders;
         u32 m_fif = 2;
 
-        rhi::BindGroupLayout* m_layout = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::RenderPipeline* m_pipeline = nullptr;
+        rhi::BindGroupLayoutHandle m_layout{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
+        rhi::RenderPipelineHandle m_pipeline{};
         rhi::TextureFormat m_pipelineFormat = rhi::TextureFormat::Undefined;
         rhi::TextureFormat m_pipelineDepthStencil = rhi::TextureFormat::Undefined;
 

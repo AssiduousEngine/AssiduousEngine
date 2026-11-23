@@ -40,7 +40,7 @@ export namespace foundation::rhi::vk
         {
             m_device = device;
             m_shifts = shifts;
-            m_layout = static_cast<VkBindGroupLayoutImpl*>(desc.layout);
+            m_layout = LookUp(tables, desc.layout);
             if (!m_layout)
                 return ErrorCode::Unknown;
 
@@ -251,7 +251,7 @@ export namespace foundation::rhi::vk
                         continue;
                     break;
                 case BindingType::AccelerationStructure:
-                    if (auto* vkAs = static_cast<VkAccelStructImpl*>(e.accelStruct))
+                    if (auto* vkAs = LookUp(tables, e.accelStruct))
                     {
                         asHandles.PushBack(vkAs->handle());
                         VkWriteDescriptorSetAccelerationStructureKHR asInfo{};

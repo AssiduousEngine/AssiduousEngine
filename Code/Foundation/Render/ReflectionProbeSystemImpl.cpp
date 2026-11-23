@@ -76,15 +76,15 @@ namespace foundation::render
                                   m_shaders->Version(u8"probe_prefilter_ps");
         if (shaderVersion != m_pipelineShaderVersion)
         {
-            if (m_blitPipeline != nullptr)
+            if (m_blitPipeline.IsValid())
             {
                 m_device->DestroyRenderPipeline(m_blitPipeline);
-                m_blitPipeline = nullptr;
+                m_blitPipeline = {};
             }
-            if (m_prefilterPipeline != nullptr)
+            if (m_prefilterPipeline.IsValid())
             {
                 m_device->DestroyRenderPipeline(m_prefilterPipeline);
-                m_prefilterPipeline = nullptr;
+                m_prefilterPipeline = {};
             }
             (void)CreateBlitPipeline();
             (void)CreatePrefilterPipeline();
@@ -256,14 +256,14 @@ namespace foundation::render
                                             rendergraph::RGHandle capturedH,
                                             rendergraph::RGHandle prefilteredH, u32 slot)
     {
-        if (m_blitPipeline == nullptr) // broken shader mid-reload: skip until it compiles
+        if (!m_blitPipeline.IsValid()) // broken shader mid-reload: skip until it compiles
         {
             return;
         }
         for (u32 face = 0; face < 6; ++face)
         {
-            rhi::BindGroup* faceBG = EnsureFaceBlit(slot, face);
-            if (faceBG == nullptr)
+            rhi::BindGroupHandle faceBG = EnsureFaceBlit(slot, face);
+            if (!faceBG.IsValid())
             {
                 continue;
             }
@@ -293,12 +293,12 @@ namespace foundation::render
     void ReflectionProbeSystem::DeclarePrefilter(rendergraph::RenderGraph& graph,
                                                  rendergraph::RGHandle prefilteredH, u32 slot)
     {
-        if (m_prefilterPipeline == nullptr) // broken shader mid-reload: skip until it compiles
+        if (!m_prefilterPipeline.IsValid()) // broken shader mid-reload: skip until it compiles
         {
             return;
         }
-        rhi::BindGroup* srcBG = EnsurePrefilterSource(slot);
-        if (srcBG == nullptr)
+        rhi::BindGroupHandle srcBG = EnsurePrefilterSource(slot);
+        if (!srcBG.IsValid())
         {
             return;
         }
@@ -499,17 +499,17 @@ namespace foundation::render
     void ReflectionProbeSystem::ReleaseArrays()
     {
         // Retired when the queue is wired (frames in flight may still sample them), else drained.
-        const auto dropGroup = [this](rhi::BindGroup*& group)
+        const auto dropGroup = [this](rhi::BindGroupHandle& group)
         {
-            if (group != nullptr && m_retire != nullptr)
+            if (group.IsValid() && m_retire != nullptr)
             {
                 m_retire->Retire(group);
             }
-            else if (group != nullptr)
+            else if (group.IsValid())
             {
                 m_device->DestroyBindGroup(group);
             }
-            group = nullptr;
+            group = {};
         };
         const auto dropView = [this](rhi::TextureViewHandle& view)
         {
@@ -558,11 +558,11 @@ namespace foundation::render
 
     bool ReflectionProbeSystem::CreateBlitPipeline()
     {
-        rhi::ShaderModule* vs = m_shaders->GetVariant(
+        rhi::ShaderModuleHandle vs = m_shaders->GetVariant(
             u8"probe_blit_vs", shaders::ShaderStage::Vertex, shaders::ShaderFlags::None);
-        rhi::ShaderModule* ps = m_shaders->GetVariant(
+        rhi::ShaderModuleHandle ps = m_shaders->GetVariant(
             u8"probe_blit_ps", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-        if (vs == nullptr || ps == nullptr)
+        if (!vs.IsValid() || !ps.IsValid())
         {
             return false;
         }
@@ -570,7 +570,7 @@ namespace foundation::render
         // Texture2DArray, not Texture2D: the source is one layer of the captured cube array,
         // and a DX12 TEXTURE2D SRV cannot address a non-zero array slice (always layer 0).
         // The per-face view carries the slice; the shader samples slice 0 of it.
-        if (m_blitLayout == nullptr) // layouts survive a shader hot reload
+        if (!m_blitLayout.IsValid()) // layouts survive a shader hot reload
         {
             rhi::BindGroupLayoutEntry srcTex = rhi::BindGroupLayoutEntry::SampledTexture(
                 0, rhi::ShaderStage::Fragment, rhi::TextureViewDimension::Texture2DArray);
@@ -584,9 +584,9 @@ namespace foundation::render
                 return false;
             }
 
-            rhi::BindGroupLayout* layouts[] = {m_blitLayout};
+            rhi::BindGroupLayoutHandle layouts[] = {m_blitLayout};
             rhi::PipelineLayoutDesc pld{};
-            pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{layouts, 1};
+            pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{layouts, 1};
             if (!m_device->CreatePipelineLayout(pld, m_blitPipeLayout).IsOk())
             {
                 return false;
@@ -612,10 +612,10 @@ namespace foundation::render
         return true;
     }
 
-    rhi::BindGroup* ReflectionProbeSystem::EnsureFaceBlit(u32 slot, u32 face)
+    rhi::BindGroupHandle ReflectionProbeSystem::EnsureFaceBlit(u32 slot, u32 face)
     {
         const u32 idx = slot * 6u + face;
-        if (m_blitFaceBG[idx] != nullptr)
+        if (m_blitFaceBG[idx].IsValid())
         {
             return m_blitFaceBG[idx];
         }
@@ -629,7 +629,7 @@ namespace foundation::render
         vd.mipLevelCount = 1;
         if (!m_device->CreateTextureView(m_capturedCube, vd, m_capturedFaceView[idx]).IsOk())
         {
-            return nullptr;
+            return {};
         }
         rhi::BindGroupEntry be[] = {rhi::BindGroupEntry::TextureEntry(m_capturedFaceView[idx]),
                                     rhi::BindGroupEntry::SamplerEntry(m_sampler)};
@@ -638,19 +638,19 @@ namespace foundation::render
         bgd.entries = Span<const rhi::BindGroupEntry>{be, 2};
         if (!m_device->CreateBindGroup(bgd, m_blitFaceBG[idx]).IsOk())
         {
-            m_blitFaceBG[idx] = nullptr;
-            return nullptr;
+            m_blitFaceBG[idx] = {};
+            return {};
         }
         return m_blitFaceBG[idx];
     }
 
     bool ReflectionProbeSystem::CreatePrefilterPipeline()
     {
-        rhi::ShaderModule* vs = m_shaders->GetVariant(
+        rhi::ShaderModuleHandle vs = m_shaders->GetVariant(
             u8"probe_blit_vs", shaders::ShaderStage::Vertex, shaders::ShaderFlags::None);
-        rhi::ShaderModule* ps = m_shaders->GetVariant(
+        rhi::ShaderModuleHandle ps = m_shaders->GetVariant(
             u8"probe_prefilter_ps", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-        if (vs == nullptr || ps == nullptr)
+        if (!vs.IsValid() || !ps.IsValid())
         {
             return false;
         }
@@ -658,7 +658,7 @@ namespace foundation::render
         // TextureCubeArray, not TextureCube: the source is one cube of the prefiltered
         // cube array, and a DX12 TEXTURECUBE SRV cannot address a non-zero first face
         // (always cube 0). The per-probe view carries the base; the shader samples cube 0.
-        if (m_prefilterLayout == nullptr) // layouts survive a shader hot reload
+        if (!m_prefilterLayout.IsValid()) // layouts survive a shader hot reload
         {
             rhi::BindGroupLayoutEntry srcTex = rhi::BindGroupLayoutEntry::SampledTexture(
                 0, rhi::ShaderStage::Fragment, rhi::TextureViewDimension::TextureCubeArray);
@@ -676,9 +676,9 @@ namespace foundation::render
             pcRange.stages = rhi::ShaderStage::Fragment;
             pcRange.offset = 0;
             pcRange.size = sizeof(PrefilterPush);
-            rhi::BindGroupLayout* layouts[] = {m_prefilterLayout};
+            rhi::BindGroupLayoutHandle layouts[] = {m_prefilterLayout};
             rhi::PipelineLayoutDesc pld{};
-            pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{layouts, 1};
+            pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{layouts, 1};
             pld.pushConstantRanges = Span<const rhi::PushConstantRange>{&pcRange, 1};
             if (!m_device->CreatePipelineLayout(pld, m_prefilterPipeLayout).IsOk())
             {
@@ -705,9 +705,9 @@ namespace foundation::render
         return true;
     }
 
-    rhi::BindGroup* ReflectionProbeSystem::EnsurePrefilterSource(u32 slot)
+    rhi::BindGroupHandle ReflectionProbeSystem::EnsurePrefilterSource(u32 slot)
     {
-        if (m_prefilterSrcBG[slot] != nullptr)
+        if (m_prefilterSrcBG[slot].IsValid())
         {
             return m_prefilterSrcBG[slot];
         }
@@ -722,7 +722,7 @@ namespace foundation::render
         vd.arrayLayerCount = 6;
         if (!m_device->CreateTextureView(m_prefilterCube, vd, m_prefilterSrcView[slot]).IsOk())
         {
-            return nullptr;
+            return {};
         }
         rhi::BindGroupEntry be[] = {rhi::BindGroupEntry::TextureEntry(m_prefilterSrcView[slot]),
                                     rhi::BindGroupEntry::SamplerEntry(m_sampler)};
@@ -731,8 +731,8 @@ namespace foundation::render
         bgd.entries = Span<const rhi::BindGroupEntry>{be, 2};
         if (!m_device->CreateBindGroup(bgd, m_prefilterSrcBG[slot]).IsOk())
         {
-            m_prefilterSrcBG[slot] = nullptr;
-            return nullptr;
+            m_prefilterSrcBG[slot] = {};
+            return {};
         }
         return m_prefilterSrcBG[slot];
     }
@@ -745,10 +745,10 @@ namespace foundation::render
         }
         for (u32 i = 0; i < kMaxProbes * 6; ++i)
         {
-            if (m_blitFaceBG[i] != nullptr)
+            if (m_blitFaceBG[i].IsValid())
             {
                 m_device->DestroyBindGroup(m_blitFaceBG[i]);
-                m_blitFaceBG[i] = nullptr;
+                m_blitFaceBG[i] = {};
             }
             if (m_capturedFaceView[i].IsValid())
             {
@@ -758,10 +758,10 @@ namespace foundation::render
         }
         for (u32 i = 0; i < kMaxProbes; ++i)
         {
-            if (m_prefilterSrcBG[i] != nullptr)
+            if (m_prefilterSrcBG[i].IsValid())
             {
                 m_device->DestroyBindGroup(m_prefilterSrcBG[i]);
-                m_prefilterSrcBG[i] = nullptr;
+                m_prefilterSrcBG[i] = {};
             }
             if (m_prefilterSrcView[i].IsValid())
             {
@@ -769,35 +769,35 @@ namespace foundation::render
                 m_prefilterSrcView[i] = {};
             }
         }
-        if (m_prefilterPipeline != nullptr)
+        if (m_prefilterPipeline.IsValid())
         {
             m_device->DestroyRenderPipeline(m_prefilterPipeline);
-            m_prefilterPipeline = nullptr;
+            m_prefilterPipeline = {};
         }
-        if (m_prefilterPipeLayout != nullptr)
+        if (m_prefilterPipeLayout.IsValid())
         {
             m_device->DestroyPipelineLayout(m_prefilterPipeLayout);
-            m_prefilterPipeLayout = nullptr;
+            m_prefilterPipeLayout = {};
         }
-        if (m_prefilterLayout != nullptr)
+        if (m_prefilterLayout.IsValid())
         {
             m_device->DestroyBindGroupLayout(m_prefilterLayout);
-            m_prefilterLayout = nullptr;
+            m_prefilterLayout = {};
         }
-        if (m_blitPipeline != nullptr)
+        if (m_blitPipeline.IsValid())
         {
             m_device->DestroyRenderPipeline(m_blitPipeline);
-            m_blitPipeline = nullptr;
+            m_blitPipeline = {};
         }
-        if (m_blitPipeLayout != nullptr)
+        if (m_blitPipeLayout.IsValid())
         {
             m_device->DestroyPipelineLayout(m_blitPipeLayout);
-            m_blitPipeLayout = nullptr;
+            m_blitPipeLayout = {};
         }
-        if (m_blitLayout != nullptr)
+        if (m_blitLayout.IsValid())
         {
             m_device->DestroyBindGroupLayout(m_blitLayout);
-            m_blitLayout = nullptr;
+            m_blitLayout = {};
         }
         if (m_prefilterArrayView.IsValid())
         {

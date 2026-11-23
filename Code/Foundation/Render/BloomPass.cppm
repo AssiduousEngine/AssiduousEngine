@@ -71,26 +71,26 @@ export namespace foundation::render
                                                          u32 maxLevels);
 
     private:
-        rhi::RenderPipeline* MakePipeline(StringView name, bool additive);
+        rhi::RenderPipelineHandle MakePipeline(StringView name, bool additive);
 
         // Bind group over a transient source view, cached by view handle and generation. Transients are
         // pooled with stable generations across frames, so the cache settles; a resize bumps the generation.
-        rhi::BindGroup* EnsureBindGroup(rhi::TextureViewHandle view, u64 generation);
+        rhi::BindGroupHandle EnsureBindGroup(rhi::TextureViewHandle view, u64 generation);
 
         void Shutdown();
 
         struct Entry
         {
-            rhi::BindGroup* bg = nullptr;
+            rhi::BindGroupHandle bg{};
             u64 gen = 0;
         };
 
         rhi::Device* m_device;
         shaders::ShaderSystem* m_shaders;
-        rhi::BindGroupLayout* m_layout = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::RenderPipeline* m_downPipeline = nullptr;
-        rhi::RenderPipeline* m_upPipeline = nullptr;
+        rhi::BindGroupLayoutHandle m_layout{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
+        rhi::RenderPipelineHandle m_downPipeline{};
+        rhi::RenderPipelineHandle m_upPipeline{};
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
         rhi::SamplerHandle m_sampler{};
         HashMap<rhi::TextureViewHandle, Entry> m_bindGroups;

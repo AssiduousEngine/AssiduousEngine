@@ -33,9 +33,9 @@ export namespace foundation::rhi
         virtual ~RenderCommandEncoder() = default;
 
         /// Bind a graphics (rasterization) pipeline.
-        virtual void SetPipeline(RenderPipeline* pipeline) = 0;
+        virtual void SetPipeline(RenderPipelineHandle pipeline) = 0;
         /// Bind a resource group at the given index.
-        virtual void SetBindGroup(u32 index, BindGroup* group,
+        virtual void SetBindGroup(u32 index, BindGroupHandle group,
                                   Span<const u32> dynamicOffsets = {}) = 0;
         /// Upload push constant data.
         virtual void SetPushConstants(ShaderStage stages, u32 offset, u32 size,
@@ -87,11 +87,11 @@ export namespace foundation::rhi
         virtual void ExecuteBundles(Span<RenderBundle* const> bundles) = 0;
 
         /// Write a timestamp query.
-        virtual void WriteTimestamp(QuerySet* querySet, u32 index) = 0;
+        virtual void WriteTimestamp(QuerySetHandle querySet, u32 index) = 0;
         /// Begin an occlusion query.
-        virtual void BeginOcclusionQuery(QuerySet* querySet, u32 index) = 0;
+        virtual void BeginOcclusionQuery(QuerySetHandle querySet, u32 index) = 0;
         /// End an occlusion query.
-        virtual void EndOcclusionQuery(QuerySet* querySet, u32 index) = 0;
+        virtual void EndOcclusionQuery(QuerySetHandle querySet, u32 index) = 0;
 
         /// End the render pass.
         virtual void End() = 0;
@@ -124,8 +124,8 @@ export namespace foundation::rhi
     public:
         virtual ~ComputePassEncoder() = default;
 
-        virtual void SetPipeline(ComputePipeline* pipeline) = 0;
-        virtual void SetBindGroup(u32 index, BindGroup* group,
+        virtual void SetPipeline(ComputePipelineHandle pipeline) = 0;
+        virtual void SetBindGroup(u32 index, BindGroupHandle group,
                                   Span<const u32> dynamicOffsets = {}) = 0;
         virtual void SetPushConstants(ShaderStage stages, u32 offset, u32 size,
                                       const void* data) = 0;
@@ -138,7 +138,7 @@ export namespace foundation::rhi
         /// Insert a compute-to-compute memory barrier.
         virtual void ComputeBarrier() = 0;
 
-        virtual void WriteTimestamp(QuerySet* querySet, u32 index) = 0;
+        virtual void WriteTimestamp(QuerySetHandle querySet, u32 index) = 0;
         virtual void End() = 0;
     };
 
@@ -211,16 +211,16 @@ export namespace foundation::rhi
         virtual void ResolveTexture(TextureHandle src, TextureHandle dst) = 0;
 
         /// Query operations.
-        virtual void ResetQuerySet(QuerySet* querySet, u32 first, u32 count) = 0;
-        virtual void WriteTimestamp(QuerySet* querySet, u32 index) = 0;
+        virtual void ResetQuerySet(QuerySetHandle querySet, u32 first, u32 count) = 0;
+        virtual void WriteTimestamp(QuerySetHandle querySet, u32 index) = 0;
         /// Count pipeline statistics (Features::pipelineStatisticsQueries) into query `index` of a
         /// PipelineStatistics set, from Begin to End, both outside any pass (one may span whole
         /// passes); one statistics query at a time, they do not nest.
-        virtual void BeginPipelineStatisticsQuery(QuerySet* querySet, u32 index) = 0;
-        virtual void EndPipelineStatisticsQuery(QuerySet* querySet, u32 index) = 0;
+        virtual void BeginPipelineStatisticsQuery(QuerySetHandle querySet, u32 index) = 0;
+        virtual void EndPipelineStatisticsQuery(QuerySetHandle querySet, u32 index) = 0;
         /// Copy `count` results into `dst` from `dstOffset`, each Device::QueryResultSize(type)
         /// bytes apart.
-        virtual void ResolveQuerySet(QuerySet* querySet, u32 first, u32 count, BufferHandle dst,
+        virtual void ResolveQuerySet(QuerySetHandle querySet, u32 first, u32 count, BufferHandle dst,
                                      u64 dstOffset) = 0;
 
         /// Debug labels.

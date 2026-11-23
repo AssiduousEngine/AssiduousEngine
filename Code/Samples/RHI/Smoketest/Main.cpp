@@ -186,7 +186,7 @@ int main(int /*argc*/, char** /*argv*/)
     ShaderModuleDesc shDesc{};
     shDesc.code = Span<const u8>(reinterpret_cast<const u8*>(kSpvNoop), sizeof(kSpvNoop));
     shDesc.label = u8"smoketest_noop_fs";
-    ShaderModule* sh = nullptr;
+    ShaderModuleHandle sh{};
     if (device->CreateShaderModule(shDesc, sh) != foundation::core::ErrorCode::Ok)
     {
         std::fprintf(stderr, "createShaderModule failed\n");
@@ -205,21 +205,21 @@ int main(int /*argc*/, char** /*argv*/)
     BindGroupLayoutDesc bglDesc{};
     bglDesc.entries = Span<const BindGroupLayoutEntry>(layoutEntries, 2);
     bglDesc.label = u8"smoketest_bgl";
-    BindGroupLayout* bgl = nullptr;
+    BindGroupLayoutHandle bgl{};
     if (device->CreateBindGroupLayout(bglDesc, bgl) != foundation::core::ErrorCode::Ok)
     {
         std::fprintf(stderr, "createBindGroupLayout failed\n");
     }
     else
     {
-        std::printf("bind group layout: %zu entries\n", bgl->Entries().Size());
+        std::printf("bind group layout: %zu entries\n", device->LayoutEntries(bgl).Size());
     }
 
     PipelineLayoutDesc plDesc{};
-    BindGroupLayout* plSets[1] = {bgl};
-    plDesc.bindGroupLayouts = Span<BindGroupLayout* const>(plSets, 1);
+    BindGroupLayoutHandle plSets[1] = {bgl};
+    plDesc.bindGroupLayouts = Span<BindGroupLayoutHandle const>(plSets, 1);
     plDesc.label = u8"smoketest_pl";
-    PipelineLayout* pl = nullptr;
+    PipelineLayoutHandle pl{};
     if (device->CreatePipelineLayout(plDesc, pl) != foundation::core::ErrorCode::Ok)
     {
         std::fprintf(stderr, "createPipelineLayout failed\n");
@@ -231,14 +231,14 @@ int main(int /*argc*/, char** /*argv*/)
 
     PipelineCacheDesc pcDesc{};
     pcDesc.label = u8"smoketest_pc";
-    PipelineCache* pc = nullptr;
+    PipelineCacheHandle pc{};
     if (device->CreatePipelineCache(pcDesc, pc) != foundation::core::ErrorCode::Ok)
     {
         std::fprintf(stderr, "createPipelineCache failed\n");
     }
     else
     {
-        std::printf("pipeline cache created (size=%u)\n", pc->GetDataSize());
+        std::printf("pipeline cache created (size=%u)\n", device->PipelineCacheDataSize(pc));
     }
 
     device->DestroyPipelineCache(pc);
@@ -273,15 +273,15 @@ int main(int /*argc*/, char** /*argv*/)
     qsDesc.type = QueryType::Timestamp;
     qsDesc.count = 16;
     qsDesc.label = u8"smoketest_qs";
-    QuerySet* qs = nullptr;
+    QuerySetHandle qs{};
     if (device->CreateQuerySet(qsDesc, qs) != foundation::core::ErrorCode::Ok)
     {
         std::fprintf(stderr, "createQuerySet failed\n");
     }
     else
     {
-        std::printf("query set created (type=%u count=%u)\n", static_cast<unsigned>(qs->type),
-                    qs->count);
+        std::printf("query set created (type=%u count=%u)\n", static_cast<unsigned>(device->Describe(qs)->type),
+                    device->Describe(qs)->count);
     }
 
     // ---- Show window, acquire and present 3 frames ----
@@ -594,7 +594,7 @@ int main(int /*argc*/, char** /*argv*/)
                     ShaderModuleDesc smd{};
                     smd.code = Span<const u8>(reinterpret_cast<const u8*>(wgsl),
                                               std::strlen(wgsl));
-                    ShaderModule* wgpuShader = nullptr;
+                    ShaderModuleHandle wgpuShader{};
                     wgpuDevice->CreateShaderModule(smd, wgpuShader);
                     std::printf("WebGPU WGSL shader module: %s\n", wgpuShader ? "OK" : "FAIL");
                     if (wgpuShader)

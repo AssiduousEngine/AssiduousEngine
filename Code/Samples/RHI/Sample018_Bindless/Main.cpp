@@ -44,8 +44,8 @@ private:
     static constexpr foundation::core::u32 kTexSize = 64;
     static constexpr foundation::core::u32 kNumTextures = 4;
 
-    rhi::ShaderModule* m_vs = nullptr;
-    rhi::ShaderModule* m_ps = nullptr;
+    rhi::ShaderModuleHandle m_vs{};
+    rhi::ShaderModuleHandle m_ps{};
 
     // Textures
     rhi::TextureHandle m_textures[kNumTextures] = {};
@@ -53,15 +53,15 @@ private:
     rhi::SamplerHandle m_sampler{};
 
     // Bindless bind group (space0: bindless textures)
-    rhi::BindGroupLayout* m_bindlessBgl = nullptr;
-    rhi::BindGroup* m_bindlessBg = nullptr;
+    rhi::BindGroupLayoutHandle m_bindlessBgl{};
+    rhi::BindGroupHandle m_bindlessBg{};
 
     // Sampler bind group (space1: sampler)
-    rhi::BindGroupLayout* m_samplerBgl = nullptr;
-    rhi::BindGroup* m_samplerBg = nullptr;
+    rhi::BindGroupLayoutHandle m_samplerBgl{};
+    rhi::BindGroupHandle m_samplerBg{};
 
-    rhi::PipelineLayout* m_pl = nullptr;
-    rhi::RenderPipeline* m_pipeline = nullptr;
+    rhi::PipelineLayoutHandle m_pl{};
+    rhi::RenderPipelineHandle m_pipeline{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
     foundation::core::u64 m_fenceVal = 0;
@@ -128,8 +128,7 @@ foundation::core::Status BindlessSample::OnInit()
         bindlessUpdates[i].arrayIndex = i;
         bindlessUpdates[i].textureView = m_textureViews[i];
     }
-    m_bindlessBg->UpdateBindless(
-        Span<const rhi::BindlessUpdateEntry>(bindlessUpdates, kNumTextures));
+    m_device->UpdateBindless(m_bindlessBg, Span<const rhi::BindlessUpdateEntry>(bindlessUpdates, kNumTextures));
 
     // Sampler BGL (space1)
     rhi::BindGroupLayoutEntry samplerEntry =
@@ -150,14 +149,14 @@ foundation::core::Status BindlessSample::OnInit()
         return foundation::core::ErrorCode::Unknown;
 
     // Pipeline layout: group 0 holds the bindless textures, group 1 the sampler, plus push constants
-    rhi::BindGroupLayout* sets[2] = {m_bindlessBgl, m_samplerBgl};
+    rhi::BindGroupLayoutHandle sets[2] = {m_bindlessBgl, m_samplerBgl};
     rhi::PushConstantRange pcr{};
     pcr.stages = rhi::ShaderStage::Vertex | rhi::ShaderStage::Fragment;
     pcr.offset = 0;
     pcr.size = 16;
     rhi::PushConstantRange pushRanges[1] = {pcr};
     rhi::PipelineLayoutDesc pld{};
-    pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>(sets, 2);
+    pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>(sets, 2);
     pld.pushConstantRanges = Span<const rhi::PushConstantRange>(pushRanges, 1);
     pld.label = u8"BindlessPL";
     if (m_device->CreatePipelineLayout(pld, m_pl) != foundation::core::ErrorCode::Ok)

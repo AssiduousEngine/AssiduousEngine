@@ -78,7 +78,9 @@ export namespace foundation::rhi::null
     class NullBindGroupLayout : public BindGroupLayout
     {
     public:
-        Span<const BindGroupLayoutEntry> Entries() const override { return {}; }
+        explicit NullBindGroupLayout(IAllocator& allocator) : entries(allocator) {}
+        Span<const BindGroupLayoutEntry> Entries() const override { return entries.AsSpan(); }
+        Array<BindGroupLayoutEntry> entries; // as created (their labels not kept)
     };
 
     class NullBindGroup : public BindGroup
@@ -135,8 +137,8 @@ export namespace foundation::rhi::null
     public:
         DeviceCounterBlock* counters = nullptr;
         MeshShaderPassExt* AsMeshShaderExt() noexcept override { return this; }
-        void SetPipeline(RenderPipeline*) override { counters->PipelineBinds(); }
-        void SetBindGroup(u32, BindGroup*, Span<const u32>) override { counters->BindGroupBinds(); }
+        void SetPipeline(RenderPipelineHandle) override { counters->PipelineBinds(); }
+        void SetBindGroup(u32, BindGroupHandle, Span<const u32>) override { counters->BindGroupBinds(); }
         void SetPushConstants(ShaderStage, u32, u32, const void*) override {}
         void SetVertexBuffer(u32, BufferHandle, u64) override {}
         void SetIndexBuffer(BufferHandle, IndexFormat, u64) override {}
@@ -155,11 +157,11 @@ export namespace foundation::rhi::null
                 static_cast<NullRenderBundle*>(bundle)->counts.AddTo(*counters);
             }
         }
-        void WriteTimestamp(QuerySet*, u32) override {}
-        void BeginOcclusionQuery(QuerySet*, u32) override {}
-        void EndOcclusionQuery(QuerySet*, u32) override {}
+        void WriteTimestamp(QuerySetHandle, u32) override {}
+        void BeginOcclusionQuery(QuerySetHandle, u32) override {}
+        void EndOcclusionQuery(QuerySetHandle, u32) override {}
         void End() override {}
-        void SetMeshPipeline(MeshPipeline*) override { counters->PipelineBinds(); }
+        void SetMeshPipeline(MeshPipelineHandle) override { counters->PipelineBinds(); }
         void DrawMeshTasks(u32, u32, u32) override { counters->Draws(); }
         void DrawMeshTasksIndirect(BufferHandle, u64, u32 drawCount, u32) override { counters->Draws(drawCount); }
         void DrawMeshTasksIndirectCount(BufferHandle, u64, BufferHandle, u64, u32 maxDrawCount, u32) override
@@ -172,8 +174,8 @@ export namespace foundation::rhi::null
     {
     public:
         // Counts what it records into its bundle (counted when the bundle runs), not the device.
-        void SetPipeline(RenderPipeline*) override { ++bundle.counts.pipelineBinds; }
-        void SetBindGroup(u32, BindGroup*, Span<const u32>) override { ++bundle.counts.bindGroupBinds; }
+        void SetPipeline(RenderPipelineHandle) override { ++bundle.counts.pipelineBinds; }
+        void SetBindGroup(u32, BindGroupHandle, Span<const u32>) override { ++bundle.counts.bindGroupBinds; }
         void SetPushConstants(ShaderStage, u32, u32, const void*) override {}
         void SetVertexBuffer(u32, BufferHandle, u64) override {}
         void SetIndexBuffer(BufferHandle, IndexFormat, u64) override {}
@@ -189,13 +191,13 @@ export namespace foundation::rhi::null
     {
     public:
         DeviceCounterBlock* counters = nullptr;
-        void SetPipeline(ComputePipeline*) override { counters->PipelineBinds(); }
-        void SetBindGroup(u32, BindGroup*, Span<const u32>) override { counters->BindGroupBinds(); }
+        void SetPipeline(ComputePipelineHandle) override { counters->PipelineBinds(); }
+        void SetBindGroup(u32, BindGroupHandle, Span<const u32>) override { counters->BindGroupBinds(); }
         void SetPushConstants(ShaderStage, u32, u32, const void*) override {}
         void Dispatch(u32, u32, u32) override { counters->Dispatches(); }
         void DispatchIndirect(BufferHandle, u64) override { counters->Dispatches(); }
         void ComputeBarrier() override {}
-        void WriteTimestamp(QuerySet*, u32) override {}
+        void WriteTimestamp(QuerySetHandle, u32) override {}
         void End() override {}
     };
 
@@ -246,11 +248,11 @@ export namespace foundation::rhi::null
         void Blit(TextureHandle, TextureHandle) override {}
         void GenerateMipmaps(TextureHandle) override {}
         void ResolveTexture(TextureHandle, TextureHandle) override {}
-        void ResetQuerySet(QuerySet*, u32, u32) override {}
-        void WriteTimestamp(QuerySet*, u32) override {}
-        void BeginPipelineStatisticsQuery(QuerySet*, u32) override {}
-        void EndPipelineStatisticsQuery(QuerySet*, u32) override {}
-        void ResolveQuerySet(QuerySet*, u32, u32, BufferHandle, u64) override {}
+        void ResetQuerySet(QuerySetHandle, u32, u32) override {}
+        void WriteTimestamp(QuerySetHandle, u32) override {}
+        void BeginPipelineStatisticsQuery(QuerySetHandle, u32) override {}
+        void EndPipelineStatisticsQuery(QuerySetHandle, u32) override {}
+        void ResolveQuerySet(QuerySetHandle, u32, u32, BufferHandle, u64) override {}
         void BeginDebugLabel(StringView, f32, f32, f32, f32) override {}
         void EndDebugLabel() override {}
         void InsertDebugLabel(StringView, f32, f32, f32, f32) override {}
@@ -262,14 +264,14 @@ export namespace foundation::rhi::null
         }
 
         // RayTracingEncoderExt
-        void BuildBottomLevelAccelStruct(AccelStruct*, BufferHandle, u64,
+        void BuildBottomLevelAccelStruct(AccelStructHandle, BufferHandle, u64,
                                          Span<const AccelStructGeometryTriangles>,
                                          Span<const AccelStructGeometryAABBs>) override
         {
         }
-        void BuildTopLevelAccelStruct(AccelStruct*, BufferHandle, u64, BufferHandle, u64, u32) override {}
-        void SetRayTracingPipeline(RayTracingPipeline*) override { counters->PipelineBinds(); }
-        void SetBindGroup(u32, BindGroup*, Span<const u32>) override { counters->BindGroupBinds(); }
+        void BuildTopLevelAccelStruct(AccelStructHandle, BufferHandle, u64, BufferHandle, u64, u32) override {}
+        void SetRayTracingPipeline(RayTracingPipelineHandle) override { counters->PipelineBinds(); }
+        void SetBindGroup(u32, BindGroupHandle, Span<const u32>) override { counters->BindGroupBinds(); }
         void SetPushConstants(ShaderStage, u32, u32, const void*) override {}
         void TraceRays(BufferHandle, u64, u64, BufferHandle, u64, u64, BufferHandle, u64, u64, u32, u32,
                        u32) override
@@ -495,6 +497,14 @@ export namespace foundation::rhi::null
         ResourceTable<TextureViewTag, NullTextureView> m_views{m_allocator, m_tracker, &FreeObject<NullTextureView>,
                                                                this};
         ResourceTable<SamplerTag, NullSampler> m_samplers{m_allocator, m_tracker, &FreeObject<NullSampler>, this};
+        ResourceTable<ShaderModuleTag, NullShaderModule> m_shaderModules{m_allocator, m_tracker, &FreeObject<NullShaderModule>, this};
+        ResourceTable<BindGroupLayoutTag, NullBindGroupLayout> m_bindGroupLayouts{m_allocator, m_tracker, &FreeObject<NullBindGroupLayout>, this};
+        ResourceTable<BindGroupTag, NullBindGroup> m_bindGroups{m_allocator, m_tracker, &FreeObject<NullBindGroup>, this};
+        ResourceTable<PipelineLayoutTag, NullPipelineLayout> m_pipelineLayouts{m_allocator, m_tracker, &FreeObject<NullPipelineLayout>, this};
+        ResourceTable<PipelineCacheTag, NullPipelineCache> m_pipelineCaches{m_allocator, m_tracker, &FreeObject<NullPipelineCache>, this};
+        ResourceTable<RenderPipelineTag, NullRenderPipeline> m_renderPipelines{m_allocator, m_tracker, &FreeObject<NullRenderPipeline>, this};
+        ResourceTable<ComputePipelineTag, NullComputePipeline> m_computePipelines{m_allocator, m_tracker, &FreeObject<NullComputePipeline>, this};
+        ResourceTable<QuerySetTag, NullQuerySet> m_querySets{m_allocator, m_tracker, &FreeObject<NullQuerySet>, this};
 
         static void FreeTexture(void* context, void* object)
         {
@@ -667,40 +677,79 @@ export namespace foundation::rhi::null
             const NullSampler* s = m_samplers.Get(sampler);
             return s != nullptr ? &s->desc : nullptr;
         }
-        Status CreateShaderModule(const ShaderModuleDesc& d, ShaderModule*& out) override
+        Status CreateShaderModule(const ShaderModuleDesc& d, ShaderModuleHandle& out) override
         {
-            out = m_allocator.New<NullShaderModule>();
-            out->entryPoint = String(d.entryPoint);
+            auto* module = m_allocator.New<NullShaderModule>();
+            module->entryPoint = String(d.entryPoint);
+            out = m_shaderModules.Add(module);
             return ErrorCode::Ok;
         }
-        Status CreateBindGroupLayout(const BindGroupLayoutDesc&, BindGroupLayout*& out) override
+        Status CreateBindGroupLayout(const BindGroupLayoutDesc& d, BindGroupLayoutHandle& out) override
         {
-            out = m_allocator.New<NullBindGroupLayout>();
+            auto* layout = m_allocator.New<NullBindGroupLayout>(m_allocator);
+            for (BindGroupLayoutEntry entry : d.entries)
+            {
+                entry.label = {};
+                layout->entries.PushBack(entry);
+            }
+            out = m_bindGroupLayouts.Add(layout);
             return ErrorCode::Ok;
         }
-        Status CreateBindGroup(const BindGroupDesc&, BindGroup*& out) override
+        Status CreateBindGroup(const BindGroupDesc& d, BindGroupHandle& out) override
         {
-            out = m_allocator.New<NullBindGroup>();
+            out = BindGroupHandle::Invalid();
+            if (m_bindGroupLayouts.Get(d.layout) == nullptr)
+                return ErrorCode::InvalidArgument;
+            auto* group = m_allocator.New<NullBindGroup>();
+            group->layout = d.layout;
+            out = m_bindGroups.Add(group);
             return ErrorCode::Ok;
         }
-        Status CreatePipelineLayout(const PipelineLayoutDesc&, PipelineLayout*& out) override
+        StringView EntryPointOf(ShaderModuleHandle module) const override
         {
-            out = m_allocator.New<NullPipelineLayout>();
+            const NullShaderModule* m = m_shaderModules.Get(module);
+            return m != nullptr ? m->entryPoint.AsView() : StringView{};
+        }
+        Span<const BindGroupLayoutEntry> LayoutEntries(BindGroupLayoutHandle layout) const override
+        {
+            const NullBindGroupLayout* l = m_bindGroupLayouts.Get(layout);
+            return l != nullptr ? l->Entries() : Span<const BindGroupLayoutEntry>{};
+        }
+        BindGroupLayoutHandle LayoutOf(BindGroupHandle group) const override
+        {
+            const NullBindGroup* g = m_bindGroups.Get(group);
+            return g != nullptr ? g->layout : BindGroupLayoutHandle::Invalid();
+        }
+        void UpdateBindless(BindGroupHandle, Span<const BindlessUpdateEntry>) override {}
+        u32 PipelineCacheDataSize(PipelineCacheHandle) override { return 0; }
+        Status PipelineCacheData(PipelineCacheHandle cache, Span<u8>) override
+        {
+            return m_pipelineCaches.Get(cache) != nullptr ? Status(ErrorCode::Ok) : Status(ErrorCode::InvalidArgument);
+        }
+        const QuerySetDesc* Describe(QuerySetHandle querySet) const override
+        {
+            const NullQuerySet* q = m_querySets.Get(querySet);
+            return q != nullptr ? &q->desc : nullptr;
+        }
+        u64 DeviceAddress(AccelStructHandle) const override { return 0; }
+        Status CreatePipelineLayout(const PipelineLayoutDesc&, PipelineLayoutHandle& out) override
+        {
+            out = m_pipelineLayouts.Add(m_allocator.New<NullPipelineLayout>());
             return ErrorCode::Ok;
         }
-        Status CreatePipelineCache(const PipelineCacheDesc&, PipelineCache*& out) override
+        Status CreatePipelineCache(const PipelineCacheDesc&, PipelineCacheHandle& out) override
         {
-            out = m_allocator.New<NullPipelineCache>();
+            out = m_pipelineCaches.Add(m_allocator.New<NullPipelineCache>());
             return ErrorCode::Ok;
         }
-        Status CreateRenderPipeline(const RenderPipelineDesc&, RenderPipeline*& out) override
+        Status CreateRenderPipeline(const RenderPipelineDesc&, RenderPipelineHandle& out) override
         {
-            out = m_allocator.New<NullRenderPipeline>();
+            out = m_renderPipelines.Add(m_allocator.New<NullRenderPipeline>());
             return ErrorCode::Ok;
         }
-        Status CreateComputePipeline(const ComputePipelineDesc&, ComputePipeline*& out) override
+        Status CreateComputePipeline(const ComputePipelineDesc&, ComputePipelineHandle& out) override
         {
-            out = m_allocator.New<NullComputePipeline>();
+            out = m_computePipelines.Add(m_allocator.New<NullComputePipeline>());
             return ErrorCode::Ok;
         }
         Status CreateCommandPool(QueueType, CommandPool*& out) override
@@ -713,12 +762,12 @@ export namespace foundation::rhi::null
             out = m_allocator.New<NullFence>();
             return ErrorCode::Ok;
         }
-        Status CreateQuerySet(const QuerySetDesc& d, QuerySet*& out) override
+        Status CreateQuerySet(const QuerySetDesc& d, QuerySetHandle& out) override
         {
             auto* q = m_allocator.New<NullQuerySet>();
-            q->type = d.type;
-            q->count = d.count;
-            out = q;
+            q->desc = d;
+            q->desc.label = {};
+            out = m_querySets.Add(q);
             return ErrorCode::Ok;
         }
         Status CreateSwapChain(Surface*, const SwapChainDesc& d, SwapChain*& out) override
@@ -770,40 +819,40 @@ export namespace foundation::rhi::null
             if (m_samplers.Retire(x))
                 CollectRetired();
         }
-        void DestroyShaderModule(ShaderModule*& x) override
+        void DestroyShaderModule(ShaderModuleHandle& x) override
         {
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_shaderModules.Retire(x))
+                CollectRetired();
         }
-        void DestroyBindGroupLayout(BindGroupLayout*& x) override
+        void DestroyBindGroupLayout(BindGroupLayoutHandle& x) override
         {
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_bindGroupLayouts.Retire(x))
+                CollectRetired();
         }
-        void DestroyBindGroup(BindGroup*& x) override
+        void DestroyBindGroup(BindGroupHandle& x) override
         {
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_bindGroups.Retire(x))
+                CollectRetired();
         }
-        void DestroyPipelineLayout(PipelineLayout*& x) override
+        void DestroyPipelineLayout(PipelineLayoutHandle& x) override
         {
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_pipelineLayouts.Retire(x))
+                CollectRetired();
         }
-        void DestroyPipelineCache(PipelineCache*& x) override
+        void DestroyPipelineCache(PipelineCacheHandle& x) override
         {
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_pipelineCaches.Retire(x))
+                CollectRetired();
         }
-        void DestroyRenderPipeline(RenderPipeline*& x) override
+        void DestroyRenderPipeline(RenderPipelineHandle& x) override
         {
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_renderPipelines.Retire(x))
+                CollectRetired();
         }
-        void DestroyComputePipeline(ComputePipeline*& x) override
+        void DestroyComputePipeline(ComputePipelineHandle& x) override
         {
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_computePipelines.Retire(x))
+                CollectRetired();
         }
         void DestroyCommandPool(CommandPool*& x) override
         {
@@ -815,10 +864,10 @@ export namespace foundation::rhi::null
             m_allocator.Delete(x);
             x = nullptr;
         }
-        void DestroyQuerySet(QuerySet*& x) override
+        void DestroyQuerySet(QuerySetHandle& x) override
         {
-            m_allocator.Delete(x);
-            x = nullptr;
+            if (m_querySets.Retire(x))
+                CollectRetired();
         }
         void DestroySwapChain(SwapChain*& x) override
         {
@@ -844,25 +893,31 @@ export namespace foundation::rhi::null
         [[nodiscard]] bool SupportsSampleCount(u32 count) const noexcept override { return count <= 1; }
 
         // No mesh shaders and no ray tracing here.
-        Status CreateMeshPipeline(const MeshPipelineDesc&, MeshPipeline*& out) override
+        Status CreateMeshPipeline(const MeshPipelineDesc&, MeshPipelineHandle& out) override
         {
-            out = nullptr;
+            out = MeshPipelineHandle::Invalid();
             return ErrorCode::NotSupported;
         }
-        void DestroyMeshPipeline(MeshPipeline*& pipeline) override { pipeline = nullptr; }
-        Status CreateAccelStruct(const AccelStructDesc&, AccelStruct*& out) override
+        void DestroyMeshPipeline(MeshPipelineHandle& pipeline) override { pipeline = MeshPipelineHandle::Invalid(); }
+        Status CreateAccelStruct(const AccelStructDesc&, AccelStructHandle& out) override
         {
-            out = nullptr;
+            out = AccelStructHandle::Invalid();
             return ErrorCode::NotSupported;
         }
-        void DestroyAccelStruct(AccelStruct*& accelStruct) override { accelStruct = nullptr; }
-        Status CreateRayTracingPipeline(const RayTracingPipelineDesc&, RayTracingPipeline*& out) override
+        void DestroyAccelStruct(AccelStructHandle& accelStruct) override { accelStruct = AccelStructHandle::Invalid(); }
+        Status CreateRayTracingPipeline(const RayTracingPipelineDesc&, RayTracingPipelineHandle& out) override
         {
-            out = nullptr;
+            out = RayTracingPipelineHandle::Invalid();
             return ErrorCode::NotSupported;
         }
-        void DestroyRayTracingPipeline(RayTracingPipeline*& pipeline) override { pipeline = nullptr; }
-        Status GetShaderGroupHandles(RayTracingPipeline*, u32, u32, Span<u8>) override { return ErrorCode::NotSupported; }
+        void DestroyRayTracingPipeline(RayTracingPipelineHandle& pipeline) override
+        {
+            pipeline = RayTracingPipelineHandle::Invalid();
+        }
+        Status GetShaderGroupHandles(RayTracingPipelineHandle, u32, u32, Span<u8>) override
+        {
+            return ErrorCode::NotSupported;
+        }
         void Destroy() override
         {
             IAllocator& alloc = m_allocator;

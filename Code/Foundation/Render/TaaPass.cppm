@@ -116,12 +116,12 @@ export namespace foundation::render
 
         void DestroyHistory(ViewHistory& hist);
 
-        rhi::RenderPipeline* MakePipeline();
+        rhi::RenderPipelineHandle MakePipeline();
 
         // One bind group per history view, rebuilt when any of the frame's transient inputs (the
         // jittered colour, motion, depth; BindGroupCache) is a different view or texture.
         using BindInputs = BindGroupInputs<3>;
-        rhi::BindGroup* EnsureBindGroup(rhi::TextureViewHandle histPrev, const BindInputs& inputs);
+        rhi::BindGroupHandle EnsureBindGroup(rhi::TextureViewHandle histPrev, const BindInputs& inputs);
 
         void Shutdown();
 
@@ -129,9 +129,9 @@ export namespace foundation::render
         rhi::Device* m_device;
         shaders::ShaderSystem* m_shaders;
         GpuRetireQueue* m_retire = nullptr; // borrowed; null: idle the GPU before destroying
-        rhi::BindGroupLayout* m_layout = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::RenderPipeline* m_pipeline = nullptr;
+        rhi::BindGroupLayoutHandle m_layout{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
+        rhi::RenderPipelineHandle m_pipeline{};
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
         rhi::SamplerHandle m_pointSampler{};
         rhi::SamplerHandle m_linearSampler{};

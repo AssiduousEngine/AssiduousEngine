@@ -35,7 +35,7 @@ export namespace foundation::rhi
         virtual ~MeshShaderPassExt() = default;
 
         /// Bind a mesh shader pipeline.
-        virtual void SetMeshPipeline(MeshPipeline* pipeline) = 0;
+        virtual void SetMeshPipeline(MeshPipelineHandle pipeline) = 0;
         /// Dispatch mesh shader work groups.
         virtual void DrawMeshTasks(u32 groupCountX, u32 groupCountY = 1, u32 groupCountZ = 1) = 0;
         /// Dispatch mesh shader work groups via an indirect buffer.
@@ -54,21 +54,21 @@ export namespace foundation::rhi
         virtual ~RayTracingEncoderExt() = default;
 
         /// Build a bottom-level acceleration structure from triangle or AABB geometry, or both.
-        virtual void BuildBottomLevelAccelStruct(AccelStruct* dst, BufferHandle scratchBuffer,
+        virtual void BuildBottomLevelAccelStruct(AccelStructHandle dst, BufferHandle scratchBuffer,
                                                  u64 scratchOffset,
                                                  Span<const AccelStructGeometryTriangles> triangles,
                                                  Span<const AccelStructGeometryAABBs> aabbs) = 0;
 
         /// Build a top-level acceleration structure from an instance buffer.
-        virtual void BuildTopLevelAccelStruct(AccelStruct* dst, BufferHandle scratchBuffer,
+        virtual void BuildTopLevelAccelStruct(AccelStructHandle dst, BufferHandle scratchBuffer,
                                               u64 scratchOffset, BufferHandle instanceBuffer,
                                               u64 instanceOffset, u32 instanceCount) = 0;
 
         /// Bind a ray tracing pipeline.
-        virtual void SetRayTracingPipeline(RayTracingPipeline* pipeline) = 0;
+        virtual void SetRayTracingPipeline(RayTracingPipelineHandle pipeline) = 0;
 
         /// Bind a resource group for the ray tracing pipeline.
-        virtual void SetBindGroup(u32 index, BindGroup* group,
+        virtual void SetBindGroup(u32 index, BindGroupHandle group,
                                   Span<const u32> dynamicOffsets = {}) = 0;
 
         /// Upload push constants for the ray tracing pipeline.

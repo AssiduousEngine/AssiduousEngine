@@ -24,13 +24,13 @@ namespace vg = foundation::vg;
 
 namespace
 {
-    rhi::ShaderModule* MakeModule(rhi::Device& d)
+    rhi::ShaderModuleHandle MakeModule(rhi::Device& d)
     {
         const u8 dummy[4] = {0, 0, 0, 0};
         rhi::ShaderModuleDesc desc{};
         desc.code = Span<const u8>(dummy, 4);
         desc.entryPoint = u8"main";
-        rhi::ShaderModule* m = nullptr;
+        rhi::ShaderModuleHandle m{};
         (void)d.CreateShaderModule(desc, m);
         return m;
     }
@@ -39,8 +39,8 @@ namespace
     struct Bed
     {
         rhi::null::NullDevice device{DefaultAllocator()};
-        rhi::ShaderModule* vs = MakeModule(device);
-        rhi::ShaderModule* fs = MakeModule(device);
+        rhi::ShaderModuleHandle vs = MakeModule(device);
+        rhi::ShaderModuleHandle fs = MakeModule(device);
         vg::renderer::VGRenderer target{DefaultAllocator()};
         GpuPictureBaker baker{DefaultAllocator(), device, nullptr};
         rhi::CommandPool* pool = nullptr;
@@ -49,7 +49,7 @@ namespace
 
         Bed()
         {
-            REQUIRE(target.Initialize(device, *vs, *fs, rhi::TextureFormat::BGRA8UnormSrgb, 2).IsOk());
+            REQUIRE(target.Initialize(device, vs, fs, rhi::TextureFormat::BGRA8UnormSrgb, 2).IsOk());
             PictureBakerSetup setup;
             setup.VertexShader = vs;
             setup.FragmentShader = fs;
@@ -127,7 +127,7 @@ TEST_CASE("gui.hosting.baker: a renderer added late learns the bakes; one taken 
 {
     Bed bed;
     vg::renderer::VGRenderer second{DefaultAllocator()};
-    REQUIRE(second.Initialize(bed.device, *bed.vs, *bed.fs, rhi::TextureFormat::BGRA8UnormSrgb, 2).IsOk());
+    REQUIRE(second.Initialize(bed.device, bed.vs, bed.fs, rhi::TextureFormat::BGRA8UnormSrgb, 2).IsOk());
     (void)bed.baker.Baked(bed.document, 48, 24);
     (void)bed.Frame(0);
     const foundation::image::ImageData* key = bed.baker.Baked(bed.document, 48, 24);

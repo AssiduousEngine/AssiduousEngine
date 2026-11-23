@@ -36,7 +36,7 @@ export namespace foundation::rhi::validation
 
         // ---- RenderPassEncoder ----
 
-        void SetPipeline(RenderPipeline* pipeline) override
+        void SetPipeline(RenderPipelineHandle pipeline) override
         {
             if (m_ended)
             {
@@ -53,7 +53,7 @@ export namespace foundation::rhi::validation
             m_inner->SetPipeline(pipeline);
         }
 
-        void SetBindGroup(u32 index, BindGroup* group, Span<const u32> dynOffsets) override
+        void SetBindGroup(u32 index, BindGroupHandle group, Span<const u32> dynOffsets) override
         {
             if (m_ended)
             {
@@ -232,7 +232,7 @@ export namespace foundation::rhi::validation
             m_inner->ExecuteBundles(Span<RenderBundle* const>{inner.Data(), inner.Size()});
         }
 
-        void WriteTimestamp(QuerySet* qs, u32 index) override
+        void WriteTimestamp(QuerySetHandle qs, u32 index) override
         {
             if (m_ended)
                 return;
@@ -244,7 +244,7 @@ export namespace foundation::rhi::validation
             m_inner->WriteTimestamp(qs, index);
         }
 
-        void BeginOcclusionQuery(QuerySet* qs, u32 index) override
+        void BeginOcclusionQuery(QuerySetHandle qs, u32 index) override
         {
             if (m_ended)
                 return;
@@ -256,7 +256,7 @@ export namespace foundation::rhi::validation
             m_inner->BeginOcclusionQuery(qs, index);
         }
 
-        void EndOcclusionQuery(QuerySet* qs, u32 index) override
+        void EndOcclusionQuery(QuerySetHandle qs, u32 index) override
         {
             if (m_ended)
                 return;
@@ -267,7 +267,7 @@ export namespace foundation::rhi::validation
 
         // ---- MeshShaderPassExt ----
 
-        void SetMeshPipeline(MeshPipeline* pipeline) override
+        void SetMeshPipeline(MeshPipelineHandle pipeline) override
         {
             if (m_ended)
             {

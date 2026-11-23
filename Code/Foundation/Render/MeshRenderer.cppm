@@ -516,11 +516,11 @@ export namespace foundation::render
     private:
 
         void ResolveSingle(const RenderRecordContext& ctx, u32 viewOffset,
-                           rhi::BindGroup* clusterBG, const MeshRenderData& md, const GpuMesh& mesh,
+                           rhi::BindGroupHandle clusterBG, const MeshRenderData& md, const GpuMesh& mesh,
                            Array<ResolvedDraw>& out);
 
         void ResolveInstanced(const RenderRecordContext& ctx, u32 viewOffset,
-                              rhi::BindGroup* clusterBG, Span<const DrawItem> items, usize first,
+                              rhi::BindGroupHandle clusterBG, Span<const DrawItem> items, usize first,
                               u32 count, const MeshRenderData& head, const GpuMesh& mesh,
                               Array<ResolvedDraw>& out);
 
@@ -555,7 +555,7 @@ export namespace foundation::render
         // ramp, one instanced draw per submesh material. There is no fill loop: the buffer already holds the
         // instances (uploaded in UploadMultiMeshes). The shader is the same instanced path (Instances[drawOffsets.x]).
         void ResolveMultiMesh(const RenderRecordContext& ctx, u32 viewOffset,
-                              rhi::BindGroup* clusterBG, const MultiMeshRenderData& mm,
+                              rhi::BindGroupHandle clusterBG, const MultiMeshRenderData& mm,
                               const GpuMesh& mesh, Array<ResolvedDraw>& out);
 
         // Depth-only draw for a MultiMesh caster (camera prepass and every shadow cascade): the same persistent
@@ -580,24 +580,24 @@ export namespace foundation::render
         [[nodiscard]] static materials::PipelineConfig
         ConfigFor(const MeshRenderData& md, const RenderRecordContext& ctx, bool instanced);
 
-        bool MakeLayout(const rhi::BindGroupLayoutEntry& entry, rhi::BindGroupLayout*& out);
+        bool MakeLayout(const rhi::BindGroupLayoutEntry& entry, rhi::BindGroupLayoutHandle& out);
 
-        bool MakePipelineLayout(rhi::BindGroupLayout* set0, rhi::BindGroupLayout* set1,
-                                rhi::BindGroupLayout* set2, rhi::BindGroupLayout* set3,
-                                rhi::PipelineLayout*& out);
+        bool MakePipelineLayout(rhi::BindGroupLayoutHandle set0, rhi::BindGroupLayoutHandle set1,
+                                rhi::BindGroupLayoutHandle set2, rhi::BindGroupLayoutHandle set3,
+                                rhi::PipelineLayoutHandle& out);
 
         // Two-set pipeline layout (the depth-only shadow pipelines: light view, then object or instance).
-        bool MakePipelineLayout(rhi::BindGroupLayout* set0, rhi::BindGroupLayout* set1,
-                                rhi::PipelineLayout*& out);
+        bool MakePipelineLayout(rhi::BindGroupLayoutHandle set0, rhi::BindGroupLayoutHandle set1,
+                                rhi::PipelineLayoutHandle& out);
 
         // Three-set pipeline layout (masked shadow: light view, object or instance, material); the material
         // set feeds the alpha-test fragment's albedo sample.
-        bool MakePipelineLayout3(rhi::BindGroupLayout* set0, rhi::BindGroupLayout* set1,
-                                 rhi::BindGroupLayout* set2, rhi::PipelineLayout*& out);
+        bool MakePipelineLayout3(rhi::BindGroupLayoutHandle set0, rhi::BindGroupLayoutHandle set1,
+                                 rhi::BindGroupLayoutHandle set2, rhi::PipelineLayoutHandle& out);
 
         // Masked-shadow pipeline layout for a material set-2 layout, cached by (set2, instanced): light view
         // (0), object or instance (1), material (2). Retired with the renderer.
-        [[nodiscard]] rhi::PipelineLayout* GetOrCreateShadowMaskedLayout(rhi::BindGroupLayout* set2,
+        [[nodiscard]] rhi::PipelineLayoutHandle GetOrCreateShadowMaskedLayout(rhi::BindGroupLayoutHandle set2,
                                                                          bool instanced);
 
         // The default material: a standard PBR material (materials::CreatePBR) used whenever a draw
@@ -625,18 +625,18 @@ export namespace foundation::render
         // The set-2 (material) bind group for `material`, built data-driven from its property list by the
         // material system (UBO, then textures and samplers in declared order, with white, flat-normal and
         // default-sampler fallbacks for unset slots). `material` is non-null (callers substitute the default).
-        [[nodiscard]] rhi::BindGroup* MaterialBindGroup(materials::Material* material);
+        [[nodiscard]] rhi::BindGroupHandle MaterialBindGroup(materials::Material* material);
 
         // The forward pipeline layout for a given material set-2 layout, cached by (set2 layout, instanced).
         // set0: view; set1: object (single) or instances (instanced); set2: material; set3: clusters.
-        [[nodiscard]] rhi::PipelineLayout* GetOrCreatePipelineLayout(rhi::BindGroupLayout* set2,
+        [[nodiscard]] rhi::PipelineLayoutHandle GetOrCreatePipelineLayout(rhi::BindGroupLayoutHandle set2,
                                                                      bool instanced);
 
         // Per-frame bind groups (view, shadow view, object, instance) are rebuilt when their inputs change;
         // the directional shadow view, for example, alternates per in-flight slot, so the view BG rebuilds every
         // frame. The old bind group may still be referenced by an in-flight command buffer, so it can't be
         // freed immediately (vkFreeDescriptorSets-00309): retire it and free after the frame ring cycles.
-        void RetireBindGroup(rhi::BindGroup* bg);
+        void RetireBindGroup(rhi::BindGroupHandle bg);
         // Drop material instances whose material nobody else references (the resource layer
         // hot-reloaded it away): retire their bind group (it may still be bound by in-flight
         // frames) and destroy the instance. Without this, stale descriptor sets keep destroyed
@@ -650,8 +650,8 @@ export namespace foundation::render
         // (Re)create a bind group over a ring's buffer when the ring (re)allocated. `whole` binds
         // the entire buffer (storage, indexed); otherwise a `bindSize` window (dynamic-offset UBO).
         // `secondUniform`, when given, is bound whole as binding 1 (the instanced set's InstanceSet).
-        bool EnsureBindGroup(DynamicUniformRing& ring, rhi::BindGroupLayout* layout, u64 bindSize,
-                             rhi::BindGroup*& bg, u32& bgGen, bool whole,
+        bool EnsureBindGroup(DynamicUniformRing& ring, rhi::BindGroupLayoutHandle layout, u64 bindSize,
+                             rhi::BindGroupHandle& bg, u32& bgGen, bool whole,
                              rhi::BufferHandle secondUniform = {});
 
         // The set-0 bind group spans two rings: the per-view UBO (dynamic-offset window of one
@@ -679,7 +679,7 @@ export namespace foundation::render
         // Rebuild when the cluster buffers' version changes (the ClusterSystem bumps it on realloc).
         // Pointer identity is not a safe "unchanged" test: a freed rhi::BufferHandle address can be reused by
         // the new allocation, and a stale bind group would point at a destroyed VkBuffer.
-        rhi::BindGroup* EnsureClusterBindGroup(u32 viewIndex, u32 frameIndex, rhi::BufferHandle offsets,
+        rhi::BindGroupHandle EnsureClusterBindGroup(u32 viewIndex, u32 frameIndex, rhi::BufferHandle offsets,
                                                rhi::BufferHandle indices, u32 version);
 
         void Shutdown();
@@ -693,18 +693,17 @@ export namespace foundation::render
         u32 m_framesInFlight = 2;
         u32 m_frameIndex = 0; // this frame's index (selects the offsets buffer's frame-in-flight slot)
 
-        rhi::BindGroupLayout* m_viewLayout = nullptr;
-        rhi::BindGroupLayout* m_objectLayout = nullptr;
-        rhi::BindGroupLayout* m_instanceLayout = nullptr;
-        rhi::BindGroupLayout* m_clusterLayout = nullptr;
-        rhi::BindGroupLayout* m_shadowViewLayout =
-            nullptr; // set 0 for the depth-only shadow pipeline
-        rhi::PipelineLayout* m_shadowPipelineLayoutSingle = nullptr;
-        rhi::PipelineLayout* m_shadowPipelineLayoutInstanced = nullptr;
+        rhi::BindGroupLayoutHandle m_viewLayout{};
+        rhi::BindGroupLayoutHandle m_objectLayout{};
+        rhi::BindGroupLayoutHandle m_instanceLayout{};
+        rhi::BindGroupLayoutHandle m_clusterLayout{};
+        rhi::BindGroupLayoutHandle m_shadowViewLayout{}; // set 0 for the depth-only shadow pipeline
+        rhi::PipelineLayoutHandle m_shadowPipelineLayoutSingle{};
+        rhi::PipelineLayoutHandle m_shadowPipelineLayoutInstanced{};
         // Forward pipeline layouts, keyed by (material set-2 layout, instanced); built on demand so each
         // material's own set-2 layout drives the PSO (which supports custom shaders).
-        HashMap<u64, rhi::PipelineLayout*> m_pipelineLayouts{*m_allocator};
-        HashMap<u64, rhi::PipelineLayout*>
+        HashMap<u64, rhi::PipelineLayoutHandle> m_pipelineLayouts{*m_allocator};
+        HashMap<u64, rhi::PipelineLayoutHandle>
             m_shadowMaskedLayouts{*m_allocator}; // masked-shadow 3-set layouts (by set-2, instanced)
 
         // Material set-2 resources. The default material (standard PBR) backs draws with no material;
@@ -819,7 +818,7 @@ export namespace foundation::render
         // buffers; freed by TickRetiredBindGroups once the frame ring has cycled (framesLeft hits 0).
         struct RetiredBG
         {
-            rhi::BindGroup* bg;
+            rhi::BindGroupHandle bg;
             u32 framesLeft;
         };
         Array<RetiredBG> m_retiredBGs{*m_allocator};
@@ -834,7 +833,7 @@ export namespace foundation::render
         // current view's group (set by EnsureViewBindGroup; read by the Resolve* bodies).
         struct ViewBGSlot
         {
-            rhi::BindGroup* bg = nullptr;
+            rhi::BindGroupHandle bg{};
             u32 viewGen = 0, lightGen = 0, localGen = 0, boneGen = 0;
             rhi::TextureViewHandle shadow{};
             u64 shadowGen = 0;
@@ -846,12 +845,12 @@ export namespace foundation::render
             rhi::BufferHandle probeBuf{};
         };
         Array<ViewBGSlot> m_viewBGs{*m_allocator};
-        rhi::BindGroup* m_viewBG = nullptr; // current view's (borrowed from its slot)
-        rhi::BindGroup* m_shadowViewBG = nullptr;
+        rhi::BindGroupHandle m_viewBG{}; // current view's (borrowed from its slot)
+        rhi::BindGroupHandle m_shadowViewBG{};
         u32 m_shadowViewBGGen = 0;
         u32 m_shadowViewBGBoneGen = 0;
-        rhi::BindGroup* m_objectBG = nullptr;
-        rhi::BindGroup* m_instanceBG = nullptr;
+        rhi::BindGroupHandle m_objectBG{};
+        rhi::BindGroupHandle m_instanceBG{};
         // The InstanceSet a per-frame instanced batch binds: no fade, each instance its own id.
         rhi::BufferHandle m_noFadeSetBuf{};
         // The set-0 bind group spans the view UBO, light buffer, shadow map and sampler; rebuild it when any
@@ -899,10 +898,9 @@ export namespace foundation::render
             // rewrite this frame's region while the GPU reads the previous frame's, hazard-free even for
             // crowds that move every frame. Each region has its own set-1 bind group; the draw binds this frame's.
             rhi::BufferHandle instanceBuf{}; // Storage, CpuToGpu: framesInFlight x capacity x InstanceData
-            rhi::BindGroup* instanceBG[kMultiMeshMaxFiF] =
+            rhi::BindGroupHandle instanceBG[kMultiMeshMaxFiF] =
                 {}; // one set-1 bind group per FiF region
-            rhi::BindGroup* activeInstanceBG =
-                nullptr;      // this frame's region bind group (set in EnsureMultiMeshSet)
+            rhi::BindGroupHandle activeInstanceBG{};      // this frame's region bind group (set in EnsureMultiMeshSet)
             // Its InstanceSet block (fade window, instance count, pick id), one kViewSlot per
             // frame-in-flight region, rewritten each frame the set draws (Uniform, CpuToGpu).
             rhi::BufferHandle setBuf{};
@@ -959,10 +957,10 @@ export namespace foundation::render
         // per (view, frame-in-flight) slot over the ClusterSystem's per-view cluster buffers.
         rhi::BufferHandle m_dummyClusterOffsets{};
         rhi::BufferHandle m_dummyClusterIndices{};
-        rhi::BindGroup* m_dummyClusterBG = nullptr;
+        rhi::BindGroupHandle m_dummyClusterBG{};
         struct ClusterSlot
         {
-            rhi::BindGroup* group = nullptr;
+            rhi::BindGroupHandle group{};
             rhi::BufferHandle offsets{};
             u32 version = 0;
         };

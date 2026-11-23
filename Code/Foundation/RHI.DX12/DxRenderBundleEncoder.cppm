@@ -25,6 +25,7 @@ export module foundation.rhi.dx12:render_bundle_encoder;
 import foundation.core;
 import foundation.rhi;
 import :render_pass_encoder;
+import :tables;
 
 using namespace foundation::core;
 
@@ -48,12 +49,12 @@ export namespace foundation::rhi::dx12
         }
         ~DxRenderBundleEncoderImpl() override { m_allocator.Delete(m_bundle); }
 
-        void SetPipeline(RenderPipeline* p) override
+        void SetPipeline(RenderPipelineHandle p) override
         {
             ++m_recorded.pipelineBinds;
             m_rec.SetPipeline(p);
         }
-        void SetBindGroup(u32 i, BindGroup* g, Span<const u32> d) override
+        void SetBindGroup(u32 i, BindGroupHandle g, Span<const u32> d) override
         {
             ++m_recorded.bindGroupBinds;
             m_rec.SetBindGroup(i, g, d);

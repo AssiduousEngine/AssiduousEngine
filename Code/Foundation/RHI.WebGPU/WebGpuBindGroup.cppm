@@ -34,7 +34,7 @@ export namespace foundation::rhi::webgpu
         Status Initialize(const WebGpuApi& api, WGPUDevice device, const BindGroupDesc& groupDesc)
         {
             m_api = &api;
-            m_layout = static_cast<WebGpuBindGroupLayout*>(groupDesc.layout);
+            m_layout = LookUp(tables, groupDesc.layout);
             if (m_layout == nullptr)
             {
                 return ErrorCode::InvalidArgument;

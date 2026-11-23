@@ -29,7 +29,7 @@ export namespace foundation::rhi::validation
             m_ended = false;
         }
 
-        void SetPipeline(ComputePipeline* pipeline) override
+        void SetPipeline(ComputePipelineHandle pipeline) override
         {
             if (m_ended)
             {
@@ -45,7 +45,7 @@ export namespace foundation::rhi::validation
             m_inner->SetPipeline(pipeline);
         }
 
-        void SetBindGroup(u32 index, BindGroup* group, Span<const u32> dynOffsets) override
+        void SetBindGroup(u32 index, BindGroupHandle group, Span<const u32> dynOffsets) override
         {
             if (m_ended)
                 return;
@@ -121,7 +121,7 @@ export namespace foundation::rhi::validation
             m_inner->ComputeBarrier();
         }
 
-        void WriteTimestamp(QuerySet* qs, u32 index) override
+        void WriteTimestamp(QuerySetHandle qs, u32 index) override
         {
             if (m_ended)
                 return;

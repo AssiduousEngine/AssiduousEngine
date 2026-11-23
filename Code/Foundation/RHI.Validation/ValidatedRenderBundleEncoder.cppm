@@ -39,7 +39,7 @@ export namespace foundation::rhi::validation
         }
         ~ValidatedRenderBundleEncoder() override { m_allocator.Delete(m_bundle); }
 
-        void SetPipeline(RenderPipeline* pipeline) override
+        void SetPipeline(RenderPipelineHandle pipeline) override
         {
             if (m_finished)
             {
@@ -55,7 +55,7 @@ export namespace foundation::rhi::validation
             m_inner->SetPipeline(pipeline);
         }
 
-        void SetBindGroup(u32 index, BindGroup* group, Span<const u32> dynOffsets) override
+        void SetBindGroup(u32 index, BindGroupHandle group, Span<const u32> dynOffsets) override
         {
             if (m_finished)
             {

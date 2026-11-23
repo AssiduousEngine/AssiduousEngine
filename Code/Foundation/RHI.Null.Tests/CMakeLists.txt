@@ -4,7 +4,8 @@ add_executable(RHI.Null.Tests
     TestsMain.cpp
     NullRhiTests.cpp
     BufferLifetimeTests.cpp
-    TextureLifetimeTests.cpp)
+    TextureLifetimeTests.cpp
+    ObjectLifetimeTests.cpp)
 
 target_link_libraries(RHI.Null.Tests PRIVATE Foundation::RHI.Null doctest::doctest)
 

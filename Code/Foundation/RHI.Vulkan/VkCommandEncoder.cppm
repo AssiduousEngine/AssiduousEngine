@@ -482,39 +482,39 @@ export namespace foundation::rhi::vk
                               d->handle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &r);
         }
 
-        void ResetQuerySet(QuerySet* qs, u32 first, u32 count) override
+        void ResetQuerySet(QuerySetHandle qs, u32 first, u32 count) override
         {
-            if (auto* q = static_cast<VkQuerySetImpl*>(qs))
+            if (auto* q = LookUp(tables, qs))
                 vkCmdResetQueryPool(m_cmdBuf, q->handle(), first, count);
         }
 
-        void WriteTimestamp(QuerySet* qs, u32 index) override
+        void WriteTimestamp(QuerySetHandle qs, u32 index) override
         {
-            if (auto* q = static_cast<VkQuerySetImpl*>(qs))
+            if (auto* q = LookUp(tables, qs))
                 vkCmdWriteTimestamp(m_cmdBuf, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, q->handle(),
                                     index);
         }
 
-        void BeginPipelineStatisticsQuery(QuerySet* qs, u32 index) override
+        void BeginPipelineStatisticsQuery(QuerySetHandle qs, u32 index) override
         {
-            if (auto* q = static_cast<VkQuerySetImpl*>(qs))
+            if (auto* q = LookUp(tables, qs))
                 vkCmdBeginQuery(m_cmdBuf, q->handle(), index, 0);
         }
 
-        void EndPipelineStatisticsQuery(QuerySet* qs, u32 index) override
+        void EndPipelineStatisticsQuery(QuerySetHandle qs, u32 index) override
         {
-            if (auto* q = static_cast<VkQuerySetImpl*>(qs))
+            if (auto* q = LookUp(tables, qs))
                 vkCmdEndQuery(m_cmdBuf, q->handle(), index);
         }
 
-        void ResolveQuerySet(QuerySet* qs, u32 first, u32 count, BufferHandle dst,
+        void ResolveQuerySet(QuerySetHandle qs, u32 first, u32 count, BufferHandle dst,
                              u64 dstOffset) override
         {
-            auto* q = static_cast<VkQuerySetImpl*>(qs);
+            auto* q = LookUp(tables, qs);
             auto* b = LookUp(tables, dst);
             // One result per query, as wide as its kind (Device::QueryResultSize): a statistics
             // query carries all six of its counters.
-            const VkDeviceSize stride = (q != nullptr && q->type == QueryType::PipelineStatistics)
+            const VkDeviceSize stride = (q != nullptr && q->desc.type == QueryType::PipelineStatistics)
                                             ? VkQuerySetImpl::kPipelineStatisticsCounters * 8u
                                             : 8u;
             if (q && b)
@@ -584,14 +584,14 @@ export namespace foundation::rhi::vk
 
         // ---- RayTracingEncoderExt ----
 
-        void BuildBottomLevelAccelStruct(AccelStruct* dst, BufferHandle scratch, u64 scratchOffset,
+        void BuildBottomLevelAccelStruct(AccelStructHandle dst, BufferHandle scratch, u64 scratchOffset,
                                          Span<const AccelStructGeometryTriangles> tris,
                                          Span<const AccelStructGeometryAABBs> aabbs) override;
-        void BuildTopLevelAccelStruct(AccelStruct* dst, BufferHandle scratch, u64 scratchOffset,
+        void BuildTopLevelAccelStruct(AccelStructHandle dst, BufferHandle scratch, u64 scratchOffset,
                                       BufferHandle instanceBuf, u64 instanceOffset,
                                       u32 instanceCount) override;
-        void SetRayTracingPipeline(RayTracingPipeline* pipeline) override;
-        void SetBindGroup(u32 index, BindGroup* group, Span<const u32> dynOffsets) override;
+        void SetRayTracingPipeline(RayTracingPipelineHandle pipeline) override;
+        void SetBindGroup(u32 index, BindGroupHandle group, Span<const u32> dynOffsets) override;
         void SetPushConstants(ShaderStage stages, u32 offset, u32 size, const void* data) override;
         void TraceRays(BufferHandle raygenSBT, u64 raygenOff, u64 raygenStride, BufferHandle missSBT,
                        u64 missOff, u64 missStride, BufferHandle hitSBT, u64 hitOff, u64 hitStride,
@@ -626,9 +626,9 @@ export namespace foundation::rhi::vk
 
     // ---- Deferred RT method implementations ----
 
-    inline void VkCommandEncoderImpl::SetRayTracingPipeline(RayTracingPipeline* pipeline)
+    inline void VkCommandEncoderImpl::SetRayTracingPipeline(RayTracingPipelineHandle pipeline)
     {
-        m_currentRtPipeline = static_cast<VkRayTracingPipelineImpl*>(pipeline);
+        m_currentRtPipeline = LookUp(tables, pipeline);
         if (m_currentRtPipeline)
             vkCmdBindPipeline(m_cmdBuf, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR,
                               m_currentRtPipeline->handle());
@@ -636,10 +636,10 @@ export namespace foundation::rhi::vk
             m_counters->PipelineBinds();
     }
 
-    inline void VkCommandEncoderImpl::SetBindGroup(u32 index, BindGroup* group,
+    inline void VkCommandEncoderImpl::SetBindGroup(u32 index, BindGroupHandle group,
                                                    Span<const u32> dynOffsets)
     {
-        auto* bg = static_cast<VkBindGroupImpl*>(group);
+        auto* bg = LookUp(tables, group);
         if (!bg || !m_currentRtPipeline || !m_currentRtPipeline->vkLayout())
             return;
         VkDescriptorSet set = bg->handle();
@@ -693,10 +693,10 @@ export namespace foundation::rhi::vk
     }
 
     inline void VkCommandEncoderImpl::BuildBottomLevelAccelStruct(
-        AccelStruct* dst, BufferHandle scratch, u64 scratchOffset,
+        AccelStructHandle dst, BufferHandle scratch, u64 scratchOffset,
         Span<const AccelStructGeometryTriangles> tris, Span<const AccelStructGeometryAABBs> aabbs)
     {
-        auto* as = static_cast<VkAccelStructImpl*>(dst);
+        auto* as = LookUp(tables, dst);
         auto* sc = LookUp(tables, scratch);
         if (!as || !sc)
             return;
@@ -791,13 +791,13 @@ export namespace foundation::rhi::vk
         m_pfnBuild(m_cmdBuf, 1, &bi, &pRange);
     }
 
-    inline void VkCommandEncoderImpl::BuildTopLevelAccelStruct(AccelStruct* dst, BufferHandle scratch,
+    inline void VkCommandEncoderImpl::BuildTopLevelAccelStruct(AccelStructHandle dst, BufferHandle scratch,
                                                                u64 scratchOffset,
                                                                BufferHandle instanceBuf,
                                                                u64 instanceOffset,
                                                                u32 instanceCount)
     {
-        auto* as = static_cast<VkAccelStructImpl*>(dst);
+        auto* as = LookUp(tables, dst);
         auto* sc = LookUp(tables, scratch);
         auto* ib = LookUp(tables, instanceBuf);
         if (!as || !sc || !ib)
@@ -843,9 +843,9 @@ export namespace foundation::rhi::vk
         return nullptr;
     }
 
-    void VkRenderPassEncoderImpl::SetMeshPipeline(MeshPipeline* pipeline)
+    void VkRenderPassEncoderImpl::SetMeshPipeline(MeshPipelineHandle pipeline)
     {
-        m_currentMeshPipeline = static_cast<VkMeshPipelineImpl*>(pipeline);
+        m_currentMeshPipeline = LookUp(tables, pipeline);
         m_currentPipeline = nullptr;
         if (m_currentMeshPipeline)
             vkCmdBindPipeline(m_cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS,

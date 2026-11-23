@@ -50,9 +50,9 @@ namespace foundation::render
             return Status{ErrorCode::Unknown};
         }
 
-        rhi::BindGroupLayout* layouts[] = {m_layout};
+        rhi::BindGroupLayoutHandle layouts[] = {m_layout};
         rhi::PipelineLayoutDesc pld{};
-        pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{layouts, 1};
+        pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{layouts, 1};
         if (!m_device->CreatePipelineLayout(pld, m_pipelineLayout).IsOk())
         {
             return Status{ErrorCode::Unknown};
@@ -62,15 +62,15 @@ namespace foundation::render
         return Status{};
     }
 
-    rhi::RenderPipeline* MsaaResolvePass::MakePipeline(rhi::TextureFormat depthFormat)
+    rhi::RenderPipelineHandle MsaaResolvePass::MakePipeline(rhi::TextureFormat depthFormat)
     {
-        rhi::ShaderModule* vs = m_shaders->GetVariant(u8"msaa_resolve", shaders::ShaderStage::Vertex,
+        rhi::ShaderModuleHandle vs = m_shaders->GetVariant(u8"msaa_resolve", shaders::ShaderStage::Vertex,
                                                       shaders::ShaderFlags::None);
-        rhi::ShaderModule* ps = m_shaders->GetVariant(
+        rhi::ShaderModuleHandle ps = m_shaders->GetVariant(
             u8"msaa_resolve", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-        if (vs == nullptr || ps == nullptr)
+        if (!vs.IsValid() || !ps.IsValid())
         {
-            return nullptr;
+            return {};
         }
         rhi::ColorTargetState targets[4] = {};
         targets[0].format = kGNormalFormat;   // SV_Target0 = normal
@@ -98,23 +98,23 @@ namespace foundation::render
         pd.primitive.cullMode = rhi::CullMode::None;
         pd.multisample.count = 1; // the resolve output is single-sample
         pd.label = u8"msaa_resolve";
-        rhi::RenderPipeline* p = nullptr;
+        rhi::RenderPipelineHandle p{};
         if (!m_device->CreateRenderPipeline(pd, p).IsOk())
         {
-            return nullptr;
+            return {};
         }
         return p;
     }
 
-    rhi::BindGroup* MsaaResolvePass::EnsureBindGroup(const BindInputs& inputs)
+    rhi::BindGroupHandle MsaaResolvePass::EnsureBindGroup(const BindInputs& inputs)
     {
         if (!inputs.Complete())
         {
-            return nullptr;
+            return {};
         }
         rhi::TextureViewHandle depth = inputs.views[3];
-        rhi::BindGroup* stale = nullptr;
-        if (rhi::BindGroup* cached = m_bindGroups.Find(depth, inputs, stale))
+        rhi::BindGroupHandle stale{};
+        if (rhi::BindGroupHandle cached = m_bindGroups.Find(depth, inputs, stale))
         {
             return cached;
         }
@@ -129,10 +129,10 @@ namespace foundation::render
         rhi::BindGroupDesc bgd{};
         bgd.layout = m_layout;
         bgd.entries = Span<const rhi::BindGroupEntry>{ent, 5};
-        rhi::BindGroup* bg = nullptr;
+        rhi::BindGroupHandle bg{};
         if (!m_device->CreateBindGroup(bgd, bg).IsOk())
         {
-            return nullptr;
+            return {};
         }
         m_bindGroups.Store(depth, inputs, bg);
         return bg;
@@ -152,10 +152,10 @@ namespace foundation::render
         // Hot reload or first use: (re)build the pipeline when the shader changed or the depth format
         // differs from the cached one (the caller idles the GPU on shader reload).
         const u64 shaderVersion = m_shaders->Version(u8"msaa_resolve");
-        if (m_pipeline == nullptr || shaderVersion != m_pipelineShaderVersion ||
+        if (!m_pipeline.IsValid() || shaderVersion != m_pipelineShaderVersion ||
             depthFormat != m_pipelineDepthFormat)
         {
-            if (m_pipeline != nullptr)
+            if (m_pipeline.IsValid())
             {
                 m_device->DestroyRenderPipeline(m_pipeline);
             }
@@ -163,7 +163,7 @@ namespace foundation::render
             m_pipelineShaderVersion = shaderVersion;
             m_pipelineDepthFormat = depthFormat;
         }
-        if (m_pipeline == nullptr)
+        if (!m_pipeline.IsValid())
         {
             return out;
         }
@@ -207,8 +207,8 @@ namespace foundation::render
                         inputs.Set(2, graph.GetTextureView(msaaMaterial), graph.GetTextureGeneration(msaaMaterial));
                         inputs.Set(3, graph.GetTextureView(msaaDepth), graph.GetTextureGeneration(msaaDepth));
                         inputs.Set(4, graph.GetTextureView(msaaAlbedo), graph.GetTextureGeneration(msaaAlbedo));
-                        rhi::BindGroup* bg = EnsureBindGroup(inputs);
-                        if (bg == nullptr)
+                        rhi::BindGroupHandle bg = EnsureBindGroup(inputs);
+                        if (!bg.IsValid())
                         {
                             return;
                         }
@@ -222,21 +222,21 @@ namespace foundation::render
 
     void MsaaResolvePass::Shutdown()
     {
-        m_bindGroups.Release([this](rhi::BindGroup* bg) { m_device->DestroyBindGroup(bg); });
-        if (m_pipeline != nullptr)
+        m_bindGroups.Release([this](rhi::BindGroupHandle bg) { m_device->DestroyBindGroup(bg); });
+        if (m_pipeline.IsValid())
         {
             m_device->DestroyRenderPipeline(m_pipeline);
-            m_pipeline = nullptr;
+            m_pipeline = {};
         }
-        if (m_pipelineLayout != nullptr)
+        if (m_pipelineLayout.IsValid())
         {
             m_device->DestroyPipelineLayout(m_pipelineLayout);
-            m_pipelineLayout = nullptr;
+            m_pipelineLayout = {};
         }
-        if (m_layout != nullptr)
+        if (m_layout.IsValid())
         {
             m_device->DestroyBindGroupLayout(m_layout);
-            m_layout = nullptr;
+            m_layout = {};
         }
     }
 }

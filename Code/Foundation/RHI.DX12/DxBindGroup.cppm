@@ -144,7 +144,7 @@ export namespace foundation::rhi::dx12
         {
             m_device = device;
             m_samplerTables = samplerTables;
-            m_layout = static_cast<DxBindGroupLayoutImpl*>(d.layout);
+            m_layout = LookUp(tables, d.layout);
             m_cpuSrvHeap = cpuSrvHeap;
             m_cpuSamplerHeap = cpuSamplerHeap;
             m_gpuSamplerHeap = gpuSamplerHeap;
@@ -438,7 +438,7 @@ export namespace foundation::rhi::dx12
                                                     D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
                 break;
             case BindingType::AccelerationStructure:
-                if (auto* dxAs = static_cast<DxAccelStructImpl*>(e.accelStruct))
+                if (auto* dxAs = LookUp(tables, e.accelStruct))
                 {
                     D3D12_SHADER_RESOURCE_VIEW_DESC asSrv{};
                     asSrv.Format = DXGI_FORMAT_UNKNOWN;

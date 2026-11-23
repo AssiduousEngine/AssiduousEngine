@@ -139,7 +139,7 @@ export namespace foundation::render
             u64 offsetsBytes = 0;           // size of the slot's buffers (views can differ)
             u64 indicesBytes = 0;
             u32 bufferVersion = 0; // incremented on realloc; consumers invalidate cached bind groups
-            rhi::BindGroup* bindGroup = nullptr;
+            rhi::BindGroupHandle bindGroup{};
             u32 bgParamsGen = 0;
             u32 bgLightGen = 0;
             rhi::BufferHandle bgOffsets{};
@@ -161,9 +161,9 @@ export namespace foundation::render
         shaders::ShaderSystem* m_shaders;
         u32 m_framesInFlight = 2;
 
-        rhi::BindGroupLayout* m_layout = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::ComputePipeline* m_pipeline = nullptr;
+        rhi::BindGroupLayoutHandle m_layout{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
+        rhi::ComputePipelineHandle m_pipeline{};
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
 
         DynamicUniformRing m_paramsRing;

@@ -127,7 +127,7 @@ export namespace foundation::rendergraph
             m_current->frameNumber = p.CurrentFrameNumber();
             m_current->names.Clear();
             encoder.ResetQuerySet(m_current->timestamps, 0, kMaxPasses * 2);
-            if (m_current->statistics != nullptr)
+            if (m_current->statistics.IsValid())
             {
                 encoder.ResetQuerySet(m_current->statistics, 0, kMaxPasses);
             }
@@ -144,7 +144,7 @@ export namespace foundation::rendergraph
             const u32 index = static_cast<u32>(m_current->names.Size());
             m_current->names.PushBack(name);
             encoder.WriteTimestamp(m_current->timestamps, index * 2);
-            if (m_current->statistics != nullptr)
+            if (m_current->statistics.IsValid())
             {
                 encoder.BeginPipelineStatisticsQuery(m_current->statistics, index);
             }
@@ -157,7 +157,7 @@ export namespace foundation::rendergraph
                 return;
             }
             const u32 index = static_cast<u32>(m_current->names.Size()) - 1;
-            if (m_current->statistics != nullptr)
+            if (m_current->statistics.IsValid())
             {
                 encoder.EndPipelineStatisticsQuery(m_current->statistics, index);
             }
@@ -176,7 +176,7 @@ export namespace foundation::rendergraph
             if (count > 0)
             {
                 encoder.ResolveQuerySet(m_current->timestamps, 0, count * 2, m_current->timestampReadback, 0);
-                if (m_current->statistics != nullptr)
+                if (m_current->statistics.IsValid())
                 {
                     encoder.ResolveQuerySet(m_current->statistics, 0, count, m_current->statisticsReadback, 0);
                 }
@@ -191,11 +191,11 @@ export namespace foundation::rendergraph
             {
                 for (Slot& slot : m_slots)
                 {
-                    if (slot.timestamps != nullptr)
+                    if (slot.timestamps.IsValid())
                     {
                         m_device->DestroyQuerySet(slot.timestamps);
                     }
-                    if (slot.statistics != nullptr)
+                    if (slot.statistics.IsValid())
                     {
                         m_device->DestroyQuerySet(slot.statistics);
                     }
@@ -217,8 +217,8 @@ export namespace foundation::rendergraph
     private:
         struct Slot
         {
-            rhi::QuerySet* timestamps = nullptr;
-            rhi::QuerySet* statistics = nullptr;
+            rhi::QuerySetHandle timestamps{};
+            rhi::QuerySetHandle statistics{};
             rhi::BufferHandle timestampReadback{};
             rhi::BufferHandle statisticsReadback{};
             Array<profiler::NameId> names; // the passes measured, in order
@@ -271,7 +271,7 @@ export namespace foundation::rendergraph
         // the two (off by half that round trip at most). Once, when profiling first starts.
         [[nodiscard]] bool SyncPoint()
         {
-            rhi::QuerySet* set = nullptr;
+            rhi::QuerySetHandle set{};
             rhi::BufferHandle readback{};
             rhi::CommandPool* pool = nullptr;
             rhi::Fence* fence = nullptr;
@@ -325,7 +325,7 @@ export namespace foundation::rendergraph
             {
                 m_device->DestroyBuffer(readback);
             }
-            if (set != nullptr)
+            if (set.IsValid())
             {
                 m_device->DestroyQuerySet(set);
             }
@@ -352,7 +352,7 @@ export namespace foundation::rendergraph
             {
                 return;
             }
-            const u8* statistics = slot.statistics != nullptr
+            const u8* statistics = slot.statistics.IsValid()
                                        ? static_cast<const u8*>(m_device->Map(slot.statisticsReadback))
                                        : nullptr;
             Array<profiler::GpuPassEvent> passes(*m_allocator);

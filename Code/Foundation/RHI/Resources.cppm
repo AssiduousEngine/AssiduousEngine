@@ -88,20 +88,21 @@ export namespace foundation::rhi
     };
 
     /// A stage that runs its module's own entry point (the one the module was compiled for).
-    [[nodiscard]] inline ProgrammableStage StageOf(ShaderModule* module, ShaderStage stage) noexcept
+    [[nodiscard]] inline ProgrammableStage StageOf(ShaderModuleHandle module, ShaderStage stage) noexcept
     {
         return ProgrammableStage{module, StringView{}, stage};
     }
 
-    /// The entry point a stage runs: the one it names, else its module's own. Empty when neither
-    /// says, which a backend refuses (a module of several entries needs the stage to choose).
-    [[nodiscard]] inline StringView EntryPointOf(const ProgrammableStage& stage) noexcept
+    /// The entry point a stage runs: the one it names, else its module's own (`module`, the
+    /// backend's object its handle names). Empty when neither says, which a backend refuses (a
+    /// module of several entries needs the stage to choose).
+    [[nodiscard]] inline StringView EntryPointOf(const ProgrammableStage& stage, const ShaderModule* module) noexcept
     {
         if (!stage.entryPoint.IsEmpty())
         {
             return stage.entryPoint;
         }
-        return stage.module != nullptr ? stage.module->entryPoint.AsView() : StringView{};
+        return module != nullptr ? module->entryPoint.AsView() : StringView{};
     }
 
     /// Presentation surface created from a native window handle.
@@ -138,8 +139,7 @@ export namespace foundation::rhi
     public:
         virtual ~QuerySet() = default;
 
-        QueryType type = QueryType::Timestamp;
-        u32 count = 0;
+        QuerySetDesc desc{}; // its label is not kept
     };
 
     /// Defines the layout of resource bindings for a bind group.
@@ -157,7 +157,10 @@ export namespace foundation::rhi
     public:
         virtual ~BindGroup() = default;
 
+        /// The backend's layout object it was created against (alive as long as it is).
         [[nodiscard]] virtual BindGroupLayout* Layout() = 0;
+        /// The device's handle to that layout (LayoutOf), set by the device that creates it.
+        BindGroupLayoutHandle layout{};
 
         /// Update individual entries in a bindless bind group.
         virtual void UpdateBindless(Span<const BindlessUpdateEntry> entries) = 0;
@@ -186,7 +189,7 @@ export namespace foundation::rhi
     {
     public:
         virtual ~RenderPipeline() = default;
-        PipelineLayout* layout = nullptr;
+        PipelineLayoutHandle layout{}; // the layout it was created with
     };
 
     /// Compiled compute pipeline.
@@ -194,7 +197,7 @@ export namespace foundation::rhi
     {
     public:
         virtual ~ComputePipeline() = default;
-        PipelineLayout* layout = nullptr;
+        PipelineLayoutHandle layout{}; // the layout it was created with
     };
 
     /// Compiled mesh shader pipeline.
@@ -202,7 +205,7 @@ export namespace foundation::rhi
     {
     public:
         virtual ~MeshPipeline() = default;
-        PipelineLayout* layout = nullptr;
+        PipelineLayoutHandle layout{}; // the layout it was created with
     };
 
     /// Bottom-level or top-level acceleration structure for ray tracing.
@@ -220,7 +223,7 @@ export namespace foundation::rhi
     {
     public:
         virtual ~RayTracingPipeline() = default;
-        PipelineLayout* layout = nullptr;
+        PipelineLayoutHandle layout{}; // the layout it was created with
     };
 
 } // namespace foundation::rhi

@@ -24,7 +24,7 @@ export namespace foundation::rhi
     /// Descriptor for creating a mesh shader pipeline.
     struct MeshPipelineDesc
     {
-        PipelineLayout* layout = nullptr;
+        PipelineLayoutHandle layout{};
         Optional<ProgrammableStage> task; ///< Optional task (amplification) shader.
         ProgrammableStage mesh;           ///< Required mesh shader.
         Optional<FragmentState> fragment;
@@ -32,7 +32,7 @@ export namespace foundation::rhi
         PrimitiveState primitive;
         Optional<DepthStencilState> depthStencil;
         MultisampleState multisample;
-        PipelineCache* cache = nullptr;
+        PipelineCacheHandle cache{};
         StringView label;
     };
 
@@ -93,13 +93,13 @@ export namespace foundation::rhi
     /// Descriptor for creating a ray tracing pipeline.
     struct RayTracingPipelineDesc
     {
-        PipelineLayout* layout = nullptr;
+        PipelineLayoutHandle layout{};
         Span<const ProgrammableStage> stages;
         Span<const RayTracingShaderGroup> groups;
         u32 maxRecursionDepth = 1;
         u32 maxPayloadSize = 0;
         u32 maxAttributeSize = 0;
-        PipelineCache* cache = nullptr;
+        PipelineCacheHandle cache{};
         StringView label;
     };
 

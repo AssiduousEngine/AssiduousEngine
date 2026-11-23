@@ -168,7 +168,7 @@ export namespace foundation::render
         void Tick(u32 frameIndex);
 
         // Four-texture bind group (t0..t3) and sampler, cached by (scene view, combined generation).
-        rhi::BindGroup* EnsureBindGroup(rhi::TextureViewHandle scene, rhi::TextureViewHandle depth,
+        rhi::BindGroupHandle EnsureBindGroup(rhi::TextureViewHandle scene, rhi::TextureViewHandle depth,
                                         rhi::TextureViewHandle normal, rhi::TextureViewHandle material,
                                         u64 generation);
 
@@ -176,13 +176,13 @@ export namespace foundation::render
         // its three transient inputs (refl, velocity, hdr: views and generations) are the ones it was
         // built from (BindGroupCache).
         using ResolveInputs = BindGroupInputs<3>;
-        rhi::BindGroup* EnsureResolveBindGroup(rhi::TextureViewHandle histPrev, const ResolveInputs& inputs);
+        rhi::BindGroupHandle EnsureResolveBindGroup(rhi::TextureViewHandle histPrev, const ResolveInputs& inputs);
 
         void Shutdown();
 
         struct Entry
         {
-            rhi::BindGroup* bg = nullptr;
+            rhi::BindGroupHandle bg{};
             rhi::TextureViewHandle depth{};
             rhi::TextureViewHandle normal{};
             rhi::TextureViewHandle material{};
@@ -190,19 +190,19 @@ export namespace foundation::render
         };
         struct Retired
         {
-            rhi::BindGroup* bg = nullptr;
+            rhi::BindGroupHandle bg{};
             u32 left = 0;
         };
         static constexpr u32 kRetireFrames = 4;
 
         rhi::Device* m_device;
         shaders::ShaderSystem* m_shaders;
-        rhi::BindGroupLayout* m_layout = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::RenderPipeline* m_pipeline = nullptr; // trace
-        rhi::BindGroupLayout* m_resolveLayout = nullptr;
-        rhi::PipelineLayout* m_resolvePipelineLayout = nullptr;
-        rhi::RenderPipeline* m_resolvePipeline = nullptr; // temporal resolve and composite
+        rhi::BindGroupLayoutHandle m_layout{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
+        rhi::RenderPipelineHandle m_pipeline{}; // trace
+        rhi::BindGroupLayoutHandle m_resolveLayout{};
+        rhi::PipelineLayoutHandle m_resolvePipelineLayout{};
+        rhi::RenderPipelineHandle m_resolvePipeline{}; // temporal resolve and composite
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
         rhi::SamplerHandle m_sampler{};                // point: depth and reconstruction
         rhi::SamplerHandle m_linearSampler{};          // linear: glossy color gather

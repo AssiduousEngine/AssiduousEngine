@@ -226,7 +226,7 @@ export namespace foundation::rhi
         u64 bufferSize = 0;
         TextureViewHandle textureView{};
         SamplerHandle sampler{};
-        AccelStruct* accelStruct = nullptr;
+        AccelStructHandle accelStruct{};
 
         static BindGroupEntry BufferEntry(BufferHandle buf, u64 offset, u64 size)
         {
@@ -248,7 +248,7 @@ export namespace foundation::rhi
             e.sampler = s;
             return e;
         }
-        static BindGroupEntry AccelStructEntry(AccelStruct* as)
+        static BindGroupEntry AccelStructEntry(AccelStructHandle as)
         {
             BindGroupEntry e{};
             e.accelStruct = as;
@@ -258,7 +258,7 @@ export namespace foundation::rhi
 
     struct BindGroupDesc
     {
-        BindGroupLayout* layout = nullptr;
+        BindGroupLayoutHandle layout{};
         Span<const BindGroupEntry> entries;
         StringView label;
     };
@@ -279,7 +279,7 @@ export namespace foundation::rhi
 
     struct PipelineLayoutDesc
     {
-        Span<BindGroupLayout* const> bindGroupLayouts;
+        Span<BindGroupLayoutHandle const> bindGroupLayouts;
         Span<const PushConstantRange> pushConstantRanges;
         StringView label;
     };
@@ -393,7 +393,7 @@ export namespace foundation::rhi
     /// means the module's own (ShaderModuleDesc::entryPoint); see EntryPointOf.
     struct ProgrammableStage
     {
-        ShaderModule* module = nullptr;
+        ShaderModuleHandle module{};
         StringView entryPoint;
         ShaderStage stage = ShaderStage::None;
     };
@@ -413,22 +413,22 @@ export namespace foundation::rhi
     /// Descriptor for creating a graphics (render) pipeline.
     struct RenderPipelineDesc
     {
-        PipelineLayout* layout = nullptr;
+        PipelineLayoutHandle layout{};
         VertexState vertex;
         Optional<FragmentState> fragment;
         PrimitiveState primitive;
         Optional<DepthStencilState> depthStencil;
         MultisampleState multisample;
-        PipelineCache* cache = nullptr;
+        PipelineCacheHandle cache{};
         StringView label;
     };
 
     /// Descriptor for creating a compute pipeline.
     struct ComputePipelineDesc
     {
-        PipelineLayout* layout = nullptr;
+        PipelineLayoutHandle layout{};
         ProgrammableStage compute;
-        PipelineCache* cache = nullptr;
+        PipelineCacheHandle cache{};
         StringView label;
     };
 
@@ -466,13 +466,13 @@ export namespace foundation::rhi
     {
         ColorAttachmentList colorAttachments;
         Optional<DepthStencilAttachment> depthStencilAttachment;
-        QuerySet* timestampQuerySet = nullptr;
+        QuerySetHandle timestampQuerySet{};
         u32 beginTimestampIndex = 0;
         u32 endTimestampIndex = 0;
         // The query set Begin/EndOcclusionQuery will target. WebGPU requires the
         // declaration at pass begin; Vulkan and DX12 receive the set in the Begin call
         // itself and need nothing here (the validation layer may cross-check).
-        QuerySet* occlusionQuerySet = nullptr;
+        QuerySetHandle occlusionQuerySet{};
         // How draws are supplied. Default Inline; set SecondaryCommandBuffers to execute render
         // bundles into this pass (Vulkan needs to know at begin time; other backends ignore it).
         RenderPassContents contents = RenderPassContents::Inline;

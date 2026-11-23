@@ -64,7 +64,7 @@ namespace
     {
     public:
         CountingDevice() : rhi::null::NullDevice(DefaultAllocator()) {}
-        void DestroyBindGroup(rhi::BindGroup*& group) override
+        void DestroyBindGroup(rhi::BindGroupHandle& group) override
         {
             ++destroyed;
             rhi::null::NullDevice::DestroyBindGroup(group);
@@ -79,6 +79,21 @@ namespace
     };
 }
 
+namespace
+{
+    // A bind group over an empty layout (a bind group is made against one).
+    rhi::BindGroupHandle MakeBindGroup(rhi::Device& device)
+    {
+        rhi::BindGroupLayoutHandle layout{};
+        REQUIRE(device.CreateBindGroupLayout(rhi::BindGroupLayoutDesc{}, layout).IsOk());
+        rhi::BindGroupDesc desc{};
+        desc.layout = layout;
+        rhi::BindGroupHandle group{};
+        REQUIRE(device.CreateBindGroup(desc, group).IsOk());
+        return group;
+    }
+}
+
 TEST_CASE("render.retire: a replaced bind group outlives the frames in flight that may use it")
 {
     // A pass that replaces a cached bind group (its inputs changed) must not free it at once: the
@@ -87,8 +102,7 @@ TEST_CASE("render.retire: a replaced bind group outlives the frames in flight th
     CountingDevice device;
     GpuRetireQueue queue;
     queue.Initialize(&device, /*framesInFlight*/ 2);
-    rhi::BindGroup* group = nullptr;
-    REQUIRE(device.CreateBindGroup(rhi::BindGroupDesc{}, group).IsOk());
+    rhi::BindGroupHandle group = MakeBindGroup(device);
 
     RetireBindGroup(device, &queue, group);
     CHECK(device.destroyed == 0u);
@@ -105,13 +119,12 @@ TEST_CASE("render.retire: a replaced bind group outlives the frames in flight th
 TEST_CASE("render.retire: with no queue, a replaced bind group is destroyed once the GPU is idle")
 {
     CountingDevice device;
-    rhi::BindGroup* group = nullptr;
-    REQUIRE(device.CreateBindGroup(rhi::BindGroupDesc{}, group).IsOk());
+    rhi::BindGroupHandle group = MakeBindGroup(device);
     RetireBindGroup(device, nullptr, group);
     CHECK(device.idleWaits == 1u);
     CHECK(device.destroyed == 1u);
 
-    RetireBindGroup(device, nullptr, nullptr); // nothing to dispose of
+    RetireBindGroup(device, nullptr, rhi::BindGroupHandle{}); // nothing to dispose of
     CHECK(device.idleWaits == 1u);
     CHECK(device.destroyed == 1u);
 }

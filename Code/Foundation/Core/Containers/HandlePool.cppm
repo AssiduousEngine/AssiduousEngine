@@ -43,6 +43,8 @@ export namespace foundation::core
         [[nodiscard]] constexpr explicit operator bool() const noexcept { return IsValid(); }
         [[nodiscard]] constexpr u32 PoolId() const noexcept { return generation >> kHandlePoolIdShift; }
         [[nodiscard]] constexpr u32 Count() const noexcept { return generation & kHandleCountMask; }
+        /// One integer for the whole handle, slot and generation, as a map key or a hash input.
+        [[nodiscard]] constexpr u64 Key() const noexcept { return (u64{index} << 32) | generation; }
 
         friend constexpr bool operator==(Handle a, Handle b) noexcept = default;
     };

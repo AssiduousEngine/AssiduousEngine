@@ -36,19 +36,24 @@ export namespace foundation::rhi::webgpu
             m_pushConstants.Begin(api, device);
         }
 
-        void SetPipeline(ComputePipeline* pipeline) override
+        void SetPipeline(ComputePipelineHandle pipeline) override
         {
-            auto* wgpuPipeline = static_cast<WebGpuComputePipeline*>(pipeline);
+            auto* wgpuPipeline = LookUp(tables, pipeline);
+            if (wgpuPipeline == nullptr)
+                return; // a stale handle
             m_api->wgpuComputePassEncoderSetPipeline(m_encoder, wgpuPipeline->Handle());
             m_pushConstants.SetPipeline(wgpuPipeline->PushConstants());
             if (counters)
                 counters->PipelineBinds();
         }
 
-        void SetBindGroup(u32 index, BindGroup* group, Span<const u32> dynamicOffsets) override
+        void SetBindGroup(u32 index, BindGroupHandle group, Span<const u32> dynamicOffsets) override
         {
+            const WebGpuBindGroup* bindGroup = LookUp(tables, group);
+            if (bindGroup == nullptr)
+                return; // a stale handle
             m_api->wgpuComputePassEncoderSetBindGroup(
-                m_encoder, index, static_cast<WebGpuBindGroup*>(group)->Handle(),
+                m_encoder, index, bindGroup->Handle(),
                 dynamicOffsets.Size(), dynamicOffsets.Data());
             if (counters)
                 counters->BindGroupBinds();
@@ -88,7 +93,7 @@ export namespace foundation::rhi::webgpu
             // dependency-correct.
         }
 
-        void WriteTimestamp(QuerySet*, u32) override
+        void WriteTimestamp(QuerySetHandle, u32) override
         {
             // Pass-interior timestamps have no WebGPU shape (begin/end-of-pass only).
         }

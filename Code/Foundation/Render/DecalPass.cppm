@@ -109,18 +109,18 @@ export namespace foundation::render
         static constexpr u32 kMaxDecalsPerFrame =
             256; // ring capacity (across all views), reserved once
 
-        rhi::RenderPipeline* MakePipeline(u32 samples);
+        rhi::RenderPipelineHandle MakePipeline(u32 samples);
 
         // One bind group over the decal-uniform ring (dynamic offset per decal). Rebuilt only on ring
         // realloc (generation), which drains the GPU first, so an in-flight set is never freed.
-        rhi::BindGroup* EnsureUboBindGroup();
+        rhi::BindGroupHandle EnsureUboBindGroup();
 
         // Depth bind group (set 0), cached by (view, generation) with a deferred-free retire list. The depth
         // transient is aliased and recreated, so a raw-pointer cache would free a set an in-flight frame
         // still uses.
-        rhi::BindGroup* EnsureDepthBindGroup(rhi::TextureViewHandle depth, u64 generation);
+        rhi::BindGroupHandle EnsureDepthBindGroup(rhi::TextureViewHandle depth, u64 generation);
 
-        rhi::BindGroup* EnsureTextureBindGroup(rhi::TextureViewHandle tex);
+        rhi::BindGroupHandle EnsureTextureBindGroup(rhi::TextureViewHandle tex);
 
         void Tick(u32 frameIndex);
 
@@ -128,26 +128,26 @@ export namespace foundation::render
 
         struct Retired
         {
-            rhi::BindGroup* bg = nullptr;       // a superseded bind group, or...
-            rhi::RenderPipeline* pipeline = nullptr; // ...a superseded pipeline (MSAA-count rebuild)
+            rhi::BindGroupHandle bg{};       // a superseded bind group, or...
+            rhi::RenderPipelineHandle pipeline{}; // ...a superseded pipeline (MSAA-count rebuild)
             u32 left = 0;
         };
 
         rhi::Device* m_device;
         shaders::ShaderSystem* m_shaders;
         DynamicUniformRing m_decalRing;
-        rhi::BindGroupLayout* m_depthLayout = nullptr;
-        rhi::BindGroupLayout* m_uboLayout = nullptr;
-        rhi::BindGroupLayout* m_texLayout = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::RenderPipeline* m_pipeline = nullptr;
+        rhi::BindGroupLayoutHandle m_depthLayout{};
+        rhi::BindGroupLayoutHandle m_uboLayout{};
+        rhi::BindGroupLayoutHandle m_texLayout{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
+        rhi::RenderPipelineHandle m_pipeline{};
         u32 m_pipelineSampleCount = 1;   // scene-pass MSAA count the cached pipeline was built for
         u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
         rhi::SamplerHandle m_depthSampler{};
         rhi::SamplerHandle m_texSampler{};
-        rhi::BindGroup* m_uboBg = nullptr;
+        rhi::BindGroupHandle m_uboBg{};
         u32 m_uboBgGen = 0xFFFFFFFFu;
-        rhi::BindGroup* m_depthBg = nullptr;
+        rhi::BindGroupHandle m_depthBg{};
         rhi::TextureViewHandle m_depthView{};
         u64 m_depthGen = 0;
         u32 m_lastFrame = 0xFFFFFFFFu;
@@ -157,7 +157,7 @@ export namespace foundation::render
         // was has another handle, so a group built for the old view is never handed back.
         // TODO(render): a destroyed view's group stays until Shutdown; free it once bind groups
         // retire through the device as views do.
-        HashMap<rhi::TextureViewHandle, rhi::BindGroup*> m_texBindGroups;
+        HashMap<rhi::TextureViewHandle, rhi::BindGroupHandle> m_texBindGroups;
     };
 
 } // namespace foundation::render

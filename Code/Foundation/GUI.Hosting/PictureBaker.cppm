@@ -55,11 +55,11 @@ export namespace foundation::gui
     /// the GUI's target (a bake holds colour as that target's layers do), and the frames in flight.
     struct PictureBakerSetup
     {
-        rhi::ShaderModule* VertexShader = nullptr;
-        rhi::ShaderModule* FragmentShader = nullptr;
-        rhi::ShaderModule* GradientRadialShader = nullptr;
-        rhi::ShaderModule* GradientConicShader = nullptr;
-        rhi::ShaderModule* DistanceFieldShader = nullptr;
+        rhi::ShaderModuleHandle VertexShader{};
+        rhi::ShaderModuleHandle FragmentShader{};
+        rhi::ShaderModuleHandle GradientRadialShader{};
+        rhi::ShaderModuleHandle GradientConicShader{};
+        rhi::ShaderModuleHandle DistanceFieldShader{};
         rhi::TextureFormat Format = rhi::TextureFormat::RGBA8UnormSrgb;
         vg::VGBlendSpace BlendSpace = vg::VGBlendSpace::Linear;
         i32 FrameCount = 2;
@@ -109,17 +109,17 @@ export namespace foundation::gui
 
         [[nodiscard]] Status Initialize(const PictureBakerSetup& setup)
         {
-            if (setup.VertexShader == nullptr || setup.FragmentShader == nullptr)
+            if (!setup.VertexShader.IsValid() || !setup.FragmentShader.IsValid())
                 return Status{ErrorCode::InvalidArgument};
             m_format = setup.Format;
             vg::renderer::VGTargetConfig config;
             config.blendSpace = setup.BlendSpace;
-            if (Status status = m_renderer.Initialize(m_device, *setup.VertexShader, *setup.FragmentShader, setup.Format,
+            if (Status status = m_renderer.Initialize(m_device, setup.VertexShader, setup.FragmentShader, setup.Format,
                                                       setup.FrameCount, setup.DistanceFieldShader, setup.GradientRadialShader,
                                                       setup.GradientConicShader, config);
                 !status.IsOk())
                 return status;
-            m_canvas.SetPerPixelGradients(setup.GradientRadialShader != nullptr && setup.GradientConicShader != nullptr);
+            m_canvas.SetPerPixelGradients(setup.GradientRadialShader.IsValid() && setup.GradientConicShader.IsValid());
             return Status{ErrorCode::Ok};
         }
 

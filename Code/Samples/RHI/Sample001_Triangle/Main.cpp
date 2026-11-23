@@ -35,11 +35,11 @@ private:
     };
 
     rhi::BufferHandle m_vertexBuf{};
-    rhi::ShaderModule* m_vs = nullptr;
-    rhi::ShaderModule* m_ps = nullptr;
-    rhi::BindGroupLayout* m_bgl = nullptr;
-    rhi::PipelineLayout* m_pl = nullptr;
-    rhi::RenderPipeline* m_pipeline = nullptr;
+    rhi::ShaderModuleHandle m_vs{};
+    rhi::ShaderModuleHandle m_ps{};
+    rhi::BindGroupLayoutHandle m_bgl{};
+    rhi::PipelineLayoutHandle m_pl{};
+    rhi::RenderPipelineHandle m_pipeline{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
     foundation::core::u64 m_fenceVal = 0;
@@ -82,8 +82,8 @@ foundation::core::Status TriangleSample::OnInit()
         return foundation::core::ErrorCode::Unknown;
 
     rhi::PipelineLayoutDesc pld{};
-    rhi::BindGroupLayout* sets[1] = {m_bgl};
-    pld.bindGroupLayouts = foundation::core::Span<rhi::BindGroupLayout* const>(sets, 1);
+    rhi::BindGroupLayoutHandle sets[1] = {m_bgl};
+    pld.bindGroupLayouts = foundation::core::Span<rhi::BindGroupLayoutHandle const>(sets, 1);
     pld.label = u8"TrianglePL";
     if (m_device->CreatePipelineLayout(pld, m_pl) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;

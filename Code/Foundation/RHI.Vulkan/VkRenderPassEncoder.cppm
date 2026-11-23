@@ -44,9 +44,9 @@ export namespace foundation::rhi::vk
 
         // ---- RenderPassEncoder ----
 
-        void SetPipeline(RenderPipeline* pipeline) override
+        void SetPipeline(RenderPipelineHandle pipeline) override
         {
-            m_currentPipeline = static_cast<VkRenderPipelineImpl*>(pipeline);
+            m_currentPipeline = LookUp(tables, pipeline);
             m_currentMeshPipeline = nullptr;
             if (m_currentPipeline)
                 vkCmdBindPipeline(m_cmdBuf, VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -55,9 +55,9 @@ export namespace foundation::rhi::vk
                 m_counters->PipelineBinds();
         }
 
-        void SetBindGroup(u32 index, BindGroup* group, Span<const u32> dynOffsets) override
+        void SetBindGroup(u32 index, BindGroupHandle group, Span<const u32> dynOffsets) override
         {
-            auto* bg = static_cast<VkBindGroupImpl*>(group);
+            auto* bg = LookUp(tables, group);
             auto* layout = getCurrentLayout();
             if (!bg || !layout)
                 return;
@@ -165,24 +165,24 @@ export namespace foundation::rhi::vk
                 m_counters->Draws(drawCount);
         }
 
-        void WriteTimestamp(QuerySet* qs, u32 index) override
+        void WriteTimestamp(QuerySetHandle qs, u32 index) override
         {
-            auto* q = static_cast<VkQuerySetImpl*>(qs);
+            auto* q = LookUp(tables, qs);
             if (q)
                 vkCmdWriteTimestamp(m_cmdBuf, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, q->handle(),
                                     index);
         }
 
-        void BeginOcclusionQuery(QuerySet* qs, u32 index) override
+        void BeginOcclusionQuery(QuerySetHandle qs, u32 index) override
         {
-            auto* q = static_cast<VkQuerySetImpl*>(qs);
+            auto* q = LookUp(tables, qs);
             if (q)
                 vkCmdBeginQuery(m_cmdBuf, q->handle(), index, 0);
         }
 
-        void EndOcclusionQuery(QuerySet* qs, u32 index) override
+        void EndOcclusionQuery(QuerySetHandle qs, u32 index) override
         {
-            auto* q = static_cast<VkQuerySetImpl*>(qs);
+            auto* q = LookUp(tables, qs);
             if (q)
                 vkCmdEndQuery(m_cmdBuf, q->handle(), index);
         }
@@ -211,7 +211,7 @@ export namespace foundation::rhi::vk
 
         // ---- MeshShaderPassExt ----
 
-        void SetMeshPipeline(MeshPipeline* pipeline) override;
+        void SetMeshPipeline(MeshPipelineHandle pipeline) override;
         void DrawMeshTasks(u32 gx, u32 gy, u32 gz) override;
         void DrawMeshTasksIndirect(BufferHandle buf, u64 offset, u32 drawCount, u32 stride) override;
         void DrawMeshTasksIndirectCount(BufferHandle buf, u64 offset, BufferHandle countBuf, u64 countOffset,

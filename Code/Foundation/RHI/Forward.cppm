@@ -19,6 +19,28 @@ export namespace foundation::rhi
     using TextureViewHandle = foundation::core::Handle<TextureViewTag>;
     struct SamplerTag;
     using SamplerHandle = foundation::core::Handle<SamplerTag>;
+    struct ShaderModuleTag;
+    using ShaderModuleHandle = foundation::core::Handle<ShaderModuleTag>;
+    struct BindGroupLayoutTag;
+    using BindGroupLayoutHandle = foundation::core::Handle<BindGroupLayoutTag>;
+    struct BindGroupTag;
+    using BindGroupHandle = foundation::core::Handle<BindGroupTag>;
+    struct PipelineLayoutTag;
+    using PipelineLayoutHandle = foundation::core::Handle<PipelineLayoutTag>;
+    struct PipelineCacheTag;
+    using PipelineCacheHandle = foundation::core::Handle<PipelineCacheTag>;
+    struct RenderPipelineTag;
+    using RenderPipelineHandle = foundation::core::Handle<RenderPipelineTag>;
+    struct ComputePipelineTag;
+    using ComputePipelineHandle = foundation::core::Handle<ComputePipelineTag>;
+    struct MeshPipelineTag;
+    using MeshPipelineHandle = foundation::core::Handle<MeshPipelineTag>;
+    struct QuerySetTag;
+    using QuerySetHandle = foundation::core::Handle<QuerySetTag>;
+    struct AccelStructTag;
+    using AccelStructHandle = foundation::core::Handle<AccelStructTag>;
+    struct RayTracingPipelineTag;
+    using RayTracingPipelineHandle = foundation::core::Handle<RayTracingPipelineTag>;
 
     class Backend;
     class Adapter;

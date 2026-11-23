@@ -551,7 +551,7 @@ namespace engine::render
             u64 h = kFnv1a64OffsetBasis;
             const auto mix = [&h](u64 v) { h = (h ^ v) * kFnv1a64Prime; };
             mix(static_cast<u64>(reinterpret_cast<usize>(viewportKey)));
-            mix(m_renderingTargets ? (u64{target.index} << 32 | target.generation) : 0u);
+            mix(m_renderingTargets ? target.Key() : 0u);
             mix(scene.Serial());
             mix(static_cast<u64>(static_cast<u32>(viewport.x)) << 32 | static_cast<u32>(viewport.y));
             settings.historyKey = (h != 0) ? h : 1u;

@@ -28,8 +28,8 @@ export namespace foundation::rhi::webgpu
         Status Initialize(const WebGpuApi& api, WGPUDevice device, const QuerySetDesc& setDesc)
         {
             m_api = &api;
-            type = setDesc.type;
-            count = setDesc.count;
+            desc = setDesc;
+            desc.label = {};
 
             WGPUQuerySetDescriptor wgpuDesc = WGPU_QUERY_SET_DESCRIPTOR_INIT;
             wgpuDesc.label = ToWgpuStringView(setDesc.label);

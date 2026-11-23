@@ -44,12 +44,12 @@ private:
         float _pad[56];
     };
 
-    rhi::ShaderModule *m_vs = nullptr, *m_ps = nullptr;
+    rhi::ShaderModuleHandle m_vs{}, m_ps{};
     rhi::BufferHandle m_vb{}, m_ib{}, m_ub{};
-    rhi::BindGroupLayout* m_bgl = nullptr;
-    rhi::BindGroup* m_bg = nullptr;
-    rhi::PipelineLayout* m_pl = nullptr;
-    rhi::RenderPipeline* m_pipeline = nullptr;
+    rhi::BindGroupLayoutHandle m_bgl{};
+    rhi::BindGroupHandle m_bg{};
+    rhi::PipelineLayoutHandle m_pl{};
+    rhi::RenderPipelineHandle m_pipeline{};
     rhi::CommandPool* m_pool = nullptr;
     rhi::Fence* m_fence = nullptr;
     foundation::core::u64 m_fenceVal = 0;
@@ -122,9 +122,9 @@ foundation::core::Status DynamicOffsetSample::OnInit()
         return foundation::core::ErrorCode::Unknown;
 
     // Pipeline layout.
-    rhi::BindGroupLayout* sets[1] = {m_bgl};
+    rhi::BindGroupLayoutHandle sets[1] = {m_bgl};
     rhi::PipelineLayoutDesc pld{};
-    pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>(sets, 1);
+    pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>(sets, 1);
     if (m_device->CreatePipelineLayout(pld, m_pl) != foundation::core::ErrorCode::Ok)
         return foundation::core::ErrorCode::Unknown;
 

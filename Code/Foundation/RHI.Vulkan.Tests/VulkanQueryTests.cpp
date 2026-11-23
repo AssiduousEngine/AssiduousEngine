@@ -124,7 +124,7 @@ TEST_CASE("vk.queries: a statistics query resolves to a record the device decode
     qd.type = QueryType::PipelineStatistics;
     qd.count = 2;
     qd.label = u8"vk.queries.statistics";
-    QuerySet* set = nullptr;
+    QuerySetHandle set{};
     REQUIRE(device->CreateQuerySet(qd, set).IsOk());
     BufferDesc bd{};
     bd.size = static_cast<u64>(recordSize) * 2u;
@@ -259,7 +259,7 @@ TEST_CASE("vk.queries: a bundle runs inside a statistics query without a validat
     qd.type = QueryType::PipelineStatistics;
     qd.count = 1;
     qd.label = u8"vk.queries.bundle_statistics";
-    QuerySet* set = nullptr;
+    QuerySetHandle set{};
     REQUIRE(device->CreateQuerySet(qd, set).IsOk());
     TextureHandle target{};
     REQUIRE(device->CreateTexture(TextureDesc::RenderTarget(TextureFormat::RGBA8Unorm, 64, 64), target).IsOk());

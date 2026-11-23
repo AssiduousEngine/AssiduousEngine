@@ -77,9 +77,9 @@ namespace foundation::render
             return Status{ErrorCode::Unknown};
         }
 
-        rhi::BindGroupLayout* layouts[] = {m_depthLayout, m_uboLayout, m_texLayout};
+        rhi::BindGroupLayoutHandle layouts[] = {m_depthLayout, m_uboLayout, m_texLayout};
         rhi::PipelineLayoutDesc pld{};
-        pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{layouts, 3};
+        pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{layouts, 3};
         if (!m_device->CreatePipelineLayout(pld, m_pipelineLayout).IsOk())
         {
             return Status{ErrorCode::Unknown};
@@ -105,7 +105,7 @@ namespace foundation::render
         }
 
         m_pipeline = MakePipeline(1); // single-sample by default; rebuilt to MSAA on demand
-        if (m_pipeline == nullptr)
+        if (!m_pipeline.IsValid())
         {
             return Status{ErrorCode::Unknown};
         }
@@ -140,18 +140,18 @@ namespace foundation::render
         const u64 shaderVersion = m_shaders->Version(u8"decal");
         if (shaderVersion != m_pipelineShaderVersion || samples != m_pipelineSampleCount)
         {
-            if (m_pipeline != nullptr)
+            if (m_pipeline.IsValid())
             {
                 // Rare rebuild (shader reload or MSAA toggle): the old pipeline may be referenced by
                 // in-flight command buffers, so defer its free by kRetireFrames (drained in Tick) rather
                 // than WaitIdle on the render path, which the web cannot afford.
-                m_retired.PushBack(Retired{nullptr, m_pipeline, kRetireFrames});
+                m_retired.PushBack(Retired{{}, m_pipeline, kRetireFrames});
             }
             m_pipeline = MakePipeline(samples);
             m_pipelineShaderVersion = shaderVersion;
             m_pipelineSampleCount = samples;
         }
-        if (m_pipeline == nullptr)
+        if (!m_pipeline.IsValid())
         {
             return;
         }
@@ -194,7 +194,7 @@ namespace foundation::render
             return;
         }
 
-        rhi::BindGroup* uboBg = EnsureUboBindGroup();
+        rhi::BindGroupHandle uboBg = EnsureUboBindGroup();
         graph.AddRenderPass(
             u8"decal",
             [this, &graph, hdr, depth, uboBg, vpX, vpY, vpW, vpH,
@@ -210,9 +210,9 @@ namespace foundation::render
                 b.SetExecute(
                     [this, &graph, depth, uboBg, draws](rhi::RenderPassEncoder& rp)
                     {
-                        rhi::BindGroup* depthBg = EnsureDepthBindGroup(
+                        rhi::BindGroupHandle depthBg = EnsureDepthBindGroup(
                             graph.GetTextureView(depth), graph.GetTextureGeneration(depth));
-                        if (depthBg == nullptr || uboBg == nullptr)
+                        if (!depthBg.IsValid() || !uboBg.IsValid())
                         {
                             return;
                         }
@@ -220,8 +220,8 @@ namespace foundation::render
                         rp.SetBindGroup(0, depthBg, Span<const u32>{});
                         for (const Draw& d : draws)
                         {
-                            rhi::BindGroup* texBg = EnsureTextureBindGroup(d.texture);
-                            if (texBg == nullptr)
+                            rhi::BindGroupHandle texBg = EnsureTextureBindGroup(d.texture);
+                            if (!texBg.IsValid())
                             {
                                 continue;
                             }
@@ -233,15 +233,15 @@ namespace foundation::render
             });
     }
 
-    rhi::RenderPipeline* DecalPass::MakePipeline(u32 samples)
+    rhi::RenderPipelineHandle DecalPass::MakePipeline(u32 samples)
     {
-        rhi::ShaderModule* vs = m_shaders->GetVariant(u8"decal", shaders::ShaderStage::Vertex,
+        rhi::ShaderModuleHandle vs = m_shaders->GetVariant(u8"decal", shaders::ShaderStage::Vertex,
                                                       shaders::ShaderFlags::None);
-        rhi::ShaderModule* ps = m_shaders->GetVariant(u8"decal", shaders::ShaderStage::Fragment,
+        rhi::ShaderModuleHandle ps = m_shaders->GetVariant(u8"decal", shaders::ShaderStage::Fragment,
                                                       shaders::ShaderFlags::None);
-        if (vs == nullptr || ps == nullptr)
+        if (!vs.IsValid() || !ps.IsValid())
         {
-            return nullptr;
+            return {};
         }
         rhi::ColorTargetState color{};
         color.format = kDecalHdrFormat;
@@ -257,29 +257,29 @@ namespace foundation::render
         pd.primitive.cullMode = rhi::CullMode::None; // fullscreen tri, no depth attachment
         pd.multisample.count = samples; // scene-pass MSAA: decals draw into the MSAA hdr
         pd.label = u8"decal";
-        rhi::RenderPipeline* p = nullptr;
+        rhi::RenderPipelineHandle p{};
         if (!m_device->CreateRenderPipeline(pd, p).IsOk())
         {
-            return nullptr;
+            return {};
         }
         return p;
     }
 
-    rhi::BindGroup* DecalPass::EnsureUboBindGroup()
+    rhi::BindGroupHandle DecalPass::EnsureUboBindGroup()
     {
         const u32 gen = m_decalRing.Generation();
-        if (m_uboBg != nullptr && m_uboBgGen == gen)
+        if (m_uboBg.IsValid() && m_uboBgGen == gen)
         {
             return m_uboBg;
         }
-        if (m_uboBg != nullptr)
+        if (m_uboBg.IsValid())
         {
             m_device->DestroyBindGroup(m_uboBg);
-            m_uboBg = nullptr;
+            m_uboBg = {};
         }
         if (!m_decalRing.Buffer().IsValid())
         {
-            return nullptr;
+            return {};
         }
         rhi::BindGroupEntry e =
             rhi::BindGroupEntry::BufferEntry(m_decalRing.Buffer(), 0, m_decalRing.SlotSize());
@@ -288,27 +288,27 @@ namespace foundation::render
         bgd.entries = Span<const rhi::BindGroupEntry>{&e, 1};
         if (!m_device->CreateBindGroup(bgd, m_uboBg).IsOk())
         {
-            m_uboBg = nullptr;
-            return nullptr;
+            m_uboBg = {};
+            return {};
         }
         m_uboBgGen = gen;
         return m_uboBg;
     }
 
-    rhi::BindGroup* DecalPass::EnsureDepthBindGroup(rhi::TextureViewHandle depth, u64 generation)
+    rhi::BindGroupHandle DecalPass::EnsureDepthBindGroup(rhi::TextureViewHandle depth, u64 generation)
     {
         if (!depth.IsValid())
         {
-            return nullptr;
+            return {};
         }
-        if (m_depthBg != nullptr && m_depthView == depth && m_depthGen == generation)
+        if (m_depthBg.IsValid() && m_depthView == depth && m_depthGen == generation)
         {
             return m_depthBg;
         }
-        if (m_depthBg != nullptr)
+        if (m_depthBg.IsValid())
         {
-            m_retired.PushBack(Retired{m_depthBg, nullptr, kRetireFrames});
-            m_depthBg = nullptr;
+            m_retired.PushBack(Retired{m_depthBg, {}, kRetireFrames});
+            m_depthBg = {};
         }
         rhi::BindGroupEntry ent[] = {
             rhi::BindGroupEntry::TextureEntry(depth),
@@ -319,21 +319,21 @@ namespace foundation::render
         bgd.entries = Span<const rhi::BindGroupEntry>{ent, 2};
         if (!m_device->CreateBindGroup(bgd, m_depthBg).IsOk())
         {
-            m_depthBg = nullptr;
-            return nullptr;
+            m_depthBg = {};
+            return {};
         }
         m_depthView = depth;
         m_depthGen = generation;
         return m_depthBg;
     }
 
-    rhi::BindGroup* DecalPass::EnsureTextureBindGroup(rhi::TextureViewHandle tex)
+    rhi::BindGroupHandle DecalPass::EnsureTextureBindGroup(rhi::TextureViewHandle tex)
     {
         if (!tex.IsValid())
         {
-            return nullptr;
+            return {};
         }
-        if (rhi::BindGroup** found = m_texBindGroups.Find(tex))
+        if (rhi::BindGroupHandle* found = m_texBindGroups.Find(tex))
         {
             return *found;
         }
@@ -344,10 +344,10 @@ namespace foundation::render
         rhi::BindGroupDesc bgd{};
         bgd.layout = m_texLayout;
         bgd.entries = Span<const rhi::BindGroupEntry>{ent, 2};
-        rhi::BindGroup* bg = nullptr;
+        rhi::BindGroupHandle bg{};
         if (!m_device->CreateBindGroup(bgd, bg).IsOk())
         {
-            return nullptr;
+            return {};
         }
         m_texBindGroups.InsertOrAssign(tex, bg);
         return bg;
@@ -365,11 +365,11 @@ namespace foundation::render
         {
             if (m_retired[i].left <= 1)
             {
-                if (m_retired[i].bg != nullptr)
+                if (m_retired[i].bg.IsValid())
                 {
                     m_device->DestroyBindGroup(m_retired[i].bg);
                 }
-                if (m_retired[i].pipeline != nullptr)
+                if (m_retired[i].pipeline.IsValid())
                 {
                     m_device->DestroyRenderPipeline(m_retired[i].pipeline);
                 }
@@ -387,7 +387,7 @@ namespace foundation::render
     {
         for (auto& kv : m_texBindGroups)
         {
-            if (kv.value != nullptr)
+            if (kv.value.IsValid())
             {
                 m_device->DestroyBindGroup(kv.value);
             }
@@ -395,30 +395,30 @@ namespace foundation::render
         m_texBindGroups.Clear();
         for (Retired& r : m_retired)
         {
-            if (r.bg != nullptr)
+            if (r.bg.IsValid())
             {
                 m_device->DestroyBindGroup(r.bg);
             }
-            if (r.pipeline != nullptr)
+            if (r.pipeline.IsValid())
             {
                 m_device->DestroyRenderPipeline(r.pipeline);
             }
         }
         m_retired.Clear();
-        if (m_depthBg != nullptr)
+        if (m_depthBg.IsValid())
         {
             m_device->DestroyBindGroup(m_depthBg);
-            m_depthBg = nullptr;
+            m_depthBg = {};
         }
-        if (m_uboBg != nullptr)
+        if (m_uboBg.IsValid())
         {
             m_device->DestroyBindGroup(m_uboBg);
-            m_uboBg = nullptr;
+            m_uboBg = {};
         }
-        if (m_pipeline != nullptr)
+        if (m_pipeline.IsValid())
         {
             m_device->DestroyRenderPipeline(m_pipeline);
-            m_pipeline = nullptr;
+            m_pipeline = {};
         }
         if (m_texSampler.IsValid())
         {
@@ -430,25 +430,25 @@ namespace foundation::render
             m_device->DestroySampler(m_depthSampler);
             m_depthSampler = {};
         }
-        if (m_pipelineLayout != nullptr)
+        if (m_pipelineLayout.IsValid())
         {
             m_device->DestroyPipelineLayout(m_pipelineLayout);
-            m_pipelineLayout = nullptr;
+            m_pipelineLayout = {};
         }
-        if (m_texLayout != nullptr)
+        if (m_texLayout.IsValid())
         {
             m_device->DestroyBindGroupLayout(m_texLayout);
-            m_texLayout = nullptr;
+            m_texLayout = {};
         }
-        if (m_uboLayout != nullptr)
+        if (m_uboLayout.IsValid())
         {
             m_device->DestroyBindGroupLayout(m_uboLayout);
-            m_uboLayout = nullptr;
+            m_uboLayout = {};
         }
-        if (m_depthLayout != nullptr)
+        if (m_depthLayout.IsValid())
         {
             m_device->DestroyBindGroupLayout(m_depthLayout);
-            m_depthLayout = nullptr;
+            m_depthLayout = {};
         }
     }
 }

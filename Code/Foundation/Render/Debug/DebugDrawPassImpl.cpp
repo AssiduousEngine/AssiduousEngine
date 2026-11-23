@@ -74,13 +74,13 @@ namespace foundation::render
         {
             return Status{ErrorCode::Unknown};
         }
-        rhi::BindGroupLayout* sbl[] = {m_screenBgLayout};
+        rhi::BindGroupLayoutHandle sbl[] = {m_screenBgLayout};
         rhi::PushConstantRange spc{};
         spc.stages = rhi::ShaderStage::Vertex;
         spc.offset = 0;
         spc.size = sizeof(GpuDebugScreenPush);
         rhi::PipelineLayoutDesc spld{};
-        spld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{sbl, 1};
+        spld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{sbl, 1};
         spld.pushConstantRanges = Span<const rhi::PushConstantRange>{&spc, 1};
         if (!m_device->CreatePipelineLayout(spld, m_screenLayout).IsOk())
         {
@@ -155,7 +155,7 @@ namespace foundation::render
         {
             return;
         }
-        const bool drawGrid = gridDesc != nullptr && p->grid != nullptr;
+        const bool drawGrid = gridDesc != nullptr && p->grid.IsValid();
         GpuDebugGridPush gridPush{};
         if (drawGrid)
         {
@@ -201,7 +201,7 @@ namespace foundation::render
                         // SetPipeline before SetPushConstants (a push needs a bound layout); all four
                         // pipelines share the geometry layout, so re-pushing the ViewProj per stream is fine.
                         rp.SetVertexBuffer(0, vb, 0);
-                        const auto draw = [&](rhi::RenderPipeline* pipe, u32 count, u32 first)
+                        const auto draw = [&](rhi::RenderPipelineHandle pipe, u32 count, u32 first)
                         {
                             rp.SetPipeline(pipe);
                             rp.SetPushConstants(rhi::ShaderStage::Vertex, 0, sizeof(geomPush),
@@ -249,8 +249,8 @@ namespace foundation::render
         {
             return;
         }
-        rhi::RenderPipeline* pipe = EnsureScreenPipeline(colorFmt);
-        if (pipe == nullptr)
+        rhi::RenderPipelineHandle pipe = EnsureScreenPipeline(colorFmt);
+        if (!pipe.IsValid())
         {
             return;
         }
@@ -258,7 +258,7 @@ namespace foundation::render
         GpuDebugScreenPush push{};
         push.invSize = Float2{1.0f / static_cast<f32>(vpW), 1.0f / static_cast<f32>(vpH)};
         push.pad = Float2{0.0f, 0.0f};
-        rhi::BindGroup* bg = m_fontBg;
+        rhi::BindGroupHandle bg = m_fontBg;
         graph.AddRenderPass(
             u8"debug.screen",
             [color, vb, pipe, bg, vpX, vpY, vpW, vpH, count, push](rendergraph::PassBuilder& b)
@@ -470,7 +470,7 @@ namespace foundation::render
         Pipelines* entry = nullptr;
         for (Pipelines& candidate : m_geom)
         {
-            if (candidate.lineDepth != nullptr && candidate.color == colorFmt &&
+            if (candidate.lineDepth.IsValid() && candidate.color == colorFmt &&
                 candidate.depth == depthFmt)
             {
                 entry = &candidate;
@@ -485,7 +485,7 @@ namespace foundation::render
         {
             for (Pipelines& candidate : m_geom)
             {
-                if (candidate.lineDepth == nullptr)
+                if (!candidate.lineDepth.IsValid())
                 {
                     entry = &candidate;
                     break;
@@ -506,8 +506,8 @@ namespace foundation::render
                                            rhi::depth::NearerOrEqual());
         entry->triOverlay = MakeGeomPipeline(
             colorFmt, depthFmt, rhi::PrimitiveTopology::TriangleList, rhi::CompareFunction::Always);
-        if (entry->lineDepth == nullptr || entry->lineOverlay == nullptr ||
-            entry->triDepth == nullptr || entry->triOverlay == nullptr)
+        if (!entry->lineDepth.IsValid() || !entry->lineOverlay.IsValid() ||
+            !entry->triDepth.IsValid() || !entry->triOverlay.IsValid())
         {
             DestroyGeomPipelines(*entry);
             return nullptr;
@@ -521,16 +521,16 @@ namespace foundation::render
         return entry;
     }
 
-    rhi::RenderPipeline* DebugDrawPass::MakeGridPipeline(rhi::TextureFormat colorFmt,
+    rhi::RenderPipelineHandle DebugDrawPass::MakeGridPipeline(rhi::TextureFormat colorFmt,
                                                          rhi::TextureFormat depthFmt)
     {
-        rhi::ShaderModule* vs = m_shaders->GetVariant(u8"debug_grid", shaders::ShaderStage::Vertex,
+        rhi::ShaderModuleHandle vs = m_shaders->GetVariant(u8"debug_grid", shaders::ShaderStage::Vertex,
                                                       shaders::ShaderFlags::None);
-        rhi::ShaderModule* ps = m_shaders->GetVariant(
+        rhi::ShaderModuleHandle ps = m_shaders->GetVariant(
             u8"debug_grid", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-        if (vs == nullptr || ps == nullptr || m_gridLayout == nullptr)
+        if (!vs.IsValid() || !ps.IsValid() || !m_gridLayout.IsValid())
         {
-            return nullptr;
+            return {};
         }
         rhi::ColorTargetState color{};
         color.format = colorFmt;
@@ -550,26 +550,26 @@ namespace foundation::render
         pd.primitive.cullMode = rhi::CullMode::None; // seen from above or below
         pd.depthStencil = ds;
         pd.label = u8"debug.grid";
-        rhi::RenderPipeline* pipeline = nullptr;
+        rhi::RenderPipelineHandle pipeline{};
         if (!m_device->CreateRenderPipeline(pd, pipeline).IsOk())
         {
-            return nullptr;
+            return {};
         }
         return pipeline;
     }
 
-    rhi::RenderPipeline* DebugDrawPass::MakeGeomPipeline(rhi::TextureFormat colorFmt,
+    rhi::RenderPipelineHandle DebugDrawPass::MakeGeomPipeline(rhi::TextureFormat colorFmt,
                                                          rhi::TextureFormat depthFmt,
                                                          rhi::PrimitiveTopology topo,
                                                          rhi::CompareFunction cmp)
     {
-        rhi::ShaderModule* vs = m_shaders->GetVariant(u8"debug_geom", shaders::ShaderStage::Vertex,
+        rhi::ShaderModuleHandle vs = m_shaders->GetVariant(u8"debug_geom", shaders::ShaderStage::Vertex,
                                                       shaders::ShaderFlags::None);
-        rhi::ShaderModule* ps = m_shaders->GetVariant(
+        rhi::ShaderModuleHandle ps = m_shaders->GetVariant(
             u8"debug_geom", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-        if (vs == nullptr || ps == nullptr)
+        if (!vs.IsValid() || !ps.IsValid())
         {
-            return nullptr;
+            return {};
         }
         rhi::VertexAttribute attrs[] = {{rhi::VertexFormat::Float32x3, 0, 0},
                                         {rhi::VertexFormat::Unorm8x4, 12, 1}};
@@ -596,34 +596,34 @@ namespace foundation::render
         pd.primitive.cullMode = rhi::CullMode::None;
         pd.depthStencil = ds;
         pd.label = u8"debug.geom";
-        rhi::RenderPipeline* p = nullptr;
+        rhi::RenderPipelineHandle p{};
         if (!m_device->CreateRenderPipeline(pd, p).IsOk())
         {
-            return nullptr;
+            return {};
         }
         return p;
     }
 
-    rhi::RenderPipeline* DebugDrawPass::EnsureScreenPipeline(rhi::TextureFormat colorFmt)
+    rhi::RenderPipelineHandle DebugDrawPass::EnsureScreenPipeline(rhi::TextureFormat colorFmt)
     {
         const u64 shaderVersion = m_shaders->Version(u8"debug_screen"); // hot reload rebuilds
-        if (m_screenPipe != nullptr && m_screenFmt == colorFmt &&
+        if (m_screenPipe.IsValid() && m_screenFmt == colorFmt &&
             m_screenShaderVersion == shaderVersion)
         {
             return m_screenPipe;
         }
-        if (m_screenPipe != nullptr)
+        if (m_screenPipe.IsValid())
         {
             m_device->DestroyRenderPipeline(m_screenPipe);
-            m_screenPipe = nullptr;
+            m_screenPipe = {};
         }
-        rhi::ShaderModule* vs = m_shaders->GetVariant(
+        rhi::ShaderModuleHandle vs = m_shaders->GetVariant(
             u8"debug_screen", shaders::ShaderStage::Vertex, shaders::ShaderFlags::None);
-        rhi::ShaderModule* ps = m_shaders->GetVariant(
+        rhi::ShaderModuleHandle ps = m_shaders->GetVariant(
             u8"debug_screen", shaders::ShaderStage::Fragment, shaders::ShaderFlags::None);
-        if (vs == nullptr || ps == nullptr)
+        if (!vs.IsValid() || !ps.IsValid())
         {
-            return nullptr;
+            return {};
         }
         rhi::VertexAttribute attrs[] = {{rhi::VertexFormat::Float32x3, 0, 0},
                                         {rhi::VertexFormat::Float32x2, 12, 1},
@@ -648,8 +648,8 @@ namespace foundation::render
         pd.label = u8"debug.screen";
         if (!m_device->CreateRenderPipeline(pd, m_screenPipe).IsOk())
         {
-            m_screenPipe = nullptr;
-            return nullptr;
+            m_screenPipe = {};
+            return {};
         }
         m_screenFmt = colorFmt;
         m_screenShaderVersion = shaderVersion;
@@ -712,14 +712,14 @@ namespace foundation::render
 
     void DebugDrawPass::DestroyGeomPipelines(Pipelines& entry)
     {
-        rhi::RenderPipeline** slots[] = {&entry.lineDepth, &entry.lineOverlay, &entry.triDepth,
+        rhi::RenderPipelineHandle* slots[] = {&entry.lineDepth, &entry.lineOverlay, &entry.triDepth,
                                          &entry.triOverlay, &entry.grid};
-        for (rhi::RenderPipeline** slot : slots)
+        for (rhi::RenderPipelineHandle* slot : slots)
         {
-            if (*slot != nullptr)
+            if ((*slot).IsValid())
             {
                 m_device->DestroyRenderPipeline(*slot);
-                *slot = nullptr;
+                *slot = {};
             }
         }
         entry.color = rhi::TextureFormat::Undefined;
@@ -750,15 +750,15 @@ namespace foundation::render
             }
         }
         DestroyAllGeomPipelines();
-        if (m_screenPipe != nullptr)
+        if (m_screenPipe.IsValid())
         {
             m_device->DestroyRenderPipeline(m_screenPipe);
-            m_screenPipe = nullptr;
+            m_screenPipe = {};
         }
-        if (m_fontBg != nullptr)
+        if (m_fontBg.IsValid())
         {
             m_device->DestroyBindGroup(m_fontBg);
-            m_fontBg = nullptr;
+            m_fontBg = {};
         }
         if (m_fontView.IsValid())
         {
@@ -775,25 +775,25 @@ namespace foundation::render
             m_device->DestroySampler(m_sampler);
             m_sampler = {};
         }
-        if (m_geomLayout != nullptr)
+        if (m_geomLayout.IsValid())
         {
             m_device->DestroyPipelineLayout(m_geomLayout);
-            m_geomLayout = nullptr;
+            m_geomLayout = {};
         }
-        if (m_gridLayout != nullptr)
+        if (m_gridLayout.IsValid())
         {
             m_device->DestroyPipelineLayout(m_gridLayout);
-            m_gridLayout = nullptr;
+            m_gridLayout = {};
         }
-        if (m_screenLayout != nullptr)
+        if (m_screenLayout.IsValid())
         {
             m_device->DestroyPipelineLayout(m_screenLayout);
-            m_screenLayout = nullptr;
+            m_screenLayout = {};
         }
-        if (m_screenBgLayout != nullptr)
+        if (m_screenBgLayout.IsValid())
         {
             m_device->DestroyBindGroupLayout(m_screenBgLayout);
-            m_screenBgLayout = nullptr;
+            m_screenBgLayout = {};
         }
     }
 }

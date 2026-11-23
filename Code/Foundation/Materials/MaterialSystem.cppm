@@ -80,10 +80,10 @@ export namespace foundation::materials
         }
 
         // Bind-group layout inferred from the material's property definitions, cached.
-        [[nodiscard]] rhi::BindGroupLayout* GetOrCreateLayout(Material& material)
+        [[nodiscard]] rhi::BindGroupLayoutHandle GetOrCreateLayout(Material& material)
         {
             const u64 hash = ComputeLayoutHash(material);
-            if (rhi::BindGroupLayout** cached = m_layoutCache.Find(hash))
+            if (rhi::BindGroupLayoutHandle* cached = m_layoutCache.Find(hash))
             {
                 return *cached;
             }
@@ -145,15 +145,15 @@ export namespace foundation::materials
             }
             if (entries.IsEmpty())
             {
-                return nullptr;
+                return {};
             }
 
             rhi::BindGroupLayoutDesc desc{};
             desc.entries = Span<const rhi::BindGroupLayoutEntry>{entries.Data(), entries.Size()};
-            rhi::BindGroupLayout* layout = nullptr;
+            rhi::BindGroupLayoutHandle layout{};
             if (!m_device->CreateBindGroupLayout(desc, layout).IsOk())
             {
-                return nullptr;
+                return {};
             }
             m_layoutCache.InsertOrAssign(hash, layout);
             return layout;
@@ -161,31 +161,31 @@ export namespace foundation::materials
 
         // (Re)builds an instance's uniform buffer and bind group if dirty. Returns its
         // bind group, ready to bind for rendering.
-        [[nodiscard]] rhi::BindGroup* PrepareInstance(MaterialInstance& instance,
-                                                      rhi::BindGroupLayout* layout = nullptr)
+        [[nodiscard]] rhi::BindGroupHandle PrepareInstance(MaterialInstance& instance,
+                                                      rhi::BindGroupLayoutHandle layout = {})
         {
             Material* material = instance.GetMaterial();
             if (material == nullptr)
             {
-                return nullptr;
+                return {};
             }
             instance.SetSink(this);
 
-            rhi::BindGroupLayout* bgLayout = layout;
-            if (bgLayout == nullptr)
+            rhi::BindGroupLayoutHandle bgLayout = layout;
+            if (!bgLayout.IsValid())
             {
                 bgLayout = GetOrCreateLayout(*material);
             }
-            if (bgLayout == nullptr)
+            if (!bgLayout.IsValid())
             {
-                return nullptr;
+                return {};
             }
 
             if (instance.IsUniformDirty() && HasUniformBuffers(*material))
             {
                 if (!UpdateUniformBuffer(instance))
                 {
-                    return nullptr;
+                    return {};
                 }
                 instance.ClearUniformDirty();
             }
@@ -195,18 +195,18 @@ export namespace foundation::materials
             {
                 if (!UpdateBindGroup(instance, bgLayout))
                 {
-                    return nullptr;
+                    return {};
                 }
                 instance.ClearBindGroupDirty();
             }
-            rhi::BindGroup** bg = m_bindGroups.Find(&instance);
-            return (bg != nullptr) ? *bg : nullptr;
+            rhi::BindGroupHandle* bg = m_bindGroups.Find(&instance);
+            return (bg != nullptr) ? *bg : rhi::BindGroupHandle{};
         }
 
-        [[nodiscard]] rhi::BindGroup* GetBindGroup(MaterialInstance& instance)
+        [[nodiscard]] rhi::BindGroupHandle GetBindGroup(MaterialInstance& instance)
         {
-            rhi::BindGroup** bg = m_bindGroups.Find(&instance);
-            return (bg != nullptr) ? *bg : nullptr;
+            rhi::BindGroupHandle* bg = m_bindGroups.Find(&instance);
+            return (bg != nullptr) ? *bg : rhi::BindGroupHandle{};
         }
 
         /// Per-frame: frees retired bind groups once the frame ring has cycled past them.
@@ -274,19 +274,19 @@ export namespace foundation::materials
 
         // Hands the instance's bind group to the caller (removed from the system) without
         // destroying it, for deferred retirement while in-flight frames may still bind it.
-        [[nodiscard]] rhi::BindGroup* DetachBindGroup(MaterialInstance* instance)
+        [[nodiscard]] rhi::BindGroupHandle DetachBindGroup(MaterialInstance* instance)
         {
             if (instance == nullptr)
             {
-                return nullptr;
+                return {};
             }
-            if (rhi::BindGroup** bg = m_bindGroups.Find(instance))
+            if (rhi::BindGroupHandle* bg = m_bindGroups.Find(instance))
             {
-                rhi::BindGroup* g = *bg;
+                rhi::BindGroupHandle g = *bg;
                 m_bindGroups.Remove(instance);
                 return g;
             }
-            return nullptr;
+            return {};
         }
 
         void ReleaseInstance(MaterialInstance* instance) override
@@ -295,9 +295,9 @@ export namespace foundation::materials
             {
                 return;
             }
-            if (rhi::BindGroup** bg = m_bindGroups.Find(instance))
+            if (rhi::BindGroupHandle* bg = m_bindGroups.Find(instance))
             {
-                rhi::BindGroup* g = *bg;
+                rhi::BindGroupHandle g = *bg;
                 m_device->DestroyBindGroup(g);
                 m_bindGroups.Remove(instance);
             }
@@ -330,7 +330,7 @@ export namespace foundation::materials
             const u64 key = static_cast<u64>(u) | (static_cast<u64>(v) << 4) |
                             (static_cast<u64>(minF) << 8) | (static_cast<u64>(magF) << 12) |
                             (static_cast<u64>(mip) << 16);
-            if (rhi::SamplerHandle * cached = m_samplerCache.Find(key))
+            if (rhi::SamplerHandle* cached = m_samplerCache.Find(key))
             {
                 return *cached;
             }
@@ -543,7 +543,7 @@ export namespace foundation::materials
             return true;
         }
 
-        bool UpdateBindGroup(MaterialInstance& instance, rhi::BindGroupLayout* layout)
+        bool UpdateBindGroup(MaterialInstance& instance, rhi::BindGroupLayoutHandle layout)
         {
             Material* material = instance.GetMaterial();
             Array<rhi::BindGroupEntry> entries;
@@ -619,7 +619,7 @@ export namespace foundation::materials
                 return false;
             }
 
-            if (rhi::BindGroup** old = m_bindGroups.Find(&instance))
+            if (rhi::BindGroupHandle* old = m_bindGroups.Find(&instance))
             {
                 // Deferred free: the replaced group may still be bound by an in-flight frame,
                 // and destroying it now would leave that frame drawing with invalid descriptors.
@@ -630,7 +630,7 @@ export namespace foundation::materials
             rhi::BindGroupDesc desc{};
             desc.layout = layout;
             desc.entries = Span<const rhi::BindGroupEntry>{entries.Data(), entries.Size()};
-            rhi::BindGroup* bg = nullptr;
+            rhi::BindGroupHandle bg{};
             if (!m_device->CreateBindGroup(desc, bg).IsOk())
             {
                 return false;
@@ -777,7 +777,7 @@ export namespace foundation::materials
         static constexpr u32 kRetireFrames = 3;
         struct RetiredBindGroup
         {
-            rhi::BindGroup* bg;
+            rhi::BindGroupHandle bg;
             u32 framesLeft;
         };
         Array<RetiredBindGroup> m_retiredBindGroups;
@@ -791,7 +791,7 @@ export namespace foundation::materials
         rhi::TextureHandle m_whiteCubeTex{};
         rhi::TextureViewHandle m_whiteCubeView{};
 
-        HashMap<u64, rhi::BindGroupLayout*> m_layoutCache;
+        HashMap<u64, rhi::BindGroupLayoutHandle> m_layoutCache;
         HashMap<u64, rhi::SamplerHandle> m_samplerCache;
         HashMap<MaterialInstance*, rhi::BufferHandle> m_uniformBuffers;
         // Each instance's effect group buffers, by group index (null for a group without uniforms).
@@ -800,7 +800,7 @@ export namespace foundation::materials
             Array<rhi::BufferHandle> buffers;
         };
         HashMap<MaterialInstance*, EffectBuffers> m_effectBuffers;
-        HashMap<MaterialInstance*, rhi::BindGroup*> m_bindGroups;
+        HashMap<MaterialInstance*, rhi::BindGroupHandle> m_bindGroups;
     };
 
 } // namespace foundation::materials

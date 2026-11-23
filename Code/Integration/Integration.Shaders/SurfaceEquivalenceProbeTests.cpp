@@ -199,14 +199,14 @@ namespace
                 // The surface programs resolve: the draws below are the surface shader's, not a
                 // fallback (a missing program would skip the draw, and the images would differ).
                 CHECK(shaderSystem.GetVariant(kSurfaceName, shaders::ShaderStage::Fragment,
-                                              shaders::ShaderFlags::GBuffer) != nullptr);
+shaders::ShaderFlags::GBuffer).IsValid());
                 CHECK(shaderSystem.GetVariant(u8"surface_pbr.depth", shaders::ShaderStage::Vertex,
-                                              shaders::ShaderFlags::None) != nullptr);
+shaders::ShaderFlags::None).IsValid());
                 if (cutOut)
                 {
                     // The cut-out's own depth pixel stage, which the shadow and the prepass run.
                     CHECK(shaderSystem.GetVariant(u8"surface_pbr.depth", shaders::ShaderStage::Fragment,
-                                                  shaders::ShaderFlags::AlphaTest) != nullptr);
+shaders::ShaderFlags::AlphaTest).IsValid());
                 }
             }
             materials::PipelineStateCache psoCache(shaderSystem, device);

@@ -143,12 +143,12 @@ export namespace foundation::render
             rhi::TextureViewHandle m_prefilterView{};
             u32 m_prefilterRes = 0; // the size the prefilter cube was made at
             rhi::BufferHandle m_shBuffer{};
-            rhi::BindGroup* m_envBindGroup = nullptr;  // env full-chain sample (prefilter input)
-            rhi::BindGroup* m_envMipBG[kEnvMips] = {}; // mip m as the downsample source
-            rhi::BindGroup* m_shBindGroup = nullptr;   // env and SH output buffer (compute)
+            rhi::BindGroupHandle m_envBindGroup{};  // env full-chain sample (prefilter input)
+            rhi::BindGroupHandle m_envMipBG[kEnvMips] = {}; // mip m as the downsample source
+            rhi::BindGroupHandle m_shBindGroup{};   // env and SH output buffer (compute)
             // Asset-driven sky texture (an external product view, not owned): bind groups only.
-            rhi::BindGroup* m_externalEquirectBG = nullptr;
-            rhi::BindGroup* m_externalCubeBG = nullptr;
+            rhi::BindGroupHandle m_externalEquirectBG{};
+            rhi::BindGroupHandle m_externalCubeBG{};
             u64 m_externalUid = 0;
 
             rhi::ResourceState m_envState = rhi::ResourceState::Undefined;
@@ -263,8 +263,8 @@ export namespace foundation::render
         // (layouts survive). False when a shader no longer compiles.
         bool RebuildPipelinesForReload();
 
-        rhi::RenderPipeline* MakeFullscreenPipeline(rhi::ShaderModule* vs, StringView psName,
-                                                    rhi::PipelineLayout* layout,
+        rhi::RenderPipelineHandle MakeFullscreenPipeline(rhi::ShaderModuleHandle vs, StringView psName,
+                                                    rhi::PipelineLayoutHandle layout,
                                                     rhi::TextureFormat fmt);
 
         // Lazily create the equirect-to-cube pipeline (2D source texture, sampler and push), only when an
@@ -299,10 +299,10 @@ export namespace foundation::render
         rhi::TextureViewHandle m_equirectView{};
         rhi::BufferHandle m_equirectStaging{};
         rhi::SamplerHandle m_equirectSampler{};
-        rhi::BindGroupLayout* m_equirectLayout = nullptr;
-        rhi::PipelineLayout* m_equirectPipelineLayout = nullptr;
-        rhi::RenderPipeline* m_equirectPipeline = nullptr;
-        rhi::BindGroup* m_equirectBindGroup = nullptr;
+        rhi::BindGroupLayoutHandle m_equirectLayout{};
+        rhi::PipelineLayoutHandle m_equirectPipelineLayout{};
+        rhi::RenderPipelineHandle m_equirectPipeline{};
+        rhi::BindGroupHandle m_equirectBindGroup{};
         u32 m_equirectW = 0, m_equirectH = 0;
         bool m_equirectPending = false;
 
@@ -310,8 +310,8 @@ export namespace foundation::render
         rhi::TextureHandle m_srcCube{};
         rhi::TextureViewHandle m_srcCubeView{};
         rhi::BufferHandle m_cubemapStaging{};
-        rhi::RenderPipeline* m_cubemapPipeline = nullptr; // reuses m_prefilterLayout and m_envLayout
-        rhi::BindGroup* m_cubemapBindGroup = nullptr;
+        rhi::RenderPipelineHandle m_cubemapPipeline{}; // reuses m_prefilterLayout and m_envLayout
+        rhi::BindGroupHandle m_cubemapBindGroup{};
         u32 m_cubemapFaceSize = 0;
         bool m_cubemapPending = false;
 
@@ -320,26 +320,24 @@ export namespace foundation::render
         rhi::TextureViewHandle m_brdfView{};
         rhi::SamplerHandle m_sampler{};
 
-        rhi::BindGroupLayout* m_envLayout = nullptr;
+        rhi::BindGroupLayoutHandle m_envLayout{};
         // A 1x1 cube and sampler bound when a pipeline's layout declares the env group
         // but the mode has no env source (procedural, analytic): WebGPU requires every
         // declared group bound; Vulkan and DX12 simply never sample it.
         rhi::TextureHandle m_dummyEnvCube{};
         rhi::TextureViewHandle m_dummyEnvView{};
-        rhi::BindGroup* m_dummyEnvBindGroup = nullptr;
-        rhi::BindGroupLayout* m_shLayout = nullptr;
-        rhi::PipelineLayout* m_envOnlyLayout = nullptr;
-        rhi::PipelineLayout* m_prefilterLayout = nullptr;
-        rhi::PipelineLayout* m_brdfPipelineLayout = nullptr;
-        rhi::PipelineLayout* m_shPipelineLayout = nullptr;
-        rhi::RenderPipeline* m_envPipeline = nullptr;
-        rhi::RenderPipeline* m_analyticPipeline =
-            nullptr; // Preetham; reuses m_envOnlyLayout (push only)
-        rhi::RenderPipeline* m_downsamplePipeline =
-            nullptr; // env mip pyramid; reuses m_prefilterLayout
-        rhi::RenderPipeline* m_prefilterPipeline = nullptr;
-        rhi::RenderPipeline* m_brdfPipeline = nullptr;
-        rhi::ComputePipeline* m_shPipeline = nullptr;
+        rhi::BindGroupHandle m_dummyEnvBindGroup{};
+        rhi::BindGroupLayoutHandle m_shLayout{};
+        rhi::PipelineLayoutHandle m_envOnlyLayout{};
+        rhi::PipelineLayoutHandle m_prefilterLayout{};
+        rhi::PipelineLayoutHandle m_brdfPipelineLayout{};
+        rhi::PipelineLayoutHandle m_shPipelineLayout{};
+        rhi::RenderPipelineHandle m_envPipeline{};
+        rhi::RenderPipelineHandle m_analyticPipeline{}; // Preetham; reuses m_envOnlyLayout (push only)
+        rhi::RenderPipelineHandle m_downsamplePipeline{}; // env mip pyramid; reuses m_prefilterLayout
+        rhi::RenderPipelineHandle m_prefilterPipeline{};
+        rhi::RenderPipelineHandle m_brdfPipeline{};
+        rhi::ComputePipelineHandle m_shPipeline{};
 
         rhi::ResourceState m_brdfState = rhi::ResourceState::Undefined;
         rendergraph::RGHandle m_brdfH = {};

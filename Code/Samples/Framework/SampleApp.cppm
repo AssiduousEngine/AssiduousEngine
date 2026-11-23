@@ -92,13 +92,13 @@ export namespace samples::framework
         /// "Sample001_Triangle/Triangle.hlsl"), compiled as the sample starts or, where there is no
         /// shader compiler (Android), read from the pack cooked from the same files.
         Status LoadShader(StringView file, shaders::ShaderStage stage, StringView entryPoint, StringView label,
-                          StringView shaderModel, rhi::ShaderModule*& out)
+                          StringView shaderModel, rhi::ShaderModuleHandle& out)
         {
             return m_shaders.Load(m_device, file, stage, entryPoint, label, shaderModel, out);
         }
         /// The same at shader model 6.0.
         Status LoadShader(StringView file, shaders::ShaderStage stage, StringView entryPoint, StringView label,
-                          rhi::ShaderModule*& out)
+                          rhi::ShaderModuleHandle& out)
         {
             return m_shaders.Load(m_device, file, stage, entryPoint, label, u8"6_0", out);
         }

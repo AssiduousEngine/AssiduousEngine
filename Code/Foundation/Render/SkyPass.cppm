@@ -87,12 +87,12 @@ export namespace foundation::render
                         rendergraph::RGSubresourceRange colorSub = {});
 
     private:
-        rhi::RenderPipeline* EnsurePipeline(rhi::TextureFormat colorFmt,
+        rhi::RenderPipelineHandle EnsurePipeline(rhi::TextureFormat colorFmt,
                                             rhi::TextureFormat depthFmt, u32 samples);
 
         // Env identity is (view handle, context uid): the uid changes when an IBL context is evicted
         // and made again.
-        rhi::BindGroup* EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureViewHandle envView, u64 envUid,
+        rhi::BindGroupHandle EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureViewHandle envView, u64 envUid,
                                         const GpuSky& u);
 
         void Shutdown();
@@ -100,7 +100,7 @@ export namespace foundation::render
         struct Slot
         {
             rhi::BufferHandle ubo{};
-            rhi::BindGroup* bindGroup = nullptr;
+            rhi::BindGroupHandle bindGroup{};
             rhi::TextureViewHandle env{};
             u64 envUid = 0;
         };
@@ -108,9 +108,9 @@ export namespace foundation::render
         rhi::Device* m_device;
         shaders::ShaderSystem* m_shaders;
         u32 m_fif = 2;
-        rhi::BindGroupLayout* m_layout = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::RenderPipeline* m_pipeline = nullptr;
+        rhi::BindGroupLayoutHandle m_layout{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
+        rhi::RenderPipelineHandle m_pipeline{};
         rhi::TextureFormat m_colorFormat = rhi::TextureFormat::Undefined;
         rhi::TextureFormat m_depthFormat = rhi::TextureFormat::Undefined;
         u32 m_pipelineSampleCount = 1; // scene-pass MSAA count the cached pipeline was built for
@@ -119,7 +119,7 @@ export namespace foundation::render
         // here and DeclareSky drains it after kRetireFrames, never freeing one still in-flight.
         struct RetiredPipe
         {
-            rhi::RenderPipeline* p = nullptr;
+            rhi::RenderPipelineHandle p{};
             u32 left = 0;
         };
         static constexpr u32 kRetireFrames = 3;

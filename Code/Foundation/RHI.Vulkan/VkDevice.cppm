@@ -575,7 +575,7 @@ export namespace foundation::rhi::vk
                 m_allocator.Delete(v);
                 return ErrorCode::Unknown;
             }
-            out = m_tables.views.Add(v);
+            out = m_tables.textureViews.Add(v);
             if (!out)
             {
                 v->cleanup(m_device);
@@ -609,13 +609,53 @@ export namespace foundation::rhi::vk
         }
         const TextureViewDesc* Describe(TextureViewHandle view) const override
         {
-            const VkTextureViewImpl* v = m_tables.views.Get(view);
+            const VkTextureViewImpl* v = m_tables.textureViews.Get(view);
             return v != nullptr ? &v->desc : nullptr;
         }
         TextureHandle TextureOf(TextureViewHandle view) const override
         {
-            const VkTextureViewImpl* v = m_tables.views.Get(view);
+            const VkTextureViewImpl* v = m_tables.textureViews.Get(view);
             return v != nullptr ? v->texture : TextureHandle::Invalid();
+        }
+        StringView EntryPointOf(ShaderModuleHandle module) const override
+        {
+            const VkShaderModuleImpl* m = m_tables.shaderModules.Get(module);
+            return m != nullptr ? m->entryPoint.AsView() : StringView{};
+        }
+        Span<const BindGroupLayoutEntry> LayoutEntries(BindGroupLayoutHandle layout) const override
+        {
+            const VkBindGroupLayoutImpl* l = m_tables.bindGroupLayouts.Get(layout);
+            return l != nullptr ? l->Entries() : Span<const BindGroupLayoutEntry>{};
+        }
+        BindGroupLayoutHandle LayoutOf(BindGroupHandle group) const override
+        {
+            const VkBindGroupImpl* g = m_tables.bindGroups.Get(group);
+            return g != nullptr ? g->layout : BindGroupLayoutHandle::Invalid();
+        }
+        void UpdateBindless(BindGroupHandle group, Span<const BindlessUpdateEntry> entries) override
+        {
+            if (VkBindGroupImpl* g = m_tables.bindGroups.Get(group))
+                g->UpdateBindless(entries);
+        }
+        u32 PipelineCacheDataSize(PipelineCacheHandle cache) override
+        {
+            VkPipelineCacheImpl* c = m_tables.pipelineCaches.Get(cache);
+            return c != nullptr ? c->GetDataSize() : 0;
+        }
+        Status PipelineCacheData(PipelineCacheHandle cache, Span<u8> outData) override
+        {
+            VkPipelineCacheImpl* c = m_tables.pipelineCaches.Get(cache);
+            return c != nullptr ? c->GetData(outData) : Status(ErrorCode::InvalidArgument);
+        }
+        const QuerySetDesc* Describe(QuerySetHandle querySet) const override
+        {
+            const VkQuerySetImpl* q = m_tables.querySets.Get(querySet);
+            return q != nullptr ? &q->desc : nullptr;
+        }
+        u64 DeviceAddress(AccelStructHandle accelStruct) const override
+        {
+            const VkAccelStructImpl* a = m_tables.accelStructs.Get(accelStruct);
+            return a != nullptr ? a->DeviceAddress() : 0;
         }
         /// The backend's own texture a handle names, or null: for tests that read its state (its
         /// tracked layouts).
@@ -628,91 +668,85 @@ export namespace foundation::rhi::vk
             const VkSamplerImpl* s = m_tables.samplers.Get(sampler);
             return s != nullptr ? &s->desc : nullptr;
         }
-        Status CreateShaderModule(const ShaderModuleDesc& d, ShaderModule*& out) override
+        Status CreateShaderModule(const ShaderModuleDesc& d, ShaderModuleHandle& out) override
         {
+            out = {};
             auto* m = m_allocator.New<VkShaderModuleImpl>();
             if (m->init(m_device, d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(m);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
             m->entryPoint = String(d.entryPoint);
-            out = m;
-            return ErrorCode::Ok;
+            return Adopt(m_tables.shaderModules, m, out);
         }
-        Status CreateBindGroupLayout(const BindGroupLayoutDesc& d, BindGroupLayout*& out) override
+        Status CreateBindGroupLayout(const BindGroupLayoutDesc& d, BindGroupLayoutHandle& out) override
         {
+            out = {};
             auto* l = m_allocator.New<VkBindGroupLayoutImpl>();
             if (l->init(m_device, d, m_bindingShifts) != ErrorCode::Ok)
             {
                 m_allocator.Delete(l);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
-            out = l;
-            return ErrorCode::Ok;
+            return Adopt(m_tables.bindGroupLayouts, l, out);
         }
-        Status CreateBindGroup(const BindGroupDesc& d, BindGroup*& out) override
+        Status CreateBindGroup(const BindGroupDesc& d, BindGroupHandle& out) override
         {
+            out = {};
             auto* g = m_allocator.New<VkBindGroupImpl>();
             g->tables = &m_tables;
             if (g->init(m_device, m_poolManager, d, m_bindingShifts) != ErrorCode::Ok)
             {
                 m_allocator.Delete(g);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
-            out = g;
-            return ErrorCode::Ok;
+            g->layout = d.layout;
+            return Adopt(m_tables.bindGroups, g, out);
         }
-        Status CreatePipelineLayout(const PipelineLayoutDesc& d, PipelineLayout*& out) override
+        Status CreatePipelineLayout(const PipelineLayoutDesc& d, PipelineLayoutHandle& out) override
         {
+            out = {};
             auto* l = m_allocator.New<VkPipelineLayoutImpl>();
-            if (l->init(m_device, d) != ErrorCode::Ok)
+            if (l->init(m_device, &m_tables, d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(l);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
-            out = l;
-            return ErrorCode::Ok;
+            return Adopt(m_tables.pipelineLayouts, l, out);
         }
-        Status CreatePipelineCache(const PipelineCacheDesc& d, PipelineCache*& out) override
+        Status CreatePipelineCache(const PipelineCacheDesc& d, PipelineCacheHandle& out) override
         {
+            out = {};
             auto* c = m_allocator.New<VkPipelineCacheImpl>();
             if (c->init(m_device, d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(c);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
-            out = c;
-            return ErrorCode::Ok;
+            return Adopt(m_tables.pipelineCaches, c, out);
         }
-        Status CreateRenderPipeline(const RenderPipelineDesc& d, RenderPipeline*& out) override
+        Status CreateRenderPipeline(const RenderPipelineDesc& d, RenderPipelineHandle& out) override
         {
+            out = {};
             auto* p = m_allocator.New<VkRenderPipelineImpl>();
-            if (p->init(m_device, d) != ErrorCode::Ok)
+            if (p->init(m_device, &m_tables, d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(p);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
-            out = p;
-            return ErrorCode::Ok;
+            return Adopt(m_tables.renderPipelines, p, out);
         }
-        Status CreateComputePipeline(const ComputePipelineDesc& d, ComputePipeline*& out) override
+        Status CreateComputePipeline(const ComputePipelineDesc& d, ComputePipelineHandle& out) override
         {
+            out = {};
             auto* p = m_allocator.New<VkComputePipelineImpl>();
-            if (p->init(m_device, d) != ErrorCode::Ok)
+            if (p->init(m_device, &m_tables, d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(p);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
-            out = p;
-            return ErrorCode::Ok;
+            return Adopt(m_tables.computePipelines, p, out);
         }
         Status CreateCommandPool(QueueType qt, CommandPool*& out) override
         {
@@ -742,17 +776,16 @@ export namespace foundation::rhi::vk
             out = f;
             return ErrorCode::Ok;
         }
-        Status CreateQuerySet(const QuerySetDesc& d, QuerySet*& out) override
+        Status CreateQuerySet(const QuerySetDesc& d, QuerySetHandle& out) override
         {
+            out = {};
             auto* q = m_allocator.New<VkQuerySetImpl>();
             if (q->init(m_device, d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(q);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
-            out = q;
-            return ErrorCode::Ok;
+            return Adopt(m_tables.querySets, q, out);
         }
         /// VK_KHR_swapchain_mutable_format is enabled: a swapchain may honour an alternate view format.
         [[nodiscard]] bool swapchainMutableFormat() const { return m_swapchainMutableFormat; }
@@ -774,93 +807,80 @@ export namespace foundation::rhi::vk
         }
 
         // ---- Mesh shader (folded in) ----
-        Status CreateMeshPipeline(const MeshPipelineDesc& d, MeshPipeline*& out) override
+        Status CreateMeshPipeline(const MeshPipelineDesc& d, MeshPipelineHandle& out) override
         {
+            out = {};
             if (!m_meshEnabled)
             {
-                out = nullptr;
+                out = {};
                 return ErrorCode::NotSupported;
             }
             auto* p = m_allocator.New<VkMeshPipelineImpl>();
-            if (p->init(m_device, d) != ErrorCode::Ok)
+            if (p->init(m_device, &m_tables, d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(p);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
-            out = p;
-            return ErrorCode::Ok;
+            return Adopt(m_tables.meshPipelines, p, out);
         }
-        void DestroyMeshPipeline(MeshPipeline*& p) override
+        void DestroyMeshPipeline(MeshPipelineHandle& p) override
         {
-            if (p)
-            {
-                static_cast<VkMeshPipelineImpl*>(p)->cleanup(m_device);
-                m_allocator.Delete(static_cast<VkMeshPipelineImpl*>(p));
-                p = nullptr;
-            }
+            if (m_tables.meshPipelines.Retire(p))
+                collectRetired();
         }
 
         // ---- Ray tracing (folded in) ----
-        Status CreateAccelStruct(const AccelStructDesc& d, AccelStruct*& out) override
+        Status CreateAccelStruct(const AccelStructDesc& d, AccelStructHandle& out) override
         {
+            out = {};
             if (!m_rtEnabled)
             {
-                out = nullptr;
+                out = {};
                 return ErrorCode::NotSupported;
             }
             auto* a = m_allocator.New<VkAccelStructImpl>();
             if (a->init(m_device, m_adapter, d, 256 * 1024) != ErrorCode::Ok)
             {
                 m_allocator.Delete(a);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
-            out = a;
-            return ErrorCode::Ok;
+            return Adopt(m_tables.accelStructs, a, out);
         }
-        void DestroyAccelStruct(AccelStruct*& a) override
+        void DestroyAccelStruct(AccelStructHandle& a) override
         {
-            if (a)
-            {
-                static_cast<VkAccelStructImpl*>(a)->cleanup(m_device);
-                m_allocator.Delete(static_cast<VkAccelStructImpl*>(a));
-                a = nullptr;
-            }
+            if (m_tables.accelStructs.Retire(a))
+                collectRetired();
         }
         Status CreateRayTracingPipeline(const RayTracingPipelineDesc& d,
-                                        RayTracingPipeline*& out) override
+                                        RayTracingPipelineHandle& out) override
         {
+            out = {};
             if (!m_rtEnabled)
             {
-                out = nullptr;
+                out = {};
                 return ErrorCode::NotSupported;
             }
             auto* p = m_allocator.New<VkRayTracingPipelineImpl>();
-            if (p->init(m_device, d) != ErrorCode::Ok)
+            if (p->init(m_device, &m_tables, d) != ErrorCode::Ok)
             {
                 m_allocator.Delete(p);
-                out = nullptr;
                 return ErrorCode::Unknown;
             }
-            out = p;
-            return ErrorCode::Ok;
+            return Adopt(m_tables.rayTracingPipelines, p, out);
         }
-        void DestroyRayTracingPipeline(RayTracingPipeline*& p) override
+        void DestroyRayTracingPipeline(RayTracingPipelineHandle& p) override
         {
-            if (p)
-            {
-                static_cast<VkRayTracingPipelineImpl*>(p)->cleanup(m_device);
-                m_allocator.Delete(static_cast<VkRayTracingPipelineImpl*>(p));
-                p = nullptr;
-            }
+            if (m_tables.rayTracingPipelines.Retire(p))
+                collectRetired();
         }
-        Status GetShaderGroupHandles(RayTracingPipeline* pipeline, u32 firstGroup, u32 groupCount,
+        Status GetShaderGroupHandles(RayTracingPipelineHandle pipeline, u32 firstGroup, u32 groupCount,
                                      Span<u8> outData) override
         {
             if (!m_rtEnabled)
                 return ErrorCode::NotSupported;
-            auto* p = static_cast<VkRayTracingPipelineImpl*>(pipeline);
+            auto* p = m_tables.rayTracingPipelines.Get(pipeline);
+            if (p == nullptr)
+                return ErrorCode::InvalidArgument;
             auto pfn = reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesKHR>(
                 vkGetDeviceProcAddr(m_device, "vkGetRayTracingShaderGroupHandlesKHR"));
             if (!pfn)
@@ -884,7 +904,7 @@ export namespace foundation::rhi::vk
         }
         void DestroyTextureView(TextureViewHandle& v) override
         {
-            if (m_tables.views.Retire(v))
+            if (m_tables.textureViews.Retire(v))
                 collectRetired();
         }
         void DestroySampler(SamplerHandle& s) override
@@ -892,68 +912,40 @@ export namespace foundation::rhi::vk
             if (m_tables.samplers.Retire(s))
                 collectRetired();
         }
-        void DestroyShaderModule(ShaderModule*& m) override
+        void DestroyShaderModule(ShaderModuleHandle& m) override
         {
-            if (m)
-            {
-                static_cast<VkShaderModuleImpl*>(m)->cleanup(m_device);
-                m_allocator.Delete(static_cast<VkShaderModuleImpl*>(m));
-                m = nullptr;
-            }
+            if (m_tables.shaderModules.Retire(m))
+                collectRetired();
         }
-        void DestroyBindGroupLayout(BindGroupLayout*& l) override
+        void DestroyBindGroupLayout(BindGroupLayoutHandle& l) override
         {
-            if (l)
-            {
-                static_cast<VkBindGroupLayoutImpl*>(l)->cleanup(m_device);
-                m_allocator.Delete(static_cast<VkBindGroupLayoutImpl*>(l));
-                l = nullptr;
-            }
+            if (m_tables.bindGroupLayouts.Retire(l))
+                collectRetired();
         }
-        void DestroyBindGroup(BindGroup*& g) override
+        void DestroyBindGroup(BindGroupHandle& g) override
         {
-            if (g)
-            {
-                static_cast<VkBindGroupImpl*>(g)->cleanup(m_device, m_poolManager);
-                m_allocator.Delete(static_cast<VkBindGroupImpl*>(g));
-                g = nullptr;
-            }
+            if (m_tables.bindGroups.Retire(g))
+                collectRetired();
         }
-        void DestroyPipelineLayout(PipelineLayout*& l) override
+        void DestroyPipelineLayout(PipelineLayoutHandle& l) override
         {
-            if (l)
-            {
-                static_cast<VkPipelineLayoutImpl*>(l)->cleanup(m_device);
-                m_allocator.Delete(static_cast<VkPipelineLayoutImpl*>(l));
-                l = nullptr;
-            }
+            if (m_tables.pipelineLayouts.Retire(l))
+                collectRetired();
         }
-        void DestroyPipelineCache(PipelineCache*& c) override
+        void DestroyPipelineCache(PipelineCacheHandle& c) override
         {
-            if (c)
-            {
-                static_cast<VkPipelineCacheImpl*>(c)->cleanup(m_device);
-                m_allocator.Delete(static_cast<VkPipelineCacheImpl*>(c));
-                c = nullptr;
-            }
+            if (m_tables.pipelineCaches.Retire(c))
+                collectRetired();
         }
-        void DestroyRenderPipeline(RenderPipeline*& p) override
+        void DestroyRenderPipeline(RenderPipelineHandle& p) override
         {
-            if (p)
-            {
-                static_cast<VkRenderPipelineImpl*>(p)->cleanup(m_device);
-                m_allocator.Delete(static_cast<VkRenderPipelineImpl*>(p));
-                p = nullptr;
-            }
+            if (m_tables.renderPipelines.Retire(p))
+                collectRetired();
         }
-        void DestroyComputePipeline(ComputePipeline*& p) override
+        void DestroyComputePipeline(ComputePipelineHandle& p) override
         {
-            if (p)
-            {
-                static_cast<VkComputePipelineImpl*>(p)->cleanup(m_device);
-                m_allocator.Delete(static_cast<VkComputePipelineImpl*>(p));
-                p = nullptr;
-            }
+            if (m_tables.computePipelines.Retire(p))
+                collectRetired();
         }
         void DestroyCommandPool(CommandPool*& p) override
         {
@@ -973,14 +965,10 @@ export namespace foundation::rhi::vk
                 f = nullptr;
             }
         }
-        void DestroyQuerySet(QuerySet*& q) override
+        void DestroyQuerySet(QuerySetHandle& q) override
         {
-            if (q)
-            {
-                static_cast<VkQuerySetImpl*>(q)->cleanup(m_device);
-                m_allocator.Delete(static_cast<VkQuerySetImpl*>(q));
-                q = nullptr;
-            }
+            if (m_tables.querySets.Retire(q))
+                collectRetired();
         }
         void DestroySwapChain(SwapChain*& sc) override
         {
@@ -1102,8 +1090,39 @@ export namespace foundation::rhi::vk
         DeviceCounterBlock m_counters; // what its encoders recorded and its resources hold
         // When a destroyed resource may go, and its objects by handle (Specs/rhi-handles.md).
         SubmissionTracker m_tracker{m_allocator};
-        VkTables m_tables{m_allocator, m_tracker, this, &FreeBuffer, &FreeTexture, &FreeObject<VkTextureViewImpl>,
-                          &FreeObject<VkSamplerImpl>};
+        VkTables m_tables{m_allocator, m_tracker, this, Frees()};
+        [[nodiscard]] static constexpr VkTableFrees Frees() noexcept
+        {
+            VkTableFrees f;
+            f.buffer = &FreeBuffer;
+            f.texture = &FreeTexture;
+            f.textureView = &FreeObject<VkTextureViewImpl>;
+            f.sampler = &FreeObject<VkSamplerImpl>;
+            f.shaderModule = &FreeObject<VkShaderModuleImpl>;
+            f.bindGroupLayout = &FreeObject<VkBindGroupLayoutImpl>;
+            f.bindGroup = &FreeObject<VkBindGroupImpl>;
+            f.pipelineLayout = &FreeObject<VkPipelineLayoutImpl>;
+            f.pipelineCache = &FreeObject<VkPipelineCacheImpl>;
+            f.renderPipeline = &FreeObject<VkRenderPipelineImpl>;
+            f.computePipeline = &FreeObject<VkComputePipelineImpl>;
+            f.meshPipeline = &FreeObject<VkMeshPipelineImpl>;
+            f.querySet = &FreeObject<VkQuerySetImpl>;
+            f.accelStruct = &FreeObject<VkAccelStructImpl>;
+            f.rayTracingPipeline = &FreeObject<VkRayTracingPipelineImpl>;
+            return f;
+        }
+        // A new object into its table; freed again if the table is full.
+        template <typename TTable, typename TImpl, typename THandle>
+        Status Adopt(TTable& table, TImpl* object, THandle& out)
+        {
+            out = table.Add(object);
+            if (!out)
+            {
+                FreeObject<TImpl>(this, object);
+                return ErrorCode::OutOfMemory;
+            }
+            return ErrorCode::Ok;
+        }
         static void FreeBuffer(void* context, void* object)
         {
             auto* device = static_cast<VkDeviceImpl*>(context);
@@ -1120,13 +1139,17 @@ export namespace foundation::rhi::vk
             texture->cleanup(device->m_device);
             device->m_allocator.Delete(texture);
         }
-        // A view or a sampler: its Vulkan object, then itself.
+        // Its Vulkan object, then itself (a bind group gives its set back to the pool too).
         template <typename T>
         static void FreeObject(void* context, void* object)
         {
             auto* device = static_cast<VkDeviceImpl*>(context);
-            static_cast<T*>(object)->cleanup(device->m_device);
-            device->m_allocator.Delete(static_cast<T*>(object));
+            T* typed = static_cast<T*>(object);
+            if constexpr (requires { typed->cleanup(device->m_device, device->m_poolManager); })
+                typed->cleanup(device->m_device, device->m_poolManager);
+            else
+                typed->cleanup(device->m_device);
+            device->m_allocator.Delete(typed);
         }
         BindingShifts m_bindingShifts = BindingShifts::standard();
         VkDescriptorPoolManager* m_poolManager = nullptr;

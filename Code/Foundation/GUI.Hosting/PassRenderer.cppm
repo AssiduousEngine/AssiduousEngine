@@ -86,8 +86,8 @@ export namespace foundation::gui
         {
             if (!m_shaders.IsUsable())
                 return;
-            m_canvas.SetPerPixelGradients(m_shaders.GradientRadial != nullptr && m_shaders.GradientConic != nullptr);
-            m_canvas.SetAnalyticBoxes(m_shaders.BoxVertex != nullptr && m_shaders.BoxFragment != nullptr);
+            m_canvas.SetPerPixelGradients(m_shaders.GradientRadial.IsValid() && m_shaders.GradientConic.IsValid());
+            m_canvas.SetAnalyticBoxes(m_shaders.BoxVertex.IsValid() && m_shaders.BoxFragment.IsValid());
             m_baker = MakeUnique<GpuPictureBaker>(allocator, allocator, device, fonts);
             PictureBakerSetup setup;
             setup.VertexShader = m_shaders.Vertex;
@@ -165,7 +165,7 @@ export namespace foundation::gui
             if (renderer == nullptr)
                 return prepared;
             const bool stencil = view.DepthStencilFormat != rhi::TextureFormat::Undefined && renderer->StencilFillsSupported();
-            const bool layered = layers != nullptr && m_shaders.Layer != nullptr;
+            const bool layered = layers != nullptr && m_shaders.Layer.IsValid();
             m_canvas.SetStencilFills(stencil); // so the batch matches the pass it draws into
             m_canvas.SetLayers(layered);
             m_canvas.Clear();
@@ -267,7 +267,7 @@ export namespace foundation::gui
                 config.depthStencilFormat = view.DepthStencilFormat;
                 config.blendSpace = view.Encoded ? vg::VGBlendSpace::Encoded : vg::VGBlendSpace::Linear;
                 if (!made->Renderer
-                         .Initialize(m_device, *m_shaders.Vertex, *m_shaders.Fragment, view.Format, static_cast<i32>(m_framesInFlight),
+                         .Initialize(m_device, m_shaders.Vertex, m_shaders.Fragment, view.Format, static_cast<i32>(m_framesInFlight),
                                      m_shaders.DistanceField, m_shaders.GradientRadial, m_shaders.GradientConic, config, m_shaders.BoxShadow,
                                      m_shaders.BoxVertex, m_shaders.BoxFragment, m_shaders.Layer, m_shaders.BlurVertex, m_shaders.BlurFragment)
                          .IsOk())

@@ -71,7 +71,7 @@ namespace
         rhi::TextureViewHandle view{};
         rhi::SamplerHandle sampler{};
         rhi::BufferHandle tint{};
-        rhi::BindGroup* group = nullptr;
+        rhi::BindGroupHandle group{};
     };
 
     class LifetimeCheckApp final : public runtime::IApplication
@@ -109,8 +109,8 @@ namespace
                 return;
             }
             rhi::PipelineLayoutDesc plDesc;
-            rhi::BindGroupLayout* sets[1] = {m_layout};
-            plDesc.bindGroupLayouts = core::Span<rhi::BindGroupLayout* const>(sets, 1);
+            rhi::BindGroupLayoutHandle sets[1] = {m_layout};
+            plDesc.bindGroupLayouts = core::Span<rhi::BindGroupLayoutHandle const>(sets, 1);
             plDesc.label = u8"LifetimeCheckPL";
             if (!m_device->CreatePipelineLayout(plDesc, m_pipelineLayout).IsOk())
             {
@@ -120,7 +120,7 @@ namespace
 
         void OnRenderWindow(runtime::IApplicationHost&, graphics::FrameContext& frame) override
         {
-            if (m_pipeline == nullptr && m_pipelineLayout != nullptr)
+            if (!m_pipeline.IsValid() && m_pipelineLayout.IsValid())
             {
                 MakePipeline(frame);
             }
@@ -128,7 +128,7 @@ namespace
             Destroy(m_submitted);
 
             FrameSet set;
-            const bool made = m_pipeline != nullptr && Make(set);
+            const bool made = m_pipeline.IsValid() && Make(set);
 
             rhi::ClearColor clear;
             clear.r = 0.05f;
@@ -174,19 +174,19 @@ namespace
                 return;
             }
             Destroy(m_submitted);
-            if (m_pipeline != nullptr)
+            if (m_pipeline.IsValid())
             {
                 m_device->DestroyRenderPipeline(m_pipeline);
             }
-            if (m_pipelineLayout != nullptr)
+            if (m_pipelineLayout.IsValid())
             {
                 m_device->DestroyPipelineLayout(m_pipelineLayout);
             }
-            if (m_layout != nullptr)
+            if (m_layout.IsValid())
             {
                 m_device->DestroyBindGroupLayout(m_layout);
             }
-            if (m_shader != nullptr)
+            if (m_shader.IsValid())
             {
                 m_device->DestroyShaderModule(m_shader);
             }
@@ -214,7 +214,7 @@ namespace
             pipelineDesc.label = u8"LifetimeCheckPipeline";
             if (!m_device->CreateRenderPipeline(pipelineDesc, m_pipeline).IsOk())
             {
-                m_pipeline = nullptr;
+                m_pipeline = {};
             }
         }
 
@@ -294,7 +294,7 @@ namespace
             gd.label = u8"lifetime.group";
             if (!m_device->CreateBindGroup(gd, set.group).IsOk())
             {
-                set.group = nullptr;
+                set.group = {};
                 Destroy(set);
                 return false;
             }
@@ -303,7 +303,7 @@ namespace
 
         void Destroy(FrameSet& set)
         {
-            if (set.group != nullptr)
+            if (set.group.IsValid())
             {
                 m_device->DestroyBindGroup(set.group);
             }
@@ -315,10 +315,10 @@ namespace
         }
 
         rhi::Device* m_device = nullptr;
-        rhi::ShaderModule* m_shader = nullptr;
-        rhi::BindGroupLayout* m_layout = nullptr;
-        rhi::PipelineLayout* m_pipelineLayout = nullptr;
-        rhi::RenderPipeline* m_pipeline = nullptr;
+        rhi::ShaderModuleHandle m_shader{};
+        rhi::BindGroupLayoutHandle m_layout{};
+        rhi::PipelineLayoutHandle m_pipelineLayout{};
+        rhi::RenderPipelineHandle m_pipeline{};
         FrameSet m_submitted;
         core::u32 m_frames = 0;
     };

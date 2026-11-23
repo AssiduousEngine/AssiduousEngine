@@ -201,15 +201,15 @@ export namespace foundation::render
 
     struct ResolvedDraw
     {
-        rhi::RenderPipeline* pso = nullptr;
-        rhi::BindGroup* viewSet = nullptr; // set 0 (view)
+        rhi::RenderPipelineHandle pso{};
+        rhi::BindGroupHandle viewSet{}; // set 0 (view)
         u32 viewOffset = 0;
         bool viewDynamic = false;
-        rhi::BindGroup* drawSet = nullptr; // set 1 (object UBO or instance storage)
+        rhi::BindGroupHandle drawSet{}; // set 1 (object UBO or instance storage)
         u32 drawOffset = 0;
         bool drawDynamic = false;
-        rhi::BindGroup* materialSet = nullptr; // set 2 (material, inferred from properties)
-        rhi::BindGroup* clusterSet = nullptr;  // set 3 (clustered light lists; dummy when off)
+        rhi::BindGroupHandle materialSet{}; // set 2 (material, inferred from properties)
+        rhi::BindGroupHandle clusterSet{};  // set 3 (clustered light lists; dummy when off)
         rhi::BufferHandle vertexBuffer0{};
         u64 vertexOffset0 = 0;
         rhi::BufferHandle vertexBuffer1{};
@@ -257,12 +257,12 @@ export namespace foundation::render
     // command emission: it touches no shared state, so it is safe to run concurrently.
     inline void EmitDraw(rhi::RenderCommandEncoder& enc, const ResolvedDraw& d)
     {
-        if (d.pso == nullptr || !d.indexBuffer.IsValid())
+        if (!d.pso.IsValid() || !d.indexBuffer.IsValid())
         {
             return;
         }
         enc.SetPipeline(d.pso);
-        if (d.viewSet != nullptr)
+        if (d.viewSet.IsValid())
         {
             if (d.viewDynamic)
             {
@@ -273,7 +273,7 @@ export namespace foundation::render
                 enc.SetBindGroup(0, d.viewSet, Span<const u32>{});
             }
         }
-        if (d.drawSet != nullptr)
+        if (d.drawSet.IsValid())
         {
             if (d.drawDynamic)
             {
@@ -284,7 +284,7 @@ export namespace foundation::render
                 enc.SetBindGroup(1, d.drawSet, Span<const u32>{});
             }
         }
-        if (d.materialSet != nullptr)
+        if (d.materialSet.IsValid())
         {
             enc.SetBindGroup(2, d.materialSet, Span<const u32>{});
         } // material
@@ -294,7 +294,7 @@ export namespace foundation::render
             push.alphaThreshold = d.alphaThreshold;
             enc.SetPushConstants(rhi::ShaderStage::Fragment, 0, sizeof(push), &push);
         }
-        if (d.clusterSet != nullptr)
+        if (d.clusterSet.IsValid())
         {
             enc.SetBindGroup(3, d.clusterSet, Span<const u32>{});
         } // cluster lists

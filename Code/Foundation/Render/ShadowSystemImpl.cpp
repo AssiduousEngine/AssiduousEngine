@@ -205,11 +205,11 @@ namespace foundation::render
         return true;
     }
 
-    rhi::RenderPipeline* ShadowSystem::TileClearPipeline()
+    rhi::RenderPipelineHandle ShadowSystem::TileClearPipeline()
     {
         if (m_shaders == nullptr)
         {
-            return nullptr;
+            return {};
         }
         const u64 version = m_shaders->Version(u8"shadow_tile_clear");
         if (version == m_tileClearVersion)
@@ -217,26 +217,26 @@ namespace foundation::render
             return m_tileClearPipeline;
         }
         // A reload: the GPU is idle then, as for every engine pass's pipeline rebuild.
-        if (m_tileClearPipeline != nullptr)
+        if (m_tileClearPipeline.IsValid())
         {
             m_device->DestroyRenderPipeline(m_tileClearPipeline);
-            m_tileClearPipeline = nullptr;
+            m_tileClearPipeline = {};
         }
         m_tileClearVersion = version;
-        if (m_tileClearLayout == nullptr)
+        if (!m_tileClearLayout.IsValid())
         {
             rhi::PipelineLayoutDesc pld{};
             if (!m_device->CreatePipelineLayout(pld, m_tileClearLayout).IsOk())
             {
-                m_tileClearLayout = nullptr;
-                return nullptr;
+                m_tileClearLayout = {};
+                return {};
             }
         }
-        rhi::ShaderModule* vs =
+        rhi::ShaderModuleHandle vs =
             m_shaders->GetVariant(u8"shadow_tile_clear", shaders::ShaderStage::Vertex, shaders::ShaderFlags::None);
-        if (vs == nullptr)
+        if (!vs.IsValid())
         {
-            return nullptr;
+            return {};
         }
         rhi::DepthStencilState ds{};
         ds.format = kShadowFormat;
@@ -252,22 +252,22 @@ namespace foundation::render
         pd.label = u8"shadow.tile-clear";
         if (!m_device->CreateRenderPipeline(pd, m_tileClearPipeline).IsOk())
         {
-            m_tileClearPipeline = nullptr;
+            m_tileClearPipeline = {};
         }
         return m_tileClearPipeline;
     }
 
     void ShadowSystem::Shutdown()
     {
-        if (m_tileClearPipeline != nullptr)
+        if (m_tileClearPipeline.IsValid())
         {
             m_device->DestroyRenderPipeline(m_tileClearPipeline);
-            m_tileClearPipeline = nullptr;
+            m_tileClearPipeline = {};
         }
-        if (m_tileClearLayout != nullptr)
+        if (m_tileClearLayout.IsValid())
         {
             m_device->DestroyPipelineLayout(m_tileClearLayout);
-            m_tileClearLayout = nullptr;
+            m_tileClearLayout = {};
         }
         for (u32 i = 0; i < kMaxFramesInFlight; ++i)
         {

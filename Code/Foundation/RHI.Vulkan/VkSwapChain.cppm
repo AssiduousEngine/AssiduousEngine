@@ -595,7 +595,7 @@ export namespace foundation::rhi::vk
                 return ErrorCode::Unknown;
             }
             m_views.PushBack(view);
-            m_viewHandles.PushBack(m_tables->views.Add(view));
+            m_viewHandles.PushBack(m_tables->textureViews.Add(view));
 
             if (m_alternate != TextureFormat::Undefined)
             {
@@ -608,7 +608,7 @@ export namespace foundation::rhi::vk
                     return ErrorCode::Unknown;
                 }
                 m_alternateViews.PushBack(alternate);
-                m_alternateHandles.PushBack(m_tables->views.Add(alternate));
+                m_alternateHandles.PushBack(m_tables->textureViews.Add(alternate));
             }
         }
         return ErrorCode::Ok;
@@ -641,10 +641,10 @@ export namespace foundation::rhi::vk
     inline void VkSwapChainImpl::cleanupImages()
     {
         for (TextureViewHandle& h : m_viewHandles)
-            (void)m_tables->views.Remove(h);
+            (void)m_tables->textureViews.Remove(h);
         m_viewHandles.Clear();
         for (TextureViewHandle& h : m_alternateHandles)
-            (void)m_tables->views.Remove(h);
+            (void)m_tables->textureViews.Remove(h);
         m_alternateHandles.Clear();
         for (TextureHandle& h : m_textureHandles)
             (void)m_tables->textures.Remove(h);

@@ -20,9 +20,8 @@ namespace rhi = foundation::rhi;
 namespace
 {
     // Distinct stand-ins: the cache only compares and returns them.
-    alignas(8) u8 g_slots[16][8];
     [[nodiscard]] rhi::TextureViewHandle View(int i) { return rhi::TextureViewHandle{static_cast<u32>(i), 1}; }
-    [[nodiscard]] rhi::BindGroup* Group(int i) { return reinterpret_cast<rhi::BindGroup*>(g_slots[8 + i]); }
+    [[nodiscard]] rhi::BindGroupHandle Group(int i) { return rhi::BindGroupHandle{static_cast<u32>(i), 1}; }
 
     // TAA's inputs: jittered colour, motion, depth.
     [[nodiscard]] BindGroupInputs<3> Inputs(int colour, u64 colourGen, int motion, u64 motionGen, int depth,
@@ -41,32 +40,32 @@ TEST_CASE("bind group cache: a group is rebuilt when any input changed, not only
     BindGroupCache<3> cache;
     rhi::TextureViewHandle historyA = View(6);
     rhi::TextureViewHandle historyB = View(7);
-    rhi::BindGroup* stale = nullptr;
+    rhi::BindGroupHandle stale{};
 
     // Frame 0 reads history A: colour 0, motion 1 (the first frame's), depth 3.
     const BindGroupInputs<3> frame0 = Inputs(0, 9, 1, 3, 3, 1);
-    CHECK(cache.Find(historyA, frame0, stale) == nullptr);
-    CHECK(stale == nullptr);
+    CHECK(!cache.Find(historyA, frame0, stale).IsValid());
+    CHECK(!stale.IsValid());
     cache.Store(historyA, frame0, Group(0));
     // Frame 1 reads history B with this frame's motion texture (2): a group of its own.
     const BindGroupInputs<3> steady = Inputs(0, 9, 2, 2, 3, 1);
-    CHECK(cache.Find(historyB, steady, stale) == nullptr);
+    CHECK(!cache.Find(historyB, steady, stale).IsValid());
     cache.Store(historyB, steady, Group(1));
 
     // Frame 2 reads history A again: the same colour and depth, but motion 2. The frame 0 group
     // binds the wrong motion vectors, so it is handed back to destroy and not returned.
-    CHECK(cache.Find(historyA, steady, stale) == nullptr);
+    CHECK(!cache.Find(historyA, steady, stale).IsValid());
     CHECK(stale == Group(0));
     CHECK(cache.Size() == 1u);
     cache.Store(historyA, steady, Group(2));
 
     // Steady state: both history textures hit with this frame's inputs.
     CHECK(cache.Find(historyA, steady, stale) == Group(2));
-    CHECK(stale == nullptr);
+    CHECK(!stale.IsValid());
     CHECK(cache.Find(historyB, steady, stale) == Group(1));
 
     // The same view back over another texture (a new generation) is a different input.
-    CHECK(cache.Find(historyB, Inputs(0, 9, 2, 2, 3, 2), stale) == nullptr);
+    CHECK(!cache.Find(historyB, Inputs(0, 9, 2, 2, 3, 2), stale).IsValid());
     CHECK(stale == Group(1));
     // History A is untouched by B's miss.
     CHECK(cache.Find(historyA, steady, stale) == Group(2));
@@ -79,7 +78,7 @@ TEST_CASE("bind group cache: a group is rebuilt when any input changed, not only
 
     // Teardown hands every held group to the owner.
     usize released = 0;
-    cache.Release([&](rhi::BindGroup*) { ++released; });
+    cache.Release([&](rhi::BindGroupHandle) { ++released; });
     CHECK(released == 1u); // A's (B's was handed back as stale above)
     CHECK(cache.Size() == 0u);
 }
@@ -91,7 +90,7 @@ TEST_CASE("bind group cache: the bound buffer and its generation are inputs too"
 {
     BindGroupCache<3> cache;
     rhi::TextureViewHandle history = View(6);
-    rhi::BindGroup* stale = nullptr;
+    rhi::BindGroupHandle stale{};
     rhi::BufferHandle skyA{4, 1}; // two distinct handles; the cache only compares them
     rhi::BufferHandle skyB{5, 1};
 
@@ -102,13 +101,13 @@ TEST_CASE("bind group cache: the bound buffer and its generation are inputs too"
 
     BindGroupInputs<3> withB = withA;
     withB.SetBuffer(skyB, 8);
-    CHECK(cache.Find(history, withB, stale) == nullptr); // another scene's sky
+    CHECK(!cache.Find(history, withB, stale).IsValid()); // another scene's sky
     CHECK(stale == Group(0));
 
     cache.Store(history, withB, Group(1));
     BindGroupInputs<3> regenerated = withB;
     regenerated.SetBuffer(skyB, 9); // the same buffer, rebuilt (a new context generation)
-    CHECK(cache.Find(history, regenerated, stale) == nullptr);
+    CHECK(!cache.Find(history, regenerated, stale).IsValid());
     CHECK(stale == Group(1));
 }
 

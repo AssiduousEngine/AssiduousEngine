@@ -20,7 +20,7 @@ namespace testsupport = foundation::rhi::testsupport;
 namespace
 {
     // A layout of one sampled texture and one sampler, the shape of a material's table.
-    rhi::BindGroupLayout* TextureAndSampler(rhi::Device& device)
+    rhi::BindGroupLayoutHandle TextureAndSampler(rhi::Device& device)
     {
         rhi::BindGroupLayoutEntry entries[] = {
             rhi::BindGroupLayoutEntry::SampledTexture(0, rhi::ShaderStage::Fragment),
@@ -28,7 +28,7 @@ namespace
         };
         rhi::BindGroupLayoutDesc ld{};
         ld.entries = Span<const rhi::BindGroupLayoutEntry>{entries, 2};
-        rhi::BindGroupLayout* layout = nullptr;
+        rhi::BindGroupLayoutHandle layout{};
         REQUIRE(device.CreateBindGroupLayout(ld, layout).IsOk());
         return layout;
     }
@@ -46,14 +46,14 @@ namespace
         rhi::SamplerDesc sd{};
         rhi::SamplerHandle sampler{};
         REQUIRE(device.CreateSampler(sd, sampler).IsOk());
-        rhi::BindGroupLayout* layout = TextureAndSampler(device);
+        rhi::BindGroupLayoutHandle layout = TextureAndSampler(device);
 
         // 4097 views, each written into a group: one more SRV than the first CPU page holds (a full
         // heap handed out a null handle, and the view was written through it). 2049 groups on one
         // sampler: one more than the shader-visible sampler heap has slots (each group took its own).
         constexpr u32 kGroups = 4097;
         Array<rhi::TextureViewHandle> views;
-        Array<rhi::BindGroup*> groups;
+        Array<rhi::BindGroupHandle> groups;
         bool allMade = true;
         for (u32 i = 0; i < kGroups; ++i)
         {
@@ -71,7 +71,7 @@ namespace
             rhi::BindGroupDesc bgd{};
             bgd.layout = layout;
             bgd.entries = Span<const rhi::BindGroupEntry>{entries, 2};
-            rhi::BindGroup* group = nullptr;
+            rhi::BindGroupHandle group{};
             if (!device.CreateBindGroup(bgd, group).IsOk())
             {
                 allMade = false;
@@ -82,7 +82,7 @@ namespace
         CHECK(allMade);
         CHECK(groups.Size() == kGroups);
 
-        for (rhi::BindGroup* group : groups)
+        for (rhi::BindGroupHandle group : groups)
             device.DestroyBindGroup(group);
         for (rhi::TextureViewHandle view : views)
             device.DestroyTextureView(view);
@@ -144,13 +144,13 @@ TEST_CASE("dx12: a sampler updated in a group with a shared table moves it to it
     point.magFilter = rhi::FilterMode::Nearest;
     rhi::SamplerHandle other{};
     REQUIRE(device->CreateSampler(point, other).IsOk());
-    rhi::BindGroupLayout* layout = TextureAndSampler(*device);
+    rhi::BindGroupLayoutHandle layout = TextureAndSampler(*device);
     rhi::BindGroupEntry entries[] = {rhi::BindGroupEntry::TextureEntry(view), rhi::BindGroupEntry::SamplerEntry(sampler)};
     rhi::BindGroupDesc bgd{};
     bgd.layout = layout;
     bgd.entries = Span<const rhi::BindGroupEntry>{entries, 2};
-    rhi::BindGroup* a = nullptr;
-    rhi::BindGroup* b = nullptr;
+    rhi::BindGroupHandle a{};
+    rhi::BindGroupHandle b{};
     REQUIRE(device->CreateBindGroup(bgd, a).IsOk());
     REQUIRE(device->CreateBindGroup(bgd, b).IsOk());
     auto* da = static_cast<rhi::dx12::DxBindGroupImpl*>(a);

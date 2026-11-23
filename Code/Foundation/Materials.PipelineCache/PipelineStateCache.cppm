@@ -57,8 +57,8 @@ export namespace foundation::materials
         // is the assembled pipeline layout (frame/object/material bind-group layouts); the
         // caller owns it. Returns null on build failure; a failure is kept, not retried every
         // draw, until the shader's version changes (an edit that may fix it).
-        [[nodiscard]] rhi::RenderPipeline*
-        GetPipeline(const PipelineConfig& config, rhi::PipelineLayout* layout,
+        [[nodiscard]] rhi::RenderPipelineHandle 
+        GetPipeline(const PipelineConfig& config, rhi::PipelineLayoutHandle layout,
                     rhi::TextureFormat colorOverride = rhi::TextureFormat::Undefined)
         {
             const u64 hash = KeyOf(config, layout, colorOverride);
@@ -79,7 +79,7 @@ export namespace foundation::materials
                         return e.pipeline; // null: it failed for this version of the shader
                     }
                     // The shader was reloaded since: the stale pipeline retires, one rebuilds.
-                    if (e.pipeline != nullptr)
+                    if (e.pipeline.IsValid())
                     {
                         m_retired.PushBack(Retired{e.pipeline, m_framesInFlight});
                     }
@@ -100,7 +100,7 @@ export namespace foundation::materials
             entry.colorOverride = colorOverride;
             entry.pipeline = Build(config, layout, colorOverride);
             entry.builtVersion = version;
-            rhi::RenderPipeline* result = entry.pipeline;
+            rhi::RenderPipelineHandle result = entry.pipeline;
             bucket->PushBack(Move(entry));
             ++m_count;
             return result;
@@ -119,7 +119,7 @@ export namespace foundation::materials
             {
                 if (m_retired[i].framesLeft <= 1)
                 {
-                    if (m_retired[i].pipeline != nullptr)
+                    if (m_retired[i].pipeline.IsValid())
                     {
                         m_device->DestroyRenderPipeline(m_retired[i].pipeline);
                     }
@@ -138,7 +138,7 @@ export namespace foundation::materials
         {
             for (Retired& r : m_retired)
             {
-                if (r.pipeline != nullptr)
+                if (r.pipeline.IsValid())
                 {
                     m_device->DestroyRenderPipeline(r.pipeline);
                 }
@@ -153,7 +153,7 @@ export namespace foundation::materials
             {
                 for (Entry& e : bucket.value)
                 {
-                    if (e.pipeline != nullptr)
+                    if (e.pipeline.IsValid())
                     {
                         m_device->DestroyRenderPipeline(e.pipeline);
                     }
@@ -169,12 +169,12 @@ export namespace foundation::materials
         {
             String shaderName;
             PipelineConfig config; // its shaderName empty; shaderName above stands for it
-            rhi::PipelineLayout* layout = nullptr;
+            rhi::PipelineLayoutHandle layout{};
             rhi::TextureFormat colorOverride = rhi::TextureFormat::Undefined;
-            rhi::RenderPipeline* pipeline = nullptr;
+            rhi::RenderPipelineHandle pipeline{};
             u64 builtVersion = 0;
 
-            [[nodiscard]] bool Matches(const PipelineConfig& other, rhi::PipelineLayout* otherLayout,
+            [[nodiscard]] bool Matches(const PipelineConfig& other, rhi::PipelineLayoutHandle otherLayout,
                                        rhi::TextureFormat otherOverride) const noexcept
             {
                 if (layout != otherLayout || colorOverride != otherOverride || shaderName.AsView() != other.shaderName)
@@ -188,28 +188,28 @@ export namespace foundation::materials
         };
         struct Retired
         {
-            rhi::RenderPipeline* pipeline = nullptr;
+            rhi::RenderPipelineHandle pipeline{};
             u32 framesLeft = 0;
         };
 
-        static u64 KeyOf(const PipelineConfig& config, rhi::PipelineLayout* layout,
+        static u64 KeyOf(const PipelineConfig& config, rhi::PipelineLayoutHandle layout,
                          rhi::TextureFormat colorOverride)
         {
             u64 h = config.HashCode();
-            h = h * 31u + reinterpret_cast<u64>(layout);
+            h = h * 31u + layout.Key();
             h = h * 31u + static_cast<u64>(colorOverride);
             return h;
         }
 
-        rhi::RenderPipeline* Build(const PipelineConfig& config, rhi::PipelineLayout* layout,
+        rhi::RenderPipelineHandle Build(const PipelineConfig& config, rhi::PipelineLayoutHandle layout,
                                    rhi::TextureFormat colorOverride)
         {
             ++m_builds;
-            rhi::ShaderModule* vs = m_shaders->GetVariant(
+            rhi::ShaderModuleHandle vs = m_shaders->GetVariant(
                 config.shaderName, shaders::ShaderStage::Vertex, config.shaderFlags);
-            if (vs == nullptr)
+            if (!vs.IsValid())
             {
-                return nullptr;
+                return {};
             }
 
             rhi::RenderPipelineDesc desc{};
@@ -247,11 +247,11 @@ export namespace foundation::materials
             rhi::ColorTargetState colorTargets[rhi::MaxColorAttachments] = {};
             if (!config.depthOnly)
             {
-                rhi::ShaderModule* fs = m_shaders->GetVariant(
+                rhi::ShaderModuleHandle fs = m_shaders->GetVariant(
                     config.shaderName, shaders::ShaderStage::Fragment, config.shaderFlags);
-                if (fs == nullptr)
+                if (!fs.IsValid())
                 {
-                    return nullptr;
+                    return {};
                 }
                 // Honor colorTargetCount as given, with no fallback to 1: 0 means a fragment that writes
                 // no color (the masked shadow pass: alpha-test discard and depth only).
@@ -303,10 +303,10 @@ export namespace foundation::materials
             // --- multisample ---
             desc.multisample.count = config.sampleCount;
 
-            rhi::RenderPipeline* pipeline = nullptr;
+            rhi::RenderPipelineHandle pipeline{};
             if (!m_device->CreateRenderPipeline(desc, pipeline).IsOk())
             {
-                return nullptr;
+                return {};
             }
             return pipeline;
         }

@@ -552,7 +552,7 @@ namespace foundation::render
     {
         for (u32 r = 0; r < kMultiMeshMaxFiF; ++r)
         {
-            if (set.instanceBG[r] != nullptr)
+            if (set.instanceBG[r].IsValid())
             {
                 if (m_retire != nullptr)
                 {
@@ -562,10 +562,10 @@ namespace foundation::render
                 {
                     m_device->DestroyBindGroup(set.instanceBG[r]);
                 }
-                set.instanceBG[r] = nullptr;
+                set.instanceBG[r] = {};
             }
         }
-        set.activeInstanceBG = nullptr;
+        set.activeInstanceBG = {};
         RetireOrDrainBuffer(set.instanceBuf);
         RetireOrDrainBuffer(set.offsetsBuf);
         RetireOrDrainBuffer(set.pickOffsetsBuf);
@@ -737,13 +737,13 @@ namespace foundation::render
             // An in-flight frame may still reference the old buffer and bind groups: retire
             // when wired (web-safe), otherwise drain once for the whole replacement.
             if (m_retire == nullptr &&
-                (set->instanceBuf.IsValid() || set->instanceBG[0] != nullptr))
+                (set->instanceBuf.IsValid() || set->instanceBG[0].IsValid()))
             {
                 m_device->WaitIdle();
             }
             for (u32 r = 0; r < kMultiMeshMaxFiF; ++r)
             {
-                if (set->instanceBG[r] != nullptr)
+                if (set->instanceBG[r].IsValid())
                 {
                     if (m_retire != nullptr)
                     {
@@ -753,7 +753,7 @@ namespace foundation::render
                     {
                         m_device->DestroyBindGroup(set->instanceBG[r]);
                     }
-                    set->instanceBG[r] = nullptr;
+                    set->instanceBG[r] = {};
                 }
             }
             if (set->instanceBuf.IsValid())
@@ -813,7 +813,7 @@ namespace foundation::render
                 bgd.entries = Span<const rhi::BindGroupEntry>{be, 2};
                 if (!m_device->CreateBindGroup(bgd, set->instanceBG[r]).IsOk())
                 {
-                    set->instanceBG[r] = nullptr;
+                    set->instanceBG[r] = {};
                     ok = false;
                     break;
                 }
@@ -822,10 +822,10 @@ namespace foundation::render
             {
                 for (u32 r = 0; r < kMultiMeshMaxFiF; ++r)
                 {
-                    if (set->instanceBG[r] != nullptr)
+                    if (set->instanceBG[r].IsValid())
                     {
                         m_device->DestroyBindGroup(set->instanceBG[r]);
-                        set->instanceBG[r] = nullptr;
+                        set->instanceBG[r] = {};
                     }
                 }
                 m_device->DestroyBuffer(set->instanceBuf);
@@ -1101,7 +1101,7 @@ namespace foundation::render
         // two pipeline layouts share set 0 (m_viewLayout), so the resolved binding is the same.
         // The clustered light lists for this view (set 3). An empty binding gets the dummy and
         // ClusterGridX=0, which makes the shader fall back to looping all lights.
-        rhi::BindGroup* clusterBG = m_dummyClusterBG;
+        rhi::BindGroupHandle clusterBG = m_dummyClusterBG;
         if (ctx.cluster.Valid() && lightCount > 0) // no lights uploaded: the binned indices name none
         {
             // Per-(view, frame) slot: two views in one frame have different cluster buffers and
@@ -1394,7 +1394,7 @@ namespace foundation::render
     }
 
     void MeshRenderer::ResolveSingle(const RenderRecordContext& ctx, u32 viewOffset,
-                                     rhi::BindGroup* clusterBG, const MeshRenderData& md,
+                                     rhi::BindGroupHandle clusterBG, const MeshRenderData& md,
                                      const GpuMesh& mesh, Array<ResolvedDraw>& out)
     {
         materials::Material* mat = (md.material != nullptr) ? md.material : m_defaultMaterial.Get();
@@ -1462,15 +1462,15 @@ namespace foundation::render
         const auto emit = [&](materials::Material* m, u32 slot, u64 indexOffset, u32 indexCount)
         {
             materials::Material* use = (m != nullptr) ? m : mat;
-            rhi::BindGroupLayout* set2 = m_materials->GetOrCreateLayout(*use);
-            rhi::PipelineLayout* plLayout = GetOrCreatePipelineLayout(set2, /*instanced*/ false);
-            if (plLayout == nullptr)
+            rhi::BindGroupLayoutHandle set2 = m_materials->GetOrCreateLayout(*use);
+            rhi::PipelineLayoutHandle plLayout = GetOrCreatePipelineLayout(set2, /*instanced*/ false);
+            if (!plLayout.IsValid())
             {
                 return;
             }
             const materials::PipelineConfig own = SlotConfigFor(md, config, m, ctx, /*instanced*/ false, skinned);
-            rhi::RenderPipeline* pso = m_psoCache->GetPipeline(own, plLayout, ctx.colorFormat);
-            if (pso == nullptr)
+            rhi::RenderPipelineHandle pso = m_psoCache->GetPipeline(own, plLayout, ctx.colorFormat);
+            if (!pso.IsValid())
             {
                 return;
             }
@@ -1518,7 +1518,7 @@ namespace foundation::render
     }
 
     void MeshRenderer::ResolveInstanced(const RenderRecordContext& ctx, u32 viewOffset,
-                                        rhi::BindGroup* clusterBG, Span<const DrawItem> items,
+                                        rhi::BindGroupHandle clusterBG, Span<const DrawItem> items,
                                         usize first, u32 count, const MeshRenderData& head,
                                         const GpuMesh& mesh, Array<ResolvedDraw>& out)
     {
@@ -1607,15 +1607,15 @@ namespace foundation::render
         const auto emit = [&](materials::Material* m, u64 indexOffset, u32 indexCount)
         {
             materials::Material* use = (m != nullptr) ? m : mat;
-            rhi::BindGroupLayout* set2 = m_materials->GetOrCreateLayout(*use);
-            rhi::PipelineLayout* plLayout = GetOrCreatePipelineLayout(set2, /*instanced*/ true);
-            if (plLayout == nullptr)
+            rhi::BindGroupLayoutHandle set2 = m_materials->GetOrCreateLayout(*use);
+            rhi::PipelineLayoutHandle plLayout = GetOrCreatePipelineLayout(set2, /*instanced*/ true);
+            if (!plLayout.IsValid())
             {
                 return;
             }
             const materials::PipelineConfig own = SlotConfigFor(head, config, m, ctx, /*instanced*/ true, skinned);
-            rhi::RenderPipeline* pso = m_psoCache->GetPipeline(own, plLayout, ctx.colorFormat);
-            if (pso == nullptr)
+            rhi::RenderPipelineHandle pso = m_psoCache->GetPipeline(own, plLayout, ctx.colorFormat);
+            if (!pso.IsValid())
             {
                 return;
             }
@@ -1813,11 +1813,11 @@ namespace foundation::render
     }
 
     void MeshRenderer::ResolveMultiMesh(const RenderRecordContext& ctx, u32 viewOffset,
-                                        rhi::BindGroup* clusterBG, const MultiMeshRenderData& mm,
+                                        rhi::BindGroupHandle clusterBG, const MultiMeshRenderData& mm,
                                         const GpuMesh& mesh, Array<ResolvedDraw>& out)
     {
         const MultiMeshSet* set = m_multiMeshSets.Find(mm.key);
-        if (set == nullptr || set->activeInstanceBG == nullptr || set->count == 0)
+        if (set == nullptr || !set->activeInstanceBG.IsValid() || set->count == 0)
         {
             return;
         }
@@ -1866,15 +1866,15 @@ namespace foundation::render
         const auto emit = [&](materials::Material* m, u64 indexOffset, u32 indexCount)
         {
             materials::Material* use = (m != nullptr) ? m : mat;
-            rhi::BindGroupLayout* set2 = m_materials->GetOrCreateLayout(*use);
-            rhi::PipelineLayout* plLayout = GetOrCreatePipelineLayout(set2, /*instanced*/ true);
-            if (plLayout == nullptr)
+            rhi::BindGroupLayoutHandle set2 = m_materials->GetOrCreateLayout(*use);
+            rhi::PipelineLayoutHandle plLayout = GetOrCreatePipelineLayout(set2, /*instanced*/ true);
+            if (!plLayout.IsValid())
             {
                 return;
             }
             const materials::PipelineConfig own = SlotConfigFor(mm, config, m, ctx, /*instanced*/ true, skinned);
-            rhi::RenderPipeline* pso = m_psoCache->GetPipeline(own, plLayout, ctx.colorFormat);
-            if (pso == nullptr)
+            rhi::RenderPipelineHandle pso = m_psoCache->GetPipeline(own, plLayout, ctx.colorFormat);
+            if (!pso.IsValid())
             {
                 return;
             }
@@ -1922,7 +1922,7 @@ namespace foundation::render
                                              Array<ResolvedDraw>& out, bool pick)
     {
         const MultiMeshSet* set = m_multiMeshSets.Find(mm.key);
-        if (set == nullptr || set->activeInstanceBG == nullptr || set->count == 0)
+        if (set == nullptr || !set->activeInstanceBG.IsValid() || set->count == 0)
         {
             return;
         }
@@ -2067,12 +2067,12 @@ namespace foundation::render
         const auto skin = [skinned, depthStream, pick, &usesDepthStream](materials::PipelineConfig& c)
         { usesDepthStream = ChooseDepthLikeStream(c, skinned, depthStream, pick); };
         skin(config);
-        rhi::PipelineLayout* const plain = instanced ? m_shadowPipelineLayoutInstanced : m_shadowPipelineLayoutSingle;
-        rhi::PipelineLayout* layout = plain;
-        rhi::BindGroup* matSet = nullptr;
+        rhi::PipelineLayoutHandle const plain = instanced ? m_shadowPipelineLayoutInstanced : m_shadowPipelineLayoutSingle;
+        rhi::PipelineLayoutHandle layout = plain;
+        rhi::BindGroupHandle matSet{};
         if (choice.materialSet && material != nullptr)
         {
-            rhi::BindGroupLayout* set2 = m_materials->GetOrCreateLayout(*material);
+            rhi::BindGroupLayoutHandle set2 = m_materials->GetOrCreateLayout(*material);
             layout = GetOrCreateShadowMaskedLayout(set2, instanced);
             materials::MaterialInstance* const instance = InstanceFor(material);
             matSet = m_materials->PrepareInstance(*instance, set2);
@@ -2083,19 +2083,19 @@ namespace foundation::render
             {
                 d.alphaThreshold = CutoutThreshold(*instance);
             }
-            if (layout == nullptr)
+            if (!layout.IsValid())
             {
                 // No layout over the material's set: the built-in program, without it.
                 layout = plain;
-                matSet = nullptr;
+                matSet = {};
                 d.alphaThreshold = -1.0f;
                 config = pick ? PickConfigFor(ctx, instanced, false) : ShadowConfigFor(ctx, instanced, false);
                 skin(config);
             }
         }
-        rhi::RenderPipeline* pso = m_psoCache->GetPipeline(
+        rhi::RenderPipelineHandle pso = m_psoCache->GetPipeline(
             config, layout, pick ? ctx.colorFormat : rhi::TextureFormat::Undefined);
-        if (pso == nullptr)
+        if (!pso.IsValid())
             return false;
         d.pso = pso;
         d.materialSet = matSet; // set 2: the material (a cut-out, wind, or its own program)
@@ -2347,64 +2347,64 @@ namespace foundation::render
     }
 
     bool MeshRenderer::MakeLayout(const rhi::BindGroupLayoutEntry& entry,
-                                  rhi::BindGroupLayout*& out)
+                                  rhi::BindGroupLayoutHandle& out)
     {
         rhi::BindGroupLayoutDesc ld{};
         ld.entries = Span<const rhi::BindGroupLayoutEntry>{&entry, 1};
         return m_device->CreateBindGroupLayout(ld, out).IsOk();
     }
 
-    bool MeshRenderer::MakePipelineLayout(rhi::BindGroupLayout* set0, rhi::BindGroupLayout* set1,
-                                          rhi::BindGroupLayout* set2, rhi::BindGroupLayout* set3,
-                                          rhi::PipelineLayout*& out)
+    bool MeshRenderer::MakePipelineLayout(rhi::BindGroupLayoutHandle set0, rhi::BindGroupLayoutHandle set1,
+                                          rhi::BindGroupLayoutHandle set2, rhi::BindGroupLayoutHandle set3,
+                                          rhi::PipelineLayoutHandle& out)
     {
-        rhi::BindGroupLayout* layouts[] = {set0, set1, set2, set3};
+        rhi::BindGroupLayoutHandle layouts[] = {set0, set1, set2, set3};
         rhi::PipelineLayoutDesc pld{};
-        pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{layouts, 4};
+        pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{layouts, 4};
         return m_device->CreatePipelineLayout(pld, out).IsOk();
     }
 
-    bool MeshRenderer::MakePipelineLayout(rhi::BindGroupLayout* set0, rhi::BindGroupLayout* set1,
-                                          rhi::PipelineLayout*& out)
+    bool MeshRenderer::MakePipelineLayout(rhi::BindGroupLayoutHandle set0, rhi::BindGroupLayoutHandle set1,
+                                          rhi::PipelineLayoutHandle& out)
     {
-        rhi::BindGroupLayout* layouts[] = {set0, set1};
+        rhi::BindGroupLayoutHandle layouts[] = {set0, set1};
         rhi::PipelineLayoutDesc pld{};
-        pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{layouts, 2};
+        pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{layouts, 2};
         return m_device->CreatePipelineLayout(pld, out).IsOk();
     }
 
-    bool MeshRenderer::MakePipelineLayout3(rhi::BindGroupLayout* set0, rhi::BindGroupLayout* set1,
-                                           rhi::BindGroupLayout* set2, rhi::PipelineLayout*& out)
+    bool MeshRenderer::MakePipelineLayout3(rhi::BindGroupLayoutHandle set0, rhi::BindGroupLayoutHandle set1,
+                                           rhi::BindGroupLayoutHandle set2, rhi::PipelineLayoutHandle& out)
     {
-        rhi::BindGroupLayout* layouts[] = {set0, set1, set2};
+        rhi::BindGroupLayoutHandle layouts[] = {set0, set1, set2};
         rhi::PipelineLayoutDesc pld{};
-        pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{layouts, 3};
+        pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{layouts, 3};
         return m_device->CreatePipelineLayout(pld, out).IsOk();
     }
 
-    rhi::PipelineLayout* MeshRenderer::GetOrCreateShadowMaskedLayout(rhi::BindGroupLayout* set2,
+    rhi::PipelineLayoutHandle MeshRenderer::GetOrCreateShadowMaskedLayout(rhi::BindGroupLayoutHandle set2,
                                                                      bool instanced)
     {
-        const u64 key = (reinterpret_cast<u64>(set2) * 2u) + (instanced ? 1u : 0u);
-        if (rhi::PipelineLayout** cached = m_shadowMaskedLayouts.Find(key))
+        const u64 key = (set2.Key() * 2u) + (instanced ? 1u : 0u);
+        if (rhi::PipelineLayoutHandle* cached = m_shadowMaskedLayouts.Find(key))
         {
             return *cached;
         }
-        rhi::BindGroupLayout* set1 = instanced ? m_instanceLayout : m_objectLayout;
+        rhi::BindGroupLayoutHandle set1 = instanced ? m_instanceLayout : m_objectLayout;
         // The built-in programs' cut-out threshold (GpuCutoutPush) is the fragment's push block; a
         // material's own program ignores it.
-        rhi::BindGroupLayout* layouts[] = {m_shadowViewLayout, set1, set2};
+        rhi::BindGroupLayoutHandle layouts[] = {m_shadowViewLayout, set1, set2};
         rhi::PushConstantRange cutout{};
         cutout.stages = rhi::ShaderStage::Fragment;
         cutout.offset = 0;
         cutout.size = sizeof(GpuCutoutPush);
         rhi::PipelineLayoutDesc pld{};
-        pld.bindGroupLayouts = Span<rhi::BindGroupLayout* const>{layouts, 3};
+        pld.bindGroupLayouts = Span<rhi::BindGroupLayoutHandle const>{layouts, 3};
         pld.pushConstantRanges = Span<const rhi::PushConstantRange>{&cutout, 1};
-        rhi::PipelineLayout* layout = nullptr;
+        rhi::PipelineLayoutHandle layout{};
         if (!m_device->CreatePipelineLayout(pld, layout).IsOk())
         {
-            return nullptr;
+            return {};
         }
         m_shadowMaskedLayouts.InsertOrAssign(key, layout);
         return layout;
@@ -2565,33 +2565,33 @@ namespace foundation::render
         return flags;
     }
 
-    rhi::BindGroup* MeshRenderer::MaterialBindGroup(materials::Material* material)
+    rhi::BindGroupHandle MeshRenderer::MaterialBindGroup(materials::Material* material)
     {
-        rhi::BindGroupLayout* layout = m_materials->GetOrCreateLayout(*material);
+        rhi::BindGroupLayoutHandle layout = m_materials->GetOrCreateLayout(*material);
         return m_materials->PrepareInstance(*InstanceFor(material), layout);
     }
 
-    rhi::PipelineLayout* MeshRenderer::GetOrCreatePipelineLayout(rhi::BindGroupLayout* set2,
+    rhi::PipelineLayoutHandle MeshRenderer::GetOrCreatePipelineLayout(rhi::BindGroupLayoutHandle set2,
                                                                  bool instanced)
     {
-        const u64 key = (reinterpret_cast<u64>(set2) * 2u) + (instanced ? 1u : 0u);
-        if (rhi::PipelineLayout** cached = m_pipelineLayouts.Find(key))
+        const u64 key = (set2.Key() * 2u) + (instanced ? 1u : 0u);
+        if (rhi::PipelineLayoutHandle* cached = m_pipelineLayouts.Find(key))
         {
             return *cached;
         }
-        rhi::BindGroupLayout* set1 = instanced ? m_instanceLayout : m_objectLayout;
-        rhi::PipelineLayout* layout = nullptr;
+        rhi::BindGroupLayoutHandle set1 = instanced ? m_instanceLayout : m_objectLayout;
+        rhi::PipelineLayoutHandle layout{};
         if (!MakePipelineLayout(m_viewLayout, set1, set2, m_clusterLayout, layout))
         {
-            return nullptr;
+            return {};
         }
         m_pipelineLayouts.InsertOrAssign(key, layout);
         return layout;
     }
 
-    void MeshRenderer::RetireBindGroup(rhi::BindGroup* bg)
+    void MeshRenderer::RetireBindGroup(rhi::BindGroupHandle bg)
     {
-        if (bg != nullptr)
+        if (bg.IsValid())
         {
             m_retiredBGs.PushBack(RetiredBG{bg, m_framesInFlight});
         }
@@ -2663,16 +2663,16 @@ namespace foundation::render
         }
     }
 
-    bool MeshRenderer::EnsureBindGroup(DynamicUniformRing& ring, rhi::BindGroupLayout* layout,
-                                       u64 bindSize, rhi::BindGroup*& bg, u32& bgGen, bool whole,
+    bool MeshRenderer::EnsureBindGroup(DynamicUniformRing& ring, rhi::BindGroupLayoutHandle layout,
+                                       u64 bindSize, rhi::BindGroupHandle& bg, u32& bgGen, bool whole,
                                        rhi::BufferHandle secondUniform)
     {
-        if (bg != nullptr && bgGen == ring.Generation())
+        if (bg.IsValid() && bgGen == ring.Generation())
         {
             return true;
         }
         RetireBindGroup(bg);
-        bg = nullptr;
+        bg = {};
         rhi::BufferHandle buffer = ring.Buffer();
         if (!buffer.IsValid())
         {
@@ -2688,7 +2688,7 @@ namespace foundation::render
         bgd.entries = Span<const rhi::BindGroupEntry>{be, secondUniform.IsValid() ? 2u : 1u};
         if (!m_device->CreateBindGroup(bgd, bg).IsOk())
         {
-            bg = nullptr;
+            bg = {};
             return false;
         }
         bgGen = ring.Generation();
@@ -2726,7 +2726,7 @@ namespace foundation::render
             m_viewBGs.Resize(ctx.viewIndex + 1u);
         }
         ViewBGSlot& slot = m_viewBGs[ctx.viewIndex];
-        if (slot.bg != nullptr && slot.viewGen == m_viewRing.Generation() &&
+        if (slot.bg.IsValid() && slot.viewGen == m_viewRing.Generation() &&
             slot.lightGen == m_lightRing.Generation() && slot.shadow == m_activeShadowView &&
             slot.shadowGen == m_activeShadowGen && slot.atlas == m_activeAtlasView &&
             slot.atlasGen == m_activeAtlasGen && slot.localGen == m_localShadowRing.Generation() &&
@@ -2738,8 +2738,8 @@ namespace foundation::render
             return true;
         }
         RetireBindGroup(slot.bg);
-        slot.bg = nullptr;
-        m_viewBG = nullptr;
+        slot.bg = {};
+        m_viewBG = {};
         rhi::BufferHandle viewBuf = m_viewRing.Buffer();
         rhi::BufferHandle lightBuf = m_lightRing.Buffer();
         rhi::BufferHandle localBuf = m_localShadowRing.Buffer();
@@ -2774,7 +2774,7 @@ namespace foundation::render
         bgd.entries = Span<const rhi::BindGroupEntry>{entries, 13};
         if (!m_device->CreateBindGroup(bgd, slot.bg).IsOk())
         {
-            slot.bg = nullptr;
+            slot.bg = {};
             return false;
         }
         slot.viewGen = m_viewRing.Generation();
@@ -2959,13 +2959,13 @@ namespace foundation::render
 
     bool MeshRenderer::EnsureShadowViewBindGroup()
     {
-        if (m_shadowViewBG != nullptr && m_shadowViewBGGen == m_shadowViewRing.Generation() &&
+        if (m_shadowViewBG.IsValid() && m_shadowViewBGGen == m_shadowViewRing.Generation() &&
             m_shadowViewBGBoneGen == m_boneDeviceGen)
         {
             return true;
         }
         RetireBindGroup(m_shadowViewBG);
-        m_shadowViewBG = nullptr;
+        m_shadowViewBG = {};
         rhi::BufferHandle buf = m_shadowViewRing.Buffer();
         rhi::BufferHandle boneBuf = m_boneDevice; // shared device mirror (same as the forward set 0)
         if (!buf.IsValid() || !boneBuf.IsValid())
@@ -2985,7 +2985,7 @@ namespace foundation::render
         bgd.entries = Span<const rhi::BindGroupEntry>{be, 2};
         if (!m_device->CreateBindGroup(bgd, m_shadowViewBG).IsOk())
         {
-            m_shadowViewBG = nullptr;
+            m_shadowViewBG = {};
             return false;
         }
         m_shadowViewBGGen = m_shadowViewRing.Generation();
@@ -3045,7 +3045,7 @@ namespace foundation::render
         return Status{};
     }
 
-    rhi::BindGroup* MeshRenderer::EnsureClusterBindGroup(u32 viewIndex, u32 frameIndex,
+    rhi::BindGroupHandle MeshRenderer::EnsureClusterBindGroup(u32 viewIndex, u32 frameIndex,
                                                          rhi::BufferHandle offsets, rhi::BufferHandle indices,
                                                          u32 version)
     {
@@ -3054,14 +3054,14 @@ namespace foundation::render
             return m_dummyClusterBG;
         }
         ClusterSlot& slot = m_clusterSlots.At(viewIndex, frameIndex);
-        if (slot.group != nullptr && slot.offsets == offsets && slot.version == version)
+        if (slot.group.IsValid() && slot.offsets == offsets && slot.version == version)
         {
             return slot.group;
         }
-        if (slot.group != nullptr)
+        if (slot.group.IsValid())
         {
             m_device->DestroyBindGroup(slot.group);
-            slot.group = nullptr;
+            slot.group = {};
         }
         rhi::BindGroupEntry entries[] = {
             rhi::BindGroupEntry::BufferEntry(offsets, 0, m_device->Describe(offsets)->size),
@@ -3072,7 +3072,7 @@ namespace foundation::render
         bgd.entries = Span<const rhi::BindGroupEntry>{entries, 2};
         if (!m_device->CreateBindGroup(bgd, slot.group).IsOk())
         {
-            slot.group = nullptr;
+            slot.group = {};
             return m_dummyClusterBG;
         }
         slot.offsets = offsets;
@@ -3101,18 +3101,18 @@ namespace foundation::render
         m_retiredBuffers.Clear();
         for (ViewBGSlot& slot : m_viewBGs)
         {
-            if (slot.bg != nullptr)
+            if (slot.bg.IsValid())
             {
                 m_device->DestroyBindGroup(slot.bg);
-                slot.bg = nullptr;
+                slot.bg = {};
             }
         }
         m_viewBGs.Clear();
-        m_viewBG = nullptr; // borrowed from a slot, already destroyed above
+        m_viewBG = {}; // borrowed from a slot, already destroyed above
         if (m_shadowViewBG)
         {
             m_device->DestroyBindGroup(m_shadowViewBG);
-            m_shadowViewBG = nullptr;
+            m_shadowViewBG = {};
         }
         if (m_boneDevice)
         {
@@ -3193,7 +3193,7 @@ namespace foundation::render
         if (m_objectBG)
         {
             m_device->DestroyBindGroup(m_objectBG);
-            m_objectBG = nullptr;
+            m_objectBG = {};
         }
         if (m_noFadeSetBuf)
         {
@@ -3203,14 +3203,14 @@ namespace foundation::render
         if (m_instanceBG)
         {
             m_device->DestroyBindGroup(m_instanceBG);
-            m_instanceBG = nullptr;
+            m_instanceBG = {};
         }
         // MultiMesh persistent per-set buffers and bind groups, and the shared ramp.
         for (auto& kv : m_multiMeshSets)
         {
             for (u32 r = 0; r < kMultiMeshMaxFiF; ++r)
             {
-                if (kv.value.instanceBG[r] != nullptr)
+                if (kv.value.instanceBG[r].IsValid())
                 {
                     m_device->DestroyBindGroup(kv.value.instanceBG[r]);
                 }
@@ -3246,7 +3246,7 @@ namespace foundation::render
         }
         for (ClusterSlot& slot : m_clusterSlots.All())
         {
-            if (slot.group != nullptr)
+            if (slot.group.IsValid())
             {
                 m_device->DestroyBindGroup(slot.group);
             }
@@ -3255,7 +3255,7 @@ namespace foundation::render
         if (m_dummyClusterBG)
         {
             m_device->DestroyBindGroup(m_dummyClusterBG);
-            m_dummyClusterBG = nullptr;
+            m_dummyClusterBG = {};
         }
         if (m_dummyClusterOffsets)
         {
@@ -3269,7 +3269,7 @@ namespace foundation::render
         }
         for (auto& kv : m_pipelineLayouts)
         {
-            if (kv.value != nullptr)
+            if (kv.value.IsValid())
             {
                 m_device->DestroyPipelineLayout(kv.value);
             }
@@ -3277,7 +3277,7 @@ namespace foundation::render
         m_pipelineLayouts.Clear();
         for (auto& kv : m_shadowMaskedLayouts)
         {
-            if (kv.value != nullptr)
+            if (kv.value.IsValid())
             {
                 m_device->DestroyPipelineLayout(kv.value);
             }
@@ -3286,37 +3286,37 @@ namespace foundation::render
         if (m_shadowPipelineLayoutSingle)
         {
             m_device->DestroyPipelineLayout(m_shadowPipelineLayoutSingle);
-            m_shadowPipelineLayoutSingle = nullptr;
+            m_shadowPipelineLayoutSingle = {};
         }
         if (m_shadowPipelineLayoutInstanced)
         {
             m_device->DestroyPipelineLayout(m_shadowPipelineLayoutInstanced);
-            m_shadowPipelineLayoutInstanced = nullptr;
+            m_shadowPipelineLayoutInstanced = {};
         }
         if (m_viewLayout)
         {
             m_device->DestroyBindGroupLayout(m_viewLayout);
-            m_viewLayout = nullptr;
+            m_viewLayout = {};
         }
         if (m_objectLayout)
         {
             m_device->DestroyBindGroupLayout(m_objectLayout);
-            m_objectLayout = nullptr;
+            m_objectLayout = {};
         }
         if (m_instanceLayout)
         {
             m_device->DestroyBindGroupLayout(m_instanceLayout);
-            m_instanceLayout = nullptr;
+            m_instanceLayout = {};
         }
         if (m_clusterLayout)
         {
             m_device->DestroyBindGroupLayout(m_clusterLayout);
-            m_clusterLayout = nullptr;
+            m_clusterLayout = {};
         }
         if (m_shadowViewLayout)
         {
             m_device->DestroyBindGroupLayout(m_shadowViewLayout);
-            m_shadowViewLayout = nullptr;
+            m_shadowViewLayout = {};
         }
         // rings free their buffers in their destructors (m_device still valid after this).
     }

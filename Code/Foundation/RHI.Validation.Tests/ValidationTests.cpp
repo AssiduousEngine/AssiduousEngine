@@ -264,13 +264,13 @@ TEST_CASE("rhi.validation: a pipeline stage with no entry point anywhere is refu
     named.entryPoint = u8"VSMain";
     ShaderModuleDesc unnamed{};
     unnamed.code = Span<const u8>(code, 4);
-    ShaderModule* withEntry = nullptr;
-    ShaderModule* withoutEntry = nullptr;
+    ShaderModuleHandle withEntry{};
+    ShaderModuleHandle withoutEntry{};
     REQUIRE(device->CreateShaderModule(named, withEntry).IsOk());
     REQUIRE(device->CreateShaderModule(unnamed, withoutEntry).IsOk());
-    CHECK(withEntry->entryPoint.AsView() == StringView(u8"VSMain"));
+    CHECK(device->EntryPointOf(withEntry) == StringView(u8"VSMain"));
 
-    PipelineLayout* layout = nullptr;
+    PipelineLayoutHandle layout{};
     REQUIRE(device->CreatePipelineLayout(PipelineLayoutDesc{}, layout).IsOk());
 
     const auto build = [&](ProgrammableStage stage) -> bool
@@ -278,9 +278,9 @@ TEST_CASE("rhi.validation: a pipeline stage with no entry point anywhere is refu
         RenderPipelineDesc desc{};
         desc.layout = layout;
         desc.vertex.shader = stage;
-        RenderPipeline* pipeline = nullptr;
+        RenderPipelineHandle pipeline{};
         const bool ok = device->CreateRenderPipeline(desc, pipeline).IsOk();
-        if (pipeline != nullptr)
+        if (pipeline.IsValid())
         {
             device->DestroyRenderPipeline(pipeline);
         }
@@ -318,10 +318,10 @@ TEST_CASE("rhi.validation: pipeline statistics queries are one at a time, on a s
     QuerySetDesc qd{};
     qd.type = QueryType::PipelineStatistics;
     qd.count = 2;
-    QuerySet* stats = nullptr;
+    QuerySetHandle stats{};
     REQUIRE(device->CreateQuerySet(qd, stats).IsOk());
     qd.type = QueryType::Timestamp;
-    QuerySet* timestamps = nullptr;
+    QuerySetHandle timestamps{};
     REQUIRE(device->CreateQuerySet(qd, timestamps).IsOk());
     CommandPool* pool = nullptr;
     REQUIRE(device->CreateCommandPool(QueueType::Graphics, pool).IsOk());
@@ -473,6 +473,52 @@ TEST_CASE("rhi.validation: a swapchain's frame is submitted with SubmitFrame, an
     device->DestroyFence(fence);
     device->DestroySwapChain(swap);
     device->DestroySurface(surface);
+    device->Destroy();
+    vb->Destroy();
+}
+
+TEST_CASE("rhi.validation: a destroyed bind group's handle used again is reported with its label")
+{
+    Backend* inner = nullptr;
+    REQUIRE(null::CreateNullBackend(inner).IsOk());
+    Backend* vb = validation::CreateValidatedBackend(inner, DefaultAllocator());
+    REQUIRE(vb != nullptr);
+    Device* device = nullptr;
+    REQUIRE(vb->EnumerateAdapters()[0]->CreateDevice(DeviceDesc{}, device).IsOk());
+
+    BindGroupLayoutDesc ld{};
+    ld.label = u8"stale.probe.layout";
+    BindGroupLayoutHandle layout{};
+    REQUIRE(device->CreateBindGroupLayout(ld, layout).IsOk());
+    BindGroupDesc gd{};
+    gd.layout = layout;
+    gd.label = u8"stale.probe.group";
+    BindGroupHandle group{};
+    REQUIRE(device->CreateBindGroup(gd, group).IsOk());
+    const BindGroupHandle kept = group;
+    device->DestroyBindGroup(group);
+
+    LineCapture capture;
+    capture.needle = "stale.probe.group";
+    SetLogSink(&LineCapture::Sink, &capture);
+    CHECK_FALSE(device->LayoutOf(kept).IsValid());
+    device->UpdateBindless(kept, Span<const BindlessUpdateEntry>{});
+    SetLogSink(nullptr, nullptr);
+    CHECK(capture.matching == 2); // each call, named
+
+    // A bind group made against a destroyed layout is refused, the layout named.
+    const BindGroupLayoutHandle keptLayout = layout;
+    device->DestroyBindGroupLayout(layout);
+    capture.matching = 0;
+    capture.needle = "stale.probe.layout";
+    SetLogSink(&LineCapture::Sink, &capture);
+    BindGroupDesc again{};
+    again.layout = keptLayout;
+    BindGroupHandle refused{};
+    CHECK_FALSE(device->CreateBindGroup(again, refused).IsOk());
+    SetLogSink(nullptr, nullptr);
+    CHECK(capture.matching == 1);
+
     device->Destroy();
     vb->Destroy();
 }

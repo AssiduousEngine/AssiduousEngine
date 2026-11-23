@@ -257,15 +257,15 @@ export namespace foundation::gui
             vg::renderer::VGTargetConfig config = targets ? data->Targets->ConfigFor() : vg::renderer::VGTargetConfig{};
             config.blendSpace = data->Encoded ? vg::VGBlendSpace::Encoded : vg::VGBlendSpace::Linear;
             if (!data->Renderer
-                     .Initialize(*m_device.Raw(), *m_shaders.Vertex, *m_shaders.Fragment, data->DrawFormat,
+                     .Initialize(*m_device.Raw(), m_shaders.Vertex, m_shaders.Fragment, data->DrawFormat,
                                  static_cast<i32>(m_device.FramesInFlight()), m_shaders.DistanceField, m_shaders.GradientRadial,
                                  m_shaders.GradientConic, config, m_shaders.BoxShadow, m_shaders.BoxVertex, m_shaders.BoxFragment,
                                  m_shaders.Layer, m_shaders.BlurVertex, m_shaders.BlurFragment)
                      .IsOk())
                 return;
-            data->Canvas->SetPerPixelGradients(m_shaders.GradientRadial != nullptr && m_shaders.GradientConic != nullptr);
-            data->Canvas->SetAnalyticBoxes(m_shaders.BoxVertex != nullptr && m_shaders.BoxFragment != nullptr);
-            data->Canvas->SetLayers(m_shaders.Layer != nullptr);
+            data->Canvas->SetPerPixelGradients(m_shaders.GradientRadial.IsValid() && m_shaders.GradientConic.IsValid());
+            data->Canvas->SetAnalyticBoxes(m_shaders.BoxVertex.IsValid() && m_shaders.BoxFragment.IsValid());
+            data->Canvas->SetLayers(m_shaders.Layer.IsValid());
             data->Canvas->SetStencilFills(data->Renderer.StencilFillsSupported());
 
             // The first window gives the baker its format, and every window samples the bakes.

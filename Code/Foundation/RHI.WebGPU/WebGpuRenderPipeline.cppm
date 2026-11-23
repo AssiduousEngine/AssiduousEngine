@@ -19,6 +19,7 @@ import :api;
 import :conversions;
 import :pipeline_layout;
 import :shader_module;
+import :tables;
 
 using namespace foundation::core;
 
@@ -27,11 +28,13 @@ export namespace foundation::rhi::webgpu
     class WebGpuRenderPipeline final : public RenderPipeline
     {
     public:
-        Status Initialize(const WebGpuApi& api, WGPUDevice device,
+        Status Initialize(const WebGpuApi& api, WGPUDevice device, const WebGpuTables* tables,
                           const RenderPipelineDesc& pipelineDesc)
         {
             m_api = &api;
-            if (pipelineDesc.layout == nullptr || pipelineDesc.vertex.shader.module == nullptr)
+            const WebGpuPipelineLayout* pipelineLayout = LookUp(tables, pipelineDesc.layout);
+            const WebGpuShaderModule* vertexModule = LookUp(tables, pipelineDesc.vertex.shader.module);
+            if (pipelineLayout == nullptr || vertexModule == nullptr)
             {
                 return ErrorCode::InvalidArgument;
             }
@@ -42,18 +45,16 @@ export namespace foundation::rhi::webgpu
 
             WGPURenderPipelineDescriptor wgpuDesc = WGPU_RENDER_PIPELINE_DESCRIPTOR_INIT;
             wgpuDesc.label = ToWgpuStringView(pipelineDesc.label);
-            auto* pipelineLayout = static_cast<WebGpuPipelineLayout*>(pipelineDesc.layout);
             wgpuDesc.layout = pipelineLayout->Handle();
             m_pushConstants = pipelineLayout->EmulationInfo();
 
             // ---- Vertex stage + buffers ----
-            String vertexEntry(EntryPointOf(pipelineDesc.vertex.shader));
+            String vertexEntry(EntryPointOf(pipelineDesc.vertex.shader, vertexModule));
             if (vertexEntry.IsEmpty())
             {
                 return ErrorCode::InvalidArgument; // no entry named by the stage or its module
             }
-            wgpuDesc.vertex.module =
-                static_cast<WebGpuShaderModule*>(pipelineDesc.vertex.shader.module)->Handle();
+            wgpuDesc.vertex.module = vertexModule->Handle();
             wgpuDesc.vertex.entryPoint = ToWgpuStringView(vertexEntry.AsView());
 
             Array<WGPUVertexBufferLayout> vertexBuffers;
@@ -142,13 +143,13 @@ export namespace foundation::rhi::webgpu
             if (pipelineDesc.fragment.HasValue())
             {
                 const FragmentState& fs = pipelineDesc.fragment.Value();
-                fragmentEntry = String(EntryPointOf(fs.shader));
-                if (fragmentEntry.IsEmpty())
+                const WebGpuShaderModule* fragmentModule = LookUp(tables, fs.shader.module);
+                fragmentEntry = String(EntryPointOf(fs.shader, fragmentModule));
+                if (fragmentModule == nullptr || fragmentEntry.IsEmpty())
                 {
                     return ErrorCode::InvalidArgument;
                 }
-                fragment.module =
-                    static_cast<WebGpuShaderModule*>(fs.shader.module)->Handle();
+                fragment.module = fragmentModule->Handle();
                 fragment.entryPoint = ToWgpuStringView(fragmentEntry.AsView());
 
                 // Reserve so blend pointers stay stable while targets fill.

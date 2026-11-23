@@ -222,7 +222,7 @@ namespace
 
         PipelineRecordingDevice() : rhi::null::NullDevice(DefaultAllocator()) {}
 
-        Status CreateRenderPipeline(const rhi::RenderPipelineDesc& desc, rhi::RenderPipeline*& out) override
+        Status CreateRenderPipeline(const rhi::RenderPipelineDesc& desc, rhi::RenderPipelineHandle& out) override
         {
             if (StringView(desc.label).StartsWith(StringView(u8"terrain")))
             {

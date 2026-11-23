@@ -68,15 +68,15 @@ export namespace foundation::gui
             config.blendSpace = space;
             const VgShaderSet& shaders = host.m_shaders;
             if (!m_renderer
-                     .Initialize(*device, *shaders.Vertex, *shaders.Fragment, format, 1, shaders.DistanceField, shaders.GradientRadial,
+                     .Initialize(*device, shaders.Vertex, shaders.Fragment, format, 1, shaders.DistanceField, shaders.GradientRadial,
                                  shaders.GradientConic, config, shaders.BoxShadow, shaders.BoxVertex, shaders.BoxFragment, shaders.Layer,
                                  shaders.BlurVertex, shaders.BlurFragment)
                      .IsOk())
                 return;
             m_canvas = MakeUnique<vg::VGContext>(allocator, host.m_fonts);
-            m_canvas->SetPerPixelGradients(shaders.GradientRadial != nullptr && shaders.GradientConic != nullptr);
-            m_canvas->SetAnalyticBoxes(shaders.BoxVertex != nullptr && shaders.BoxFragment != nullptr);
-            m_canvas->SetLayers(shaders.Layer != nullptr);
+            m_canvas->SetPerPixelGradients(shaders.GradientRadial.IsValid() && shaders.GradientConic.IsValid());
+            m_canvas->SetAnalyticBoxes(shaders.BoxVertex.IsValid() && shaders.BoxFragment.IsValid());
+            m_canvas->SetLayers(shaders.Layer.IsValid());
             m_canvas->SetStencilFills(m_renderer.StencilFillsSupported());
             if (host.EnsureBaker(format, space))
                 host.m_baker->AddTarget(m_renderer);

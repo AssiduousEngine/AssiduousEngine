@@ -14,6 +14,7 @@ import foundation.core;
 import foundation.rhi;
 import :pipeline_layout;
 import :shader_module;
+import :tables;
 
 using namespace foundation::core;
 
@@ -23,12 +24,12 @@ export namespace foundation::rhi::dx12
     class DxComputePipelineImpl : public ComputePipeline
     {
     public:
-        Status init(ID3D12Device* device, const ComputePipelineDesc& d)
+        Status init(ID3D12Device* device, const DxTables* tables, const ComputePipelineDesc& d)
         {
-            m_layout = static_cast<DxPipelineLayoutImpl*>(d.layout);
+            m_layout = LookUp(tables, d.layout);
             if (!m_layout)
                 return ErrorCode::Unknown;
-            auto* csMod = static_cast<DxShaderModuleImpl*>(d.compute.module);
+            auto* csMod = LookUp(tables, d.compute.module);
             if (!csMod)
                 return ErrorCode::Unknown;
 

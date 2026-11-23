@@ -83,26 +83,26 @@ export namespace foundation::render
         {
             if (buffer.IsValid())
             {
-                m_entries.PushBack(Entry{{}, {}, nullptr, buffer, m_age});
+                m_entries.PushBack(Entry{{}, {}, {}, buffer, m_age});
             }
         }
         void Retire(rhi::TextureHandle texture)
         {
             if (texture.IsValid())
             {
-                m_entries.PushBack(Entry{texture, {}, nullptr, {}, m_age});
+                m_entries.PushBack(Entry{texture, {}, {}, {}, m_age});
             }
         }
         void Retire(rhi::TextureViewHandle view)
         {
             if (view.IsValid())
             {
-                m_entries.PushBack(Entry{{}, view, nullptr, {}, m_age});
+                m_entries.PushBack(Entry{{}, view, {}, {}, m_age});
             }
         }
-        void Retire(rhi::BindGroup* bindGroup)
+        void Retire(rhi::BindGroupHandle bindGroup)
         {
-            if (bindGroup != nullptr)
+            if (bindGroup.IsValid())
             {
                 m_entries.PushBack(Entry{{}, {}, bindGroup, {}, m_age});
             }
@@ -151,7 +151,7 @@ export namespace foundation::render
         {
             rhi::TextureHandle texture{};
             rhi::TextureViewHandle view{};
-            rhi::BindGroup* bindGroup = nullptr;
+            rhi::BindGroupHandle bindGroup{};
             rhi::BufferHandle buffer{};
             i32 framesLeft = 0;
         };
@@ -167,7 +167,7 @@ export namespace foundation::render
             {
                 m_device->DestroyTexture(entry.texture);
             }
-            if (entry.bindGroup != nullptr)
+            if (entry.bindGroup.IsValid())
             {
                 m_device->DestroyBindGroup(entry.bindGroup);
             }

@@ -16,6 +16,7 @@ import :conversions;
 import :shader_module;
 import :pipeline_layout;
 import :pipeline_cache;
+import :tables;
 
 using namespace foundation::core;
 
@@ -25,16 +26,16 @@ export namespace foundation::rhi::vk
     class VkMeshPipelineImpl : public MeshPipeline
     {
     public:
-        Status init(VkDevice device, const MeshPipelineDesc& desc)
+        Status init(VkDevice device, const VkTables* tables, const MeshPipelineDesc& desc)
         {
-            auto* vkLayout = static_cast<VkPipelineLayoutImpl*>(desc.layout);
+            auto* vkLayout = LookUp(tables, desc.layout);
             if (!vkLayout)
                 return ErrorCode::Unknown;
             layout = desc.layout;
             m_layout = vkLayout;
 
             Array<VkPipelineShaderStageCreateInfo> stages;
-            String meshEntry = String(EntryPointOf(desc.mesh));
+            String meshEntry = String(EntryPointOf(desc.mesh, LookUp(tables, desc.mesh.module)));
             String taskEntry, fsEntry;
             if (meshEntry.IsEmpty())
                 return ErrorCode::InvalidArgument; // no entry named by the stage or its module
@@ -42,8 +43,8 @@ export namespace foundation::rhi::vk
             // Task shader (optional).
             if (desc.task.HasValue())
             {
-                taskEntry = String(EntryPointOf(*desc.task));
-                if (auto* mod = static_cast<VkShaderModuleImpl*>(desc.task->module))
+                taskEntry = String(EntryPointOf(*desc.task, LookUp(tables, desc.task->module)));
+                if (auto* mod = LookUp(tables, desc.task->module))
                 {
                     VkPipelineShaderStageCreateInfo s{};
                     s.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -55,7 +56,7 @@ export namespace foundation::rhi::vk
             }
 
             // Mesh shader (required).
-            auto* meshMod = static_cast<VkShaderModuleImpl*>(desc.mesh.module);
+            auto* meshMod = LookUp(tables, desc.mesh.module);
             if (!meshMod)
                 return ErrorCode::Unknown;
             {
@@ -70,8 +71,8 @@ export namespace foundation::rhi::vk
             // Fragment shader (optional).
             if (desc.fragment.HasValue())
             {
-                fsEntry = String(EntryPointOf(desc.fragment->shader));
-                if (auto* mod = static_cast<VkShaderModuleImpl*>(desc.fragment->shader.module))
+                fsEntry = String(EntryPointOf(desc.fragment->shader, LookUp(tables, desc.fragment->shader.module)));
+                if (auto* mod = LookUp(tables, desc.fragment->shader.module))
                 {
                     VkPipelineShaderStageCreateInfo s{};
                     s.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -208,8 +209,8 @@ export namespace foundation::rhi::vk
             pi.layout = vkLayout->handle();
 
             VkPipelineCache cacheHandle = VK_NULL_HANDLE;
-            if (desc.cache)
-                cacheHandle = static_cast<VkPipelineCacheImpl*>(desc.cache)->handle();
+            if (auto* cache = LookUp(tables, desc.cache))
+                cacheHandle = cache->handle();
 
             if (vkCreateGraphicsPipelines(device, cacheHandle, 1, &pi, nullptr, &m_pipeline) !=
                 VK_SUCCESS)
