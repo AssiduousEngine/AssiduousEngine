@@ -230,6 +230,9 @@ get a handle the crowd's wrapper maps to Detour's index, for the same reason. `B
 - **H6 - the other ids.** Physics joints and characters and navigation agents on Core handles;
   `RGHandle` and `VoiceHandle` moved onto them. Tests: an id kept past its removal does nothing
   when a new joint, character or agent took its slot.
+  As built: each is a `Handle<Tag>` from a HandlePool. The render graph keeps its dense resource
+  array (the compile walks it by slot) and the audio engine its fixed voice pool (stealing picks a
+  slot by priority); a pool beside each names the entries and checks a handle.
 
 Each phase runs the full lanes (clang, gcc, clang-shared, wasm and ASAN), and H1 and H4 are
 measured in `build/clang-reldbg` with the render stress sample against the commit before them:
