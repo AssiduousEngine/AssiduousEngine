@@ -5,6 +5,7 @@
 module;
 #include "Core/Prelude.h"
 #include "Core/Log/Log.h"
+#include "Profiler/Profiler.h"
 
 module foundation.render;
 
@@ -366,6 +367,7 @@ namespace foundation::render
 
     void MeshRenderer::UploadInstances(Span<const ExtractedScene* const> scenes, rhi::CommandEncoder& encoder)
     {
+        PROFILE_SCOPE("mesh.instances");
         m_instanceTable.BeginFrame(m_frameIndex);
         for (const ExtractedScene* scene : scenes)
         {
@@ -388,6 +390,7 @@ namespace foundation::render
             }
         }
         m_instanceTable.EndScenes();
+        PROFILE_SCOPE("mesh.instances.upload");
         m_instanceTable.Upload(encoder);
         (void)EnsureInstanceBindGroup();
     }
