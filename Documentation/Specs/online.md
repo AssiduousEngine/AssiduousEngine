@@ -1,6 +1,7 @@
 # Online
 
-> STATUS: PROPOSED 2026-11-04, for discussion. Sized L, in phases O0 to O6, green after each.
+> STATUS: PROPOSED 2026-11-04, refreshed 2026-11-22 against the code and the user's rulings of that
+> day (below), for discussion. Sized L, in phases O0 to O7, green after each.
 > Origin: the 0.1 release's last system (user, 2026-11-03): "Survey the reference engines", and
 > "the point here is not to copy one reference or the other. It is to come up with a suitable API
 > that fits our engine". Its first platform backend, Steam, is a plugin, which is why the plugin
@@ -27,24 +28,51 @@ purchases and stores, the platform's overlay UI, platforms other than Linux, Win
 3. **Not a copy of a reference**: an API that fits this engine.
 4. **Steam is a plugin**, the plugin API's first customer, on Linux64 and Win64.
 
-## What exists (checked)
+## Decided (user, 2026-11-22)
+
+5. **The Steam backend is a plugin whose dependency lives outside the tree.** The Steamworks SDK is
+   never in the repository; when a project enables the plugin, the SDK must be provided, and the
+   engine says so when it is not (Decision 8). The official export templates are built without it,
+   so they do not carry the plugin, and a project that enables it exports natively (Decision 7).
+6. **Achievement, stat, leaderboard and DLC ids are the game's, the same on every backend.** A
+   backend whose platform assigns its own ids may map them in its plugin settings (Decision 4).
+   Steam needs no map: its API names are chosen on Steam's side to match.
+7. **Play in editor uses the enabled backend plugin**, as it uses every other enabled plugin; Local
+   only when no plugin provides a backend (Decision 5).
+
+## What exists (checked 2026-11-22)
 
 - **The `Http` facade** (`Code/Foundation/Http.Script/HttpScript.cppm`): static methods on an
   `Object` type (`get`, `post`, `send`, `cancel`), each returning an id (0 when the run has no HTTP,
   its handler then never called), a handler `IScriptDelegate` called on the game's thread from the
   binding's `Pump`. The run holds an `HttpScriptBinding` among its services
-  (`ApplicationRun.cppm:340`, `Register<HttpScriptBinding>`); the facade finds it with
-  `script::CurrentService<T>()`, and the client is made on the first request. `Reset` drops every
-  request when the run's scripts stop.
+  (`Code/Engine/Engine.Run/ApplicationRun.cppm:344`, `Register<HttpScriptBinding>`); the facade
+  finds it with `script::CurrentService<T>()`, and the client is made on the first request. `Reset`
+  drops every request when the run's scripts stop.
 - **Provider slots in the plugin manifest**: `PluginManifest::provides`
   (`Code/Foundation/Runtime/PluginManifest.cppm:222`, "named slots, at most one enabled provider
-  each"), enforced by `PluginHost::Load`, first enabled wins, the other refused with both names
-  (`PluginHost.cppm`, the slot check). The host tests already use `online.backend` with two
-  providers.
-- **Per-platform enablement** of a plugin (an entry's `platforms`, X3), its typed settings, its
-  deploy files shipped beside the player (X6), and X7's rule: a platform service reaches scripts
-  through an engine facade with per-platform providers, so a script never names a plugin's facade
-  that a platform may lack.
+  each"), enforced as the host loads, the second provider refused with both names
+  (`PluginHost.cppm:297`). The host tests already use `online.backend` with two providers.
+- **What a plugin can do now**: be enabled per platform; carry typed settings
+  (`PluginContext::Settings<T>()`); add a domain (its script facade, run as it is added), scene
+  managers and per-run services (`EnginePluginServices::AddDomain`, `AddSceneManager`,
+  `AddRunService`); ship deploy files beside the player, each named in its manifest's platform
+  entry **relative to the package folder** (`StageDeployFiles`, `ExportImpl.cpp`). A platform
+  service reaches scripts through an engine facade with per-platform providers, so a script never
+  names a facade a platform may lack.
+- **A part that is not built is refused by name**: "its Engine part is not built" for a project's
+  package with no library, "is not in this build" for one the binary was linked without
+  (`PluginHost.cppm`, `MissingPart`).
+- **Native exports** (`ExportKind::Native`, `ExportImpl.cpp`): when the template does not carry an
+  enabled plugin, a template export is refused with the reason, and a native export builds the
+  game's own player from the engine checkout with the plugin linked in. The exporting machine needs
+  the checkout and the toolchain.
+- **Play in editor runs the enabled plugins**: the editor loads each enabled plugin's parts, and its
+  runs get their domains, scene managers and run services (Millbrook's dialogue runs in play in
+  editor).
+- **Outside tools named in Preferences**: the Android export's SDK and JDK are folders named on
+  Preferences' Export tab, else `ANDROID_HOME` and `JAVA_HOME`, checked before the export runs with
+  a message naming what is missing (`CheckAndroidExport`). The pattern Decision 8 follows.
 - **The `Save` facade** (`Code/Engine/Engine.Run/RunSave.cppm`, `Documentation/Shipping/
   Scripting.md`, "Saving"): typed values by key in one settings file the host names (the player
   in the user data directory, play in editor in the project's `Editor/` folder), written whole and
@@ -163,8 +191,11 @@ works from it (it knows the names and targets without a platform), the editor ed
 an agent writes it through the asset tools, and an id a call names that the definitions lack
 answers `notFound` in every backend, so a typo shows on Local before it reaches Steam.
 
-A platform backend maps the game's ids to its own: by default they are the same (Steam's API names
-are set to match on Steam's side), and a backend's plugin settings may map them where they cannot be.
+The game's ids are the same on every backend (ruling 6). A platform that lets the developer choose
+its ids (Steam's API names) is set up to match, and needs nothing more. A platform that assigns its
+own (Google Play Games, the consoles) cannot match, so its backend's plugin settings carry a map from
+the game's id to the platform's; an id the map lacks answers `notFound`, as one the definitions lack
+does. The game's scripts never see a platform's ids.
 
 ## Decision 5 - which backend, and a platform without one
 
@@ -176,9 +207,12 @@ are set to match on Steam's side), and a backend's plugin settings may map them 
   fallbacks and operations answer `offline`. It does not fall back to Local in a shipped player: a
   player whose achievements went to a local file would never see them on Steam. Steam's own client
   queues achievements earned offline once it started.
-- **Play in editor uses Local** by default, its state in the project's `Editor/` folder (as `Save`
-  keeps its own there), so testing never touches a real account; a project setting can let play in
-  editor use the platform backend instead, for a developer testing on Steam.
+- **Play in editor uses the enabled backend** (ruling 7): with the Steam plugin enabled and the
+  Steam client running, a play in editor run reaches the developer's Steam account, as a
+  development build started outside Steam does. With no backend plugin enabled it uses Local, its
+  state in the project's `Editor/` folder (as `Save` keeps its own there). A development reset
+  (clearing achievements and stats) is the editor's for either backend: Local clears its file,
+  Steam's backend calls `ResetAllStats` (`ISteamUserStats`; that it is fit for this is checked in O6).
 - The Local backend keeps its state in one file in the user data directory (in the browser's
   storage on the web): unlocked achievements, stats, a local table per leaderboard (the one user's
   scores), presence in memory, DLC owned as the definitions mark for development.
@@ -195,16 +229,41 @@ Steam's site, which a project can still choose instead, with the plugin's cloud 
 
 - `Code/Plugins/Steam` (`plugins.steam`, namespace `steam`): an Engine part providing
   `online.backend`, on Linux64 and Win64; its typed settings: the app id, whether to restart through
-  Steam, whether to sync the save file, the id map.
-- **The SDK is not in the repository** (its agreement grants no right to publish it). The build
-  finds it through `STEAMWORKS_SDK_DIR`; without it the plugin's part is not built, and a project
-  that enables it is told so (the host's "not built" refusal). The SDK's redistributable library is
-  staged beside the player as the plugin's deploy file for the platform. The plugin talks to the
-  flat C API (`steam_api_flat.h`) and starts with `SteamAPI_InitFlat`.
-- Callbacks and call results are dispatched by the plugin with the manual dispatch API from the
+  Steam, whether to sync the save file, and the id map (empty for Steam, Decision 4).
+- **The SDK is an outside dependency** (Decision 8; its agreement grants no right to publish it).
+  The plugin's manifest declares it, located by `STEAMWORKS_SDK_DIR` or the editor's Preferences.
+  Where it is provided, the plugin's part builds with the engine and the SDK's redistributable
+  library (`redistributable_bin/linux64/libsteam_api.so`, `redistributable_bin/win64/steam_api64.dll`)
+  is its deploy file for the platform. Where it is not, the part is not built, and a project that
+  enables the plugin is told which dependency is missing and where to name it.
+- **Exports are native.** The official templates are built by CI without the SDK, so they do not
+  carry the plugin; a project that enables it gets a native export, whose player the exporting
+  machine builds with the SDK provided. No secret holds the SDK.
+- The plugin talks to the flat C API (`steam_api_flat.h`) and starts with `SteamAPI_InitFlat`.
+  Callbacks and call results are dispatched by the plugin with the manual dispatch API from the
   subsystem's update, on the game's thread, so nothing of Steam's runs on a thread of its own.
-- `steam_appid.txt` is written for development runs only (a desktop dev player started outside
-  Steam), never into an export; a shipped player restarts through Steam when its setting says so.
+- **The app id for development runs** (play in editor, and a player started outside Steam) comes
+  from the plugin's settings, through `steam_appid.txt` beside the executable or the SDK's
+  environment variable, whichever the SDK in use honours; never in an export. A shipped player
+  restarts through Steam when its setting says so.
+
+## Decision 8 - a plugin's outside dependencies
+
+The plugin API gains what the Steam plugin needs, for any plugin whose dependency cannot live in
+the tree (a platform SDK under its own licence):
+
+- **The manifest declares them**: each outside dependency has an id, a name to show ("Steamworks
+  SDK"), the environment variable that locates it, and a file that must exist inside it, which is
+  how the engine knows the folder is the right one.
+- **Located as the Android SDK is**: a folder named in Preferences (an entry per dependency the
+  enabled plugins declare), else the environment variable.
+- **Checked where it matters**: enabling the plugin (in Project Settings or `plugin_enable`) reports
+  a missing dependency at once; building the project's plugins, starting play in editor and
+  exporting refuse with the dependency's name and where to name it, before any work. A plugin whose
+  dependencies are provided behaves as any other.
+- **Deploy files may come from a dependency**: a manifest's deploy entry may name a file inside a
+  dependency (`steamworks:redistributable_bin/linux64/libsteam_api.so`), resolved against its folder
+  when the export stages it, as a package-relative entry is resolved against the package.
 
 ## Phases
 
@@ -229,11 +288,16 @@ Steam's site, which a project can still choose instead, with the plugin's cloud 
   notFound; the page edits and saves; the tool resets.
 - **O4 - cloud saves.** The save file through a backend with `cloudSaves` (Decision 6), the fake
   backend's cloud. Tests: the newer copy wins and the other is kept; a flush writes both.
-- **O5 - the Steam plugin.** Decision 7, built where `STEAMWORKS_SDK_DIR` is set; its parts tested
-  where it is (a Steam client running, the test app id 480) and its absence tested everywhere (the
-  project told the part is not built, an export refused). The export templates' builds decide
-  whether they carry it (see Open questions).
-- **O6 - a sample uses it.** Sky Hopper (it has scores, stars and five levels) gains achievements,
+- **O5 - a plugin's outside dependencies.** Decision 8: the manifest's declarations, Preferences
+  and the environment variable, the checks at enable, plugin build, play in editor and export, and
+  deploy entries resolved inside a dependency. Tests: a test package declaring a dependency is
+  reported when enabled without it and refused at export with its name; provided, it exports with
+  the dependency's file staged.
+- **O6 - the Steam plugin.** Decision 7, built where the SDK is provided; its parts tested where it
+  is (a Steam client running, the test app id 480) and its absence tested everywhere (the project
+  told which dependency is missing, a template export refused for a native one). Play in editor on
+  Steam checked by hand.
+- **O7 - a sample uses it.** Sky Hopper (it has scores, stars and five levels) gains achievements,
   stats and a leaderboard, played on Local in the editor and the player.
 
 ## Gotchas
@@ -249,17 +313,23 @@ Steam's site, which a project can still choose instead, with the plugin's cloud 
 - **Tests cannot use Steam** on the lanes: a fake backend in the tests stands in for a platform,
   and the Steam plugin's own tests run only where the SDK and a client are.
 - **One backend per process**: play in editor's instances share it (they are one editor process),
-  so Local's state is the project's, not an instance's.
+  so Local's state is the project's, not an instance's, and on Steam every instance is the same
+  account.
+- **Reloading the plugin in the editor**: the subsystem drops the backend before the plugin
+  unloads and takes the new one after, with every pending handler dropped; Steam is shut down and
+  started again (whether the SDK allows a second start in one process is checked in O6; if not,
+  a reload keeps Steam running and only the plugin's code is replaced).
+- **Play in editor on Steam is the developer's real account**: what a test run unlocks shows on
+  their profile until the development reset clears it.
 
 ## Open questions
 
-1. **Where the Steam plugin's SDK comes from for the export templates.** The SDK cannot be in the
-   repository, so the CI that builds the templates would need it from a secret, or the official
-   templates carry no Steam backend and a project that enables it gets a player built for it (which
-   needs an engine checkout with the SDK). The flagship game needs it either way.
-2. **Achievement and stat ids mapped per backend, or the same everywhere.** Same by default, a map in
-   the plugin's settings where needed, as above; or required to match.
-3. **Play in editor on the platform backend**: a project setting (as proposed), or only ever Local.
+None left from 2026-11-04: the SDK's source (ruling 5), the ids (ruling 6) and play in editor
+(ruling 7) are decided above.
+
+1. **Which file names the right SDK folder**: `public/steam/steam_api_flat.h` for the build, or the
+   redistributable library the export stages; the first is what the build needs, the second what
+   the export needs. Proposed: the header, since a folder without it cannot build the plugin at all.
 
 ## Tests (the contract)
 
