@@ -134,11 +134,20 @@ namespace foundation::render
         {
             samples = 1;
         }
-        const u64 shaderVersion = m_shaders->Version(u8"sky"); // hot reload rebuilds
-        if (m_pipeline.IsValid() && m_colorFormat == colorFmt && m_depthFormat == depthFmt &&
-            m_pipelineSampleCount == samples && m_pipelineShaderVersion == shaderVersion)
+        const u64 shaderVersion = m_shaders->Version(u8"sky");
+        if (shaderVersion != m_pipelineShaderVersion)
         {
-            return m_pipeline;
+            // A reload, which lands between frames: every layout's pipeline is rebuilt as it is asked
+            // for. The device keeps the old ones while frames in flight use them.
+            DestroyPipelines();
+            m_pipelineShaderVersion = shaderVersion;
+        }
+        for (const Pipeline& cached : m_pipelines)
+        {
+            if (cached.color == colorFmt && cached.depth == depthFmt && cached.samples == samples)
+            {
+                return cached.pipeline;
+            }
         }
         rhi::ShaderModuleHandle vs = m_shaders->GetVariant(u8"sky", shaders::ShaderStage::Vertex,
                                                       shaders::ShaderFlags::None);
@@ -147,12 +156,6 @@ namespace foundation::render
         if (!vs.IsValid() || !ps.IsValid())
         {
             return {};
-        }
-        if (m_pipeline.IsValid())
-        {
-            // A rebuild (shader reload or MSAA sample-count toggle): in-flight command buffers may
-            // still use the old pipeline, which the device keeps until they are done.
-            m_device->DestroyRenderPipeline(m_pipeline);
         }
 
         // 2 targets: color (matches the HDR target) and velocity (camera motion, for TAA). No blend.
@@ -178,16 +181,22 @@ namespace foundation::render
         pd.primitive.cullMode = rhi::CullMode::None;
         pd.multisample.count = samples; // scene-pass MSAA: sky draws into the MSAA hdr and velocity
         pd.label = u8"sky";
-        if (!m_device->CreateRenderPipeline(pd, m_pipeline).IsOk())
+        Pipeline made{colorFmt, depthFmt, samples, {}};
+        if (!m_device->CreateRenderPipeline(pd, made.pipeline).IsOk())
         {
-            m_pipeline = {};
             return {};
         }
-        m_colorFormat = colorFmt;
-        m_depthFormat = depthFmt;
-        m_pipelineSampleCount = samples;
-        m_pipelineShaderVersion = shaderVersion;
-        return m_pipeline;
+        m_pipelines.PushBack(made);
+        return made.pipeline;
+    }
+
+    void SkyPass::DestroyPipelines()
+    {
+        for (Pipeline& cached : m_pipelines)
+        {
+            m_device->DestroyRenderPipeline(cached.pipeline);
+        }
+        m_pipelines.Clear();
     }
 
     rhi::BindGroupHandle SkyPass::EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureViewHandle envView,
@@ -253,11 +262,7 @@ namespace foundation::render
                 slot.ubo = {};
             }
         }
-        if (m_pipeline)
-        {
-            m_device->DestroyRenderPipeline(m_pipeline);
-            m_pipeline = {};
-        }
+        DestroyPipelines();
         if (m_sampler)
         {
             m_device->DestroySampler(m_sampler);

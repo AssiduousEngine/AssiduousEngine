@@ -149,21 +149,8 @@ namespace foundation::render
         {
             return out;
         }
-        // Hot reload or first use: (re)build the pipeline when the shader changed or the depth format
-        // differs from the cached one (the caller idles the GPU on shader reload).
-        const u64 shaderVersion = m_shaders->Version(u8"msaa_resolve");
-        if (!m_pipeline.IsValid() || shaderVersion != m_pipelineShaderVersion ||
-            depthFormat != m_pipelineDepthFormat)
-        {
-            if (m_pipeline.IsValid())
-            {
-                m_device->DestroyRenderPipeline(m_pipeline);
-            }
-            m_pipeline = MakePipeline(depthFormat);
-            m_pipelineShaderVersion = shaderVersion;
-            m_pipelineDepthFormat = depthFormat;
-        }
-        if (!m_pipeline.IsValid())
+        const rhi::RenderPipelineHandle pipeline = PipelineFor(depthFormat);
+        if (!pipeline.IsValid())
         {
             return out;
         }
@@ -182,7 +169,7 @@ namespace foundation::render
         graph.AddRenderPass(
             u8"msaa.resolve",
             [this, &graph, msaaDepth, msaaNormal, msaaVelocity, msaaMaterial, msaaAlbedo, out,
-             w, h](rendergraph::PassBuilder& b)
+             pipeline, w, h](rendergraph::PassBuilder& b)
             {
                 b.SetColorTarget(0, out.normal, rhi::LoadOp::DontCare, rhi::StoreOp::Store);
                 b.SetColorTarget(1, out.velocity, rhi::LoadOp::DontCare, rhi::StoreOp::Store);
@@ -199,7 +186,7 @@ namespace foundation::render
                 b.NeverCull();
                 b.SetExecute(
                     [this, &graph, msaaDepth, msaaNormal, msaaVelocity, msaaMaterial,
-                     msaaAlbedo](rhi::RenderPassEncoder& rp)
+                     msaaAlbedo, pipeline](rhi::RenderPassEncoder& rp)
                     {
                         BindInputs inputs;
                         inputs.Set(0, graph.GetTextureView(msaaNormal), graph.GetTextureGeneration(msaaNormal));
@@ -212,7 +199,7 @@ namespace foundation::render
                         {
                             return;
                         }
-                        rp.SetPipeline(m_pipeline);
+                        rp.SetPipeline(pipeline);
                         rp.SetBindGroup(0, bg, Span<const u32>{});
                         rp.Draw(3, 1, 0, 0);
                     });
@@ -220,14 +207,44 @@ namespace foundation::render
         return out;
     }
 
+    rhi::RenderPipelineHandle MsaaResolvePass::PipelineFor(rhi::TextureFormat depthFormat)
+    {
+        const u64 shaderVersion = m_shaders->Version(u8"msaa_resolve");
+        if (shaderVersion != m_pipelineShaderVersion)
+        {
+            // A reload, which lands between frames: each format's pipeline is rebuilt as it is asked
+            // for. The device keeps the old ones while frames in flight use them.
+            DestroyPipelines();
+            m_pipelineShaderVersion = shaderVersion;
+        }
+        for (const Pipeline& cached : m_pipelines)
+        {
+            if (cached.depth == depthFormat)
+            {
+                return cached.pipeline;
+            }
+        }
+        const rhi::RenderPipelineHandle made = MakePipeline(depthFormat);
+        if (made.IsValid())
+        {
+            m_pipelines.PushBack(Pipeline{depthFormat, made});
+        }
+        return made;
+    }
+
+    void MsaaResolvePass::DestroyPipelines()
+    {
+        for (Pipeline& cached : m_pipelines)
+        {
+            m_device->DestroyRenderPipeline(cached.pipeline);
+        }
+        m_pipelines.Clear();
+    }
+
     void MsaaResolvePass::Shutdown()
     {
         m_bindGroups.Release([this](rhi::BindGroupHandle bg) { m_device->DestroyBindGroup(bg); });
-        if (m_pipeline.IsValid())
-        {
-            m_device->DestroyRenderPipeline(m_pipeline);
-            m_pipeline = {};
-        }
+        DestroyPipelines();
         if (m_pipelineLayout.IsValid())
         {
             m_device->DestroyPipelineLayout(m_pipelineLayout);

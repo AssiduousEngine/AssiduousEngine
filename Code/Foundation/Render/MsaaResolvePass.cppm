@@ -71,6 +71,8 @@ export namespace foundation::render
 
     private:
         rhi::RenderPipelineHandle MakePipeline(rhi::TextureFormat depthFormat);
+        rhi::RenderPipelineHandle PipelineFor(rhi::TextureFormat depthFormat);
+        void DestroyPipelines();
         // The multisampled inputs: normal, velocity, material, depth, albedo.
         using BindInputs = BindGroupInputs<5>;
         rhi::BindGroupHandle EnsureBindGroup(const BindInputs& inputs);
@@ -80,9 +82,15 @@ export namespace foundation::render
         shaders::ShaderSystem* m_shaders = nullptr;
         rhi::BindGroupLayoutHandle m_layout{};
         rhi::PipelineLayoutHandle m_pipelineLayout{};
-        rhi::RenderPipelineHandle m_pipeline{};
-        rhi::TextureFormat m_pipelineDepthFormat = rhi::TextureFormat::Undefined;
-        u64 m_pipelineShaderVersion = 0;
+        // One pipeline per depth format: each declared pass resolves with the pipeline it was declared
+        // with, whatever views later in the frame ask for.
+        struct Pipeline
+        {
+            rhi::TextureFormat depth = rhi::TextureFormat::Undefined;
+            rhi::RenderPipelineHandle pipeline{};
+        };
+        Array<Pipeline> m_pipelines;
+        u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version they were built at (hot reload)
 
         // Bind groups keyed by the depth view, each kept only while all five inputs (views and
         // their textures' generations) are the ones it was built from: transients are pooled per

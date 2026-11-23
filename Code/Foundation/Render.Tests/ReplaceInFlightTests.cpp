@@ -8,14 +8,22 @@
 #include <doctest/doctest.h>
 #include "Core/Prelude.h"
 
+#include <cstring>
+
 import foundation.core;
+import foundation.vfs;
 import foundation.rhi;
 import foundation.rhi.null;
+import foundation.rendergraph;
+import foundation.shaders;
+import foundation.shaders.system;
 import foundation.render;
 
 using namespace foundation::core;
 using namespace foundation::render;
 namespace rhi = foundation::rhi;
+namespace rendergraph = foundation::rendergraph;
+namespace shaders = foundation::shaders;
 
 namespace
 {
@@ -159,4 +167,84 @@ TEST_CASE("shadows: a new resolution remakes each slot's textures, destroying th
     CHECK(device.Describe(device.TextureOf(shadows.PrepareFrame(0, 1)))->width == 768u);
     CHECK(shadows.PrepareAtlas(0) == smallerAtlas);
     CHECK(shadows.AtlasGeneration() == kept);
+}
+
+namespace
+{
+    struct StaleUses
+    {
+        int count = 0;
+        static bool Sink(void* context, bool error, const char* utf8)
+        {
+            if (error && std::strstr(utf8, "[rhi] stale") != nullptr)
+                ++static_cast<StaleUses*>(context)->count;
+            return true;
+        }
+    };
+}
+
+TEST_CASE("render.replace: views of one frame drawing the sky at different sample counts each keep their pipeline")
+{
+    // One cached pipeline was rebuilt for each view whose layout differed, destroying the one a view
+    // declared earlier in the frame still drew with when the graph ran (an editor viewport with MSAA
+    // beside a Game tab without).
+    shaders::Compiler* compiler = nullptr;
+    if (!shaders::createCompiler(shaders::CompilerDesc{}, compiler).IsOk())
+    {
+        MESSAGE("no shader compiler; skipping");
+        return;
+    }
+    {
+        rhi::null::NullDevice device(DefaultAllocator());
+        shaders::ShaderSystem shaderSystem(*compiler, device);
+        // The engine's sky shader, from the data root's Shaders/ as every executable finds it.
+        foundation::vfs::NativeFileSystem dataFs(foundation::vfs::FindDataRoot(), DefaultAllocator());
+        shaders::FileShaderSourceProvider provider{DefaultAllocator()};
+        REQUIRE(provider.Initialize(dataFs, shaders::kShaderFolder).IsOk());
+        shaderSystem.SetSourceProvider(&provider);
+        shaderSystem.SetIncludeResolver(&provider);
+        SkyPass sky(device, shaderSystem, /*framesInFlight*/ 2);
+        REQUIRE(sky.Initialize().IsOk());
+        rhi::TextureHandle envTexture{};
+        const rhi::TextureViewHandle envView = MakeView(device, envTexture);
+        rhi::CommandPool* pool = nullptr;
+        rhi::CommandEncoder* encoder = nullptr;
+        REQUIRE(device.CreateCommandPool(rhi::QueueType::Graphics, pool).IsOk());
+        REQUIRE(pool->CreateEncoder(encoder).IsOk());
+
+        rendergraph::RenderGraph graph(DefaultAllocator(), &device);
+        graph.SetOutputSize(64, 64);
+        StaleUses stale;
+        rhi::SetLogSink(&StaleUses::Sink, &stale);
+        for (u32 frame = 0; frame < 3; ++frame)
+        {
+            graph.BeginFrame(static_cast<i32>(frame % 2));
+            const rendergraph::RGHandle env = graph.ImportTarget(u8"env", envTexture, envView);
+            const u32 counts[2] = {4, 1};
+            for (u32 view = 0; view < 2; ++view)
+            {
+                rendergraph::RGTextureDesc color(rhi::TextureFormat::RGBA16Float, 64, 64);
+                color.sampleCount = counts[view];
+                rendergraph::RGTextureDesc velocity(kGVelocityFormat, 64, 64);
+                velocity.sampleCount = counts[view];
+                rendergraph::RGTextureDesc depth(rhi::TextureFormat::Depth32Float, 64, 64);
+                depth.sampleCount = counts[view];
+                const rendergraph::RGHandle colorH = graph.CreateTransient(u8"hdr", color);
+                sky.DeclareSky(graph, colorH, graph.CreateTransient(u8"velocity", velocity),
+                               graph.CreateTransient(u8"depth", depth), env, envView,
+                               rhi::TextureFormat::RGBA16Float, rhi::TextureFormat::Depth32Float,
+                               Float4x4::Identity(), Float4x4::Identity(), Float2{}, Float2{}, Float3{},
+                               1.0f, Float3{0.0f, 1.0f, 0.0f}, 0.5f, Float3{1.0f, 1.0f, 1.0f}, 1.0f, 0, 0,
+                               64, 64, frame % 2, view, 1, counts[view]);
+            }
+            CHECK(graph.Execute(encoder).IsOk());
+            graph.EndFrame();
+            graph.Reset();
+        }
+        rhi::SetLogSink(nullptr, nullptr);
+        CHECK(device.Counters().pipelineBinds == 6u); // each view's sky drew, every frame
+        CHECK(stale.count == 0);
+        device.DestroyCommandPool(pool);
+    }
+    compiler->Destroy();
 }

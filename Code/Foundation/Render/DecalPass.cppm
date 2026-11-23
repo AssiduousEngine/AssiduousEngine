@@ -122,9 +122,17 @@ export namespace foundation::render
         rhi::BindGroupLayoutHandle m_uboLayout{};
         rhi::BindGroupLayoutHandle m_texLayout{};
         rhi::PipelineLayoutHandle m_pipelineLayout{};
-        rhi::RenderPipelineHandle m_pipeline{};
-        u32 m_pipelineSampleCount = 1;   // scene-pass MSAA count the cached pipeline was built for
-        u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
+        // One pipeline per MSAA sample count: views of one frame can draw decals at different counts,
+        // and each declared pass draws with the pipeline it was declared with.
+        struct Pipeline
+        {
+            u32 samples = 1;
+            rhi::RenderPipelineHandle pipeline{};
+        };
+        Array<Pipeline> m_pipelines;
+        u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version they were built at (hot reload)
+        rhi::RenderPipelineHandle PipelineFor(u32 samples);
+        void DestroyPipelines();
         rhi::SamplerHandle m_depthSampler{};
         rhi::SamplerHandle m_texSampler{};
         rhi::BindGroupHandle m_uboBg{};

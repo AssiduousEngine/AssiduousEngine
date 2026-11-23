@@ -95,6 +95,7 @@ export namespace foundation::render
         rhi::BindGroupHandle EnsureBindGroup(u32 viewIndex, u32 frameIndex, rhi::TextureViewHandle envView, u64 envUid,
                                         const GpuSky& u);
 
+        void DestroyPipelines();
         void Shutdown();
 
         struct Slot
@@ -110,11 +111,19 @@ export namespace foundation::render
         u32 m_fif = 2;
         rhi::BindGroupLayoutHandle m_layout{};
         rhi::PipelineLayoutHandle m_pipelineLayout{};
-        rhi::RenderPipelineHandle m_pipeline{};
-        rhi::TextureFormat m_colorFormat = rhi::TextureFormat::Undefined;
-        rhi::TextureFormat m_depthFormat = rhi::TextureFormat::Undefined;
-        u32 m_pipelineSampleCount = 1; // scene-pass MSAA count the cached pipeline was built for
-        u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version at build (hot reload)
+        // One pipeline per target layout. Views of one frame can draw the sky into different
+        // layouts (an MSAA viewport beside a Game tab without), and a pass declared earlier in the
+        // frame holds its pipeline until the graph runs: replacing one per view would destroy a
+        // pipeline a declared pass still draws with.
+        struct Pipeline
+        {
+            rhi::TextureFormat color = rhi::TextureFormat::Undefined;
+            rhi::TextureFormat depth = rhi::TextureFormat::Undefined;
+            u32 samples = 1;
+            rhi::RenderPipelineHandle pipeline{};
+        };
+        Array<Pipeline> m_pipelines;
+        u64 m_pipelineShaderVersion = 0; // ShaderSystem::Version they were built at (hot reload)
         rhi::SamplerHandle m_sampler{};
         ViewSlots<Slot> m_slots; // per (view, frame in flight), however many views a frame has
     };

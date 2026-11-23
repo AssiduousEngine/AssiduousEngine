@@ -103,8 +103,8 @@ namespace foundation::render
             return Status{ErrorCode::Unknown};
         }
 
-        m_pipeline = MakePipeline(1); // single-sample by default; rebuilt to MSAA on demand
-        if (!m_pipeline.IsValid())
+        m_pipelineShaderVersion = m_shaders->Version(u8"decal");
+        if (!PipelineFor(1).IsValid()) // single-sample up front; other counts as views ask
         {
             return Status{ErrorCode::Unknown};
         }
@@ -133,22 +133,8 @@ namespace foundation::render
         {
             samples = 1;
         }
-        // Hot reload and MSAA: rebuild the pipeline when the shader or the sample count changed (decals
-        // draw into the MSAA hdr, so the PSO must match). The GPU is idle on shader reload.
-        const u64 shaderVersion = m_shaders->Version(u8"decal");
-        if (shaderVersion != m_pipelineShaderVersion || samples != m_pipelineSampleCount)
-        {
-            if (m_pipeline.IsValid())
-            {
-                // Rare rebuild (shader reload or MSAA toggle): in-flight command buffers may still use
-                // the old pipeline, which the device keeps until they are done.
-                m_device->DestroyRenderPipeline(m_pipeline);
-            }
-            m_pipeline = MakePipeline(samples);
-            m_pipelineShaderVersion = shaderVersion;
-            m_pipelineSampleCount = samples;
-        }
-        if (!m_pipeline.IsValid())
+        const rhi::RenderPipelineHandle pipeline = PipelineFor(samples);
+        if (!pipeline.IsValid())
         {
             return;
         }
@@ -194,7 +180,7 @@ namespace foundation::render
         rhi::BindGroupHandle uboBg = EnsureUboBindGroup();
         graph.AddRenderPass(
             u8"decal",
-            [this, &graph, hdr, depth, uboBg, vpX, vpY, vpW, vpH,
+            [this, &graph, hdr, depth, uboBg, pipeline, vpX, vpY, vpW, vpH,
              draws = viewDraws](rendergraph::PassBuilder& b)
             {
                 b.SetColorTarget(0, hdr, rhi::LoadOp::Load, rhi::StoreOp::Store,
@@ -205,7 +191,7 @@ namespace foundation::render
                 b.SetViewport(vpX, vpY, vpW, vpH);
                 b.NeverCull();
                 b.SetExecute(
-                    [this, &graph, depth, uboBg, draws](rhi::RenderPassEncoder& rp)
+                    [this, &graph, depth, uboBg, pipeline, draws](rhi::RenderPassEncoder& rp)
                     {
                         rhi::BindGroupHandle depthBg = EnsureDepthBindGroup(
                             graph.GetTextureView(depth), graph.GetTextureGeneration(depth));
@@ -213,7 +199,7 @@ namespace foundation::render
                         {
                             return;
                         }
-                        rp.SetPipeline(m_pipeline);
+                        rp.SetPipeline(pipeline);
                         rp.SetBindGroup(0, depthBg, Span<const u32>{});
                         for (const Draw& d : draws)
                         {
@@ -350,6 +336,40 @@ namespace foundation::render
         return bg;
     }
 
+    rhi::RenderPipelineHandle DecalPass::PipelineFor(u32 samples)
+    {
+        const u64 shaderVersion = m_shaders->Version(u8"decal");
+        if (shaderVersion != m_pipelineShaderVersion)
+        {
+            // A reload, which lands between frames: each count's pipeline is rebuilt as it is asked
+            // for. The device keeps the old ones while frames in flight use them.
+            DestroyPipelines();
+            m_pipelineShaderVersion = shaderVersion;
+        }
+        for (const Pipeline& cached : m_pipelines)
+        {
+            if (cached.samples == samples)
+            {
+                return cached.pipeline;
+            }
+        }
+        const rhi::RenderPipelineHandle made = MakePipeline(samples);
+        if (made.IsValid())
+        {
+            m_pipelines.PushBack(Pipeline{samples, made});
+        }
+        return made;
+    }
+
+    void DecalPass::DestroyPipelines()
+    {
+        for (Pipeline& cached : m_pipelines)
+        {
+            m_device->DestroyRenderPipeline(cached.pipeline);
+        }
+        m_pipelines.Clear();
+    }
+
     void DecalPass::Shutdown()
     {
         for (auto& kv : m_texBindGroups)
@@ -370,11 +390,7 @@ namespace foundation::render
             m_device->DestroyBindGroup(m_uboBg);
             m_uboBg = {};
         }
-        if (m_pipeline.IsValid())
-        {
-            m_device->DestroyRenderPipeline(m_pipeline);
-            m_pipeline = {};
-        }
+        DestroyPipelines();
         if (m_texSampler.IsValid())
         {
             m_device->DestroySampler(m_texSampler);
