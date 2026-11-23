@@ -369,29 +369,32 @@ namespace foundation::render
     {
         PROFILE_SCOPE("mesh.instances");
         m_instanceTable.BeginFrame(m_frameIndex);
-        for (const ExtractedScene* scene : scenes)
         {
-            if (scene == nullptr)
+            PROFILE_SCOPE("mesh.instances.claim");
+            for (const ExtractedScene* scene : scenes)
             {
-                continue;
-            }
-            for (RenderData* data : scene->Items())
-            {
-                if (data == nullptr || data->rendererId != RendererId())
+                if (scene == nullptr)
                 {
                     continue;
                 }
-                auto* md = static_cast<MeshRenderData*>(data);
-                if (md->multiMesh)
+                for (RenderData* data : scene->Items())
                 {
-                    continue; // a set keeps its own instances
-                }
-                const InstanceTable::Claimed claimed =
-                    m_instanceTable.Claim(md->scene, md->entityId, md->world, md->color);
-                md->instanceSlot = claimed.slot;
-                if (claimed.refresh)
-                {
-                    m_refreshItems.PushBack(md);
+                    if (data == nullptr || data->rendererId != RendererId())
+                    {
+                        continue;
+                    }
+                    auto* md = static_cast<MeshRenderData*>(data);
+                    if (md->multiMesh)
+                    {
+                        continue; // a set keeps its own instances
+                    }
+                    const InstanceTable::Claimed claimed =
+                        m_instanceTable.Claim(md->scene, md->entityId, md->world, md->color);
+                    md->instanceSlot = claimed.slot;
+                    if (claimed.refresh)
+                    {
+                        m_refreshItems.PushBack(md);
+                    }
                 }
             }
         }
@@ -402,28 +405,40 @@ namespace foundation::render
         const auto refresh = [this](u32 i)
         {
             const MeshRenderData* md = m_refreshItems[i];
-            m_refreshed[i] = m_instanceTable.Refresh(md->instanceSlot, md->world, md->color) ? 1 : 0;
+            m_refreshed[i] = m_instanceTable.Refresh(md->instanceSlot, md->world, md->color)
+                                 ? md->instanceSlot
+                                 : InstanceTable::kNoSlot;
         };
-        if (count >= kParallelRefreshItems && HasGlobalJobSystem())
         {
-            GlobalJobs().ParallelFor(count, refresh, kParallelRefreshItems / 4u);
-        }
-        else
-        {
-            for (u32 i = 0; i < count; ++i)
+            PROFILE_SCOPE("mesh.instances.refresh");
+            if (count >= kParallelRefreshItems && HasGlobalJobSystem())
             {
-                refresh(i);
+                GlobalJobs().ParallelFor(count, refresh, kParallelRefreshItems / 4u);
+            }
+            else
+            {
+                for (u32 i = 0; i < count; ++i)
+                {
+                    refresh(i);
+                }
             }
         }
-        for (u32 i = 0; i < count; ++i)
         {
-            if (m_refreshed[i] != 0)
+            PROFILE_SCOPE("mesh.instances.mark");
+            // The written slots from a flat array: through the items it was a cache miss each.
+            for (u32 slot : m_refreshed)
             {
-                m_instanceTable.MarkChanged(m_refreshItems[i]->instanceSlot);
+                if (slot != InstanceTable::kNoSlot)
+                {
+                    m_instanceTable.MarkChanged(slot);
+                }
             }
         }
         m_refreshItems.Clear();
-        m_instanceTable.EndScenes();
+        {
+            PROFILE_SCOPE("mesh.instances.end");
+            m_instanceTable.EndScenes();
+        }
         PROFILE_SCOPE("mesh.instances.upload");
         m_instanceTable.Upload(encoder);
         (void)EnsureInstanceBindGroup();

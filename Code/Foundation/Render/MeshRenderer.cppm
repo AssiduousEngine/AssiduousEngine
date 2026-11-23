@@ -694,10 +694,10 @@ export namespace foundation::render
         // it by slot (GpuDrawOffsets::instanceIndex).
         InstanceTable m_instanceTable;
         // This frame's items whose records the table already held, refreshed across the job system,
-        // and which of them it wrote. Kept between frames for their capacity.
+        // and the slot each wrote (kNoSlot for none). Kept between frames for their capacity.
         static constexpr u32 kParallelRefreshItems = 4096;
         Array<MeshRenderData*> m_refreshItems{*m_allocator};
-        Array<u8> m_refreshed{*m_allocator};
+        Array<u32> m_refreshed{*m_allocator};
         // The frame's items into the table, each given its slot, then the copy into it.
         void UploadInstances(Span<const ExtractedScene* const> scenes, rhi::CommandEncoder& encoder);
         // Set 1 of the instanced draws over the table, made again when the table is.
